@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.env.local
+.org/telemetry/
+*.log
+.DS_Store

@@ -1,0 +1,87 @@
+# roles.yaml — v0 DRAFT (2026-07-03), for discussion
+#
+# One entry per employee. `runtime` selects the adapter (claude | codex | pi),
+# `model` is a config swap, `effort` is generic and mapped per-adapter
+# (Anthropic: low..max; OpenAI: reasoning effort; pi: thinking level).
+# `delegation` is the intra-turn fan-out policy — what the harness may spawn
+# INSIDE a turn. Cross-provider mixing never happens intra-turn; it is an
+# org-level flow between roles (see PURPOSE.md).
+#
+# Model IDs: Anthropic IDs are exact; OpenAI IDs are placeholders using
+# Bikram's naming — verify exact strings at build time.
+
+defaults:
+  max_turn_budget_usd: 5        # hard stop per turn; overrun = incident note, not silent spend
+  telemetry: per-turn           # tokens + cost recorded per role turn, incl. subagent spend
+  session_retention_days: 30
+
+roles:
+  planner:
+    runtime: claude
+    model: claude-opus-4-8      # frontier: ticket quality determines everything downstream
+    effort: high
+    delegation:
+      allow: [research-fanout]  # parallel readers over feedback/repo/issues; no code subagents
+    triggers:
+      - schedule: "daily 07:00"     # synthesize support digest, groom backlog
+      - schedule: "weekly mon"      # deep planning pass
+    outputs: [tickets, priorities, roadmap-notes]
+
+  builder:
+    runtime: codex
+    model: gpt-5.5              # PLACEHOLDER id; most tokens burn here → mid-tier,
+    effort: high                # quality recovered by the Reviewer gate, not by
+    delegation:                 # paying frontier rates on every build token
+      allow: [explore, test-fanout]
+    triggers:
+      - event: ticket-ready     # wakes when Planner labels a ticket ready
+    outputs: [pr]
+
+  reviewer:
+    runtime: claude             # DELIBERATELY a different provider than builder —
+    model: claude-opus-4-8      # uncorrelated blind spots; the single most important
+    effort: xhigh               # pairing decision in this file
+    delegation:
+      allow: [adversarial-verify]   # N independent verifiers per finding before reporting
+    triggers:
+      - event: pr-opened
+    outputs: [review, merge-verdict]
+
+  sre:
+    runtime: codex
+    model: gpt-5.5              # PLACEHOLDER id
+    effort: medium
+    delegation:
+      allow: [explore]
+    triggers:
+      - schedule: "hourly"          # health sweep
+      - event: ci-failed
+      - event: alert-webhook
+    outputs: [fixes, infra-prs, incident-notes]
+    # deploys / DNS / secrets remain human-gated regardless of model (critical ops)
+
+  support:
+    runtime: claude
+    model: claude-sonnet-4-6    # high volume, low stakes per message → cheap tier
+    effort: medium              # that still writes well; Haiku scouts for triage
+    delegation:
+      allow: [triage-fanout]
+    triggers:
+      - schedule: "every 4h"
+    outputs: [feedback-digest, reply-drafts]
+    # v1: replies are DRAFTS — posting publicly = external publishing = critical op,
+    # so human-approved until calibration earns autonomy. Digests flow to Planner
+    # automatically (internal, ungated).
+
+  marketing:
+    runtime: claude
+    model: claude-sonnet-4-6    # strong prose at volume; swap to Opus for
+    effort: high                # positioning-level work
+    delegation:
+      allow: [research-fanout]  # competitive/landscape reads, adoption-signal sweeps
+    triggers:
+      - event: release-shipped  # changelog + launch notes for every ship
+      - schedule: "weekly thu"  # content + positioning pass
+    outputs: [changelog, launch-post-drafts, positioning-notes, adoption-digest]
+    # same rule as support: anything public is a DRAFT until human-approved
+    # (external publishing = critical op); adoption-digest flows to Planner ungated

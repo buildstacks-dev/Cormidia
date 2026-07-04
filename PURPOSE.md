@@ -12,21 +12,26 @@ approver gating critical operations only.
 **Operon is a library, not an app.** It is pointed at a target repo via
 config; it never contains app code. One org runtime, N applications.
 
-## First application
+## Pilot applications
 
-**Civic Intelligence / Responsible Citizen** (`AgentSkill-CivicIntelligence`) —
-the civic-evidence layer over authoritative public sources. The org repo and the
-app repo live as parallel siblings; the org operates on the app the way
-claude-loop operates on any target repo.
+Two pilots, onboarded **sequentially**, chosen to stress complementary halves
+of the org (decided 2026-07-04):
 
-```
-<parent>/                     TCC-safe parent (launchd jobs die under ~/Documents)
-  operon/                     the org runtime — reusable library/CLI (this repo)
-  <civic-intelligence>/       first target app repo
-```
+1. **Civic Intelligence / Responsible Citizen**
+   (`~/Build/Government/AgentSkill-CivicIntelligence`) — the civic-evidence
+   layer over authoritative public sources. App #1: drives the build-loop
+   milestones — Planner → Builder → Reviewer on real tickets (first up:
+   extending coverage to more US states).
+2. **buildstacks.dev** (repo to be created) — Bikram's personal portfolio
+   umbrella site. App #2, onboarded only after loop v1 is solid on civic. Its
+   job: prove "second app = config file, not a fork" and exercise the
+   SRE/infra surface — droplet provisioning, DNS, GitHub repo creation,
+   deploys — where nearly every op is gate-critical by design, forcing the
+   approval surface to become real.
 
-The architecture must generalize: pointing the org at a second app should be a
-config file, not a fork.
+The org operates on each app the way claude-loop operates on any target repo.
+The architecture must generalize: pointing the org at a second app is a
+config file, not a fork — buildstacks.dev exists to prove it.
 
 ## The org chart
 
@@ -147,6 +152,62 @@ config file, not a fork.
   operator — the same shape as this project (multiple role-agents, one
   critical-ops gate). Repo moved to `~/Build/Operon`; GitHub repo at
   `buildstacks-dev/Operon`.
+- **Pilot tasks are the acceptance tests** (2026-07-04). Roadmap "toy task"
+  smoke tests are replaced by real, small civic tasks: the Planner's first
+  real turn drafts the US-states extension spec; loop v1's first end-to-end
+  ticket is a real one-file civic change. buildstacks.dev enters only after
+  loop v1 works on civic. Two pilots, one at a time per milestone — never
+  parallel builds.
+- **Multi-app: designed in, operated sequentially** (2026-07-04). The
+  architecture is multi-app from day one (app registry; per-app config,
+  TASTE, memory, scorecards), but the org runs **one live app** until the
+  scorecards and the human's own load say otherwise. Human bandwidth is
+  protected by construction: a single app-tagged approval queue (one inbox,
+  never one per app), per-app cadence in config, org-level WIP limits.
+  Co-planning sessions are the one irreducibly per-app human cost — that is
+  the real limit on live-app count, and why onboarding is sequential.
+- **One turn, one app** (2026-07-04). A role turn operates in exactly one
+  target-repo workdir (already the `TurnRequest` contract); multi-app exists
+  only in the scheduler and the human surfaces, never inside a turn's
+  context. Memory splits per role (craft knowledge, cross-app) vs per
+  role+app (domain knowledge); context assembly loads the role bundle plus
+  the *current* app's bundle only. Scorecards are kept per (role, app) so
+  quality regressions localize.
+- **Bootstrap & artifact home** (2026-07-04). `operon bootstrap` runs inside
+  the product repo: learns the repo, walks an alignment questionnaire with
+  the user, emits artifacts. Default (single-app profile): everything stays
+  in the product repo's own git — `.operon/` (constitution + config,
+  committed), `.operon/memory/` (curated OKF bundles, committed); high-churn
+  operational state (sessions, telemetry, raw logs) lives gitignored in
+  `~/.operon/<org>/`. An **org-home repo is optional, never required** — a
+  graduation move for multi-app orgs; `bootstrap` in a second repo detects
+  and joins an existing org. Org-level artifacts use the identical on-disk
+  layout inside `.operon/` and at an org-home repo root, so extraction later
+  is a `git mv`, not a migration. Dogfood note: this library repo doubles as
+  our own org home for now; the root `roles.yaml` / `TASTE.md` are instance
+  config destined to become bootstrap templates — don't harden the
+  conflation.
+- **TASTE layers answer different questions** (2026-07-04). The stack is not
+  an override cascade of one document type. Org `TASTE.md`: values +
+  engineering constitution ("how we work; what we never do"). App
+  `.operon/TASTE.md` in the target repo: product charter ("what this product
+  is; what good means here" — civic's evidence honesty vs buildstacks'
+  personal voice). Role `taste/<role>.md`: craft standards ("what good looks
+  like in this discipline" — reviewer checklist, marketing tone). Assembly
+  is concatenation in fixed order (org → role → app); layers are orthogonal
+  so real conflicts are rare — where they collide, the narrower layer
+  specializes defaults, but the org's "What we never do" section is
+  unoverridable.
+- **Approval surface — CLI queue** (2026-07-04). Gate escalations land in a
+  CLI approval queue; the human reviews items **one by one** — approve, or
+  deny with reason — and every decision is persisted as an audit trail.
+  No push/email channel in v1; if one is added later it is a pointer into
+  the same queue, never a second approval path.
+- **Budget & cadence** (2026-07-04). Default **$1,000/month per app**,
+  configurable per app; the per-turn hard stop stays in roles.yaml
+  (`max_turn_budget_usd`). Per-turn telemetry rolls up to monthly spend per
+  app against its budget. Cadence: **flexi, no restrictions** — roles fire
+  per their triggers at any hour; no working-hours window.
 
 ## Prior art (ours)
 
@@ -180,8 +241,7 @@ Other in-house experiments worth mining for lessons: `agent-team-template-codex`
 
 ## Open questions
 
-1. **Budget and cadence** — model spend, and how often the org "comes to work."
-2. **Role → runtime/model assignment v1** — fill in `roles.yaml`: which model,
+1. **Role → runtime/model assignment v1** — fill in `roles.yaml`: which model,
    effort level, and delegation policy each of Planner, Builder, Reviewer, SRE,
    Support gets at launch.
 
@@ -208,3 +268,14 @@ Other in-house experiments worth mining for lessons: `agent-team-template-codex`
   be archived by Bikram.
 - 2026-07-03 — v0.7: renamed agentic-org → **Operon**; repo moved to
   `~/Build/Operon`; GitHub repo created at `buildstacks-dev/Operon`.
+- 2026-07-04 — v0.8: pilots decided — civic (app #1) drives the loop
+  milestones via real acceptance tasks; **buildstacks.dev** added as app #2
+  to prove config-not-fork and the SRE/approval surface. Multi-app designed
+  in, operated one-live-app-at-a-time; one-turn-one-app invariant; memory
+  and scorecards partitioned per (role, app). Bootstrap artifact home
+  decided (`.operon/` in the product repo; org-home repo optional). TASTE
+  layer semantics clarified (org values / app charter / role craft).
+- 2026-07-04 — v0.9: approval channel decided — CLI queue, reviewed one by
+  one, persisted audit trail. Budget decided — $1,000/month per app,
+  configurable per app. Cadence decided — flexi, no restrictions. Open
+  question #1 (budget & cadence) closed.

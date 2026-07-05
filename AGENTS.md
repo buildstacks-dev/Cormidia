@@ -54,8 +54,11 @@ and the build loop are documented stubs.
   the roles.yaml edit is wrong — don't "fix" the test.
 - **Dependencies: minimal and boring** (TASTE.md §3). Only `yaml` at runtime
   today. Adding a dependency is a decision, not a convenience.
-- **Model IDs:** Anthropic IDs in roles.yaml are exact; `gpt-5.5` entries are
-  PLACEHOLDERS — verify real OpenAI IDs before wiring the Codex adapter.
+- **Model IDs:** all roles.yaml IDs verified against live catalogs and
+  human-ratified 2026-07-05 (PR #1; sources in
+  `research/2026-07-05_model-id-verification.md`). One live caveat: `gpt-5.5`
+  in Codex currently requires ChatGPT-account auth, not an API key —
+  re-verify when wiring the Codex adapter (M10).
 - Single package, deliberately **not** a pnpm workspace (PURPOSE.md → Repo shape).
 
 ## Testing expectations

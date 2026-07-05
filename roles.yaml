@@ -29,9 +29,9 @@ roles:
 
   builder:
     runtime: codex
-    model: gpt-5.4              # mid-tier ($2.50/$15); most tokens burn here →
-    effort: high                # quality recovered by the Reviewer gate, not by
-    delegation:                 # paying frontier rates ($5/$30 gpt-5.5) per build token
+    model: gpt-5.5              # flagship + Codex CLI default; ratified 2026-07-05:
+    effort: high                # build quality over token cost — the Reviewer gate
+    delegation:                 # stays as the second line of defense
       allow: [explore, test-fanout]
     triggers:
       - event: ticket-ready     # wakes when Planner labels a ticket ready
@@ -49,7 +49,7 @@ roles:
 
   sre:
     runtime: codex
-    model: gpt-5.4              # mid-tier; gpt-5.4-mini is the fallback if hourly sweeps dominate spend
+    model: gpt-5.5              # ratified 2026-07-05; gpt-5.4-mini remains the economy fallback if hourly sweeps dominate spend
     effort: medium
     delegation:
       allow: [explore]

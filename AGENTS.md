@@ -19,11 +19,13 @@ and the build loop are documented stubs.
 | `TASTE.md` | Org constitution, loaded by every agent the org runs (human-ratified) |
 | `roles.yaml` | Org chart made executable: role → runtime/model/effort/triggers |
 | `TODO.md` | Roadmap + session-handoff state — pick up the top unchecked item |
+| `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 = proposals pending ratification) |
+| `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, adapters (claude / codex / pi) |
-| `src/loop/` | Build loop (claude-loop successor): ticket → PR → review → merge (skeleton) |
+| `src/loop/` | Build loop: pass executor, briefs, quality gates, ticket state machine (skeleton — design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles.yaml loader; scheduler/memory/retro to come |
 | `test/` | Gate conformance seed + roles.yaml validation |
-| `research/` | Decision records (runtime adapter integration facts) |
+| `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
 ## Commands (all verified 2026-07-03)
 - Install: `pnpm install`
@@ -62,8 +64,12 @@ and the build loop are documented stubs.
 
 ## Navigation
 - Decisions & rationale: `PURPOSE.md` (Decided section is authoritative)
+- Detailed design (how each subsystem works): `docs/architecture.md`
+- Build-loop engineering design (passes, briefs, gates, verdicts): `docs/loop.md`
+- Predecessor orchestrator (prior-art reference being ported; "the predecessor" in docs): `scratchpad-gitignore/claude-loop-teams/` (Python, read-only)
 - Constitution the org's agents load: `TASTE.md`
 - Adapter integration facts (SDKs, embedding modes, risks): `research/2026-07-03_runtime-layer.md`
+- Prompt-caching economics + cache-stable assembly rules: `research/2026-07-04_prompt-caching.md`
 - Roadmap / where the last session stopped: `TODO.md`
 
 ## Maintenance

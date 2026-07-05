@@ -1,5 +1,6 @@
 node_modules/
 dist/
+scratchpad-gitignore/
 .env
 .env.local
 .org/telemetry/

@@ -176,7 +176,12 @@ session-wide `canUseTool` question settled with evidence.*
   runtime layer.
   **Session:** sonnet, single session (needs web access).
 
-- [ ] **M1.2 ClaudeRuntime core: SDK wiring, context injection, resume, session-wide gate**
+- [x] **M1.2 ClaudeRuntime core: SDK wiring, context injection, resume, session-wide gate** ✅ 2026-07-05 —
+  full conformance suite passed LIVE on subscription auth (11 turns, $2.43,
+  claude-sonnet-5); subagent-gate claim proven. Key finding: canUseTool alone
+  is insufficient (misses auto-allowed bash + subagent calls) — the gate is a
+  PreToolUse hook. See research/2026-07-05_claude-runtime-live-conformance.md.
+  Live suite: `pnpm test:live` (excluded from fast `pnpm test`).
   **Goal:** Implement `src/runtime/adapters/claude.ts` on the Claude Agent
   SDK (TS): TurnRequest→SDK options (model/effort/workdir), ContextBundle
   via system-prompt append (no files written), session resume from

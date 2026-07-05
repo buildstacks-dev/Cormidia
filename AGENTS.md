@@ -30,9 +30,15 @@ and the build loop are documented stubs.
 | `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
-## Commands (all verified 2026-07-03)
-- Install: `pnpm install`
-- Test: `pnpm test` (vitest — fast; run for any `src/` or `roles.yaml` change)
+## Commands (all verified 2026-07-05)
+- Install: `pnpm install` — pnpm is pinned via `packageManager` (corepack);
+  an older global pnpm will fail with store/workspace errors. `corepack
+  enable` once if `pnpm --version` doesn't match the pin.
+- Test: `pnpm test` (vitest — fast, offline; run for any `src/` or
+  `roles.yaml` change; `*.live.test.ts` files are excluded here)
+- Live adapter tests: `pnpm test:live` (real Claude Agent SDK turns, real
+  tokens; subscription auth first, API key fallback; skips without usable
+  auth — never run by `pnpm test`)
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` (tsc → `dist/`)
 - CLI in dev: `pnpm dev roles` · `pnpm dev doctor`
@@ -52,8 +58,10 @@ and the build loop are documented stubs.
 - **The builder ≠ reviewer cross-provider test** in `test/roles.test.ts`
   encodes a design decision (uncorrelated review blind spots). If it fails,
   the roles.yaml edit is wrong — don't "fix" the test.
-- **Dependencies: minimal and boring** (TASTE.md §3). Only `yaml` at runtime
-  today. Adding a dependency is a decision, not a convenience.
+- **Dependencies: minimal and boring** (TASTE.md §3). Runtime deps today:
+  `yaml` and `@anthropic-ai/claude-agent-sdk` (the ClaudeRuntime adapter —
+  the first SDK dependency, flagged and landed with M1.2). Adding a
+  dependency is a decision, not a convenience.
 - **Model IDs:** all roles.yaml IDs verified against live catalogs and
   human-ratified 2026-07-05 (PR #1; sources in
   `research/2026-07-05_model-id-verification.md`). One live caveat: `gpt-5.5`
@@ -66,6 +74,9 @@ and the build loop are documented stubs.
 - `gate.ts` changes: add cases to `test/gate.test.ts` for every new rule —
   both the critical side and a routine near-miss.
 - `roles.yaml` changes: `pnpm dev roles` must print cleanly; tests stay green.
+- Adapter changes (`src/runtime/adapters/**`): also run `pnpm test:live` and
+  record the dated result in `research/` — the live conformance run is the
+  only proof the subagent-gate claim still holds.
 - Docs-only changes: nothing to run.
 
 ## Navigation

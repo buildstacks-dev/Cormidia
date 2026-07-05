@@ -43,12 +43,41 @@ export const CRITICAL_RULES: CriticalRule[] = [
   },
   {
     name: "protocol-self-edit", // agents don't rewrite their own rules
-    matches: (a) => /\b(taste\.md|roles\.yaml|agents\.md|purpose\.md)\b/.test(asText(a)) && isWrite(a),
+    matches: (a) => isWrite(a) && isProtocolSurface(asText(a)),
+  },
+  {
+    name: "scorecard-tamper", // scorecards are orchestrator-written only, never
+    // self-reported (docs/architecture.md §6) — an agent write is a distinct
+    // integrity concern from rewriting the org's own rules, hence its own rule
+    matches: (a) => isWrite(a) && /\bscorecards\/[^\s"']+/.test(asText(a)),
   },
 ];
 
 function isWrite(a: ToolAction): boolean {
   return /\b(write|edit|create|replace|append|mv|rm|sed -i|>\s)/.test(asText(a));
+}
+
+/** Exact protocol filenames, matched anywhere in the repo tree (e.g. root
+ *  `roles.yaml`, an app's `.operon/TASTE.md`, a nested `apps.yaml`). */
+const PROTOCOL_FILENAMES =
+  /\b(taste\.md|roles\.yaml|agents\.md|purpose\.md|pipelines\.yaml|apps\.yaml)\b/;
+
+/** Path-qualified protocol directories, where the file basename varies and so
+ *  the exact-filename check above can't catch it — e.g. `taste/reviewer.md`
+ *  (role craft addenda; distinct from the root `TASTE.md` constitution) and
+ *  `prompts/build/contract.md` (pass templates, docs/loop.md §2 rule 2). The
+ *  old `\btaste\.md\b`-only check missed these: "taste/reviewer.md" has no
+ *  "taste.md" substring. */
+const PROTOCOL_DIRS = /\b(taste|prompts)\/[^\s"']+/;
+
+/** `.operon/config.yaml` (app bootstrap config) doesn't share a basename with
+ *  any of the above, so it gets its own exact match. */
+const PROTOCOL_CONFIG_FILE = /\.operon\/config\.yaml\b/;
+
+function isProtocolSurface(text: string): boolean {
+  return (
+    PROTOCOL_FILENAMES.test(text) || PROTOCOL_DIRS.test(text) || PROTOCOL_CONFIG_FILE.test(text)
+  );
 }
 
 export function classify(action: ToolAction): { cls: OpClass; rule?: string } {

@@ -24,6 +24,44 @@ const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
     action: { tool: "write", input: { path: "roles.yaml", content: "..." } },
     rule: "protocol-self-edit",
   },
+  // M0.5 — the seven protocol surfaces this build plan will create, before
+  // any of them exist in the repo (docs/loop.md §2 rule 2; docs/loop.md §10;
+  // docs/architecture.md §6).
+  {
+    action: { tool: "write", input: { path: "pipelines.yaml", content: "..." } },
+    rule: "protocol-self-edit",
+  },
+  {
+    action: { tool: "write", input: { path: "prompts/build/contract.md", content: "..." } },
+    rule: "protocol-self-edit",
+  },
+  {
+    // Path-qualified role taste addenda — the regression case for the fixed
+    // regex: "taste/reviewer.md" has no "taste.md" substring.
+    action: { tool: "write", input: { path: "taste/reviewer.md", content: "..." } },
+    rule: "protocol-self-edit",
+  },
+  {
+    action: { tool: "write", input: { path: "apps.yaml", content: "..." } },
+    rule: "protocol-self-edit",
+  },
+  {
+    action: { tool: "edit", input: { path: ".operon/config.yaml", old: "a", new: "b" } },
+    rule: "protocol-self-edit",
+  },
+  {
+    action: { tool: "edit", input: { path: ".operon/TASTE.md", old: "a", new: "b" } },
+    rule: "protocol-self-edit",
+  },
+  {
+    // Orchestrator-only writes (docs/architecture.md §6) — a distinct rule
+    // from protocol-self-edit, not a rewording of it.
+    action: {
+      tool: "write",
+      input: { path: "scorecards/civic/builder.jsonl", content: "..." },
+    },
+    rule: "scorecard-tamper",
+  },
 ];
 
 const ROUTINE_CASES: ToolAction[] = [
@@ -33,6 +71,25 @@ const ROUTINE_CASES: ToolAction[] = [
   { tool: "read", input: { path: "src/cli.ts" } },
   { tool: "edit", input: { path: "src/org/roles.ts", old: "a", new: "b" } },
   { tool: "read", input: { path: "TASTE.md" } }, // READING protocol docs is fine
+  // M0.5 — reading any protocol surface is fine; only writes are critical.
+  { tool: "read", input: { path: "pipelines.yaml" } },
+  { tool: "read", input: { path: "prompts/build/contract.md" } },
+  { tool: "read", input: { path: "taste/reviewer.md" } },
+  { tool: "read", input: { path: "apps.yaml" } },
+  { tool: "read", input: { path: ".operon/config.yaml" } },
+  { tool: "read", input: { path: ".operon/TASTE.md" } },
+  { tool: "read", input: { path: "scorecards/civic/builder.jsonl" } },
+  // M0.5 — memory dirs stay routine-writable even though other org-home /
+  // app-repo writes are locked down (docs/architecture.md §6: "the
+  // protocol-self-edit gate rule does not cover them").
+  {
+    tool: "write",
+    input: { path: "memory/roles/reviewer/lesson.md", content: "..." },
+  },
+  {
+    tool: "write",
+    input: { path: ".operon/memory/builder/lesson.md", content: "..." },
+  },
 ];
 
 describe("critical-ops gate (default policy)", () => {

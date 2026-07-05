@@ -7,8 +7,8 @@
 # INSIDE a turn. Cross-provider mixing never happens intra-turn; it is an
 # org-level flow between roles (see PURPOSE.md).
 #
-# Model IDs: Anthropic IDs are exact; OpenAI IDs are placeholders using
-# Bikram's naming — verify exact strings at build time.
+# Model IDs: all verified against live catalogs 2026-07-05 — see
+# research/2026-07-05_model-id-verification.md for sources and alternatives.
 
 defaults:
   max_turn_budget_usd: 5        # hard stop per turn; overrun = incident note, not silent spend
@@ -29,9 +29,9 @@ roles:
 
   builder:
     runtime: codex
-    model: gpt-5.5              # PLACEHOLDER id; most tokens burn here → mid-tier,
-    effort: high                # quality recovered by the Reviewer gate, not by
-    delegation:                 # paying frontier rates on every build token
+    model: gpt-5.5              # flagship + Codex CLI default; ratified 2026-07-05:
+    effort: high                # build quality over token cost — the Reviewer gate
+    delegation:                 # stays as the second line of defense
       allow: [explore, test-fanout]
     triggers:
       - event: ticket-ready     # wakes when Planner labels a ticket ready
@@ -49,7 +49,7 @@ roles:
 
   sre:
     runtime: codex
-    model: gpt-5.5              # PLACEHOLDER id
+    model: gpt-5.5              # ratified 2026-07-05; gpt-5.4-mini remains the economy fallback if hourly sweeps dominate spend
     effort: medium
     delegation:
       allow: [explore]
@@ -62,7 +62,7 @@ roles:
 
   support:
     runtime: claude
-    model: claude-sonnet-4-6    # high volume, low stakes per message → cheap tier
+    model: claude-sonnet-5      # high volume, low stakes per message → cheap tier
     effort: medium              # that still writes well; Haiku scouts for triage
     delegation:
       allow: [triage-fanout]
@@ -75,7 +75,7 @@ roles:
 
   marketing:
     runtime: claude
-    model: claude-sonnet-4-6    # strong prose at volume; swap to Opus for
+    model: claude-sonnet-5      # strong prose at volume; swap to Opus for
     effort: high                # positioning-level work
     delegation:
       allow: [research-fanout]  # competitive/landscape reads, adoption-signal sweeps

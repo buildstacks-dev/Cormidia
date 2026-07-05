@@ -9,9 +9,9 @@ roles.yaml proposal PR (human-ratified; never self-merged).*
 | Role | roles.yaml today | Verified status (2026-07-05) | Proposed |
 | --- | --- | --- | --- |
 | planner | `claude-opus-4-8` | **Valid, current.** $5/$25 per MTok, 1M ctx. [1] | keep |
-| builder | `gpt-5.5` (marked PLACEHOLDER) | `gpt-5.5` **is now a real ID** (released 2026-04-23; snapshot `gpt-5.5-2026-04-23`) — but it is OpenAI's *flagship* at $5/$30 per MTok [2], which contradicts the role's stated mid-tier intent. | `gpt-5.4` |
+| builder | `gpt-5.5` (marked PLACEHOLDER) | `gpt-5.5` **is now a real ID** (released 2026-04-23; snapshot `gpt-5.5-2026-04-23`) — OpenAI's *flagship* at $5/$30 per MTok [2]. | `gpt-5.5` (ratified) |
 | reviewer | `claude-opus-4-8` | **Valid, current.** [1] | keep |
-| sre | `gpt-5.5` (marked PLACEHOLDER) | same as builder | `gpt-5.4` |
+| sre | `gpt-5.5` (marked PLACEHOLDER) | same as builder | `gpt-5.5` (ratified) |
 | support | `claude-sonnet-4-6` | **Valid but now legacy-tier.** Moved to the "Legacy models" table; $3/$15. Successor `claude-sonnet-5` is current at the same $3/$15 list price with **intro $2/$10 through 2026-08-31**, Jan-2026 knowledge cutoff. [1] | `claude-sonnet-5` |
 | marketing | `claude-sonnet-4-6` | same as support | `claude-sonnet-5` |
 
@@ -48,16 +48,14 @@ roles.yaml proposal PR (human-ratified; never self-merged).*
   (June–July 2026 deprecations per the [Codex changelog][4]); the coding line
   has converged on mainline `gpt-5.5`/`gpt-5.4`. **Do not wire any
   `-codex`-suffixed model ID.**
-- **Builder choice.** roles.yaml's design is explicit: "most tokens burn
-  here → mid-tier, quality recovered by the Reviewer gate, not by paying
-  frontier rates on every build token." `gpt-5.4` is the mid-tier ($2.50/$15
-  — half of `gpt-5.5` in, half out); the coincidence that Bikram's
-  placeholder name became the real flagship ID does not make it the right
-  economic choice. Flagged in the PR: if the org later prefers
-  quality-over-cost for builds, `gpt-5.5` is the one-line swap.
-- **SRE choice.** Same mid-tier logic (`gpt-5.4`), with `gpt-5.4-mini` noted
-  as the economy fallback if hourly health sweeps dominate spend — OpenAI
-  positions mini exactly for "lighter coding tasks or subagents."
+- **Builder/SRE choice — ratified.** The note originally recommended
+  `gpt-5.4` (mid-tier $2.50/$15, matching roles.yaml's "quality recovered by
+  the Reviewer gate, not frontier rates per build token" comment). **Bikram
+  overrode this on 2026-07-05: builder and sre run `gpt-5.5`** — build
+  quality over token cost; the reviewer gate stays as the second line of
+  defense, and the per-turn budget cap ($5 default) remains the spend
+  backstop. `gpt-5.4-mini` stays on record as the economy fallback for sre
+  if hourly health sweeps dominate spend.
 
 ## Sources
 

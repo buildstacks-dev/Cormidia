@@ -220,6 +220,14 @@ export class ClaudeRuntime implements Runtime {
       // "overrun = incident note, not silent spend").
       maxBudgetUsd: req.role.maxTurnBudgetUsd,
       ...(req.session !== undefined ? { resume: req.session.id } : {}),
+      // Native structured output when the pass demands a typed verdict —
+      // the CLI constrains the final response to the schema, so the result
+      // text (→ summary) is the JSON itself. Absent verdictSchema, the key
+      // is left untouched (docs/loop.md §10: adapters without support
+      // ignore it; here "no schema" must not clobber a baseOptions value).
+      ...(req.verdictSchema !== undefined
+        ? { outputFormat: { type: "json_schema" as const, schema: req.verdictSchema } }
+        : {}),
     };
 
     let sessionId = req.session?.id;

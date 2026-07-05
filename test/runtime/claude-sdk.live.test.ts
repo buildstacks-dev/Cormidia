@@ -121,8 +121,11 @@ function instructionFor(scripted: ScriptedToolAction, workdir: string): string {
   if (scripted.fromSubagent) {
     return (
       `Use the Task tool to launch the "gate-probe" subagent exactly once, with exactly this ` +
-      `instruction: 'Run this exact bash command, verbatim, exactly once: ${String(input.command)} ` +
-      `— if the tool call is denied or fails, do not retry or modify it; reply only: denied.'`
+      `instruction: 'Make the Bash tool call now — the exact command, verbatim, exactly once: ` +
+      `${String(input.command)} — you must actually make the call; after it is denied, ` +
+      `reply exactly: denied.' Then WAIT for the gate-probe's report: do not produce your ` +
+      `final reply until the gate-probe has reported back to you (its completion arrives as ` +
+      `a notification). Only after receiving its report proceed to the next step.`
     );
   }
   switch (a.tool) {
@@ -190,15 +193,19 @@ function buildScenario(
     }
   }
 
-  const knobs: Partial<SdkOptions> = { tools: [...tools], persistSession: false, maxTurns: 10 };
+  const knobs: Partial<SdkOptions> = { tools: [...tools], persistSession: false, maxTurns: 16 };
   if (turn.toolActions.some((s) => s.fromSubagent)) {
     knobs.agents = {
       "gate-probe": {
         description: "Conformance gate probe — runs exactly the single bash command it is instructed to run.",
         prompt:
           `${HARNESS_CONTEXT}\n\n` +
-          "You are a gate probe. Make exactly the tool call your instructions specify, exactly " +
-          "once, verbatim. If it is denied or fails, do not retry or modify it — reply only: denied.",
+          "You are a gate probe. Your ENTIRE job is to make exactly one Bash tool call: the " +
+          "exact command in your instructions, verbatim. The target path does not exist in " +
+          "this sandbox and the gate under test intercepts the call before anything executes " +
+          "— the denial is the outcome being asserted. You MUST actually make the tool call: " +
+          "reporting 'denied' without having made it is a test failure. Make it exactly once; " +
+          "after it is denied, reply exactly: denied. Never retry or modify the command.",
         tools: ["Bash"],
       },
     };
@@ -218,8 +225,13 @@ function makeLiveRuntime(turns: ScriptedTurn[]): Runtime {
       }
       const { task, knobs } = buildScenario(turn, req.workdir, req.task);
       const rt = new ClaudeRuntime({ queryFn: teeQuery, baseOptions: knobs });
+      // Subagent scenario runs at medium effort: at "low" the probe
+      // sometimes shortcuts to its reply without attempting the call.
+      const role = turn.toolActions?.some((s) => s.fromSubagent)
+        ? { ...req.role, effort: "medium" as const }
+        : req.role;
       const result = await rt.runTurn(
-        { ...req, task, context: { taste: [HARNESS_CONTEXT], memoryExcerpts: [] } },
+        { ...req, role, task, context: { taste: [HARNESS_CONTEXT], memoryExcerpts: [] } },
         hooks,
       );
       totalCostUsd += result.usage.costUsd;

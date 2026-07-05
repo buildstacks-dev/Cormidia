@@ -47,6 +47,12 @@ export interface TurnRequest {
   task: string;
   context: ContextBundle;
   session?: SessionHandle;
+  /** Optional JSON schema for a typed verdict (docs/loop.md §10). Adapters
+   *  with native structured output request it from the provider; adapters
+   *  without support ignore it — the loop's lenient parser is the fallback
+   *  (build plan M4.6). Deliberately just a JSON-schema-shaped bag here:
+   *  verdict TYPES belong to src/loop/verdicts.ts, never to this layer. */
+  verdictSchema?: Record<string, unknown>;
 }
 
 export interface Artifact {

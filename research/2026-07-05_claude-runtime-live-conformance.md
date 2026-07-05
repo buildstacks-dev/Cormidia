@@ -68,3 +68,17 @@ $2–3 on `claude-sonnet-5` per full run. Adapter changes must re-run this
   turns; comparable spend, ~60s. Overrun mapping (failed + incident-note
   artifact) is pinned by mocked tests in
   test/runtime/claude-budget.unit.test.ts.
+- **2026-07-05 (M1.4 + subagent-race fix):** the subagent case flaked
+  (passed 2×, then failed 3×). Traces showed a RACE, not a refusal: this
+  CLI generation spawns subagents **asynchronously** — the spawn tool
+  returns immediately with an agentId, the main agent can emit its final
+  reply (ending the turn) before the probe's first tool call, and the
+  probe's completion arrives as a notification that re-invokes the main
+  agent. A live scenario that needs the subagent's gated action inside the
+  turn must instruct the main agent to WAIT for the subagent's report
+  before replying. After that instruction: 3/3 debug traces clean and two
+  consecutive full-suite passes (3/3, ~$2.4 each, subagent case
+  first-attempt). `vitest.live.config.ts` also allows `retry: 1` for
+  residual model variance. Adapter note: multiple result messages can
+  arrive in one query (post-notification re-invocation) — the adapter's
+  last-result-wins loop handles this correctly.

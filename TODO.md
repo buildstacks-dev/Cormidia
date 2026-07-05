@@ -229,7 +229,11 @@ session-wide `canUseTool` question settled with evidence.*
   Budget & cadence.
   **Session:** sonnet, single session.
 
-- [ ] **M1.4 `TurnRequest.verdictSchema` + native structured output**
+- [x] **M1.4 `TurnRequest.verdictSchema` + native structured output** ✅ 2026-07-05 —
+  verdictSchema → SDK `outputFormat: {type:"json_schema", schema}` only when
+  present (absent = options untouched); pinned in claude-verdict.unit.test.ts.
+  Also fixed a live-suite subagent race (async agent spawns — see research
+  note run log); two consecutive full live passes after.
   **Goal:** Add the optional `verdictSchema` field (docs/loop.md §10 delta)
   to `types.ts`; ClaudeRuntime requests SDK-native structured output when
   present; adapters without support ignore it (parser fallback lives in

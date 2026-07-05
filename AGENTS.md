@@ -24,7 +24,8 @@ and the build loop are documented stubs.
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, adapters (claude / codex / pi) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, ticket state machine (skeleton — design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles.yaml loader; scheduler/memory/retro to come |
-| `test/` | Gate conformance seed + roles.yaml validation |
+| `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
+| `test/` | Gate conformance seed + roles.yaml validation + CLI dispatch conformance |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
 ## Commands (all verified 2026-07-03)

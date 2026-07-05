@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 // Operon CLI. `loop` carries claude-loop's standalone UX forward as a
 // subcommand (PURPOSE.md → Repo shape).
+//
+// This file is a thin dispatch table over one module per subcommand
+// (src/cli/roles.ts, src/cli/doctor.ts, ...). Adding a subcommand is a new
+// file + one registry line here — never a growing shared switch (M0.1).
 
-import { loadRoles } from "./org/roles.js";
-import { getRuntime, RUNTIME_KINDS } from "./runtime/registry.js";
 import { NotImplementedError } from "./runtime/types.js";
+import { cmdRoles } from "./cli/roles.js";
+import { cmdDoctor } from "./cli/doctor.js";
 
 const USAGE = `operon — org runtime for a team of AI agents
 
@@ -15,42 +19,34 @@ Usage:
   operon run-role <name>  run one role turn now (stub)
 `;
 
-async function cmdRoles(path = "roles.yaml"): Promise<number> {
-  const { roles, defaults } = await loadRoles(path);
-  console.log(`${path}: OK — ${roles.length} roles, default turn budget $${defaults.maxTurnBudgetUsd}\n`);
-  const pad = (s: string, n: number) => s.padEnd(n);
-  console.log(pad("ROLE", 12) + pad("RUNTIME", 9) + pad("MODEL", 22) + pad("EFFORT", 8) + "TRIGGERS");
-  for (const r of roles) {
-    const triggers = r.triggers.map((t) => t.schedule ?? `on:${t.event}`).join(", ") || "-";
-    console.log(pad(r.name, 12) + pad(r.runtime, 9) + pad(r.model, 22) + pad(r.effort, 8) + triggers);
-  }
-  return 0;
+interface CliCommand {
+  run(args: string[]): number | Promise<number>;
 }
 
-function cmdDoctor(): number {
-  console.log("runtime adapters:");
-  for (const kind of RUNTIME_KINDS) {
-    const rt = getRuntime(kind);
-    console.log(`  ${rt.kind.padEnd(7)} stub — see research/2026-07-03_runtime-layer.md`);
-  }
-  return 0;
+function notImplemented(cmd: string): CliCommand {
+  return {
+    run: () => {
+      throw new NotImplementedError(`command "${cmd}"`, "src/loop/loop.ts and src/org/");
+    },
+  };
 }
+
+const COMMANDS: Record<string, CliCommand> = {
+  roles: { run: (args) => cmdRoles(args[0]) },
+  doctor: { run: () => cmdDoctor() },
+  loop: notImplemented("loop"),
+  "run-role": notImplemented("run-role"),
+};
 
 async function main(): Promise<number> {
   const [cmd, ...rest] = process.argv.slice(2);
   try {
-    switch (cmd) {
-      case "roles":
-        return await cmdRoles(rest[0]);
-      case "doctor":
-        return cmdDoctor();
-      case "loop":
-      case "run-role":
-        throw new NotImplementedError(`command "${cmd}"`, "src/loop/loop.ts and src/org/");
-      default:
-        console.log(USAGE);
-        return cmd ? 1 : 0;
+    const command = cmd ? COMMANDS[cmd] : undefined;
+    if (!command) {
+      console.log(USAGE);
+      return cmd ? 1 : 0;
     }
+    return await command.run(rest);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     return 1;

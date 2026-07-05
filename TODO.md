@@ -208,7 +208,11 @@ session-wide `canUseTool` question settled with evidence.*
   **Session:** opus, single session — SDK-integration risk with an
   empirical claim to settle.
 
-- [ ] **M1.3 ClaudeRuntime telemetry + per-turn budget abort**
+- [x] **M1.3 ClaudeRuntime telemetry + per-turn budget abort** ✅ 2026-07-05 —
+  role.maxTurnBudgetUsd → SDK-native running guard (`maxBudgetUsd`);
+  `error_max_budget_usd` → failed + exactly one incident-note artifact;
+  real usage flows through toRecord (pinned in claude-budget.unit.test.ts);
+  live suite re-run 3/3 with the cap active.
   **Goal:** Extract real TurnUsage (tokens/cost/subagentTurns/wallClock)
   from SDK events into the existing `toRecord`/`recordTurn`, and enforce
   `role.maxTurnBudgetUsd` as a running guard: crossing it mid-turn stops

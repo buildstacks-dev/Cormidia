@@ -213,6 +213,12 @@ export class ClaudeRuntime implements Runtime {
       settingSources: [],
       hooks: { PreToolUse: [{ hooks: [preToolUseGate] }] },
       canUseTool,
+      // Per-turn budget cap, enforced by the CLI as a running mid-turn
+      // guard (`--max-budget-usd`): crossing it stops the session
+      // gracefully with an `error_max_budget_usd` result, which maps below
+      // to status "failed" + an incident-note artifact (roles.yaml:
+      // "overrun = incident note, not silent spend").
+      maxBudgetUsd: req.role.maxTurnBudgetUsd,
       ...(req.session !== undefined ? { resume: req.session.id } : {}),
     };
 
@@ -247,13 +253,26 @@ export class ClaudeRuntime implements Runtime {
     }
 
     const usage = resultMsg.usage;
+    const budgetOverrun = resultMsg.subtype === "error_max_budget_usd";
     return {
       status: resultMsg.subtype === "success" ? "completed" : "failed",
       summary:
         resultMsg.subtype === "success"
           ? resultMsg.result.trim()
           : `${resultMsg.subtype}: ${resultMsg.errors.join("; ")}`,
-      artifacts: [],
+      artifacts: budgetOverrun
+        ? [
+            {
+              kind: "note",
+              ref: `budget-overrun/${sessionId}`,
+              summary:
+                `Budget overrun: turn stopped at the per-turn cap — spent ` +
+                `$${resultMsg.total_cost_usd.toFixed(4)} against maxTurnBudgetUsd ` +
+                `$${req.role.maxTurnBudgetUsd} (role ${req.role.name}). ` +
+                `Overrun = incident note, not silent spend (roles.yaml).`,
+            },
+          ]
+        : [],
       session: { runtime: "claude", id: sessionId },
       usage: {
         tokensIn:

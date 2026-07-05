@@ -57,3 +57,14 @@ no `ANTHROPIC_API_KEY` was set (per the subscription-first decision).
 `pnpm test:live` — skips (never fails) without usable auth; spends roughly
 $2–3 on `claude-sonnet-5` per full run. Adapter changes must re-run this
 (AGENTS.md testing expectations) and append a dated paragraph here.
+
+## Run log
+
+- **2026-07-05 (M1.2, first full pass):** 3/3, 11 turns, $2.4273,
+  subscription auth (`apiKeySource: none`), `claude-sonnet-5`, ~67s.
+- **2026-07-05 (M1.3, budget guard active):** 3/3 again after wiring
+  `role.maxTurnBudgetUsd` → SDK `maxBudgetUsd` (`--max-budget-usd` on every
+  live turn, cap $5) — the running budget guard does not disturb normal
+  turns; comparable spend, ~60s. Overrun mapping (failed + incident-note
+  artifact) is pinned by mocked tests in
+  test/runtime/claude-budget.unit.test.ts.

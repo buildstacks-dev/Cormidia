@@ -27,6 +27,7 @@ and the build loop are documented stubs.
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `test/` | Gate conformance seed + roles.yaml validation + CLI dispatch conformance |
 | `test/fixtures/orgHome.ts`, `test/fixtures/fakeClock.ts` | Composable temp-dir fixtures for `~/.operon/<org>/` and app-repo `.operon/` trees, plus a deterministic clock — reuse instead of a new ad-hoc mkdtemp scaffold |
+| `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
 ## Commands (all verified 2026-07-03)

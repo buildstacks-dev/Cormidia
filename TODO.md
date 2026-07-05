@@ -157,7 +157,10 @@ and future protocol surface — before any adapter or loop code exists.*
 end-to-end and a subagent's critical op is denied + escalated — the SDK's
 session-wide `canUseTool` question settled with evidence.*
 
-- [ ] **M1.1 Model-ID verification + roles.yaml proposal PR**
+- [x] **M1.1 Model-ID verification + roles.yaml proposal PR** ✅ 2026-07-05 —
+  research/2026-07-05_model-id-verification.md on main; proposal PR #1 open,
+  awaiting human ratification (builder/sre → gpt-5.4, support/marketing →
+  claude-sonnet-5). AGENTS.md "placeholders" rule becomes stale when #1 merges.
   **Goal:** Verify real OpenAI IDs to replace the `gpt-5.5` placeholders and
   re-verify `claude-sonnet-4-6` against the live Anthropic catalog; record
   findings in a dated research note; open a proposal PR against roles.yaml

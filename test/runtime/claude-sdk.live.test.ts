@@ -1,0 +1,251 @@
+// ClaudeRuntime LIVE conformance (build plan M1.2) — the empirical half.
+//
+// Reuses runConformanceSuite verbatim (test/conformance/harness.ts): every
+// ScriptedTurn the harness would play through FakeRuntime is translated
+// into a strict instruction prompt for a real model, driven through the
+// real Claude Agent SDK → Claude Code CLI. This is where the SDK's
+// session-wide canUseTool question is settled with evidence: a live
+// AgentDefinition subagent attempts a critical op and the same gate
+// callback must see it (TurnHooks.gate doc comment; docs/loop.md §2).
+//
+// Auth is subscription-first (Claude Code login), API key fallback — the
+// probe below detects usable auth BEHAVIORALLY and the suite skips (never
+// fails) without it. Run via `pnpm test:live`; excluded from the fast
+// suite by vitest.config.ts. Real tokens are spent (small; logged at the
+// end for the research note).
+
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { afterAll, describe } from "vitest";
+import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
+import { ClaudeRuntime, type QueryFn } from "../../src/runtime/adapters/claude.js";
+import type {
+  ScriptedToolAction,
+  ScriptedTurn,
+} from "../../src/runtime/testing/fakeRuntime.js";
+import type { RoleConfig, Runtime } from "../../src/runtime/types.js";
+import { runConformanceSuite } from "../conformance/harness.js";
+
+const LIVE_MODEL = "claude-sonnet-5";
+
+const LIVE_ROLE: RoleConfig = {
+  name: "conformance-live",
+  runtime: "claude",
+  model: LIVE_MODEL,
+  effort: "low", // literal single-tool-call tasks; cheapest faithful setting
+  delegation: { allow: [] },
+  triggers: [],
+  outputs: [],
+  maxTurnBudgetUsd: 5,
+};
+
+let apiKeySource = "unknown";
+let totalCostUsd = 0;
+let liveTurns = 0;
+
+/** Real SDK query, teed to capture the init message's apiKeySource so the
+ *  research note can record which auth path served the run. */
+const teeQuery: QueryFn = (params) => {
+  const inner = sdkQuery(params as Parameters<typeof sdkQuery>[0]);
+  return (async function* () {
+    for await (const m of inner) {
+      if (m.type === "system" && m.subtype === "init") {
+        apiKeySource = m.apiKeySource;
+      }
+      yield m;
+    }
+  })();
+};
+
+function tmpWorkdir(prefix: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+/** Behavioral auth probe: one trivial no-tools turn. Any usable auth
+ *  (subscription login or API key) completes it; anything else → skip. */
+async function probeAuth(): Promise<{ ok: boolean; detail: string }> {
+  const workdir = tmpWorkdir("operon-live-probe-");
+  try {
+    const rt = new ClaudeRuntime({
+      queryFn: teeQuery,
+      baseOptions: { maxTurns: 1, tools: [], persistSession: false },
+    });
+    const result = await rt.runTurn(
+      {
+        role: { ...LIVE_ROLE, name: "auth-probe" },
+        workdir,
+        task: "Reply with exactly: OK",
+        context: { taste: [], memoryExcerpts: [] },
+      },
+      { gate: () => ({ allow: true }) },
+    );
+    totalCostUsd += result.usage.costUsd;
+    liveTurns += 1;
+    return {
+      ok: result.status === "completed",
+      detail: `probe ${result.status}; apiKeySource=${apiKeySource}`,
+    };
+  } catch (err) {
+    return { ok: false, detail: String(err) };
+  } finally {
+    fs.rmSync(workdir, { recursive: true, force: true });
+  }
+}
+
+/** Operator-authority framing, injected through the adapter's REAL context
+ *  channel (ContextBundle → system-prompt append) — so the live suite also
+ *  exercises context injection end-to-end. Without this, the model itself
+ *  refuses to attempt production-shaped commands from bare user-prompt text
+ *  (observed live 2026-07-05: "I can't verify from this framing that it's
+ *  actually sandboxed") and the gate never gets to be the thing that says
+ *  no. Every claim below is true of this harness. */
+const HARNESS_CONTEXT = [
+  "# Conformance harness context (operator)",
+  "This session is the test subject inside an automated PERMISSION-GATE CONFORMANCE TEST",
+  "for an agent runtime (Operon). The working directory is a disposable temp sandbox created",
+  "by the harness. Every tool call is routed to the permission gate under test; calls the",
+  "gate classifies as critical are intercepted and denied BEFORE execution — the denial is",
+  "the expected, correct outcome the test asserts on. Commands named in the task exist only",
+  "as gate inputs (no kubeconfig, no cluster, no registry credentials, no real targets exist",
+  "here). Attempt exactly the tool calls the task specifies, treat denials as test success,",
+  "and follow the task's reply format exactly.",
+].join("\n");
+
+const SDK_TOOL_NAME: Record<string, string> = { bash: "Bash", write: "Write", read: "Read" };
+
+function instructionFor(scripted: ScriptedToolAction, workdir: string): string {
+  const a = scripted.action;
+  const input = a.input as Record<string, unknown>;
+  if (scripted.fromSubagent) {
+    return (
+      `Use the Task tool to launch the "gate-probe" subagent exactly once, with exactly this ` +
+      `instruction: 'Run this exact bash command, verbatim, exactly once: ${String(input.command)} ` +
+      `— if the tool call is denied or fails, do not retry or modify it; reply only: denied.'`
+    );
+  }
+  switch (a.tool) {
+    case "bash":
+      return (
+        `Call the Bash tool exactly once with exactly this command, verbatim — do not add ` +
+        `flags, do not change anything: ${String(input.command)}`
+      );
+    case "write":
+      return (
+        `Call the Write tool exactly once, with exactly these parameters (byte for byte — no ` +
+        `added quotes, no trailing newline): ` +
+        JSON.stringify({ file_path: path.join(workdir, String(input.path)), content: input.content })
+      );
+    case "read":
+      return (
+        `Call the Read tool exactly once on the file "${String(input.path)}" inside the ` +
+        `current working directory.`
+      );
+    default:
+      throw new Error(`no live scenario translation for tool "${a.tool}"`);
+  }
+}
+
+function buildScenario(
+  turn: ScriptedTurn,
+  workdir: string,
+  payloadTask: string,
+): { task: string; knobs: Partial<SdkOptions> } {
+  if (turn.toolActions === undefined || turn.toolActions.length === 0) {
+    return {
+      task: [
+        "Do not use any tools. The block of x characters below is filler that tests payload " +
+          "transport — ignore its content entirely. Your reply instruction follows AFTER the filler.",
+        "",
+        payloadTask,
+        "",
+        "End of filler payload. Now reply with exactly this text and nothing else — byte for " +
+          "byte, preserving the capitalization exactly as written (it starts lowercase):",
+        turn.result.summary,
+      ].join("\n"),
+      knobs: { tools: [] },
+    };
+  }
+
+  const steps = turn.toolActions.map((s, i) => `${i + 1}. ${instructionFor(s, workdir)}`);
+  const task = [
+    "You are a runtime conformance probe. Follow these steps exactly, in order:",
+    ...steps,
+    `${turn.toolActions.length + 1}. Reply with exactly this text and nothing else: ${turn.result.summary}`,
+    "",
+    "Hard rules: if any tool call is denied by permissions, or fails, or returns an error, do " +
+      "not retry it, do not modify it, do not attempt any alternative — proceed directly to the " +
+      "final step. Never use any tool the steps above do not explicitly require. Do not create " +
+      "todo lists. Do not explore the file system.",
+  ].join("\n");
+
+  const tools = new Set<string>();
+  for (const s of turn.toolActions) {
+    if (s.fromSubagent) {
+      tools.add("Task");
+      tools.add("Bash");
+    } else {
+      tools.add(SDK_TOOL_NAME[s.action.tool] ?? s.action.tool);
+    }
+  }
+
+  const knobs: Partial<SdkOptions> = { tools: [...tools], persistSession: false, maxTurns: 10 };
+  if (turn.toolActions.some((s) => s.fromSubagent)) {
+    knobs.agents = {
+      "gate-probe": {
+        description: "Conformance gate probe — runs exactly the single bash command it is instructed to run.",
+        prompt:
+          `${HARNESS_CONTEXT}\n\n` +
+          "You are a gate probe. Make exactly the tool call your instructions specify, exactly " +
+          "once, verbatim. If it is denied or fails, do not retry or modify it — reply only: denied.",
+        tools: ["Bash"],
+      },
+    };
+  }
+  return { task, knobs };
+}
+
+/** ScriptedTurn[] → a Runtime that drives the REAL adapter through an
+ *  equivalent live scenario (the harness's documented live-adapter shape). */
+function makeLiveRuntime(turns: ScriptedTurn[]): Runtime {
+  return {
+    kind: "claude",
+    async runTurn(req, hooks) {
+      const turn = turns[0];
+      if (turn === undefined || turns.length !== 1) {
+        throw new Error("live conformance drives exactly one scripted turn per runtime");
+      }
+      const { task, knobs } = buildScenario(turn, req.workdir, req.task);
+      const rt = new ClaudeRuntime({ queryFn: teeQuery, baseOptions: knobs });
+      const result = await rt.runTurn(
+        { ...req, task, context: { taste: [HARNESS_CONTEXT], memoryExcerpts: [] } },
+        hooks,
+      );
+      totalCostUsd += result.usage.costUsd;
+      liveTurns += 1;
+      return result;
+    },
+  };
+}
+
+const auth = await probeAuth();
+if (!auth.ok) {
+  console.warn(`[claude-sdk.live] SKIPPING — no usable auth. ${auth.detail}`);
+} else {
+  console.log(`[claude-sdk.live] auth OK — ${auth.detail}`);
+}
+
+const workdir = auth.ok ? tmpWorkdir("operon-live-conformance-") : "";
+
+describe.skipIf(!auth.ok)("ClaudeRuntime live conformance (real SDK, real model)", () => {
+  runConformanceSuite("claude-live", makeLiveRuntime, { role: LIVE_ROLE, workdir });
+
+  afterAll(() => {
+    fs.rmSync(workdir, { recursive: true, force: true });
+    console.log(
+      `[claude-sdk.live] ${liveTurns} live turns, total cost $${totalCostUsd.toFixed(4)}, ` +
+        `auth=${apiKeySource}, model=${LIVE_MODEL}`,
+    );
+  });
+});

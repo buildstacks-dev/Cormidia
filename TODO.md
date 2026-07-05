@@ -53,7 +53,7 @@ milestones are sequential.
 against a scripted FakeRuntime, and the gate denies writes to every current
 and future protocol surface — before any adapter or loop code exists.*
 
-- [ ] **M0.1 CLI subcommand registry refactor**
+- [x] **M0.1 CLI subcommand registry refactor** ✅ 2026-07-05
   **Goal:** `src/cli.ts` becomes a thin dispatch table over one module per
   subcommand (`src/cli/roles.ts`, `src/cli/doctor.ts`, …) so the ~20 CLI
   items in this plan add files instead of colliding on one shared switch.
@@ -68,7 +68,7 @@ and future protocol surface — before any adapter or loop code exists.*
   **Read:** src/cli.ts; AGENTS.md (Commands).
   **Session:** sonnet, single session.
 
-- [ ] **M0.2 Canonical FakeRuntime test double**
+- [x] **M0.2 Canonical FakeRuntime test double** ✅ 2026-07-05
   **Goal:** Exactly one scriptable `Runtime` double, in
   `src/runtime/testing/fakeRuntime.ts` (source-visible — future adapters
   reuse it), with the union capability set: scripted `TurnResult[]` consumed
@@ -89,7 +89,7 @@ and future protocol surface — before any adapter or loop code exists.*
   **Read:** src/runtime/types.ts; docs/loop.md §2.
   **Session:** sonnet, single session.
 
-- [ ] **M0.3 Composable org-home/app-repo temp fixture + FakeClock**
+- [x] **M0.3 Composable org-home/app-repo temp fixture + FakeClock** ✅ 2026-07-05
   **Goal:** One fixture module builds any slice of the `~/.operon/<org>/`
   tree and an app-repo `.operon/` tree in temp dirs:
   `makeOrgHome({taste, memory, state, approvals, runs})` with opt-in
@@ -108,7 +108,7 @@ and future protocol surface — before any adapter or loop code exists.*
   (bundle homes).
   **Session:** sonnet, single session.
 
-- [ ] **M0.4 Adapter conformance harness + FakeRuntime self-test**
+- [x] **M0.4 Adapter conformance harness + FakeRuntime self-test** ✅ 2026-07-05
   **Goal:** The adapter-generic conformance suite every Runtime must pass
   before a role goes live on it (AGENTS.md rule): critical ops denied +
   escalated, routine ops allowed, a *subagent-issued* critical op caught
@@ -130,7 +130,7 @@ and future protocol surface — before any adapter or loop code exists.*
   src/runtime/gate.ts.
   **Session:** sonnet, single session.
 
-- [ ] **M0.5 Gate coverage expansion — all protocol surfaces, one pass**
+- [x] **M0.5 Gate coverage expansion — all protocol surfaces, one pass** ✅ 2026-07-05
   **Goal:** Extend `protocol-self-edit` (and add a scorecard rule) to cover
   every surface this plan creates, in one edit instead of three colliding
   ones: `pipelines.yaml`, `prompts/**`, `taste/<role>.md` (the current

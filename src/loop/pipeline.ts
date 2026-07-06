@@ -128,8 +128,11 @@ async function runPass(
   const { root, app, ticket, traceId } = options.runlog;
   const runId = mintRunId(clock(), options.pipeline.name, pass.id);
   const brief = options.briefFor(pass);
-  const template = await readFile(join(options.promptsDir, pass.template), "utf8");
-  const task = `${brief}\n\n---\n\n${template}`;
+  // template "" = brief-only task. Only a synthesized pipeline can carry it
+  // (runRole's plain turn) — the loader rejects empty templates in config.
+  const template =
+    pass.template === "" ? undefined : await readFile(join(options.promptsDir, pass.template), "utf8");
+  const task = template === undefined ? brief : `${brief}\n\n---\n\n${template}`;
 
   await startRun(
     root,

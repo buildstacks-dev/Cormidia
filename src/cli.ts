@@ -11,6 +11,7 @@ import { cmdRoles } from "./cli/roles.js";
 import { cmdDoctor } from "./cli/doctor.js";
 import { cmdPipelines } from "./cli/pipelines.js";
 import { cmdPruneRuns } from "./cli/prune-runs.js";
+import { cmdRunRole } from "./cli/run-role.js";
 
 const USAGE = `operon — org runtime for a team of AI agents
 
@@ -21,7 +22,9 @@ Usage:
   operon prune-runs [root] [--retention-days N]
                            delete finalized run dirs past retention
   operon loop              run the build loop over ready tickets (stub)
-  operon run-role <name>   run one role turn now (stub)
+  operon run-role <role> [--app <app>] [--turn <id>] [--template <path>] [--dry-run]
+                           one role turn as a one-pass pipeline (--dry-run
+                           prints the assembled brief, token-free)
 `;
 
 interface CliCommand {
@@ -42,7 +45,7 @@ const COMMANDS: Record<string, CliCommand> = {
   doctor: { run: () => cmdDoctor() },
   "prune-runs": { run: (args) => cmdPruneRuns(args) },
   loop: notImplemented("loop"),
-  "run-role": notImplemented("run-role"),
+  "run-role": { run: (args) => cmdRunRole(args) },
 };
 
 async function main(): Promise<number> {

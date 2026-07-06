@@ -466,7 +466,15 @@ record on disk — "if something executes, its logs exist."*
   **Session:** opus lead + delegated test-writer subagent — cross-cutting
   integration of five prior pieces.
 
-- [ ] **M2.9 `run-role` CLI with `--dry-run`**
+- [x] **M2.9 `run-role` CLI with `--dry-run`** ✅ 2026-07-05 —
+  src/loop/runRole.ts fixes the dispatcher spawn contract (role/app/turn/
+  template/dry-run); dry-run assembles+prints the brief with zero Runtime
+  construction; live path goes through the M2.8 executor (full run record,
+  defaultGate applied when no hooks given — manual turns are gated too).
+  CLI wires --dry-run; live CLI runs deliberately deferred to the
+  dispatcher wiring (M7.8/M7.9 call the loop function directly).
+  **M2 milestone demo met:** `pnpm dev run-role planner --dry-run` prints
+  a real assembled brief token-free; every executed pass leaves L1/L2/L3.
   **Goal:** `operon run-role <role> [--app <app>] [--turn <id>]
   [--template <path>] [--dry-run]` — a plain role turn as a synthesized
   one-pass pipeline. `--dry-run` prints the assembled brief, constructs no

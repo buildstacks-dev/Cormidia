@@ -40,6 +40,13 @@ describe("cli dispatch", () => {
     expect(stdout).toContain("roles.yaml: OK");
   });
 
+  it("apps subcommand validates the root apps.yaml", async () => {
+    const { stdout, code } = await runCli(["apps"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("apps.yaml: OK");
+    expect(stdout).toMatch(/APP\s+REPO\s+STATUS\s+BUDGET/);
+  });
+
   it("pipelines subcommand validates the root pipelines.yaml", async () => {
     const { stdout, code } = await runCli(["pipelines"]);
     expect(code).toBe(0);

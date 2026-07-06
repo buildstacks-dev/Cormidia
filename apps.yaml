@@ -1,0 +1,33 @@
+# apps.yaml — app registry (docs/architecture.md §7). Human-ratified surface:
+# changes land via proposal PR, never silent edits.
+#
+# One entry per target app the org operates on. `repo` (GitHub owner/repo
+# slug) is the app's identity. `status` (live | paused | onboarding) is
+# operational policy — "one live app at a time" is expressed here; the
+# org-level WIP limit below is what code enforces. Per-app `cadence`
+# overrides REPLACE that role's roles.yaml triggers when present; an empty
+# list disables the role for that app, e.g.:
+#   cadence:
+#     support: []                          # disable support here
+#     planner: [{schedule: "daily 08:00"}] # replace planner's triggers
+#
+# `.operon/config.yaml` in an app repo shares this schema, so the version
+# field is carried from day one (architecture.md §1).
+
+schema_version: 1
+
+org:
+  name: operon
+  max_concurrent_turns: 2       # org-level WIP limit (architecture.md §2)
+
+defaults:
+  budget_usd_month: 1000        # decided 2026-07-04; configurable per app
+
+apps:
+  # Self-referential placeholder: this repo doubles as its own org home for
+  # now (PURPOSE.md → Bootstrap & artifact home, dogfood note). Real target
+  # apps (the sandbox apps) enter as they are onboarded.
+  operon:
+    repo: buildstacks-dev/Operon
+    status: onboarding
+    cadence: {}

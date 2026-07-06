@@ -8,6 +8,7 @@
 
 import { NotImplementedError } from "./runtime/types.js";
 import { cmdRoles } from "./cli/roles.js";
+import { cmdApps } from "./cli/apps.js";
 import { cmdDoctor } from "./cli/doctor.js";
 import { cmdPipelines } from "./cli/pipelines.js";
 import { cmdPruneRuns } from "./cli/prune-runs.js";
@@ -17,6 +18,7 @@ const USAGE = `operon — org runtime for a team of AI agents
 
 Usage:
   operon roles [path]      validate roles.yaml and print the org chart
+  operon apps [path]       validate apps.yaml and print the app registry
   operon pipelines [path]  validate pipelines.yaml and print the pass table
   operon doctor            check runtime adapter status
   operon prune-runs [root] [--retention-days N]
@@ -41,6 +43,7 @@ function notImplemented(cmd: string): CliCommand {
 
 const COMMANDS: Record<string, CliCommand> = {
   roles: { run: (args) => cmdRoles(args[0]) },
+  apps: { run: (args) => cmdApps(args[0]) },
   pipelines: { run: (args) => cmdPipelines(args[0]) },
   doctor: { run: () => cmdDoctor() },
   "prune-runs": { run: (args) => cmdPruneRuns(args) },

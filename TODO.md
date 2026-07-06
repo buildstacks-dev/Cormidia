@@ -319,7 +319,13 @@ record on disk — "if something executes, its logs exist."*
   **Session:** opus, single session — the templates encode the protocol;
   wording quality matters.
 
-- [ ] **M2.3 Brief assembler**
+- [x] **M2.3 Brief assembler** ✅ 2026-07-05 —
+  src/loop/brief.ts: assembleBrief/estimateTokens; §3 section order
+  [ticket][spec][contract][findings][history][memory][repo]; reductions in
+  fixed order (resolved findings oldest-first → attempts latest-exempt →
+  spec heading-match excerpting), re-measured per step; ticket/criteria/
+  gate output never summarized even when the budget can't be met. 8 named
+  cases incl. byte-identical reproducibility.
   **Goal:** `src/loop/brief.ts`: deterministic, token-budgeted brief
   assembly — [ticket][spec excerpts][contract][findings][history][memory]
   [repo conventions]; len/4 token estimate; over budget, summarize

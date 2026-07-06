@@ -391,7 +391,13 @@ record on disk — "if something executes, its logs exist."*
   **Read:** docs/loop.md §9; the standing telemetry decision above.
   **Session:** sonnet, single session.
 
-- [ ] **M2.6 L2 structured events writer + reader**
+- [x] **M2.6 L2 structured events writer + reader** ✅ 2026-07-05 —
+  src/runtime/runlog/events.ts: createEventWriter (identity + correlation
+  ids stamped on every line; injected clock; detail strings scrubbed;
+  toolCalled() API makes raw args unrepresentable — hash only),
+  readEvents (torn trailing append dropped, mid-file corruption throws),
+  reconstructSpanTree (subagent spans nest via parent_span_id). 6 named
+  cases incl. infra-vs-merit code separation.
   **Goal:** Append-only `events.jsonl`: taxonomy events
   (run/pass/gate/tool/subagent/ticket.transition/verdict/escalation) with
   trace_id=turnId, span_id=pass, parent_span_id for subagent fan-out, plus

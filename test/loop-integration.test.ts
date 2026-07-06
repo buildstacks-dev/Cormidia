@@ -59,8 +59,12 @@ const FINDING = "- testing/major test/change.test.ts:1 -- missing coverage -> ad
 const DONE = "Verdict: done";
 
 const ROLES: Record<string, RoleConfig> = {
+  planner: role("planner"),
   builder: role("builder"),
   reviewer: role("reviewer", { effort: "xhigh" }),
+  sre: role("sre"),
+  support: role("support"),
+  marketing: role("marketing"),
 };
 
 function role(name: string, overrides: Partial<RoleConfig> = {}): RoleConfig {

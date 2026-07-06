@@ -12,13 +12,13 @@ describe("dispatcher tick", () => {
   it("spawns a due schedule with the fixed run-role identity", async () => {
     const h = fixture({
       roles: `roles:
-  builder:
+  planner:
     runtime: claude
     model: m
     effort: high
     delegation: {allow: []}
     triggers:
-      - schedule: "hourly"
+      - schedule: "daily 07:00"
     outputs: []
 `,
     });
@@ -34,8 +34,8 @@ describe("dispatcher tick", () => {
       });
 
       expect(result.spawned).toHaveLength(1);
-      expect(calls[0]).toMatchObject({ role: "builder", app: "alpha", runtimeHome: h.home.root });
-      expect(await new ScheduleStore(h.home.root).lastFired("alpha", "builder", "hourly")).toEqual(
+      expect(calls[0]).toMatchObject({ role: "planner", app: "alpha", runtimeHome: h.home.root });
+      expect(await new ScheduleStore(h.home.root).lastFired("alpha", "planner", "daily 07:00")).toEqual(
         new Date("2026-07-06T10:00:00Z"),
       );
     } finally {
@@ -47,6 +47,14 @@ describe("dispatcher tick", () => {
     const h = fixture({
       maxConcurrent: 1,
       roles: `roles:
+  planner:
+    runtime: claude
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - schedule: "daily 07:00"
+    outputs: []
   builder:
     runtime: claude
     model: m
@@ -79,7 +87,7 @@ describe("dispatcher tick", () => {
     const h = fixture({
       maxConcurrent: 1,
       roles: `roles:
-  builder:
+  planner:
     runtime: claude
     model: m
     effort: high
@@ -93,7 +101,7 @@ describe("dispatcher tick", () => {
     try {
       await acquireLock(h.home.root, {
         app: "alpha",
-        role: "builder",
+        role: "planner",
         turnId: "busy",
         now: new Date("2026-07-06T09:59:00Z"),
       });
@@ -117,13 +125,13 @@ describe("dispatcher tick", () => {
   it("records schedule fired only after spawn succeeds", async () => {
     const h = fixture({
       roles: `roles:
-  builder:
+  planner:
     runtime: claude
     model: m
     effort: high
     delegation: {allow: []}
     triggers:
-      - schedule: "hourly"
+      - schedule: "daily 07:00"
     outputs: []
 `,
     });
@@ -139,7 +147,7 @@ describe("dispatcher tick", () => {
         },
       });
       expect(result.errors[0]).toContain("spawn failed");
-      expect(await new ScheduleStore(h.home.root).lastFired("alpha", "builder", "hourly")).toBeUndefined();
+      expect(await new ScheduleStore(h.home.root).lastFired("alpha", "planner", "daily 07:00")).toBeUndefined();
     } finally {
       h.cleanup();
     }
@@ -170,14 +178,50 @@ describe("dispatcher tick", () => {
         },
       });
       expect(result.spawned).toEqual([]);
-      expect(result.skipped[0]).toContain("no configured path");
+      expect(result.skipped[0]).toContain("no route");
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("routes cadence overrides by the effective trigger", async () => {
+    const h = fixture({
+      cadence: `      planner:
+        - schedule: "daily 08:00"
+`,
+      roles: `roles:
+  planner:
+    runtime: claude
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - schedule: "weekly mon"
+    outputs: []
+`,
+    });
+    try {
+      const result = await dispatchTick({
+        runtimeHome: h.home.root,
+        appsPath: h.appsPath,
+        rolesPath: h.rolesPath,
+        now: () => new Date("2026-07-06T10:00:00Z"),
+        eventSource: emptySource(),
+        spawn: async () => {},
+      });
+      expect(result.spawned).toHaveLength(1);
+      expect(result.spawned[0]).toMatchObject({
+        role: "planner",
+        triggerKind: "schedule",
+        trigger: "daily 08:00",
+      });
     } finally {
       h.cleanup();
     }
   });
 });
 
-function fixture(options: { roles: string; maxConcurrent?: number }) {
+function fixture(options: { roles: string; maxConcurrent?: number; cadence?: string }) {
   const home = makeOrgHome({ state: true, approvals: true });
   const appsPath = join(home.root, "apps.yaml");
   const rolesPath = join(home.root, "roles.yaml");
@@ -192,7 +236,8 @@ apps:
   alpha:
     repo: owner/repo
     status: live
-    cadence: {}
+    cadence:
+${options.cadence ?? ""}
 `,
     "utf8",
   );

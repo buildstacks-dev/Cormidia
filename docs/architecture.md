@@ -57,7 +57,7 @@ Module placement respects the one-way import rule
 
 | Component                                               | Module                                                         | Notes                                   |
 | ------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------- |
-| Dispatcher, schedule state, event polling, locks        | `src/org/dispatch.ts`                                          | new                                     |
+| Dispatcher, schedule state, event polling, locks, trigger routing | `src/org/dispatch.ts`, `src/org/trigger-routing.ts`             | M8 route table maps roles.yaml triggers to protocols |
 | App registry (`apps.yaml` loader)                       | `src/org/apps.ts`                                              | new                                     |
 | Context assembler                                       | `src/org/context.ts`                                           | new                                     |
 | Approval queue + grants                                 | `src/org/approvals.ts`                                         | new                                     |
@@ -184,6 +184,24 @@ event; keys are pruned on retention. The file-drop inbox gives webhook parity
 later: a droplet webhook receiver just writes JSON files into the same inbox
 — the dispatcher does not change.
 
+### Trigger routing
+
+`roles.yaml` declares when a role wakes; `src/org/trigger-routing.ts` maps
+the effective trigger (after app cadence overrides) to the protocol that
+runs. Unknown mappings remain loud skips in dispatch, never undefined turns.
+
+| Role trigger | Route |
+| --- | --- |
+| Planner `daily ...` | `groom` pipeline |
+| Planner `weekly ...` | `plan` pipeline |
+| Builder `ticket-ready` | build-loop claim/build path |
+| Reviewer `pr-opened` | review-loop path owned by the ticket state machine |
+| SRE `hourly` | `sre-health` pipeline |
+| SRE `ci-failed` / `alert-webhook` | `sre-incident` pipeline |
+| Support scheduled trigger | `support-digest` pipeline |
+| Marketing `release-shipped` | `marketing-release` pipeline |
+| Marketing weekly trigger | `ci-sweep` pipeline |
+
 **Scope note — software lifecycle now, company lifecycle via the same
 inbox.** The polled events above are deliberately all software-lifecycle:
 GitHub is the only source a laptop can poll in v1 without new ingress or
@@ -195,6 +213,9 @@ JSON into `state/events/inbox/`, and the dispatcher routes it through the
 same roles.yaml trigger mechanism, unchanged. Enumerating these producers
 per role (Support, Marketing, SRE) is a roadmap item, not a dispatcher
 change.
+
+The v0 payload contract for file-drop company events is documented in
+`docs/event-schemas.md` and validated by `src/org/event-schemas.ts`.
 
 ### Locking & concurrency
 

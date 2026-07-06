@@ -14,6 +14,7 @@ import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./lo
 import { recoverStaleTurn } from "./recovery.js";
 import { loadRoles, type RolesFile } from "./roles.js";
 import { isDue, ScheduleStore } from "./schedule.js";
+import { resolveTriggerRoute } from "./trigger-routing.js";
 
 export interface DispatchTickOptions {
   orgRoot?: string;
@@ -189,8 +190,9 @@ async function computeDueTurns(input: {
         if (trigger.event !== undefined) {
           const matches = polled.events.filter((event) => event.kind === trigger.event);
           for (const event of matches) {
-            if (!isRunnable(role.name, trigger, app)) {
-              input.result.skipped.push(`${app.name}/${role.name}: no configured path for ${trigger.event}`);
+            const route = resolveTriggerRoute({ role: role.name, trigger });
+            if (route.kind === "skip") {
+              input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
               continue;
             }
             due.push(eventTurn(app, role.name, trigger.event, event));
@@ -199,8 +201,9 @@ async function computeDueTurns(input: {
         if (trigger.schedule !== undefined) {
           const last = await input.schedule.lastFired(app.name, role.name, trigger.schedule);
           if (!isDue(trigger.schedule, last, input.now)) continue;
-          if (!isRunnable(role.name, trigger, app)) {
-            input.result.skipped.push(`${app.name}/${role.name}: no configured path for ${trigger.schedule}`);
+          const route = resolveTriggerRoute({ role: role.name, trigger });
+          if (route.kind === "skip") {
+            input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
             continue;
           }
           due.push(scheduleTurn(app.name, role.name, trigger.schedule, input.now));
@@ -210,11 +213,6 @@ async function computeDueTurns(input: {
   }
 
   return due.sort(compareDue);
-}
-
-function isRunnable(role: string, trigger: Trigger, _app: AppEntry): boolean {
-  if (role === "builder") return true;
-  return false;
 }
 
 function eventTurn(app: AppEntry, role: string, trigger: string, event: DueEvent): DueTurn {

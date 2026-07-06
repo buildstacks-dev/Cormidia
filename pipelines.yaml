@@ -11,8 +11,9 @@
 # Tiering makes the loop cheaper, never less safe: a quick ticket touching
 # auth/** still gets high-tier gates.
 #
-# Planner pipelines (plan / groom / triage) are deliberately absent until
-# the build loop is proven end to end.
+# Planner and standing-role pipelines are the M8 bridge from roles.yaml
+# triggers to executable protocols. The build loop remains the path for
+# Builder ticket work; these pipelines create and curate the inputs it consumes.
 
 build:
   passes:
@@ -51,3 +52,66 @@ ship:
       role: reviewer
       template: ship/check.md
       only_on: { risk: [high], tier: [deep] }
+
+plan:
+  passes:
+    - id: visionary
+      role: planner
+      template: plan/visionary.md
+      effort: high
+    - id: pm-a
+      role: planner
+      template: plan/pm.md
+      parallel_group: competing-pms
+    - id: pm-b
+      role: planner
+      template: plan/pm-b.md
+      parallel_group: competing-pms
+    - id: arbitrator
+      role: planner
+      template: plan/arbitrator.md
+    - id: decomposer
+      role: planner
+      template: plan/decomposer.md
+
+groom:
+  passes:
+    - id: groom
+      role: planner
+      template: groom/groom.md
+
+triage:
+  passes:
+    - id: triage
+      role: planner
+      template: triage/triage.md
+
+sre-incident:
+  passes:
+    - id: incident
+      role: sre
+      template: sre/incident.md
+
+sre-health:
+  passes:
+    - id: health
+      role: sre
+      template: sre/health.md
+
+support-digest:
+  passes:
+    - id: digest
+      role: support
+      template: support/digest.md
+
+marketing-release:
+  passes:
+    - id: release
+      role: marketing
+      template: marketing/release.md
+
+ci-sweep:
+  passes:
+    - id: sweep
+      role: marketing
+      template: marketing/ci-sweep.md

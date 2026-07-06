@@ -1432,7 +1432,13 @@ the intake invariant (only Planner pipelines or the human apply
 pipelines by the end of the milestone, so every role in `roles.yaml` has a
 concrete execution path rather than being skipped by the dispatcher.*
 
-- [ ] **M8.1 `plan` pipeline: visionary → competing PMs → arbitrator → decomposer**
+- [x] **M8.1 `plan` pipeline: visionary → competing PMs → arbitrator → decomposer** ✅ 2026-07-06 —
+  root `pipelines.yaml` now has the five-pass Planner plan pipeline with
+  `pm-a`/`pm-b` in the `competing-pms` parallel group; templates encode
+  atomic tickets, `Depends-on:`, execution groups, file scope, binary
+  criteria, and human sign-off before `op:ready` for deep/high-risk work.
+  `test/loop/planning-pipelines.test.ts` proves concurrent PM execution and
+  decomposer access to arbitrator output.
   **Goal:** Seed the deep-planning pipeline in pipelines.yaml + prompts/
   (proposal PR — ratified surfaces): visionary, pm-a ∥ pm-b
   (parallel_group with disjoint output files), arbitrator (agreed/
@@ -1458,7 +1464,11 @@ concrete execution path rather than being skipped by the dispatcher.*
   protocol), §8.
   **Session:** opus, single session — template quality is the product.
 
-- [ ] **M8.2 `groom` + `triage` pipelines + intake invariant**
+- [x] **M8.2 `groom` + `triage` pipelines + intake invariant** ✅ 2026-07-06 —
+  groom, triage, and SRE incident pipelines/templates landed; templates pin
+  the Planner-only `op:ready` invariant, doc reconciliation, fixed incident
+  issue format, pending-approval ages, and budget warnings in the groom
+  brief. Focused FakeRuntime coverage runs the one-pass pipelines.
   **Goal:** Seed groom (digests/incidents/returned items → specs + tickets
   + re-prioritization; doc-reconciliation duty: small drift appends a
   doc-update criterion, large drift emits a docs ticket; vision/charter
@@ -1485,7 +1495,12 @@ concrete execution path rather than being skipped by the dispatcher.*
   open decision, note in PR).
   **Session:** opus, single session.
 
-- [ ] **M8.3 Trigger-to-pipeline routing for standing roles**
+- [x] **M8.3 Trigger-to-pipeline routing for standing roles** ✅ 2026-07-06 —
+  `src/org/trigger-routing.ts` maps effective triggers to named protocols;
+  dispatch uses it for loud skips; turn-runner executes routed scheduled/event
+  pipelines through the real pass executor. The scheduled Planner groom path
+  is covered end-to-end with FakeRuntime, pending approval context, and budget
+  warning context.
   **Goal:** Add the org-layer routing table that M7 deliberately avoided
   hardcoding: given `{role, trigger, app}`, resolve the pipeline or
   one-pass template to run. Required v1 mapping: planner daily→groom,
@@ -1511,7 +1526,12 @@ concrete execution path rather than being skipped by the dispatcher.*
   **Read:** docs/architecture.md §2; docs/loop.md §4; roles.yaml.
   **Session:** opus, single session — this is load-bearing autonomy glue.
 
-- [ ] **M8.4 SRE/Support/Marketing v0 pipelines + event schemas**
+- [x] **M8.4 SRE/Support/Marketing v0 pipelines + event schemas** ✅ 2026-07-06 —
+  `sre-health`, `support-digest`, `marketing-release`, and `ci-sweep`
+  pipelines/templates landed; `docs/event-schemas.md` plus
+  `src/org/event-schemas.ts` define/validate support-feedback,
+  adoption-signal, health-alert, and launch-calendar payloads; root pipeline
+  tests pin all 12 protocol ids and role ownership.
   **Goal:** Seed the non-build standing-role protocols as ratified
   pipeline/template surfaces: `sre-health` (scheduled health/deploy sweep,
   emits incident issues or infra PRs), `support-digest` (file-drop feedback
@@ -1542,6 +1562,10 @@ concrete execution path rather than being skipped by the dispatcher.*
   matter.
 
 - [ ] **M8.5 `operon-sandbox-gamma` functional coverage for non-build roles**
+  **Status 2026-07-06:** Not run in this session because
+  `~/Build/operon-sandbox-gamma` is not present. M8.1-M8.4 made the
+  protocols, routing, and event schemas ready for this proof; the functional
+  coverage still needs the gamma repo/service to exist.
   **Goal:** Create the human-approved third sandbox repo
   `operon-sandbox-gamma`: a tiny deployable HTTP service with `/health`,
   a local/container deploy script, and seeded file-drop inbox examples for

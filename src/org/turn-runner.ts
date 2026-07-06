@@ -8,17 +8,20 @@ import { join, resolve } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { recordTurn, toRecord } from "../runtime/telemetry.js";
-import type { ContextBundle, RoleConfig, Runtime, TurnResult } from "../runtime/types.js";
-import { defaultLoopInputs, loadGateCommands, runLoopOnce } from "../loop/driver.js";
+import type { ContextBundle, RoleConfig, Runtime, Trigger, TurnHooks, TurnResult, TurnUsage } from "../runtime/types.js";
+import { loadGateCommands, runLoopOnce } from "../loop/driver.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
-import { loadPipelines } from "../loop/pipelines.js";
+import { executePipeline, type PipelineRunResult } from "../loop/pipeline.js";
+import { getPipeline, loadPipelines, type PassConfig } from "../loop/pipelines.js";
 import { loadPolicy } from "../loop/policy.js";
 import { runRole } from "../loop/runRole.js";
 import { ApprovalStore } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
+import { rollupBudgets } from "./budget.js";
 import { composeGate } from "./gate-compose.js";
 import { acquireLock, heartbeatLock, lockExists, readLock, releaseLock } from "./locks.js";
-import { readJournal, writeJournalPatch } from "./journal.js";
+import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
+import { resolveTriggerRoute } from "./trigger-routing.js";
 
 export interface RunDispatchedTurnOptions {
   role: RoleConfig;
@@ -91,8 +94,10 @@ export async function runDispatchedTurn(
       worktree: localRepo,
     });
 
+    const route = resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
+
     let result: TurnResult;
-    if (options.role.name === "builder" && journal.triggerKind === "event" && journal.trigger === "ticket-ready") {
+    if (route.kind === "build-loop") {
       result = await runBuilderTicketTurn({
         ...options,
         runtimeHome,
@@ -101,6 +106,23 @@ export async function runDispatchedTurn(
         context,
         hooks,
       });
+    } else if (route.kind === "pipeline") {
+      result = await runProtocolPipelineTurn({
+        ...options,
+        runtimeHome,
+        orgRoot,
+        localRepo,
+        context,
+        hooks,
+        journal,
+        pipelineName: route.pipeline,
+      });
+    } else if (route.kind === "review-loop") {
+      result = zeroResult(
+        "completed",
+        "review loop route resolved; review advancement remains owned by the ticket state machine",
+        options.role,
+      );
     } else {
       const generic = await runRole({
         role: options.role,
@@ -165,12 +187,75 @@ export async function runDispatchedTurn(
   }
 }
 
+async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
+  runtimeHome: string;
+  orgRoot: string;
+  localRepo: string;
+  context: ContextBundle;
+  hooks: TurnHooks;
+  journal: TurnJournal;
+  pipelineName: string;
+}): Promise<TurnResult> {
+  const rolesFile = await import("./roles.js").then((m) => m.loadRoles(join(options.orgRoot, "roles.yaml")));
+  const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
+  const pipelines = await loadPipelines(join(options.orgRoot, "pipelines.yaml"), {
+    roleNames: rolesFile.roles.map((role) => role.name),
+    promptsDir: join(options.orgRoot, "prompts"),
+  });
+  const pipeline = getPipeline(pipelines, options.pipelineName);
+  const priorOutputs = new Map<string, string>();
+  const now = options.now?.() ?? new Date();
+  const approvalRows = await new ApprovalStore(options.runtimeHome).listPending();
+  const budgetRows = (await rollupBudgets(options.runtimeHome, options.appsFile, now)).filter(
+    (row) => row.status !== "ok",
+  );
+
+  const result = await executePipeline({
+    pipeline,
+    selection: { tier: "standard" },
+    roles,
+    runtimeFor: options.runtimeFor ?? ((role) => getRuntime(role.runtime)),
+    briefFor: (pass) =>
+      protocolBrief({
+        app: options.app.name,
+        role: options.role.name,
+        pipelineName: options.pipelineName,
+        pass,
+        journal: options.journal,
+        priorOutputs,
+        approvalRows: approvalRows.map((item) => ({
+          id: item.id,
+          app: item.app,
+          role: item.role,
+          rule: item.rule,
+          ageMs: now.getTime() - new Date(item.raisedAt).getTime(),
+        })),
+        budgetRows,
+      }),
+    promptsDir: join(options.orgRoot, "prompts"),
+    context: options.context,
+    workdir: options.localRepo,
+    hooks: options.hooks,
+    runlog: {
+      root: options.runtimeHome,
+      app: options.app.name,
+      traceId: options.turnId,
+    },
+    ...(options.now !== undefined ? { clock: options.now } : {}),
+    afterPass: (record) => {
+      priorOutputs.set(record.pass.id, record.result.summary);
+    },
+  });
+
+  return resultFromPipeline(options.role, options.pipelineName, result);
+}
+
 async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   runtimeHome: string;
   orgRoot: string;
   localRepo: string;
   context: ContextBundle;
-  hooks: { gate: (action: Parameters<typeof defaultGate>[0]) => ReturnType<typeof defaultGate> };
+  hooks: TurnHooks;
 }): Promise<TurnResult> {
   const rolesFile = await import("./roles.js").then((m) => m.loadRoles(join(options.orgRoot, "roles.yaml")));
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
@@ -204,6 +289,113 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   if (phase === "merged") return zeroResult("completed", "builder ticket turn merged one ticket", options.role);
   if (phase === "blocked") return zeroResult("blocked_on_gate", "builder ticket turn blocked on gate", options.role);
   return zeroResult("completed", `builder ticket turn completed with phase ${phase ?? "no-ready-ticket"}`, options.role);
+}
+
+function protocolBrief(input: {
+  app: string;
+  role: string;
+  pipelineName: string;
+  pass: PassConfig;
+  journal: TurnJournal;
+  priorOutputs: Map<string, string>;
+  approvalRows: { id: string; app: string; role: string; rule: string; ageMs: number }[];
+  budgetRows: { app: string; spentUsd: number; budgetUsd: number; percent: number; status: string }[];
+}): string {
+  const prior =
+    input.priorOutputs.size === 0
+      ? "None yet."
+      : [...input.priorOutputs.entries()]
+          .map(([pass, output]) => `### ${pass}\n\n${output}`)
+          .join("\n\n");
+  const approvals =
+    input.approvalRows.length === 0
+      ? "No pending approvals."
+      : input.approvalRows
+          .map((item) => `- ${item.id}: ${item.app}/${item.role} ${item.rule}, age ${formatAge(item.ageMs)}`)
+          .join("\n");
+  const budgets =
+    input.budgetRows.length === 0
+      ? "No budget warnings."
+      : input.budgetRows
+          .map(
+            (row) =>
+              `- ${row.app}: ${row.status} ${row.spentUsd.toFixed(2)} / ${row.budgetUsd.toFixed(2)} (${row.percent.toFixed(1)}%)`,
+          )
+          .join("\n");
+
+  return [
+    `# Routed ${input.role} turn`,
+    "",
+    `App: ${input.app}`,
+    `Role: ${input.role}`,
+    `Pipeline: ${input.pipelineName}`,
+    `Pass: ${input.pass.id}`,
+    `Trigger: ${input.journal.triggerKind ?? "unknown"} ${input.journal.trigger ?? ""}`.trimEnd(),
+    `Turn: ${input.journal.turnId}`,
+    "",
+    "## Operator digest",
+    "",
+    "### Pending approvals",
+    approvals,
+    "",
+    "### Budget warnings",
+    budgets,
+    "",
+    "## Prior pass outputs",
+    "",
+    prior,
+  ].join("\n");
+}
+
+function resultFromPipeline(role: RoleConfig, pipelineName: string, result: PipelineRunResult): TurnResult {
+  const statuses = result.passes.map((record) => record.result.status);
+  const status = statuses.includes("blocked_on_gate")
+    ? "blocked_on_gate"
+    : statuses.includes("failed") || result.aborted
+      ? "failed"
+      : "completed";
+  const usage = sumUsage(result.passes.map((record) => record.result.usage));
+  const last = result.passes[result.passes.length - 1]?.result;
+  return {
+    status,
+    summary:
+      `pipeline ${pipelineName} ${status}; passes: ` +
+      (result.passes.length === 0
+        ? "none"
+        : result.passes.map((record) => `${record.pass.id}=${record.result.status}`).join(", ")),
+    artifacts: result.passes.flatMap((record) => record.result.artifacts),
+    session: last?.session ?? { runtime: role.runtime, id: `pipeline-${pipelineName}-${Date.now()}` },
+    usage,
+    escalations: result.passes.flatMap((record) => record.result.escalations),
+  };
+}
+
+function sumUsage(usages: TurnUsage[]): TurnUsage {
+  return usages.reduce<TurnUsage>(
+    (acc, usage) => ({
+      tokensIn: acc.tokensIn + usage.tokensIn,
+      tokensOut: acc.tokensOut + usage.tokensOut,
+      costUsd: acc.costUsd + usage.costUsd,
+      subagentTurns: acc.subagentTurns + usage.subagentTurns,
+      wallClockMs: acc.wallClockMs + usage.wallClockMs,
+    }),
+    { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0 },
+  );
+}
+
+function triggerFromJournal(journal: TurnJournal): Trigger {
+  if (journal.triggerKind === "event" && journal.trigger !== undefined) return { event: journal.trigger };
+  if (journal.triggerKind === "schedule" && journal.trigger !== undefined) return { schedule: journal.trigger };
+  if (journal.triggerKind === "manual") return { manual: true };
+  return { manual: true };
+}
+
+function formatAge(ms: number): string {
+  const minutes = Math.max(0, Math.floor(ms / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
 }
 
 async function ensureTurnLock(

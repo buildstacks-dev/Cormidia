@@ -28,8 +28,8 @@ src/runtime/   the runtime contract: Runtime interface, critical-ops gate,
                telemetry, run logs, adapters (claude live; codex/pi stubbed)
 src/loop/      pass pipelines, briefs, quality gates, verdict parsing, and
                the ticket → PR → review → merge state machine
-src/org/       app registry, bootstrap, co-planning, roles loader;
-               scheduler/approvals/memory/retro still upcoming
+src/org/       app registry, bootstrap, co-planning, dispatch, approvals,
+               budget overlays, trigger routing; memory/retro still upcoming
 test/          adapter conformance, gate, pipelines, bootstrap, qgates
 research/      decision records
 ```
@@ -58,16 +58,18 @@ dispatcher ships.
 
 ## Status
 
-M0-M6 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
+M0-M8.4 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
 pass executor, run logs, app registry, bootstrap flow, co-planning launcher,
 quality gates, typed verdict parsers, GitHub ticket state machine, scheduler,
-manual loop driver, and real Builder/Reviewer pipeline integration are
-implemented and tested. M5 is proven against a
+manual loop driver, real Builder/Reviewer pipeline integration, approval queue,
+dispatcher, budget overlay, Planner pipelines, standing-role v0 pipelines, and
+trigger routing are implemented and tested. M5 is proven against a
 disposable private GitHub repo: ready issue → claim → real gates → PR →
-injected review → squash merge → closed issue. The next build milestone is
-M7: autonomous dispatch ticks and the approval queue. M6 is proven on
+injected review → squash merge → closed issue. M6 is proven on
 `operon-sandbox-alpha`: real Claude Builder/Reviewer passes shipped issue #1
-through PR #2 to a merged squash commit.
+through PR #2 to a merged squash commit. M8.5 is pending until
+`operon-sandbox-gamma` is available for the SRE/Support/Marketing functional
+role smoke.
 
 CodexRuntime and PiRuntime are still planned for M10; until then, the live
 adapter is ClaudeRuntime and `pnpm test:live` is the gated live-conformance

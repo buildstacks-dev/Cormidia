@@ -257,6 +257,12 @@ triage:                     # bug batch: issues → tiered ready tickets
   passes: [...]
 ```
 
+As of M8, the root `pipelines.yaml` carries the executable v0 set:
+`build`, `review`, `fix`, `ship`, `plan`, `groom`, `triage`,
+`sre-incident`, `sre-health`, `support-digest`, `marketing-release`, and
+`ci-sweep`. Trigger-to-pipeline routing lives in `src/org/trigger-routing.ts`
+so roles.yaml stays declarative and unknown mappings fail as loud skips.
+
 
 
 ### Review dimensions — security always-on, the rest risk-selected

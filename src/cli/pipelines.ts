@@ -25,10 +25,11 @@ export async function cmdPipelines(path = "pipelines.yaml"): Promise<number> {
   });
 
   console.log(`${path}: OK — ${file.pipelines.length} pipelines\n`);
-  console.log("PIPELINE".padEnd(10) + "PASSES");
+  const width = Math.max(10, ...file.pipelines.map((p) => p.name.length + 2));
+  console.log("PIPELINE".padEnd(width) + "PASSES");
   for (const p of file.pipelines) {
     const passes = p.passes.map((x) => `${x.id}(${x.role})`).join(", ");
-    console.log(p.name.padEnd(10) + (p.mechanical ? "[mechanical] " : "") + passes);
+    console.log(p.name.padEnd(width) + (p.mechanical ? "[mechanical] " : "") + passes);
   }
   return 0;
 }

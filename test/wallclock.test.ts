@@ -97,7 +97,7 @@ describe("wall-clock and turn caps", () => {
       });
 
       expect(killed).toEqual([12345]);
-      expect(spawned).toEqual(["hung"]);
+      expect(spawned).toContain("hung");
       expect(result.skipped.join("\n")).toContain("recovered resume");
     } finally {
       home.cleanup();

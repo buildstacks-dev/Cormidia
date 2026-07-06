@@ -49,7 +49,7 @@ against real repos.
 | **M5 — The build loop** | Can a task flow through the factory? | Completed 2026-07-06 against a disposable private GitHub repo: setup creates the `op:*`, priority, and tier labels idempotently; the e2e creates one ready issue, claims it, makes a tiny branch change, runs real quality gates, opens a PR, injects the simulated approval, squash-merges, deletes the branch, and verifies the issue closed. |
 | **M6 — Fully real delivery** | Can it do the whole thing for real? | Completed 2026-07-06 on `operon-sandbox-alpha`: issue #1 was built by real Claude Builder passes, checked by real gates, reviewed by real Claude Reviewer output recorded as a GitHub review comment fallback (same-account APPROVE is blocked by GitHub), and squash-merged as PR #2. |
 | **M7 — Unattended operation** | Can it run alone — and stop when it should? | The dispatcher wakes on schedule and works without a human driving. Crashes recover; budgets auto-pause an overspending app. The safety drill: an agent attempts a critical operation on a sandbox app, is blocked, the request lands in the human's approval queue, approval releases exactly that one action, and a complete audit trail exists. |
-| **M8 — Planning + standing roles** | Can it plan, not just build? | The Planner drafts a spec for a sandbox app, decomposes it into small tickets with checkable acceptance criteria, and triages incoming bug reports. SRE, Support, and Marketing also get concrete v0 pipelines and a trigger-routing path, so scheduled/event turns do real protocol work. |
+| **M8 — Planning + standing roles** | Can it plan, not just build? | M8.1-M8.4 completed 2026-07-06: the root protocol now has executable `plan`, `groom`, `triage`, SRE, Support, and Marketing pipelines; dispatch routes roles.yaml triggers to those protocols; file-drop company event schemas are documented and validated. Gamma functional coverage remains the next proof when `operon-sandbox-gamma` exists locally/remotely. |
 | **M9 — Learning & visibility** | Does it get better, and can you see what it does? | Agents record lessons per app and reuse them; each role gets a scorecard; a weekly retro turns scores into adjustments; status/analysis views work without reading transcripts. |
 | **M10 — Multiple AI providers** | Does it work beyond one vendor? | Builder and reviewer run on different AI providers (uncorrelated review blind spots), verified with real turns; a capability matrix records what each provider supports. |
 
@@ -85,7 +85,9 @@ real functional target today:
 
 ### The planned answer: a third test application
 
-Approved 2026-07-06 and slotted in TODO.md as M8.5:
+Approved 2026-07-06 and slotted in TODO.md as M8.5. It was not present
+locally during the M8.1-M8.4 implementation session, so the protocol and
+routing are in place before the third sandbox functional run:
 **`operon-sandbox-gamma` — a tiny deployable web service**
 (a small HTTP API with a health endpoint and a local/container deploy
 script), plus a seeded, synthetic user-feedback inbox.

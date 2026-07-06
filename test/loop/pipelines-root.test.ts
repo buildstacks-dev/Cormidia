@@ -25,9 +25,22 @@ async function loadRoot(): Promise<PipelinesFile> {
 }
 
 describe("root pipelines.yaml", () => {
-  it("loads against the real roles.yaml and prompts/ — 4 pipelines", async () => {
+  it("loads against the real roles.yaml and prompts/ — M8 pipeline set", async () => {
     const file = await loadRoot();
-    expect(file.pipelines.map((p) => p.name)).toEqual(["build", "review", "fix", "ship"]);
+    expect(file.pipelines.map((p) => p.name)).toEqual([
+      "build",
+      "review",
+      "fix",
+      "ship",
+      "plan",
+      "groom",
+      "triage",
+      "sre-incident",
+      "sre-health",
+      "support-digest",
+      "marketing-release",
+      "ci-sweep",
+    ]);
   });
 
   it("build: quick tier skips contract, standard runs both passes", async () => {
@@ -66,5 +79,48 @@ describe("root pipelines.yaml", () => {
     expect(getPipeline(file, "fix").passes[0]?.role).toBe("builder");
     for (const pass of getPipeline(file, "review").passes) expect(pass.role).toBe("reviewer");
     expect(getPipeline(file, "ship").passes[0]?.role).toBe("reviewer");
+  });
+
+  it("plan: competing PMs share a parallel group before decomposer", async () => {
+    const plan = getPipeline(await loadRoot(), "plan");
+    expect(plan.passes.map((p) => p.id)).toEqual([
+      "visionary",
+      "pm-a",
+      "pm-b",
+      "arbitrator",
+      "decomposer",
+    ]);
+    expect(plan.passes.map((p) => p.role)).toEqual([
+      "planner",
+      "planner",
+      "planner",
+      "planner",
+      "planner",
+    ]);
+    expect(plan.passes[1]?.parallelGroup).toBe("competing-pms");
+    expect(plan.passes[2]?.parallelGroup).toBe("competing-pms");
+  });
+
+  it("standing-role pipelines are owned by their roles", async () => {
+    const file = await loadRoot();
+    expect(getPipeline(file, "groom").passes.map((p) => `${p.id}:${p.role}`)).toEqual(["groom:planner"]);
+    expect(getPipeline(file, "triage").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
+      "triage:planner",
+    ]);
+    expect(getPipeline(file, "sre-incident").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
+      "incident:sre",
+    ]);
+    expect(getPipeline(file, "sre-health").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
+      "health:sre",
+    ]);
+    expect(getPipeline(file, "support-digest").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
+      "digest:support",
+    ]);
+    expect(getPipeline(file, "marketing-release").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
+      "release:marketing",
+    ]);
+    expect(getPipeline(file, "ci-sweep").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
+      "sweep:marketing",
+    ]);
   });
 });

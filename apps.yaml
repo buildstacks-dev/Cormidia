@@ -52,3 +52,8 @@ apps:
     budget_usd_month: 1000
     cadence:
       support: []
+  operon-sandbox-delta:
+    repo: bikramgupta/operon-sandbox-delta
+    status: onboarding
+    budget_usd_month: 1000
+    cadence: {}

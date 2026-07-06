@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -13,6 +13,9 @@ import {
 import { loadPipelines, type PipelinesFile } from "../src/loop/pipelines.js";
 import type { Policy } from "../src/loop/policy.js";
 import type { GateRunResult } from "../src/loop/qgates.js";
+import { VerdictParseError } from "../src/loop/verdicts.js";
+import { readEnvelope } from "../src/runtime/runlog/envelope.js";
+import { readEvents } from "../src/runtime/runlog/events.js";
 import { FakeRuntime, type ScriptedTurn } from "../src/runtime/testing/fakeRuntime.js";
 import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../src/runtime/types.js";
 import { makeBareWithClone, type BareCloneFixture } from "./fixtures/gitRepo.js";
@@ -248,6 +251,182 @@ describe("M6 loop engine integration", () => {
     }
   });
 });
+
+describe("GAP D — verdict reformat retry (docs/loop.md §6, §13 row 11)", () => {
+  const MALFORMED = "I'll touch a couple files and add a test or two — looks good.";
+
+  it("a malformed-then-valid verdict recovers via one session-resuming reformat turn", async () => {
+    const h = await claimedHarness("Verdict Retry", ["op:ready"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([scripted(MALFORMED), scripted(CONTRACT), scripted(DONE)]);
+    try {
+      const next = await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+      });
+
+      expect(next.phase).toBe("gates");
+      // contract(bad) + reformat(good) + implement = 3 turns.
+      expect(fake.calls.length).toBe(3);
+      // The reformat turn RESUMED the just-finished contract session.
+      expect(fake.calls[1]?.req.session?.id).toBe(`session-${MALFORMED.slice(0, 10)}`);
+      expect(fake.calls[1]?.req.task).toContain("could not be parsed");
+      expect(h.gh.issueComments.get(1)?.[0]).toContain("## Implementation contract");
+
+      const contractRun = runIdContaining(home.root, "-build-contract");
+      const events = await readEvents(home.root, "fixture", contractRun);
+      expect(events.some((e) => e.event === "verdict.recorded")).toBe(true);
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  it("a malformed-malformed verdict fails loudly with a distinct infra error_code", async () => {
+    const h = await claimedHarness("Verdict Fail", ["op:ready"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([scripted(MALFORMED), scripted("still not a contract at all")]);
+    try {
+      await expect(
+        runBuilderPipeline(h.item, {
+          ...engineOptions(h, home.root, fake),
+          pipelines: await rootPipelines(),
+        }),
+      ).rejects.toThrow(VerdictParseError);
+
+      // Exactly one retry: contract(bad) + reformat(bad); implement never ran.
+      expect(fake.calls.length).toBe(2);
+
+      const contractRun = runIdContaining(home.root, "-build-contract");
+      const envelope = await readEnvelope(home.root, "fixture", contractRun);
+      expect(envelope.status).toBe("failed");
+      expect(envelope.error_code).toBe("error_verdict_unparseable");
+      const events = await readEvents(home.root, "fixture", contractRun);
+      expect(
+        events.some((e) => e.event === "pass.failed" && e.error_code === "error_verdict_unparseable"),
+      ).toBe(true);
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+});
+
+describe("GAP F — brief [spec] and [history] population (docs/loop.md §3)", () => {
+  it("a Context link to a repo file yields a [spec] section with the file's excerpts", async () => {
+    const body = [
+      "## Goal",
+      "Add the widget.",
+      "",
+      "## Context",
+      "Background lives in [the spec](docs/specs/widget.md).",
+      "",
+      "## Acceptance criteria",
+      "- [x] widget behaves",
+      "",
+    ].join("\n");
+    const h = await claimWithBody("Spec Ticket", body, ["op:ready", "op:tier-quick"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([scripted(DONE)]);
+    try {
+      mkdirSync(join(h.item.worktree as string, "docs/specs"), { recursive: true });
+      writeFileSync(
+        join(h.item.worktree as string, "docs/specs/widget.md"),
+        "# Widget spec\n\nThe widget must foo the bar reliably.\n",
+      );
+
+      await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+      });
+
+      const task = fake.calls[0]?.req.task ?? "";
+      expect(task).toContain("[spec]");
+      expect(task).toContain("docs/specs/widget.md");
+      expect(task).toContain("The widget must foo the bar reliably");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  it("a second attempt carries a [history] section with the attempt count", async () => {
+    const h = await claimedHarness("History Ticket", ["op:ready", "op:tier-quick"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([scripted(DONE)]);
+    try {
+      const retried: LoopItem = { ...h.item, remediationAttempts: 2 };
+      await runBuilderPipeline(retried, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+        pipelineName: "fix",
+      });
+
+      const task = fake.calls[0]?.req.task ?? "";
+      expect(task).toContain("[history]");
+      expect(task).toContain("attempt 1 of 3");
+      expect(task).toContain("attempt 2 of 3");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  it("a missing Context spec file degrades to a note, never throws", async () => {
+    const body = [
+      "## Goal",
+      "Add the gizmo.",
+      "",
+      "## Context",
+      "See [the missing spec](docs/specs/missing.md).",
+      "",
+      "## Acceptance criteria",
+      "- [x] gizmo behaves",
+      "",
+    ].join("\n");
+    const h = await claimWithBody("Missing Spec Ticket", body, ["op:ready", "op:tier-quick"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([scripted(DONE)]);
+    try {
+      const next = await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+      });
+      expect(next.phase).toBe("gates"); // no throw
+      const task = fake.calls[0]?.req.task ?? "";
+      expect(task).toContain("[spec]");
+      expect(task).toContain("was not found in the worktree");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+});
+
+function runIdContaining(runlogRoot: string, needle: string): string {
+  const runId = readdirSync(join(runlogRoot, "runs", "fixture")).find((id) => id.includes(needle));
+  if (runId === undefined) throw new Error(`no run record matching ${needle}`);
+  return runId;
+}
+
+async function claimWithBody(
+  title: string,
+  body: string,
+  labels: string[],
+): Promise<{ pair: BareCloneFixture; gh: FakeGhOps; item: LoopItem; cleanup(): void }> {
+  const pair = makeBareWithClone();
+  const gh = new FakeGhOps({
+    cloneRoot: pair.clone.root,
+    issues: [{ number: 1, title, body, labels }],
+  });
+  const item = await claimTicket(await gh.readIssue(1), {
+    gh,
+    targetRepo: "fixture/repo",
+    localRepo: pair.clone.root,
+    worktreeRoot: join(pair.root, "worktrees"),
+  });
+  return { pair, gh, item, cleanup: () => pair.cleanup() };
+}
 
 async function claimedHarness(
   title: string,

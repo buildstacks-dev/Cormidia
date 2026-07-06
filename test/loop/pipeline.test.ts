@@ -8,10 +8,11 @@ import { describe, expect, it } from "vitest";
 import { executePipeline, type ExecutePipelineOptions } from "../../src/loop/pipeline.js";
 import { getPipeline, loadPipelines, type PipelinesFile } from "../../src/loop/pipelines.js";
 import { readEnvelope } from "../../src/runtime/runlog/envelope.js";
-import { readEvents } from "../../src/runtime/runlog/events.js";
+import { readEvents, reconstructSpanTree } from "../../src/runtime/runlog/events.js";
 import { runPaths } from "../../src/runtime/runlog/paths.js";
+import { detectRunAnomalies } from "../../src/runtime/runlog/anomalies.js";
 import { FakeRuntime, type ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";
-import type { RoleConfig, Runtime, TurnResult } from "../../src/runtime/types.js";
+import type { RoleConfig, Runtime, TurnEvent, TurnResult } from "../../src/runtime/types.js";
 import { FakeClock } from "../fixtures/fakeClock.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
 
@@ -59,6 +60,18 @@ function scripted(
   usage: Partial<TurnResult["usage"]> = {},
 ): ScriptedTurn {
   return { result: turnResult(summary, status, usage) };
+}
+
+/** A Runtime that fires a scripted list of TurnEvents through hooks.onEvent
+ *  (the way an adapter streams tool/subagent activity) before returning. */
+function eventRuntime(events: TurnEvent[], summary = "done"): Runtime {
+  return {
+    kind: "claude",
+    async runTurn(_req, hooks) {
+      for (const e of events) hooks.onEvent?.(e);
+      return turnResult(summary);
+    },
+  };
 }
 
 async function loadFixture(): Promise<PipelinesFile> {
@@ -274,6 +287,106 @@ describe("executePipeline", () => {
         ]);
         for (const event of events) expect(event.span_id).toBe(record.pass.id);
       }
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("bridges tool_use TurnEvents into L2 tool.called and tallies envelope tool_counts", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const events: TurnEvent[] = [
+      { type: "tool_use", detail: "bash: ls", name: "bash", durationMs: 5, success: true, args: { cmd: "ls" } },
+      { type: "tool_use", detail: "bash: cat", name: "bash", durationMs: 2, success: false, args: { cmd: "cat x" } },
+      { type: "tool_use", detail: "read file", name: "read", durationMs: 1, success: true },
+      { type: "text", detail: "thinking out loud" }, // not bridged
+    ];
+    const h = makeHarness(build, [], {
+      selection: { tier: "quick" },
+      runtimeFor: () => eventRuntime(events),
+    });
+    try {
+      const result = await executePipeline(h.options);
+      const runId = result.passes[0]!.runId;
+
+      const recorded = await readEvents(h.options.runlog.root, "civic", runId);
+      const toolCalls = recorded.filter((e) => e.event === "tool.called");
+      expect(toolCalls.map((e) => e.detail?.tool)).toEqual(["bash", "bash", "read"]);
+      // Raw args never reach L2 — only the hash.
+      const raw = readFileSync(runPaths(h.options.runlog.root, "civic", runId).events, "utf8");
+      expect(raw).not.toContain("cat x");
+      expect(toolCalls[0]?.detail?.args_hash).toMatch(/^[0-9a-f]{16}$/);
+
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", runId);
+      expect(envelope.tool_counts).toEqual({ bash: 2, read: 1 });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("nests a FakeRuntime scripted subagent event as a span under the pass", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(
+      build,
+      [{ toolActions: [{ action: { tool: "bash", input: { command: "ls" } }, fromSubagent: true }], result: turnResult("done") }],
+      { selection: { tier: "quick" } },
+    );
+    try {
+      const result = await executePipeline(h.options);
+      const runId = result.passes[0]!.runId;
+      const tree = reconstructSpanTree(await readEvents(h.options.runlog.root, "civic", runId));
+      expect(tree.length).toBe(1);
+      expect(tree[0]?.spanId).toBe("implement");
+      expect(tree[0]?.children.length).toBe(1);
+      expect(tree[0]?.children[0]?.parentSpanId).toBe("implement");
+      expect(tree[0]?.children[0]?.events.map((e) => e.event)).toEqual(["subagent.started"]);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("nests structured subagent.started/completed with an inner tool.called", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const events: TurnEvent[] = [
+      { type: "subagent", detail: "scout start", name: "scout", phase: "started", spanId: "implement/sub-1" },
+      { type: "tool_use", detail: "grep", name: "grep", durationMs: 3, success: true, spanId: "implement/sub-1" },
+      { type: "subagent", detail: "scout done", name: "scout", phase: "completed", spanId: "implement/sub-1" },
+    ];
+    const h = makeHarness(build, [], { selection: { tier: "quick" }, runtimeFor: () => eventRuntime(events) });
+    try {
+      const result = await executePipeline(h.options);
+      const runId = result.passes[0]!.runId;
+      const tree = reconstructSpanTree(await readEvents(h.options.runlog.root, "civic", runId));
+      const child = tree[0]?.children[0];
+      expect(child?.spanId).toBe("implement/sub-1");
+      expect(child?.events.map((e) => e.event)).toEqual([
+        "subagent.started",
+        "tool.called",
+        "subagent.completed",
+      ]);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("bash_heavy and environment_retry detectors fire on real executor output", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const events: TurnEvent[] = [];
+    for (let i = 0; i < 20; i++) {
+      events.push({ type: "tool_use", detail: "bash", name: "bash", durationMs: 1, success: true });
+    }
+    for (let i = 0; i < 3; i++) {
+      events.push({ type: "tool_use", detail: "docker retry", name: "bash", durationMs: 1, success: false, category: "environment_retry" });
+    }
+    const h = makeHarness(build, [], { selection: { tier: "quick" }, runtimeFor: () => eventRuntime(events) });
+    try {
+      const result = await executePipeline(h.options);
+      const runId = result.passes[0]!.runId;
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", runId);
+      const recorded = await readEvents(h.options.runlog.root, "civic", runId);
+      const flags = detectRunAnomalies({ envelope, events: recorded }).map((a) => a.flag);
+      expect(flags).toContain("bash_heavy");
+      expect(flags).toContain("environment_retry");
+      expect(envelope.tool_counts?.["bash"]).toBe(23);
     } finally {
       h.cleanup();
     }

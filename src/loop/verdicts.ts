@@ -434,16 +434,20 @@ export class VerdictParseError extends Error {
 
 /** One parse-failure retry (§6): `reformat` asks the SAME session to restate
  *  its verdict — it receives the failure reason and returns the new text.
- *  Exactly one retry, then a loud VerdictParseError. */
+ *  Exactly one retry, then a loud VerdictParseError. `parse` defaults to the
+ *  lenient text grammar; a caller that also accepts native structured-output
+ *  JSON (the loop) passes a JSON-or-text parser so both transports get the
+ *  same single-retry contract. */
 export async function parseWithRetry<K extends VerdictKind>(
   kind: K,
   text: string,
   reformat: (reason: string) => string | Promise<string>,
+  parse: (text: string) => ParseResult<K> = (t) => parseVerdict(kind, t),
 ): Promise<VerdictTypes[K]> {
-  const first = parseVerdict(kind, text);
+  const first = parse(text);
   if (first.ok) return first.verdict;
   const retryText = await reformat(first.reason);
-  const second = parseVerdict(kind, retryText);
+  const second = parse(retryText);
   if (second.ok) return second.verdict;
   throw new VerdictParseError(kind, [
     { text, reason: first.reason },

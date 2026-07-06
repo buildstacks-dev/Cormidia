@@ -119,6 +119,26 @@ export type GateFn = (action: ToolAction) => GateDecision;
 export interface TurnEvent {
   type: "text" | "tool_use" | "tool_result" | "subagent" | "gate";
   detail: string;
+  /** Structured runlog fields (docs/loop.md §9 L2 bridge). All optional and
+   *  purely additive: an adapter that only sets `type`/`detail` still works —
+   *  the executor's L2 bridge (src/loop/pipeline.ts) reads these when present
+   *  and infers what it can from `detail` otherwise. `args` is HASHED at the
+   *  L2 boundary and never persisted raw (§9). */
+  /** Tool name (on `tool_use`) or subagent type (on `subagent`). */
+  name?: string;
+  /** Subagent lifecycle phase — pairs `subagent.started`/`.completed` in L2. */
+  phase?: "started" | "completed";
+  /** Subagent span id — nests the fan-out under its parent pass in L2. */
+  spanId?: string;
+  /** Wall-clock duration of a `tool_use`. */
+  durationMs?: number;
+  /** Outcome of a `tool_use`. */
+  success?: boolean;
+  /** A classification tag forwarded onto `tool.called` detail (e.g.
+   *  `environment_retry`), read by the L1/L2 anomaly detectors (§9). */
+  category?: string;
+  /** Raw `tool_use` args — hashed at the L2 boundary, never persisted raw. */
+  args?: unknown;
 }
 
 export interface TurnHooks {

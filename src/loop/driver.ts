@@ -21,6 +21,7 @@ import {
   runReviewPipeline,
   runShipCheckPipeline,
 } from "./loop.js";
+import type { LoopRunlog } from "./loop-runlog.js";
 import type { PipelinesFile } from "./pipelines.js";
 import type { Policy } from "./policy.js";
 import { loadPolicy } from "./policy.js";
@@ -157,6 +158,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
                     pipelineName: "fix",
                     gateResult: result,
                   }),
+                runlog: gateRunlog(options, item),
               }
             : {}),
         });
@@ -178,6 +180,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
                     pipelineName: "fix",
                     gateResult: result,
                   }),
+                runlog: gateRunlog(options, item),
               }
             : {}),
         });
@@ -264,6 +267,22 @@ async function loadRequiredPolicy(path: string): Promise<Policy> {
     );
   }
   return loadPolicy(path);
+}
+
+/** Gate-phase run record target (docs/loop.md §9): the state machine's gate
+ *  events land under the engine's runlog home, correlated on the item's turn
+ *  id. Only available in engine mode — the pure state-machine path has no
+ *  runlog home. */
+function gateRunlog(options: LoopDriverOptions, item: LoopItem): LoopRunlog {
+  const engine = options.engine;
+  if (engine === undefined) throw new Error("loop driver: engine options missing");
+  return {
+    root: engine.runlogRoot,
+    app: options.app,
+    ticket: item.ticketRef,
+    traceId: item.turnId ?? `${item.ticketRef}-gates`,
+    ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
+  };
 }
 
 function enginePhaseOptions(options: LoopDriverOptions) {

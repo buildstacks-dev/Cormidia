@@ -24,6 +24,7 @@ import type {
   ContextBundle,
   RoleConfig,
   Runtime,
+  TurnEvent,
   TurnHooks,
   TurnResult,
   TurnUsage,
@@ -35,7 +36,7 @@ import {
   type EnvelopeStatus,
   type EnvelopeUsage,
 } from "../runtime/runlog/envelope.js";
-import { createEventWriter } from "../runtime/runlog/events.js";
+import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
 import { createSessionLogSink, writeBrief, writeOutput } from "../runtime/runlog/forensics.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
 import {
@@ -77,7 +78,42 @@ export interface ExecutePipelineOptions {
   verdictSchemaFor?: (pass: PassConfig) => Record<string, unknown> | undefined;
   /** Runs after a pass completes and before the next sequential stage starts. */
   afterPass?: (record: PassRunRecord) => void | Promise<void>;
+  /** Parse + record the pass's typed verdict, AFTER the turn and BEFORE the
+   *  envelope is finalized. The loop layer owns verdict semantics (kinds,
+   *  reformat retry, side effects); the executor only needs the ok/failed
+   *  outcome so an unparseable verdict finalizes the pass as an infra failure
+   *  (distinct error_code), never a merit outcome (docs/loop.md §6, §13 row
+   *  11). `verdict.recorded` (§9) is emitted by the callback into the pass's
+   *  own L2 writer. Never throws for a parse failure — it returns
+   *  `{ok:false,…}` and the executor rethrows the typed error once the record
+   *  is durable. */
+  recordVerdict?: (ctx: VerdictRecordContext) => Promise<VerdictRecordOutcome>;
 }
+
+/** Everything the loop's verdict recorder needs, handed to it by the executor
+ *  once the turn is done: the pass's run context plus the SAME runtime and
+ *  hooks the turn used, so a reformat retry can resume the just-finished
+ *  session (docs/loop.md §6). */
+export interface VerdictRecordContext {
+  pass: PassConfig;
+  runId: string;
+  result: TurnResult;
+  /** The resolved (per-pass-overridden) role. */
+  role: RoleConfig;
+  /** The exact runtime instance that ran the turn — required to resume it. */
+  runtime: Runtime;
+  /** The pass hooks (the conformance gate is preserved) for the reformat turn. */
+  hooks: TurnHooks;
+  workdir: string;
+  context: ContextBundle;
+  /** The pass's own L2 writer — `verdict.recorded` lands in this run record. */
+  events: EventWriter;
+  clock: () => Date;
+}
+
+export type VerdictRecordOutcome =
+  | { ok: true }
+  | { ok: false; errorCode: string; error: Error };
 
 export interface PassRunRecord {
   pass: PassConfig;
@@ -174,17 +210,24 @@ async function runPass(
   await events.append({ type: "pass.started" });
 
   const sessionLog = createSessionLogSink(root, app, runId);
+  // The harness fires TurnEvents synchronously via onEvent; L2 appends are
+  // async. We buffer the tool/subagent events during the turn and flush them
+  // to L2 in order afterward (§9: fan-out trees reconstruct without opening
+  // transcripts). session.log still receives every event live.
+  const bridged: TurnEvent[] = [];
   const passHooks: TurnHooks = {
     gate: options.hooks.gate, // unchanged — the conformance contract
     onEvent: (e) => {
       sessionLog(e);
+      if (e.type === "tool_use" || e.type === "subagent") bridged.push(e);
       options.hooks.onEvent?.(e);
     },
   };
 
   // Fresh session per pass: req.session is never set.
+  const runtime = options.runtimeFor(role);
   const verdictSchema = options.verdictSchemaFor?.(pass);
-  const result = await options.runtimeFor(role).runTurn(
+  const result = await runtime.runTurn(
     {
       role,
       workdir: options.workdir,
@@ -197,9 +240,11 @@ async function runPass(
   );
 
   await writeOutput(root, app, runId, result.summary);
+  const toolCounts = await flushBridgedEvents(bridged, events, pass.id);
   await updateEnvelope(root, app, runId, {
     usage: toEnvelopeUsage(result.usage),
     previews: { task, output: result.summary },
+    ...(Object.keys(toolCounts).length > 0 ? { tool_counts: toolCounts } : {}),
   });
 
   for (const escalation of result.escalations) {
@@ -210,10 +255,32 @@ async function runPass(
     });
   }
 
-  const status = envelopeStatus(result);
+  // Verdict recording runs before finalize so an unparseable verdict finalizes
+  // the pass as an infra failure, not a completed pass (§6, §13 row 11).
+  let verdictOutcome: VerdictRecordOutcome = { ok: true };
+  if (options.recordVerdict !== undefined && result.status === "completed") {
+    verdictOutcome = await options.recordVerdict({
+      pass,
+      runId,
+      result,
+      role,
+      runtime,
+      hooks: passHooks,
+      workdir: options.workdir,
+      context: options.context,
+      events,
+      clock,
+    });
+  }
+
+  const status = verdictOutcome.ok ? envelopeStatus(result) : "failed";
   if (status === "failed") {
     // Infra failure — machine code, distinct population from merit (§9).
-    await events.append({ type: "pass.failed", severity: "error", errorCode: "error_turn_failed" });
+    await events.append({
+      type: "pass.failed",
+      severity: "error",
+      errorCode: verdictOutcome.ok ? "error_turn_failed" : verdictOutcome.errorCode,
+    });
   } else {
     await events.append({
       type: "pass.completed",
@@ -221,9 +288,80 @@ async function runPass(
     });
   }
   await events.append({ type: "run.completed" });
-  await finalizeRun(root, app, runId, { status, verdictSummary: result.summary }, clock());
+  await finalizeRun(
+    root,
+    app,
+    runId,
+    {
+      status,
+      verdictSummary: result.summary,
+      ...(verdictOutcome.ok ? {} : { errorCode: verdictOutcome.errorCode }),
+    },
+    clock(),
+  );
+
+  // The record is durable; NOW surface the loud typed failure to the caller.
+  if (!verdictOutcome.ok) throw verdictOutcome.error;
 
   return { pass, runId, result };
+}
+
+/** Drain the buffered tool/subagent TurnEvents into L2 (§9): `tool.called`
+ *  with name/duration/success/args-hash (+ optional category tag) and a tally
+ *  of tool counts for the envelope; `subagent.started`/`.completed` nested
+ *  under the pass span. Structured fields are used when the adapter set them;
+ *  otherwise phase is inferred from the detail text and a span id synthesized,
+ *  so today's detail-only adapters still produce a fan-out tree. */
+async function flushBridgedEvents(
+  bridged: readonly TurnEvent[],
+  events: EventWriter,
+  passSpanId: string,
+): Promise<Record<string, number>> {
+  const toolCounts: Record<string, number> = {};
+  let subCounter = 0;
+  let lastSubSpan: string | undefined;
+
+  for (const e of bridged) {
+    if (e.type === "tool_use") {
+      const tool = e.name ?? toolNameFromDetail(e.detail);
+      toolCounts[tool] = (toolCounts[tool] ?? 0) + 1;
+      await events.toolCalled({
+        tool,
+        durationMs: e.durationMs ?? 0,
+        success: e.success ?? true,
+        ...(e.args !== undefined ? { args: e.args } : {}),
+        ...(e.category !== undefined ? { category: e.category } : {}),
+        // A subagent-issued tool call nests under its subagent span.
+        ...(e.spanId !== undefined ? { spanId: e.spanId, parentSpanId: passSpanId } : {}),
+      });
+    } else {
+      const phase: "started" | "completed" =
+        e.phase ?? (/\b(complete|completed|finish|finished|end|ended|done)\b/i.test(e.detail) ? "completed" : "started");
+      let spanId: string;
+      if (e.spanId !== undefined) {
+        spanId = e.spanId;
+        if (phase === "started") lastSubSpan = spanId;
+      } else if (phase === "completed" && lastSubSpan !== undefined) {
+        spanId = lastSubSpan;
+      } else {
+        spanId = `${passSpanId}/sub-${(subCounter += 1)}`;
+        lastSubSpan = spanId;
+      }
+      await events.append({
+        type: phase === "completed" ? "subagent.completed" : "subagent.started",
+        spanId,
+        parentSpanId: passSpanId,
+        ...(e.name !== undefined ? { detail: { subagent: e.name } } : {}),
+      });
+    }
+  }
+  return toolCounts;
+}
+
+/** Best-effort tool name when the adapter only gave us a detail string. */
+function toolNameFromDetail(detail: string): string {
+  const token = detail.trim().split(/[\s:(]/, 1)[0];
+  return token !== undefined && token.length > 0 ? token : "unknown";
 }
 
 function envelopeStatus(result: TurnResult): Exclude<EnvelopeStatus, "running"> {

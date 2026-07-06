@@ -6,16 +6,23 @@
 // that those turns plug into.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
-import { assembleBrief } from "./brief.js";
+import type { GateResultEntry } from "../runtime/runlog/envelope.js";
+import { assembleBrief, type SpecDoc } from "./brief.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
 import { isMergeConflict } from "./github.js";
 import { SELF_APPROVAL_FALLBACK_MARKER } from "./github.js";
+import { openPhaseRun, type LoopRunlog, type PhaseRun } from "./loop-runlog.js";
 import type { Policy, RiskTier } from "./policy.js";
 import { matchedDimensions, resolveTier } from "./policy.js";
-import { executePipeline, type PassRunRecord } from "./pipeline.js";
+import {
+  executePipeline,
+  type PassRunRecord,
+  type VerdictRecordContext,
+  type VerdictRecordOutcome,
+} from "./pipeline.js";
 import { getPipeline, type PassConfig, type PassSelection, type PipelinesFile } from "./pipelines.js";
 import {
   runGates,
@@ -23,17 +30,21 @@ import {
   type CompletenessFinding,
   type CriterionTestMap,
   type GateCommands,
+  type GateResult,
   type GateRunResult,
   type ProcessGateOpts,
   type ReviewFreshnessState,
 } from "./qgates.js";
 import {
   parseVerdict,
+  parseWithRetry,
   validateVerdict,
+  VerdictParseError,
   VERDICT_SCHEMAS,
   type BuildVerdict,
   type ContractVerdict,
   type Finding,
+  type ParseResult,
   type ReviewVerdict,
   type VerdictKind,
   type VerdictTypes,
@@ -66,6 +77,10 @@ export interface GatePhaseOptions {
     result: GateRunResult,
   ) => LoopItem | void | Promise<LoopItem | void>;
   prDraft?: boolean;
+  /** When present, the gate phase gets its own run record: `gate.started/
+   *  passed/failed` + `ticket.transition` events and `envelope.gate_results`
+   *  (docs/loop.md §9). Absent → no run record, identical behavior. */
+  runlog?: LoopRunlog;
 }
 
 export interface ReviewPhaseOptions {
@@ -157,15 +172,20 @@ export async function advanceGates(
   const branch = requireField(item, "branch");
   let current = { ...item, phase: "gates" as LoopPhase };
   const gateResults = [...current.gateResults];
+  const rec = options.runlog !== undefined ? await openPhaseRun(options.runlog, "gates", "quality-gates") : undefined;
 
   while (true) {
+    if (rec !== undefined) await rec.events.append({ type: "gate.started", detail: { attempt: current.remediationAttempts } });
     const result = await runGateSet(current, options);
     gateResults.push(result);
+    await recordGateResult(rec, result);
 
     if (result.status === "pass") {
       pushBranch(worktree, branch);
       const pr = await ensurePr(current, options.gh, options.prDraft === true);
       await options.gh.swapLabel(current.issueNumber, "op:building", "op:in-review");
+      await rec?.transition("op:building", "op:in-review");
+      await rec?.finalize("completed");
       return {
         ...current,
         labels: replaceLabel(current.labels, "op:building", "op:in-review"),
@@ -182,20 +202,46 @@ export async function advanceGates(
         remediationAttempts: current.remediationAttempts + 1,
         gateResults,
       };
-      if (current.phase === "returned") return current;
+      if (current.phase === "returned") {
+        await rec?.finalize("blocked");
+        return current;
+      }
       continue;
     }
 
     const comment = blockedWithEvidenceComment("quality gates exhausted", result);
     await options.gh.commentIssue(current.issueNumber, comment);
-    await options.gh.swapLabel(current.issueNumber, stateLabelForPhase(current.phase), "op:returned");
+    const fromLabel = stateLabelForPhase(current.phase);
+    await options.gh.swapLabel(current.issueNumber, fromLabel, "op:returned");
+    await rec?.transition(fromLabel, "op:returned");
+    await rec?.finalize("blocked");
     return {
       ...current,
-      labels: replaceLabel(current.labels, stateLabelForPhase(current.phase), "op:returned"),
+      labels: replaceLabel(current.labels, fromLabel, "op:returned"),
       phase: "returned",
       gateResults,
     };
   }
+}
+
+/** Emit per-gate `gate.passed`/`gate.failed` events and set the run record's
+ *  `gate_results` from one gate-set outcome (§9). A `skip` is carried in
+ *  gate_results only — the taxonomy has no `gate.skipped`. */
+async function recordGateResult(rec: PhaseRun | undefined, result: GateRunResult): Promise<void> {
+  if (rec === undefined) return;
+  for (const gate of result.results) {
+    if (gate.status === "pass") {
+      await rec.events.append({ type: "gate.passed", detail: { gate: gate.gate, detail: gate.detail } });
+    } else if (gate.status === "fail") {
+      await rec.events.append({ type: "gate.failed", severity: "error", detail: { gate: gate.gate, detail: gate.detail } });
+    }
+  }
+  await rec.setGateResults(result.results.map(toGateResultEntry));
+}
+
+function toGateResultEntry(gate: GateResult): GateResultEntry {
+  const status = gate.status === "pass" ? "passed" : gate.status === "fail" ? "failed" : "skipped";
+  return { gate: gate.gate, status, detail: gate.detail };
 }
 
 export async function advanceReviewing(
@@ -282,15 +328,17 @@ export async function runBuilderPipeline(
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     verdictSchemaFor: (pass) => VERDICT_SCHEMAS[verdictKindForPass(pass)],
-    afterPass: async (record) => {
-      const kind = verdictKindForPass(record.pass);
+    recordVerdict: async (ctx) => {
+      const kind = verdictKindForPass(ctx.pass);
+      const outcome = await recordPassVerdict(kind, ctx);
+      if (!outcome.ok) return outcome.failure;
       if (kind === "contract") {
-        const verdict = parsePassVerdict("contract", record.result.summary);
-        contract = renderContractComment(verdict);
+        contract = renderContractComment(outcome.verdict as ContractVerdict);
         await options.gh.commentIssue(item.issueNumber, contract);
       } else if (kind === "build") {
-        buildVerdict = parsePassVerdict("build", record.result.summary);
+        buildVerdict = outcome.verdict as BuildVerdict;
       }
+      return { ok: true };
     },
   });
 
@@ -341,8 +389,11 @@ export async function runReviewPipeline(
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
-    afterPass: (record) => {
-      verdicts.push({ pass: record.pass.id, verdict: parsePassVerdict("review", record.result.summary) });
+    recordVerdict: async (ctx) => {
+      const outcome = await recordPassVerdict("review", ctx);
+      if (!outcome.ok) return outcome.failure;
+      verdicts.push({ pass: ctx.pass.id, verdict: outcome.verdict });
+      return { ok: true };
     },
   });
 
@@ -382,8 +433,11 @@ export async function runShipCheckPipeline(
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
-    afterPass: (record) => {
-      verdicts.push({ pass: record.pass.id, verdict: parsePassVerdict("review", record.result.summary) });
+    recordVerdict: async (ctx) => {
+      const outcome = await recordPassVerdict("review", ctx);
+      if (!outcome.ok) return outcome.failure;
+      verdicts.push({ pass: ctx.pass.id, verdict: outcome.verdict });
+      return { ok: true };
     },
   });
 
@@ -525,9 +579,12 @@ function buildBrief(
   options: BuilderPipelineOptions,
   state: BuildBriefState,
 ): string {
+  const specs = resolveContextSpecs(item);
+  const attempts = historyEntries(item);
   return assembleBrief(
     {
       ticket: { title: ticketTitle(item), body: item.body },
+      ...(specs.length > 0 ? { specs } : {}),
       ...(state.contract !== undefined ? { contract: state.contract } : {}),
       findings: item.findings.map((finding) => ({
         text: findingLine(finding),
@@ -535,6 +592,9 @@ function buildBrief(
         resolved: false,
       })),
       ...(state.gateResult !== undefined ? { gateOutput: formatGateResult(state.gateResult) } : {}),
+      ...(attempts.length > 0
+        ? { attempts, maxAttempts: options.policy.remediation.maxAttempts }
+        : {}),
       memory: options.context?.memoryExcerpts ?? [],
       repo: repoBrief(item, options),
     },
@@ -547,9 +607,11 @@ function reviewBrief(
   options: LoopPipelineOptions,
   _pass: PassConfig,
 ): string {
+  const specs = resolveContextSpecs(item);
   return assembleBrief(
     {
       ticket: { title: ticketTitle(item), body: item.body },
+      ...(specs.length > 0 ? { specs } : {}),
       ...(item.contract !== undefined ? { contract: item.contract } : {}),
       findings: item.findings.map((finding) => ({
         text: findingLine(finding),
@@ -561,6 +623,73 @@ function reviewBrief(
     },
     { budgetTokens: options.briefBudgetTokens ?? DEFAULT_BRIEF_BUDGET_TOKENS },
   );
+}
+
+/** §3 [spec]: resolve the ticket body's `## Context` links to repo-relative
+ *  files, read verbatim from the worktree. A missing or unreadable file
+ *  degrades to a note (never a throw) — a broken link must not fail a build. */
+function resolveContextSpecs(item: LoopItem): SpecDoc[] {
+  if (item.worktree === undefined) return [];
+  const section = headingSection(item.body, "Context");
+  if (section === undefined) return [];
+  const specs: SpecDoc[] = [];
+  for (const rel of contextRepoPaths(section)) {
+    const abs = join(item.worktree, rel);
+    try {
+      specs.push({ title: rel, content: readFileSync(abs, "utf8") });
+    } catch {
+      specs.push({
+        title: rel,
+        content: `(spec "${rel}" linked in the ticket Context was not found in the worktree — omitted, not fatal)`,
+      });
+    }
+  }
+  return specs;
+}
+
+/** Extract repo-relative file paths from a Context section: markdown link
+ *  targets and bare paths that look like files. URLs, mailto, `#123` issue
+ *  refs, absolute paths, and `..` escapes are dropped. Order-preserving,
+ *  de-duplicated. */
+function contextRepoPaths(section: string): string[] {
+  const seen = new Set<string>();
+  const order: string[] = [];
+  const add = (raw: string): void => {
+    const p = normalizeRepoPath(raw);
+    if (p !== undefined && !seen.has(p)) {
+      seen.add(p);
+      order.push(p);
+    }
+  };
+  for (const m of section.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) add(m[1]!);
+  for (const m of section.matchAll(/(?:^|\s)([A-Za-z0-9._/-]+\.[A-Za-z0-9]{1,8})(?=$|\s|\))/gm)) add(m[1]!);
+  return order;
+}
+
+function normalizeRepoPath(raw: string): string | undefined {
+  let p = raw.trim();
+  if (p === "") return undefined;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(p) || p.startsWith("mailto:") || p.startsWith("#")) return undefined;
+  p = p.replace(/^\.\//, "");
+  if (isAbsolute(p) || p.split("/").includes("..")) return undefined; // stay inside the repo
+  if (!/\.[A-Za-z0-9]{1,8}$/.test(p)) return undefined; // must look like a file
+  return p;
+}
+
+/** §3 [history]: prior attempts on this ticket, oldest first — the assembler
+ *  labels them "attempt N of M". Derived from the durable counters on the
+ *  item (remediation fix passes, review cycles); empty on a first attempt. */
+function historyEntries(item: LoopItem): string[] {
+  const entries: string[] = [];
+  for (let i = 0; i < item.remediationAttempts; i++) {
+    entries.push(`Remediation ${i + 1}: quality gates failed and a bounded fix pass was dispatched.`);
+  }
+  if (item.cycles > 0) {
+    entries.push(
+      `Review cycle ${item.cycles}: the reviewer requested changes; this pass addresses the findings above.`,
+    );
+  }
+  return entries;
 }
 
 function repoBrief(item: LoopItem, options: LoopPipelineOptions): string {
@@ -594,26 +723,84 @@ function verdictKindForPass(pass: PassConfig): VerdictKind {
   return "review";
 }
 
-function parsePassVerdict<K extends VerdictKind>(
-  kind: K,
-  text: string,
-): VerdictTypes[K] {
+/** Parse a pass verdict, preferring native structured JSON output when the
+ *  summary is a JSON object, else the lenient §6 text grammar. Never throws —
+ *  a failure is a typed marker the reformat retry acts on. */
+function parseEither<K extends VerdictKind>(kind: K, text: string): ParseResult<K> {
   const trimmed = text.trim();
   if (trimmed.startsWith("{")) {
+    let json: unknown;
     try {
-      const parsed = validateVerdict(kind, JSON.parse(trimmed));
-      if (parsed.ok) return parsed.verdict;
-      throw new Error(parsed.reason);
-    } catch (error) {
-      if (!(error instanceof SyntaxError)) {
-        throw new Error(`${kind} structured verdict invalid: ${errorMessage(error)}`);
-      }
+      json = JSON.parse(trimmed);
+    } catch {
+      return parseVerdict(kind, text); // looked like JSON but wasn't — try the grammar
     }
+    return validateVerdict(kind, json);
   }
+  return parseVerdict(kind, text);
+}
 
-  const parsed = parseVerdict(kind, text);
-  if (parsed.ok) return parsed.verdict;
-  throw new Error(`${kind} verdict could not be parsed: ${parsed.reason}`);
+type PassVerdictOutcome<K extends VerdictKind> =
+  | { ok: true; verdict: VerdictTypes[K] }
+  | { ok: false; failure: VerdictRecordOutcome };
+
+/** Parse the pass's verdict with exactly one session-resuming reformat retry
+ *  (docs/loop.md §6, §13 row 11), emit `verdict.recorded` into the pass's run
+ *  record on success, and on unparseable-after-retry surface a typed infra
+ *  failure (distinct `error_code`, never a merit outcome). */
+async function recordPassVerdict<K extends VerdictKind>(
+  kind: K,
+  ctx: VerdictRecordContext,
+): Promise<PassVerdictOutcome<K>> {
+  const reformat = async (reason: string): Promise<string> => {
+    const res = await ctx.runtime.runTurn(
+      {
+        role: ctx.role,
+        workdir: ctx.workdir,
+        task: reformatTask(kind, reason),
+        context: ctx.context,
+        session: ctx.result.session,
+      },
+      ctx.hooks,
+    );
+    return res.summary;
+  };
+  try {
+    const verdict = await parseWithRetry(kind, ctx.result.summary, reformat, (t) => parseEither(kind, t));
+    await ctx.events.append({ type: "verdict.recorded", detail: verdictDetail(kind, verdict) });
+    return { ok: true, verdict };
+  } catch (error) {
+    if (error instanceof VerdictParseError) {
+      return { ok: false, failure: { ok: false, errorCode: "error_verdict_unparseable", error } };
+    }
+    throw error;
+  }
+}
+
+function reformatTask(kind: VerdictKind, reason: string): string {
+  return [
+    `Your ${kind} verdict could not be parsed:`,
+    reason,
+    "",
+    "Reformat your verdict as specified in the pass template — output only the",
+    "corrected verdict, nothing else.",
+  ].join("\n");
+}
+
+function verdictDetail(
+  kind: VerdictKind,
+  verdict: ContractVerdict | BuildVerdict | ReviewVerdict,
+): Record<string, string | number | boolean> {
+  if (kind === "contract") {
+    const v = verdict as ContractVerdict;
+    return { kind, complexity: v.complexity, files: v.files.length };
+  }
+  if (kind === "build") {
+    const v = verdict as BuildVerdict;
+    return { kind, status: v.status, blocked: v.status === "blocked" };
+  }
+  const v = verdict as ReviewVerdict;
+  return { kind, verdict: v.verdict, findings: v.findings.length };
 }
 
 function renderContractComment(verdict: ContractVerdict): string {
@@ -713,10 +900,6 @@ function ticketTitle(item: LoopItem): string {
 function traceIdFor(item: LoopItem, pipeline: string, clock: (() => Date) | undefined): string {
   const stamp = (clock?.() ?? new Date()).toISOString().replace(/[-:]/g, "").slice(0, 15);
   return `${stamp}-${pipeline}-${item.issueNumber}`;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 async function runGateSet(item: LoopItem, options: GatePhaseOptions): Promise<GateRunResult> {

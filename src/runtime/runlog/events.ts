@@ -74,6 +74,10 @@ export interface ToolCalledOptions {
   success: boolean;
   /** Hashed before writing — raw args never reach L2 (§9). */
   args?: unknown;
+  /** Optional classification tag (e.g. `environment_retry`) that rides on the
+   *  event's detail — the anomaly detectors read `detail.category` (§9). A
+   *  label, never args: it carries no secret material. */
+  category?: string;
   spanId?: string;
   parentSpanId?: string;
 }
@@ -119,6 +123,7 @@ export function createEventWriter(
         duration_ms: options.durationMs,
         success: options.success,
         ...(options.args !== undefined ? { args_hash: hashArgs(options.args) } : {}),
+        ...(options.category !== undefined ? { category: options.category } : {}),
       };
       return this.append({
         type: "tool.called",

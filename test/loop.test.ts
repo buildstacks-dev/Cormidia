@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -12,7 +12,10 @@ import {
 import { SELF_APPROVAL_FALLBACK_MARKER } from "../src/loop/github.js";
 import type { Policy } from "../src/loop/policy.js";
 import type { AcceptanceCriterion, CriterionTestMap, GateRunResult } from "../src/loop/qgates.js";
+import { readEnvelope } from "../src/runtime/runlog/envelope.js";
+import { readEvents } from "../src/runtime/runlog/events.js";
 import { makeBareWithClone } from "./fixtures/gitRepo.js";
+import { makeOrgHome } from "./fixtures/orgHome.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
 
 const body = [
@@ -174,6 +177,94 @@ describe("advanceGates", () => {
       expect(gh.issueComments.get(1)?.[0]).toContain("tests failed");
       expect((await gh.readIssue(1)).labels).toContain("op:returned");
     } finally {
+      pair.cleanup();
+    }
+  });
+
+  it("with a runlog: green gates leave gate.passed + ticket.transition events and envelope gate_results", async () => {
+    const pair = makeBareWithClone();
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    try {
+      const gh = new FakeGhOps({
+        cloneRoot: pair.clone.root,
+        issues: [{ number: 1, title: "Gate Runlog", body, labels: ["op:ready"] }],
+      });
+      const claimed = await claimTicket(await gh.readIssue(1), {
+        gh,
+        targetRepo: "fixture/repo",
+        localRepo: pair.clone.root,
+        worktreeRoot: join(pair.root, "worktrees"),
+      });
+      commit(claimed.worktree as string, "feat: green", { "src/change.ts": "x\n", "pass.txt": "ok\n" });
+
+      const reviewing = await advanceGates(claimed, {
+        gh,
+        policy: policy(),
+        commands: { testCommand: "test -f pass.txt" },
+        criteria,
+        criterionTests,
+        runlog: { root: home.root, app: "fixture", ticket: "#1", traceId: "turn-gate-1", clock: () => new Date() },
+      });
+
+      expect(reviewing.phase).toBe("reviewing");
+      const runId = readdirSync(join(home.root, "runs", "fixture"))[0] as string;
+      const events = await readEvents(home.root, "fixture", runId);
+      const kinds = events.map((e) => e.event);
+      expect(kinds).toContain("gate.started");
+      expect(kinds).toContain("gate.passed");
+      expect(kinds).toContain("ticket.transition");
+      expect(events.find((e) => e.event === "ticket.transition")?.detail).toMatchObject({
+        from: "op:building",
+        to: "op:in-review",
+      });
+
+      const envelope = await readEnvelope(home.root, "fixture", runId);
+      expect(envelope.status).toBe("completed");
+      expect(envelope.gate_results?.some((g) => g.gate === "tests" && g.status === "passed")).toBe(true);
+    } finally {
+      home.cleanup();
+      pair.cleanup();
+    }
+  });
+
+  it("with a runlog: exhausted gates leave gate.failed + a transition to op:returned, envelope blocked", async () => {
+    const pair = makeBareWithClone();
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    try {
+      const gh = new FakeGhOps({
+        cloneRoot: pair.clone.root,
+        issues: [{ number: 1, title: "Gate Runlog Fail", body, labels: ["op:ready"] }],
+      });
+      const claimed = await claimTicket(await gh.readIssue(1), {
+        gh,
+        targetRepo: "fixture/repo",
+        localRepo: pair.clone.root,
+        worktreeRoot: join(pair.root, "worktrees"),
+      });
+      commit(claimed.worktree as string, "feat: start", { "src/change.ts": "x\n" });
+
+      const returned = await advanceGates(claimed, {
+        gh,
+        policy: policy(1),
+        commands: { testCommand: "test -f never.txt" },
+        criteria,
+        criterionTests,
+        remediate: (current) => {
+          commit(current.worktree as string, "fix: nope", { "attempt.txt": "nope\n" });
+        },
+        runlog: { root: home.root, app: "fixture", ticket: "#1", traceId: "turn-gate-2", clock: () => new Date() },
+      });
+
+      expect(returned.phase).toBe("returned");
+      const runId = readdirSync(join(home.root, "runs", "fixture"))[0] as string;
+      const kinds = (await readEvents(home.root, "fixture", runId)).map((e) => e.event);
+      expect(kinds).toContain("gate.failed");
+      expect(kinds).toContain("ticket.transition");
+      const envelope = await readEnvelope(home.root, "fixture", runId);
+      expect(envelope.status).toBe("blocked");
+      expect(envelope.gate_results?.some((g) => g.gate === "tests" && g.status === "failed")).toBe(true);
+    } finally {
+      home.cleanup();
       pair.cleanup();
     }
   });

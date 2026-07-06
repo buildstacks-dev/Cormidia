@@ -493,12 +493,21 @@ record on disk — "if something executes, its logs exist."*
   contract).
   **Session:** sonnet, single session.
 
-### M3 — App registry, bootstrap, civic onboarded → PILOT: the civic spec
-*Milestone demo: `operon plan civic --topic "US-states extension"` opens a
-real Planner co-planning session against the onboarded civic repo and the
-drafted spec lands under civic's `.operon/planning/` — the first pilot
-acceptance test (PURPOSE v0.8; architecture §8 decides co-planning is the
-mechanism).*
+### M3 — App registry, bootstrap, sandbox apps onboarded *(civic pilot ON HOLD)*
+*Milestone demo: `operon plan <app> --topic …` opens a real Planner
+co-planning session against an onboarded app repo and the drafted spec
+lands under its `.operon/planning/` (architecture §8 decides co-planning
+is the mechanism).*
+
+> **Civic on hold (decided 2026-07-05):** onboarding the real civic app
+> (old M3.7) waits until the product is ready end to end. The two real
+> sandbox apps stand in for every functional test until then:
+> `operon-sandbox-alpha` (bikramgupta/operon-sandbox-alpha; node:test +
+> lint + CI + AGENTS.md — also the M5 loop sandbox) and
+> `operon-sandbox-beta` (bikramgupta/operon-sandbox-beta; deliberately no
+> CI/AGENTS.md, exercises scan-detection absence and the M3.5 second-app
+> join). M3.3–M3.6 run their acceptance against these repos; civic's
+> pilot acceptance re-enters as the final pre-launch milestone.
 
 - [ ] **M3.1 App registry loader (`apps.yaml`) + `operon apps` CLI**
   **Goal:** `src/org/apps.ts`: schema (org{name,max_concurrent_turns},
@@ -608,16 +617,27 @@ mechanism).*
   **Accept:** named cases: context concatenation with/without app charter;
   buildClaudeInvocation argv includes --append-system-prompt + worktree
   cwd; throwaway worktree created on op/plan-<slug> off main in a temp git
-  fixture and cleaned up; `pnpm dev plan civic --topic "US-states
-  extension" --dry-run --workdir <tmp>` prints app, branch, topic, and
-  context byte size without spawning; `pnpm test && pnpm typecheck`.
+  fixture and cleaned up; `pnpm dev plan operon-sandbox-alpha --topic
+  "stats percentile helper" --dry-run --workdir <tmp>` prints app, branch,
+  topic, and context byte size without spawning; `pnpm test && pnpm
+  typecheck`. (App name follows apps.yaml — civic on hold, M3 header note.)
   **Demo:** One command gives the human a Planner-primed live session.
   **Read:** docs/architecture.md §8, §5 (layers [1],[3] only here).
   **Session:** opus, single session — worktree lifecycle + interactive
   handover.
 
-- [ ] **M3.7 Onboard civic as app #1 + draft the US-states spec (pilot acceptance)**
-  **Goal:** Run the real thing: `operon bootstrap` inside
+- [ ] **M3.7 Onboard the sandbox apps as apps #1/#2 (functional acceptance)**
+  ⏸ **Civic version ON HOLD (2026-07-05, human decision):** the original
+  item — onboard civic + draft the US-states spec with the human — is
+  deferred until the entire product is ready; it re-enters as the
+  pre-launch pilot acceptance (see M6.3 note and the M3 header note).
+  Until then this item means: `operon bootstrap` inside
+  `~/Build/operon-sandbox-alpha` (scan finds CI+AGENTS.md) and
+  `~/Build/operon-sandbox-beta` (scan handles their absence; beta joins
+  the existing org via M3.5), both registered in root apps.yaml, and one
+  `operon plan operon-sandbox-alpha --topic …` co-planning smoke run.
+  Doable without the human present except apps.yaml ratification.
+  **Original goal (deferred):** Run the real thing: `operon bootstrap` inside
   `~/Build/Government/AgentSkill-CivicIntelligence` (answers reviewed with
   the human), register civic `status: live` in root apps.yaml, then run
   `operon plan civic --topic "US-states extension"` with the human — the
@@ -919,15 +939,17 @@ needs is this sandbox.)*
   pnpm e2e:sandbox` prints "RESULT: merged", exits 0, and `gh issue view
   <n> --json state` shows CLOSED; `pnpm test && pnpm typecheck`.
   **Demo:** The state machine works against real GitHub before ever
-  touching civic.
+  touching a production app (civic on hold — sandbox apps are the target
+  throughout; M3 header note).
   **Read:** docs/loop.md §7; docs/architecture.md §10; PURPOSE.md → pilot
-  tasks (why sandbox precedes civic).
+  tasks (why sandbox precedes the production pilot).
   **Session:** opus, single session — reconciles every prior boundary
   against real GitHub.
 
-### M6 — Loop ↔ engine integration: a real civic ticket
-*Milestone demo: one real, small civic ticket flows ready→merged with real
-Builder and Reviewer turns — loop v1 complete on the pilot app.*
+### M6 — Loop ↔ engine integration: a real ticket on a real repo
+*Milestone demo: one real, small ticket flows ready→merged with real
+Builder and Reviewer turns — loop v1 complete on a real app repo.
+(Civic on hold — the sandbox apps are the target; see the M3 note.)*
 
 - [ ] **M6.1 roles.yaml pilot expedient — proposal PR + explicit test waiver**
   **Goal:** Until CodexRuntime lands (M10), builder and reviewer must both
@@ -977,22 +999,23 @@ Builder and Reviewer turns — loop v1 complete on the pilot app.*
   **Session:** opus lead + delegated test-writer subagent — the central
   integration of the whole plan.
 
-- [ ] **M6.3 First real civic ticket ready→merged**
-  **Goal:** Execute the pilot: a small, real one-file civic ticket (drafted
-  with the human during M3.7's co-planning or a follow-up `operon plan`
-  session; criteria binary and mechanically checkable), seeded `op:ready`
-  in the civic repo (with §10 labels + a minimal `.operon/policy.yaml`
-  from M4.2's template), then `operon loop --app civic --follow` to
-  merged. Record the run's evidence (PR link, gate results, review) in a
-  dated research note.
-  **Files:** (civic repo:) .operon/policy.yaml, the ticket, the merged PR;
-  research/2026-XX-XX_civic-loop-v1.md
+- [ ] **M6.3 First real ticket ready→merged (sandbox app; civic version on hold)**
+  **Goal:** Execute the end-to-end proof against `operon-sandbox-alpha`
+  (civic deferred — M3 header note): a small, real one-file ticket
+  (criteria binary and mechanically checkable), seeded `op:ready` in the
+  sandbox repo (with §10 labels + a minimal `.operon/policy.yaml` from
+  M4.2's template), then `operon loop --app operon-sandbox-alpha --follow`
+  to merged. Record the run's evidence (PR link, gate results, review) in
+  a dated research note. The civic re-run of this item is part of the
+  deferred pilot acceptance.
+  **Files:** (sandbox repo:) .operon/policy.yaml, the ticket, the merged
+  PR; research/2026-XX-XX_sandbox-loop-v1.md
   **Deps:** M6.2, M3.7
-  **Accept:** `gh issue view <n>` in civic shows CLOSED with the label
-  history ready→building→in-review; the squash-merge commit body carries
-  the PR description; civic's test suite green post-merge; research note
-  records PR/URL + gate outputs.
-  **Demo:** Loop v1 shipped a real change to the pilot app end-to-end.
+  **Accept:** `gh issue view <n>` in the sandbox repo shows CLOSED with the
+  label history ready→building→in-review; the squash-merge commit body
+  carries the PR description; the app's test suite green post-merge;
+  research note records PR/URL + gate outputs.
+  **Demo:** Loop v1 shipped a real change to a real app repo end-to-end.
   **Read:** PURPOSE.md → pilot tasks; docs/loop.md §7; docs/architecture.md
   §10.
   **Session:** sonnet, single session (mostly driving + observing; human
@@ -1591,7 +1614,9 @@ design.*
   code changes permitted — the whole point (PURPOSE v0.8: second app =
   config file, not a fork).
   **Files:** apps.yaml; (in the new repo:) .operon/**
-  **Deps:** M3.5, M6.3 (loop v1 solid on civic first — PURPOSE sequencing)
+  **Deps:** M3.5, M6.3 (loop v1 solid on a real repo first — PURPOSE
+  sequencing; sandbox-beta already exercised the join path, and civic's
+  onboarding is deferred to pre-launch per the M3 header note)
   **Accept:** `git -C ~/Build/Operon diff --stat` shows apps.yaml as the
   ONLY Operon-repo change; `pnpm dev apps` lists buildstacks; bootstrap
   emitted .operon/ tree verifiable by ls; suites green.

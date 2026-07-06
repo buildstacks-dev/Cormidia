@@ -74,6 +74,13 @@ and the build loop are documented stubs.
 
 ## Testing expectations
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
+- Changes that affect app onboarding, `apps.yaml`, bootstrap, planning, or
+  loop behavior must also be exercised against the live sandbox apps, not
+  only unit tests. Current targets: `~/Build/operon-sandbox-alpha` and
+  `~/Build/operon-sandbox-beta` (and `operon-sandbox-gamma` once created).
+  Run the relevant bootstrap/plan/loop smoke plus each sandbox app's own
+  available checks (for example alpha: `npm test && npm run lint`; beta:
+  `npm test`) and report the exact commands/results.
 - `gate.ts` changes: add cases to `test/gate.test.ts` for every new rule —
   both the critical side and a routine near-miss.
 - `roles.yaml` changes: `pnpm dev roles` must print cleanly; tests stay green.

@@ -1,22 +1,27 @@
-// `operon bootstrap` — the non-interactive half (build plan M3.3).
+// `operon bootstrap` — runs inside the product repo (docs/architecture.md §9).
 //
-// docs/architecture.md §9: bootstrap runs inside the product repo. Step 1
-// ("Learn") is `scanRepo()` — language/build/test commands from manifests and
-// CI config, agent docs (CLAUDE.md / AGENTS.md), deploy hints. Step 3
-// ("Emit"), single-app profile only, is `emitOrgTemplates()` — the
-// `.operon/org/` skeleton (org TASTE.md, roles.yaml, apps.yaml) "templated
-// from this repo's root files, which are instance config destined to become
-// exactly these templates" (PURPOSE v0.8 dogfood note, made real here:
-// TASTE.md and roles.yaml are byte-copies of this package's root files).
-//
-// Step 2 (questionnaire → app charter/config) is M3.4; step 4 (detect and
-// join an existing org) is M3.5. Nothing here writes outside the target
-// repo's `.operon/org/`.
+// Step 1 ("Learn") is `scanRepo()` — language/build/test commands from
+// manifests and CI config, agent docs (CLAUDE.md / AGENTS.md), deploy hints.
+// Step 2 ("Questionnaire") is the `BootstrapAnswers` contract + `parseAnswers`
+// — interactive collection lives in the CLI; tests and scripts inject the
+// same object via `--answers answers.json`. Step 3 ("Emit") is
+// `emitOrgTemplates()` — the single-app-profile `.operon/org/` skeleton
+// (org TASTE.md, roles.yaml, apps.yaml) "templated from this repo's root
+// files, which are instance config destined to become exactly these
+// templates" (PURPOSE v0.8 dogfood note; TASTE.md and roles.yaml are
+// byte-copies) — plus `emitAppArtifacts()`: the app charter
+// (`.operon/TASTE.md`), the app's registry entry (`.operon/config.yaml`,
+// apps.yaml schema), and seeded per-role memory bundles. `bootstrapRun()`
+// composes steps 1–3. Step 4 (detect and join an existing org) is M3.5.
+// Nothing here writes outside the target repo's `.operon/`.
 
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stringify } from "yaml";
+import type { Trigger } from "../runtime/types.js";
+import { loadRoles } from "./roles.js";
 
 // ---------------------------------------------------------------------------
 // Step 1 — scanRepo()
@@ -243,14 +248,7 @@ export async function emitOrgTemplates(
   const repoSlug = options.repoSlug ?? `OWNER/${appName}`;
   const repoComment = options.repoSlug ? "" : " # TODO: set the real owner/repo slug";
 
-  for (const rel of ORG_TEMPLATE_FILES) {
-    if (existsSync(join(targetRoot, rel))) {
-      throw new Error(
-        `bootstrap: ${rel} already exists in ${targetRoot} — refusing to overwrite ` +
-          `(an existing org joins via \`operon bootstrap\` M3.5, never gets re-emitted)`,
-      );
-    }
-  }
+  assertNotExists(targetRoot, ORG_TEMPLATE_FILES);
 
   const orgDir = join(targetRoot, ".operon", "org");
   await mkdir(orgDir, { recursive: true });
@@ -275,6 +273,19 @@ function sanitizeAppName(name: string): string {
   return cleaned.length > 0 ? cleaned : "app";
 }
 
+/** Bootstrap never silently clobbers an existing org — checked for every
+ * target file BEFORE the first write, so a failed run leaves no half-tree. */
+function assertNotExists(targetRoot: string, rels: readonly string[]): void {
+  for (const rel of rels) {
+    if (existsSync(join(targetRoot, rel))) {
+      throw new Error(
+        `bootstrap: ${rel} already exists in ${targetRoot} — refusing to overwrite ` +
+          `(an existing org joins via \`operon bootstrap\` M3.5, never gets re-emitted)`,
+      );
+    }
+  }
+}
+
 function appsYamlStub(appName: string, repoSlug: string, repoComment: string): string {
   return `# apps.yaml — app registry (docs/architecture.md §7), emitted by
 # \`operon bootstrap\` (single-app profile). Human-ratified surface: changes
@@ -296,4 +307,409 @@ apps:
     status: onboarding
     cadence: {}                 # role -> trigger overrides; empty = roles.yaml defaults
 `;
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — questionnaire answers (architecture §9 step 2)
+// ---------------------------------------------------------------------------
+
+/** The alignment-questionnaire result: exactly one field per §9 step-2
+ * question, nothing else. Interactive collection (the CLI) and `--answers
+ * answers.json` both produce the raw shape; `parseAnswers` validates and
+ * normalizes it into this type. Raw JSON: `product`, `good`, and `roles`
+ * are required; everything else is optional and defaulted here. */
+export interface BootstrapAnswers {
+  /** "What the product is" — the charter's first section. */
+  product: string;
+  /** "What 'good' means here" — the charter's second section. */
+  good: string;
+  /** Roles enabled for this app; each must name a role in the org
+   * roles.yaml. Un-listed roles are disabled — emitted as empty cadence
+   * overrides, the registry schema's disable mechanism (src/org/apps.ts). */
+  roles: string[];
+  /** Monthly budget in USD (PURPOSE.md → Budget & cadence; default 1000). */
+  budgetUsdMonth: number;
+  /** Per-role trigger overrides (apps.yaml cadence semantics: an entry
+   * REPLACES the role's roles.yaml triggers). Keys must be enabled roles;
+   * `{}` = every enabled role runs its roles.yaml triggers. */
+  cadence: Record<string, Trigger[]>;
+  /** App-specific critical ops — §9 step 2's three categories; these extend
+   * the gate's rule set for this app. Empty lists = none declared. */
+  criticalOps: {
+    deployCommands: string[];
+    publishTargets: string[];
+    secretLocations: string[];
+  };
+  /** Feedback/publishing channels. A key may be present only when that
+   * audience-facing role is enabled; enabled roles default to []. */
+  channels: { support?: string[]; marketing?: string[] };
+}
+
+/** Validate + normalize a raw answers object (from `--answers answers.json`
+ * or the interactive questionnaire). Loud, specific errors — a bootstrap
+ * with wrong answers must fail before anything is written. */
+export function parseAnswers(rawUnknown: unknown, knownRoles: string[]): BootstrapAnswers {
+  const err = (msg: string) => new Error(`bootstrap answers: ${msg}`);
+  if (!rawUnknown || typeof rawUnknown !== "object" || Array.isArray(rawUnknown)) {
+    throw err("must be a JSON object");
+  }
+  const raw = rawUnknown as Record<string, unknown>;
+
+  const allowedKeys = ["product", "good", "roles", "budgetUsdMonth", "cadence", "criticalOps", "channels"];
+  for (const key of Object.keys(raw)) {
+    if (!allowedKeys.includes(key)) {
+      throw err(`unknown key "${key}" (allowed: ${allowedKeys.join(", ")})`);
+    }
+  }
+
+  const product = requireText(raw["product"], "product", err);
+  const good = requireText(raw["good"], "good", err);
+
+  const rolesRaw = raw["roles"];
+  if (!Array.isArray(rolesRaw) || rolesRaw.length === 0) {
+    throw err(`roles must be a non-empty list (available: ${knownRoles.join(", ")})`);
+  }
+  const roles: string[] = [];
+  for (const r of rolesRaw) {
+    if (typeof r !== "string" || !knownRoles.includes(r)) {
+      throw err(
+        `roles: "${String(r)}" is not a role in the org roles.yaml (available: ${knownRoles.join(", ")})`,
+      );
+    }
+    if (roles.includes(r)) throw err(`roles: "${r}" listed twice`);
+    roles.push(r);
+  }
+
+  let budgetUsdMonth = 1000; // PURPOSE.md → Budget & cadence (decided 2026-07-04)
+  if (raw["budgetUsdMonth"] !== undefined) {
+    const b = raw["budgetUsdMonth"];
+    if (typeof b !== "number" || !Number.isFinite(b) || b <= 0) {
+      throw err("budgetUsdMonth must be a positive number");
+    }
+    budgetUsdMonth = b;
+  }
+
+  const cadence: Record<string, Trigger[]> = {};
+  if (raw["cadence"] !== undefined) {
+    const cadenceRaw = raw["cadence"];
+    if (!cadenceRaw || typeof cadenceRaw !== "object" || Array.isArray(cadenceRaw)) {
+      throw err("cadence must be a mapping of role -> trigger list");
+    }
+    for (const [role, listUnknown] of Object.entries(cadenceRaw as Record<string, unknown>)) {
+      if (!roles.includes(role)) {
+        throw err(`cadence.${role}: "${role}" is not an enabled role (a disabled role is expressed by omission from "roles", never by a cadence entry)`);
+      }
+      if (!Array.isArray(listUnknown)) throw err(`cadence.${role} must be a list of triggers`);
+      const triggers: Trigger[] = [];
+      for (const t of listUnknown) {
+        const trigger: Trigger = {};
+        if (t && typeof t === "object" && !Array.isArray(t)) {
+          const spec = t as Record<string, unknown>;
+          for (const key of Object.keys(spec)) {
+            if (key !== "schedule" && key !== "event") {
+              throw err(`cadence.${role}: unknown trigger key "${key}" (allowed: schedule, event)`);
+            }
+          }
+          if (typeof spec["schedule"] === "string") trigger.schedule = spec["schedule"];
+          if (typeof spec["event"] === "string") trigger.event = spec["event"];
+        }
+        if (!trigger.schedule && !trigger.event) {
+          throw err(`cadence.${role}: trigger needs schedule or event`);
+        }
+        triggers.push(trigger);
+      }
+      cadence[role] = triggers;
+    }
+  }
+
+  const criticalOps: BootstrapAnswers["criticalOps"] = {
+    deployCommands: [],
+    publishTargets: [],
+    secretLocations: [],
+  };
+  if (raw["criticalOps"] !== undefined) {
+    const coRaw = raw["criticalOps"];
+    if (!coRaw || typeof coRaw !== "object" || Array.isArray(coRaw)) {
+      throw err("criticalOps must be an object");
+    }
+    const spec = coRaw as Record<string, unknown>;
+    for (const key of Object.keys(spec)) {
+      if (!(key in criticalOps)) {
+        throw err(`criticalOps: unknown key "${key}" (allowed: deployCommands, publishTargets, secretLocations)`);
+      }
+    }
+    criticalOps.deployCommands = stringList(spec["deployCommands"], "criticalOps.deployCommands", err);
+    criticalOps.publishTargets = stringList(spec["publishTargets"], "criticalOps.publishTargets", err);
+    criticalOps.secretLocations = stringList(spec["secretLocations"], "criticalOps.secretLocations", err);
+  }
+
+  const channels: BootstrapAnswers["channels"] = {};
+  if (raw["channels"] !== undefined) {
+    const chRaw = raw["channels"];
+    if (!chRaw || typeof chRaw !== "object" || Array.isArray(chRaw)) {
+      throw err("channels must be an object");
+    }
+    const spec = chRaw as Record<string, unknown>;
+    for (const key of Object.keys(spec)) {
+      if (key !== "support" && key !== "marketing") {
+        throw err(`channels: unknown key "${key}" (allowed: support, marketing)`);
+      }
+      if (!roles.includes(key)) {
+        throw err(`channels.${key}: role "${key}" is not enabled — enable it in "roles" or drop its channels`);
+      }
+      channels[key as "support" | "marketing"] = stringList(spec[key], `channels.${key}`, err);
+    }
+  }
+  // Enabled audience-facing roles answered with no channels get an explicit
+  // empty list — the emitted config shows "asked, none" rather than silence.
+  for (const role of ["support", "marketing"] as const) {
+    if (roles.includes(role) && channels[role] === undefined) channels[role] = [];
+  }
+
+  return { product, good, roles, budgetUsdMonth, cadence, criticalOps, channels };
+}
+
+function requireText(v: unknown, field: string, err: (msg: string) => Error): string {
+  if (typeof v !== "string" || v.trim().length === 0) {
+    throw err(`${field} is required (a non-empty string)`);
+  }
+  return v.trim();
+}
+
+function stringList(v: unknown, field: string, err: (msg: string) => Error): string[] {
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) throw err(`${field} must be a list of strings`);
+  for (const item of v) {
+    if (typeof item !== "string" || item.trim().length === 0) {
+      throw err(`${field} must contain only non-empty strings`);
+    }
+  }
+  return (v as string[]).map((s) => s.trim());
+}
+
+/** Role names from a template root's roles.yaml — the questionnaire's
+ * "which roles to enable" universe (defaults to this package's root file,
+ * the dogfood template). */
+export async function templateRoleNames(templateRoot: string = PACKAGE_ROOT): Promise<string[]> {
+  return (await loadRoles(join(templateRoot, "roles.yaml"))).roles.map((r) => r.name);
+}
+
+// ---------------------------------------------------------------------------
+// Step 3 (app half) — emitAppArtifacts() + bootstrapRun()
+// ---------------------------------------------------------------------------
+
+export interface EmitAppArtifactsOptions {
+  /** App (and config org) name — same defaulting as emitOrgTemplates. */
+  appName: string;
+  /** GitHub `owner/repo` slug; a marked placeholder when absent. */
+  repoSlug?: string;
+  /** Parsed questionnaire answers (parseAnswers). */
+  answers: BootstrapAnswers;
+  /** Every role in the org roles.yaml, in file order. Emission order for
+   * memory bundles; the complement of answers.roles gets an explicit empty
+   * cadence override (= disabled, src/org/apps.ts semantics). */
+  allRoles: string[];
+}
+
+/** Relative paths emitAppArtifacts will create for a given answers object. */
+export function appArtifactFiles(answers: BootstrapAnswers, allRoles: string[]): string[] {
+  const enabled = allRoles.filter((r) => answers.roles.includes(r));
+  return [
+    ".operon/TASTE.md",
+    ".operon/config.yaml",
+    ...enabled.map((role) => `.operon/memory/${role}/INDEX.md`),
+  ];
+}
+
+/** Emit the app-level artifacts (architecture §9 step 3, first three
+ * bullets): the product charter, the app's registry entry, and one seeded
+ * OKF memory bundle per enabled role. All content is deterministic — no
+ * timestamps — because the charter is context layer [3] and layers [1]–[4]
+ * must stay a pure function of ratified files (§5 cache-stable rule 1). */
+export async function emitAppArtifacts(
+  targetRootIn: string,
+  options: EmitAppArtifactsOptions,
+): Promise<EmitResult> {
+  const targetRoot = resolve(targetRootIn);
+  const { answers, allRoles } = options;
+  const appName = sanitizeAppName(options.appName);
+  const repoSlug = options.repoSlug ?? `OWNER/${appName}`;
+
+  const files = appArtifactFiles(answers, allRoles);
+  assertNotExists(targetRoot, files);
+
+  const created: string[] = [];
+  const emit = async (rel: string, content: string) => {
+    const abs = join(targetRoot, rel);
+    await mkdir(dirname(abs), { recursive: true });
+    await writeFile(abs, content, "utf8");
+    created.push(rel);
+  };
+
+  await emit(".operon/TASTE.md", charterMd(appName, answers));
+  await emit(
+    ".operon/config.yaml",
+    configYaml(appName, repoSlug, options.repoSlug === undefined, answers, allRoles),
+  );
+  for (const role of allRoles) {
+    if (answers.roles.includes(role)) {
+      await emit(`.operon/memory/${role}/INDEX.md`, memoryIndexMd(role, appName));
+    }
+  }
+
+  return { created };
+}
+
+/** The app charter — TASTE layer [3] (PURPOSE.md → TASTE layers): product
+ * identity only. Budget/cadence/roles are config, so they live in
+ * config.yaml, never here. */
+function charterMd(appName: string, answers: BootstrapAnswers): string {
+  return `# TASTE.md — ${appName} product charter
+
+App-level taste, layer [3] of context assembly (docs/architecture.md §5;
+PURPOSE.md → TASTE layers): what this product is and what "good" means here.
+Concatenated after the org constitution and role craft addenda — it
+specializes defaults; the org's "What we never do" section stays
+unoverridable. Seeded by \`operon bootstrap\` from the questionnaire; edit
+freely via proposal PR (human-ratified surface — agent writes are
+gate-critical).
+
+## What this product is
+
+${answers.product}
+
+## What "good" means here
+
+${answers.good}
+`;
+}
+
+/** The app's registry entry — same schema as apps.yaml (architecture §1),
+ * so it round-trips through src/org/apps.ts loadApps. `critical_ops` and
+ * `channels` ride inside the app entry (app-specific by definition); the
+ * registry parser ignores what it doesn't know, the gate-extension loader
+ * (M7) will read them. */
+function configYaml(
+  appName: string,
+  repoSlug: string,
+  slugIsPlaceholder: boolean,
+  answers: BootstrapAnswers,
+  allRoles: string[],
+): string {
+  // Enabled roles keep their overrides (or fall back to roles.yaml by
+  // omission); disabled roles get the schema's disable mechanism — an
+  // explicit empty trigger list. Built in roles.yaml order: deterministic.
+  const cadence: Record<string, Trigger[]> = {};
+  for (const role of allRoles) {
+    if (!answers.roles.includes(role)) cadence[role] = [];
+    else if (answers.cadence[role]) cadence[role] = answers.cadence[role];
+  }
+
+  const entry: Record<string, unknown> = {
+    repo: repoSlug,
+    status: "onboarding",
+    budget_usd_month: answers.budgetUsdMonth,
+    cadence,
+    critical_ops: {
+      deploy_commands: answers.criticalOps.deployCommands,
+      publish_targets: answers.criticalOps.publishTargets,
+      secret_locations: answers.criticalOps.secretLocations,
+    },
+  };
+  const channels: Record<string, string[]> = {};
+  if (answers.channels.support !== undefined) channels["support"] = answers.channels.support;
+  if (answers.channels.marketing !== undefined) channels["marketing"] = answers.channels.marketing;
+  if (Object.keys(channels).length > 0) entry["channels"] = channels;
+
+  const header = `# .operon/config.yaml — this app's registry entry, same schema as apps.yaml
+# (docs/architecture.md §1, §9). Emitted by \`operon bootstrap\` from the
+# questionnaire answers. Human-ratified surface: changes land via proposal
+# PR; agent writes are gate-critical. schema_version is the public contract
+# marker (§1 containment invariant).
+#
+# cadence: role -> trigger overrides. An entry REPLACES the role's
+#   roles.yaml triggers; an EMPTY list disables the role for this app —
+#   roles left un-enabled in the questionnaire appear here as [].
+# critical_ops: app-specific extensions to the org gate's rule set
+#   (§9 step 2: deploy commands, publish targets, secret locations).
+# channels: what Support/Marketing watch and draft for, when enabled.
+
+`;
+
+  const body = stringify({
+    schema_version: 1,
+    org: { name: appName, max_concurrent_turns: 2 },
+    defaults: { budget_usd_month: 1000 },
+    apps: { [appName]: entry },
+  });
+
+  let out = header + body;
+  if (slugIsPlaceholder) {
+    out = out.replace(`repo: ${repoSlug}`, `repo: ${repoSlug} # TODO: set the real owner/repo slug`);
+  }
+  return out;
+}
+
+/** Seeded per-(role, app) OKF bundle index (architecture §6): the
+ * always-included excerpt layer, one line per document — empty at birth. */
+function memoryIndexMd(role: string, appName: string): string {
+  return `# ${role} — ${appName} domain memory (INDEX)
+
+Per-(role, app) OKF bundle (docs/architecture.md §6): what the ${role} role
+knows about this product. This INDEX is the always-included excerpt layer —
+one line per document in the bundle. Seeded empty by \`operon bootstrap\`;
+the role appends lessons at end of turn (deliberately agent-writable routine
+op) and the weekly curation pass dedupes, prunes, and promotes.
+
+(no documents yet)
+`;
+}
+
+export interface BootstrapRunOptions {
+  /** App (and org) name; defaults to the target root's basename. */
+  appName?: string;
+  /** GitHub slug; defaults to the scanned origin remote, else placeholder. */
+  repoSlug?: string;
+  /** Template root for org TASTE.md/roles.yaml; defaults to this package. */
+  templateRoot?: string;
+}
+
+export interface BootstrapRunResult {
+  scan: RepoScan;
+  answers: BootstrapAnswers;
+  /** Relative paths written, org skeleton first, in emission order. */
+  created: string[];
+}
+
+/** The whole single-app bootstrap (architecture §9 steps 1–3): scan,
+ * validate the questionnaire answers, emit the org skeleton plus the app
+ * charter/config/memory tree. Answers are validated and every target path
+ * existence-checked BEFORE the first write — a failed bootstrap leaves no
+ * half-tree. Step 4 (detect/join an existing org) arrives with M3.5. */
+export async function bootstrapRun(
+  targetRootIn: string,
+  answersRaw: unknown,
+  options: BootstrapRunOptions = {},
+): Promise<BootstrapRunResult> {
+  const targetRoot = resolve(targetRootIn);
+  const templateRoot = options.templateRoot ?? PACKAGE_ROOT;
+  const appName = sanitizeAppName(options.appName ?? basename(targetRoot));
+
+  const allRoles = await templateRoleNames(templateRoot);
+  const answers = parseAnswers(answersRaw, allRoles);
+
+  const scan = await scanRepo(targetRoot);
+  const repoSlug = options.repoSlug ?? scan.repoSlug;
+
+  assertNotExists(targetRoot, [...ORG_TEMPLATE_FILES, ...appArtifactFiles(answers, allRoles)]);
+
+  const orgOptions: EmitOrgTemplatesOptions = { appName, templateRoot };
+  if (repoSlug) orgOptions.repoSlug = repoSlug;
+  const org = await emitOrgTemplates(targetRoot, orgOptions);
+
+  const appOptions: EmitAppArtifactsOptions = { appName, answers, allRoles };
+  if (repoSlug) appOptions.repoSlug = repoSlug;
+  const app = await emitAppArtifacts(targetRoot, appOptions);
+
+  return { scan, answers, created: [...org.created, ...app.created] };
 }

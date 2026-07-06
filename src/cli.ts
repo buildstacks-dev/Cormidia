@@ -21,9 +21,11 @@ Usage:
   operon roles [path]      validate roles.yaml and print the org chart
   operon apps [path]       validate apps.yaml and print the app registry
   operon pipelines [path]  validate pipelines.yaml and print the pass table
-  operon bootstrap [path] [--scan-only]
-                           scan a target repo and emit the single-app
-                           .operon/org/ skeleton (--scan-only: report only)
+  operon bootstrap [path] [--scan-only] [--answers <file>]
+                           scan a target repo, walk the alignment
+                           questionnaire (interactive, or --answers
+                           answers.json), and emit the .operon/ tree
+                           (--scan-only: report only)
   operon doctor            check runtime adapter status
   operon prune-runs [root] [--retention-days N]
                            delete finalized run dirs past retention

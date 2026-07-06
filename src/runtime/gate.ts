@@ -54,7 +54,13 @@ export const CRITICAL_RULES: CriticalRule[] = [
 ];
 
 function isWrite(a: ToolAction): boolean {
-  return /\b(write|edit|create|replace|append|mv|rm|sed -i|>\s)/.test(asText(a));
+  const t = asText(a);
+  // Verbs are prefix-matched (append → appends); cp/tee are whole-word to
+  // avoid cpu/teed false hits. Shell redirects get their own test: the old
+  // `\b>\s` alternative was unsatisfiable after whitespace (no word
+  // boundary exists between a space and `>`), so `echo x > roles.yaml`
+  // classified routine. `>&` fd-duplication (2>&1) is not a file write.
+  return /\b(write|edit|create|replace|append|mv|cp\b|tee\b|rm|sed -i)/.test(t) || />>?(?!&)/.test(t);
 }
 
 /** Exact protocol filenames, matched anywhere in the repo tree (e.g. root

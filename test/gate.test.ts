@@ -62,6 +62,14 @@ const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
     },
     rule: "scorecard-tamper",
   },
+  // Shell-shaped writes to protocol surfaces (M2.2 review finding): the old
+  // isWrite `\b>\s` alternative could never match a redirect after a space,
+  // and cp/tee were absent — so these all classified routine.
+  { action: bash("echo 'passes: []' > pipelines.yaml"), rule: "protocol-self-edit" },
+  { action: bash("cat /tmp/new-rules >> TASTE.md"), rule: "protocol-self-edit" },
+  { action: bash("cp /tmp/evil.md prompts/review/verify.md"), rule: "protocol-self-edit" },
+  { action: bash("tee roles.yaml < /tmp/replacement"), rule: "protocol-self-edit" },
+  { action: bash("echo '{}' > scorecards/civic/builder.jsonl"), rule: "scorecard-tamper" },
 ];
 
 const ROUTINE_CASES: ToolAction[] = [
@@ -90,6 +98,12 @@ const ROUTINE_CASES: ToolAction[] = [
     tool: "write",
     input: { path: ".operon/memory/builder/lesson.md", content: "..." },
   },
+  // Near-misses for the redirect/cp/tee expansion: writes that touch no
+  // protocol surface, and a protocol-surface read whose 2>&1 is fd
+  // duplication, not a file write.
+  bash("echo hi > /tmp/notes.md"),
+  bash("cp src/a.ts src/b.ts"),
+  bash("cat pipelines.yaml 2>&1"),
 ];
 
 describe("critical-ops gate (default policy)", () => {

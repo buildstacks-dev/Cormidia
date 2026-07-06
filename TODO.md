@@ -277,13 +277,17 @@ record on disk — "if something executes, its logs exist."*
   src/org/roles.ts (parsing pattern).
   **Session:** sonnet, single session.
 
-- [ ] **M2.2 Seed root pipelines.yaml + prompts/ (build/review/fix/ship) + `operon pipelines` CLI**
-  ⏳ **Proposal PR #3 open (2026-07-05), awaiting human ratification** — all
-  accept checks green on branch `m2.2-pipelines-prompts` (`pnpm dev
-  pipelines` OK, 104 tests, typecheck). Check this box only when the PR
-  merges; judgment calls to weigh are in the PR body (ship-check trigger
-  encoding, perf finding category). Dependents stack on the proposal
-  branch until then.
+- [x] **M2.2 Seed root pipelines.yaml + prompts/ (build/review/fix/ship) + `operon pipelines` CLI** ✅ 2026-07-05 —
+  PR #3 squash-merged under the delegated ratification process (review →
+  live test → merge). The pre-merge review caught a real protocol bug:
+  `only_on` gained a first-class `tier` key (deep-tier tickets would
+  otherwise have silently skipped ship-check) + loader strictness (unknown
+  keys rejected, template containment under prompts/, mechanical-pipeline
+  invariant enforced). Live verification 16/16 — real SDK turns; contract +
+  verify templates followed protocol incl. write-no-code /
+  never-modify-source (research/2026-07-05_m2.2-live-template-verification.md).
+  Deferred: `perf` finding category → decide in M4.6; shared org-home
+  layout helper → extract when M2.8 becomes the third consumer.
   **Goal:** Land the real, human-ratified `pipelines.yaml` (build / review /
   fix / ship per docs/loop.md §4's sketch) and the pass templates under
   `prompts/`, each encoding the *fixed protocol content* of §4 (contract:

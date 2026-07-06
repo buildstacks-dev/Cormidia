@@ -9,6 +9,7 @@
 import { NotImplementedError } from "./runtime/types.js";
 import { cmdRoles } from "./cli/roles.js";
 import { cmdApps } from "./cli/apps.js";
+import { cmdBootstrap } from "./cli/bootstrap.js";
 import { cmdDoctor } from "./cli/doctor.js";
 import { cmdPipelines } from "./cli/pipelines.js";
 import { cmdPruneRuns } from "./cli/prune-runs.js";
@@ -20,6 +21,9 @@ Usage:
   operon roles [path]      validate roles.yaml and print the org chart
   operon apps [path]       validate apps.yaml and print the app registry
   operon pipelines [path]  validate pipelines.yaml and print the pass table
+  operon bootstrap [path] [--scan-only]
+                           scan a target repo and emit the single-app
+                           .operon/org/ skeleton (--scan-only: report only)
   operon doctor            check runtime adapter status
   operon prune-runs [root] [--retention-days N]
                            delete finalized run dirs past retention
@@ -44,6 +48,7 @@ function notImplemented(cmd: string): CliCommand {
 const COMMANDS: Record<string, CliCommand> = {
   roles: { run: (args) => cmdRoles(args[0]) },
   apps: { run: (args) => cmdApps(args[0]) },
+  bootstrap: { run: (args) => cmdBootstrap(args) },
   pipelines: { run: (args) => cmdPipelines(args[0]) },
   doctor: { run: () => cmdDoctor() },
   "prune-runs": { run: (args) => cmdPruneRuns(args) },

@@ -2,6 +2,9 @@
 // entrypoint end-to-end so a new subcommand file that forgets its registry
 // line, or a broken default case, shows up here.
 
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -51,6 +54,19 @@ describe("cli dispatch", () => {
     const { stdout, code } = await runCli(["pipelines"]);
     expect(code).toBe(0);
     expect(stdout).toContain("pipelines.yaml: OK");
+  });
+
+  it("bootstrap --scan-only reports without writing", async () => {
+    const target = mkdtempSync(join(tmpdir(), "operon-cli-bootstrap-"));
+    try {
+      const { stdout, code } = await runCli(["bootstrap", "--scan-only", target]);
+      expect(code).toBe(0);
+      expect(stdout).toContain("bootstrap scan:");
+      expect(stdout).toContain("would create:");
+      expect(existsSync(join(target, ".operon"))).toBe(false);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
   });
 
   it("doctor subcommand still lists runtime adapters", async () => {

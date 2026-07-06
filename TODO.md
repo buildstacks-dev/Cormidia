@@ -1561,11 +1561,15 @@ concrete execution path rather than being skipped by the dispatcher.*
   **Session:** opus, single session — template quality and safety wording
   matter.
 
-- [ ] **M8.5 `operon-sandbox-gamma` functional coverage for non-build roles**
-  **Status 2026-07-06:** Not run in this session because
-  `~/Build/operon-sandbox-gamma` is not present. M8.1-M8.4 made the
-  protocols, routing, and event schemas ready for this proof; the functional
-  coverage still needs the gamma repo/service to exist.
+- [x] **M8.5 `operon-sandbox-gamma` functional coverage for non-build roles** ✅ 2026-07-06 —
+  Created private repo `bikramgupta/operon-sandbox-gamma`, a tiny Node HTTP
+  service with `/health`, Dockerfile, deploy-shaped local drill, seeded
+  support/adoption/health/launch events, and bootstrap-emitted `.operon/**`.
+  Registered it in `apps.yaml` as onboarding. Smokes passed: healthy/down SRE
+  checks emitted private issue #1 labeled `op:incident` + `p3`; Support and
+  Marketing produced draft-only artifacts; `npm run deploy:local` classified
+  as a denied/escalated `production-deploy` critical op by the gate. Evidence:
+  `research/2026-07-06_sandbox-gamma-role-smoke.md`.
   **Goal:** Create the human-approved third sandbox repo
   `operon-sandbox-gamma`: a tiny deployable HTTP service with `/health`,
   a local/container deploy script, and seeded file-drop inbox examples for
@@ -1939,8 +1943,8 @@ context channel, Codex/pi structured output support, and provider cache knobs).
 - 2026-07-06 — **operon-sandbox-gamma approved** as the third sandbox target
   for SRE/Support/Marketing real-functionality coverage: a tiny deployable
   HTTP service with `/health`, local/container deploy script as approval-drill
-  target, and seeded synthetic feedback/adoption events. Creation remains the
-  M8.5 implementation item; nothing outward-facing is published in tests.
+  target, and seeded synthetic feedback/adoption events. Created and
+  smoke-tested in M8.5; nothing outward-facing is published in tests.
 - 2026-07-06 — **Architecture + loop decisions ratified**: dispatcher ticks,
   approval grants, idempotency rules, org-managed clones, `.operon/org/`
   layout, loop-owned merges, manual trigger kind, `.operon/` containment,

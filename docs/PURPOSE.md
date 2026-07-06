@@ -22,9 +22,9 @@ applications (updated 2026-07-06):
    agent docs. Primary build-loop target.
 2. **operon-sandbox-beta** — minimal Node library with tests only. Proves
    graceful absence handling and "second app = config file, not a fork."
-3. **operon-sandbox-gamma** — approved 2026-07-06, not yet created. A tiny
-   deployable HTTP service with `/health`, a local/container deploy script,
-   and seeded feedback/adoption events. Its job is to give SRE, Support, and
+3. **operon-sandbox-gamma** — created 2026-07-06. A tiny deployable HTTP
+   service with `/health`, a local/container deploy script, and seeded
+   feedback/adoption/health events. Its job is to give SRE, Support, and
    Marketing real functional coverage before production onboarding.
 
 **Build-complete means M10.** After M10, production onboarding happens with the
@@ -324,8 +324,9 @@ will resolve them.
   question #1 (budget & cadence) closed.
 - 2026-07-06 — v1.0: PURPOSE kept as the high-level decision log; validation
   path updated. Product is build-complete at M10; civic and buildstacks.dev
-  are production onboarding after that point. operon-sandbox-gamma approved as
-  the third sandbox target for SRE/Support/Marketing functional coverage.
+  are production onboarding after that point. operon-sandbox-gamma approved,
+  then created, as the third sandbox target for SRE/Support/Marketing
+  functional coverage.
 - 2026-07-06 — v1.1: architecture.md §11 and loop.md §11 ratified; remaining
   human defaults resolved (60 min wall-clock cap, deep milestone planning /
   lighter weekly groom, autonomous high-tier contracts, future Lab opt-in,

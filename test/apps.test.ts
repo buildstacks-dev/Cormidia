@@ -147,7 +147,7 @@ describe("root apps.yaml (this repo as its own org home)", () => {
     const { org, apps } = await loadApps(APPS_PATH);
     expect(org.name).toBe("operon");
     expect(org.maxConcurrentTurns).toBe(2);
-    expect(apps).toHaveLength(3);
+    expect(apps).toHaveLength(4);
     expect(apps[0]!.name).toBe("operon");
     expect(apps[0]!.repo).toBe("buildstacks-dev/Operon");
     expect(apps[0]!.status).toBe("onboarding");
@@ -160,6 +160,12 @@ describe("root apps.yaml (this repo as its own org home)", () => {
     expect(apps[2]).toMatchObject({
       name: "operon-sandbox-beta",
       repo: "bikramgupta/operon-sandbox-beta",
+      status: "onboarding",
+      budgetUsdMonth: 1000,
+    });
+    expect(apps[3]).toMatchObject({
+      name: "operon-sandbox-gamma",
+      repo: "bikramgupta/operon-sandbox-gamma",
       status: "onboarding",
       budgetUsdMonth: 1000,
     });

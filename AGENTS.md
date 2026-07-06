@@ -9,13 +9,13 @@ log; on conflict, its Decided section wins and this file is stale — fix this f
 An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
 a private GitHub repo, with a human gating critical ops only. Currently a
-buildable runtime scaffold: M0-M8.4 are complete, ClaudeRuntime is live-tested,
+buildable runtime scaffold: M0-M8 are complete, ClaudeRuntime is live-tested,
 the pass executor/runlog/bootstrap/qgates layers are real, the GitHub ticket
 state machine can take a real sandbox-alpha issue through Builder / Reviewer
 passes, PR, gates, review fallback, and squash-merge, and dispatch routes
 standing-role triggers to Planner/SRE/Support/Marketing v0 pipelines.
-CodexRuntime, PiRuntime, memory, retro, cache-token telemetry, and the
-`operon-sandbox-gamma` functional role smoke remain roadmap work.
+CodexRuntime, PiRuntime, memory, retro, and cache-token telemetry remain
+roadmap work.
 
 ## Map
 | Path | What it is |
@@ -91,11 +91,12 @@ CodexRuntime, PiRuntime, memory, retro, cache-token telemetry, and the
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
 - Changes that affect app onboarding, `apps.yaml`, bootstrap, planning, or
   loop behavior must also be exercised against the live sandbox apps, not
-  only unit tests. Current targets: `~/Build/operon-sandbox-alpha` and
-  `~/Build/operon-sandbox-beta` (and `operon-sandbox-gamma` once created).
+  only unit tests. Current targets: `~/Build/operon-sandbox-alpha`,
+  `~/Build/operon-sandbox-beta`, and `~/Build/operon-sandbox-gamma`.
   Run the relevant bootstrap/plan/loop smoke plus each sandbox app's own
   available checks (for example alpha: `npm test && npm run lint`; beta:
-  `npm test`) and report the exact commands/results.
+  `npm test`; gamma: `npm test && npm run lint` plus the role smokes) and
+  report the exact commands/results.
 - M5 loop-state-machine changes should also run the disposable GitHub e2e
   when `gh` auth and `GH_SANDBOX_REPO` are available:
   `pnpm e2e:sandbox:setup` twice for idempotency, then `pnpm e2e:sandbox`.

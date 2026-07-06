@@ -55,7 +55,9 @@ Gamma:
 
 - `~/Build/operon-sandbox-gamma` was not present locally, so M8.5 functional
   SRE/Support/Marketing role smokes were not run. The protocols, routing,
-  and event schemas needed for that proof are now in place.
+  and event schemas needed for that proof were in place at this point.
+- Follow-up same day: gamma was created and smoke-tested; see
+  `research/2026-07-06_sandbox-gamma-role-smoke.md`.
 
 `pnpm test:live` was not run because M8.1-M8.4 did not change runtime adapter
 behavior; the live conformance requirement remains tied to adapter changes.

@@ -41,3 +41,8 @@ apps:
     status: onboarding
     budget_usd_month: 1000
     cadence: {}
+  operon-sandbox-gamma:
+    repo: bikramgupta/operon-sandbox-gamma
+    status: onboarding
+    budget_usd_month: 1000
+    cadence: {}

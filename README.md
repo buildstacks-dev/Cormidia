@@ -58,7 +58,7 @@ dispatcher ships.
 
 ## Status
 
-M0-M8.4 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
+M0-M8 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
 pass executor, run logs, app registry, bootstrap flow, co-planning launcher,
 quality gates, typed verdict parsers, GitHub ticket state machine, scheduler,
 manual loop driver, real Builder/Reviewer pipeline integration, approval queue,
@@ -67,9 +67,9 @@ trigger routing are implemented and tested. M5 is proven against a
 disposable private GitHub repo: ready issue → claim → real gates → PR →
 injected review → squash merge → closed issue. M6 is proven on
 `operon-sandbox-alpha`: real Claude Builder/Reviewer passes shipped issue #1
-through PR #2 to a merged squash commit. M8.5 is pending until
-`operon-sandbox-gamma` is available for the SRE/Support/Marketing functional
-role smoke.
+through PR #2 to a merged squash commit. M8 is proven on
+`operon-sandbox-gamma`: a running `/health` service, a real private
+`op:incident` issue, and Support/Marketing draft artifacts.
 
 CodexRuntime and PiRuntime are still planned for M10; until then, the live
 adapter is ClaudeRuntime and `pnpm test:live` is the gated live-conformance

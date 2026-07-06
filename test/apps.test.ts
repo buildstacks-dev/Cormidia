@@ -147,7 +147,7 @@ describe("root apps.yaml (this repo as its own org home)", () => {
     const { org, apps } = await loadApps(APPS_PATH);
     expect(org.name).toBe("operon");
     expect(org.maxConcurrentTurns).toBe(2);
-    expect(apps).toHaveLength(5);
+    expect(apps).toHaveLength(6);
     expect(apps[0]!.name).toBe("operon");
     expect(apps[0]!.repo).toBe("buildstacks-dev/Operon");
     expect(apps[0]!.status).toBe("onboarding");
@@ -176,6 +176,13 @@ describe("root apps.yaml (this repo as its own org home)", () => {
       budgetUsdMonth: 1000,
     });
     expect(apps[4]!.cadence).toEqual({ support: [] });
+    expect(apps[5]).toMatchObject({
+      name: "operon-sandbox-delta",
+      repo: "bikramgupta/operon-sandbox-delta",
+      status: "onboarding",
+      budgetUsdMonth: 1000,
+    });
+    expect(apps[5]!.cadence).toEqual({});
   });
 });
 

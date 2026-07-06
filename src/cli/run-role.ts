@@ -94,5 +94,23 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     workdir: resolvedWorkdir,
   });
   console.log(result.brief);
+  // The brief references the context by count; a live turn passes the full
+  // bundle through the adapter context channel. In the token-free inspection
+  // path we also print the assembled app-aware context so the operator can
+  // actually verify what the role would see (M12: app charter, role addendum,
+  // memory excerpts) rather than trusting a count.
+  if (context !== undefined) printContext(context);
   return 0;
+}
+
+function printContext(context: ContextBundle): void {
+  console.log("\n[context] assembled taste layers and memory excerpts (adapter context channel):");
+  context.taste.forEach((layer, i) => {
+    console.log(`\n--- taste[${i}] ---`);
+    console.log(layer);
+  });
+  context.memoryExcerpts.forEach((excerpt, i) => {
+    console.log(`\n--- memory[${i}] ---`);
+    console.log(excerpt);
+  });
 }

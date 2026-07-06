@@ -288,6 +288,9 @@ export class ClaudeRuntime implements Runtime {
           usage.input_tokens +
           (usage.cache_creation_input_tokens ?? 0) +
           (usage.cache_read_input_tokens ?? 0),
+        tokensInUncached: usage.input_tokens,
+        cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
+        cacheReadTokens: usage.cache_read_input_tokens ?? 0,
         tokensOut: usage.output_tokens,
         costUsd: resultMsg.total_cost_usd,
         subagentTurns,

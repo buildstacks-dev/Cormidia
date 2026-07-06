@@ -137,6 +137,9 @@ describe("ClaudeRuntime per-turn budget (SDK mocked)", () => {
       model: "claude-sonnet-5",
       status: "completed",
       tokensIn: 3000, // input + cache_creation + cache_read
+      tokensInUncached: 2000,
+      cacheCreationTokens: 300,
+      cacheReadTokens: 700,
       tokensOut: 900,
       costUsd: 0.87,
       subagentTurns: 0,

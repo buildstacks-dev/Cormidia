@@ -71,7 +71,16 @@ export interface Artifact {
 }
 
 export interface TurnUsage {
+  /** Total prompt/input tokens. Equals uncached + cache creation + cache read
+   *  when the adapter reports the split. */
   tokensIn: number;
+  /** Uncached input tokens. Optional for adapters that cannot report the
+   *  split yet; consumers must tolerate old records without it. */
+  tokensInUncached?: number;
+  /** Cache-write input tokens (provider naming varies). */
+  cacheCreationTokens?: number;
+  /** Cache-read input tokens. */
+  cacheReadTokens?: number;
   tokensOut: number;
   costUsd: number;
   /** Subagent turns spawned inside this turn — silent fan-out must be visible. */

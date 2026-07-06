@@ -59,14 +59,16 @@ Module placement respects the one-way import rule
 | ------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------- |
 | Dispatcher, schedule state, event polling, locks, trigger routing | `src/org/dispatch.ts`, `src/org/trigger-routing.ts`             | M8 route table maps roles.yaml triggers to protocols |
 | App registry (`apps.yaml` loader)                       | `src/org/apps.ts`                                              | new                                     |
-| Context assembler                                       | `src/org/context.ts`                                           | new                                     |
+| Context assembler                                       | `src/org/context.ts`                                           | implemented M9                         |
 | Approval queue + grants                                 | `src/org/approvals.ts`                                         | new                                     |
-| OKF memory read/write                                   | `src/org/memory.ts`                                            | new                                     |
-| Retro + scorecards                                      | `src/org/retro.ts`                                             | new                                     |
+| OKF memory read/write                                   | `src/org/memory.ts`                                            | implemented M9                         |
+| Scorecards                                              | `src/org/scorecards.ts`                                        | implemented M9                         |
+| Retro reports + curation                                | `src/org/retro.ts`                                             | implemented M9                         |
 | Ticket state machine                                    | `src/loop/loop.ts`                                             | skeleton; full design in `docs/loop.md` |
 | Pass executor, brief assembler, quality gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | new — `docs/loop.md`                    |
 | Pass prompt templates + pipeline config                 | `prompts/`, `pipelines.yaml` (org home)                        | new — human-ratified protocol surfaces  |
 | Runtime contract, gate, telemetry, adapters             | `src/runtime/`                                                 | exists                                  |
+| Run status + anomaly readers                            | `src/runtime/runlog/status.ts`, `anomalies.ts`                 | implemented M9; L1/L2 only             |
 
 
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the

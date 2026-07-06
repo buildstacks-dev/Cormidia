@@ -16,6 +16,9 @@ export interface TurnRecord {
   model: string;
   status: TurnResult["status"];
   tokensIn: number;
+  tokensInUncached?: number;
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
   tokensOut: number;
   costUsd: number;
   subagentTurns: number;
@@ -59,6 +62,15 @@ export function toRecord(
   // record entirely — JSON.stringify then omits them from the JSONL line.
   if (attribution.app !== undefined) record.app = attribution.app;
   if (attribution.trigger !== undefined) record.trigger = attribution.trigger;
+  if (result.usage.tokensInUncached !== undefined) {
+    record.tokensInUncached = result.usage.tokensInUncached;
+  }
+  if (result.usage.cacheCreationTokens !== undefined) {
+    record.cacheCreationTokens = result.usage.cacheCreationTokens;
+  }
+  if (result.usage.cacheReadTokens !== undefined) {
+    record.cacheReadTokens = result.usage.cacheReadTokens;
+  }
   return record;
 }
 

@@ -1,0 +1,67 @@
+import { describe, expect, it, vi } from "vitest";
+import { cmdStatus } from "../src/cli/status.js";
+import { formatStatusRows, readStatusRows } from "../src/runtime/runlog/status.js";
+import { makeOrgHome } from "./fixtures/orgHome.js";
+
+function env(runId: string, started: string, status: string, errorCode?: string): unknown {
+  return {
+    schema_version: 1,
+    run_id: runId,
+    trace_id: "turn",
+    app: "alpha",
+    pipeline: "build",
+    pass: runId.includes("2") ? "review" : "implement",
+    role: "builder",
+    status,
+    started_at: started,
+    finished_at: started,
+    wall_clock_ms: 1200,
+    usage: { tokens_in: 10, tokens_out: 5, cost_usd: 0.02 },
+    ...(errorCode !== undefined ? { error_code: errorCode } : {}),
+    refs: { events: "events.jsonl", brief: "brief.md", output: "output.md", session_log: "session.log" },
+  };
+}
+
+describe("runlog status", () => {
+  it("reads newest-first, keeps infra failure distinct, and applies limit", async () => {
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            run1: { envelope: env("run1", "2026-07-04T10:00:00Z", "completed"), events: [] },
+            run2: {
+              envelope: env("run2", "2026-07-04T11:00:00Z", "failed", "error_turn_failed"),
+              events: [{ event: "escalation.raised" }],
+            },
+          },
+        },
+      },
+    });
+    try {
+      const rows = await readStatusRows(home.root, { app: "alpha", limit: 1 });
+      expect(rows.map((row) => row.runId)).toEqual(["run2"]);
+      expect(rows[0]?.status).toBe("failed(error_turn_failed)");
+      expect(rows[0]?.escalations).toBe(1);
+      expect(formatStatusRows(rows)).toContain("PIPE/PASS");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("CLI prints documented columns", async () => {
+    const home = makeOrgHome({
+      runs: { records: { alpha: { run1: { envelope: env("run1", "2026-07-04T10:00:00Z", "completed"), events: [] } } } },
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const code = await cmdStatus(["--home", home.root, "--app", "alpha"]);
+      expect(code).toBe(0);
+      const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(out).toContain("RUN ID");
+      expect(out).toContain("build/implement");
+    } finally {
+      log.mockRestore();
+      home.cleanup();
+    }
+  });
+});

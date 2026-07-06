@@ -55,7 +55,7 @@ describe("envelope lifecycle", () => {
     withHome(async (root) => {
       await startRun(root, META, T0);
       await updateEnvelope(root, "civic", RUN_ID, {
-        usage: { tokens_in: 100, tokens_out: 40, cost_usd: 0.02 },
+        usage: { tokens_in: 100, tokens_out: 40, cost_usd: 0.02, cache_read_tokens: 10, cache_write_tokens: 5 },
         tool_counts: { bash: 2 },
       });
       await updateEnvelope(root, "civic", RUN_ID, {
@@ -64,7 +64,13 @@ describe("envelope lifecycle", () => {
       });
 
       const env = await readEnvelope(root, "civic", RUN_ID);
-      expect(env.usage).toEqual({ tokens_in: 100, tokens_out: 40, cost_usd: 0.02 });
+      expect(env.usage).toEqual({
+        tokens_in: 100,
+        tokens_out: 40,
+        cost_usd: 0.02,
+        cache_read_tokens: 10,
+        cache_write_tokens: 5,
+      });
       expect(env.gate_results).toEqual([{ gate: "tests", status: "passed" }]);
       expect(env.tool_counts).toEqual({ bash: 5, read: 3 });
       expect(env.status).toBe("running");

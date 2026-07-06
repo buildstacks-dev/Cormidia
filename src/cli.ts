@@ -9,6 +9,7 @@
 import { cmdRoles } from "./cli/roles.js";
 import { cmdApps } from "./cli/apps.js";
 import { cmdApprovals } from "./cli/approvals.js";
+import { cmdAnalyze } from "./cli/analyze.js";
 import { cmdBootstrap } from "./cli/bootstrap.js";
 import { cmdBudget } from "./cli/budget.js";
 import { cmdDispatch } from "./cli/dispatch.js";
@@ -17,7 +18,9 @@ import { cmdLoop } from "./cli/loop.js";
 import { cmdPlan } from "./cli/plan.js";
 import { cmdPipelines } from "./cli/pipelines.js";
 import { cmdPruneRuns } from "./cli/prune-runs.js";
+import { cmdRetro } from "./cli/retro.js";
 import { cmdRunRole } from "./cli/run-role.js";
+import { cmdStatus } from "./cli/status.js";
 
 const USAGE = `operon — org runtime for a team of AI agents
 
@@ -38,10 +41,16 @@ Usage:
                            inspect or decide the critical-op approval queue
   operon budget [--home <path>] [--apps <path>]
                            summarize monthly app spend and budget pauses
+  operon status [--home <path>] [--app <app>] [--limit N]
+                           show recent L1/L2 run status
+  operon analyze [--home <path>] [--app <app>]
+                           report L1/L2 anomaly flags and recommendations
   operon dispatch [--home <path>] [--dry-run]
                            run one autonomous scheduler tick
   operon prune-runs [root] [--retention-days N]
                            delete finalized run dirs past retention
+  operon retro [--date YYYY-MM-DD] [--home <path>] [--apps <path>] [--roles <path>]
+                           write a weekly evidence retro report
   operon loop --app <app> [--once|--follow] [--dry-run]
                            run the build loop over ready tickets
   operon run-role <role> [--app <app>] [--turn <id>] [--template <path>] [--dry-run]
@@ -57,6 +66,7 @@ const COMMANDS: Record<string, CliCommand> = {
   roles: { run: (args) => cmdRoles(args[0]) },
   apps: { run: (args) => cmdApps(args[0]) },
   approvals: { run: (args) => cmdApprovals(args) },
+  analyze: { run: (args) => cmdAnalyze(args) },
   bootstrap: { run: (args) => cmdBootstrap(args) },
   budget: { run: (args) => cmdBudget(args) },
   dispatch: { run: (args) => cmdDispatch(args) },
@@ -64,8 +74,10 @@ const COMMANDS: Record<string, CliCommand> = {
   pipelines: { run: (args) => cmdPipelines(args[0]) },
   doctor: { run: () => cmdDoctor() },
   "prune-runs": { run: (args) => cmdPruneRuns(args) },
+  retro: { run: (args) => cmdRetro(args) },
   loop: { run: (args) => cmdLoop(args) },
   "run-role": { run: (args) => cmdRunRole(args) },
+  status: { run: (args) => cmdStatus(args) },
 };
 
 async function main(): Promise<number> {

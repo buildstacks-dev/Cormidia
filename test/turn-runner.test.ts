@@ -1,14 +1,17 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runDispatchedTurn } from "../src/org/turn-runner.js";
 import { writeJournalPatch } from "../src/org/journal.js";
 import { ApprovalStore } from "../src/org/approvals.js";
+import { readScorecards } from "../src/org/scorecards.js";
 import { FakeRuntime } from "../src/runtime/testing/fakeRuntime.js";
 import type { AppEntry, AppsFile } from "../src/org/apps.js";
-import type { RoleConfig, TurnResult } from "../src/runtime/types.js";
+import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../src/runtime/types.js";
 import { makeBareWithClone } from "./fixtures/gitRepo.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
+import { FakeGhOps } from "./support/fakeGhOps.js";
 
 const ROLE: RoleConfig = {
   name: "support",
@@ -32,6 +35,17 @@ const PLANNER: RoleConfig = {
   maxTurnBudgetUsd: 5,
 };
 
+const BUILDER: RoleConfig = {
+  name: "builder",
+  runtime: "claude",
+  model: "m",
+  effort: "medium",
+  delegation: { allow: [] },
+  triggers: [{ event: "ticket-ready" }],
+  outputs: ["pr"],
+  maxTurnBudgetUsd: 5,
+};
+
 const BLOCKED: TurnResult = {
   status: "blocked_on_gate",
   summary: "blocked on approval",
@@ -47,7 +61,7 @@ describe("dispatched turn runner", () => {
     const home = makeOrgHome({ approvals: true, state: true });
     const app: AppEntry = {
       name: "alpha",
-      repo: pair.bare.root,
+      repo: pair.clone.root,
       status: "live",
       budgetUsdMonth: 1000,
       cadence: {},
@@ -192,4 +206,216 @@ describe("dispatched turn runner", () => {
       pair.cleanup();
     }
   });
+
+  it("persists loop scorecard events returned by a merged builder turn", async () => {
+    const pair = makeBareWithClone();
+    pair.clone.commit("chore: add operon policy", {
+      ".operon/TASTE.md": "# App\n",
+      ".operon/config.yaml": "test_command: \"true\"\nlint_command: \"true\"\n",
+      ".operon/policy.yaml": [
+        "schema_version: 1",
+        "risk_tiers: {low: [\"*.md\"], medium: [\"src/**\"], high: [\"auth/**\"]}",
+        "gates:",
+        "  low: [tests]",
+        "  medium: [tests]",
+        "  high: [tests]",
+        "dimension_globs: {}",
+        "remediation: {max_attempts: 3}",
+        "",
+      ].join("\n"),
+    });
+    pair.clone.git("push", "origin", "main");
+    const home = makeOrgHome({ approvals: true, state: true });
+    const app: AppEntry = {
+      name: "alpha",
+      repo: pair.bare.root,
+      status: "live",
+      budgetUsdMonth: 1000,
+      cadence: {},
+    };
+    const appsFile: AppsFile = {
+      org: { name: "test", maxConcurrentTurns: 2 },
+      defaults: { budgetUsdMonth: 1000 },
+      apps: [app],
+    };
+    class FreshReviewGhOps extends FakeGhOps {
+      override async listReviews(prNumber: number) {
+        const reviews = await super.listReviews(prNumber);
+        const commitId = git(join(home.root, "worktrees", "alpha", "op-1-quick-doc-fix"), "rev-parse", "HEAD");
+        return reviews.map((review) => ({ ...review, commitId }));
+      }
+    }
+    const gh = new FreshReviewGhOps({
+      cloneRoot: pair.clone.root,
+      issues: [
+        {
+          number: 1,
+          title: "Quick doc fix",
+          body: [
+            "## Goal",
+            "Change README.",
+            "",
+            "## Acceptance criteria",
+            "- [x] README changes",
+            "",
+            "## Scope",
+            "- README.md",
+            "",
+          ].join("\n"),
+          labels: ["op:ready", "op:tier-quick"],
+        },
+      ],
+    });
+    const fake = new FakeRuntime([
+      {
+        result: {
+          status: "completed",
+          summary: "Verdict: done",
+          artifacts: [],
+          session: { runtime: "claude", id: "build" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        },
+      },
+      {
+        result: {
+          status: "completed",
+          summary: "Verdict: approve",
+          artifacts: [],
+          session: { runtime: "claude", id: "review" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        },
+      },
+      {
+        result: {
+          status: "completed",
+          summary: "Verdict: approve",
+          artifacts: [],
+          session: { runtime: "claude", id: "tail-1" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        },
+      },
+      {
+        result: {
+          status: "completed",
+          summary: "Verdict: approve",
+          artifacts: [],
+          session: { runtime: "claude", id: "tail-2" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        },
+      },
+      {
+        result: {
+          status: "completed",
+          summary: "Verdict: approve",
+          artifacts: [],
+          session: { runtime: "claude", id: "tail-3" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        },
+      },
+      {
+        result: {
+          status: "completed",
+          summary: "Verdict: approve",
+          artifacts: [],
+          session: { runtime: "claude", id: "ship-2" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        },
+      },
+      {
+        result: {
+          status: "completed",
+          summary: "Verdict: approve",
+          artifacts: [],
+          session: { runtime: "claude", id: "ship" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        },
+      },
+    ]);
+    const runtime: Runtime = {
+      kind: "claude",
+      runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
+        if (req.task.includes("# Pass: implement")) {
+          writeFileSync(join(req.workdir, "README.md"), "# fixture origin\n\nupdated\n", "utf8");
+          git(req.workdir, "add", "README.md");
+          git(req.workdir, "commit", "-m", "feat: update readme");
+        }
+        return fake.runTurn(req, hooks);
+      },
+    };
+    try {
+      await writeJournalPatch(
+        home.root,
+        "turn-build",
+        {
+          role: BUILDER.name,
+          app: app.name,
+          phase: "assembling",
+          attempt: 0,
+          triggerKind: "event",
+          trigger: "ticket-ready",
+        },
+        new Date("2026-07-06T00:00:00Z"),
+      );
+      const result = await runDispatchedTurn({
+        role: BUILDER,
+        app,
+        appsFile,
+        turnId: "turn-build",
+        runtimeHome: home.root,
+        orgRoot: process.cwd(),
+        gh,
+        runtimeFor: () => runtime,
+        now: () => new Date("2026-07-06T02:00:00Z"),
+      });
+
+      expect(result.status).toBe("completed");
+      const scores = await readScorecards(home.root, "alpha", "builder");
+      expect(scores).toEqual([
+        expect.objectContaining({
+          type: "review_cycles",
+          turnId: "turn-build",
+          ticketRef: "#1",
+          value: 0,
+        }),
+      ]);
+      await runDispatchedTurn({
+        role: BUILDER,
+        app,
+        appsFile,
+        turnId: "turn-build",
+        runtimeHome: home.root,
+        orgRoot: process.cwd(),
+        gh,
+        runtimeFor: () => runtime,
+        now: () => new Date("2026-07-06T02:00:00Z"),
+      });
+      expect(await readScorecards(home.root, "alpha", "builder")).toHaveLength(1);
+    } finally {
+      home.cleanup();
+      pair.cleanup();
+    }
+  });
 });
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Operon Test",
+      GIT_AUTHOR_EMAIL: "test@operon.invalid",
+      GIT_COMMITTER_NAME: "Operon Test",
+      GIT_COMMITTER_EMAIL: "test@operon.invalid",
+      GIT_TERMINAL_PROMPT: "0",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}

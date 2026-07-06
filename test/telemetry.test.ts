@@ -77,6 +77,31 @@ describe("toRecord attribution (M3.2)", () => {
     expect(record.trigger).toBe("manual");
   });
 
+  it("carries cache-token split when the adapter reports it", () => {
+    const record = toRecord(
+      ROLE,
+      {
+        ...RESULT,
+        usage: {
+          ...RESULT.usage,
+          tokensIn: 3000,
+          tokensInUncached: 2000,
+          cacheCreationTokens: 300,
+          cacheReadTokens: 700,
+        },
+      },
+      AT,
+      { app: "operon-sandbox-alpha" },
+    );
+
+    expect(record).toMatchObject({
+      tokensIn: 3000,
+      tokensInUncached: 2000,
+      cacheCreationTokens: 300,
+      cacheReadTokens: 700,
+    });
+  });
+
   it("carries partial attribution without inventing the missing half", () => {
     const record = toRecord(ROLE, RESULT, AT, { trigger: "schedule" });
 

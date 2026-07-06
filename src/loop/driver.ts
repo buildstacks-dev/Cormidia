@@ -26,7 +26,7 @@ import type { Policy } from "./policy.js";
 import { loadPolicy } from "./policy.js";
 import type { GateCommands } from "./qgates.js";
 import { parseDependsOn, parseScope, selectReadyTickets } from "./scheduling.js";
-import type { LoopItem } from "./types.js";
+import type { LoopItem, ScorecardEvent } from "./types.js";
 
 export interface LoopPlanItem {
   issueNumber: number;
@@ -45,6 +45,9 @@ export interface LoopDriverOptions {
   commands: GateCommands;
   maxConcurrent?: number;
   planOnly?: boolean;
+  /** Active dispatch turn id; stamped onto claimed items so merge-time
+   *  scorecard events dedupe and attribute correctly. */
+  turnId?: string;
   afterClaim?: (item: LoopItem) => Promise<LoopItem> | LoopItem;
   injectReview?: (item: LoopItem) => Promise<void> | void;
   engine?: LoopEngineOptions;
@@ -64,6 +67,7 @@ export interface LoopEngineOptions {
 export interface LoopDriverResult {
   lines: string[];
   items: LoopItem[];
+  scorecardEvents: ScorecardEvent[];
 }
 
 export function planLoopTick(
@@ -102,7 +106,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   });
   const plan = planLoopTick(readyIssues, options.repo, maxConcurrent);
   const lines = plan.map((item) => `#${item.issueNumber} ${item.title}: ready -> claim`);
-  if (options.planOnly) return { lines, items: [] };
+  if (options.planOnly) return { lines, items: [], scorecardEvents: [] };
 
   const items: LoopItem[] = [];
   for (const planned of plan) {
@@ -114,6 +118,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       localRepo: options.localRepo,
       worktreeRoot: options.worktreeRoot,
     });
+    if (options.turnId !== undefined) item = { ...item, turnId: options.turnId };
     if (options.engine === undefined) {
       item = await (options.afterClaim?.(item) ?? item);
     }
@@ -223,7 +228,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     }
     items.push(item);
   }
-  return { lines, items };
+  return { lines, items, scorecardEvents: items.flatMap((item) => item.scorecardEvents ?? []) };
 }
 
 export async function defaultLoopInputs(repoSlug: string, repoDir: string): Promise<{

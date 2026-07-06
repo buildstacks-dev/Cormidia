@@ -1,7 +1,7 @@
 // Org-layer turn runner for dispatched turns (architecture.md §3).
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -18,9 +18,11 @@ import { runRole } from "../loop/runRole.js";
 import { ApprovalStore } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { rollupBudgets } from "./budget.js";
+import { assembleContext } from "./context.js";
 import { composeGate } from "./gate-compose.js";
 import { acquireLock, heartbeatLock, lockExists, readLock, releaseLock } from "./locks.js";
 import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
+import { appendScorecardEvent } from "./scorecards.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
 
 export interface RunDispatchedTurnOptions {
@@ -75,7 +77,7 @@ export async function runDispatchedTurn(
     });
 
     const localRepo = await ensureManagedClone(options.app, runtimeHome);
-    const context = buildContext(orgRoot, localRepo);
+    const context = await buildContext(orgRoot, localRepo, options.app.name, options.role, journal);
     const store = new ApprovalStore(runtimeHome);
     const hooks = {
       gate: composeGate(defaultGate, store, {
@@ -274,6 +276,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     policy,
     commands: loadGateCommands(options.localRepo),
     maxConcurrent: 1,
+    turnId: options.turnId,
     engine: {
       pipelines,
       roles,
@@ -285,6 +288,20 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       ...(options.now !== undefined ? { clock: options.now } : {}),
     },
   });
+  for (const event of result.scorecardEvents) {
+    await appendScorecardEvent(
+      options.runtimeHome,
+      {
+        type: event.type,
+        app: options.app.name,
+        role: event.type === "review_cycles" ? "builder" : options.role.name,
+        turnId: event.turnId,
+        ticketRef: event.ticketRef,
+        value: event.value,
+      },
+      options.now?.() ?? new Date(),
+    );
+  }
   const phase = result.items[0]?.phase;
   if (phase === "merged") return zeroResult("completed", "builder ticket turn merged one ticket", options.role);
   if (phase === "blocked") return zeroResult("blocked_on_gate", "builder ticket turn blocked on gate", options.role);
@@ -371,16 +388,22 @@ function resultFromPipeline(role: RoleConfig, pipelineName: string, result: Pipe
 }
 
 function sumUsage(usages: TurnUsage[]): TurnUsage {
-  return usages.reduce<TurnUsage>(
-    (acc, usage) => ({
+  return usages.reduce<TurnUsage>((acc, usage) => {
+    const next: TurnUsage = {
       tokensIn: acc.tokensIn + usage.tokensIn,
       tokensOut: acc.tokensOut + usage.tokensOut,
       costUsd: acc.costUsd + usage.costUsd,
       subagentTurns: acc.subagentTurns + usage.subagentTurns,
       wallClockMs: acc.wallClockMs + usage.wallClockMs,
-    }),
-    { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0 },
-  );
+    };
+    const tokensInUncached = (acc.tokensInUncached ?? 0) + (usage.tokensInUncached ?? 0);
+    const cacheCreationTokens = (acc.cacheCreationTokens ?? 0) + (usage.cacheCreationTokens ?? 0);
+    const cacheReadTokens = (acc.cacheReadTokens ?? 0) + (usage.cacheReadTokens ?? 0);
+    if (tokensInUncached > 0) next.tokensInUncached = tokensInUncached;
+    if (cacheCreationTokens > 0) next.cacheCreationTokens = cacheCreationTokens;
+    if (cacheReadTokens > 0) next.cacheReadTokens = cacheReadTokens;
+    return next;
+  }, { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0 });
 }
 
 function triggerFromJournal(journal: TurnJournal): Trigger {
@@ -435,15 +458,23 @@ export function createTurnWorktree(localRepo: string, runtimeHome: string, app: 
   return path;
 }
 
-function buildContext(orgRoot: string, localRepo: string): ContextBundle {
-  return {
-    taste: readExisting([join(orgRoot, "TASTE.md"), join(localRepo, ".operon", "TASTE.md")]),
-    memoryExcerpts: [],
-  };
-}
-
-function readExisting(paths: string[]): string[] {
-  return paths.filter((path) => existsSync(path)).map((path) => readFileSync(path, "utf8"));
+async function buildContext(
+  orgRoot: string,
+  localRepo: string,
+  app: string,
+  role: RoleConfig,
+  journal: TurnJournal,
+): Promise<ContextBundle> {
+  const trigger = [journal.triggerKind, journal.trigger].filter(Boolean).join(" ");
+  return (
+    await assembleContext({
+      orgHome: orgRoot,
+      appWorkdir: localRepo,
+      app,
+      role,
+      taskText: trigger === "" ? `${role.name} turn for ${app}` : `${role.name} ${trigger}`,
+    })
+  ).bundle;
 }
 
 function zeroResult(status: TurnResult["status"], summary: string, role: RoleConfig): TurnResult {

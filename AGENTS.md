@@ -9,13 +9,14 @@ log; on conflict, its Decided section wins and this file is stale — fix this f
 An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
 a private GitHub repo, with a human gating critical ops only. Currently a
-buildable runtime scaffold: M0-M8 are complete, ClaudeRuntime is live-tested,
+buildable runtime scaffold: M0-M9 are complete, ClaudeRuntime is live-tested,
 the pass executor/runlog/bootstrap/qgates layers are real, the GitHub ticket
 state machine can take a real sandbox-alpha issue through Builder / Reviewer
 passes, PR, gates, review fallback, and squash-merge, and dispatch routes
 standing-role triggers to Planner/SRE/Support/Marketing v0 pipelines.
-CodexRuntime, PiRuntime, memory, retro, and cache-token telemetry remain
-roadmap work.
+OKF memory, full context assembly, scorecards, retro reporting/curation,
+status/analyze CLIs, and cache-token telemetry are implemented. CodexRuntime
+and PiRuntime remain roadmap work.
 
 ## Map
 | Path | What it is |
@@ -32,7 +33,7 @@ roadmap work.
 | `docs/event-schemas.md` | File-drop company-lifecycle event payload contract for Support / Marketing / SRE inputs |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude live; Codex/pi stubs) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
-| `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing; context/memory/retro to come |
+| `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `test/` | Gate conformance seed + roles.yaml validation + CLI dispatch conformance |
 | `test/fixtures/orgHome.ts`, `test/fixtures/fakeClock.ts` | Composable temp-dir fixtures for `~/.operon/<org>/` and app-repo `.operon/` trees, plus a deterministic clock — reuse instead of a new ad-hoc mkdtemp scaffold |
@@ -54,8 +55,9 @@ roadmap work.
   `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run`
   · `pnpm dev loop --app <app> --once --dry-run` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
-  `pnpm dev budget` · `pnpm dev run-role <role> --dry-run` ·
-  `pnpm dev doctor`
+  `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
+  `pnpm dev retro --date 2026-07-04` ·
+  `pnpm dev run-role <role> --dry-run` · `pnpm dev doctor`
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`
   (idempotent private repo/label setup) then
   `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox` (creates and merges one

@@ -1,9 +1,8 @@
-// Planner co-planning mode (architecture.md §8): resolve one app, assemble a
-// minimal Planner context, create a planning worktree on main, then hand the
-// terminal to the native Claude CLI with --append-system-prompt.
+// Planner co-planning mode (architecture.md §8): resolve one app, assemble
+// the shared five-layer Planner context, create a planning worktree on main,
+// then hand the terminal to the native Claude CLI with --append-system-prompt.
 
-import { existsSync } from "node:fs";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -13,68 +12,46 @@ import { loadApps, type AppEntry } from "./apps.js";
 import { loadRoles } from "./roles.js";
 import { recordTurn, toRecord } from "../runtime/telemetry.js";
 import type { RoleConfig, TurnResult } from "../runtime/types.js";
+import { assembleContext } from "./context.js";
 
 const execFileAsync = promisify(execFile);
 
-export interface MinimalContextRequest {
+export interface PlanningContextRequest {
   /** Org home root (contains TASTE.md). */
   orgHome: string;
   /** App repo checkout/worktree (may contain .operon/TASTE.md). */
   appWorkdir: string;
   app: string;
+  role: RoleConfig;
   topic?: string;
 }
 
-export interface MinimalContext {
+export interface PlanningContext {
   systemPrompt: string;
   openingTask: string;
   byteSize: number;
   sources: string[];
 }
 
-/** Minimal context for M3.6: org TASTE.md + app `.operon/TASTE.md` when
- * present. Full five-layer context assembly replaces this in M9.3. */
-export async function assembleMinimalContext(
-  request: MinimalContextRequest,
-): Promise<MinimalContext> {
-  const orgTastePath = join(resolve(request.orgHome), "TASTE.md");
-  const appTastePath = join(resolve(request.appWorkdir), ".operon", "TASTE.md");
-
-  const chunks: string[] = [];
-  const sources: string[] = [];
-
-  chunks.push(layer("Org TASTE.md", await readFile(orgTastePath, "utf8")));
-  sources.push(orgTastePath);
-
-  if (existsSync(appTastePath)) {
-    chunks.push(layer("App .operon/TASTE.md", await readFile(appTastePath, "utf8")));
-    sources.push(appTastePath);
-  }
-
+export async function assemblePlanningContext(
+  request: PlanningContextRequest,
+): Promise<PlanningContext> {
   const openingTask = request.topic
     ? `Co-planning topic: ${request.topic}`
     : `Co-planning session for ${request.app}`;
-  chunks.push(
-    layer(
-      "Manual planning task",
-      [
-        openingTask,
-        "Draft specs or tickets as durable app-repo artifacts; do not treat this chat as the artifact.",
-      ].join("\n"),
-    ),
-  );
-
-  const systemPrompt = chunks.join("\n\n");
+  const assembled = await assembleContext({
+    orgHome: request.orgHome,
+    appWorkdir: request.appWorkdir,
+    app: request.app,
+    role: request.role,
+    taskText: openingTask,
+  });
   return {
-    systemPrompt,
+    systemPrompt: assembled.systemPrompt,
     openingTask,
-    byteSize: Buffer.byteLength(systemPrompt, "utf8"),
-    sources,
+    byteSize: assembled.byteSize,
+    sources: assembled.sources,
   };
-}
-
-function layer(title: string, body: string): string {
-  return `## ${title}\n\n${body.trim()}\n`;
 }
 
 export interface ClaudeInvocation {
@@ -83,7 +60,7 @@ export interface ClaudeInvocation {
   cwd: string;
 }
 
-export function buildClaudeInvocation(context: MinimalContext, cwd: string): ClaudeInvocation {
+export function buildClaudeInvocation(context: PlanningContext, cwd: string): ClaudeInvocation {
   return {
     command: "claude",
     args: ["--append-system-prompt", context.systemPrompt, context.openingTask],
@@ -182,7 +159,7 @@ export interface PreparePlanSessionOptions {
 export interface PlanSession {
   app: AppEntry;
   plannerRole: RoleConfig;
-  context: MinimalContext;
+  context: PlanningContext;
   worktree: PlanningWorktree;
   invocation: ClaudeInvocation;
 }
@@ -211,13 +188,14 @@ export async function preparePlanSession(
     throw new Error(`plan: co-planning v1 requires planner.runtime=claude (got ${plannerRole.runtime})`);
   }
 
-  const contextOptions: MinimalContextRequest = {
+  const contextOptions: PlanningContextRequest = {
     orgHome,
     appWorkdir,
     app: app.name,
+    role: plannerRole,
   };
   if (options.topic !== undefined) contextOptions.topic = options.topic;
-  const context = await assembleMinimalContext(contextOptions);
+  const context = await assemblePlanningContext(contextOptions);
   const worktree = await createPlanningWorktree(appWorkdir, {
     slug: options.topic ?? app.name,
     ...(options.worktreeParent ? { parentDir: options.worktreeParent } : {}),

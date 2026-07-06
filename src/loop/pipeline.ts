@@ -233,10 +233,13 @@ function envelopeStatus(result: TurnResult): Exclude<EnvelopeStatus, "running"> 
 }
 
 function toEnvelopeUsage(usage: TurnUsage): EnvelopeUsage {
-  return {
+  const envelope: EnvelopeUsage = {
     tokens_in: usage.tokensIn,
     tokens_out: usage.tokensOut,
     cost_usd: usage.costUsd,
     subagent_turns: usage.subagentTurns,
   };
+  if (usage.cacheReadTokens !== undefined) envelope.cache_read_tokens = usage.cacheReadTokens;
+  if (usage.cacheCreationTokens !== undefined) envelope.cache_write_tokens = usage.cacheCreationTokens;
+  return envelope;
 }

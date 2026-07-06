@@ -349,6 +349,9 @@ describe("ClaudeRuntime (SDK mocked)", () => {
     expect(result.session).toEqual({ runtime: "claude", id: "s1" });
     expect(result.usage).toEqual({
       tokensIn: 115, // input + cache_creation + cache_read
+      tokensInUncached: 100,
+      cacheCreationTokens: 10,
+      cacheReadTokens: 5,
       tokensOut: 40,
       costUsd: 0.12,
       subagentTurns: 0,

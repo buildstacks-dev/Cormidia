@@ -2,18 +2,18 @@
 // planning worktree lifecycle, and dry-run CLI output.
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import {
-  assembleMinimalContext,
+  assemblePlanningContext,
   buildClaudeInvocation,
   cleanupPlanningWorktree,
   createPlanningWorktree,
 } from "../src/org/plan.js";
 import { cmdPlan } from "../src/cli/plan.js";
+import type { RoleConfig } from "../src/runtime/types.js";
 
 const tempDirs: string[] = [];
 const originalCwd = process.cwd();
@@ -88,19 +88,34 @@ apps:
   return root;
 }
 
-describe("assembleMinimalContext", () => {
-  it("concatenates org and app charters plus the topic task line", async () => {
+const PLANNER: RoleConfig = {
+  name: "planner",
+  runtime: "claude",
+  model: "claude-opus-4-8",
+  effort: "high",
+  delegation: { allow: [] },
+  triggers: [{ manual: true }],
+  outputs: ["tickets"],
+  maxTurnBudgetUsd: 5,
+};
+
+describe("assemblePlanningContext", () => {
+  it("concatenates shared context layers and keeps the topic as task text", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp(true);
-    const context = await assembleMinimalContext({
+    const context = await assemblePlanningContext({
       orgHome,
       appWorkdir: app,
       app: "operon-sandbox-alpha",
+      role: PLANNER,
       topic: "stats percentile helper",
     });
 
     expect(context.systemPrompt).toContain("# Org Taste");
     expect(context.systemPrompt).toContain("# App Charter");
+    expect(context.systemPrompt).toContain("## Role turn protocol");
+    expect(context.systemPrompt).toContain("- tickets");
+    expect(context.systemPrompt).not.toContain("stats percentile helper");
     expect(context.openingTask).toBe("Co-planning topic: stats percentile helper");
     expect(context.byteSize).toBe(Buffer.byteLength(context.systemPrompt, "utf8"));
   });
@@ -108,10 +123,11 @@ describe("assembleMinimalContext", () => {
   it("omits the app charter layer when .operon/TASTE.md is absent", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp(false);
-    const context = await assembleMinimalContext({
+    const context = await assemblePlanningContext({
       orgHome,
       appWorkdir: app,
       app: "operon-sandbox-beta",
+      role: PLANNER,
     });
 
     expect(context.systemPrompt).toContain("# Org Taste");

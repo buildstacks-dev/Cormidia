@@ -631,7 +631,8 @@ is the mechanism).*
   `assembleMinimalContext()` concatenates org/app TASTE layers, `operon
   plan` builds a Claude `--append-system-prompt` invocation, dry-run creates
   and cleans an `op/plan-<slug>` worktree, and live runs record manual
-  telemetry under `.org`.
+  telemetry under `.org`. Superseded by M9.3: planning now uses
+  `assembleContext()` and the old function no longer exists in `src/`.
   **Goal:** The manual, interactive invocation shape (architecture §8):
   `operon plan <app> [--topic <string>] [--dry-run] [--workdir <path>]` —
   resolve app via apps.ts; create a throwaway worktree on main
@@ -1100,7 +1101,8 @@ Builder and Reviewer turns — loop v1 complete on a real app repo.
   shipping. The loop loads the app-owned `.operon/policy.yaml` emitted by
   bootstrap and fails loud if it is missing — M6 consumes policy, never
   creates it. Contract comment lands on the issue. The brief's [memory]
-  section stays empty until M9.3 wires it — a deliberate deferral.
+  section stays empty until M9.3 wires it — a deliberate deferral. M9.3 has
+  since wired selected OKF memory excerpts into loop briefs.
   **Files:** src/loop/loop.ts, src/loop/driver.ts, test/loop-integration.test.ts
   **Deps:** M5.9, M2.8, M2.2, M4.2, M4.6, M6.1, M1.2
   **Accept:** FakeRuntime-scripted integration cases: building invokes
@@ -1300,8 +1302,7 @@ cap instead of holding its lock forever.*
   --turn <id>` (non-interactive path) resolves the app, ensures the
   org-managed clone (`repos/<app>`, fetch-only) and worktree per
   architecture §3; composes the effective gate via M7.3; assembles minimal
-  context (M3.6's `assembleMinimalContext` until M9.3 upgrades it); for a
-  builder
+  context (upgraded by M9.3 to full `assembleContext()`); for a builder
   `ticket-ready` turn, picks the ticket via M5.7's selectReadyTickets +
   claims via M5.3; journals every phase (M7.6) with heartbeats (M7.5);
   records telemetry with app/trigger (M3.2); on gate escalations persists
@@ -1599,7 +1600,10 @@ concrete execution path rather than being skipped by the dispatcher.*
 and an L1/L2 record — and `operon status` / `analyze` / `retro` each read a
 different slice back as a human-readable report.*
 
-- [ ] **M9.1 OKF bundle reader: frontmatter, INDEX, excerpt selection**
+- [x] **M9.1 OKF bundle reader: frontmatter, INDEX, excerpt selection** ✅ 2026-07-06 —
+  `src/org/memory.ts` parses/validates OKF, loads bundles, and selects capped
+  deterministic excerpts; `test/memory.test.ts` pins malformed errors, INDEX
+  inclusion, keyword overlap, and cap truncation.
   **Goal:** `src/org/memory.ts` read path: parseOkfDocument (seven
   frontmatter fields + body; malformed → named error); loadBundle
   (INDEX.md + docs); selectExcerpts(bundleDirs, taskText, capBytes) —
@@ -1614,7 +1618,9 @@ different slice back as a human-readable report.*
   **Read:** docs/architecture.md §5 (excerpt selection), §6 (OKF format).
   **Session:** sonnet, single session.
 
-- [ ] **M9.2 OKF bundle writer: end-of-turn write + INDEX maintenance**
+- [x] **M9.2 OKF bundle writer: end-of-turn write + INDEX maintenance** ✅ 2026-07-06 —
+  `writeMemoryDoc`, `deprecateMemoryDoc`, `deleteMemoryDoc`, and
+  `regenerateIndex` landed with sorted active-doc INDEX maintenance.
   **Goal:** Write path: writeMemoryDoc (validate frontmatter, stamp
   updated, regenerate INDEX.md — one line per non-deprecated doc, sorted);
   deprecateMemoryDoc (status flip + INDEX drop; wrong lessons get deleted,
@@ -1628,7 +1634,10 @@ different slice back as a human-readable report.*
   **Read:** docs/architecture.md §6; TASTE.md §12.
   **Session:** sonnet, single session.
 
-- [ ] **M9.3 Context assembler — and wire it into real turns**
+- [x] **M9.3 Context assembler — and wire it into real turns** ✅ 2026-07-06 —
+  `assembleContext()` now feeds dispatched turns and manual planning;
+  `assembleMinimalContext` is gone from `src`; loop briefs render selected
+  memory excerpts through existing `ContextBundle` plumbing.
   **Goal:** `src/org/context.ts` `assembleContext()`: fixed-order
   concatenation (org TASTE.md → taste/<role>.md → app .operon/TASTE.md →
   *generated* layer-4 turn protocol: expected outputs from
@@ -1655,7 +1664,10 @@ different slice back as a human-readable report.*
   **Read:** docs/architecture.md §5, §10; src/runtime/types.ts.
   **Session:** opus, single session.
 
-- [ ] **M9.4 Scorecard writer/reader + persist loop's returned events**
+- [x] **M9.4 Scorecard writer/reader + persist loop's returned events** ✅ 2026-07-06 —
+  `src/org/scorecards.ts` appends/reads six event kinds with validation and
+  dedupe; `runLoopOnce` passes scorecard events and `turn-runner` persists
+  merge-time `review_cycles`.
   **Goal:** `src/org/scorecards.ts`: appendScorecardEvent (six kinds from
   architecture §6's table, orchestrator-written only — gate rule from M0.5
   backstops) + readScorecards(app, role, since); wire M5.6's returned
@@ -1673,7 +1685,9 @@ different slice back as a human-readable report.*
   **Read:** docs/architecture.md §6 (scorecards table).
   **Session:** sonnet, single session.
 
-- [ ] **M9.5 Weekly retro v0 (`operon retro`)**
+- [x] **M9.5 Weekly retro v0 (`operon retro`)** ✅ 2026-07-06 —
+  `runRetro()` reads telemetry, scorecards, and anomaly summaries and writes
+  `retro/<date>.md`; `operon retro` prints the written path.
   **Goal:** runRetro(week): read telemetry JSONL + scorecards per (role,
   app); emit `retro/<date>.md` (scores, trends, incidents, anomaly-flag
   summary once M9.9 lands — reference, don't block). Curation and
@@ -1689,7 +1703,10 @@ different slice back as a human-readable report.*
   **Read:** docs/architecture.md §6 (weekly retro — emits #1 only here).
   **Session:** opus, single session — judgment on which aggregates matter.
 
-- [ ] **M9.6 Retro v1: memory curation + skills promotion + proposal emission**
+- [x] **M9.6 Retro v1: memory curation + skills promotion + proposal emission** ✅ 2026-07-06 —
+  Retro curation merges duplicate lessons, deletes contradicted lessons,
+  drafts recurring-lesson skill proposals under proposal-branch artifacts,
+  and emits protocol proposal bodies without touching `TASTE.md`/`roles.yaml`.
   **Goal:** Complete architecture §6's retro triad beyond M9.5's report:
   (2) curation edits — dedupe lessons, deprecate doubtful ones, delete
   wrong ones (M9.2 primitives), keyed off evidence links (the mitigation
@@ -1712,7 +1729,10 @@ different slice back as a human-readable report.*
   docs/PURPOSE.md → knowledge tiers; docs/loop.md §13 #14.
   **Session:** opus, single session.
 
-- [ ] **M9.7 TASTE role addenda proposals (`taste/reviewer.md`, `taste/support.md`)**
+- [x] **M9.7 TASTE role addenda proposals (`taste/reviewer.md`, `taste/support.md`)** ✅ 2026-07-06 —
+  Reviewer and Support role addenda landed directly for active development,
+  each with a proposal-pending-ratification note; reviewer context now has
+  four taste layers against the real org home.
   **Goal:** Author the two materially-different role addenda as proposal
   PRs (reviewer: concrete checklist — criteria coverage, security lens,
   numbered-findings format; support: tone/voice for drafts), each opening
@@ -1728,7 +1748,9 @@ different slice back as a human-readable report.*
   **Read:** docs/PURPOSE.md → TASTE layers; docs/architecture.md §1, §5.
   **Session:** sonnet, single session — content, not code; human ratifies.
 
-- [ ] **M9.8 `operon status` — L1+L2 dashboard**
+- [x] **M9.8 `operon status` — L1+L2 dashboard** ✅ 2026-07-06 —
+  `operon status` reads only L1 envelopes and L2 events, newest-first, with
+  `failed(error_code)` labels, duration, token/cost, and escalation columns.
   **Goal:** `operon status [--app] [--limit N]`: recent runs newest-first
   from envelope.json + events.jsonl ONLY (never L3); columns runId,
   pipeline/pass, status with infra-`failed(error_code)` vs merit-`blocked/
@@ -1745,7 +1767,10 @@ different slice back as a human-readable report.*
   **Read:** docs/loop.md §9 (dashboards read L1+L2 only; infra≠merit).
   **Session:** sonnet, single session.
 
-- [ ] **M9.9 `operon analyze` — anomaly detectors**
+- [x] **M9.9 `operon analyze` — anomaly detectors** ✅ 2026-07-06 —
+  `operon analyze` reports low-token/high-time, single-pass long-run,
+  bash-heavy, environment-retry, and M9.10 cold-cache flags with canned
+  recommendations.
   **Goal:** The four ported detectors over L1+L2 (low_tokens_high_time
   >300s <1k; single_turn_long_run; bash_heavy ≥20; environment_retry ≥3),
   each mapping to a canned recommendation; output feeds retro.
@@ -1760,7 +1785,11 @@ different slice back as a human-readable report.*
   **Read:** docs/loop.md §9 (detectors, canned recommendations).
   **Session:** sonnet, single session.
 
-- [ ] **M9.10 Cache-token telemetry + `cold_cache` anomaly**
+- [x] **M9.10 Cache-token telemetry + `cold_cache` anomaly** ✅ 2026-07-06 —
+  `TurnUsage`, telemetry, ClaudeRuntime, and L1 envelopes now carry
+  uncached/cache-write/cache-read input token splits; `cold_cache` fires on
+  adjacent same-pipeline passes inside the provider TTL when cache reads are
+  reported as zero.
   **Goal:** Close the gap between docs/loop.md §9-§10 and the runtime
   contract: extend `TurnUsage` with `tokensInUncached`,
   `cacheCreationTokens`, and `cacheReadTokens` while keeping `tokensIn` as

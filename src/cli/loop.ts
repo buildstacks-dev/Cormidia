@@ -1,7 +1,6 @@
 // `operon loop --app <app> [--once|--follow] [--dry-run]` — manual driver
 // for the build-loop state machine (M5.9).
 
-import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
@@ -9,6 +8,7 @@ import { getRuntime } from "../runtime/registry.js";
 import { defaultLoopInputs, runLoopOnce } from "../loop/driver.js";
 import { loadPipelines } from "../loop/pipelines.js";
 import { loadApps } from "../org/apps.js";
+import { assembleContext } from "../org/context.js";
 import { loadRoles } from "../org/roles.js";
 
 export async function cmdLoop(args: string[]): Promise<number> {
@@ -53,6 +53,9 @@ export async function cmdLoop(args: string[]): Promise<number> {
   const inputs = await defaultLoopInputs(selectedApp.repo, localRepo);
   const rolesFile = await loadRoles("roles.yaml");
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
+  const maybeBuilderRole = roles["builder"];
+  if (maybeBuilderRole === undefined) throw new Error("loop: roles.yaml has no builder role");
+  const builderRole = maybeBuilderRole;
   const promptsDir = "prompts";
   const pipelines = await loadPipelines("pipelines.yaml", {
     roleNames: rolesFile.roles.map((role) => role.name),
@@ -79,7 +82,13 @@ export async function cmdLoop(args: string[]): Promise<number> {
             promptsDir,
             runlogRoot: orgHome,
             hooks: { gate: defaultGate },
-            context: loopContext(localRepo),
+            context: (await assembleContext({
+              orgHome: process.cwd(),
+              appWorkdir: localRepo,
+              app: selectedApp.name,
+              role: builderRole,
+              taskText: `build loop for ${selectedApp.name}`,
+            })).bundle,
             },
           }
         : {}),
@@ -99,17 +108,6 @@ export async function cmdLoop(args: string[]): Promise<number> {
     await tick();
   }
   return 0;
-}
-
-function loopContext(localRepo: string) {
-  return {
-    taste: readExisting(["TASTE.md", join(localRepo, ".operon", "TASTE.md")]),
-    memoryExcerpts: [],
-  };
-}
-
-function readExisting(paths: string[]): string[] {
-  return paths.filter((path) => existsSync(path)).map((path) => readFileSync(path, "utf8"));
 }
 
 function needValue(args: string[], index: number, flag: string): string {

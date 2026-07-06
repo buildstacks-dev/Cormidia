@@ -38,19 +38,27 @@ const ROLES: Record<string, RoleConfig> = {
   reviewer: role("reviewer"),
 };
 
-function turnResult(summary: string, status: TurnResult["status"] = "completed"): TurnResult {
+function turnResult(
+  summary: string,
+  status: TurnResult["status"] = "completed",
+  usage: Partial<TurnResult["usage"]> = {},
+): TurnResult {
   return {
     status,
     summary,
     artifacts: [],
     session: { runtime: "claude", id: `session-${summary}` },
-    usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 100 },
+    usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 100, ...usage },
     escalations: [],
   };
 }
 
-function scripted(summary: string, status: TurnResult["status"] = "completed"): ScriptedTurn {
-  return { result: turnResult(summary, status) };
+function scripted(
+  summary: string,
+  status: TurnResult["status"] = "completed",
+  usage: Partial<TurnResult["usage"]> = {},
+): ScriptedTurn {
+  return { result: turnResult(summary, status, usage) };
 }
 
 async function loadFixture(): Promise<PipelinesFile> {
@@ -112,7 +120,10 @@ describe("executePipeline", () => {
 
   it("sequential passes run in order; task = brief + template", async () => {
     const build = getPipeline(await loadFixture(), "build");
-    const h = makeHarness(build, [scripted("contract out"), scripted("implement out")]);
+    const h = makeHarness(build, [
+      scripted("contract out", "completed", { cacheCreationTokens: 3, cacheReadTokens: 7 }),
+      scripted("implement out"),
+    ]);
     try {
       const result = await executePipeline(h.options);
       expect(result.passes.map((p) => p.pass.id)).toEqual(["contract", "implement"]);
@@ -225,7 +236,10 @@ describe("executePipeline", () => {
 
   it("every executed pass leaves a complete run record with matching runIds", async () => {
     const build = getPipeline(await loadFixture(), "build");
-    const h = makeHarness(build, [scripted("contract out"), scripted("implement out")]);
+    const h = makeHarness(build, [
+      scripted("contract out", "completed", { cacheCreationTokens: 3, cacheReadTokens: 7 }),
+      scripted("implement out"),
+    ]);
     try {
       const result = await executePipeline(h.options);
       expect(result.passes.length).toBe(2);
@@ -242,6 +256,10 @@ describe("executePipeline", () => {
         expect(envelope.trace_id).toBe("turn-1");
         expect(envelope.status).toBe("completed");
         expect(envelope.usage?.cost_usd).toBe(0.01);
+        if (record.pass.id === "contract") {
+          expect(envelope.usage?.cache_write_tokens).toBe(3);
+          expect(envelope.usage?.cache_read_tokens).toBe(7);
+        }
         expect(envelope.previews?.output).toBe(record.result.summary);
 
         expect(readFileSync(paths.brief, "utf8")).toBe(`brief for ${record.pass.id}`);

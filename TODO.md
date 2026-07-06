@@ -368,7 +368,12 @@ record on disk — "if something executes, its logs exist."*
   **Read:** docs/loop.md §9; docs/architecture.md §1.
   **Session:** sonnet, single session.
 
-- [ ] **M2.5 L1 envelope writer + reader**
+- [x] **M2.5 L1 envelope writer + reader** ✅ 2026-07-05 —
+  src/runtime/runlog/envelope.ts: startRun/updateEnvelope/finalizeRun/
+  readEnvelope; previews + verdict summary always scrubbed & truncated;
+  refs-only to L3 (raw-JSON test proves no inlining); update/finalize on a
+  terminal envelope throws loudly; tmp+rename writes; telemetry.ts
+  untouched. 6 named cases.
   **Goal:** `envelope.json` lifecycle: startRun (ids, status running),
   updateEnvelope (token/cost rollups, tool counts, gate results, redacted
   previews), finalizeRun (terminal status, verdict summary, REFERENCES to

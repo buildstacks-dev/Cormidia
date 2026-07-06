@@ -116,6 +116,12 @@ runs, `ClaudeSDKClient` for stateful sessions. Sessions resume/fork/list;
 place to wire the critical-ops gate; `model` per options and per agent
 definition, with `fallback_model`.
 
+> **Superseded (2026-07-05):** the `can_use_tool` hypothesis above was
+> disproven empirically — it never fires for auto-allowed read-only bash and
+> does not reliably see subagent tool calls. The gate channel is a
+> **PreToolUse hook**. See
+> `research/2026-07-05_claude-runtime-live-conformance.md`.
+
 ## Adapter interface (sketch)
 
 Every runtime must support this contract; anything a runtime lacks natively

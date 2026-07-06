@@ -1,10 +1,10 @@
 # Operon Architecture
 
-*v0 draft — 2026-07-04. The design layer PURPOSE.md deliberately does not
-hold. PURPOSE.md → Decided is upstream and authoritative; this document adds
-the detail needed to implement the remaining roadmap. Anything here that is a
-NEW decision (not derivable from PURPOSE.md) is collected in §11 as proposed
-promotions — nothing in §11 is decided until the human operator ratifies it.*
+*v0 draft — 2026-07-04. The design layer docs/PURPOSE.md deliberately does not
+hold. docs/PURPOSE.md → Decided is upstream and authoritative; this document adds
+the detail needed to implement the remaining roadmap. §11 records decisions
+ratified into docs/PURPOSE.md on 2026-07-06; future new decisions should be
+proposed here first, then promoted only after human ratification.*
 
 ## 0. Overview
 
@@ -76,7 +76,7 @@ down through `TurnHooks`. The runtime layer never imports approval storage.
 ## 1. On-disk layout
 
 Three homes, one rule: **durable, curated artifacts live in git; high-churn
-operational state lives gitignored under** `~/.operon/` (PURPOSE.md v0.8).
+operational state lives gitignored under** `~/.operon/` (docs/PURPOSE.md v0.8).
 
 ### Org home (this repo, for now)
 
@@ -150,7 +150,7 @@ jobs can read it freely (same reasoning that keeps repos at `~/Build`).
 `operon dispatch` every ~5 minutes; systemd timer does the same on the
 droplet. Each tick reads config + state, computes what is due, starts turns,
 exits. No daemon to supervise; a wedged host resumes on the next tick;
-migration is "install the timer" (PURPOSE.md: dispatcher is a plain CLI
+migration is "install the timer" (docs/PURPOSE.md: dispatcher is a plain CLI
 entrypoint any scheduler can call). Cadence is flexi — ticks run at all hours
 (decided 2026-07-04).
 
@@ -453,7 +453,7 @@ Two rules protect that:
 A model switch between adjacent passes forfeits the whole cache (caches are
 model-scoped) — weigh that when tuning per-pass overrides in pipelines.yaml.
 
-**Injection per adapter — native channels only** (PURPOSE.md), nothing
+**Injection per adapter — native channels only** (docs/PURPOSE.md), nothing
 assembled ever lands in a commit:
 
 
@@ -518,7 +518,7 @@ to the ticket branch (they merge with the work).
 **Curation** is a weekly maintenance turn (`operon retro`, below): dedupe,
 delete wrong lessons, `status: deprecated` for doubtful ones, and promote
 recurring lessons up a tier to `skills/` — skill promotion is a PR, i.e.
-review-gated (PURPOSE.md knowledge tiers).
+review-gated (docs/PURPOSE.md knowledge tiers).
 
 ### Scorecards
 
@@ -568,16 +568,16 @@ defaults:
   budget_usd_month: 1000        # decided 2026-07-04, configurable per app
 
 apps:
-  civic:
-    repo: <owner>/AgentSkill-CivicIntelligence   # GitHub slug = identity
+  operon-sandbox-alpha:
+    repo: bikramgupta/operon-sandbox-alpha       # GitHub slug = identity
     status: live                # live | paused | onboarding
     budget_usd_month: 1000
     cadence: {}                 # optional per-role trigger overrides, e.g.
                                 #   support: []          (disable role here)
                                 #   planner: [{schedule: "daily 08:00"}]
-  buildstacks:
-    repo: buildstacks-dev/buildstacks.dev
-    status: onboarding          # enters live only after loop v1 on civic
+  operon-sandbox-beta:
+    repo: bikramgupta/operon-sandbox-beta
+    status: onboarding
 ```
 
 - **One-turn-one-app is structural:** `TurnRequest` has a single `workdir`;
@@ -609,7 +609,7 @@ app (optionally raising the budget in apps.yaml themselves).
 A third invocation shape beside schedule and event: **manual, interactive**.
 
 ```
-operon plan <app> [--topic "US-states extension"]
+operon plan <app> [--topic "stats percentile helper"]
 ```
 
 - Assembles the Planner's context exactly as §5 (same TASTE layers, same
@@ -628,8 +628,9 @@ app's `.operon/planning/`.
 - Gate applies as always — interactivity doesn't change the approval
 boundary; the human approving in-terminal *is* the approval surface for any
 critical op raised live (recorded to the same audit log).
-- First use (decided): drafting the civic US-states extension spec — which is
-also roadmap item 2's acceptance test.
+- First product-development use: sandbox co-planning against
+  operon-sandbox-alpha. Civic co-planning is deferred until production
+  onboarding after the product is build-complete.
 
 
 
@@ -718,10 +719,10 @@ predecessor pattern).
 
 
 
-## 11. Proposed promotions to PURPOSE.md → Decided
+## 11. Ratified decisions promoted to docs/PURPOSE.md
 
-New decisions made by this document — proposed, pending the human
-operator's ratification (PURPOSE.md is a human-ratified surface):
+New decisions made by this document, ratified by the human operator on
+2026-07-06 and promoted to docs/PURPOSE.md:
 
 1. **Tick dispatcher, detached turns.** Stateless `operon dispatch` tick
   (launchd/systemd, ~5 min); turns spawn detached so schedulers never kill
@@ -764,10 +765,6 @@ operator's ratification (PURPOSE.md is a human-ratified surface):
 1. **Codex context channel** — per-thread instructions vs AGENTS.md overlay:
   verify against the Codex TS SDK when building the adapter (item 6); the
    fallback is specified (§5) either way. *(build-time verification)*
-2. **Support/Marketing activation for civic** — their triggers exist but
-  civic has no feedback/adoption channels yet. Proposal: keep both roles
-   disabled for civic via `cadence: {support: [], marketing: []}` until
-   channels exist; buildstacks.dev likely activates them first. *(human)*
-3. **Defaults to confirm:** `max_concurrent_turns: 2`; grant TTL 24 h;
-  dispatch tick 5 min; loop `maxCycles: 3`. *(human — cheap to change
-   later; flagged for visibility)*
+Resolved 2026-07-06: Support/Marketing stay disabled per app until channels
+exist; defaults confirmed as `max_concurrent_turns: 2`, grant TTL 24 h,
+dispatch tick 5 min, loop `maxCycles: 3`.

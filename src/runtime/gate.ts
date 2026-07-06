@@ -1,4 +1,4 @@
-// The critical-ops gate (PURPOSE.md → Decided → Approval boundary).
+// The critical-ops gate (docs/PURPOSE.md → Decided → Approval boundary).
 // v0 is a pattern classifier + a default policy that denies-and-escalates
 // anything critical. Every adapter must route every tool action — including
 // subagents' — through a GateFn; the conformance suite in

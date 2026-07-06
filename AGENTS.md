@@ -2,38 +2,41 @@
 
 ## Scope
 Applies to the whole repo. There are no nested AGENTS.md files — this is a
-single TypeScript package and one file covers it. `PURPOSE.md` is the decision
+single TypeScript package and one file covers it. `docs/PURPOSE.md` is the decision
 log; on conflict, its Decided section wins and this file is stale — fix this file.
 
 ## What this repo is
 An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
 a private GitHub repo, with a human gating critical ops only. Currently a
-scaffold: the contracts, gate, and tests are real; the three runtime adapters
-and the build loop are documented stubs.
+buildable runtime scaffold: M0-M4 are complete, ClaudeRuntime is live-tested,
+the pass executor/runlog/bootstrap/qgates layers are real, and the upcoming
+work starts at the GitHub ticket state machine (M5). CodexRuntime, PiRuntime,
+dispatcher, approvals, memory, retro, and full standing-role operation remain
+roadmap work.
 
 ## Map
 | Path | What it is |
 | --- | --- |
-| `PURPOSE.md` | Decision log — **read first**; every decision to date |
+| `docs/PURPOSE.md` | Decision log — **read first**; every decision to date |
 | `TASTE.md` | Org constitution, loaded by every agent the org runs (human-ratified) |
 | `roles.yaml` | Org chart made executable: role → runtime/model/effort/triggers |
 | `pipelines.yaml` | The build protocol as ordered passes (build/review/fix/ship) — human-ratified; validated by `pnpm dev pipelines` |
 | `prompts/` | Versioned pass templates the pipelines reference — human-ratified protocol surfaces, one file per pass |
 | `TODO.md` | Roadmap + session-handoff state — pick up the top unchecked item |
-| `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 = proposals pending ratification) |
+| `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 decisions ratified into docs/PURPOSE.md) |
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
-| `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the known coverage gaps (SRE-on-live-service / Support / Marketing → proposed third app) |
-| `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, runlog (paths/redaction; L1–L3 writers landing M2.5–M2.7), `secret-patterns.ts` (the ONE secret-regex list — redaction and the qgates scan both import it), adapters (claude / codex / pi) |
-| `src/loop/` | Build loop: pass executor, briefs, quality gates, ticket state machine (skeleton — design in `docs/loop.md`) |
-| `src/org/` | Standing-org layer: roles.yaml loader; scheduler/memory/retro to come |
+| `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
+| `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude live; Codex/pi stubs) |
+| `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, and ticket state machine skeleton (M5 rewrites `loop.ts`; design in `docs/loop.md`) |
+| `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning; scheduler/approvals/context/memory/retro to come |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `test/` | Gate conformance seed + roles.yaml validation + CLI dispatch conformance |
 | `test/fixtures/orgHome.ts`, `test/fixtures/fakeClock.ts` | Composable temp-dir fixtures for `~/.operon/<org>/` and app-repo `.operon/` trees, plus a deterministic clock — reuse instead of a new ad-hoc mkdtemp scaffold |
 | `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
-## Commands (all verified 2026-07-05)
+## Commands (all verified 2026-07-06)
 - Install: `pnpm install` — pnpm is pinned via `packageManager` (corepack);
   an older global pnpm will fail with store/workspace errors. `corepack
   enable` once if `pnpm --version` doesn't match the pin.
@@ -44,13 +47,15 @@ and the build loop are documented stubs.
   auth — never run by `pnpm test`)
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` (tsc → `dist/`)
-- CLI in dev: `pnpm dev roles` · `pnpm dev pipelines` · `pnpm dev doctor`
+- CLI in dev: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
+  `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run`
+  · `pnpm dev run-role <role> --dry-run` · `pnpm dev doctor`
 
 ## Working rules
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;
   `src/runtime` imports nothing above it. Not lint-enforced yet — hold the
   line manually. This is what keeps the loop extractable.
-- **`TASTE.md`, `roles.yaml`, `PURPOSE.md`, `pipelines.yaml`, and `prompts/**`
+- **`TASTE.md`, `roles.yaml`, `docs/PURPOSE.md`, `pipelines.yaml`, and `prompts/**`
   are human-ratified surfaces.** Propose changes with rationale; never
   silently rewrite. (The org's own gate treats agent writes to these as
   critical ops — the same etiquette applies to agents working *on* this repo.)
@@ -70,7 +75,7 @@ and the build loop are documented stubs.
   `research/2026-07-05_model-id-verification.md`). One live caveat: `gpt-5.5`
   in Codex currently requires ChatGPT-account auth, not an API key —
   re-verify when wiring the Codex adapter (M10).
-- Single package, deliberately **not** a pnpm workspace (PURPOSE.md → Repo shape).
+- Single package, deliberately **not** a pnpm workspace (docs/PURPOSE.md → Repo shape).
 
 ## Testing expectations
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
@@ -94,7 +99,7 @@ and the build loop are documented stubs.
 - Docs-only changes: nothing to run.
 
 ## Navigation
-- Decisions & rationale: `PURPOSE.md` (Decided section is authoritative)
+- Decisions & rationale: `docs/PURPOSE.md` (Decided section is authoritative)
 - Detailed design (how each subsystem works): `docs/architecture.md`
 - Build-loop engineering design (passes, briefs, gates, verdicts): `docs/loop.md`
 - Predecessor orchestrator (prior-art reference being ported; "the predecessor" in docs): `scratchpad-gitignore/claude-loop-teams/` (Python, read-only)

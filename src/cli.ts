@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Operon CLI. `loop` carries claude-loop's standalone UX forward as a
-// subcommand (PURPOSE.md → Repo shape).
+// subcommand (docs/PURPOSE.md → Repo shape).
 //
 // This file is a thin dispatch table over one module per subcommand
 // (src/cli/roles.ts, src/cli/doctor.ts, ...). Adding a subcommand is a new

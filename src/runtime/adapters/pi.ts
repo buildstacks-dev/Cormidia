@@ -10,7 +10,7 @@
 // - sessions are JSONL trees; resume by session id → SessionHandle.id
 // - custom providers via models.json (Google, xAI, DeepSeek, local, ...)
 // - pi also speaks Anthropic/OpenAI natively — an ALL-PI org (e.g. pi + Opus)
-//   is a supported first-class profile (PURPOSE.md)
+//   is a supported first-class profile (docs/PURPOSE.md)
 // - degradation to document: no native intra-turn subagent fan-out
 
 import type { Runtime, TurnRequest, TurnHooks, TurnResult } from "../types.js";

@@ -331,7 +331,7 @@ export interface BootstrapAnswers {
    * roles.yaml. Un-listed roles are disabled — emitted as empty cadence
    * overrides, the registry schema's disable mechanism (src/org/apps.ts). */
   roles: string[];
-  /** Monthly budget in USD (PURPOSE.md → Budget & cadence; default 1000). */
+  /** Monthly budget in USD (docs/PURPOSE.md → Budget & cadence; default 1000). */
   budgetUsdMonth: number;
   /** Per-role trigger overrides (apps.yaml cadence semantics: an entry
    * REPLACES the role's roles.yaml triggers). Keys must be enabled roles;
@@ -384,7 +384,7 @@ export function parseAnswers(rawUnknown: unknown, knownRoles: string[]): Bootstr
     roles.push(r);
   }
 
-  let budgetUsdMonth = 1000; // PURPOSE.md → Budget & cadence (decided 2026-07-04)
+  let budgetUsdMonth = 1000; // docs/PURPOSE.md → Budget & cadence (decided 2026-07-04)
   if (raw["budgetUsdMonth"] !== undefined) {
     const b = raw["budgetUsdMonth"];
     if (typeof b !== "number" || !Number.isFinite(b) || b <= 0) {
@@ -583,14 +583,14 @@ async function readPolicyTemplate(templateRoot: string): Promise<string> {
   }
 }
 
-/** The app charter — TASTE layer [3] (PURPOSE.md → TASTE layers): product
+/** The app charter — TASTE layer [3] (docs/PURPOSE.md → TASTE layers): product
  * identity only. Budget/cadence/roles are config, so they live in
  * config.yaml, never here. */
 function charterMd(appName: string, answers: BootstrapAnswers): string {
   return `# TASTE.md — ${appName} product charter
 
 App-level taste, layer [3] of context assembly (docs/architecture.md §5;
-PURPOSE.md → TASTE layers): what this product is and what "good" means here.
+docs/PURPOSE.md → TASTE layers): what this product is and what "good" means here.
 Concatenated after the org constitution and role craft addenda — it
 specializes defaults; the org's "What we never do" section stays
 unoverridable. Seeded by \`operon bootstrap\` from the questionnaire; edit

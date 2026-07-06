@@ -1,14 +1,14 @@
 # TODO — Operon roadmap & session handoff
 
-A fresh session should read `PURPOSE.md` → `AGENTS.md` → this file, then pick
+A fresh session should read `docs/PURPOSE.md` → `AGENTS.md` → this file, then pick
 up the top unchecked item. Keep this list current as items land; move finished
 items to Done with a date.
 
-> **Handoff (2026-07-04, evening):** "Next up" below is the comprehensive build
-> plan (74 items, 12 milestones), produced by a multi-agent decomposition +
+> **Handoff (2026-07-04, evening; roadmap audit 2026-07-06):** "Next up"
+> below is the comprehensive build plan, produced by a multi-agent decomposition +
 > adversarial validation pass over `docs/architecture.md` + `docs/loop.md`.
 > Execute items strictly top-down unless a parallel-track note says otherwise.
-> A fresh session executes one item: read `PURPOSE.md` → `AGENTS.md` → this
+> A fresh session executes one item: read `docs/PURPOSE.md` → `AGENTS.md` → this
 > file, pick the top unchecked item, read that item's **Read** pointers, then
 > implement to its acceptance checks. Do not start an item whose **Deps** are
 > unchecked.
@@ -20,6 +20,12 @@ items to Done with a date.
 > product is **build-complete at M10**; M11's approval-queue acceptance moved
 > to M7.14, its config-not-fork check into M3.7. Production onboarding of
 > civic + buildstacks happens with the human once M10 lands.
+> (3) A 2026-07-06 GPT roadmap audit found three concrete gaps and slotted
+> them below instead of leaving them as prose: trigger-to-pipeline routing for
+> non-builder roles (M8.3), SRE/Support/Marketing v0 pipelines plus third
+> sandbox coverage (M8.4-M8.5), and cache-token telemetry/anomaly tracking
+> promised by `docs/loop.md` §9-§10 (M9.10). Product build-complete remains
+> M10; these items make "standing org" true before that line.
 
 ## Next up (ordered)
 
@@ -45,7 +51,7 @@ Standing decisions binding all items (arbitrated 2026-07-04):
   (created by M2.4). Runlog redaction and the qgates security scan both
   import it — loop→runtime is the legal direction; a second pattern list
   anywhere is a bug.
-- **Human-ratified surfaces** (TASTE.md, roles.yaml, PURPOSE.md, and — once
+- **Human-ratified surfaces** (TASTE.md, roles.yaml, docs/PURPOSE.md, and — once
   created — pipelines.yaml, prompts/**, taste/*.md, apps.yaml): items that
   add or change them land as proposal PRs, never silent merges.
 
@@ -180,7 +186,7 @@ session-wide `canUseTool` question settled with evidence.*
   open un-merged PR with per-line rationale; on the branch `pnpm test` and
   `pnpm dev roles` pass.
   **Demo:** The human has an exact, sourced roles.yaml diff to ratify.
-  **Read:** AGENTS.md (Model IDs rule); roles.yaml; PURPOSE.md → Decided →
+  **Read:** AGENTS.md (Model IDs rule); roles.yaml; docs/PURPOSE.md → Decided →
   runtime layer.
   **Session:** sonnet, single session (needs web access).
 
@@ -233,7 +239,7 @@ session-wide `canUseTool` question settled with evidence.*
   turn → "completed" with usage.costUsd equal to the mocked total (not
   placeholder); `pnpm test && pnpm typecheck`.
   **Demo:** A runaway turn stops itself at the budget cap.
-  **Read:** src/runtime/telemetry.ts; roles.yaml defaults; PURPOSE.md →
+  **Read:** src/runtime/telemetry.ts; roles.yaml defaults; docs/PURPOSE.md →
   Budget & cadence.
   **Session:** sonnet, single session.
 
@@ -536,7 +542,7 @@ is the mechanism).*
   APP/REPO/STATUS/BUDGET table and `pnpm test && pnpm typecheck` pass;
   satisfied only after the human merges.
   **Demo:** Multi-app config is machine-checked from day one.
-  **Read:** docs/architecture.md §7; PURPOSE.md → multi-app + one-turn-one-app.
+  **Read:** docs/architecture.md §7; docs/PURPOSE.md → multi-app + one-turn-one-app.
   **Session:** sonnet, single session.
 
 - [x] **M3.2 Manual trigger kind + per-app/trigger telemetry fields** ✅ 2026-07-06 —
@@ -575,7 +581,7 @@ is the mechanism).*
   profile and would-create list without writing; `pnpm test && pnpm typecheck`.
   **Demo:** Bootstrap can learn a repo and emit a valid org skeleton.
   **Read:** docs/architecture.md §9 (steps 1,3), §1 (.operon/org/ sublayout);
-  PURPOSE.md → Bootstrap & artifact home.
+  docs/PURPOSE.md → Bootstrap & artifact home.
   **Session:** sonnet, single session.
 
 - [x] **M3.4 `operon bootstrap` — questionnaire + app charter/config emission** ✅ 2026-07-06 —
@@ -598,7 +604,7 @@ is the mechanism).*
   `pnpm dev bootstrap <fixture> --answers answers.json` creates the tree
   (ls/cat observable); `pnpm test && pnpm typecheck`.
   **Demo:** `operon bootstrap` produces a complete, reviewable `.operon/`.
-  **Read:** docs/architecture.md §9 (steps 2–3), §1; PURPOSE.md → TASTE
+  **Read:** docs/architecture.md §9 (steps 2–3), §1; docs/PURPOSE.md → TASTE
   layers.
   **Session:** opus, single session — questionnaire content shape has real
   design ambiguity.
@@ -692,8 +698,8 @@ is the mechanism).*
   **Demo:** The org has real app entries for both sandbox repos, app-owned
   bootstrap output in each repo, and a Planner co-planning command that can
   prime a live session against alpha.
-  **Read:** PURPOSE.md → Pilot applications + Pilot tasks are the
-  acceptance tests; docs/architecture.md §8 (first use decided).
+  **Read:** docs/PURPOSE.md → Validation and launch path; docs/architecture.md §8
+  (co-planning mode).
   **Session:** sonnet, single session + the human present for the
   questionnaire and co-planning (irreducibly interactive).
 
@@ -708,7 +714,7 @@ no LLM.*
 > real sandbox apps: alpha passed high-tier
 > tests+lint+security+completeness+freshness; beta passed low-tier without a
 > lint command and failed medium-tier with the intended missing-lint message.
-> `operon-sandbox-gamma` remains a planned third test app for later
+> `operon-sandbox-gamma` is approved as a later third test app for
 > SRE/Support/Marketing surface coverage; it is not an M4 dependency.
 
 - [x] **M4.1 Local git-repo test fixtures (working repo + bare/clone pair)** ✅ 2026-07-06
@@ -989,8 +995,8 @@ needs is this sandbox.)*
   **Demo:** The state machine works against real GitHub before ever
   touching a production app (civic on hold — sandbox apps are the target
   throughout; M3 header note).
-  **Read:** docs/loop.md §7; docs/architecture.md §10; PURPOSE.md → pilot
-  tasks (why sandbox precedes the production pilot).
+  **Read:** docs/loop.md §7; docs/architecture.md §10; docs/PURPOSE.md →
+  Validation and launch path.
   **Session:** opus, single session — reconciles every prior boundary
   against real GitHub.
 
@@ -1016,7 +1022,7 @@ Builder and Reviewer turns — loop v1 complete on a real app repo.
   `pnpm dev roles` prints cleanly.
   **Demo:** The expedient is ratified and time-boxed, not smuggled.
   **Read:** AGENTS.md (builder≠reviewer rule); TODO old item 5 note;
-  PURPOSE.md → runtime layer.
+  docs/PURPOSE.md → runtime layer.
   **Session:** sonnet, single session.
 
 - [ ] **M6.2 Loop phases run real pipelines (build / fix / verify)**
@@ -1066,8 +1072,8 @@ Builder and Reviewer turns — loop v1 complete on a real app repo.
   carries the PR description; the app's test suite green post-merge;
   research note records PR/URL + gate outputs.
   **Demo:** Loop v1 shipped a real change to a real app repo end-to-end.
-  **Read:** PURPOSE.md → pilot tasks; docs/loop.md §7; docs/architecture.md
-  §10.
+  **Read:** docs/PURPOSE.md → Validation and launch path; docs/loop.md §7;
+  docs/architecture.md §10.
   **Session:** sonnet, single session (mostly driving + observing; human
   reviews the ticket beforehand).
 
@@ -1092,7 +1098,7 @@ cap instead of holding its lock forever.*
   completes a simulated crash without duplicate log entries; `pnpm test &&
   pnpm typecheck`.
   **Demo:** The approval lifecycle is provably crash-safe in isolation.
-  **Read:** docs/architecture.md §4; PURPOSE.md → Approval surface.
+  **Read:** docs/architecture.md §4; docs/PURPOSE.md → Approval surface.
   **Session:** sonnet, single session — write the reconciliation test
   carefully.
 
@@ -1260,7 +1266,7 @@ cap instead of holding its lock forever.*
   process stays alive, keeps heartbeating, and holds its (role, app) lock
   forever, silently defeating autonomy (loop.md §13 #2). Fix: the dispatch
   tick compares each running journal's pass start time against a per-pass
-  wall-clock cap (default 30 min — §12.7's proposal, flagged for the human;
+  wall-clock cap (default 60 min, ratified 2026-07-06;
   per-pass override in pipelines.yaml), kills the turn process via an
   injected killer, and routes it into M7.10's recovery path. Also enforce
   per-pass turn caps (loop.md §2 rule 6): pipelines.yaml per-pass
@@ -1278,7 +1284,8 @@ cap instead of holding its lock forever.*
   pnpm typecheck`.
   **Demo:** A wedged SDK session frees its lock at the cap instead of
   wedging the org.
-  **Read:** docs/loop.md §13 #2, §2 rule 6, §12.7; docs/architecture.md §2.
+  **Read:** docs/loop.md §13 #2, §2 rule 6; docs/architecture.md §2;
+  docs/PURPOSE.md → Resolved operating defaults.
   **Session:** opus, single session — kill/recover semantics must not lose
   work.
 
@@ -1294,7 +1301,7 @@ cap instead of holding its lock forever.*
   a fake LaunchAgents dir (absent → not-installed + command; present →
   installed); `pnpm test && pnpm typecheck`.
   **Demo:** Migration = install the timer (PURPOSE's droplet story).
-  **Read:** docs/architecture.md §2; PURPOSE.md → Runtime host.
+  **Read:** docs/architecture.md §2; docs/PURPOSE.md → Runtime host.
   **Session:** sonnet, single session.
 
 - [ ] **M7.13 Budget rollup + auto-pause + budget-exceeded queue item**
@@ -1316,7 +1323,7 @@ cap instead of holding its lock forever.*
   typecheck`.
   **Demo:** An over-budget app pauses itself and asks the human — one
   inbox, never two.
-  **Read:** docs/architecture.md §7; PURPOSE.md → Budget & cadence.
+  **Read:** docs/architecture.md §7; docs/PURPOSE.md → Budget & cadence.
   **Session:** sonnet, single session.
 
 - [ ] **M7.14 Approval surface end-to-end on a sandbox app** *(absorbs old
@@ -1336,14 +1343,16 @@ cap instead of holding its lock forever.*
   `operon approvals` shows zero pending afterward.
   **Demo:** The human-gating story works on a real critical op, end to
   end.
-  **Read:** docs/architecture.md §4; PURPOSE.md → Approval boundary.
+  **Read:** docs/architecture.md §4; docs/PURPOSE.md → Approval boundary.
   **Session:** sonnet, single session + human present for the approval.
 
 ### M8 — Planner pipelines: plan / groom / triage
 *Milestone demo: `operon run-role planner` on a schedule executes a real
 groom pipeline — issues in, prioritized `op:ready` tickets out — honoring
 the intake invariant (only Planner pipelines or the human apply
-`op:ready`).*
+`op:ready`). SRE, Support, and Marketing also have v0 scheduled/event
+pipelines by the end of the milestone, so every role in `roles.yaml` has a
+concrete execution path rather than being skipped by the dispatcher.*
 
 - [ ] **M8.1 `plan` pipeline: visionary → competing PMs → arbitrator → decomposer**
   **Goal:** Seed the deep-planning pipeline in pipelines.yaml + prompts/
@@ -1397,6 +1406,87 @@ the intake invariant (only Planner pipelines or the human apply
   **Read:** docs/loop.md §4 (issue intake), §12.2 (depth defaults —
   open decision, note in PR).
   **Session:** opus, single session.
+
+- [ ] **M8.3 Trigger-to-pipeline routing for standing roles**
+  **Goal:** Add the org-layer routing table that M7 deliberately avoided
+  hardcoding: given `{role, trigger, app}`, resolve the pipeline or
+  one-pass template to run. Required v1 mapping: planner daily→groom,
+  planner weekly→plan; builder ticket-ready→loop claim/build path;
+  reviewer pr-opened→loop review path; sre hourly→sre-health, sre
+  ci-failed/alert-webhook→sre-incident; support schedule→support-digest;
+  marketing release-shipped→marketing-release, marketing weekly→ci-sweep.
+  Unknown mappings keep M7.8's loud skip behavior. This is the missing
+  bridge between `roles.yaml` triggers and real pass execution for
+  non-builder roles.
+  **Files:** src/org/trigger-routing.ts, src/org/turn-runner.ts,
+  src/org/dispatch.ts, test/trigger-routing.test.ts,
+  test/turn-runner-routing.test.ts
+  **Deps:** M7.9, M8.2
+  **Accept:** named cases for every mapping above; cadence overrides still
+  route by the effective trigger; manual triggers never auto-route; an
+  unmapped `{role, trigger}` returns a typed skip reason and is logged,
+  never spawned into an undefined turn; turn-runner integration proves a
+  scheduled Planner turn runs the groom pipeline, not a generic one-pass
+  placeholder; `pnpm test && pnpm typecheck`.
+  **Demo:** Scheduled/event roles execute named protocols instead of
+  existing only as config.
+  **Read:** docs/architecture.md §2; docs/loop.md §4; roles.yaml.
+  **Session:** opus, single session — this is load-bearing autonomy glue.
+
+- [ ] **M8.4 SRE/Support/Marketing v0 pipelines + event schemas**
+  **Goal:** Seed the non-build standing-role protocols as ratified
+  pipeline/template surfaces: `sre-health` (scheduled health/deploy sweep,
+  emits incident issues or infra PRs), `support-digest` (file-drop feedback
+  events → digest + reply drafts; never sends), `marketing-release`
+  (release-shipped → changelog/launch drafts; never publishes), and
+  `ci-sweep` (weekly competitive/adoption digest feeding Planner). Add
+  `docs/event-schemas.md` for the file-drop company-lifecycle events
+  these templates consume: support-feedback, adoption-signal,
+  health-alert, and launch-calendar. All outward actions terminate as
+  drafts or approval items.
+  **Files:** pipelines.yaml, prompts/sre/health.md,
+  prompts/support/digest.md, prompts/marketing/release.md,
+  prompts/marketing/ci-sweep.md, docs/event-schemas.md,
+  test/loop/pipelines-root.test.ts
+  **Deps:** M8.3
+  **Accept:** on the proposal PR branch `pnpm dev pipelines` shows the
+  added pipelines; root-pipeline tests pin selection semantics for the new
+  ids; templates grep-verifiably contain draft-only / external-publish-
+  is-critical language, Planner-feed instructions, and exact output
+  artifact headings; event-schema fixtures parse and reject unknown
+  event kinds; satisfied only after human merge; `pnpm test &&
+  pnpm typecheck`.
+  **Demo:** SRE, Support, and Marketing have executable v0 protocols, not
+  just role names.
+  **Read:** docs/architecture.md §2 scope note; docs/testing-journey.md;
+  docs/PURPOSE.md → org chart.
+  **Session:** opus, single session — template quality and safety wording
+  matter.
+
+- [ ] **M8.5 `operon-sandbox-gamma` functional coverage for non-build roles**
+  **Goal:** Create the human-approved third sandbox repo
+  `operon-sandbox-gamma`: a tiny deployable HTTP service with `/health`,
+  a local/container deploy script, and seeded file-drop inbox examples for
+  feedback/adoption/health events. Bootstrap and register it, then run
+  three real smokes: SRE health sweep detects healthy and unhealthy states
+  and emits an incident issue on failure; Support produces a digest + reply
+  drafts from synthetic feedback; Marketing produces a release/changelog
+  draft from a real sandbox release. No public send/publish/deploy happens
+  without the approval queue.
+  **Files:** apps.yaml; (new sandbox repo:) .operon/**, service source,
+  feedback fixtures; research/2026-XX-XX_sandbox-gamma-role-smoke.md
+  **Deps:** M8.4, M7.14
+  **Accept:** `pnpm dev apps` lists gamma with the intended status;
+  gamma's own tests pass; SRE smoke records healthy→failed evidence and an
+  `op:incident` issue; Support/Marketing smokes produce draft artifacts
+  only; any deploy-shaped command is denied/escalated unless approved;
+  research note links exact issues/PRs/artifacts and command results.
+  **Demo:** The non-build org roles are proven against a running service
+  and realistic input material before production onboarding.
+  **Read:** docs/testing-journey.md (coverage gap + approved answer);
+  docs/architecture.md §2, §4; docs/PURPOSE.md → validation and launch path.
+  **Session:** sonnet, single session + human present for repo creation
+  and any approval drill.
 
 ### M9 — Memory, context, scorecards, retro, observability CLIs
 *Milestone demo: a real pass leaves an OKF memory write, a scorecard event,
@@ -1513,7 +1603,7 @@ different slice back as a human-readable report.*
   **Demo:** The org can unlearn — wrong lessons die on schedule instead of
   poisoning future briefs.
   **Read:** docs/architecture.md §6 (curation, retro emits #2–#3);
-  PURPOSE.md → knowledge tiers; docs/loop.md §13 #14.
+  docs/PURPOSE.md → knowledge tiers; docs/loop.md §13 #14.
   **Session:** opus, single session.
 
 - [ ] **M9.7 TASTE role addenda proposals (`taste/reviewer.md`, `taste/support.md`)**
@@ -1529,7 +1619,7 @@ different slice back as a human-readable report.*
   org home now yields 4 taste layers for reviewer (manual check recorded
   in the PR body).
   **Demo:** Role craft is versioned, ratified content — not lore.
-  **Read:** PURPOSE.md → TASTE layers; docs/architecture.md §1, §5.
+  **Read:** docs/PURPOSE.md → TASTE layers; docs/architecture.md §1, §5.
   **Session:** sonnet, single session — content, not code; human ratifies.
 
 - [ ] **M9.8 `operon status` — L1+L2 dashboard**
@@ -1562,6 +1652,33 @@ different slice back as a human-readable report.*
   typecheck`.
   **Demo:** Stuck-on-environment turns surface themselves.
   **Read:** docs/loop.md §9 (detectors, canned recommendations).
+  **Session:** sonnet, single session.
+
+- [ ] **M9.10 Cache-token telemetry + `cold_cache` anomaly**
+  **Goal:** Close the gap between docs/loop.md §9-§10 and the runtime
+  contract: extend `TurnUsage` with `tokensInUncached`,
+  `cacheCreationTokens`, and `cacheReadTokens` while keeping `tokensIn` as
+  the sum; populate ClaudeRuntime from SDK usage; carry the split through
+  telemetry and L1 envelopes; add `cold_cache` to `operon analyze`
+  (zero cache reads on a pass whose prior pass in the same pipeline ran
+  within the provider cache TTL). Codex/pi adapters must later fill the
+  same fields in M10 or explicitly mark them unsupported in the capability
+  matrix.
+  **Files:** src/runtime/types.ts, src/runtime/adapters/claude.ts,
+  src/runtime/telemetry.ts, src/runtime/runlog/envelope.ts,
+  src/loop/pipeline.ts, src/runtime/runlog/anomalies.ts,
+  test/runtime/claude-sdk.unit.test.ts, test/telemetry.test.ts,
+  test/runlog-envelope.test.ts, test/runlog-anomalies.test.ts
+  **Deps:** M9.9, M1.3, M2.5
+  **Accept:** mocked Claude usage with cache creation/read tokens maps to
+  all four fields; old JSONL telemetry without cache fields still reads or
+  is ignored gracefully by consumers; envelope usage includes cache read
+  and write tokens; `cold_cache` fires only on the documented boundary;
+  flat-rate cost math is not reintroduced; `pnpm test && pnpm typecheck`.
+  **Demo:** Prompt-cache health is observable instead of only described in
+  docs.
+  **Read:** docs/loop.md §9 cache visibility + anomaly flags; §10
+  TurnUsage delta; research/2026-07-04_prompt-caching.md.
   **Session:** sonnet, single session.
 
 ### M10 — Second and third adapters: Codex, pi, capability matrix
@@ -1628,7 +1745,7 @@ waiver).*
   worktree-context; resume uses session.id; live file skips without
   credentials; `pnpm test && pnpm build`.
   **Demo:** Third Runtime, including the exotic-model path.
-  **Read:** research/2026-07-03_runtime-layer.md (pi); PURPOSE.md →
+  **Read:** research/2026-07-03_runtime-layer.md (pi); docs/PURPOSE.md →
   single-runtime orgs.
   **Session:** opus, single session.
 
@@ -1647,7 +1764,7 @@ waiver).*
   **Demo:** The all-pi profile has the real gate, unlocking every model pi
   can route.
   **Read:** research/2026-07-03_runtime-layer.md (pi risk #1); AGENTS.md
-  (conformance rule); PURPOSE.md → single-runtime orgs.
+  (conformance rule); docs/PURPOSE.md → single-runtime orgs.
   **Session:** opus, single session — safety-critical.
 
 - [ ] **M10.5 Capability matrix + restore cross-provider pairing**
@@ -1666,7 +1783,7 @@ waiver).*
   branch); `pnpm test` green.
   **Demo:** "What does an all-pi org lose?" is one table; the pilot
   expedient is repaid.
-  **Read:** PURPOSE.md → capability matrix requirement; AGENTS.md
+  **Read:** docs/PURPOSE.md → capability matrix requirement; AGENTS.md
   (builder≠reviewer rule).
   **Session:** sonnet, single session.
 
@@ -1697,8 +1814,8 @@ waiver).*
   emitted .operon/ tree verifiable by ls; suites green.
   **Demo:** Second app onboarded without touching org code — config-not-
   fork proven.
-  **Read:** PURPOSE.md → Pilot applications (#2's job); docs/architecture.md
-  §9 (join).
+  **Read:** docs/PURPOSE.md → Validation and launch path; docs/architecture.md §9
+  (join).
   **Session:** sonnet, single session + human present.
 
 - ~~**M11.2 SRE/approval surface exercise**~~ → moved to **M7.14** (the
@@ -1708,60 +1825,32 @@ waiver).*
   accompany M11.1 post-launch, but the functional acceptance is M7.14's.
 
 ## Open decisions (need the human)
-- **Third sandbox app for SRE/Support/Marketing real-functionality coverage
-  (2026-07-05, raised while writing docs/testing-journey.md):** alpha/beta
-  are code libraries — nothing runs, no users, so three role surfaces have
-  no real functional target: SRE-on-a-running-service (health sweeps, live
-  incidents, deploy-shaped ops), Support (feedback digests + reply drafts
-  need real material), Marketing (partially covered — changelog drafts off
-  real M6+ merges work already). Proposal: `operon-sandbox-gamma`, a tiny
-  deployable HTTP service (health endpoint + local/container deploy script
-  as the critical-op target) + a seeded synthetic user-feedback inbox.
-  Natural creation point: alongside M7 (dispatcher event wiring) or as
-  pre-launch validation after M10. Needs the human to approve creating the
-  repo (same pattern as alpha/beta). Nothing outward-facing is ever
-  actually published in tests — drafts and approval items only.
-- **Ratify `docs/loop.md` §11** — the loop-engineering decisions (2026-07-04
-  discussion: orchestrator-owned pass pipelines; mechanical quality gates;
-  planning as Planner pipeline, not loop phase; assembled briefs;
-  ticket-level parallelism; loud failures; §11.7 risk-selected review
-  dimensions with security always-on; §11.8 acceptance criteria as a
-  ratified quality contract). These amend PURPOSE.md's "employee is a team"
-  wording — the doc proposes, it does not promote.
-- **`docs/loop.md` §12.1** — should high-tier tickets pause for human ack on
-  the implementation contract, or stay autonomous (v1 proposal: autonomous)?
-- **`docs/loop.md` §12.2** — planner pipeline depth defaults: deep
-  (competing-PMs) for milestones, single-pass groom weekly?
-- **`docs/loop.md` §12.5 — Lab role** (raised 2026-07-04): opt-in
-  live-environment verification role (evidence artifacts, sandboxed
-  resource pool for lab provisioning). Ratify the role concept + the
-  sandbox-pool gate carve-out; not v1.
-- **`docs/loop.md` §12.6 — Competitive intelligence**: recommendation is a
-  Marketing pipeline (`ci-sweep`) feeding the Planner, splitting into a
-  standalone role only if scorecards demand it. Confirm or overrule.
-- **`docs/loop.md` §12.7** — per-pass wall-clock cap default (proposed
-  30 min).
-- **Ratify `docs/architecture.md` §11** — ten design decisions proposed
-  for PURPOSE.md → Decided (tick dispatcher; approval grants; idempotency
-  contract; org-managed clones; `.operon/org/` sublayout; loop-owned merge;
-  manual trigger kind; §11.9 `.operon/` containment invariant +
-  `schema_version`; §11.10 company-lifecycle events via the file-drop
-  inbox). PURPOSE.md is human-ratified, so the doc proposes — it does not
-  promote.
-- **PURPOSE.md naming sweep?** README, docs/, AGENTS.md, and TODO.md now use
-  "the human (operator)" / "the predecessor (orchestrator)" for external
-  readers. PURPOSE.md still names names — it is the human-ratified decision
-  log, so sweeping it is the human's call.
-- **architecture.md §12.2** — keep Support/Marketing disabled for civic (no
-  feedback/adoption channels yet) via per-app cadence override?
-- **architecture.md §12.3** — confirm defaults: `max_concurrent_turns: 2`,
-  grant TTL 24 h, dispatch tick 5 min, loop `maxCycles: 3`.
+No human decisions are open as of 2026-07-06. Build-time verification
+questions remain in the relevant implementation items (for example Codex
+context channel, Codex/pi structured output support, and provider cache knobs).
 
 ## Human's own items
 - [ ] Archive the predecessor orchestrator repo
   (`~/Documents/Build/claude-loop-teams`) — stated 2026-07-03.
 
 ## Done
+- 2026-07-06 — **operon-sandbox-gamma approved** as the third sandbox target
+  for SRE/Support/Marketing real-functionality coverage: a tiny deployable
+  HTTP service with `/health`, local/container deploy script as approval-drill
+  target, and seeded synthetic feedback/adoption events. Creation remains the
+  M8.5 implementation item; nothing outward-facing is published in tests.
+- 2026-07-06 — **Architecture + loop decisions ratified**: dispatcher ticks,
+  approval grants, idempotency rules, org-managed clones, `.operon/org/`
+  layout, loop-owned merges, manual trigger kind, `.operon/` containment,
+  file-drop company events, pass pipelines, mechanical gates, Planner
+  pipelines, assembled briefs, ticket-level parallelism, loud failures,
+  risk-selected review dimensions with security always-on, acceptance criteria
+  as quality contract. Operational choices resolved: high-tier contracts stay
+  autonomous in v1; deep milestone planning + lighter weekly groom; Lab role
+  future opt-in; competitive intelligence as Marketing `ci-sweep`; 60-minute
+  wall-clock cap; Support/Marketing disabled per app until channels exist;
+  defaults accepted (`max_concurrent_turns: 2`, grant TTL 24 h, dispatch tick
+  5 min, `maxCycles: 3`). Naming sweep deferred as non-urgent.
 - 2026-07-04 — **"Next up" rebuilt into the comprehensive build plan** (74
   atomic items, milestones M0–M11) via multi-agent workflow: 10 subsystem
   analysts + a dependency mapper + a test strategist (66 draft items),
@@ -1779,8 +1868,8 @@ waiver).*
   strategy (M5.8).
 - 2026-07-04 — **Review-feedback pass (the human's [BG] comments) resolved**:
   naming swept for external readers across README / docs / AGENTS.md / this
-  file ("the human operator", "the predecessor orchestrator"; PURPOSE.md
-  deliberately untouched — see Open decisions); README mermaid architecture
+  file ("the human operator", "the predecessor orchestrator"; docs/PURPOSE.md
+  naming sweep deferred as non-urgent on 2026-07-06); README mermaid architecture
   diagram + usage placeholder; dispatcher "how it decides" walkthrough
   (architecture §0 — async ticks, artifact-derived state, dependency-gated
   readiness); `.operon/` containment invariant + `schema_version`
@@ -1796,7 +1885,7 @@ waiver).*
   (only Planner pipelines apply `op:ready`; doc reconciliation is a
   groom/triage duty; vision/charter changes proposal-only); failure-mode
   catalog added (§13, 21 cases, four-terminal-outcomes rule); Lab role +
-  competitive-intelligence takes recorded as open questions §12.5–12.7.
+  competitive-intelligence takes recorded and later resolved on 2026-07-06.
 - 2026-07-04 — **Loop redesigned as engineering-heavy** (`docs/loop.md` v0)
   after the human's review flagged the build-loop section as too thin. Full
   audit of the predecessor orchestrator (state model, session loop, gate
@@ -1809,7 +1898,7 @@ waiver).*
   state machine; ticket-level parallelism via dependency edges; exact cost
   attribution. Planning broken out of the loop into Planner pipelines.
   Roadmap resequenced (pass executor + quality gates added as items 2 and
-  4). Ratification items in Open decisions.
+  4). Ratification items later resolved on 2026-07-06.
 - 2026-07-04 — **Architecture doc landed** (`docs/architecture.md` v0): all
   nine required areas covered — dispatcher/scheduler (stateless tick, polling
   events, locks), turn lifecycle (journal, worktrees, resume-vs-restart
@@ -1817,13 +1906,13 @@ waiver).*
   assembly (TASTE layers → native channels), memory & scorecards (OKF
   bundles, weekly retro), multi-app (apps.yaml, budget enforcement),
   co-planning (`operon plan`), bootstrap, GitHub conventions (op:* labels,
-  ticket format, PR/branch rules). §11 promotions + §12 questions await
-  the human (see Open decisions).
+  ticket format, PR/branch rules). §11 promotions + relevant §12 questions
+  later resolved on 2026-07-06.
 - 2026-07-04 — Approval channel (CLI queue, one-by-one review, audit trail),
   budget ($1K/month per app, configurable), and cadence (flexi, no
-  restrictions) decided — PURPOSE.md v0.9. No open decisions remain before
+  restrictions) decided — docs/PURPOSE.md v0.9. No open decisions remain before
   the architecture doc.
-- 2026-07-04 — Pilots + multi-app posture decided (PURPOSE.md v0.8): civic =
+- 2026-07-04 — Pilots + multi-app posture decided (docs/PURPOSE.md v0.8): civic =
   app #1 with real tasks as roadmap acceptance tests; buildstacks.dev = app #2
   (config-not-fork + SRE/approval proof); one-turn-one-app invariant;
   bootstrap artifact home (`.operon/` in product repo, org-home repo
@@ -1831,7 +1920,7 @@ waiver).*
   Resolved "first-app onboarding": civic already at
   `~/Build/Government/AgentSkill-CivicIntelligence`; the org starts operating
   on it at item 3.
-- 2026-07-03 — Purpose iterated to v0.6 (all decisions in PURPOSE.md → Status);
+- 2026-07-03 — Purpose iterated to v0.6 (all decisions in docs/PURPOSE.md → Status);
   TASTE.md v0; roles.yaml v0 (6 roles, cross-provider builder/reviewer);
   runtime contract + critical-ops gate v0 + conformance seed (16 tests green);
   roles loader; CLI (`roles`, `doctor`); repo scaffolded, git-initialized,

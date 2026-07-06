@@ -1,4 +1,4 @@
-// Per-turn cost telemetry (PURPOSE.md: silent fan-out must show up in budget
+// Per-turn cost telemetry (docs/PURPOSE.md: silent fan-out must show up in budget
 // reports). Appends one JSONL record per turn under .org/telemetry/.
 
 import { appendFile, mkdir } from "node:fs/promises";

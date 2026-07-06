@@ -1,37 +1,43 @@
 # PURPOSE — Operon
 
-*Draft v0.5 — 2026-07-03. Living document; iterate freely.*
+*v1.0 — 2026-07-06. Human-ratified decision log. Keep this file high-level;
+execution details belong in TODO.md, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
 
-A reusable **org runtime**: a standing team of AI agents (planner, builder,
-reviewer, SRE, support) that develops and operates a software product,
-coordinated through a private GitHub repo as the source of truth, with a human
-approver gating critical operations only.
+A reusable **org runtime**: a standing team of AI agents (Planner, Builder,
+Reviewer, SRE, Support, Marketing) that develops and operates software
+products, coordinated through private GitHub repos as the source of truth,
+with a human approver gating critical operations only.
 
 **Operon is a library, not an app.** It is pointed at a target repo via
 config; it never contains app code. One org runtime, N applications.
 
-## Pilot applications
+## Validation and launch path
 
-Two pilots, onboarded **sequentially**, chosen to stress complementary halves
-of the org (decided 2026-07-04):
+The product is proven on disposable sandbox apps before touching production
+applications (updated 2026-07-06):
+
+1. **operon-sandbox-alpha** — well-kept Node library with tests, lint, CI, and
+   agent docs. Primary build-loop target.
+2. **operon-sandbox-beta** — minimal Node library with tests only. Proves
+   graceful absence handling and "second app = config file, not a fork."
+3. **operon-sandbox-gamma** — approved 2026-07-06, not yet created. A tiny
+   deployable HTTP service with `/health`, a local/container deploy script,
+   and seeded feedback/adoption events. Its job is to give SRE, Support, and
+   Marketing real functional coverage before production onboarding.
+
+**Build-complete means M10.** After M10, production onboarding happens with the
+human as launch activity, not as product-development proof:
 
 1. **Civic Intelligence / Responsible Citizen**
-   (`~/Build/Government/AgentSkill-CivicIntelligence`) — the civic-evidence
-   layer over authoritative public sources. App #1: drives the build-loop
-   milestones — Planner → Builder → Reviewer on real tickets (first up:
-   extending coverage to more US states).
-2. **buildstacks.dev** (repo to be created) — Bikram's personal portfolio
-   umbrella site. App #2, onboarded only after loop v1 is solid on civic. Its
-   job: prove "second app = config file, not a fork" and exercise the
-   SRE/infra surface — droplet provisioning, DNS, GitHub repo creation,
-   deploys — where nearly every op is gate-critical by design, forcing the
-   approval surface to become real.
+   (`~/Build/Government/AgentSkill-CivicIntelligence`) — first production app.
+2. **buildstacks.dev** — second production app, proving the same config-not-fork
+   story and exercising production-flavored SRE/approval surfaces.
 
-The org operates on each app the way claude-loop operates on any target repo.
-The architecture must generalize: pointing the org at a second app is a
-config file, not a fork — buildstacks.dev exists to prove it.
+The org operates on each app the way the predecessor operated on any target
+repo. The architecture must generalize: pointing the org at another app is a
+config file, not a fork.
 
 ## The org chart
 
@@ -61,6 +67,10 @@ config file, not a fork — buildstacks.dev exists to prove it.
 4. **Reusable beyond the first app.** The org runtime must not absorb
    app-specific knowledge into its own code; app context lives in the target
    repo and in per-app memory.
+5. **Adaptable by design.** The AI/runtime landscape will keep changing fast.
+   Operon must stay simple, maintainable, and extensible: new roles, models,
+   pipelines, and app-specific policies should be config/protocol additions
+   unless evidence proves the core runtime must change.
 
 ## Decided
 
@@ -152,12 +162,13 @@ config file, not a fork — buildstacks.dev exists to prove it.
   operator — the same shape as this project (multiple role-agents, one
   critical-ops gate). Repo moved to `~/Build/Operon`; GitHub repo at
   `buildstacks-dev/Operon`.
-- **Pilot tasks are the acceptance tests** (2026-07-04). Roadmap "toy task"
-  smoke tests are replaced by real, small civic tasks: the Planner's first
-  real turn drafts the US-states extension spec; loop v1's first end-to-end
-  ticket is a real one-file civic change. buildstacks.dev enters only after
-  loop v1 works on civic. Two pilots, one at a time per milestone — never
-  parallel builds.
+- **Sandbox proof before production onboarding** (2026-07-05; gamma approved
+  2026-07-06). Roadmap "toy task" smokes are replaced by real, disposable
+  sandbox repos. Alpha/beta cover onboarding, build loop, multi-app, approvals,
+  budgets, memory, and multi-provider behavior. Gamma adds a running service
+  plus synthetic feedback/adoption inputs so SRE, Support, and Marketing get
+  functional coverage. Civic and buildstacks.dev are deferred until the product
+  is build-complete at M10.
 - **Multi-app: designed in, operated sequentially** (2026-07-04). The
   architecture is multi-app from day one (app registry; per-app config,
   TASTE, memory, scorecards), but the org runs **one live app** until the
@@ -208,6 +219,34 @@ config file, not a fork — buildstacks.dev exists to prove it.
   (`max_turn_budget_usd`). Per-turn telemetry rolls up to monthly spend per
   app against its budget. Cadence: **flexi, no restrictions** — roles fire
   per their triggers at any hour; no working-hours window.
+- **Dispatcher, approvals, and idempotency** (ratified 2026-07-06). The
+  autonomous host is a stateless `operon dispatch` tick that spawns detached
+  turns; turns operate in org-managed clones/worktrees under `~/.operon/`.
+  Critical-op approval means an expiring, single-use, action-hashed grant for a
+  later retry — never auto-execution by the orchestrator. Durable side effects
+  are git/GitHub artifacts only; labels move after the artifacts they announce;
+  merges are loop-owned squash merges after approval/review/gates.
+- **Protocol-driven loop** (ratified 2026-07-06). The loop is a pipeline of
+  versioned passes, not one opaque prompt. Planning is a Planner pipeline;
+  Builder/Reviewer passes get assembled briefs; mechanical quality gates run
+  between passes and twice at ship; no side effect keys off agent prose;
+  ticket-level parallelism is dependency/scope-aware; orchestrator failures are
+  loud. Review dimensions are risk-selected, with security always-on.
+  Acceptance criteria are a first-class quality contract: binary, mapped to
+  named tests, never summarized away, and human-touched for deep/high-risk work.
+- **Resolved operating defaults** (ratified 2026-07-06). High-tier tickets stay
+  autonomous after the Builder's contract pass in v1; revisit with scorecard
+  evidence if contracts prove weak. Planner depth defaults to deep
+  competing-PM planning for milestones and a lighter weekly groom. Per-pass
+  wall-clock cap defaults to **60 minutes**, with per-pass override later.
+  Org WIP defaults to `max_concurrent_turns: 2`; approval grants expire after
+  24 h; dispatch ticks every 5 minutes; loop review/fix cycles cap at 3.
+  Support and Marketing are disabled per app until that app has real feedback
+  or adoption channels.
+- **Future opt-ins** (ratified 2026-07-06). A Lab role is approved as a future
+  opt-in live-environment verifier when a pipeline needs evidence artifacts
+  from real execution. Competitive intelligence stays a Marketing pipeline
+  (`ci-sweep`) unless scorecards later justify a standalone role.
 
 ## Prior art (ours)
 
@@ -227,23 +266,25 @@ Other in-house experiments worth mining for lessons: `agent-team-template-codex`
 `codex-orchestrator`, `codex-runner`, `openclaw-orchestrator-platform`,
 `ralph-loop-modified`.
 
-## The hard parts (acknowledged up front)
+## Design pressure points
 
-- **Scheduling** — when and how often each agent runs (cron? event-driven off
-  repo activity? both?).
-- **Failure & recovery** — what happens when a run dies mid-task; retries,
-  idempotency, not leaving the repo in a half-done state.
-- **Long-term memory** — each role accumulates knowledge across runs; where it
-  lives, how it's curated, how it stays trustworthy. (claude-loop's "no memory"
-  stance was a feature at batch scale; a standing org needs the opposite.)
-- **Human-in-the-loop mechanics** — how a critical-op approval is requested,
-  surfaced (notification?), and granted.
+These are the areas where the product earns trust or fails:
+
+- **Planning quality** — bad tickets poison every downstream pass; Planner
+  pipelines and acceptance criteria must be concrete.
+- **Mechanical gates** — no side effect can depend on agent prose alone.
+- **Failure & recovery** — crashes, stale locks, and half-finished work must
+  terminate in bounded retry, evidence, escalation, or success.
+- **Memory trust** — lessons must carry evidence and be curated; wrong lessons
+  are deleted, not hedged.
+- **Human load** — one app-tagged approval queue, one live-app posture by
+  default, and production onboarding only after sandbox proof.
 
 ## Open questions
 
-1. **Role → runtime/model assignment v1** — fill in `roles.yaml`: which model,
-   effort level, and delegation policy each of Planner, Builder, Reviewer, SRE,
-   Support gets at launch.
+No high-level PURPOSE questions are open right now. Current build-time
+verification questions live with the subsystem docs and TODO.md items that
+will resolve them.
 
 ## Status
 
@@ -275,7 +316,18 @@ Other in-house experiments worth mining for lessons: `agent-team-template-codex`
   and scorecards partitioned per (role, app). Bootstrap artifact home
   decided (`.operon/` in the product repo; org-home repo optional). TASTE
   layer semantics clarified (org values / app charter / role craft).
+  Superseded by v1.0's sandbox-first validation path for roadmap acceptance;
+  civic/buildstacks remain production onboarding targets.
 - 2026-07-04 — v0.9: approval channel decided — CLI queue, reviewed one by
   one, persisted audit trail. Budget decided — $1,000/month per app,
   configurable per app. Cadence decided — flexi, no restrictions. Open
   question #1 (budget & cadence) closed.
+- 2026-07-06 — v1.0: PURPOSE kept as the high-level decision log; validation
+  path updated. Product is build-complete at M10; civic and buildstacks.dev
+  are production onboarding after that point. operon-sandbox-gamma approved as
+  the third sandbox target for SRE/Support/Marketing functional coverage.
+- 2026-07-06 — v1.1: architecture.md §11 and loop.md §11 ratified; remaining
+  human defaults resolved (60 min wall-clock cap, deep milestone planning /
+  lighter weekly groom, autonomous high-tier contracts, future Lab opt-in,
+  competitive intelligence as Marketing pipeline, Support/Marketing disabled
+  per app until channels exist).

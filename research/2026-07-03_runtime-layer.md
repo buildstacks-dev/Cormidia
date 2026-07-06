@@ -1,6 +1,6 @@
 # Runtime layer review — pi, Codex app-server, Claude Agent SDK
 
-*2026-07-03. Supports the PURPOSE.md decision: native SDKs for Anthropic +
+*2026-07-03. Supports the docs/PURPOSE.md decision: native SDKs for Anthropic +
 OpenAI, pi as the harness for all other models.*
 
 > **Addendum (same day):** orchestrator language flipped **Python →

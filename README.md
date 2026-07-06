@@ -17,7 +17,7 @@ flowchart TD
     GH -->|"events polled next tick"| D
 ```
 
-Read [`PURPOSE.md`](PURPOSE.md) for the why and every decision made so far;
+Read [`docs/PURPOSE.md`](docs/PURPOSE.md) for the why and every decision made so far;
 [`TASTE.md`](TASTE.md) is the org's constitution;
 [`roles.yaml`](roles.yaml) is the org chart made executable.
 
@@ -25,10 +25,12 @@ Read [`PURPOSE.md`](PURPOSE.md) for the why and every decision made so far;
 
 ```
 src/runtime/   the runtime contract: Runtime interface, critical-ops gate,
-               telemetry, adapters (claude | codex | pi)
-src/loop/      the build loop: ticket → PR → review → merge
-src/org/       the standing org: roles loader, scheduler, memory, retro   [WIP]
-test/          gate conformance seed + roles.yaml validation
+               telemetry, run logs, adapters (claude live; codex/pi stubbed)
+src/loop/      pass pipelines, briefs, quality gates, verdict parsing, and
+               the ticket → PR → review → merge state machine [M5 WIP]
+src/org/       app registry, bootstrap, co-planning, roles loader;
+               scheduler/approvals/memory/retro still upcoming
+test/          adapter conformance, gate, pipelines, bootstrap, qgates
 research/      decision records
 ```
 
@@ -38,8 +40,11 @@ Imports flow downward only: `org → loop → runtime`.
 
 ```bash
 pnpm install
-pnpm test               # gate conformance + roles validation
+pnpm test               # fast offline suite
+pnpm typecheck
 pnpm dev roles          # validate roles.yaml, print the org chart
+pnpm dev apps           # validate apps.yaml, print the app registry
+pnpm dev pipelines      # validate pipelines.yaml, print pass table
 pnpm dev doctor         # runtime adapter status
 ```
 
@@ -48,6 +53,12 @@ dispatcher ships.
 
 ## Status
 
-Scaffold. The runtime contract, gate policy, and roles schema are real and
-tested; the three adapters are documented stubs (see
-`research/2026-07-03_runtime-layer.md` for the integration plan).
+M0-M4 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
+pass executor, run logs, app registry, bootstrap flow, co-planning launcher,
+quality gates, and typed verdict parsers are implemented and tested offline.
+The next build milestone is M5: the real GitHub ticket state machine
+(`op:ready` → PR → gates → review → squash merge) against sandbox repos.
+
+CodexRuntime and PiRuntime are still planned for M10; until then, the live
+adapter is ClaudeRuntime and `pnpm test:live` is the gated live-conformance
+proof.

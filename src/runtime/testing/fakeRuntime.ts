@@ -1,6 +1,6 @@
 // The canonical scriptable Runtime test double (build plan M0.2).
 //
-// PURPOSE.md's "single-runtime orgs are a first-class profile" decision makes
+// docs/PURPOSE.md's "single-runtime orgs are a first-class profile" decision makes
 // the gate and per-turn telemetry *adapter-level conformance requirements* —
 // every Runtime (claude/codex/pi, and every test that stands in for one) must
 // satisfy the same contract. FakeRuntime is that contract's reference

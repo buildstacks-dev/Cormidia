@@ -6,8 +6,9 @@ that proved the approach, called simply "the predecessor" throughout
 (maintainers can find it read-only at* `scratchpad-gitignore/claude-loop-teams/`*)
 — made framework-agnostic through the runtime adapters. This doc is the
 detail layer for* `src/loop/`*;* `docs/architecture.md` *§3 holds the
-surrounding turn/worktree machinery. Proposals for PURPOSE.md ratification
-are collected in §11.*
+surrounding turn/worktree machinery. §11 records decisions ratified into
+docs/PURPOSE.md on 2026-07-06; future new decisions should be proposed here
+first, then promoted only after human ratification.*
 
 ## 0. Position
 
@@ -129,7 +130,7 @@ Rules, all inherited from the predecessor and now contract-level:
    `pipelines.yaml` (gate.ts change + conformance cases).
 3. **Per-pass overrides stay within the role's provider.** contract and
   implement may use different efforts of the builder's model family;
-   cross-provider remains an org-level flow between roles (PURPOSE.md).
+   cross-provider remains an org-level flow between roles (docs/PURPOSE.md).
 4. **Sequential passes re-read state; parallel groups are for independent
   writers.** Consecutive passes marked with the same `parallel_group` run
    concurrently and must declare disjoint outputs (competing roadmaps →
@@ -618,7 +619,10 @@ mechanically) — added for every adapter.
 
 
 
-## 11. Proposed for PURPOSE.md → Decided (pending ratification)
+## 11. Ratified decisions promoted to docs/PURPOSE.md
+
+Ratified by the human operator on 2026-07-06 and promoted to
+docs/PURPOSE.md:
 
 1. **The loop is protocol-driven at the substage level.** The orchestrator
   owns pass pipelines — versioned prompt templates, per-pass model/effort,
@@ -655,50 +659,22 @@ mechanically) — added for every adapter.
 
 ## 12. Open questions
 
-1. **Contract veto surface** — the contract lands as an issue comment
-  before code is written; should high-tier tickets pause for human ack on
-   the contract, or stay autonomous? v1 proposal: autonomous, revisit with
-   scorecard data. *(human)*
-2. **Planner pipeline depth by default** — full competing-PMs arbitration
-  is ~5 Opus passes; right for greenfield milestones, heavy for weekly
-   grooming. Proposal: `plan` (deep) for milestones, single-pass `groom`
-   weekly, per apps.yaml cadence. *(human — cheap to change)*
-3. **polish pipeline** (design evaluator/refiner with `min_score`) — port
+1. **polish pipeline** (design evaluator/refiner with `min_score`) — port
   later for UI-heavy apps (buildstacks.dev), not v1. *(deferred)*
-4. **Structured-output support in Codex/pi** — verify at adapter build
+2. **Structured-output support in Codex/pi** — verify at adapter build
   time; the lenient-parser fallback is specified either way.
    *(build-time verification)*
-5. **Lab role** (raised 2026-07-04) — an opt-in standing role for
-  *live-environment verification*: provision a real environment, execute a
-   procedure step by step, emit an **evidence artifact** (command
-   transcript, screenshots, version matrix) that downstream passes consume.
-   Motivating case: a tutorial-fleet app — Planner checks relevance against
-   current releases and specs the lab; lab runs it; a writer revises the
-   tutorial from evidence; reviewer verifies against evidence. Fits the
-   existing loop (ticket → passes → PR → review → merge) with a
-   lab-plan → lab-run → implement → verify pipeline; needs: `evidence` as
-   an artifact kind, evidence freshness (evidence must match the current
-   product release, like review freshness), a sandboxed resource pool where
-   lab create/destroy is routine while everything outside stays
-   gate-critical, and lab spend inside the app budget. Not v1; not enabled
-   per app until a pipeline references it. *(human — ratify the role +
-   sandbox-pool gate carve-out)*
-6. **Competitive intelligence** (raised 2026-07-04) — recommend a Marketing
-  *pipeline* (`ci-sweep`), not a standalone role, for now: roles.yaml
-   marketing already carries `research-fanout` for competitive/landscape
-   reads, and CI's artifact is a digest feeding the Planner exactly like
-   support digests. Split into its own role later if scorecards show the
-   planner-facing digest and outward positioning work competing for
-   attention — the split is a roles.yaml + pipelines.yaml edit, no loop
-   change. *(human)*
-7. **Per-pass wall-clock cap default** — §13 adds a kill-and-recover
-  timeout for hung SDK sessions; propose 30 min default, per-pass
-   override in pipelines.yaml. *(human — cheap to change)*
-8. **Agent SDK cache knobs** — what TTL control and breakpoint placement
+3. **Agent SDK cache knobs** — what TTL control and breakpoint placement
   the TS Agent SDK exposes for the appended system prompt (and the Codex
    SDK's equivalent, given OpenAI's automatic prefix caching); the design
    rules (architecture.md §5 cache-stable assembly) hold regardless of the
    answer. *(build-time verification)*
+
+Resolved 2026-07-06: high-tier Builder contracts stay autonomous in v1;
+milestone planning uses the deep `plan` pipeline while weekly grooming stays
+lighter; Lab is approved as a future opt-in role; competitive intelligence
+stays a Marketing `ci-sweep` pipeline for now; per-pass wall-clock cap default
+is **60 minutes**, with per-pass override later.
 
 
 
@@ -716,7 +692,7 @@ distinct codes end to end (§9).
 | --------------------------- | ---------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Infrastructure**          |                                                      |                                                      |                                                                                                                                              |
 | 1                           | Turn process dies mid-pass                           | stale lock heartbeat + journal `running`             | resume session once, else restart clean; `attempt ≥ 3` → returned + incident (architecture.md §3)                                            |
-| 2                           | SDK session hangs                                    | per-pass wall-clock cap (default 30 min)             | kill; enters #1's recovery path                                                                                                              |
+| 2                           | SDK session hangs                                    | per-pass wall-clock cap (default 60 min)             | kill; enters #1's recovery path                                                                                                              |
 | 3                           | Dispatcher dies mid-claim                            | next tick                                            | artifact-before-label: state re-derived from GitHub artifacts; no torn claims                                                                |
 | 4                           | Host asleep / offline                                | nothing runs                                         | missed schedules collapse to one firing; distributed item state resumes on any later tick                                                    |
 | 5                           | GitHub API down / rate-limited                       | API errors on tick                                   | loud L2 event; retry next tick (polling is idempotent); repeated → anomaly flag + incident note                                              |
@@ -738,5 +714,3 @@ distinct codes end to end (§9).
 | 19                          | Monthly app budget hit                               | telemetry rollup                                     | app auto-paused + `budget-exceeded` approval item (architecture.md §7)                                                                       |
 | 20                          | Approval grant expires before re-dispatch            | gate lookup                                          | item re-escalates as a fresh queue entry; nothing auto-approves                                                                              |
 | 21                          | Approval queue neglected                             | item age                                             | ages shown in `operon approvals` and the Planner's daily digest; blocked items just wait — fail-closed                                       |
-
-

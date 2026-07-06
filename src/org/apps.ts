@@ -1,7 +1,7 @@
 // apps.yaml loader + validation — the app registry (docs/architecture.md §7).
 // Mirrors the roles.ts patterns: parse YAML, validate strictly, return plain
 // typed data. Multi-app exists only at this org layer and in human surfaces —
-// never inside a turn (PURPOSE.md → One turn, one app).
+// never inside a turn (docs/PURPOSE.md → One turn, one app).
 
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";

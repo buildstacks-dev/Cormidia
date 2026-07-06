@@ -1,4 +1,4 @@
-# pnpm config only — this repo is deliberately NOT a workspace (PURPOSE.md →
+# pnpm config only — this repo is deliberately NOT a workspace (docs/PURPOSE.md →
 # Repo shape); pnpm ≥11 also reads its per-repo settings from this file.
 # esbuild's postinstall downloads the platform binary tsx needs.
 allowBuilds:

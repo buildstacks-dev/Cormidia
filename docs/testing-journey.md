@@ -49,7 +49,7 @@ against real repos.
 | **M5 — The build loop** | Can a task flow through the factory? | A GitHub issue in the sandbox repo marked ready is claimed, coded on a branch, gate-checked, PR'd, and merged — with the review step still simulated. |
 | **M6 — Fully real delivery** | Can it do the whole thing for real? | One real, small ticket goes ready → merged with a real AI builder writing code and a real AI reviewer critiquing it. Evidence recorded. |
 | **M7 — Unattended operation** | Can it run alone — and stop when it should? | The dispatcher wakes on schedule and works without a human driving. Crashes recover; budgets auto-pause an overspending app. The safety drill: an agent attempts a critical operation on a sandbox app, is blocked, the request lands in the human's approval queue, approval releases exactly that one action, and a complete audit trail exists. |
-| **M8 — Planning** | Can it plan, not just build? | The Planner drafts a spec for a sandbox app, decomposes it into small tickets with checkable acceptance criteria, and triages incoming bug reports. |
+| **M8 — Planning + standing roles** | Can it plan, not just build? | The Planner drafts a spec for a sandbox app, decomposes it into small tickets with checkable acceptance criteria, and triages incoming bug reports. SRE, Support, and Marketing also get concrete v0 pipelines and a trigger-routing path, so scheduled/event turns do real protocol work. |
 | **M9 — Learning & visibility** | Does it get better, and can you see what it does? | Agents record lessons per app and reuse them; each role gets a scorecard; a weekly retro turns scores into adjustments; status/analysis views work without reading transcripts. |
 | **M10 — Multiple AI providers** | Does it work beyond one vendor? | Builder and reviewer run on different AI providers (uncorrelated review blind spots), verified with real turns; a capability matrix records what each provider supports. |
 
@@ -85,8 +85,8 @@ real functional target today:
 
 ### The planned answer: a third test application
 
-Proposed (pending the human operator's approval; see TODO.md → Open
-decisions): **`operon-sandbox-gamma` — a tiny deployable web service**
+Approved 2026-07-06 and slotted in TODO.md as M8.5:
+**`operon-sandbox-gamma` — a tiny deployable web service**
 (a small HTTP API with a health endpoint and a local/container deploy
 script), plus a seeded, synthetic user-feedback inbox.
 

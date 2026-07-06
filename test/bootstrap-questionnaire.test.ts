@@ -66,7 +66,7 @@ describe("parseAnswers", () => {
       { product: "A thing.", good: "It works.", roles: ["planner"] },
       ALL_ROLES,
     );
-    expect(a.budgetUsdMonth).toBe(1000); // PURPOSE.md → Budget & cadence
+    expect(a.budgetUsdMonth).toBe(1000); // docs/PURPOSE.md → Budget & cadence
     expect(a.cadence).toEqual({});
     expect(a.criticalOps).toEqual({
       deployCommands: [],

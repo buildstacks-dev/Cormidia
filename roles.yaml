@@ -5,7 +5,7 @@
 # (Anthropic: low..max; OpenAI: reasoning effort; pi: thinking level).
 # `delegation` is the intra-turn fan-out policy — what the harness may spawn
 # INSIDE a turn. Cross-provider mixing never happens intra-turn; it is an
-# org-level flow between roles (see PURPOSE.md).
+# org-level flow between roles (see docs/PURPOSE.md).
 #
 # Model IDs: all verified against live catalogs 2026-07-05 — see
 # research/2026-07-05_model-id-verification.md for sources and alternatives.

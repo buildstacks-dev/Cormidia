@@ -25,7 +25,7 @@ defaults:
 
 apps:
   # Self-referential placeholder: this repo doubles as its own org home for
-  # now (PURPOSE.md → Bootstrap & artifact home, dogfood note). Real target
+  # now (docs/PURPOSE.md → Bootstrap & artifact home, dogfood note). Real target
   # apps (the sandbox apps) enter as they are onboarded.
   operon:
     repo: buildstacks-dev/Operon

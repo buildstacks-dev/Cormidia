@@ -46,3 +46,9 @@ apps:
     status: onboarding
     budget_usd_month: 1000
     cadence: {}
+  buildstacks.dev:
+    repo: buildstacks-dev/buildstacks.dev
+    status: onboarding
+    budget_usd_month: 1000
+    cadence:
+      support: []

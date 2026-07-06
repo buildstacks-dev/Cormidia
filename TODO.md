@@ -16,10 +16,11 @@ items to Done with a date.
 > **Scope updates (2026-07-05, human decisions):** (1) the civic pilot is ON
 > HOLD until the product is ready — the two real sandbox apps
 > (operon-sandbox-alpha/beta) are the functional targets throughout; see the
-> M3 header note. (2) M11 (buildstacks.dev) is DEFERRED POST-LAUNCH — the
-> product is **build-complete at M10**; M11's approval-queue acceptance moved
-> to M7.14, its config-not-fork check into M3.7. Production onboarding of
-> civic + buildstacks happens with the human once M10 lands.
+> M3 header note. (2) M11 (buildstacks.dev) was DEFERRED POST-LAUNCH because
+> the product is **build-complete at M10**; M11's approval-queue acceptance moved
+> to M7.14, its config-not-fork check into M3.7. After M10 landed,
+> buildstacks.dev onboarding was executed on 2026-07-06 as a production
+> launch activity; Civic remains pending.
 > (3) A 2026-07-06 GPT roadmap audit found three concrete gaps and slotted
 > them below instead of leaving them as prose: trigger-to-pipeline routing for
 > non-builder roles (M8.3), SRE/Support/Marketing v0 pipelines plus third
@@ -1871,18 +1872,25 @@ waiver).*
   **Files:** docs/capability-matrix.md, AGENTS.md, README.md, docs/PURPOSE.md,
   research/2026-07-03_runtime-layer.md, roles.yaml, test/roles.test.ts.
 
-### M11 — Second app: buildstacks.dev *(DEFERRED POST-LAUNCH — not part of the buildable product)*
+### M11 — Second app: buildstacks.dev *(post-M10 production onboarding)*
 
-> **Deferred (decided 2026-07-05, with the civic hold):** the product is
+> **Originally deferred (decided 2026-07-05, with the civic hold):** the product is
 > build-complete at **M10**. Everything M11 proved functionally is covered
 > earlier against the sandbox apps: join-not-fork + "apps.yaml is the ONLY
 > Operon-repo change" moved into M3.7's sandbox-beta join; the approval
 > queue's end-to-end acceptance moved to **M7.14** (it never needed a
-> production app). What remains below is production onboarding of a real
-> second app — a launch activity, like the civic pilot, executed with the
-> human when the product is ready.
+> production app). M10 is now complete, so the remaining M11 work was executed
+> as production onboarding of a real second app, not as product-development
+> proof. Pre-documentation acceptance still held: the first Operon-repo diff
+> was only `apps.yaml`.
 
-- [ ] **M11.1 Onboard buildstacks.dev as app #2** *(post-launch)*
+- [x] **M11.1 Onboard buildstacks.dev as app #2** ✅ 2026-07-06
+  — private GitHub repo `buildstacks-dev/buildstacks.dev` created, cloned to
+  `~/Build/buildstacks.dev`, bootstrapped with `.operon/TASTE.md`,
+  `.operon/config.yaml`, `.operon/policy.yaml`, and planner/builder/reviewer/
+  sre/marketing memory indexes. Root `apps.yaml` registers it as
+  `status: onboarding`; Support is disabled until a real support channel
+  exists. The target repo's initial commit was pushed to `main`.
   **Goal:** Create the buildstacks.dev repo (private, human co-drives the
   gh commands — repo creation is itself the kind of op the org gates);
   run `operon bootstrap` inside it; join the existing org (M3.5 path) as

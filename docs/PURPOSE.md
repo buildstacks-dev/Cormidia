@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v1.0 — 2026-07-06. Human-ratified decision log. Keep this file high-level;
+*v1.2 — 2026-07-06. Human-ratified decision log. Keep this file high-level;
 execution details belong in TODO.md, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -28,12 +28,15 @@ applications (updated 2026-07-06):
    Marketing real functional coverage before production onboarding.
 
 **Build-complete means M10.** After M10, production onboarding happens with the
-human as launch activity, not as product-development proof:
+human as launch activity, not as product-development proof. Current status:
 
 1. **Civic Intelligence / Responsible Citizen**
-   (`~/Build/Government/AgentSkill-CivicIntelligence`) — first production app.
-2. **buildstacks.dev** — second production app, proving the same config-not-fork
-   story and exercising production-flavored SRE/approval surfaces.
+   (`~/Build/Government/AgentSkill-CivicIntelligence`) — pending production
+   onboarding.
+2. **buildstacks.dev** (`~/Build/buildstacks.dev`,
+   `buildstacks-dev/buildstacks.dev`) — created and bootstrapped on
+   2026-07-06 as `status: onboarding`, proving the same config-not-fork story
+   on a production repo. It is not live until the human flips the app status.
 
 The org operates on each app the way the predecessor operated on any target
 repo. The architecture must generalize: pointing the org at another app is a
@@ -170,8 +173,9 @@ config file, not a fork.
   sandbox repos. Alpha/beta cover onboarding, build loop, multi-app, approvals,
   budgets, memory, and multi-provider behavior. Gamma adds a running service
   plus synthetic feedback/adoption inputs so SRE, Support, and Marketing get
-  functional coverage. Civic and buildstacks.dev are deferred until the product
-  is build-complete at M10.
+  functional coverage. Civic and buildstacks.dev stayed deferred until the
+  product reached build-complete at M10; buildstacks.dev was then onboarded as
+  an `onboarding` app, while Civic remains pending.
 - **Multi-app: designed in, operated sequentially** (2026-07-04). The
   architecture is multi-app from day one (app registry; per-app config,
   TASTE, memory, scorecards), but the org runs **one live app** until the
@@ -335,3 +339,8 @@ will resolve them.
   lighter weekly groom, autonomous high-tier contracts, future Lab opt-in,
   competitive intelligence as Marketing pipeline, Support/Marketing disabled
   per app until channels exist).
+- 2026-07-06 — v1.2: buildstacks.dev production onboarding executed after
+  M10: private repo `buildstacks-dev/buildstacks.dev` created, bootstrapped
+  with app-owned `.operon/` artifacts, and registered in the Operon org as
+  `status: onboarding`. Civic remains pending; buildstacks.dev is not live
+  until the human flips its app status.

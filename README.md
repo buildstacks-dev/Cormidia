@@ -59,7 +59,7 @@ dispatcher ships.
 
 ## Status
 
-M0-M10 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
+M0-M11 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
 CodexRuntime, PiRuntime, pass executor, run logs, app registry,
 bootstrap flow, co-planning launcher,
 quality gates, typed verdict parsers, GitHub ticket state machine, scheduler,
@@ -71,7 +71,9 @@ injected review → squash merge → closed issue. M6 is proven on
 `operon-sandbox-alpha`: real Claude Builder/Reviewer passes shipped issue #1
 through PR #2 to a merged squash commit. M8 is proven on
 `operon-sandbox-gamma`: a running `/health` service, a real private
-`op:incident` issue, and Support/Marketing draft artifacts.
+`op:incident` issue, and Support/Marketing draft artifacts. M11 onboarded the
+private `buildstacks-dev/buildstacks.dev` repo as `status: onboarding`
+without changing Operon runtime code.
 
 `docs/capability-matrix.md` records each adapter's native, adapter-built, and
 degraded capabilities. `pnpm test:live` is the gated live-adapter proof; Codex

@@ -97,6 +97,38 @@ describe("loadPipelines", () => {
     await expect(loadPipelines(tier, OPTS)).rejects.toThrow(/"turbo" is not one of quick \| standard \| deep/);
   });
 
+  it("unknown pass key rejected — a misspelled only_on_risk must not go unconditional", async () => {
+    const path = tempYaml(
+      [
+        "broken:",
+        "  passes:",
+        "    - { id: p1, role: builder, template: build/pass.md, only_on_risk: [high] }",
+      ].join("\n"),
+    );
+    await expect(loadPipelines(path, OPTS)).rejects.toThrow(/unknown key "only_on_risk"/);
+  });
+
+  it("template escaping the prompts dir rejected", async () => {
+    const path = tempYaml(
+      ["broken:", "  passes:", "    - { id: p1, role: builder, template: ../pipelines.yaml }"].join(
+        "\n",
+      ),
+    );
+    await expect(loadPipelines(path, OPTS)).rejects.toThrow(/must resolve under the prompts dir/);
+  });
+
+  it("mechanical pipeline with an unconditional agent pass rejected", async () => {
+    const path = tempYaml(
+      [
+        "ship:",
+        "  mechanical: true",
+        "  passes:",
+        "    - { id: check, role: reviewer, template: review/pass.md }",
+      ].join("\n"),
+    );
+    await expect(loadPipelines(path, OPTS)).rejects.toThrow(/unconditional agent pass "check"/);
+  });
+
   it("unknown pipeline throws descriptively", async () => {
     const file = await loadFixture();
     expect(() => getPipeline(file, "deploy")).toThrow(
@@ -138,6 +170,40 @@ describe("selectPasses", () => {
       "verify",
       "perf-scale",
     ]);
+  });
+
+  it("only_on.tier keys off the selection's tier field directly", async () => {
+    const path = tempYaml(
+      [
+        "ship:",
+        "  mechanical: true",
+        "  passes:",
+        "    - id: check",
+        "      role: reviewer",
+        "      template: review/pass.md",
+        "      only_on: { risk: [high], tier: [deep] }",
+      ].join("\n"),
+    );
+    const ship = getPipeline(await loadPipelines(path, OPTS), "ship");
+
+    // Deep tier alone selects the pass — no label echo required.
+    expect(selectPasses(ship, { tier: "deep" }).map((p) => p.id)).toEqual(["check"]);
+    // High risk alone selects it too (OR), standard tier alone does not.
+    expect(selectPasses(ship, { tier: "standard", riskTier: "high" }).map((p) => p.id)).toEqual([
+      "check",
+    ]);
+    expect(selectPasses(ship, { tier: "standard" })).toEqual([]);
+
+    const bad = tempYaml(
+      [
+        "broken:",
+        "  passes:",
+        "    - { id: p1, role: builder, template: build/pass.md, only_on: { tier: [turbo] } }",
+      ].join("\n"),
+    );
+    await expect(loadPipelines(bad, OPTS)).rejects.toThrow(
+      /only_on\.tier: "turbo" is not one of quick \| standard \| deep/,
+    );
   });
 });
 

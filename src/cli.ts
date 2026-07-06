@@ -9,14 +9,16 @@
 import { NotImplementedError } from "./runtime/types.js";
 import { cmdRoles } from "./cli/roles.js";
 import { cmdDoctor } from "./cli/doctor.js";
+import { cmdPipelines } from "./cli/pipelines.js";
 
 const USAGE = `operon — org runtime for a team of AI agents
 
 Usage:
-  operon roles [path]     validate roles.yaml and print the org chart
-  operon doctor           check runtime adapter status
-  operon loop             run the build loop over ready tickets (stub)
-  operon run-role <name>  run one role turn now (stub)
+  operon roles [path]      validate roles.yaml and print the org chart
+  operon pipelines [path]  validate pipelines.yaml and print the pass table
+  operon doctor            check runtime adapter status
+  operon loop              run the build loop over ready tickets (stub)
+  operon run-role <name>   run one role turn now (stub)
 `;
 
 interface CliCommand {
@@ -33,6 +35,7 @@ function notImplemented(cmd: string): CliCommand {
 
 const COMMANDS: Record<string, CliCommand> = {
   roles: { run: (args) => cmdRoles(args[0]) },
+  pipelines: { run: (args) => cmdPipelines(args[0]) },
   doctor: { run: () => cmdDoctor() },
   loop: notImplemented("loop"),
   "run-role": notImplemented("run-role"),

@@ -1,0 +1,53 @@
+# pipelines.yaml — the org's build protocol as ordered passes (docs/loop.md §4).
+#
+# Human-ratified surface: agents propose changes via PR; only the human
+# merges (the safety gate's protocol-self-edit rule covers this file and
+# prompts/**). Loaded and validated by src/loop/pipelines.ts; every
+# template path resolves under prompts/.
+#
+# Two tiering axes, deliberately orthogonal (docs/loop.md §4):
+#   - ticket tier (Planner label op:tier-quick|standard|deep) selects PASSES
+#   - risk tier (.operon/policy.yaml changed-file globs) selects GATES
+# Tiering makes the loop cheaper, never less safe: a quick ticket touching
+# auth/** still gets high-tier gates.
+#
+# Planner pipelines (plan / groom / triage) are deliberately absent until
+# the build loop is proven end to end.
+
+build:
+  passes:
+    - id: contract # implementation contract before code; criterion→test mapping feeds the completeness gate (§5)
+      role: builder
+      template: build/contract.md
+      skip_on_tier: [quick] # bug-batch tickets go straight to implement
+    - id: implement
+      role: builder
+      template: build/implement.md
+
+review:
+  passes:
+    - id: verify # always-on functionality review; security lens baked into the template (§4)
+      role: reviewer
+      template: review/verify.md
+    - id: security-deep # second, deeper security depth — on trigger (§4 review dimensions)
+      role: reviewer
+      template: review/security.md
+      only_on: { risk: [high], dimension_globs: security }
+    - id: perf-scale # performance & scale lens — on trigger only
+      role: reviewer
+      template: review/perf.md
+      only_on: { labels: [op:perf-sensitive], dimension_globs: perf }
+
+fix: # bounce target: the brief carries reviewer findings or verbatim gate output
+  passes:
+    - id: fix
+      role: builder
+      template: build/fix.md
+
+ship:
+  mechanical: true # merge is orchestrator work; agent judgment only on trigger (§5)
+  passes:
+    - id: ship-check # judgment layer above green gates: high risk OR deep tier (§4 tiering)
+      role: reviewer
+      template: ship/check.md
+      only_on: { risk: [high], tier: [deep] }

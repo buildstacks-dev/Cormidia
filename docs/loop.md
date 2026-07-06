@@ -226,8 +226,8 @@ ship:
   passes:
     - id: ship-check        # optional judgment layer, port of ship.md's
       role: reviewer        # four-gate checklist minus what preflight
-      template: ship/check.md
-      only_on_risk: [high]  # already proves mechanically
+      template: ship/check.md               # already proves mechanically
+      only_on: { risk: [high], tier: [deep] }
 
 plan:                       # Planner pipelines — same executor, not part
   passes:                   # of the build loop

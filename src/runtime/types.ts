@@ -58,6 +58,10 @@ export interface TurnRequest {
    *  (build plan M4.6). Deliberately just a JSON-schema-shaped bag here:
    *  verdict TYPES belong to src/loop/verdicts.ts, never to this layer. */
   verdictSchema?: Record<string, unknown>;
+  /** Optional per-pass maximum conversation turns. Adapters map this to the
+   *  provider's native "max turns" knob where one exists; absent means the
+   *  adapter default applies. */
+  maxTurns?: number;
 }
 
 export interface Artifact {

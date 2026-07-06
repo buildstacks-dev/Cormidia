@@ -1151,7 +1151,19 @@ admits exactly that action on re-dispatch; a simulated crash resumes or
 restarts per the recovery table; a hung turn is killed at the wall-clock
 cap instead of holding its lock forever.*
 
-- [ ] **M7.1 Approval store core (file-based, crash-safe)**
+> **Completed 2026-07-06:** M7 landed the file-backed approval queue,
+> single-use grants, grant-aware gate composition, schedule/event/lock/
+> journal state, dispatcher tick, dispatched turn runner, stale-lock and
+> wall-clock recovery, launchd doctor surface, budget rollup/overlay pause,
+> and CLI surfaces for `dispatch`, `approvals`, and `budget`. Verification:
+> `pnpm test` (50 files / 400 tests), `pnpm typecheck`, `pnpm build`,
+> `pnpm test:live` (3 live ClaudeRuntime conformance tests, 11 turns,
+> $3.1653), the sandbox-tagged approval e2e recorded in
+> `research/2026-07-06_sandbox-approval-e2e.md`, plus alpha/beta functional
+> checks recorded in the session summary. Gamma was checked and not present
+> locally.
+
+- [x] **M7.1 Approval store core (file-based, crash-safe)** ✅ 2026-07-06
   **Goal:** `src/org/approvals.ts`: raise/list/decide over
   `pending/ decided/ grants/ log.jsonl` (architecture §4 schema; id =
   utc-compact+rand4); ordered decision writes (log append → file move →
@@ -1168,7 +1180,7 @@ cap instead of holding its lock forever.*
   **Session:** sonnet, single session — write the reconciliation test
   carefully.
 
-- [ ] **M7.2 Approval queue CLI (`approvals` / `review` / `show`)**
+- [x] **M7.2 Approval queue CLI (`approvals` / `review` / `show`)** ✅ 2026-07-06
   **Goal:** The operator surface: app-tagged table; one-by-one review
   ([a]pprove / [d]eny-with-reason / [s]kip); full-detail show. `--home` /
   OPERON_HOME override so tests never touch a real org home.
@@ -1183,7 +1195,7 @@ cap instead of holding its lock forever.*
   **Read:** docs/architecture.md §4 (CLI).
   **Session:** sonnet, single session.
 
-- [ ] **M7.3 Grant-aware gate composition**
+- [x] **M7.3 Grant-aware gate composition** ✅ 2026-07-06
   **Goal:** `composeGate(baseGate, store, {app, role})` → the effective
   GateFn: SHA-256 actionHash over normalized {tool, input}; matching
   unexpired grant → allow + consume exactly once; otherwise fall through
@@ -1202,7 +1214,7 @@ cap instead of holding its lock forever.*
   **Session:** opus, single session — actionHash normalization is
   security-load-bearing.
 
-- [ ] **M7.4 Trigger grammar evaluator + schedule state**
+- [x] **M7.4 Trigger grammar evaluator + schedule state** ✅ 2026-07-06
   **Goal:** `src/org/schedule.ts`: the roles.yaml grammar (hourly / every
   Nh|m / daily HH:MM / weekly dow [HH:MM], local time); due when
   `now ≥ next(lastFired, spec)`; missed windows collapse to one firing;
@@ -1216,7 +1228,7 @@ cap instead of holding its lock forever.*
   **Read:** docs/architecture.md §2 (trigger resolution); roles.yaml.
   **Session:** sonnet, single session.
 
-- [ ] **M7.5 Lock file mechanics**
+- [x] **M7.5 Lock file mechanics** ✅ 2026-07-06
   **Goal:** `src/org/locks.ts`: O_EXCL create of `locks/<app>--<role>.lock`
   ({pid, turnId, startedAt, heartbeatAt}); heartbeat updater; staleness
   check (>2 min); release.
@@ -1229,7 +1241,7 @@ cap instead of holding its lock forever.*
   **Read:** docs/architecture.md §2 (locking).
   **Session:** sonnet, single session.
 
-- [ ] **M7.6 Turn journal + resume-vs-restart decision**
+- [x] **M7.6 Turn journal + resume-vs-restart decision** ✅ 2026-07-06
   **Goal:** `src/org/journal.ts`: synchronous journal writes per phase
   transition (`state/turns/<turnId>.json`, architecture §3 schema) and a
   pure `decideRecovery()` encoding the §3 table verbatim (resume once with
@@ -1244,7 +1256,7 @@ cap instead of holding its lock forever.*
   docs/loop.md §13 #1, #6.
   **Session:** sonnet, single session.
 
-- [ ] **M7.7 Event polling + dedup + file-drop inbox**
+- [x] **M7.7 Event polling + dedup + file-drop inbox** ✅ 2026-07-06
   **Goal:** `src/org/events.ts`: `GitHubEventSource` interface (fake
   injectable), the five stable dedup keys from architecture §2's table,
   consumed-key store under `state/events/`, and inbox reading
@@ -1261,7 +1273,7 @@ cap instead of holding its lock forever.*
   **Read:** docs/architecture.md §2 (events table + scope note).
   **Session:** sonnet, single session.
 
-- [ ] **M7.8 Dispatcher tick core**
+- [x] **M7.8 Dispatcher tick core** ✅ 2026-07-06
   **Goal:** `src/org/dispatch.ts` + `operon dispatch`: stateless tick —
   for each live app (apps.ts) × role, merge roles.yaml triggers with
   cadence overrides; evaluate schedule (M7.4) + events (M7.7); skip
@@ -1283,7 +1295,7 @@ cap instead of holding its lock forever.*
   **Session:** opus, single session — integrates four modules + process
   semantics.
 
-- [ ] **M7.9 Turn runner: dispatched turns become real**
+- [x] **M7.9 Turn runner: dispatched turns become real** ✅ 2026-07-06
   **Goal:** The org-layer glue no draft owned: `run-role --app <app>
   --turn <id>` (non-interactive path) resolves the app, ensures the
   org-managed clone (`repos/<app>`, fetch-only) and worktree per
@@ -1312,7 +1324,7 @@ cap instead of holding its lock forever.*
   **Session:** top-tier lead + delegated test-writer subagent — the
   highest-integration item in the plan.
 
-- [ ] **M7.10 Crash recovery integration: stale-lock reconciliation**
+- [x] **M7.10 Crash recovery integration: stale-lock reconciliation** ✅ 2026-07-06
   **Goal:** Before computing due turns, the tick scans stale locks, reads
   journals, applies decideRecovery, and acts: resume-spawn with
   interruption notice; restart clean (`git reset --hard && git clean -fd`
@@ -1327,7 +1339,7 @@ cap instead of holding its lock forever.*
   **Read:** docs/architecture.md §3; docs/loop.md §13 #1–#7.
   **Session:** opus, single session — a wrong branch loses work silently.
 
-- [ ] **M7.11 Per-pass wall-clock cap + turn caps — hung sessions die**
+- [x] **M7.11 Per-pass wall-clock cap + turn caps — hung sessions die** ✅ 2026-07-06
   **Goal:** Heartbeats cannot catch a turn hung inside an SDK call — the
   process stays alive, keeps heartbeating, and holds its (role, app) lock
   forever, silently defeating autonomy (loop.md §13 #2). Fix: the dispatch
@@ -1355,7 +1367,7 @@ cap instead of holding its lock forever.*
   **Session:** opus, single session — kill/recover semantics must not lose
   work.
 
-- [ ] **M7.12 Scheduler installation: launchd plist + doctor**
+- [x] **M7.12 Scheduler installation: launchd plist + doctor** ✅ 2026-07-06
   **Goal:** `config/launchd/operon-dispatch.plist.template`
   (StartInterval 300) + systemd-timer parity notes; `operon doctor` gains
   a scheduler line (installed / not-installed + exact load/unload
@@ -1370,7 +1382,7 @@ cap instead of holding its lock forever.*
   **Read:** docs/architecture.md §2; docs/PURPOSE.md → Runtime host.
   **Session:** sonnet, single session.
 
-- [ ] **M7.13 Budget rollup + auto-pause + budget-exceeded queue item**
+- [x] **M7.13 Budget rollup + auto-pause + budget-exceeded queue item** ✅ 2026-07-06
   **Goal:** `src/org/budget.ts` reads the month's telemetry JSONL (app
   field from M3.2, budgets via loadApps — never re-parse YAML), sums per
   app: ≥80% → a warning row in `operon budget`'s output (the
@@ -1392,7 +1404,7 @@ cap instead of holding its lock forever.*
   **Read:** docs/architecture.md §7; docs/PURPOSE.md → Budget & cadence.
   **Session:** sonnet, single session.
 
-- [ ] **M7.14 Approval surface end-to-end on a sandbox app** *(absorbs old
+- [x] **M7.14 Approval surface end-to-end on a sandbox app** ✅ 2026-07-06 *(absorbs old
   M11.2 — moved here 2026-07-05 when M11 was deferred post-launch; its
   deps were M7-internal all along)*
   **Goal:** Run one real turn against a sandbox app whose task requires a

@@ -220,6 +220,7 @@ export class ClaudeRuntime implements Runtime {
       // "overrun = incident note, not silent spend").
       maxBudgetUsd: req.role.maxTurnBudgetUsd,
       ...(req.session !== undefined ? { resume: req.session.id } : {}),
+      ...(req.maxTurns !== undefined ? { maxTurns: req.maxTurns } : {}),
       // Native structured output when the pass demands a typed verdict —
       // the CLI constrains the final response to the schema, so the result
       // text (→ summary) is the JSON itself. Absent verdictSchema, the key

@@ -1,0 +1,472 @@
+// File-backed approval queue and single-use grants (architecture.md §4).
+// The runtime gate is synchronous, so grant lookup/consumption also has a
+// synchronous path; operator-facing queue operations remain async.
+
+import { createHash, randomBytes } from "node:crypto";
+import {
+  appendFile,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
+import type { ToolAction } from "../runtime/types.js";
+
+export type ApprovalDecision = "approved" | "denied";
+export type ApprovalStatus = "pending" | ApprovalDecision;
+
+export interface ApprovalAction {
+  tool: string;
+  input: unknown;
+  description?: string;
+}
+
+export interface ApprovalItem {
+  id: string;
+  app: string;
+  role: string;
+  turnId?: string;
+  ticketRef?: string;
+  rule: string;
+  action: ApprovalAction;
+  justification?: string;
+  raisedAt: string;
+  status: ApprovalStatus;
+  decidedAt?: string;
+  decision?: ApprovalDecision;
+  reason?: string;
+  grantId?: string;
+}
+
+export interface ApprovalGrant {
+  grantId: string;
+  approvalId: string;
+  app: string;
+  role: string;
+  actionHash: string;
+  expiresAt: string;
+  uses: number;
+  createdAt: string;
+  consumedAt?: string;
+}
+
+export type ApprovalLogEvent =
+  | { type: "raised"; id: string; at: string; app: string; role: string; rule: string }
+  | {
+      type: "decided";
+      id: string;
+      at: string;
+      decision: ApprovalDecision;
+      reason?: string;
+      grantId?: string;
+      grant?: ApprovalGrant;
+    }
+  | { type: "grant-minted"; id: string; grantId: string; at: string }
+  | { type: "grant-consumed"; id: string; grantId: string; at: string };
+
+export interface RaiseApprovalInput {
+  app: string;
+  role: string;
+  rule: string;
+  action: ToolAction;
+  turnId?: string;
+  ticketRef?: string;
+  justification?: string;
+  now?: Date;
+}
+
+export interface DecideApprovalInput {
+  decision: ApprovalDecision;
+  reason?: string;
+  now?: Date;
+  ttlMs?: number;
+}
+
+export interface ApprovalStoreOptions {
+  idSource?: (now: Date) => string;
+}
+
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+
+export class ApprovalStore {
+  readonly root: string;
+  private readonly idSource: (now: Date) => string;
+
+  constructor(root: string, options: ApprovalStoreOptions = {}) {
+    this.root = root;
+    this.idSource = options.idSource ?? defaultId;
+  }
+
+  async raise(input: RaiseApprovalInput): Promise<ApprovalItem> {
+    const now = input.now ?? new Date();
+    await this.ensureDirs();
+    const item = this.itemFromInput(input, now);
+    await writeJson(this.pendingPath(item.id), item);
+    await appendJsonLine(this.logPath(), raisedEvent(item));
+    return item;
+  }
+
+  raiseSync(input: RaiseApprovalInput): ApprovalItem {
+    const now = input.now ?? new Date();
+    this.ensureDirsSync();
+    const item = this.itemFromInput(input, now);
+    writeJsonSync(this.pendingPath(item.id), item);
+    appendJsonLineSync(this.logPath(), raisedEvent(item));
+    return item;
+  }
+
+  async listPending(): Promise<ApprovalItem[]> {
+    await this.ensureDirs();
+    const ids = await listJsonIds(this.pendingDir());
+    const items = await Promise.all(ids.map((id) => readJson<ApprovalItem>(this.pendingPath(id))));
+    return items.sort((a, b) => a.raisedAt.localeCompare(b.raisedAt));
+  }
+
+  async listDecided(): Promise<ApprovalItem[]> {
+    await this.ensureDirs();
+    const ids = await listJsonIds(this.decidedDir());
+    const items = await Promise.all(ids.map((id) => readJson<ApprovalItem>(this.decidedPath(id))));
+    return items.sort((a, b) => (a.decidedAt ?? a.raisedAt).localeCompare(b.decidedAt ?? b.raisedAt));
+  }
+
+  async show(id: string): Promise<{ item: ApprovalItem; grant?: ApprovalGrant }> {
+    await this.ensureDirs();
+    const item = await this.readItem(id);
+    const grant =
+      item.grantId !== undefined && existsSync(this.grantPath(item.grantId))
+        ? await readJson<ApprovalGrant>(this.grantPath(item.grantId))
+        : undefined;
+    return { item, ...(grant !== undefined ? { grant } : {}) };
+  }
+
+  async decide(id: string, input: DecideApprovalInput): Promise<ApprovalItem> {
+    const now = input.now ?? new Date();
+    await this.ensureDirs();
+    if (input.decision === "denied" && (input.reason ?? "").trim().length === 0) {
+      throw new Error("approval denial requires a non-empty reason");
+    }
+
+    const pending = await readJson<ApprovalItem>(this.pendingPath(id));
+    if (pending.status !== "pending") {
+      throw new Error(`approval ${id} is not pending`);
+    }
+
+    const decided: ApprovalItem = {
+      ...pending,
+      status: input.decision,
+      decision: input.decision,
+      decidedAt: now.toISOString(),
+      ...(input.reason !== undefined ? { reason: input.reason } : {}),
+    };
+
+    const grant =
+      input.decision === "approved"
+        ? mintGrant(decided, now, input.ttlMs ?? DEFAULT_TTL_MS)
+        : undefined;
+    if (grant !== undefined) decided.grantId = grant.grantId;
+
+    await appendJsonLine(this.logPath(), {
+      type: "decided",
+      id,
+      at: now.toISOString(),
+      decision: input.decision,
+      ...(input.reason !== undefined ? { reason: input.reason } : {}),
+      ...(grant !== undefined ? { grantId: grant.grantId, grant } : {}),
+    } satisfies ApprovalLogEvent);
+    await this.moveToDecided(decided);
+    if (grant !== undefined) {
+      await writeJson(this.grantPath(grant.grantId), grant);
+      await appendJsonLine(this.logPath(), {
+        type: "grant-minted",
+        id,
+        grantId: grant.grantId,
+        at: now.toISOString(),
+      } satisfies ApprovalLogEvent);
+    }
+    return decided;
+  }
+
+  async reconcile(): Promise<void> {
+    await this.ensureDirs();
+    const log = await this.readLog();
+    const decisions = log.filter((e): e is Extract<ApprovalLogEvent, { type: "decided" }> => {
+      return e.type === "decided";
+    });
+    for (const event of decisions) {
+      const decidedExists = existsSync(this.decidedPath(event.id));
+      if (!decidedExists && existsSync(this.pendingPath(event.id))) {
+        const pending = await readJson<ApprovalItem>(this.pendingPath(event.id));
+        const decided: ApprovalItem = {
+          ...pending,
+          status: event.decision,
+          decision: event.decision,
+          decidedAt: event.at,
+          ...(event.reason !== undefined ? { reason: event.reason } : {}),
+          ...(event.grantId !== undefined ? { grantId: event.grantId } : {}),
+        };
+        await this.moveToDecided(decided);
+      }
+      if (event.grant !== undefined && !existsSync(this.grantPath(event.grant.grantId))) {
+        await writeJson(this.grantPath(event.grant.grantId), event.grant);
+      }
+      if (
+        event.grantId !== undefined &&
+        !log.some((e) => e.type === "grant-minted" && e.grantId === event.grantId)
+      ) {
+        await appendJsonLine(this.logPath(), {
+          type: "grant-minted",
+          id: event.id,
+          grantId: event.grantId,
+          at: event.at,
+        } satisfies ApprovalLogEvent);
+      }
+    }
+  }
+
+  findMatchingGrantSync(input: {
+    app: string;
+    role: string;
+    actionHash: string;
+    now?: Date;
+  }): ApprovalGrant | undefined {
+    this.ensureDirsSync();
+    const now = input.now ?? new Date();
+    for (const file of readdirSync(this.grantsDir())) {
+      if (!file.endsWith(".json")) continue;
+      const grant = readJsonSync<ApprovalGrant>(join(this.grantsDir(), file));
+      if (
+        grant.app === input.app &&
+        grant.role === input.role &&
+        grant.actionHash === input.actionHash &&
+        grant.uses > 0 &&
+        new Date(grant.expiresAt).getTime() > now.getTime()
+      ) {
+        return grant;
+      }
+    }
+    return undefined;
+  }
+
+  consumeGrantSync(grantId: string, now: Date = new Date()): ApprovalGrant {
+    this.ensureDirsSync();
+    const path = this.grantPath(grantId);
+    const grant = readJsonSync<ApprovalGrant>(path);
+    if (grant.uses <= 0) throw new Error(`approval grant ${grantId} has no remaining uses`);
+    const next: ApprovalGrant = {
+      ...grant,
+      uses: grant.uses - 1,
+      consumedAt: now.toISOString(),
+    };
+    writeJsonSync(path, next);
+    appendJsonLineSync(this.logPath(), {
+      type: "grant-consumed",
+      id: next.approvalId,
+      grantId: next.grantId,
+      at: now.toISOString(),
+    } satisfies ApprovalLogEvent);
+    return next;
+  }
+
+  async readLog(): Promise<ApprovalLogEvent[]> {
+    await this.ensureDirs();
+    return readJsonLines<ApprovalLogEvent>(this.logPath());
+  }
+
+  async hasOpenItemFor(input: { app: string; role: string; actionHash: string }): Promise<boolean> {
+    const pending = await this.listPending();
+    return pending.some(
+      (item) =>
+        item.app === input.app &&
+        item.role === input.role &&
+        actionHash(item.action) === input.actionHash,
+    );
+  }
+
+  private itemFromInput(input: RaiseApprovalInput, now: Date): ApprovalItem {
+    const item: ApprovalItem = {
+      id: this.idSource(now),
+      app: input.app,
+      role: input.role,
+      rule: input.rule,
+      action: normalizeAction(input.action),
+      raisedAt: now.toISOString(),
+      status: "pending",
+    };
+    if (input.turnId !== undefined) item.turnId = input.turnId;
+    if (input.ticketRef !== undefined) item.ticketRef = input.ticketRef;
+    if (input.justification !== undefined) item.justification = input.justification;
+    return item;
+  }
+
+  private async readItem(id: string): Promise<ApprovalItem> {
+    if (existsSync(this.pendingPath(id))) return readJson<ApprovalItem>(this.pendingPath(id));
+    if (existsSync(this.decidedPath(id))) return readJson<ApprovalItem>(this.decidedPath(id));
+    throw new Error(`approval ${id} not found`);
+  }
+
+  private async moveToDecided(item: ApprovalItem): Promise<void> {
+    const temp = join(this.decidedDir(), `${item.id}.json.tmp`);
+    await writeJson(temp, item);
+    await rename(temp, this.decidedPath(item.id));
+    await rm(this.pendingPath(item.id), { force: true });
+  }
+
+  private async ensureDirs(): Promise<void> {
+    await mkdir(this.pendingDir(), { recursive: true });
+    await mkdir(this.decidedDir(), { recursive: true });
+    await mkdir(this.grantsDir(), { recursive: true });
+    if (!existsSync(this.logPath())) await writeFile(this.logPath(), "", "utf8");
+  }
+
+  private ensureDirsSync(): void {
+    mkdirSync(this.pendingDir(), { recursive: true });
+    mkdirSync(this.decidedDir(), { recursive: true });
+    mkdirSync(this.grantsDir(), { recursive: true });
+    if (!existsSync(this.logPath())) writeFileSync(this.logPath(), "", "utf8");
+  }
+
+  private approvalsDir(): string {
+    return join(this.root, "approvals");
+  }
+
+  private pendingDir(): string {
+    return join(this.approvalsDir(), "pending");
+  }
+
+  private decidedDir(): string {
+    return join(this.approvalsDir(), "decided");
+  }
+
+  private grantsDir(): string {
+    return join(this.approvalsDir(), "grants");
+  }
+
+  private pendingPath(id: string): string {
+    return join(this.pendingDir(), `${id}.json`);
+  }
+
+  private decidedPath(id: string): string {
+    return join(this.decidedDir(), `${id}.json`);
+  }
+
+  private grantPath(id: string): string {
+    return join(this.grantsDir(), `${id}.json`);
+  }
+
+  private logPath(): string {
+    return join(this.approvalsDir(), "log.jsonl");
+  }
+}
+
+export function normalizeAction(action: ToolAction | ApprovalAction): ApprovalAction {
+  const normalized: ApprovalAction = {
+    tool: action.tool.toLowerCase(),
+    input: sortJson(action.input),
+  };
+  if (action.description !== undefined) normalized.description = action.description;
+  return normalized;
+}
+
+export function actionHash(action: ToolAction | ApprovalAction): string {
+  return createHash("sha256")
+    .update(stableStringify(normalizeAction(action)))
+    .digest("hex");
+}
+
+function mintGrant(item: ApprovalItem, now: Date, ttlMs: number): ApprovalGrant {
+  return {
+    grantId: `grant-${item.id}`,
+    approvalId: item.id,
+    app: item.app,
+    role: item.role,
+    actionHash: actionHash(item.action),
+    expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
+    uses: 1,
+    createdAt: now.toISOString(),
+  };
+}
+
+function raisedEvent(item: ApprovalItem): ApprovalLogEvent {
+  return {
+    type: "raised",
+    id: item.id,
+    at: item.raisedAt,
+    app: item.app,
+    role: item.role,
+    rule: item.rule,
+  };
+}
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => [k, sortJson(v)]),
+    );
+  }
+  return value;
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(sortJson(value));
+}
+
+function defaultId(now: Date): string {
+  const compact = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const rand4 = randomBytes(3).toString("base64url").slice(0, 4).toLowerCase();
+  return `${compact}-${rand4}`;
+}
+
+async function listJsonIds(dir: string): Promise<string[]> {
+  const { readdir } = await import("node:fs/promises");
+  return (await readdir(dir))
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => file.slice(0, -".json".length))
+    .sort();
+}
+
+async function readJson<T>(path: string): Promise<T> {
+  return JSON.parse(await readFile(path, "utf8")) as T;
+}
+
+function readJsonSync<T>(path: string): T {
+  return JSON.parse(readFileSync(path, "utf8")) as T;
+}
+
+async function writeJson(path: string, value: unknown): Promise<void> {
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function writeJsonSync(path: string, value: unknown): void {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function appendJsonLine(path: string, value: unknown): Promise<void> {
+  await appendFile(path, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+function appendJsonLineSync(path: string, value: unknown): void {
+  appendFileSync(path, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+async function readJsonLines<T>(path: string): Promise<T[]> {
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as T);
+}

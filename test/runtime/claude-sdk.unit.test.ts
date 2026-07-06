@@ -113,6 +113,14 @@ describe("ClaudeRuntime (SDK mocked)", () => {
     expect(captured.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]).toBeTypeOf("function");
   });
 
+  it("maps TurnRequest.maxTurns to the SDK option", async () => {
+    const { captured, queryFn } = scriptedQuery([initMsg("s1"), successMsg("s1")]);
+    await new ClaudeRuntime({ queryFn }).runTurn(makeReq({ maxTurns: 7 }), {
+      gate: defaultGate,
+    });
+    expect(captured.options?.maxTurns).toBe(7);
+  });
+
   it("PreToolUse hook is the primary gate channel: deny carries the rule, escalation recorded", async () => {
     const gateCalls: ToolAction[] = [];
     const queryFn: QueryFn = ({ options }) =>

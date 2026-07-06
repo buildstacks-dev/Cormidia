@@ -66,6 +66,10 @@ export interface PassConfig {
   skipOnTier?: TicketTier[];
   /** When present, the pass runs only if selection matches (see OnlyOn). */
   onlyOn?: OnlyOn;
+  /** Optional wall-clock cap in minutes; dispatcher recovery enforces it. */
+  wallClockMinutes?: number;
+  /** Optional provider turn cap for this pass. */
+  maxTurns?: number;
 }
 
 export interface PipelineConfig {
@@ -245,6 +249,8 @@ async function parsePass(
     "parallel_group",
     "skip_on_tier",
     "only_on",
+    "wall_clock_minutes",
+    "max_turns",
   ];
   for (const key of Object.keys(spec)) {
     // A misspelled selection key (e.g. only_on_risk) silently dropped would
@@ -318,7 +324,22 @@ async function parsePass(
     pass.onlyOn = parseOnlyOn(spec["only_on"], err);
   }
 
+  if (spec["wall_clock_minutes"] !== undefined) {
+    pass.wallClockMinutes = positiveInteger(spec["wall_clock_minutes"], "wall_clock_minutes", err);
+  }
+
+  if (spec["max_turns"] !== undefined) {
+    pass.maxTurns = positiveInteger(spec["max_turns"], "max_turns", err);
+  }
+
   return pass;
+}
+
+function positiveInteger(value: unknown, key: string, err: (msg: string) => Error): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw err(`${key} must be a positive integer`);
+  }
+  return value;
 }
 
 function parseOnlyOn(raw: unknown, err: (msg: string) => Error): OnlyOn {

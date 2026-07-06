@@ -82,3 +82,9 @@ $2–3 on `claude-sonnet-5` per full run. Adapter changes must re-run this
   residual model variance. Adapter note: multiple result messages can
   arrive in one query (post-notification re-invocation) — the adapter's
   last-result-wins loop handles this correctly.
+- **2026-07-06 (M7.11, `TurnRequest.maxTurns` mapping):** `pnpm test:live`
+  passed 3/3 after adding the optional per-pass max-turn cap path through
+  `TurnRequest` → Claude SDK `maxTurns`. 11 live turns, total cost
+  **$3.1653**, subscription auth (`apiKeySource: none`), model
+  `claude-sonnet-5`, 78.46s wall clock. Cases: critical ops escalate,
+  subagent critical op escalates, and 300KB payload transports.

@@ -7,12 +7,15 @@
 
 import { loadRoles } from "../org/roles.js";
 import { runRole } from "../loop/runRole.js";
+import { loadApps } from "../org/apps.js";
+import { runDispatchedTurn } from "../org/turn-runner.js";
 
 export async function cmdRunRole(args: string[]): Promise<number> {
   let name: string | undefined;
   let app: string | undefined;
   let turnId: string | undefined;
   let templatePath: string | undefined;
+  let home: string | undefined;
   let dryRun = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -21,6 +24,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     else if (arg === "--app") app = args[++i];
     else if (arg === "--turn") turnId = args[++i];
     else if (arg === "--template") templatePath = args[++i];
+    else if (arg === "--home") home = args[++i];
     else if (arg !== undefined && !arg.startsWith("--") && name === undefined) name = arg;
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
@@ -35,9 +39,20 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   }
 
   if (!dryRun) {
-    throw new Error(
-      "live run-role turns arrive with the dispatcher wiring; use --dry-run to print the assembled brief",
-    );
+    if (app === undefined) throw new Error("run-role: live turns require --app <app>");
+    if (turnId === undefined) throw new Error("run-role: live turns require --turn <id>");
+    const appsFile = await loadApps("apps.yaml");
+    const appEntry = appsFile.apps.find((entry) => entry.name === app);
+    if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
+    const result = await runDispatchedTurn({
+      role,
+      app: appEntry,
+      appsFile,
+      turnId,
+      ...(home !== undefined ? { runtimeHome: home } : {}),
+    });
+    console.log(`${turnId}: ${result.status} — ${result.summary}`);
+    return result.status === "failed" ? 1 : 0;
   }
 
   const result = await runRole({

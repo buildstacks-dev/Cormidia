@@ -8,7 +8,10 @@
 
 import { cmdRoles } from "./cli/roles.js";
 import { cmdApps } from "./cli/apps.js";
+import { cmdApprovals } from "./cli/approvals.js";
 import { cmdBootstrap } from "./cli/bootstrap.js";
+import { cmdBudget } from "./cli/budget.js";
+import { cmdDispatch } from "./cli/dispatch.js";
 import { cmdDoctor } from "./cli/doctor.js";
 import { cmdLoop } from "./cli/loop.js";
 import { cmdPlan } from "./cli/plan.js";
@@ -31,6 +34,12 @@ Usage:
                            open a Planner co-planning session for an
                            onboarded app
   operon doctor            check runtime adapter status
+  operon approvals [review|show <id>] [--home <path>]
+                           inspect or decide the critical-op approval queue
+  operon budget [--home <path>] [--apps <path>]
+                           summarize monthly app spend and budget pauses
+  operon dispatch [--home <path>] [--dry-run]
+                           run one autonomous scheduler tick
   operon prune-runs [root] [--retention-days N]
                            delete finalized run dirs past retention
   operon loop --app <app> [--once|--follow] [--dry-run]
@@ -47,7 +56,10 @@ interface CliCommand {
 const COMMANDS: Record<string, CliCommand> = {
   roles: { run: (args) => cmdRoles(args[0]) },
   apps: { run: (args) => cmdApps(args[0]) },
+  approvals: { run: (args) => cmdApprovals(args) },
   bootstrap: { run: (args) => cmdBootstrap(args) },
+  budget: { run: (args) => cmdBudget(args) },
+  dispatch: { run: (args) => cmdDispatch(args) },
   plan: { run: (args) => cmdPlan(args) },
   pipelines: { run: (args) => cmdPipelines(args[0]) },
   doctor: { run: () => cmdDoctor() },

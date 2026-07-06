@@ -191,6 +191,7 @@ async function runPass(
       task,
       context: options.context,
       ...(verdictSchema !== undefined ? { verdictSchema } : {}),
+      ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
     },
     passHooks,
   );

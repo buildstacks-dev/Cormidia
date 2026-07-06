@@ -52,7 +52,9 @@ work.
 - CLI in dev: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
   `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run`
   · `pnpm dev loop --app <app> --once --dry-run` ·
-  `pnpm dev run-role <role> --dry-run` · `pnpm dev doctor`
+  `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
+  `pnpm dev budget` · `pnpm dev run-role <role> --dry-run` ·
+  `pnpm dev doctor`
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`
   (idempotent private repo/label setup) then
   `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox` (creates and merges one

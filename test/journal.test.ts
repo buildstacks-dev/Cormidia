@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest";
+import { decideRecovery, readJournal, writeJournalPatch } from "../src/org/journal.js";
+import { makeOrgHome } from "./fixtures/orgHome.js";
+
+describe("turn journal and recovery decisions", () => {
+  it("journal writes patch-merge and round-trips", async () => {
+    const home = makeOrgHome({ state: true });
+    try {
+      await writeJournalPatch(
+        home.root,
+        "t1",
+        { role: "builder", app: "alpha", phase: "assembling", attempt: 0, triggerKind: "event", trigger: "ticket-ready" },
+        new Date("2026-07-06T00:00:00Z"),
+      );
+      await writeJournalPatch(
+        home.root,
+        "t1",
+        { role: "builder", app: "alpha", phase: "running", session: { runtime: "claude", id: "s1" } },
+        new Date("2026-07-06T00:01:00Z"),
+      );
+      expect(await readJournal(home.root, "t1")).toMatchObject({
+        turnId: "t1",
+        role: "builder",
+        app: "alpha",
+        phase: "running",
+        trigger: "ticket-ready",
+        session: { runtime: "claude", id: "s1" },
+      });
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("decides resume for running sessions under the resume attempt cap", () => {
+    expect(
+      decideRecovery({
+        turnId: "t1",
+        role: "builder",
+        app: "alpha",
+        phase: "running",
+        attempt: 1,
+        startedAt: "2026-07-06T00:00:00Z",
+        updatedAt: "2026-07-06T00:01:00Z",
+        session: { runtime: "claude", id: "s1" },
+      }).action,
+    ).toBe("resume");
+  });
+
+  it("decides restart when no session exists or resume is unusable", () => {
+    expect(baseDecision({ session: undefined }).action).toBe("restart_clean");
+    expect(baseDecision({ resumeFailed: true }).action).toBe("restart_clean");
+  });
+
+  it("decides recollect for collecting phase and fail at attempt cap", () => {
+    expect(baseDecision({ phase: "collecting" }).action).toBe("recollect");
+    expect(baseDecision({ attempt: 3 }).action).toBe("fail_incident");
+  });
+});
+
+function baseDecision(overrides: {
+  phase?: "running" | "collecting";
+  attempt?: number;
+  session?: { runtime: "claude"; id: string };
+  resumeFailed?: boolean;
+}) {
+  return decideRecovery(
+    {
+      turnId: "t",
+      role: "builder",
+      app: "alpha",
+      phase: overrides.phase ?? "running",
+      attempt: overrides.attempt ?? 0,
+      startedAt: "2026-07-06T00:00:00Z",
+      updatedAt: "2026-07-06T00:01:00Z",
+      ...(overrides.session !== undefined
+        ? { session: overrides.session }
+        : overrides.session === undefined && "session" in overrides
+          ? {}
+          : { session: { runtime: "claude", id: "s" } }),
+    },
+    { resumeFailed: overrides.resumeFailed },
+  );
+}

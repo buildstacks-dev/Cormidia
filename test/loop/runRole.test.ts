@@ -61,6 +61,7 @@ describe("runRole", () => {
     expect(result.brief).toContain("[ticket]");
     expect(result.brief).toContain("Manual role turn: planner");
     expect(result.brief).toContain("Working directory: /some/workdir");
+    expect(result.brief).not.toContain("not wired into manual turns");
   });
 
   it("live run calls the runtime exactly once with the brief in task and leaves a run record", async () => {
@@ -89,6 +90,35 @@ describe("runRole", () => {
       expect(existsSync(paths.envelope)).toBe(true);
       expect(existsSync(paths.brief)).toBe(true);
       expect(existsSync(paths.output)).toBe(true);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("passes supplied org context through the one-pass pipeline", async () => {
+    const home = makeOrgHome({ runs: { apps: ["civic"] } });
+    const fake = new FakeRuntime([{ result: completed("planner output") }]);
+    const context = {
+      taste: ["# Org", "# Planner", "# App", "## Role turn protocol"],
+      memoryExcerpts: ["remember acceptance criteria"],
+    };
+    try {
+      const result = await runRole({
+        role: PLANNER,
+        app: "civic",
+        turnId: "turn-context",
+        dryRun: false,
+        workdir: "/some/workdir",
+        runlogRoot: home.root,
+        runtimeFor: () => fake,
+        hooks: { gate: () => ({ allow: true }) },
+        context,
+      });
+
+      expect(result.brief).toContain(
+        "Runtime context: 4 taste layers and 1 memory excerpt supplied",
+      );
+      expect(fake.calls[0]?.req.context).toEqual(context);
     } finally {
       home.cleanup();
     }

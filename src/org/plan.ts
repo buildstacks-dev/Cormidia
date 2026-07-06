@@ -3,12 +3,13 @@
 // then hand the terminal to the native Claude CLI with --append-system-prompt.
 
 import { mkdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { loadApps, type AppEntry } from "./apps.js";
+import { resolveAppWorkdir } from "./app-workdir.js";
 import { loadRoles } from "./roles.js";
 import { recordTurn, toRecord } from "../runtime/telemetry.js";
 import type { RoleConfig, TurnResult } from "../runtime/types.js";
@@ -150,7 +151,7 @@ export interface PreparePlanSessionOptions {
   orgHome?: string;
   /** roles.yaml path; defaults to `${orgHome}/roles.yaml`. */
   rolesPath?: string;
-  /** App repo checkout/worktree; defaults to cwd until M7.9 org clones land. */
+  /** App repo checkout/worktree; defaults to the local app checkout resolver. */
   workdir?: string;
   /** Parent dir for the planning worktree; test hook. */
   worktreeParent?: string;
@@ -170,8 +171,6 @@ export async function preparePlanSession(
   const orgHome = resolve(options.orgHome ?? process.cwd());
   const appsPath = resolve(options.appsPath ?? join(orgHome, "apps.yaml"));
   const rolesPath = resolve(options.rolesPath ?? join(orgHome, "roles.yaml"));
-  const appWorkdir = resolve(options.workdir ?? process.cwd());
-
   const appsFile = await loadApps(appsPath);
   const app = appsFile.apps.find((a) => a.name === options.appName);
   if (!app) {
@@ -187,6 +186,12 @@ export async function preparePlanSession(
   if (plannerRole.runtime !== "claude") {
     throw new Error(`plan: co-planning v1 requires planner.runtime=claude (got ${plannerRole.runtime})`);
   }
+
+  const appWorkdir = resolveAppWorkdir(app, {
+    orgRoot: orgHome,
+    runtimeHome: join(homedir(), ".operon", appsFile.org.name),
+    ...(options.workdir !== undefined ? { explicitWorkdir: options.workdir } : {}),
+  });
 
   const contextOptions: PlanningContextRequest = {
     orgHome,

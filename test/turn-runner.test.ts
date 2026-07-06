@@ -103,6 +103,7 @@ describe("dispatched turn runner", () => {
       });
 
       expect(result.status).toBe("blocked_on_gate");
+      expect(runtime.calls[0]?.req.context.taste.join("\n")).toContain("## Role turn protocol");
       expect(existsSync(`${home.root}/repos/alpha/.git`)).toBe(true);
       expect((await new ApprovalStore(home.root).listPending())[0]).toMatchObject({
         app: "alpha",

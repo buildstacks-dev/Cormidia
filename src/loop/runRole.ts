@@ -7,15 +7,14 @@
 // so even a manual turn leaves its full §9 run record and passes the
 // critical-ops gate (defaultGate unless the caller supplies hooks).
 //
-// `app`/`turnId` are accepted and passed through now; recording them in
-// telemetry arrives with the app registry work. Full 5-layer context
-// assembly replaces the minimal brief here when the org layer wires it —
-// until then the brief carries the invocation itself.
+// `app`/`turnId` are accepted and passed through now. The org layer may pass
+// a fully assembled ContextBundle; this loop-layer function never imports
+// the org assembler directly, preserving src/org -> src/loop -> src/runtime.
 
 import { basename, dirname } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
-import type { RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import { assembleBrief } from "./brief.js";
 import { executePipeline, type PassRunRecord } from "./pipeline.js";
 import type { PipelineConfig } from "./pipelines.js";
@@ -37,6 +36,8 @@ export interface RunRoleRequest {
   runtimeFor?: (role: RoleConfig) => Runtime;
   /** Defaults to the critical-ops defaultGate — manual turns are gated too. */
   hooks?: TurnHooks;
+  /** Optional full context assembled by src/org callers. */
+  context?: ContextBundle;
   briefBudgetTokens?: number;
   clock?: () => Date;
 }
@@ -49,6 +50,7 @@ export interface RunRoleResult {
 
 export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
   const clock = request.clock ?? ((): Date => new Date());
+  const context = request.context ?? { taste: [], memoryExcerpts: [] };
   const brief = assembleBrief(
     {
       ticket: {
@@ -58,8 +60,10 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
           `(operon run-role). There is no ticket behind this turn.`,
           `App: ${request.app ?? "(none — org-level turn)"}`,
           "",
-          "Full org context assembly is not wired into manual turns yet; this brief",
-          "carries the invocation only.",
+          request.context === undefined
+            ? "Runtime context: no app context supplied; this brief carries the invocation only."
+            : `Runtime context: ${countLabel(context.taste.length, "taste layer")} and ` +
+              `${countLabel(context.memoryExcerpts.length, "memory excerpt")} supplied through the adapter context channel.`,
         ].join("\n"),
       },
       ...(request.workdir !== undefined ? { repo: `Working directory: ${request.workdir}` } : {}),
@@ -96,7 +100,7 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
     runtimeFor: request.runtimeFor,
     briefFor: () => brief,
     promptsDir: request.templatePath !== undefined ? dirname(request.templatePath) : ".",
-    context: { taste: [], memoryExcerpts: [] },
+    context,
     workdir: request.workdir ?? process.cwd(),
     hooks: request.hooks ?? { gate: defaultGate },
     runlog: {
@@ -109,4 +113,8 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
 
   const record = result.passes[0];
   return { brief, executed: true, ...(record !== undefined ? { record } : {}) };
+}
+
+function countLabel(count: number, label: string): string {
+  return `${count} ${label}${count === 1 ? "" : "s"}`;
 }

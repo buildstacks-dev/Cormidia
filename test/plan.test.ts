@@ -45,6 +45,17 @@ function git(cwd: string, args: string[]): string {
 
 function makeGitApp(withCharter = true): string {
   const root = makeDir("operon-plan-app-");
+  initGitApp(root, withCharter);
+  return root;
+}
+
+function makeGitAppAt(root: string, withCharter = true): string {
+  mkdirSync(root, { recursive: true });
+  initGitApp(root, withCharter);
+  return root;
+}
+
+function initGitApp(root: string, withCharter = true): void {
   git(root, ["init", "--initial-branch=main"]);
   git(root, ["config", "user.email", "test@example.com"]);
   git(root, ["config", "user.name", "Operon Test"]);
@@ -52,7 +63,6 @@ function makeGitApp(withCharter = true): string {
   if (withCharter) write(root, ".operon/TASTE.md", "# App Charter\n\nShip small.\n");
   git(root, ["add", "."]);
   git(root, ["commit", "-m", "initial"]);
-  return root;
 }
 
 function makeOrgHome(appName = "operon-sandbox-alpha"): string {
@@ -198,5 +208,50 @@ describe("cmdPlan", () => {
     expect(out).toContain("topic: stats percentile helper");
     expect(out).toMatch(/context bytes: \d+/);
     expect(git(app, ["branch", "--list", "op/plan-stats-percentile-helper"]).trim()).toBe("");
+  });
+
+  it("dry-run resolves a sibling app checkout when --workdir is omitted", async () => {
+    const parent = makeDir("operon-plan-parent-");
+    const orgHome = join(parent, "Operon");
+    mkdirSync(orgHome, { recursive: true });
+    write(orgHome, "TASTE.md", "# Org Taste\n\nBe precise.\n");
+    write(
+      orgHome,
+      "roles.yaml",
+      `defaults:
+  max_turn_budget_usd: 5
+roles:
+  planner:
+    runtime: claude
+    model: claude-opus-4-8
+    effort: high
+    delegation: {allow: []}
+    triggers: [{manual: true}]
+    outputs: [tickets]
+`,
+    );
+    write(
+      orgHome,
+      "apps.yaml",
+      `org: {name: operon, max_concurrent_turns: 2}
+defaults: {budget_usd_month: 1000}
+apps:
+  operon-sandbox-alpha:
+    repo: owner/operon-sandbox-alpha
+    status: onboarding
+    cadence: {}
+`,
+    );
+    const app = makeGitAppAt(join(parent, "operon-sandbox-alpha"));
+    process.chdir(orgHome);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const code = await cmdPlan(["operon-sandbox-alpha", "--dry-run"]);
+
+    expect(code).toBe(0);
+    const out = log.mock.calls.map((c) => c.join(" ")).join("\n");
+    expect(out).toContain("plan app: operon-sandbox-alpha");
+    expect(out).toContain("branch: op/plan-operon-sandbox-alpha");
+    expect(git(app, ["branch", "--list", "op/plan-operon-sandbox-alpha"]).trim()).toBe("");
   });
 });

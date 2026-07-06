@@ -1916,6 +1916,33 @@ waiver).*
   were mostly critical). A production-flavored re-run on buildstacks can
   accompany M11.1 post-launch, but the functional acceptance is M7.14's.
 
+### M12 — Post-M11 hardening: manual app commands use real app context
+*Milestone demo: `operon plan <app> --dry-run` and
+`operon run-role <role> --app <app> --dry-run` resolve a real local app
+checkout, assemble the full app-aware context, and prove the behavior across
+alpha, beta, and gamma alongside the package and live-adapter gates.*
+
+- [x] **M12.1 Manual app checkout/context resolution + verification** ✅ 2026-07-06
+  — `operon plan` no longer silently plans against the Operon repo when a
+  local app checkout exists; it resolves managed dispatch clones first, then
+  sibling `~/Build/<app>` checkouts, with `--workdir` as an explicit override.
+  `operon run-role --app ... --dry-run` now assembles app context and passes
+  it into the synthesized one-pass pipeline instead of using an empty
+  `ContextBundle`. Regression coverage added for checkout resolution,
+  `runRole` context propagation, dispatched fallback turns, and sibling
+  planner checkout resolution. Verification recorded in
+  `research/2026-07-06_m12-release-hardening.md`.
+  **Files:** src/org/app-workdir.ts, src/org/plan.ts, src/cli/run-role.ts,
+  src/loop/runRole.ts, src/org/turn-runner.ts, tests, docs.
+  **Accept:** `pnpm test && pnpm typecheck && pnpm build`; sandbox-native
+  checks for alpha, beta, and gamma; bootstrap/plan/loop/run-role dry-runs
+  across the sandbox apps; `pnpm test:live` with Claude conformance passing
+  and Codex/pi live smokes skipping unless opt-in env vars are set.
+  **Demo:** Manual app work now starts from the real target app checkout and
+  carries the same context shape as dispatched turns.
+  **Read:** docs/architecture.md §5, §8; src/loop/runRole.ts;
+  src/org/context.ts; src/org/plan.ts.
+
 ## Open decisions (need the human)
 No human decisions are open as of 2026-07-06. Build-time verification
 questions remain in the relevant implementation items (for example Codex/pi

@@ -632,7 +632,7 @@ app (optionally raising the budget in apps.yaml themselves).
 A third invocation shape beside schedule and event: **manual, interactive**.
 
 ```
-operon plan <app> [--topic "stats percentile helper"]
+operon plan <app> [--topic "stats percentile helper"] [--workdir <app-checkout>]
 ```
 
 - Assembles the Planner's context exactly as §5 (same TASTE layers, same
@@ -641,6 +641,11 @@ an **interactive** session with the human in the terminal — v1: spawn the
 role's native CLI (`claude`) in that worktree with the assembled context
 injected via its append-system-prompt channel. Co-planning is
 Anthropic-native v1; it generalizes when another runtime hosts the Planner.
+- App checkout resolution is shared by manual app CLIs: explicit `--workdir`
+  wins; otherwise Operon prefers the managed dispatch clone at
+  `~/.operon/<org>/repos/<app>`, then a sibling checkout beside the Operon
+  repo (the `~/Build/<app>` laptop layout), then the repo basename. It fails
+  loudly instead of silently using the Operon repo as the target app.
 - The contract at session end is unchanged — artifacts out: drafted tickets
 (GitHub issues in the §10 format, labeled by the human's call: `op:ready`
 or left unlabeled for another pass) and/or a spec note committed under the

@@ -5,10 +5,15 @@
 // loop-layer contract (src/loop/runRole.ts) is already live-capable and
 // the dispatcher will call it with this exact signature.
 
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { loadRoles } from "../org/roles.js";
 import { runRole } from "../loop/runRole.js";
 import { loadApps } from "../org/apps.js";
+import { resolveAppWorkdir } from "../org/app-workdir.js";
+import { assembleContext } from "../org/context.js";
 import { runDispatchedTurn } from "../org/turn-runner.js";
+import type { ContextBundle } from "../runtime/types.js";
 
 export async function cmdRunRole(args: string[]): Promise<number> {
   let name: string | undefined;
@@ -16,6 +21,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   let turnId: string | undefined;
   let templatePath: string | undefined;
   let home: string | undefined;
+  let workdir: string | undefined;
   let dryRun = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -25,6 +31,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     else if (arg === "--turn") turnId = args[++i];
     else if (arg === "--template") templatePath = args[++i];
     else if (arg === "--home") home = args[++i];
+    else if (arg === "--workdir") workdir = args[++i];
     else if (arg !== undefined && !arg.startsWith("--") && name === undefined) name = arg;
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
@@ -55,13 +62,36 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     return result.status === "failed" ? 1 : 0;
   }
 
+  let resolvedWorkdir = workdir ?? process.cwd();
+  let context: ContextBundle | undefined;
+  if (app !== undefined) {
+    const appsFile = await loadApps("apps.yaml");
+    const appEntry = appsFile.apps.find((entry) => entry.name === app);
+    if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
+    resolvedWorkdir = resolveAppWorkdir(appEntry, {
+      orgRoot: process.cwd(),
+      runtimeHome: join(homedir(), ".operon", appsFile.org.name),
+      ...(workdir !== undefined ? { explicitWorkdir: workdir } : {}),
+    });
+    context = (
+      await assembleContext({
+        orgHome: process.cwd(),
+        appWorkdir: resolvedWorkdir,
+        app: appEntry.name,
+        role,
+        taskText: `manual ${role.name} turn for ${appEntry.name}`,
+      })
+    ).bundle;
+  }
+
   const result = await runRole({
     role,
     ...(app !== undefined ? { app } : {}),
     ...(turnId !== undefined ? { turnId } : {}),
     ...(templatePath !== undefined ? { templatePath } : {}),
+    ...(context !== undefined ? { context } : {}),
     dryRun: true,
-    workdir: process.cwd(),
+    workdir: resolvedWorkdir,
   });
   console.log(result.brief);
   return 0;

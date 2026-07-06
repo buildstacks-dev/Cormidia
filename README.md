@@ -59,13 +59,15 @@ dispatcher ships.
 
 ## Status
 
-M0-M11 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
+M0-M12 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
 CodexRuntime, PiRuntime, pass executor, run logs, app registry,
 bootstrap flow, co-planning launcher,
 quality gates, typed verdict parsers, GitHub ticket state machine, scheduler,
 manual loop driver, real Builder/Reviewer pipeline integration, approval queue,
 dispatcher, budget overlay, Planner pipelines, standing-role v0 pipelines, and
-trigger routing are implemented and tested. M5 is proven against a
+trigger routing are implemented and tested. Manual app commands now resolve
+real app checkouts and assemble app-aware context instead of falling back to
+the Operon repo. M5 is proven against a
 disposable private GitHub repo: ready issue → claim → real gates → PR →
 injected review → squash merge → closed issue. M6 is proven on
 `operon-sandbox-alpha`: real Claude Builder/Reviewer passes shipped issue #1
@@ -73,7 +75,8 @@ through PR #2 to a merged squash commit. M8 is proven on
 `operon-sandbox-gamma`: a running `/health` service, a real private
 `op:incident` issue, and Support/Marketing draft artifacts. M11 onboarded the
 private `buildstacks-dev/buildstacks.dev` repo as `status: onboarding`
-without changing Operon runtime code.
+without changing Operon runtime code. M12 re-verified alpha, beta, and gamma
+functional smokes plus live Claude adapter conformance.
 
 `docs/capability-matrix.md` records each adapter's native, adapter-built, and
 degraded capabilities. `pnpm test:live` is the gated live-adapter proof; Codex

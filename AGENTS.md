@@ -9,15 +9,16 @@ log; on conflict, its Decided section wins and this file is stale — fix this f
 An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
 a private GitHub repo, with a human gating critical ops only. Currently a
-buildable runtime scaffold: M0-M11 are complete, ClaudeRuntime is live-tested,
+buildable runtime scaffold: M0-M12 are complete, ClaudeRuntime is live-tested,
 the pass executor/runlog/bootstrap/qgates layers are real, the GitHub ticket
 state machine can take a real sandbox-alpha issue through Builder / Reviewer
 passes, PR, gates, review fallback, and squash-merge, and dispatch routes
 standing-role triggers to Planner/SRE/Support/Marketing v0 pipelines.
 OKF memory, full context assembly, scorecards, retro reporting/curation,
 status/analyze CLIs, cache-token telemetry, CodexRuntime, and PiRuntime are
-implemented; buildstacks.dev is onboarded as a production app in
-`status: onboarding`.
+implemented; manual app commands resolve real app checkouts and app-aware
+context; buildstacks.dev is onboarded as a production app in `status:
+onboarding`.
 
 ## Map
 | Path | What it is |
@@ -60,6 +61,7 @@ implemented; buildstacks.dev is onboarded as a production app in
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
   `pnpm dev retro --date 2026-07-04` ·
+  `pnpm dev run-role <role> --app <app> --dry-run` ·
   `pnpm dev run-role <role> --dry-run` · `pnpm dev doctor`
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`
   (idempotent private repo/label setup) then

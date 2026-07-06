@@ -135,6 +135,7 @@ export async function runDispatchedTurn(
         runlogRoot: runtimeHome,
         runtimeFor: options.runtimeFor ?? ((role) => getRuntime(role.runtime)),
         hooks,
+        context,
         clock,
       });
       result = generic.record?.result ?? zeroResult("completed", "role turn completed", options.role);

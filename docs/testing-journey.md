@@ -59,6 +59,7 @@ against real repos.
 | **M8 — Planning + standing roles** | Can it plan, not just build? | Completed 2026-07-06: the root protocol now has executable `plan`, `groom`, `triage`, SRE, Support, and Marketing pipelines; dispatch routes roles.yaml triggers to those protocols; file-drop company event schemas are documented and validated. Gamma proves the non-build roles with a running `/health` service, private `op:incident` issue, and draft-only Support/Marketing artifacts. |
 | **M9 — Learning & visibility** | Does it get better, and can you see what it does? | Agents record lessons per app and reuse them; each role gets a scorecard; a weekly retro turns scores into adjustments; status/analysis views work without reading transcripts. |
 | **M10 — Multiple AI providers** | Does it work beyond one vendor? | Builder and reviewer run on different AI providers (uncorrelated review blind spots), verified with real turns; a capability matrix records what each provider supports. |
+| **M12 — Manual app hardening** | Do human-invoked app commands use the actual app, not the org repo? | Completed 2026-07-06: plan/run-role dry-runs resolve managed or sibling sandbox checkouts, assemble app-aware context, and were verified across alpha, beta, and gamma after the full package gates and Claude live conformance. |
 
 **After M10 the product is build-complete.** Only then are the real
 applications onboarded — together with the human operator, as a launch

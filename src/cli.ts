@@ -6,11 +6,11 @@
 // (src/cli/roles.ts, src/cli/doctor.ts, ...). Adding a subcommand is a new
 // file + one registry line here — never a growing shared switch (M0.1).
 
-import { NotImplementedError } from "./runtime/types.js";
 import { cmdRoles } from "./cli/roles.js";
 import { cmdApps } from "./cli/apps.js";
 import { cmdBootstrap } from "./cli/bootstrap.js";
 import { cmdDoctor } from "./cli/doctor.js";
+import { cmdLoop } from "./cli/loop.js";
 import { cmdPlan } from "./cli/plan.js";
 import { cmdPipelines } from "./cli/pipelines.js";
 import { cmdPruneRuns } from "./cli/prune-runs.js";
@@ -33,7 +33,8 @@ Usage:
   operon doctor            check runtime adapter status
   operon prune-runs [root] [--retention-days N]
                            delete finalized run dirs past retention
-  operon loop              run the build loop over ready tickets (stub)
+  operon loop --app <app> [--once|--follow] [--dry-run]
+                           run the build loop over ready tickets
   operon run-role <role> [--app <app>] [--turn <id>] [--template <path>] [--dry-run]
                            one role turn as a one-pass pipeline (--dry-run
                            prints the assembled brief, token-free)
@@ -41,14 +42,6 @@ Usage:
 
 interface CliCommand {
   run(args: string[]): number | Promise<number>;
-}
-
-function notImplemented(cmd: string): CliCommand {
-  return {
-    run: () => {
-      throw new NotImplementedError(`command "${cmd}"`, "src/loop/loop.ts and src/org/");
-    },
-  };
 }
 
 const COMMANDS: Record<string, CliCommand> = {
@@ -59,7 +52,7 @@ const COMMANDS: Record<string, CliCommand> = {
   pipelines: { run: (args) => cmdPipelines(args[0]) },
   doctor: { run: () => cmdDoctor() },
   "prune-runs": { run: (args) => cmdPruneRuns(args) },
-  loop: notImplemented("loop"),
+  loop: { run: (args) => cmdLoop(args) },
   "run-role": { run: (args) => cmdRunRole(args) },
 };
 

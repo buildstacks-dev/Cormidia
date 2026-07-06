@@ -1,0 +1,507 @@
+// Provider-blind GitHub operations for the build loop (M5.1).
+//
+// The loop state machine depends on GitHub artifacts and labels, but not on
+// any GitHub client library. GhCliOps is deliberately a thin wrapper over the
+// installed `gh` CLI with an injectable executor for tests. Every non-zero
+// command becomes a GhOpsError carrying stderr verbatim: orchestrator side
+// effects either happen or fail loudly (docs/loop.md §1).
+
+import { spawn } from "node:child_process";
+
+export type IssueState = "OPEN" | "CLOSED" | string;
+export type PullRequestState = "OPEN" | "CLOSED" | "MERGED" | string;
+export type ReviewState = "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | string;
+
+export interface GhIssue {
+  number: number;
+  title: string;
+  body: string;
+  labels: string[];
+  state: IssueState;
+  url?: string;
+}
+
+export interface GhPullRequest {
+  number: number;
+  title: string;
+  body: string;
+  url?: string;
+  state: PullRequestState;
+  headRefName: string;
+  baseRefName: string;
+  headRefOid?: string;
+  isDraft?: boolean;
+  mergeCommitOid?: string;
+}
+
+export interface GhReview {
+  state: ReviewState;
+  body: string;
+  commitId?: string;
+  submittedAt?: string;
+  author?: string;
+}
+
+export interface CreatePrInput {
+  head: string;
+  base: string;
+  title: string;
+  body: string;
+  draft?: boolean;
+}
+
+export interface CreateReviewInput {
+  state: "approve" | "request_changes" | "comment";
+  body: string;
+}
+
+export interface SquashMergeInput {
+  subject: string;
+  body?: string;
+  matchHeadCommit?: string;
+}
+
+export interface ListIssueOptions {
+  labels?: string[];
+  state?: "open" | "closed" | "all";
+  limit?: number;
+}
+
+export interface ListPullRequestOptions {
+  state?: "open" | "closed" | "merged" | "all";
+}
+
+export interface GhOps {
+  addLabel(issueNumber: number, label: string): Promise<void>;
+  removeLabel(issueNumber: number, label: string): Promise<void>;
+  swapLabel(issueNumber: number, removeLabel: string, addLabel: string): Promise<void>;
+  commentIssue(issueNumber: number, body: string): Promise<void>;
+  listIssues(options?: ListIssueOptions): Promise<GhIssue[]>;
+  readIssue(issueNumber: number): Promise<GhIssue>;
+  createPR(input: CreatePrInput): Promise<GhPullRequest>;
+  readPR(selector: number | string): Promise<GhPullRequest>;
+  listPRsForBranch(branch: string, options?: ListPullRequestOptions): Promise<GhPullRequest[]>;
+  createReview(prNumber: number, input: CreateReviewInput): Promise<GhReview>;
+  listReviews(prNumber: number): Promise<GhReview[]>;
+  squashMerge(prNumber: number, input: SquashMergeInput): Promise<GhPullRequest>;
+  deleteBranch(branch: string): Promise<void>;
+}
+
+export interface GhExecResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+export type GhExec = (args: readonly string[], input?: string) => Promise<GhExecResult>;
+
+export interface GhOpsErrorDetails {
+  args: readonly string[];
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  code?: string;
+}
+
+export class GhOpsError extends Error {
+  readonly args: readonly string[];
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly exitCode: number;
+  readonly code?: string;
+
+  constructor(message: string, details: GhOpsErrorDetails) {
+    const suffix = details.stderr.trim().length > 0 ? `\n${details.stderr}` : "";
+    super(`${message}${suffix}`);
+    this.name = "GhOpsError";
+    this.args = details.args;
+    this.stdout = details.stdout;
+    this.stderr = details.stderr;
+    this.exitCode = details.exitCode;
+    if (details.code !== undefined) this.code = details.code;
+  }
+}
+
+const ISSUE_FIELDS = "number,title,body,labels,state,url";
+const PR_FIELDS = [
+  "number",
+  "title",
+  "body",
+  "url",
+  "state",
+  "headRefName",
+  "headRefOid",
+  "baseRefName",
+  "isDraft",
+  "mergeCommit",
+].join(",");
+
+export class GhCliOps implements GhOps {
+  readonly repo: string;
+  private readonly exec: GhExec;
+
+  constructor(repo: string, exec: GhExec = defaultGhExec) {
+    this.repo = repo;
+    this.exec = exec;
+  }
+
+  async addLabel(issueNumber: number, label: string): Promise<void> {
+    await this.run(["issue", "edit", String(issueNumber), "--repo", this.repo, "--add-label", label]);
+  }
+
+  async removeLabel(issueNumber: number, label: string): Promise<void> {
+    await this.run([
+      "issue",
+      "edit",
+      String(issueNumber),
+      "--repo",
+      this.repo,
+      "--remove-label",
+      label,
+    ]);
+  }
+
+  async swapLabel(issueNumber: number, removeLabel: string, addLabel: string): Promise<void> {
+    await this.run([
+      "issue",
+      "edit",
+      String(issueNumber),
+      "--repo",
+      this.repo,
+      "--add-label",
+      addLabel,
+      "--remove-label",
+      removeLabel,
+    ]);
+  }
+
+  async commentIssue(issueNumber: number, body: string): Promise<void> {
+    await this.run(
+      ["issue", "comment", String(issueNumber), "--repo", this.repo, "--body-file", "-"],
+      body,
+    );
+  }
+
+  async listIssues(options: ListIssueOptions = {}): Promise<GhIssue[]> {
+    const args = [
+      "issue",
+      "list",
+      "--repo",
+      this.repo,
+      "--state",
+      options.state ?? "open",
+      "--limit",
+      String(options.limit ?? 100),
+      "--json",
+      ISSUE_FIELDS,
+    ];
+    for (const label of options.labels ?? []) args.push("--label", label);
+    return parseIssueList(await this.runJson(args));
+  }
+
+  async readIssue(issueNumber: number): Promise<GhIssue> {
+    return parseIssue(
+      await this.runJson([
+        "issue",
+        "view",
+        String(issueNumber),
+        "--repo",
+        this.repo,
+        "--json",
+        ISSUE_FIELDS,
+      ]),
+    );
+  }
+
+  async createPR(input: CreatePrInput): Promise<GhPullRequest> {
+    const args = [
+      "pr",
+      "create",
+      "--repo",
+      this.repo,
+      "--head",
+      input.head,
+      "--base",
+      input.base,
+      "--title",
+      input.title,
+      "--body-file",
+      "-",
+    ];
+    if (input.draft === true) args.push("--draft");
+    const created = await this.run(args, input.body);
+    const selector = created.stdout.trim().length > 0 ? created.stdout.trim() : input.head;
+    return this.readPR(selector);
+  }
+
+  async readPR(selector: number | string): Promise<GhPullRequest> {
+    return parsePullRequest(
+      await this.runJson([
+        "pr",
+        "view",
+        String(selector),
+        "--repo",
+        this.repo,
+        "--json",
+        PR_FIELDS,
+      ]),
+    );
+  }
+
+  async listPRsForBranch(
+    branch: string,
+    options: ListPullRequestOptions = {},
+  ): Promise<GhPullRequest[]> {
+    return parsePullRequestList(
+      await this.runJson([
+        "pr",
+        "list",
+        "--repo",
+        this.repo,
+        "--head",
+        branch,
+        "--state",
+        options.state ?? "all",
+        "--json",
+        PR_FIELDS,
+      ]),
+    );
+  }
+
+  async createReview(prNumber: number, input: CreateReviewInput): Promise<GhReview> {
+    const flag =
+      input.state === "approve"
+        ? "--approve"
+        : input.state === "request_changes"
+          ? "--request-changes"
+          : "--comment";
+    await this.run(
+      ["pr", "review", String(prNumber), "--repo", this.repo, flag, "--body-file", "-"],
+      input.body,
+    );
+    return {
+      state:
+        input.state === "approve"
+          ? "APPROVED"
+          : input.state === "request_changes"
+            ? "CHANGES_REQUESTED"
+            : "COMMENTED",
+      body: input.body,
+    };
+  }
+
+  async listReviews(prNumber: number): Promise<GhReview[]> {
+    const raw = await this.runJson([
+      "pr",
+      "view",
+      String(prNumber),
+      "--repo",
+      this.repo,
+      "--json",
+      "reviews",
+    ]);
+    const record = asRecord(raw, "gh pr view reviews output");
+    const reviews = record["reviews"];
+    if (!Array.isArray(reviews)) throw new Error("gh pr view reviews output: reviews is not a list");
+    return reviews.map(parseReview);
+  }
+
+  async squashMerge(prNumber: number, input: SquashMergeInput): Promise<GhPullRequest> {
+    const args = [
+      "pr",
+      "merge",
+      String(prNumber),
+      "--repo",
+      this.repo,
+      "--squash",
+      "--subject",
+      input.subject,
+    ];
+    if (input.body !== undefined) args.push("--body", input.body);
+    if (input.matchHeadCommit !== undefined) {
+      args.push("--match-head-commit", input.matchHeadCommit);
+    }
+    try {
+      await this.run(args);
+    } catch (error) {
+      if (error instanceof GhOpsError && /conflict|mergeable|not merge/i.test(error.stderr)) {
+        throw new GhOpsError("gh squash merge failed with a merge conflict", {
+          args: error.args,
+          stdout: error.stdout,
+          stderr: error.stderr,
+          exitCode: error.exitCode,
+          code: "merge_conflict",
+        });
+      }
+      throw error;
+    }
+    return this.readPR(prNumber);
+  }
+
+  async deleteBranch(branch: string): Promise<void> {
+    await this.run(["api", "-X", "DELETE", `repos/${this.repo}/git/refs/heads/${branch}`]);
+  }
+
+  private async run(args: readonly string[], input?: string): Promise<GhExecResult> {
+    const result = await this.exec(args, input);
+    if (result.exitCode !== 0) {
+      throw new GhOpsError(`gh ${args.join(" ")} failed with exit ${result.exitCode}`, {
+        args,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode,
+      });
+    }
+    return result;
+  }
+
+  private async runJson(args: readonly string[], input?: string): Promise<unknown> {
+    const result = await this.run(args, input);
+    try {
+      return JSON.parse(result.stdout) as unknown;
+    } catch (error) {
+      throw new Error(
+        `gh ${args.join(" ")} did not return valid JSON: ` +
+          `${error instanceof Error ? error.message : String(error)}\n${result.stdout}`,
+      );
+    }
+  }
+}
+
+export function isMergeConflict(error: unknown): boolean {
+  return error instanceof GhOpsError && error.code === "merge_conflict";
+}
+
+function defaultGhExec(args: readonly string[], input?: string): Promise<GhExecResult> {
+  return new Promise((resolve) => {
+    const child = spawn("gh", [...args], {
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      resolve({ stdout, stderr: stderr + error.message, exitCode: 1 });
+    });
+    child.on("close", (code) => {
+      resolve({ stdout, stderr, exitCode: code ?? 1 });
+    });
+    if (input !== undefined) child.stdin.end(input);
+    else child.stdin.end();
+  });
+}
+
+function parseIssueList(raw: unknown): GhIssue[] {
+  if (!Array.isArray(raw)) throw new Error("gh issue list output is not a list");
+  return raw.map(parseIssue);
+}
+
+function parseIssue(raw: unknown): GhIssue {
+  const record = asRecord(raw, "gh issue output");
+  return {
+    number: numberField(record, "number", "gh issue output"),
+    title: stringField(record, "title", "gh issue output"),
+    body: stringField(record, "body", "gh issue output", ""),
+    labels: parseLabels(record["labels"]),
+    state: stringField(record, "state", "gh issue output", "OPEN"),
+    ...(typeof record["url"] === "string" ? { url: record["url"] } : {}),
+  };
+}
+
+function parsePullRequestList(raw: unknown): GhPullRequest[] {
+  if (!Array.isArray(raw)) throw new Error("gh pr list output is not a list");
+  return raw.map(parsePullRequest);
+}
+
+function parsePullRequest(raw: unknown): GhPullRequest {
+  const record = asRecord(raw, "gh pr output");
+  const mergeCommit = record["mergeCommit"];
+  const mergeCommitOid =
+    mergeCommit && typeof mergeCommit === "object" && !Array.isArray(mergeCommit)
+      ? (mergeCommit as Record<string, unknown>)["oid"]
+      : undefined;
+  return {
+    number: numberField(record, "number", "gh pr output"),
+    title: stringField(record, "title", "gh pr output"),
+    body: stringField(record, "body", "gh pr output", ""),
+    state: stringField(record, "state", "gh pr output", "OPEN"),
+    headRefName: stringField(record, "headRefName", "gh pr output"),
+    baseRefName: stringField(record, "baseRefName", "gh pr output", "main"),
+    ...(typeof record["url"] === "string" ? { url: record["url"] } : {}),
+    ...(typeof record["headRefOid"] === "string" ? { headRefOid: record["headRefOid"] } : {}),
+    ...(typeof record["isDraft"] === "boolean" ? { isDraft: record["isDraft"] } : {}),
+    ...(typeof mergeCommitOid === "string" ? { mergeCommitOid } : {}),
+  };
+}
+
+function parseReview(raw: unknown): GhReview {
+  const record = asRecord(raw, "gh review output");
+  const commit = record["commit"];
+  const commitId =
+    typeof record["commitId"] === "string"
+      ? record["commitId"]
+      : typeof record["commit_id"] === "string"
+        ? record["commit_id"]
+        : commit && typeof commit === "object" && !Array.isArray(commit)
+          ? (commit as Record<string, unknown>)["oid"]
+          : undefined;
+  const author = record["author"];
+  const login =
+    author && typeof author === "object" && !Array.isArray(author)
+      ? (author as Record<string, unknown>)["login"]
+      : undefined;
+  return {
+    state: stringField(record, "state", "gh review output"),
+    body: stringField(record, "body", "gh review output", ""),
+    ...(typeof commitId === "string" ? { commitId } : {}),
+    ...(typeof record["submittedAt"] === "string" ? { submittedAt: record["submittedAt"] } : {}),
+    ...(typeof login === "string" ? { author: login } : {}),
+  };
+}
+
+function parseLabels(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((label) => {
+      if (typeof label === "string") return label;
+      if (label && typeof label === "object" && !Array.isArray(label)) {
+        const name = (label as Record<string, unknown>)["name"];
+        if (typeof name === "string") return name;
+      }
+      return undefined;
+    })
+    .filter((label): label is string => label !== undefined);
+}
+
+function asRecord(raw: unknown, where: string): Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`${where}: expected object`);
+  }
+  return raw as Record<string, unknown>;
+}
+
+function stringField(
+  record: Record<string, unknown>,
+  key: string,
+  where: string,
+  fallback?: string,
+): string {
+  const value = record[key];
+  if (typeof value === "string") return value;
+  if (fallback !== undefined) return fallback;
+  throw new Error(`${where}: ${key} is required`);
+}
+
+function numberField(record: Record<string, unknown>, key: string, where: string): number {
+  const value = record[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  throw new Error(`${where}: ${key} is required`);
+}

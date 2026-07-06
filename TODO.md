@@ -833,7 +833,21 @@ real gates → review → ship to squash-merged and closed. (Note: TODO's old
 item 3 was stale — buildstacks-dev/Operon already exists; what the loop
 needs is this sandbox.)*
 
-- [ ] **M5.1 GitHub ops module (`github.ts`)**
+> **Completed 2026-07-06:** M5 landed the provider-blind `GhOps` layer,
+> offline `FakeGhOps`+real-git harness, loop phase functions, scheduler,
+> `operon loop`, and disposable GitHub sandbox e2e. Verification:
+> `pnpm test` (36 files / 353 tests), `pnpm typecheck`, `pnpm build`,
+> two successful `GH_SANDBOX_REPO=bikramgupta/operon-m5-sandbox pnpm
+> e2e:sandbox:setup` runs, and `GH_SANDBOX_REPO=bikramgupta/operon-m5-sandbox
+> pnpm e2e:sandbox` → `RESULT: merged #10`; `gh issue view 10` showed
+> `state: CLOSED` and PR #11 was merged. Alpha functional check:
+> `npm test && npm run lint`; beta: `npm test`; `operon loop --dry-run`
+> against both found no ready tickets. Gamma was not present locally.
+
+- [x] **M5.1 GitHub ops module (`github.ts`)** ✅ 2026-07-06 —
+  `src/loop/github.ts` exposes `GhOps`, `GhCliOps`, loud `GhOpsError`,
+  JSON parsing, PR/review/label/comment/merge/branch operations; tests pin
+  exact `gh` argv and stderr behavior.
   **Goal:** Provider-blind `GhOps` interface + `GhCliOps` over the `gh` CLI
   (injectable exec for tests, no new npm dependency): label add/remove/
   atomic swap, issue comments, PR create/read/list-by-branch, review
@@ -849,7 +863,10 @@ needs is this sandbox.)*
   AGENTS.md (dependency discipline).
   **Session:** sonnet, single session.
 
-- [ ] **M5.2 FakeGhOps + sandbox harness**
+- [x] **M5.2 FakeGhOps + sandbox harness** ✅ 2026-07-06 —
+  `test/support/fakeGhOps.ts` models label preconditions, issue/PR/review
+  state, and real local squash-merge/branch-delete via M4.1's bare/clone
+  fixture.
   **Goal:** In-memory `FakeGhOps` (real label-state + PR/review
   bookkeeping, atomic-swap precondition semantics, call log) paired with
   M4.1's bare/clone fixture so squash-merge and branch-delete run real git
@@ -864,7 +881,10 @@ needs is this sandbox.)*
   **Read:** docs/architecture.md §3; docs/loop.md §7.
   **Session:** sonnet, single session.
 
-- [ ] **M5.3 LoopItem/LoopPhase rewrite + claim phase**
+- [x] **M5.3 LoopItem/LoopPhase rewrite + claim phase** ✅ 2026-07-06 —
+  `LoopPhase` now covers ready/building/gates/reviewing/shipping/merged/
+  returned/blocked; claim does the atomic ready→building label swap then
+  creates `op/<issue>-<slug>` and a worktree.
   **Goal:** Rewrite src/loop/loop.ts's data model per loop.md §10:
   LoopPhase = ready|building|gates|reviewing|shipping|merged|returned|
   blocked; LoopItem gains tier (parsed from the ticket's
@@ -883,7 +903,10 @@ needs is this sandbox.)*
   **Read:** docs/loop.md §7, §10; docs/architecture.md §3.
   **Session:** sonnet, single session.
 
-- [ ] **M5.4 Gates phase + remediation cycle (real qgates wired)**
+- [x] **M5.4 Gates phase + remediation cycle (real qgates wired)** ✅ 2026-07-06 —
+  `advanceGates()` calls real `runGates`, supports bounded remediation,
+  returns exhausted tickets with blocked-with-evidence comments, and opens
+  PRs only after green gates.
   **Goal:** building→gates transition wired **directly to M4.5's
   `runGates`** (no throwaway fake boundary — M4 is done on this track):
   gate failure → bounded remediation (≤ policy max_attempts, gate output
@@ -906,7 +929,10 @@ needs is this sandbox.)*
   **Read:** docs/loop.md §5 (where gates run), §7, §13 #9.
   **Session:** sonnet, single session.
 
-- [ ] **M5.5 Reviewing phase — verdict-parsed findings, cycles, freshness**
+- [x] **M5.5 Reviewing phase — verdict-parsed findings, cycles, freshness** ✅ 2026-07-06 —
+  `advanceReviewing()` parses `REQUEST_CHANGES` bodies through
+  `parseVerdict("review", ...)`, enforces review-cycle cap, and advances
+  only fresh approvals whose commit id matches branch HEAD.
   **Goal:** Read review state via GhOps; the structured findings comment is
   parsed through **M4.6's `parseVerdict("review", …)`** into Finding[]
   (wiring the parser into the loop — no raw-prose handling);
@@ -923,7 +949,11 @@ needs is this sandbox.)*
   **Read:** docs/loop.md §1 (freshness), §6, §7, §13 #10.
   **Session:** sonnet, single session.
 
-- [ ] **M5.6 Shipping phase, squash-merge, conflict path**
+- [x] **M5.6 Shipping phase, squash-merge, conflict path** ✅ 2026-07-06 —
+  `advanceShipping()` runs gates twice, squash-merges through `GhOps`,
+  deletes the branch, removes the worktree, removes the transient
+  `op:in-review` label after merge, returns scorecard events, and handles
+  merge conflicts by returning to building with a rebase note.
   **Goal:** shipping: gates run TWICE at ship — once on entering shipping
   and once immediately before the squash-merge (the predecessor's
   double-run, kept exactly; both include freshness); green → the
@@ -945,7 +975,9 @@ needs is this sandbox.)*
   **Read:** docs/loop.md §7, §13 #16; docs/architecture.md §3, §10.
   **Session:** sonnet, single session.
 
-- [ ] **M5.7 Ticket scheduling: Depends-on edges + scope-overlap conservatism**
+- [x] **M5.7 Ticket scheduling: Depends-on edges + scope-overlap conservatism** ✅ 2026-07-06 —
+  `src/loop/scheduling.ts` implements pure dependency/scope/cap selection
+  plus parsers for `Depends-on:` and `## Scope`.
   **Goal:** Pure `selectReadyTickets(tickets, maxConcurrent)`: ready only
   when all `Depends-on:` tickets are merged; intersecting declared file
   scopes never scheduled concurrently ("when in doubt, sequential");
@@ -960,7 +992,10 @@ needs is this sandbox.)*
   **Read:** docs/loop.md §8.
   **Session:** sonnet, single session.
 
-- [ ] **M5.8 Idempotent sandbox-repo provisioning script**
+- [x] **M5.8 Idempotent sandbox-repo provisioning script** ✅ 2026-07-06 —
+  `scripts/setup-sandbox-repo.sh` and `pnpm e2e:sandbox:setup` create/view
+  the private disposable repo and ensure the full op/priority/tier label
+  set; run twice successfully against `bikramgupta/operon-m5-sandbox`.
   **Goal:** `pnpm e2e:sandbox:setup`: checks `gh repo view
   $GH_SANDBOX_REPO` before creating (private), ensures the full `op:*` +
   `p1..p3` label set (architecture §10) plus the tier labels
@@ -976,7 +1011,10 @@ needs is this sandbox.)*
   **Read:** docs/architecture.md §10 (labels).
   **Session:** sonnet, single session.
 
-- [ ] **M5.9 `operon loop` driver + sandbox e2e (real gates, injected review)**
+- [x] **M5.9 `operon loop` driver + sandbox e2e (real gates, injected review)** ✅ 2026-07-06 —
+  `src/loop/driver.ts`, `src/cli/loop.ts`, and `test/e2e/sandboxLoop.ts`
+  wire the tick driver and real disposable-GitHub e2e; final run merged
+  issue #10 / PR #11 in `bikramgupta/operon-m5-sandbox`.
   **Goal:** Wire `operon loop --app <app> [--once|--follow]` to a tick
   driver running the phase functions against real GhCliOps + a real
   clone/worktree; offline tests via FakeGhOps. Then the milestone: `pnpm

@@ -9,11 +9,13 @@ log; on conflict, its Decided section wins and this file is stale — fix this f
 An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
 a private GitHub repo, with a human gating critical ops only. Currently a
-buildable runtime scaffold: M0-M4 are complete, ClaudeRuntime is live-tested,
-the pass executor/runlog/bootstrap/qgates layers are real, and the upcoming
-work starts at the GitHub ticket state machine (M5). CodexRuntime, PiRuntime,
-dispatcher, approvals, memory, retro, and full standing-role operation remain
-roadmap work.
+buildable runtime scaffold: M0-M5 are complete, ClaudeRuntime is live-tested,
+the pass executor/runlog/bootstrap/qgates layers are real, and the GitHub
+ticket state machine can take a disposable sandbox issue through PR and
+squash-merge with injected review. Upcoming work starts at real Builder /
+Reviewer pipeline integration (M6). CodexRuntime, PiRuntime, dispatcher,
+approvals, memory, retro, and full standing-role operation remain roadmap
+work.
 
 ## Map
 | Path | What it is |
@@ -28,7 +30,7 @@ roadmap work.
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
 | `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude live; Codex/pi stubs) |
-| `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, and ticket state machine skeleton (M5 rewrites `loop.ts`; design in `docs/loop.md`) |
+| `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, and M5 ticket state machine (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning; scheduler/approvals/context/memory/retro to come |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `test/` | Gate conformance seed + roles.yaml validation + CLI dispatch conformance |
@@ -49,7 +51,12 @@ roadmap work.
 - Build: `pnpm build` (tsc → `dist/`)
 - CLI in dev: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
   `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run`
-  · `pnpm dev run-role <role> --dry-run` · `pnpm dev doctor`
+  · `pnpm dev loop --app <app> --once --dry-run` ·
+  `pnpm dev run-role <role> --dry-run` · `pnpm dev doctor`
+- M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`
+  (idempotent private repo/label setup) then
+  `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox` (creates and merges one
+  disposable issue/PR; not part of `pnpm test`)
 
 ## Working rules
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;
@@ -86,6 +93,9 @@ roadmap work.
   Run the relevant bootstrap/plan/loop smoke plus each sandbox app's own
   available checks (for example alpha: `npm test && npm run lint`; beta:
   `npm test`) and report the exact commands/results.
+- M5 loop-state-machine changes should also run the disposable GitHub e2e
+  when `gh` auth and `GH_SANDBOX_REPO` are available:
+  `pnpm e2e:sandbox:setup` twice for idempotency, then `pnpm e2e:sandbox`.
 - `gate.ts` changes: add cases to `test/gate.test.ts` for every new rule —
   both the critical side and a routine near-miss.
 - `roles.yaml` changes: `pnpm dev roles` must print cleanly; tests stay green.

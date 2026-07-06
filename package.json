@@ -10,6 +10,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
+    "e2e:sandbox": "tsx test/e2e/sandboxLoop.ts",
+    "e2e:sandbox:setup": "bash scripts/setup-sandbox-repo.sh",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "test:live": "vitest run --config vitest.live.config.ts"

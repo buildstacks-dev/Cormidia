@@ -75,9 +75,9 @@ describe("cli dispatch", () => {
     expect(stdout).toContain("runtime adapters:");
   });
 
-  it("loop is a documented stub that exits 1", async () => {
+  it("loop requires an app name", async () => {
     const { stderr, code } = await runCli(["loop"]);
     expect(code).toBe(1);
-    expect(stderr).toContain("not implemented yet");
+    expect(stderr).toContain("--app <app> is required");
   });
 });

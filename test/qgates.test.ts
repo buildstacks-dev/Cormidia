@@ -1,0 +1,176 @@
+// Process gates: tests, lint, e2e (build plan M4.3; docs/loop.md §5 rows).
+//
+// Named cases per the Accept line: pass on exit 0; fail captures exit code +
+// bounded output tail; timeout message distinct from an exit failure; lint
+// analogous; e2e skipped (not failed) when unconfigured. Plus the M4.3 drop
+// note: tests/lint unconfigured FAIL loudly (the predecessor's silent pass
+// is gone, loop.md §1).
+//
+// Real subprocesses against the real M4.1 worktree fixture — no mocks; the
+// gate's job is exactly "subprocess in a worktree".
+
+import { afterAll, describe, expect, it } from "vitest";
+import { makeWorkingRepo, type WorkingRepoFixture } from "./fixtures/gitRepo.js";
+import {
+  DEFAULT_TAIL_LINES,
+  DEFAULT_TIMEOUTS_MS,
+  runE2eGate,
+  runLintGate,
+  runTestsGate,
+} from "../src/loop/qgates.js";
+
+// One real worktree for the whole suite — the gates only need a cwd; each
+// case passes its own command.
+const repos: WorkingRepoFixture[] = [];
+function worktree(): string {
+  const repo = makeWorkingRepo();
+  repos.push(repo);
+  return repo.root;
+}
+const repoRoot = worktree();
+afterAll(() => {
+  for (const repo of repos) repo.cleanup();
+});
+
+/** Shell-safe node one-liner (single quotes stay inside the double-quoted
+ * sh word — none of these scripts contain double quotes). */
+const node = (script: string) => `node -e "${script}"`;
+
+describe("runTestsGate", () => {
+  it("passes on exit 0", async () => {
+    const result = await runTestsGate(repoRoot, { testCommand: node("process.exit(0)") });
+
+    expect(result).toMatchObject({ gate: "tests", status: "pass", exitCode: 0 });
+    expect(result.timedOut).toBeUndefined();
+    expect(result.detail).toContain("passed");
+  });
+
+  it("runs the command in the worktree (cwd), not the orchestrator's cwd", async () => {
+    const repo = makeWorkingRepo();
+    repos.push(repo);
+    repo.writeFiles({ "marker.txt": "here\n" });
+
+    const result = await runTestsGate(repo.root, {
+      testCommand: node("require('fs').accessSync('marker.txt')"),
+    });
+
+    expect(result.status).toBe("pass");
+  });
+
+  it("fail captures the exit code and a bounded output tail", async () => {
+    const script =
+      "for (let i = 1; i <= 12; i++) console.log('L' + String(i).padStart(2, '0'));" +
+      "console.error('boom: assertion failed');" +
+      "process.exit(3)";
+    const result = await runTestsGate(
+      repoRoot,
+      { testCommand: node(script) },
+      { tailLines: 5 },
+    );
+
+    expect(result.status).toBe("fail");
+    expect(result.exitCode).toBe(3);
+    expect(result.detail).toContain("exit 3");
+    // The tail is verbatim and bounded: newest lines kept, oldest dropped.
+    expect(result.outputTail).toContain("boom: assertion failed");
+    expect(result.outputTail).toContain("L12");
+    expect(result.outputTail).not.toContain("L01");
+    expect(result.outputTail!.split("\n").length).toBeLessThanOrEqual(5);
+  });
+
+  it("timeout is a distinct failure message, not an exit-code failure", async () => {
+    const result = await runTestsGate(
+      repoRoot,
+      { testCommand: node("console.log('started'); setTimeout(() => {}, 60000)") },
+      { timeoutMs: 500 },
+    );
+
+    expect(result.status).toBe("fail");
+    expect(result.timedOut).toBe(true);
+    expect(result.detail).toContain("timed out after 0.5s");
+    expect(result.detail).not.toContain("exit"); // never dressed up as one
+    expect(result.exitCode).toBeUndefined();
+    // Output produced before the kill still reaches the brief.
+    expect(result.outputTail).toContain("started");
+  });
+
+  it("unconfigured test command FAILS loudly (predecessor's silent pass is dropped)", async () => {
+    const result = await runTestsGate(repoRoot, {});
+
+    expect(result.status).toBe("fail");
+    expect(result.detail).toContain("no test_command configured");
+    expect(result.detail).toContain(".operon/config.yaml");
+  });
+});
+
+describe("runLintGate (analogous mechanics)", () => {
+  it("passes on exit 0", async () => {
+    const result = await runLintGate(repoRoot, { lintCommand: node("process.exit(0)") });
+    expect(result).toMatchObject({ gate: "lint", status: "pass", exitCode: 0 });
+  });
+
+  it("fail captures exit code and tail", async () => {
+    const result = await runLintGate(repoRoot, {
+      lintCommand: node("console.error('src/a.ts:1 no-unused-vars'); process.exit(1)"),
+    });
+
+    expect(result.status).toBe("fail");
+    expect(result.exitCode).toBe(1);
+    expect(result.detail).toContain("lint failed (exit 1)");
+    expect(result.outputTail).toContain("no-unused-vars");
+  });
+
+  it("timeout message is lint-specific and distinct", async () => {
+    const result = await runLintGate(
+      repoRoot,
+      { lintCommand: node("setTimeout(() => {}, 60000)") },
+      { timeoutMs: 500 },
+    );
+
+    expect(result.status).toBe("fail");
+    expect(result.timedOut).toBe(true);
+    expect(result.detail).toContain("lint timed out");
+  });
+
+  it("unconfigured lint command fails loudly, like tests", async () => {
+    const result = await runLintGate(repoRoot, {});
+    expect(result.status).toBe("fail");
+    expect(result.detail).toContain("no lint_command configured");
+  });
+});
+
+describe("runE2eGate", () => {
+  it("SKIPPED (not failed) when unconfigured — the one optional process gate", async () => {
+    const result = await runE2eGate(repoRoot, {});
+
+    expect(result.status).toBe("skip");
+    expect(result.gate).toBe("e2e");
+    expect(result.detail).toContain("no e2e_test_command configured");
+    expect(result.durationMs).toBe(0);
+  });
+
+  it("runs like the others when configured: pass on exit 0", async () => {
+    const result = await runE2eGate(repoRoot, { e2eTestCommand: node("process.exit(0)") });
+    expect(result).toMatchObject({ gate: "e2e", status: "pass", exitCode: 0 });
+  });
+
+  it("fail when configured and failing — configured e2e is never a skip", async () => {
+    const result = await runE2eGate(repoRoot, {
+      e2eTestCommand: node("console.log('flow broke'); process.exit(2)"),
+    });
+
+    expect(result.status).toBe("fail");
+    expect(result.exitCode).toBe(2);
+    expect(result.outputTail).toContain("flow broke");
+  });
+});
+
+describe("defaults (predecessor parity)", () => {
+  it("per-gate timeouts keep the predecessor's numbers", () => {
+    expect(DEFAULT_TIMEOUTS_MS).toEqual({ tests: 300_000, lint: 120_000, e2e: 600_000 });
+  });
+
+  it("tail default is documented and bounded", () => {
+    expect(DEFAULT_TAIL_LINES).toBe(50);
+  });
+});

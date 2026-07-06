@@ -73,6 +73,10 @@ export interface ExecutePipelineOptions {
   runlog: RunlogTarget;
   /** Injected clock (FakeClock-compatible); defaults to the wall clock. */
   clock?: () => Date;
+  /** Optional native structured-output schema per pass. */
+  verdictSchemaFor?: (pass: PassConfig) => Record<string, unknown> | undefined;
+  /** Runs after a pass completes and before the next sequential stage starts. */
+  afterPass?: (record: PassRunRecord) => void | Promise<void>;
 }
 
 export interface PassRunRecord {
@@ -99,6 +103,7 @@ export async function executePipeline(
   for (const stage of stages) {
     const results = await Promise.all(stage.map((pass) => runPass(pass, options, clock)));
     records.push(...results);
+    for (const record of results) await options.afterPass?.(record);
     if (results.some((r) => r.result.status !== "completed")) {
       return { passes: records, aborted: true };
     }
@@ -178,8 +183,15 @@ async function runPass(
   };
 
   // Fresh session per pass: req.session is never set.
+  const verdictSchema = options.verdictSchemaFor?.(pass);
   const result = await options.runtimeFor(role).runTurn(
-    { role, workdir: options.workdir, task, context: options.context },
+    {
+      role,
+      workdir: options.workdir,
+      task,
+      context: options.context,
+      ...(verdictSchema !== undefined ? { verdictSchema } : {}),
+    },
     passHooks,
   );
 

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { GhCliOps, GhOpsError, type GhExec, type GhExecResult } from "../src/loop/github.js";
+import {
+  GhCliOps,
+  GhOpsError,
+  SELF_APPROVAL_FALLBACK_MARKER,
+  type GhExec,
+  type GhExecResult,
+} from "../src/loop/github.js";
 
 function execFrom(
   handler: (args: readonly string[], input?: string) => GhExecResult,
@@ -164,6 +170,31 @@ describe("GhCliOps", () => {
       "DELETE",
       "repos/o/r/git/refs/heads/op/1-demo",
     ]);
+  });
+
+  it("falls back to a marked comment review when GitHub rejects same-account approval", async () => {
+    const { exec, calls } = execFrom((args) => {
+      if (args[0] === "pr" && args[1] === "review" && args.includes("--approve")) {
+        return {
+          stdout: "",
+          stderr: "failed to create review: GraphQL: Review Can not approve your own pull request",
+          exitCode: 1,
+        };
+      }
+      if (args[0] === "pr" && args[1] === "review" && args.includes("--comment")) {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      throw new Error(`unexpected ${args.join(" ")}`);
+    });
+    const gh = new GhCliOps("o/r", exec);
+
+    const review = await gh.createReview(7, { state: "approve", body: "Verdict: approve" });
+
+    expect(review.state).toBe("COMMENTED");
+    expect(review.body).toContain(SELF_APPROVAL_FALLBACK_MARKER);
+    expect(calls[0]?.args).toContain("--approve");
+    expect(calls[1]?.args).toContain("--comment");
+    expect(calls[1]?.input).toContain("Verdict: approve");
   });
 
   it("non-zero exits throw GhOpsError carrying stderr verbatim", async () => {

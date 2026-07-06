@@ -9,11 +9,11 @@ log; on conflict, its Decided section wins and this file is stale — fix this f
 An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
 a private GitHub repo, with a human gating critical ops only. Currently a
-buildable runtime scaffold: M0-M5 are complete, ClaudeRuntime is live-tested,
+buildable runtime scaffold: M0-M6 are complete, ClaudeRuntime is live-tested,
 the pass executor/runlog/bootstrap/qgates layers are real, and the GitHub
-ticket state machine can take a disposable sandbox issue through PR and
-squash-merge with injected review. Upcoming work starts at real Builder /
-Reviewer pipeline integration (M6). CodexRuntime, PiRuntime, dispatcher,
+ticket state machine can take a real sandbox-alpha issue through Builder /
+Reviewer passes, PR, gates, review fallback, and squash-merge. Upcoming work
+starts at autonomous dispatch and approvals (M7). CodexRuntime, PiRuntime, dispatcher,
 approvals, memory, retro, and full standing-role operation remain roadmap
 work.
 
@@ -30,7 +30,7 @@ work.
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
 | `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude live; Codex/pi stubs) |
-| `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, and M5 ticket state machine (design in `docs/loop.md`) |
+| `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning; scheduler/approvals/context/memory/retro to come |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `test/` | Gate conformance seed + roles.yaml validation + CLI dispatch conformance |

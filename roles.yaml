@@ -28,8 +28,8 @@ roles:
     outputs: [tickets, priorities, roadmap-notes]
 
   builder:
-    runtime: codex
-    model: gpt-5.5              # flagship + Codex CLI default; ratified 2026-07-05:
+    runtime: claude             # TEMP M6 pilot expedient: CodexRuntime lands in M10;
+    model: claude-sonnet-5      # builder/reviewer differ by model until cross-provider is restored
     effort: high                # build quality over token cost — the Reviewer gate
     delegation:                 # stays as the second line of defense
       allow: [explore, test-fanout]

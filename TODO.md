@@ -1043,7 +1043,24 @@ needs is this sandbox.)*
 Builder and Reviewer turns — loop v1 complete on a real app repo.
 (Civic on hold — the sandbox apps are the target; see the M3 note.)*
 
-- [ ] **M6.1 roles.yaml pilot expedient — proposal PR + explicit test waiver**
+> **Completed 2026-07-06:** M6 wired real Builder/Reviewer pass pipelines
+> into the loop, applied the temporary Claude Builder waiver until M10,
+> and shipped alpha issue #1 through PR #2 to squash commit `d71f965`.
+> Verification: `pnpm test` (37 files / 362 tests), `pnpm typecheck`,
+> `pnpm build`, `pnpm dev roles`, `pnpm dev pipelines`, `pnpm dev doctor`,
+> alpha `npm test && npm run lint` after merge, beta `npm test`, and alpha /
+> beta loop dry-runs with no ready tickets. Gamma was not present locally.
+> Evidence: `research/2026-07-06_sandbox-loop-v1.md`. M6 found and fixed two
+> real integration bugs: app config command fallback and GitHub same-account
+> approval fallback.
+
+- [x] **M6.1 roles.yaml pilot expedient — proposal PR + explicit test waiver** ✅ 2026-07-06 —
+  Builder now temporarily uses `runtime: claude` + `claude-sonnet-5`;
+  reviewer stays Claude Opus. `test/roles.test.ts` names this as an M6
+  waiver and pins M10 as the restoration point for cross-provider review.
+  Note: this was applied in the M6 working tree under the direct milestone
+  request; if preserving the strict proposal-PR ceremony, cut this diff as
+  the ratification PR before merging the stack.
   **Goal:** Until CodexRuntime lands (M10), builder and reviewer must both
   run on ClaudeRuntime with different models (TODO's recorded pilot
   expedient). That breaks test/roles.test.ts's cross-provider case — which
@@ -1063,7 +1080,13 @@ Builder and Reviewer turns — loop v1 complete on a real app repo.
   docs/PURPOSE.md → runtime layer.
   **Session:** sonnet, single session.
 
-- [ ] **M6.2 Loop phases run real pipelines (build / fix / verify)**
+- [x] **M6.2 Loop phases run real pipelines (build / fix / verify)** ✅ 2026-07-06 —
+  `runBuilderPipeline`, `runReviewPipeline`, and `runShipCheckPipeline`
+  call the real pass executor with verdict schemas, comments the contract,
+  carries gate output into fix briefs, selects conditional review passes from
+  real policy/diff state, requires app-owned policy, and records a narrow
+  GitHub same-account review fallback. `test/loop-integration.test.ts`
+  covers the M6 acceptance matrix with FakeRuntime plus real local git.
   **Goal:** Replace M5's injected artifacts with real passes: building
   runs the `build` pipeline (contract unless tier:quick, then implement)
   via M2.8's runPipeline + ClaudeRuntime in the ticket worktree; bounce
@@ -1093,7 +1116,12 @@ Builder and Reviewer turns — loop v1 complete on a real app repo.
   **Session:** opus lead + delegated test-writer subagent — the central
   integration of the whole plan.
 
-- [ ] **M6.3 First real ticket ready→merged (sandbox app; civic version on hold)**
+- [x] **M6.3 First real ticket ready→merged (sandbox app; civic version on hold)** ✅ 2026-07-06 —
+  Alpha issue #1 / PR #2 merged after real Claude Builder and Reviewer
+  passes. First attempt returned because the command loader missed
+  package-script fallbacks; second exposed GitHub's same-account approval
+  restriction; both fixes are now covered by tests and documented in the
+  research note.
   **Goal:** Execute the end-to-end proof against `operon-sandbox-alpha`
   (civic deferred — M3 header note): a small, real one-file ticket
   (criteria binary and mechanically checkable), seeded `op:ready` in the

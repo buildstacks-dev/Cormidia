@@ -447,7 +447,12 @@ then the pass fails loudly.
 - **No side effect keys off prose.** Merge requires: GitHub APPROVE review
 present ∧ freshness ∧ mechanical gates green. The reviewer's verdict is
 double-entered — structured verdict *and* a real GitHub review — and the
-GitHub state is authoritative.
+GitHub state is authoritative. M6 found the single-account pilot caveat:
+GitHub rejects approving your own PR, so until Operon has a separate bot/app
+identity, `GhCliOps` falls back only for that exact error to a real
+COMMENTED PR review carrying `<!-- operon:self-approval-fallback -->`; the
+loop treats only that marked structured `Verdict: approve` review as an
+approval, and still enforces commit freshness.
 
 
 

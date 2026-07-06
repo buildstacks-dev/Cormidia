@@ -9,6 +9,7 @@ import {
   claimTicket,
   type LoopItem,
 } from "../src/loop/loop.js";
+import { SELF_APPROVAL_FALLBACK_MARKER } from "../src/loop/github.js";
 import type { Policy } from "../src/loop/policy.js";
 import type { AcceptanceCriterion, CriterionTestMap, GateRunResult } from "../src/loop/qgates.js";
 import { makeBareWithClone } from "./fixtures/gitRepo.js";
@@ -269,6 +270,23 @@ describe("advanceReviewing", () => {
     const h = await reviewHarness();
     try {
       await h.gh.createReview(h.item.prNumber as number, { state: "approve", body: "Verdict: approve" });
+
+      const next = await advanceReviewing(h.item, { gh: h.gh });
+
+      expect(next.phase).toBe("shipping");
+      expect(next.approvedCommitId).toBe(head(h.item.worktree as string));
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("marked same-account comment review advances to shipping when fresh", async () => {
+    const h = await reviewHarness();
+    try {
+      await h.gh.createReview(h.item.prNumber as number, {
+        state: "comment",
+        body: `Verdict: approve\n\n${SELF_APPROVAL_FALLBACK_MARKER}`,
+      });
 
       const next = await advanceReviewing(h.item, { gh: h.gh });
 

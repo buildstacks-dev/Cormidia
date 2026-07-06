@@ -58,13 +58,16 @@ dispatcher ships.
 
 ## Status
 
-M0-M5 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
+M0-M6 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
 pass executor, run logs, app registry, bootstrap flow, co-planning launcher,
 quality gates, typed verdict parsers, GitHub ticket state machine, scheduler,
-and manual loop driver are implemented and tested. M5 is proven against a
+manual loop driver, and real Builder/Reviewer pipeline integration are
+implemented and tested. M5 is proven against a
 disposable private GitHub repo: ready issue → claim → real gates → PR →
 injected review → squash merge → closed issue. The next build milestone is
-M6: wiring real Builder and Reviewer pass pipelines into that loop.
+M7: autonomous dispatch ticks and the approval queue. M6 is proven on
+`operon-sandbox-alpha`: real Claude Builder/Reviewer passes shipped issue #1
+through PR #2 to a merged squash commit.
 
 CodexRuntime and PiRuntime are still planned for M10; until then, the live
 adapter is ClaudeRuntime and `pnpm test:live` is the gated live-conformance

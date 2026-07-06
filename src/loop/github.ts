@@ -87,6 +87,8 @@ export interface GhOps {
   deleteBranch(branch: string): Promise<void>;
 }
 
+export const SELF_APPROVAL_FALLBACK_MARKER = "<!-- operon:self-approval-fallback -->";
+
 export interface GhExecResult {
   stdout: string;
   stderr: string;
@@ -275,10 +277,20 @@ export class GhCliOps implements GhOps {
         : input.state === "request_changes"
           ? "--request-changes"
           : "--comment";
-    await this.run(
-      ["pr", "review", String(prNumber), "--repo", this.repo, flag, "--body-file", "-"],
-      input.body,
-    );
+    try {
+      await this.run(
+        ["pr", "review", String(prNumber), "--repo", this.repo, flag, "--body-file", "-"],
+        input.body,
+      );
+    } catch (error) {
+      if (input.state !== "approve" || !isSelfApprovalError(error)) throw error;
+      const body = `${input.body.trimEnd()}\n\n${SELF_APPROVAL_FALLBACK_MARKER}\n`;
+      await this.run(
+        ["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"],
+        body,
+      );
+      return { state: "COMMENTED", body };
+    }
     return {
       state:
         input.state === "approve"
@@ -366,6 +378,15 @@ export class GhCliOps implements GhOps {
       );
     }
   }
+}
+
+function isSelfApprovalError(error: unknown): boolean {
+  return (
+    error instanceof GhOpsError &&
+    /can not approve your own pull request|cannot approve your own pull request/i.test(
+      error.stderr,
+    )
+  );
 }
 
 export function isMergeConflict(error: unknown): boolean {

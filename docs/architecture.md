@@ -712,7 +712,10 @@ ready when the Builder declares done.
 - Review: verdict as a real GitHub review (APPROVE / REQUEST_CHANGES) plus a
 structured findings comment — numbered findings, each must be resolved or
 explicitly rebutted before merge (TASTE §8). Findings ride to the fix turn
-as context.
+as context. Single-account pilot caveat: GitHub forbids approving your own
+PR, so until Operon has a separate bot/app identity, a same-account approval
+is recorded as a marked COMMENTED review and accepted only with the
+`operon:self-approval-fallback` marker plus freshness.
 - Merge: squash-merge only, performed by the loop after APPROVE; branch
 deleted; PR description survives as the commit body (state-in-markdown, a
 predecessor pattern).

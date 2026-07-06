@@ -12,6 +12,7 @@ import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/t
 import { assembleBrief } from "./brief.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
 import { isMergeConflict } from "./github.js";
+import { SELF_APPROVAL_FALLBACK_MARKER } from "./github.js";
 import type { Policy, RiskTier } from "./policy.js";
 import { matchedDimensions, resolveTier } from "./policy.js";
 import { executePipeline, type PassRunRecord } from "./pipeline.js";
@@ -821,8 +822,17 @@ function latestActionableReview(reviews: readonly GhReview[]): GhReview | undefi
   for (let i = reviews.length - 1; i >= 0; i--) {
     const review = reviews[i]!;
     if (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED") return review;
+    if (review.state === "COMMENTED" && isMarkedSelfApproval(review)) {
+      return { ...review, state: "APPROVED" };
+    }
   }
   return undefined;
+}
+
+function isMarkedSelfApproval(review: GhReview): boolean {
+  if (!review.body.includes(SELF_APPROVAL_FALLBACK_MARKER)) return false;
+  const parsed = parseVerdict("review", review.body);
+  return parsed.ok && parsed.verdict.verdict === "approve";
 }
 
 function createWorktree(

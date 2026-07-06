@@ -88,3 +88,10 @@ $2–3 on `claude-sonnet-5` per full run. Adapter changes must re-run this
   **$3.1653**, subscription auth (`apiKeySource: none`), model
   `claude-sonnet-5`, 78.46s wall clock. Cases: critical ops escalate,
   subagent critical op escalates, and 300KB payload transports.
+- **2026-07-06 (M9.10, cache-token usage fields):** `pnpm test:live`
+  passed 3/3 after mapping Claude SDK cache usage into `TurnUsage`
+  (`tokensInUncached`, `cacheCreationTokens`, `cacheReadTokens`) and L1/L2
+  consumers. 11 live turns, total cost **$3.1649**, subscription auth
+  (`apiKeySource: none`), model `claude-sonnet-5`, 64.61s wall clock. Cases:
+  critical ops escalate, subagent critical op escalates, and 300KB payload
+  transports.

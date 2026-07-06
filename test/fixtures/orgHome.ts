@@ -33,6 +33,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stringify as toYaml } from "yaml";
+import { runPaths } from "../../src/runtime/runlog/paths.js";
 
 // ---------------------------------------------------------------------------
 // Shared sub-builder option shapes
@@ -105,11 +106,28 @@ export interface ApprovalsOptions {
   log?: unknown[];
 }
 
+/** One run record's files (docs/loop.md §9). Only the pieces a test opts
+ * into are written; the run directory itself always exists. */
+export interface RunRecordOptions {
+  /** envelope.json (L1). */
+  envelope?: unknown;
+  /** events.jsonl (L2) — one JSON object per line, in order. */
+  events?: unknown[];
+  /** brief.md (L3). */
+  brief?: string;
+  /** output.md (L3). */
+  output?: string;
+  /** session.log (L3). */
+  sessionLog?: string;
+}
+
 export interface RunsOptions {
-  /** runs/<app>/ — namespace hook for the runlog layer; M2.4 extends this
-   * fixture with the full `runs/<app>/<runId>/…` shape. This item only
-   * guarantees the per-app directory exists. */
+  /** runs/<app>/ — bare per-app namespace directories (no run records). */
   apps?: string[];
+  /** Full run records, app → runId → files (M2.4). Paths come from the
+   * REAL builder (src/runtime/runlog/paths.ts), so fixture layout and
+   * production layout cannot drift apart. */
+  records?: Record<string, Record<string, RunRecordOptions>>;
 }
 
 export interface OrgHomeOptions {
@@ -140,6 +158,7 @@ export interface OrgHomeFixture {
     grant(grantId: string): string;
     approvalsLog: string;
     runsAppDir(app: string): string;
+    runDir(app: string, runId: string): string;
   };
   /** Removes the entire temp tree. Safe to call more than once. */
   cleanup(): void;
@@ -189,6 +208,7 @@ function orgHomePaths(dir: string): OrgHomeFixture["paths"] {
     grant: (grantId) => join(dir, "approvals", "grants", `${grantId}.json`),
     approvalsLog: join(dir, "approvals", "log.jsonl"),
     runsAppDir: (app) => join(dir, "runs", app),
+    runDir: (app, runId) => runPaths(dir, app, runId).dir,
   };
 }
 
@@ -266,6 +286,17 @@ function buildRuns(dir: string, paths: OrgHomeFixture["paths"], opts: RunsOption
   ensureDir(join(dir, "runs"));
   for (const app of opts.apps ?? []) {
     ensureDir(paths.runsAppDir(app));
+  }
+  for (const [app, records] of Object.entries(opts.records ?? {})) {
+    for (const [runId, record] of Object.entries(records)) {
+      const rp = runPaths(dir, app, runId);
+      ensureDir(rp.dir);
+      if (record.envelope !== undefined) writeJson(rp.envelope, record.envelope);
+      if (record.events !== undefined) writeFile(rp.events, toJsonLines(record.events));
+      if (record.brief !== undefined) writeFile(rp.brief, record.brief);
+      if (record.output !== undefined) writeFile(rp.output, record.output);
+      if (record.sessionLog !== undefined) writeFile(rp.sessionLog, record.sessionLog);
+    }
   }
 }
 

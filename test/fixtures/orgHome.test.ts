@@ -137,6 +137,40 @@ describe("makeOrgHome", () => {
     bare.cleanup();
   });
 
+  it("runs sub-builder: full run records via the real path contract (M2.4)", () => {
+    const runId = "20260705-093015-build-implement";
+    const fixture = makeOrgHome({
+      runs: {
+        records: {
+          civic: {
+            [runId]: {
+              envelope: { run_id: runId, status: "running" },
+              events: [{ event: "run.started" }, { event: "pass.started" }],
+              brief: "[ticket]\nIssue #42\n",
+              // output/sessionLog deliberately omitted — only opted-in
+              // files are written.
+            },
+          },
+        },
+      },
+    });
+
+    const dir = fixture.paths.runDir("civic", runId);
+    expect(JSON.parse(readFileSync(join(dir, "envelope.json"), "utf8"))).toEqual({
+      run_id: runId,
+      status: "running",
+    });
+    const events = readFileSync(join(dir, "events.jsonl"), "utf8").trim().split("\n");
+    expect(events.map((l) => JSON.parse(l))).toEqual([
+      { event: "run.started" },
+      { event: "pass.started" },
+    ]);
+    expect(readFileSync(join(dir, "brief.md"), "utf8")).toBe("[ticket]\nIssue #42\n");
+    expect(existsSync(join(dir, "output.md"))).toBe(false);
+    expect(existsSync(join(dir, "session.log"))).toBe(false);
+    fixture.cleanup();
+  });
+
   it("composes memory + approvals together without pulling in unrelated sub-trees", () => {
     const fixture = makeOrgHome({
       memory: { roles: { builder: { index: "idx\n" } } },

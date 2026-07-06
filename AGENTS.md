@@ -23,7 +23,7 @@ and the build loop are documented stubs.
 | `TODO.md` | Roadmap + session-handoff state — pick up the top unchecked item |
 | `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 = proposals pending ratification) |
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
-| `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, adapters (claude / codex / pi) |
+| `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, runlog (paths/redaction; L1–L3 writers landing M2.5–M2.7), `secret-patterns.ts` (the ONE secret-regex list — redaction and the qgates scan both import it), adapters (claude / codex / pi) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, ticket state machine (skeleton — design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles.yaml loader; scheduler/memory/retro to come |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |

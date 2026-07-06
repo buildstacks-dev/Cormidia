@@ -342,7 +342,13 @@ record on disk — "if something executes, its logs exist."*
   **Read:** docs/loop.md §3.
   **Session:** sonnet, single session.
 
-- [ ] **M2.4 Runlog foundation: runId, paths, redaction, fixture**
+- [x] **M2.4 Runlog foundation: runId, paths, redaction, fixture** ✅ 2026-07-05 —
+  src/runtime/runlog/{paths,redact}.ts + src/runtime/secret-patterns.ts
+  (stateless patterns + asGlobal(); PEM redaction swallows to end-of-text
+  when END marker missing — fail closed on truncated blocks); orgHome
+  fixture runs.records builds full run dirs through the REAL runPaths
+  builder. mintRunId takes the clock as a param (FakeClock-compatible);
+  id parts sanitized path-safe.
   **Goal:** `src/runtime/runlog/paths.ts` (mintRunId
   `YYYYMMDD-HHMMSS-<pipeline>-<pass>`, path builders for
   `runs/<app>/<runId>/{envelope.json,events.jsonl,brief.md,output.md,session.log}`)

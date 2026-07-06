@@ -11,6 +11,7 @@ import { cmdRoles } from "./cli/roles.js";
 import { cmdApps } from "./cli/apps.js";
 import { cmdBootstrap } from "./cli/bootstrap.js";
 import { cmdDoctor } from "./cli/doctor.js";
+import { cmdPlan } from "./cli/plan.js";
 import { cmdPipelines } from "./cli/pipelines.js";
 import { cmdPruneRuns } from "./cli/prune-runs.js";
 import { cmdRunRole } from "./cli/run-role.js";
@@ -21,11 +22,14 @@ Usage:
   operon roles [path]      validate roles.yaml and print the org chart
   operon apps [path]       validate apps.yaml and print the app registry
   operon pipelines [path]  validate pipelines.yaml and print the pass table
-  operon bootstrap [path] [--scan-only] [--answers <file>]
+  operon bootstrap [path] [--scan-only] [--answers <file>] [--org-home <path>]
                            scan a target repo, walk the alignment
                            questionnaire (interactive, or --answers
                            answers.json), and emit the .operon/ tree
                            (--scan-only: report only)
+  operon plan <app> [--topic <string>] [--dry-run] [--workdir <path>]
+                           open a Planner co-planning session for an
+                           onboarded app
   operon doctor            check runtime adapter status
   operon prune-runs [root] [--retention-days N]
                            delete finalized run dirs past retention
@@ -51,6 +55,7 @@ const COMMANDS: Record<string, CliCommand> = {
   roles: { run: (args) => cmdRoles(args[0]) },
   apps: { run: (args) => cmdApps(args[0]) },
   bootstrap: { run: (args) => cmdBootstrap(args) },
+  plan: { run: (args) => cmdPlan(args) },
   pipelines: { run: (args) => cmdPipelines(args[0]) },
   doctor: { run: () => cmdDoctor() },
   "prune-runs": { run: (args) => cmdPruneRuns(args) },

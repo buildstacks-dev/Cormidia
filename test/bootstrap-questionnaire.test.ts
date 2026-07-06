@@ -1,14 +1,16 @@
 // `operon bootstrap` — questionnaire + app charter/config emission (M3.4):
 // answers (docs/architecture.md §9 step 2) become `.operon/TASTE.md` (the
 // product charter, TASTE layer [3]), `.operon/config.yaml` (the app's
-// registry entry, apps.yaml schema), and one seeded OKF memory bundle per
-// enabled role. bootstrapRun composes the org half (M3.3) with this app half.
+// registry entry, apps.yaml schema), `.operon/policy.yaml` (app-owned gate
+// policy), and one seeded OKF memory bundle per enabled role. bootstrapRun
+// composes the org half (M3.3) with this app half.
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
+import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import {
@@ -176,6 +178,20 @@ describe("emitAppArtifacts", () => {
     });
   });
 
+  it("policy.yaml is emitted from docs/policy.yaml.template", async () => {
+    const target = makeRepo();
+    await emitAppArtifacts(target, {
+      appName: "sandbox-alpha",
+      repoSlug: "bikramgupta/operon-sandbox-alpha",
+      answers: answers(),
+      allRoles: ALL_ROLES,
+    });
+
+    const emitted = await readFile(join(target, ".operon", "policy.yaml"), "utf8");
+    const template = await readFile(join(fileURLToPath(new URL("..", import.meta.url)), "docs", "policy.yaml.template"), "utf8");
+    expect(emitted).toBe(template);
+  });
+
   it("one INDEX.md per enabled role; disabled roles get empty cadence overrides", async () => {
     const target = makeRepo();
     const enabled = ["planner", "builder", "reviewer"];
@@ -251,6 +267,7 @@ describe("bootstrapRun", () => {
       ...ORG_TEMPLATE_FILES,
       ".operon/TASTE.md",
       ".operon/config.yaml",
+      ".operon/policy.yaml",
       ...roleNames.map((r) => `.operon/memory/${r}/INDEX.md`),
     ]);
     for (const rel of created) expect(existsSync(join(target, rel))).toBe(true);
@@ -293,9 +310,11 @@ describe("cmdBootstrap --answers", () => {
     expect(out).toContain("created:");
     expect(out).toContain(".operon/TASTE.md");
     expect(out).toContain(".operon/config.yaml");
+    expect(out).toContain(".operon/policy.yaml");
     expect(out).toContain(".operon/memory/planner/INDEX.md");
     expect(existsSync(join(target, ".operon", "TASTE.md"))).toBe(true);
     expect(existsSync(join(target, ".operon", "config.yaml"))).toBe(true);
+    expect(existsSync(join(target, ".operon", "policy.yaml"))).toBe(true);
     expect(existsSync(join(target, ".operon", "org", "apps.yaml"))).toBe(true);
   });
 
@@ -379,6 +398,7 @@ describe("appArtifactFiles", () => {
     expect(files).toEqual([
       ".operon/TASTE.md",
       ".operon/config.yaml",
+      ".operon/policy.yaml",
       ".operon/memory/planner/INDEX.md",
       ".operon/memory/reviewer/INDEX.md",
     ]);

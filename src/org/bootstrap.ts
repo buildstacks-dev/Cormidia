@@ -12,8 +12,10 @@
 // byte-copies) — plus `emitAppArtifacts()`: the app charter
 // (`.operon/TASTE.md`), the app's registry entry (`.operon/config.yaml`,
 // apps.yaml schema), and seeded per-role memory bundles. `bootstrapRun()`
-// composes steps 1–3. Step 4 (detect and join an existing org) is M3.5.
-// Nothing here writes outside the target repo's `.operon/`.
+// composes steps 1–3. Step 4 ("Register / join") appends a second app to an
+// existing org home's apps.yaml instead of emitting a parallel `.operon/org/`.
+// App-owned bootstrap output also includes `.operon/policy.yaml` when the
+// M4.2 policy template is present in this package.
 
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -21,6 +23,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stringify } from "yaml";
 import type { Trigger } from "../runtime/types.js";
+import { joinExistingOrg, type AppRegistration } from "./apps.js";
 import { loadRoles } from "./roles.js";
 
 // ---------------------------------------------------------------------------
@@ -233,6 +236,7 @@ export interface EmitResult {
 
 /** This package's root (works from both src/ and dist/ — two levels up). */
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+const POLICY_TEMPLATE_REL = join("docs", "policy.yaml.template");
 
 /** Emit the single-app-profile `.operon/org/` skeleton into a target repo:
  * org TASTE.md and roles.yaml as byte-copies of the template root's files,
@@ -509,6 +513,8 @@ export interface EmitAppArtifactsOptions {
    * memory bundles; the complement of answers.roles gets an explicit empty
    * cadence override (= disabled, src/org/apps.ts semantics). */
   allRoles: string[];
+  /** Template root for docs/policy.yaml.template; defaults to this package. */
+  templateRoot?: string;
 }
 
 /** Relative paths emitAppArtifacts will create for a given answers object. */
@@ -517,6 +523,7 @@ export function appArtifactFiles(answers: BootstrapAnswers, allRoles: string[]):
   return [
     ".operon/TASTE.md",
     ".operon/config.yaml",
+    ".operon/policy.yaml",
     ...enabled.map((role) => `.operon/memory/${role}/INDEX.md`),
   ];
 }
@@ -534,9 +541,11 @@ export async function emitAppArtifacts(
   const { answers, allRoles } = options;
   const appName = sanitizeAppName(options.appName);
   const repoSlug = options.repoSlug ?? `OWNER/${appName}`;
+  const templateRoot = options.templateRoot ?? PACKAGE_ROOT;
 
   const files = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, files);
+  const policyTemplate = await readPolicyTemplate(templateRoot);
 
   const created: string[] = [];
   const emit = async (rel: string, content: string) => {
@@ -551,6 +560,7 @@ export async function emitAppArtifacts(
     ".operon/config.yaml",
     configYaml(appName, repoSlug, options.repoSlug === undefined, answers, allRoles),
   );
+  await emit(".operon/policy.yaml", policyTemplate);
   for (const role of allRoles) {
     if (answers.roles.includes(role)) {
       await emit(`.operon/memory/${role}/INDEX.md`, memoryIndexMd(role, appName));
@@ -558,6 +568,19 @@ export async function emitAppArtifacts(
   }
 
   return { created };
+}
+
+async function readPolicyTemplate(templateRoot: string): Promise<string> {
+  const path = join(templateRoot, POLICY_TEMPLATE_REL);
+  try {
+    return await readFile(path, "utf8");
+  } catch (e) {
+    throw new Error(
+      `bootstrap: policy template ${path} is missing or unreadable — ` +
+        `.operon/policy.yaml is app-owned bootstrap output; M6 consumes it and fails if missing ` +
+        `(${e instanceof Error ? e.message : String(e)})`,
+    );
+  }
 }
 
 /** The app charter — TASTE layer [3] (PURPOSE.md → TASTE layers): product
@@ -599,11 +622,7 @@ function configYaml(
   // Enabled roles keep their overrides (or fall back to roles.yaml by
   // omission); disabled roles get the schema's disable mechanism — an
   // explicit empty trigger list. Built in roles.yaml order: deterministic.
-  const cadence: Record<string, Trigger[]> = {};
-  for (const role of allRoles) {
-    if (!answers.roles.includes(role)) cadence[role] = [];
-    else if (answers.cadence[role]) cadence[role] = answers.cadence[role];
-  }
+  const cadence = cadenceForAnswers(answers, allRoles);
 
   const entry: Record<string, unknown> = {
     repo: repoSlug,
@@ -665,6 +684,15 @@ op) and the weekly curation pass dedupes, prunes, and promotes.
 `;
 }
 
+function cadenceForAnswers(answers: BootstrapAnswers, allRoles: string[]): Record<string, Trigger[]> {
+  const cadence: Record<string, Trigger[]> = {};
+  for (const role of allRoles) {
+    if (!answers.roles.includes(role)) cadence[role] = [];
+    else if (answers.cadence[role]) cadence[role] = answers.cadence[role];
+  }
+  return cadence;
+}
+
 export interface BootstrapRunOptions {
   /** App (and org) name; defaults to the target root's basename. */
   appName?: string;
@@ -672,6 +700,9 @@ export interface BootstrapRunOptions {
   repoSlug?: string;
   /** Template root for org TASTE.md/roles.yaml; defaults to this package. */
   templateRoot?: string;
+  /** Existing org home to join. When set, bootstrap emits app artifacts only
+   * in the target repo and appends the app to `${orgHome}/apps.yaml`. */
+  orgHome?: string;
 }
 
 export interface BootstrapRunResult {
@@ -679,13 +710,15 @@ export interface BootstrapRunResult {
   answers: BootstrapAnswers;
   /** Relative paths written, org skeleton first, in emission order. */
   created: string[];
+  /** Existing org home joined by this run, when any. */
+  joinedOrgHome?: string;
 }
 
 /** The whole single-app bootstrap (architecture §9 steps 1–3): scan,
- * validate the questionnaire answers, emit the org skeleton plus the app
- * charter/config/memory tree. Answers are validated and every target path
- * existence-checked BEFORE the first write — a failed bootstrap leaves no
- * half-tree. Step 4 (detect/join an existing org) arrives with M3.5. */
+ * validate the questionnaire answers, then either emit the single-app org
+ * skeleton plus app artifacts, or join an existing org and emit app artifacts
+ * only. Answers are validated and every target path existence-checked BEFORE
+ * the first write — a failed bootstrap leaves no half-tree in the app repo. */
 export async function bootstrapRun(
   targetRootIn: string,
   answersRaw: unknown,
@@ -700,16 +733,81 @@ export async function bootstrapRun(
 
   const scan = await scanRepo(targetRoot);
   const repoSlug = options.repoSlug ?? scan.repoSlug;
+  const registrationRepoSlug = repoSlug ?? `OWNER/${appName}`;
 
-  assertNotExists(targetRoot, [...ORG_TEMPLATE_FILES, ...appArtifactFiles(answers, allRoles)]);
+  const appFiles = appArtifactFiles(answers, allRoles);
+  assertNotExists(targetRoot, [...(options.orgHome ? [] : ORG_TEMPLATE_FILES), ...appFiles]);
 
-  const orgOptions: EmitOrgTemplatesOptions = { appName, templateRoot };
-  if (repoSlug) orgOptions.repoSlug = repoSlug;
-  const org = await emitOrgTemplates(targetRoot, orgOptions);
+  let orgCreated: string[] = [];
+  let joinedOrgHome: string | undefined;
+  if (options.orgHome) {
+    const joined = await joinExistingOrg(
+      options.orgHome,
+      registrationFromAnswers(appName, registrationRepoSlug, answers, allRoles),
+    );
+    joinedOrgHome = joined.orgHome;
+  } else {
+    const orgOptions: EmitOrgTemplatesOptions = { appName, templateRoot };
+    if (repoSlug) orgOptions.repoSlug = repoSlug;
+    const org = await emitOrgTemplates(targetRoot, orgOptions);
+    orgCreated = org.created;
+  }
 
-  const appOptions: EmitAppArtifactsOptions = { appName, answers, allRoles };
+  const appOptions: EmitAppArtifactsOptions = { appName, answers, allRoles, templateRoot };
   if (repoSlug) appOptions.repoSlug = repoSlug;
   const app = await emitAppArtifacts(targetRoot, appOptions);
 
-  return { scan, answers, created: [...org.created, ...app.created] };
+  return {
+    scan,
+    answers,
+    created: [...orgCreated, ...app.created],
+    ...(joinedOrgHome ? { joinedOrgHome } : {}),
+  };
+}
+
+function registrationFromAnswers(
+  appName: string,
+  repoSlug: string,
+  answers: BootstrapAnswers,
+  allRoles: string[],
+): AppRegistration {
+  return {
+    name: appName,
+    repo: repoSlug,
+    status: "onboarding",
+    budgetUsdMonth: answers.budgetUsdMonth,
+    cadence: cadenceForAnswers(answers, allRoles),
+  };
+}
+
+export interface RegisterExistingOrgOptions {
+  appName?: string;
+  repoSlug?: string;
+  orgHome: string;
+}
+
+export interface RegisterExistingOrgResult {
+  scan: RepoScan;
+  appName: string;
+  joinedOrgHome: string;
+}
+
+/** Register-only path for `operon bootstrap <repo> --org-home <org>` when no
+ * questionnaire answers are supplied: scan the repo and append it to the
+ * existing org registry, leaving app artifacts for a later answers run. */
+export async function registerAppWithExistingOrg(
+  targetRootIn: string,
+  options: RegisterExistingOrgOptions,
+): Promise<RegisterExistingOrgResult> {
+  const targetRoot = resolve(targetRootIn);
+  const scan = await scanRepo(targetRoot);
+  const appName = sanitizeAppName(options.appName ?? basename(targetRoot));
+  const repo = options.repoSlug ?? scan.repoSlug ?? `OWNER/${appName}`;
+  const joined = await joinExistingOrg(options.orgHome, {
+    name: appName,
+    repo,
+    status: "onboarding",
+    cadence: {},
+  });
+  return { scan, appName, joinedOrgHome: joined.orgHome };
 }

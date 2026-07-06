@@ -3,8 +3,11 @@
 // typed data. Multi-app exists only at this org layer and in human surfaces —
 // never inside a turn (PURPOSE.md → One turn, one app).
 
-import { readFile } from "node:fs/promises";
-import { parse } from "yaml";
+import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import { parse, stringify } from "yaml";
 import type { RoleConfig, Trigger } from "../runtime/types.js";
 
 export type AppStatus = "live" | "paused" | "onboarding";
@@ -32,6 +35,31 @@ export interface AppsFile {
   org: { name: string; maxConcurrentTurns: number };
   defaults: { budgetUsdMonth: number };
   apps: AppEntry[];
+}
+
+export interface FindExistingOrgOptions {
+  /** Explicit org home, e.g. CLI `--org-home`. */
+  orgHome?: string;
+  /** Environment source; defaults to process.env. */
+  env?: Pick<NodeJS.ProcessEnv, "OPERON_HOME">;
+  /** Home dir for the pointer-file lookup; defaults to the current user. */
+  homeDir?: string;
+  /** Override for tests; defaults to `${homeDir}/.operon/config`. */
+  pointerPath?: string;
+}
+
+export interface AppRegistration {
+  name: string;
+  repo: string;
+  status?: AppStatus;
+  budgetUsdMonth?: number;
+  cadence?: Record<string, Trigger[]>;
+}
+
+export interface JoinExistingOrgResult {
+  orgHome: string;
+  appsPath: string;
+  app: AppEntry;
 }
 
 export async function loadApps(path: string): Promise<AppsFile> {
@@ -109,9 +137,10 @@ function parseApp(
         if (t && typeof t === "object") {
           if (typeof t["schedule"] === "string") trigger.schedule = t["schedule"];
           if (typeof t["event"] === "string") trigger.event = t["event"];
+          if (t["manual"] === true) trigger.manual = true;
         }
-        if (!trigger.schedule && !trigger.event) {
-          throw err(`cadence.${role}: trigger needs schedule or event`);
+        if (!trigger.schedule && !trigger.event && !trigger.manual) {
+          throw err(`cadence.${role}: trigger needs schedule, event, or manual`);
         }
         triggers.push(trigger);
       }
@@ -134,6 +163,96 @@ function parseApp(
  *  no override falls back to the role's own triggers. */
 export function resolveTriggers(role: RoleConfig, app: AppEntry): Trigger[] {
   return app.cadence[role.name] ?? role.triggers;
+}
+
+/** Detect an existing org home (architecture §9 step 4): explicit
+ * `--org-home` wins, then OPERON_HOME, then a pointer file at
+ * `~/.operon/config`. The pointer file accepts YAML/JSON with `org_home`
+ * or `orgHome`, or a plain path. */
+export async function findExistingOrg(
+  options: FindExistingOrgOptions = {},
+): Promise<string | undefined> {
+  if (options.orgHome !== undefined) return resolve(options.orgHome);
+
+  const env = options.env ?? process.env;
+  if (env.OPERON_HOME && env.OPERON_HOME.length > 0) return resolve(env.OPERON_HOME);
+
+  const pointerPath = options.pointerPath ?? join(options.homeDir ?? homedir(), ".operon", "config");
+  if (!existsSync(pointerPath)) return undefined;
+
+  const text = (await readFile(pointerPath, "utf8")).trim();
+  if (text.length === 0) return undefined;
+
+  const parsed = parsePointer(text);
+  return parsed ? resolve(parsed) : undefined;
+}
+
+function parsePointer(text: string): string | undefined {
+  try {
+    const raw = parse(text) as unknown;
+    if (typeof raw === "string") return raw;
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const spec = raw as Record<string, unknown>;
+      for (const key of ["org_home", "orgHome", "home", "path"]) {
+        if (typeof spec[key] === "string" && spec[key].length > 0) return spec[key];
+      }
+    }
+  } catch {
+    // Fall through to plain-path handling.
+  }
+  return text.includes("\n") || text.includes(":") ? undefined : text;
+}
+
+/** Register a new app in an existing org home by appending one YAML block to
+ * `apps.yaml`. Existing bytes are preserved exactly; duplicates fail before
+ * any write, so second-app bootstrap joins the org instead of forking it. */
+export async function joinExistingOrg(
+  orgHomeIn: string,
+  registration: AppRegistration,
+): Promise<JoinExistingOrgResult> {
+  const orgHome = resolve(orgHomeIn);
+  const appsPath = join(orgHome, "apps.yaml");
+  const before = await readFile(appsPath, "utf8");
+  const file = await loadApps(appsPath);
+
+  if (file.apps.some((a) => a.repo === registration.repo)) {
+    throw new Error(
+      `bootstrap: repo ${registration.repo} is already registered in ${appsPath} ` +
+        `(duplicate repo slugs are not allowed)`,
+    );
+  }
+  if (file.apps.some((a) => a.name === registration.name)) {
+    throw new Error(`bootstrap: app "${registration.name}" is already registered in ${appsPath}`);
+  }
+
+  const status = registration.status ?? "onboarding";
+  const cadence = registration.cadence ?? {};
+  const entry: AppEntry = {
+    name: registration.name,
+    repo: registration.repo,
+    status,
+    budgetUsdMonth: registration.budgetUsdMonth ?? file.defaults.budgetUsdMonth,
+    cadence,
+  };
+
+  const blockSpec: Record<string, unknown> = {
+    repo: registration.repo,
+    status,
+  };
+  if (registration.budgetUsdMonth !== undefined) {
+    blockSpec["budget_usd_month"] = registration.budgetUsdMonth;
+  }
+  blockSpec["cadence"] = cadence;
+
+  const block = stringify({ [registration.name]: blockSpec })
+    .trimEnd()
+    .split("\n")
+    .map((line) => `  ${line}`)
+    .join("\n");
+  const next = `${before.endsWith("\n") ? before : `${before}\n`}${block}\n`;
+  await writeFile(appsPath, next, "utf8");
+
+  return { orgHome, appsPath, app: entry };
 }
 
 function numberOr(v: unknown, fallback: number): number {

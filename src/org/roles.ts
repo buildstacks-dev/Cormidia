@@ -68,7 +68,10 @@ function parseRole(
       const trigger: Trigger = {};
       if (typeof t["schedule"] === "string") trigger.schedule = t["schedule"];
       if (typeof t["event"] === "string") trigger.event = t["event"];
-      if (!trigger.schedule && !trigger.event) throw err("trigger needs schedule or event");
+      if (t["manual"] === true) trigger.manual = true;
+      if (!trigger.schedule && !trigger.event && !trigger.manual) {
+        throw err("trigger needs schedule, event, or manual");
+      }
       triggers.push(trigger);
     }
   }

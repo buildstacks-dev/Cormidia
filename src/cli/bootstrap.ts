@@ -2,28 +2,31 @@
 // target repo (docs/architecture.md §9 step 1), walk the alignment
 // questionnaire (step 2: interactive in a terminal, or injected via
 // `--answers answers.json` for tests/scripting), and emit the `.operon/`
-// tree (step 3): org skeleton + app charter/config + seeded memory bundles.
+// tree (step 3): org skeleton + app charter/config/policy + seeded memory bundles.
 // `--scan-only` prints the scan profile and the would-create list without
 // writing anything. Without answers and without a terminal, only the
-// non-interactive org half (M3.3) runs. Detect-and-join an existing org
-// (step 4) arrives with M3.5.
+// non-interactive org half (M3.3) runs unless `--org-home`/OPERON_HOME points
+// at an existing org, in which case bootstrap registers the app there.
 
 import { readFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import {
   bootstrapRun,
   emitOrgTemplates,
+  registerAppWithExistingOrg,
   scanRepo,
   templateRoleNames,
   ORG_TEMPLATE_FILES,
   type CommandDetection,
   type RepoScan,
 } from "../org/bootstrap.js";
+import { findExistingOrg } from "../org/apps.js";
 
 export async function cmdBootstrap(args: string[]): Promise<number> {
   let root = ".";
   let scanOnly = false;
   let answersPath: string | undefined;
+  let orgHome: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -36,6 +39,13 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
       }
       answersPath = next;
       i++;
+    } else if (arg === "--org-home") {
+      const next = args[i + 1];
+      if (!next || next.startsWith("--")) {
+        throw new Error("bootstrap: --org-home requires a path to an existing org home");
+      }
+      orgHome = next;
+      i++;
     } else if (!arg.startsWith("--")) {
       root = arg;
     } else {
@@ -43,11 +53,17 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     }
   }
 
+  const existingOrgHome = await findExistingOrg(orgHome ? { orgHome } : {});
+
   if (scanOnly) {
     printScan(await scanRepo(root));
     console.log("\nwould create:");
-    for (const rel of ORG_TEMPLATE_FILES) console.log(`  ${rel}`);
-    console.log("  .operon/TASTE.md, .operon/config.yaml, .operon/memory/<role>/INDEX.md (with answers)");
+    if (existingOrgHome) console.log(`  ${existingOrgHome}/apps.yaml entry (join existing org)`);
+    else for (const rel of ORG_TEMPLATE_FILES) console.log(`  ${rel}`);
+    console.log(
+      "  .operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml, " +
+        ".operon/memory/<role>/INDEX.md (with answers)",
+    );
     console.log("(nothing written — --scan-only)");
     return 0;
   }
@@ -63,14 +79,32 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   }
 
   if (answersRaw !== undefined) {
-    const { scan, created } = await bootstrapRun(root, answersRaw);
+    const { scan, created, joinedOrgHome } = await bootstrapRun(root, answersRaw, {
+      ...(existingOrgHome ? { orgHome: existingOrgHome } : {}),
+    });
     printScan(scan);
+    if (joinedOrgHome) console.log(`\njoined existing org at ${joinedOrgHome}`);
     console.log("\ncreated:");
     for (const rel of created) console.log(`  ${rel}`);
+    const scope = joinedOrgHome ? "app artifacts" : "org skeleton plus app artifacts";
     console.log(
-      "\nnext: review + commit .operon/ in the app repo — org skeleton, app\n" +
+      `\nnext: review + commit .operon/ in the app repo — ${scope}:\n` +
         "charter (.operon/TASTE.md), registry entry (.operon/config.yaml),\n" +
-        "and seeded memory bundles.",
+        "policy (.operon/policy.yaml), and seeded memory bundles.",
+    );
+    return 0;
+  }
+
+  if (existingOrgHome) {
+    const { scan, joinedOrgHome } = await registerAppWithExistingOrg(root, {
+      orgHome: existingOrgHome,
+    });
+    printScan(scan);
+    console.log(`\njoined existing org at ${joinedOrgHome}`);
+    console.log(
+      "\nnext: re-run with --answers answers.json (or interactively in a\n" +
+        "terminal) to emit the app-owned .operon/ charter, config, policy,\n" +
+        "and memory bundles.",
     );
     return 0;
   }
@@ -85,7 +119,8 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   console.log(
     "\nnext: the app charter + config need questionnaire answers — re-run with\n" +
       "--answers answers.json (or interactively in a terminal) to emit\n" +
-      ".operon/TASTE.md, .operon/config.yaml, and .operon/memory/.",
+      ".operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml, and\n" +
+      ".operon/memory/.",
   );
   return 0;
 }
@@ -183,5 +218,5 @@ function printScan(scan: RepoScan): void {
   console.log(`  ci:           ${list(scan.ciConfigs)}`);
   console.log(`  deploy hints: ${list(scan.deployHints)}`);
   console.log(`  git remote:   ${scan.repoSlug ?? "none detected"}`);
-  console.log(`profile: single-app (org detect/join arrives with M3.5)`);
+  console.log(`profile: bootstrap can emit a single-app org or join an existing org`);
 }

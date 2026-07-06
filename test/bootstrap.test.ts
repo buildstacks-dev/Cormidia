@@ -168,6 +168,7 @@ describe("cmdBootstrap", () => {
     expect(out).toContain("typescript");
     expect(out).toContain("would create:");
     for (const rel of ORG_TEMPLATE_FILES) expect(out).toContain(rel);
+    expect(out).toContain(".operon/policy.yaml");
     expect(out).toContain("nothing written");
     expect(existsSync(join(target, ".operon"))).toBe(false);
   });

@@ -517,7 +517,10 @@ is the mechanism).*
 > join). M3.3–M3.6 run their acceptance against these repos; civic's
 > pilot acceptance re-enters as the final pre-launch milestone.
 
-- [ ] **M3.1 App registry loader (`apps.yaml`) + `operon apps` CLI**
+- [x] **M3.1 App registry loader (`apps.yaml`) + `operon apps` CLI** ✅ 2026-07-06 —
+  `src/org/apps.ts` loads the schema + resolveTriggers semantics;
+  `operon apps` prints the root registry. Root apps.yaml now carries the
+  Operon placeholder plus sandbox alpha/beta.
   **Goal:** `src/org/apps.ts`: schema (org{name,max_concurrent_turns},
   defaults{budget_usd_month}, apps{repo,status live|paused|onboarding,
   budget_usd_month, cadence}) mirroring roles.ts patterns;
@@ -536,7 +539,10 @@ is the mechanism).*
   **Read:** docs/architecture.md §7; PURPOSE.md → multi-app + one-turn-one-app.
   **Session:** sonnet, single session.
 
-- [ ] **M3.2 Manual trigger kind + per-app/trigger telemetry fields**
+- [x] **M3.2 Manual trigger kind + per-app/trigger telemetry fields** ✅ 2026-07-06 —
+  `Trigger.manual`, app/trigger telemetry attribution, and back-compatible
+  JSONL records are pinned in tests; roles/apps loaders accept manual
+  triggers.
   **Goal:** `Trigger` gains optional `manual` (dispatcher must never
   auto-fire it — M7.8 encodes that); `TurnRecord` gains optional `app` and
   `trigger` fields (back-compat) so co-planning and dispatched turns roll
@@ -551,7 +557,9 @@ is the mechanism).*
   **Read:** docs/architecture.md §7 (budget), §8 (manual trigger).
   **Session:** sonnet, single session.
 
-- [ ] **M3.3 `operon bootstrap` — repo scan + org-template emission**
+- [x] **M3.3 `operon bootstrap` — repo scan + org-template emission** ✅ 2026-07-06 —
+  scan detects manifests/CI/agent docs/deploy hints/remotes; single-app
+  org templates emit from root TASTE.md/roles.yaml plus an apps.yaml stub.
   **Goal:** The non-interactive half: `scanRepo()` (language/build/test
   commands from manifests+CI, agent docs, Dockerfile/deploy hints) and
   `emitOrgTemplates()` — single-app profile `.operon/org/{TASTE.md,
@@ -570,7 +578,10 @@ is the mechanism).*
   PURPOSE.md → Bootstrap & artifact home.
   **Session:** sonnet, single session.
 
-- [ ] **M3.4 `operon bootstrap` — questionnaire + app charter/config emission**
+- [x] **M3.4 `operon bootstrap` — questionnaire + app charter/config emission** ✅ 2026-07-06 —
+  answers emit app charter, config, policy.yaml (from M4.2 template when
+  available), and per-role memory indexes; config round-trips through
+  loadApps.
   **Goal:** Given scan results + an answers object (interactive in real
   use, injectable via `--answers answers.json` for tests/scripting), emit
   `.operon/TASTE.md` (product charter), `.operon/config.yaml`
@@ -592,7 +603,10 @@ is the mechanism).*
   **Session:** opus, single session — questionnaire content shape has real
   design ambiguity.
 
-- [ ] **M3.5 `operon bootstrap` — detect and join an existing org**
+- [x] **M3.5 `operon bootstrap` — detect and join an existing org** ✅ 2026-07-06 —
+  `findExistingOrg` supports `--org-home`/OPERON_HOME/pointer files;
+  `joinExistingOrg` appends without rewriting existing app entries and
+  rejects duplicate repo slugs; CLI prints `joined existing org at ...`.
   **Goal:** Register/join: find an existing org home (pointer file /
   OPERON_HOME), append the new app to its apps.yaml as
   `status: onboarding` via a merge-not-overwrite helper; reject duplicate
@@ -607,7 +621,11 @@ is the mechanism).*
   **Read:** docs/architecture.md §9 step 4, §1 (graduation).
   **Session:** sonnet, single session.
 
-- [ ] **M3.6 `operon plan <app>` — co-planning session launcher**
+- [x] **M3.6 `operon plan <app>` — co-planning session launcher** ✅ 2026-07-06 —
+  `assembleMinimalContext()` concatenates org/app TASTE layers, `operon
+  plan` builds a Claude `--append-system-prompt` invocation, dry-run creates
+  and cleans an `op/plan-<slug>` worktree, and live runs record manual
+  telemetry under `.org`.
   **Goal:** The manual, interactive invocation shape (architecture §8):
   `operon plan <app> [--topic <string>] [--dry-run] [--workdir <path>]` —
   resolve app via apps.ts; create a throwaway worktree on main
@@ -634,7 +652,14 @@ is the mechanism).*
   **Session:** opus, single session — worktree lifecycle + interactive
   handover.
 
-- [ ] **M3.7 Onboard the sandbox apps as apps #1/#2 (functional acceptance)**
+- [x] **M3.7 Onboard the sandbox apps as apps #1/#2 (functional acceptance)** ✅ 2026-07-06 —
+  `operon-sandbox-alpha` and `operon-sandbox-beta` were bootstrapped with
+  app-owned `.operon/TASTE.md`, `.operon/config.yaml`, `.operon/policy.yaml`
+  (byte-identical to `docs/policy.yaml.template`), and memory indexes.
+  Root apps.yaml registers alpha as `live` and beta as `onboarding`;
+  `operon plan operon-sandbox-alpha --topic "stats percentile helper"
+  --dry-run --workdir ~/Build/operon-sandbox-alpha` printed app/branch/topic
+  and context bytes without spawning Claude.
   ⏸ **Civic version ON HOLD (2026-07-05, human decision):** the original
   item — onboard civic + draft the US-states spec with the human — is
   deferred until the entire product is ready; it re-enters as the
@@ -656,13 +681,17 @@ is the mechanism).*
   is PURPOSE v0.8's first pilot acceptance test executed for real.
   **Files:** apps.yaml; (in the civic repo:) .operon/**
   **Deps:** M3.4, M3.5, M3.6
-  **Accept:** `pnpm dev apps` shows civic STATUS=live BUDGET=$1000;
-  `ls ~/Build/Government/AgentSkill-CivicIntelligence/.operon` shows
-  TASTE.md, config.yaml, memory/, planning/; the spec file exists under
-  `.operon/planning/` and is committed in the civic repo; existing test
-  suites stay green.
-  **Demo:** The org has one real live app and its Planner produced a real
-  spec with the human in the loop.
+  **Accept (sandbox substitute while civic is on hold):** `pnpm dev apps`
+  shows `operon-sandbox-alpha` STATUS=live and `operon-sandbox-beta`
+  STATUS=onboarding; `find ~/Build/operon-sandbox-{alpha,beta}/.operon`
+  shows TASTE.md, config.yaml, policy.yaml, and memory/; both policy files
+  byte-match `docs/policy.yaml.template`; the plan dry-run prints app,
+  branch, topic, and context byte size without spawning; existing test
+  suites stay green. The deferred civic acceptance remains below for the
+  pre-launch milestone.
+  **Demo:** The org has real app entries for both sandbox repos, app-owned
+  bootstrap output in each repo, and a Planner co-planning command that can
+  prime a live session against alpha.
   **Read:** PURPOSE.md → Pilot applications + Pilot tasks are the
   acceptance tests; docs/architecture.md §8 (first use decided).
   **Session:** sonnet, single session + the human present for the
@@ -993,7 +1022,9 @@ Builder and Reviewer turns — loop v1 complete on a real app repo.
   security-deep and perf-scale passes selected via M4.2's dimension_globs
   and risk tier/labels (`only_on` evaluated against real policy) — and the
   high-risk ship-check pass (prompts/ship/check.md) is invoked in
-  shipping. Contract comment lands on the issue. The brief's [memory]
+  shipping. The loop loads the app-owned `.operon/policy.yaml` emitted by
+  bootstrap and fails loud if it is missing — M6 consumes policy, never
+  creates it. Contract comment lands on the issue. The brief's [memory]
   section stays empty until M9.3 wires it — a deliberate deferral.
   **Files:** src/loop/loop.ts, src/loop/driver.ts, test/loop-integration.test.ts
   **Deps:** M5.9, M2.8, M2.2, M4.2, M4.6, M6.1, M1.2
@@ -1014,13 +1045,13 @@ Builder and Reviewer turns — loop v1 complete on a real app repo.
   **Goal:** Execute the end-to-end proof against `operon-sandbox-alpha`
   (civic deferred — M3 header note): a small, real one-file ticket
   (criteria binary and mechanically checkable), seeded `op:ready` in the
-  sandbox repo (with §10 labels + a minimal `.operon/policy.yaml` from
-  M4.2's template), then `operon loop --app operon-sandbox-alpha --follow`
-  to merged. Record the run's evidence (PR link, gate results, review) in
-  a dated research note. The civic re-run of this item is part of the
-  deferred pilot acceptance.
-  **Files:** (sandbox repo:) .operon/policy.yaml, the ticket, the merged
-  PR; research/2026-XX-XX_sandbox-loop-v1.md
+  sandbox repo (with §10 labels and the bootstrap-emitted
+  `.operon/policy.yaml` already present from M3.7), then `operon loop --app
+  operon-sandbox-alpha --follow` to merged. Record the run's evidence (PR
+  link, gate results, review) in a dated research note. The civic re-run of
+  this item is part of the deferred pilot acceptance.
+  **Files:** (sandbox repo:) the ticket, the merged PR;
+  research/2026-XX-XX_sandbox-loop-v1.md
   **Deps:** M6.2, M3.7
   **Accept:** `gh issue view <n>` in the sandbox repo shows CLOSED with the
   label history ready→building→in-review; the squash-merge commit body

@@ -93,7 +93,21 @@ apps:
     cadence:
       planner: [{note: "not a trigger"}]
 `);
-    await expect(loadApps(path)).rejects.toThrow(/trigger needs schedule or event/);
+    await expect(loadApps(path)).rejects.toThrow(/trigger needs schedule, event, or manual/);
+  });
+
+  it("parses manual cadence triggers", async () => {
+    const path = appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: live
+    cadence:
+      planner: [{manual: true}]
+`);
+    const { apps } = await loadApps(path);
+    expect(apps[0]!.cadence.planner).toEqual([{ manual: true }]);
   });
 
   it("rejects a missing repo", async () => {
@@ -129,14 +143,26 @@ apps:
 });
 
 describe("root apps.yaml (this repo as its own org home)", () => {
-  it("parses with the self-referential placeholder entry", async () => {
+  it("parses with the self-referential placeholder and sandbox app entries", async () => {
     const { org, apps } = await loadApps(APPS_PATH);
     expect(org.name).toBe("operon");
     expect(org.maxConcurrentTurns).toBe(2);
-    expect(apps).toHaveLength(1);
+    expect(apps).toHaveLength(3);
     expect(apps[0]!.name).toBe("operon");
     expect(apps[0]!.repo).toBe("buildstacks-dev/Operon");
     expect(apps[0]!.status).toBe("onboarding");
+    expect(apps[1]).toMatchObject({
+      name: "operon-sandbox-alpha",
+      repo: "bikramgupta/operon-sandbox-alpha",
+      status: "live",
+      budgetUsdMonth: 1000,
+    });
+    expect(apps[2]).toMatchObject({
+      name: "operon-sandbox-beta",
+      repo: "bikramgupta/operon-sandbox-beta",
+      status: "onboarding",
+      budgetUsdMonth: 1000,
+    });
   });
 });
 

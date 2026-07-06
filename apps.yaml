@@ -31,3 +31,13 @@ apps:
     repo: buildstacks-dev/Operon
     status: onboarding
     cadence: {}
+  operon-sandbox-alpha:
+    repo: bikramgupta/operon-sandbox-alpha
+    status: live
+    budget_usd_month: 1000
+    cadence: {}
+  operon-sandbox-beta:
+    repo: bikramgupta/operon-sandbox-beta
+    status: onboarding
+    budget_usd_month: 1000
+    cadence: {}

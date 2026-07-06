@@ -99,6 +99,7 @@ docs/architecture.md     this file
 .operon/
   TASTE.md               app charter ("what this product is; what good means")
   config.yaml            this app's registry entry (same schema as apps.yaml)
+  policy.yaml            app-owned quality-gate policy emitted by bootstrap
   memory/<role>/         per-(role, app) domain bundles
   org/                   single-app profile ONLY: org-level artifacts
                          (org TASTE.md, roles.yaml, apps.yaml, taste/, memory/)
@@ -649,6 +650,7 @@ operon bootstrap        # run inside the product repo
 3. **Emit.**
   - `.operon/TASTE.md` — the app charter (layer [3]);
   - `.operon/config.yaml` — the app's registry entry (apps.yaml schema);
+  - `.operon/policy.yaml` — the app-owned quality-gate policy;
   - `.operon/memory/<role>/INDEX.md` — seeded empty bundles;
   - single-app profile (no org detected): also `.operon/org/` with org
   TASTE.md, roles.yaml, apps.yaml — templated from this repo's root
@@ -769,4 +771,3 @@ operator's ratification (PURPOSE.md is a human-ratified surface):
 3. **Defaults to confirm:** `max_concurrent_turns: 2`; grant TTL 24 h;
   dispatch tick 5 min; loop `maxCycles: 3`. *(human — cheap to change
    later; flagged for visibility)*
-

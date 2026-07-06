@@ -11,8 +11,8 @@
 # Tiering makes the loop cheaper, never less safe: a quick ticket touching
 # auth/** still gets high-tier gates.
 #
-# Planner pipelines (plan / groom / triage) are deliberately absent — they
-# land with M8, after the build loop is proven end to end.
+# Planner pipelines (plan / groom / triage) are deliberately absent until
+# the build loop is proven end to end.
 
 build:
   passes:
@@ -47,7 +47,7 @@ fix: # bounce target: the brief carries reviewer findings or verbatim gate outpu
 ship:
   mechanical: true # merge is orchestrator work; agent judgment only on trigger (§5)
   passes:
-    - id: ship-check # judgment layer above green gates: high risk OR deep tier (§4 tiering — the tier rides on its op:tier-deep label)
+    - id: ship-check # judgment layer above green gates: high risk OR deep tier (§4 tiering)
       role: reviewer
       template: ship/check.md
-      only_on: { risk: [high], labels: [op:tier-deep] }
+      only_on: { risk: [high], tier: [deep] }

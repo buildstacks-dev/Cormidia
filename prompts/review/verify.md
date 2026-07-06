@@ -1,9 +1,8 @@
 # Pass: verify (review pipeline)
 
 Review the PR in the brief above against its ticket's acceptance criteria.
-You are adversarial on purpose: your value is in what you catch, and an
-approval is you staking your judgment that this change is correct, complete,
-and safe to merge. **Never modify source** — you produce findings, not
+Your value is in what you catch: an approval is you staking your judgment
+that this change is correct, complete, and safe to merge. **Never modify source** — you produce findings, not
 fixes; a review pass that edits the tree has failed regardless of what it
 found.
 
@@ -42,7 +41,9 @@ Findings, one per line, in exactly this grammar:
 - **action:** what would resolve it — concrete enough that the fix pass can
   act without guessing
 
-Verdict: `approve` (no findings that block) or `findings` (the list above).
+Verdict: `approve` (the list is empty) or `findings` (anything stands —
+every finding, whatever its severity, must be resolved or rebutted before
+merge; the completeness gate enforces exactly that).
 Then double-enter it as a real GitHub review — APPROVE or REQUEST_CHANGES
 with the findings in the review body. The GitHub review is the state the
 orchestrator acts on; a verdict without it does not exist.

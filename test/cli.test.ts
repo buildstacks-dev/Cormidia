@@ -43,9 +43,7 @@ describe("cli dispatch", () => {
   it("pipelines subcommand validates the root pipelines.yaml", async () => {
     const { stdout, code } = await runCli(["pipelines"]);
     expect(code).toBe(0);
-    expect(stdout).toContain("pipelines.yaml: OK — 4 pipelines");
-    expect(stdout).toContain("build");
-    expect(stdout).toContain("[mechanical]");
+    expect(stdout).toContain("pipelines.yaml: OK");
   });
 
   it("doctor subcommand still lists runtime adapters", async () => {

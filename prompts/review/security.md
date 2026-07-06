@@ -43,7 +43,6 @@ Findings in the standard grammar, category `security`:
 
 The description names the attack path; the action names the defense.
 
-Verdict: `approve` or `findings`, double-entered as a real GitHub review
-(APPROVE / REQUEST_CHANGES). Approve only when nothing critical or major
-stands — an approved security-deep pass is the org's statement that this
-change is safe to run in production.
+Verdict: `approve` (no findings stand) or `findings`, double-entered as a
+real GitHub review (APPROVE / REQUEST_CHANGES). An approved security-deep
+pass is the org's statement that this change is safe to run in production.

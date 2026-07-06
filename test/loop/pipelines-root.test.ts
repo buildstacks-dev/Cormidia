@@ -57,9 +57,7 @@ describe("root pipelines.yaml", () => {
     expect(selectPasses(ship, { tier: "standard", riskTier: "high" }).map((p) => p.id)).toEqual([
       "ship-check",
     ]);
-    expect(
-      selectPasses(ship, { tier: "deep", labels: ["op:tier-deep"] }).map((p) => p.id),
-    ).toEqual(["ship-check"]);
+    expect(selectPasses(ship, { tier: "deep" }).map((p) => p.id)).toEqual(["ship-check"]);
   });
 
   it("builder implements, reviewer reviews — cross-provider pairing holds per pass", async () => {

@@ -1,10 +1,8 @@
 # Pass: implement (build pipeline)
 
 Implement the ticket in the brief above, honoring the implementation
-contract when one is present. Your work is judged by durable artifacts —
-commits and test results — not by what you report; mechanical gates re-run
-everything after this pass, so an unverified claim of success only wastes a
-remediation cycle.
+contract when one is present. Mechanical gates re-run everything after this
+pass; an unverified claim of success only wastes a remediation cycle.
 
 ## Protocol
 
@@ -20,7 +18,7 @@ remediation cycle.
 4. **Verify with the full suite.** Run the complete test suite and require
    exit code 0. This is NOT optional and NOT limited to task-specific
    tests — the criteria say what you built; the full suite says what you
-   broke. New behavior ships with a test that fails without it.
+   broke.
 5. **Plan-adherence self-check** before declaring done:
    - every acceptance criterion is addressed, each by the test named in the
      contract's mapping;

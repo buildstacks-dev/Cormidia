@@ -19,7 +19,7 @@
 
 import { readFile } from "node:fs/promises";
 import { access } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import type { Effort } from "../runtime/types.js";
 
@@ -37,6 +37,10 @@ export const TICKET_TIERS: TicketTier[] = ["quick", "standard", "deep"];
 export interface OnlyOn {
   /** Risk tiers that trigger the pass (vocabulary owned by policy.yaml). */
   risk?: string[];
+  /** Ticket tiers that trigger the pass — first-class, so "deep adds the
+   *  ship-check pass" (§4 tiering) keys off PassSelection.tier, not off the
+   *  raw op:tier-* label happening to be echoed into `labels`. */
+  tier?: TicketTier[];
   /** Ticket labels that trigger the pass (e.g. `op:perf-sensitive`). */
   labels?: string[];
   /** `dimension_globs` key(s) from policy.yaml that trigger the pass when
@@ -131,6 +135,9 @@ function onlyOnMatches(cond: OnlyOn, sel: PassSelection): boolean {
   if (cond.risk !== undefined && sel.riskTier !== undefined && cond.risk.includes(sel.riskTier)) {
     return true;
   }
+  if (cond.tier !== undefined && cond.tier.includes(sel.tier)) {
+    return true;
+  }
   if (cond.labels !== undefined && (sel.labels ?? []).some((l) => cond.labels!.includes(l))) {
     return true;
   }
@@ -172,6 +179,14 @@ async function parsePipeline(
   if (!specUnknown || typeof specUnknown !== "object") throw err("not a mapping");
   const spec = specUnknown as Record<string, unknown>;
 
+  for (const key of Object.keys(spec)) {
+    if (!["mechanical", "passes"].includes(key)) {
+      throw err(`unknown key "${key}" (allowed: mechanical, passes)`);
+    }
+  }
+  if (spec["mechanical"] !== undefined && typeof spec["mechanical"] !== "boolean") {
+    throw err(`"mechanical" must be a boolean`);
+  }
   const mechanical = spec["mechanical"] === true;
 
   const passesRaw = spec["passes"];
@@ -186,6 +201,17 @@ async function parsePipeline(
     if (seenIds.has(pass.id)) throw err(`duplicate pass id "${pass.id}"`);
     seenIds.add(pass.id);
     passes.push(pass);
+  }
+
+  if (mechanical) {
+    for (const pass of passes) {
+      if (pass.onlyOn === undefined) {
+        throw err(
+          `mechanical pipeline has unconditional agent pass "${pass.id}" — ` +
+            `every pass needs only_on (agent judgment only on trigger, docs/loop.md §5)`,
+        );
+      }
+    }
   }
 
   return { name, mechanical, passes };
@@ -210,6 +236,24 @@ async function parsePass(
   }
   const err = (msg: string) => new Error(`${where(id)}: ${msg}`);
 
+  const PASS_KEYS = [
+    "id",
+    "role",
+    "template",
+    "effort",
+    "model",
+    "parallel_group",
+    "skip_on_tier",
+    "only_on",
+  ];
+  for (const key of Object.keys(spec)) {
+    // A misspelled selection key (e.g. only_on_risk) silently dropped would
+    // make the pass unconditional — reject loudly instead.
+    if (!PASS_KEYS.includes(key)) {
+      throw err(`unknown key "${key}" (allowed: ${PASS_KEYS.join(", ")})`);
+    }
+  }
+
   const role = spec["role"];
   if (typeof role !== "string" || role.length === 0) throw err(`"role" is required`);
   if (!opts.roleNames.includes(role)) {
@@ -221,6 +265,12 @@ async function parsePass(
     throw err(`"template" is required`);
   }
   const templatePath = join(opts.promptsDir, template);
+  // Containment: templates are a human-ratified surface; a `../` path must
+  // not validate against a file outside the prompts dir.
+  const escape = relative(resolve(opts.promptsDir), resolve(templatePath));
+  if (escape.startsWith("..") || isAbsolute(escape)) {
+    throw err(`template must resolve under the prompts dir (got "${template}")`);
+  }
   try {
     await access(templatePath);
   } catch {
@@ -288,19 +338,33 @@ function parseOnlyOn(raw: unknown, err: (msg: string) => Error): OnlyOn {
   };
 
   const risk = strList("risk");
+  const tier = strList("tier");
   const labels = strList("labels");
   const dimensionGlobs = strList("dimension_globs");
   if (risk !== undefined) onlyOn.risk = risk;
+  if (tier !== undefined) {
+    for (const t of tier) {
+      if (!TICKET_TIERS.includes(t as TicketTier)) {
+        throw err(`only_on.tier: "${t}" is not one of ${TICKET_TIERS.join(" | ")}`);
+      }
+    }
+    onlyOn.tier = tier as TicketTier[];
+  }
   if (labels !== undefined) onlyOn.labels = labels;
   if (dimensionGlobs !== undefined) onlyOn.dimensionGlobs = dimensionGlobs;
 
   for (const key of Object.keys(spec)) {
-    if (!["risk", "labels", "dimension_globs"].includes(key)) {
-      throw err(`only_on: unknown key "${key}" (allowed: risk, labels, dimension_globs)`);
+    if (!["risk", "tier", "labels", "dimension_globs"].includes(key)) {
+      throw err(`only_on: unknown key "${key}" (allowed: risk, tier, labels, dimension_globs)`);
     }
   }
-  if (risk === undefined && labels === undefined && dimensionGlobs === undefined) {
-    throw err(`only_on must set at least one of risk, labels, dimension_globs`);
+  if (
+    risk === undefined &&
+    tier === undefined &&
+    labels === undefined &&
+    dimensionGlobs === undefined
+  ) {
+    throw err(`only_on must set at least one of risk, tier, labels, dimension_globs`);
   }
   return onlyOn;
 }

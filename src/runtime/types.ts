@@ -10,6 +10,11 @@ export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 export interface Trigger {
   schedule?: string;
   event?: string;
+  /** Human-initiated invocation (e.g. `operon plan`, docs/architecture.md
+   *  §8). The dispatcher must NEVER auto-fire a manual trigger (build plan
+   *  M7.8 encodes that) — it exists so a role can declare the manual entry
+   *  point and telemetry can attribute the turn to it. */
+  manual?: boolean;
 }
 
 export interface RoleConfig {

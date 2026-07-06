@@ -206,6 +206,25 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     promptsDir: join(options.orgRoot, "prompts"),
   });
   const pipeline = getPipeline(pipelines, options.pipelineName);
+
+  // Record the wall-clock kill cap for this running pipeline turn so the
+  // dispatcher's killHungTurns honors per-pass `wall_clock_minutes` instead of
+  // the 60-min default. The org journal carries one whole-turn timer
+  // (passStartedAt), so we cap against the LONGEST configured pass — a hung
+  // turn is still killed, but no legitimately long pass is killed early. No
+  // pass declares one → field stays absent → default applies.
+  const capMinutes = pipeline.passes.reduce(
+    (max, pass) => (pass.wallClockMinutes !== undefined ? Math.max(max, pass.wallClockMinutes) : max),
+    0,
+  );
+  if (capMinutes > 0) {
+    await writeJournalPatch(options.runtimeHome, options.turnId, {
+      role: options.role.name,
+      app: options.app.name,
+      wallClockCapMs: capMinutes * 60_000,
+    });
+  }
+
   const priorOutputs = new Map<string, string>();
   const now = options.now?.() ?? new Date();
   const approvalRows = await new ApprovalStore(options.runtimeHome).listPending();

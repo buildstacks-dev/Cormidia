@@ -183,6 +183,8 @@ async function computeDueTurns(input: {
       input.result.errors.push(`${error.app}/${error.kind}: ${error.code}: ${error.message}`);
     }
 
+    const channels = app.channels ?? {};
+    const subscribedEventKeys = new Set<string>();
     for (const role of input.rolesFile.roles) {
       const triggers = resolveTriggers(role, app);
       for (const trigger of triggers) {
@@ -190,7 +192,10 @@ async function computeDueTurns(input: {
         if (trigger.event !== undefined) {
           const matches = polled.events.filter((event) => event.kind === trigger.event);
           for (const event of matches) {
-            const route = resolveTriggerRoute({ role: role.name, trigger });
+            // A matching subscriber exists even if it is then gated/unrouted:
+            // this event is NOT orphaned, so don't record it as unsubscribed.
+            subscribedEventKeys.add(event.key);
+            const route = resolveTriggerRoute({ role: role.name, trigger, channels });
             if (route.kind === "skip") {
               input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
               continue;
@@ -201,13 +206,24 @@ async function computeDueTurns(input: {
         if (trigger.schedule !== undefined) {
           const last = await input.schedule.lastFired(app.name, role.name, trigger.schedule);
           if (!isDue(trigger.schedule, last, input.now)) continue;
-          const route = resolveTriggerRoute({ role: role.name, trigger });
+          const route = resolveTriggerRoute({ role: role.name, trigger, channels });
           if (route.kind === "skip") {
             input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
             continue;
           }
           due.push(scheduleTurn(app.name, role.name, trigger.schedule, input.now));
         }
+      }
+    }
+
+    // An event kind that no role subscribes to is recorded, never lost: it
+    // stays in the inbox (unconsumed) and surfaces on every tick so a missing
+    // subscriber is observable rather than a silent drop.
+    for (const event of polled.events) {
+      if (!subscribedEventKeys.has(event.key)) {
+        input.result.skipped.push(
+          `${app.name}: event ${event.kind} (${event.key}) has no subscriber`,
+        );
       }
     }
   }
@@ -282,8 +298,12 @@ async function killHungTurns(
     if (journal.phase !== "running" || journal.passStartedAt === undefined || journal.pid === undefined) {
       continue;
     }
+    // Per-pass override wins when the running pass recorded one; otherwise the
+    // org-wide default (60 min). Journals written before this field existed
+    // simply fall through to the default — back-compatible.
+    const capMs = journal.wallClockCapMs ?? wallClockCapMs;
     const age = now.getTime() - new Date(journal.passStartedAt).getTime();
-    if (age <= wallClockCapMs) continue;
+    if (age <= capMs) continue;
     try {
       if (kill !== undefined) await kill(journal.pid);
       else process.kill(journal.pid, "SIGTERM");

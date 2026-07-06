@@ -25,6 +25,8 @@ roles:
     triggers:
       - schedule: "daily 07:00"     # synthesize support digest, groom backlog
       - schedule: "weekly mon"      # deep planning pass
+      - event: support-feedback     # groom feed: a user-feedback drop grooms the backlog with that signal (docs/event-schemas.md)
+      - event: adoption-signal      # groom feed: an adoption movement grooms the backlog with that signal (docs/event-schemas.md)
     outputs: [tickets, priorities, roadmap-notes]
 
   builder:
@@ -56,7 +58,7 @@ roles:
     triggers:
       - schedule: "hourly"          # health sweep
       - event: ci-failed
-      - event: alert-webhook
+      - event: health-alert         # documented company-lifecycle kind for service-health drops (docs/event-schemas.md); replaces the generic alert-webhook placeholder now that inbox files parse to typed kinds
     outputs: [fixes, infra-prs, incident-notes]
     # deploys / DNS / secrets remain human-gated regardless of model (critical ops)
 
@@ -68,6 +70,7 @@ roles:
       allow: [triage-fanout]
     triggers:
       - schedule: "every 4h"
+      - event: support-feedback     # a user-feedback drop wakes the digest immediately, not just on the 4h cadence (docs/event-schemas.md)
     outputs: [feedback-digest, reply-drafts]
     # v1: replies are DRAFTS — posting publicly = external publishing = critical op,
     # so human-approved until calibration earns autonomy. Digests flow to Planner
@@ -82,6 +85,8 @@ roles:
     triggers:
       - event: release-shipped  # changelog + launch notes for every ship
       - schedule: "weekly thu"  # content + positioning pass
+      - event: adoption-signal  # an adoption movement wakes the ci-sweep/adoption-digest pass (docs/event-schemas.md)
+      - event: launch-calendar  # a planned launch/announcement date wakes the release pass to draft notes (docs/event-schemas.md)
     outputs: [changelog, launch-post-drafts, positioning-notes, adoption-digest]
     # same rule as support: anything public is a DRAFT until human-approved
     # (external publishing = critical op); adoption-digest flows to Planner ungated

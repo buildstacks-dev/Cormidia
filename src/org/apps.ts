@@ -14,6 +14,17 @@ export type AppStatus = "live" | "paused" | "onboarding";
 
 const STATUSES: AppStatus[] = ["live", "paused", "onboarding"];
 
+/** Feedback/publishing channels an app exposes (docs/PURPOSE.md → "Support
+ *  and Marketing are disabled per app until that app has real feedback or
+ *  adoption channels"). Shared apps.yaml / `.operon/config.yaml` schema:
+ *  `channels.support` gates Support turns, `channels.marketing` gates
+ *  Marketing turns. Absent or empty list = that role stays disabled for the
+ *  app regardless of its schedule/event triggers (see resolveTriggerRoute). */
+export interface AppChannels {
+  support?: string[];
+  marketing?: string[];
+}
+
 export interface AppEntry {
   name: string;
   /** GitHub slug (`owner/repo`) — the app's identity. */
@@ -26,6 +37,11 @@ export interface AppEntry {
    *  (never merges with) that role's roles.yaml triggers; an empty list
    *  disables the role for this app. See resolveTriggers(). */
   cadence: Record<string, Trigger[]>;
+  /** Channel-presence gate source. `loadApps` always populates it (`{}` when
+   *  the app declares none); optional here so hand-built entries (tests,
+   *  registration) may omit it — the dispatcher treats absent as `{}`, i.e.
+   *  Support/Marketing gated off. Read by resolveTriggerRoute. */
+  channels?: AppChannels;
 }
 
 export interface AppsFile {
@@ -154,7 +170,28 @@ function parseApp(
     status: status as AppStatus,
     budgetUsdMonth: numberOr(spec["budget_usd_month"], defaultBudget),
     cadence,
+    channels: parseChannels(spec["channels"], err),
   };
+}
+
+/** Parse the optional `channels` block. Absent → `{}` (role stays gated off).
+ *  Only the `support`/`marketing` keys are recognised; each must be a list of
+ *  channel identifiers. Mirrors the bootstrap emitter (src/org/bootstrap.ts). */
+function parseChannels(raw: unknown, err: (msg: string) => Error): AppChannels {
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw err("channels must be a mapping of support/marketing -> channel list");
+  }
+  const spec = raw as Record<string, unknown>;
+  const channels: AppChannels = {};
+  for (const key of ["support", "marketing"] as const) {
+    if (spec[key] === undefined) continue;
+    if (!Array.isArray(spec[key]) || (spec[key] as unknown[]).some((v) => typeof v !== "string")) {
+      throw err(`channels.${key} must be a list of channel identifiers (strings)`);
+    }
+    channels[key] = spec[key] as string[];
+  }
+  return channels;
 }
 
 /** Effective triggers for a role on one app (docs/architecture.md §2, §7):
@@ -233,6 +270,7 @@ export async function joinExistingOrg(
     status,
     budgetUsdMonth: registration.budgetUsdMonth ?? file.defaults.budgetUsdMonth,
     cadence,
+    channels: {},
   };
 
   const blockSpec: Record<string, unknown> = {

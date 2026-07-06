@@ -103,4 +103,145 @@ describe("wall-clock and turn caps", () => {
       home.cleanup();
     }
   });
+
+  it("honors a per-pass wall-clock cap tighter than the 60-min default", async () => {
+    // A pass that recorded wall_clock_minutes: 5 (300_000 ms) is killed once it
+    // runs past 5 minutes, even though the lock is still heartbeating (alive).
+    const home = makeOrgHome({ state: true, approvals: true });
+    const killed: number[] = [];
+    const spawned: string[] = [];
+    const now = new Date("2026-07-06T00:06:00Z");
+    try {
+      await acquireLock(home.root, { app: "alpha", role: "builder", turnId: "hung", now, pid: 4242 });
+      await writeJournalPatch(
+        home.root,
+        "hung",
+        {
+          role: "builder",
+          app: "alpha",
+          phase: "running",
+          attempt: 0,
+          passStartedAt: "2026-07-06T00:00:00.000Z",
+          wallClockCapMs: 5 * 60_000,
+          pid: 4242,
+          session: { runtime: "claude", id: "s1" },
+        },
+        new Date("2026-07-06T00:00:00Z"),
+      );
+
+      const result = await dispatchTick({
+        runtimeHome: home.root,
+        appsPath: "apps.yaml",
+        rolesPath: "roles.yaml",
+        now: () => now,
+        eventSource: {
+          ticketReady: async () => [],
+          prOpened: async () => [],
+          ciFailed: async () => [],
+          releaseShipped: async () => [],
+        },
+        kill: (pid) => void killed.push(pid),
+        spawn: async (input) => void spawned.push(input.turnId),
+      });
+
+      expect(killed).toEqual([4242]);
+      expect(spawned).toContain("hung");
+      expect(result.skipped.join("\n")).toContain("killed hung turn");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("does not kill a per-pass-capped turn still within its cap", async () => {
+    // Same 5-minute cap, only 4 minutes elapsed, lock fresh: no kill.
+    const home = makeOrgHome({ state: true, approvals: true });
+    const killed: number[] = [];
+    const spawned: string[] = [];
+    const now = new Date("2026-07-06T00:04:00Z");
+    try {
+      await acquireLock(home.root, { app: "alpha", role: "builder", turnId: "hung", now, pid: 4242 });
+      await writeJournalPatch(
+        home.root,
+        "hung",
+        {
+          role: "builder",
+          app: "alpha",
+          phase: "running",
+          attempt: 0,
+          passStartedAt: "2026-07-06T00:00:00.000Z",
+          wallClockCapMs: 5 * 60_000,
+          pid: 4242,
+          session: { runtime: "claude", id: "s1" },
+        },
+        new Date("2026-07-06T00:00:00Z"),
+      );
+
+      const result = await dispatchTick({
+        runtimeHome: home.root,
+        appsPath: "apps.yaml",
+        rolesPath: "roles.yaml",
+        now: () => now,
+        eventSource: {
+          ticketReady: async () => [],
+          prOpened: async () => [],
+          ciFailed: async () => [],
+          releaseShipped: async () => [],
+        },
+        kill: (pid) => void killed.push(pid),
+        spawn: async (input) => void spawned.push(input.turnId),
+      });
+
+      expect(killed).toEqual([]);
+      expect(spawned).not.toContain("hung");
+      expect(result.skipped.join("\n")).not.toContain("killed hung turn");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("back-compat: a journal without the cap field is not killed before the 60-min default", async () => {
+    // No wallClockCapMs recorded (pre-field journal); 59 minutes elapsed, lock
+    // fresh -> the default 60-min cap has not been reached.
+    const home = makeOrgHome({ state: true, approvals: true });
+    const killed: number[] = [];
+    const spawned: string[] = [];
+    const now = new Date("2026-07-06T00:59:00Z");
+    try {
+      await acquireLock(home.root, { app: "alpha", role: "builder", turnId: "hung", now, pid: 4242 });
+      await writeJournalPatch(
+        home.root,
+        "hung",
+        {
+          role: "builder",
+          app: "alpha",
+          phase: "running",
+          attempt: 0,
+          passStartedAt: "2026-07-06T00:00:00.000Z",
+          pid: 4242,
+          session: { runtime: "claude", id: "s1" },
+        },
+        new Date("2026-07-06T00:00:00Z"),
+      );
+
+      const result = await dispatchTick({
+        runtimeHome: home.root,
+        appsPath: "apps.yaml",
+        rolesPath: "roles.yaml",
+        now: () => now,
+        eventSource: {
+          ticketReady: async () => [],
+          prOpened: async () => [],
+          ciFailed: async () => [],
+          releaseShipped: async () => [],
+        },
+        kill: (pid) => void killed.push(pid),
+        spawn: async (input) => void spawned.push(input.turnId),
+      });
+
+      expect(killed).toEqual([]);
+      expect(spawned).not.toContain("hung");
+    } finally {
+      home.cleanup();
+    }
+  });
 });

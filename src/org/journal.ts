@@ -24,6 +24,11 @@ export interface TurnJournal {
   startedAt: string;
   updatedAt: string;
   passStartedAt?: string;
+  /** Wall-clock kill cap (ms) recorded by the turn runner at pass-start from
+   *  the active pass's `wall_clock_minutes` (src/loop/pipelines.ts). When
+   *  present, killHungTurns kills against this instead of the 60-min default;
+   *  absent journals fall back to the default (back-compatible). */
+  wallClockCapMs?: number;
   session?: SessionHandle;
   worktree?: string;
   ticketRef?: string;
@@ -59,6 +64,7 @@ export async function writeJournalPatch(
     ...(existing?.trigger !== undefined ? { trigger: existing.trigger } : {}),
     ...(existing?.triggerKind !== undefined ? { triggerKind: existing.triggerKind } : {}),
     ...(existing?.passStartedAt !== undefined ? { passStartedAt: existing.passStartedAt } : {}),
+    ...(existing?.wallClockCapMs !== undefined ? { wallClockCapMs: existing.wallClockCapMs } : {}),
     ...(existing?.session !== undefined ? { session: existing.session } : {}),
     ...(existing?.worktree !== undefined ? { worktree: existing.worktree } : {}),
     ...(existing?.ticketRef !== undefined ? { ticketRef: existing.ticketRef } : {}),

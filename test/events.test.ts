@@ -12,6 +12,18 @@ const APP: AppEntry = {
   cadence: {},
 };
 
+const HEALTH_ALERT = {
+  kind: "health-alert",
+  id: "health-001",
+  app: "alpha",
+  occurred_at: "2026-07-06T12:00:00Z",
+  source: "fixture",
+  severity: "critical",
+  service: "web",
+  status: "down",
+  summary: "/health returned 500 for three consecutive checks.",
+};
+
 describe("event polling", () => {
   it("uses the architecture's stable dedup keys", () => {
     expect(dedupKey("ticket-ready", { issueNumber: 4 })).toBe("ticket-ready:4");
@@ -22,7 +34,9 @@ describe("event polling", () => {
   });
 
   it("filters consumed keys and returns inbox files once after marking consumed", async () => {
-    const home = makeOrgHome({ state: { eventsInbox: { "alert.json": { severity: "high" } } } });
+    // Inbox payloads now carry a typed company-lifecycle kind (docs/event-schemas.md,
+    // GAP B): the file-drop is a valid company event, not arbitrary JSON.
+    const home = makeOrgHome({ state: { eventsInbox: { "alert.json": HEALTH_ALERT } } });
     const source = fakeSource({ tickets: [{ issueNumber: 1 }] });
     try {
       const store = new EventStore(home.root);
@@ -31,6 +45,48 @@ describe("event polling", () => {
       await store.markConsumed(first.events.map((event) => event.key));
       const second = await store.poll(APP, source);
       expect(second.events).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("routes inbox files under their parsed company-lifecycle kind", async () => {
+    const home = makeOrgHome({ state: { eventsInbox: { "alert.json": HEALTH_ALERT } } });
+    try {
+      const store = new EventStore(home.root);
+      const result = await store.poll(APP, fakeSource({}));
+      expect(result.events).toEqual([
+        {
+          kind: "health-alert",
+          key: "alert.json",
+          app: "alpha",
+          payload: { ...HEALTH_ALERT, filename: "alert.json" },
+        },
+      ]);
+      expect(result.errors).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("surfaces a malformed inbox payload loudly and keeps sibling files flowing", async () => {
+    const home = makeOrgHome({
+      state: { eventsInbox: { "bad.json": { kind: "health-alert" }, "good.json": HEALTH_ALERT } },
+    });
+    try {
+      const store = new EventStore(home.root);
+      const result = await store.poll(APP, fakeSource({}));
+      // The malformed drop is reported, never silently skipped...
+      expect(result.errors).toEqual([
+        {
+          code: "error_event_source",
+          app: "alpha",
+          kind: "alert-webhook",
+          message: expect.stringContaining("inbox bad.json:"),
+        },
+      ]);
+      // ...and the valid sibling still routes.
+      expect(result.events.map((event) => event.key)).toEqual(["good.json"]);
     } finally {
       home.cleanup();
     }
@@ -54,7 +110,7 @@ describe("event polling", () => {
           message: "rate limited",
         },
       ]);
-      writeFileSync(home.paths.eventsInboxFile("later"), JSON.stringify({ ok: true }), "utf8");
+      writeFileSync(home.paths.eventsInboxFile("later"), JSON.stringify(HEALTH_ALERT), "utf8");
       expect((await store.poll(APP, fakeSource({}))).events[0]?.key).toBe("later.json");
     } finally {
       home.cleanup();

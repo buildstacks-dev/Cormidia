@@ -4,7 +4,11 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { AppEntry } from "./apps.js";
+import { parseCompanyLifecycleEvent, type CompanyEventKind } from "./event-schemas.js";
 
+/** Transport kinds: GitHub-polled kinds plus the file-drop `alert-webhook`
+ *  inbox transport. `alert-webhook` remains the dedup/transport identity for
+ *  inbox files; the *routed* kind is the parsed company-lifecycle kind. */
 export type EventKind =
   | "ticket-ready"
   | "pr-opened"
@@ -12,8 +16,15 @@ export type EventKind =
   | "release-shipped"
   | "alert-webhook";
 
+/** The kind a role's trigger matches on. GitHub events keep their transport
+ *  kind; file-drop inbox events carry the parsed company-lifecycle kind
+ *  (docs/event-schemas.md) so roles.yaml stays the source of truth for who
+ *  subscribes to `support-feedback` / `adoption-signal` / `health-alert` /
+ *  `launch-calendar`. */
+export type RoutedEventKind = EventKind | CompanyEventKind;
+
 export interface DueEvent {
-  kind: EventKind;
+  kind: RoutedEventKind;
   key: string;
   app: string;
   payload: Record<string, unknown>;
@@ -91,9 +102,9 @@ export class EventStore {
       }
     }
 
-    for (const event of await this.readInbox(app.name)) {
-      if (!consumed.has(event.key)) events.push(event);
-    }
+    const inbox = await this.readInbox(app.name, consumed);
+    events.push(...inbox.events);
+    errors.push(...inbox.errors);
 
     return { events, errors };
   }
@@ -112,21 +123,40 @@ export class EventStore {
     await writeFile(this.consumedPath(), `${JSON.stringify([...consumed].sort(), null, 2)}\n`, "utf8");
   }
 
-  async readInbox(app: string): Promise<DueEvent[]> {
+  /** Read the file-drop inbox, parsing each payload's company-lifecycle kind
+   *  (docs/event-schemas.md) so the dispatcher can route by kind. Already
+   *  consumed files are skipped. A malformed payload (bad JSON or a payload
+   *  that fails the company-event contract) is surfaced LOUDLY as an
+   *  `error_event_source` — never silently dropped — while sibling files keep
+   *  flowing. */
+  async readInbox(
+    app: string,
+    consumed: ReadonlySet<string> = new Set(),
+  ): Promise<PollEventsResult> {
     await this.ensure();
     const dir = this.inboxDir();
     const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
     const events: DueEvent[] = [];
+    const errors: EventPollError[] = [];
     for (const file of files) {
-      const payload = JSON.parse(await readFile(join(dir, file), "utf8")) as Record<string, unknown>;
-      events.push({
-        kind: "alert-webhook",
-        key: file,
-        app,
-        payload: { ...payload, filename: file },
-      });
+      if (consumed.has(file)) continue;
+      let payload: Record<string, unknown>;
+      try {
+        payload = JSON.parse(await readFile(join(dir, file), "utf8")) as Record<string, unknown>;
+      } catch (error) {
+        errors.push(inboxError(app, file, error));
+        continue;
+      }
+      let kind: CompanyEventKind;
+      try {
+        kind = parseCompanyLifecycleEvent(payload).kind;
+      } catch (error) {
+        errors.push(inboxError(app, file, error));
+        continue;
+      }
+      events.push({ kind, key: file, app, payload: { ...payload, filename: file } });
     }
-    return events;
+    return { events, errors };
   }
 
   async removeInboxFile(filename: string): Promise<void> {
@@ -163,6 +193,15 @@ export class EventStore {
   private consumedPath(): string {
     return join(this.root, "state", "events", "consumed.json");
   }
+}
+
+function inboxError(app: string, file: string, error: unknown): EventPollError {
+  return {
+    code: "error_event_source",
+    app,
+    kind: "alert-webhook",
+    message: `inbox ${file}: ${error instanceof Error ? error.message : String(error)}`,
+  };
 }
 
 function mustString(payload: Record<string, unknown>, key: string): string {

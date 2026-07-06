@@ -11,6 +11,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
 import type {
+  Artifact,
   GateEscalation,
   Runtime,
   ToolAction,
@@ -184,6 +185,10 @@ interface CodexTurnState {
   usage?: TurnUsage;
   subagentTurns: number;
   durationMs?: number;
+  /** Set once the running (estimated) cost crosses role.maxTurnBudgetUsd; the
+   *  turn is then stopped and mapped to failed + one incident note, mirroring
+   *  ClaudeRuntime's budget-overrun contract. */
+  budgetOverrun?: boolean;
 }
 
 export class CodexRuntime implements Runtime {
@@ -237,10 +242,20 @@ export class CodexRuntime implements Runtime {
       }
 
       const wallClockMs = state.durationMs ?? Date.now() - startTime;
+      // A budget overrun is a hard stop: it fails the turn and emits exactly
+      // one incident note, regardless of any gate escalations that also
+      // occurred (mirrors ClaudeRuntime — the forced stop is the headline).
+      const status = state.budgetOverrun
+        ? "failed"
+        : escalations.length > 0
+          ? "blocked_on_gate"
+          : state.status ?? "failed";
       return {
-        status: escalations.length > 0 ? "blocked_on_gate" : state.status ?? "failed",
+        status,
         summary: state.finalSummary ?? "Codex App Server turn completed without an agent message",
-        artifacts: [],
+        artifacts: state.budgetOverrun
+          ? [budgetOverrunNote(threadId, state.usage?.costUsd ?? 0, req)]
+          : [],
         session: { runtime: "codex", id: threadId },
         usage: state.usage ?? zeroUsage(wallClockMs, state.subagentTurns),
         escalations,
@@ -273,8 +288,29 @@ export class CodexRuntime implements Runtime {
         return;
       case "thread/tokenUsage/updated":
         {
-          const usage = usageFromTokenNotification(message.params, state.subagentTurns, state.durationMs);
-          if (usage !== undefined) state.usage = usage;
+          const usage = usageFromTokenNotification(
+            message.params,
+            req.role.model,
+            state.subagentTurns,
+            state.durationMs,
+          );
+          if (usage !== undefined) {
+            state.usage = usage;
+            // Running per-turn budget guard on the ESTIMATE. The App Server
+            // exposes no native budget knob (unlike Claude's --max-budget-usd),
+            // so Operon enforces the cap itself: once the estimated running
+            // spend crosses role.maxTurnBudgetUsd we stop consuming and let the
+            // finally-block close the client (terminating the App Server turn).
+            // Overrun = incident note, not silent spend (roles.yaml).
+            if (usage.costUsd >= req.role.maxTurnBudgetUsd) {
+              state.budgetOverrun = true;
+              state.status = "failed";
+              state.finalSummary =
+                `Budget overrun: turn stopped at the per-turn cap — estimated spend ` +
+                `$${usage.costUsd.toFixed(4)} crossed maxTurnBudgetUsd ` +
+                `$${req.role.maxTurnBudgetUsd} (role ${req.role.name}).`;
+            }
+          }
         }
         return;
       case "item/completed":
@@ -468,6 +504,7 @@ function normalizePatchApproval(params: Record<string, unknown>, workdir: string
 
 function usageFromTokenNotification(
   params: unknown,
+  model: string,
   subagentTurns: number,
   wallClockMs: number | undefined,
 ): TurnUsage | undefined {
@@ -478,15 +515,60 @@ function usageFromTokenNotification(
   const cachedInputTokens = numberValue(last.cachedInputTokens);
   const outputTokens = numberValue(last.outputTokens);
   const reasoningOutputTokens = numberValue(last.reasoningOutputTokens);
+  const tokensIn = inputTokens + cachedInputTokens;
+  const tokensOut = outputTokens + reasoningOutputTokens;
   return {
-    tokensIn: inputTokens + cachedInputTokens,
+    tokensIn,
     tokensInUncached: inputTokens,
     cacheReadTokens: cachedInputTokens,
-    tokensOut: outputTokens + reasoningOutputTokens,
-    costUsd: 0,
+    tokensOut,
+    // App Server reports no dollar cost, so Operon estimates it from token
+    // counts and documented list prices (see estimateCodexCostUsd). This is
+    // an estimate — flagged as such — but it is what stops a codex turn from
+    // spending $0 in the budget rollups and gives the per-turn cap something
+    // to enforce against (build plan GAP C).
+    costUsd: estimateCodexCostUsd(tokensIn, tokensOut, model),
+    costEstimated: true,
     subagentTurns,
     wallClockMs: wallClockMs ?? 0,
   };
+}
+
+interface CodexPrice {
+  inputPerMTok: number;
+  outputPerMTok: number;
+}
+
+// Documented OpenAI list prices, USD per million tokens (input / output),
+// from research/2026-07-05_model-id-verification.md — sourced from the OpenAI
+// API models docs ([2] there, fetched 2026-07-05). These are the ONLY prices
+// Operon asserts; no figure here is invented.
+//
+// Two deliberate conservative choices keep the estimate fail-safe (it may
+// over- but must never silently under-count spend, because it also backs the
+// hard budget cap):
+//  - Cached input tokens are priced at the FULL input rate. The cited source
+//    does not publish codex's cached-input discount, so Operon does not guess
+//    one; charging cached tokens at full rate over-estimates slightly.
+//  - Output covers reasoning tokens (OpenAI bills reasoning at the output
+//    rate), which is why tokensOut already folds reasoningOutputTokens in.
+// An unrecognized/unpriced model defaults to the flagship gpt-5.5 rate as a
+// documented upper bound rather than $0 — an off-roster model must not slip
+// the guard.
+const CODEX_FLAGSHIP_PRICE: CodexPrice = { inputPerMTok: 5, outputPerMTok: 30 };
+
+export function codexModelPrice(model: string): CodexPrice {
+  const m = model.toLowerCase();
+  if (m.startsWith("gpt-5.5")) return { inputPerMTok: 5, outputPerMTok: 30 };
+  if (m.startsWith("gpt-5.4-mini")) return { inputPerMTok: 0.75, outputPerMTok: 4.5 };
+  if (m.startsWith("gpt-5.4-nano")) return CODEX_FLAGSHIP_PRICE; // nano list price not published — conservative default
+  if (m.startsWith("gpt-5.4")) return { inputPerMTok: 2.5, outputPerMTok: 15 };
+  return CODEX_FLAGSHIP_PRICE;
+}
+
+export function estimateCodexCostUsd(tokensIn: number, tokensOut: number, model: string): number {
+  const price = codexModelPrice(model);
+  return (tokensIn / 1_000_000) * price.inputPerMTok + (tokensOut / 1_000_000) * price.outputPerMTok;
 }
 
 function finalAgentMessage(turn: Record<string, unknown>): string | undefined {
@@ -526,6 +608,19 @@ function extractTurnId(response: unknown): string | undefined {
 
 function zeroUsage(wallClockMs: number, subagentTurns: number): TurnUsage {
   return { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns, wallClockMs };
+}
+
+function budgetOverrunNote(threadId: string, estimatedCostUsd: number, req: TurnRequest): Artifact {
+  return {
+    kind: "note",
+    ref: `budget-overrun/${threadId}`,
+    summary:
+      `Budget overrun: turn stopped at the per-turn cap — estimated spend ` +
+      `$${estimatedCostUsd.toFixed(4)} against maxTurnBudgetUsd ` +
+      `$${req.role.maxTurnBudgetUsd} (role ${req.role.name}). Codex cost is an ` +
+      `Operon estimate (App Server reports no dollar cost). ` +
+      `Overrun = incident note, not silent spend (roles.yaml).`,
+  };
 }
 
 function numberValue(value: unknown): number {

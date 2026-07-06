@@ -123,6 +123,15 @@ export class PiRuntime implements Runtime {
       tools: this.tools,
     });
 
+    // Per-turn budget guard. pi's SDK has no native running budget knob (unlike
+    // Claude's --max-budget-usd), so Operon enforces the cap itself: after each
+    // pi turn completes we read the running cost and, once it crosses
+    // role.maxTurnBudgetUsd, abort the session gracefully. The overrun then
+    // maps to failed + exactly one incident note — mirroring ClaudeRuntime's
+    // contract (roles.yaml: "overrun = incident note, not silent spend").
+    const cap = req.role.maxTurnBudgetUsd;
+    let budgetOverrun = false;
+    let abortPromise: Promise<void> | undefined;
     let streamedText = "";
     const unsubscribe = session.subscribe((event) => {
       if (
@@ -131,20 +140,38 @@ export class PiRuntime implements Runtime {
       ) {
         streamedText += event.assistantMessageEvent.delta;
       }
+      // Cost accrues at turn boundaries; check the running total there (cheap,
+      // and avoids polling stats on every streamed text delta).
+      if (!budgetOverrun && event.type === "turn_end" && session.getSessionStats().cost >= cap) {
+        budgetOverrun = true;
+        abortPromise = session.abort();
+      }
     });
 
     try {
       await session.prompt(req.task);
     } finally {
+      if (abortPromise !== undefined) await abortPromise;
       unsubscribe();
       session.dispose();
     }
 
     const stats = session.getSessionStats();
-    const summary = session.getLastAssistantText()?.trim() || streamedText.trim() || "completed";
-    const artifacts = piArtifacts(req);
+    // Defensive final check: a single turn can jump past the cap in one step,
+    // after which no further boundary fires — treat the final total as an
+    // overrun too so the incident note is never silently skipped.
+    const overBudget = budgetOverrun || stats.cost >= cap;
+    const summary = overBudget
+      ? `Budget overrun: turn stopped at the per-turn cap — spent $${stats.cost.toFixed(4)} ` +
+        `against maxTurnBudgetUsd $${cap} (role ${req.role.name}).`
+      : session.getLastAssistantText()?.trim() || streamedText.trim() || "completed";
+    // A budget overrun is a hard stop: it fails the turn and emits exactly one
+    // incident note, taking precedence over gate escalations that also occurred.
+    const artifacts = overBudget
+      ? [budgetOverrunNote(session.sessionFile ?? session.sessionId, stats.cost, req)]
+      : piArtifacts(req);
     return {
-      status: escalations.length > 0 ? "blocked_on_gate" : "completed",
+      status: overBudget ? "failed" : escalations.length > 0 ? "blocked_on_gate" : "completed",
       summary,
       artifacts,
       session: { runtime: "pi", id: session.sessionFile ?? session.sessionId },
@@ -177,6 +204,18 @@ export function resolvePiModel(registry: ModelRegistry, requested: string): PiMo
 
 export function mapPiThinkingLevel(effort: TurnRequest["role"]["effort"]): PiThinkingLevel {
   return effort === "max" ? "xhigh" : effort;
+}
+
+function budgetOverrunNote(sessionRef: string, costUsd: number, req: TurnRequest): Artifact {
+  return {
+    kind: "note",
+    ref: `budget-overrun/${sessionRef}`,
+    summary:
+      `Budget overrun: turn stopped at the per-turn cap — spent ` +
+      `$${costUsd.toFixed(4)} against maxTurnBudgetUsd ` +
+      `$${req.role.maxTurnBudgetUsd} (role ${req.role.name}). ` +
+      `Overrun = incident note, not silent spend (roles.yaml).`,
+  };
 }
 
 function piArtifacts(req: TurnRequest): Artifact[] {

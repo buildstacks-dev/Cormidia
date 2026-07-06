@@ -83,6 +83,15 @@ export interface TurnUsage {
   cacheReadTokens?: number;
   tokensOut: number;
   costUsd: number;
+  /** True when `costUsd` is an Operon-computed estimate from documented
+   *  per-token list prices rather than a provider-reported figure. Codex's
+   *  App Server does not report dollar cost, so its `costUsd` is estimated
+   *  from token counts (src/runtime/adapters/codex.ts). Consumers that need
+   *  provider-authoritative spend must tolerate/annotate this; budget
+   *  rollups (src/org/budget.ts) deliberately still count estimated spend —
+   *  an estimate is far better than the previous silent $0. Absent/false
+   *  means the cost is provider-reported (Claude, pi). */
+  costEstimated?: boolean;
   /** Subagent turns spawned inside this turn — silent fan-out must be visible. */
   subagentTurns: number;
   wallClockMs: number;

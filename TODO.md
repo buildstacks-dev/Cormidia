@@ -437,7 +437,14 @@ record on disk — "if something executes, its logs exist."*
   **Read:** docs/loop.md §9 (L3, retention); docs/architecture.md §2.
   **Session:** sonnet, single session.
 
-- [ ] **M2.8 Pass executor (`src/loop/pipeline.ts`) — writes run logs**
+- [x] **M2.8 Pass executor (`src/loop/pipeline.ts`) — writes run logs** ✅ 2026-07-05 —
+  executePipeline: fresh session per pass (req.session never set); task =
+  brief + template (same composition the M2.2 live smoke used); per-pass
+  model/effort overrides copy the RoleConfig and cannot touch `runtime`
+  (cross-provider unrepresentable); parallel stages via Promise.all;
+  gate propagates by identity; non-completed pass aborts later stages.
+  Every pass writes envelope+events+brief+output+session.log — 8 named
+  cases incl. concurrency proof and complete-run-record assertion.
   **Goal:** Execute a loaded pipeline against a Runtime: fresh session per
   pass; brief → `req.task`; per-pass model/effort overrides without
   mutating the base RoleConfig; skip_on_tier/only_on filtering;

@@ -18,6 +18,8 @@ and the build loop are documented stubs.
 | `PURPOSE.md` | Decision log — **read first**; every decision to date |
 | `TASTE.md` | Org constitution, loaded by every agent the org runs (human-ratified) |
 | `roles.yaml` | Org chart made executable: role → runtime/model/effort/triggers |
+| `pipelines.yaml` | The build protocol as ordered passes (build/review/fix/ship) — human-ratified; validated by `pnpm dev pipelines` |
+| `prompts/` | Versioned pass templates the pipelines reference — human-ratified protocol surfaces, one file per pass |
 | `TODO.md` | Roadmap + session-handoff state — pick up the top unchecked item |
 | `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 = proposals pending ratification) |
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
@@ -41,16 +43,16 @@ and the build loop are documented stubs.
   auth — never run by `pnpm test`)
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` (tsc → `dist/`)
-- CLI in dev: `pnpm dev roles` · `pnpm dev doctor`
+- CLI in dev: `pnpm dev roles` · `pnpm dev pipelines` · `pnpm dev doctor`
 
 ## Working rules
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;
   `src/runtime` imports nothing above it. Not lint-enforced yet — hold the
   line manually. This is what keeps the loop extractable.
-- **`TASTE.md`, `roles.yaml`, and `PURPOSE.md` are human-ratified surfaces.**
-  Propose changes with rationale; never silently rewrite. (The org's own gate
-  treats agent writes to these as critical ops — the same etiquette applies to
-  agents working *on* this repo.)
+- **`TASTE.md`, `roles.yaml`, `PURPOSE.md`, `pipelines.yaml`, and `prompts/**`
+  are human-ratified surfaces.** Propose changes with rationale; never
+  silently rewrite. (The org's own gate treats agent writes to these as
+  critical ops — the same etiquette applies to agents working *on* this repo.)
 - **`test/gate.test.ts` is the seed of the adapter conformance suite.** Every
   adapter must pass these cases end-to-end (including subagent tool calls)
   before a role goes live on it. Extend the cases; never weaken one to make an
@@ -74,6 +76,10 @@ and the build loop are documented stubs.
 - `gate.ts` changes: add cases to `test/gate.test.ts` for every new rule —
   both the critical side and a routine near-miss.
 - `roles.yaml` changes: `pnpm dev roles` must print cleanly; tests stay green.
+- `pipelines.yaml` / `prompts/**` changes: `pnpm dev pipelines` must print
+  cleanly; `test/loop/pipelines-root.test.ts` pins the selection semantics
+  (which passes each tier/trigger runs) — an intent change must change that
+  test deliberately, via the same proposal PR.
 - Adapter changes (`src/runtime/adapters/**`): also run `pnpm test:live` and
   record the dated result in `research/` — the live conformance run is the
   only proof the subagent-gate claim still holds.

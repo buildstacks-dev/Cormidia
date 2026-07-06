@@ -254,7 +254,11 @@ session-wide `canUseTool` question settled with evidence.*
 assembled brief token-free, and any executed pass leaves an L1/L2/L3 run
 record on disk — "if something executes, its logs exist."*
 
-- [ ] **M2.1 pipelines.yaml schema, types, loader**
+- [x] **M2.1 pipelines.yaml schema, types, loader** ✅ 2026-07-05 —
+  src/loop/pipelines.ts: loadPipelines/getPipeline/selectPasses/parallelStages;
+  only_on is OR across risk/labels/dimension_globs (per §4 prose);
+  parallel grouping is adjacency-based; per-pass model-provider check
+  deferred to the executor (loader knows role names only). 8 named cases.
   **Goal:** `src/loop/pipelines.ts`: typed PipelineConfig/PassConfig
   (ordered passes; per-pass role/template/effort/model overrides within the
   role's provider; `parallel_group`; `skip_on_tier`; `only_on`) and

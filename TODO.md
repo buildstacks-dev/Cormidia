@@ -415,7 +415,13 @@ record on disk — "if something executes, its logs exist."*
   **Read:** docs/loop.md §9 (taxonomy, correlation ids, infra-vs-merit).
   **Session:** sonnet, single session.
 
-- [ ] **M2.7 L3 forensics writers + retention pruning**
+- [x] **M2.7 L3 forensics writers + retention pruning** ✅ 2026-07-05 —
+  forensics.ts (writeBrief/writeOutput verbatim + unredacted by design;
+  createSessionLogSink for TurnHooks.onEvent), retention.ts (pruneRuns:
+  deletes only provably finalized+old dirs — running kept at any age,
+  missing/unreadable envelope kept fail-safe), src/cli/prune-runs.ts
+  (`operon prune-runs [root] [--retention-days N]`). CLI case drives the
+  real entrypoint against a fixture tree.
   **Goal:** writeBrief/writeOutput (verbatim, local-only, unredacted) +
   appendSessionLog sink for TurnHooks.onEvent; `pruneRuns()` deletes
   finalized run dirs older than `session_retention_days` (never unfinished

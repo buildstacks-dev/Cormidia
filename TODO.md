@@ -12,6 +12,14 @@ items to Done with a date.
 > file, pick the top unchecked item, read that item's **Read** pointers, then
 > implement to its acceptance checks. Do not start an item whose **Deps** are
 > unchecked.
+>
+> **Scope updates (2026-07-05, human decisions):** (1) the civic pilot is ON
+> HOLD until the product is ready — the two real sandbox apps
+> (operon-sandbox-alpha/beta) are the functional targets throughout; see the
+> M3 header note. (2) M11 (buildstacks.dev) is DEFERRED POST-LAUNCH — the
+> product is **build-complete at M10**; M11's approval-queue acceptance moved
+> to M7.14, its config-not-fork check into M3.7. Production onboarding of
+> civic + buildstacks happens with the human once M10 lands.
 
 ## Next up (ordered)
 
@@ -636,7 +644,10 @@ is the mechanism).*
   `~/Build/operon-sandbox-beta` (scan handles their absence; beta joins
   the existing org via M3.5), both registered in root apps.yaml, and one
   `operon plan operon-sandbox-alpha --topic …` co-planning smoke run.
-  Doable without the human present except apps.yaml ratification.
+  Beta's join also carries old M11.1's config-not-fork acceptance:
+  `git -C ~/Build/Operon diff --stat` shows apps.yaml as the ONLY
+  Operon-repo change for the second app (second app = config file, never
+  code). Doable without the human present except apps.yaml ratification.
   **Original goal (deferred):** Run the real thing: `operon bootstrap` inside
   `~/Build/Government/AgentSkill-CivicIntelligence` (answers reviewed with
   the human), register civic `status: live` in root apps.yaml, then run
@@ -1269,6 +1280,26 @@ cap instead of holding its lock forever.*
   **Read:** docs/architecture.md §7; PURPOSE.md → Budget & cadence.
   **Session:** sonnet, single session.
 
+- [ ] **M7.14 Approval surface end-to-end on a sandbox app** *(absorbs old
+  M11.2 — moved here 2026-07-05 when M11 was deferred post-launch; its
+  deps were M7-internal all along)*
+  **Goal:** Run one real turn against a sandbox app whose task requires a
+  gate-critical op (benign but critical-classified — e.g. a write to the
+  app's `.operon/config.yaml` or a synthetic `dns record` command):
+  verify deny → `blocked_on_gate` → item in `operon approvals` → human
+  approves → grant → re-dispatch executes exactly that op → audit trail
+  complete in log.jsonl. Record the flow transcript in a dated research
+  note — this is the approval surface's real acceptance test.
+  **Files:** research/2026-XX-XX_sandbox-approval-e2e.md
+  **Deps:** M7.9, M7.2
+  **Accept:** log.jsonl shows raised→decided→grant-minted→consumed for one
+  item; the op executed exactly once (idempotent evidence in the note);
+  `operon approvals` shows zero pending afterward.
+  **Demo:** The human-gating story works on a real critical op, end to
+  end.
+  **Read:** docs/architecture.md §4; PURPOSE.md → Approval boundary.
+  **Session:** sonnet, single session + human present for the approval.
+
 ### M8 — Planner pipelines: plan / groom / triage
 *Milestone demo: `operon run-role planner` on a schedule executes a real
 groom pipeline — issues in, prioritized `op:ready` tickets out — honoring
@@ -1600,13 +1631,18 @@ waiver).*
   (builder≠reviewer rule).
   **Session:** sonnet, single session.
 
-### M11 — Second app: buildstacks.dev (config, not fork)
-*Milestone demo: buildstacks.dev is registered by config alone, and its
-first gate-critical infra op flows through the approval queue end-to-end —
-the SRE/approval surface proven where nearly every op is critical by
-design.*
+### M11 — Second app: buildstacks.dev *(DEFERRED POST-LAUNCH — not part of the buildable product)*
 
-- [ ] **M11.1 Onboard buildstacks.dev as app #2**
+> **Deferred (decided 2026-07-05, with the civic hold):** the product is
+> build-complete at **M10**. Everything M11 proved functionally is covered
+> earlier against the sandbox apps: join-not-fork + "apps.yaml is the ONLY
+> Operon-repo change" moved into M3.7's sandbox-beta join; the approval
+> queue's end-to-end acceptance moved to **M7.14** (it never needed a
+> production app). What remains below is production onboarding of a real
+> second app — a launch activity, like the civic pilot, executed with the
+> human when the product is ready.
+
+- [ ] **M11.1 Onboard buildstacks.dev as app #2** *(post-launch)*
   **Goal:** Create the buildstacks.dev repo (private, human co-drives the
   gh commands — repo creation is itself the kind of op the org gates);
   run `operon bootstrap` inside it; join the existing org (M3.5 path) as
@@ -1626,23 +1662,11 @@ design.*
   §9 (join).
   **Session:** sonnet, single session + human present.
 
-- [ ] **M11.2 SRE/approval surface exercise on buildstacks**
-  **Goal:** Run one real SRE-flavored turn against buildstacks whose task
-  requires a gate-critical op (e.g. a DNS record or droplet provisioning
-  step): verify deny → `blocked_on_gate` → item in `operon approvals` →
-  human approves → grant → re-dispatch executes exactly that op → audit
-  trail complete in log.jsonl. Record the transcript of the flow in a
-  dated research note — this is the approval surface's real acceptance
-  test.
-  **Files:** research/2026-XX-XX_buildstacks-approval-e2e.md
-  **Deps:** M11.1, M7.9, M7.2
-  **Accept:** log.jsonl shows raised→decided→grant-minted→consumed for one
-  item; the op executed exactly once (idempotent evidence in the note);
-  `operon approvals` shows zero pending afterward.
-  **Demo:** The human-gating story works on a real critical op, end to
-  end.
-  **Read:** docs/architecture.md §4; PURPOSE.md → Approval boundary.
-  **Session:** sonnet, single session + human present for the approval.
+- ~~**M11.2 SRE/approval surface exercise**~~ → moved to **M7.14** (the
+  approval-queue end-to-end acceptance runs against a sandbox app; it was
+  only ever parked here because buildstacks was the first app whose ops
+  were mostly critical). A production-flavored re-run on buildstacks can
+  accompany M11.1 post-launch, but the functional acceptance is M7.14's.
 
 ## Open decisions (need the human)
 - **Ratify `docs/loop.md` §11** — the loop-engineering decisions (2026-07-04

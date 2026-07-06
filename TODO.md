@@ -674,7 +674,15 @@ tests+lint+security+completeness+freshness in order against a real temp
 repo and returns per-gate detail — the full mechanical layer, no adapter,
 no LLM.*
 
-- [ ] **M4.1 Local git-repo test fixtures (working repo + bare/clone pair)**
+> **Completed 2026-07-06:** M4 landed as the quality-gate/verdict layer.
+> Offline proof: `pnpm test && pnpm typecheck`. Functional proof against
+> real sandbox apps: alpha passed high-tier
+> tests+lint+security+completeness+freshness; beta passed low-tier without a
+> lint command and failed medium-tier with the intended missing-lint message.
+> `operon-sandbox-gamma` remains a planned third test app for later
+> SRE/Support/Marketing surface coverage; it is not an M4 dependency.
+
+- [x] **M4.1 Local git-repo test fixtures (working repo + bare/clone pair)** ✅ 2026-07-06
   **Goal:** One module, two constructors sharing commit helpers:
   `makeWorkingRepo({testCommand, lintCommand})` (init + package.json with
   configurable scripts; write/commit files; changedFiles between refs) for
@@ -692,7 +700,7 @@ no LLM.*
   docs/architecture.md §3 (idempotency rule 1).
   **Session:** sonnet, single session.
 
-- [ ] **M4.2 policy.yaml schema, template, tier resolution**
+- [x] **M4.2 policy.yaml schema, template, tier resolution** ✅ 2026-07-06
   **Goal:** `src/loop/policy.ts`: typed `.operon/policy.yaml` (risk-tier
   globs → gate sets; dimension_globs for review dimensions;
   remediation.max_attempts) + predecessor-mirroring default template
@@ -709,7 +717,7 @@ no LLM.*
   **Read:** docs/loop.md §5 (table + defaults), §4 (tiering axes).
   **Session:** sonnet, single session.
 
-- [ ] **M4.3 qgates: process gates (tests, lint, e2e)**
+- [x] **M4.3 qgates: process gates (tests, lint, e2e)** ✅ 2026-07-06
   **Goal:** Subprocess gates: run configured test/lint/e2e commands in the
   worktree; capture exit code + bounded output tail on failure; timeout
   with a timeout-specific message; e2e *skipped* (not failed) when
@@ -723,7 +731,7 @@ no LLM.*
   **Read:** docs/loop.md §5 (rows), §10 (qgates is pure subprocess+git).
   **Session:** sonnet, single session.
 
-- [ ] **M4.4 qgates: security regex scan**
+- [x] **M4.4 qgates: security regex scan** ✅ 2026-07-06
   **Goal:** Scan changed files (via git diff) for the §5 secret families
   (sk-…, ghp_…, AWS keys, PEM blocks, generic key/token/password
   assignments), skipping binaries; GateResult lists file:line matches.
@@ -741,7 +749,7 @@ no LLM.*
   **Read:** docs/loop.md §5 (security row).
   **Session:** sonnet, single session.
 
-- [ ] **M4.5 qgates: completeness + review-freshness + tier orchestrator**
+- [x] **M4.5 qgates: completeness + review-freshness + tier orchestrator** ✅ 2026-07-06
   **Goal:** Data gates: completeness (every acceptance criterion checked
   off, no unresolved findings, AND every criterion mapped to a named test —
   the contract pass's criterion→test mapping is an input; an unmapped
@@ -762,7 +770,7 @@ no LLM.*
   **Read:** docs/loop.md §5 (incl. acceptance-criteria contract).
   **Session:** sonnet, single session.
 
-- [ ] **M4.6 verdicts.ts: typed verdicts + lenient parser + reformat retry**
+- [x] **M4.6 verdicts.ts: typed verdicts + lenient parser + reformat retry** ✅ 2026-07-06
   **Goal:** ContractVerdict/BuildVerdict/ReviewVerdict/Finding types
   (docs/loop.md §6 sketch); lenient line-grammar parser
   (`- category/severity file:line -- description -> action`; three status

@@ -9,6 +9,9 @@
 // Real subprocesses against the real M4.1 worktree fixture — no mocks; the
 // gate's job is exactly "subprocess in a worktree".
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, describe, expect, it } from "vitest";
 import { makeWorkingRepo, type WorkingRepoFixture } from "./fixtures/gitRepo.js";
 import {
@@ -32,9 +35,8 @@ afterAll(() => {
   for (const repo of repos) repo.cleanup();
 });
 
-/** Shell-safe node one-liner (single quotes stay inside the double-quoted
- * sh word — none of these scripts contain double quotes). */
-const node = (script: string) => `node -e "${script}"`;
+const node = (script: string) => `${shellQuote(process.execPath)} -e ${shellQuote(script)}`;
+const shellQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 
 describe("runTestsGate", () => {
   it("passes on exit 0", async () => {
@@ -92,6 +94,28 @@ describe("runTestsGate", () => {
     expect(result.exitCode).toBeUndefined();
     // Output produced before the kill still reaches the brief.
     expect(result.outputTail).toContain("started");
+  });
+
+  it("timeout kills the whole process tree, not only the shell", async () => {
+    const repo = makeWorkingRepo();
+    repos.push(repo);
+    const sentinel = "timeout-survivor.txt";
+    const childScript =
+      `setTimeout(() => require('fs').writeFileSync(${JSON.stringify(sentinel)}, 'alive'), 900);` +
+      "setTimeout(() => {}, 60000)";
+    const parentScript =
+      `require('child_process').spawn(process.execPath, ['-e', ${JSON.stringify(childScript)}], { stdio: 'ignore' });` +
+      "setTimeout(() => {}, 60000)";
+
+    const result = await runTestsGate(
+      repo.root,
+      { testCommand: node(parentScript) },
+      { timeoutMs: 250 },
+    );
+    await delay(1_200);
+
+    expect(result.timedOut).toBe(true);
+    expect(existsSync(join(repo.root, sentinel))).toBe(false);
   });
 
   it("unconfigured test command FAILS loudly (predecessor's silent pass is dropped)", async () => {

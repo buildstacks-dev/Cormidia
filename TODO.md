@@ -1669,6 +1669,19 @@ waiver).*
   accompany M11.1 post-launch, but the functional acceptance is M7.14's.
 
 ## Open decisions (need the human)
+- **Third sandbox app for SRE/Support/Marketing real-functionality coverage
+  (2026-07-05, raised while writing docs/testing-journey.md):** alpha/beta
+  are code libraries — nothing runs, no users, so three role surfaces have
+  no real functional target: SRE-on-a-running-service (health sweeps, live
+  incidents, deploy-shaped ops), Support (feedback digests + reply drafts
+  need real material), Marketing (partially covered — changelog drafts off
+  real M6+ merges work already). Proposal: `operon-sandbox-gamma`, a tiny
+  deployable HTTP service (health endpoint + local/container deploy script
+  as the critical-op target) + a seeded synthetic user-feedback inbox.
+  Natural creation point: alongside M7 (dispatcher event wiring) or as
+  pre-launch validation after M10. Needs the human to approve creating the
+  repo (same pattern as alpha/beta). Nothing outward-facing is ever
+  actually published in tests — drafts and approval items only.
 - **Ratify `docs/loop.md` §11** — the loop-engineering decisions (2026-07-04
   discussion: orchestrator-owned pass pipelines; mechanical quality gates;
   planning as Planner pipeline, not loop phase; assembled briefs;

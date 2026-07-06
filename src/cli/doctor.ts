@@ -8,8 +8,8 @@ import { getRuntime, RUNTIME_KINDS } from "../runtime/registry.js";
 
 const ADAPTER_STATUS: Record<RuntimeKind, string> = {
   claude: "claude-agent-sdk wired (M1.2) — live conformance: pnpm test:live",
-  codex: "stub — see research/2026-07-03_runtime-layer.md",
-  pi: "stub — see research/2026-07-03_runtime-layer.md",
+  codex: "app-server wired (M10) — opt-in live smoke: OPERON_CODEX_LIVE=1 pnpm test:live",
+  pi: "pi SDK wired (M10) — opt-in live smoke: OPERON_PI_LIVE=1 pnpm test:live",
 };
 
 export interface DoctorOptions {

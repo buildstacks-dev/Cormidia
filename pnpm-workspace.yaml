@@ -2,4 +2,6 @@
 # Repo shape); pnpm ≥11 also reads its per-repo settings from this file.
 # esbuild's postinstall downloads the platform binary tsx needs.
 allowBuilds:
+  '@google/genai': false
   esbuild: true
+  protobufjs: false

@@ -1,0 +1,55 @@
+// CodexRuntime LIVE smoke (M10): real @openai/codex App Server over stdio.
+//
+// This spends real OpenAI/ChatGPT account quota and depends on local Codex
+// auth. It is opt-in: set OPERON_CODEX_LIVE=1 to run. The fast suite excludes
+// *.live.test.ts entirely; `pnpm test:live` includes this file and reports it
+// as skipped unless explicitly enabled.
+
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { CodexRuntime } from "../../src/runtime/adapters/codex.js";
+import type { RoleConfig } from "../../src/runtime/types.js";
+
+const enabled = process.env.OPERON_CODEX_LIVE === "1";
+const model = process.env.OPERON_CODEX_LIVE_MODEL ?? "gpt-5.5";
+
+const role: RoleConfig = {
+  name: "codex-live-smoke",
+  runtime: "codex",
+  model,
+  effort: "low",
+  delegation: { allow: [] },
+  triggers: [],
+  outputs: [],
+  maxTurnBudgetUsd: 1,
+};
+
+if (!enabled) {
+  console.warn("[codex-app-server.live] SKIPPING - set OPERON_CODEX_LIVE=1 to run the real App Server smoke.");
+}
+
+describe.skipIf(!enabled)("CodexRuntime live App Server smoke", () => {
+  it("runs a no-tool turn and returns a Codex thread handle", async () => {
+    const workdir = mkdtempSync(join(tmpdir(), "operon-codex-live-"));
+    try {
+      const result = await new CodexRuntime().runTurn(
+        {
+          role,
+          workdir,
+          task: "Do not use tools. Reply with exactly: OK",
+          context: { taste: [], memoryExcerpts: [] },
+          maxTurns: 1,
+        },
+        { gate: () => ({ allow: true }) },
+      );
+
+      expect(result.status).toBe("completed");
+      expect(result.session.runtime).toBe("codex");
+      expect(result.session.id.length).toBeGreaterThan(0);
+    } finally {
+      rmSync(workdir, { recursive: true, force: true });
+    }
+  });
+});

@@ -28,8 +28,8 @@ roles:
     outputs: [tickets, priorities, roadmap-notes]
 
   builder:
-    runtime: claude             # TEMP M6 pilot expedient: CodexRuntime lands in M10;
-    model: claude-sonnet-5      # builder/reviewer differ by model until cross-provider is restored
+    runtime: codex              # DELIBERATELY a different provider than reviewer —
+    model: gpt-5.5              # restored in M10 after CodexRuntime landed
     effort: high                # build quality over token cost — the Reviewer gate
     delegation:                 # stays as the second line of defense
       allow: [explore, test-fanout]

@@ -4,13 +4,17 @@
 OpenAI, pi as the harness for all other models.*
 
 > **Addendum (same day):** orchestrator language flipped **Python →
-> TypeScript** (PURPOSE v0.5). All three adapters become in-process TS —
-> Claude Agent SDK (TS), Codex TypeScript SDK, and pi via its own SDK
-> (`createAgentSession()`) instead of `--mode rpc` subprocess. The pi review,
-> risks, and per-runtime facts below are unchanged; the Python package names
-> mentioned (`claude-agent-sdk`, `openai-codex` on pip) have direct TS
-> equivalents. RPC mode remains the fallback if in-process pi embedding
-> fights us.
+> TypeScript** (PURPOSE v0.5). Claude uses the TS Agent SDK, pi uses its TS
+> SDK (`createAgentSession()`), and Codex uses App Server JSON-RPC over stdio.
+> The pi review, risks, and per-runtime facts below are unchanged except where
+> the 2026-07-06 M10 addendum supersedes the original RPC/SDK assumptions.
+>
+> **M10 addendum (2026-07-06):** Codex App Server is the adapter surface,
+> spawned from pinned `@openai/codex` (`codex app-server --listen stdio://`).
+> `@openai/codex-sdk` wraps `codex exec` for batch jobs and is not used for
+> Operon's interactive thread/resume/approval adapter. Pi is embedded
+> in-process with `@earendil-works/pi-coding-agent` and a runtime-installed
+> `tool_call` gating extension.
 
 ## The shape
 
@@ -18,10 +22,10 @@ OpenAI, pi as the harness for all other models.*
 agentic-org (TypeScript)
 ├── orchestrator            dispatcher, scheduler entrypoint, state in markdown/git
 │                           (claude-loop patterns: roles.yaml, state-in-repo, worktrees)
-└── runtime adapters        ONE interface, three implementations, all in-process
+└── runtime adapters        ONE interface, three native harnesses
     ├── ClaudeRuntime   →  Claude Agent SDK (TS)
-    ├── CodexRuntime    →  Codex TypeScript SDK    (JSON-RPC to codex app-server)
-    └── PiRuntime       →  pi SDK createAgentSession()   (fallback: --mode rpc subprocess)
+    ├── CodexRuntime    →  @openai/codex App Server JSON-RPC over stdio
+    └── PiRuntime       →  pi SDK createAgentSession()
 ```
 
 `roles.yaml` maps each role → `{runtime, model, effort, protocol files, tool
@@ -39,13 +43,12 @@ OpenAI/Anthropic/Google-compatible endpoint via `models.json`), `pi-agent-core`
 **Maturity.** 67.4k stars, 8.3k forks, 241 releases, v0.80.3 released
 2026-06-30. Extremely active — which cuts both ways (see risks).
 
-**Embedding from Python — the part that matters for us.** Four run modes:
+**Embedding — the part that matters for us.** Four run modes:
 interactive TUI, `-p/--print` one-shot, `--mode json` (events as JSON lines),
 and **`--mode rpc`** — strict LF-delimited JSONL over stdin/stdout, designed for
-process integration. Our `PiRuntime` adapter spawns `pi --mode rpc` as a
-subprocess per role-turn and drives it over stdio. There is also a TypeScript
-SDK (`createAgentSession()`), but we don't need it — RPC keeps the orchestrator
-pure Python.
+process integration. M10 chose the TypeScript SDK path instead:
+`PiRuntime` calls `createAgentSession()` directly and installs the Operon gate
+extension as a `DefaultResourceLoader` extension factory.
 
 **Protocol enforcement (our non-negotiable #1).** Strong levers:
 
@@ -75,15 +78,16 @@ which is how Grok, DeepSeek, Qwen, and local (llama.cpp/ollama) models come in.
    tool events and enforces our critical-ops policy. Budget for this.
 2. **Fast-moving upstream.** 241 releases; pin the version, upgrade
    deliberately, keep our extensions in our repo not `~/.pi`.
-3. **Subprocess boundary.** In-process for Claude, JSON-RPC for Codex, stdio
-   subprocess for pi — three failure modes to normalize behind the adapter
-   interface. Manageable; RPC mode exists precisely for this.
+3. **Fast-moving SDK surface.** In-process pi avoids the subprocess boundary,
+   but SDK types and extension events are upstream-owned. Keep the package
+   pinned and prove the gate extension through the shared conformance suite.
 4. **Harness quality for non-frontier models is ours to tune** — pi gives the
    body, not per-model prompt tuning.
 
 **Verdict: adopt.** It is the credible "one model-agnostic body" — mature,
-MIT, actively maintained, with exactly the embedding surface (RPC) and
-customization depth (SYSTEM.md, extensions, skills) we need. With decision #1
+MIT, actively maintained, with exactly the embedding surface
+(`createAgentSession`) and customization depth (SYSTEM.md, extensions, skills)
+we need. With decision #1
 (native SDKs for Anthropic + OpenAI), pi's scope narrows to Google / xAI /
 open-weights / local models, plus a fallback and experimentation harness — a
 role it fits without contortion.
@@ -97,12 +101,17 @@ and turns; model selected per thread; approval policies and sandbox modes
 (`readOnly` / `workspaceWrite` / `dangerFullAccess`) configurable per
 thread/turn.
 
-**Python path:** official **`openai-codex`** SDK (`pip install openai-codex`,
-beta, Python ≥3.10) — controls the local app-server over JSON-RPC and bundles
-a pinned Codex CLI runtime. `thread_start(model=...)` → `run()` → resume by
-thread ID; `Sandbox.read_only|workspace_write|full_access` presets; `AsyncCodex`
-for async. This is "use codex app server natively" with zero protocol
-hand-rolling.
+**M10 TypeScript path:** pinned **`@openai/codex`** CLI package. Operon spawns
+`codex app-server --listen stdio://`, performs the generated-schema handshake
+(`initialize` → `initialized`), then uses `thread/start|resume` and
+`turn/start`. Approval requests (`item/commandExecution/requestApproval`,
+`item/fileChange/requestApproval`, plus legacy exec/patch requests) are routed
+through `hooks.gate`. Context goes through `developerInstructions`.
+
+**Rejected path:** `@openai/codex-sdk` is useful for non-interactive
+`codex exec` automation, but it is not the right surface for Operon's standing
+role adapter because it does not expose the App Server thread/resume/approval
+protocol directly.
 
 ## Claude Agent SDK (Anthropic roles)
 
@@ -145,5 +154,5 @@ state-in-markdown decides whether to resume or restart clean.
 - pi: https://github.com/badlogic/pi-mono (+ coding-agent README)
 - Codex app-server: https://developers.openai.com/codex/app-server ·
   https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md
-- Codex SDKs (incl. `openai-codex` Python): https://developers.openai.com/codex/sdk
+- Codex App Server / SDK docs: https://developers.openai.com/codex/sdk
 - Claude Agent SDK Python: https://code.claude.com/docs/en/agent-sdk/python

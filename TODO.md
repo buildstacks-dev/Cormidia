@@ -1823,104 +1823,53 @@ all-Claude org on the same conformance cases, and
 Restores the cross-provider builder/reviewer pairing (reverts M6.1's
 waiver).*
 
-- [ ] **M10.1 CodexRuntime core (mocked SDK + env-gated live conformance)**
-  **Goal:** Happy-path turn via the official Codex TS SDK (confirm exact
-  npm package in-session from research/): thread start with model +
-  mapped effort; run() with the task; resume by thread id;
-  TurnResult/TurnUsage population. Mirror M1.2's testing pattern exactly:
-  mocked unit tests + an env-gated live conformance file that *skips*
-  without credentials.
+- [x] **M10.1 CodexRuntime core (App Server + env-gated live smoke)** ✅ 2026-07-06 —
+  Codex uses pinned `@openai/codex` and `codex app-server --listen stdio://`,
+  not `@openai/codex-sdk` (`codex exec`). The adapter performs
+  initialize/initialized, `thread/start|resume`, `turn/start`, maps model and
+  effort, returns thread sessions and token usage. Offline tests cover new
+  thread, resume, TurnUsage, and an opt-in live file
+  (`OPERON_CODEX_LIVE=1 pnpm test:live`) skips by default.
   **Files:** src/runtime/adapters/codex.ts, package.json,
-  test/adapters/codex.test.ts, test/runtime/codex-sdk.live.test.ts
-  **Deps:** M0.4, M1.1
-  **Accept:** mocked cases: thread/start gets {model, mapped effort};
-  run() gets req.task; resume path used when session set;
-  TurnResult.session = {runtime:'codex', id}; live file skips (not fails)
-  without the credential and runs runConformanceSuite with it; `pnpm test
-  && pnpm build` green.
-  **Demo:** Second Runtime returns real TurnResults.
-  **Read:** research/2026-07-03_runtime-layer.md (Codex); src/runtime/types.ts;
-  docs/loop.md §2.
-  **Session:** opus, single session — SDK-shape risk.
+  test/adapters/codex.test.ts, test/runtime/codex-app-server.live.test.ts.
 
-- [ ] **M10.2 Codex gate mapping + context-channel resolution**
-  **Goal:** Map Codex approval events → hooks.gate (denial →
-  blocked_on_gate + escalations); resolve architecture §12.1 in code:
-  per-thread instructions if exposed, else the specified fallback —
-  worktree AGENTS.md overlay masked via `.git/info/exclude` (never
-  .gitignore) — built as a shared `worktree-context.ts` helper (pi reuses
-  it). Mark §12.1 resolved with a dated note. Conformance via the shared
-  harness — no hand-copied case lists.
+- [x] **M10.2 Codex gate mapping + context-channel resolution** ✅ 2026-07-06 —
+  App Server command/file approval requests and legacy exec/patch approvals
+  normalize to `ToolAction` and route through `hooks.gate`; denials become
+  `blocked_on_gate` escalations. Architecture §12.1 is resolved: Codex uses
+  native `developerInstructions`, not a worktree overlay. Shared
+  `worktree-context.ts` remains for pi.
   **Files:** src/runtime/adapters/codex.ts, src/runtime/worktree-context.ts,
   test/adapters/codex.test.ts, test/runtime/worktree-context.test.ts,
-  docs/architecture.md (§12.1 note)
-  **Deps:** M10.1, M0.4
-  **Accept:** test/adapters/codex.test.ts calls
-  runConformanceSuite('codex-mocked', …) over the shared cases (grep: no
-  duplicated CRITICAL_CASES list); worktree-context test proves overlay +
-  .git/info/exclude entry in a temp repo; §12.1 carries "resolved <date>";
-  `pnpm test && pnpm typecheck`.
-  **Demo:** Codex enforces the same gate ClaudeRuntime proves.
-  **Read:** docs/architecture.md §5 (injection table), §12.1;
-  research/2026-07-03_runtime-layer.md.
-  **Session:** opus, single session — safety-critical wiring + a design
-  resolution.
+  docs/architecture.md.
 
-- [ ] **M10.3 PiRuntime core (`createAgentSession` + context injection)**
-  **Goal:** Happy path via pi SDK createAgentSession: model/effort routing
-  incl. a models.json-routed non-Anthropic/OpenAI model (the all-pi
-  profile's point); resume by session id; context via
-  `.pi/APPEND_SYSTEM.md` written through worktree-context (same masking).
-  Env-gated live conformance file mirroring M1.2's pattern.
-  **Files:** src/runtime/adapters/pi.ts, package.json,
-  test/adapters/pi.test.ts, test/runtime/pi-sdk.live.test.ts
-  **Deps:** M10.2
-  **Accept:** mocked cases: both a native and a models.json-routed model
-  pass through; APPEND_SYSTEM.md written with taste layers via
-  worktree-context; resume uses session.id; live file skips without
-  credentials; `pnpm test && pnpm build`.
-  **Demo:** Third Runtime, including the exotic-model path.
-  **Read:** research/2026-07-03_runtime-layer.md (pi); docs/PURPOSE.md →
-  single-runtime orgs.
-  **Session:** opus, single session.
+- [x] **M10.3 PiRuntime core (`createAgentSession` + context injection)** ✅ 2026-07-06 —
+  pi runs in-process through `@earendil-works/pi-coding-agent`
+  `createAgentSession()`, resolves `provider/model` strings through
+  `ModelRegistry`, maps effort to thinking level, resumes via session file
+  path, and writes context to `.pi/APPEND_SYSTEM.md` masked in
+  `.git/info/exclude`. The opt-in live file
+  (`OPERON_PI_LIVE=1 pnpm test:live`) skips without model auth.
+  **Files:** src/runtime/adapters/pi.ts, src/runtime/worktree-context.ts,
+  test/adapters/pi.test.ts, test/runtime/pi-sdk.live.test.ts.
 
-- [ ] **M10.4 pi gating extension — GateFn on pi tool events**
-  **Goal:** The TS extension intercepting pi tool events and enforcing the
-  same GateFn (pi has no native approval flow — the known work item from
-  PURPOSE). Wired into PiRuntime.runTurn; conformance via the shared
-  harness; delegation.allow on pi must not silently fake subagent fan-out
-  — documented capability error or telemetered no-op, never a lie.
+- [x] **M10.4 pi gating extension — GateFn on pi tool events** ✅ 2026-07-06 —
+  `src/runtime/adapters/pi-gate.ts` installs a pi `tool_call` handler,
+  normalizes bash/read/write/edit inputs, blocks denied actions, and records
+  escalations. `runConformanceSuite('pi-mocked', …)` passes over the shared
+  cases. pi still has **no native intra-turn subagent fan-out**; delegation
+  on pi records a degraded-capability note instead of pretending otherwise.
   **Files:** src/runtime/adapters/pi-gate.ts, src/runtime/adapters/pi.ts,
-  test/adapters/pi-gate.test.ts
-  **Deps:** M10.3, M0.4
-  **Accept:** runConformanceSuite('pi-mocked', …) passes over the shared
-  cases with identical verdicts + rule names; the no-silent-fanout case;
-  `pnpm test` green.
-  **Demo:** The all-pi profile has the real gate, unlocking every model pi
-  can route.
-  **Read:** research/2026-07-03_runtime-layer.md (pi risk #1); AGENTS.md
-  (conformance rule); docs/PURPOSE.md → single-runtime orgs.
-  **Session:** opus, single session — safety-critical.
+  test/adapters/pi-gate.test.ts, test/adapters/pi.test.ts.
 
-- [ ] **M10.5 Capability matrix + restore cross-provider pairing**
-  **Goal:** `docs/capability-matrix.md`: rows {gate enforcement, context
-  channel, session resume, large-payload transport, intra-turn fan-out} ×
-  columns {claude, codex, pi}, each cell native/adapter-built/degraded
-  with a file:line pointer into real adapter code. Then the M6.1 revert:
-  proposal PR restoring builder to a Codex model (per M1.1's verified IDs)
-  and reinstating the strict cross-provider test case.
-  **Files:** docs/capability-matrix.md, AGENTS.md (Map row), roles.yaml +
-  test/roles.test.ts (via PR)
-  **Deps:** M10.1–M10.4, M6.1
-  **Accept:** `grep -q 'no native intra-turn subagent fan-out'
-  docs/capability-matrix.md`; AGENTS.md Map gains the row; open PR
-  restores cross-provider builder/reviewer + strict test (green on
-  branch); `pnpm test` green.
-  **Demo:** "What does an all-pi org lose?" is one table; the pilot
-  expedient is repaid.
-  **Read:** docs/PURPOSE.md → capability matrix requirement; AGENTS.md
-  (builder≠reviewer rule).
-  **Session:** sonnet, single session.
+- [x] **M10.5 Capability matrix + restore cross-provider pairing** ✅ 2026-07-06 —
+  `docs/capability-matrix.md` documents native / adapter-built / degraded
+  surfaces with file:line pointers, AGENTS/README/PURPOSE/research docs now
+  reflect Codex App Server and pi SDK, and the M6 waiver is repaid:
+  Builder is back on Codex (`gpt-5.5`) while Reviewer stays Claude, with the
+  strict provider-difference test restored.
+  **Files:** docs/capability-matrix.md, AGENTS.md, README.md, docs/PURPOSE.md,
+  research/2026-07-03_runtime-layer.md, roles.yaml, test/roles.test.ts.
 
 ### M11 — Second app: buildstacks.dev *(DEFERRED POST-LAUNCH — not part of the buildable product)*
 
@@ -1961,8 +1910,8 @@ waiver).*
 
 ## Open decisions (need the human)
 No human decisions are open as of 2026-07-06. Build-time verification
-questions remain in the relevant implementation items (for example Codex
-context channel, Codex/pi structured output support, and provider cache knobs).
+questions remain in the relevant implementation items (for example Codex/pi
+structured output support and provider cache knobs).
 
 ## Human's own items
 - [ ] Archive the predecessor orchestrator repo

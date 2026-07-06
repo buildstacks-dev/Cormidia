@@ -15,8 +15,8 @@ state machine can take a real sandbox-alpha issue through Builder / Reviewer
 passes, PR, gates, review fallback, and squash-merge, and dispatch routes
 standing-role triggers to Planner/SRE/Support/Marketing v0 pipelines.
 OKF memory, full context assembly, scorecards, retro reporting/curation,
-status/analyze CLIs, and cache-token telemetry are implemented. CodexRuntime
-and PiRuntime remain roadmap work.
+status/analyze CLIs, cache-token telemetry, CodexRuntime, and PiRuntime are
+implemented.
 
 ## Map
 | Path | What it is |
@@ -31,7 +31,8 @@ and PiRuntime remain roadmap work.
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
 | `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
 | `docs/event-schemas.md` | File-drop company-lifecycle event payload contract for Support / Marketing / SRE inputs |
-| `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude live; Codex/pi stubs) |
+| `docs/capability-matrix.md` | Adapter capability matrix: native / adapter-built / degraded surfaces for Claude, Codex, and pi |
+| `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
@@ -46,9 +47,10 @@ and PiRuntime remain roadmap work.
   enable` once if `pnpm --version` doesn't match the pin.
 - Test: `pnpm test` (vitest — fast, offline; run for any `src/` or
   `roles.yaml` change; `*.live.test.ts` files are excluded here)
-- Live adapter tests: `pnpm test:live` (real Claude Agent SDK turns, real
-  tokens; subscription auth first, API key fallback; skips without usable
-  auth — never run by `pnpm test`)
+- Live adapter tests: `pnpm test:live` (real Claude Agent SDK turns, plus
+  opt-in Codex/pi smokes via `OPERON_CODEX_LIVE=1` /
+  `OPERON_PI_LIVE=1`; spends real tokens; skips without usable auth — never
+  run by `pnpm test`)
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` (tsc → `dist/`)
 - CLI in dev: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
@@ -79,14 +81,13 @@ and PiRuntime remain roadmap work.
   encodes a design decision (uncorrelated review blind spots). If it fails,
   the roles.yaml edit is wrong — don't "fix" the test.
 - **Dependencies: minimal and boring** (TASTE.md §3). Runtime deps today:
-  `yaml` and `@anthropic-ai/claude-agent-sdk` (the ClaudeRuntime adapter —
-  the first SDK dependency, flagged and landed with M1.2). Adding a
-  dependency is a decision, not a convenience.
+  `yaml`, `@anthropic-ai/claude-agent-sdk`, `@openai/codex`, and
+  `@earendil-works/pi-coding-agent`. Adding another dependency is a
+  decision, not a convenience.
 - **Model IDs:** all roles.yaml IDs verified against live catalogs and
   human-ratified 2026-07-05 (PR #1; sources in
   `research/2026-07-05_model-id-verification.md`). One live caveat: `gpt-5.5`
-  in Codex currently requires ChatGPT-account auth, not an API key —
-  re-verify when wiring the Codex adapter (M10).
+  in Codex currently requires ChatGPT-account auth, not an API key.
 - Single package, deliberately **not** a pnpm workspace (docs/PURPOSE.md → Repo shape).
 
 ## Testing expectations

@@ -17,16 +17,14 @@ describe("roles.yaml", () => {
     }
   });
 
-  it("M6 pilot waiver: builder and reviewer differ by model until M10 restores cross-provider review", async () => {
+  it("builder and reviewer stay on different providers", async () => {
     const { roles } = await loadRoles(ROLES_PATH);
     const builder = roles.find((r) => r.name === "builder");
     const reviewer = roles.find((r) => r.name === "reviewer");
-    // Temporary M6 expedient: CodexRuntime is not live yet, so the real
-    // loop proof uses ClaudeRuntime for both seats. M10 restores the
-    // cross-provider builder/reviewer pairing; until then the models must
-    // differ so the waiver stays narrow and visible.
-    expect(builder?.runtime).toBe("claude");
+    // This is a product decision, not incidental config: independent
+    // provider families reduce correlated builder/reviewer blind spots.
+    expect(builder?.runtime).toBe("codex");
     expect(reviewer?.runtime).toBe("claude");
-    expect(builder?.model).not.toBe(reviewer?.model);
+    expect(builder?.runtime).not.toBe(reviewer?.runtime);
   });
 });

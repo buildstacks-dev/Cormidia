@@ -80,18 +80,21 @@ config file, not a fork.
   multi-agent framework. **Operon supersedes claude-loop outright** —
   claude-loop has no users, so the Python repo is frozen as pattern reference
   with no back-compat obligation. TS over Python because: pi (and our mandatory
-  gating extension) is TS anyway; all three runtimes have first-class TS SDKs;
-  matches the house convention (tastytrade-tools, kalshi-tools).
-- **Runtime layer — three adapters, one interface, all in-process** (see
+  gating extension) is TS, Codex App Server exposes a generated JSON-RPC schema
+  cleanly driven from Node, and the codebase matches the house convention
+  (tastytrade-tools, kalshi-tools).
+- **Runtime layer — three adapters, one interface, native harnesses** (see
   `research/2026-07-03_runtime-layer.md`):
   - **Anthropic roles** → Claude Agent SDK (TypeScript; hooks + `canUseTool`
     for the critical-ops gate)
-  - **OpenAI roles** → Codex app-server via the official Codex TypeScript SDK
-    (JSON-RPC; per-thread model, approvals, sandbox modes)
+  - **OpenAI roles** → Codex App Server through the pinned `@openai/codex`
+    CLI and documented JSON-RPC over stdio (per-thread model, approvals,
+    sandbox modes). The `@openai/codex-sdk` package wraps `codex exec` and is
+    not the adapter surface for Operon.
   - **All other models** → **pi** embedded via its SDK
     (`createAgentSession()`); SYSTEM.md + extensions for protocol enforcement.
-    Known work item: pi has no first-class approval flow — we write the gating
-    extension.
+    pi has no first-class approval flow, so Operon installs the gating
+    extension at runtime.
 - **Single-runtime orgs are a first-class profile.** Nothing in the
   orchestrator assumes a mix — `runtime:` is per-role config, so a user can run
   the whole org on pi (including pi + Opus: pi speaks Anthropic natively).

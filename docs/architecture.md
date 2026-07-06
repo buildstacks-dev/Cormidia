@@ -480,11 +480,11 @@ model-scoped) — weigh that when tuning per-pass overrides in pipelines.yaml.
 assembled ever lands in a commit:
 
 
-| Runtime | Channel                                                                                 | Mechanics                                                                                                                                      |
-| ------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| claude  | system-prompt append (SDK option)                                                       | no files written                                                                                                                               |
-| codex   | per-thread instructions if the SDK exposes them; fallback: worktree `AGENTS.md` overlay | fallback file is worktree-local, masked via `.git/info/exclude` (never the repo's `.gitignore`); verify at adapter build time (roadmap item 6) |
-| pi      | `.pi/APPEND_SYSTEM.md` in worktree                                                      | same `.git/info/exclude` masking                                                                                                               |
+| Runtime | Channel                                   | Mechanics                                                                                 |
+| ------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
+| claude  | system-prompt append (SDK option)         | no files written                                                                          |
+| codex   | App Server `developerInstructions`        | per-thread native instruction field; no worktree overlay required                         |
+| pi      | `.pi/APPEND_SYSTEM.md` in worktree        | worktree-local, masked via `.git/info/exclude` (never the repo's `.gitignore`)            |
 
 
 The assembler produces the existing `ContextBundle` type unchanged: layers
@@ -788,9 +788,11 @@ New decisions made by this document, ratified by the human operator on
 
 ## 12. Open questions
 
-1. **Codex context channel** — per-thread instructions vs AGENTS.md overlay:
-  verify against the Codex TS SDK when building the adapter (item 6); the
-   fallback is specified (§5) either way. *(build-time verification)*
+1. **Codex context channel — resolved 2026-07-06.** Codex App Server exposes
+   `developerInstructions` on `thread/start` and `thread/resume`; Operon uses
+   that native channel. The worktree overlay fallback remains only for
+   runtimes that need files (pi uses `.pi/APPEND_SYSTEM.md`).
+
 Resolved 2026-07-06: Support/Marketing stay disabled per app until channels
 exist; defaults confirmed as `max_concurrent_turns: 2`, grant TTL 24 h,
 dispatch tick 5 min, loop `maxCycles: 3`.

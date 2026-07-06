@@ -25,7 +25,8 @@ Read [`docs/PURPOSE.md`](docs/PURPOSE.md) for the why and every decision made so
 
 ```
 src/runtime/   the runtime contract: Runtime interface, critical-ops gate,
-               telemetry, run logs, adapters (claude live; codex/pi stubbed)
+               telemetry, run logs, adapters (Claude SDK, Codex App Server,
+               pi SDK)
 src/loop/      pass pipelines, briefs, quality gates, verdict parsing, and
                the ticket → PR → review → merge state machine
 src/org/       app registry, bootstrap, co-planning, dispatch, approvals,
@@ -58,8 +59,9 @@ dispatcher ships.
 
 ## Status
 
-M0-M8 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
-pass executor, run logs, app registry, bootstrap flow, co-planning launcher,
+M0-M10 are complete. The runtime contract, critical-ops gate, ClaudeRuntime,
+CodexRuntime, PiRuntime, pass executor, run logs, app registry,
+bootstrap flow, co-planning launcher,
 quality gates, typed verdict parsers, GitHub ticket state machine, scheduler,
 manual loop driver, real Builder/Reviewer pipeline integration, approval queue,
 dispatcher, budget overlay, Planner pipelines, standing-role v0 pipelines, and
@@ -71,6 +73,7 @@ through PR #2 to a merged squash commit. M8 is proven on
 `operon-sandbox-gamma`: a running `/health` service, a real private
 `op:incident` issue, and Support/Marketing draft artifacts.
 
-CodexRuntime and PiRuntime are still planned for M10; until then, the live
-adapter is ClaudeRuntime and `pnpm test:live` is the gated live-conformance
-proof.
+`docs/capability-matrix.md` records each adapter's native, adapter-built, and
+degraded capabilities. `pnpm test:live` is the gated live-adapter proof; Codex
+and pi live smokes are opt-in with `OPERON_CODEX_LIVE=1` and
+`OPERON_PI_LIVE=1`.

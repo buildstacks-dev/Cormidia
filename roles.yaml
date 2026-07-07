@@ -33,6 +33,10 @@ roles:
     runtime: codex              # DELIBERATELY a different provider than reviewer —
     model: gpt-5.5              # restored in M10 after CodexRuntime landed
     effort: high                # build quality over token cost — the Reviewer gate
+    max_turn_budget_usd: 15     # a frontier builder implementing a real ticket in
+                                # one turn (contract-sized context + tool loop)
+                                # routinely exceeds the $5 default; caps bound
+                                # spend, they don't downgrade the model
     delegation:                 # stays as the second line of defense
       allow: [explore, test-fanout]
     triggers:
@@ -43,6 +47,8 @@ roles:
     runtime: claude             # DELIBERATELY a different provider than builder —
     model: claude-opus-4-8      # uncorrelated blind spots; the single most important
     effort: xhigh               # pairing decision in this file
+    max_turn_budget_usd: 15     # xhigh adversarial review of a real diff needs
+                                # more than the $5 default; bounded, not downgraded
     delegation:
       allow: [adversarial-verify]   # N independent verifiers per finding before reporting
     triggers:

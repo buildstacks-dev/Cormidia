@@ -697,9 +697,10 @@ critical op raised live (recorded to the same audit log).
 operon bootstrap        # run inside the product repo
 ```
 
-1. **Learn.** Scan the repo: language/build/test commands (manifests, CI
-  config), existing agent docs (CLAUDE.md / AGENTS.md), deploy hints
-   (Dockerfiles, DNS/IaC), size and activity.
+1. **Learn.** Scan the GitHub-backed repo: language/build/test commands
+  (manifests, CI config), documentation inventory grouped by onboarding
+  category, existing agent docs (CLAUDE.md / AGENTS.md), and deploy hints
+   (Dockerfiles, DNS/IaC). Bootstrap never runs agents during scan.
 2. **Questionnaire.** Interactive alignment pass with the user: what the
   product is and what "good" means (→ app charter); which roles to enable;
    budget; cadence; app-specific critical ops (deploy commands, publish
@@ -709,6 +710,8 @@ operon bootstrap        # run inside the product repo
   - `.operon/TASTE.md` — the app charter (layer [3]);
   - `.operon/config.yaml` — the app's registry entry (apps.yaml schema);
   - `.operon/policy.yaml` — the app-owned quality-gate policy;
+  - `.operon/onboarding-report.md` — deterministic documentation/setup
+  inventory and gap report;
   - `.operon/memory/<role>/INDEX.md` — seeded empty bundles;
   - single-app profile (no org detected): also `.operon/org/` with org
   TASTE.md, roles.yaml, apps.yaml — templated from this repo's root
@@ -721,6 +724,12 @@ operon bootstrap        # run inside the product repo
 
 Graduation (single-app → org-home repo) is `git mv .operon/org/* <org-home>/`
 by construction (§1). An org-home repo remains optional, never required.
+
+Bootstrap inventories documentation and setup signals; it does not infer
+authoritative product, architecture, or roadmap truth from source code. App
+owners bring those source-of-truth docs. The onboarding report may suggest
+missing categories, but gaps are guidance, not blockers unless app config or
+policy makes them so.
 
 ## 10. GitHub substrate conventions
 

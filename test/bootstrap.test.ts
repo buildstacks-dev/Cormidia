@@ -44,6 +44,10 @@ const NODE_REPO_FILES: Record<string, string> = {
     devDependencies: { typescript: "^5.0.0" },
   }),
   "tsconfig.json": "{}",
+  "README.md": "# Sandbox Alpha\n",
+  "docs/architecture.md": "# Architecture\n",
+  "docs/specs/api.md": "# API spec\n",
+  "RUNBOOK.md": "# Runbook\n",
   "AGENTS.md": "# AGENTS\n",
   ".github/workflows/ci.yml": "on: push\njobs:\n  ci:\n    steps:\n      - run: pnpm test\n",
   Dockerfile: "FROM node:22\n",
@@ -64,6 +68,14 @@ describe("scanRepo", () => {
     expect(scan.ciConfigs).toEqual([join(".github", "workflows", "ci.yml")]);
     expect(scan.deployHints).toEqual(["Dockerfile"]);
     expect(scan.repoSlug).toBe("bikramgupta/operon-sandbox-alpha");
+    expect(Object.fromEntries(scan.docInventory.map((c) => [c.id, c.paths]))).toMatchObject({
+      "product/readme": ["README.md"],
+      architecture: ["docs/architecture.md"],
+      "specs/requirements": ["docs/specs/api.md"],
+      "operations/runbook": ["RUNBOOK.md"],
+      "agent/contributor": ["AGENTS.md"],
+      "testing/quality": [join(".github", "workflows", "ci.yml"), "package.json"],
+    });
   });
 
   it("reports absence cleanly on an empty repo", async () => {
@@ -78,6 +90,15 @@ describe("scanRepo", () => {
     expect(scan.ciConfigs).toEqual([]);
     expect(scan.deployHints).toEqual([]);
     expect(scan.repoSlug).toBeUndefined();
+    expect(scan.docInventory.every((category) => category.paths.length === 0)).toBe(true);
+    expect(scan.docInventory.map((category) => category.id)).toEqual([
+      "product/readme",
+      "architecture",
+      "specs/requirements",
+      "operations/runbook",
+      "agent/contributor",
+      "testing/quality",
+    ]);
   });
 
   it("falls back to CI for the test command when the manifest names none", async () => {
@@ -167,8 +188,12 @@ describe("cmdBootstrap", () => {
     expect(out).toContain(`bootstrap scan: ${target}`);
     expect(out).toContain("typescript");
     expect(out).toContain("would create:");
+    expect(out).toContain("docs:");
+    expect(out).toContain("doc gaps:");
+    expect(out).toContain("full bootstrap creates .operon/onboarding-report.md");
     for (const rel of ORG_TEMPLATE_FILES) expect(out).toContain(rel);
     expect(out).toContain(".operon/policy.yaml");
+    expect(out).toContain(".operon/onboarding-report.md");
     expect(out).toContain("nothing written");
     expect(existsSync(join(target, ".operon"))).toBe(false);
   });

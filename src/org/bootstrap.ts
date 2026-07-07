@@ -1,7 +1,8 @@
 // `operon bootstrap` — runs inside the product repo (docs/architecture.md §9).
 //
 // Step 1 ("Learn") is `scanRepo()` — language/build/test commands from
-// manifests and CI config, agent docs (CLAUDE.md / AGENTS.md), deploy hints.
+// manifests and CI config, documentation inventory, agent docs
+// (CLAUDE.md / AGENTS.md), deploy hints.
 // Step 2 ("Questionnaire") is the `BootstrapAnswers` contract + `parseAnswers`
 // — interactive collection lives in the CLI; tests and scripts inject the
 // same object via `--answers answers.json`. Step 3 ("Emit") is
@@ -11,11 +12,12 @@
 // templates" (PURPOSE v0.8 dogfood note; TASTE.md and roles.yaml are
 // byte-copies) — plus `emitAppArtifacts()`: the app charter
 // (`.operon/TASTE.md`), the app's registry entry (`.operon/config.yaml`,
-// apps.yaml schema), and seeded per-role memory bundles. `bootstrapRun()`
-// composes steps 1–3. Step 4 ("Register / join") appends a second app to an
-// existing org home's apps.yaml instead of emitting a parallel `.operon/org/`.
-// App-owned bootstrap output also includes `.operon/policy.yaml` when the
-// M4.2 policy template is present in this package.
+// apps.yaml schema), `.operon/onboarding-report.md`, and seeded per-role
+// memory bundles. `bootstrapRun()` composes steps 1–3. Step 4 ("Register /
+// join") appends a second app to an existing org home's apps.yaml instead of
+// emitting a parallel `.operon/org/`. App-owned bootstrap output also includes
+// `.operon/policy.yaml` when the M4.2 policy template is present in this
+// package.
 
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -38,6 +40,21 @@ export interface CommandDetection {
   source: string;
 }
 
+export type DocCategoryId =
+  | "product/readme"
+  | "architecture"
+  | "specs/requirements"
+  | "operations/runbook"
+  | "agent/contributor"
+  | "testing/quality";
+
+export interface DocInventoryCategory {
+  id: DocCategoryId;
+  label: string;
+  /** Conservative repo-relative paths or manifest files that evidence this category. */
+  paths: string[];
+}
+
 export interface RepoScan {
   root: string;
   /** Primary language, when a manifest identifies one. */
@@ -49,6 +66,8 @@ export interface RepoScan {
   build?: CommandDetection;
   test?: CommandDetection;
   lint?: CommandDetection;
+  /** Documentation/setup inventory grouped by recommended onboarding category. */
+  docInventory: DocInventoryCategory[];
   /** Agent docs present at the repo root (relative paths). */
   agentDocs: string[];
   /** CI workflow files (relative paths, sorted). */
@@ -69,13 +88,51 @@ const DEPLOY_HINTS = [
   "vercel.json",
   "netlify.toml",
 ];
+const DOC_CATEGORY_DEFS: readonly { id: DocCategoryId; label: string; guidance: string }[] = [
+  {
+    id: "product/readme",
+    label: "Product / overview",
+    guidance: "Add or point Operon at app-owner-authored product overview docs.",
+  },
+  {
+    id: "architecture",
+    label: "Architecture / decisions",
+    guidance: "Add app-owner-authored architecture notes, ADRs, or decision records.",
+  },
+  {
+    id: "specs/requirements",
+    label: "Specs / requirements",
+    guidance: "Add specs, requirements, or acceptance-contract source documents.",
+  },
+  {
+    id: "operations/runbook",
+    label: "Operations / runbook",
+    guidance: "Add runbook, deploy, or operations docs before expecting autonomous operations.",
+  },
+  {
+    id: "agent/contributor",
+    label: "Agent / contributor docs",
+    guidance: "Add AGENTS.md, CLAUDE.md, or equivalent contributor guidance.",
+  },
+  {
+    id: "testing/quality",
+    label: "Testing / quality",
+    guidance: "Add testing docs, CI, or discoverable test/lint quality signals.",
+  },
+];
 
 /** Learn a target repo (architecture §9 step 1). Purely observational: reads
  * files, runs nothing, writes nothing. Absence of anything is reported as
  * absent fields / empty lists — never an error. */
 export async function scanRepo(rootIn: string): Promise<RepoScan> {
   const root = resolve(rootIn);
-  const scan: RepoScan = { root, agentDocs: [], ciConfigs: [], deployHints: [] };
+  const scan: RepoScan = {
+    root,
+    docInventory: emptyDocInventory(),
+    agentDocs: [],
+    ciConfigs: [],
+    deployHints: [],
+  };
 
   await scanNodeManifest(root, scan);
   if (!scan.language) scanOtherManifests(root, scan);
@@ -98,7 +155,97 @@ export async function scanRepo(rootIn: string): Promise<RepoScan> {
   const slug = await gitOriginSlug(root);
   if (slug) scan.repoSlug = slug;
 
+  scan.docInventory = await detectDocInventory(root, scan);
+
   return scan;
+}
+
+function emptyDocInventory(): DocInventoryCategory[] {
+  return DOC_CATEGORY_DEFS.map((def) => ({ id: def.id, label: def.label, paths: [] }));
+}
+
+async function detectDocInventory(root: string, scan: RepoScan): Promise<DocInventoryCategory[]> {
+  const found: Record<DocCategoryId, Set<string>> = {
+    "product/readme": new Set(),
+    architecture: new Set(),
+    "specs/requirements": new Set(),
+    "operations/runbook": new Set(),
+    "agent/contributor": new Set(),
+    "testing/quality": new Set(),
+  };
+  const add = (category: DocCategoryId, rel: string) => found[category].add(rel);
+  const addIfExists = (category: DocCategoryId, rel: string) => {
+    if (existsSync(join(root, rel))) add(category, rel);
+  };
+
+  addIfExists("product/readme", "README.md");
+  addIfExists("product/readme", join("docs", "PURPOSE.md"));
+  addIfExists("architecture", "architecture.md");
+  addIfExists("architecture", "decisions.md");
+  addIfExists("specs/requirements", "requirements.md");
+  addIfExists("operations/runbook", "RUNBOOK.md");
+  addIfExists("testing/quality", "TESTING.md");
+
+  for (const rel of scan.agentDocs) add("agent/contributor", rel);
+  for (const rel of scan.ciConfigs) add("testing/quality", rel);
+
+  for (const detection of [scan.test, scan.lint]) {
+    const manifest = manifestPathFromSource(detection?.source);
+    if (manifest) add("testing/quality", manifest);
+  }
+
+  for (const rel of await listFilesUnder(root, "docs")) {
+    const normalized = rel.split("\\").join("/");
+    const base = normalized.split("/").at(-1)?.toLowerCase() ?? "";
+    const inDocsRoot = normalized.split("/").length === 2;
+
+    if (inDocsRoot && /^(product|overview)[^/]*\.md$/.test(base)) {
+      add("product/readme", normalized);
+    }
+    if (inDocsRoot && /^architecture[^/]*\.md$/.test(base)) {
+      add("architecture", normalized);
+    }
+    if (normalized.startsWith("docs/adr/") && base.endsWith(".md")) {
+      add("architecture", normalized);
+    }
+    if (inDocsRoot && /^decisions[^/]*\.md$/.test(base)) {
+      add("architecture", normalized);
+    }
+    if (normalized.startsWith("docs/specs/") && base.endsWith(".md")) {
+      add("specs/requirements", normalized);
+    }
+    if (inDocsRoot && /^requirements[^/]*\.md$/.test(base)) {
+      add("specs/requirements", normalized);
+    }
+    if (inDocsRoot && /^(runbook|ops|deploy)[^/]*\.md$/.test(base)) {
+      add("operations/runbook", normalized);
+    }
+    if (inDocsRoot && /^testing[^/]*\.md$/.test(base)) {
+      add("testing/quality", normalized);
+    }
+  }
+
+  for (const rel of await listFilesUnder(root, "specs")) {
+    const normalized = rel.split("\\").join("/");
+    if (normalized.toLowerCase().endsWith(".md")) add("specs/requirements", normalized);
+  }
+
+  return DOC_CATEGORY_DEFS.map((def) => ({
+    id: def.id,
+    label: def.label,
+    paths: [...found[def.id]].sort(),
+  }));
+}
+
+function manifestPathFromSource(source: string | undefined): string | undefined {
+  if (!source) return undefined;
+  const first = source.split(" ")[0];
+  if (!first) return undefined;
+  if (first === "package.json") return first;
+  if (first.endsWith(".json") || first.endsWith(".toml") || first.endsWith(".yaml") || first.endsWith(".yml")) {
+    return first;
+  }
+  return undefined;
 }
 
 async function scanNodeManifest(root: string, scan: RepoScan): Promise<void> {
@@ -174,6 +321,28 @@ async function listWorkflows(root: string): Promise<string[]> {
     .filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"))
     .sort()
     .map((f) => join(".github", "workflows", f));
+}
+
+async function listFilesUnder(root: string, relDir: string): Promise<string[]> {
+  const absDir = join(root, relDir);
+  if (!existsSync(absDir)) return [];
+  const out: string[] = [];
+
+  async function walk(abs: string, rel: string): Promise<void> {
+    const entries = await readdir(abs, { withFileTypes: true });
+    for (const entry of entries) {
+      const childAbs = join(abs, entry.name);
+      const childRel = join(rel, entry.name);
+      if (entry.isDirectory()) {
+        await walk(childAbs, childRel);
+      } else if (entry.isFile()) {
+        out.push(childRel);
+      }
+    }
+  }
+
+  await walk(absDir, relDir);
+  return out.sort();
 }
 
 async function testCommandFromCi(
@@ -509,6 +678,8 @@ export interface EmitAppArtifactsOptions {
   repoSlug?: string;
   /** Parsed questionnaire answers (parseAnswers). */
   answers: BootstrapAnswers;
+  /** The scan that produced this bootstrap run; emitAppArtifacts scans when omitted. */
+  scan?: RepoScan;
   /** Every role in the org roles.yaml, in file order. Emission order for
    * memory bundles; the complement of answers.roles gets an explicit empty
    * cadence override (= disabled, src/org/apps.ts semantics). */
@@ -524,15 +695,104 @@ export function appArtifactFiles(answers: BootstrapAnswers, allRoles: string[]):
     ".operon/TASTE.md",
     ".operon/config.yaml",
     ".operon/policy.yaml",
+    ".operon/onboarding-report.md",
     ...enabled.map((role) => `.operon/memory/${role}/INDEX.md`),
   ];
 }
 
+export type OnboardingNoteSeverity = "gap" | "warning" | "info";
+
+export interface OnboardingReadinessNote {
+  severity: OnboardingNoteSeverity;
+  role: string;
+  message: string;
+}
+
+export interface OnboardingGapReport {
+  docInventory: DocInventoryCategory[];
+  missingRecommendedCategories: {
+    id: DocCategoryId;
+    label: string;
+    guidance: string;
+  }[];
+  setupSignals: {
+    build?: CommandDetection;
+    test?: CommandDetection;
+    lint?: CommandDetection;
+    ciConfigs: string[];
+    deployHints: string[];
+    repoSlug?: string;
+  };
+  roleReadinessNotes: OnboardingReadinessNote[];
+}
+
+export function buildOnboardingGapReport(
+  scan: RepoScan,
+  answers: BootstrapAnswers,
+): OnboardingGapReport {
+  const missingRecommendedCategories = DOC_CATEGORY_DEFS.filter(
+    (def) => (scan.docInventory.find((c) => c.id === def.id)?.paths.length ?? 0) === 0,
+  ).map((def) => ({ id: def.id, label: def.label, guidance: def.guidance }));
+
+  const roleReadinessNotes: OnboardingReadinessNote[] = [];
+  if (answers.roles.includes("support") && (answers.channels.support?.length ?? 0) === 0) {
+    roleReadinessNotes.push({
+      severity: "gap",
+      role: "support",
+      message:
+        "Support is enabled but no support channels are declared; add channels or keep Support disabled until feedback exists.",
+    });
+  }
+  if (answers.roles.includes("marketing") && (answers.channels.marketing?.length ?? 0) === 0) {
+    roleReadinessNotes.push({
+      severity: "gap",
+      role: "marketing",
+      message:
+        "Marketing is enabled but no marketing channels are declared; add channels or keep Marketing disabled until adoption/publishing channels exist.",
+    });
+  }
+  const hasOperationsDocs =
+    (scan.docInventory.find((c) => c.id === "operations/runbook")?.paths.length ?? 0) > 0;
+  const hasDeploySignal = scan.deployHints.length > 0 || answers.criticalOps.deployCommands.length > 0;
+  if (answers.roles.includes("sre") && !hasOperationsDocs && !hasDeploySignal) {
+    roleReadinessNotes.push({
+      severity: "warning",
+      role: "sre",
+      message:
+        "SRE is enabled but no operations/runbook docs, deploy commands, or deploy hints were detected.",
+    });
+  }
+  if (roleReadinessNotes.length === 0) {
+    roleReadinessNotes.push({
+      severity: "info",
+      role: "all",
+      message: "No role-specific onboarding gaps detected from the supplied answers and repo scan.",
+    });
+  }
+
+  const setupSignals: OnboardingGapReport["setupSignals"] = {
+    ciConfigs: scan.ciConfigs,
+    deployHints: scan.deployHints,
+  };
+  if (scan.build) setupSignals.build = scan.build;
+  if (scan.test) setupSignals.test = scan.test;
+  if (scan.lint) setupSignals.lint = scan.lint;
+  if (scan.repoSlug) setupSignals.repoSlug = scan.repoSlug;
+
+  return {
+    docInventory: scan.docInventory,
+    missingRecommendedCategories,
+    setupSignals,
+    roleReadinessNotes,
+  };
+}
+
 /** Emit the app-level artifacts (architecture §9 step 3, first three
  * bullets): the product charter, the app's registry entry, and one seeded
- * OKF memory bundle per enabled role. All content is deterministic — no
- * timestamps — because the charter is context layer [3] and layers [1]–[4]
- * must stay a pure function of ratified files (§5 cache-stable rule 1). */
+ * OKF memory bundle per enabled role, plus the onboarding doc inventory/gap
+ * report. All content is deterministic — no timestamps — because the charter
+ * is context layer [3] and layers [1]–[4] must stay a pure function of
+ * ratified files (§5 cache-stable rule 1). */
 export async function emitAppArtifacts(
   targetRootIn: string,
   options: EmitAppArtifactsOptions,
@@ -546,6 +806,8 @@ export async function emitAppArtifacts(
   const files = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, files);
   const policyTemplate = await readPolicyTemplate(templateRoot);
+  const scan = options.scan ?? (await scanRepo(targetRoot));
+  const onboardingReport = buildOnboardingGapReport(scan, answers);
 
   const created: string[] = [];
   const emit = async (rel: string, content: string) => {
@@ -561,6 +823,7 @@ export async function emitAppArtifacts(
     configYaml(appName, repoSlug, options.repoSlug === undefined, answers, allRoles),
   );
   await emit(".operon/policy.yaml", policyTemplate);
+  await emit(".operon/onboarding-report.md", onboardingReportMd(appName, onboardingReport));
   for (const role of allRoles) {
     if (answers.roles.includes(role)) {
       await emit(`.operon/memory/${role}/INDEX.md`, memoryIndexMd(role, appName));
@@ -669,6 +932,64 @@ function configYaml(
   return out;
 }
 
+function onboardingReportMd(appName: string, report: OnboardingGapReport): string {
+  const lines: string[] = [
+    `# Operon Onboarding Report — ${appName}`,
+    "",
+    "This report inventories existing documentation and setup signals. It does not infer product truth from source code.",
+    "",
+    "Gaps are onboarding guidance, not blockers unless `.operon/config.yaml` or `.operon/policy.yaml` says so.",
+    "",
+    "## Documentation Inventory",
+    "",
+  ];
+
+  for (const category of report.docInventory) {
+    lines.push(`### ${category.label}`, "");
+    if (category.paths.length > 0) {
+      for (const path of category.paths) lines.push(`- ${path}`);
+    } else {
+      lines.push("- None detected");
+    }
+    lines.push("");
+  }
+
+  lines.push("## Missing Recommended Categories", "");
+  if (report.missingRecommendedCategories.length > 0) {
+    for (const category of report.missingRecommendedCategories) {
+      lines.push(`- ${category.label}: ${category.guidance}`);
+    }
+  } else {
+    lines.push("- None detected");
+  }
+  lines.push("");
+
+  lines.push("## Setup Signals", "");
+  lines.push(`- Build: ${commandLine(report.setupSignals.build)}`);
+  lines.push(`- Test: ${commandLine(report.setupSignals.test)}`);
+  lines.push(`- Lint: ${commandLine(report.setupSignals.lint)}`);
+  lines.push(`- CI: ${listLine(report.setupSignals.ciConfigs)}`);
+  lines.push(`- Deploy hints: ${listLine(report.setupSignals.deployHints)}`);
+  lines.push(`- GitHub remote: ${report.setupSignals.repoSlug ?? "none detected"}`);
+  lines.push("");
+
+  lines.push("## Role Readiness Notes", "");
+  for (const note of report.roleReadinessNotes) {
+    lines.push(`- ${note.role} (${note.severity}): ${note.message}`);
+  }
+  lines.push("");
+
+  return `${lines.join("\n")}`;
+}
+
+function commandLine(detection: CommandDetection | undefined): string {
+  return detection ? `${detection.command} (${detection.source})` : "none detected";
+}
+
+function listLine(items: string[]): string {
+  return items.length > 0 ? items.join(", ") : "none detected";
+}
+
 /** Seeded per-(role, app) OKF bundle index (architecture §6): the
  * always-included excerpt layer, one line per document — empty at birth. */
 function memoryIndexMd(role: string, appName: string): string {
@@ -753,7 +1074,7 @@ export async function bootstrapRun(
     orgCreated = org.created;
   }
 
-  const appOptions: EmitAppArtifactsOptions = { appName, answers, allRoles, templateRoot };
+  const appOptions: EmitAppArtifactsOptions = { appName, answers, scan, allRoles, templateRoot };
   if (repoSlug) appOptions.repoSlug = repoSlug;
   const app = await emitAppArtifacts(targetRoot, appOptions);
 

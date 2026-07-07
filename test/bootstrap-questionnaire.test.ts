@@ -192,6 +192,40 @@ describe("emitAppArtifacts", () => {
     expect(emitted).toBe(template);
   });
 
+  it("onboarding report inventories docs and setup gaps without product inference", async () => {
+    const target = makeRepo({
+      "README.md": "# Sandbox Alpha\n",
+      "docs/architecture.md": "# Architecture\n",
+      "docs/specs/api.md": "# API spec\n",
+      "package.json": JSON.stringify({
+        scripts: { test: "node --test" },
+      }),
+      ".github/workflows/ci.yml": "jobs:\n  ci:\n    steps:\n      - run: npm test\n",
+    });
+
+    await emitAppArtifacts(target, {
+      appName: "sandbox-alpha",
+      repoSlug: "bikramgupta/operon-sandbox-alpha",
+      answers: answers({
+        criticalOps: { deployCommands: [], publishTargets: [], secretLocations: [] },
+        channels: { support: [], marketing: [] },
+      }),
+      allRoles: ALL_ROLES,
+    });
+
+    const report = await readFile(join(target, ".operon", "onboarding-report.md"), "utf8");
+    expect(report).toContain("This report inventories existing documentation and setup signals.");
+    expect(report).toContain("It does not infer product truth from source code.");
+    expect(report).toContain("Gaps are onboarding guidance, not blockers");
+    expect(report).toContain("README.md");
+    expect(report).toContain("docs/architecture.md");
+    expect(report).toContain("docs/specs/api.md");
+    expect(report).toContain("Operations / runbook: Add runbook, deploy, or operations docs");
+    expect(report).toContain("support (gap): Support is enabled but no support channels");
+    expect(report).toContain("marketing (gap): Marketing is enabled but no marketing channels");
+    expect(report).toContain("sre (warning): SRE is enabled but no operations/runbook docs");
+  });
+
   it("one INDEX.md per enabled role; disabled roles get empty cadence overrides", async () => {
     const target = makeRepo();
     const enabled = ["planner", "builder", "reviewer"];
@@ -240,6 +274,20 @@ describe("emitAppArtifacts", () => {
     expect(existsSync(join(target, ".operon", "config.yaml"))).toBe(false);
     expect(existsSync(join(target, ".operon", "memory"))).toBe(false);
   });
+
+  it("refuses to overwrite an existing onboarding report before writing anything", async () => {
+    const target = makeRepo({ ".operon/onboarding-report.md": "# already here\n" });
+    await expect(
+      emitAppArtifacts(target, {
+        appName: "sandbox-alpha",
+        answers: answers(),
+        allRoles: ALL_ROLES,
+      }),
+    ).rejects.toThrow(/onboarding-report\.md already exists/);
+    expect(existsSync(join(target, ".operon", "TASTE.md"))).toBe(false);
+    expect(existsSync(join(target, ".operon", "config.yaml"))).toBe(false);
+    expect(existsSync(join(target, ".operon", "policy.yaml"))).toBe(false);
+  });
 });
 
 const NODE_REPO_FILES: Record<string, string> = {
@@ -268,6 +316,7 @@ describe("bootstrapRun", () => {
       ".operon/TASTE.md",
       ".operon/config.yaml",
       ".operon/policy.yaml",
+      ".operon/onboarding-report.md",
       ...roleNames.map((r) => `.operon/memory/${r}/INDEX.md`),
     ]);
     for (const rel of created) expect(existsSync(join(target, rel))).toBe(true);
@@ -311,10 +360,12 @@ describe("cmdBootstrap --answers", () => {
     expect(out).toContain(".operon/TASTE.md");
     expect(out).toContain(".operon/config.yaml");
     expect(out).toContain(".operon/policy.yaml");
+    expect(out).toContain(".operon/onboarding-report.md");
     expect(out).toContain(".operon/memory/planner/INDEX.md");
     expect(existsSync(join(target, ".operon", "TASTE.md"))).toBe(true);
     expect(existsSync(join(target, ".operon", "config.yaml"))).toBe(true);
     expect(existsSync(join(target, ".operon", "policy.yaml"))).toBe(true);
+    expect(existsSync(join(target, ".operon", "onboarding-report.md"))).toBe(true);
     expect(existsSync(join(target, ".operon", "org", "apps.yaml"))).toBe(true);
   });
 
@@ -399,6 +450,7 @@ describe("appArtifactFiles", () => {
       ".operon/TASTE.md",
       ".operon/config.yaml",
       ".operon/policy.yaml",
+      ".operon/onboarding-report.md",
       ".operon/memory/planner/INDEX.md",
       ".operon/memory/reviewer/INDEX.md",
     ]);

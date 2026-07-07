@@ -40,7 +40,7 @@ pnpm install
 Everything you need to explore the repo offline works with no credentials:
 
 ```bash
-pnpm test               # fast offline suite (571 tests, ~10s)
+pnpm test               # fast offline suite (575 tests, ~10s)
 pnpm typecheck
 pnpm dev roles          # validate roles.yaml, print the org chart
 pnpm dev apps           # validate apps.yaml, print the app registry
@@ -75,6 +75,14 @@ pnpm dev prune-runs [root] --retention-days N     # delete finalized run dirs pa
 
 The `--dry-run` variants of `plan`, `loop`, `dispatch`, and `run-role` assemble
 real context but spend no tokens, so they are safe without auth.
+
+`pnpm dev bootstrap <repo> --scan-only` inventories a GitHub-backed app repo:
+commands, CI, deploy hints, and existing app-owner documentation grouped by
+product, architecture, specs, operations, contributor, and quality categories.
+Full bootstrap with questionnaire answers emits `.operon/onboarding-report.md`
+with the same inventory and gap guidance. It does not generate authoritative
+product, architecture, or roadmap docs from source code; app owners bring those
+truth sources themselves.
 
 **Live — spends tokens / touches GitHub (auth required):**
 

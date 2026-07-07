@@ -2,7 +2,8 @@
 // target repo (docs/architecture.md §9 step 1), walk the alignment
 // questionnaire (step 2: interactive in a terminal, or injected via
 // `--answers answers.json` for tests/scripting), and emit the `.operon/`
-// tree (step 3): org skeleton + app charter/config/policy + seeded memory bundles.
+// tree (step 3): org skeleton + app charter/config/policy/onboarding report
+// + seeded memory bundles.
 // `--scan-only` prints the scan profile and the would-create list without
 // writing anything. Without answers and without a terminal, only the
 // non-interactive org half (M3.3) runs unless `--org-home`/OPERON_HOME points
@@ -62,6 +63,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     else for (const rel of ORG_TEMPLATE_FILES) console.log(`  ${rel}`);
     console.log(
       "  .operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml, " +
+        ".operon/onboarding-report.md, " +
         ".operon/memory/<role>/INDEX.md (with answers)",
     );
     console.log("(nothing written — --scan-only)");
@@ -90,7 +92,8 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     console.log(
       `\nnext: review + commit .operon/ in the app repo — ${scope}:\n` +
         "charter (.operon/TASTE.md), registry entry (.operon/config.yaml),\n" +
-        "policy (.operon/policy.yaml), and seeded memory bundles.",
+        "policy (.operon/policy.yaml), onboarding report (.operon/onboarding-report.md),\n" +
+        "and seeded memory bundles.",
     );
     return 0;
   }
@@ -104,7 +107,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     console.log(
       "\nnext: re-run with --answers answers.json (or interactively in a\n" +
         "terminal) to emit the app-owned .operon/ charter, config, policy,\n" +
-        "and memory bundles.",
+        "onboarding report, and memory bundles.",
     );
     return 0;
   }
@@ -119,8 +122,8 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   console.log(
     "\nnext: the app charter + config need questionnaire answers — re-run with\n" +
       "--answers answers.json (or interactively in a terminal) to emit\n" +
-      ".operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml, and\n" +
-      ".operon/memory/.",
+      ".operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml,\n" +
+      ".operon/onboarding-report.md, and .operon/memory/.",
   );
   return 0;
 }
@@ -205,6 +208,12 @@ function printScan(scan: RepoScan): void {
   const cmd = (d: CommandDetection | undefined) =>
     d ? `${d.command}  (${d.source})` : "none detected";
   const list = (items: string[]) => (items.length > 0 ? items.join(", ") : "none detected");
+  const docSummary = scan.docInventory
+    .map((category) => `${category.label}: ${list(category.paths)}`)
+    .join("; ");
+  const missing = scan.docInventory
+    .filter((category) => category.paths.length === 0)
+    .map((category) => category.label);
 
   console.log(`bootstrap scan: ${scan.root}`);
   console.log(
@@ -217,6 +226,11 @@ function printScan(scan: RepoScan): void {
   console.log(`  agent docs:   ${list(scan.agentDocs)}`);
   console.log(`  ci:           ${list(scan.ciConfigs)}`);
   console.log(`  deploy hints: ${list(scan.deployHints)}`);
+  console.log(`  docs:         ${docSummary}`);
+  console.log(`  doc gaps:     ${missing.length > 0 ? missing.join(", ") : "none detected"}`);
   console.log(`  git remote:   ${scan.repoSlug ?? "none detected"}`);
-  console.log(`profile: bootstrap can emit a single-app org or join an existing org`);
+  console.log(
+    "profile: bootstrap can emit a single-app org or join an existing org; " +
+      "full bootstrap creates .operon/onboarding-report.md",
+  );
 }

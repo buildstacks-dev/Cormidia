@@ -170,6 +170,8 @@ describe("bootstrap existing-org flow", () => {
     expect(result.created).toContain(".operon/TASTE.md");
     expect(result.created).toContain(".operon/config.yaml");
     expect(result.created).toContain(".operon/policy.yaml");
+    expect(result.created).toContain(".operon/onboarding-report.md");
+    expect(existsSync(join(app, ".operon", "onboarding-report.md"))).toBe(true);
     expect(existsSync(join(app, ".operon", "org"))).toBe(false);
 
     const file = await loadApps(join(orgHome, "apps.yaml"));

@@ -26,7 +26,7 @@ the primary from-scratch onboarding + loop proof — onboarded live this
 campaign and driven end-to-end (both planted bugs fixed by the loop and
 merged, PRs #11/#12). alpha and gamma were hardened with more modules/tests;
 beta stays deliberately minimal. buildstacks.dev is onboarded as a production
-app in `status: onboarding`. The offline suite is 571 tests
+app in `status: onboarding`. The offline suite is 575 tests
 (`pnpm test`). Three known limitations are documented in README.md → Known
 limitations (empty `tool_counts` + two inert anomaly detectors pending adapter
 `tool_use` emission; the manual `loop` path not feeding the org telemetry

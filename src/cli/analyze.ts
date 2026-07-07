@@ -1,10 +1,11 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
+import { loadApps } from "../org/apps.js";
 
 export async function cmdAnalyze(args: string[]): Promise<number> {
   const parsed = parseArgs(args);
-  const root = resolve(parsed.home ?? process.env.OPERON_HOME ?? join(homedir(), ".operon", "operon"));
+  const root = resolve(parsed.home ?? process.env.OPERON_HOME ?? (await defaultOrgHome()));
   const rows = await analyzeRunlogs(root, parsed.app !== undefined ? { app: parsed.app } : {});
   if (rows.length === 0) {
     console.log("No anomaly flags.");
@@ -32,6 +33,13 @@ function parseArgs(args: string[]): ParsedAnalyzeArgs {
     else throw new Error(`analyze: unknown argument "${arg}"`);
   }
   return out;
+}
+
+// Default the org home to the same location sibling commands (budget, dispatch,
+// retro) use: ~/.operon/<apps.yaml org name>, not a hardcoded "operon".
+async function defaultOrgHome(): Promise<string> {
+  const apps = await loadApps("apps.yaml");
+  return join(homedir(), ".operon", apps.org.name);
 }
 
 function needValue(args: string[], index: number, flag: string): string {

@@ -8,6 +8,7 @@ import {
   claimTicket,
   runBuilderPipeline,
   runReviewPipeline,
+  runShipCheckPipeline,
   type LoopItem,
 } from "../src/loop/loop.js";
 import { loadPipelines, type PipelinesFile } from "../src/loop/pipelines.js";
@@ -248,6 +249,39 @@ describe("M6 loop engine integration", () => {
     } finally {
       home.cleanup();
       pair.cleanup();
+    }
+  });
+  it("ship-check findings are bounded and route to op:returned at the cycle cap", async () => {
+    const pipelines = await rootPipelines();
+    // Under the cap: a ship-check bounce goes back to building and counts the cycle.
+    const under = await reviewingHarness("Ship Bounce Under", { "auth/change.ts": "export const x = 1;\n" });
+    const homeA = makeOrgHome({ runs: { apps: ["fixture"] } });
+    // At the cap: the same bounce must terminate in op:returned with findings,
+    // not building->shipping forever until the driver phase guard throws and
+    // orphans the ticket in op:building.
+    const atCap = await reviewingHarness("Ship Bounce Cap", { "auth/change.ts": "export const y = 1;\n" });
+    const homeB = makeOrgHome({ runs: { apps: ["fixture"] } });
+    try {
+      const bounced = await runShipCheckPipeline(
+        { ...under.item, phase: "shipping", cycles: 0 },
+        { ...engineOptions(under, homeA.root, new FakeRuntime([scripted(FINDING)])), pipelines },
+      );
+      expect(bounced.phase).toBe("building");
+      expect(bounced.cycles).toBe(1);
+      expect(bounced.labels).toContain("op:building");
+
+      const returned = await runShipCheckPipeline(
+        { ...atCap.item, phase: "shipping", cycles: 3 },
+        { ...engineOptions(atCap, homeB.root, new FakeRuntime([scripted(FINDING)])), pipelines },
+      );
+      expect(returned.phase).toBe("returned");
+      expect(returned.labels).toContain("op:returned");
+      expect(returned.findings.length).toBeGreaterThan(0);
+    } finally {
+      homeA.cleanup();
+      homeB.cleanup();
+      under.cleanup();
+      atCap.cleanup();
     }
   });
 });

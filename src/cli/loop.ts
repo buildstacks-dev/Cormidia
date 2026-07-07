@@ -73,6 +73,13 @@ export async function cmdLoop(args: string[]): Promise<number> {
       commands: inputs.commands,
       maxConcurrent: appsFile.org.maxConcurrentTurns,
       planOnly: dryRun,
+      // Merge authorization: the self-approval fallback must carry an HMAC tag
+      // signed with this operator secret (never repo-visible). Without it, the
+      // single-account fallback is not trusted — the loop fails closed rather
+      // than accepting a forgeable static marker.
+      ...(process.env["OPERON_SELF_APPROVAL_SECRET"] !== undefined
+        ? { authorization: { selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"] } }
+        : {}),
       ...(!dryRun
         ? {
             engine: {

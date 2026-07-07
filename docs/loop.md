@@ -453,12 +453,24 @@ then the pass fails loudly.
 - **No side effect keys off prose.** Merge requires: GitHub APPROVE review
 present ∧ freshness ∧ mechanical gates green. The reviewer's verdict is
 double-entered — structured verdict *and* a real GitHub review — and the
-GitHub state is authoritative. M6 found the single-account pilot caveat:
-GitHub rejects approving your own PR, so until Operon has a separate bot/app
-identity, `GhCliOps` falls back only for that exact error to a real
-COMMENTED PR review carrying `<!-- operon:self-approval-fallback -->`; the
-loop treats only that marked structured `Verdict: approve` review as an
-approval, and still enforces commit freshness.
+GitHub state is authoritative. A real `APPROVED` review authorizes a merge
+only if it is an *independent* review: `latestActionableReview` rejects an
+APPROVE authored by the builder/PR identity (`authorization.builderIdentity`)
+and, when a reviewer allowlist is configured
+(`authorization.reviewerIdentities`), requires the approver to be in it — a
+non-independent or unlisted APPROVE is ignored, never merged. M6 found the
+single-account pilot caveat: GitHub rejects approving your own PR, so until
+Operon has a separate bot/app identity, `GhCliOps` falls back only for that
+exact error to a real COMMENTED PR review carrying the
+`<!-- operon:self-approval-fallback sig=… -->` marker. That marker is **not**
+a static string anyone can post: it carries an HMAC over the PR number signed
+with an operator secret (`OPERON_SELF_APPROVAL_SECRET`,
+`authorization.selfApprovalSecret`) that the sandboxed agent cannot read. The
+loop upgrades a COMMENTED review to an approval only when the HMAC verifies
+*and* the body is a structured `Verdict: approve`, and still enforces commit
+freshness. With no secret configured the loop fails closed — a bare marker is
+never trusted. (Threading the secret to the agent's own environment would
+re-open the forgery, so it must stay orchestrator-only.)
 
 
 

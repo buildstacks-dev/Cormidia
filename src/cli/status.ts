@@ -1,10 +1,11 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { formatStatusRows, readStatusRows } from "../runtime/runlog/status.js";
+import { loadApps } from "../org/apps.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const parsed = parseArgs(args);
-  const root = resolve(parsed.home ?? process.env.OPERON_HOME ?? join(homedir(), ".operon", "operon"));
+  const root = resolve(parsed.home ?? process.env.OPERON_HOME ?? (await defaultOrgHome()));
   const rows = await readStatusRows(root, {
     ...(parsed.app !== undefined ? { app: parsed.app } : {}),
     ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
@@ -29,6 +30,13 @@ function parseArgs(args: string[]): ParsedStatusArgs {
     else throw new Error(`status: unknown argument "${arg}"`);
   }
   return out;
+}
+
+// Default the org home to the same location sibling commands (budget, dispatch,
+// retro) use: ~/.operon/<apps.yaml org name>, not a hardcoded "operon".
+async function defaultOrgHome(): Promise<string> {
+  const apps = await loadApps("apps.yaml");
+  return join(homedir(), ".operon", apps.org.name);
 }
 
 function parseLimit(value: string): number {

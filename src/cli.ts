@@ -83,10 +83,15 @@ const COMMANDS: Record<string, CliCommand> = {
 async function main(): Promise<number> {
   const [cmd, ...rest] = process.argv.slice(2);
   try {
-    const command = cmd ? COMMANDS[cmd] : undefined;
-    if (!command) {
+    if (cmd === undefined || cmd === "--help" || cmd === "-h") {
       console.log(USAGE);
-      return cmd ? 1 : 0;
+      return 0;
+    }
+    const command = COMMANDS[cmd];
+    if (!command) {
+      console.error(`operon: unknown command "${cmd}"`);
+      console.error("Run operon --help to see the available commands.");
+      return 1;
     }
     return await command.run(rest);
   } catch (e) {

@@ -25,14 +25,22 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 }
 
 describe("cli dispatch", () => {
-  it("unknown command prints usage and exits 1", async () => {
-    const { stdout, code } = await runCli(["bogus-command"]);
-    expect(stdout).toContain("Usage:");
+  it("unknown command prints an error to stderr and exits 1", async () => {
+    const { stdout, stderr, code } = await runCli(["bogus-command"]);
     expect(code).toBe(1);
+    expect(stderr).toContain('unknown command "bogus-command"');
+    // Diagnostics belong on stderr — the USAGE banner must not be dumped to stdout.
+    expect(stdout).not.toContain("Usage:");
   });
 
-  it("no command prints usage and exits 0", async () => {
+  it("no command prints usage to stdout and exits 0", async () => {
     const { stdout, code } = await runCli([]);
+    expect(stdout).toContain("Usage:");
+    expect(code).toBe(0);
+  });
+
+  it("--help prints usage to stdout and exits 0", async () => {
+    const { stdout, code } = await runCli(["--help"]);
     expect(stdout).toContain("Usage:");
     expect(code).toBe(0);
   });

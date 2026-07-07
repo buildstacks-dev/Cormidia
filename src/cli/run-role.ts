@@ -27,11 +27,11 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--dry-run") dryRun = true;
-    else if (arg === "--app") app = args[++i];
-    else if (arg === "--turn") turnId = args[++i];
-    else if (arg === "--template") templatePath = args[++i];
-    else if (arg === "--home") home = args[++i];
-    else if (arg === "--workdir") workdir = args[++i];
+    else if (arg === "--app") app = needValue(args, ++i, "--app");
+    else if (arg === "--turn") turnId = needValue(args, ++i, "--turn");
+    else if (arg === "--template") templatePath = needValue(args, ++i, "--template");
+    else if (arg === "--home") home = needValue(args, ++i, "--home");
+    else if (arg === "--workdir") workdir = needValue(args, ++i, "--workdir");
     else if (arg !== undefined && !arg.startsWith("--") && name === undefined) name = arg;
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
@@ -101,6 +101,14 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   // memory excerpts) rather than trusting a count.
   if (context !== undefined) printContext(context);
   return 0;
+}
+
+function needValue(args: string[], index: number, flag: string): string {
+  const value = args[index];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`run-role: ${flag} requires a value`);
+  }
+  return value;
 }
 
 function printContext(context: ContextBundle): void {

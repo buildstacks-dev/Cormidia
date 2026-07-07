@@ -160,7 +160,7 @@ export class FakeGhOps implements GhOps {
       .map(clonePr);
   }
 
-  async createReview(prNumber: number, input: CreateReviewInput): Promise<GhReview> {
+  async createReview(prNumber: number, input: CreateReviewInput, author?: string): Promise<GhReview> {
     this.log("createReview", { prNumber, state: input.state });
     const pr = this.requirePr(prNumber);
     const review: GhReview = {
@@ -172,6 +172,7 @@ export class FakeGhOps implements GhOps {
             : "COMMENTED",
       body: input.body,
       ...(pr.headRefOid !== undefined ? { commitId: pr.headRefOid } : {}),
+      ...(author !== undefined ? { author } : {}),
     };
     const list = this.reviews.get(prNumber) ?? [];
     list.push(review);

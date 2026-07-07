@@ -3,6 +3,7 @@ import {
   GhCliOps,
   GhOpsError,
   SELF_APPROVAL_FALLBACK_MARKER,
+  verifiedSelfApprovalMarker,
   type GhExec,
   type GhExecResult,
 } from "../src/loop/github.js";
@@ -195,6 +196,38 @@ describe("GhCliOps", () => {
     expect(calls[0]?.args).toContain("--approve");
     expect(calls[1]?.args).toContain("--comment");
     expect(calls[1]?.input).toContain("Verdict: approve");
+    // No operator secret configured: the marker is bare and NOT verifiable —
+    // the loop must fail closed on it rather than treating it as an approval.
+    expect(verifiedSelfApprovalMarker(review.body, undefined, 7)).toBe(false);
+    expect(verifiedSelfApprovalMarker(review.body, "any-secret", 7)).toBe(false);
+  });
+
+  it("signs the self-approval marker with the operator secret so it cannot be forged", async () => {
+    const { exec } = execFrom((args) => {
+      if (args[0] === "pr" && args[1] === "review" && args.includes("--approve")) {
+        return {
+          stdout: "",
+          stderr: "failed to create review: GraphQL: Review Can not approve your own pull request",
+          exitCode: 1,
+        };
+      }
+      if (args[0] === "pr" && args[1] === "review" && args.includes("--comment")) {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      throw new Error(`unexpected ${args.join(" ")}`);
+    });
+    const gh = new GhCliOps("o/r", exec, "operator-only-secret");
+
+    const review = await gh.createReview(7, { state: "approve", body: "Verdict: approve" });
+
+    // The signed marker verifies only for the exact (secret, prNumber) pair.
+    expect(verifiedSelfApprovalMarker(review.body, "operator-only-secret", 7)).toBe(true);
+    expect(verifiedSelfApprovalMarker(review.body, "operator-only-secret", 8)).toBe(false);
+    expect(verifiedSelfApprovalMarker(review.body, "attacker-guess", 7)).toBe(false);
+    // A forger who copies just the public static marker cannot pass.
+    expect(verifiedSelfApprovalMarker(SELF_APPROVAL_FALLBACK_MARKER, "operator-only-secret", 7)).toBe(
+      false,
+    );
   });
 
   it("non-zero exits throw GhOpsError carrying stderr verbatim", async () => {

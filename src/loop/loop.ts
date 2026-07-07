@@ -13,7 +13,7 @@ import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
 import { isMergeConflict } from "./github.js";
-import { SELF_APPROVAL_FALLBACK_MARKER } from "./github.js";
+import { verifiedSelfApprovalMarker } from "./github.js";
 import { openPhaseRun, type LoopRunlog, type PhaseRun } from "./loop-runlog.js";
 import type { Policy, RiskTier } from "./policy.js";
 import { matchedDimensions, resolveTier } from "./policy.js";
@@ -86,6 +86,26 @@ export interface GatePhaseOptions {
 export interface ReviewPhaseOptions {
   gh: GhOps;
   maxCycles?: number;
+  /** Merge-authorization policy. Without it, a real GitHub APPROVE is accepted
+   *  as today (independence still enforced by the cross-provider reviewer), but
+   *  the single-account self-approval fallback is never trusted (fail closed). */
+  authorization?: ReviewAuthorization;
+}
+
+/** Who may authorize a merge. Guards against (a) an arbitrary/self-authored
+ *  GitHub APPROVE and (b) a forged self-approval marker. */
+export interface ReviewAuthorization {
+  /** Operator secret (never repo-visible; not readable by the sandboxed agent).
+   *  The self-approval fallback marker must carry a valid HMAC over the PR
+   *  number computed with this secret. When unset, marker self-approval is not
+   *  trusted at all. */
+  selfApprovalSecret?: string;
+  /** GitHub login of the PR/commit author (the builder). A real APPROVE from
+   *  this identity is not an independent review and is ignored. */
+  builderIdentity?: string;
+  /** When set, only APPROVED reviews whose author is in this allowlist
+   *  authorize a merge — any other identity's APPROVE is ignored. */
+  reviewerIdentities?: readonly string[];
 }
 
 export interface ShippingPhaseOptions extends GatePhaseOptions {
@@ -109,6 +129,7 @@ export interface LoopPipelineOptions {
   headRef?: string;
   clock?: () => Date;
   briefBudgetTokens?: number;
+  authorization?: ReviewAuthorization;
 }
 
 export interface BuilderPipelineOptions extends LoopPipelineOptions {
@@ -250,14 +271,20 @@ export async function advanceReviewing(
 ): Promise<LoopItem> {
   const prNumber = requireField(item, "prNumber");
   const reviews = await options.gh.listReviews(prNumber);
-  const latest = latestActionableReview(reviews);
+  const latest = latestActionableReview(reviews, prNumber, options.authorization);
   if (latest === undefined) return item;
 
   if (latest.state === "CHANGES_REQUESTED") {
     const parsed = parseVerdict("review", latest.body);
-    if (!parsed.ok) throw new Error(`review verdict could not be parsed: ${parsed.reason}`);
+    // A human (or any reviewer that isn't the orchestrator's machine-rendered
+    // grammar) can Request changes with plain prose. Do not crash the tick and
+    // strand the ticket in op:in-review re-crashing forever: treat an
+    // unparseable body as "changes requested with no structured findings" and
+    // bounce to building with the prose captured as a single finding. The cycle
+    // still counts, so the loop stays bounded and terminates in op:returned
+    // (loud, never silent, never unbounded — docs/loop.md §6/§7).
+    const findings = parsed.ok ? parsed.verdict.findings : [unstructuredReviewFinding(latest.body)];
     const cycles = item.cycles + 1;
-    const findings = parsed.verdict.findings;
     if (cycles > (options.maxCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
       await options.gh.commentIssue(
         item.issueNumber,
@@ -405,7 +432,10 @@ export async function runReviewPipeline(
     state: hasFindings(verdicts) ? "request_changes" : "approve",
     body,
   });
-  return advanceReviewing(item, { gh: options.gh });
+  return advanceReviewing(item, {
+    gh: options.gh,
+    ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
+  });
 }
 
 export async function runShipCheckPipeline(
@@ -452,10 +482,30 @@ export async function runShipCheckPipeline(
   });
 
   if (!hasFindings(verdicts)) return item;
+
+  // A ship-check bounce is a rework cycle just like a reviewer CHANGES_REQUESTED:
+  // count it against the same review-cycle cap so building<->shipping cannot
+  // loop until the driver's phase guard throws and orphans the ticket in
+  // op:building. When the cap is exhausted, route to op:returned with findings
+  // for the Planner (mirrors advanceReviewing / advanceGates bounding).
+  const findings = verdicts.flatMap((entry) => entry.verdict.findings);
+  const cycles = item.cycles + 1;
+  if (cycles > DEFAULT_MAX_REVIEW_CYCLES) {
+    await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
+    await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+    return {
+      ...item,
+      cycles,
+      findings,
+      labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
+      phase: "returned",
+    };
+  }
   await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:building");
   return {
     ...item,
-    findings: verdicts.flatMap((entry) => entry.verdict.findings),
+    cycles,
+    findings,
     labels: replaceLabel(item.labels, "op:in-review", "op:building"),
     phase: "building",
   };
@@ -1001,19 +1051,63 @@ function returnedFindingsComment(cycles: number, findings: readonly Finding[]): 
   ].join("\n");
 }
 
-function latestActionableReview(reviews: readonly GhReview[]): GhReview | undefined {
+function unstructuredReviewFinding(body: string): Finding {
+  const trimmed = body.trim();
+  const description =
+    trimmed.length === 0
+      ? "Reviewer requested changes without a structured verdict."
+      : trimmed.length > 400
+        ? `${trimmed.slice(0, 400)}…`
+        : trimmed;
+  return {
+    category: "scope",
+    severity: "major",
+    location: "(review comment)",
+    description,
+    action: "Address the reviewer's requested changes; restate the verdict in the finding grammar.",
+  };
+}
+
+function latestActionableReview(
+  reviews: readonly GhReview[],
+  prNumber: number,
+  auth?: ReviewAuthorization,
+): GhReview | undefined {
   for (let i = reviews.length - 1; i >= 0; i--) {
     const review = reviews[i]!;
-    if (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED") return review;
-    if (review.state === "COMMENTED" && isMarkedSelfApproval(review)) {
+    if (review.state === "APPROVED") {
+      // A real GitHub APPROVE authorizes a merge only if it is an independent
+      // review — never the builder's own identity, and (when an allowlist is
+      // configured) a sanctioned reviewer. A non-independent APPROVE is ignored
+      // so it cannot force-merge or override an earlier changes-requested.
+      if (isIndependentApproval(review, auth)) return review;
+      continue;
+    }
+    if (review.state === "CHANGES_REQUESTED") return review;
+    if (review.state === "COMMENTED" && isMarkedSelfApproval(review, prNumber, auth)) {
       return { ...review, state: "APPROVED" };
     }
   }
   return undefined;
 }
 
-function isMarkedSelfApproval(review: GhReview): boolean {
-  if (!review.body.includes(SELF_APPROVAL_FALLBACK_MARKER)) return false;
+function isIndependentApproval(review: GhReview, auth?: ReviewAuthorization): boolean {
+  const author = review.author;
+  if (auth?.builderIdentity !== undefined && author === auth.builderIdentity) return false;
+  if (auth?.reviewerIdentities !== undefined) {
+    return author !== undefined && auth.reviewerIdentities.includes(author);
+  }
+  return true;
+}
+
+function isMarkedSelfApproval(
+  review: GhReview,
+  prNumber: number,
+  auth?: ReviewAuthorization,
+): boolean {
+  // Only a marker carrying a valid HMAC tag for this PR is trusted — a bare or
+  // forged marker (e.g. posted by a prompt-injected builder) is rejected.
+  if (!verifiedSelfApprovalMarker(review.body, auth?.selfApprovalSecret, prNumber)) return false;
   const parsed = parseVerdict("review", review.body);
   return parsed.ok && parsed.verdict.verdict === "approve";
 }

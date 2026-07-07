@@ -20,6 +20,7 @@ import {
   runBuilderPipeline,
   runReviewPipeline,
   runShipCheckPipeline,
+  type ReviewAuthorization,
 } from "./loop.js";
 import type { LoopRunlog } from "./loop-runlog.js";
 import type { PipelinesFile } from "./pipelines.js";
@@ -52,6 +53,10 @@ export interface LoopDriverOptions {
   afterClaim?: (item: LoopItem) => Promise<LoopItem> | LoopItem;
   injectReview?: (item: LoopItem) => Promise<void> | void;
   engine?: LoopEngineOptions;
+  /** Merge-authorization policy for the reviewing phase (self-approval secret,
+   *  builder/reviewer identities). Passed through to advanceReviewing so a
+   *  forged/self-authored approval cannot merge. */
+  authorization?: ReviewAuthorization;
 }
 
 export interface LoopEngineOptions {
@@ -192,7 +197,10 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
           item = await runReviewPipeline(item, enginePhaseOptions(options));
         } else {
           await options.injectReview?.(item);
-          item = await advanceReviewing(item, { gh: options.gh });
+          item = await advanceReviewing(item, {
+            gh: options.gh,
+            ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
+          });
         }
         continue;
       }
@@ -217,7 +225,10 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     }
     if (options.engine === undefined && item.phase === "reviewing") {
       await options.injectReview?.(item);
-      item = await advanceReviewing(item, { gh: options.gh });
+      item = await advanceReviewing(item, {
+        gh: options.gh,
+        ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
+      });
     }
     if (options.engine === undefined && item.phase === "shipping") {
       item = await advanceShipping(item, {
@@ -242,7 +253,7 @@ export async function defaultLoopInputs(repoSlug: string, repoDir: string): Prom
 }> {
   ensureClone(repoSlug, repoDir);
   return {
-    gh: new GhCliOps(repoSlug),
+    gh: new GhCliOps(repoSlug, undefined, process.env["OPERON_SELF_APPROVAL_SECRET"]),
     localRepo: repoDir,
     policy: await loadRequiredPolicy(join(repoDir, ".operon", "policy.yaml")),
     commands: loadGateCommands(repoDir),
@@ -301,6 +312,7 @@ function enginePhaseOptions(options: LoopDriverOptions) {
     hooks: engine.hooks,
     ...(engine.context !== undefined ? { context: engine.context } : {}),
     ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
+    ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
   };
 }
 

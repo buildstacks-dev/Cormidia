@@ -7,6 +7,7 @@
 // effects either happen or fail loudly (docs/loop.md §1).
 
 import { spawn } from "node:child_process";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type IssueState = "OPEN" | "CLOSED" | string;
 export type PullRequestState = "OPEN" | "CLOSED" | "MERGED" | string;
@@ -87,7 +88,50 @@ export interface GhOps {
   deleteBranch(branch: string): Promise<void>;
 }
 
-export const SELF_APPROVAL_FALLBACK_MARKER = "<!-- operon:self-approval-fallback -->";
+const SELF_APPROVAL_FALLBACK_PREFIX = "<!-- operon:self-approval-fallback";
+export const SELF_APPROVAL_FALLBACK_MARKER = `${SELF_APPROVAL_FALLBACK_PREFIX} -->`;
+
+// The self-approval fallback (single-account pilot: GitHub rejects approving
+// your own PR) must not be authorizable by a static, repo-visible string —
+// anyone who can post a review (including a prompt-injected builder) could then
+// forge a merge. The trusted marker carries an HMAC over the PR number computed
+// with an operator secret the sandboxed agent cannot read. Freshness
+// (approved commit == HEAD) is enforced separately, so binding the tag to the
+// PR number is sufficient: a replayed stale marker fails freshness, and a new
+// marker cannot be signed without the secret.
+
+export function signSelfApproval(secret: string, prNumber: number): string {
+  return createHmac("sha256", secret).update(`operon-self-approval:${prNumber}`).digest("hex");
+}
+
+/** Build the self-approval marker line. With a secret, it carries the HMAC tag;
+ *  without one it is the bare (untrusted) marker — the loop fails closed. */
+export function selfApprovalMarker(secret: string | undefined, prNumber: number): string {
+  if (secret === undefined) return SELF_APPROVAL_FALLBACK_MARKER;
+  return `${SELF_APPROVAL_FALLBACK_PREFIX} sig=${signSelfApproval(secret, prNumber)} -->`;
+}
+
+/** True only for a marker carrying a valid HMAC tag for this PR. A bare marker,
+ *  a mis-signed tag, or an unset secret is never trusted. */
+export function verifiedSelfApprovalMarker(
+  body: string,
+  secret: string | undefined,
+  prNumber: number,
+): boolean {
+  if (secret === undefined) return false;
+  const match = new RegExp(`${escapeRegExp(SELF_APPROVAL_FALLBACK_PREFIX)}\\s+sig=([0-9a-f]+)\\s+-->`).exec(
+    body,
+  );
+  const candidate = match?.[1];
+  if (candidate === undefined) return false;
+  const expected = signSelfApproval(secret, prNumber);
+  if (candidate.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(candidate, "hex"), Buffer.from(expected, "hex"));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export interface GhExecResult {
   stdout: string;
@@ -141,10 +185,12 @@ const PR_FIELDS = [
 export class GhCliOps implements GhOps {
   readonly repo: string;
   private readonly exec: GhExec;
+  private readonly selfApprovalSecret?: string;
 
-  constructor(repo: string, exec: GhExec = defaultGhExec) {
+  constructor(repo: string, exec: GhExec = defaultGhExec, selfApprovalSecret?: string) {
     this.repo = repo;
     this.exec = exec;
+    if (selfApprovalSecret !== undefined) this.selfApprovalSecret = selfApprovalSecret;
   }
 
   async addLabel(issueNumber: number, label: string): Promise<void> {
@@ -284,7 +330,8 @@ export class GhCliOps implements GhOps {
       );
     } catch (error) {
       if (input.state !== "approve" || !isSelfApprovalError(error)) throw error;
-      const body = `${input.body.trimEnd()}\n\n${SELF_APPROVAL_FALLBACK_MARKER}\n`;
+      const marker = selfApprovalMarker(this.selfApprovalSecret, prNumber);
+      const body = `${input.body.trimEnd()}\n\n${marker}\n`;
       await this.run(
         ["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"],
         body,

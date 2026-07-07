@@ -254,6 +254,58 @@ describe("CodexRuntime (App Server mocked)", () => {
     expect(client.responses).toEqual([{ id: "approval-1", result: { decision: "decline" } }]);
   });
 
+  it("declines MCP elicitation requests without failing the turn", async () => {
+    const item = { type: "agentMessage", id: "agent-1", text: "done", phase: null, memoryCitation: null };
+    const client = new ScriptedMessageClient([
+      {
+        method: "mcpServer/elicitation/request",
+        id: "elicit-1",
+        params: {
+          threadId: "thread-1",
+          turnId: "turn-1",
+          serverName: "browser",
+          mode: "form",
+          message: "Need input",
+          requestedSchema: { type: "object", properties: {} },
+          _meta: null,
+        },
+      },
+      {
+        method: "item/completed",
+        params: { threadId: "thread-1", turnId: "turn-1", completedAtMs: 1, item },
+      },
+      {
+        method: "turn/completed",
+        params: {
+          threadId: "thread-1",
+          turn: {
+            id: "turn-1",
+            items: [item],
+            itemsView: "full",
+            status: "completed",
+            error: null,
+            startedAt: 0,
+            completedAt: 1,
+            durationMs: 3,
+          },
+        },
+      },
+    ]);
+    const events: string[] = [];
+
+    const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(makeReq(), {
+      gate: defaultGate,
+      onEvent: (event) => events.push(`${event.type}:${event.detail}`),
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.summary).toBe("done");
+    expect(client.responses).toEqual([
+      { id: "elicit-1", result: { action: "decline", content: null, _meta: null } },
+    ]);
+    expect(events).toContain("text:codex mcp elicitation declined: browser form");
+  });
+
   it("gates EVERY file in a multi-file patch, not just the first (fail-closed)", async () => {
     // A patch that lists a benign file first and roles.yaml second must be
     // declined and escalated on the roles.yaml write. Before the fix only the

@@ -12,6 +12,11 @@ const APP: AppEntry = {
   cadence: {},
 };
 
+const BETA_APP: AppEntry = {
+  ...APP,
+  name: "beta",
+};
+
 const HEALTH_ALERT = {
   kind: "health-alert",
   id: "health-001",
@@ -64,6 +69,30 @@ describe("event polling", () => {
         },
       ]);
       expect(result.errors).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("only returns inbox files to the app named in the company event payload", async () => {
+    const betaAlert = { ...HEALTH_ALERT, id: "health-beta-001", app: "beta" };
+    const home = makeOrgHome({ state: { eventsInbox: { "beta-alert.json": betaAlert } } });
+    try {
+      const store = new EventStore(home.root);
+      const alphaResult = await store.poll(APP, fakeSource({}));
+      expect(alphaResult.events).toEqual([]);
+      expect(alphaResult.errors).toEqual([]);
+
+      const betaResult = await store.poll(BETA_APP, fakeSource({}));
+      expect(betaResult.events).toEqual([
+        {
+          kind: "health-alert",
+          key: "beta-alert.json",
+          app: "beta",
+          payload: { ...betaAlert, filename: "beta-alert.json" },
+        },
+      ]);
+      expect(betaResult.errors).toEqual([]);
     } finally {
       home.cleanup();
     }

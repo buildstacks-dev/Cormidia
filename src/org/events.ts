@@ -156,14 +156,15 @@ export class EventStore {
         errors.push(inboxError(app, file, error));
         continue;
       }
-      let kind: CompanyEventKind;
+      let event: ReturnType<typeof parseCompanyLifecycleEvent>;
       try {
-        kind = parseCompanyLifecycleEvent(payload).kind;
+        event = parseCompanyLifecycleEvent(payload);
       } catch (error) {
         errors.push(inboxError(app, file, error));
         continue;
       }
-      events.push({ kind, key: file, app, payload: { ...payload, filename: file } });
+      if (event.app !== app) continue;
+      events.push({ kind: event.kind, key: file, app: event.app, payload: { ...payload, filename: file } });
     }
     return { events, errors };
   }

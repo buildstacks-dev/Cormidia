@@ -147,7 +147,7 @@ describe("root apps.yaml (this repo as its own org home)", () => {
     const { org, apps } = await loadApps(APPS_PATH);
     expect(org.name).toBe("operon");
     expect(org.maxConcurrentTurns).toBe(2);
-    expect(apps).toHaveLength(6);
+    expect(apps).toHaveLength(7);
     expect(apps[0]!.name).toBe("operon");
     expect(apps[0]!.repo).toBe("buildstacks-dev/Operon");
     expect(apps[0]!.status).toBe("onboarding");
@@ -183,6 +183,24 @@ describe("root apps.yaml (this repo as its own org home)", () => {
       budgetUsdMonth: 1000,
     });
     expect(apps[5]!.cadence).toEqual({});
+    expect(apps[6]).toMatchObject({
+      name: "operon-marketplace-demo",
+      repo: "bikramgupta/operon-marketplace-demo",
+      status: "live",
+      budgetUsdMonth: 1000,
+    });
+    expect(apps[6]!.cadence).toEqual({
+      planner: [{ event: "support-feedback" }, { event: "adoption-signal" }],
+      builder: [{ event: "ticket-ready" }],
+      reviewer: [{ event: "pr-opened" }],
+      sre: [{ event: "health-alert" }],
+      support: [{ event: "support-feedback" }],
+      marketing: [{ event: "adoption-signal" }, { event: "launch-calendar" }, { event: "release-shipped" }],
+    });
+    expect(apps[6]!.channels).toEqual({
+      support: ["fixture-helpdesk", "fixture-email"],
+      marketing: ["draft-launch-note", "fixture-adoption-report"],
+    });
   });
 });
 

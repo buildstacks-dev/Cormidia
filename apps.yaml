@@ -57,3 +57,30 @@ apps:
     status: onboarding
     budget_usd_month: 1000
     cadence: {}
+  operon-marketplace-demo:
+    repo: bikramgupta/operon-marketplace-demo
+    status: live
+    budget_usd_month: 1000
+    cadence:
+      planner:
+        - event: support-feedback
+        - event: adoption-signal
+      builder:
+        - event: ticket-ready
+      reviewer:
+        - event: pr-opened
+      sre:
+        - event: health-alert
+      support:
+        - event: support-feedback
+      marketing:
+        - event: adoption-signal
+        - event: launch-calendar
+        - event: release-shipped
+    channels:
+      support:
+        - fixture-helpdesk
+        - fixture-email
+      marketing:
+        - draft-launch-note
+        - fixture-adoption-report

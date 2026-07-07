@@ -286,6 +286,9 @@ export class CodexRuntime implements Runtime {
       case "applyPatchApproval":
         await routeApproval(client, message, req, hooks, escalations, "legacyPatch");
         return;
+      case "mcpServer/elicitation/request":
+        await declineMcpElicitation(client, message, hooks);
+        return;
       case "thread/tokenUsage/updated":
         {
           // `.last` is the LATEST request's usage, not the running total. A
@@ -385,6 +388,23 @@ export class CodexRuntime implements Runtime {
       state.usage = { ...state.usage, subagentTurns: state.subagentTurns, wallClockMs: state.durationMs ?? state.usage.wallClockMs };
     }
   }
+}
+
+async function declineMcpElicitation(
+  client: CodexAppServerClient,
+  message: CodexServerMessage,
+  hooks: TurnHooks,
+): Promise<void> {
+  if (message.id === undefined) return;
+  const params = isRecord(message.params) ? message.params : {};
+  hooks.onEvent?.({
+    type: "text",
+    detail:
+      `codex mcp elicitation declined: ` +
+      `${String(params.serverName ?? "unknown-server")} ` +
+      `${String(params.mode ?? "unknown-mode")}`,
+  });
+  await client.respond(message.id, { action: "decline", content: null, _meta: null });
 }
 
 function threadParams(req: TurnRequest): Record<string, unknown> {

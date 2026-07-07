@@ -12,7 +12,10 @@ or a missing/invalid field) is surfaced loudly as an `error_event_source` and
 skipped — never silently dropped; sibling files keep flowing. A kind no role
 subscribes to is recorded as unsubscribed, not an error.
 
-All event payloads share these fields:
+All event payloads share these fields. The `app` value is a routing target:
+the inbox file is only offered to the app with the same name, so one
+company-lifecycle drop cannot wake unrelated live apps that happen to subscribe
+to the same event kind.
 
 ```json
 {

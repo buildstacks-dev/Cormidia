@@ -394,7 +394,7 @@ describe("advanceReviewing", () => {
     }
   });
 
-  it("stale APPROVE keeps the item reviewing", async () => {
+  it("stale APPROVE keeps the item reviewing but counts a cycle (bounded)", async () => {
     const h = await reviewHarness();
     try {
       await h.gh.createReview(h.item.prNumber as number, { state: "approve", body: "Verdict: approve" });
@@ -402,7 +402,29 @@ describe("advanceReviewing", () => {
 
       const next = await advanceReviewing(h.item, { gh: h.gh });
 
+      // Still reviewing (never merges a stale approval — freshness preserved),
+      // but the stall now counts a cycle so the phase can't spin forever.
       expect(next.phase).toBe("reviewing");
+      expect(next.cycles).toBe(1);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("a persistently stale APPROVE terminates in op:returned instead of spinning", async () => {
+    const h = await reviewHarness();
+    try {
+      await h.gh.createReview(h.item.prNumber as number, { state: "approve", body: "Verdict: approve" });
+      commit(h.item.worktree as string, "feat: move head", { "src/later.ts": "x\n" });
+
+      // At the cap, one more stalled tick must route to op:returned — never
+      // merge (the approval still doesn't match head) and never loop unbounded.
+      const next = await advanceReviewing({ ...h.item, cycles: 3 }, { gh: h.gh });
+
+      expect(next.phase).toBe("returned");
+      expect(next.labels).toContain("op:returned");
+      expect(next.approvedCommitId).toBeUndefined();
+      expect(ghComment(h.gh, 1)).toContain("review did not converge");
     } finally {
       h.cleanup();
     }

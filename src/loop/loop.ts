@@ -272,7 +272,9 @@ export async function advanceReviewing(
   const prNumber = requireField(item, "prNumber");
   const reviews = await options.gh.listReviews(prNumber);
   const latest = latestActionableReview(reviews, prNumber, options.authorization);
-  if (latest === undefined) return item;
+  if (latest === undefined) {
+    return stalledReviewing(item, options, "no actionable review is posted on the PR");
+  }
 
   if (latest.state === "CHANGES_REQUESTED") {
     const parsed = parseVerdict("review", latest.body);
@@ -311,7 +313,18 @@ export async function advanceReviewing(
 
   if (latest.state === "APPROVED") {
     const head = headSha(requireField(item, "worktree"));
-    if (latest.commitId !== head) return item;
+    // Freshness gate: never merge on an approval that doesn't match the exact
+    // reviewed commit. But do NOT return the item unchanged — that leaves the
+    // phase "reviewing" and the driver re-runs the whole (token-spending)
+    // review pipeline until its phase guard throws and orphans the ticket.
+    // Count it as a cycle so the stall is bounded and terminates in op:returned.
+    if (latest.commitId !== head) {
+      return stalledReviewing(
+        item,
+        options,
+        "the latest approval does not match the current reviewed commit (stale approval)",
+      );
+    }
     return {
       ...item,
       approvedCommitId: latest.commitId,
@@ -319,7 +332,34 @@ export async function advanceReviewing(
     };
   }
 
-  return item;
+  return stalledReviewing(item, options, `review state ${latest.state} is not actionable`);
+}
+
+/** A reviewing tick that made no forward progress — no actionable review yet,
+ *  an APPROVE that doesn't match the reviewed commit, or an unexpected review
+ *  state. Count it against the review-cycle cap so the phase is bounded: after
+ *  maxCycles it routes to op:returned for human triage instead of the driver
+ *  re-running the review pipeline until its phase guard throws (the same
+ *  bounding discipline advanceReviewing's CHANGES_REQUESTED path and
+ *  advanceGates already use). The freshness property is untouched — a stale
+ *  approval still never merges; it just stops spinning. */
+async function stalledReviewing(
+  item: LoopItem,
+  options: ReviewPhaseOptions,
+  reason: string,
+): Promise<LoopItem> {
+  const cycles = item.cycles + 1;
+  if (cycles > (options.maxCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
+    await options.gh.commentIssue(item.issueNumber, reviewStalledComment(cycles, reason));
+    await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+    return {
+      ...item,
+      cycles,
+      labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
+      phase: "returned",
+    };
+  }
+  return { ...item, cycles };
 }
 
 export async function runBuilderPipeline(
@@ -1038,6 +1078,17 @@ function blockedWithEvidenceComment(reason: string, result: GateRunResult): stri
     "",
     "**Assessment:**",
     "The ticket needs Planner rework before the loop should spend more build turns.",
+    "",
+  ].join("\n");
+}
+
+function reviewStalledComment(cycles: number, reason: string): string {
+  return [
+    "## Returned — review did not converge",
+    "",
+    `The reviewing phase made no mergeable progress after ${cycles} cycles: ${reason}.`,
+    "Returned for human triage rather than re-running the review indefinitely. A",
+    "stale approval is never merged — the reviewed commit must match the branch head.",
     "",
   ].join("\n");
 }

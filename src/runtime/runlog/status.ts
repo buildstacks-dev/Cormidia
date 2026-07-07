@@ -16,6 +16,8 @@ export interface StatusRow {
   tokensIn: number;
   tokensOut: number;
   costUsd: number;
+  /** cost_usd is a local estimate (e.g. codex), not a provider-reported charge. */
+  costEstimated: boolean;
   escalations: number;
   startedAt: string;
 }
@@ -56,6 +58,7 @@ export async function readStatusRows(
         tokensIn: envelope.usage?.tokens_in ?? 0,
         tokensOut: envelope.usage?.tokens_out ?? 0,
         costUsd: envelope.usage?.cost_usd ?? 0,
+        costEstimated: envelope.usage?.cost_estimated === true,
         escalations: events.filter((event) => event.event === "escalation.raised").length,
         startedAt: envelope.started_at,
       });
@@ -78,7 +81,9 @@ export function formatStatusRows(rows: readonly StatusRow[]): string {
       row.status.padEnd(22),
       formatDuration(row.durationMs).padStart(7),
       tokens.padStart(10),
-      `$${row.costUsd.toFixed(2)}`.padStart(8),
+      // "~" marks an estimated (non-provider-reported) cost so the operator is
+      // never misled into reading a codex heuristic as a real charge.
+      `${row.costEstimated ? "~" : ""}$${row.costUsd.toFixed(2)}`.padStart(8),
       String(row.escalations).padStart(5),
     ].join(" ");
   });
@@ -125,6 +130,7 @@ function unreadableRow(runId: string, app: string): StatusRow {
     tokensIn: 0,
     tokensOut: 0,
     costUsd: 0,
+    costEstimated: false,
     escalations: 0,
     startedAt: "",
   };

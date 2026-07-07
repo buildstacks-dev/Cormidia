@@ -27,6 +27,10 @@ export interface EnvelopeUsage {
   tokens_in: number;
   tokens_out: number;
   cost_usd: number;
+  /** True when cost_usd is a local heuristic estimate, not a provider-reported
+   *  figure (e.g. codex/gpt-5.5 prices from a static table). Persisted so the
+   *  dashboard can mark it honestly instead of showing it as a real charge. */
+  cost_estimated?: boolean;
   /** Cache visibility (§9): input tokens come in three price classes. */
   cache_read_tokens?: number;
   cache_write_tokens?: number;

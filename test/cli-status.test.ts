@@ -79,6 +79,38 @@ describe("runlog status", () => {
     }
   });
 
+  it("marks an estimated (codex) cost with ~ and leaves a real cost unmarked", async () => {
+    const estimated = env("run1", "2026-07-04T10:00:00Z", "completed") as Record<string, unknown>;
+    (estimated["usage"] as Record<string, unknown>) = {
+      tokens_in: 100,
+      tokens_out: 5,
+      cost_usd: 3.21,
+      cost_estimated: true,
+    };
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            run1: { envelope: estimated, events: [] },
+            run2: { envelope: env("run2", "2026-07-04T09:00:00Z", "completed"), events: [] },
+          },
+        },
+      },
+    });
+    try {
+      const rows = await readStatusRows(home.root, { app: "alpha" });
+      const byId = new Map(rows.map((row) => [row.runId, row]));
+      expect(byId.get("run1")?.costEstimated).toBe(true);
+      expect(byId.get("run2")?.costEstimated).toBe(false);
+      const text = formatStatusRows(rows);
+      expect(text).toContain("~$3.21");
+      expect(text).toContain(" $0.02");
+      expect(text).not.toContain("~$0.02");
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("CLI prints documented columns", async () => {
     const home = makeOrgHome({
       runs: { records: { alpha: { run1: { envelope: env("run1", "2026-07-04T10:00:00Z", "completed"), events: [] } } } },

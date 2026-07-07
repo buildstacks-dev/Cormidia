@@ -409,6 +409,7 @@ function toEnvelopeUsage(usage: TurnUsage): EnvelopeUsage {
     cost_usd: usage.costUsd,
     subagent_turns: usage.subagentTurns,
   };
+  if (usage.costEstimated) envelope.cost_estimated = true;
   if (usage.cacheReadTokens !== undefined) envelope.cache_read_tokens = usage.cacheReadTokens;
   if (usage.cacheCreationTokens !== undefined) envelope.cache_write_tokens = usage.cacheCreationTokens;
   return envelope;

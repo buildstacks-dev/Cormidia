@@ -378,6 +378,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 
 | Gate             | Mechanics (ported)                                                                                                                                             |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| setup            | run app's `setup_command` (e.g. `npm ci`) **first**, in the fresh worktree, before any scheduled gate — a cold clone has no `node_modules`, so a `test`/`lint` that shells out to an installed tool would otherwise fail for lack of deps; unconfigured = absent (no gate, never a failure); a setup **failure short-circuits** the whole set so the tests/lint gates don't produce misleading failures (`src/loop/qgates.ts` `runSetupGate` / `runGates`) |
 | tests            | run app's `test_command`, exit code 0, timeout; last output lines on fail                                                                                      |
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
@@ -447,18 +448,27 @@ does), the pass requests it. Where it doesn't, the pass prompt specifies
 the predecessor's line grammar
 (`- category/severity file:line -- description -> action`) and the parser
 keeps the predecessor's hard-won leniency — three status formats, unicode or
-ASCII delimiters — because agents write inconsistent markdown. One
-parse-failure retry ("reformat your verdict") within the same session,
-then the pass fails loudly.
+ASCII delimiters — because agents write inconsistent markdown. This is wired
+end to end: `recordPassVerdict` (src/loop/loop.ts) parses the pass output and,
+on a parse failure, issues exactly **one session-resuming reformat turn**
+("reformat your verdict") against the just-finished session (`parseWithRetry`,
+src/loop/verdicts.ts). Success emits `verdict.recorded` (§9) into the pass's
+run record; a still-unparseable verdict after the retry finalizes the pass as
+an **infra failure** with `error_code = error_verdict_unparseable` — a distinct
+population from a merit outcome (§9), never a silent pass. The reformat turn is
+a real `runTurn`, so its spend is **folded into the pass's usage rollup**
+(`sumTurnUsage` in src/loop/pipeline.ts) — `analyze`/`status` never undercount
+the retry.
 - **No side effect keys off prose.** Merge requires: GitHub APPROVE review
 present ∧ freshness ∧ mechanical gates green. The reviewer's verdict is
 double-entered — structured verdict *and* a real GitHub review — and the
 GitHub state is authoritative. A real `APPROVED` review authorizes a merge
-only if it is an *independent* review: `latestActionableReview` rejects an
-APPROVE authored by the builder/PR identity (`authorization.builderIdentity`)
-and, when a reviewer allowlist is configured
-(`authorization.reviewerIdentities`), requires the approver to be in it — a
-non-independent or unlisted APPROVE is ignored, never merged. M6 found the
+only if it is an *independent* review: `latestActionableReview` →
+`isIndependentApproval` (src/loop/loop.ts) rejects an APPROVE authored by the
+builder/PR identity (`authorization.builderIdentity`) and, when a reviewer
+allowlist is configured (`authorization.reviewerIdentities`), requires the
+approver to be in it — a non-independent or unlisted APPROVE is ignored, never
+merged. M6 found the
 single-account pilot caveat: GitHub rejects approving your own PR, so until
 Operon has a separate bot/app identity, `GhCliOps` falls back only for that
 exact error to a real COMMENTED PR review carrying the
@@ -467,6 +477,7 @@ a static string anyone can post: it carries an HMAC over the PR number signed
 with an operator secret (`OPERON_SELF_APPROVAL_SECRET`,
 `authorization.selfApprovalSecret`) that the sandboxed agent cannot read. The
 loop upgrades a COMMENTED review to an approval only when the HMAC verifies
+(`verifiedSelfApprovalMarker` in src/loop/github.ts, a `timingSafeEqual` check)
 *and* the body is a structured `Verdict: approve`, and still enforces commit
 freshness. With no secret configured the loop fails closed — a bare marker is
 never trusted. (Threading the secret to the agent's own environment would
@@ -494,23 +505,41 @@ gates ──fail→ remediate (fix pass, gate output in brief) ──┐
   │ green: push, open PR (Closes #N), op:in-review
   ▼
 reviewing ── verify pass → GitHub review + structured findings
-  │  findings → fix pass (cycles++) → gates → reviewing   (cycles ≤ 3 → returned)
-  │  approve
+  │  findings → fix pass (cycles++) → gates → reviewing   (cycles > 3 → returned)
+  │  approve (independent + fresh commit)
   ▼
 shipping ── [high risk: ship-check pass] → gates re-run (incl. freshness)
-  │ green: orchestrator squash-merges, deletes branch, closes ticket
+  │  ship-check findings → building (cycles++)            (cycles > 3 → returned)
+  │  green: orchestrator squash-merges, deletes branch, closes ticket
   ▼
 merged ── scorecard events (review_cycles, …), worktree cleanup
 ```
 
 Bounds (all ported): remediation ≤ `policy.remediation.max_attempts` (3);
-review cycles ≤ `maxCycles` (3) → `op:returned` with findings for the
-Planner; 3 mechanical attempts inside a pass; per-pass turn cap; per-turn
-budget. **Blocked protocol:** a blocked ticket gets `op:blocked` (safety
-escalation) or `op:returned` (engineering dead-end) plus a structured
-comment — error verbatim, attempted fix, result, assessment — which the
-Planner's groom pipeline consumes. Blocked-with-evidence, never silent
-retry-forever.
+review cycles capped at `maxCycles` (`DEFAULT_MAX_REVIEW_CYCLES` = 3) — the
+**(cycles + 1) > maxCycles** cycle routes to `op:returned` with findings for
+the Planner (i.e. cycle 4 returns; cycles 1–3 bounce back to `op:building`);
+3 mechanical attempts inside a pass; per-pass turn cap; per-turn budget.
+
+**The REVIEWING phase is fully bounded** (`advanceReviewing` /
+`stalledReviewing`, src/loop/loop.ts): every non-progressing tick — no
+actionable review yet, a `CHANGES_REQUESTED` (structured or plain-prose),
+**or an APPROVE whose `commit_id` no longer matches branch HEAD (a stale
+approval)** — counts a cycle and, past the cap, routes to `op:returned`. A
+stale approval is **never merged and never spins**: freshness still gates the
+merge, but instead of leaving the item in `reviewing` for the driver to
+re-run the review pipeline forever, the tick advances the cycle counter and
+terminates in `op:returned`. The ship-check bounce is bounded the same way
+(`runShipCheckPipeline`): a ship-check that requests changes counts against
+the same review-cycle cap so `building`↔`shipping` cannot loop unbounded.
+
+**Blocked protocol:** every dead-end *inside the build loop* — gate
+exhaustion, a `blocked` build verdict, review/ship-check cycle-cap — swaps to
+`op:returned` with a structured comment (error verbatim, attempted fix,
+result, assessment) that the Planner's groom pipeline consumes. `op:blocked`
+is reserved for the **safety/approval escalation path** (a critical-op the
+human must clear); the build loop never writes it. Blocked-with-evidence,
+never silent retry-forever.
 
 Completion detection is **state-based, never string-based**: the tick reads
 labels, PR/review state, and gate results — the predecessor's
@@ -550,9 +579,10 @@ for, never a rewrite.
 ```
 ~/.operon/<org>/runs/<app>/<runId>/
   envelope.json     L1 — one per pass: ids, status, timings, token/cost
-                    rollups, gate results, verdict summary, tool counts,
-                    truncated previews; REFERENCES to brief/transcript,
-                    never inlined (the wf_*.json monolith lesson)
+                    rollups, gate results, verdict summary, tool counts
+                    (see the tool-telemetry caveat below), truncated
+                    previews; REFERENCES to brief/transcript, never inlined
+                    (the wf_*.json monolith lesson)
   events.jsonl      L2 — append-only structured events, timestamped
   brief.md          L3 — exact assembled brief (forensics/reproducibility)
   output.md         L3 — final output text
@@ -563,15 +593,31 @@ for, never a rewrite.
 
 - **Correlation ids on every L2 event:** `trace_id` = turnId (minted at
 dispatch, one per pipeline execution), `span_id` per pass, and
-`parent_span_id` linking subagent events (the adapters' `TurnEvent {type:"subagent"}` stream flows through `onEvent` into L2) — fan-out
-trees are reconstructable without opening transcripts. Plus `app`,
-`ticket`, `pipeline`, `pass`, `role`, `model` on everything.
+`parent_span_id` linking subagent events. The adapters' `TurnEvent
+{type:"subagent"}` stream is buffered during the turn and flushed to L2 in
+order afterward as `subagent.started/completed` spans nested under the pass
+span (`flushBridgedEvents`, src/loop/pipeline.ts) — so fan-out trees
+**are** reconstructable (`reconstructSpanTree`) without opening transcripts.
+session.log still receives every event live. Plus `app`, `ticket`,
+`pipeline`, `pass`, `role`, `model` on everything.
 - **L2 event taxonomy:** `run.started/completed`,
 `pass.started/completed/failed`, `gate.started/passed/failed`,
 `tool.called` (name, duration, success — never full args),
 `subagent.started/completed`, `ticket.transition`, `verdict.recorded`,
 `escalation.raised`. Every line timestamped, severity field, machine
-`error_code`.
+`error_code`. **What is wired today:** the pass executor emits
+`run.*`/`pass.*`/`escalation.raised` and bridges `subagent.started/completed`
+from the adapters' `onEvent` stream into L2 (`flushBridgedEvents`,
+src/loop/pipeline.ts); the state machine emits `gate.started/passed/failed`
+and `ticket.transition` (via a per-step run record, src/loop/loop-runlog.ts
+`openPhaseRun`) and populates `envelope.gate_results`; `verdict.recorded`
+lands from `recordPassVerdict`. **Tool-telemetry caveat (honest gap):**
+`tool.called` and `envelope.tool_counts` stay **empty**. The L2 bridge is
+built and fires on `TurnEvent{type:"tool_use"}`, but the runtime adapters
+(Claude/Codex/pi) currently emit only `type:"subagent"` events, never
+`tool_use` — so per-tool call telemetry is pending an adapter change. Nothing
+downstream is wrong; the field is simply unpopulated until the adapters emit
+tool-use events (an adapter edit gated on `pnpm test:live`).
 - **Infra and merit never conflate** (the doc's sharpest lesson: "infra
 failures looked like merit failures until you read verify stats"). A
 pass that *errors* is `failed` with an `error_code`; a pass that
@@ -586,20 +632,38 @@ regexes double as a log scrubber. L3 stays local, retention =
 - **Attribution is exact** — runs are ticket-scoped by construction; costs
 roll up run → ticket → (role, app) → monthly budget with no
 weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
+  - **Which spend reaches the monthly budget rollup:** the per-pass L1
+  envelope and L2 events are written by **every** driver (dispatched *and*
+  manual). The org **telemetry ledger** (`~/.operon/<org>/telemetry/<day>.jsonl`,
+  the source `operon budget` sums) is written only by the autonomous dispatch
+  path (`src/org/turn-runner.ts` → `recordTurn`). The manual `operon loop`
+  driver (src/cli/loop.ts) writes the per-pass run envelopes and persists
+  scorecard events, but does **not** append to the telemetry ledger — so
+  `operon budget` shows `$0` for a manually-driven loop, while that same
+  spend is fully visible in `operon status` and the run envelopes. Production
+  runs through the dispatcher, which records; the budget hard-stop
+  (architecture.md §7) therefore governs dispatched turns.
 - **Cache visibility.** Input tokens come in three price classes (uncached
 ~1×, cache-write 1.25–2×, cache-read ~0.1×); both SDKs report the split
 per response. L1 rollups and telemetry carry it (`TurnUsage` delta, §10),
 and cost is computed with three-bucket pricing — a flat input rate would
 misprice a healthy cached pass ~5–10× and fire the per-turn budget abort
 wrongly. Economics reference: `research/2026-07-04_prompt-caching.md`.
-- **Anomaly flags** (`operon analyze`, computed from L1/L2) — ported
-detectors: `low_tokens_high_time` (>300 s, <1 k tokens — stuck on
-environment), `single_turn_long_run`, `bash_heavy` (≥20 calls),
-`environment_retry` (≥3 docker/install/wait retries), plus new
-`cold_cache` (zero cache reads on a pass whose predecessor in the same
-pipeline ran within the cache TTL — a silent prefix invalidator shipped
-in context assembly). Flags map to
-canned recommendations and feed the weekly retro (architecture.md §6).
+- **Anomaly flags** (`operon analyze`, computed from L1/L2,
+src/runtime/runlog/anomalies.ts) — ported detectors: `low_tokens_high_time`
+(>300 s, <1 k tokens — stuck on environment), `single_turn_long_run`,
+`bash_heavy` (≥20 calls), `environment_retry` (≥3 docker/install/wait
+retries), plus new `cold_cache` (zero cache reads on a pass whose predecessor
+in the same pipeline ran within the cache TTL — a silent prefix invalidator
+shipped in context assembly). **Three fire today** off envelope fields that
+are populated — `low_tokens_high_time`, `single_turn_long_run`, and
+`cold_cache`. **Two are inert until tool telemetry exists:** `bash_heavy`
+reads `envelope.tool_counts["bash"]` and `environment_retry` reads
+`tool.called` events tagged `environment_retry` — both depend on the
+`tool_use` bridge above, so neither can fire until the adapters emit
+`type:"tool_use"` events (same pending adapter change; the detector code is
+present and unit-covered). Flags map to canned recommendations and feed the
+weekly retro (architecture.md §6).
 
 
 
@@ -607,7 +671,8 @@ canned recommendations and feed the weekly retro (architecture.md §6).
 
 ```
 src/loop/
-  loop.ts        ticket state machine (rewrites current skeleton's phases)
+  loop.ts        ticket state machine (implemented — phases, label swaps,
+                 bounded review/gate/ship cycles, squash-merge)
   pipeline.ts    pass executor: load pipelines.yaml, run passes, parallel
                  groups, per-pass overrides, re-read state between passes
   brief.ts       brief assembler (§3), state-budgeted
@@ -697,7 +762,10 @@ Resolved 2026-07-06: high-tier Builder contracts stay autonomous in v1;
 milestone planning uses the deep `plan` pipeline while weekly grooming stays
 lighter; Lab is approved as a future opt-in role; competitive intelligence
 stays a Marketing `ci-sweep` pipeline for now; per-pass wall-clock cap default
-is **60 minutes**, with per-pass override later.
+is **60 minutes**, and the per-pass `wall_clock_minutes` override is now
+honored — the dispatcher records the pipeline's max per-pass value at claim
+time and `killHungTurns` (src/org/dispatch.ts) enforces it against the
+journal's `wallClockCapMs`, falling back to 60 min when unset.
 
 
 
@@ -724,8 +792,8 @@ distinct codes end to end (§9).
 | **Model behavior**          |                                                      |                                                      |                                                                                                                                              |
 | 8                           | Tests fail during implement                          | in-pass verification loop                            | 3 mechanical attempts → blocked-with-evidence (error verbatim / attempted fix / assessment)                                                  |
 | 9                           | Gate failure after a pass                            | quality-gate engine                                  | remediation fix passes ≤ `max_attempts` (3) → blocked                                                                                        |
-| 10                          | Builder↔reviewer ping-pong                           | cycle counter                                        | `cycles ≤ 3` → `op:returned` with findings for Planner triage                                                                                |
-| 11                          | Malformed / missing verdict                          | parser                                               | one in-session reformat retry → pass fails loud with infra code                                                                              |
+| 10                          | Builder↔reviewer ping-pong (incl. stale/non-actionable approvals, ship-check bounces) | cycle counter (`advanceReviewing`/`stalledReviewing`/ship-check) | bounce to `op:building` while `cycles ≤ 3`; the `cycles > 3` cycle → `op:returned` with findings for Planner triage — never merges a stale approval, never spins |
+| 11                          | Malformed / missing verdict                          | `recordPassVerdict` → `parseWithRetry`               | one session-resuming reformat retry → pass fails loud as infra (`error_verdict_unparseable`); retry spend folded into pass usage             |
 | 12                          | Hallucinated success                                 | mechanical gates                                     | the design premise: no side effect keys off prose (§5, §6)                                                                                   |
 | 13                          | Scope creep                                          | plan-adherence self-check; reviewer `scope` findings | revert strays in-pass; findings bounce                                                                                                       |
 | 14                          | Wrong lesson poisoning memory                        | weekly curation                                      | lessons carry evidence links; wrong ones deleted, not hedged                                                                                 |

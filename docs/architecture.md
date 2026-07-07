@@ -31,7 +31,7 @@ telemetry / memory / scorecard events written at turn end ── §6
 **How the dispatcher "decides":** there is no planning intelligence in the
 tick — *deciding is computing what is due*. The model is fully asynchronous:
 every ~5 minutes a stateless tick merges roles.yaml triggers with apps.yaml
-overrides, checks schedule state ("is the Planner's `daily 08:00` unfired
+overrides, checks schedule state ("is the Planner's `daily 07:00` unfired
 today?"), polls GitHub for new events ("is there a fresh `op:ready`
 ticket?"), starts a detached turn for each due (role, app), and exits.
 
@@ -58,15 +58,15 @@ Module placement respects the one-way import rule
 | Component                                               | Module                                                         | Notes                                   |
 | ------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------- |
 | Dispatcher, schedule state, event polling, locks, trigger routing | `src/org/dispatch.ts`, `src/org/trigger-routing.ts`             | M8 route table maps roles.yaml triggers to protocols |
-| App registry (`apps.yaml` loader)                       | `src/org/apps.ts`                                              | new                                     |
+| App registry (`apps.yaml` loader)                       | `src/org/apps.ts`                                              | implemented (M7)                       |
 | Context assembler                                       | `src/org/context.ts`                                           | implemented M9                         |
-| Approval queue + grants                                 | `src/org/approvals.ts`                                         | new                                     |
-| OKF memory read/write                                   | `src/org/memory.ts`                                            | implemented M9                         |
+| Approval queue + grants                                 | `src/org/approvals.ts`                                         | implemented (M7)                       |
+| OKF memory read/write                                   | `src/org/memory.ts`                                           | implemented M9                         |
 | Scorecards                                              | `src/org/scorecards.ts`                                        | implemented M9                         |
 | Retro reports + curation                                | `src/org/retro.ts`                                             | implemented M9                         |
-| Ticket state machine                                    | `src/loop/loop.ts`                                             | skeleton; full design in `docs/loop.md` |
-| Pass executor, brief assembler, quality gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | new — `docs/loop.md`                    |
-| Pass prompt templates + pipeline config                 | `prompts/`, `pipelines.yaml` (org home)                        | new — human-ratified protocol surfaces  |
+| Ticket state machine                                    | `src/loop/loop.ts`                                             | implemented (M5/M6); full design in `docs/loop.md` |
+| Pass executor, brief assembler, quality gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | implemented (M5/M6) — `docs/loop.md`   |
+| Pass prompt templates + pipeline config                 | `prompts/`, `pipelines.yaml` (org home)                        | human-ratified protocol surfaces        |
 | Runtime contract, gate, telemetry, adapters             | `src/runtime/`                                                 | exists                                  |
 | Run status + anomaly readers                            | `src/runtime/runlog/status.ts`, `anomalies.ts`                 | implemented M9; L1/L2 only             |
 
@@ -269,6 +269,10 @@ silent spend").
 sync with GitHub) and cuts worktrees from it under
 `worktrees/<app>/<branch>`. It never touches the human's personal checkouts
 of the same repos — GitHub is the only sync point between human and org.
+Mutating git operations on that shared clone (fetch, worktree add/remove) are
+serialized by a per-app clone lock (`withAppGitLock` in
+`src/org/turn-runner.ts`), so two concurrent turns for the same app never
+contend on `.git/index.lock` and corrupt the tree.
 - Loop items get branch `op/<issue>-<slug>` and keep the same worktree across
 build → review → fix cycles; it is removed after merge/return. Non-loop
 turns (Planner digest, SRE sweep) get a throwaway worktree on a detached
@@ -294,7 +298,10 @@ with an assembled, budgeted **brief** (ticket + spec excerpts + findings
 
 - **Mechanical quality gates** (tests/lint/e2e/secret-scan/completeness/  
 review-freshness, risk-tiered by `.operon/policy.yaml`) run as  
-orchestrator subprocesses after build passes and twice at ship — distinct  
+orchestrator subprocesses after build passes and twice at ship. A `setup`  
+gate runs first when the app configures `setup_command` (e.g. `npm ci`),  
+installing dependencies in the fresh worktree before any test/lint gate  
+(`runSetupGate` in `src/loop/qgates.ts`) — distinct  
 from the safety gate; no agent prose ever drives a side effect. Gates are  
 only as strong as the acceptance criteria they check, so criteria are a  
 first-class artifact: binary and mechanically checkable by protocol,  
@@ -334,6 +341,14 @@ A stale lock or an in-flight journal at tick time triggers recovery:
 back to the branch tip. Committed-and-pushed work survives; uncommitted work
 is disposable *by rule* (below).
 
+A turn whose running pass exceeds its wall-clock cap (per-pass override, else
+the org default 60 min) is killed by the dispatcher — SIGTERM escalating to
+SIGKILL. Recovery (restart-clean + respawn) is **deferred until the process is
+confirmed dead** (`killHungTurns` in `src/org/dispatch.ts`): a still-alive
+child that also holds the per-app clone lock would otherwise let two workers
+mutate one clone. If the pid refuses to die this tick, recovery waits for a
+later one.
+
 ### Idempotency rules
 
 These four rules are why a dead turn never leaves the repo half-done:
@@ -350,6 +365,10 @@ These four rules are why a dead turn never leaves the repo half-done:
    a consistent state either way.
 4. **Non-git writes are append-only and keyed by turnId** (telemetry JSONL,
   scorecard events, journal) — re-running collection dedupes on turnId.
+   Whole-file operational state (journal, lock, schedule, consumed-event set,
+   approval items) is written atomically via a tmp-file-plus-`rename`
+   (`writeFileAtomic` in `src/org/atomic.ts`), so a crash mid-write never
+   leaves a torn file a later tick would choke on.
 
 
 
@@ -397,7 +416,9 @@ Item schema:
    collection time, tagged with app and turnId.
 3. Human reviews via CLI (below). **Approve ≠ auto-execute.** Approval mints
   a grant: `{app, role, actionHash, expiresAt, uses: 1}` where `actionHash`
-   = SHA-256 of the normalized `{tool, input}`. Nothing replays tool calls
+   = SHA-256 of the normalized `{tool, input, description?}` (lower-cased
+   tool, key-sorted input, and the optional description when present —
+   `normalizeAction`/`actionHash` in `src/org/approvals.ts`). Nothing replays tool calls
    outside a session.
 4. Next tick re-dispatches any `blocked_on_gate` turn whose escalations are
   all decided (resume the session if fresh, else restart with a decision
@@ -625,6 +646,14 @@ month per app (telemetry records gain an `app` field — small addition to
 `budget-exceeded` item in the approval queue; human approval resumes the
 app (optionally raising the budget in apps.yaml themselves).
 
+The overlay (`state/budget-overlay.json`) is recomputed on **every dispatch
+tick** — `enforceBudgetOverlay` runs before due-turn computation, and
+`computeDueTurns` skips any app the overlay marks paused, so an app past its
+cap stops spending within one tick rather than at the next human touch. The
+rollup is per calendar month, so the overlay clears itself at month rollover
+(a new month starts at $0). This is enforcement in code, not just a digest
+line.
+
 
 
 ## 8. Planner co-planning mode
@@ -734,7 +763,9 @@ Title: imperative, one concern (one ticket = one PR, TASTE §5)
 
 - Branch: `op/<issue>-<slug>` from main; one branch per ticket; worktree ↔
 branch 1:1 (§3).
-- PR: title `<type>: <summary> (#<issue>)`; body = What / Why, **Evidence**
+- PR: title `<type>: <summary> (#<issue>)` — in v1 the builder loop always
+emits the literal `build:` type (`prTitle` in `src/loop/loop.ts` is hardcoded;
+a variable type is a later change); body = What / Why, **Evidence**
 (pasted test output — TASTE §6), `Closes #<issue>`. Draft on first push;
 ready when the Builder declares done.
 - Review: verdict as a real GitHub review (APPROVE / REQUEST_CHANGES) plus a

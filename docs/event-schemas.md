@@ -1,9 +1,16 @@
 # Event Schemas
 
 File-drop events live under `~/.operon/<org>/state/events/inbox/*.json`.
-The dispatcher transports them as `alert-webhook` events and deduplicates by
-filename. The payload's `kind` field tells the routed role how to interpret
-the company-lifecycle event.
+The inbox file is the transport and dedup identity (deduplicated by filename),
+but the dispatcher **routes on the payload's `kind`**: `readInbox`
+(`src/org/events.ts`) parses each file with `parseCompanyLifecycleEvent`
+(`src/org/event-schemas.ts`) and surfaces the typed company-lifecycle kind,
+which the dispatcher then matches against roles.yaml `event:` triggers exactly
+like a GitHub-polled kind. So the `kind` field decides both which role(s) wake
+and how they interpret the event. A payload that fails the contract (bad JSON
+or a missing/invalid field) is surfaced loudly as an `error_event_source` and
+skipped — never silently dropped; sibling files keep flowing. A kind no role
+subscribes to is recorded as unsubscribed, not an error.
 
 All event payloads share these fields:
 
@@ -19,12 +26,15 @@ All event payloads share these fields:
 
 Supported `kind` values are:
 
+The routed consumers below are the roles.yaml subscribers each kind wakes
+(via `src/org/trigger-routing.ts`):
+
 | Kind | Routed consumer | Purpose |
 | --- | --- | --- |
-| `support-feedback` | Support digest, then Planner groom | User questions, complaints, bug reports, churn risk, praise |
-| `adoption-signal` | Marketing `ci-sweep`, then Planner groom | Usage, activation, churn, conversion, or engagement movement |
-| `health-alert` | SRE incident pipeline | Service health or CI/deploy alert material |
-| `launch-calendar` | Marketing release/weekly sweep | Planned launch, announcement, or campaign date |
+| `support-feedback` | Support `support-digest` + Planner `groom` | User questions, complaints, bug reports, churn risk, praise |
+| `adoption-signal` | Marketing `ci-sweep` + Planner `groom` | Usage, activation, churn, conversion, or engagement movement |
+| `health-alert` | SRE `sre-incident` | Service health or CI/deploy alert material |
+| `launch-calendar` | Marketing `marketing-release` | Planned launch, announcement, or campaign date |
 
 ## `support-feedback`
 

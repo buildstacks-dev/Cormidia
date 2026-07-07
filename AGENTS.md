@@ -8,17 +8,29 @@ log; on conflict, its Decided section wins and this file is stale — fix this f
 ## What this repo is
 An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
-a private GitHub repo, with a human gating critical ops only. Currently a
-buildable runtime scaffold: M0-M12 are complete, ClaudeRuntime is live-tested,
-the pass executor/runlog/bootstrap/qgates layers are real, the GitHub ticket
-state machine can take a real sandbox-alpha issue through Builder / Reviewer
-passes, PR, gates, review fallback, and squash-merge, and dispatch routes
-standing-role triggers to Planner/SRE/Support/Marketing v0 pipelines.
-OKF memory, full context assembly, scorecards, retro reporting/curation,
-status/analyze CLIs, cache-token telemetry, CodexRuntime, and PiRuntime are
-implemented; manual app commands resolve real app checkouts and app-aware
-context; buildstacks.dev is onboarded as a production app in `status:
-onboarding`.
+a private GitHub repo, with a human gating critical ops only. M0-M12 are
+complete and the runtime has since been hardened and proven live end-to-end.
+ClaudeRuntime/CodexRuntime/PiRuntime are live-conformance-tested; the pass
+executor/runlog/bootstrap/qgates layers are real. Quality gates now run a
+`setup` gate first (GateId `"setup"`, driven by `setup_command` in an app's
+`.operon/config.yaml`) so app deps install in the fresh worktree before
+tests/lint. The GitHub ticket state machine takes a real issue through
+Builder/Reviewer passes, PR, gates, review fallback, and squash-merge with
+unforgeable HMAC merge authorization; company events route by payload kind to
+Planner/SRE/Support/Marketing pipelines with channel-presence gating. OKF
+memory, full context assembly, scorecards, retro reporting/curation,
+status/analyze CLIs, cache-token telemetry, atomic org state, and per-turn
+budget caps across adapters are implemented; manual app commands resolve real
+app checkouts and app-aware context. `operon-sandbox-delta` ("Ledgerette") is
+the primary from-scratch onboarding + loop proof — onboarded live this
+campaign and driven end-to-end (both planted bugs fixed by the loop and
+merged, PRs #11/#12). alpha and gamma were hardened with more modules/tests;
+beta stays deliberately minimal. buildstacks.dev is onboarded as a production
+app in `status: onboarding`. The offline suite is 571 tests
+(`pnpm test`). Three known limitations are documented in README.md → Known
+limitations (empty `tool_counts` + two inert anomaly detectors pending adapter
+`tool_use` emission; the manual `loop` path not feeding the org telemetry
+ledger; the Codex App-Server read bypass).
 
 ## Map
 | Path | What it is |
@@ -62,7 +74,8 @@ onboarding`.
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
   `pnpm dev retro --date 2026-07-04` ·
   `pnpm dev run-role <role> --app <app> --dry-run` ·
-  `pnpm dev run-role <role> --dry-run` · `pnpm dev doctor`
+  `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs` ·
+  `pnpm dev doctor`
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`
   (idempotent private repo/label setup) then
   `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox` (creates and merges one
@@ -98,11 +111,13 @@ onboarding`.
 - Changes that affect app onboarding, `apps.yaml`, bootstrap, planning, or
   loop behavior must also be exercised against the live sandbox apps, not
   only unit tests. Current targets: `~/Build/operon-sandbox-alpha`,
-  `~/Build/operon-sandbox-beta`, and `~/Build/operon-sandbox-gamma`.
-  Run the relevant bootstrap/plan/loop smoke plus each sandbox app's own
-  available checks (for example alpha: `npm test && npm run lint`; beta:
-  `npm test`; gamma: `npm test && npm run lint` plus the role smokes) and
-  report the exact commands/results.
+  `~/Build/operon-sandbox-beta`, `~/Build/operon-sandbox-gamma`, and
+  `~/Build/operon-sandbox-delta` (Ledgerette — the from-scratch onboarding +
+  loop proof). Run the relevant bootstrap/plan/loop smoke plus each sandbox
+  app's own available checks (for example alpha: `npm test && npm run lint`;
+  beta: `npm test`; gamma: `npm test && npm run lint` plus the role smokes;
+  delta: `npm test && npm run lint` — its `.operon/config.yaml` sets the
+  `setup_command` the `setup` gate runs) and report the exact commands/results.
 - M5 loop-state-machine changes should also run the disposable GitHub e2e
   when `gh` auth and `GH_SANDBOX_REPO` are available:
   `pnpm e2e:sandbox:setup` twice for idempotency, then `pnpm e2e:sandbox`.

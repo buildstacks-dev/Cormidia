@@ -344,3 +344,16 @@ will resolve them.
   with app-owned `.operon/` artifacts, and registered in the Operon org as
   `status: onboarding`. Civic remains pending; buildstacks.dev is not live
   until the human flips its app status.
+- 2026-07-06 — v1.3: post-M12 hardening and live verification recorded (no
+  Decided changes; three enforcement notes on already-ratified defaults).
+  (1) The per-turn budget hard stop (`max_turn_budget_usd`, "Budget & cadence"
+  above) is now enforced across **all three adapters** — Claude natively, Codex
+  against an estimated cost from cited prices, pi against real provider cost —
+  not on Anthropic runtimes alone. (2) "Support and Marketing are disabled per
+  app until channels exist" ("Resolved operating defaults" above) is now
+  actually enforced by channel-presence gating: audience-facing roles skip an
+  app that declares no matching channels, with an observable reason — no longer
+  only a cadence convention. (3) The product was verified build-complete
+  end-to-end: the live build loop drove planted tickets on the sandbox apps
+  through ready → build → gates → review → ship → squash-merge, and the Claude
+  live conformance suite re-passed.

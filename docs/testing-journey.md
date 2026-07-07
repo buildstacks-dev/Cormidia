@@ -29,12 +29,13 @@ requests here.
 ### `operon-sandbox-beta` — the bare-bones project
 
 Another small, real library (string utilities), deliberately minimal:
-tests and nothing else. No CI, no docs. Beta answers two questions:
-**does Operon cope gracefully when things are missing?** and **is adding
-a second application really just configuration?** Beta joins the existing
-organization rather than creating a new one, and its acceptance check is
-strict: after onboarding, the only change in the Operon repo is one entry
-in `apps.yaml` — never code.
+tests and nothing else. No CI, no `AGENTS.md` (a README is present). Beta
+answers two questions: **does Operon cope gracefully when things are
+missing?** and **is adding a second application really just configuration?**
+Beta joins the existing organization rather than creating a new one, and its
+acceptance check is strict: after onboarding, the only change in the Operon
+repo is one entry in `apps.yaml` — never code. Beta stays minimal by design;
+it is the "what's missing" case, so it is deliberately not hardened.
 
 ### `operon-sandbox-gamma` — the running service
 
@@ -42,6 +43,26 @@ A tiny Node HTTP service with `/health`, a Dockerfile, a deploy-shaped local
 drill script, and synthetic support/adoption/health/launch events. Gamma
 answers the question: **can Operon exercise SRE, Support, and Marketing
 against realistic operating material before production onboarding?**
+
+### `operon-sandbox-delta` — the realistic from-scratch target
+
+"Ledgerette": a small but realistic zero-dependency expense-tracking JSON
+API, with a real ESLint config, CI, integration tests, and a planted-bug
+backlog. Where alpha is a *well-kept* toy and beta a *bare* one, delta is the
+**comprehensive from-scratch case**: a project that looks like something a
+team would actually hand over — proper linting, real integration coverage, a
+multi-issue backlog including deliberately planted bugs. Delta answers the
+question: **can Operon be onboarded onto an unfamiliar, realistically-shaped
+codebase and take a real defect all the way to a merged fix?**
+
+It is the target where the live loop was proven end-to-end this campaign: two
+planted bugs were picked up as tickets, built, gated, reviewed, and
+squash-merged as real pull requests. Delta's `.operon/` workspace lives in
+the delta repo itself, the same as any onboarded app.
+
+Alpha and gamma were also hardened over the campaign (more modules and tests,
+so the loop exercises a larger surface); beta is left minimal on purpose (the
+"graceful when things are missing" case).
 
 The sandbox apps are never touched by the ordinary offline test suite
 (`pnpm test`); they exist for functional verification — real commands
@@ -61,21 +82,31 @@ against real repos.
 | **M10 — Multiple AI providers** | Does it work beyond one vendor? | Builder and reviewer run on different AI providers (uncorrelated review blind spots), verified with real turns; a capability matrix records what each provider supports. |
 | **M12 — Manual app hardening** | Do human-invoked app commands use the actual app, not the org repo? | Completed 2026-07-06: plan/run-role dry-runs resolve managed or sibling sandbox checkouts, assemble app-aware context, and were verified across alpha, beta, and gamma after the full package gates and Claude live conformance. |
 
-**After M10 the product is build-complete.** Only then are the real
-applications onboarded — together with the human operator, as a launch
-step rather than an experiment.
+Build work continued past M10 through the M12 manual-app hardening and a
+follow-on hardening campaign (atomic org state, per-tick budget auto-pause,
+the setup gate, per-app clone serialization, kind-based company-event
+routing, and the delta from-scratch onboarding). Real-application onboarding
+is not gated behind a single "build-complete" moment: the first production
+app, **buildstacks.dev**, is already registered in `apps.yaml` at
+`status: onboarding` — brought in together with the human operator, as a
+launch step rather than an experiment, while the runtime keeps hardening
+around it.
 
 ## What the current test apps cover — and what they don't
 
-The two sandbox apps give real, non-simulated coverage of the **software
+The sandbox apps give real, non-simulated coverage of the **software
 development workflow**: planning, building, reviewing, gating, shipping,
 approvals, budgets, memory, multi-app, multi-provider. That is the
-product's center of gravity, and it is fully exercised.
+product's center of gravity, and it is fully exercised — most recently
+end-to-end on delta, where the live loop took two planted defects to merged
+fixes.
 
-But the org's vision is bigger than writing code, and both sandbox apps
-are code *libraries* — nothing runs in production, no users write in,
-no releases reach an audience. That leaves three role surfaces without a
-real functional target today:
+But the org's vision is bigger than writing code, and the sandbox apps are
+toy targets — alpha, beta, and delta are code that runs only in tests, and
+gamma is a service that runs only locally: nothing serves real production
+traffic, no real users write in, no releases reach an audience. That leaves
+three role surfaces without a fully real functional target today (gamma
+exercises them against *synthetic* operating material, below):
 
 1. **SRE on a running service.** The SRE role's job is health sweeps,
    reacting to CI failures and alerts, and incident notes. CI failure is

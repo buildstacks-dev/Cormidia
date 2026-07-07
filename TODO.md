@@ -4,6 +4,13 @@ A fresh session should read `docs/PURPOSE.md` → `AGENTS.md` → this file, the
 up the top unchecked item. Keep this list current as items land; move finished
 items to Done with a date.
 
+> **Roadmap complete (2026-07-06).** Every milestone below — **M0 through M12** —
+> is landed and checked off, and a post-M12 hardening + live-verification campaign
+> has readied the repo for publication (see the top of the Done section). There
+> are **no open roadmap items**. The only remaining unchecked box is the human's
+> own housekeeping task under "Human's own items". The "Next up" section is kept
+> intact below as the milestone history and handoff record, not a work queue.
+
 > **Handoff (2026-07-04, evening; roadmap audit 2026-07-06):** "Next up"
 > below is the comprehensive build plan, produced by a multi-agent decomposition +
 > adversarial validation pass over `docs/architecture.md` + `docs/loop.md`.
@@ -918,7 +925,7 @@ needs is this sandbox.)*
   Planner's groom to consume; `op:blocked` is reserved for approval-queue
   waits (blocked_on_gate, raised in M7.9). Green → push, open PR
   (`Closes #N`), `op:in-review` — artifact before label.
-  **Files:** src/loop/loop.ts, test/loop-gates.test.ts
+  **Files:** src/loop/loop.ts, test/loop.test.ts (cases under describe("advanceGates"))
   **Deps:** M5.3, M4.5
   **Accept:** named cases: fail-fail-pass → reviewing with
   remediationAttempts=2; exhaustion → op:returned + a blocked-with-evidence
@@ -941,7 +948,7 @@ needs is this sandbox.)*
   REQUEST_CHANGES → cycles++ → back through fix/gates; cycles > 3 →
   `op:returned` with findings preserved; APPROVE honored only when its
   commit_id == branch HEAD (GitHub-native freshness).
-  **Files:** src/loop/loop.ts, test/loop-review.test.ts
+  **Files:** src/loop/loop.ts, test/loop.test.ts (cases under describe("advanceReviewing"))
   **Deps:** M5.4, M4.6
   **Accept:** named cases: findings comment parses to typed Finding[]
   attached to the item; REQUEST_CHANGES increments cycles and routes to
@@ -965,7 +972,7 @@ needs is this sandbox.)*
   org layer persists them in M9.4 (one-way imports). Merge conflict →
   `merge --abort`, item back to gates/fix carrying a rebase-instruction
   note.
-  **Files:** src/loop/loop.ts, test/loop-ship.test.ts
+  **Files:** src/loop/loop.ts, test/loop.test.ts (cases under describe("advanceShipping"))
   **Deps:** M5.5
   **Accept:** named cases: gate runner invoked exactly twice on a green
   ship (entry + pre-merge); green ship → real squashed commit on fixture
@@ -1252,8 +1259,10 @@ cap instead of holding its lock forever.*
   attempt≥3).
   **Files:** src/org/journal.ts, test/journal.test.ts
   **Deps:** M0.3
-  **Accept:** five named cases — one per table row, matching it verbatim;
-  journal round-trips patch merges; `pnpm test && pnpm typecheck`.
+  **Accept:** named cases covering each recovery-table outcome (resume /
+  restart_clean / recollect / fail_incident — the recollect and attempt-cap
+  fail rows share one case); journal round-trips patch merges; `pnpm test &&
+  pnpm typecheck`.
   **Demo:** Crash decisions are a lookup, not a judgment call.
   **Read:** docs/architecture.md §3 (journal + recovery table);
   docs/loop.md §13 #1, #6.
@@ -1716,7 +1725,7 @@ different slice back as a human-readable report.*
   tiers); (3) proposed TASTE/roles.yaml changes emitted as issues/PRs
   only — the gate's protocol-self-edit rule backstops that nothing edits
   the ratified files directly.
-  **Files:** src/org/retro.ts, src/cli/retro.ts, test/retro-curation.test.ts
+  **Files:** src/org/retro.ts, src/cli/retro.ts, test/retro.test.ts (the four assertions land in one consolidated case under describe("runRetroCuration"))
   **Deps:** M9.5, M9.2
   **Accept:** named cases: duplicate lessons merged (one survives, INDEX
   updated); a lesson contradicted by evidence is deleted, not hedged; a
@@ -1953,6 +1962,32 @@ structured output support and provider cache knobs).
   (`~/Documents/Build/claude-loop-teams`) — stated 2026-07-03.
 
 ## Done
+- 2026-07-06 — **Post-M12 hardening & live verification.** With the roadmap
+  (M0–M12) complete, a hardening-and-proof campaign readied the repo for
+  publication. Sandbox coverage extended: alpha and gamma hardened with more
+  modules and tests, and **operon-sandbox-delta** ("Ledgerette") built and
+  onboarded as a fourth target — a zero-dependency expense-tracking JSON API
+  with real eslint, CI, integration tests, and a 10-issue backlog (its
+  `.operon/` committed to the delta repo; registered `status: onboarding`). A
+  full code review landed fixes across: **atomic org state** (journal / lock /
+  consumed / schedule written via tmp+rename; budget auto-pause enforced every
+  dispatch tick and un-paused next month); **unforgeable merge authorization**
+  (HMAC-signed self-approval marker + independent-reviewer check — no forgeable
+  bypass); **gate coverage** (approval-store-tamper, outbound-network, and
+  self-merge-or-approve promoted to critical; `github_pat_` added to
+  secret-patterns); **adapter budgets** (the per-turn `max_turn_budget_usd` cap
+  enforced across all three adapters — Claude native, codex estimate-capped, pi
+  provider-cost-capped); **bounded review/ship phases** (a stale or
+  non-actionable approval counts a cycle and routes to `op:returned`, never
+  merges stale and never spins); a new **setup gate** (`setup_command`, e.g.
+  `npm ci`, runs first in the fresh worktree before tests/lint); **memory
+  resilience** (malformed OKF docs are skipped and recorded, not crashing
+  context assembly); and **scorecard persistence** from the manual loop driver.
+  The build loop was proven end-to-end on the sandbox apps: both planted
+  bugs in delta were fixed and squash-merged by the loop (PRs #11/#12), and the
+  Claude live conformance suite re-passed. Offline suite grew **460 → 571**
+  tests (71 files, green); `pnpm dev roles | apps | pipelines | doctor` print
+  cleanly.
 - 2026-07-06 — **operon-sandbox-gamma approved** as the third sandbox target
   for SRE/Support/Marketing real-functionality coverage: a tiny deployable
   HTTP service with `/health`, local/container deploy script as approval-drill

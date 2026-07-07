@@ -57,6 +57,10 @@ ledger; the Codex App-Server read bypass).
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
 ## Commands (all verified 2026-07-07)
+- Node: >= 26 (`engines`, `.nvmrc`; `nvm use`). Node >= 25 no longer bundles
+  corepack — `npm install -g corepack && corepack enable` once per Node
+  install. `node:sqlite` is stable on this floor (relevant to the learning
+  loop's metrics upgrade path).
 - Install: `pnpm install` — pnpm is pinned via `packageManager` (corepack);
   an older global pnpm will fail with store/workspace errors. `corepack
   enable` once if `pnpm --version` doesn't match the pin.

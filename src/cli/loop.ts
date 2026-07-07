@@ -7,9 +7,45 @@ import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { defaultLoopInputs, runLoopOnce } from "../loop/driver.js";
 import { loadPipelines } from "../loop/pipelines.js";
+import type { ScorecardEvent as LoopScorecardEvent } from "../loop/types.js";
 import { loadApps } from "../org/apps.js";
 import { assembleContext } from "../org/context.js";
 import { loadRoles } from "../org/roles.js";
+import { appendScorecardEvent } from "../org/scorecards.js";
+
+/**
+ * Persist the scorecard events one loop tick produced into the org scorecard
+ * ledger, mirroring the autonomous dispatch path (org/turn-runner.ts). Without
+ * this the manual `operon loop` driver dropped every scorecard event, so
+ * `operon retro` was blind to the real build loop — it only ever saw the
+ * dispatched-turn path. review_cycles is attributed to the builder (it counts
+ * the rework cycles the builder needed before the ticket merged). Returns the
+ * number of newly-appended rows (dedupe drops replays).
+ */
+export async function persistLoopScorecards(
+  orgHome: string,
+  app: string,
+  events: readonly LoopScorecardEvent[],
+  now: Date = new Date(),
+): Promise<number> {
+  let appended = 0;
+  for (const event of events) {
+    const result = await appendScorecardEvent(
+      orgHome,
+      {
+        type: event.type,
+        app,
+        role: "builder",
+        turnId: event.turnId,
+        ticketRef: event.ticketRef,
+        value: event.value,
+      },
+      now,
+    );
+    if (result.appended) appended += 1;
+  }
+  return appended;
+}
 
 export async function cmdLoop(args: string[]): Promise<number> {
   let appName: string | undefined;
@@ -63,6 +99,10 @@ export async function cmdLoop(args: string[]): Promise<number> {
   });
 
   async function tick(): Promise<void> {
+    // Stamp a turn id on this tick so claimed items carry one — the loop only
+    // emits scorecard events for items with a turnId (loop.ts), and this is the
+    // attribution/dedupe key the org scorecard ledger records under.
+    const turnId = `loop-${selectedApp.name}-${Date.now()}`;
     const result = await runLoopOnce({
       app: selectedApp.name,
       repo: selectedApp.repo,
@@ -72,6 +112,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       policy: inputs.policy,
       commands: inputs.commands,
       maxConcurrent: appsFile.org.maxConcurrentTurns,
+      turnId,
       planOnly: dryRun,
       // Merge authorization: the self-approval fallback must carry an HMAC tag
       // signed with this operator secret (never repo-visible). Without it, the
@@ -100,6 +141,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
           }
         : {}),
     });
+    await persistLoopScorecards(orgHome, selectedApp.name, result.scorecardEvents);
     for (const line of result.lines) console.log(line);
     for (const item of result.items) {
       console.log(`${item.ticketRef}: ${item.phase}`);

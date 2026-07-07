@@ -1092,12 +1092,16 @@ function registrationFromAnswers(
   answers: BootstrapAnswers,
   allRoles: string[],
 ): AppRegistration {
+  const channels: Record<string, string[]> = {};
+  if (answers.channels.support !== undefined) channels["support"] = answers.channels.support;
+  if (answers.channels.marketing !== undefined) channels["marketing"] = answers.channels.marketing;
   return {
     name: appName,
     repo: repoSlug,
     status: "onboarding",
     budgetUsdMonth: answers.budgetUsdMonth,
     cadence: cadenceForAnswers(answers, allRoles),
+    ...(Object.keys(channels).length > 0 ? { channels } : {}),
   };
 }
 

@@ -15,6 +15,7 @@ import { cmdBudget } from "./cli/budget.js";
 import { cmdDispatch } from "./cli/dispatch.js";
 import { cmdDoctor } from "./cli/doctor.js";
 import { cmdLoop } from "./cli/loop.js";
+import { cmdNewApp } from "./cli/new-app.js";
 import { cmdPlan } from "./cli/plan.js";
 import { cmdPipelines } from "./cli/pipelines.js";
 import { cmdPruneRuns } from "./cli/prune-runs.js";
@@ -33,6 +34,10 @@ Usage:
                            questionnaire (interactive, or --answers
                            answers.json), and emit the .operon/ tree
                            (--scan-only: report only)
+  operon new-app <name-or-goal> --target-dir <path> --repo <owner/repo>
+                           [--goal <string>] [--name <app>]
+                           scaffold a new product repo, emit starter product
+                           docs/tickets, bootstrap .operon/, and register it
   operon plan <app> [--topic <string>] [--dry-run] [--workdir <path>]
                            open a Planner co-planning session for an
                            onboarded app
@@ -76,6 +81,7 @@ const COMMANDS: Record<string, CliCommand> = {
   "prune-runs": { run: (args) => cmdPruneRuns(args) },
   retro: { run: (args) => cmdRetro(args) },
   loop: { run: (args) => cmdLoop(args) },
+  "new-app": { run: (args) => cmdNewApp(args) },
   "run-role": { run: (args) => cmdRunRole(args) },
   status: { run: (args) => cmdStatus(args) },
 };

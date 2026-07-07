@@ -2,7 +2,7 @@
 // entrypoint end-to-end so a new subcommand file that forgets its registry
 // line, or a broken default case, shows up here.
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -74,6 +74,47 @@ describe("cli dispatch", () => {
       expect(existsSync(join(target, ".operon"))).toBe(false);
     } finally {
       rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  it("new-app --dry-run reports a greenfield scaffold without writing", async () => {
+    const orgHome = mkdtempSync(join(tmpdir(), "operon-cli-new-app-org-"));
+    const parent = mkdtempSync(join(tmpdir(), "operon-cli-new-app-parent-"));
+    const target = join(parent, "marketplace");
+    try {
+      writeFileSync(
+        join(orgHome, "apps.yaml"),
+        `schema_version: 1
+org:
+  name: operon
+  max_concurrent_turns: 2
+defaults:
+  budget_usd_month: 1000
+apps:
+  alpha:
+    repo: owner/alpha
+    status: live
+    cadence: {}
+`,
+      );
+      const { stdout, code } = await runCli([
+        "new-app",
+        "marketplace",
+        "--target-dir",
+        target,
+        "--repo",
+        "owner/marketplace",
+        "--org-home",
+        orgHome,
+        "--dry-run",
+      ]);
+      expect(code).toBe(0);
+      expect(stdout).toContain("would create greenfield app: marketplace");
+      expect(stdout).toContain(".operon/bootstrap/initial-issue.md");
+      expect(existsSync(target)).toBe(false);
+    } finally {
+      rmSync(orgHome, { recursive: true, force: true });
+      rmSync(parent, { recursive: true, force: true });
     }
   });
 

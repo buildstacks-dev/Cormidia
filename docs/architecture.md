@@ -691,7 +691,32 @@ critical op raised live (recorded to the same audit log).
 
 
 
-## 9. Bootstrap
+## 9. Greenfield creation and Bootstrap
+
+Greenfield products start one step earlier than existing-app bootstrap:
+
+```
+operon new-app "marketplace for dummy products" \
+  --name marketplace \
+  --target-dir ~/Build/marketplace \
+  --repo owner/marketplace
+```
+
+`new-app` is deterministic and local. It creates a separate target app repo
+skeleton, starter product truth (`docs/VISION.md`, `docs/REQUIREMENTS.md`),
+starter architecture/runbook/testing docs, a strict TypeScript web shell, an
+initial GitHub issue body under `.operon/bootstrap/`, and a Planner seed under
+`.operon/planning/`. It then calls the same bootstrap/register implementation
+described below, so greenfield and existing-app onboarding converge at the
+`.operon/` contract and `apps.yaml` registry. If Support or Marketing channels
+are supplied, they are preserved in the org registry so channel-presence gating
+can fire those roles.
+
+`new-app` does not create a GitHub repo, push code, publish marketing content,
+or run the Planner. Those are explicit follow-up operations recorded in the
+generated `.operon/bootstrap/next-commands.md`: create the private repo, push
+the scaffold, create the initial `op:ready` issue, optionally run
+`operon plan <app> --topic ...`, then run the normal loop.
 
 ```
 operon bootstrap        # run inside the product repo

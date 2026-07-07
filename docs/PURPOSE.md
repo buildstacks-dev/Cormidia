@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v1.2 — 2026-07-06. Human-ratified decision log. Keep this file high-level;
+*v1.4 — 2026-07-07. Human-ratified decision log. Keep this file high-level;
 execution details belong in TODO.md, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -205,6 +205,13 @@ config file, not a fork.
   our own org home for now; the root `roles.yaml` / `TASTE.md` are instance
   config destined to become bootstrap templates — don't harden the
   conflation.
+- **Greenfield creation is create-then-bootstrap** (2026-07-07). A brand-new
+  product starts with `operon new-app`: create a separate target app repo
+  skeleton, write seed vision/requirements docs plus an initial issue packet,
+  then reuse the same `operon bootstrap` app-artifact/register path. The command
+  is local and deterministic; creating/pushing the private GitHub repo, running
+  the Planner, and starting the loop remain explicit follow-up steps. This keeps
+  Operon a runtime pointed at app repos, never a place where app code lives.
 - **TASTE layers answer different questions** (2026-07-04). The stack is not
   an override cascade of one document type. Org `TASTE.md`: values +
   engineering constitution ("how we work; what we never do"). App
@@ -357,3 +364,6 @@ will resolve them.
   end-to-end: the live build loop drove planted tickets on the sandbox apps
   through ready → build → gates → review → ship → squash-merge, and the Claude
   live conformance suite re-passed.
+- 2026-07-07 — v1.4: greenfield creation boundary recorded. `operon new-app`
+  creates a separate product repo scaffold, starter product docs, and initial
+  issue packet, then converges through the existing bootstrap/register path.

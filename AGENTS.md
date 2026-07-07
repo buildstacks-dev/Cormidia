@@ -56,7 +56,7 @@ ledger; the Codex App-Server read bypass).
 | `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
-## Commands (all verified 2026-07-06)
+## Commands (all verified 2026-07-07)
 - Install: `pnpm install` — pnpm is pinned via `packageManager` (corepack);
   an older global pnpm will fail with store/workspace errors. `corepack
   enable` once if `pnpm --version` doesn't match the pin.
@@ -69,6 +69,7 @@ ledger; the Codex App-Server read bypass).
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` (tsc → `dist/`)
 - CLI in dev: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
+  `pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run` ·
   `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run`
   · `pnpm dev loop --app <app> --once --dry-run` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·

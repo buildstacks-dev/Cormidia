@@ -70,6 +70,7 @@ export interface AppRegistration {
   status?: AppStatus;
   budgetUsdMonth?: number;
   cadence?: Record<string, Trigger[]>;
+  channels?: AppChannels;
 }
 
 export interface JoinExistingOrgResult {
@@ -270,7 +271,7 @@ export async function joinExistingOrg(
     status,
     budgetUsdMonth: registration.budgetUsdMonth ?? file.defaults.budgetUsdMonth,
     cadence,
-    channels: {},
+    channels: registration.channels ?? {},
   };
 
   const blockSpec: Record<string, unknown> = {
@@ -281,6 +282,9 @@ export async function joinExistingOrg(
     blockSpec["budget_usd_month"] = registration.budgetUsdMonth;
   }
   blockSpec["cadence"] = cadence;
+  if (registration.channels !== undefined && Object.keys(registration.channels).length > 0) {
+    blockSpec["channels"] = registration.channels;
+  }
 
   const block = stringify({ [registration.name]: blockSpec })
     .trimEnd()

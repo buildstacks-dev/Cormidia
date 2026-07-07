@@ -65,6 +65,8 @@ pnpm dev budget             # monthly app spend and budget pauses
 pnpm dev analyze            # L1/L2 anomaly flags and recommendations
 pnpm dev approvals          # inspect / decide the critical-op approval queue
 pnpm dev retro --date 2026-07-04   # write a weekly evidence retro report
+pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
+                            # plan a greenfield app scaffold + Operon bootstrap
 pnpm dev bootstrap <repo> --scan-only        # scan a repo, report only (no write)
 pnpm dev plan <app> --dry-run                # print a Planner co-planning session
 pnpm dev loop --app <app> --once --dry-run   # inspect the ready-ticket loop plan
@@ -73,8 +75,17 @@ pnpm dev run-role <role> [--app <app>] --dry-run  # print one role's assembled b
 pnpm dev prune-runs [root] --retention-days N     # delete finalized run dirs past retention
 ```
 
-The `--dry-run` variants of `plan`, `loop`, `dispatch`, and `run-role` assemble
-real context but spend no tokens, so they are safe without auth.
+The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
+`run-role` assemble real context but spend no tokens, so they are safe without
+auth.
+
+`pnpm dev new-app ...` is the greenfield path. It creates a separate product
+repo skeleton, writes starter product docs (`docs/VISION.md`,
+`docs/REQUIREMENTS.md`), writes an initial issue packet under
+`.operon/bootstrap/`, emits `.operon/` app artifacts through the same bootstrap
+code used for existing repos, and registers the app in the org when an org home
+is available. It does not create the GitHub repo or publish anything externally;
+the generated `.operon/bootstrap/next-commands.md` records those operator steps.
 
 `pnpm dev bootstrap <repo> --scan-only` inventories a GitHub-backed app repo:
 commands, CI, deploy hints, and existing app-owner documentation grouped by

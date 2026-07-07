@@ -1138,8 +1138,27 @@ function removeWorktree(localRepo: string, worktree: string): void {
   }
 }
 
-function pushBranch(worktree: string, branch: string): void {
-  git(worktree, "push", "-u", "origin", branch);
+export function pushBranch(worktree: string, branch: string): void {
+  try {
+    git(worktree, "push", "-u", "origin", branch);
+  } catch (error) {
+    if (!isNonFastForwardPush(error)) throw error;
+    // The orchestrator owns the op/<issue>-… branch namespace and rebuilds the
+    // branch from origin/main on every attempt. A prior interrupted attempt —
+    // e.g. a builder turn that committed and pushed its branch, then was stopped
+    // at its per-turn budget cap — can leave a stale, divergent remote branch
+    // that makes a plain push fail non-fast-forward and permanently wedge the
+    // ticket. The freshly rebuilt branch is authoritative, so force-update this
+    // one ref (never any other; the branch name is always the ticket's).
+    git(worktree, "push", "--force", "-u", "origin", branch);
+  }
+}
+
+function isNonFastForwardPush(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /non-fast-forward|\[rejected\]|tip of your current branch is behind|fetch first/i.test(
+    message,
+  );
 }
 
 function headSha(worktree: string): string {

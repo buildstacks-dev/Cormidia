@@ -7,6 +7,7 @@ import {
   advanceReviewing,
   advanceShipping,
   claimTicket,
+  pushBranch,
   type LoopItem,
 } from "../src/loop/loop.js";
 import { SELF_APPROVAL_FALLBACK_MARKER, selfApprovalMarker } from "../src/loop/github.js";
@@ -46,6 +47,54 @@ function policy(maxAttempts = 3): Policy {
     remediation: { maxAttempts },
   };
 }
+
+describe("pushBranch", () => {
+  it("force-updates its own ticket branch when a stale remote branch would non-fast-forward", () => {
+    const pair = makeBareWithClone();
+    try {
+      const c = pair.clone;
+      const branch = "op/7-monthly-report";
+
+      // A prior interrupted attempt (e.g. a builder turn that pushed its branch
+      // and was then stopped at its budget cap) left a divergent remote branch.
+      c.git("checkout", "-b", branch, "main");
+      c.commit("stale attempt", { "src/x.js": "// stale\n" });
+      c.git("push", "-u", "origin", branch);
+
+      // The orchestrator rebuilds the branch from main with different content.
+      c.git("checkout", "main");
+      c.git("branch", "-D", branch);
+      c.git("checkout", "-b", branch, "main");
+      const freshSha = c.commit("fresh rebuild", { "src/x.js": "// fresh\n" });
+
+      // A plain push here is non-fast-forward; pushBranch force-updates its own
+      // ref so the ticket is not permanently wedged.
+      pushBranch(c.root, branch);
+
+      expect(pair.bare.git("rev-parse", branch)).toBe(freshSha);
+      expect(pair.bare.log(branch)).toContain("fresh rebuild");
+      expect(pair.bare.log(branch)).not.toContain("stale attempt");
+    } finally {
+      pair.cleanup();
+    }
+  });
+
+  it("does a normal (non-forced) push when the remote branch does not exist", () => {
+    const pair = makeBareWithClone();
+    try {
+      const c = pair.clone;
+      const branch = "op/8-clean";
+      c.git("checkout", "-b", branch, "main");
+      const sha = c.commit("clean first push", { "src/y.js": "// y\n" });
+
+      pushBranch(c.root, branch);
+
+      expect(pair.bare.git("rev-parse", branch)).toBe(sha);
+    } finally {
+      pair.cleanup();
+    }
+  });
+});
 
 describe("claimTicket", () => {
   it("swaps the ready label and creates the ticket branch/worktree", async () => {

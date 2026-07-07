@@ -33,6 +33,15 @@ export interface MemoryBundle {
   dir: string;
   index: string;
   docs: OkfDocument[];
+  /** Docs that could not be parsed/validated. A single malformed doc — an
+   *  agent can author one — must never crash context assembly or the loop, so
+   *  loadBundle skips it and records it here instead of throwing. */
+  errors: MemoryLoadError[];
+}
+
+export interface MemoryLoadError {
+  path: string;
+  message: string;
 }
 
 export class OkfParseError extends Error {
@@ -63,7 +72,7 @@ export function parseOkfDocument(raw: string, source = "<memory>"): OkfDocument 
 export async function loadBundle(dir: string): Promise<MemoryBundle> {
   const indexPath = join(dir, "INDEX.md");
   const index = existsSync(indexPath) ? await readFile(indexPath, "utf8") : "";
-  if (!existsSync(dir)) return { dir, index, docs: [] };
+  if (!existsSync(dir)) return { dir, index, docs: [], errors: [] };
 
   const entries = (await readdir(dir, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && entry.name !== "INDEX.md")
@@ -71,12 +80,25 @@ export async function loadBundle(dir: string): Promise<MemoryBundle> {
     .sort();
 
   const docs: OkfDocument[] = [];
+  const errors: MemoryLoadError[] = [];
   for (const entry of entries) {
     const path = join(dir, entry);
-    const parsed = parseOkfDocument(await readFile(path, "utf8"), path);
-    docs.push({ ...parsed, path });
+    try {
+      const parsed = parseOkfDocument(await readFile(path, "utf8"), path);
+      docs.push({ ...parsed, path });
+    } catch (error) {
+      // A malformed OKF doc (e.g. an agent wrote the OKF headings but omitted
+      // the YAML frontmatter) is skipped, not fatal — otherwise one bad doc in
+      // a role/app memory dir wedges every turn that assembles context. IO and
+      // other unexpected errors still propagate.
+      if (error instanceof OkfParseError || error instanceof OkfValidationError) {
+        errors.push({ path, message: error.message });
+      } else {
+        throw error;
+      }
+    }
   }
-  return { dir, index, docs };
+  return { dir, index, docs, errors };
 }
 
 export async function selectExcerpts(
@@ -91,6 +113,9 @@ export async function selectExcerpts(
   for (const dir of bundleDirs) {
     if (remaining <= 0) break;
     const bundle = await loadBundle(dir);
+    for (const error of bundle.errors) {
+      process.stderr.write(`operon: skipping malformed memory doc — ${error.message}\n`);
+    }
     if (bundle.index.trim() !== "") {
       remaining = appendCapped(out, `## Memory INDEX (${basename(dir)})\n\n${bundle.index.trimEnd()}`, remaining);
     }

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   deprecateMemoryDoc,
+  loadBundle,
   OkfParseError,
   parseOkfDocument,
   selectExcerpts,
@@ -63,6 +64,39 @@ describe("OKF memory reader", () => {
       expect(excerpts.join("\n")).toContain("Memory INDEX");
       expect(excerpts.join("\n")).toContain("Use fixture factories.");
       expect(excerpts.join("\n")).not.toContain("Avoid large migrations.");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("skips a malformed doc instead of crashing context assembly", async () => {
+    // Reproduces a live wedge: a builder wrote an OKF doc with the O/K/F
+    // headings but no YAML frontmatter, and every turn that assembled context
+    // threw at loadBundle. A malformed agent-authored doc must be skipped.
+    const home = makeOrgHome({
+      memory: {
+        roles: {
+          builder: {
+            docs: [
+              { name: "good-lesson", content: okf("good-lesson", ["fixtures"], "Use fixture factories.\n") },
+              {
+                name: "money-report-rounding.okf",
+                content: "# Money Report Rounding\n\n## Observation\nNo frontmatter here.\n",
+              },
+            ],
+          },
+        },
+      },
+    });
+    try {
+      const dir = home.paths.memoryRoleDir("builder");
+      const bundle = await loadBundle(dir);
+      expect(bundle.docs.map((doc) => doc.frontmatter.name)).toEqual(["good-lesson"]);
+      expect(bundle.errors).toHaveLength(1);
+      expect(bundle.errors[0]?.message).toContain("missing YAML frontmatter");
+
+      const excerpts = await selectExcerpts([dir], "add tests with fixtures", 16_000);
+      expect(excerpts.join("\n")).toContain("Use fixture factories.");
     } finally {
       home.cleanup();
     }

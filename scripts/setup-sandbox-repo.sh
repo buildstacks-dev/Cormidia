@@ -12,13 +12,25 @@ if ! gh repo view "$repo" >/dev/null 2>&1; then
   gh repo create "$repo" --private >/dev/null
 fi
 
+# Fetch the full label set once from the strongly-consistent list endpoint.
+# Do NOT use `gh label list --search <name>` per-label: that hits the fuzzy,
+# eventually-consistent search index, which can transiently return an
+# incomplete set — so an existing label reads as missing, `gh label create`
+# then fails with "already exists", and `set -e` aborts the whole setup. That
+# breaks the idempotency contract (a second run must be a no-op).
+existing_labels="$(gh label list --repo "$repo" --limit 200 --json name --jq '.[].name')"
+
 ensure_label() {
   local name="$1"
   local color="$2"
   local description="$3"
-  if ! gh label list --repo "$repo" --search "$name" --json name --jq '.[].name' | grep -Fxq "$name"; then
-    gh label create "$name" --repo "$repo" --color "$color" --description "$description" >/dev/null
+  # Exact-match against the captured list via a here-string (no pipe, so no
+  # SIGPIPE/pipefail interaction either).
+  if grep -Fxq -- "$name" <<<"$existing_labels"; then
+    return 0
   fi
+  gh label create "$name" --repo "$repo" --color "$color" --description "$description" >/dev/null
+  existing_labels="$existing_labels"$'\n'"$name"
 }
 
 ensure_label "op:ready" "2da44e" "Operon ticket is ready to build"

@@ -8,7 +8,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
-import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnHooks, TurnUsage } from "../runtime/types.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
@@ -365,7 +365,7 @@ export async function runBuilderPipeline(
       } else if (kind === "build") {
         buildVerdict = outcome.verdict as BuildVerdict;
       }
-      return { ok: true };
+      return { ok: true, ...(outcome.retryUsage !== undefined ? { extraUsage: outcome.retryUsage } : {}) };
     },
   });
 
@@ -791,7 +791,7 @@ function parseEither<K extends VerdictKind>(kind: K, text: string): ParseResult<
 }
 
 type PassVerdictOutcome<K extends VerdictKind> =
-  | { ok: true; verdict: VerdictTypes[K] }
+  | { ok: true; verdict: VerdictTypes[K]; retryUsage?: TurnUsage }
   | { ok: false; failure: VerdictRecordOutcome };
 
 /** Parse the pass's verdict with exactly one session-resuming reformat retry
@@ -802,6 +802,10 @@ async function recordPassVerdict<K extends VerdictKind>(
   kind: K,
   ctx: VerdictRecordContext,
 ): Promise<PassVerdictOutcome<K>> {
+  // The reformat retry is an extra runTurn; its spend must not vanish from the
+  // pass's usage rollup. Capture the retry turn's usage so the executor can add
+  // it to the envelope (loop.ts:766 finding — was silently discarded).
+  let retryUsage: TurnUsage | undefined;
   const reformat = async (reason: string): Promise<string> => {
     const res = await ctx.runtime.runTurn(
       {
@@ -813,12 +817,13 @@ async function recordPassVerdict<K extends VerdictKind>(
       },
       ctx.hooks,
     );
+    retryUsage = res.usage;
     return res.summary;
   };
   try {
     const verdict = await parseWithRetry(kind, ctx.result.summary, reformat, (t) => parseEither(kind, t));
     await ctx.events.append({ type: "verdict.recorded", detail: verdictDetail(kind, verdict) });
-    return { ok: true, verdict };
+    return { ok: true, verdict, ...(retryUsage !== undefined ? { retryUsage } : {}) };
   } catch (error) {
     if (error instanceof VerdictParseError) {
       return { ok: false, failure: { ok: false, errorCode: "error_verdict_unparseable", error } };

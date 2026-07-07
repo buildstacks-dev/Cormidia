@@ -310,6 +310,12 @@ describe("GAP D — verdict reformat retry (docs/loop.md §6, §13 row 11)", () 
       const contractRun = runIdContaining(home.root, "-build-contract");
       const events = await readEvents(home.root, "fixture", contractRun);
       expect(events.some((e) => e.event === "verdict.recorded")).toBe(true);
+      // The reformat retry's spend is folded into the pass usage (loop.ts:766):
+      // contract turn (10 in / $0.01) + reformat turn (10 in / $0.01) = 20 / $0.02,
+      // not the base turn alone.
+      const envelope = await readEnvelope(home.root, "fixture", contractRun);
+      expect(envelope?.usage?.tokens_in).toBe(20);
+      expect(envelope?.usage?.cost_usd).toBeCloseTo(0.02, 5);
     } finally {
       home.cleanup();
       h.cleanup();

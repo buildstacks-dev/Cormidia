@@ -112,7 +112,7 @@ export interface VerdictRecordContext {
 }
 
 export type VerdictRecordOutcome =
-  | { ok: true }
+  | { ok: true; extraUsage?: TurnUsage }
   | { ok: false; errorCode: string; error: Error };
 
 export interface PassRunRecord {
@@ -271,6 +271,14 @@ async function runPass(
       events,
       clock,
     });
+    // A verdict reformat retry is an extra runTurn; fold its spend into the
+    // pass usage so analyze/status don't undercount it (the retry cost was
+    // previously discarded).
+    if (verdictOutcome.ok && verdictOutcome.extraUsage !== undefined) {
+      await updateEnvelope(root, app, runId, {
+        usage: toEnvelopeUsage(sumTurnUsage(result.usage, verdictOutcome.extraUsage)),
+      });
+    }
   }
 
   const status = verdictOutcome.ok ? envelopeStatus(result) : "failed";
@@ -368,6 +376,30 @@ function envelopeStatus(result: TurnResult): Exclude<EnvelopeStatus, "running"> 
   if (result.status === "completed") return "completed";
   if (result.status === "blocked_on_gate") return "blocked";
   return "failed";
+}
+
+/** Sum two turn usages (base + a verdict reformat retry). Optional split
+ *  fields are added only when either side reports them; `costEstimated` is
+ *  sticky (an estimate anywhere makes the total an estimate). */
+function sumTurnUsage(base: TurnUsage, extra: TurnUsage): TurnUsage {
+  const sum: TurnUsage = {
+    tokensIn: base.tokensIn + extra.tokensIn,
+    tokensOut: base.tokensOut + extra.tokensOut,
+    costUsd: base.costUsd + extra.costUsd,
+    subagentTurns: base.subagentTurns + extra.subagentTurns,
+    wallClockMs: base.wallClockMs + extra.wallClockMs,
+  };
+  if (base.tokensInUncached !== undefined || extra.tokensInUncached !== undefined) {
+    sum.tokensInUncached = (base.tokensInUncached ?? 0) + (extra.tokensInUncached ?? 0);
+  }
+  if (base.cacheCreationTokens !== undefined || extra.cacheCreationTokens !== undefined) {
+    sum.cacheCreationTokens = (base.cacheCreationTokens ?? 0) + (extra.cacheCreationTokens ?? 0);
+  }
+  if (base.cacheReadTokens !== undefined || extra.cacheReadTokens !== undefined) {
+    sum.cacheReadTokens = (base.cacheReadTokens ?? 0) + (extra.cacheReadTokens ?? 0);
+  }
+  if (base.costEstimated || extra.costEstimated) sum.costEstimated = true;
+  return sum;
 }
 
 function toEnvelopeUsage(usage: TurnUsage): EnvelopeUsage {

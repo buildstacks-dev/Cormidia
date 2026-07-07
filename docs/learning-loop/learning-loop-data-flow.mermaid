@@ -1,0 +1,60 @@
+---
+title: Operon Learning Loop - Data Flow (v0.7)
+---
+flowchart TD
+    subgraph EXEC["Execution plane"]
+        CTX["Resolved context (pinned per turn)"] --> AGENT["Agent turn (app + role)"]
+        AGENT -->|"advisory self-reports"| EVENTS
+        VERIFIERS["Gates, runlogs, approvals, scorecards, humans, resolver"] -->|"metric-bearing events"| EVENTS
+    end
+
+    EVENTS["Runtime learning event store<br/>~/.operon/&lt;org&gt;/learning/events"]
+
+    EVENTS -->|"daily window"| CLUSTER["Cluster by error_class + cause_hypothesis"]
+    LEDGER["Rejection ledger"] -->|"suppression fingerprints"| CLUSTER
+    CLUSTER --> ROUTER["Destination router"]
+
+    ROUTER -->|"okf_concept"| OKF["OKF candidate"]
+    ROUTER -->|"skill_draft"| SKILL["Skill proposal"]
+    ROUTER -->|"protocol_proposal"| PROTO["Protocol proposal"]
+    ROUTER -->|"eval_or_gate_proposal"| EVAL["Eval/gate proposal"]
+    ROUTER -->|"ticket"| TICKET["GitHub issue"]
+    ROUTER -->|"reject"| LEDGER
+
+    OKF --> REVIEW["Reviewer (cross-provider role) + human approval via approvals store"]
+    SKILL --> REVIEW
+    PROTO --> REVIEW
+    EVAL --> REVIEW
+    TICKET --> REVIEW
+
+    subgraph ORG["Org home learning root"]
+        ORGMAN["learning/manifest.yaml"]
+        ORGBUNDLE["learning/bundle/org + roles"]
+        ORGEVALS["learning/evals/roles"]
+    end
+
+    subgraph APP["Current app repo"]
+        APPMAN[".operon/learning/manifest.yaml"]
+        APPBUNDLE[".operon/learning/bundle/apps + app roles"]
+        APPEVALS[".operon/learning/evals/apps"]
+    end
+
+    REVIEW -->|"approved OKF org/role"| ORGBUNDLE
+    REVIEW -->|"approved OKF app/app-role"| APPBUNDLE
+    REVIEW -->|"approved skill/protocol/eval/gate"| PROPOSALS["Proposal PRs or implementation tickets"]
+    REVIEW -->|"approved ticket"| ISSUES["Operon issue loop"]
+    REVIEW -->|"rejected"| LEDGER
+
+    ORGMAN --> RESOLVER
+    APPMAN --> RESOLVER
+    ORGBUNDLE --> RESOLVER
+    APPBUNDLE --> RESOLVER
+    RESOLVER["Resolver: org -> role -> app -> app-role"] --> CTX
+    RESOLVER -->|"concept_loaded, context_evicted, conflict_resolved"| EVENTS
+
+    EVENTS -->|"trusted emitters only"| METRICS["JSONL metric projections"]
+    ORGEVALS --> METRICS
+    APPEVALS --> METRICS
+    METRICS --> REPORTS["Canary report, compaction report, bundle health"]
+    REPORTS -->|"human promote / rollback / disable in V1"| ORGMAN
+    REPORTS -->|"human promote / rollback / disable in V1"| APPMAN

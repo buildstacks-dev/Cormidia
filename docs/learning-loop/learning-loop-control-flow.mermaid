@@ -1,0 +1,59 @@
+---
+title: Operon Learning Loop - Control Flow (v0.7)
+---
+flowchart TD
+    EVENTS["Trusted and advisory learning events"] --> ROUTE
+
+    subgraph DAILY["Daily learning cycle"]
+        ROUTE["Classify event clusters"] --> CAND["Candidate artifact"]
+        CAND --> DEST{"Destination"}
+        DEST -->|"scoped fact or lesson"| OKF["OKF concept candidate"]
+        DEST -->|"repeatable procedure"| SKILL["Skill draft"]
+        DEST -->|"broad behavior rule"| PROTO["Protocol proposal"]
+        DEST -->|"mechanically checkable weakness"| EVAL["Eval or gate proposal"]
+        DEST -->|"runtime/product work"| TICKET["Operon ticket"]
+        DEST -->|"wrong or unsafe"| LEDGER["Rejection ledger"]
+
+        OKF --> REVIEW{"Reviewer verdict"}
+        SKILL --> REVIEW
+        PROTO --> REVIEW
+        EVAL --> REVIEW
+        TICKET --> REVIEW
+
+        REVIEW -->|"reject"| LEDGER
+        REVIEW -->|"revise"| ROUTE
+        REVIEW -->|"approve or escalate"| HUMAN["Human approval via operon approvals (V1 always)"]
+
+        HUMAN -->|"approve OKF"| MERGE["Merge active concept"]
+        HUMAN -->|"approve skill"| SKILLPR["Open skill proposal PR"]
+        HUMAN -->|"approve protocol"| PROTOPR["Open human-ratified protocol PR"]
+        HUMAN -->|"approve eval/gate"| EVALPR["Open eval/gate implementation PR"]
+        HUMAN -->|"approve ticket"| ISSUE["Create or update GitHub issue"]
+        HUMAN -->|"reject"| LEDGER
+
+        MERGE --> CUT["Version cut"]
+    end
+
+    REVIEW_OUTAGE["Reviewer unavailable"] -.->|"fail closed: queue + SLA report"| REVIEW
+
+    subgraph URGENT["Urgent lane"]
+        PROV["Human-authored provisional OKF (quarantine, TTL <= 14d)"] --> HUMAN
+        PROV -.->|"TTL expiry"| ARCHIVE["Archive, never silently promote"]
+    end
+
+    subgraph PROMO["Low-volume canary and reports"]
+        CUT --> RESOLVE["Resolver canary split for new turns"]
+        RESOLVE --> REPORT{"Report recommendation"}
+        REPORT -->|"promote"| STABLE["Human bumps stable pointer in V1"]
+        REPORT -->|"extend"| RESOLVE
+        REPORT -->|"revert"| ROLLBACK["Human rollback + follow-up ticket"]
+    end
+
+    subgraph CONTAIN["Containment"]
+        DISABLE["operon learn disable concept-id"] --> RECUT["New version without concept"]
+        VERSION_ROLLBACK["operon learn rollback --root org|app"] --> PTR["Pointer revert"]
+    end
+
+    STABLE -.->|"affects only new turns (per-turn pin)"| EVENTS
+    RECUT -.-> STABLE
+    PTR -.-> STABLE

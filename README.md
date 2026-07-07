@@ -21,6 +21,9 @@ Read [`docs/PURPOSE.md`](docs/PURPOSE.md) for the why and every decision made so
 [`TASTE.md`](TASTE.md) is the org's constitution;
 [`roles.yaml`](roles.yaml) is the org chart made executable;
 [`AGENTS.md`](AGENTS.md) is the contributor map.
+New to the code? Open [`docs/wiki.html`](docs/wiki.html) — a standalone,
+self-contained wiki that walks the three layers, the build loop, and the
+runtime adapters, with curated reading paths for coming up to speed.
 
 ## Prerequisites
 

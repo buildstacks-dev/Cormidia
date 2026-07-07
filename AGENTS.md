@@ -36,6 +36,7 @@ ledger; the Codex App-Server read bypass).
 | Path | What it is |
 | --- | --- |
 | `docs/PURPOSE.md` | Decision log — **read first**; every decision to date |
+| `docs/wiki.html` | Standalone code wiki — the three layers, build loop, adapters, gates, and curated reading paths, for an engineer coming up to speed (open in a browser) |
 | `TASTE.md` | Org constitution, loaded by every agent the org runs (human-ratified) |
 | `roles.yaml` | Org chart made executable: role → runtime/model/effort/triggers |
 | `pipelines.yaml` | The build protocol as ordered passes (build/review/fix/ship) — human-ratified; validated by `pnpm dev pipelines` |

@@ -321,6 +321,7 @@ export function loadGateCommands(repoDir: string): GateCommands {
   const configPath = join(repoDir, ".operon", "config.yaml");
   if (existsSync(configPath)) {
     const raw = parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
+    if (typeof raw["setup_command"] === "string") commands.setupCommand = raw["setup_command"];
     if (typeof raw["test_command"] === "string") commands.testCommand = raw["test_command"];
     if (typeof raw["lint_command"] === "string") commands.lintCommand = raw["lint_command"];
     if (typeof raw["e2e_test_command"] === "string") {

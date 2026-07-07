@@ -80,4 +80,29 @@ describe("loop driver", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("loadGateCommands reads setup_command from app config so deps install before gates", () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-"));
+    try {
+      mkdirSync(join(root, ".operon"));
+      writeFileSync(
+        join(root, ".operon", "config.yaml"),
+        "schema_version: 1\nsetup_command: npm ci\n",
+        "utf8",
+      );
+      writeFileSync(
+        join(root, "package.json"),
+        JSON.stringify({ scripts: { test: "node --test", lint: "eslint ." } }),
+        "utf8",
+      );
+
+      expect(loadGateCommands(root)).toEqual({
+        setupCommand: "npm ci",
+        testCommand: "npm test",
+        lintCommand: "npm run lint",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

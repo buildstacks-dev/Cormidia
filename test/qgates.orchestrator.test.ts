@@ -132,6 +132,43 @@ describe("runGates", () => {
     ]);
   });
 
+  it("runs the setup command first, before any scheduled gate", async () => {
+    const r = repo();
+
+    const result = await runGates("low", r.root, checkedCriteria, [], { approvedCommitId: r.head() }, {
+      policy,
+      commands: { setupCommand: passCommand, testCommand: passCommand },
+      criterionTests: coveringTests,
+    });
+
+    expect(result.status).toBe("pass");
+    expect(result.results.map((g) => g.gate)).toEqual([
+      "setup",
+      "tests",
+      "completeness",
+      "review-freshness",
+    ]);
+  });
+
+  it("a failing setup short-circuits: scheduled gates never run", async () => {
+    const r = repo();
+    const failCommand = `${shellQuote(process.execPath)} -e ${shellQuote(
+      "console.error('npm ERR! eslint not installed'); process.exit(1)",
+    )}`;
+
+    const result = await runGates("low", r.root, checkedCriteria, [], { approvedCommitId: r.head() }, {
+      policy,
+      commands: { setupCommand: failCommand, testCommand: passCommand },
+      criterionTests: coveringTests,
+    });
+
+    expect(result.status).toBe("fail");
+    // Only the setup failure is reported — tests/completeness/freshness are skipped
+    // because their prerequisites (installed deps) are absent.
+    expect(result.results.map((g) => g.gate)).toEqual(["setup"]);
+    expect(result.results[0]!.outputTail).toContain("eslint not installed");
+  });
+
   it("attempt counter stops at max_attempts", async () => {
     const r = repo();
 

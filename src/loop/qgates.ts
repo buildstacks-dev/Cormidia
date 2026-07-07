@@ -43,7 +43,7 @@ import { gatesForTier, type GateName, type Policy, type RiskTier } from "./polic
 /** Every gate the engine can report on: the policy-schedulable set plus
  *  `review-freshness`, which always runs (policy.ts rejects configuring it;
  *  the M4.5 orchestrator appends it unconditionally). */
-export type GateId = GateName | "review-freshness";
+export type GateId = GateName | "review-freshness" | "setup";
 
 /** `skip` is reserved for gates that are optional by design (e2e without an
  *  `e2e_test_command`) — a gate that *should* have run but couldn't is a
@@ -85,6 +85,12 @@ export interface SecretMatch {
  *  `test_command` / `lint_command` / `e2e_test_command` (predecessor schema,
  *  loop.md §5 table). */
 export interface GateCommands {
+  /** App-owned dependency-install/setup step (`.operon/config.yaml`'s
+   *  `setup_command`), run in the worktree once before the scheduled gates.
+   *  A fresh clone/worktree has no `node_modules`, so a lint or test command
+   *  that shells out to an installed tool (e.g. `eslint .`) would otherwise
+   *  fail purely for lack of deps. Unconfigured = no setup step (unchanged). */
+  setupCommand?: string;
   testCommand?: string;
   lintCommand?: string;
   e2eTestCommand?: string;
@@ -157,8 +163,10 @@ export interface ProcessGateOpts {
   tailLines?: number;
 }
 
-/** Predecessor parity: tests 300s, lint 120s, e2e 600s. */
+/** Predecessor parity: tests 300s, lint 120s, e2e 600s. Setup (dependency
+ *  install) gets the tests budget — `npm ci` on a cold cache is comparable. */
 export const DEFAULT_TIMEOUTS_MS = {
+  setup: 300_000,
   tests: 300_000,
   lint: 120_000,
   e2e: 600_000,
@@ -173,6 +181,25 @@ const MAX_CAPTURE_BYTES = 256 * 1024;
 // ---------------------------------------------------------------------------
 // The three process gates
 // ---------------------------------------------------------------------------
+
+/** Run the app's setup/install command in the worktree; exit 0 passes.
+ *  Returns `undefined` when no `setup_command` is configured — an unconfigured
+ *  setup step is simply absent, never a failure and never reported (unlike the
+ *  tests/lint gates, which fail loudly when unconfigured). */
+export async function runSetupGate(
+  worktree: string,
+  commands: GateCommands,
+  opts: ProcessGateOpts = {},
+): Promise<GateResult | undefined> {
+  if (commands.setupCommand === undefined || commands.setupCommand === "") return undefined;
+  return runProcessGate(worktree, opts, {
+    gate: "setup",
+    command: commands.setupCommand,
+    configKey: "setup_command",
+    unconfigured: "skip",
+    defaultTimeoutMs: DEFAULT_TIMEOUTS_MS.setup,
+  });
+}
 
 /** Run the app's test command in the worktree; exit 0 passes. Unconfigured
  *  is a loud failure (see the header's drop note). */
@@ -390,12 +417,24 @@ export async function runGates(
   options: RunGatesOptions,
 ): Promise<GateRunResult> {
   const results: GateResult[] = [];
-  for (const gate of gatesForTier(options.policy, tier)) {
-    results.push(
-      await runScheduledGate(gate, worktree, criteria, findings, options),
-    );
+
+  // Dependency install runs first, in the worktree, before any scheduled gate.
+  // If it fails, the deps the tests/lint gates rely on are absent, so running
+  // those gates would only produce misleading failures — short-circuit and
+  // report just the setup failure, which the remediation brief carries verbatim.
+  const setupResult = await runSetupGate(worktree, options.commands, options.process);
+  if (setupResult !== undefined) {
+    results.push(setupResult);
   }
-  results.push(runReviewFreshnessGate(worktree, reviewState));
+
+  if (setupResult === undefined || setupResult.status !== "fail") {
+    for (const gate of gatesForTier(options.policy, tier)) {
+      results.push(
+        await runScheduledGate(gate, worktree, criteria, findings, options),
+      );
+    }
+    results.push(runReviewFreshnessGate(worktree, reviewState));
+  }
 
   const failed = results.some((result) => result.status === "fail");
   const maxAttempts = options.policy.remediation.maxAttempts;

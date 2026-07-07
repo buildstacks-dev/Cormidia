@@ -19,6 +19,7 @@ import {
   DEFAULT_TIMEOUTS_MS,
   runE2eGate,
   runLintGate,
+  runSetupGate,
   runTestsGate,
 } from "../src/loop/qgates.js";
 
@@ -189,9 +190,43 @@ describe("runE2eGate", () => {
   });
 });
 
+describe("runSetupGate (dependency install before gates)", () => {
+  it("returns undefined when no setup_command is configured — absent, not a failure", async () => {
+    const result = await runSetupGate(repoRoot, {});
+    expect(result).toBeUndefined();
+  });
+
+  it("passes on exit 0 and runs in the worktree", async () => {
+    const repo = makeWorkingRepo();
+    repos.push(repo);
+    repo.writeFiles({ "package.json": "{}\n" });
+
+    const result = await runSetupGate(repo.root, {
+      setupCommand: node("require('fs').accessSync('package.json')"),
+    });
+
+    expect(result).toMatchObject({ gate: "setup", status: "pass", exitCode: 0 });
+  });
+
+  it("fail captures exit code and output tail (e.g. npm ci failing)", async () => {
+    const result = await runSetupGate(repoRoot, {
+      setupCommand: node("console.error('npm ERR! missing lockfile'); process.exit(1)"),
+    });
+
+    expect(result!.status).toBe("fail");
+    expect(result!.exitCode).toBe(1);
+    expect(result!.outputTail).toContain("npm ERR! missing lockfile");
+  });
+});
+
 describe("defaults (predecessor parity)", () => {
-  it("per-gate timeouts keep the predecessor's numbers", () => {
-    expect(DEFAULT_TIMEOUTS_MS).toEqual({ tests: 300_000, lint: 120_000, e2e: 600_000 });
+  it("per-gate timeouts keep the predecessor's numbers plus the setup budget", () => {
+    expect(DEFAULT_TIMEOUTS_MS).toEqual({
+      setup: 300_000,
+      tests: 300_000,
+      lint: 120_000,
+      e2e: 600_000,
+    });
   });
 
   it("tail default is documented and bounded", () => {

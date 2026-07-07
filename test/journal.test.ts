@@ -1,5 +1,6 @@
+import { readdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decideRecovery, readJournal, writeJournalPatch } from "../src/org/journal.js";
+import { decideRecovery, listJournals, readJournal, writeJournalPatch } from "../src/org/journal.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
 describe("turn journal and recovery decisions", () => {
@@ -26,6 +27,41 @@ describe("turn journal and recovery decisions", () => {
         trigger: "ticket-ready",
         session: { runtime: "claude", id: "s1" },
       });
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("writes journals atomically (no leftover temp files)", async () => {
+    const home = makeOrgHome({ state: true });
+    try {
+      await writeJournalPatch(
+        home.root,
+        "t-atomic",
+        { role: "builder", app: "alpha", phase: "running" },
+        new Date("2026-07-06T00:00:00Z"),
+      );
+      const files = readdirSync(`${home.root}/state/turns`);
+      expect(files).toEqual(["t-atomic.json"]);
+      expect(files.some((f) => f.endsWith(".tmp"))).toBe(false);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("listJournals skips a torn journal instead of throwing (no dispatcher wedge)", async () => {
+    const home = makeOrgHome({ state: true });
+    try {
+      await writeJournalPatch(
+        home.root,
+        "good",
+        { role: "builder", app: "alpha", phase: "running" },
+        new Date("2026-07-06T00:00:00Z"),
+      );
+      // Simulate a write interrupted by a crash/SIGKILL: an empty/partial file.
+      writeFileSync(`${home.root}/state/turns/torn.json`, '{"turnId":"torn"', "utf8");
+      const journals = await listJournals(home.root);
+      expect(journals.map((j) => j.turnId)).toEqual(["good"]);
     } finally {
       home.cleanup();
     }

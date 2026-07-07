@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import type { Trigger } from "../runtime/types.js";
 import { GhCliOps } from "../loop/github.js";
 import { loadApps, resolveTriggers, type AppEntry, type AppsFile } from "./apps.js";
-import { isOverlayPaused } from "./budget.js";
+import { enforceBudgetOverlay, isOverlayPaused } from "./budget.js";
 import { EventStore, type DueEvent, type GitHubEventSource } from "./events.js";
 import { listJournals, readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
 import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./locks.js";
@@ -24,7 +24,14 @@ export interface DispatchTickOptions {
   now?: () => Date;
   eventSource?: GitHubEventSource;
   spawn?: DispatchSpawn;
-  kill?: (pid: number) => Promise<void> | void;
+  kill?: (pid: number, signal?: NodeJS.Signals) => Promise<void> | void;
+  /** Liveness probe for a killed pid; defaults to a real `process.kill(pid,0)`
+   *  check. Injectable so recovery gating is deterministic in tests. */
+  pidAlive?: (pid: number) => boolean;
+  /** How long to wait for a signalled turn to actually exit before escalating
+   *  to SIGKILL, and the poll interval while waiting. */
+  killGraceMs?: number;
+  killPollMs?: number;
   wallClockCapMs?: number;
   dryRun?: boolean;
 }
@@ -66,23 +73,45 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   const source = options.eventSource ?? new GhEventSource();
   const result: DispatchTickResult = { spawned: [], skipped: [], errors: [] };
 
-  const recoveredFromKill = await killHungTurns(
+  // Refresh the monthly budget auto-pause overlay every tick. Nothing else on
+  // the automated (launchd) path writes it, so without this an app past 100%
+  // of its monthly cap would be dispatched — and keep spending — indefinitely
+  // (architecture.md §7). This is the sole writer of state/budget-overlay.json
+  // under normal operation; computeDueTurns reads it below via isOverlayPaused.
+  try {
+    await enforceBudgetOverlay(runtimeHome, appsFile, now());
+  } catch (error) {
+    result.errors.push(`budget overlay refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const killed = await killHungTurns(
     runtimeHome,
     now(),
     result,
     options.kill,
     options.spawn ?? spawnDetached,
     options.wallClockCapMs,
+    {
+      pidAlive: options.pidAlive ?? defaultPidAlive,
+      graceMs: options.killGraceMs ?? 5_000,
+      pollMs: options.killPollMs ?? 250,
+    },
   );
-  await recoverableStaleLocks(
+  const staleSpawns = await recoverableStaleLocks(
     runtimeHome,
     now(),
     result,
     options.spawn ?? spawnDetached,
-    recoveredFromKill,
+    killed.recovered,
   );
   const freshLocks = await freshLockCount(runtimeHome, now());
-  const capacity = Math.max(0, appsFile.org.maxConcurrentTurns - freshLocks);
+  // Recovery re-spawns (from kill + stale-lock recovery) reuse a stale lock
+  // whose heartbeat freshLockCount cannot yet see, so they must be counted
+  // against org.maxConcurrentTurns explicitly — otherwise a tick that recovers
+  // N turns would still spawn a full capacity of new turns on top of them,
+  // exceeding the WIP limit that bounds concurrency and spend.
+  const recoverySpawns = killed.spawns + staleSpawns;
+  const capacity = Math.max(0, appsFile.org.maxConcurrentTurns - freshLocks - recoverySpawns);
   if (capacity === 0) {
     result.skipped.push("org WIP limit reached");
     return result;
@@ -132,17 +161,31 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
         turnId: turn.turnId,
         runtimeHome,
       });
+    } catch (error) {
+      // Only a spawn failure releases the lock; the child never started.
+      await releaseLock(runtimeHome, turn.app, turn.role);
+      result.errors.push(error instanceof Error ? error.message : String(error));
+      continue;
+    }
+
+    // The detached child is now running. A failure in post-spawn bookkeeping
+    // (recordFired / markConsumed hitting a transient ENOSPC/EIO) must NOT
+    // release the lock — doing so would leave the event unconsumed/schedule
+    // un-recorded AND unlock the slot, so the next tick would dispatch a second
+    // concurrent turn for the same (app, role) onto the shared managed clone.
+    try {
       if (turn.triggerKind === "schedule") {
         await schedule.recordFired(turn.app, turn.role, turn.trigger, now());
       }
       if (turn.eventKey !== undefined) {
         await eventStore.markConsumed([turn.eventKey]);
       }
-      result.spawned.push(turn);
     } catch (error) {
-      await releaseLock(runtimeHome, turn.app, turn.role);
-      result.errors.push(error instanceof Error ? error.message : String(error));
+      result.errors.push(
+        `${turn.app}/${turn.role}: post-spawn bookkeeping failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
+    result.spawned.push(turn);
   }
 
   return result;
@@ -264,7 +307,8 @@ async function recoverableStaleLocks(
   result: DispatchTickResult,
   spawn: DispatchSpawn,
   skipTurnIds: Set<string>,
-): Promise<void> {
+): Promise<number> {
+  let spawns = 0;
   for (const lock of await listLocks(runtimeHome)) {
     if (skipTurnIds.has(lock.turnId)) continue;
     if (!isStale(lock, now)) continue;
@@ -276,6 +320,7 @@ async function recoverableStaleLocks(
           await spawn({ role: j.role, app: j.app, turnId: j.turnId, runtimeHome });
         },
       });
+      if (recovered.spawned === true) spawns += 1;
       result.skipped.push(`${lock.app}/${lock.role}: recovered ${recovered.decision.action}`);
     } catch (error) {
       result.errors.push(
@@ -283,6 +328,7 @@ async function recoverableStaleLocks(
       );
     }
   }
+  return spawns;
 }
 
 async function killHungTurns(
@@ -292,8 +338,14 @@ async function killHungTurns(
   kill: DispatchTickOptions["kill"],
   spawn: DispatchSpawn,
   wallClockCapMs = 60 * 60 * 1000,
-): Promise<Set<string>> {
+  death: { pidAlive: (pid: number) => boolean; graceMs: number; pollMs: number } = {
+    pidAlive: defaultPidAlive,
+    graceMs: 5_000,
+    pollMs: 250,
+  },
+): Promise<{ recovered: Set<string>; spawns: number }> {
   const recovered = new Set<string>();
+  let spawns = 0;
   for (const journal of await listJournals(runtimeHome)) {
     if (journal.phase !== "running" || journal.passStartedAt === undefined || journal.pid === undefined) {
       continue;
@@ -312,6 +364,20 @@ async function killHungTurns(
         app: journal.app,
         message: "wall-clock cap exceeded; process killed for recovery",
       }, now);
+      // Do NOT recover (git reset --hard + clean + respawn) until the killed
+      // process is confirmed dead. SIGTERM only requests termination; if we
+      // restart-clean and respawn while the old child (or its git/agent
+      // subprocess) is still alive, two workers mutate one managed clone and
+      // corrupt the tree. Escalate to SIGKILL, and if the pid still refuses to
+      // die this tick, defer recovery to a later tick.
+      const dead = await ensureProcessDead(journal.pid, { kill, ...death });
+      if (!dead) {
+        result.skipped.push(
+          `${journal.app}/${journal.role}: killed hung turn ${journal.turnId}; pid ${journal.pid} still alive, deferring recovery`,
+        );
+        recovered.add(journal.turnId);
+        continue;
+      }
       const lock = await readLock(runtimeHome, journal.app, journal.role);
       const refreshed = await readJournal(runtimeHome, journal.turnId);
       const recovery = await recoverStaleTurn(runtimeHome, lock, refreshed, {
@@ -320,6 +386,7 @@ async function killHungTurns(
           await spawn({ role: j.role, app: j.app, turnId: j.turnId, runtimeHome });
         },
       });
+      if (recovery.spawned === true) spawns += 1;
       result.skipped.push(
         `${journal.app}/${journal.role}: killed hung turn ${journal.turnId}; recovered ${recovery.decision.action}`,
       );
@@ -330,7 +397,49 @@ async function killHungTurns(
       );
     }
   }
-  return recovered;
+  return { recovered, spawns };
+}
+
+/** True while a pid is still running. `process.kill(pid, 0)` throws ESRCH once
+ *  the process is gone; EPERM means it exists but we may not signal it. */
+function defaultPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Confirm a signalled pid has exited before its worktree is reused: wait out
+ *  the grace window, escalate to SIGKILL, then wait again. Returns false if the
+ *  pid is still alive at the end, so the caller can defer recovery. */
+async function ensureProcessDead(
+  pid: number,
+  opts: { kill: DispatchTickOptions["kill"]; pidAlive: (pid: number) => boolean; graceMs: number; pollMs: number },
+): Promise<boolean> {
+  if (!opts.pidAlive(pid)) return true;
+  const pollMs = Math.max(0, opts.pollMs);
+  const attempts = Math.max(1, Math.ceil(opts.graceMs / Math.max(1, pollMs)));
+  for (let i = 0; i < attempts; i++) {
+    if (!opts.pidAlive(pid)) return true;
+    await delay(pollMs);
+  }
+  try {
+    if (opts.kill !== undefined) await opts.kill(pid, "SIGKILL");
+    else process.kill(pid, "SIGKILL");
+  } catch {
+    // Already gone between the last probe and the escalation.
+  }
+  for (let i = 0; i < attempts; i++) {
+    if (!opts.pidAlive(pid)) return true;
+    await delay(pollMs);
+  }
+  return !opts.pidAlive(pid);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function freshLockCount(runtimeHome: string, now: Date): Promise<number> {
@@ -346,7 +455,13 @@ async function listLocks(runtimeHome: string): Promise<TurnLock[]> {
     if (!file.endsWith(".lock")) continue;
     const [app, roleWithExt] = file.split("--");
     if (app === undefined || roleWithExt === undefined) continue;
-    locks.push(await readLock(runtimeHome, app, roleWithExt.slice(0, -".lock".length)));
+    try {
+      locks.push(await readLock(runtimeHome, app, roleWithExt.slice(0, -".lock".length)));
+    } catch (error) {
+      // A single torn lock (crash mid-heartbeat) must not throw the whole
+      // tick; skip it and let the owning turn's next heartbeat repair it.
+      console.warn(`locks: skipping unreadable ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   return locks;
 }

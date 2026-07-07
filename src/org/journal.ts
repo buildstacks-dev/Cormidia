@@ -1,9 +1,10 @@
 // Turn journal and crash-recovery decision table (architecture.md §3).
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { SessionHandle, Trigger } from "../runtime/types.js";
+import { writeFileAtomic } from "./atomic.js";
 
 export type JournalPhase =
   | "assembling"
@@ -81,7 +82,7 @@ export async function writeJournalPatch(
     updatedAt: now.toISOString(),
   };
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  await writeFileAtomic(path, `${JSON.stringify(next, null, 2)}\n`);
   return next;
 }
 
@@ -94,7 +95,18 @@ export async function listJournals(root: string): Promise<TurnJournal[]> {
   if (!existsSync(dir)) return [];
   const { readdir } = await import("node:fs/promises");
   const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
-  return Promise.all(files.map((file) => readJournal(root, file.slice(0, -5))));
+  // Skip a single torn/unreadable journal (e.g. a write interrupted by a
+  // crash or SIGKILL) instead of letting it throw and wedge every future
+  // tick. The owning turn re-writes its journal atomically on the next patch.
+  const journals: TurnJournal[] = [];
+  for (const file of files) {
+    try {
+      journals.push(await readJournal(root, file.slice(0, -5)));
+    } catch (error) {
+      console.warn(`journal: skipping unreadable ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return journals;
 }
 
 export function decideRecovery(

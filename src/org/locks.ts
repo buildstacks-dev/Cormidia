@@ -1,8 +1,9 @@
 // Filesystem lock for one turn per (role, app), with heartbeat staleness.
 
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { writeFileAtomic } from "./atomic.js";
 
 export interface TurnLock {
   app: string;
@@ -61,7 +62,7 @@ export async function heartbeatLock(
 ): Promise<TurnLock> {
   const lock = await readLock(root, app, role);
   const next = { ...lock, heartbeatAt: now.toISOString() };
-  await writeFile(lockPath(root, app, role), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  await writeFileAtomic(lockPath(root, app, role), `${JSON.stringify(next, null, 2)}\n`);
   return next;
 }
 

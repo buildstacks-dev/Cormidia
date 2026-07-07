@@ -1,9 +1,9 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { dispatchTick, type DispatchSpawn } from "../src/org/dispatch.js";
 import { ScheduleStore } from "../src/org/schedule.js";
-import { acquireLock } from "../src/org/locks.js";
+import { acquireLock, lockExists } from "../src/org/locks.js";
 import type { GitHubEventSource } from "../src/org/events.js";
 import type { AppEntry } from "../src/org/apps.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
@@ -153,6 +153,42 @@ describe("dispatcher tick", () => {
     }
   });
 
+  it("keeps the lock when post-spawn bookkeeping fails after a real spawn", async () => {
+    const h = fixture({
+      roles: `roles:
+  builder:
+    runtime: claude
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - event: ticket-ready
+    outputs: []
+`,
+    });
+    try {
+      // Make markConsumed fail AFTER the spawn by turning consumed.json into a
+      // directory, so its atomic rename throws (readConsumed tolerates it).
+      mkdirSync(join(h.home.root, "state", "events", "consumed.json"), { recursive: true });
+      const spawned: string[] = [];
+      const result = await dispatchTick({
+        runtimeHome: h.home.root,
+        appsPath: h.appsPath,
+        rolesPath: h.rolesPath,
+        now: () => new Date("2026-07-06T10:00:00Z"),
+        eventSource: source({ tickets: [{ issueNumber: 1 }] }),
+        spawn: async (input) => void spawned.push(input.turnId),
+      });
+      expect(spawned).toHaveLength(1);
+      expect(result.errors.join("\n")).toContain("post-spawn bookkeeping failed");
+      // The lock for the already-running turn must survive so the next tick
+      // cannot dispatch a second concurrent turn for the same (app, role).
+      expect(lockExists(h.home.root, "alpha", "builder")).toBe(true);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("skips due roles with no configured execution path", async () => {
     const h = fixture({
       roles: `roles:
@@ -179,6 +215,178 @@ describe("dispatcher tick", () => {
       });
       expect(result.spawned).toEqual([]);
       expect(result.skipped[0]).toContain("no route");
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("counts recovery re-spawns against the org WIP limit", async () => {
+    // Two stale locks whose turns resume (spawn) this tick. With
+    // max_concurrent_turns=2 they consume the whole WIP budget, so a
+    // freshly-due turn must NOT also spawn on top of them.
+    const home = makeOrgHome({
+      state: {
+        locks: {
+          "alpha--builder": {
+            app: "alpha",
+            role: "builder",
+            pid: 4001,
+            turnId: "stale-builder",
+            startedAt: "2026-07-06T09:00:00.000Z",
+            heartbeatAt: "2026-07-06T09:00:00.000Z",
+          },
+          "alpha--reviewer": {
+            app: "alpha",
+            role: "reviewer",
+            pid: 4002,
+            turnId: "stale-reviewer",
+            startedAt: "2026-07-06T09:00:00.000Z",
+            heartbeatAt: "2026-07-06T09:00:00.000Z",
+          },
+        },
+        turns: {
+          "stale-builder": {
+            turnId: "stale-builder",
+            role: "builder",
+            app: "alpha",
+            phase: "running",
+            attempt: 0,
+            startedAt: "2026-07-06T09:00:00.000Z",
+            updatedAt: "2026-07-06T09:00:00.000Z",
+            session: { runtime: "claude", id: "sb" },
+          },
+          "stale-reviewer": {
+            turnId: "stale-reviewer",
+            role: "reviewer",
+            app: "alpha",
+            phase: "running",
+            attempt: 0,
+            startedAt: "2026-07-06T09:00:00.000Z",
+            updatedAt: "2026-07-06T09:00:00.000Z",
+            session: { runtime: "claude", id: "sr" },
+          },
+        },
+      },
+      approvals: true,
+    });
+    const appsPath = join(home.root, "apps.yaml");
+    const rolesPath = join(home.root, "roles.yaml");
+    writeFileSync(
+      appsPath,
+      `org:
+  name: test
+  max_concurrent_turns: 2
+defaults:
+  budget_usd_month: 1000
+apps:
+  alpha:
+    repo: owner/repo
+    status: live
+    cadence: {}
+`,
+      "utf8",
+    );
+    writeFileSync(
+      rolesPath,
+      `roles:
+  planner:
+    runtime: claude
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - schedule: "daily 07:00"
+    outputs: []
+`,
+      "utf8",
+    );
+    const calls: string[] = [];
+    try {
+      const result = await dispatchTick({
+        runtimeHome: home.root,
+        appsPath,
+        rolesPath,
+        now: () => new Date("2026-07-06T10:00:00Z"),
+        eventSource: emptySource(),
+        spawn: async (input) => void calls.push(input.turnId),
+      });
+      // Only the two recovery re-spawns run; no fresh planner turn.
+      expect(calls.sort()).toEqual(["stale-builder", "stale-reviewer"]);
+      expect(calls.some((id) => id.includes("planner"))).toBe(false);
+      expect(result.skipped).toContain("org WIP limit reached");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("auto-pauses and skips an app over its monthly budget cap on the tick", async () => {
+    const h = fixture({
+      roles: `roles:
+  planner:
+    runtime: claude
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - schedule: "daily 07:00"
+    outputs: []
+`,
+    });
+    try {
+      // alpha (budget 1000) has already spent 1200 this month.
+      mkdirSync(join(h.home.root, "telemetry"), { recursive: true });
+      writeFileSync(
+        join(h.home.root, "telemetry", "2026-07-01.jsonl"),
+        `${JSON.stringify({ app: "alpha", costUsd: 1200 })}\n`,
+        "utf8",
+      );
+      const result = await dispatchTick({
+        runtimeHome: h.home.root,
+        appsPath: h.appsPath,
+        rolesPath: h.rolesPath,
+        now: () => new Date("2026-07-06T10:00:00Z"),
+        eventSource: emptySource(),
+        spawn: async () => {
+          throw new Error("should not spawn a budget-paused app");
+        },
+      });
+      expect(result.spawned).toEqual([]);
+      expect(result.skipped.join("\n")).toContain("alpha: budget overlay paused");
+      const { isOverlayPaused } = await import("../src/org/budget.js");
+      expect(await isOverlayPaused(h.home.root, "alpha")).toBe(true);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("tolerates a torn lock file instead of wedging the whole tick", async () => {
+    const h = fixture({
+      roles: `roles:
+  planner:
+    runtime: claude
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - schedule: "daily 07:00"
+    outputs: []
+`,
+    });
+    try {
+      // A lock write interrupted by a crash/SIGKILL leaves a truncated file;
+      // listLocks/freshLockCount must skip it, not throw out of dispatchTick.
+      mkdirSync(join(h.home.root, "locks"), { recursive: true });
+      writeFileSync(join(h.home.root, "locks", "other--builder.lock"), '{"app":"other"', "utf8");
+      const result = await dispatchTick({
+        runtimeHome: h.home.root,
+        appsPath: h.appsPath,
+        rolesPath: h.rolesPath,
+        now: () => new Date("2026-07-06T10:00:00Z"),
+        eventSource: emptySource(),
+        spawn: async () => {},
+      });
+      expect(result.spawned).toHaveLength(1);
+      expect(result.errors).toEqual([]);
     } finally {
       h.cleanup();
     }

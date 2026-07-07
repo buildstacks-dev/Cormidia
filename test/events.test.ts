@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { readdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { dedupKey, EventStore, type GitHubEventSource } from "../src/org/events.js";
 import type { AppEntry } from "../src/org/apps.js";
@@ -69,6 +69,21 @@ describe("event polling", () => {
     }
   });
 
+  it("tolerates a torn consumed.json instead of throwing (no dispatcher wedge)", async () => {
+    const home = makeOrgHome({ state: { consumedEventKeys: [] } });
+    try {
+      // Simulate a write interrupted by a crash/SIGKILL: a truncated JSON file.
+      writeFileSync(home.paths.consumedEvents, '["ticket-ready:1', "utf8");
+      const store = new EventStore(home.root);
+      await expect(store.readConsumed()).resolves.toEqual([]);
+      // poll must not throw even with a corrupt dedup file.
+      const result = await store.poll(APP, fakeSource({ tickets: [{ issueNumber: 1 }] }));
+      expect(result.events.map((event) => event.key)).toContain("ticket-ready:1");
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("surfaces a malformed inbox payload loudly and keeps sibling files flowing", async () => {
     const home = makeOrgHome({
       state: { eventsInbox: { "bad.json": { kind: "health-alert" }, "good.json": HEALTH_ALERT } },
@@ -87,6 +102,18 @@ describe("event polling", () => {
       ]);
       // ...and the valid sibling still routes.
       expect(result.events.map((event) => event.key)).toEqual(["good.json"]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("writes consumed.json atomically (no leftover temp files)", async () => {
+    const home = makeOrgHome({ state: true });
+    try {
+      const store = new EventStore(home.root);
+      await store.markConsumed(["ticket-ready:1"]);
+      const files = readdirSync(`${home.root}/state/events`);
+      expect(files.some((f) => f.endsWith(".tmp"))).toBe(false);
     } finally {
       home.cleanup();
     }

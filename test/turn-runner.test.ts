@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { runDispatchedTurn } from "../src/org/turn-runner.js";
+import { runDispatchedTurn, withAppGitLock } from "../src/org/turn-runner.js";
 import { writeJournalPatch } from "../src/org/journal.js";
 import { ApprovalStore } from "../src/org/approvals.js";
 import { readScorecards } from "../src/org/scorecards.js";
@@ -205,6 +205,32 @@ describe("dispatched turn runner", () => {
     } finally {
       home.cleanup();
       pair.cleanup();
+    }
+  });
+
+  it("serializes concurrent git operations on one app's shared managed clone", async () => {
+    const home = makeOrgHome({});
+    let active = 0;
+    let maxActive = 0;
+    const body = async (): Promise<void> => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      active -= 1;
+    };
+    try {
+      await Promise.all([
+        withAppGitLock(home.root, "alpha", body),
+        withAppGitLock(home.root, "alpha", body),
+        withAppGitLock(home.root, "alpha", body),
+      ]);
+      // The app-scoped lock must make the clone operations mutually exclusive;
+      // without it the concurrent fetch/checkout/reset --hard race .git/index.lock.
+      expect(maxActive).toBe(1);
+      // Lock file is released after use.
+      expect(existsSync(join(home.root, "repos", "alpha.gitlock"))).toBe(false);
+    } finally {
+      home.cleanup();
     }
   });
 

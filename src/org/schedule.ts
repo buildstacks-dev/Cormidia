@@ -1,8 +1,9 @@
 // Trigger grammar and durable schedule state (architecture.md §2).
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { writeFileAtomic } from "./atomic.js";
 
 export interface ScheduleState {
   [key: string]: string;
@@ -36,7 +37,7 @@ export class ScheduleStore {
     const state = await this.read();
     state[scheduleKey(app, role, trigger)] = at.toISOString();
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    await writeFileAtomic(path, `${JSON.stringify(state, null, 2)}\n`);
   }
 
   private path(): string {

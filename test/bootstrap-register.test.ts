@@ -113,6 +113,34 @@ describe("joinExistingOrg", () => {
       }),
     ).rejects.toThrow(/duplicate repo slugs/);
   });
+
+  it("rolls back and throws when a non-canonical layout swallows the append", async () => {
+    // Human-ratified apps.yaml with a top-level key AFTER apps:, so the
+    // 2-space EOF append nests the new app under `defaults` instead of `apps`.
+    const orgHome = makeDir("operon-noncanon-org-");
+    const appsPath = join(orgHome, "apps.yaml");
+    const before = `org:
+  name: operon
+  max_concurrent_turns: 2
+apps:
+  alpha:
+    repo: owner/alpha
+    status: live
+    cadence: {}
+defaults:
+  budget_usd_month: 1000
+`;
+    writeFileSync(appsPath, before);
+
+    await expect(
+      joinExistingOrg(orgHome, { name: "beta", repo: "owner/beta", status: "onboarding" }),
+    ).rejects.toThrow(/invalid registry; rolled back/);
+
+    // The registry is restored to its exact prior bytes and still parses.
+    expect(await readFile(appsPath, "utf8")).toBe(before);
+    const file = await loadApps(appsPath);
+    expect(file.apps.map((a) => a.name)).toEqual(["alpha"]);
+  });
 });
 
 describe("bootstrap existing-org flow", () => {

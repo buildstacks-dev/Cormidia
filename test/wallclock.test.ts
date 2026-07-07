@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { dispatchTick } from "../src/org/dispatch.js";
 import { executePipeline } from "../src/loop/pipeline.js";
@@ -240,6 +242,95 @@ describe("wall-clock and turn caps", () => {
 
       expect(killed).toEqual([]);
       expect(spawned).not.toContain("hung");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("defers recovery (no respawn) while the killed process is still alive", async () => {
+    // A hung turn well past the cap is killed, but if the process refuses to die
+    // this tick, recovery must NOT respawn onto its still-live worktree. Uses an
+    // isolated config (planner is manual-only) so no scheduled turn spawns and
+    // the assertion sees only the recovery decision.
+    const home = makeOrgHome({ state: true, approvals: true });
+    const appsPath = join(home.root, "apps.yaml");
+    const rolesPath = join(home.root, "roles.yaml");
+    writeFileSync(
+      appsPath,
+      `org:
+  name: test
+  max_concurrent_turns: 2
+defaults:
+  budget_usd_month: 1000
+apps:
+  alpha:
+    repo: owner/repo
+    status: live
+    cadence: {}
+`,
+      "utf8",
+    );
+    writeFileSync(
+      rolesPath,
+      `roles:
+  planner:
+    runtime: claude
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - manual: true
+    outputs: []
+`,
+      "utf8",
+    );
+    const spawned: string[] = [];
+    const now = new Date("2026-07-06T01:01:00Z");
+    try {
+      await acquireLock(home.root, {
+        app: "alpha",
+        role: "builder",
+        turnId: "hung",
+        now: new Date("2026-07-06T00:00:00Z"),
+        pid: 12345,
+      });
+      await writeJournalPatch(
+        home.root,
+        "hung",
+        {
+          role: "builder",
+          app: "alpha",
+          phase: "running",
+          attempt: 0,
+          passStartedAt: "2026-07-06T00:00:00.000Z",
+          pid: 12345,
+          worktree: `${home.root}/repos/alpha`,
+          session: { runtime: "claude", id: "s1" },
+        },
+        new Date("2026-07-06T00:00:00Z"),
+      );
+
+      const result = await dispatchTick({
+        runtimeHome: home.root,
+        appsPath,
+        rolesPath,
+        now: () => now,
+        eventSource: {
+          ticketReady: async () => [],
+          prOpened: async () => [],
+          ciFailed: async () => [],
+          releaseShipped: async () => [],
+        },
+        kill: () => {},
+        // Process refuses to die; recovery must not respawn onto its worktree.
+        pidAlive: () => true,
+        killGraceMs: 0,
+        killPollMs: 0,
+        spawn: async (input) => void spawned.push(input.turnId),
+      });
+
+      expect(spawned).toEqual([]);
+      expect(result.skipped.join("\n")).toContain("still alive, deferring recovery");
     } finally {
       home.cleanup();
     }

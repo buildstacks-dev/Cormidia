@@ -1,6 +1,7 @@
-import { appendFileSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ApprovalStore } from "../src/org/approvals.js";
+import { actionHash, ApprovalStore } from "../src/org/approvals.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
 const ACTION = { tool: "bash", input: { command: "cat .env" } };
@@ -62,6 +63,37 @@ describe("approval store", () => {
         "decided",
         "grant-minted",
       ]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("persists the grant before the decided log, so a mid-decide crash still leaves a live grant", async () => {
+    const home = makeOrgHome({ approvals: true });
+    const store = new ApprovalStore(home.root, { idSource: () => "ap1" });
+    try {
+      await store.raise({
+        app: "alpha",
+        role: "builder",
+        rule: "secrets-or-auth",
+        action: ACTION,
+        now: new Date("2026-07-06T01:00:00Z"),
+      });
+      // Force moveToDecided (which runs AFTER the decided-log append) to throw,
+      // simulating a crash mid-decide: its temp path is occupied by a directory.
+      mkdirSync(join(home.root, "approvals", "decided", "ap1.json.tmp"), { recursive: true });
+      await expect(
+        store.decide("ap1", { decision: "approved", now: new Date("2026-07-06T02:00:00Z") }),
+      ).rejects.toThrow();
+      // The grant must already be on disk (written before the decided log), so a
+      // gated turn finds it instead of re-escalating the approved decision.
+      const grant = store.findMatchingGrantSync({
+        app: "alpha",
+        role: "builder",
+        actionHash: actionHash(ACTION),
+        now: new Date("2026-07-06T02:00:00Z"),
+      });
+      expect(grant?.grantId).toBe("grant-ap1");
     } finally {
       home.cleanup();
     }

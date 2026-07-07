@@ -48,6 +48,23 @@ describe("budget rollup", () => {
       home.cleanup();
     }
   });
+
+  it("un-pauses an app once a new month's spend is back under cap", async () => {
+    const home = makeOrgHome({ approvals: true });
+    try {
+      // July: beta blows the cap and gets paused.
+      writeTelemetry(home.root, "2026-07-02", { app: "beta", costUsd: 1100 });
+      await enforceBudgetOverlay(home.root, APPS, new Date("2026-07-06T00:00:00Z"));
+      expect(await isOverlayPaused(home.root, "beta")).toBe(true);
+
+      // August: readMonthSpend returns 0 for beta, so it is no longer
+      // exceeded and must drop out of the pause overlay automatically.
+      await enforceBudgetOverlay(home.root, APPS, new Date("2026-08-01T00:00:00Z"));
+      expect(await isOverlayPaused(home.root, "beta")).toBe(false);
+    } finally {
+      home.cleanup();
+    }
+  });
 });
 
 function writeTelemetry(root: string, day: string, fields: { app: string; costUsd: number }): void {

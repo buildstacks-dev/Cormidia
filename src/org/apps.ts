@@ -290,6 +290,26 @@ export async function joinExistingOrg(
   const next = `${before.endsWith("\n") ? before : `${before}\n`}${block}\n`;
   await writeFile(appsPath, next, "utf8");
 
+  // The 2-space EOF append assumes `apps:` is the last top-level key at 2-space
+  // indent. apps.yaml is a human-ratified surface, so a reorder/reindent can
+  // make the new block nest under the wrong mapping (app silently dropped) or
+  // produce invalid YAML (loadApps throws on the next tick, org offline).
+  // Re-parse and confirm the new app landed; on any failure, roll the file back
+  // to its exact prior bytes so a bad append never corrupts the registry.
+  try {
+    const reloaded = await loadApps(appsPath);
+    const landed = reloaded.apps.some((a) => a.name === entry.name && a.repo === entry.repo);
+    if (!landed) {
+      throw new Error(`app "${entry.name}" is not present after append (non-canonical apps.yaml layout?)`);
+    }
+  } catch (error) {
+    await writeFile(appsPath, before, "utf8");
+    throw new Error(
+      `bootstrap: appending "${entry.name}" to ${appsPath} produced an invalid registry; ` +
+        `rolled back. ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
   return { orgHome, appsPath, app: entry };
 }
 

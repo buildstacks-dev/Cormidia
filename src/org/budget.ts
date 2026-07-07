@@ -48,6 +48,15 @@ export async function enforceBudgetOverlay(
   const overlay = await readOverlay(orgHome);
   const store = new ApprovalStore(orgHome);
 
+  const knownApps = new Set(apps.apps.map((app) => app.name));
+  const exceeded = new Set(rows.filter((r) => r.status === "exceeded").map((r) => r.app));
+  // Recompute the paused set from the current rollup rather than only ever
+  // adding to it: an app drops out of the overlay once its month-to-date spend
+  // is back under 100% (e.g. after a month reset), so a single month's overage
+  // no longer pauses a healthy live app forever. Entries for apps no longer in
+  // apps.yaml are preserved so an unrelated overlay is never silently dropped.
+  overlay.pausedApps = overlay.pausedApps.filter((app) => !knownApps.has(app) || exceeded.has(app));
+
   for (const row of rows.filter((r) => r.status === "exceeded")) {
     if (!overlay.pausedApps.includes(row.app)) overlay.pausedApps.push(row.app);
     const hashKey = `budget-exceeded:${row.app}:${now.toISOString().slice(0, 7)}`;

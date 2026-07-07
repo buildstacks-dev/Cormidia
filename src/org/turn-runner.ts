@@ -2,9 +2,9 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, open, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { recordTurn, toRecord } from "../runtime/telemetry.js";
@@ -76,7 +76,9 @@ export async function runDispatchedTurn(
       pid: process.pid,
     });
 
-    const localRepo = await ensureManagedClone(options.app, runtimeHome);
+    const localRepo = await withAppGitLock(runtimeHome, options.app.name, () =>
+      ensureManagedClone(options.app, runtimeHome),
+    );
     const context = await buildContext(orgRoot, localRepo, options.app.name, options.role, journal);
     const store = new ApprovalStore(runtimeHome);
     const hooks = {
@@ -454,6 +456,96 @@ async function ensureTurnLock(
   }
   const acquired = await acquireLock(runtimeHome, { app, role, turnId, now });
   if (!acquired.acquired) throw new Error(`turn lock busy for ${app}/${role}`);
+}
+
+interface GitCloneLock {
+  pid: number;
+  at: string;
+}
+
+const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;
+const GIT_CLONE_LOCK_MAX_WAIT_MS = 60 * 1000;
+
+/** Serialize mutating git operations on the shared managed clone repos/<app>.
+ *  Two roles on one app can be due in the same tick (locks are per (app, role)),
+ *  and each turn runs `git fetch/checkout/reset --hard` on the SAME checkout —
+ *  concurrent runs contend on .git/index.lock and fail the turn (or corrupt the
+ *  tree). An app-scoped advisory lock makes those operations mutually exclusive.
+ *  A crashed holder cannot wedge the app forever: the lock is broken once its
+ *  holder pid is dead or it has aged past the stale window. */
+export async function withAppGitLock<T>(
+  runtimeHome: string,
+  app: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const lockPath = join(runtimeHome, "repos", `${app}.gitlock`);
+  await mkdir(dirname(lockPath), { recursive: true });
+  await acquireGitCloneLock(lockPath);
+  try {
+    return await fn();
+  } finally {
+    await rm(lockPath, { force: true });
+  }
+}
+
+async function acquireGitCloneLock(lockPath: string): Promise<void> {
+  const deadline = Date.now() + GIT_CLONE_LOCK_MAX_WAIT_MS;
+  for (;;) {
+    try {
+      const fh = await open(lockPath, "wx");
+      try {
+        await fh.writeFile(
+          `${JSON.stringify({ pid: process.pid, at: new Date().toISOString() } satisfies GitCloneLock)}\n`,
+          "utf8",
+        );
+      } finally {
+        await fh.close();
+      }
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (await breakStaleGitCloneLock(lockPath)) continue;
+      if (Date.now() > deadline) {
+        // A live holder has exceeded the max wait — force-break so a single
+        // pathological turn can never block an app's clone indefinitely.
+        await rm(lockPath, { force: true });
+        continue;
+      }
+      await gitLockDelay(40 + Math.floor(Math.random() * 60));
+    }
+  }
+}
+
+async function breakStaleGitCloneLock(lockPath: string): Promise<boolean> {
+  try {
+    const lock = JSON.parse(await readFile(lockPath, "utf8")) as GitCloneLock;
+    const ageMs = Date.now() - new Date(lock.at).getTime();
+    const holderDead = typeof lock.pid === "number" && !gitLockHolderAlive(lock.pid);
+    if (holderDead || !Number.isFinite(ageMs) || ageMs > GIT_CLONE_LOCK_STALE_MS) {
+      await rm(lockPath, { force: true });
+      return true;
+    }
+    return false;
+  } catch {
+    // Torn lock, or the holder released between EEXIST and this read — treat as
+    // breakable and retry the exclusive create.
+    await rm(lockPath, { force: true });
+    return true;
+  }
+}
+
+function gitLockHolderAlive(pid: number): boolean {
+  if (pid === process.pid) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+function gitLockDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function ensureManagedClone(app: AppEntry, runtimeHome: string): Promise<string> {

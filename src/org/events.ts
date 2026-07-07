@@ -5,6 +5,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { AppEntry } from "./apps.js";
 import { parseCompanyLifecycleEvent, type CompanyEventKind } from "./event-schemas.js";
+import { writeFileAtomic } from "./atomic.js";
 
 /** Transport kinds: GitHub-polled kinds plus the file-drop `alert-webhook`
  *  inbox transport. `alert-webhook` remains the dedup/transport identity for
@@ -112,7 +113,15 @@ export class EventStore {
   async readConsumed(): Promise<string[]> {
     const path = this.consumedPath();
     if (!existsSync(path)) return [];
-    return JSON.parse(await readFile(path, "utf8")) as string[];
+    try {
+      return JSON.parse(await readFile(path, "utf8")) as string[];
+    } catch (error) {
+      // A torn dedup file must never halt the whole tick. Atomic writes make
+      // this unreachable in practice; treat a corrupt file as empty so the
+      // dispatcher keeps running (the next markConsumed rewrites it cleanly).
+      console.warn(`events: consumed.json unreadable, treating as empty: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    }
   }
 
   async markConsumed(keys: readonly string[]): Promise<void> {
@@ -120,7 +129,7 @@ export class EventStore {
     await this.ensure();
     const consumed = new Set(await this.readConsumed());
     for (const key of keys) consumed.add(key);
-    await writeFile(this.consumedPath(), `${JSON.stringify([...consumed].sort(), null, 2)}\n`, "utf8");
+    await writeFileAtomic(this.consumedPath(), `${JSON.stringify([...consumed].sort(), null, 2)}\n`);
   }
 
   /** Read the file-drop inbox, parsing each payload's company-lifecycle kind

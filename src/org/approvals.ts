@@ -177,6 +177,16 @@ export class ApprovalStore {
         : undefined;
     if (grant !== undefined) decided.grantId = grant.grantId;
 
+    // Materialize the grant on disk BEFORE the decided log records the
+    // approval. findMatchingGrantSync only reads grants/*.json, so if the
+    // process died after the decided-log append but before the grant landed,
+    // the approved action would have no consumable grant and the very next
+    // gated turn would re-escalate a decision the human already made. Writing
+    // the grant first (atomically) closes that window; the log still carries
+    // the embedded grant so reconcile() can rebuild it if the file is lost.
+    if (grant !== undefined) {
+      await writeJsonAtomic(this.grantPath(grant.grantId), grant);
+    }
     await appendJsonLine(this.logPath(), {
       type: "decided",
       id,
@@ -187,7 +197,6 @@ export class ApprovalStore {
     } satisfies ApprovalLogEvent);
     await this.moveToDecided(decided);
     if (grant !== undefined) {
-      await writeJson(this.grantPath(grant.grantId), grant);
       await appendJsonLine(this.logPath(), {
         type: "grant-minted",
         id,
@@ -449,6 +458,19 @@ function readJsonSync<T>(path: string): T {
 
 async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+/** tmp+rename write so a reader (or a crash mid-write) never sees a truncated
+ *  grant file. */
+async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
+  const tmp = `${path}.${process.pid}.tmp`;
+  try {
+    await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await rename(tmp, path);
+  } catch (error) {
+    await rm(tmp, { force: true }).catch(() => {});
+    throw error;
+  }
 }
 
 function writeJsonSync(path: string, value: unknown): void {

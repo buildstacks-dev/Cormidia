@@ -617,9 +617,14 @@ function schemaErrors(schema: VerdictSchema, value: unknown, path: string): stri
         }
       }
       for (const [key, node] of Object.entries(props)) {
-        if (record[key] !== undefined) {
-          errors.push(...schemaErrors(node, record[key], `${path}.${key}`));
-        }
+        const child = record[key];
+        if (child === undefined) continue;
+        // Native structured outputs (OpenAI/Codex strict mode) require every
+        // property to be present, expressing an optional field as an explicit
+        // null. Treat a null on a NON-required property as absent; a null on a
+        // required property falls through and fails its type check below.
+        if (child === null && !(schema.required ?? []).includes(key)) continue;
+        errors.push(...schemaErrors(node, child, `${path}.${key}`));
       }
       break;
     }

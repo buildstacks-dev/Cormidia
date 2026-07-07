@@ -449,6 +449,19 @@ describe("verdict schemas", () => {
     expectOk(validateVerdict("review", { verdict: "approve", findings: [] }));
   });
 
+  it("accepts an explicit null on an optional field (native strict-output convention)", () => {
+    // OpenAI/Codex strict structured outputs must emit every property, so a
+    // 'done' build verdict carries blockedEntry: null. Null on an OPTIONAL
+    // field is treated as absent — the round-trip from strict mode is lossless.
+    expectOk(validateVerdict("build", { status: "done", blockedEntry: null }));
+  });
+
+  it("still rejects a null on a REQUIRED field", () => {
+    const r = validateVerdict("build", { status: null });
+    expectFail(r);
+    expect(r.reason).toContain("status");
+  });
+
   it("rejects a bad category enum value", () => {
     const r = validateVerdict("review", {
       verdict: "findings",

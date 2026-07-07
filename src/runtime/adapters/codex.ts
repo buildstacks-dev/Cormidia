@@ -409,8 +409,59 @@ function turnParams(req: TurnRequest, threadId: string): Record<string, unknown>
     approvalsReviewer: "user",
     model: req.role.model,
     effort: mapCodexEffort(req.role.effort),
-    ...(req.verdictSchema !== undefined ? { outputSchema: req.verdictSchema } : {}),
+    ...(req.verdictSchema !== undefined
+      ? { outputSchema: toCodexStrictSchema(req.verdictSchema) }
+      : {}),
   };
+}
+
+/** OpenAI/Codex strict structured outputs (`response_format` json_schema,
+ *  strict:true) reject a schema whose object `required` omits any key in
+ *  `properties` — the App Server surfaces this as
+ *  "'required' ... must be ... an array including every key in properties".
+ *  The loop's generic verdict schema marks a semantically optional field (the
+ *  build verdict's `blockedEntry`, present only when status="blocked") by
+ *  leaving it out of `required`. Translate that into the strict form OpenAI
+ *  demands: every property is required, and an originally-optional field is
+ *  made nullable instead. The loop's return-path validator treats an explicit
+ *  null on an optional field as absent, so the round-trip stays lossless. */
+export function toCodexStrictSchema(
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
+  return strictSchemaNode(schema, false) as Record<string, unknown>;
+}
+
+function strictSchemaNode(node: unknown, nullable: boolean): unknown {
+  if (node === null || typeof node !== "object" || Array.isArray(node)) return node;
+  const src = node as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...src };
+
+  if (src["type"] === "object" && src["properties"] !== null && typeof src["properties"] === "object") {
+    const props = src["properties"] as Record<string, unknown>;
+    const originalRequired = new Set(
+      Array.isArray(src["required"])
+        ? (src["required"] as unknown[]).filter((k): k is string => typeof k === "string")
+        : [],
+    );
+    const nextProps: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(props)) {
+      nextProps[key] = strictSchemaNode(child, !originalRequired.has(key));
+    }
+    out["properties"] = nextProps;
+    out["required"] = Object.keys(props);
+    out["additionalProperties"] = false;
+  } else if (src["type"] === "array" && src["items"] !== undefined) {
+    out["items"] = strictSchemaNode(src["items"], false);
+  }
+
+  if (nullable) out["type"] = nullableType(src["type"]);
+  return out;
+}
+
+function nullableType(type: unknown): unknown {
+  if (Array.isArray(type)) return type.includes("null") ? type : [...type, "null"];
+  if (typeof type === "string") return type === "null" ? type : [type, "null"];
+  return type;
 }
 
 function mapCodexEffort(effort: TurnRequest["role"]["effort"]): string {

@@ -4,6 +4,7 @@ import type { ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";
 import {
   CodexRuntime,
   normalizeCodexApprovalAction,
+  normalizeCodexApprovalActions,
   type CodexAppServerClient,
   type CodexServerMessage,
   type JsonRpcId,
@@ -69,6 +70,32 @@ class FakeCodexClient implements CodexAppServerClient {
   async notify(method: string, params?: unknown): Promise<void> {
     this.notifications.push(params === undefined ? { method } : { method, params });
   }
+
+  async respond(id: JsonRpcId, result: unknown): Promise<void> {
+    this.responses.push({ id, result });
+  }
+
+  async close(): Promise<void> {}
+
+  async *[Symbol.asyncIterator](): AsyncIterator<CodexServerMessage> {
+    for (const message of this.messages) yield message;
+  }
+}
+
+/** Yields a fixed, hand-built message stream (bypasses the single-file
+ *  scripted-action mapping) so a multi-file patch approval can be exercised. */
+class ScriptedMessageClient implements CodexAppServerClient {
+  readonly responses: Array<{ id: JsonRpcId; result: unknown }> = [];
+
+  constructor(private readonly messages: CodexServerMessage[]) {}
+
+  async request(method: string, params?: unknown): Promise<unknown> {
+    if (method === "thread/start" || method === "thread/resume") return { thread: { id: "thread-1" } };
+    if (method === "turn/start") return { turn: { id: "turn-1" } };
+    return {};
+  }
+
+  async notify(): Promise<void> {}
 
   async respond(id: JsonRpcId, result: unknown): Promise<void> {
     this.responses.push({ id, result });
@@ -225,6 +252,110 @@ describe("CodexRuntime (App Server mocked)", () => {
     expect(result.status).toBe("blocked_on_gate");
     expect(result.escalations[0]?.action).toEqual(action);
     expect(client.responses).toEqual([{ id: "approval-1", result: { decision: "decline" } }]);
+  });
+
+  it("gates EVERY file in a multi-file patch, not just the first (fail-closed)", async () => {
+    // A patch that lists a benign file first and roles.yaml second must be
+    // declined and escalated on the roles.yaml write. Before the fix only the
+    // first entry was normalized/gated, so the protocol-self-edit slipped
+    // through as an atomic "approved" patch.
+    const patchMessage: CodexServerMessage = {
+      method: "applyPatchApproval",
+      id: "approval-multi",
+      params: {
+        conversationId: "thread-1",
+        callId: "call-multi",
+        fileChanges: {
+          "src/util.ts": { type: "add", content: "export const ok = true;" },
+          "roles.yaml": { type: "add", content: "builder: { runtime: pi }" },
+        },
+        reason: null,
+        grantRoot: null,
+      },
+    };
+    const client = new ScriptedMessageClient([
+      patchMessage,
+      {
+        method: "turn/completed",
+        params: {
+          threadId: "thread-1",
+          turn: { id: "turn-1", items: [], status: "completed", durationMs: 1 },
+        },
+      },
+    ]);
+
+    const gateCalls: ToolAction[] = [];
+    const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(makeReq(), {
+      gate: (a) => {
+        gateCalls.push(a);
+        return defaultGate(a);
+      },
+    });
+
+    expect(gateCalls.map((a) => (a.input as { path: string }).path)).toEqual(["src/util.ts", "roles.yaml"]);
+    expect(result.status).toBe("blocked_on_gate");
+    expect(result.escalations).toHaveLength(1);
+    expect((result.escalations[0]?.action.input as { path: string }).path).toBe("roles.yaml");
+    expect(result.escalations[0]?.reason).toContain("protocol-self-edit");
+    // The whole patch is declined atomically — no partial apply.
+    expect(client.responses).toEqual([{ id: "approval-multi", result: { decision: "denied" } }]);
+  });
+
+  it("accumulates token usage across multiple notifications in a turn", async () => {
+    // Two model round-trips each emit a tokenUsage notification whose `.last`
+    // is that request's delta. Before the fix the adapter overwrote the usage
+    // with only the last delta, undercounting the turn's real spend.
+    const tokenMsg = (input: number, cached: number, output: number, reasoning: number): CodexServerMessage => ({
+      method: "thread/tokenUsage/updated",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        tokenUsage: {
+          last: { inputTokens: input, cachedInputTokens: cached, outputTokens: output, reasoningOutputTokens: reasoning },
+        },
+      },
+    });
+    const client = new ScriptedMessageClient([
+      tokenMsg(10, 2, 7, 1),
+      tokenMsg(30, 4, 12, 3),
+      {
+        method: "turn/completed",
+        params: {
+          threadId: "thread-1",
+          turn: { id: "turn-1", items: [], status: "completed", durationMs: 5 },
+        },
+      },
+    ]);
+
+    const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(makeReq(), {
+      gate: defaultGate,
+    });
+
+    // Sum of both requests: tokensIn = (10+2)+(30+4) = 46, tokensInUncached =
+    // 10+30 = 40, cacheReadTokens = 2+4 = 6, tokensOut = (7+1)+(12+3) = 23.
+    expect(result.usage).toMatchObject({
+      tokensIn: 46,
+      tokensInUncached: 40,
+      cacheReadTokens: 6,
+      tokensOut: 23,
+    });
+  });
+
+  it("normalizeCodexApprovalActions returns one action per file in the patch", () => {
+    const actions = normalizeCodexApprovalActions(
+      "legacyPatch",
+      {
+        fileChanges: {
+          "src/util.ts": { type: "add", content: "..." },
+          "scorecards/civic/builder.jsonl": { type: "add", content: "{}" },
+        },
+      },
+      "/repo",
+    );
+    expect(actions).toEqual([
+      { tool: "write", input: { path: "src/util.ts", content: "..." } },
+      { tool: "write", input: { path: "scorecards/civic/builder.jsonl", content: "{}" } },
+    ]);
   });
 
   it("normalizes legacy patch approvals with content when the protocol payload includes it", () => {

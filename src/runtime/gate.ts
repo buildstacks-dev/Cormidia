@@ -38,8 +38,38 @@ export const CRITICAL_RULES: CriticalRule[] = [
   },
   {
     name: "secrets-or-auth",
+    // `secrets?`/`credentials?` (not word-bounded `secret`/`credential`) so
+    // plural secret-bearing filenames — `secrets.json`, `credentials.json` —
+    // trip too; plus the common credential FILES (SSH keys, PEM material,
+    // .npmrc/.netrc) an exfil would target by name.
     matches: (a) =>
-      /\b(secret|api[_ ]?key|credential|rotate key|oauth client)\b|\.env\b/.test(asText(a)),
+      /\b(secrets?|api[_ ]?key|credentials?|rotate key|oauth client)\b|\.env\b|\b(id_rsa|id_ed25519)\b|\.(pem|npmrc|netrc)\b/.test(
+        asText(a),
+      ),
+  },
+  {
+    // Outbound network from a build turn is the exfiltration channel: a
+    // prompt-injected agent piping secrets to an attacker host. The build
+    // protocol pushes code via git (its own routine verbs), so treating the
+    // raw egress tools as critical costs at most a human tap on a legitimate
+    // fetch while closing the leak path (docs/loop.md gate philosophy).
+    name: "outbound-network",
+    matches: (a) => /\b(curl|wget|ncat|nc|scp|sftp|telnet)\b/.test(asText(a)),
+  },
+  {
+    // Self-merge / self-approve bypasses the review boundary the whole org
+    // depends on: an agent must never merge its own PR, approve a review, or
+    // use an --admin override. The orchestrator's own merges do not pass
+    // through this gate (they are GhOps, not agent tool calls).
+    name: "self-merge-or-approve",
+    matches: (a) => {
+      const t = asText(a);
+      return (
+        /\bgh\s+pr\s+merge\b/.test(t) ||
+        (/\bgh\s+pr\s+review\b/.test(t) && /--approve\b/.test(t)) ||
+        (/\bgh\b/.test(t) && /--admin\b/.test(t))
+      );
+    },
   },
   {
     name: "protocol-self-edit", // agents don't rewrite their own rules
@@ -50,6 +80,18 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // self-reported (docs/architecture.md §6) — an agent write is a distinct
     // integrity concern from rewriting the org's own rules, hence its own rule
     matches: (a) => isWrite(a) && /\bscorecards\/[^\s"']+/.test(asText(a)),
+  },
+  {
+    // The approval store (<org-home>/approvals/{grants,pending,decided}/*.json
+    // + log.jsonl) is the ROOT OF TRUST for the whole gate: composeGate lets
+    // any op through if a matching single-use grant file exists (src/org/
+    // gate-compose.ts, src/org/approvals.ts). An agent that can write there
+    // could forge a grant (or bump uses/expiresAt) and self-approve a critical
+    // op with no human tap. Only the Codex adapter's workspace-write sandbox
+    // blocks this today; the gate must classify these writes as critical so
+    // the boundary holds on every adapter. Reads stay routine.
+    name: "approval-store-tamper",
+    matches: (a) => isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(asText(a)),
   },
 ];
 

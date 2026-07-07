@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cmdStatus } from "../src/cli/status.js";
 import { formatStatusRows, readStatusRows } from "../src/runtime/runlog/status.js";
@@ -43,6 +45,35 @@ describe("runlog status", () => {
       expect(rows[0]?.status).toBe("failed(error_turn_failed)");
       expect(rows[0]?.escalations).toBe(1);
       expect(formatStatusRows(rows)).toContain("PIPE/PASS");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("surfaces a corrupt envelope as a visible row but skips an in-progress run", async () => {
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: { good1: { envelope: env("good1", "2026-07-04T10:00:00Z", "completed"), events: [] } },
+        },
+      },
+    });
+    try {
+      // A crashed turn left a torn envelope.json.
+      const corruptDir = home.paths.runDir("alpha", "corrupt2");
+      mkdirSync(corruptDir, { recursive: true });
+      writeFileSync(join(corruptDir, "envelope.json"), '{"run_id":"corrupt2", tr', "utf8");
+      // A turn still in flight has a run dir but no envelope yet.
+      mkdirSync(home.paths.runDir("alpha", "inflight3"), { recursive: true });
+
+      const rows = await readStatusRows(home.root, { app: "alpha" });
+      const byId = new Map(rows.map((row) => [row.runId, row]));
+
+      // The good run is present, the corrupt run is SURFACED (not dropped),
+      // and the in-progress run is quietly skipped.
+      expect(byId.has("good1")).toBe(true);
+      expect(byId.get("corrupt2")?.status).toBe("corrupt(envelope)");
+      expect(byId.has("inflight3")).toBe(false);
     } finally {
       home.cleanup();
     }

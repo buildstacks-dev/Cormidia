@@ -30,6 +30,15 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     pattern: /\bgh[pousr]_[A-Za-z0-9]{20,}\b/,
   },
   {
+    // GitHub fine-grained PATs (`github_pat_<22>_<59>`) — GitHub's current
+    // recommended token type. The classic `gh[pousr]_` family above does NOT
+    // cover them (the char after `gh` is `i`), so without this entry a
+    // fine-grained PAT slips the redactor AND the qgates security scan that
+    // both import this list. Underscore is part of the value alphabet.
+    name: "github-fine-grained-pat",
+    pattern: /\bgithub_pat_[A-Za-z0-9_]{22,}\b/,
+  },
+  {
     // AWS access key ids (AKIA permanent, ASIA temporary). Secret access
     // keys have no reliable shape of their own — the generic-assignment
     // family below is what catches `aws_secret_access_key = …`.

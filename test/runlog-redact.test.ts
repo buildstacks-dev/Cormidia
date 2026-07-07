@@ -12,6 +12,19 @@ describe("scrubSecrets", () => {
       { text: `key: sk-${"a1".repeat(20)}`, marker: "[REDACTED:sk-api-key]" },
       { text: `sk-ant-api03-${"x".repeat(24)}`, marker: "[REDACTED:sk-api-key]" },
       { text: `token ghp_${"A2".repeat(18)} pushed`, marker: "[REDACTED:github-token]" },
+      // Fine-grained PAT (GitHub's current recommended token type): the
+      // classic gh[pousr]_ pattern cannot match it, so it needs its own entry
+      // or it leaks the live credential through every exportable log line.
+      {
+        text: `github_pat_11ABCDE0123456789_${"z".repeat(59)}`,
+        marker: "[REDACTED:github-fine-grained-pat]",
+      },
+      {
+        // Bare in a JSON field under a non-keyword key — the generic-assignment
+        // fallback does not catch this shape, so the dedicated pattern must.
+        text: `{"pat":"github_pat_22ZYXWV9876543210_${"q".repeat(59)}"}`,
+        marker: "[REDACTED:github-fine-grained-pat]",
+      },
       { text: "creds AKIAIOSFODNN7EXAMPLE end", marker: "[REDACTED:aws-access-key-id]" },
       {
         text: "-----BEGIN RSA PRIVATE KEY-----\nMIIB\n-----END RSA PRIVATE KEY-----",
@@ -39,6 +52,7 @@ describe("scrubSecrets", () => {
       "the token is important to the parser design",
       "tokenCount = 5 and passwordField has no value here",
       "rotate the key ceremony notes (no material present)",
+      "the github_pat prefix is mentioned here without any actual token value",
     ];
     for (const text of benign) expect(scrubSecrets(text), text).toBe(text);
   });

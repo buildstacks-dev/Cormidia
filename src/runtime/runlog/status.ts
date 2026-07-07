@@ -33,8 +33,18 @@ export async function readStatusRows(
     const appDir = join(runsRoot, app);
     if (!existsSync(appDir)) continue;
     for (const runId of await childDirs(appDir)) {
-      const envelope = await readEnvelopeFile(join(appDir, runId, "envelope.json")).catch(() => undefined);
-      if (envelope === undefined) continue;
+      let envelope: RunEnvelope;
+      try {
+        envelope = await readEnvelopeFile(join(appDir, runId, "envelope.json"));
+      } catch (error) {
+        // Distinguish "no envelope yet" (a turn still in flight — skip
+        // quietly) from a torn/invalid envelope (a crashed turn — exactly the
+        // run the operator most needs to see). Surface the corruption as a
+        // visible row instead of silently dropping the run from the dashboard.
+        if (isNotFound(error)) continue;
+        rows.push(unreadableRow(runId, app));
+        continue;
+      }
       const events = await readEvents(root, app, runId).catch(() => []);
       rows.push({
         runId,
@@ -96,4 +106,26 @@ async function childDirs(path: string): Promise<string[]> {
 
 async function readEnvelopeFile(path: string): Promise<RunEnvelope> {
   return JSON.parse(await readFile(path, "utf8")) as RunEnvelope;
+}
+
+function isNotFound(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "ENOENT";
+}
+
+/** A run whose envelope.json exists but cannot be parsed — shown, never
+ *  dropped, so a corrupt/torn telemetry record stays visible to the operator. */
+function unreadableRow(runId: string, app: string): StatusRow {
+  return {
+    runId,
+    app,
+    pipeline: "?",
+    pass: "?",
+    status: "corrupt(envelope)",
+    durationMs: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+    costUsd: 0,
+    escalations: 0,
+    startedAt: "",
+  };
 }

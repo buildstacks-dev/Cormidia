@@ -288,26 +288,34 @@ export class CodexRuntime implements Runtime {
         return;
       case "thread/tokenUsage/updated":
         {
-          const usage = usageFromTokenNotification(
+          // `.last` is the LATEST request's usage, not the running total. A
+          // multi-request turn emits several notifications; accumulate their
+          // deltas so the reported usage (and the budget guard below) reflect
+          // the whole turn instead of only the final request. Summing deltas
+          // (rather than reading the cumulative `.total`) is also correct for a
+          // resumed thread, whose `.total` would include prior turns' tokens.
+          const delta = usageFromTokenNotification(
             message.params,
             req.role.model,
             state.subagentTurns,
             state.durationMs,
           );
-          if (usage !== undefined) {
-            state.usage = usage;
-            // Running per-turn budget guard on the ESTIMATE. The App Server
-            // exposes no native budget knob (unlike Claude's --max-budget-usd),
-            // so Operon enforces the cap itself: once the estimated running
-            // spend crosses role.maxTurnBudgetUsd we stop consuming and let the
-            // finally-block close the client (terminating the App Server turn).
-            // Overrun = incident note, not silent spend (roles.yaml).
-            if (usage.costUsd >= req.role.maxTurnBudgetUsd) {
+          if (delta !== undefined) {
+            state.usage = addUsageDelta(state.usage, delta, state.subagentTurns, state.durationMs);
+            // Running per-turn budget guard on the ACCUMULATED estimate. The
+            // App Server exposes no native budget knob (unlike Claude's
+            // --max-budget-usd), so Operon enforces the cap itself: once the
+            // estimated running spend crosses role.maxTurnBudgetUsd we stop
+            // consuming and let the finally-block close the client (terminating
+            // the App Server turn). Reading the accumulated total (not `.last`)
+            // is what makes the cap non-evadable. Overrun = incident note, not
+            // silent spend (roles.yaml).
+            if (state.usage.costUsd >= req.role.maxTurnBudgetUsd) {
               state.budgetOverrun = true;
               state.status = "failed";
               state.finalSummary =
                 `Budget overrun: turn stopped at the per-turn cap — estimated spend ` +
-                `$${usage.costUsd.toFixed(4)} crossed maxTurnBudgetUsd ` +
+                `$${state.usage.costUsd.toFixed(4)} crossed maxTurnBudgetUsd ` +
                 `$${req.role.maxTurnBudgetUsd} (role ${req.role.name}).`;
             }
           }
@@ -419,13 +427,20 @@ async function routeApproval(
   kind: "commandExecution" | "fileChange" | "legacyExec" | "legacyPatch",
 ): Promise<void> {
   if (message.id === undefined) return;
-  const action = normalizeCodexApprovalAction(kind, message.params, req.workdir);
-  const decision = hooks.gate(action);
-  if (!decision.allow && decision.escalate) {
-    escalations.push({ action, reason: decision.reason });
+  // A single applyPatch approval can bundle MANY files. Gate EVERY one and
+  // fail closed: if any file trips a critical rule the whole patch is
+  // declined, because the App Server applies the patch atomically — there is
+  // no per-file response. Gating only the first entry let a benign-first,
+  // protocol-self-edit/scorecard-tamper-second patch slip the gate.
+  const actions = normalizeCodexApprovalActions(kind, message.params, req.workdir);
+  let allow = true;
+  for (const action of actions) {
+    const decision = hooks.gate(action);
+    if (!decision.allow) {
+      allow = false;
+      if (decision.escalate) escalations.push({ action, reason: decision.reason });
+    }
   }
-
-  const allow = decision.allow;
   switch (kind) {
     case "commandExecution":
       await client.respond(message.id, { decision: allow ? "accept" : "decline" });
@@ -438,6 +453,20 @@ async function routeApproval(
       await client.respond(message.id, { decision: allow ? "approved" : "denied" });
       return;
   }
+}
+
+/** All tool actions an approval covers. Only a legacyPatch can carry more
+ *  than one (its `fileChanges` map is per-patch, many files); every other
+ *  approval kind is single-action. The gate must see EVERY file. */
+export function normalizeCodexApprovalActions(
+  kind: "commandExecution" | "fileChange" | "legacyExec" | "legacyPatch",
+  params: unknown,
+  workdir: string,
+): ToolAction[] {
+  if (kind === "legacyPatch") {
+    return normalizePatchApprovals(isRecord(params) ? params : {}, workdir);
+  }
+  return [normalizeCodexApprovalAction(kind, params, workdir)];
 }
 
 export function normalizeCodexApprovalAction(
@@ -477,31 +506,72 @@ export function normalizeCodexApprovalAction(
   }
 }
 
+/** One ToolAction per file in the patch (fail-closed multi-file gating). */
+function normalizePatchApprovals(params: Record<string, unknown>, workdir: string): ToolAction[] {
+  const fileChanges = isRecord(params.fileChanges) ? params.fileChanges : {};
+  const entries = Object.entries(fileChanges);
+  if (entries.length === 0) {
+    const fallback = typeof params.grantRoot === "string" ? params.grantRoot : ".";
+    return [patchEntryToAction(fallback, undefined, params, workdir)];
+  }
+  return entries.map(([path, change]) => patchEntryToAction(path, change, params, workdir));
+}
+
+/** Single-file normalization, retained for callers that only need the first
+ *  file (e.g. the exported unit-test surface); the gate path uses the plural
+ *  form above so no file is skipped. */
 function normalizePatchApproval(params: Record<string, unknown>, workdir: string): ToolAction {
   const fileChanges = isRecord(params.fileChanges) ? params.fileChanges : {};
   const [firstPath, firstChange] = Object.entries(fileChanges)[0] ?? [
     typeof params.grantRoot === "string" ? params.grantRoot : ".",
     undefined,
   ];
-  const path = relativize(firstPath, workdir);
-  if (isRecord(firstChange) && firstChange.type === "add") {
-    return withOptionalDescription(
-      { tool: "write", input: { path, content: firstChange.content } },
-      typeof params.reason === "string" ? params.reason : undefined,
-    );
-  }
-  if (isRecord(firstChange) && firstChange.type === "update") {
-    return withOptionalDescription(
-      { tool: "edit", input: { path, unified_diff: firstChange.unified_diff, move_path: firstChange.move_path } },
-      typeof params.reason === "string" ? params.reason : undefined,
-    );
-  }
-  return withOptionalDescription(
-    { tool: "edit", input: { path } },
-    typeof params.reason === "string" ? params.reason : undefined,
-  );
+  return patchEntryToAction(firstPath, firstChange, params, workdir);
 }
 
+function patchEntryToAction(
+  rawPath: string,
+  change: unknown,
+  params: Record<string, unknown>,
+  workdir: string,
+): ToolAction {
+  const path = relativize(rawPath, workdir);
+  const reason = typeof params.reason === "string" ? params.reason : undefined;
+  if (isRecord(change) && change.type === "add") {
+    return withOptionalDescription({ tool: "write", input: { path, content: change.content } }, reason);
+  }
+  if (isRecord(change) && change.type === "update") {
+    return withOptionalDescription(
+      { tool: "edit", input: { path, unified_diff: change.unified_diff, move_path: change.move_path } },
+      reason,
+    );
+  }
+  return withOptionalDescription({ tool: "edit", input: { path } }, reason);
+}
+
+/** Add a per-request usage delta onto the turn's running total. */
+function addUsageDelta(
+  prev: TurnUsage | undefined,
+  delta: TurnUsage,
+  subagentTurns: number,
+  wallClockMs: number | undefined,
+): TurnUsage {
+  if (prev === undefined) {
+    return { ...delta, subagentTurns, wallClockMs: wallClockMs ?? delta.wallClockMs };
+  }
+  return {
+    tokensIn: prev.tokensIn + delta.tokensIn,
+    tokensInUncached: (prev.tokensInUncached ?? 0) + (delta.tokensInUncached ?? 0),
+    cacheReadTokens: (prev.cacheReadTokens ?? 0) + (delta.cacheReadTokens ?? 0),
+    tokensOut: prev.tokensOut + delta.tokensOut,
+    costUsd: prev.costUsd + delta.costUsd,
+    subagentTurns,
+    wallClockMs: wallClockMs ?? prev.wallClockMs,
+  };
+}
+
+/** Maps ONE token-usage notification's `.last` (the latest request's usage)
+ *  into a TurnUsage delta; callers accumulate these across the turn. */
 function usageFromTokenNotification(
   params: unknown,
   model: string,

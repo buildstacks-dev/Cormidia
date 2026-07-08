@@ -1,3 +1,10 @@
+// Tests the ticket state-machine helpers in src/loop/loop.ts.
+// Covers branch pushing/claiming, gate remediation and runlogs, review parsing
+// and approval freshness/authorization, self-approval HMAC checks, shipping
+// double-gates, squash merge cleanup, conflicts, and scorecard events.
+// Uses temp git repos and FakeGhOps only; no network, auth, real GitHub/org
+// state, or live wall clock is required.
+
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

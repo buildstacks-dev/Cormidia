@@ -1,18 +1,10 @@
-// ClaudeRuntime LIVE conformance (build plan M1.2) — the empirical half.
-//
-// Reuses runConformanceSuite verbatim (test/conformance/harness.ts): every
-// ScriptedTurn the harness would play through FakeRuntime is translated
-// into a strict instruction prompt for a real model, driven through the
-// real Claude Agent SDK → Claude Code CLI. This is where the SDK's
-// session-wide canUseTool question is settled with evidence: a live
-// AgentDefinition subagent attempts a critical op and the same gate
-// callback must see it (TurnHooks.gate doc comment; docs/loop.md §2).
-//
-// Auth is subscription-first (Claude Code login), API key fallback — the
-// probe below detects usable auth BEHAVIORALLY and the suite skips (never
-// fails) without it. Run via `pnpm test:live`; excluded from the fast
-// suite by vitest.config.ts. Real tokens are spent (small; logged at the
-// end for the research note).
+// Live-tests ClaudeRuntime against the real Claude Agent SDK and Claude Code CLI.
+// Covers the shared runtime conformance scenarios, including real context
+// injection, tool gating, subagent critical-op attempts, session handles, and
+// usage/cost capture.
+// Excluded from pnpm test; pnpm test:live runs it only with usable Claude auth.
+// It uses temp sandboxes but depends on real auth, network/model service, local
+// Claude tooling, and spends real tokens.
 
 import * as fs from "node:fs";
 import * as os from "node:os";

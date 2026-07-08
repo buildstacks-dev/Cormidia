@@ -1,13 +1,8 @@
-// Process gates: tests, lint, e2e (build plan M4.3; docs/loop.md §5 rows).
-//
-// Named cases per the Accept line: pass on exit 0; fail captures exit code +
-// bounded output tail; timeout message distinct from an exit failure; lint
-// analogous; e2e skipped (not failed) when unconfigured. Plus the M4.3 drop
-// note: tests/lint unconfigured FAIL loudly (the predecessor's silent pass
-// is gone, loop.md §1).
-//
-// Real subprocesses against the real M4.1 worktree fixture — no mocks; the
-// gate's job is exactly "subprocess in a worktree".
+// Tests process quality gates in src/loop/qgates.ts.
+// Covers tests/lint/e2e/setup pass/fail/timeout behavior, output tail capture,
+// whole-process-tree killing, unconfigured-command handling, and default limits.
+// Uses real subprocesses inside temporary git worktrees; no network, auth, real
+// org state, or live clock assumptions are required.
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";

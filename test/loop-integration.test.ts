@@ -1,3 +1,11 @@
+// Tests higher-level loop engine integration across driver, pipelines, verdicts,
+// gates, runlogs, and fake GitHub operations.
+// Covers builder/reviewer/ship-check pipeline wiring, tier and dimension pass
+// selection, malformed-verdict retry/failure, spec-link brief population, and
+// remediation history in fix briefs.
+// Uses temp git/org fixtures, FakeRuntime, and FakeGhOps; no network, auth, real
+// GitHub/org state, or live wall clock is required.
+
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

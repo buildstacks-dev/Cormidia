@@ -1,7 +1,9 @@
-// Brief assembler (build plan M2.3; docs/loop.md §3). The named cases pin
-// the §3 contract: ticket + acceptance criteria verbatim at ANY budget,
-// heading-match spec excerpting under budget pressure, oldest-resolved-first
-// summarization with active material verbatim, and byte-identical output.
+// Tests brief assembly in src/loop/brief.ts.
+// Covers non-negotiable ticket/criteria preservation, spec excerpting, resolved
+// finding and attempt summarization, active/gate material retention, stable
+// output, and token estimation.
+// Uses local markdown fixtures and inline inputs only; no network, auth, real
+// org state, or wall-clock time is required.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

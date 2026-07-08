@@ -1,3 +1,10 @@
+// Tests monthly budget rollups and pause overlays in src/org/budget.ts.
+// Covers current-month spend aggregation, warning thresholds, automatic app
+// pauses, one approval item per overrun, denial acknowledgement, and new-month
+// unpausing.
+// Uses temp telemetry files and a temp approval store; no network, auth, real
+// org state, or live clock is involved.
+
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

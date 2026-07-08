@@ -1,3 +1,9 @@
+// Tests the approvals CLI surface wired through src/cli.ts and ApprovalStore.
+// Covers empty listings, age formatting, interactive approve/deny input, and
+// showing persisted decisions/grants.
+// Uses a subprocess and temp org homes; it depends on local node tooling only,
+// not network, auth, real org state, or wall-clock time.
+
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";

@@ -1,3 +1,9 @@
+// Tests scorecard persistence in src/org/scorecards.ts.
+// Covers all event kinds, path creation, validation errors, since filtering,
+// and rerun dedupe by turn id.
+// Uses a temp org-home scorecard tree and explicit timestamps; no network,
+// auth, real org state, or live wall clock is required.
+
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {

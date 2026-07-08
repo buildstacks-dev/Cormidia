@@ -1,4 +1,8 @@
-// Run-record ids and path builders (build plan M2.4; docs/loop.md §9).
+// Tests runlog id and path helpers in src/runtime/runlog/paths.ts.
+// Covers UTC run-id formatting, chronological sorting, path-safe sanitization,
+// empty-part rejection, and the standard run directory file layout.
+// Uses inline dates and strings only; no filesystem state, network, auth, or
+// live wall clock is required.
 
 import { sep } from "node:path";
 import { describe, expect, it } from "vitest";

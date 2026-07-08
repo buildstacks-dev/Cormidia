@@ -1,5 +1,8 @@
-// qgates security scan (build plan M4.4): changed-file scanning uses the
-// canonical src/runtime/secret-patterns.ts list and skips binaries.
+// Tests the security quality gate in src/loop/qgates.ts.
+// Covers changed-file secret scanning with the shared secret-pattern list,
+// file:line reporting, binary-file skipping, and clean-diff pass behavior.
+// Uses temporary git repos only; no network, auth, real org state, or wall-clock
+// time is required.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";

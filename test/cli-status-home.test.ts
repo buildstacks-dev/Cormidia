@@ -1,6 +1,8 @@
-// Regression coverage for fix-loopcli: status/analyze must default the org home
-// to ~/.operon/<apps.yaml org name>, matching budget/dispatch/retro — not a
-// hardcoded "operon". Renaming the org in apps.yaml must move status with it.
+// Tests default org-home resolution for status and analyze commands.
+// Covers deriving ~/.operon/<org name> from apps.yaml and honoring explicit
+// --home overrides.
+// Uses module mocks and a stubbed homedir calculation only; no real org state,
+// network, auth, or wall-clock time is required.
 
 import { homedir } from "node:os";
 import { join } from "node:path";

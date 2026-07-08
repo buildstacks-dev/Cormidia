@@ -1,7 +1,9 @@
-// Gate conformance seed. Today this tests the default gate directly; the same
-// cases become the adapter conformance suite — every Runtime must demonstrate
-// that these actions, attempted mid-turn (including by subagents), are
-// blocked and escalated.
+// Tests the default critical-ops classifier and gate policy.
+// Covers production deploys, destructive commands, publishing, secrets/auth,
+// protocol and approval-store tampering, outbound network, self-merge, and
+// routine near-misses.
+// Uses inline ToolAction cases only; no filesystem state, network, auth, or
+// wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import { classify, defaultGate } from "../src/runtime/gate.js";

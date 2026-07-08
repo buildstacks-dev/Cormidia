@@ -1,3 +1,10 @@
+// Tests trigger-to-execution routing in src/org/trigger-routing.ts.
+// Covers standing-role schedules/events, company-lifecycle fan-out, channel
+// gates for Support/Marketing, non-audience exemptions, manual skips, and
+// unknown-route reasons.
+// Uses inline triggers only; no filesystem state, network, auth, or wall-clock
+// time is required.
+
 import { describe, expect, it } from "vitest";
 import { resolveTriggerRoute } from "../src/org/trigger-routing.js";
 import type { Trigger } from "../src/runtime/types.js";

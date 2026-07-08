@@ -1,11 +1,8 @@
-// CodexRuntime strict-output schema transform (live-uncovered bug, 2026-07-06).
-//
-// OpenAI/Codex strict structured outputs reject a response_format json_schema
-// whose object `required` omits any key in `properties`. The loop's build
-// verdict schema legitimately marks `blockedEntry` optional (present only when
-// status="blocked"). toCodexStrictSchema translates the generic verdict schema
-// into the strict form the App Server/OpenAI demand: every property required,
-// originally-optional fields made nullable.
+// Tests Codex strict structured-output schema conversion.
+// Covers requiring every object property, nullable optional fields, recursive
+// object conversion, already-required schemas, and input immutability.
+// Uses repo-local verdict schemas only; no network, auth, real Codex server,
+// org state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import { toCodexStrictSchema } from "../../src/runtime/adapters/codex.js";

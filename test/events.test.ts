@@ -1,3 +1,9 @@
+// Tests event polling and dedupe in src/org/events.ts.
+// Covers GitHub-style event keys, company-event inbox parsing/routing, consumed
+// key filtering, torn consumed files, malformed payload errors, and atomic writes.
+// Uses temp org-home state plus fake event sources; no network, auth, real
+// GitHub/org state, or live clock is required.
+
 import { readdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { dedupKey, EventStore, type GitHubEventSource } from "../src/org/events.js";

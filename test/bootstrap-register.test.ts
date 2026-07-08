@@ -1,5 +1,8 @@
-// Bootstrap register/join path (M3.5): second-app bootstrap joins an existing
-// org home by appending to apps.yaml, never by emitting a parallel org.
+// Tests the existing-org register/join path for bootstrap.
+// Covers org-home discovery, appending to apps.yaml without disturbing existing
+// entries, duplicate detection, rollback on malformed appends, and CLI output.
+// Temp directories stand in for org homes and app repos; no network, auth, real
+// org state, or wall-clock time is required.
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";

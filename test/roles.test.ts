@@ -1,3 +1,9 @@
+// Tests the real root roles.yaml through src/org/roles.ts.
+// Covers required role/default parsing, non-empty triggers/outputs, and the
+// product invariant that builder and reviewer use different provider families.
+// Reads repo-local config only; no network, auth, real org state, or wall-clock
+// time is required.
+
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadRoles } from "../src/org/roles.js";

@@ -1,3 +1,9 @@
+// Tests app checkout resolution in src/org/app-workdir.ts.
+// Covers explicit workdirs, managed runtime clones, sibling checkout discovery,
+// repo-basename fallbacks, and actionable errors when nothing exists.
+// Uses only temporary directories with fake .git markers; no network, auth,
+// real org state, or wall-clock time is involved.
+
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

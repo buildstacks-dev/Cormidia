@@ -1,7 +1,9 @@
-// The real root pipelines.yaml loads through the M2.1 loader (M2.2 accept).
-// Beyond load-validity, these cases pin the ratified config's *intent* —
-// which passes a tier or trigger selects — so a pipelines.yaml edit that
-// silently changes protocol behavior fails here, not in production.
+// Tests the real root pipelines.yaml against roles.yaml and prompts/.
+// Covers the expected pipeline set, tier-specific pass selection, review and
+// ship conditions, builder/reviewer ownership, plan parallelism, and standing
+// role pipeline ownership.
+// Reads repo-local protocol files only; no network, auth, real org state, or
+// wall-clock time is required.
 
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";

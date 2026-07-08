@@ -1,10 +1,9 @@
-// ClaudeRuntime per-turn budget guard + telemetry flow (build plan M1.3).
-// SDK mocked throughout — the budget cap itself is enforced by the CLI as a
-// running mid-turn guard (`--max-budget-usd` → `error_max_budget_usd`
-// result); these tests pin the adapter's side of the contract: the cap is
-// passed from the role, an overrun maps to failed + exactly one
-// incident-note artifact, and real (not placeholder) usage flows through
-// TurnResult into telemetry's toRecord.
+// Tests ClaudeRuntime budget and usage telemetry behavior with the SDK mocked.
+// Covers passing the role budget cap to the SDK, over-budget failure and incident
+// note creation, under-budget completion, real cost attribution, and telemetry
+// record conversion.
+// Uses injectable SDK messages only; no API key, network, real org state, or
+// wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import type { Options as SdkOptions, SDKMessage } from "@anthropic-ai/claude-agent-sdk";

@@ -1,3 +1,9 @@
+// Tests clean restart recovery in src/org/recovery.ts.
+// Covers removing uncommitted edits and untracked files from a real temporary
+// git repo via restartClean.
+// makeWorkingRepo supplies all git state locally; no network, auth, real org
+// state, or wall-clock time is required.
+
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

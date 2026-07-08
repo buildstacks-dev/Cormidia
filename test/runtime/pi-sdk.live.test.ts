@@ -1,9 +1,9 @@
-// PiRuntime LIVE smoke (M10): real @earendil-works/pi-coding-agent SDK.
-//
-// This spends real provider quota through pi's auth/model registry. It is
-// opt-in: set OPERON_PI_LIVE=1 and ensure the selected provider has auth in
-// ~/.pi/agent/auth.json or equivalent environment. `pnpm test:live` includes
-// this file and skips it unless the opt-in and model auth are present.
+// Live-smokes PiRuntime against the real @earendil-works/pi-coding-agent SDK.
+// Covers model resolution, provider auth detection, no-tool turn completion,
+// and a returned pi session handle.
+// Excluded from pnpm test; pnpm test:live runs it only when OPERON_PI_LIVE=1
+// and model auth is configured. It uses a temp workdir but depends on real pi
+// auth/provider state and may spend provider quota.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

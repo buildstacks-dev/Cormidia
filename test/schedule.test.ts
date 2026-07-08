@@ -1,3 +1,9 @@
+// Tests schedule grammar and the file-backed ScheduleStore.
+// Covers hourly/daily/weekly/every-N-minute due calculations, missed-window
+// collapse, inclusive boundaries, and explicit last-fired persistence.
+// Uses FakeClock and a temp org-home state tree; no network, auth, real org
+// state, or live wall clock is required.
+
 import { describe, expect, it } from "vitest";
 import { isDue, nextFireAfter, ScheduleStore } from "../src/org/schedule.js";
 import { FakeClock } from "./fixtures/fakeClock.js";

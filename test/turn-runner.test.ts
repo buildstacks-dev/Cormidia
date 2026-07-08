@@ -1,3 +1,10 @@
+// Tests dispatched turn execution in src/org/turn-runner.ts.
+// Covers managed clones, composed approval gates, journals, telemetry, planner
+// digest context, app git-lock serialization, loop scorecard persistence, and
+// replay dedupe.
+// Uses temp git/org fixtures, FakeRuntime, and FakeGhOps; no network, auth,
+// real GitHub/org state, or live wall clock is required.
+
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";

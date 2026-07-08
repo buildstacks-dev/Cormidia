@@ -1,7 +1,8 @@
-// Conformance seed for the canonical scriptable Runtime double (build plan
-// M0.2). Every later test that needs a Runtime with zero SDK/network
-// dependency scripts against this same class — see
-// src/runtime/testing/fakeRuntime.ts.
+// Tests the scriptable FakeRuntime double in src/runtime/testing/fakeRuntime.ts.
+// Covers scripted result ordering, gate escalation, subagent event/gate order,
+// large task transport, call recording, and clear over-call errors.
+// Uses in-memory scripts only; no SDK, network, auth, filesystem fixture, real
+// org state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import { FakeRuntime, type ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";

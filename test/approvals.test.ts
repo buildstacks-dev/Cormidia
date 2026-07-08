@@ -1,3 +1,9 @@
+// Tests the file-backed approval store in src/org/approvals.ts.
+// Covers raising pending approvals, approving/denying decisions, grant minting,
+// crash-torn approval recovery, and reconcile idempotency.
+// Uses makeOrgHome only as a disposable temp filesystem fixture; no real org
+// state, network, auth, or wall-clock time is required.
+
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

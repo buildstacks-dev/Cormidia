@@ -1,6 +1,9 @@
-// runRole — manual role turn as a synthesized one-pass pipeline (build plan
-// M2.9). Dry-run constructs no Runtime; live runs go through the M2.8
-// executor (full run record) and are gated by default.
+// Tests manual role turns in src/loop/runRole.ts and the run-role CLI.
+// Covers dry-run brief construction, one-pass pipeline execution, runlog output,
+// context passthrough, optional templates, default gating, and missing-runtime
+// errors.
+// Uses FakeRuntime, temp runlogs/templates, and local CLI subprocesses; no
+// network, auth, real org state, or live wall clock is required.
 
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

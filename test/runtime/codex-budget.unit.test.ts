@@ -1,11 +1,9 @@
-// CodexRuntime per-turn budget guard + estimated-cost telemetry (GAP C).
-// App Server is mocked throughout. The App Server reports token usage but NO
-// dollar cost, so Operon estimates cost from documented per-token list prices
-// (research/2026-07-05_model-id-verification.md) and enforces the per-turn
-// cap against that running estimate. These tests pin the adapter's side of
-// the contract: cost is estimated (not a placeholder $0), an overrun maps to
-// failed + exactly one incident-note artifact, the App Server turn is stopped
-// (client closed), and real token usage still flows into TurnUsage.
+// Tests CodexRuntime estimated-cost budgets and telemetry with App Server mocked.
+// Covers documented model pricing, conservative unknown-model pricing, cost
+// estimation, under/over-budget turns, client closure on overrun, incident notes,
+// and telemetry cost attribution.
+// Uses a fake App Server client only; no network, auth, real Codex server, org
+// state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import {

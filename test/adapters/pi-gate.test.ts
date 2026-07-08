@@ -1,3 +1,9 @@
+// Tests the pi gate extension in src/runtime/adapters/pi-gate.ts.
+// Covers pi tool-input normalization, routine allow behavior, critical-action
+// blocking/escalation, and subagent event ordering before the gate.
+// Uses inline extension events only; no pi SDK session, network, auth, filesystem
+// state, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import { createPiGateExtension, normalizePiToolAction } from "../../src/runtime/adapters/pi-gate.js";
 import { defaultGate } from "../../src/runtime/gate.js";

@@ -1,7 +1,9 @@
-// ClaudeRuntime unit tests (build plan M1.2) — the SDK is mocked via the
-// adapter's injectable QueryFn; these run with no API key, no CLI, no
-// network. The live half of M1.2 (real SDK, real subagent, real gate
-// denial) lives in test/runtime/claude-sdk.live.test.ts.
+// Tests the Claude runtime adapter with the Claude SDK mocked.
+// Covers SDK option mapping, hermetic settings, gate hooks/canUseTool, subagent
+// event ordering, system context assembly, resume handling, result/usage mapping,
+// large task transport, normalization helpers, and base-option precedence.
+// Uses injectable QueryFn messages only; no API key, CLI, network, real org
+// state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import type { Options as SdkOptions, SDKMessage } from "@anthropic-ai/claude-agent-sdk";

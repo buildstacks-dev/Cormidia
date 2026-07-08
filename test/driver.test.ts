@@ -1,3 +1,9 @@
+// Tests the loop driver helpers in src/loop/driver.ts.
+// Covers plan-only ticket phase reporting and quality-gate command discovery,
+// including package-script fallbacks and setup_command loading.
+// FakeGhOps and temp repos provide all state locally; no network, auth, real
+// GitHub state, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -1,6 +1,8 @@
-// Regression coverage for run-role flag parsing (fix-loopcli): omitted or
-// flag-shaped values for --app/--turn/etc must fail loudly instead of being
-// silently dropped or swallowing the next flag (e.g. --dry-run as an app name).
+// Tests run-role CLI flag parsing in src/cli/run-role.ts.
+// Covers missing values and flag-shaped values for --app and --turn so they
+// fail loudly instead of being swallowed as arguments.
+// Calls the command handler directly; no filesystem fixture, network, auth,
+// real org state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import { cmdRunRole } from "../src/cli/run-role.js";

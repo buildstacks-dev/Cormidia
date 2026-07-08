@@ -1,5 +1,9 @@
-// Planner co-planning launcher (M3.6): minimal context, Claude invocation,
-// planning worktree lifecycle, and dry-run CLI output.
+// Tests the planner co-planning launcher in src/org/plan.ts and cmdPlan.
+// Covers planning context assembly, Claude invocation arguments, temporary
+// planning worktree creation/cleanup, dry-run output, and sibling checkout
+// resolution.
+// Uses local temp git repos and mocked console output; no network, auth, real
+// org state, or live wall clock is required.
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

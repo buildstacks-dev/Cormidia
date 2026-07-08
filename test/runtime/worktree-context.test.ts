@@ -1,3 +1,9 @@
+// Tests runtime worktree context helpers.
+// Covers rendering taste/memory bundles, writing masked context files, recording
+// git exclude entries once, and rejecting absolute or escaping paths.
+// Uses temporary local git repos only; no network, auth, real org state, or
+// wall-clock time is required.
+
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { makeWorkingRepo } from "../fixtures/gitRepo.js";

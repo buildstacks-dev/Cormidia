@@ -1,12 +1,9 @@
-// Typed verdicts + lenient parser + reformat retry (build plan M4.6;
-// docs/loop.md §6, §10).
-//
-// The leniency cases mirror the predecessor's hard-won parser
-// (orchestrator/state.py): three status formats, unicode or ASCII finding
-// delimiters, case-normalized vocabulary. The strictness cases pin our
-// deliberate deviations: near-miss finding lines fail LOUDLY (never a silent
-// drop), and `perf` is not a finding category (M2.2's deferred question,
-// settled per prompts/review/perf.md).
+// Tests typed verdict parsing, validation, and retry logic in src/loop/verdicts.ts.
+// Covers lenient review/build/contract formats, strict malformed-line failures,
+// category/severity/complexity validation, one-shot reformat retry, structured
+// schema validation, null optional fields, and TurnRequest schema compatibility.
+// Uses inline verdict text and objects only; no filesystem state, network, auth,
+// or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import type { TurnRequest } from "../src/runtime/types.js";

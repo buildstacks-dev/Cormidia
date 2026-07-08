@@ -1,11 +1,8 @@
-// Per-app / per-trigger telemetry attribution (build plan M3.2).
-//
-// TurnRecord gained optional `app` and `trigger` fields so co-planning and
-// dispatched turns roll up per app (docs/architecture.md §7 budget rollup,
-// §8 `trigger: manual`). The contract pinned here is strict back-compat:
-// when no attribution is passed, the keys are ABSENT from the record and
-// from the serialized JSONL line — not present-as-null/undefined — so
-// pre-M3.2 telemetry files and new unattributed lines have the same shape.
+// Tests turn telemetry conversion and JSONL persistence in src/runtime/telemetry.ts.
+// Covers app/trigger attribution, back-compatible omission when absent, cache
+// token fields, partial attribution, and serialized recordTurn output.
+// makeOrgHome supplies a disposable telemetry directory and timestamps are
+// explicit; no network, auth, real org state, or live clock is required.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

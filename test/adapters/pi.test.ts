@@ -1,3 +1,10 @@
+// Tests the pi runtime adapter with the pi SDK mocked.
+// Covers model resolution, thinking-level mapping, native context file writing,
+// session options, gate-extension installation, delegation degradation notes,
+// and the shared runtime conformance suite.
+// Uses temp repos and in-memory pi doubles; no network, auth, real pi state, or
+// live wall clock is required.
+
 import { mkdtempSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -1,7 +1,8 @@
-// App registry loader (M3.1) — apps.yaml validation + resolveTriggers
-// semantics (docs/architecture.md §2, §7): cadence overrides REPLACE a
-// role's roles.yaml triggers, an empty list disables the role, no override
-// falls back.
+// Tests the app registry loader and trigger override behavior in src/org/apps.ts.
+// Covers apps.yaml validation, default budgets, root registry parsing, manual
+// triggers, and the rule that cadence overrides replace role triggers.
+// Temp YAML files are just parser fixtures; the root apps.yaml assertion reads
+// repo-local config but uses no network, auth, or real org runtime state.
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

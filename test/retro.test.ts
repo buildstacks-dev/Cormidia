@@ -1,3 +1,10 @@
+// Tests retro reporting and memory curation in src/org/retro.ts plus cmdRetro.
+// Covers weekly telemetry/scorecard aggregation, CLI path output, duplicate
+// lesson merging, contradicted lesson deletion, skill drafts, and protocol-file
+// non-mutation.
+// Uses temp org homes and mocked console output; no network, auth, real org
+// state, or live clock is required.
+
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";

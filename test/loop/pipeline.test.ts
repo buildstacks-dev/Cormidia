@@ -1,6 +1,9 @@
-// Pass executor (build plan M2.8) — cross-cutting integration of the M2
-// pieces: pipelines (M2.1), briefs as task input, run records (M2.5–M2.7),
-// all against the scripted FakeRuntime (M0.2). docs/loop.md §2, §4, §9.
+// Tests the pass executor in src/loop/pipeline.ts.
+// Covers sequential and parallel pass execution, task/template assembly,
+// per-pass overrides, gate propagation, runlog records, tool/subagent event
+// bridging, anomaly inputs, and abort-on-failed-pass behavior.
+// Uses FakeRuntime, FakeClock, local prompt fixtures, and temp runlogs; no
+// network, auth, real org state, or live wall clock is required.
 
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

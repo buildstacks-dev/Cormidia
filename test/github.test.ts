@@ -1,3 +1,9 @@
+// Tests the GitHub CLI adapter in src/loop/github.ts using an injected gh exec.
+// Covers labels, PR creation/listing/merge parsing, comments/reviews, branch
+// deletion, same-account approval fallback signing, and error propagation.
+// The gh calls are all mocked in memory; no network, auth, real GitHub state,
+// filesystem fixture, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import {
   GhCliOps,

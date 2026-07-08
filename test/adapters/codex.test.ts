@@ -1,3 +1,10 @@
+// Tests the Codex runtime adapter against a mocked App Server.
+// Covers thread start/resume, context/options mapping, command and patch
+// approval gating, MCP elicitation decline, token accumulation, patch action
+// normalization, and the shared runtime conformance suite.
+// Fake clients provide all server messages locally; no network, auth, real
+// Codex server, org state, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import { runConformanceSuite } from "../conformance/harness.js";
 import type { ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";

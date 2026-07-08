@@ -1,3 +1,10 @@
+// Tests the real planning and standing-role pipelines through executePipeline.
+// Covers competing PM parallelism, prior-output handoff to decomposer, one-pass
+// standing pipelines, and template invariants for planner/SRE/support/marketing
+// outputs.
+// Uses FakeRuntime, temp runlogs, and repo-local protocol files; no network,
+// auth, real org state, or wall-clock time is required.
+
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";

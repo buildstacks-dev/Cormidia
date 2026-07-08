@@ -1,7 +1,8 @@
-// Company-lifecycle file-drop routing + channel gating on the real dispatch
-// path (GAP B, GAP E). Uses the repo's real roles.yaml so the roles.yaml
-// event-subscription edits are exercised end-to-end, and a synthetic apps.yaml
-// so channel presence can be toggled per case.
+// Tests company-lifecycle file-drop routing on the real dispatch path.
+// Covers Support/Marketing/Planner/SRE fan-out, malformed payload reporting,
+// no-subscriber skips, and channel-presence gating.
+// Uses temp inboxes and synthetic apps.yaml with repo-local roles.yaml; no
+// network, auth, real org state, or live clock is required.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";

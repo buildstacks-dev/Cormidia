@@ -1,3 +1,9 @@
+// Tests runlog anomaly detection and the analyze CLI.
+// Covers explicit threshold boundaries, clean runs, adjacent-pass cold-cache
+// detection, and formatted CLI recommendations.
+// Uses seeded temp runlog records and mocked console output; no network, auth,
+// real org state, or live wall clock is required.
+
 import { describe, expect, it, vi } from "vitest";
 import { cmdAnalyze } from "../src/cli/analyze.js";
 import { analyzeRunlogs, detectRunAnomalies } from "../src/runtime/runlog/anomalies.js";

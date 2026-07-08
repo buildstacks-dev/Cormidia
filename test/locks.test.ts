@@ -1,3 +1,9 @@
+// Tests app-role turn locks in src/org/locks.ts.
+// Covers exclusive acquisition, failed second acquisition, heartbeat updates,
+// stale detection, release, and reacquisition.
+// Uses a temp org-home state tree and explicit Date values; no network, auth,
+// real org state, or live wall clock is required.
+
 import { describe, expect, it } from "vitest";
 import { acquireLock, heartbeatLock, isStale, releaseLock } from "../src/org/locks.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";

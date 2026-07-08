@@ -6,16 +6,28 @@ a private GitHub repo, with a human approver gating critical operations only.
 
 ```mermaid
 flowchart TD
-    T["Timer tick (~5 min)"] --> D["Dispatcher<br/>reads roles, apps, schedule state, events"]
+    T["⏱ Timer tick (~5 min)<br/><b>start here</b>"] --> D["Dispatcher<br/>polls GitHub + grants;<br/>re-queues blocked turns first"]
     D -->|"for each due (role, app)"| R["Turn runner<br/>assembles context, cuts worktree"]
-    R --> A["Runtime adapter<br/>claude | codex | pi"]
-    A -->|"every tool action"| G{"Critical-ops gate"}
-    G -->|"routine op"| GH[("GitHub<br/>issues, PRs, reviews, merges")]
-    G -->|"critical op"| Q["Approval queue"]
-    Q --> H["Human approver"]
-    H -->|"grant / deny"| D
-    GH -->|"events polled next tick"| D
+    R --> A["Runtime adapter<br/>claude · codex · pi"]
+    A -->|"each tool action"| G{"Critical-ops gate<br/>classify"}
+    G -->|"routine (or grant on file)"| GH[("GitHub<br/>issues, PRs, reviews")]
+    G -->|"critical, no grant"| B["Turn ends blocked_on_gate<br/>→ approval queue"]
+    B --> H["Human approver"]
+    H -->|"grant / deny"| N["↻ Next tick<br/>Dispatcher re-runs the turn"]
+    GH -->|"polled next tick"| N
 ```
+
+The flow is a single loop, read top to bottom: the **Timer tick** wakes the
+**Dispatcher**, which runs due turns through the adapter and gate, then the
+`↻ Next tick` node folds back to the Dispatcher on the following tick — grants
+and freshly-polled GitHub events are both picked up there.
+
+The gate classifies *every* tool action; only ops matching a critical rule are
+blocked. A blocked op does not resume in place — the turn ends `blocked_on_gate`,
+the human's grant writes a single-use grant file, and the **next dispatcher tick
+re-runs that turn first**, where the gate now finds the grant and lets the op
+through. The org's own squash-merge is a separate path, gated by HMAC review
+authorization rather than this gate.
 
 Read [`docs/PURPOSE.md`](docs/PURPOSE.md) for the why and every decision made so far;
 [`TASTE.md`](TASTE.md) is the org's constitution;

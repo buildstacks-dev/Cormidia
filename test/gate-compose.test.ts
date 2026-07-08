@@ -1,3 +1,9 @@
+// Tests grant-aware composition around the default critical-ops gate.
+// Covers one-use approval grants, grant consumption, expired grants, mismatched
+// action hashes, and re-escalation through the base gate.
+// Uses a temp approval store only; no network, auth, real org state, or live
+// clock is required.
+
 import { describe, expect, it } from "vitest";
 import { ApprovalStore } from "../src/org/approvals.js";
 import { composeGate } from "../src/org/gate-compose.js";

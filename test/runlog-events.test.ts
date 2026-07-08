@@ -1,6 +1,9 @@
-// L2 structured events (build plan M2.6; docs/loop.md §9): correlation ids
-// on every line, tool.called without raw args, subagent span nesting,
-// torn-append tolerance, infra-vs-merit code separation.
+// Tests L2 structured event logging in src/runtime/runlog/events.ts.
+// Covers correlation fields, tool.called hashing without raw args, secret
+// scrubbing, subagent span nesting, torn-append tolerance, and infra-vs-merit
+// error coding.
+// Uses temp runlog directories and FakeClock; no network, auth, real org state,
+// or live wall clock is required.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

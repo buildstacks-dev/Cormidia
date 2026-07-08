@@ -1,6 +1,8 @@
-// Redaction helpers + the canonical secret-pattern list (build plan M2.4;
-// docs/loop.md §9 redaction rules, §5 secret families). M4.4's qgates scan
-// imports the SAME pattern module — a second list anywhere is a bug.
+// Tests runlog redaction helpers and the canonical secret-pattern list.
+// Covers every supported secret family, benign near-misses, stateless regexes,
+// preview truncation, newline collapse, and deterministic argument hashing.
+// Uses inline strings only; no filesystem state, network, auth, or wall-clock
+// time is required.
 
 import { describe, expect, it } from "vitest";
 import { hashArgs, scrubSecrets, truncatePreview } from "../src/runtime/runlog/redact.js";

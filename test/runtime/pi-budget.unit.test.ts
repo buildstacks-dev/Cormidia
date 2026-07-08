@@ -1,11 +1,8 @@
-// PiRuntime per-turn budget guard (GAP C). pi's SDK is mocked throughout.
-// pi reports real cost but has no native running-budget knob, so Operon polls
-// the running cost at each pi turn boundary and, once it crosses the cap,
-// aborts the session gracefully. These tests pin the adapter's side of the
-// contract, mirroring ClaudeRuntime: an overrun maps to failed + exactly one
-// incident-note artifact, the session is aborted (no further pi turns run),
-// and usage is still reported. A defensive final-cost check covers the case
-// where a single turn jumps past the cap with no later boundary to catch it.
+// Tests PiRuntime budget enforcement with the pi SDK mocked.
+// Covers under-budget completion, over-budget aborts, exact-cap semantics,
+// incident-note creation, usage attribution, and defensive final-cost checks.
+// Uses fake pi sessions and temp agent dirs only; no network, auth, real pi
+// state, real org state, or live wall clock is required.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

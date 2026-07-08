@@ -1,6 +1,8 @@
-// Conformance seed for the CLI dispatch table (M0.1). Exercises the built
-// entrypoint end-to-end so a new subcommand file that forgets its registry
-// line, or a broken default case, shows up here.
+// Tests the top-level CLI dispatch table through the real src/cli.ts entrypoint.
+// Covers help/unknown-command behavior and smoke checks for roles, apps,
+// pipelines, bootstrap, new-app dry runs, doctor, and loop argument validation.
+// Uses subprocesses and temp dirs with local repo files; no network, auth, real
+// org state, or wall-clock dependence is expected.
 
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

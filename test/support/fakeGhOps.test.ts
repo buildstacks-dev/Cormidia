@@ -1,3 +1,9 @@
+// Tests the FakeGhOps support double used by loop tests.
+// Covers label preconditions, PR listing, real local squash-merge behavior, issue
+// closing, and remote branch deletion.
+// Uses temporary local git repos only; no network, auth, real GitHub state,
+// real org state, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import { makeBareWithClone } from "../fixtures/gitRepo.js";
 import { FakeGhOps } from "./fakeGhOps.js";

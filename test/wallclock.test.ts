@@ -1,3 +1,9 @@
+// Tests pass turn caps and wall-clock recovery behavior.
+// Covers max_turns propagation, default and per-pass wall-clock caps, killing
+// hung turns, recovery respawn/deferral, and backwards-compatible journals.
+// Uses temp org state, FakeRuntime, and injected kill/pid hooks; no network,
+// auth, real org state, or live wall clock is required.
+
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

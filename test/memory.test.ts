@@ -1,3 +1,9 @@
+// Tests OKF memory parsing, selection, and writing in src/org/memory.ts.
+// Covers frontmatter validation, keyword excerpt selection, malformed-doc
+// tolerance, byte caps, INDEX updates, overwrite, and deprecation behavior.
+// makeOrgHome supplies disposable memory directories; no network, auth, real
+// org state, or live wall clock is required.
+
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

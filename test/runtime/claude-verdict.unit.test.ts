@@ -1,7 +1,8 @@
-// TurnRequest.verdictSchema → SDK-native structured output (build plan
-// M1.4). SDK mocked. The schema is a JSON-schema-shaped bag at this layer;
-// verdict types belong to src/loop/verdicts.ts (M4.6), and the
-// native-vs-parser reconciliation is verified in M6.2 — not assumed here.
+// Tests ClaudeRuntime structured-output option mapping.
+// Covers translating TurnRequest.verdictSchema to SDK outputFormat, omitting it
+// when absent, and preserving baseOptions outputFormat when no schema is given.
+// Uses mocked SDK messages only; no API key, network, real org state, or
+// wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
 import type { Options as SdkOptions, SDKMessage } from "@anthropic-ai/claude-agent-sdk";

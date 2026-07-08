@@ -1,3 +1,9 @@
+// Tests context assembly across org, role, app, memory, and loop brief layers.
+// Covers taste ordering, omitted role addenda, capped memory excerpts, and
+// rendering selected memory into the brief.
+// makeOrgHome and makeAppRepo are disposable local fixtures; no network, auth,
+// real org state, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import { assembleContext } from "../src/org/context.js";
 import { assembleBrief } from "../src/loop/brief.js";

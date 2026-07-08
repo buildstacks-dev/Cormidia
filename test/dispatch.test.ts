@@ -1,3 +1,10 @@
+// Tests the dispatcher tick in src/org/dispatch.ts.
+// Covers scheduled and event-triggered spawning, WIP limits, lock/recovery
+// accounting, budget pauses, cadence overrides, post-spawn failure handling,
+// and torn lock tolerance.
+// Uses temp org homes, synthetic roles/apps YAML, and fake event sources only;
+// no network, auth, real org state, or live clock is required.
+
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

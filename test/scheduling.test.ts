@@ -1,3 +1,9 @@
+// Tests ticket selection in src/loop/scheduling.ts.
+// Covers dependency blocking, scope-conflict avoidance, cap enforcement, and
+// independent ready-ticket selection.
+// Uses inline ticket records only; no filesystem fixture, network, auth, real
+// org state, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import { selectReadyTickets } from "../src/loop/scheduling.js";
 

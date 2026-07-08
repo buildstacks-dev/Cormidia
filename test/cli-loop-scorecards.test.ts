@@ -1,3 +1,9 @@
+// Tests loop scorecard persistence used by the manual loop CLI path.
+// Covers writing builder review-cycle rows, replay dedupe by turn id, and
+// no-op behavior when the loop returns no events.
+// makeOrgHome is only a disposable scorecard filesystem; no network, auth,
+// real org state, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import { persistLoopScorecards } from "../src/cli/loop.js";
 import { readScorecards } from "../src/org/scorecards.js";

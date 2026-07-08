@@ -1,3 +1,8 @@
+// Tests company-lifecycle event payload parsing in src/org/event-schemas.ts.
+// Covers every supported file-drop kind and rejects unknown kinds loudly.
+// Uses inline objects only; no filesystem fixture, network, auth, real org
+// state, or wall-clock time is required.
+
 import { describe, expect, it } from "vitest";
 import { parseCompanyLifecycleEvent } from "../src/org/event-schemas.js";
 

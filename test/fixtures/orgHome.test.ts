@@ -1,8 +1,9 @@
-// Proves the M0.3 fixture: each sub-builder works alone, sub-builders
-// compose without leaking into each other, cleanup() is total, and
-// FakeClock's now()/advance() are deterministic. This is the fixture's own
-// test — later suites (memory, dispatcher, approvals, runlog) consume
-// `makeOrgHome`/`makeAppRepo` without re-proving any of this.
+// Tests the org-home, app-repo, and fake-clock fixtures themselves.
+// Covers every sub-builder (taste, memory, state, approvals, runs, org profile),
+// fixture composition/isolation, cleanup idempotency, path helpers, YAML output,
+// and deterministic clock operations.
+// Uses temp directories only; no network, auth, real org state, or live wall
+// clock is required.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";

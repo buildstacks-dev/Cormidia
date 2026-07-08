@@ -1,9 +1,9 @@
-// Proves the M4.1 git fixture: real-git tests with zero network. Named
-// cases per the build plan's Accept: clean init; commit visible in log;
-// changedFiles correct between two commits; bare/clone pair supports push +
-// merge into origin main observable via `git log`; cleanup removes both.
-// Later suites (qgates M4.3–M4.5, FakeGhOps sandbox M5.2) consume
-// `makeWorkingRepo`/`makeBareWithClone` without re-proving any of this.
+// Tests the git repository fixtures used by loop and gate tests.
+// Covers clean initialization, commits/logs, changed-file detection, nested
+// writes, empty-commit errors, bare/clone push and squash-merge behavior,
+// remote branch deletion, and cleanup idempotency.
+// Uses real local git repositories in temp dirs; no network, auth, real GitHub
+// state, org state, or wall-clock time is required.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";

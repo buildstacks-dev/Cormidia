@@ -1,5 +1,8 @@
-// L1 envelope lifecycle (build plan M2.5; docs/loop.md §9). Uses the M0.3
-// org-home fixture + M2.4 run paths; the clock is always explicit.
+// Tests the L1 run envelope lifecycle in src/runtime/runlog/envelope.ts.
+// Covers start/update/finalize/read behavior, usage merging, preview redaction,
+// L3 references, terminal-state protection, and invalid-envelope rejection.
+// Uses temp runlog directories with explicit clocks; no network, auth, real org
+// state, or live wall clock is required.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

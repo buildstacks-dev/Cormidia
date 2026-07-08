@@ -1,3 +1,9 @@
+// Tests turn journal persistence and recovery decisions in src/org/journal.ts.
+// Covers atomic patch-merge writes, listing with torn-file tolerance, and
+// resume/restart/recollect/fail decisions around attempts and sessions.
+// Uses temp org-home state only; no network, auth, real org state, or live
+// clock is required.
+
 import { readdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { decideRecovery, listJournals, readJournal, writeJournalPatch } from "../src/org/journal.js";

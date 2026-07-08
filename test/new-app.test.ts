@@ -1,5 +1,8 @@
-// `operon new-app` greenfield bootstrap: create a product repo skeleton, emit
-// app-owned `.operon/` artifacts, and register the app in an existing org home.
+// Tests greenfield app creation in src/org/new-app.ts.
+// Covers scaffolded product files, app-owned .operon artifacts, setup/test/lint
+// commands, channel registration, dry-run reporting, and non-empty target refusal.
+// Uses temp target/org directories only; no network, auth, real org state, or
+// wall-clock time is required.
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";

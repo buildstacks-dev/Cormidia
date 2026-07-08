@@ -1,9 +1,9 @@
-// CodexRuntime LIVE smoke (M10): real @openai/codex App Server over stdio.
-//
-// This spends real OpenAI/ChatGPT account quota and depends on local Codex
-// auth. It is opt-in: set OPERON_CODEX_LIVE=1 to run. The fast suite excludes
-// *.live.test.ts entirely; `pnpm test:live` includes this file and reports it
-// as skipped unless explicitly enabled.
+// Live-smokes CodexRuntime against the real @openai/codex App Server over stdio.
+// Covers a no-tool turn, Codex thread handle creation, and adapter completion
+// with the live local Codex stack.
+// Excluded from pnpm test; pnpm test:live runs it only when OPERON_CODEX_LIVE=1.
+// It uses a temp workdir but depends on real Codex auth/local tooling and may
+// spend OpenAI or ChatGPT account quota.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -1,5 +1,8 @@
-// Data gates and tier orchestrator (build plan M4.5): completeness,
-// review-freshness, policy gate ordering, and remediation attempt caps.
+// Tests data gates and gate orchestration in src/loop/qgates.ts.
+// Covers acceptance completeness, unresolved findings, review freshness, tiered
+// gate ordering, setup short-circuiting, and remediation attempt exhaustion.
+// Uses temporary git repos and inline policy data; no network, auth, real org
+// state, or wall-clock time is required.
 
 import { afterAll, describe, expect, it } from "vitest";
 import type { Policy } from "../src/loop/policy.js";

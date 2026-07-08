@@ -1,8 +1,8 @@
-// policy.yaml schema, template, tier resolution (build plan M4.2;
-// docs/loop.md §5 table + defaults, §4 tiering axes).
-//
-// The default template (docs/policy.yaml.template) is loaded through the
-// real loader — it must stay a valid, predecessor-mirroring policy.
+// Tests policy.yaml loading and gate-selection helpers in src/loop/policy.ts.
+// Covers the real default template, tier resolution, dimension matching,
+// immutable gate lists, schema validation, defaults, and clear rejection paths.
+// Temp YAML files are parser fixtures; no network, auth, real org state, or
+// wall-clock time is required.
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

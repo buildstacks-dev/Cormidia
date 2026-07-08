@@ -1,9 +1,9 @@
-// `operon bootstrap` — questionnaire + app charter/config emission (M3.4):
-// answers (docs/architecture.md §9 step 2) become `.operon/TASTE.md` (the
-// product charter, TASTE layer [3]), `.operon/config.yaml` (the app's
-// registry entry, apps.yaml schema), `.operon/policy.yaml` (app-owned gate
-// policy), and one seeded OKF memory bundle per enabled role. bootstrapRun
-// composes the org half (M3.3) with this app half.
+// Tests bootstrap answer parsing plus app-owned artifact emission.
+// Covers questionnaire defaults and validation, .operon/TASTE.md/config/policy
+// generation, onboarding reports, role memory indexes, full bootstrapRun, and
+// scripted interactive input.
+// Uses temp repos, injected streams, and repo-local templates only; no network,
+// auth, real org state, or wall-clock time is required.
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";

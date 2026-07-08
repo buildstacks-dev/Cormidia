@@ -1,3 +1,9 @@
+// Tests the doctor CLI checks for scheduler install state and config health.
+// Covers launchd plist linting, installed/not-installed messaging, parsing real
+// repo config surfaces, and failing clearly when config is absent.
+// Uses temp directories and one repo-local plist/config read; no network, auth,
+// real org state, or meaningful wall-clock dependence is required.
+
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

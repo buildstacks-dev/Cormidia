@@ -1,5 +1,9 @@
-// pipelines.yaml loader + selection semantics (build plan M2.1). Fixtures
-// only — the real root pipelines.yaml is M2.2's proposal PR.
+// Tests pipeline loading and selection helpers in src/loop/pipelines.ts.
+// Covers fixture YAML parsing, role/template validation, unknown-key rejection,
+// tier/risk/label/dimension pass selection, mechanical pipeline rules, and
+// parallel stage grouping.
+// Uses temp YAML and local prompt fixtures only; no network, auth, real org
+// state, or wall-clock time is required.
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

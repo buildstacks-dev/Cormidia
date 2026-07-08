@@ -1,8 +1,9 @@
-// `operon bootstrap` — non-interactive half (M3.3): scanRepo() learns a
-// target repo (docs/architecture.md §9 step 1); emitOrgTemplates() emits the
-// single-app-profile .operon/org/ skeleton (step 3) templated from this
-// repo's root files (PURPOSE v0.8 dogfood note: the root TASTE.md/roles.yaml
-// ARE the templates, so emission must be byte-identical).
+// Tests the non-interactive bootstrap path in src/org/bootstrap.ts and the
+// bootstrap CLI wrapper.
+// Covers repo scanning, command/doc detection, org template emission, scan-only
+// output, overwrite refusal, and byte-identical root template copying.
+// Uses synthetic temp repos plus repo-local template files; no network, auth,
+// real org state, or wall-clock time is required.
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";

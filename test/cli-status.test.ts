@@ -1,3 +1,9 @@
+// Tests runlog status reading/formatting and the status CLI wrapper.
+// Covers newest-first ordering, limit handling, corrupt envelope surfacing,
+// in-progress run skipping, estimated-cost display, and documented columns.
+// Uses makeOrgHome to seed local run records; no network, auth, real org state,
+// or live clock is required.
+
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";

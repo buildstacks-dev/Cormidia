@@ -1,6 +1,9 @@
-// L3 forensics writers + retention pruning (build plan M2.7; docs/loop.md
-// §9). Prune deletes only provably-finalized-and-old run dirs; the CLI case
-// drives the built entrypoint end-to-end against a fixture tree.
+// Tests L3 runlog forensics files and retention pruning.
+// Covers verbatim brief/output/session writes, safe deletion of old finalized
+// runs, preservation of fresh/running/unreadable runs, no-op missing trees, and
+// the prune-runs CLI path.
+// Uses temp runlog fixtures and a local subprocess; no network, auth, or real
+// org state is required, though one CLI case compares against the current clock.
 
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";

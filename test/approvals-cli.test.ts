@@ -5,6 +5,7 @@
 // not network, auth, real org state, or wall-clock time.
 
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ApprovalStore } from "../src/org/approvals.js";
@@ -12,10 +13,11 @@ import { makeOrgHome } from "./fixtures/orgHome.js";
 
 const CLI_PATH = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 const CWD = fileURLToPath(new URL("..", import.meta.url));
+const TSX_LOADER = createRequire(import.meta.url).resolve("tsx");
 
 async function runCli(args: string[], input?: string) {
   return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
-    const child = spawn("npx", ["tsx", CLI_PATH, ...args], { cwd: CWD });
+    const child = spawn(process.execPath, ["--import", TSX_LOADER, CLI_PATH, ...args], { cwd: CWD });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");

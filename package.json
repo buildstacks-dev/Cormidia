@@ -7,14 +7,33 @@
   "bin": {
     "operon": "./dist/cli.js"
   },
+  "files": [
+    "dist/**/*.js",
+    "agent-skills/operon/",
+    "config/launchd/",
+    "docs/policy.yaml.template",
+    "prompts/",
+    "taste/",
+    "TASTE.md",
+    "roles.yaml",
+    "pipelines.yaml",
+    "README.md",
+    "scripts/link-local.mjs",
+    "scripts/operon-local.mjs",
+    "scripts/smoke-onboarding.mjs"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli.js",
+    "build:watch": "tsc --watch --preserveWatchOutput",
     "dev": "tsx src/cli.ts",
     "e2e:sandbox": "tsx test/e2e/sandboxLoop.ts",
     "e2e:sandbox:setup": "bash scripts/setup-sandbox-repo.sh",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:live": "vitest run --config vitest.live.config.ts"
+    "smoke:onboarding": "pnpm build && node scripts/smoke-onboarding.mjs",
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "link:local": "node scripts/link-local.mjs",
+    "prepack": "pnpm build"
   },
   "engines": {
     "node": ">=26"

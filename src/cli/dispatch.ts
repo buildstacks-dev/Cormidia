@@ -1,30 +1,32 @@
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { dispatchTick } from "../org/dispatch.js";
 import { loadApps } from "../org/apps.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdDispatch(args: string[]): Promise<number> {
-  let home: string | undefined;
+  const common = extractHomeFlags(args, "dispatch");
   let appsPath: string | undefined;
-  let rolesPath = "roles.yaml";
+  let rolesPath: string | undefined;
   let dryRun = false;
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]!;
-    if (arg === "--home") home = needValue(args, ++i, "--home");
-    else if (arg === "--apps") appsPath = needValue(args, ++i, "--apps");
-    else if (arg === "--roles") rolesPath = needValue(args, ++i, "--roles");
+  for (let i = 0; i < common.rest.length; i++) {
+    const arg = common.rest[i]!;
+    if (arg === "--apps") appsPath = needValue(common.rest, ++i, "--apps");
+    else if (arg === "--roles") rolesPath = needValue(common.rest, ++i, "--roles");
     else if (arg === "--dry-run") dryRun = true;
     else throw new Error(`dispatch: unknown argument "${arg}"`);
   }
 
-  const effectiveApps = appsPath ?? "apps.yaml";
+  const homes = await resolveOperonHomes(common);
+  const effectiveApps = appsPath ? resolve(appsPath) : join(homes.orgHome, "apps.yaml");
+  const effectiveRoles = rolesPath ? resolve(rolesPath) : join(homes.orgHome, "roles.yaml");
   const appsFile = await loadApps(effectiveApps);
-  const runtimeHome = resolve(home ?? process.env.OPERON_HOME ?? join(homedir(), ".operon", appsFile.org.name));
   const result = await dispatchTick({
-    runtimeHome,
+    orgRoot: homes.orgHome,
+    runtimeHome: homes.stateHome,
     appsPath: effectiveApps,
-    rolesPath,
+    rolesPath: effectiveRoles,
     dryRun,
   });
   console.log(

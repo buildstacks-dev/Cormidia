@@ -5,7 +5,6 @@
 // loop-layer contract (src/loop/runRole.ts) is already live-capable and
 // the dispatcher will call it with this exact signature.
 
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadRoles } from "../org/roles.js";
 import { runRole } from "../loop/runRole.js";
@@ -14,13 +13,16 @@ import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { assembleContext } from "../org/context.js";
 import { runDispatchedTurn } from "../org/turn-runner.js";
 import type { ContextBundle } from "../runtime/types.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdRunRole(args: string[]): Promise<number> {
+  const common = extractHomeFlags(args, "run-role");
+  args = common.rest;
   let name: string | undefined;
   let app: string | undefined;
   let turnId: string | undefined;
   let templatePath: string | undefined;
-  let home: string | undefined;
   let workdir: string | undefined;
   let dryRun = false;
 
@@ -30,14 +32,16 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     else if (arg === "--app") app = needValue(args, ++i, "--app");
     else if (arg === "--turn") turnId = needValue(args, ++i, "--turn");
     else if (arg === "--template") templatePath = needValue(args, ++i, "--template");
-    else if (arg === "--home") home = needValue(args, ++i, "--home");
     else if (arg === "--workdir") workdir = needValue(args, ++i, "--workdir");
     else if (arg !== undefined && !arg.startsWith("--") && name === undefined) name = arg;
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
   if (name === undefined) throw new Error("run-role: role name required — operon run-role <role>");
 
-  const { roles } = await loadRoles("roles.yaml");
+  const homes = await resolveOperonHomes(common);
+  const rolesPath = join(homes.orgHome, "roles.yaml");
+  const appsPath = join(homes.orgHome, "apps.yaml");
+  const { roles } = await loadRoles(rolesPath);
   const role = roles.find((r) => r.name === name);
   if (role === undefined) {
     throw new Error(
@@ -48,7 +52,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   if (!dryRun) {
     if (app === undefined) throw new Error("run-role: live turns require --app <app>");
     if (turnId === undefined) throw new Error("run-role: live turns require --turn <id>");
-    const appsFile = await loadApps("apps.yaml");
+    const appsFile = await loadApps(appsPath);
     const appEntry = appsFile.apps.find((entry) => entry.name === app);
     if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
     const result = await runDispatchedTurn({
@@ -56,7 +60,8 @@ export async function cmdRunRole(args: string[]): Promise<number> {
       app: appEntry,
       appsFile,
       turnId,
-      ...(home !== undefined ? { runtimeHome: home } : {}),
+      orgRoot: homes.orgHome,
+      runtimeHome: homes.stateHome,
     });
     console.log(`${turnId}: ${result.status} — ${result.summary}`);
     return result.status === "failed" ? 1 : 0;
@@ -65,17 +70,17 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   let resolvedWorkdir = workdir ?? process.cwd();
   let context: ContextBundle | undefined;
   if (app !== undefined) {
-    const appsFile = await loadApps("apps.yaml");
+    const appsFile = await loadApps(appsPath);
     const appEntry = appsFile.apps.find((entry) => entry.name === app);
     if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
     resolvedWorkdir = resolveAppWorkdir(appEntry, {
-      orgRoot: process.cwd(),
-      runtimeHome: join(homedir(), ".operon", appsFile.org.name),
+      orgRoot: homes.orgHome,
+      runtimeHome: homes.stateHome,
       ...(workdir !== undefined ? { explicitWorkdir: workdir } : {}),
     });
     context = (
       await assembleContext({
-        orgHome: process.cwd(),
+        orgHome: homes.orgHome,
         appWorkdir: resolvedWorkdir,
         app: appEntry.name,
         role,

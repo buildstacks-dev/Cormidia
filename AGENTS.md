@@ -6,7 +6,7 @@ single TypeScript package and one file covers it. `docs/PURPOSE.md` is the decis
 log; on conflict, its Decided section wins and this file is stale — fix this file.
 
 ## What this repo is
-An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
+An installable **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
 a private GitHub repo, with a human gating critical ops only. M0-M12 are
 complete and the runtime has since been hardened and proven live end-to-end.
@@ -26,7 +26,7 @@ the primary from-scratch onboarding + loop proof — onboarded live this
 campaign and driven end-to-end (both planted bugs fixed by the loop and
 merged, PRs #11/#12). alpha and gamma were hardened with more modules/tests;
 beta stays deliberately minimal. buildstacks.dev is onboarded as a production
-app in `status: onboarding`. The offline suite is 575 tests
+app in `status: onboarding`. The offline suite is 579 tests
 (`pnpm test`). Three known limitations are documented in README.md → Known
 limitations (empty `tool_counts` + two inert anomaly detectors pending adapter
 `tool_use` emission; the manual `loop` path not feeding the org telemetry
@@ -37,9 +37,9 @@ ledger; the Codex App-Server read bypass).
 | --- | --- |
 | `docs/PURPOSE.md` | Decision log — **read first**; every decision to date |
 | `docs/wiki.html` | Standalone code wiki — the three layers, build loop, adapters, gates, and curated reading paths, for an engineer coming up to speed (open in a browser) |
-| `TASTE.md` | Org constitution, loaded by every agent the org runs (human-ratified) |
-| `roles.yaml` | Org chart made executable: role → runtime/model/effort/triggers |
-| `pipelines.yaml` | The build protocol as ordered passes (build/review/fix/ship) — human-ratified; validated by `pnpm dev pipelines` |
+| `TASTE.md` | Packaged org-constitution template, copied by `operon org init` (human-ratified) |
+| `roles.yaml` | Packaged executable org-chart template: role → runtime/model/effort/triggers |
+| `pipelines.yaml` | Packaged build-protocol template (build/review/fix/ship) — human-ratified; validated by `operon pipelines` |
 | `prompts/` | Versioned pass templates the pipelines reference — human-ratified protocol surfaces, one file per pass |
 | `TODO.md` | Roadmap + session-handoff state — pick up the top unchecked item |
 | `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 decisions ratified into docs/PURPOSE.md) |
@@ -50,13 +50,16 @@ ledger; the Codex App-Server read bypass).
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
+| `src/org/home.ts` | Package/org/state boundary: complete org initialization, validation, active pointer, and independent state-home resolution |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
+| `agent-skills/operon/` | Packaged `$operon` Agent Skill: agent-facing CLI discovery, onboarding, safety, and diagnosis workflow |
+| `scripts/link-local.mjs`, `scripts/operon-local.mjs` | Source-backed local installation; exposes `operon` and the skill without conflating package and org homes |
 | `test/` | Gate conformance seed + roles.yaml validation + CLI dispatch conformance |
 | `test/fixtures/orgHome.ts`, `test/fixtures/fakeClock.ts` | Composable temp-dir fixtures for `~/.operon/<org>/` and app-repo `.operon/` trees, plus a deterministic clock — reuse instead of a new ad-hoc mkdtemp scaffold |
 | `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
-## Commands (all verified 2026-07-07)
+## Commands (all verified 2026-07-09)
 - Node: >= 26 (`engines`, `.nvmrc`; `nvm use`). Node >= 25 no longer bundles
   corepack — `npm install -g corepack && corepack enable` once per Node
   install. `node:sqlite` is stable on this floor (relevant to the learning
@@ -64,6 +67,10 @@ ledger; the Codex App-Server read bypass).
 - Install: `pnpm install` — pnpm is pinned via `packageManager` (corepack);
   an older global pnpm will fail with store/workspace errors. `corepack
   enable` once if `pnpm --version` doesn't match the pin.
+- Local product install: `pnpm link:local` — creates a source-backed
+  `~/.local/bin/operon` (or `$OPERON_BIN_DIR/operon`) and links the packaged
+  skill at `$CODEX_HOME/skills/operon`; later source edits need no update,
+  rebuild, or relink.
 - Test: `pnpm test` (vitest — fast, offline; run for any `src/` or
   `roles.yaml` change; `*.live.test.ts` files are excluded here)
 - Live adapter tests: `pnpm test:live` (real Claude Agent SDK turns, plus
@@ -72,7 +79,14 @@ ledger; the Codex App-Server read bypass).
   run by `pnpm test`)
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` (tsc → `dist/`)
-- CLI in dev: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
+- Installed-product fixture: `pnpm smoke:onboarding` — temporary home/bin/org/
+  state/app trees; exercises source link, skill link, org init, scan + full
+  bootstrap, agent introspection, doctor, greenfield dry-run, and compiled CLI
+  from a neutral cwd.
+- CLI after local install: `operon org init <path> --name <name>` · `operon
+  context` · `operon capabilities` · `operon doctor`; every command resolves
+  the active org independently of cwd.
+- CLI in source-development mode: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
   `pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run` ·
   `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run`
   · `pnpm dev loop --app <app> --once --dry-run` ·
@@ -114,6 +128,10 @@ ledger; the Codex App-Server read bypass).
 
 ## Testing expectations
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
+- Packaging, home resolution, CLI discovery, or onboarding changes: also run
+  `pnpm smoke:onboarding` and `npm pack --dry-run`; the smoke must use a neutral
+  cwd and temporary HOME/CODEX_HOME so it cannot depend on the source repo as
+  an implicit org.
 - Changes that affect app onboarding, `apps.yaml`, bootstrap, planning, or
   loop behavior must also be exercised against the live sandbox apps, not
   only unit tests. Current targets: `~/Build/operon-sandbox-alpha`,

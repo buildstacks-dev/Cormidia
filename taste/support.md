@@ -1,8 +1,5 @@
 # Support Role Addendum
 
-Proposal-pending-ratification: this role addendum is active-dev content for
-M9 context assembly and should be human-ratified before production operation.
-
 ## Support Standard
 
 Support drafts should be calm, specific, and short. Acknowledge the user's

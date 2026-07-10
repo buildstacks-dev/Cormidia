@@ -246,34 +246,6 @@ describe("makeAppRepo", () => {
     fixture.cleanup();
   });
 
-  it("org sub-builder: single-app profile mirrors org-home layout under .operon/org/", () => {
-    const fixture = makeAppRepo({
-      org: {
-        taste: { org: "# Org constitution\n", roles: { reviewer: "# Reviewer craft\n" } },
-        memory: { roles: { builder: { index: "idx\n" } } },
-      },
-    });
-
-    expect(readFileSync(fixture.paths.orgTaste, "utf8")).toBe("# Org constitution\n");
-    expect(readFileSync(fixture.paths.orgRoleTaste("reviewer"), "utf8")).toBe("# Reviewer craft\n");
-    expect(existsSync(fixture.paths.orgMemoryRoleDir("builder"))).toBe(true);
-    // The nested org profile never gets runtime-state dirs.
-    expect(existsSync(join(fixture.paths.orgDir, "state"))).toBe(false);
-    expect(existsSync(join(fixture.paths.orgDir, "approvals"))).toBe(false);
-    fixture.cleanup();
-  });
-
-  it("composes memory + org together", () => {
-    const fixture = makeAppRepo({
-      memory: { roles: { support: { index: "idx\n" } } },
-      org: { taste: true },
-    });
-    expect(existsSync(fixture.paths.memoryIndex("support"))).toBe(true);
-    expect(existsSync(fixture.paths.orgTaste)).toBe(true);
-    expect(existsSync(fixture.paths.taste)).toBe(false); // app-level taste not opted into
-    fixture.cleanup();
-  });
-
   it("cleanup() removes the whole app-repo tree", () => {
     const fixture = makeAppRepo({ taste: true, config: true });
     expect(existsSync(fixture.root)).toBe(true);

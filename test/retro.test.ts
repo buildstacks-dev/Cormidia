@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { runRetro, runRetroCuration } from "../src/org/retro.js";
 import { appendScorecardEvent } from "../src/org/scorecards.js";
 import { cmdRetro } from "../src/cli/retro.js";
+import { initOrgHome } from "../src/org/home.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
 function write(path: string, content: string): void {
@@ -69,36 +70,20 @@ describe("runRetro", () => {
 
   it("CLI prints the written path", async () => {
     const home = makeOrgHome();
-    const configDir = join(home.root, "config");
-    mkdirSync(configDir, { recursive: true });
-    write(
-      join(configDir, "apps.yaml"),
-      `org: {name: operon, max_concurrent_turns: 2}
-defaults: {budget_usd_month: 1000}
-apps: {alpha: {repo: owner/alpha, status: live}}
-`,
-    );
-    write(
-      join(configDir, "roles.yaml"),
-      `defaults: {max_turn_budget_usd: 5}
-roles:
-  builder: {runtime: claude, model: m, effort: medium, delegation: {allow: []}, triggers: [], outputs: []}
-`,
-    );
+    const orgHome = join(home.root, "org");
+    await initOrgHome({ target: orgHome, name: "retro-test", stateHome: home.root, homeDir: home.root });
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
       const code = await cmdRetro([
         "--date",
         "2026-07-04",
-        "--home",
+        "--org-home",
+        orgHome,
+        "--state-home",
         home.root,
-        "--apps",
-        join(configDir, "apps.yaml"),
-        "--roles",
-        join(configDir, "roles.yaml"),
       ]);
       expect(code).toBe(0);
-      expect(log.mock.calls[0]?.[0]).toBe(join(home.root, "retro", "2026-07-04.md"));
+      expect(log.mock.calls[0]?.[0]).toBe(join(orgHome, "retro", "2026-07-04.md"));
     } finally {
       log.mockRestore();
       home.cleanup();

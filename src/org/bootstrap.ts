@@ -6,16 +6,11 @@
 // Step 2 ("Questionnaire") is the `BootstrapAnswers` contract + `parseAnswers`
 // — interactive collection lives in the CLI; tests and scripts inject the
 // same object via `--answers answers.json`. Step 3 ("Emit") is
-// `emitOrgTemplates()` — the single-app-profile `.operon/org/` skeleton
-// (org TASTE.md, roles.yaml, apps.yaml) "templated from this repo's root
-// files, which are instance config destined to become exactly these
-// templates" (PURPOSE v0.8 dogfood note; TASTE.md and roles.yaml are
-// byte-copies) — plus `emitAppArtifacts()`: the app charter
+// `emitAppArtifacts()`: the app charter
 // (`.operon/TASTE.md`), the app's registry entry (`.operon/config.yaml`,
 // apps.yaml schema), `.operon/onboarding-report.md`, and seeded per-role
-// memory bundles. `bootstrapRun()` composes steps 1–3. Step 4 ("Register /
-// join") appends a second app to an existing org home's apps.yaml instead of
-// emitting a parallel `.operon/org/`. App-owned bootstrap output also includes
+// memory bundles. `bootstrapRun()` composes steps 1–3 and registers the app in
+// the required active org home. App-owned bootstrap output also includes
 // `.operon/policy.yaml` when the M4.2 policy template is present in this
 // package.
 
@@ -375,29 +370,6 @@ async function gitOriginSlug(root: string): Promise<string | undefined> {
   return `${segments[segments.length - 2]}/${segments[segments.length - 1]}`;
 }
 
-// ---------------------------------------------------------------------------
-// Step 3 (single-app profile) — emitOrgTemplates()
-// ---------------------------------------------------------------------------
-
-/** Relative paths `emitOrgTemplates` creates — the `--scan-only` would-create
- * list and the emit implementation share this single source of truth. */
-export const ORG_TEMPLATE_FILES = [
-  ".operon/org/TASTE.md",
-  ".operon/org/roles.yaml",
-  ".operon/org/apps.yaml",
-] as const;
-
-export interface EmitOrgTemplatesOptions {
-  /** App (and default org) name; defaults to the target root's basename. */
-  appName?: string;
-  /** GitHub `owner/repo` slug for the app entry; defaults to the scanned
-   * value when the caller passes one, else a marked placeholder. */
-  repoSlug?: string;
-  /** Where the TASTE.md / roles.yaml templates live. Defaults to this
-   * package's root — the dogfood instance config that IS the template. */
-  templateRoot?: string;
-}
-
 export interface EmitResult {
   /** Relative paths written, in emission order. */
   created: string[];
@@ -406,39 +378,6 @@ export interface EmitResult {
 /** This package's root (works from both src/ and dist/ — two levels up). */
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const POLICY_TEMPLATE_REL = join("docs", "policy.yaml.template");
-
-/** Emit the single-app-profile `.operon/org/` skeleton into a target repo:
- * org TASTE.md and roles.yaml as byte-copies of the template root's files,
- * plus a generated apps.yaml stub carrying `schema_version`. Refuses to
- * overwrite — bootstrap never silently clobbers an existing org. */
-export async function emitOrgTemplates(
-  targetRootIn: string,
-  options: EmitOrgTemplatesOptions = {},
-): Promise<EmitResult> {
-  const targetRoot = resolve(targetRootIn);
-  const templateRoot = options.templateRoot ?? PACKAGE_ROOT;
-  const appName = sanitizeAppName(options.appName ?? basename(targetRoot));
-  const repoSlug = options.repoSlug ?? `OWNER/${appName}`;
-  const repoComment = options.repoSlug ? "" : " # TODO: set the real owner/repo slug";
-
-  assertNotExists(targetRoot, ORG_TEMPLATE_FILES);
-
-  const orgDir = join(targetRoot, ".operon", "org");
-  await mkdir(orgDir, { recursive: true });
-
-  const created: string[] = [];
-  const emit = async (rel: (typeof ORG_TEMPLATE_FILES)[number], content: string) => {
-    await writeFile(join(targetRoot, rel), content, "utf8");
-    created.push(rel);
-  };
-
-  // Byte-identical copies: the root files ARE the templates (PURPOSE v0.8).
-  await emit(".operon/org/TASTE.md", await readFile(join(templateRoot, "TASTE.md"), "utf8"));
-  await emit(".operon/org/roles.yaml", await readFile(join(templateRoot, "roles.yaml"), "utf8"));
-  await emit(".operon/org/apps.yaml", appsYamlStub(appName, repoSlug, repoComment));
-
-  return { created };
-}
 
 /** apps.yaml keys are plain YAML scalars — keep names to safe characters. */
 function sanitizeAppName(name: string): string {
@@ -453,33 +392,10 @@ function assertNotExists(targetRoot: string, rels: readonly string[]): void {
     if (existsSync(join(targetRoot, rel))) {
       throw new Error(
         `bootstrap: ${rel} already exists in ${targetRoot} — refusing to overwrite ` +
-          `(an existing org joins via \`operon bootstrap\` M3.5, never gets re-emitted)`,
+          "an existing app configuration must be reviewed or removed explicitly",
       );
     }
   }
-}
-
-function appsYamlStub(appName: string, repoSlug: string, repoComment: string): string {
-  return `# apps.yaml — app registry (docs/architecture.md §7), emitted by
-# \`operon bootstrap\` (single-app profile). Human-ratified surface: changes
-# land via proposal PR, never silent edits. Graduation to an org-home repo
-# is \`git mv .operon/org/* <org-home>/\` (docs/architecture.md §1).
-
-schema_version: 1
-
-org:
-  name: ${appName}              # org id defaults to the repo name (architecture.md §1)
-  max_concurrent_turns: 2       # org-level WIP limit (architecture.md §2)
-
-defaults:
-  budget_usd_month: 1000        # decided 2026-07-04; configurable per app
-
-apps:
-  ${appName}:
-    repo: ${repoSlug}${repoComment}
-    status: onboarding
-    cadence: {}                 # role -> trigger overrides; empty = roles.yaml defaults
-`;
 }
 
 // ---------------------------------------------------------------------------
@@ -672,7 +588,7 @@ export async function templateRoleNames(templateRoot: string = PACKAGE_ROOT): Pr
 // ---------------------------------------------------------------------------
 
 export interface EmitAppArtifactsOptions {
-  /** App (and config org) name — same defaulting as emitOrgTemplates. */
+  /** App (and config org) name; defaults to the target directory basename. */
   appName: string;
   /** GitHub `owner/repo` slug; a marked placeholder when absent. */
   repoSlug?: string;
@@ -1015,41 +931,40 @@ function cadenceForAnswers(answers: BootstrapAnswers, allRoles: string[]): Recor
 }
 
 export interface BootstrapRunOptions {
-  /** App (and org) name; defaults to the target root's basename. */
+  /** App name; defaults to the target root's basename. */
   appName?: string;
   /** GitHub slug; defaults to the scanned origin remote, else placeholder. */
   repoSlug?: string;
-  /** Template root for org TASTE.md/roles.yaml; defaults to this package. */
+  /** Package template root for app policy emission; defaults to this package. */
   templateRoot?: string;
-  /** Existing org home to join. When set, bootstrap emits app artifacts only
-   * in the target repo and appends the app to `${orgHome}/apps.yaml`. */
-  orgHome?: string;
+  /** Required existing org home. Bootstrap emits app artifacts in the target
+   * repo and appends the app to `${orgHome}/apps.yaml`. */
+  orgHome: string;
 }
 
 export interface BootstrapRunResult {
   scan: RepoScan;
   answers: BootstrapAnswers;
-  /** Relative paths written, org skeleton first, in emission order. */
+  /** Relative app-repo paths written, in emission order. */
   created: string[];
-  /** Existing org home joined by this run, when any. */
-  joinedOrgHome?: string;
+  /** Existing org home joined by this run. */
+  joinedOrgHome: string;
 }
 
-/** The whole single-app bootstrap (architecture §9 steps 1–3): scan,
- * validate the questionnaire answers, then either emit the single-app org
- * skeleton plus app artifacts, or join an existing org and emit app artifacts
- * only. Answers are validated and every target path existence-checked BEFORE
- * the first write — a failed bootstrap leaves no half-tree in the app repo. */
+/** The whole bootstrap (architecture §9): scan, validate questionnaire
+ * answers against the active org's roles, register the app, and emit app-owned
+ * artifacts. Answers and target paths are validated before the first write. */
 export async function bootstrapRun(
   targetRootIn: string,
   answersRaw: unknown,
-  options: BootstrapRunOptions = {},
+  options: BootstrapRunOptions,
 ): Promise<BootstrapRunResult> {
   const targetRoot = resolve(targetRootIn);
   const templateRoot = options.templateRoot ?? PACKAGE_ROOT;
   const appName = sanitizeAppName(options.appName ?? basename(targetRoot));
+  const orgHome = resolve(options.orgHome);
 
-  const allRoles = await templateRoleNames(templateRoot);
+  const allRoles = (await loadRoles(join(orgHome, "roles.yaml"))).roles.map((role) => role.name);
   const answers = parseAnswers(answersRaw, allRoles);
 
   const scan = await scanRepo(targetRoot);
@@ -1057,22 +972,12 @@ export async function bootstrapRun(
   const registrationRepoSlug = repoSlug ?? `OWNER/${appName}`;
 
   const appFiles = appArtifactFiles(answers, allRoles);
-  assertNotExists(targetRoot, [...(options.orgHome ? [] : ORG_TEMPLATE_FILES), ...appFiles]);
+  assertNotExists(targetRoot, appFiles);
 
-  let orgCreated: string[] = [];
-  let joinedOrgHome: string | undefined;
-  if (options.orgHome) {
-    const joined = await joinExistingOrg(
-      options.orgHome,
-      registrationFromAnswers(appName, registrationRepoSlug, answers, allRoles),
-    );
-    joinedOrgHome = joined.orgHome;
-  } else {
-    const orgOptions: EmitOrgTemplatesOptions = { appName, templateRoot };
-    if (repoSlug) orgOptions.repoSlug = repoSlug;
-    const org = await emitOrgTemplates(targetRoot, orgOptions);
-    orgCreated = org.created;
-  }
+  const joined = await joinExistingOrg(
+    orgHome,
+    registrationFromAnswers(appName, registrationRepoSlug, answers, allRoles),
+  );
 
   const appOptions: EmitAppArtifactsOptions = { appName, answers, scan, allRoles, templateRoot };
   if (repoSlug) appOptions.repoSlug = repoSlug;
@@ -1081,8 +986,8 @@ export async function bootstrapRun(
   return {
     scan,
     answers,
-    created: [...orgCreated, ...app.created],
-    ...(joinedOrgHome ? { joinedOrgHome } : {}),
+    created: app.created,
+    joinedOrgHome: joined.orgHome,
   };
 }
 

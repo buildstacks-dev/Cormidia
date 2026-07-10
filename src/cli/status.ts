@@ -1,12 +1,13 @@
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
 import { formatStatusRows, readStatusRows } from "../runtime/runlog/status.js";
-import { loadApps } from "../org/apps.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { resolve } from "node:path";
 
 export async function cmdStatus(args: string[]): Promise<number> {
-  const parsed = parseArgs(args);
-  const root = resolve(parsed.home ?? process.env.OPERON_HOME ?? (await defaultOrgHome()));
-  const rows = await readStatusRows(root, {
+  const common = extractHomeFlags(args, "status");
+  const parsed = parseArgs(common.rest);
+  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
+  const rows = await readStatusRows(stateHome, {
     ...(parsed.app !== undefined ? { app: parsed.app } : {}),
     ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
   });
@@ -15,7 +16,6 @@ export async function cmdStatus(args: string[]): Promise<number> {
 }
 
 interface ParsedStatusArgs {
-  home?: string;
   app?: string;
   limit?: number;
 }
@@ -24,19 +24,11 @@ function parseArgs(args: string[]): ParsedStatusArgs {
   const out: ParsedStatusArgs = {};
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg === "--home") out.home = needValue(args, ++i, "--home");
-    else if (arg === "--app") out.app = needValue(args, ++i, "--app");
+    if (arg === "--app") out.app = needValue(args, ++i, "--app");
     else if (arg === "--limit") out.limit = parseLimit(needValue(args, ++i, "--limit"));
     else throw new Error(`status: unknown argument "${arg}"`);
   }
   return out;
-}
-
-// Default the org home to the same location sibling commands (budget, dispatch,
-// retro) use: ~/.operon/<apps.yaml org name>, not a hardcoded "operon".
-async function defaultOrgHome(): Promise<string> {
-  const apps = await loadApps("apps.yaml");
-  return join(homedir(), ".operon", apps.org.name);
 }
 
 function parseLimit(value: string): number {

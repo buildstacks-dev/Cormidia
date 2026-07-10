@@ -12,6 +12,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { findExistingOrg, joinExistingOrg, loadApps } from "../src/org/apps.js";
 import { bootstrapRun, registerAppWithExistingOrg } from "../src/org/bootstrap.js";
 import { cmdBootstrap } from "../src/cli/bootstrap.js";
+import { initOrgHome } from "../src/org/home.js";
 
 const tempDirs: string[] = [];
 afterAll(() => {
@@ -163,7 +164,8 @@ describe("bootstrap existing-org flow", () => {
   });
 
   it("full bootstrap emits app artifacts only and joins the org registry", async () => {
-    const orgHome = makeOrgHome();
+    const orgHome = join(makeDir("operon-full-org-parent-"), "org");
+    await initOrgHome({ target: orgHome, name: "full", homeDir: makeDir("operon-full-home-") });
     const app = makeAppRepo("owner/beta");
 
     const result = await bootstrapRun(app, ANSWERS, { orgHome });
@@ -178,6 +180,7 @@ describe("bootstrap existing-org flow", () => {
     expect(existsSync(join(app, ".operon", "org"))).toBe(false);
 
     const file = await loadApps(join(orgHome, "apps.yaml"));
+    expect(file.apps).toHaveLength(1);
     expect(file.apps.at(-1)).toMatchObject({
       repo: "owner/beta",
       status: "onboarding",
@@ -185,17 +188,17 @@ describe("bootstrap existing-org flow", () => {
     });
   });
 
-  it('CLI --org-home prints "joined existing org at"', async () => {
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const orgHome = makeOrgHome();
+  it("CLI non-interactive mode requires answers before registering", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const orgHome = join(makeDir("operon-complete-org-parent-"), "org");
+    await initOrgHome({ target: orgHome, name: "complete", homeDir: makeDir("operon-complete-home-") });
     const app = makeAppRepo("owner/beta");
 
-    const code = await cmdBootstrap([app, "--org-home", orgHome]);
-
-    expect(code).toBe(0);
-    const out = log.mock.calls.map((c) => c.join(" ")).join("\n");
-    expect(out).toContain(`joined existing org at ${orgHome}`);
+    await expect(cmdBootstrap([app, "--org-home", orgHome])).rejects.toThrow(
+      /answers are required outside an interactive terminal/,
+    );
     const file = await loadApps(join(orgHome, "apps.yaml"));
-    expect(file.apps.at(-1)!.repo).toBe("owner/beta");
+    expect(file.apps).toEqual([]);
+    expect(existsSync(join(app, ".operon"))).toBe(false);
   });
 });

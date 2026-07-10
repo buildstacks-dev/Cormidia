@@ -1,21 +1,22 @@
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { enforceBudgetOverlay } from "../org/budget.js";
 import { loadApps } from "../org/apps.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdBudget(args: string[]): Promise<number> {
-  let home: string | undefined;
-  let appsPath = "apps.yaml";
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]!;
-    if (arg === "--home") home = needValue(args, ++i, "--home");
-    else if (arg === "--apps") appsPath = needValue(args, ++i, "--apps");
+  const common = extractHomeFlags(args, "budget");
+  let appsPath: string | undefined;
+  for (let i = 0; i < common.rest.length; i++) {
+    const arg = common.rest[i]!;
+    if (arg === "--apps") appsPath = needValue(common.rest, ++i, "--apps");
     else throw new Error(`budget: unknown argument "${arg}"`);
   }
 
-  const apps = await loadApps(appsPath);
-  const orgHome = resolve(home ?? process.env.OPERON_HOME ?? join(homedir(), ".operon", apps.org.name));
-  const rows = await enforceBudgetOverlay(orgHome, apps);
+  const homes = await resolveOperonHomes(common);
+  const effectiveAppsPath = appsPath ? resolve(appsPath) : join(homes.orgHome, "apps.yaml");
+  const apps = await loadApps(effectiveAppsPath);
+  const rows = await enforceBudgetOverlay(homes.stateHome, apps);
   console.log("APP                  SPENT      BUDGET     STATUS");
   for (const row of rows) {
     console.log(

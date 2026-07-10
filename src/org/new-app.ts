@@ -6,13 +6,12 @@ import { existsSync } from "node:fs";
 import { appendFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import {
-  ORG_TEMPLATE_FILES,
   appArtifactFiles,
   bootstrapRun,
   parseAnswers,
-  templateRoleNames,
   type BootstrapAnswers,
 } from "./bootstrap.js";
+import { loadRoles } from "./roles.js";
 
 export interface NewAppOptions {
   /** Operon app key. Defaults to the target directory basename. */
@@ -23,8 +22,8 @@ export interface NewAppOptions {
   repoSlug: string;
   /** Human-provided product idea or mandate. */
   goal: string;
-  /** Existing org home to join. Undefined means bootstrap emits a single-app profile. */
-  orgHome?: string;
+  /** Existing org home to join. */
+  orgHome: string;
   /** Declaring at least one support channel enables the Support role. */
   supportChannels?: string[];
   /** Declaring at least one marketing channel enables the Marketing role. */
@@ -59,7 +58,8 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     throw new Error(`new-app: --repo must be a GitHub owner/repo slug (got "${options.repoSlug}")`);
   }
 
-  const allRoles = await templateRoleNames();
+  const orgHome = resolve(options.orgHome);
+  const allRoles = (await loadRoles(join(orgHome, "roles.yaml"))).roles.map((role) => role.name);
   const answers = buildAnswers({
     appName,
     goal,
@@ -76,12 +76,10 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   ];
   const plannedCreated = [
     ...scaffold.map((file) => file.rel),
-    ...(options.orgHome ? [] : ORG_TEMPLATE_FILES),
     ...bootstrapFiles,
     ...operonSeedFiles,
   ];
-  const plannedUpdated = [".operon/config.yaml"];
-  if (options.orgHome) plannedUpdated.push(`${resolve(options.orgHome)}/apps.yaml`);
+  const plannedUpdated = [".operon/config.yaml", `${orgHome}/apps.yaml`];
 
   if (options.dryRun) {
     return {
@@ -91,7 +89,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
       dryRun: true,
       created: plannedCreated,
       updated: plannedUpdated,
-      ...(options.orgHome ? { joinedOrgHome: resolve(options.orgHome) } : {}),
+      joinedOrgHome: orgHome,
     };
   }
 
@@ -102,7 +100,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   const bootstrap = await bootstrapRun(targetDir, answers, {
     appName,
     repoSlug: options.repoSlug,
-    ...(options.orgHome ? { orgHome: options.orgHome } : {}),
+    orgHome,
   });
 
   await appendGateCommands(targetDir);
@@ -680,11 +678,11 @@ npm run lint
 
 ## Operon Loop
 
-From the Operon org home, after this repo is pushed and an \`op:ready\` issue
-exists:
+After this repo is pushed and an \`op:ready\` issue exists, run from any
+directory (Operon resolves the active org home):
 
 \`\`\`bash
-corepack pnpm dev loop --app ${appName} --once
+operon loop --app ${appName} --once
 \`\`\`
 `;
 }
@@ -749,11 +747,11 @@ gh repo create ${repoSlug} --private --source . --remote origin --push
 gh issue create --repo ${repoSlug} --title "Build first usable product slice" --label op:ready --label p2 --body-file .operon/bootstrap/initial-issue.md
 \`\`\`
 
-Then run these from the Operon org home:
+Then run these from any directory:
 
 \`\`\`bash
-corepack pnpm dev plan ${appName} --topic "Refine the greenfield PRD and decompose the first milestone" --workdir ${targetDir}
-corepack pnpm dev loop --app ${appName} --once
+operon plan ${appName} --topic "Refine the greenfield PRD and decompose the first milestone" --workdir ${targetDir}
+operon loop --app ${appName} --once
 \`\`\`
 `;
 }

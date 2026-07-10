@@ -8,9 +8,12 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { cmdDoctor } from "../src/cli/doctor.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
+
+const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 describe("doctor scheduler status", () => {
   it("launchd template is valid plist", () => {
@@ -23,7 +26,11 @@ describe("doctor scheduler status", () => {
     const home = makeOrgHome();
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      await cmdDoctor({ launchAgentsDir: join(home.root, "LaunchAgents") });
+      await cmdDoctor({
+        orgHome: REPO_ROOT,
+        stateHome: home.root,
+        launchAgentsDir: join(home.root, "LaunchAgents"),
+      });
       const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(output).toContain("launchd not installed");
       expect(output).toContain("launchctl load");
@@ -39,7 +46,7 @@ describe("doctor scheduler status", () => {
     writeFileSync(join(dir, "dev.operon.dispatch.plist"), "<plist/>", "utf8");
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      await cmdDoctor({ launchAgentsDir: dir });
+      await cmdDoctor({ orgHome: REPO_ROOT, stateHome: dir, launchAgentsDir: dir });
       const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(output).toContain("launchd installed");
       expect(output).toContain("launchctl unload");
@@ -53,7 +60,11 @@ describe("doctor precondition checks", () => {
   it("actually verifies config surfaces and reports them at the org root", async () => {
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      const code = await cmdDoctor({ launchAgentsDir: join(tmpdir(), "no-such-launch-agents") });
+      const code = await cmdDoctor({
+        orgHome: REPO_ROOT,
+        stateHome: mkdtempSync(join(tmpdir(), "operon-doctor-state-")),
+        launchAgentsDir: join(tmpdir(), "no-such-launch-agents"),
+      });
       const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(output).toContain("config:");
       expect(output).toContain("roles.yaml");
@@ -71,7 +82,11 @@ describe("doctor precondition checks", () => {
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
       process.chdir(empty);
-      const code = await cmdDoctor({ launchAgentsDir: join(empty, "LaunchAgents") });
+      const code = await cmdDoctor({
+        orgHome: empty,
+        stateHome: join(empty, "state"),
+        launchAgentsDir: join(empty, "LaunchAgents"),
+      });
       const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(code).toBe(1);
       expect(output).toContain("FAIL");

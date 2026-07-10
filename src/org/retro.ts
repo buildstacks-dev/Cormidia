@@ -9,6 +9,9 @@ import { readScorecards, type ScorecardEvent } from "./scorecards.js";
 
 export interface RetroOptions {
   orgHome: string;
+  /** High-churn telemetry/runlog root. Defaults to orgHome for callers from
+   * before the packaging boundary was made explicit. */
+  stateHome?: string;
   date: string;
   apps: string[];
   roles: string[];
@@ -31,15 +34,16 @@ export interface TelemetryRecord {
 }
 
 export async function runRetro(options: RetroOptions): Promise<RetroResult> {
+  const stateHome = options.stateHome ?? options.orgHome;
   const window = retroWindow(options.date);
-  const telemetry = (await readTelemetry(options.orgHome)).filter((row) => inWindow(row.at, window));
-  const anomalies = await analyzeRunlogs(options.orgHome).catch(() => []);
+  const telemetry = (await readTelemetry(stateHome)).filter((row) => inWindow(row.at, window));
+  const anomalies = await analyzeRunlogs(stateHome).catch(() => []);
   const sections: string[] = [`# Retro ${options.date}`, "", `Window: ${window.start} through ${window.end}`, ""];
 
   for (const app of options.apps) {
     for (const role of options.roles) {
       const turns = telemetry.filter((row) => row.app === app && row.role === role);
-      const scores = (await readScorecards(options.orgHome, app, role, new Date(window.start))).filter((event) =>
+      const scores = (await readScorecards(stateHome, app, role, new Date(window.start))).filter((event) =>
         inWindow(event.timestamp, window),
       );
       if (turns.length === 0 && scores.length === 0) continue;

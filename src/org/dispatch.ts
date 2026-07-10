@@ -2,6 +2,7 @@
 
 import { spawn as spawnChild } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Trigger } from "../runtime/types.js";
@@ -66,8 +67,9 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   const appsFile = await loadApps(appsPath);
   const rolesFile = await loadRoles(rolesPath);
   const runtimeHome = resolve(
-    options.runtimeHome ?? process.env.OPERON_HOME ?? join(homedir(), ".operon", appsFile.org.name),
+    options.runtimeHome ?? process.env.OPERON_STATE_HOME ?? join(homedir(), ".operon", appsFile.org.name),
   );
+  const spawn = options.spawn ?? ((input) => spawnDetached(input, orgRoot));
   const schedule = new ScheduleStore(runtimeHome);
   const eventStore = new EventStore(runtimeHome);
   const source = options.eventSource ?? new GhEventSource();
@@ -89,7 +91,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     now(),
     result,
     options.kill,
-    options.spawn ?? spawnDetached,
+    spawn,
     options.wallClockCapMs,
     {
       pidAlive: options.pidAlive ?? defaultPidAlive,
@@ -101,7 +103,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     runtimeHome,
     now(),
     result,
-    options.spawn ?? spawnDetached,
+    spawn,
     killed.recovered,
   );
   const freshLocks = await freshLockCount(runtimeHome, now());
@@ -155,7 +157,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     }, now());
 
     try {
-      await (options.spawn ?? spawnDetached)({
+      await spawn({
         role: turn.role,
         app: turn.app,
         turnId: turn.turnId,
@@ -491,14 +493,28 @@ async function spawnDetached(input: {
   app: string;
   turnId: string;
   runtimeHome: string;
-}): Promise<void> {
-  const args = ["run-role", input.role, "--app", input.app, "--turn", input.turnId, "--home", input.runtimeHome];
+}, orgRoot: string): Promise<void> {
+  const args = [
+    "run-role",
+    input.role,
+    "--app",
+    input.app,
+    "--turn",
+    input.turnId,
+    "--org-home",
+    orgRoot,
+    "--state-home",
+    input.runtimeHome,
+  ];
   const command =
     process.argv[1]?.endsWith(".ts") === true
-      ? { bin: "pnpm", args: ["dev", ...args] }
+      ? {
+          bin: process.execPath,
+          args: ["--import", createRequire(import.meta.url).resolve("tsx"), process.argv[1], ...args],
+        }
       : { bin: process.execPath, args: [process.argv[1] ?? "dist/cli.js", ...args] };
   const child = spawnChild(command.bin, command.args, {
-    cwd: process.cwd(),
+    cwd: orgRoot,
     detached: true,
     stdio: "ignore",
   });

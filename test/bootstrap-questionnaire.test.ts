@@ -18,12 +18,11 @@ import {
   bootstrapRun,
   emitAppArtifacts,
   parseAnswers,
-  templateRoleNames,
-  ORG_TEMPLATE_FILES,
   type BootstrapAnswers,
 } from "../src/org/bootstrap.js";
 import { loadApps } from "../src/org/apps.js";
 import { cmdBootstrap, collectAnswers } from "../src/cli/bootstrap.js";
+import { initOrgHome } from "../src/org/home.js";
 
 const ALL_ROLES = ["planner", "builder", "reviewer", "sre", "support", "marketing"];
 
@@ -41,6 +40,12 @@ function makeRepo(files: Record<string, string> = {}): string {
     writeFileSync(join(root, rel), content);
   }
   return root;
+}
+
+async function makeCompleteOrg(name: string): Promise<string> {
+  const orgHome = join(makeRepo(), "org");
+  await initOrgHome({ target: orgHome, name, homeDir: makeRepo() });
+  return orgHome;
 }
 
 const RAW_ANSWERS = {
@@ -305,19 +310,18 @@ const NODE_REPO_FILES: Record<string, string> = {
 describe("bootstrapRun", () => {
   it("full bootstrapRun writes the tree and config.yaml round-trips through the apps parser", async () => {
     const target = makeRepo(NODE_REPO_FILES);
-    const { scan, created } = await bootstrapRun(target, RAW_ANSWERS);
+    const orgHome = await makeCompleteOrg("questionnaire-library");
+    const { scan, created, joinedOrgHome } = await bootstrapRun(target, RAW_ANSWERS, { orgHome });
 
     expect(scan.repoSlug).toBe("bikramgupta/operon-sandbox-alpha");
-    // Org skeleton first (M3.3), then the app half — and roles.yaml order
-    // for the memory bundles comes from the real template roles.yaml.
-    const roleNames = await templateRoleNames();
+    expect(joinedOrgHome).toBe(orgHome);
+    // Memory bundle order comes from the selected org's roles.yaml.
     expect(created).toEqual([
-      ...ORG_TEMPLATE_FILES,
       ".operon/TASTE.md",
       ".operon/config.yaml",
       ".operon/policy.yaml",
       ".operon/onboarding-report.md",
-      ...roleNames.map((r) => `.operon/memory/${r}/INDEX.md`),
+      ...ALL_ROLES.map((r) => `.operon/memory/${r}/INDEX.md`),
     ]);
     for (const rel of created) expect(existsSync(join(target, rel))).toBe(true);
 
@@ -332,8 +336,9 @@ describe("bootstrapRun", () => {
 
   it("validates answers before writing anything", async () => {
     const target = makeRepo(NODE_REPO_FILES);
+    const orgHome = await makeCompleteOrg("questionnaire-invalid");
     await expect(
-      bootstrapRun(target, { ...RAW_ANSWERS, roles: ["astrologer"] }),
+      bootstrapRun(target, { ...RAW_ANSWERS, roles: ["astrologer"] }, { orgHome }),
     ).rejects.toThrow(/not a role in the org roles\.yaml/);
     expect(existsSync(join(target, ".operon"))).toBe(false);
   });
@@ -351,8 +356,10 @@ describe("cmdBootstrap --answers", () => {
     const target = makeRepo(NODE_REPO_FILES);
     const answersFile = join(makeRepo(), "answers.json");
     writeFileSync(answersFile, JSON.stringify(RAW_ANSWERS));
+    const orgHome = join(makeRepo(), "org");
+    await initOrgHome({ target: orgHome, name: "questionnaire", homeDir: makeRepo() });
 
-    const code = await cmdBootstrap([target, "--answers", answersFile]);
+    const code = await cmdBootstrap([target, "--answers", answersFile, "--org-home", orgHome]);
     expect(code).toBe(0);
 
     const out = log.mock.calls.map((c) => c.join(" ")).join("\n");
@@ -366,14 +373,16 @@ describe("cmdBootstrap --answers", () => {
     expect(existsSync(join(target, ".operon", "config.yaml"))).toBe(true);
     expect(existsSync(join(target, ".operon", "policy.yaml"))).toBe(true);
     expect(existsSync(join(target, ".operon", "onboarding-report.md"))).toBe(true);
-    expect(existsSync(join(target, ".operon", "org", "apps.yaml"))).toBe(true);
+    expect(existsSync(join(target, ".operon", "org", "apps.yaml"))).toBe(false);
   });
 
   it("fails loudly when the answers file is not valid JSON", async () => {
     const target = makeRepo(NODE_REPO_FILES);
     const answersFile = join(makeRepo(), "answers.json");
     writeFileSync(answersFile, "{not json");
-    await expect(cmdBootstrap([target, "--answers", answersFile])).rejects.toThrow(
+    const orgHome = join(makeRepo(), "org");
+    await initOrgHome({ target: orgHome, name: "invalid-answers", homeDir: makeRepo() });
+    await expect(cmdBootstrap([target, "--answers", answersFile, "--org-home", orgHome])).rejects.toThrow(
       /is not valid JSON/,
     );
     expect(existsSync(join(target, ".operon"))).toBe(false);

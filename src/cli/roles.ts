@@ -1,8 +1,16 @@
 // `operon roles [path]` — validate roles.yaml and print the org chart.
 
 import { loadRoles } from "../org/roles.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { join, resolve } from "node:path";
+import { extractHomeFlags } from "./home-flags.js";
 
-export async function cmdRoles(path = "roles.yaml"): Promise<number> {
+export async function cmdRoles(args: string[] = []): Promise<number> {
+  const common = extractHomeFlags(args, "roles");
+  if (common.rest.length > 1) throw new Error("roles: expected at most one roles.yaml path");
+  const path = common.rest[0]
+    ? resolve(common.rest[0])
+    : join((await resolveOperonHomes(common)).orgHome, "roles.yaml");
   const { roles, defaults } = await loadRoles(path);
   console.log(`${path}: OK — ${roles.length} roles, default turn budget $${defaults.maxTurnBudgetUsd}\n`);
   const pad = (s: string, n: number) => s.padEnd(n);

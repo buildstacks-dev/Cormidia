@@ -1,8 +1,16 @@
 // `operon apps [path]` — validate apps.yaml and print the app registry.
 
 import { loadApps } from "../org/apps.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { join, resolve } from "node:path";
+import { extractHomeFlags } from "./home-flags.js";
 
-export async function cmdApps(path = "apps.yaml"): Promise<number> {
+export async function cmdApps(args: string[] = []): Promise<number> {
+  const common = extractHomeFlags(args, "apps");
+  if (common.rest.length > 1) throw new Error("apps: expected at most one apps.yaml path");
+  const path = common.rest[0]
+    ? resolve(common.rest[0])
+    : join((await resolveOperonHomes(common)).orgHome, "apps.yaml");
   const { org, defaults, apps } = await loadApps(path);
   console.log(
     `${path}: OK — ${apps.length} app${apps.length === 1 ? "" : "s"}, ` +

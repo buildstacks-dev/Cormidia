@@ -1,11 +1,17 @@
 // `operon plan <app>` — manual Planner co-planning launcher.
 
 import { cleanupPlanningWorktree, preparePlanSession, recordPlanTelemetry, spawnClaude } from "../org/plan.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
-  const parsed = parseArgs(args);
+  const common = extractHomeFlags(args, "plan");
+  const parsed = parseArgs(common.rest);
+  const homes = await resolveOperonHomes(common);
   const session = await preparePlanSession({
     appName: parsed.app,
+    orgHome: homes.orgHome,
+    runtimeHome: homes.stateHome,
     ...(parsed.topic !== undefined ? { topic: parsed.topic } : {}),
     ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
   });
@@ -24,7 +30,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
   const code = await spawnClaude(session.invocation);
   const endedAt = new Date();
   await recordPlanTelemetry({
-    orgDir: ".org",
+    orgDir: homes.stateHome,
     role: session.plannerRole,
     app: session.app.name,
     status: code === 0 ? "completed" : "failed",

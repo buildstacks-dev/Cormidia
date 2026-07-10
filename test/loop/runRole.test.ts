@@ -6,6 +6,7 @@
 // network, auth, real org state, or live wall clock is required.
 
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -21,6 +22,7 @@ import { makeOrgHome } from "../fixtures/orgHome.js";
 const execFileAsync = promisify(execFile);
 const CLI_PATH = fileURLToPath(new URL("../../src/cli.ts", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const TSX_LOADER = createRequire(import.meta.url).resolve("tsx");
 
 const PLANNER: RoleConfig = {
   name: "planner",
@@ -184,8 +186,8 @@ describe("runRole", () => {
 describe("run-role CLI", () => {
   it("run-role planner --dry-run prints the brief, exit 0", async () => {
     const { stdout } = await execFileAsync(
-      "npx",
-      ["tsx", CLI_PATH, "run-role", "planner", "--dry-run"],
+      process.execPath,
+      ["--import", TSX_LOADER, CLI_PATH, "run-role", "planner", "--dry-run", "--org-home", REPO_ROOT],
       { cwd: REPO_ROOT },
     );
     expect(stdout).toContain("[ticket]");
@@ -194,7 +196,7 @@ describe("run-role CLI", () => {
 
   it("unknown role exits non-zero with a clear message", async () => {
     await expect(
-      execFileAsync("npx", ["tsx", CLI_PATH, "run-role", "stranger", "--dry-run"], {
+      execFileAsync(process.execPath, ["--import", TSX_LOADER, CLI_PATH, "run-role", "stranger", "--dry-run", "--org-home", REPO_ROOT], {
         cwd: REPO_ROOT,
       }),
     ).rejects.toMatchObject({

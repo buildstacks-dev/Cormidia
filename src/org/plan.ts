@@ -149,6 +149,8 @@ export interface PreparePlanSessionOptions {
   appsPath?: string;
   /** Org home root; defaults to cwd. */
   orgHome?: string;
+  /** High-churn runtime state root; defaults to ~/.operon/<org>. */
+  runtimeHome?: string;
   /** roles.yaml path; defaults to `${orgHome}/roles.yaml`. */
   rolesPath?: string;
   /** App repo checkout/worktree; defaults to the local app checkout resolver. */
@@ -189,7 +191,7 @@ export async function preparePlanSession(
 
   const appWorkdir = resolveAppWorkdir(app, {
     orgRoot: orgHome,
-    runtimeHome: join(homedir(), ".operon", appsFile.org.name),
+    runtimeHome: options.runtimeHome ?? join(homedir(), ".operon", appsFile.org.name),
     ...(options.workdir !== undefined ? { explicitWorkdir: options.workdir } : {}),
   });
 

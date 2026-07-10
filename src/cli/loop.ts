@@ -1,7 +1,6 @@
 // `operon loop --app <app> [--once|--follow] [--dry-run]` — manual driver
 // for the build-loop state machine (M5.9).
 
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
@@ -12,6 +11,8 @@ import { loadApps } from "../org/apps.js";
 import { assembleContext } from "../org/context.js";
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 /**
  * Persist the scorecard events one loop tick produced into the org scorecard
@@ -48,6 +49,8 @@ export async function persistLoopScorecards(
 }
 
 export async function cmdLoop(args: string[]): Promise<number> {
+  const common = extractHomeFlags(args, "loop");
+  args = common.rest;
   let appName: string | undefined;
   let once = false;
   let follow = false;
@@ -78,22 +81,25 @@ export async function cmdLoop(args: string[]): Promise<number> {
   if (!once && !follow) once = true;
   if (once && follow) throw new Error("loop: choose either --once or --follow, not both");
 
-  const appsFile = await loadApps("apps.yaml");
+  const homes = await resolveOperonHomes(common);
+  const appsPath = join(homes.orgHome, "apps.yaml");
+  const rolesPath = join(homes.orgHome, "roles.yaml");
+  const pipelinesPath = join(homes.orgHome, "pipelines.yaml");
+  const appsFile = await loadApps(appsPath);
   const app = appsFile.apps.find((entry) => entry.name === appName);
   if (app === undefined) throw new Error(`loop: unknown app "${appName}" in apps.yaml`);
   const selectedApp = app;
 
-  const orgHome = join(homedir(), ".operon", appsFile.org.name);
-  const localRepo = repoDir ?? join(orgHome, "repos", selectedApp.name);
-  const worktrees = worktreeRoot ?? join(orgHome, "worktrees", selectedApp.name);
+  const localRepo = repoDir ?? join(homes.stateHome, "repos", selectedApp.name);
+  const worktrees = worktreeRoot ?? join(homes.stateHome, "worktrees", selectedApp.name);
   const inputs = await defaultLoopInputs(selectedApp.repo, localRepo);
-  const rolesFile = await loadRoles("roles.yaml");
+  const rolesFile = await loadRoles(rolesPath);
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
   const maybeBuilderRole = roles["builder"];
   if (maybeBuilderRole === undefined) throw new Error("loop: roles.yaml has no builder role");
   const builderRole = maybeBuilderRole;
-  const promptsDir = "prompts";
-  const pipelines = await loadPipelines("pipelines.yaml", {
+  const promptsDir = join(homes.orgHome, "prompts");
+  const pipelines = await loadPipelines(pipelinesPath, {
     roleNames: rolesFile.roles.map((role) => role.name),
     promptsDir,
   });
@@ -128,10 +134,10 @@ export async function cmdLoop(args: string[]): Promise<number> {
             roles,
             runtimeFor: (role) => getRuntime(role.runtime),
             promptsDir,
-            runlogRoot: orgHome,
+            runlogRoot: homes.stateHome,
             hooks: { gate: defaultGate },
             context: (await assembleContext({
-              orgHome: process.cwd(),
+              orgHome: homes.orgHome,
               appWorkdir: localRepo,
               app: selectedApp.name,
               role: builderRole,
@@ -141,7 +147,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
           }
         : {}),
     });
-    await persistLoopScorecards(orgHome, selectedApp.name, result.scorecardEvents);
+    await persistLoopScorecards(homes.stateHome, selectedApp.name, result.scorecardEvents);
     for (const line of result.lines) console.log(line);
     for (const item of result.items) {
       console.log(`${item.ticketRef}: ${item.phase}`);

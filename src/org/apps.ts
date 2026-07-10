@@ -57,7 +57,7 @@ export interface FindExistingOrgOptions {
   /** Explicit org home, e.g. CLI `--org-home`. */
   orgHome?: string;
   /** Environment source; defaults to process.env. */
-  env?: Pick<NodeJS.ProcessEnv, "OPERON_HOME">;
+  env?: Pick<NodeJS.ProcessEnv, "OPERON_ORG_HOME" | "OPERON_HOME">;
   /** Home dir for the pointer-file lookup; defaults to the current user. */
   homeDir?: string;
   /** Override for tests; defaults to `${homeDir}/.operon/config`. */
@@ -111,8 +111,6 @@ export async function loadApps(path: string): Promise<AppsFile> {
   for (const [name, specUnknown] of Object.entries(appsRaw as Record<string, unknown>)) {
     apps.push(parseApp(name, specUnknown, defaults.budgetUsdMonth, path));
   }
-  if (apps.length === 0) throw new Error(`${path}: no apps defined`);
-
   const file: AppsFile = { org, defaults, apps };
   if (typeof raw["schema_version"] === "number") file.schemaVersion = raw["schema_version"];
   return file;
@@ -204,19 +202,24 @@ export function resolveTriggers(role: RoleConfig, app: AppEntry): Trigger[] {
 }
 
 /** Detect an existing org home (architecture §9 step 4): explicit
- * `--org-home` wins, then OPERON_HOME, then a pointer file at
+ * `--org-home` wins, then OPERON_ORG_HOME, then a pointer file at
  * `~/.operon/config`. The pointer file accepts YAML/JSON with `org_home`
- * or `orgHome`, or a plain path. */
+ * or `orgHome`, or a plain path. OPERON_HOME remains a deprecated final
+ * fallback for pre-packaging installations; runtime state uses
+ * OPERON_STATE_HOME and never consults OPERON_HOME. */
 export async function findExistingOrg(
   options: FindExistingOrgOptions = {},
 ): Promise<string | undefined> {
   if (options.orgHome !== undefined) return resolve(options.orgHome);
 
   const env = options.env ?? process.env;
-  if (env.OPERON_HOME && env.OPERON_HOME.length > 0) return resolve(env.OPERON_HOME);
+  if (env.OPERON_ORG_HOME && env.OPERON_ORG_HOME.length > 0) return resolve(env.OPERON_ORG_HOME);
 
   const pointerPath = options.pointerPath ?? join(options.homeDir ?? homedir(), ".operon", "config");
-  if (!existsSync(pointerPath)) return undefined;
+  if (!existsSync(pointerPath)) {
+    if (env.OPERON_HOME && env.OPERON_HOME.length > 0) return resolve(env.OPERON_HOME);
+    return undefined;
+  }
 
   const text = (await readFile(pointerPath, "utf8")).trim();
   if (text.length === 0) return undefined;
@@ -291,7 +294,13 @@ export async function joinExistingOrg(
     .split("\n")
     .map((line) => `  ${line}`)
     .join("\n");
-  const next = `${before.endsWith("\n") ? before : `${before}\n`}${block}\n`;
+  // `operon org init` deliberately starts with an empty mapping. Expand that
+  // canonical form in place for the first app; later registrations retain the
+  // byte-preserving EOF append used for human-edited registries.
+  const emptyAppsLine = /^apps:\s*\{\}\s*$/m;
+  const next = emptyAppsLine.test(before)
+    ? `${before.replace(emptyAppsLine, `apps:\n${block}`).trimEnd()}\n`
+    : `${before.endsWith("\n") ? before : `${before}\n`}${block}\n`;
   await writeFile(appsPath, next, "utf8");
 
   // The 2-space EOF append assumes `apps:` is the last top-level key at 2-space

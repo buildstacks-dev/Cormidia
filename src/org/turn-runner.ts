@@ -48,7 +48,9 @@ export async function runDispatchedTurn(
   const clock = options.now ?? (() => new Date());
   const orgRoot = resolve(options.orgRoot ?? process.cwd());
   const runtimeHome = resolve(
-    options.runtimeHome ?? process.env.OPERON_HOME ?? join(homedir(), ".operon", options.appsFile.org.name),
+    options.runtimeHome ??
+      process.env.OPERON_STATE_HOME ??
+      join(homedir(), ".operon", options.appsFile.org.name),
   );
   await ensureTurnLock(runtimeHome, options.app.name, options.role.name, options.turnId, clock());
   const heartbeat = setInterval(() => {

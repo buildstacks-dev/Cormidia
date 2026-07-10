@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v1.4 — 2026-07-07. Human-ratified decision log. Keep this file high-level;
+*v1.5 — 2026-07-09. Human-ratified decision log. Keep this file high-level;
 execution details belong in TODO.md, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -10,8 +10,9 @@ Reviewer, SRE, Support, Marketing) that develops and operates software
 products, coordinated through private GitHub repos as the source of truth,
 with a human approver gating critical operations only.
 
-**Operon is a library, not an app.** It is pointed at a target repo via
-config; it never contains app code. One org runtime, N applications.
+**Operon is an installable package/runtime, not an app.** Its CLI is pointed
+at org configuration and target repos; it never contains app code. One org
+runtime, N applications.
 
 ## Validation and launch path
 
@@ -191,20 +192,24 @@ config file, not a fork.
   role+app (domain knowledge); context assembly loads the role bundle plus
   the *current* app's bundle only. Scorecards are kept per (role, app) so
   quality regressions localize.
-- **Bootstrap & artifact home** (2026-07-04). `operon bootstrap` runs inside
-  the product repo: learns the repo, walks an alignment questionnaire with
-  the user, emits artifacts. Default (single-app profile): everything stays
-  in the product repo's own git — `.operon/` (constitution + config,
-  committed), `.operon/memory/` (curated OKF bundles, committed); high-churn
-  operational state (sessions, telemetry, raw logs) lives gitignored in
-  `~/.operon/<org>/`. An **org-home repo is optional, never required** — a
-  graduation move for multi-app orgs; `bootstrap` in a second repo detects
-  and joins an existing org. Org-level artifacts use the identical on-disk
-  layout inside `.operon/` and at an org-home repo root, so extraction later
-  is a `git mv`, not a migration. Dogfood note: this library repo doubles as
-  our own org home for now; the root `roles.yaml` / `TASTE.md` are instance
-  config destined to become bootstrap templates — don't harden the
-  conflation.
+- **Packaging, homes, and bootstrap boundary** (reconciled 2026-07-09;
+  supersedes the optional single-app org-home profile from 2026-07-04).
+  Operon's installed package/source, committed org home, local runtime state,
+  and app repo are four distinct paths. `operon org init` creates a complete
+  org home from packaged templates and records an active pointer;
+  `OPERON_ORG_HOME` and `OPERON_STATE_HOME` are explicit overrides. Runtime
+  state defaults to `~/.operon/<org>/` and never lives in git. `operon
+  bootstrap` requires an active org, accepts a local app checkout, emits only
+  app-owned `.operon/` artifacts there, and registers the app in the org's
+  `apps.yaml`. The Operon source repo never doubles as the active org merely
+  because it is the current working directory.
+- **Local development installation is source-backed** (2026-07-09).
+  `pnpm link:local` exposes the `operon` command and Operon Agent Skill while
+  retaining a live reference to the local source tree; subsequent invocations
+  pick up source edits without update/relink/build. Packed installations use
+  the compiled `dist/cli.js`. Agents discover the installed surface through
+  `operon capabilities --json`, `operon context --json`, command help, and the
+  packaged `$operon` skill rather than reading implementation code.
 - **Greenfield creation is create-then-bootstrap** (2026-07-07). A brand-new
   product starts with `operon new-app`: create a separate target app repo
   skeleton, write seed vision/requirements docs plus an initial issue packet,
@@ -328,7 +333,8 @@ will resolve them.
   to prove config-not-fork and the SRE/approval surface. Multi-app designed
   in, operated one-live-app-at-a-time; one-turn-one-app invariant; memory
   and scorecards partitioned per (role, app). Bootstrap artifact home
-  decided (`.operon/` in the product repo; org-home repo optional). TASTE
+  decided (`.operon/` in the product repo; org-home repo optional). This
+  artifact-home choice was superseded by v1.5's required separate org home. TASTE
   layer semantics clarified (org values / app charter / role craft).
   Superseded by v1.0's sandbox-first validation path for roadmap acceptance;
   civic/buildstacks remain production onboarding targets.
@@ -367,3 +373,8 @@ will resolve them.
 - 2026-07-07 — v1.4: greenfield creation boundary recorded. `operon new-app`
   creates a separate product repo scaffold, starter product docs, and initial
   issue packet, then converges through the existing bootstrap/register path.
+- 2026-07-09 — v1.5: packaging/onboarding boundary reconciled. Operon is a
+  locally installable CLI with a source-backed development link and packaged
+  Agent Skill; package, org, state, and app paths are explicit and separate;
+  bootstrap always joins a complete active org and no longer creates a nested
+  single-app org profile.

@@ -13,7 +13,7 @@ import { cmdAnalyze } from "./cli/analyze.js";
 import { cmdBootstrap } from "./cli/bootstrap.js";
 import { cmdBudget } from "./cli/budget.js";
 import { cmdDispatch } from "./cli/dispatch.js";
-import { cmdDoctor } from "./cli/doctor.js";
+import { cmdDoctorArgs } from "./cli/doctor.js";
 import { cmdLoop } from "./cli/loop.js";
 import { cmdNewApp } from "./cli/new-app.js";
 import { cmdPlan } from "./cli/plan.js";
@@ -22,14 +22,24 @@ import { cmdPruneRuns } from "./cli/prune-runs.js";
 import { cmdRetro } from "./cli/retro.js";
 import { cmdRunRole } from "./cli/run-role.js";
 import { cmdStatus } from "./cli/status.js";
+import { cmdOrg } from "./cli/org.js";
+import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.js";
 
 const USAGE = `operon — org runtime for a team of AI agents
 
 Usage:
+  operon org init <local-path> --name <name> [--state-home <path>]
+                           create and select a separate, complete org home
+  operon org show [--json] show the active org and state homes
+  operon org use <local-path> [--state-home <path>]
+                           select an existing complete org home
+  operon context [--json]  show resolved paths and registered apps
+  operon capabilities [--json]
+                           show the installed command/capability surface
   operon roles [path]      validate roles.yaml and print the org chart
   operon apps [path]       validate apps.yaml and print the app registry
   operon pipelines [path]  validate pipelines.yaml and print the pass table
-  operon bootstrap [path] [--scan-only] [--answers <file>] [--org-home <path>]
+  operon bootstrap [path] [--scan-only] [--answers <file>] [--org-home <path>] [--state-home <path>]
                            scan a target repo, walk the alignment
                            questionnaire (interactive, or --answers
                            answers.json), and emit the .operon/ tree
@@ -41,20 +51,21 @@ Usage:
   operon plan <app> [--topic <string>] [--dry-run] [--workdir <path>]
                            open a Planner co-planning session for an
                            onboarded app
-  operon doctor            check runtime adapter status
-  operon approvals [review|show <id>] [--home <path>]
+  operon doctor [--json]   validate installation, active org, state, adapters,
+                           and scheduler status
+  operon approvals [review|show <id>] [--state-home <path>]
                            inspect or decide the critical-op approval queue
-  operon budget [--home <path>] [--apps <path>]
+  operon budget [--state-home <path>] [--apps <path>]
                            summarize monthly app spend and budget pauses
-  operon status [--home <path>] [--app <app>] [--limit N]
+  operon status [--state-home <path>] [--app <app>] [--limit N]
                            show recent L1/L2 run status
-  operon analyze [--home <path>] [--app <app>]
+  operon analyze [--state-home <path>] [--app <app>]
                            report L1/L2 anomaly flags and recommendations
-  operon dispatch [--home <path>] [--dry-run]
+  operon dispatch [--state-home <path>] [--dry-run]
                            run one autonomous scheduler tick
   operon prune-runs [root] [--retention-days N]
                            delete finalized run dirs past retention
-  operon retro [--date YYYY-MM-DD] [--home <path>] [--apps <path>] [--roles <path>]
+  operon retro [--date YYYY-MM-DD] [--state-home <path>] [--apps <path>] [--roles <path>]
                            write a weekly evidence retro report
   operon loop --app <app> [--once|--follow] [--dry-run]
                            run the build loop over ready tickets
@@ -65,25 +76,53 @@ Usage:
 
 interface CliCommand {
   run(args: string[]): number | Promise<number>;
+  help: string;
 }
 
+const HOME_HELP = `\n\nLocation flags:\n  --org-home <path>    committed org configuration; defaults to the active pointer\n  --state-home <path>  local high-churn runtime state; defaults to ~/.operon/<org>`;
+
+const HELP = {
+  org: `Usage:\n  operon org init <local-path> --name <name> [--state-home <path>] [--json]\n  operon org show [--json]\n  operon org use <local-path> [--state-home <path>] [--json]\n\nOrg home stores committed roles, apps, pipelines, prompts, taste, and curated memory.\nState home stores local clones, worktrees, locks, approvals, telemetry, and run logs.`,
+  roles: `Usage: operon roles [roles.yaml-path]${HOME_HELP}`,
+  apps: `Usage: operon apps [apps.yaml-path]${HOME_HELP}`,
+  pipelines: `Usage: operon pipelines [pipelines.yaml-path]${HOME_HELP}`,
+  bootstrap: `Usage: operon bootstrap [local-repo-path] [--scan-only] [--answers <answers.json>] [--org-home <path>] [--state-home <path>]\n\nThe positional value is a local directory, never a GitHub URL. The active org must already exist. Outside an interactive terminal, --answers is required and omission writes nothing.`,
+  "new-app": `Usage: operon new-app <name-or-goal> --target-dir <local-path> --repo <owner/repo> [--goal <text>] [--name <app>] [--org-home <path>] [--dry-run]`,
+  plan: `Usage: operon plan <app-name> [--topic <text>] [--workdir <local-path>] [--dry-run]${HOME_HELP}`,
+  loop: `Usage: operon loop --app <app-name> [--once|--follow] [--dry-run] [--repo-dir <local-path>]${HOME_HELP}`,
+  doctor: `Usage: operon doctor [--json]${HOME_HELP}`,
+  approvals: `Usage: operon approvals [list|review|show <id>] [--state-home <path>] [--now <ISO-time>]${HOME_HELP}`,
+  budget: `Usage: operon budget [--apps <apps.yaml-path>]${HOME_HELP}`,
+  status: `Usage: operon status [--app <app-name>] [--limit N]${HOME_HELP}`,
+  analyze: `Usage: operon analyze [--app <app-name>]${HOME_HELP}`,
+  dispatch: `Usage: operon dispatch [--dry-run] [--apps <path>] [--roles <path>]${HOME_HELP}`,
+  "prune-runs": `Usage: operon prune-runs [state-home-path] [--retention-days N]${HOME_HELP}`,
+  retro: `Usage: operon retro [--date YYYY-MM-DD] [--apps <path>] [--roles <path>]${HOME_HELP}`,
+  "run-role": `Usage: operon run-role <role-name> [--app <app-name>] [--turn <id>] [--template <path>] [--workdir <path>] [--dry-run]${HOME_HELP}`,
+  context: `Usage: operon context [--json]${HOME_HELP}`,
+  capabilities: "Usage: operon capabilities [--json]",
+} as const;
+
 const COMMANDS: Record<string, CliCommand> = {
-  roles: { run: (args) => cmdRoles(args[0]) },
-  apps: { run: (args) => cmdApps(args[0]) },
-  approvals: { run: (args) => cmdApprovals(args) },
-  analyze: { run: (args) => cmdAnalyze(args) },
-  bootstrap: { run: (args) => cmdBootstrap(args) },
-  budget: { run: (args) => cmdBudget(args) },
-  dispatch: { run: (args) => cmdDispatch(args) },
-  plan: { run: (args) => cmdPlan(args) },
-  pipelines: { run: (args) => cmdPipelines(args[0]) },
-  doctor: { run: () => cmdDoctor() },
-  "prune-runs": { run: (args) => cmdPruneRuns(args) },
-  retro: { run: (args) => cmdRetro(args) },
-  loop: { run: (args) => cmdLoop(args) },
-  "new-app": { run: (args) => cmdNewApp(args) },
-  "run-role": { run: (args) => cmdRunRole(args) },
-  status: { run: (args) => cmdStatus(args) },
+  org: { run: (args) => cmdOrg(args), help: HELP.org },
+  roles: { run: (args) => cmdRoles(args), help: HELP.roles },
+  apps: { run: (args) => cmdApps(args), help: HELP.apps },
+  approvals: { run: (args) => cmdApprovals(args), help: HELP.approvals },
+  analyze: { run: (args) => cmdAnalyze(args), help: HELP.analyze },
+  bootstrap: { run: (args) => cmdBootstrap(args), help: HELP.bootstrap },
+  budget: { run: (args) => cmdBudget(args), help: HELP.budget },
+  capabilities: { run: (args) => cmdCapabilities(args), help: HELP.capabilities },
+  context: { run: (args) => cmdContext(args), help: HELP.context },
+  dispatch: { run: (args) => cmdDispatch(args), help: HELP.dispatch },
+  plan: { run: (args) => cmdPlan(args), help: HELP.plan },
+  pipelines: { run: (args) => cmdPipelines(args), help: HELP.pipelines },
+  doctor: { run: (args) => cmdDoctorArgs(args), help: HELP.doctor },
+  "prune-runs": { run: (args) => cmdPruneRuns(args), help: HELP["prune-runs"] },
+  retro: { run: (args) => cmdRetro(args), help: HELP.retro },
+  loop: { run: (args) => cmdLoop(args), help: HELP.loop },
+  "new-app": { run: (args) => cmdNewApp(args), help: HELP["new-app"] },
+  "run-role": { run: (args) => cmdRunRole(args), help: HELP["run-role"] },
+  status: { run: (args) => cmdStatus(args), help: HELP.status },
 };
 
 async function main(): Promise<number> {
@@ -93,11 +132,19 @@ async function main(): Promise<number> {
       console.log(USAGE);
       return 0;
     }
+    if (cmd === "--version" || cmd === "-v") {
+      console.log(await packageVersion());
+      return 0;
+    }
     const command = COMMANDS[cmd];
     if (!command) {
       console.error(`operon: unknown command "${cmd}"`);
       console.error("Run operon --help to see the available commands.");
       return 1;
+    }
+    if (rest.includes("--help") || rest.includes("-h")) {
+      console.log(command.help);
+      return 0;
     }
     return await command.run(rest);
   } catch (e) {

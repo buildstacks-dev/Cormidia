@@ -7,12 +7,9 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { loadApps, resolveTriggers, type AppEntry } from "../src/org/apps.js";
 import type { RoleConfig } from "../src/runtime/types.js";
-
-const APPS_PATH = fileURLToPath(new URL("../apps.yaml", import.meta.url));
 
 const tempDirs: string[] = [];
 afterAll(() => {
@@ -143,65 +140,20 @@ apps:
   });
 });
 
-describe("root apps.yaml (this repo as its own org home)", () => {
-  it("parses with the self-referential placeholder and sandbox app entries", async () => {
-    const { org, apps } = await loadApps(APPS_PATH);
-    expect(org.name).toBe("operon");
-    expect(org.maxConcurrentTurns).toBe(2);
-    expect(apps).toHaveLength(7);
-    expect(apps[0]!.name).toBe("operon");
-    expect(apps[0]!.repo).toBe("buildstacks-dev/Operon");
-    expect(apps[0]!.status).toBe("onboarding");
-    expect(apps[1]).toMatchObject({
-      name: "operon-sandbox-alpha",
-      repo: "bikramgupta/operon-sandbox-alpha",
-      status: "live",
-      budgetUsdMonth: 1000,
-    });
-    expect(apps[2]).toMatchObject({
-      name: "operon-sandbox-beta",
-      repo: "bikramgupta/operon-sandbox-beta",
-      status: "onboarding",
-      budgetUsdMonth: 1000,
-    });
-    expect(apps[3]).toMatchObject({
-      name: "operon-sandbox-gamma",
-      repo: "bikramgupta/operon-sandbox-gamma",
-      status: "onboarding",
-      budgetUsdMonth: 1000,
-    });
-    expect(apps[4]).toMatchObject({
-      name: "buildstacks.dev",
-      repo: "buildstacks-dev/buildstacks.dev",
-      status: "onboarding",
-      budgetUsdMonth: 1000,
-    });
-    expect(apps[4]!.cadence).toEqual({ support: [] });
-    expect(apps[5]).toMatchObject({
-      name: "operon-sandbox-delta",
-      repo: "bikramgupta/operon-sandbox-delta",
-      status: "onboarding",
-      budgetUsdMonth: 1000,
-    });
-    expect(apps[5]!.cadence).toEqual({});
-    expect(apps[6]).toMatchObject({
-      name: "operon-marketplace-demo",
-      repo: "bikramgupta/operon-marketplace-demo",
-      status: "live",
-      budgetUsdMonth: 1000,
-    });
-    expect(apps[6]!.cadence).toEqual({
-      planner: [{ event: "support-feedback" }, { event: "adoption-signal" }],
-      builder: [{ event: "ticket-ready" }],
-      reviewer: [{ event: "pr-opened" }],
-      sre: [{ event: "health-alert" }],
-      support: [{ event: "support-feedback" }],
-      marketing: [{ event: "adoption-signal" }, { event: "launch-calendar" }, { event: "release-shipped" }],
-    });
-    expect(apps[6]!.channels).toEqual({
-      support: ["fixture-helpdesk", "fixture-email"],
-      marketing: ["draft-launch-note", "fixture-adoption-report"],
-    });
+describe("new org registry", () => {
+  it("accepts a newly initialized org with no registered apps", async () => {
+    const file = await loadApps(
+      appsFile(`schema_version: 1
+org:
+  name: fresh
+  max_concurrent_turns: 2
+defaults:
+  budget_usd_month: 1000
+apps: {}
+`),
+    );
+    expect(file.org.name).toBe("fresh");
+    expect(file.apps).toEqual([]);
   });
 });
 

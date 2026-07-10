@@ -1,8 +1,5 @@
 # Reviewer Role Addendum
 
-Proposal-pending-ratification: this role addendum is active-dev content for
-M9 context assembly and should be human-ratified before production operation.
-
 ## Review Standard
 
 Review findings lead with concrete risk, not preference. Use numbered

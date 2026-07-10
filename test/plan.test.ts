@@ -99,6 +99,12 @@ apps:
     cadence: {}
 `,
   );
+  write(
+    root,
+    "pipelines.yaml",
+    "plan:\n  passes:\n    - id: plan\n      role: planner\n      template: plan.md\n",
+  );
+  write(root, "prompts/plan.md", "Plan the requested work.\n");
   return root;
 }
 
@@ -203,6 +209,10 @@ describe("cmdPlan", () => {
       "--dry-run",
       "--workdir",
       app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      makeDir("operon-plan-state-"),
     ]);
 
     expect(code).toBe(0);
@@ -236,6 +246,12 @@ roles:
     );
     write(
       orgHome,
+      "pipelines.yaml",
+      "plan:\n  passes:\n    - id: plan\n      role: planner\n      template: plan.md\n",
+    );
+    write(orgHome, "prompts/plan.md", "Plan the requested work.\n");
+    write(
+      orgHome,
       "apps.yaml",
       `org: {name: operon, max_concurrent_turns: 2}
 defaults: {budget_usd_month: 1000}
@@ -250,7 +266,14 @@ apps:
     process.chdir(orgHome);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    const code = await cmdPlan(["operon-sandbox-alpha", "--dry-run"]);
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--dry-run",
+      "--org-home",
+      orgHome,
+      "--state-home",
+      makeDir("operon-plan-sibling-state-"),
+    ]);
 
     expect(code).toBe(0);
     const out = log.mock.calls.map((c) => c.join(" ")).join("\n");

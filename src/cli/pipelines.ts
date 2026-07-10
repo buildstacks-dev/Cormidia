@@ -5,11 +5,18 @@
 // repo root mirrors.
 
 import { access } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { loadPipelines } from "../loop/pipelines.js";
 import { loadRoles } from "../org/roles.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
 
-export async function cmdPipelines(path = "pipelines.yaml"): Promise<number> {
+export async function cmdPipelines(args: string[] = []): Promise<number> {
+  const common = extractHomeFlags(args, "pipelines");
+  if (common.rest.length > 1) throw new Error("pipelines: expected at most one pipelines.yaml path");
+  const path = common.rest[0]
+    ? resolve(common.rest[0])
+    : join((await resolveOperonHomes(common)).orgHome, "pipelines.yaml");
   // Check the target first: a missing pipelines.yaml must not surface as a
   // confusing error about the sibling roles.yaml the user never named.
   try {

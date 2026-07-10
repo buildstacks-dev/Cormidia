@@ -358,7 +358,9 @@
         </div>
         <div class="rp"><b>▸ Onboard a new app</b>
           <ol>
-            <li><code>src/org/bootstrap.ts</code> — repo scan + <code>.operon/</code> emission</li>
+            <li><code>src/org/home.ts</code> — package / org / state boundary + complete org initialization</li>
+            <li><code>agent-skills/operon/SKILL.md</code> — coding-agent operating runbook</li>
+            <li><code>src/org/bootstrap.ts</code> — local repo scan + app-owned <code>.operon/</code> emission</li>
             <li><code>src/org/apps.ts</code> — the app registry &amp; trigger resolution</li>
             <li><code>src/cli/bootstrap.ts</code>, <code>src/cli/plan.ts</code></li>
             <li><code>docs/testing-journey.md</code> — the sandbox apps, worked</li>
@@ -556,22 +558,24 @@
     <section id="cli"><div class="wrap">
       <p class="kicker">Operate</p>
       <h2>CLI reference</h2>
-      <p><code>src/cli.ts</code> is a thin dispatch table; each subcommand is one file under <code>src/cli/</code>. Adding one is a new file plus a registry line. The offline commands need no auth and are the fastest way to see the system respond.</p>
+      <p><code>src/cli.ts</code> is a thin dispatch table; each subcommand is one file under <code>src/cli/</code>. The installed <code>operon</code> command resolves a complete active org independently of the current directory. The package root, committed org home, local state home, and app repo are always separate paths.</p>
       <table class="mods">
         <thead><tr><th>Command</th><th>Does</th></tr></thead>
         <tbody>
           <tr><td><span class="path">roles · apps · pipelines</span></td><td>Validate and print the ratified config surfaces. <small>offline</small></td></tr>
+          <tr><td><span class="path">org init · org show · org use</span></td><td>Create, inspect, or select a complete separate org home. <small>offline</small></td></tr>
+          <tr><td><span class="path">context · capabilities</span></td><td>Machine-readable installed paths, apps, commands, write behavior, and token behavior for humans or coding agents. <small>offline</small></td></tr>
           <tr><td><span class="path">doctor</span></td><td>Verify config parses, adapters resolve, org home reachable. <small>offline</small></td></tr>
           <tr><td><span class="path">status · budget · analyze</span></td><td>Recent runs; monthly spend rollup; cache-token telemetry &amp; anomaly flags. <small>offline</small></td></tr>
           <tr><td><span class="path">approvals</span></td><td>Review the critical-op queue one item at a time. <small>offline</small></td></tr>
-          <tr><td><span class="path">bootstrap</span></td><td>Scan a repo and emit its <code>.operon/</code> org skeleton. <small>--scan-only offline</small></td></tr>
+          <tr><td><span class="path">bootstrap</span></td><td>Scan a local app repo, explain the resolved homes, emit app-owned <code>.operon/</code> artifacts, and register it in the active org. <small>--scan-only offline</small></td></tr>
           <tr><td><span class="path">plan · run-role · loop</span></td><td>A co-planning session; one role turn; one ticket through the loop. <small>--dry-run offline · live spends tokens</small></td></tr>
           <tr><td><span class="path">dispatch</span></td><td>One autonomous tick. <small>--dry-run offline</small></td></tr>
           <tr><td><span class="path">retro · prune-runs</span></td><td>Write a retro report; delete old finalized run records.</td></tr>
         </tbody>
       </table>
       <div class="note warn"><span class="lab">Prerequisites</span>
-        <p>Node ≥ 22 and <code>corepack enable</code> (pnpm is pinned). Then <code>pnpm install</code> and <code>pnpm dev &lt;command&gt;</code>. Live commands additionally need Claude auth (subscription-first); the GitHub e2e needs <code>gh</code> auth plus <code>GH_SANDBOX_REPO</code>; the loop's merge needs <code>OPERON_SELF_APPROVAL_SECRET</code>.</p>
+        <p>Node ≥ 26 and the pinned pnpm. From a source checkout run <code>pnpm install</code>, then <code>pnpm link:local</code>; the source-backed <code>operon</code> command and <code>$operon</code> skill see subsequent source edits without an update or rebuild. Start with <code>operon org init &lt;path&gt; --name &lt;name&gt;</code> and <code>operon doctor</code>. Live commands additionally need provider auth; the GitHub e2e needs <code>gh</code> auth plus <code>GH_SANDBOX_REPO</code>; the loop's merge needs <code>OPERON_SELF_APPROVAL_SECRET</code>.</p>
       </div>
     </div></section>
 

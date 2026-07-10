@@ -1,12 +1,8 @@
 // Composable org-home / app-repo temp fixture (build plan M0.3).
 //
-// docs/architecture.md §1 describes three homes: the git-tracked "Org home"
-// (this repo, for now — TASTE.md, taste/<role>.md, memory/roles/<role>/, …),
-// the gitignored runtime-state tree at `~/.operon/<org>/` (state/, locks/,
-// approvals/, runs/, telemetry/, …), and the target app repo's `.operon/`
-// tree (TASTE.md charter, config.yaml, memory/<role>/, and — single-app
-// profile only — an `org/` sub-tree that is "the same layout as org-home
-// root" so graduation is a `git mv`).
+// docs/architecture.md §1 separates the installed package, committed org
+// home, local runtime state, and target app repo. This fixture models the
+// latter three; package templates are covered by org-home lifecycle tests.
 //
 // `makeOrgHome()` builds one temp directory that can stand in for *either*
 // of the first two homes, one opt-in sub-tree at a time: a test that only
@@ -20,10 +16,8 @@
 // which M2.4 extends this fixture to build in full — the `runs` sub-builder
 // here is a namespace hook (per-app directories), not the run-record layout.
 //
-// `makeAppRepo()` builds the target-repo-side `.operon/` tree the same way,
-// including the single-app-profile `org/` sub-tree (a nested, restricted
-// reuse of the same taste/memory builders — runtime-state concerns like
-// `state/`/`approvals/`/`runs/` never belong in a git-tracked app repo).
+// `makeAppRepo()` builds the target-repo-side `.operon/` tree. Runtime-state
+// concerns and org-level configuration never belong in that git-tracked tree.
 //
 // Both fixtures are directory trees only — no git repo is initialized here
 // (that is M4.1's `gitRepo.ts` fixture, a separate concern with its own
@@ -169,10 +163,8 @@ export function makeOrgHome(options: OrgHomeOptions = {}): OrgHomeFixture {
   return buildOrgHomeAt(root, options);
 }
 
-/** Shared by `makeOrgHome` and `makeAppRepo`'s nested `.operon/org/` profile
- * (architecture.md §1: "the same layout as org-home root"). Builds taste,
- * memory, state, approvals, and runs directly under `dir` — no temp dir of
- * its own, no `cleanup()` (the caller's fixture owns that). */
+/** Build taste, memory, state, approvals, and runs directly under `dir` — no
+ * temp dir of its own, no `cleanup()` (the caller's fixture owns that). */
 function buildOrgHomeAt(dir: string, options: OrgHomeOptions): OrgHomeFixture {
   const paths = orgHomePaths(dir);
 
@@ -304,15 +296,6 @@ function buildRuns(dir: string, paths: OrgHomeFixture["paths"], opts: RunsOption
 // makeAppRepo — target app repo's `.operon/` tree
 // ---------------------------------------------------------------------------
 
-/** The single-app-profile `.operon/org/` sub-tree: "the same layout as
- * org-home root" (architecture.md §1) restricted to the git-tracked
- * concerns — runtime state (`state/`, `approvals/`, `runs/`) never belongs
- * in a git-tracked app repo, so only taste/memory are exposed here. */
-export interface AppOrgProfileOptions {
-  taste?: boolean | TasteOptions;
-  memory?: boolean | MemoryOptions;
-}
-
 export interface AppRepoOptions {
   /** .operon/TASTE.md — product charter (architecture.md §1, §5 layer [3]).
    * `true` writes a placeholder body. */
@@ -325,8 +308,6 @@ export interface AppRepoOptions {
   /** .operon/memory/<role>/ — per-(role, app) domain bundles
    * (architecture.md §6). Same shape as the org-home memory sub-builder. */
   memory?: boolean | MemoryOptions;
-  /** .operon/org/ — single-app profile ONLY (architecture.md §1). */
-  org?: boolean | AppOrgProfileOptions;
 }
 
 export interface AppRepoFixture {
@@ -341,10 +322,6 @@ export interface AppRepoFixture {
     memoryRoleDir(role: string): string;
     memoryIndex(role: string): string;
     memoryDoc(role: string, name: string): string;
-    orgDir: string;
-    orgTaste: string;
-    orgRoleTaste(role: string): string;
-    orgMemoryRoleDir(role: string): string;
   };
   cleanup(): void;
 }
@@ -361,10 +338,6 @@ export function makeAppRepo(options: AppRepoOptions = {}): AppRepoFixture {
     memoryRoleDir: (role: string) => join(memoryRoot, "memory", role),
     memoryIndex: (role: string) => join(memoryRoot, "memory", role, "INDEX.md"),
     memoryDoc: (role: string, name: string) => join(memoryRoot, "memory", role, withMdExt(name)),
-    orgDir: join(operonDir, "org"),
-    orgTaste: join(operonDir, "org", "TASTE.md"),
-    orgRoleTaste: (role: string) => join(operonDir, "org", "taste", `${role}.md`),
-    orgMemoryRoleDir: (role: string) => join(operonDir, "org", "memory", "roles", role),
   };
 
   if (options.taste) {
@@ -377,17 +350,6 @@ export function makeAppRepo(options: AppRepoOptions = {}): AppRepoFixture {
   if (options.memory) {
     buildAppMemory(memoryRoot, paths, options.memory === true ? {} : options.memory);
   }
-  if (options.org) {
-    ensureDir(paths.orgDir);
-    const orgOpts: AppOrgProfileOptions = options.org === true ? {} : options.org;
-    // Reuse the org-home builder against .operon/org/, restricted to the
-    // taste/memory concerns that are legal in a git-tracked app repo.
-    const nested: OrgHomeOptions = {};
-    if (orgOpts.taste !== undefined) nested.taste = orgOpts.taste;
-    if (orgOpts.memory !== undefined) nested.memory = orgOpts.memory;
-    buildOrgHomeAt(paths.orgDir, nested);
-  }
-
   return {
     root,
     operonDir,

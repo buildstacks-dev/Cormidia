@@ -1,20 +1,20 @@
 // `operon new-app` — greenfield product bootstrap. This creates the target app
 // repo skeleton first, then hands off to the normal bootstrap/register path.
 
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { findExistingOrg } from "../org/apps.js";
 import { createNewApp } from "../org/new-app.js";
+import { ORG_HOME_DEFINITION, resolveOperonHomes, STATE_HOME_DEFINITION } from "../org/home.js";
 
 export async function cmdNewApp(args: string[]): Promise<number> {
   const parsed = parseArgs(args);
-  const orgHome = await resolveOrgHome(parsed.orgHome);
+  const homes = await resolveOperonHomes(
+    parsed.orgHome !== undefined ? { orgHome: parsed.orgHome } : {},
+  );
   const result = await createNewApp({
     appName: parsed.appName,
     targetDir: parsed.targetDir,
     repoSlug: parsed.repoSlug,
     goal: parsed.goal,
-    ...(orgHome ? { orgHome } : {}),
+    orgHome: homes.orgHome,
     supportChannels: parsed.supportChannels,
     marketingChannels: parsed.marketingChannels,
     dryRun: parsed.dryRun,
@@ -24,6 +24,8 @@ export async function cmdNewApp(args: string[]): Promise<number> {
   console.log(`target: ${result.targetDir}`);
   console.log(`repo: ${result.repoSlug}`);
   if (result.joinedOrgHome) console.log(`org home: ${result.joinedOrgHome}`);
+  console.log(`org home means: ${ORG_HOME_DEFINITION}`);
+  console.log(`state home: ${homes.stateHome} — ${STATE_HOME_DEFINITION}`);
   console.log("\ncreated:");
   for (const rel of result.created) console.log(`  ${rel}`);
   console.log("\nupdated:");
@@ -94,6 +96,9 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
 
   if (!targetDir) throw new Error("new-app: --target-dir <path> is required");
   if (!repoSlug) throw new Error("new-app: --repo <owner/repo> is required");
+  if (!/^[^/\s]+\/[^/\s]+$/.test(repoSlug)) {
+    throw new Error("new-app: --repo must be a GitHub owner/repo slug, not a URL or local path");
+  }
 
   return {
     appName: appName ?? first,
@@ -111,11 +116,4 @@ function readValue(args: string[], index: number, flag: string): string {
   const value = args[index];
   if (!value || value.startsWith("--")) throw new Error(`new-app: ${flag} requires a value`);
   return value;
-}
-
-async function resolveOrgHome(explicit: string | undefined): Promise<string | undefined> {
-  if (explicit) return resolve(explicit);
-  const configured = await findExistingOrg();
-  if (configured) return configured;
-  return existsSync(join(process.cwd(), "apps.yaml")) ? process.cwd() : undefined;
 }

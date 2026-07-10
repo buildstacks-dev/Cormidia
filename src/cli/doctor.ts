@@ -1,9 +1,5 @@
-// `operon doctor` — verify the install can actually run: adapters resolve,
-// the human-ratified config surfaces parse, and the org home is reachable.
-// It reports honestly (OK / WARN / FAIL) and exits non-zero when a hard
-// precondition fails, so an operator debugging failed turns is not misdirected
-// by an unconditional all-green banner. It does NOT claim auth works — proving
-// a live turn is `pnpm test:live`.
+// `operon doctor` — verify the installed package, active org configuration,
+// state home, adapters, and scheduler surface without assuming cwd is special.
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -13,102 +9,151 @@ import { getRuntime, RUNTIME_KINDS } from "../runtime/registry.js";
 import { loadRoles } from "../org/roles.js";
 import { loadApps } from "../org/apps.js";
 import { loadPipelines } from "../loop/pipelines.js";
+import {
+  ORG_HOME_DEFINITION,
+  resolveOperonHomes,
+  STATE_HOME_DEFINITION,
+  type OperonHomeOptions,
+} from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 const ADAPTER_NOTE: Record<RuntimeKind, string> = {
-  claude: "claude-agent-sdk (M1.2) — auth not verified here; prove with pnpm test:live",
-  codex: "app-server (M10) — auth not verified here; OPERON_CODEX_LIVE=1 pnpm test:live",
-  pi: "pi SDK (M10) — auth not verified here; OPERON_PI_LIVE=1 pnpm test:live",
+  claude: "claude-agent-sdk; auth not verified here",
+  codex: "app-server; auth not verified here",
+  pi: "pi SDK; auth not verified here",
 };
 
-export interface DoctorOptions {
+export interface DoctorOptions extends OperonHomeOptions {
   launchAgentsDir?: string;
+  json?: boolean;
+}
+
+interface CheckRow {
+  name: string;
+  status: "OK" | "WARN" | "FAIL";
+  detail: string;
+}
+
+export async function cmdDoctorArgs(args: string[]): Promise<number> {
+  const common = extractHomeFlags(args, "doctor");
+  let json = false;
+  for (const arg of common.rest) {
+    if (arg === "--json") json = true;
+    else throw new Error(`doctor: unknown argument "${arg}"`);
+  }
+  return cmdDoctor({ ...common, json });
 }
 
 export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
-  let ok = true;
-
-  console.log("runtime adapters:");
+  const adapters: CheckRow[] = [];
   for (const kind of RUNTIME_KINDS) {
     try {
-      const rt = getRuntime(kind); // constructing proves the adapter module loads
-      console.log(`  ${rt.kind.padEnd(7)} OK   — ${ADAPTER_NOTE[rt.kind]}`);
+      const rt = getRuntime(kind);
+      adapters.push({ name: rt.kind, status: "OK", detail: ADAPTER_NOTE[rt.kind] });
     } catch (error) {
-      ok = false;
-      console.log(`  ${kind.padEnd(7)} FAIL — ${errorMessage(error)}`);
+      adapters.push({ name: kind, status: "FAIL", detail: errorMessage(error) });
     }
   }
 
-  console.log("config:");
-  ok = (await checkConfig("roles.yaml", () => loadRoles("roles.yaml"))) && ok;
-  const appsResult = await loadConfig("apps.yaml", () => loadApps("apps.yaml"));
-  reportConfig("apps.yaml", appsResult);
-  ok = appsResult.ok && ok;
-  ok =
-    (await checkConfig("pipelines.yaml", async () => {
-      const roles = await loadRoles("roles.yaml");
-      await loadPipelines("pipelines.yaml", {
-        roleNames: roles.roles.map((role) => role.name),
-        promptsDir: "prompts",
-      });
-    })) && ok;
-
-  console.log("org home:");
-  const orgName = appsResult.ok ? appsResult.value.org.name : undefined;
-  if (orgName === undefined) {
-    console.log("  unresolved — apps.yaml did not parse, cannot locate ~/.operon/<org>");
-  } else {
-    const orgHome = process.env.OPERON_HOME ?? join(homedir(), ".operon", orgName);
-    if (existsSync(orgHome)) {
-      console.log(`  reachable: ${orgHome}`);
-    } else {
-      // Not a hard failure — the home is created on first real run.
-      console.log(`  WARN not yet created: ${orgHome} (created on first run)`);
+  const config: CheckRow[] = [];
+  let homes: Awaited<ReturnType<typeof resolveOperonHomes>> | undefined;
+  try {
+    homes = await resolveOperonHomes(options);
+    const rolesPath = join(homes.orgHome, "roles.yaml");
+    const appsPath = join(homes.orgHome, "apps.yaml");
+    const pipelinesPath = join(homes.orgHome, "pipelines.yaml");
+    const roles = await checked(config, "roles.yaml", () => loadRoles(rolesPath));
+    await checked(config, "apps.yaml", () => loadApps(appsPath));
+    if (roles !== undefined) {
+      await checked(config, "pipelines.yaml", () =>
+        loadPipelines(pipelinesPath, {
+          roleNames: roles.roles.map((role) => role.name),
+          promptsDir: join(homes!.orgHome, "prompts"),
+        }),
+      );
     }
+  } catch (error) {
+    config.push({ name: "active org", status: "FAIL", detail: errorMessage(error) });
   }
 
-  printScheduler(options.launchAgentsDir ?? join(homedir(), "Library", "LaunchAgents"));
+  const launchAgentsDir = options.launchAgentsDir ?? join(homedir(), "Library", "LaunchAgents");
+  const plist = join(launchAgentsDir, "dev.operon.dispatch.plist");
+  const scheduler: CheckRow = existsSync(plist)
+    ? { name: "launchd", status: "OK", detail: `installed: ${plist}` }
+    : { name: "launchd", status: "WARN", detail: "not installed; autonomous dispatch is not scheduled" };
+
+  const state: CheckRow = homes
+    ? existsSync(homes.stateHome)
+      ? { name: "state home", status: "OK", detail: homes.stateHome }
+      : { name: "state home", status: "WARN", detail: `${homes.stateHome} (created on first write)` }
+    : { name: "state home", status: "FAIL", detail: "unresolved until an active org is selected" };
+
+  const ok = ![...adapters, ...config, state].some((row) => row.status === "FAIL");
+  if (options.json === true) {
+    console.log(
+      JSON.stringify(
+        {
+          ok,
+          homes: homes
+            ? {
+                packageRoot: homes.packageRoot,
+                orgHome: homes.orgHome,
+                orgHomeMeaning: ORG_HOME_DEFINITION,
+                stateHome: homes.stateHome,
+                stateHomeMeaning: STATE_HOME_DEFINITION,
+                pointerPath: homes.pointerPath,
+              }
+            : null,
+          adapters,
+          config,
+          state,
+          scheduler,
+        },
+        null,
+        2,
+      ),
+    );
+    return ok ? 0 : 1;
+  }
+
+  printRows("runtime adapters", adapters);
+  if (homes) {
+    console.log("homes:");
+    console.log(`  org     ${homes.orgHome} — ${ORG_HOME_DEFINITION}`);
+    console.log(`  state   ${homes.stateHome} — ${STATE_HOME_DEFINITION}`);
+    console.log(`  package ${homes.packageRoot}`);
+  }
+  printRows("config", config);
+  printRows("state", [state]);
+  printRows("scheduler", [scheduler]);
+  if (existsSync(plist)) {
+    console.log("  launchd installed");
+    console.log(`  unload: launchctl unload ${plist}`);
+  } else if (homes) {
+    console.log("  launchd not installed");
+    const template = join(homes.packageRoot, "config", "launchd", "operon-dispatch.plist.template");
+    console.log(`  install template: ${template}`);
+    console.log(`  load after install: launchctl load ${plist}`);
+  }
   return ok ? 0 : 1;
 }
 
-interface ConfigResult<T> {
-  ok: boolean;
-  value: T;
-  error?: unknown;
-}
-
-async function loadConfig<T>(_label: string, load: () => Promise<T>): Promise<ConfigResult<T>> {
+async function checked<T>(rows: CheckRow[], name: string, load: () => Promise<T>): Promise<T | undefined> {
   try {
-    return { ok: true, value: await load() };
+    const value = await load();
+    rows.push({ name, status: "OK", detail: "valid" });
+    return value;
   } catch (error) {
-    return { ok: false, value: undefined as T, error };
+    rows.push({ name, status: "FAIL", detail: errorMessage(error) });
+    return undefined;
   }
 }
 
-function reportConfig(label: string, result: ConfigResult<unknown>): void {
-  if (result.ok) console.log(`  ${label.padEnd(15)} OK`);
-  else console.log(`  ${label.padEnd(15)} FAIL — ${errorMessage(result.error)}`);
-}
-
-async function checkConfig(label: string, load: () => Promise<unknown>): Promise<boolean> {
-  const result = await loadConfig(label, load);
-  reportConfig(label, result);
-  return result.ok;
+function printRows(title: string, rows: readonly CheckRow[]): void {
+  console.log(`${title}:`);
+  for (const row of rows) console.log(`  ${row.name.padEnd(15)} ${row.status.padEnd(4)} — ${row.detail}`);
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function printScheduler(launchAgentsDir: string): void {
-  const plist = join(launchAgentsDir, "dev.operon.dispatch.plist");
-  console.log("scheduler:");
-  if (existsSync(plist)) {
-    console.log(`  launchd installed: ${plist}`);
-    console.log(`  unload: launchctl unload ${plist}`);
-  } else {
-    console.log("  launchd not installed");
-    console.log(`  install: cp config/launchd/operon-dispatch.plist.template ${plist}`);
-    console.log(`  load: launchctl load ${plist}`);
-  }
-  console.log("  systemd timer: use the same 300s cadence to run `operon dispatch`");
 }

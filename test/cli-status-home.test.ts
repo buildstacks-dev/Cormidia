@@ -1,18 +1,15 @@
-// Tests default org-home resolution for status and analyze commands.
-// Covers deriving ~/.operon/<org name> from apps.yaml and honoring explicit
-// --home overrides.
-// Uses module mocks and a stubbed homedir calculation only; no real org state,
+// Tests active state-home resolution for status and analyze commands.
+// Covers consuming the shared resolver and honoring explicit --home overrides.
+// Uses module mocks only; no real org state,
 // network, auth, or wall-clock time is required.
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const readStatusRoots: string[] = [];
 const analyzeRoots: string[] = [];
 
-vi.mock("../src/org/apps.js", () => ({
-  loadApps: async () => ({ org: { name: "renamed-org" }, apps: [] }),
+vi.mock("../src/org/home.js", () => ({
+  resolveOperonHomes: async () => ({ stateHome: "/tmp/active-operon-state" }),
 }));
 
 vi.mock("../src/runtime/runlog/status.js", () => ({
@@ -34,29 +31,24 @@ import { cmdStatus } from "../src/cli/status.js";
 import { cmdAnalyze } from "../src/cli/analyze.js";
 
 describe("status/analyze default org home", () => {
-  const savedHome = process.env.OPERON_HOME;
-
   beforeEach(() => {
-    delete process.env.OPERON_HOME;
     readStatusRoots.length = 0;
     analyzeRoots.length = 0;
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    if (savedHome === undefined) delete process.env.OPERON_HOME;
-    else process.env.OPERON_HOME = savedHome;
     vi.restoreAllMocks();
   });
 
-  it("status reads from ~/.operon/<org name> when no --home is given", async () => {
+  it("status reads from the resolved active state home when no --home is given", async () => {
     await cmdStatus([]);
-    expect(readStatusRoots).toEqual([join(homedir(), ".operon", "renamed-org")]);
+    expect(readStatusRoots).toEqual(["/tmp/active-operon-state"]);
   });
 
-  it("analyze reads from ~/.operon/<org name> when no --home is given", async () => {
+  it("analyze reads from the resolved active state home when no --home is given", async () => {
     await cmdAnalyze([]);
-    expect(analyzeRoots).toEqual([join(homedir(), ".operon", "renamed-org")]);
+    expect(analyzeRoots).toEqual(["/tmp/active-operon-state"]);
   });
 
   it("an explicit --home still wins over the apps.yaml default", async () => {

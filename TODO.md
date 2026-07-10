@@ -1962,6 +1962,16 @@ structured output support and provider cache knobs).
   (`~/Documents/Build/claude-loop-teams`) — stated 2026-07-03.
 
 ## Done
+- 2026-07-09 — **Packaging and onboarding fixes.** Operon now has a
+  source-backed local `operon` installation, a packaged `$operon` Agent Skill,
+  machine-readable `context` / `capabilities`, per-command help, explicit
+  package/org/state/app path separation, atomic complete `org init`, persistent
+  org+state selection, and cwd-independent command resolution. Existing and
+  greenfield onboarding require a complete active org, explain app/org/state
+  homes before writes, accept local checkout paths rather than URLs, and no
+  longer create the superseded nested `.operon/org/` profile. A reusable
+  neutral-directory installed-product fixture covers link → org init → scan →
+  full bootstrap → doctor/context/capabilities → compiled CLI.
 - 2026-07-06 — **Post-M12 hardening & live verification.** With the roadmap
   (M0–M12) complete, a hardening-and-proof campaign readied the repo for
   publication. Sandbox coverage extended: alpha and gamma hardened with more
@@ -1994,8 +2004,9 @@ structured output support and provider cache knobs).
   target, and seeded synthetic feedback/adoption events. Created and
   smoke-tested in M8.5; nothing outward-facing is published in tests.
 - 2026-07-06 — **Architecture + loop decisions ratified**: dispatcher ticks,
-  approval grants, idempotency rules, org-managed clones, `.operon/org/`
-  layout, loop-owned merges, manual trigger kind, `.operon/` containment,
+  approval grants, idempotency rules, org-managed clones, the then-current
+  `.operon/org/` layout (superseded by the separate-org-home decision on
+  2026-07-09), loop-owned merges, manual trigger kind, `.operon/` containment,
   file-drop company events, pass pipelines, mechanical gates, Planner
   pipelines, assembled briefs, ticket-level parallelism, loud failures,
   risk-selected review dimensions with security always-on, acceptance criteria

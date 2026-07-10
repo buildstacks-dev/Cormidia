@@ -6,6 +6,7 @@
 // org state is required, though one CLI case compares against the current clock.
 
 import { execFile } from "node:child_process";
+import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -18,6 +19,7 @@ import { makeOrgHome, type OrgHomeFixture } from "./fixtures/orgHome.js";
 const execFileAsync = promisify(execFile);
 const CLI_PATH = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
+const TSX_LOADER = createRequire(import.meta.url).resolve("tsx");
 
 const NOW = new Date(Date.UTC(2026, 6, 5, 12, 0, 0));
 const OLD_ID = "20260601-090000-build-implement";
@@ -128,8 +130,8 @@ describe("pruneRuns", () => {
     const fixture = makePruneFixture(new Date(Date.now() + 60_000).toISOString());
     try {
       const { stdout } = await execFileAsync(
-        "npx",
-        ["tsx", CLI_PATH, "prune-runs", fixture.root, "--retention-days", "0"],
+        process.execPath,
+        ["--import", TSX_LOADER, CLI_PATH, "prune-runs", fixture.root, "--retention-days", "0"],
         { cwd: REPO_ROOT },
       );
       expect(stdout).toMatch(/pruned 1 run dir\(s\) \(retention 0 days\); kept 2/);

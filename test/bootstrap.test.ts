@@ -1,25 +1,15 @@
 // Tests the non-interactive bootstrap path in src/org/bootstrap.ts and the
 // bootstrap CLI wrapper.
-// Covers repo scanning, command/doc detection, org template emission, scan-only
-// output, overwrite refusal, and byte-identical root template copying.
+// Covers repo scanning, command/doc detection, and scan-only onboarding output.
 // Uses synthetic temp repos plus repo-local template files; no network, auth,
 // real org state, or wall-clock time is required.
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
-import {
-  emitOrgTemplates,
-  scanRepo,
-  ORG_TEMPLATE_FILES,
-} from "../src/org/bootstrap.js";
-import { loadApps } from "../src/org/apps.js";
+import { scanRepo } from "../src/org/bootstrap.js";
 import { cmdBootstrap } from "../src/cli/bootstrap.js";
-
-const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 const tempDirs: string[] = [];
 afterAll(() => {
@@ -124,57 +114,6 @@ describe("scanRepo", () => {
   });
 });
 
-describe("emitOrgTemplates", () => {
-  it("emitted org TASTE.md and roles.yaml are byte-identical to the repo root files", async () => {
-    const target = makeRepo();
-    const { created } = await emitOrgTemplates(target);
-
-    expect(created).toEqual([...ORG_TEMPLATE_FILES]);
-    for (const [rel, rootFile] of [
-      [".operon/org/TASTE.md", "TASTE.md"],
-      [".operon/org/roles.yaml", "roles.yaml"],
-    ] as const) {
-      const emitted = await readFile(join(target, rel), "utf8");
-      const original = await readFile(join(REPO_ROOT, rootFile), "utf8");
-      expect(emitted).toBe(original);
-    }
-  });
-
-  it("emitted apps.yaml parses via loadApps and carries schema_version", async () => {
-    const target = makeRepo();
-    await emitOrgTemplates(target, {
-      appName: "sandbox-alpha",
-      repoSlug: "bikramgupta/operon-sandbox-alpha",
-    });
-
-    const file = await loadApps(join(target, ".operon", "org", "apps.yaml"));
-    expect(file.schemaVersion).toBe(1);
-    expect(file.org.name).toBe("sandbox-alpha");
-    expect(file.apps).toHaveLength(1);
-    expect(file.apps[0]!.name).toBe("sandbox-alpha");
-    expect(file.apps[0]!.repo).toBe("bikramgupta/operon-sandbox-alpha");
-    expect(file.apps[0]!.status).toBe("onboarding");
-    expect(file.apps[0]!.cadence).toEqual({});
-  });
-
-  it("defaults the app name from the target basename and still parses", async () => {
-    const target = makeRepo();
-    await emitOrgTemplates(target);
-
-    const file = await loadApps(join(target, ".operon", "org", "apps.yaml"));
-    expect(file.schemaVersion).toBe(1);
-    expect(file.apps[0]!.repo.startsWith("OWNER/")).toBe(true); // placeholder, marked TODO
-  });
-
-  it("refuses to overwrite an existing .operon/org file", async () => {
-    const target = makeRepo({ ".operon/org/TASTE.md": "# already here\n" });
-    await expect(emitOrgTemplates(target)).rejects.toThrow(/refusing to overwrite/);
-    // Nothing else was written either — existence is checked before any write.
-    expect(existsSync(join(target, ".operon", "org", "roles.yaml"))).toBe(false);
-    expect(existsSync(join(target, ".operon", "org", "apps.yaml"))).toBe(false);
-  });
-});
-
 describe("cmdBootstrap", () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -192,27 +131,23 @@ describe("cmdBootstrap", () => {
     expect(out).toContain("docs:");
     expect(out).toContain("doc gaps:");
     expect(out).toContain("full bootstrap creates .operon/onboarding-report.md");
-    for (const rel of ORG_TEMPLATE_FILES) expect(out).toContain(rel);
+    expect(out).toContain("initialize an org first");
     expect(out).toContain(".operon/policy.yaml");
     expect(out).toContain(".operon/onboarding-report.md");
     expect(out).toContain("nothing written");
     expect(existsSync(join(target, ".operon"))).toBe(false);
   });
 
-  it("without --scan-only emits the org skeleton using the scanned git slug", async () => {
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  it("without an active org fails before writing", async () => {
     const target = makeRepo(NODE_REPO_FILES);
+    await expect(cmdBootstrap([target])).rejects.toThrow(/no active org home/);
+    expect(existsSync(join(target, ".operon"))).toBe(false);
+  });
 
-    const code = await cmdBootstrap([target]);
-    expect(code).toBe(0);
-
-    const out = log.mock.calls.map((c) => c.join(" ")).join("\n");
-    expect(out).toContain("created:");
-    for (const rel of ORG_TEMPLATE_FILES) {
-      expect(existsSync(join(target, rel))).toBe(true);
-    }
-    const file = await loadApps(join(target, ".operon", "org", "apps.yaml"));
-    expect(file.apps[0]!.repo).toBe("bikramgupta/operon-sandbox-alpha");
+  it("rejects a GitHub URL before writing", async () => {
+    await expect(
+      cmdBootstrap(["https://github.com/buildstacks-dev/buildstacks.dev"]),
+    ).rejects.toThrow(/expects a local repository path/);
   });
 
   it("rejects an unknown flag", async () => {

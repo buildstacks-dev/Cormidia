@@ -1,12 +1,13 @@
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
 import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
-import { loadApps } from "../org/apps.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { resolve } from "node:path";
 
 export async function cmdAnalyze(args: string[]): Promise<number> {
-  const parsed = parseArgs(args);
-  const root = resolve(parsed.home ?? process.env.OPERON_HOME ?? (await defaultOrgHome()));
-  const rows = await analyzeRunlogs(root, parsed.app !== undefined ? { app: parsed.app } : {});
+  const common = extractHomeFlags(args, "analyze");
+  const parsed = parseArgs(common.rest);
+  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
+  const rows = await analyzeRunlogs(stateHome, parsed.app !== undefined ? { app: parsed.app } : {});
   if (rows.length === 0) {
     console.log("No anomaly flags.");
     return 0;
@@ -20,7 +21,6 @@ export async function cmdAnalyze(args: string[]): Promise<number> {
 }
 
 interface ParsedAnalyzeArgs {
-  home?: string;
   app?: string;
 }
 
@@ -28,18 +28,10 @@ function parseArgs(args: string[]): ParsedAnalyzeArgs {
   const out: ParsedAnalyzeArgs = {};
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg === "--home") out.home = needValue(args, ++i, "--home");
-    else if (arg === "--app") out.app = needValue(args, ++i, "--app");
+    if (arg === "--app") out.app = needValue(args, ++i, "--app");
     else throw new Error(`analyze: unknown argument "${arg}"`);
   }
   return out;
-}
-
-// Default the org home to the same location sibling commands (budget, dispatch,
-// retro) use: ~/.operon/<apps.yaml org name>, not a hardcoded "operon".
-async function defaultOrgHome(): Promise<string> {
-  const apps = await loadApps("apps.yaml");
-  return join(homedir(), ".operon", apps.org.name);
 }
 
 function needValue(args: string[], index: number, flag: string): string {

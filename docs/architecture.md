@@ -1,6 +1,6 @@
 # Operon Architecture
 
-*v0 draft — 2026-07-04. The design layer docs/PURPOSE.md deliberately does not
+*v1.1 — 2026-07-09. The design layer docs/PURPOSE.md deliberately does not
 hold. docs/PURPOSE.md → Decided is upstream and authoritative; this document adds
 the detail needed to implement the remaining roadmap. §11 records decisions
 ratified into docs/PURPOSE.md on 2026-07-06; future new decisions should be
@@ -77,23 +77,46 @@ down through `TurnHooks`. The runtime layer never imports approval storage.
 
 ## 1. On-disk layout
 
-Three homes, one rule: **durable, curated artifacts live in git; high-churn
-operational state lives gitignored under** `~/.operon/` (docs/PURPOSE.md v0.8).
+Four explicit paths, one rule: **durable, curated artifacts live in git;
+high-churn operational state stays outside git.** No command infers an org
+home from the current working directory.
 
-### Org home (this repo, for now)
+### Package root (installed Operon implementation)
+
+```
+dist/                    compiled package CLI (`operon` bin)
+src/                     source tree in a development checkout
+TASTE.md                 org-init template, not an active org instance
+roles.yaml               org-init template
+pipelines.yaml           org-init template
+prompts/                 org-init protocol templates
+taste/                   org-init role craft templates
+agent-skills/operon/     packaged coding-agent operating guide
+```
+
+`pnpm link:local` creates a source-backed launcher, so a development checkout's
+next `operon` invocation reads the latest TypeScript source. Packed installs
+use `dist/cli.js`. Both modes resolve templates relative to the installed
+package, never relative to the caller's current directory.
+
+### Org home (required, committed separately)
 
 ```
 TASTE.md                 org constitution (human-ratified)
 roles.yaml               org chart (human-ratified)
-apps.yaml                app registry (§7) — new
-taste/<role>.md          role craft addenda (roadmap item 10)
+apps.yaml                app registry (§7)
+pipelines.yaml           executable build/role protocols
+prompts/                 pass templates referenced by pipelines.yaml
+taste/<role>.md          role craft addenda
 memory/roles/<role>/     per-role craft bundles, cross-app (§6)
 skills/                  promoted skills (Agent Skills standard)
 retro/<date>.md          weekly retro notes (§6)
-docs/architecture.md     this file
 ```
 
-
+`operon org init <path> --name <name>` atomically creates and validates this
+complete tree, creates the state home, and writes `~/.operon/config` with the
+active `org_home`. `operon org use <path>` selects an existing complete tree.
+`OPERON_ORG_HOME` is the explicit non-persistent override.
 
 ### App repo (target product repo)
 
@@ -103,16 +126,9 @@ docs/architecture.md     this file
   config.yaml            this app's registry entry (same schema as apps.yaml)
   policy.yaml            app-owned quality-gate policy emitted by bootstrap
   memory/<role>/         per-(role, app) domain bundles
-  org/                   single-app profile ONLY: org-level artifacts
-                         (org TASTE.md, roles.yaml, apps.yaml, taste/, memory/)
-                         — same layout as org-home root, so graduation to an
-                         org-home repo is `git mv .operon/org/* <org-home>/`
+  onboarding-report.md   deterministic setup/documentation inventory
+  bootstrap/             initial issue and operator next steps for new apps
 ```
-
-`.operon/org/` is a refinement of PURPOSE v0.8's wording ("identical layout
-inside `.operon/` and at an org-home root"): the org-level artifacts get their
-own subdirectory so they never collide with the app-level `TASTE.md` and
-`memory/` that exist in *both* profiles. Flagged in §11.
 
 **Containment invariant.** Operon's entire footprint in an app repo lives
 under `.operon/` — plus the transient GitHub surface (`op/*` branches,
@@ -142,9 +158,10 @@ telemetry/<day>.jsonl    exists today (src/runtime/telemetry.ts orgDir)
 scorecards/<app>/<role>.jsonl  raw scorecard events (§6)
 ```
 
-The org id `<org>` comes from org-home config (default: repo name). Note
-`~/.operon` is not TCC-protected on macOS, unlike `~/Documents` — launchd
-jobs can read it freely (same reasoning that keeps repos at `~/Build`).
+The org id `<org>` comes from org-home config. `OPERON_STATE_HOME` overrides
+this location explicitly and independently of `OPERON_ORG_HOME`. Note
+`~/.operon` is not TCC-protected on macOS, unlike `~/Documents` — launchd jobs
+can read it freely (same reasoning that keeps repos at `~/Build`).
 
 ## 2. Dispatcher & scheduler
 
@@ -693,7 +710,8 @@ critical op raised live (recorded to the same audit log).
 
 ## 9. Greenfield creation and Bootstrap
 
-Greenfield products start one step earlier than existing-app bootstrap:
+Greenfield products start one step earlier than existing-app bootstrap. Both
+paths require a complete active org created with `operon org init`:
 
 ```
 operon new-app "marketplace for dummy products" \
@@ -731,24 +749,18 @@ operon bootstrap        # run inside the product repo
    budget; cadence; app-specific critical ops (deploy commands, publish
    targets, secret locations — these extend the gate's rule set for this
    app); support/marketing channels if any.
-3. **Emit.**
+3. **Emit app-owned artifacts.**
   - `.operon/TASTE.md` — the app charter (layer [3]);
   - `.operon/config.yaml` — the app's registry entry (apps.yaml schema);
   - `.operon/policy.yaml` — the app-owned quality-gate policy;
   - `.operon/onboarding-report.md` — deterministic documentation/setup
   inventory and gap report;
-  - `.operon/memory/<role>/INDEX.md` — seeded empty bundles;
-  - single-app profile (no org detected): also `.operon/org/` with org
-  TASTE.md, roles.yaml, apps.yaml — templated from this repo's root
-  files, which are instance config destined to become exactly these
-  templates (PURPOSE v0.8 dogfood note).
-4. **Register / join.** If an org home exists (`~/.operon/config` points at
-  it), add the app to its `apps.yaml` as `status: onboarding` — bootstrap
-   in a second repo *detects and joins* the existing org rather than
-   creating a parallel one.
-
-Graduation (single-app → org-home repo) is `git mv .operon/org/* <org-home>/`
-by construction (§1). An org-home repo remains optional, never required.
+  - `.operon/memory/<role>/INDEX.md` — seeded empty bundles.
+4. **Register / join.** Resolve the complete active org through explicit
+  `--org-home`, `OPERON_ORG_HOME`, or `~/.operon/config`, then add the app to
+  its `apps.yaml` as `status: onboarding`. If no org resolves, stop before
+  writing and direct the operator to `operon org init`; bootstrap never emits
+  a parallel `.operon/org/` configuration.
 
 Bootstrap inventories documentation and setup signals; it does not infer
 authoritative product, architecture, or roadmap truth from source code. App
@@ -833,8 +845,9 @@ New decisions made by this document, ratified by the human operator on
 4. **Org-managed clones.** The org works only in its own clones/worktrees
   under `~/.operon/`; GitHub is the sole sync point with the human's
    checkouts.
-5. `.operon/org/` **sublayout** for the single-app profile (refines v0.8's
-  "identical layout" wording; keeps graduation a `git mv`).
+5. **Superseded 2026-07-09:** the `.operon/org/` single-app sublayout. The
+  packaging/onboarding reconciliation now requires a separate complete org
+  home; app repos contain app-owned `.operon/` artifacts only.
 6. **Merge is loop-owned.** The orchestrator squash-merges after APPROVE;
   agents never merge.
 7. `manual` **trigger kind** for co-planning; interactive Anthropic-native

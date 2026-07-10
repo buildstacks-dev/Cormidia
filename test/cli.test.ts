@@ -4,21 +4,47 @@
 // Uses subprocesses and temp dirs with local repo files; no network, auth, real
 // org state, or wall-clock dependence is expected.
 
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { initOrgHome } from "../src/org/home.js";
 
 const execFileAsync = promisify(execFile);
 const CLI_PATH = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
-const CWD = fileURLToPath(new URL("..", import.meta.url));
+const TSX_LOADER = createRequire(import.meta.url).resolve("tsx");
+const TEST_ROOT = mkdtempSync(join(tmpdir(), "operon-installed-cli-"));
+const NEUTRAL_CWD = join(TEST_ROOT, "neutral");
+const ORG_HOME = join(TEST_ROOT, "org");
+const STATE_HOME = join(TEST_ROOT, "state");
+const USER_HOME = join(TEST_ROOT, "home");
+
+beforeAll(async () => {
+  await import("node:fs/promises").then(({ mkdir }) => mkdir(NEUTRAL_CWD, { recursive: true }));
+  await initOrgHome({ target: ORG_HOME, name: "cli-test", stateHome: STATE_HOME, homeDir: USER_HOME });
+});
+
+afterAll(() => rmSync(TEST_ROOT, { recursive: true, force: true }));
 
 async function runCli(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
-    const { stdout, stderr } = await execFileAsync("npx", ["tsx", CLI_PATH, ...args], { cwd: CWD });
+    const { stdout, stderr } = await execFileAsync(
+      process.execPath,
+      ["--import", TSX_LOADER, CLI_PATH, ...args],
+      {
+        cwd: NEUTRAL_CWD,
+        env: {
+          ...process.env,
+          OPERON_ORG_HOME: ORG_HOME,
+          OPERON_STATE_HOME: STATE_HOME,
+          HOME: USER_HOME,
+        },
+      },
+    );
     return { stdout, stderr, code: 0 };
   } catch (e) {
     const err = e as { stdout?: string; stderr?: string; code?: number };
@@ -53,7 +79,7 @@ describe("cli dispatch", () => {
     expect(stdout).toContain("roles.yaml: OK");
   });
 
-  it("apps subcommand validates the root apps.yaml", async () => {
+  it("apps subcommand validates the active org from a neutral cwd", async () => {
     const { stdout, code } = await runCli(["apps"]);
     expect(code).toBe(0);
     expect(stdout).toContain("apps.yaml: OK");
@@ -80,25 +106,9 @@ describe("cli dispatch", () => {
   });
 
   it("new-app --dry-run reports a greenfield scaffold without writing", async () => {
-    const orgHome = mkdtempSync(join(tmpdir(), "operon-cli-new-app-org-"));
     const parent = mkdtempSync(join(tmpdir(), "operon-cli-new-app-parent-"));
     const target = join(parent, "marketplace");
     try {
-      writeFileSync(
-        join(orgHome, "apps.yaml"),
-        `schema_version: 1
-org:
-  name: operon
-  max_concurrent_turns: 2
-defaults:
-  budget_usd_month: 1000
-apps:
-  alpha:
-    repo: owner/alpha
-    status: live
-    cadence: {}
-`,
-      );
       const { stdout, code } = await runCli([
         "new-app",
         "marketplace",
@@ -107,7 +117,7 @@ apps:
         "--repo",
         "owner/marketplace",
         "--org-home",
-        orgHome,
+        ORG_HOME,
         "--dry-run",
       ]);
       expect(code).toBe(0);
@@ -115,15 +125,15 @@ apps:
       expect(stdout).toContain(".operon/bootstrap/initial-issue.md");
       expect(existsSync(target)).toBe(false);
     } finally {
-      rmSync(orgHome, { recursive: true, force: true });
       rmSync(parent, { recursive: true, force: true });
     }
   });
 
-  it("doctor subcommand still lists runtime adapters", async () => {
+  it("doctor resolves the active org from a neutral cwd", async () => {
     const { stdout, code } = await runCli(["doctor"]);
     expect(code).toBe(0);
     expect(stdout).toContain("runtime adapters:");
+    expect(stdout).toContain(ORG_HOME);
   });
 
   it("loop requires an app name", async () => {

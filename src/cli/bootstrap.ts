@@ -2,32 +2,37 @@
 // target repo (docs/architecture.md §9 step 1), walk the alignment
 // questionnaire (step 2: interactive in a terminal, or injected via
 // `--answers answers.json` for tests/scripting), and emit the `.operon/`
-// tree (step 3): org skeleton + app charter/config/policy/onboarding report
-// + seeded memory bundles.
+// tree (step 3): app charter/config/policy/onboarding report + seeded memory
+// bundles, then register the app with the active org.
 // `--scan-only` prints the scan profile and the would-create list without
-// writing anything. Without answers and without a terminal, only the
-// non-interactive org half (M3.3) runs unless `--org-home`/OPERON_HOME points
-// at an existing org, in which case bootstrap registers the app there.
+// writing anything. An explicit active org is now a prerequisite: package source, committed org
+// configuration, runtime state, and target app are separate homes.
 
+import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
   bootstrapRun,
-  emitOrgTemplates,
-  registerAppWithExistingOrg,
   scanRepo,
-  templateRoleNames,
-  ORG_TEMPLATE_FILES,
   type CommandDetection,
   type RepoScan,
 } from "../org/bootstrap.js";
 import { findExistingOrg } from "../org/apps.js";
+import { loadRoles } from "../org/roles.js";
+import {
+  ORG_HOME_DEFINITION,
+  resolveOperonHomes,
+  STATE_HOME_DEFINITION,
+  validateOrgHome,
+} from "../org/home.js";
 
 export async function cmdBootstrap(args: string[]): Promise<number> {
   let root = ".";
   let scanOnly = false;
   let answersPath: string | undefined;
   let orgHome: string | undefined;
+  let stateHome: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -47,6 +52,13 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
       }
       orgHome = next;
       i++;
+    } else if (arg === "--state-home") {
+      const next = args[i + 1];
+      if (!next || next.startsWith("--")) {
+        throw new Error("bootstrap: --state-home requires a local path");
+      }
+      stateHome = next;
+      i++;
     } else if (!arg.startsWith("--")) {
       root = arg;
     } else {
@@ -54,13 +66,23 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     }
   }
 
+  validateLocalTarget(root);
   const existingOrgHome = await findExistingOrg(orgHome ? { orgHome } : {});
+  if (existingOrgHome !== undefined) await validateOrgHome(existingOrgHome);
+  const homes = existingOrgHome
+    ? await resolveOperonHomes({
+        orgHome: existingOrgHome,
+        ...(stateHome !== undefined ? { stateHome } : {}),
+      })
+    : undefined;
 
   if (scanOnly) {
-    printScan(await scanRepo(root));
+    const scan = await scanRepo(root);
+    printHomes(scan.root, homes?.orgHome, homes?.stateHome);
+    printScan(scan);
     console.log("\nwould create:");
     if (existingOrgHome) console.log(`  ${existingOrgHome}/apps.yaml entry (join existing org)`);
-    else for (const rel of ORG_TEMPLATE_FILES) console.log(`  ${rel}`);
+    else console.log("  no files — initialize an org first with `operon org init <path> --name <name>`");
     console.log(
       "  .operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml, " +
         ".operon/onboarding-report.md, " +
@@ -70,6 +92,14 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     return 0;
   }
 
+  if (existingOrgHome === undefined) {
+    throw new Error(
+      "bootstrap: no active org home — create one first with `operon org init <path> --name <name>`",
+    );
+  }
+  if (homes === undefined) throw new Error("bootstrap: active org resolution failed");
+  printHomes(resolve(root), homes.orgHome, homes.stateHome);
+
   // Step 2 — the answers object: injected file, or interactive when a
   // human is present. One validation path either way (parseAnswers, inside
   // bootstrapRun).
@@ -77,20 +107,24 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   if (answersPath) {
     answersRaw = await readAnswersFile(answersPath);
   } else if (process.stdin.isTTY && process.stdout.isTTY) {
-    answersRaw = await collectAnswers(process.stdin, process.stdout, await templateRoleNames());
+    const orgRoles = await loadRoles(join(homes.orgHome, "roles.yaml"));
+    answersRaw = await collectAnswers(
+      process.stdin,
+      process.stdout,
+      orgRoles.roles.map((role) => role.name),
+    );
   }
 
   if (answersRaw !== undefined) {
     const { scan, created, joinedOrgHome } = await bootstrapRun(root, answersRaw, {
-      ...(existingOrgHome ? { orgHome: existingOrgHome } : {}),
+      orgHome: homes.orgHome,
     });
     printScan(scan);
-    if (joinedOrgHome) console.log(`\njoined existing org at ${joinedOrgHome}`);
+    console.log(`\njoined existing org at ${joinedOrgHome}`);
     console.log("\ncreated:");
     for (const rel of created) console.log(`  ${rel}`);
-    const scope = joinedOrgHome ? "app artifacts" : "org skeleton plus app artifacts";
     console.log(
-      `\nnext: review + commit .operon/ in the app repo — ${scope}:\n` +
+      "\nnext: review + commit app artifacts under .operon/ in the app repo:\n" +
         "charter (.operon/TASTE.md), registry entry (.operon/config.yaml),\n" +
         "policy (.operon/policy.yaml), onboarding report (.operon/onboarding-report.md),\n" +
         "and seeded memory bundles.",
@@ -98,34 +132,29 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     return 0;
   }
 
-  if (existingOrgHome) {
-    const { scan, joinedOrgHome } = await registerAppWithExistingOrg(root, {
-      orgHome: existingOrgHome,
-    });
-    printScan(scan);
-    console.log(`\njoined existing org at ${joinedOrgHome}`);
-    console.log(
-      "\nnext: re-run with --answers answers.json (or interactively in a\n" +
-        "terminal) to emit the app-owned .operon/ charter, config, policy,\n" +
-        "onboarding report, and memory bundles.",
-    );
-    return 0;
-  }
-
-  // No answers and no terminal: the non-interactive half only (M3.3).
-  const scan = await scanRepo(root);
-  printScan(scan);
-  const emitOptions = scan.repoSlug ? { repoSlug: scan.repoSlug } : {};
-  const { created } = await emitOrgTemplates(scan.root, emitOptions);
-  console.log("\ncreated:");
-  for (const rel of created) console.log(`  ${rel}`);
-  console.log(
-    "\nnext: the app charter + config need questionnaire answers — re-run with\n" +
-      "--answers answers.json (or interactively in a terminal) to emit\n" +
-      ".operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml,\n" +
-      ".operon/onboarding-report.md, and .operon/memory/.",
+  throw new Error(
+    "bootstrap: questionnaire answers are required outside an interactive terminal — " +
+      "pass --answers <answers.json>; no files or registry entries were written",
   );
-  return 0;
+}
+
+function validateLocalTarget(rootIn: string): void {
+  if (/^(?:https?:\/\/|git@|ssh:\/\/)/i.test(rootIn)) {
+    throw new Error(
+      "bootstrap expects a local repository path, not a GitHub URL. Clone the repo first, " +
+        "then run bootstrap against the local checkout.",
+    );
+  }
+  const root = resolve(rootIn);
+  if (!existsSync(root) || !statSync(root).isDirectory()) {
+    throw new Error(`bootstrap: local repository path does not exist or is not a directory: ${root}`);
+  }
+}
+
+function printHomes(appRoot: string, orgHome?: string, stateHome?: string): void {
+  console.log(`App repo:   ${appRoot} — the product checkout being onboarded.`);
+  console.log(`Org home:   ${orgHome ?? "not configured"} — ${ORG_HOME_DEFINITION}.`);
+  console.log(`State home: ${stateHome ?? "not configured (initialize an org first)"} — ${STATE_HOME_DEFINITION}.`);
 }
 
 async function readAnswersFile(path: string): Promise<unknown> {
@@ -230,7 +259,7 @@ function printScan(scan: RepoScan): void {
   console.log(`  doc gaps:     ${missing.length > 0 ? missing.join(", ") : "none detected"}`);
   console.log(`  git remote:   ${scan.repoSlug ?? "none detected"}`);
   console.log(
-    "profile: bootstrap can emit a single-app org or join an existing org; " +
+    "profile: bootstrap writes app-owned .operon/ artifacts and registers the app in the active org; " +
       "full bootstrap creates .operon/onboarding-report.md",
   );
 }

@@ -4,19 +4,22 @@
 // the real default); running-status runs are never deleted.
 
 import { pruneRuns } from "../runtime/runlog/retention.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 const DEFAULT_RETENTION_DAYS = 30;
 
 export async function cmdPruneRuns(args: string[]): Promise<number> {
-  let root = ".";
+  const common = extractHomeFlags(args, "prune-runs");
+  let root: string | undefined;
   let retentionDays = DEFAULT_RETENTION_DAYS;
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  for (let i = 0; i < common.rest.length; i++) {
+    const arg = common.rest[i];
     if (arg === "--retention-days") {
-      const value = Number(args[++i]);
+      const value = Number(common.rest[++i]);
       if (!Number.isFinite(value) || value < 0) {
-        throw new Error(`--retention-days needs a non-negative number, got "${args[i]}"`);
+        throw new Error(`--retention-days needs a non-negative number, got "${common.rest[i]}"`);
       }
       retentionDays = value;
     } else if (arg !== undefined && !arg.startsWith("--")) {
@@ -26,7 +29,8 @@ export async function cmdPruneRuns(args: string[]): Promise<number> {
     }
   }
 
-  const result = await pruneRuns(root, retentionDays, new Date());
+  const effectiveRoot = root ?? (await resolveOperonHomes(common)).stateHome;
+  const result = await pruneRuns(effectiveRoot, retentionDays, new Date());
   console.log(
     `pruned ${result.deleted.length} run dir(s) (retention ${retentionDays} days); kept ${result.kept}`,
   );

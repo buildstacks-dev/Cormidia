@@ -2,13 +2,16 @@
 
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
 import { ApprovalStore, type ApprovalItem } from "../org/approvals.js";
+import { resolveOperonHomes } from "../org/home.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { resolve } from "node:path";
 
 export async function cmdApprovals(args: string[]): Promise<number> {
-  const parsed = parseArgs(args);
-  const store = new ApprovalStore(parsed.home);
+  const common = extractHomeFlags(args, "approvals");
+  const parsed = parseArgs(common.rest);
+  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
+  const store = new ApprovalStore(stateHome);
   await store.reconcile();
 
   if (parsed.subcommand === "show") {
@@ -28,22 +31,19 @@ export async function cmdApprovals(args: string[]): Promise<number> {
 }
 
 interface ParsedArgs {
-  home: string;
   subcommand: "list" | "review" | "show";
   id?: string;
   now: Date;
 }
 
 function parseArgs(args: string[]): ParsedArgs {
-  let home = process.env.OPERON_HOME ?? join(homedir(), ".operon", "operon");
   let subcommand: ParsedArgs["subcommand"] = "list";
   let id: string | undefined;
   let now = new Date();
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg === "--home") home = needValue(args, ++i, "--home");
-    else if (arg === "--now") now = new Date(needValue(args, ++i, "--now"));
+    if (arg === "--now") now = new Date(needValue(args, ++i, "--now"));
     else if (arg === "review") subcommand = "review";
     else if (arg === "show") {
       subcommand = "show";
@@ -52,7 +52,7 @@ function parseArgs(args: string[]): ParsedArgs {
     else throw new Error(`approvals: unknown argument "${arg}"`);
   }
 
-  return { home: resolve(home), subcommand, ...(id !== undefined ? { id } : {}), now };
+  return { subcommand, ...(id !== undefined ? { id } : {}), now };
 }
 
 async function reviewQueue(store: ApprovalStore): Promise<number> {

@@ -37,86 +37,105 @@ New to the code? Open [`docs/wiki.html`](docs/wiki.html) — a standalone,
 self-contained wiki that walks the three layers, the build loop, and the
 runtime adapters, with curated reading paths for coming up to speed.
 
-## Prerequisites
+## Install locally
 
-- **Node.js >= 22** (enforced by `engines` in `package.json`).
-- **pnpm 11.10.0**, pinned via the `packageManager` field. Run `corepack enable`
-  once so the pinned version is used — an older global pnpm fails with store /
-  workspace errors.
+Operon requires **Node.js >= 26** and the pnpm version pinned in
+`packageManager`. Node 26 does not bundle Corepack, so install/enable it once
+if `pnpm --version` does not match the pin.
 
 ```bash
-corepack enable        # once, so the pinned pnpm@11.10.0 is used
+npm install -g corepack   # once per Node installation, when needed
+corepack enable
 pnpm install
+pnpm link:local
 ```
 
-Everything you need to explore the repo offline works with no credentials:
+`pnpm link:local` exposes `operon` at `~/.local/bin/operon` (or
+`$OPERON_BIN_DIR/operon`) and links the `$operon` Codex skill into
+`$CODEX_HOME/skills/operon`. Add `~/.local/bin` to `PATH` if necessary. The
+local command is source-backed: the next invocation reads the latest source
+changes, so no `operon update`, relink, or rebuild is needed. A packed or
+published installation instead runs the compiled `dist/cli.js` binary.
+
+These four locations are intentionally different:
+
+| Location | One-line meaning |
+| --- | --- |
+| Package root | Operon's installed implementation and reusable templates. |
+| Org home | Committed roles, apps, pipelines, prompts, taste, and curated memory. |
+| State home | Local high-churn clones, worktrees, locks, approvals, telemetry, and run logs. |
+| App repo | An independent product checkout that Operon develops or operates. |
+
+Create the org before onboarding an app; this can be run from any directory:
 
 ```bash
-pnpm test               # fast offline suite (575 tests, ~10s)
-pnpm typecheck
-pnpm dev roles          # validate roles.yaml, print the org chart
-pnpm dev apps           # validate apps.yaml, print the app registry
-pnpm dev pipelines      # validate pipelines.yaml, print the pass table
-pnpm dev doctor         # runtime adapter + config + scheduler status
+operon --version
+operon org init ~/Build/my-org --name my-org
+operon doctor
+operon context
 ```
+
+`org init` creates a complete org home from packaged templates, creates the
+default state home at `~/.operon/<org>`, and records the active org pointer at
+`~/.operon/config`. Use `operon org use <path>` to switch to another complete
+org. `OPERON_ORG_HOME` and `OPERON_STATE_HOME` are explicit per-process
+overrides.
 
 ## Commands
 
-Run any subcommand with `pnpm dev <cmd>`; `pnpm dev` with no arguments prints
-the full usage.
-
-**Offline — no auth, safe to run on a fresh clone:**
+Run `operon --help` or `operon <command> --help` for current syntax. The
+read-only discovery surfaces are also machine-readable for coding agents:
 
 ```bash
-pnpm dev roles              # validate roles.yaml, print the org chart
-pnpm dev apps               # validate apps.yaml, print the app registry
-pnpm dev pipelines          # validate pipelines.yaml, print the pass table
-pnpm dev doctor             # runtime adapter + config + scheduler status
-pnpm dev status             # recent L1/L2 run status from the org home
-pnpm dev budget             # monthly app spend and budget pauses
-pnpm dev analyze            # L1/L2 anomaly flags and recommendations
-pnpm dev approvals          # inspect / decide the critical-op approval queue
-pnpm dev retro --date 2026-07-04   # write a weekly evidence retro report
-pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
-                            # plan a greenfield app scaffold + Operon bootstrap
-pnpm dev bootstrap <repo> --scan-only        # scan a repo, report only (no write)
-pnpm dev plan <app> --dry-run                # print a Planner co-planning session
-pnpm dev loop --app <app> --once --dry-run   # inspect the ready-ticket loop plan
-pnpm dev dispatch --dry-run                  # simulate one autonomous scheduler tick
-pnpm dev run-role <role> [--app <app>] --dry-run  # print one role's assembled brief
-pnpm dev prune-runs [root] --retention-days N     # delete finalized run dirs past retention
+operon capabilities --json
+operon context --json
+operon roles
+operon apps
+operon pipelines
+operon doctor --json
 ```
+
+Offline onboarding and inspection do not require provider credentials:
+
+```bash
+operon bootstrap <local-repo> --scan-only
+operon bootstrap <local-repo>                    # interactive terminal questionnaire
+operon bootstrap <local-repo> --answers answers.json
+operon new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
+operon plan <app> --dry-run
+operon loop --app <app> --once --dry-run
+operon dispatch --dry-run
+operon run-role <role> --app <app> --dry-run
+operon status
+operon budget
+operon analyze
+operon approvals
+```
+
+Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
+the active org and writes app-owned files only under the app repo's
+`.operon/` directory. Its opening output explains the app repo, org home, and
+state home before anything is written. A non-interactive run requires
+`--answers` and otherwise writes nothing. `new-app` creates a separate product
+repo skeleton and then follows the same bootstrap/register path. Neither
+command creates or publishes a GitHub repo.
 
 The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
-`run-role` assemble real context but spend no tokens, so they are safe without
-auth.
-
-`pnpm dev new-app ...` is the greenfield path. It creates a separate product
-repo skeleton, writes starter product docs (`docs/VISION.md`,
-`docs/REQUIREMENTS.md`), writes an initial issue packet under
-`.operon/bootstrap/`, emits `.operon/` app artifacts through the same bootstrap
-code used for existing repos, and registers the app in the org when an org home
-is available. It does not create the GitHub repo or publish anything externally;
-the generated `.operon/bootstrap/next-commands.md` records those operator steps.
-
-`pnpm dev bootstrap <repo> --scan-only` inventories a GitHub-backed app repo:
-commands, CI, deploy hints, and existing app-owner documentation grouped by
-product, architecture, specs, operations, contributor, and quality categories.
-Full bootstrap with questionnaire answers emits `.operon/onboarding-report.md`
-with the same inventory and gap guidance. It does not generate authoritative
-product, architecture, or roadmap docs from source code; app owners bring those
-truth sources themselves.
-
-**Live — spends tokens / touches GitHub (auth required):**
+`run-role` assemble real context but spend no tokens. Live forms can spend
+tokens and touch GitHub:
 
 ```bash
-pnpm dev plan <app>                    # a real Planner co-planning session
-pnpm dev loop --app <app> --once       # run the build loop over ready tickets
-pnpm dev dispatch                      # one real autonomous scheduler tick
-pnpm test:live                         # live adapter conformance (real turns)
-GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup   # idempotent private repo/label setup
-GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox         # disposable real-GitHub loop proof
+operon plan <app>
+operon loop --app <app> --once
+operon dispatch
+pnpm test:live
+GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup
+GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox
 ```
+
+Contributors can still use `pnpm dev <command>` inside the Operon source repo,
+but product and org workflows should exercise the installed `operon` command
+from a neutral directory.
 
 ## Setup / auth
 
@@ -198,10 +217,10 @@ degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
   cannot fire. The other three detectors (`low_tokens_high_time`,
   `single_turn_long_run`, `cold_cache`) work off envelope fields that are
   written.
-- **The manual `pnpm dev loop` path does not feed the org telemetry ledger**
+- **The manual `operon loop` path does not feed the org telemetry ledger**
   (`telemetry/<day>.jsonl`); only the autonomous `dispatch` path records turn
-  spend there, so `pnpm dev budget` shows `$0` for manually-driven loops.
-  Per-pass spend is still fully visible in `pnpm dev status` and the run
+  spend there, so `operon budget` shows `$0` for manually-driven loops.
+  Per-pass spend is still fully visible in `operon status` and the run
   envelopes. Production uses the dispatcher, which records.
 - **Codex App-Server read bypass:** under the `untrusted` approval policy the
   App Server auto-runs trusted read-only commands (`cat`, `ls`) without an

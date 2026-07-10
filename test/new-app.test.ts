@@ -12,6 +12,7 @@ import { parse } from "yaml";
 import { afterAll, describe, expect, it } from "vitest";
 import { loadApps } from "../src/org/apps.js";
 import { createNewApp } from "../src/org/new-app.js";
+import { initOrgHome } from "../src/org/home.js";
 
 const tempDirs: string[] = [];
 afterAll(() => {
@@ -30,30 +31,16 @@ function write(root: string, rel: string, content: string): void {
   writeFileSync(path, content);
 }
 
-function makeOrgHome(): string {
-  const root = makeDir("operon-new-app-org-");
-  write(
-    root,
-    "apps.yaml",
-    `schema_version: 1
-org:
-  name: operon
-  max_concurrent_turns: 2
-defaults:
-  budget_usd_month: 1000
-apps:
-  alpha:
-    repo: owner/alpha
-    status: live
-    cadence: {}
-`,
-  );
+async function makeOrgHome(): Promise<string> {
+  const parent = makeDir("operon-new-app-org-");
+  const root = join(parent, "org");
+  await initOrgHome({ target: root, name: "operon", homeDir: makeDir("operon-new-app-home-") });
   return root;
 }
 
 describe("createNewApp", () => {
   it("scaffolds a greenfield app, bootstraps .operon, and registers channels", async () => {
-    const orgHome = makeOrgHome();
+    const orgHome = await makeOrgHome();
     const parent = makeDir("operon-new-app-parent-");
     const targetDir = join(parent, "marketplace");
 
@@ -97,7 +84,7 @@ describe("createNewApp", () => {
   });
 
   it("dry-run reports planned files without writing target or org files", async () => {
-    const orgHome = makeOrgHome();
+    const orgHome = await makeOrgHome();
     const before = await readFile(join(orgHome, "apps.yaml"), "utf8");
     const targetDir = join(makeDir("operon-new-app-dry-parent-"), "dry-marketplace");
 
@@ -118,7 +105,7 @@ describe("createNewApp", () => {
   });
 
   it("refuses to write into a non-empty target directory", async () => {
-    const orgHome = makeOrgHome();
+    const orgHome = await makeOrgHome();
     const targetDir = makeDir("operon-new-app-nonempty-");
     write(targetDir, "README.md", "already here");
 

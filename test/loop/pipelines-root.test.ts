@@ -5,6 +5,7 @@
 // Reads repo-local protocol files only; no network, auth, real org state, or
 // wall-clock time is required.
 
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -52,6 +53,13 @@ describe("root pipelines.yaml", () => {
       "contract",
       "implement",
     ]);
+  });
+
+  it("implement protocol permits a first-test-command bootstrap without weakening final verification", async () => {
+    const prompt = await readFile(join(ROOT, "prompts", "build", "implement.md"), "utf8");
+    expect(prompt).toContain("Bootstrap exception");
+    expect(prompt).toMatch(/test command\s+as `\(not configured\)`/);
+    expect(prompt).toContain("new full suite must still exist and pass");
   });
 
   it("review: verify always runs; deep dimensions only on trigger", async () => {

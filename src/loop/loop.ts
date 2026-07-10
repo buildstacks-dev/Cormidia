@@ -124,12 +124,16 @@ export interface LoopPipelineOptions {
   policy: Policy;
   commands: GateCommands;
   hooks: TurnHooks;
+  /** Role-aware critical-op gate used by manual loop execution. */
+  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   context?: ContextBundle;
   baseRef?: string;
   headRef?: string;
   clock?: () => Date;
   briefBudgetTokens?: number;
   authorization?: ReviewAuthorization;
+  /** Explicitly allow runtime network access for this loop tick. */
+  networkAccess?: boolean;
 }
 
 export interface BuilderPipelineOptions extends LoopPipelineOptions {
@@ -387,6 +391,7 @@ export async function runBuilderPipeline(
     context: options.context ?? EMPTY_CONTEXT,
     workdir: worktree,
     hooks: options.hooks,
+    ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
     runlog: {
       root: options.runlogRoot,
       app: options.app,
@@ -394,6 +399,7 @@ export async function runBuilderPipeline(
       traceId: traceIdFor(item, pipeline.name, options.clock),
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
+    ...(options.networkAccess === true ? { networkAccess: true } : {}),
     verdictSchemaFor: (pass) => VERDICT_SCHEMAS[verdictKindForPass(pass)],
     recordVerdict: async (ctx) => {
       const kind = verdictKindForPass(ctx.pass);
@@ -448,6 +454,7 @@ export async function runReviewPipeline(
     context: options.context ?? EMPTY_CONTEXT,
     workdir: requireField(item, "worktree"),
     hooks: options.hooks,
+    ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
     runlog: {
       root: options.runlogRoot,
       app: options.app,
@@ -455,6 +462,7 @@ export async function runReviewPipeline(
       traceId: traceIdFor(item, "review", options.clock),
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
+    ...(options.networkAccess === true ? { networkAccess: true } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);
@@ -468,10 +476,38 @@ export async function runReviewPipeline(
 
   const body = renderReviewBody(verdicts);
   await options.gh.commentIssue(item.issueNumber, `## Structured review verdict\n\n${body}`);
+  const findings = verdicts.flatMap((entry) => entry.verdict.findings);
   await options.gh.createReview(prNumber, {
-    state: hasFindings(verdicts) ? "request_changes" : "approve",
+    state: findings.length > 0 ? "request_changes" : "approve",
     body,
   });
+  // GitHub rejects REQUEST_CHANGES on a PR authored by the same account. The
+  // adapter records a comment-review fallback in that case, but the structured
+  // Reviewer verdict is already trusted pipeline output. Bounce directly from
+  // it rather than asking advanceReviewing to discover a GitHub state that
+  // cannot exist for a self-authored PR.
+  if (findings.length > 0) {
+    const cycles = item.cycles + 1;
+    if (cycles > DEFAULT_MAX_REVIEW_CYCLES) {
+      await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
+      await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+      return {
+        ...item,
+        cycles,
+        findings,
+        labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
+        phase: "returned",
+      };
+    }
+    await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:building");
+    return {
+      ...item,
+      cycles,
+      findings,
+      labels: replaceLabel(item.labels, "op:in-review", "op:building"),
+      phase: "building",
+    };
+  }
   return advanceReviewing(item, {
     gh: options.gh,
     ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
@@ -495,6 +531,7 @@ export async function runShipCheckPipeline(
     context: options.context ?? EMPTY_CONTEXT,
     workdir: requireField(item, "worktree"),
     hooks: options.hooks,
+    ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
     runlog: {
       root: options.runlogRoot,
       app: options.app,
@@ -502,6 +539,7 @@ export async function runShipCheckPipeline(
       traceId: traceIdFor(item, "ship", options.clock),
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
+    ...(options.networkAccess === true ? { networkAccess: true } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);

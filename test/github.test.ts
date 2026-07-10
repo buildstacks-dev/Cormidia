@@ -9,6 +9,7 @@ import {
   GhCliOps,
   GhOpsError,
   SELF_APPROVAL_FALLBACK_MARKER,
+  SELF_CHANGES_REQUESTED_FALLBACK_MARKER,
   verifiedSelfApprovalMarker,
   type GhExec,
   type GhExecResult,
@@ -206,6 +207,30 @@ describe("GhCliOps", () => {
     // the loop must fail closed on it rather than treating it as an approval.
     expect(verifiedSelfApprovalMarker(review.body, undefined, 7)).toBe(false);
     expect(verifiedSelfApprovalMarker(review.body, "any-secret", 7)).toBe(false);
+  });
+
+  it("falls back to a comment review when GitHub rejects same-account changes requests", async () => {
+    const { exec, calls } = execFrom((args) => {
+      if (args[0] === "pr" && args[1] === "review" && args.includes("--request-changes")) {
+        return {
+          stdout: "",
+          stderr: "failed to create review: GraphQL: Review Can not request changes on your own pull request",
+          exitCode: 1,
+        };
+      }
+      if (args[0] === "pr" && args[1] === "review" && args.includes("--comment")) {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      throw new Error(`unexpected ${args.join(" ")}`);
+    });
+    const gh = new GhCliOps("o/r", exec);
+
+    const review = await gh.createReview(7, { state: "request_changes", body: "Verdict: findings" });
+
+    expect(review).toMatchObject({ state: "COMMENTED" });
+    expect(review.body).toContain(SELF_CHANGES_REQUESTED_FALLBACK_MARKER);
+    expect(calls[0]?.args).toContain("--request-changes");
+    expect(calls[1]?.args).toContain("--comment");
   });
 
   it("signs the self-approval marker with the operator secret so it cannot be forged", async () => {

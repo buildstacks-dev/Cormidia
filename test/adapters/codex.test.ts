@@ -229,10 +229,33 @@ describe("CodexRuntime (App Server mocked)", () => {
       threadId: "thread-1",
       model: "gpt-5.5",
       effort: "high",
+      sandboxPolicy: {
+        type: "workspaceWrite",
+        writableRoots: ["/tmp/operon-codex-test"],
+        networkAccess: false,
+        excludeTmpdirEnvVar: false,
+        excludeSlashTmp: false,
+      },
       input: [{ type: "text", text: "do the thing", text_elements: [] }],
     });
     expect(result.session).toEqual({ runtime: "codex", id: "thread-1" });
     expect(result.usage).toMatchObject({ tokensIn: 12, tokensInUncached: 10, cacheReadTokens: 2, tokensOut: 8 });
+  });
+
+  it("enables workspace-scoped network access only when the turn opts in", async () => {
+    const client = new FakeCodexClient({ result: makeResult("done") });
+    await new CodexRuntime({ clientFactory: () => client }).runTurn(
+      makeReq({ networkAccess: true }),
+      { gate: defaultGate },
+    );
+
+    expect(client.requests[2]?.params).toMatchObject({
+      sandboxPolicy: {
+        type: "workspaceWrite",
+        writableRoots: ["/tmp/operon-codex-test"],
+        networkAccess: true,
+      },
+    });
   });
 
   it("resumes an existing Codex thread", async () => {

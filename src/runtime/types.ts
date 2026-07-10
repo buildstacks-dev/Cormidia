@@ -62,6 +62,9 @@ export interface TurnRequest {
    *  provider's native "max turns" knob where one exists; absent means the
    *  adapter default applies. */
   maxTurns?: number;
+  /** Allow outbound network inside a workspace-write runtime sandbox for this
+   * turn. Defaults to false; the orchestration boundary must opt in. */
+  networkAccess?: boolean;
 }
 
 export interface Artifact {

@@ -250,6 +250,35 @@ describe("executePipeline", () => {
     }
   });
 
+  it("selects a role-aware gate for every pass when a factory is provided", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const fallback = (): { allow: true } => ({ allow: true });
+    const builderGate = (): { allow: true } => ({ allow: true });
+    const selectedRoles: string[] = [];
+    const h = makeHarness(
+      build,
+      [scripted("contract"), scripted("implement")],
+      {
+        hooks: { gate: fallback },
+        gateForRole: (selectedRole) => {
+          selectedRoles.push(selectedRole.name);
+          return builderGate;
+        },
+      },
+    );
+    try {
+      await executePipeline(h.options);
+      expect(selectedRoles).toEqual(["builder", "builder"]);
+      expect(h.fake.calls).toHaveLength(2);
+      for (const call of h.fake.calls) {
+        expect(call.hooks.gate).toBe(builderGate);
+        expect(call.hooks.gate).not.toBe(fallback);
+      }
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("every executed pass leaves a complete run record with matching runIds", async () => {
     const build = getPipeline(await loadFixture(), "build");
     const h = makeHarness(build, [

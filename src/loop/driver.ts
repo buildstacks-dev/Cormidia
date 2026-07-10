@@ -66,8 +66,12 @@ export interface LoopEngineOptions {
   promptsDir: string;
   runlogRoot: string;
   hooks: TurnHooks;
+  /** Role-aware critical-op gate for durable approval composition. */
+  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   context?: ContextBundle;
   clock?: () => Date;
+  /** Explicit network grant for runtime turns in this loop tick. */
+  networkAccess?: boolean;
 }
 
 export interface LoopDriverResult {
@@ -140,7 +144,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       if (item.phase === "building") {
         if (options.engine !== undefined) {
           item = await runBuilderPipeline(item, {
-            ...enginePhaseOptions(options),
+            ...enginePhaseOptions(options, item.worktree),
             pipelineName:
               item.cycles > 0 || item.findings.length > 0 || item.rebaseNote !== undefined
                 ? "fix"
@@ -152,14 +156,14 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         item = await advanceGates(item, {
           gh: options.gh,
           policy: options.policy,
-          commands: options.commands,
+          commands: gateCommandsForWorktree(options.commands, item.worktree),
           criteria,
           criterionTests,
           ...(options.engine !== undefined
             ? {
                 remediate: (current, result) =>
                   runBuilderPipeline(current, {
-                    ...enginePhaseOptions(options),
+                    ...enginePhaseOptions(options, current.worktree),
                     pipelineName: "fix",
                     gateResult: result,
                   }),
@@ -174,14 +178,14 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         item = await advanceGates(item, {
           gh: options.gh,
           policy: options.policy,
-          commands: options.commands,
+          commands: gateCommandsForWorktree(options.commands, item.worktree),
           criteria,
           criterionTests,
           ...(options.engine !== undefined
             ? {
                 remediate: (current, result) =>
                   runBuilderPipeline(current, {
-                    ...enginePhaseOptions(options),
+                    ...enginePhaseOptions(options, current.worktree),
                     pipelineName: "fix",
                     gateResult: result,
                   }),
@@ -194,7 +198,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
 
       if (item.phase === "reviewing") {
         if (options.engine !== undefined) {
-          item = await runReviewPipeline(item, enginePhaseOptions(options));
+          item = await runReviewPipeline(item, enginePhaseOptions(options, item.worktree));
         } else {
           await options.injectReview?.(item);
           item = await advanceReviewing(item, {
@@ -207,14 +211,14 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
 
       if (item.phase === "shipping") {
         if (options.engine !== undefined) {
-          item = await runShipCheckPipeline(item, enginePhaseOptions(options));
+          item = await runShipCheckPipeline(item, enginePhaseOptions(options, item.worktree));
           if (item.phase !== "shipping") continue;
         }
         item = await advanceShipping(item, {
           gh: options.gh,
           localRepo: options.localRepo,
           policy: options.policy,
-          commands: options.commands,
+          commands: gateCommandsForWorktree(options.commands, item.worktree),
           criteria,
           criterionTests,
         });
@@ -235,7 +239,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         gh: options.gh,
         localRepo: options.localRepo,
         policy: options.policy,
-        commands: options.commands,
+        commands: gateCommandsForWorktree(options.commands, item.worktree),
         criteria,
         criterionTests,
       });
@@ -296,7 +300,7 @@ function gateRunlog(options: LoopDriverOptions, item: LoopItem): LoopRunlog {
   };
 }
 
-function enginePhaseOptions(options: LoopDriverOptions) {
+function enginePhaseOptions(options: LoopDriverOptions, worktree?: string) {
   const engine = options.engine;
   if (engine === undefined) throw new Error("loop driver: engine options missing");
   return {
@@ -308,10 +312,12 @@ function enginePhaseOptions(options: LoopDriverOptions) {
     runlogRoot: engine.runlogRoot,
     app: options.app,
     policy: options.policy,
-    commands: options.commands,
+    commands: gateCommandsForWorktree(options.commands, worktree),
     hooks: engine.hooks,
+    ...(engine.gateForRole !== undefined ? { gateForRole: engine.gateForRole } : {}),
     ...(engine.context !== undefined ? { context: engine.context } : {}),
     ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
+    ...(engine.networkAccess === true ? { networkAccess: true } : {}),
     ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
   };
 }
@@ -321,11 +327,31 @@ export function loadGateCommands(repoDir: string): GateCommands {
   const configPath = join(repoDir, ".operon", "config.yaml");
   if (existsSync(configPath)) {
     const raw = parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
-    if (typeof raw["setup_command"] === "string") commands.setupCommand = raw["setup_command"];
-    if (typeof raw["test_command"] === "string") commands.testCommand = raw["test_command"];
-    if (typeof raw["lint_command"] === "string") commands.lintCommand = raw["lint_command"];
-    if (typeof raw["e2e_test_command"] === "string") {
-      commands.e2eTestCommand = raw["e2e_test_command"];
+    const nestedApps = asRecord(raw["apps"]);
+    const appEntries = nestedApps === undefined ? [] : Object.values(nestedApps);
+    const soleApp = appEntries.length === 1 ? asRecord(appEntries[0]) : undefined;
+    const source = soleApp ?? raw;
+    const commandMap = asRecord(source["commands"]);
+
+    if (typeof source["setup_command"] === "string") {
+      commands.setupCommand = source["setup_command"];
+    } else if (typeof commandMap?.["install"] === "string") {
+      commands.setupCommand = commandMap["install"];
+    }
+    if (typeof source["test_command"] === "string") {
+      commands.testCommand = source["test_command"];
+    } else if (typeof commandMap?.["test"] === "string") {
+      commands.testCommand = commandMap["test"];
+    }
+    if (typeof source["lint_command"] === "string") {
+      commands.lintCommand = source["lint_command"];
+    } else if (typeof commandMap?.["lint"] === "string") {
+      commands.lintCommand = commandMap["lint"];
+    }
+    if (typeof source["e2e_test_command"] === "string") {
+      commands.e2eTestCommand = source["e2e_test_command"];
+    } else if (typeof commandMap?.["e2e"] === "string") {
+      commands.e2eTestCommand = commandMap["e2e"];
     }
   }
   const pkgPath = join(repoDir, "package.json");
@@ -340,6 +366,24 @@ export function loadGateCommands(repoDir: string): GateCommands {
       ? { lintCommand: "npm run lint" }
       : {}),
   };
+}
+
+/** Resolve commands immediately before a worktree gate runs. A ticket may
+ * introduce the app's first test/lint commands, so the pre-claim main clone is
+ * not authoritative after Builder has changed `.operon/config.yaml` or
+ * `package.json`. Worktree-owned values intentionally override the initial
+ * registry snapshot. */
+export function gateCommandsForWorktree(
+  initial: GateCommands,
+  worktree: string | undefined,
+): GateCommands {
+  if (worktree === undefined) return initial;
+  return { ...initial, ...loadGateCommands(worktree) };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
 }
 
 function ensureClone(repoSlug: string, repoDir: string): void {

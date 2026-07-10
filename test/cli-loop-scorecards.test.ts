@@ -5,9 +5,11 @@
 // real org state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
-import { persistLoopScorecards } from "../src/cli/loop.js";
+import { createLoopGateForRole, persistLoopScorecards } from "../src/cli/loop.js";
+import { ApprovalStore } from "../src/org/approvals.js";
 import { readScorecards } from "../src/org/scorecards.js";
 import type { ScorecardEvent as LoopScorecardEvent } from "../src/loop/types.js";
+import type { RoleConfig } from "../src/runtime/types.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
 // Regression: `operon loop` used to drop every scorecard event the driver
@@ -60,6 +62,39 @@ describe("persistLoopScorecards", () => {
     const home = makeOrgHome();
     try {
       expect(await persistLoopScorecards(home.root, "operon-sandbox-delta", [])).toBe(0);
+    } finally {
+      home.cleanup();
+    }
+  });
+});
+
+describe("createLoopGateForRole", () => {
+  it("raises a durable, role-attributed approval for a manual-loop critical action", async () => {
+    const home = makeOrgHome();
+    const builder: RoleConfig = {
+      name: "builder",
+      runtime: "codex",
+      model: "gpt-5.5",
+      effort: "high",
+      delegation: { allow: [] },
+      triggers: [],
+      outputs: ["pr"],
+      maxTurnBudgetUsd: 30,
+    };
+    try {
+      const gate = createLoopGateForRole(home.root, "buildstacks.dev", "loop-turn-2")(builder);
+      const decision = gate({ tool: "bash", input: { command: "cat .env" } });
+      expect(decision).toMatchObject({ allow: false, escalate: true });
+
+      const pending = await new ApprovalStore(home.root).listPending();
+      expect(pending).toHaveLength(1);
+      expect(pending[0]).toMatchObject({
+        app: "buildstacks.dev",
+        role: "builder",
+        turnId: "loop-turn-2",
+        rule: "secrets-or-auth",
+        status: "pending",
+      });
     } finally {
       home.cleanup();
     }

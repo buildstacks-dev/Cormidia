@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   DEFAULT_LOOP_POLICY,
+  gateCommandsForWorktree,
   loadGateCommands,
   planLoopTick,
   runLoopOnce,
@@ -106,6 +107,62 @@ describe("loop driver", () => {
         setupCommand: "npm ci",
         testCommand: "npm test",
         lintCommand: "npm run lint",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("loadGateCommands reads commands from the sole registry-style app entry", () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-"));
+    try {
+      mkdirSync(join(root, ".operon"));
+      writeFileSync(
+        join(root, ".operon", "config.yaml"),
+        [
+          "schema_version: 1",
+          "apps:",
+          "  fixture:",
+          "    test_command: pnpm test",
+          "    lint_command: pnpm lint",
+          "    commands:",
+          "      install: pnpm install --frozen-lockfile",
+          "      test: pnpm test:fallback",
+          "      lint: pnpm lint:fallback",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      expect(loadGateCommands(root)).toEqual({
+        setupCommand: "pnpm install --frozen-lockfile",
+        testCommand: "pnpm test",
+        lintCommand: "pnpm lint",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reloads commands from the built worktree before quality gates", () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-"));
+    try {
+      mkdirSync(join(root, ".operon"));
+      writeFileSync(
+        join(root, ".operon", "config.yaml"),
+        "schema_version: 1\ntest_command: pnpm test\nlint_command: pnpm lint\n",
+        "utf8",
+      );
+
+      expect(
+        gateCommandsForWorktree(
+          { testCommand: "stale-test", e2eTestCommand: "pnpm test:e2e" },
+          root,
+        ),
+      ).toEqual({
+        testCommand: "pnpm test",
+        lintCommand: "pnpm lint",
+        e2eTestCommand: "pnpm test:e2e",
       });
     } finally {
       rmSync(root, { recursive: true, force: true });

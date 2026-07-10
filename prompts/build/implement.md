@@ -12,6 +12,11 @@ pass; an unverified claim of success only wastes a remediation cycle.
    touching anything. If the baseline is red, **stop**: report blocked with
    the failing output verbatim. A broken base is an incident for the SRE,
    never something to build on and never yours to quietly fix.
+   **Bootstrap exception:** when the brief explicitly reports the test command
+   as `(not configured)` and this ticket establishes the app's first test
+   command, record the baseline as unavailable and proceed. This is not a red
+   baseline. The exception applies only when no executable test command exists;
+   the new full suite must still exist and pass before a `done` verdict.
 3. **Minimal diff.** The smallest change that satisfies every acceptance
    criterion. Stay within the contract's files list. No drive-by refactors,
    no speculative generality, no fixing what the ticket did not ask about.

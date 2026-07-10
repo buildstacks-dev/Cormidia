@@ -90,6 +90,8 @@ export interface GhOps {
 
 const SELF_APPROVAL_FALLBACK_PREFIX = "<!-- operon:self-approval-fallback";
 export const SELF_APPROVAL_FALLBACK_MARKER = `${SELF_APPROVAL_FALLBACK_PREFIX} -->`;
+export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER =
+  "<!-- operon:self-changes-requested-fallback -->";
 
 // The self-approval fallback (single-account pilot: GitHub rejects approving
 // your own PR) must not be authorizable by a static, repo-visible string —
@@ -329,6 +331,14 @@ export class GhCliOps implements GhOps {
         input.body,
       );
     } catch (error) {
+      if (input.state === "request_changes" && isSelfChangesRequestedError(error)) {
+        const body = `${input.body.trimEnd()}\n\n${SELF_CHANGES_REQUESTED_FALLBACK_MARKER}\n`;
+        await this.run(
+          ["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"],
+          body,
+        );
+        return { state: "COMMENTED", body };
+      }
       if (input.state !== "approve" || !isSelfApprovalError(error)) throw error;
       const marker = selfApprovalMarker(this.selfApprovalSecret, prNumber);
       const body = `${input.body.trimEnd()}\n\n${marker}\n`;
@@ -431,6 +441,15 @@ function isSelfApprovalError(error: unknown): boolean {
   return (
     error instanceof GhOpsError &&
     /can not approve your own pull request|cannot approve your own pull request/i.test(
+      error.stderr,
+    )
+  );
+}
+
+function isSelfChangesRequestedError(error: unknown): boolean {
+  return (
+    error instanceof GhOpsError &&
+    /can not request changes on your own pull request|cannot request changes on your own pull request/i.test(
       error.stderr,
     )
   );

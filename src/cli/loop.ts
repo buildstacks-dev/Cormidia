@@ -1,8 +1,9 @@
-// `operon loop --app <app> [--once|--follow] [--dry-run]` — manual driver
+// `operon loop --app <app> [--once|--follow] [--dry-run] [--allow-network]`
 // for the build-loop state machine (M5.9).
 
 import { join } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
+import type { GateFn, RoleConfig } from "../runtime/types.js";
 import { getRuntime } from "../runtime/registry.js";
 import { defaultLoopInputs, runLoopOnce } from "../loop/driver.js";
 import { loadPipelines } from "../loop/pipelines.js";
@@ -11,6 +12,8 @@ import { loadApps } from "../org/apps.js";
 import { assembleContext } from "../org/context.js";
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
+import { ApprovalStore } from "../org/approvals.js";
+import { composeGate } from "../org/gate-compose.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -48,6 +51,24 @@ export async function persistLoopScorecards(
   return appended;
 }
 
+/** Manual `operon loop` must use the same durable approval boundary as the
+ * autonomous dispatcher. The previous raw defaultGate wiring denied critical
+ * actions but never created an approval item, leaving tickets stranded with
+ * no possible `operon approvals review` recovery path. */
+export function createLoopGateForRole(
+  stateHome: string,
+  app: string,
+  turnId: string,
+): (role: RoleConfig) => GateFn {
+  const store = new ApprovalStore(stateHome);
+  return (role) =>
+    composeGate(defaultGate, store, {
+      app,
+      role: role.name,
+      turnId,
+    });
+}
+
 export async function cmdLoop(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "loop");
   args = common.rest;
@@ -57,6 +78,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
   let dryRun = false;
   let repoDir: string | undefined;
   let worktreeRoot: string | undefined;
+  let allowNetwork = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -72,6 +94,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
       repoDir = needValue(args, ++i, "--repo-dir");
     } else if (arg === "--worktree-root") {
       worktreeRoot = needValue(args, ++i, "--worktree-root");
+    } else if (arg === "--allow-network") {
+      allowNetwork = true;
     } else {
       throw new Error(`loop: unknown flag "${arg}"`);
     }
@@ -136,6 +160,11 @@ export async function cmdLoop(args: string[]): Promise<number> {
             promptsDir,
             runlogRoot: homes.stateHome,
             hooks: { gate: defaultGate },
+            gateForRole: createLoopGateForRole(
+              homes.stateHome,
+              selectedApp.name,
+              turnId,
+            ),
             context: (await assembleContext({
               orgHome: homes.orgHome,
               appWorkdir: localRepo,
@@ -143,6 +172,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
               role: builderRole,
               taskText: `build loop for ${selectedApp.name}`,
             })).bundle,
+            ...(allowNetwork ? { networkAccess: true } : {}),
             },
           }
         : {}),

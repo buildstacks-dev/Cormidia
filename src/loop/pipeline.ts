@@ -71,11 +71,17 @@ export interface ExecutePipelineOptions {
   /** gate propagates unchanged to every pass; onEvent (when present) still
    *  fires after the executor's own session-log sink. */
   hooks: TurnHooks;
+  /** Optional role-aware gate factory. Manual build-loop ticks use this to
+   *  compose the critical-op gate with the durable approval store for the
+   *  actual role running each pass. */
+  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   runlog: RunlogTarget;
   /** Injected clock (FakeClock-compatible); defaults to the wall clock. */
   clock?: () => Date;
   /** Optional native structured-output schema per pass. */
   verdictSchemaFor?: (pass: PassConfig) => Record<string, unknown> | undefined;
+  /** Explicit per-turn network grant; omitted/false keeps the sandbox offline. */
+  networkAccess?: boolean;
   /** Runs after a pass completes and before the next sequential stage starts. */
   afterPass?: (record: PassRunRecord) => void | Promise<void>;
   /** Parse + record the pass's typed verdict, AFTER the turn and BEFORE the
@@ -216,7 +222,7 @@ async function runPass(
   // transcripts). session.log still receives every event live.
   const bridged: TurnEvent[] = [];
   const passHooks: TurnHooks = {
-    gate: options.hooks.gate, // unchanged — the conformance contract
+    gate: options.gateForRole?.(role) ?? options.hooks.gate,
     onEvent: (e) => {
       sessionLog(e);
       if (e.type === "tool_use" || e.type === "subagent") bridged.push(e);
@@ -235,6 +241,7 @@ async function runPass(
       context: options.context,
       ...(verdictSchema !== undefined ? { verdictSchema } : {}),
       ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
+      ...(options.networkAccess === true ? { networkAccess: true } : {}),
     },
     passHooks,
   );

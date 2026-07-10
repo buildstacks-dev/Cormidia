@@ -89,7 +89,7 @@ const HELP = {
   bootstrap: `Usage: operon bootstrap [local-repo-path] [--scan-only] [--answers <answers.json>] [--org-home <path>] [--state-home <path>]\n\nThe positional value is a local directory, never a GitHub URL. The active org must already exist. Outside an interactive terminal, --answers is required and omission writes nothing.`,
   "new-app": `Usage: operon new-app <name-or-goal> --target-dir <local-path> --repo <owner/repo> [--goal <text>] [--name <app>] [--org-home <path>] [--dry-run]`,
   plan: `Usage: operon plan <app-name> [--topic <text>] [--workdir <local-path>] [--dry-run]${HOME_HELP}`,
-  loop: `Usage: operon loop --app <app-name> [--once|--follow] [--dry-run] [--repo-dir <local-path>]${HOME_HELP}`,
+  loop: `Usage: operon loop --app <app-name> [--once|--follow] [--dry-run] [--allow-network] [--repo-dir <local-path>]${HOME_HELP}`,
   doctor: `Usage: operon doctor [--json]${HOME_HELP}`,
   approvals: `Usage: operon approvals [list|review|show <id>] [--state-home <path>] [--now <ISO-time>]${HOME_HELP}`,
   budget: `Usage: operon budget [--apps <apps.yaml-path>]${HOME_HELP}`,

@@ -427,6 +427,13 @@ function turnParams(req: TurnRequest, threadId: string): Record<string, unknown>
     cwd: req.workdir,
     approvalPolicy: "untrusted",
     approvalsReviewer: "user",
+    sandboxPolicy: {
+      type: "workspaceWrite",
+      writableRoots: [req.workdir],
+      networkAccess: req.networkAccess === true,
+      excludeTmpdirEnvVar: false,
+      excludeSlashTmp: false,
+    },
     model: req.role.model,
     effort: mapCodexEffort(req.role.effort),
     ...(req.verdictSchema !== undefined

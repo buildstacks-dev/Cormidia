@@ -7,7 +7,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { scanRepo } from "../src/org/bootstrap.js";
 import { cmdBootstrap } from "../src/cli/bootstrap.js";
 
@@ -115,7 +115,22 @@ describe("scanRepo", () => {
 });
 
 describe("cmdBootstrap", () => {
-  afterEach(() => vi.restoreAllMocks());
+  // Home resolution honors $HOME (os.homedir) and OPERON_* env vars, so a
+  // developer host with an active org pointer would otherwise leak into the
+  // no-active-org assertions below. Every case runs against a fresh, empty
+  // fake home with the override env vars cleared.
+  beforeEach(() => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "operon-bootstrap-home-"));
+    tempDirs.push(fakeHome);
+    vi.stubEnv("HOME", fakeHome);
+    vi.stubEnv("OPERON_ORG_HOME", "");
+    vi.stubEnv("OPERON_STATE_HOME", "");
+    vi.stubEnv("OPERON_HOME", "");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
 
   it("--scan-only prints the profile and would-create list without writing", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});

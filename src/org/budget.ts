@@ -10,8 +10,9 @@ import { dirname, join } from "node:path";
 import type { AppsFile } from "./apps.js";
 import { ApprovalStore } from "./approvals.js";
 import {
-  readLedgerRunIds,
-  recordTurnOnce,
+  readSettledKeys,
+  recordTurn,
+  settlementKey,
   type TurnRecord,
 } from "../runtime/telemetry.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
@@ -105,12 +106,23 @@ export interface ReconcileResult {
   scanned: number;
   /** Rows appended to the ledger (envelopes the ledger had never seen). */
   settled: number;
-  /** Envelopes skipped: already settled, or no usage recorded. */
+  /** Envelopes skipped: already settled, no usage recorded, in flight, or
+   *  unreadable. Every scanned envelope lands in exactly one bucket. */
   alreadySettled: number;
   noUsage: number;
+  inFlight: number;
+  corrupt: number;
   /** Total equivalent-cost recovered into the ledger by this run. */
   recoveredUsd: number;
 }
+
+/** An envelope still `running` younger than this is treated as in flight and
+ *  left alone: its pass may be between turn-return and finalize, and settling
+ *  it here would race the executor's own settle — the reconcile row would win
+ *  the (app, runId) key with a wrong status and stale usage. Older than this,
+ *  a `running` envelope is provably dead (no pass runs for a day) and its
+ *  spend is recovered as failed. */
+const IN_FLIGHT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Rebuild the ledger from `runs/<app>/<run>/envelope.json` (telemetry doc
  *  Defect B item 4). Idempotent: settlement is keyed on run_id, so re-running
@@ -121,11 +133,20 @@ export interface ReconcileResult {
 export async function reconcileLedger(
   stateHome: string,
   runtimeByRole: Record<string, string> = {},
+  now: Date = new Date(),
 ): Promise<ReconcileResult> {
   const runsDir = join(stateHome, "runs");
-  const result: ReconcileResult = { scanned: 0, settled: 0, alreadySettled: 0, noUsage: 0, recoveredUsd: 0 };
+  const result: ReconcileResult = {
+    scanned: 0,
+    settled: 0,
+    alreadySettled: 0,
+    noUsage: 0,
+    inFlight: 0,
+    corrupt: 0,
+    recoveredUsd: 0,
+  };
   if (!existsSync(runsDir)) return result;
-  const settledIds = await readLedgerRunIds(stateHome);
+  const settledKeys = await readSettledKeys(stateHome);
 
   for (const app of await readdir(runsDir)) {
     const appDir = join(runsDir, app);
@@ -143,7 +164,8 @@ export async function reconcileLedger(
       try {
         envelope = JSON.parse(await readFile(envelopePath, "utf8")) as RunEnvelope;
       } catch {
-        continue; // Torn envelope: unreadable spend cannot be reconciled.
+        result.corrupt += 1; // Unreadable spend cannot be reconciled — but count it.
+        continue;
       }
       if (envelope.usage === undefined) {
         // No usage ever landed (hung before the turn returned, or crashed
@@ -151,19 +173,27 @@ export async function reconcileLedger(
         result.noUsage += 1;
         continue;
       }
-      if (settledIds.has(envelope.run_id)) {
+      if (
+        envelope.status === "running" &&
+        now.getTime() - new Date(envelope.started_at).getTime() < IN_FLIGHT_WINDOW_MS
+      ) {
+        // Possibly a live pass between turn-return and finalize: leave it for
+        // the executor's own settle rather than racing it with a wrong status.
+        result.inFlight += 1;
+        continue;
+      }
+      if (settledKeys.has(settlementKey(envelope.app, envelope.run_id))) {
         result.alreadySettled += 1;
         continue;
       }
       const record = recordFromEnvelope(envelope, runtimeByRole);
       record.escalations = await countEscalations(join(appDir, runId, "events.jsonl"));
-      if (await recordTurnOnce(stateHome, record)) {
-        settledIds.add(envelope.run_id);
-        result.settled += 1;
-        result.recoveredUsd += record.costUsd;
-      } else {
-        result.alreadySettled += 1;
-      }
+      // settledKeys was read once and is maintained in memory — recordTurn
+      // appends directly instead of re-scanning the ledger per envelope.
+      await recordTurn(stateHome, record);
+      settledKeys.add(settlementKey(envelope.app, envelope.run_id));
+      result.settled += 1;
+      result.recoveredUsd += record.costUsd;
     }
   }
   return result;
@@ -199,7 +229,15 @@ async function countEscalations(eventsPath: string): Promise<number> {
   const text = await readFile(eventsPath, "utf8");
   let count = 0;
   for (const line of text.split("\n")) {
-    if (line.includes('"escalation.raised"')) count += 1;
+    if (line.trim().length === 0) continue;
+    try {
+      // Parse rather than substring-match: a free-text detail value that
+      // happens to contain the literal must not inflate the count.
+      const event = JSON.parse(line) as { type?: unknown };
+      if (event.type === "escalation.raised") count += 1;
+    } catch {
+      // Torn trailing line — same tolerance as every other L2 reader.
+    }
   }
   return count;
 }
@@ -248,7 +286,14 @@ async function readMonthSpend(orgHome: string, month: string): Promise<Map<strin
     const text = await readFile(join(dir, file), "utf8");
     for (const line of text.split("\n")) {
       if (line.trim().length === 0) continue;
-      const record = JSON.parse(line) as TurnRecord;
+      let record: TurnRecord;
+      try {
+        record = JSON.parse(line) as TurnRecord;
+      } catch {
+        // One torn append must not wedge budget enforcement (and with it
+        // every loop tick's budgetGuard) org-wide.
+        continue;
+      }
       if (record.app === undefined) continue;
       spent.set(record.app, (spent.get(record.app) ?? 0) + record.costUsd);
     }

@@ -164,15 +164,19 @@ export async function runDispatchedTurn(
         .filter((item) => item.turnId === options.turnId)
         .map((item) => item.id),
     });
-    // Lifecycle row only: cost settled per pass by the executor. Summing pass
-    // usage here again would double-count the ledger (Stage 1 settlement model).
-    await recordTurn(
-      runtimeHome,
-      toRecord(options.role, stripSettledUsage(result), clock(), {
-        app: options.app.name,
-        ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind } : {}),
-      }),
-    );
+    // Executor-routed turns settled per pass already; a second turn-level row
+    // would double-count cost and escalations and inflate retro/scorecard turn
+    // counts (each pass IS a provider turn). Only the review-loop route runs
+    // no passes, so only it still records its (zero-usage) turn row here.
+    if (route.kind === "review-loop") {
+      await recordTurn(
+        runtimeHome,
+        toRecord(options.role, result, clock(), {
+          app: options.app.name,
+          ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind } : {}),
+        }),
+      );
+    }
     await writeJournalPatch(runtimeHome, options.turnId, {
       role: options.role.name,
       app: options.app.name,
@@ -204,21 +208,6 @@ export async function runDispatchedTurn(
     clearInterval(heartbeat);
     await releaseLock(runtimeHome, options.app.name, options.role.name);
   }
-}
-
-/** Wall-clock and status stay on the turn row; token/cost figures are zeroed
- *  because the executor already settled them per pass (keyed on runId). */
-function stripSettledUsage(result: TurnResult): TurnResult {
-  return {
-    ...result,
-    usage: {
-      tokensIn: 0,
-      tokensOut: 0,
-      costUsd: 0,
-      subagentTurns: 0,
-      wallClockMs: result.usage.wallClockMs,
-    },
-  };
 }
 
 async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
@@ -366,6 +355,15 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
         value: event.value,
       },
       options.now?.() ?? new Date(),
+    );
+  }
+  if (result.budgetRefusal !== undefined) {
+    // The tick never claimed — say so. "completed / no-ready-ticket" would
+    // hide an exhausted cap behind an idle-looking turn.
+    return zeroResult(
+      "blocked_on_gate",
+      `builder ticket turn refused by budget preflight: ${result.budgetRefusal}`,
+      options.role,
     );
   }
   const phase = result.items[0]?.phase;

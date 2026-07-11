@@ -8,10 +8,11 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  readLedgerRunIds,
+  readSettledKeys,
   recordInvocation,
   recordTurn,
   recordTurnOnce,
+  settlementKey,
   toRecord,
 } from "../src/runtime/telemetry.js";
 import type { RoleConfig, TurnResult } from "../src/runtime/types.js";
@@ -157,23 +158,37 @@ describe("pass settlement (Stage 1 — Defect B)", () => {
     expect(raw.trimEnd().split("\n")).toHaveLength(1);
   });
 
+  it("settlement is app-scoped: two apps sharing a second-granular runId both settle", async () => {
+    home = makeOrgHome();
+    // mintRunId is YYYYMMDD-HHMMSS-<pipeline>-<pass>; two apps running the
+    // packaged build/implement pass in the same UTC second collide on runId.
+    const runId = "20260706-093000-build-implement";
+    expect(await recordTurnOnce(home.root, toRecord(ROLE, RESULT, AT, { app: "alpha", runId }))).toBe(true);
+    expect(await recordTurnOnce(home.root, toRecord(ROLE, RESULT, AT, { app: "beta", runId }))).toBe(true);
+    expect(await recordTurnOnce(home.root, toRecord(ROLE, RESULT, AT, { app: "beta", runId }))).toBe(false);
+
+    const raw = await readFile(join(home.root, "telemetry", "2026-07-06.jsonl"), "utf8");
+    expect(raw.trimEnd().split("\n")).toHaveLength(2);
+  });
+
   it("recordTurnOnce requires a runId — idempotency has no key without one", async () => {
     home = makeOrgHome();
     await expect(recordTurnOnce(home.root, toRecord(ROLE, RESULT, AT))).rejects.toThrow(/runId/);
   });
 
-  it("readLedgerRunIds sees runIds across day files and tolerates torn lines", async () => {
+  it("readSettledKeys sees keys across day files and tolerates torn lines", async () => {
     home = makeOrgHome();
-    await recordTurn(home.root, toRecord(ROLE, RESULT, AT, { runId: "run-day-one" }));
+    await recordTurn(home.root, toRecord(ROLE, RESULT, AT, { app: "a", runId: "run-day-one" }));
     await recordTurn(
       home.root,
-      toRecord(ROLE, RESULT, new Date("2026-07-07T08:00:00Z"), { runId: "run-day-two" }),
+      toRecord(ROLE, RESULT, new Date("2026-07-07T08:00:00Z"), { app: "a", runId: "run-day-two" }),
     );
     await appendFile(join(home.root, "telemetry", "2026-07-07.jsonl"), '{"at":"2026-07-07T09', "utf8");
 
-    const ids = await readLedgerRunIds(home.root);
-    expect(ids.has("run-day-one")).toBe(true);
-    expect(ids.has("run-day-two")).toBe(true);
+    const keys = await readSettledKeys(home.root);
+    expect(keys.has(settlementKey("a", "run-day-one"))).toBe(true);
+    expect(keys.has(settlementKey("a", "run-day-two"))).toBe(true);
+    expect(keys.has(settlementKey("b", "run-day-one"))).toBe(false);
   });
 });
 

@@ -32,7 +32,9 @@ export async function cmdBudget(args: string[]): Promise<number> {
     console.log(
       `reconcile: ${outcome.scanned} envelopes scanned — ${outcome.settled} settled ` +
         `(recovered $${outcome.recoveredUsd.toFixed(2)}), ${outcome.alreadySettled} already in the ledger, ` +
-        `${outcome.noUsage} with no recorded usage`,
+        `${outcome.noUsage} with no recorded usage` +
+        (outcome.inFlight > 0 ? `, ${outcome.inFlight} in flight (left for their own settle)` : "") +
+        (outcome.corrupt > 0 ? `, ${outcome.corrupt} unreadable` : ""),
     );
   }
 

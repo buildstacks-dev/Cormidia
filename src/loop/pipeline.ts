@@ -331,19 +331,36 @@ async function runPass(
 
   // Settle the pass's measured spend into the org ledger exactly once, after
   // the run record is durable and regardless of terminal status — a blocked or
-  // failed pass consumed budget too (Defect B). Idempotency is keyed on runId.
+  // failed pass consumed budget too (Defect B). Idempotency is keyed on
+  // (app, runId). The settled status matches the envelope's: a verdict-infra
+  // failure is `failed` in both records, never completed-in-one-store.
   if (options.telemetry !== undefined) {
-    await recordTurnOnce(
+    const settled = await recordTurnOnce(
       options.telemetry.orgDir,
-      toRecord(role, { ...result, usage: settledUsage }, clock(), {
-        app,
-        ...(options.telemetry.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
-        runId,
-        traceId,
-        pipeline: options.pipeline.name,
-        pass: pass.id,
-      }),
+      toRecord(
+        role,
+        { ...result, status: verdictOutcome.ok ? result.status : "failed", usage: settledUsage },
+        clock(),
+        {
+          app,
+          ...(options.telemetry.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
+          runId,
+          traceId,
+          pipeline: options.pipeline.name,
+          pass: pass.id,
+        },
+      ),
     );
+    if (!settled) {
+      // Something else already settled this (app, runId) — normally impossible
+      // (reconcile refuses in-flight envelopes). Loud, never silent: the
+      // dropped row means the ledger may carry a stale status for this pass.
+      await events.append({
+        type: "telemetry.settle_skipped",
+        severity: "warn",
+        detail: { runId, reason: "a ledger row with this app+runId already exists" },
+      });
+    }
   }
 
   // The record is durable; NOW surface the loud typed failure to the caller.

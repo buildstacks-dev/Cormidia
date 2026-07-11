@@ -84,13 +84,34 @@ describe("reconcileLedger", () => {
                 usage: undefined,
               }),
             },
+            "20260710-151600-fix-fix": {
+              // running WITH usage, still inside the in-flight window: a live
+              // pass between turn-return and finalize. Reconcile must leave it
+              // for the executor's own settle rather than racing it.
+              envelope: envelope("20260710-151600-fix-fix", {
+                pass: "fix",
+                status: "running",
+                usage: { tokens_in: 500, tokens_out: 20, cost_usd: 0.5, subagent_turns: 0 },
+              }),
+            },
           },
         },
       },
     });
 
-    const outcome = await reconcileLedger(home.root, { builder: "codex" });
-    expect(outcome).toMatchObject({ scanned: 3, settled: 2, noUsage: 1, alreadySettled: 0 });
+    const outcome = await reconcileLedger(
+      home.root,
+      { builder: "codex" },
+      new Date("2026-07-10T16:00:00Z"), // 45 min after the in-flight pass started
+    );
+    expect(outcome).toMatchObject({
+      scanned: 4,
+      settled: 2,
+      noUsage: 1,
+      inFlight: 1,
+      alreadySettled: 0,
+      corrupt: 0,
+    });
     expect(outcome.recoveredUsd).toBeCloseTo(8.0, 10);
 
     const raw = await readFile(join(home.root, "telemetry", "2026-07-10.jsonl"), "utf8");
@@ -116,6 +137,32 @@ describe("reconcileLedger", () => {
     // envelope sum to the cent.
     const budget = await rollupBudgets(home.root, APPS, new Date("2026-07-15T00:00:00Z"));
     expect(budget[0]!.spentUsd).toBeCloseTo(8.0, 10);
+  });
+
+  it("recovers a provably dead running-with-usage envelope as failed", async () => {
+    home = makeOrgHome({
+      runs: {
+        records: {
+          [APP]: {
+            "20260710-151600-fix-fix": {
+              envelope: envelope("20260710-151600-fix-fix", {
+                pass: "fix",
+                status: "running",
+                usage: { tokens_in: 500, tokens_out: 20, cost_usd: 0.5, subagent_turns: 0 },
+              }),
+            },
+          },
+        },
+      },
+    });
+
+    // Two days later the run is past the in-flight window: dead, not live.
+    const outcome = await reconcileLedger(home.root, {}, new Date("2026-07-12T16:00:00Z"));
+    expect(outcome).toMatchObject({ settled: 1, inFlight: 0 });
+
+    const raw = await readFile(join(home.root, "telemetry", "2026-07-10.jsonl"), "utf8");
+    const row = JSON.parse(raw.trimEnd()) as Record<string, unknown>;
+    expect(row).toMatchObject({ pass: "fix", status: "failed", costUsd: 0.5 });
   });
 
   it("is idempotent: a second run settles nothing", async () => {

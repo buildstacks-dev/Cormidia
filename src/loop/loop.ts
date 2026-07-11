@@ -473,7 +473,9 @@ export async function runReviewPipeline(
       const outcome = await recordPassVerdict("review", ctx);
       if (!outcome.ok) return outcome.failure;
       verdicts.push({ pass: ctx.pass.id, verdict: outcome.verdict });
-      return { ok: true };
+      // Forward reformat-retry spend so the envelope and ledger settle it —
+      // the builder pipeline already does; undercounting here is Defect B.
+      return { ok: true, ...(outcome.retryUsage !== undefined ? { extraUsage: outcome.retryUsage } : {}) };
     },
   });
 
@@ -551,7 +553,9 @@ export async function runShipCheckPipeline(
       const outcome = await recordPassVerdict("review", ctx);
       if (!outcome.ok) return outcome.failure;
       verdicts.push({ pass: ctx.pass.id, verdict: outcome.verdict });
-      return { ok: true };
+      // Forward reformat-retry spend so the envelope and ledger settle it —
+      // the builder pipeline already does; undercounting here is Defect B.
+      return { ok: true, ...(outcome.retryUsage !== undefined ? { extraUsage: outcome.retryUsage } : {}) };
     },
   });
 

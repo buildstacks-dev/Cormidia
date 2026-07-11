@@ -28,7 +28,10 @@ export type RunlogEventType =
   | "subagent.completed"
   | "ticket.transition"
   | "verdict.recorded"
-  | "escalation.raised";
+  | "escalation.raised"
+  /** A pass's ledger settle found its (app, runId) already present and was
+   *  dropped — the ledger may carry a stale row for this pass (Stage 1). */
+  | "telemetry.settle_skipped";
 
 export type EventSeverity = "info" | "warn" | "error";
 

@@ -13,7 +13,7 @@ import { assembleContext } from "../org/context.js";
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
-import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
+import { enforceBudgetOverlay } from "../org/budget.js";
 import { composeGate } from "../org/gate-compose.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import { resolveOperonHomes } from "../org/home.js";
@@ -183,7 +183,12 @@ export async function cmdLoop(args: string[]): Promise<number> {
             // spend was previously invisible to `operon budget`.
             telemetry: { orgDir: homes.stateHome, trigger: "manual" },
             budgetGuard: async () => {
-              const rows = await rollupBudgets(homes.stateHome, appsFile);
+              // enforceBudgetOverlay (not a bare rollup) so the pause overlay
+              // is recomputed here too: a month-old pause clears once spend
+              // resets, and a fresh overage raises its approval item exactly
+              // once — the manual path must not depend on someone running
+              // `operon budget` or a dispatch tick to refresh either.
+              const rows = await enforceBudgetOverlay(homes.stateHome, appsFile);
               const row = rows.find((r) => r.app === selectedApp.name);
               if (row !== undefined && row.status === "exceeded") {
                 return {
@@ -192,12 +197,6 @@ export async function cmdLoop(args: string[]): Promise<number> {
                     `${row.app} spent $${row.spentUsd.toFixed(2)} of its ` +
                     `$${row.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
                     `or wait for the month to reset`,
-                };
-              }
-              if (await isOverlayPaused(homes.stateHome, selectedApp.name)) {
-                return {
-                  allowed: false,
-                  reason: `${selectedApp.name} is paused by the budget overlay (operon approvals has the item)`,
                 };
               }
               return { allowed: true };
@@ -232,7 +231,10 @@ export async function cmdLoop(args: string[]): Promise<number> {
   }
 
   await tick();
-  while (follow) {
+  // A refused tick ends follow mode too: an exhausted monthly cap will not
+  // clear on a 30-second cadence, and spinning would append a refusal row
+  // every tick until the month reset.
+  while (follow && !sawBudgetRefusal) {
     await new Promise((resolve) => setTimeout(resolve, 30_000));
     await tick();
   }

@@ -55,6 +55,7 @@ const CAPABILITIES = [
   { command: "budget", writes: false, spendsTokens: false, summary: "summarize monthly spend and budget pauses" },
   { command: "status", writes: false, spendsTokens: false, summary: "show recent run status" },
   { command: "analyze", writes: false, spendsTokens: false, summary: "report run anomaly signals" },
+  { command: "telemetry", writes: false, spendsTokens: false, summary: "historical pass/trace/cost view over run records" },
   { command: "retro", writes: true, spendsTokens: false, summary: "write an evidence-based org retro" },
   { command: "prune-runs", writes: true, spendsTokens: false, summary: "delete finalized run data beyond retention" },
   { command: "doctor", writes: false, spendsTokens: false, summary: "validate installation and active org configuration" },

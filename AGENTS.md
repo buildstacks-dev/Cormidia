@@ -26,7 +26,7 @@ the primary from-scratch onboarding + loop proof — onboarded live this
 campaign and driven end-to-end (both planted bugs fixed by the loop and
 merged, PRs #11/#12). alpha and gamma were hardened with more modules/tests;
 beta stays deliberately minimal. buildstacks.dev is onboarded as a production
-app in `status: onboarding`. The offline suite is 599 tests
+app in `status: onboarding`. The offline suite is 610 tests
 (`pnpm test`). Known limitations are documented in README.md → Known
 limitations (empty `tool_counts` + two inert anomaly detectors pending adapter
 `tool_use` emission; interactive co-planning usage recorded as `unmeasured`;
@@ -103,6 +103,7 @@ Observability is the operator-facing version of this note.
   · `pnpm dev loop --app <app> --once --dry-run` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
+  `pnpm dev telemetry --app <app> --date 2026-07-04 --html out.html` ·
   `pnpm dev retro --date 2026-07-04` ·
   `pnpm dev run-role <role> --app <app> --dry-run` ·
   `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs` ·

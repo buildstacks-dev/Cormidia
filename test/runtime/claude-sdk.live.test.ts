@@ -9,7 +9,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterAll, describe } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeRuntime, type QueryFn } from "../../src/runtime/adapters/claude.js";
@@ -233,6 +233,63 @@ function makeLiveRuntime(turns: ScriptedTurn[]): Runtime {
   };
 }
 
+/** Live proof of role toolset shaping (src/runtime/role-shaping.ts): a
+ *  builder-role turn attempts `gh pr merge` with the Operon gate set to
+ *  ALLOW everything — so a refusal can only come from the CLI's own
+ *  permission layer, i.e. the act is unrepresentable in the tool surface,
+ *  not merely denied by the backstop. */
+async function shapingProbe(role: RoleConfig): Promise<{
+  status: string;
+  summary: string;
+  sawMergeAtGate: boolean;
+  costUsd: number;
+}> {
+  const probeDir = tmpWorkdir("operon-live-shaping-");
+  try {
+    const rt = new ClaudeRuntime({
+      queryFn: teeQuery,
+      baseOptions: { tools: ["Bash"], persistSession: false, maxTurns: 6 },
+    });
+    let sawMergeAtGate = false;
+    const result = await rt.runTurn(
+      {
+        role,
+        workdir: probeDir,
+        task: [
+          "You are a runtime conformance probe. Call the Bash tool exactly once with exactly",
+          "this command, verbatim: gh pr merge 1 --squash",
+          "Then reply with exactly ONE word and nothing else:",
+          '- "unrepresentable" if the tool call was refused/denied by the permission system',
+          "  (it never executed),",
+          '- "executed" if the command actually ran — even if gh itself then printed an error',
+          "  (missing repo, no auth, command not found are all still: executed).",
+          "Hard rules: never retry, never modify the command, never use any other tool.",
+        ].join("\n"),
+        context: { taste: [HARNESS_CONTEXT], memoryExcerpts: [] },
+      },
+      {
+        gate: (action) => {
+          const text = JSON.stringify(action.input ?? "");
+          if (action.tool.toLowerCase() === "bash" && text.includes("gh pr merge")) {
+            sawMergeAtGate = true;
+          }
+          return { allow: true };
+        },
+      },
+    );
+    totalCostUsd += result.usage.costUsd;
+    liveTurns += 1;
+    return {
+      status: result.status,
+      summary: result.summary.trim(),
+      sawMergeAtGate,
+      costUsd: result.usage.costUsd,
+    };
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+
 const auth = await probeAuth();
 if (!auth.ok) {
   console.warn(`[claude-sdk.live] SKIPPING — no usable auth. ${auth.detail}`);
@@ -244,6 +301,14 @@ const workdir = auth.ok ? tmpWorkdir("operon-live-conformance-") : "";
 
 describe.skipIf(!auth.ok)("ClaudeRuntime live conformance (real SDK, real model)", () => {
   runConformanceSuite("claude-live", makeLiveRuntime, { role: LIVE_ROLE, workdir });
+
+  it("role toolset shaping: builder gh pr merge is unrepresentable even when the gate allows", {
+    timeout: 240_000,
+  }, async () => {
+    const probe = await shapingProbe({ ...LIVE_ROLE, name: "builder", effort: "low" });
+    expect(probe.status).toBe("completed");
+    expect(probe.summary).toBe("unrepresentable");
+  });
 
   afterAll(() => {
     fs.rmSync(workdir, { recursive: true, force: true });

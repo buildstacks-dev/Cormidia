@@ -9,7 +9,7 @@
 // decomposition for its own sake (P1/P2).
 
 import type { GhOps } from "./github.js";
-import type { TicketTier } from "./types.js";
+import { RELEASE_KINDS, type ReleaseKind } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // The label contract — the ONE list the Planner prompt, publication, setup
@@ -67,6 +67,11 @@ export interface TicketPlan {
   ticketCountRationale: string;
   /** P7: every milestone names its release disposition and owner. */
   releaseDisposition: string;
+  /** P7, machine-readable half (docs/approval-and-release-amendment.md A4):
+   *  what the milestone requires at ship time. Rendered into every ticket
+   *  body as a `Release-kind:` trailer; the ship gate cross-checks it
+   *  against the app's declared `release:` mechanism. */
+  releaseKind: ReleaseKind;
   tickets: PlanTicket[];
 }
 
@@ -84,12 +89,13 @@ export const TICKET_BUDGETS: Record<ProjectStage, number> = {
 export const PLAN_SCHEMA: Record<string, unknown> = {
   title: "TicketPlan",
   type: "object",
-  required: ["stage", "ticketCountRationale", "releaseDisposition", "tickets"],
+  required: ["stage", "ticketCountRationale", "releaseDisposition", "releaseKind", "tickets"],
   additionalProperties: false,
   properties: {
     stage: { type: "string", enum: ["bootstrap", "growth", "mature"] },
     ticketCountRationale: { type: "string" },
     releaseDisposition: { type: "string" },
+    releaseKind: { type: "string", enum: [...RELEASE_KINDS] },
     tickets: {
       type: "array",
       minItems: 1,
@@ -152,6 +158,12 @@ export function validatePlan(plan: TicketPlan): PlanValidation {
   if (plan.releaseDisposition.trim().length === 0) {
     problems.push("releaseDisposition is empty — every milestone names what ships and who owns it (P7)");
   }
+  if (!RELEASE_KINDS.includes(plan.releaseKind)) {
+    problems.push(
+      `releaseKind "${String(plan.releaseKind)}" is not one of ${RELEASE_KINDS.join("/")} — ` +
+        "the ship gate needs the machine-readable half of the disposition (P7)",
+    );
+  }
   if (plan.stage === "bootstrap" && plan.tickets.some((t) => t.tier === "op:tier-deep")) {
     problems.push(
       "bootstrap tickets must not be op:tier-deep — deep is for auth/payments/data-loss surfaces, " +
@@ -193,10 +205,13 @@ export function validatePlan(plan: TicketPlan): PlanValidation {
 // ---------------------------------------------------------------------------
 
 /** `issueNumbers[i]` is the created issue for plan ticket i; dependsOn indexes
- *  render as real `Depends-on: #<n>` references the scheduler parses. */
+ *  render as real `Depends-on: #<n>` references the scheduler parses.
+ *  `releaseKind` renders as a `Release-kind:` trailer the ship gate reads
+ *  back (P7) — undefined omits the line (pre-A4 bodies parse unchanged). */
 export function renderTicketBody(
   ticket: PlanTicket,
   issueNumbers: readonly (number | undefined)[],
+  releaseKind?: ReleaseKind,
 ): string {
   const deps = ticket.dependsOn
     .map((dep) => issueNumbers[dep])
@@ -205,6 +220,7 @@ export function renderTicketBody(
   return [
     ...(deps.length > 0 ? [deps.join("\n"), ""] : []),
     `Execution group: ${ticket.executionGroup}`,
+    ...(releaseKind !== undefined ? [`Release-kind: ${releaseKind}`] : []),
     "",
     "## Goal",
     ticket.goal,
@@ -225,6 +241,15 @@ export function renderTicketBody(
     ticket.notesForBuilder,
     "",
   ].join("\n");
+}
+
+/** Read the `Release-kind:` trailer back from a published ticket body.
+ *  Absent or unrecognized → undefined: pre-A4 tickets carry no release
+ *  requirement, so the ship gate imposes none (back-compatible). */
+export function parseReleaseKind(body: string): ReleaseKind | undefined {
+  const match = /^Release-kind:\s*(\S+)\s*$/m.exec(body);
+  const candidate = match?.[1];
+  return RELEASE_KINDS.find((kind) => kind === candidate);
 }
 
 // ---------------------------------------------------------------------------
@@ -263,7 +288,7 @@ export async function publishTickets(gh: GhOps, plan: TicketPlan): Promise<Publi
       const ready = ticket.dependsOn.length === 0;
       const issue = await gh.createIssue({
         title: ticket.title,
-        body: renderTicketBody(ticket, issueNumbers),
+        body: renderTicketBody(ticket, issueNumbers, plan.releaseKind),
         labels: [ticket.tier, ticket.priority, ...(ready ? ["op:ready"] : [])],
       });
       issueNumbers[index] = issue.number;
@@ -273,7 +298,7 @@ export async function publishTickets(gh: GhOps, plan: TicketPlan): Promise<Publi
     // their real Depends-on references now that every number is known.
     for (const [index, ticket] of plan.tickets.entries()) {
       if (ticket.dependsOn.some((dep) => dep > index)) {
-        await gh.updateIssueBody(issueNumbers[index]!, renderTicketBody(ticket, issueNumbers));
+        await gh.updateIssueBody(issueNumbers[index]!, renderTicketBody(ticket, issueNumbers, plan.releaseKind));
       }
     }
   } catch (error) {

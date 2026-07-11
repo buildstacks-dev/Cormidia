@@ -656,6 +656,92 @@ describe("advanceShipping", () => {
     }
   });
 
+  it("P7: Release-kind deploy with no declared mechanism returns the ticket, never merges", async () => {
+    const h = await shippingHarness("Ship Unowned Deploy");
+    const deployBody = body.replace("## Goal", "Release-kind: deploy\n\n## Goal");
+    try {
+      // Align the fake issue with the item's op:in-review state (the harness
+      // stamps the item only) so the returned-path swapLabel precondition holds.
+      await h.gh.swapLabel(1, "op:building", "op:in-review");
+      const returned = await advanceShipping(
+        { ...h.item, body: deployBody },
+        {
+          gh: h.gh,
+          localRepo: h.pair.clone.root,
+          policy: policy(),
+          commands: { testCommand: "true" },
+          criteria,
+          criterionTests,
+          gateRunner: async () => gatePass(),
+        },
+      );
+
+      expect(returned.phase).toBe("returned");
+      // No merge side effect happened: main still lacks the ship commit.
+      expect(h.pair.bare.log("main")[0]).not.toBe("Ship Unowned Deploy (#1)");
+      const comments = h.gh.issueComments.get(1) ?? [];
+      expect(comments.some((c) => c.includes("Release disposition unowned"))).toBe(true);
+      const issue = await h.gh.readIssue(1);
+      expect(issue.labels).toContain("op:returned");
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("P7: a declared matching mechanism merges and returns a releaseTrigger for the org layer", async () => {
+    const h = await shippingHarness("Ship Owned Deploy");
+    const deployBody = body.replace("## Goal", "Release-kind: deploy\n\n## Goal");
+    try {
+      const merged = await advanceShipping(
+        { ...h.item, body: deployBody },
+        {
+          gh: h.gh,
+          localRepo: h.pair.clone.root,
+          policy: policy(),
+          commands: { testCommand: "true" },
+          criteria,
+          criterionTests,
+          gateRunner: async () => gatePass(),
+          release: { kind: "deploy", command: "gh workflow run deploy.yml", owner: "sre" },
+        },
+      );
+
+      expect(merged.phase).toBe("merged");
+      expect(merged.releaseTrigger).toEqual({
+        kind: "deploy",
+        command: "gh workflow run deploy.yml",
+        owner: "sre",
+      });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("P7: merge-only and legacy (no Release-kind) tickets merge without a trigger", async () => {
+    const h = await shippingHarness("Ship Merge Only");
+    const mergeOnlyBody = body.replace("## Goal", "Release-kind: merge-only\n\n## Goal");
+    try {
+      const merged = await advanceShipping(
+        { ...h.item, body: mergeOnlyBody },
+        {
+          gh: h.gh,
+          localRepo: h.pair.clone.root,
+          policy: policy(),
+          commands: { testCommand: "true" },
+          criteria,
+          criterionTests,
+          gateRunner: async () => gatePass(),
+          release: { kind: "merge-only", owner: "orchestrator" },
+        },
+      );
+
+      expect(merged.phase).toBe("merged");
+      expect(merged.releaseTrigger).toBeUndefined();
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("merge conflict aborts and returns to building with a rebase note", async () => {
     const pair = makeBareWithClone();
     try {

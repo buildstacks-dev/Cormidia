@@ -14,6 +14,7 @@ import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
 import { enforceBudgetOverlay } from "../org/budget.js";
+import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import { resolveOperonHomes } from "../org/home.js";
@@ -151,6 +152,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       maxConcurrent: appsFile.org.maxConcurrentTurns,
       turnId,
       planOnly: dryRun,
+      ...(selectedApp.release !== undefined ? { release: selectedApp.release } : {}),
       // Merge authorization: the self-approval fallback must carry an HMAC tag
       // signed with this operator secret (never repo-visible). Without it, the
       // single-account fallback is not trusted — the loop fails closed rather
@@ -209,6 +211,17 @@ export async function cmdLoop(args: string[]): Promise<number> {
         : {}),
     });
     await persistLoopScorecards(homes.stateHome, selectedApp.name, result.scorecardEvents);
+    // A4: a merged deploy/package milestone queues its release as a critical
+    // op on the approval queue — the trigger, never the execution.
+    if (!dryRun) {
+      const queuedReleases = await queueReleaseApprovals(homes.stateHome, selectedApp.name, result.items);
+      for (const queued of queuedReleases) {
+        console.log(
+          `release: ${queued.kind} for ${queued.ticketRef} queued as critical op ` +
+            `${queued.approvalId} (owner: ${queued.owner}) — decide with \`operon approvals\``,
+        );
+      }
+    }
     for (const line of result.lines) console.log(line);
     for (const item of result.items) {
       console.log(`${item.ticketRef}: ${item.phase}`);

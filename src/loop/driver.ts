@@ -38,7 +38,7 @@ import type { Policy } from "./policy.js";
 import { loadPolicy } from "./policy.js";
 import type { GateCommands } from "./qgates.js";
 import { parseDependsOn, parseScope, selectReadyTickets } from "./scheduling.js";
-import type { LoopItem, ScorecardEvent } from "./types.js";
+import type { LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
 
 export interface LoopPlanItem {
   issueNumber: number;
@@ -71,6 +71,11 @@ export interface LoopDriverOptions {
    *  builder/reviewer identities). Passed through to advanceReviewing so a
    *  forged/self-authored approval cannot merge. */
   authorization?: ReviewAuthorization;
+  /** The app's declared release mechanism (A4). Passed to advanceShipping:
+   *  P7 fails the ship when the milestone requires a mechanism the app does
+   *  not declare, and a merged deploy/package milestone returns a
+   *  releaseTrigger for the org layer to queue as a critical op. */
+  release?: ReleaseConfig;
 }
 
 export interface LoopEngineOptions {
@@ -345,6 +350,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
           commands: gateCommandsForWorktree(options.commands, item.worktree),
           criteria,
           criterionTests,
+          ...(options.release !== undefined ? { release: options.release } : {}),
         });
         continue;
       }
@@ -366,6 +372,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         commands: gateCommandsForWorktree(options.commands, item.worktree),
         criteria,
         criterionTests,
+        ...(options.release !== undefined ? { release: options.release } : {}),
       });
     }
     items.push(item);

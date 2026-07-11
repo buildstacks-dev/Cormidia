@@ -52,8 +52,9 @@ import {
   type VerdictKind,
   type VerdictTypes,
 } from "./verdicts.js";
-import type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
+import type { LoopItem, LoopPhase, ReleaseConfig, ScorecardEvent, TicketTier } from "./types.js";
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
+import { parseReleaseKind } from "./plan-tickets.js";
 
 export interface ClaimTicketOptions {
   gh: GhOps;
@@ -114,6 +115,11 @@ export interface ReviewAuthorization {
 export interface ShippingPhaseOptions extends GatePhaseOptions {
   localRepo: string;
   gateRunner?: (item: LoopItem, stage: "entry" | "pre-merge") => Promise<GateRunResult>;
+  /** The app's declared release mechanism (`release:` in `.operon/config.yaml`
+   *  / apps.yaml), when it declares one. advanceShipping enforces P7 against
+   *  it: a milestone whose ticket declares `Release-kind: deploy|package`
+   *  with no matching declared mechanism is unfinished, mechanically. */
+  release?: ReleaseConfig;
 }
 
 export interface LoopPipelineOptions {
@@ -695,6 +701,45 @@ export async function advanceShipping(
   const worktree = requireField(item, "worktree");
   const prNumber = requireField(item, "prNumber");
   const gateResults = [...item.gateResults];
+
+  // P7 (docs/approval-and-release-amendment.md A4): a milestone whose plan
+  // declared a deploy/package disposition may not merge unless the app
+  // declares a matching mechanism — "deployable but unowned" is unfinished,
+  // mechanically. Checked before any merge side effect; routed to the
+  // Planner/human (op:returned), not to the Builder — no code change can
+  // declare a release mechanism.
+  const requiredKind = parseReleaseKind(item.body);
+  if (requiredKind !== undefined && requiredKind !== "merge-only") {
+    const declared = options.release;
+    const problem =
+      declared === undefined
+        ? `the app declares no release mechanism (no \`release:\` block in .operon/config.yaml)`
+        : declared.kind !== requiredKind
+          ? `the app declares \`release.kind: ${declared.kind}\`, not \`${requiredKind}\``
+          : declared.command === undefined
+            ? `the app's \`release:\` block has no command`
+            : undefined;
+    if (problem !== undefined) {
+      await options.gh.commentIssue(
+        item.issueNumber,
+        [
+          "## Release disposition unowned (P7)",
+          "",
+          `This milestone's plan declares \`Release-kind: ${requiredKind}\`, but ${problem}.`,
+          "A deployable milestone with no owned mechanism is not done: declare the mechanism in",
+          "the app's `.operon/config.yaml` `release:` block (kind, command, owner) or re-plan the",
+          "milestone as merge-only. The PR is left open; no merge was attempted.",
+        ].join("\n"),
+      );
+      await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+      return {
+        ...item,
+        labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
+        phase: "returned",
+        gateResults,
+      };
+    }
+  }
   const runGate =
     options.gateRunner ??
     ((target: LoopItem) =>
@@ -741,12 +786,22 @@ export async function advanceShipping(
       ? []
       : [{ type: "review_cycles", turnId: item.turnId, ticketRef: item.ticketRef, value: item.cycles }];
 
+  // The P7 check above guarantees a declared mechanism with a command exists
+  // whenever the milestone requires one; hand the org layer the data it
+  // needs to queue the release as a critical op (the loop layer never
+  // touches the approval store — one-way imports).
+  const releaseTrigger =
+    requiredKind !== undefined && requiredKind !== "merge-only" && options.release?.command !== undefined
+      ? { kind: requiredKind, command: options.release.command, owner: options.release.owner }
+      : undefined;
+
   return {
     ...item,
     labels: item.labels.filter((label) => label !== "op:in-review"),
     phase: "merged",
     gateResults,
     scorecardEvents,
+    ...(releaseTrigger !== undefined ? { releaseTrigger } : {}),
   };
 }
 

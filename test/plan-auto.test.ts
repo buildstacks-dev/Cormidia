@@ -22,6 +22,7 @@ const PLAN_JSON = JSON.stringify({
   stage: "bootstrap",
   ticketCountRationale: "One milestone ships the scaffold with visible content.",
   releaseDisposition: "Deploys via CI after merge; orchestrator triggers it.",
+  releaseKind: "deploy",
   tickets: [
     {
       title: "Ship the scaffold with a visible landing page",

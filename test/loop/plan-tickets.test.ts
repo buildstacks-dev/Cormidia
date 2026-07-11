@@ -13,6 +13,7 @@ import {
   validatePlan,
   type PlanTicket,
   type TicketPlan,
+  parseReleaseKind,
 } from "../../src/loop/plan-tickets.js";
 import { parseAcceptanceCriteria } from "../../src/loop/loop.js";
 import { parseDependsOn, parseScope } from "../../src/loop/scheduling.js";
@@ -40,6 +41,7 @@ function plan(overrides: Partial<TicketPlan> = {}): TicketPlan {
     stage: "bootstrap",
     ticketCountRationale: "One coherent milestone: scaffold plus first visible content ships together.",
     releaseDisposition: "Deploys to the owner's static host; the orchestrator triggers CI deploy after merge.",
+    releaseKind: "deploy" as const,
     tickets: [ticket()],
     ...overrides,
   };
@@ -69,6 +71,12 @@ describe("validatePlan", () => {
     expect(result.problems.some((p) => p.includes("release"))).toBe(true);
   });
 
+  it("rejects an unrecognized releaseKind (P7 needs the machine-readable half)", () => {
+    const result = validatePlan(plan({ releaseKind: "someday" as never }));
+    expect(result.ok).toBe(false);
+    expect(result.problems.some((p) => p.includes("releaseKind"))).toBe(true);
+  });
+
   it("rejects vague criteria, bad dependency indexes, and a fully serial graph", () => {
     const result = validatePlan(
       plan({
@@ -94,6 +102,19 @@ describe("renderTicketBody", () => {
     const criteria = parseAcceptanceCriteria(body);
     expect(criteria).toHaveLength(2);
     expect(criteria.every((c) => !c.checked)).toBe(true);
+  });
+
+  it("renders and reads back the Release-kind trailer (P7)", () => {
+    const body = renderTicketBody(ticket(), [], "deploy");
+    expect(body).toContain("Release-kind: deploy");
+    expect(parseReleaseKind(body)).toBe("deploy");
+  });
+
+  it("pre-A4 bodies carry no release requirement", () => {
+    const body = renderTicketBody(ticket(), []);
+    expect(body).not.toContain("Release-kind:");
+    expect(parseReleaseKind(body)).toBeUndefined();
+    expect(parseReleaseKind("Release-kind: yolo\n")).toBeUndefined();
   });
 });
 
@@ -130,6 +151,15 @@ describe("publishTickets", () => {
       (i) => i.number === published[0]!.issueNumber,
     )!;
     expect(parseDependsOn(a.body)).toEqual([published[1]!.issueNumber]);
+  });
+
+  it("renders the plan's Release-kind into every published body", async () => {
+    const gh = new FakeGhOps();
+    const { published } = await publishTickets(gh, plan());
+    const issue = (await gh.listIssues({ state: "all", limit: 10 })).find(
+      (i) => i.number === published[0]!.issueNumber,
+    )!;
+    expect(parseReleaseKind(issue.body)).toBe("deploy");
   });
 
   it("refuses to touch GitHub when validation fails", async () => {

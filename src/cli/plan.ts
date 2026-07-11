@@ -35,6 +35,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
       console.log(`stage: ${result.plan.stage}`);
       console.log(`why this many tickets: ${result.plan.ticketCountRationale}`);
       console.log(`release disposition: ${result.plan.releaseDisposition}`);
+      console.log(`release kind: ${result.plan.releaseKind}`);
       result.plan.tickets.forEach((ticket, index) => {
         console.log(`  ${index}: [${ticket.tier}/${ticket.priority}] ${ticket.title}`);
       });

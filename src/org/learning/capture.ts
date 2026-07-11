@@ -1,0 +1,298 @@
+// Idempotent capture projector (docs/learning-loop/learning-loop-design.md §5;
+// spec §4).
+//
+// Capture is a projection, not a new write path: the projector walks
+// runs/<app>/<runId>/{envelope.json, events.jsonl} with a persistent cursor
+// and emits learning events. Gate outcomes come from L1 `gate_results` (the
+// authoritative rollup — it includes skipped gates) with L2 `gate.*` as the
+// fallback for runs that never patched a rollup; pass verdicts come from L2
+// `verdict.recorded` ONLY — they are not persisted anywhere else on disk.
+//
+// Exactly-once has two layers:
+//   1. the cursor skips runs already projected (cheap, the common case);
+//   2. every derived event has a DETERMINISTIC id and ts, and appends are
+//      filtered against the ids already in the target file — so a crash
+//      between append and cursor write re-derives byte-identical events and
+//      drops them as duplicates instead of double-emitting.
+// Only terminal runs project. A live run has no cursor entry and is retried
+// on the next projection; the heartbeat/reconcile path (preflight #28)
+// guarantees stalled runs eventually finalize.
+
+import { existsSync } from "node:fs";
+import { appendFile, mkdir, readFile, readdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { readEnvelope, type GateResultEntry, type RunEnvelope } from "../../runtime/runlog/envelope.js";
+import { readEvents, type RunlogEvent } from "../../runtime/runlog/events.js";
+import { RUN_ID_RE } from "../../runtime/runlog/paths.js";
+import { writeFileAtomic } from "../atomic.js";
+import { readJournal } from "../journal.js";
+import { buildTicketEpisodeId, eventEpisodeId, turnEpisodeId } from "./episodes.js";
+import {
+  learningEventPath,
+  readLearningEventFile,
+  type GateVerdictStatus,
+  type LearningEvent,
+} from "./events.js";
+
+export interface CaptureCursor {
+  schema_version: 1;
+  /** `<app>/<runId>` → projection receipt. Presence means fully projected. */
+  runs: Record<string, { projected_at: string; events: number }>;
+}
+
+export interface ProjectCaptureOptions {
+  stateHome: string;
+  /** App → lifecycle stage (apps.yaml `status`), stamped on events when known. */
+  appStages?: Record<string, string>;
+  clock?: () => Date;
+}
+
+export interface CaptureProjectionResult {
+  /** Terminal runs projected this call. */
+  runsProjected: number;
+  /** Runs skipped via cursor receipt (already projected). */
+  runsAlreadyProjected: number;
+  /** Runs left for a later call: still running, or unreadable envelope. */
+  runsPending: number;
+  eventsEmitted: number;
+  /** Events re-derived but already present in the target file (crash replay). */
+  eventsDeduped: number;
+}
+
+export function captureCursorPath(stateHome: string): string {
+  return join(stateHome, "learning", "metrics", "capture-cursor.json");
+}
+
+export async function projectCaptureEvents(
+  options: ProjectCaptureOptions,
+): Promise<CaptureProjectionResult> {
+  const { stateHome } = options;
+  const clock = options.clock ?? ((): Date => new Date());
+  const cursor = await readCursor(stateHome);
+  const result: CaptureProjectionResult = {
+    runsProjected: 0,
+    runsAlreadyProjected: 0,
+    runsPending: 0,
+    eventsEmitted: 0,
+    eventsDeduped: 0,
+  };
+
+  for (const { app, runId } of await listRuns(stateHome)) {
+    const key = `${app}/${runId}`;
+    if (cursor.runs[key] !== undefined) {
+      result.runsAlreadyProjected += 1;
+      continue;
+    }
+
+    let envelope: RunEnvelope;
+    try {
+      envelope = await readEnvelope(stateHome, app, runId);
+    } catch {
+      result.runsPending += 1; // no/torn envelope — retry on a later projection
+      continue;
+    }
+    if (envelope.status === "running") {
+      result.runsPending += 1;
+      continue;
+    }
+
+    const events = await deriveRunEvents(stateHome, envelope, options.appStages);
+    const { emitted, deduped } = await appendNewEvents(stateHome, events);
+    result.eventsEmitted += emitted;
+    result.eventsDeduped += deduped;
+    cursor.runs[key] = { projected_at: clock().toISOString(), events: events.length };
+    result.runsProjected += 1;
+  }
+
+  await writeCursor(stateHome, cursor);
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// derivation
+// ---------------------------------------------------------------------------
+
+async function deriveRunEvents(
+  stateHome: string,
+  envelope: RunEnvelope,
+  appStages: Record<string, string> | undefined,
+): Promise<LearningEvent[]> {
+  const l2 = await readRunEvents(stateHome, envelope);
+  const episodeId = await deriveEpisodeId(stateHome, envelope);
+  const base = {
+    episode_id: episodeId,
+    turn_id: envelope.trace_id,
+    run_id: envelope.run_id,
+    app: envelope.app,
+    agent_role: envelope.role,
+    pipeline: envelope.pipeline,
+    pass: envelope.pass,
+    stage: appStages?.[envelope.app] ?? null,
+    risk_tier: null,
+    release_disposition: null,
+    source_channel: "internal",
+    trust: "trusted",
+  } as const;
+
+  const out: LearningEvent[] = [];
+
+  // Gate outcomes. L1 gate_results is the rollup written by the gate phase;
+  // when a run predates it (or the phase crashed before patching), the L2
+  // gate.passed/gate.failed stream still carries the outcomes — but never
+  // read both, or every gate double-counts.
+  const gateResults = envelope.gate_results ?? [];
+  if (gateResults.length > 0) {
+    const ts = envelope.finished_at ?? envelope.started_at;
+    gateResults.forEach((gate, i) => {
+      out.push({
+        ...base,
+        event_id: `evt_${envelope.run_id}_gate${i}_${idSegment(gate.gate)}`,
+        ts,
+        type: "gate_verdict",
+        emitter: "verifier",
+        ...(gate.status === "failed" ? { error_class: `gate.${gate.gate}` } : {}),
+        payload: {
+          gate: gate.gate,
+          status: gateStatus(gate),
+          ...(gate.detail !== undefined ? { detail: gate.detail } : {}),
+        },
+      });
+    });
+  } else {
+    for (const { event, index } of indexed(l2)) {
+      if (event.event !== "gate.passed" && event.event !== "gate.failed") continue;
+      const gate = String(event.detail?.["gate"] ?? "unknown");
+      const status: GateVerdictStatus = event.event === "gate.passed" ? "pass" : "fail";
+      out.push({
+        ...base,
+        event_id: `evt_${envelope.run_id}_l2-${index}`,
+        ts: event.ts,
+        type: "gate_verdict",
+        emitter: "verifier",
+        ...(status === "fail" ? { error_class: `gate.${gate}` } : {}),
+        payload: { ...(event.detail ?? {}), gate, status },
+      });
+    }
+  }
+
+  // Pass verdicts: L2 verdict.recorded only (spec §4).
+  for (const { event, index } of indexed(l2)) {
+    if (event.event !== "verdict.recorded") continue;
+    out.push({
+      ...base,
+      event_id: `evt_${envelope.run_id}_l2-${index}`,
+      ts: event.ts,
+      type: "pass_verdict",
+      emitter: "orchestrator",
+      payload: { ...(event.detail ?? {}) },
+    });
+  }
+
+  return out;
+}
+
+/** Build runs anchor on their ticket; dispatched turns anchor on the
+ *  journal's persisted TurnEvent (issue #26); schedule-triggered turns are
+ *  their own episode (spec §5, design §8.1). */
+async function deriveEpisodeId(stateHome: string, envelope: RunEnvelope): Promise<string> {
+  if (envelope.ticket !== undefined) {
+    return buildTicketEpisodeId(envelope.app, envelope.ticket);
+  }
+  try {
+    const journal = await readJournal(stateHome, envelope.trace_id);
+    if (journal.event !== undefined) return eventEpisodeId(envelope.app, journal.event);
+    if (journal.ticketRef !== undefined) return buildTicketEpisodeId(envelope.app, journal.ticketRef);
+  } catch {
+    // No journal for this trace (loop passes journal under ticket state, not
+    // state/turns) — fall through to the turn-anchored id.
+  }
+  return turnEpisodeId(envelope.app, envelope.trace_id);
+}
+
+async function readRunEvents(stateHome: string, envelope: RunEnvelope): Promise<RunlogEvent[]> {
+  try {
+    return await readEvents(stateHome, envelope.app, envelope.run_id);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error; // mid-file corruption stays loud (readEvents contract)
+  }
+}
+
+function gateStatus(gate: GateResultEntry): GateVerdictStatus {
+  return gate.status === "passed" ? "pass" : gate.status === "failed" ? "fail" : "skip";
+}
+
+function indexed(events: RunlogEvent[]): Array<{ event: RunlogEvent; index: number }> {
+  return events.map((event, index) => ({ event, index }));
+}
+
+function idSegment(part: string): string {
+  const cleaned = part.replace(/[^A-Za-z0-9.-]+/g, "-").replace(/^-+|-+$/g, "");
+  return cleaned === "" ? "unknown" : cleaned;
+}
+
+// ---------------------------------------------------------------------------
+// exactly-once append + cursor
+// ---------------------------------------------------------------------------
+
+async function appendNewEvents(
+  stateHome: string,
+  events: LearningEvent[],
+): Promise<{ emitted: number; deduped: number }> {
+  const byPath = new Map<string, LearningEvent[]>();
+  for (const event of events) {
+    const path = learningEventPath(stateHome, event);
+    const bucket = byPath.get(path);
+    if (bucket === undefined) byPath.set(path, [event]);
+    else bucket.push(event);
+  }
+
+  let emitted = 0;
+  let deduped = 0;
+  for (const [path, bucket] of byPath) {
+    const existing = existsSync(path)
+      ? new Set((await readLearningEventFile(path)).map((event) => event.event_id))
+      : new Set<string>();
+    const fresh = bucket.filter((event) => !existing.has(event.event_id));
+    deduped += bucket.length - fresh.length;
+    if (fresh.length === 0) continue;
+    await mkdir(dirname(path), { recursive: true });
+    await appendFile(path, fresh.map((event) => JSON.stringify(event)).join("\n") + "\n", "utf8");
+    emitted += fresh.length;
+  }
+  return { emitted, deduped };
+}
+
+async function listRuns(stateHome: string): Promise<Array<{ app: string; runId: string }>> {
+  const root = join(stateHome, "runs");
+  if (!existsSync(root)) return [];
+  const out: Array<{ app: string; runId: string }> = [];
+  const apps = (await readdir(root, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  for (const app of apps) {
+    const runIds = (await readdir(join(root, app), { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory() && RUN_ID_RE.test(entry.name))
+      .map((entry) => entry.name)
+      .sort();
+    out.push(...runIds.map((runId) => ({ app, runId })));
+  }
+  return out;
+}
+
+async function readCursor(stateHome: string): Promise<CaptureCursor> {
+  const path = captureCursorPath(stateHome);
+  if (!existsSync(path)) return { schema_version: 1, runs: {} };
+  const parsed = JSON.parse(await readFile(path, "utf8")) as CaptureCursor;
+  if (parsed.schema_version !== 1 || typeof parsed.runs !== "object" || parsed.runs === null) {
+    throw new Error(`learning: ${path} is not a valid v1 capture cursor`);
+  }
+  return parsed;
+}
+
+async function writeCursor(stateHome: string, cursor: CaptureCursor): Promise<void> {
+  const path = captureCursorPath(stateHome);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFileAtomic(path, JSON.stringify(cursor, null, 2) + "\n");
+}

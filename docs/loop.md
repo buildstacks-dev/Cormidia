@@ -624,8 +624,11 @@ for, never a rewrite.
   envelope.json     L1 — one per pass: ids, status, timings, token/cost
                     rollups, gate results, verdict summary, tool counts
                     (see the tool-telemetry caveat below), truncated
-                    previews; REFERENCES to brief/transcript, never inlined
-                    (the wf_*.json monolith lesson)
+                    previews, and the workdir's git HEAD at pass start
+                    (git_head — the learning loop's replay seed, absent for
+                    non-git workdirs and pre-M2 runs); REFERENCES to
+                    brief/transcript, never inlined (the wf_*.json
+                    monolith lesson)
   events.jsonl      L2 — append-only structured events, timestamped
   brief.md          L3 — exact assembled brief (forensics/reproducibility)
   output.md         L3 — final output text

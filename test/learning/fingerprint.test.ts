@@ -83,6 +83,27 @@ describe("computeSystemFingerprint", () => {
     }
   });
 
+  it("hashes content, not key insertion order — the injectable env cannot split ids", async () => {
+    const home = makeOrgHome({});
+    try {
+      orgSurfaces(home.root);
+      const ordered = await computeSystemFingerprint(
+        options(home.root, { env: { node: "v26.1.0", platform: "darwin" } }),
+      );
+      const reordered = await computeSystemFingerprint(
+        options(home.root, {
+          env: JSON.parse('{"platform":"darwin","node":"v26.1.0"}') as {
+            node: string;
+            platform: string;
+          },
+        }),
+      );
+      expect(reordered.fingerprint_id).toBe(ordered.fingerprint_id);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("reads null for absent inputs instead of fabricating them", async () => {
     const home = makeOrgHome({});
     try {

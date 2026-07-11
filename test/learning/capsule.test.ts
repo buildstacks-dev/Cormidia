@@ -4,7 +4,7 @@
 // classification with an explicit missing list, the V1 build-only boundary,
 // and honest degradation when sources were never captured or were pruned.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -134,7 +134,38 @@ describe("createCapsuleBuilder", () => {
         "fingerprint",
         "trusted_expected_outcome",
       ]);
-      expect(capsule.replayability).toBe("partially_replayable");
+      // Without the seed commit replay cannot reconstruct the starting
+      // state at all — that is non-replayable, not merely degraded.
+      expect(capsule.replayability).toBe("non_replayable");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("never substitutes a later pass's seed when the first build run was pruned", async () => {
+    const home = mergedTicketHome();
+    try {
+      // Give the LATER build pass a git_head too, then prune the first run:
+      // its mid-episode commit must not become the seed.
+      const laterPath = runPaths(home.root, "alpha", "20260711-100600-build-implement").envelope;
+      const later = JSON.parse(readFileSync(laterPath, "utf8")) as RunEnvelope;
+      writeFileSync(
+        laterPath,
+        JSON.stringify({ ...later, git_head: "f".repeat(40) }, null, 2) + "\n",
+      );
+      await projectHome(home.root);
+      rmSync(join(home.root, "runs", "alpha", "20260711-100000-build-contract"), {
+        recursive: true,
+      });
+
+      const capsule = await createCapsuleBuilder({
+        stateHome: home.root,
+        repoByApp: { alpha: "owner/alpha" },
+        fingerprintRef: "sys_0123456789ab",
+      }).assemble(EPISODE);
+      expect(capsule.seed.commit).toBeNull();
+      expect(capsule.missing).toContain("seed_commit");
+      expect(capsule.replayability).toBe("non_replayable");
     } finally {
       home.cleanup();
     }

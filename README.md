@@ -182,7 +182,7 @@ Two stores, one authority each (both under the org's *state home*,
 
 ```
 runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
-├── envelope.json    # ids, status, timings, token/cost rollups, verdict — L1
+├── envelope.json    # ids, status, timings, token/cost rollups, verdict, replay seed (git_head) — L1
 ├── events.jsonl     # trace/span-scoped lifecycle events — L2
 ├── brief.md         # the exact prompt the pass received — L3, verbatim
 ├── output.md        # what the pass produced — L3, verbatim

@@ -15,10 +15,10 @@
 //     introduces manifests; capture never fakes them (M1 precedent).
 
 import { createHash } from "node:crypto";
-import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { gitHeadOf } from "../../runtime/git.js";
 import type { RoleConfig } from "../../runtime/types.js";
 import { writeFileAtomic } from "../atomic.js";
 
@@ -75,25 +75,38 @@ export async function computeSystemFingerprint(
     perTurn[name] = role.maxTurnBudgetUsd;
   }
 
+  const [version, tasteHash, rolesHash, pipelinesHash, promptsHash, configHash] =
+    await Promise.all([
+      packageVersion(options.packageRoot),
+      fileHash(join(options.orgHome, "TASTE.md")),
+      fileHash(join(options.orgHome, "roles.yaml")),
+      fileHash(join(options.orgHome, "pipelines.yaml")),
+      treeHash(join(options.orgHome, "prompts")),
+      options.app.workdir !== undefined
+        ? fileHash(join(options.app.workdir, ".operon", "config.yaml"))
+        : Promise.resolve(null),
+    ]);
+
   const body: Omit<SystemFingerprint, "fingerprint_id"> = {
     operon: {
-      version: await packageVersion(options.packageRoot),
-      commit: gitHead(options.packageRoot),
+      version,
+      // gitHeadOf reports a commit only when the directory IS a checkout —
+      // an npm-installed package under an app's node_modules must read
+      // null, never the app repo's HEAD (upward discovery).
+      commit: gitHeadOf(options.packageRoot) ?? null,
     },
     org: {
-      commit: gitHead(options.orgHome),
-      taste_hash: await fileHash(join(options.orgHome, "TASTE.md")),
-      roles_hash: await fileHash(join(options.orgHome, "roles.yaml")),
-      pipelines_hash: await fileHash(join(options.orgHome, "pipelines.yaml")),
-      prompts_hash: await treeHash(join(options.orgHome, "prompts")),
+      commit: gitHeadOf(options.orgHome) ?? null,
+      taste_hash: tasteHash,
+      roles_hash: rolesHash,
+      pipelines_hash: pipelinesHash,
+      prompts_hash: promptsHash,
     },
     app: {
       name: options.app.name,
-      commit: options.app.workdir !== undefined ? gitHead(options.app.workdir) : null,
-      config_hash:
-        options.app.workdir !== undefined
-          ? await fileHash(join(options.app.workdir, ".operon", "config.yaml"))
-          : null,
+      commit:
+        options.app.workdir !== undefined ? (gitHeadOf(options.app.workdir) ?? null) : null,
+      config_hash: configHash,
     },
     bundle_versions: {},
     bundle_lineage: "stable",
@@ -145,8 +158,24 @@ export async function readFingerprint(
 // input readers
 // ---------------------------------------------------------------------------
 
+/** Canonical serialization: keys sorted recursively, so the hash sees
+ *  content, never a caller's object-literal insertion order (the injectable
+ *  `env` would otherwise split one configuration into two ids). */
 function contentHash(body: unknown): string {
-  return createHash("sha256").update(JSON.stringify(body), "utf8").digest("hex");
+  return createHash("sha256").update(JSON.stringify(canonical(body)), "utf8").digest("hex");
+}
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, canonical(record[key])]),
+    );
+  }
+  return value;
 }
 
 async function packageVersion(packageRoot: string): Promise<string | null> {
@@ -155,16 +184,6 @@ async function packageVersion(packageRoot: string): Promise<string | null> {
       await readFile(join(packageRoot, "package.json"), "utf8"),
     ) as { version?: string };
     return parsed.version ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function gitHead(dir: string): string | null {
-  try {
-    return execSync("git rev-parse HEAD", { cwd: dir, stdio: ["ignore", "pipe", "ignore"] })
-      .toString()
-      .trim();
   } catch {
     return null;
   }

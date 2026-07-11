@@ -85,7 +85,15 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
   const { stateHome } = options;
 
   const classify: CapsuleBuilder["classify"] = (capsule) => {
-    if (capsule.seed.repo === null || capsule.observed_outcome === null) {
+    // No repo, no seed commit, or no closed outcome: replay cannot even
+    // reconstruct the starting state or grade the result — non-replayable,
+    // not merely degraded. Anything else missing (a trusted grader target,
+    // a fingerprint) degrades to partial.
+    if (
+      capsule.seed.repo === null ||
+      capsule.seed.commit === null ||
+      capsule.observed_outcome === null
+    ) {
       return "non_replayable";
     }
     return capsule.missing.length > 0 ? "partially_replayable" : "replayable";
@@ -177,25 +185,26 @@ export async function readCapsule(
 // source readers
 // ---------------------------------------------------------------------------
 
-/** The episode's seed is the state the FIRST build pass started from. Run
- *  ids sort chronologically; pruned envelopes read as absent, never fatal —
- *  the capsule then lists what pruning cost it. */
+/** The episode's seed is the state the FIRST build pass started from — and
+ *  ONLY that pass: a later pass's git_head is mid-episode state, and
+ *  publishing it as the seed would be exactly the divergent replay the seed
+ *  field exists to prevent. A pruned/torn first envelope therefore reads as
+ *  no seed at all (the capsule lists what pruning cost it), never as a
+ *  silent substitute. Run ids sort chronologically. */
 async function earliestBuildRun(
   stateHome: string,
   record: EpisodeRecord,
 ): Promise<RunEnvelope | undefined> {
-  const buildRunIds = record.turns
+  const firstBuildRunId = record.turns
     .filter((turn) => turn.pipeline === "build")
     .flatMap((turn) => turn.run_ids)
-    .sort();
-  for (const runId of buildRunIds) {
-    try {
-      return await readEnvelope(stateHome, record.app, runId);
-    } catch {
-      continue; // pruned or torn — try the next build run
-    }
+    .sort()[0];
+  if (firstBuildRunId === undefined) return undefined;
+  try {
+    return await readEnvelope(stateHome, record.app, firstBuildRunId);
+  } catch {
+    return undefined; // pruned or torn — the seed is gone, not approximate
   }
-  return undefined;
 }
 
 async function briefHashOf(
@@ -210,8 +219,12 @@ async function briefHashOf(
   }
 }
 
-/** `alpha#7` → `github:#7`; non-numeric anchors keep their raw ref. */
+/** `alpha#7` → `github:#7`; non-numeric anchors keep their raw ref — a
+ *  github:-shaped ref must actually resolve to an issue number. */
 function ticketRefOf(record: EpisodeRecord): string {
   const hash = record.source.ref.lastIndexOf("#");
-  return hash >= 0 ? `github:${record.source.ref.slice(hash)}` : record.source.ref;
+  if (hash >= 0 && /^\d+$/.test(record.source.ref.slice(hash + 1))) {
+    return `github:${record.source.ref.slice(hash)}`;
+  }
+  return record.source.ref;
 }

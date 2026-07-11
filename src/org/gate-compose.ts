@@ -7,6 +7,7 @@
 // the episode spent 20 decisions on attempts the protocol already forbade.
 
 import { classify } from "../runtime/gate.js";
+import { FORBIDDEN_BY_ROLE } from "../runtime/role-shaping.js";
 import type { GateDecision, GateFn, ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore } from "./approvals.js";
 import { appendDenialLesson } from "./denial-lessons.js";
@@ -20,14 +21,6 @@ export interface GateContext {
   orgHome?: string;
   now?: () => Date;
 }
-
-/** Acts these roles must never even attempt — auto-denied without an
- *  approval item. The prompt/toolset shaping is the first line; this is the
- *  mechanical backstop that costs the human nothing. */
-const FORBIDDEN_BY_ROLE: Record<string, readonly string[]> = {
-  builder: ["self-merge-or-approve", "production-deploy", "provider-global-memory"],
-  reviewer: ["self-merge-or-approve", "production-deploy", "provider-global-memory"],
-};
 
 export function composeGate(
   baseGate: GateFn,

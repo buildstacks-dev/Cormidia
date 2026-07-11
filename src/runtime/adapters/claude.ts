@@ -50,6 +50,7 @@ import type {
   TurnRequest,
   TurnResult,
 } from "../types.js";
+import { claudeDenyRulesForRole } from "../role-shaping.js";
 
 /** The SDK's query() shape, injectable so unit tests run with a scripted
  *  stand-in and zero network/CLI dependency. */
@@ -200,8 +201,31 @@ export class ClaudeRuntime implements Runtime {
         : { behavior: "deny", message: verdict.reason };
     };
 
+    // Toolset shaping (A4/Stage 6 follow-up): role-forbidden acts are
+    // denied at the CLI's own permission layer (settings.permissions.deny,
+    // full rule syntax) — a builder's `gh pr merge` or ~/.claude write is
+    // refused by the harness itself, before any model-visible negotiation.
+    // The composed gate stays as the adapter-independent backstop.
+    const denyRules = claudeDenyRulesForRole(req.role.name);
+    let settings = this.baseOptions.settings;
+    if (denyRules.length > 0) {
+      if (typeof settings === "string") {
+        throw new Error(
+          "ClaudeRuntime: role toolset shaping cannot merge deny rules into a settings file path — " +
+            "pass baseOptions.settings as an object",
+        );
+      }
+      const base = (settings ?? {}) as Record<string, unknown>;
+      const basePermissions = (base["permissions"] ?? {}) as Record<string, unknown>;
+      const baseDeny = Array.isArray(basePermissions["deny"]) ? (basePermissions["deny"] as string[]) : [];
+      settings = {
+        ...base,
+        permissions: { ...basePermissions, deny: [...baseDeny, ...denyRules] },
+      } as SdkOptions["settings"];
+    }
     const options: SdkOptions = {
       ...this.baseOptions,
+      ...(settings !== undefined ? { settings } : {}),
       model: req.role.model,
       effort: req.role.effort,
       cwd: req.workdir,

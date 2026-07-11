@@ -831,6 +831,10 @@ function configYaml(
 # critical_ops: app-specific extensions to the org gate's rule set
 #   (§9 step 2: deploy commands, publish targets, secret locations).
 # channels: what Support/Marketing watch and draft for, when enabled.
+# release: the app's declared release mechanism (A4) — omitted until the
+#   app has one. A milestone whose plan requires deploy/package fails the
+#   ship gate unless this declares it, e.g.:
+#   release: { kind: deploy, command: gh workflow run deploy.yml, owner: orchestrator }
 
 `;
 

@@ -10,6 +10,7 @@ import { getRuntime } from "../runtime/registry.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
 import type { ContextBundle, RoleConfig, Runtime, Trigger, TurnHooks, TurnResult, TurnUsage } from "../runtime/types.js";
 import { loadGateCommands, runLoopOnce } from "../loop/driver.js";
+import { queueReleaseApprovals } from "./release.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 import { executePipeline, type PipelineRunResult } from "../loop/pipeline.js";
 import { getPipeline, loadPipelines, type PassConfig } from "../loop/pipelines.js";
@@ -321,6 +322,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     commands: loadGateCommands(options.localRepo),
     maxConcurrent: 1,
     turnId: options.turnId,
+    ...(options.app.release !== undefined ? { release: options.app.release } : {}),
     engine: {
       pipelines,
       roles,
@@ -344,6 +346,9 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       ...(options.now !== undefined ? { clock: options.now } : {}),
     },
   });
+  // A4: a merged deploy/package milestone queues its release as a critical
+  // op — dispatch-driven merges must not bypass the approval boundary.
+  await queueReleaseApprovals(options.runtimeHome, options.app.name, result.items, options.now);
   for (const event of result.scorecardEvents) {
     await appendScorecardEvent(
       options.runtimeHome,

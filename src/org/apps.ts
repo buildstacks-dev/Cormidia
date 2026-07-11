@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 import type { RoleConfig, Trigger } from "../runtime/types.js";
+import { RELEASE_KINDS, RELEASE_OWNERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner } from "../loop/types.js";
 
 export type AppStatus = "live" | "paused" | "onboarding";
 
@@ -42,6 +43,9 @@ export interface AppEntry {
    *  registration) may omit it — the dispatcher treats absent as `{}`, i.e.
    *  Support/Marketing gated off. Read by resolveTriggerRoute. */
   channels?: AppChannels;
+  /** Declared release mechanism (A4). Absent = the app declares none: any
+   *  milestone whose plan requires deploy/package fails the ship gate (P7). */
+  release?: ReleaseConfig;
 }
 
 export interface AppsFile {
@@ -163,6 +167,7 @@ function parseApp(
     }
   }
 
+  const release = parseRelease(spec["release"], err);
   return {
     name,
     repo,
@@ -170,6 +175,45 @@ function parseApp(
     budgetUsdMonth: numberOr(spec["budget_usd_month"], defaultBudget),
     cadence,
     channels: parseChannels(spec["channels"], err),
+    ...(release !== undefined ? { release } : {}),
+  };
+}
+
+/** Parse the optional `release:` block (docs/approval-and-release-amendment.md
+ *  A4). Absent → undefined: the app declares no mechanism, and the ship gate
+ *  fails any milestone whose plan requires one (P7). Loud on malformation —
+ *  a wrong declaration must fail at load, not at ship time. */
+function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw err("release must be a mapping (kind, command, owner)");
+  }
+  const spec = raw as Record<string, unknown>;
+  for (const key of Object.keys(spec)) {
+    if (!["kind", "command", "owner"].includes(key)) {
+      throw err(`release: unknown key "${key}" (allowed: kind, command, owner)`);
+    }
+  }
+  const kind = spec["kind"];
+  if (typeof kind !== "string" || !RELEASE_KINDS.includes(kind as ReleaseKind)) {
+    throw err(`release.kind must be one of ${RELEASE_KINDS.join(" | ")}`);
+  }
+  const command = spec["command"];
+  if (kind === "merge-only") {
+    if (command !== undefined) {
+      throw err("release.command is meaningless for merge-only (nothing runs after merge)");
+    }
+  } else if (typeof command !== "string" || command.trim().length === 0) {
+    throw err(`release.command is required for kind "${kind}" (deploy command or CI workflow ref)`);
+  }
+  const owner = spec["owner"] ?? "orchestrator";
+  if (typeof owner !== "string" || !RELEASE_OWNERS.includes(owner as ReleaseOwner)) {
+    throw err(`release.owner must be one of ${RELEASE_OWNERS.join(" | ")}`);
+  }
+  return {
+    kind: kind as ReleaseKind,
+    ...(typeof command === "string" ? { command } : {}),
+    owner: owner as ReleaseOwner,
   };
 }
 

@@ -14,7 +14,13 @@ ClaudeRuntime/CodexRuntime/PiRuntime are live-conformance-tested; the pass
 executor/runlog/bootstrap/qgates layers are real. Quality gates now run a
 `setup` gate first (GateId `"setup"`, driven by `setup_command` in an app's
 `.operon/config.yaml`) so app deps install in the fresh worktree before
-tests/lint. The GitHub ticket state machine takes a real issue through
+tests/lint. The A4 release handoff is implemented: an app may declare a
+`release:` block (kind deploy|package|merge-only, command, owner) in
+`.operon/config.yaml`/apps.yaml; plans carry a machine-readable
+`releaseKind` rendered as a `Release-kind:` ticket trailer; the ship path
+fails a deploy/package milestone whose app declares no matching mechanism
+(P7) and queues a merged one as a `production-deploy` critical op — the
+command never runs without a human decision (`src/org/release.ts`). The GitHub ticket state machine takes a real issue through
 Builder/Reviewer passes, PR, gates, review fallback, and squash-merge with
 unforgeable HMAC merge authorization; company events route by payload kind to
 Planner/SRE/Support/Marketing pipelines with channel-presence gating. OKF

@@ -403,7 +403,15 @@ scan; low: tests+completeness).
 2. **At ship, twice** — once when the item reaches ship (blocks wasting the
   optional ship-check pass) and once immediately before the squash-merge
    (catches anything that moved in between). The predecessor's double-run,
-   kept exactly.
+   kept exactly. Before either run, the P7 release check
+   (docs/approval-and-release-amendment.md A4): a ticket whose
+   `Release-kind:` trailer declares deploy/package may not merge unless the
+   app's `release:` block declares a matching mechanism — the ticket
+   returns to the Planner ("deployable but unowned" is unfinished,
+   mechanically). A merged deploy/package milestone hands the org layer a
+   releaseTrigger, queued on the approval store as a `production-deploy`
+   critical op attributed to the declared owner (orchestrator or SRE); the
+   command never runs without a human decision.
 
 The judgment layer sits *above* mechanical gates, never instead of them:
 the reviewer's verdict and the high-risk ship-check pass evaluate what

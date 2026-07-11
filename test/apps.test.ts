@@ -140,6 +140,81 @@ apps:
   });
 });
 
+describe("release block (A4)", () => {
+  const base = (release: string) => `
+org:
+  name: operon
+  max_concurrent_turns: 2
+defaults:
+  budget_usd_month: 1000
+apps:
+  site:
+    repo: owner/site
+    status: live
+${release}
+`;
+
+  it("parses a deploy release with command and owner", async () => {
+    const { apps } = await loadApps(
+      appsFile(base(`    release:
+      kind: deploy
+      command: gh workflow run deploy.yml
+      owner: sre`)),
+    );
+    expect(apps[0]?.release).toEqual({
+      kind: "deploy",
+      command: "gh workflow run deploy.yml",
+      owner: "sre",
+    });
+  });
+
+  it("defaults owner to orchestrator and accepts merge-only without a command", async () => {
+    const { apps } = await loadApps(
+      appsFile(base(`    release:
+      kind: merge-only`)),
+    );
+    expect(apps[0]?.release).toEqual({ kind: "merge-only", owner: "orchestrator" });
+  });
+
+  it("absent release block leaves the entry undeclared", async () => {
+    const { apps } = await loadApps(appsFile(base("")));
+    expect(apps[0]?.release).toBeUndefined();
+  });
+
+  it("rejects deploy without a command", async () => {
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: deploy`))),
+    ).rejects.toThrow(/release\.command is required for kind "deploy"/);
+  });
+
+  it("rejects a command on merge-only", async () => {
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: merge-only
+      command: echo nothing`))),
+    ).rejects.toThrow(/release\.command is meaningless for merge-only/);
+  });
+
+  it("rejects unknown kinds, owners, and keys", async () => {
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: yolo`))),
+    ).rejects.toThrow(/release\.kind must be one of deploy \| package \| merge-only/);
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: package
+      command: npm publish
+      owner: intern`))),
+    ).rejects.toThrow(/release\.owner must be one of orchestrator \| sre/);
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: merge-only
+      approver: me`))),
+    ).rejects.toThrow(/release: unknown key "approver"/);
+  });
+});
+
 describe("new org registry", () => {
   it("accepts a newly initialized org with no registered apps", async () => {
     const file = await loadApps(

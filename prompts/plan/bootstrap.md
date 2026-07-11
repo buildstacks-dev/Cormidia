@@ -29,7 +29,10 @@ whole point (docs/proportionality-review.md P1/P2).
 6. **Name the release disposition (P7):** does this milestone deploy,
    publish, become release-ready, or intentionally end at merge — and who
    owns the next action. An unowned required release step means the
-   milestone is not done; say so in the disposition.
+   milestone is not done; say so in the disposition. `releaseKind` is the
+   machine-readable half: `deploy` or `package` only when the milestone
+   itself must run that mechanism to be done (the ship gate then requires
+   the app to declare it); a milestone that ends at merge is `merge-only`.
 7. **Argue the count.** `ticketCountRationale` states why this many tickets
    moves the project to its next observable milestone and why fewer would
    not work. "Atomicity" is not a rationale.
@@ -45,7 +48,8 @@ backlog would look like.
 
 Emit EXACTLY one JSON object matching the provided schema (no prose before
 or after when structured output is requested): `stage` ("bootstrap"),
-`ticketCountRationale`, `releaseDisposition`, and `tickets[]`, each with
+`ticketCountRationale`, `releaseDisposition`, `releaseKind`
+("deploy" | "package" | "merge-only"), and `tickets[]`, each with
 `title`, `tier`, `priority`, `dependsOn` (indexes into this list),
 `executionGroup`, `fileScope`, `goal`, `context`, `acceptanceCriteria[]`,
 `outOfScope`, `notesForBuilder`.

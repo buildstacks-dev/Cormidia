@@ -4,10 +4,9 @@
 // a complete InterventionRecord chain; incomplete chains are named gap by
 // gap, impossible states are rejected outright, and lineage only advances.
 
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeOrgHome } from "../fixtures/orgHome.js";
 import {
   interventionChainGaps,
   interventionPath,
@@ -23,10 +22,12 @@ afterEach(() => {
   while (CLEANUPS.length > 0) CLEANUPS.pop()!();
 });
 
+/** Org-home stand-in via the packaged fixture (AGENTS.md: reuse
+ *  test/fixtures/orgHome.ts instead of ad-hoc mkdtemp scaffolds). */
 function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "operon-int-"));
-  CLEANUPS.push(() => rmSync(dir, { recursive: true, force: true }));
-  return dir;
+  const home = makeOrgHome({});
+  CLEANUPS.push(home.cleanup);
+  return home.root;
 }
 
 describe("validateInterventionRecord", () => {
@@ -80,6 +81,16 @@ describe("validateInterventionRecord", () => {
     expect(() => validateInterventionRecord(makeIntervention({ status: "rolled_back" }))).toThrow(
       /requires the rollback block/,
     );
+  });
+
+  it("a rolled-back intervention can retire WITHOUT erasing its rollback history", () => {
+    const retired = validateInterventionRecord(
+      makeIntervention({
+        status: "retired",
+        rollback: { rolled_back_at: "2026-07-12T09:00:00.000Z", reason: "late regression" },
+      }),
+    );
+    expect(retired.rollback?.reason).toBe("late regression");
   });
 
   it("rejects an activation on a merely proposed record", () => {

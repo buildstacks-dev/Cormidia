@@ -28,11 +28,12 @@
 //     kinds — experiments over schedule-triggered work must be declarable.
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
 import type { EpisodeKind } from "./episodes.js";
 import { fingerprintDelta, readFingerprint } from "./fingerprint.js";
+import { listJsonRecords, readJsonRecord } from "./records.js";
 import {
   optionalString,
   requireBoolean,
@@ -42,9 +43,11 @@ import {
   requirePrefixedId,
   requireRecord,
   requireString,
+  requireStringArray,
 } from "./validate.js";
 
-export type ExperimentLayer = "deterministic" | "replay" | "canary";
+export const EXPERIMENT_LAYERS = ["deterministic", "replay", "canary"] as const;
+export type ExperimentLayer = (typeof EXPERIMENT_LAYERS)[number];
 export type ExperimentStatus = "declared" | "running" | "decided";
 export type MetricDirection = "increase" | "decrease";
 
@@ -130,16 +133,7 @@ export function validateExperimentRecord(value: unknown): ExperimentRecord {
   const eligibility = requireRecord(spec["eligibility"], `${source}.eligibility`);
   const episodes = requireString(eligibility, "episodes", `${source}.eligibility`);
   const app = requireString(eligibility, "app", `${source}.eligibility`);
-  const stage = Array.isArray(eligibility["stage"])
-    ? (eligibility["stage"] as unknown[]).map((entry) => {
-        if (typeof entry !== "string") {
-          throw new Error(`learning: ${source}.eligibility.stage must be a string array`);
-        }
-        return entry;
-      })
-    : (() => {
-        throw new Error(`learning: ${source}.eligibility.stage must be a string array`);
-      })();
+  const stage = requireStringArray(eligibility, "stage", `${source}.eligibility`);
 
   const primary = requireRecord(spec["primary_metric"], `${source}.primary_metric`);
   const primaryMetric = {
@@ -167,12 +161,7 @@ export function validateExperimentRecord(value: unknown): ExperimentRecord {
   const trialsSpec = requireRecord(spec["trials"], `${source}.trials`);
   const earlyStop = requireRecord(trialsSpec["early_stop"], `${source}.trials.early_stop`);
   const trials = {
-    layer: requireEnum(
-      trialsSpec,
-      "layer",
-      ["deterministic", "replay", "canary"] as const,
-      `${source}.trials`,
-    ),
+    layer: requireEnum(trialsSpec, "layer", EXPERIMENT_LAYERS, `${source}.trials`),
     repetitions: requirePositiveInt(trialsSpec, "repetitions", `${source}.trials`),
     early_stop: {
       on_held_in_failure: requireBoolean(
@@ -385,25 +374,17 @@ export async function readExperimentRecord(
   orgHome: string,
   experimentId: string,
 ): Promise<ExperimentRecord> {
-  const path = experimentPath(orgHome, experimentId);
-  if (!existsSync(path)) {
-    throw new Error(
-      `learning: no experiment ${experimentId} under ${experimentsDir(orgHome)} — ` +
-        `operon learn report lists declared experiments`,
-    );
-  }
-  return validateExperimentRecord(JSON.parse(await readFile(path, "utf8")));
+  return readJsonRecord(
+    experimentPath(orgHome, experimentId),
+    validateExperimentRecord,
+    `learning: no experiment ${experimentId} under ${experimentsDir(orgHome)} — ` +
+      `operon learn report lists declared experiments`,
+  );
 }
 
 /** Every experiment record, sorted by id. EvalResults share the directory
  *  (spec §1) — files are routed by their id prefix, so a mixed directory
  *  never misparses. */
 export async function listExperimentRecords(orgHome: string): Promise<ExperimentRecord[]> {
-  const dir = experimentsDir(orgHome);
-  if (!existsSync(dir)) return [];
-  const records: ExperimentRecord[] = [];
-  for (const name of (await readdir(dir)).filter((f) => f.startsWith("exp_") && f.endsWith(".json")).sort()) {
-    records.push(validateExperimentRecord(JSON.parse(await readFile(join(dir, name), "utf8"))));
-  }
-  return records;
+  return listJsonRecords(experimentsDir(orgHome), "exp_", validateExperimentRecord);
 }

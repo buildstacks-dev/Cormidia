@@ -368,13 +368,22 @@ describe("operon learn — M3 experiment substrate", () => {
       JSON.stringify({ claims: 1, outcomes: ["claim 1: ended merged (PR #12)"] }, null, 2) + "\n",
     );
 
+    // Drafting is identity-bearing: no anonymous default drafter, or one
+    // human could play both actors of the two-actor trust model.
+    await expect(
+      cmdLearn(["fixture", EPISODE, "--set", "roles/builder/standard-tickets", ...HOME_FLAGS]),
+    ).rejects.toThrow(/--by <name> is required/);
+
     const draft = captureLogs();
+    // Flags may precede the positional — order must not change the parse.
     expect(
       await cmdLearn([
         "fixture",
-        EPISODE,
         "--set",
         "roles/builder/standard-tickets",
+        "--by",
+        "human-operator",
+        EPISODE,
         ...HOME_FLAGS,
       ]),
     ).toBe(0);

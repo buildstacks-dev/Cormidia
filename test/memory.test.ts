@@ -228,6 +228,14 @@ describe("OKF loop block (learning-loop spec §3)", () => {
         ),
         /loop\.scope must be/,
       ],
+      // Dot-only segments are traversal, not names — scopes become paths.
+      [
+        swap(
+          "scope: apps/operon-marketplace-demo/roles/support",
+          "scope: apps/..",
+        ),
+        /loop\.scope must be/,
+      ],
     ];
     for (const [lines, message] of cases) {
       expect(() => parseOkfDocument(loopDoc(lines))).toThrow(message);

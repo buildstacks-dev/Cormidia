@@ -108,6 +108,21 @@ export function requireStringArray(
   return [...value] as string[];
 }
 
+/** `sha256:<64 hex>` content refs — candidate.content_hash and
+ *  intervention.reviewed_content_hash must accept the SAME grammar (M4 binds
+ *  one to the other), so both validate through this one check. */
+export function requireSha256Ref(
+  spec: Record<string, unknown>,
+  key: string,
+  source: string,
+): string {
+  const value = requireString(spec, key, source);
+  if (!/^sha256:[0-9a-f]{64}$/.test(value)) {
+    throw new Error(`learning: ${source}.${key} must be "sha256:<64 hex>"`);
+  }
+  return value;
+}
+
 /** Ids carry their kind as a prefix (`exp_`, `int_`, `eval_`, `cand_`) —
  *  `learn show` routes on it, and a mislabeled id would trace to nothing. */
 export function requirePrefixedId(

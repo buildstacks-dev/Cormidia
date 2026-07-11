@@ -27,12 +27,13 @@
 // EvalResults share `learning/experiments/` with the ExperimentRecords they
 // decide (spec §1); files route by id prefix (`exp_` / `eval_`).
 
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { hashArgs } from "../../runtime/runlog/redact.js";
 import { writeFileAtomic } from "../atomic.js";
 import {
+  EXPERIMENT_LAYERS,
   experimentPath,
   experimentsDir,
   readExperimentRecord,
@@ -40,6 +41,7 @@ import {
   type ExperimentLayer,
   type ExperimentRecord,
 } from "./experiment.js";
+import { listJsonRecords, readJsonRecord } from "./records.js";
 import {
   optionalString,
   requireBoolean,
@@ -145,10 +147,14 @@ export function computeEvalResult(options: ComputeEvalResultOptions): EvalResult
     evaluateGuardrail(guardrail, trials),
   );
 
+  // Each branch tests exactly one new fact: measured at all; harmed
+  // (wrong-direction movement or any guardrail failure); cleared the useful
+  // threshold (minUsefulMet already implies the right direction); else the
+  // in-between — no movement or a sub-threshold win.
   let verdict: EvalVerdict;
   if (improvement === null) verdict = "not_evaluatable";
   else if (improvement < 0 || guardrails.some((g) => !g.pass)) verdict = "regressed";
-  else if (directionOk && minUsefulMet) verdict = "improved";
+  else if (minUsefulMet) verdict = "improved";
   else verdict = "inconclusive";
 
   return {
@@ -251,15 +257,12 @@ function mean(values: number[]): number {
 }
 
 /** Same result bytes for the same (experiment, trials) — a re-run of the
- *  computation is a dedup, not a second decision. */
+ *  computation is a dedup, not a second decision. hashArgs canonicalizes key
+ *  order, so structurally equal trials hash identically no matter how a
+ *  caller built its metric maps (redact.ts — the existing deterministic
+ *  digest; a plain JSON.stringify would split one decision into two ids). */
 function deterministicEvalId(experimentId: string, trials: EvalTrial[]): string {
-  const hash = createHash("sha256")
-    .update(experimentId, "utf8")
-    .update("\0")
-    .update(JSON.stringify(trials), "utf8")
-    .digest("hex")
-    .slice(0, 12);
-  return `eval_${hash}`;
+  return `eval_${hashArgs({ experimentId, trials }).slice(0, 12)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,7 +277,7 @@ export function validateEvalResult(value: unknown): EvalResult {
     throw new Error(`learning: ${source}.schema_version must be 1`);
   }
   const experimentRef = requirePrefixedId(spec, "experiment_ref", "exp_", source);
-  const layer = requireEnum(spec, "layer", ["deterministic", "replay", "canary"] as const, source);
+  const layer = requireEnum(spec, "layer", EXPERIMENT_LAYERS, source);
   const capsuleRefs = requireStringArray(spec, "capsule_refs", source);
 
   if (!Array.isArray(spec["trials"])) {
@@ -388,6 +391,20 @@ export async function decideExperiment(
         `a second verdict (${result.eval_id}) needs a new experiment declaration`,
     );
   }
+  // One experiment, one verdict — also across the crash window between the
+  // two writes below: an orphaned result file (result written, experiment
+  // flip lost) must resume with the SAME result, never quietly gain a rival.
+  const siblings = (await listEvalResults(orgHome)).filter(
+    (existing) =>
+      existing.experiment_ref === result.experiment_ref && existing.eval_id !== result.eval_id,
+  );
+  if (siblings.length > 0) {
+    throw new Error(
+      `learning: ${experiment.experiment_id} already has recorded result ` +
+        `${siblings.map((s) => s.eval_id).join(", ")} — one experiment, one verdict; ` +
+        `re-decide with that result or declare a new experiment`,
+    );
+  }
 
   const resultPath = evalResultPath(orgHome, result.eval_id);
   const resultBytes = JSON.stringify(result, null, 2) + "\n";
@@ -409,19 +426,13 @@ export async function decideExperiment(
 }
 
 export async function readEvalResult(orgHome: string, evalId: string): Promise<EvalResult> {
-  const path = evalResultPath(orgHome, evalId);
-  if (!existsSync(path)) {
-    throw new Error(`learning: no eval result ${evalId} under ${experimentsDir(orgHome)}`);
-  }
-  return validateEvalResult(JSON.parse(await readFile(path, "utf8")));
+  return readJsonRecord(
+    evalResultPath(orgHome, evalId),
+    validateEvalResult,
+    `learning: no eval result ${evalId} under ${experimentsDir(orgHome)}`,
+  );
 }
 
 export async function listEvalResults(orgHome: string): Promise<EvalResult[]> {
-  const dir = experimentsDir(orgHome);
-  if (!existsSync(dir)) return [];
-  const results: EvalResult[] = [];
-  for (const name of (await readdir(dir)).filter((f) => f.startsWith("eval_") && f.endsWith(".json")).sort()) {
-    results.push(validateEvalResult(JSON.parse(await readFile(join(dir, name), "utf8"))));
-  }
-  return results;
+  return listJsonRecords(experimentsDir(orgHome), "eval_", validateEvalResult);
 }

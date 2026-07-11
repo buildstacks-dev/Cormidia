@@ -23,16 +23,18 @@
 // `{ rolled_back_at, reason }` (the sketch only ever showed null).
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { LoopClaim } from "../memory.js";
 import { writeFileAtomic } from "../atomic.js";
-import type { CandidateDestination } from "./candidate.js";
+import { CANDIDATE_DESTINATIONS, type CandidateDestination } from "./candidate.js";
+import { listJsonRecords, readJsonRecord } from "./records.js";
 import {
   optionalString,
   requireEnum,
   requirePrefixedId,
   requireRecord,
+  requireSha256Ref,
   requireString,
 } from "./validate.js";
 
@@ -86,13 +88,14 @@ export function validateInterventionRecord(value: unknown): InterventionRecord {
   const destination = requireEnum(
     spec,
     "destination",
-    ["okf_concept", "skill_draft", "protocol_proposal", "eval_or_gate_proposal", "ticket"] as const,
+    // Derived from the candidate enum so the two contracts cannot drift.
+    CANDIDATE_DESTINATIONS.filter((d) => d !== "reject") as InterventionDestination[],
     source,
   );
-  const reviewedContentHash = optionalString(spec, "reviewed_content_hash", source);
-  if (reviewedContentHash !== null && !/^sha256:[0-9a-f]{64}$/.test(reviewedContentHash)) {
-    throw new Error(`learning: ${source}.reviewed_content_hash must be "sha256:<64 hex>"`);
-  }
+  const reviewedContentHash =
+    optionalString(spec, "reviewed_content_hash", source) !== null
+      ? requireSha256Ref(spec, "reviewed_content_hash", source)
+      : null;
   const approvalRef = optionalString(spec, "approval_ref", source);
 
   let publish: InterventionRecord["publish"] = null;
@@ -152,9 +155,13 @@ export function validateInterventionRecord(value: unknown): InterventionRecord {
         `outcome_ref — nothing but a completed experiment produces validated (design §9.1)`,
     );
   }
-  if (rollback !== null && status !== "rolled_back") {
+  // A rollback is history: it stays on the record when a rolled-back
+  // intervention later retires — advancing to "retired" must never require
+  // erasing the answer to "was this ever rolled back?".
+  if (rollback !== null && status !== "rolled_back" && status !== "retired") {
     throw new Error(
-      `learning: ${source}: a rollback block requires status "rolled_back", got "${status}"`,
+      `learning: ${source}: a rollback block requires status "rolled_back" (or "retired" ` +
+        `after a rollback), got "${status}"`,
     );
   }
   if (rollback === null && status === "rolled_back") {
@@ -255,21 +262,13 @@ export async function readInterventionRecord(
   orgHome: string,
   interventionId: string,
 ): Promise<InterventionRecord> {
-  const path = interventionPath(orgHome, interventionId);
-  if (!existsSync(path)) {
-    throw new Error(
-      `learning: no intervention ${interventionId} under ${interventionsDir(orgHome)}`,
-    );
-  }
-  return validateInterventionRecord(JSON.parse(await readFile(path, "utf8")));
+  return readJsonRecord(
+    interventionPath(orgHome, interventionId),
+    validateInterventionRecord,
+    `learning: no intervention ${interventionId} under ${interventionsDir(orgHome)}`,
+  );
 }
 
 export async function listInterventionRecords(orgHome: string): Promise<InterventionRecord[]> {
-  const dir = interventionsDir(orgHome);
-  if (!existsSync(dir)) return [];
-  const records: InterventionRecord[] = [];
-  for (const name of (await readdir(dir)).filter((f) => f.startsWith("int_") && f.endsWith(".json")).sort()) {
-    records.push(validateInterventionRecord(JSON.parse(await readFile(join(dir, name), "utf8"))));
-  }
-  return records;
+  return listJsonRecords(interventionsDir(orgHome), "int_", validateInterventionRecord);
 }

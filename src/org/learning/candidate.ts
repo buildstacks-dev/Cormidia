@@ -32,17 +32,20 @@ import {
   requireEnum,
   requirePrefixedId,
   requireRecord,
+  requireSha256Ref,
   requireString,
   requireStringArray,
 } from "./validate.js";
 
-export type CandidateDestination =
-  | "okf_concept"
-  | "skill_draft"
-  | "protocol_proposal"
-  | "eval_or_gate_proposal"
-  | "ticket"
-  | "reject";
+export const CANDIDATE_DESTINATIONS = [
+  "okf_concept",
+  "skill_draft",
+  "protocol_proposal",
+  "eval_or_gate_proposal",
+  "ticket",
+  "reject",
+] as const;
+export type CandidateDestination = (typeof CANDIDATE_DESTINATIONS)[number];
 
 export interface CandidateArtifact {
   candidate_id: string;
@@ -66,12 +69,7 @@ export function validateCandidateArtifact(value: unknown): CandidateArtifact {
   const candidateId = requirePrefixedId(spec, "candidate_id", "cand_", "candidate");
   const source = candidateId;
 
-  const destination = requireEnum(
-    spec,
-    "destination",
-    ["okf_concept", "skill_draft", "protocol_proposal", "eval_or_gate_proposal", "ticket", "reject"] as const,
-    source,
-  );
+  const destination = requireEnum(spec, "destination", CANDIDATE_DESTINATIONS, source);
   const scope = requireString(spec, "proposed_scope", source);
   if (!isValidLoopScope(scope)) {
     throw new Error(
@@ -80,10 +78,7 @@ export function validateCandidateArtifact(value: unknown): CandidateArtifact {
         : `learning: ${source}.proposed_scope must be org | roles/<role> | apps/<app> | apps/<app>/roles/<role>`,
     );
   }
-  const contentHash = requireString(spec, "content_hash", source);
-  if (!/^sha256:[0-9a-f]{64}$/.test(contentHash)) {
-    throw new Error(`learning: ${source}.content_hash must be "sha256:<64 hex>"`);
-  }
+  const contentHash = requireSha256Ref(spec, "content_hash", source);
   const errorClass = optionalString(spec, "error_class", source);
   const causeHypothesis = optionalString(spec, "cause_hypothesis", source);
   const draft =
@@ -159,9 +154,11 @@ export function assertCandidateCanProceed(
 ): CandidateEvaluability {
   const requirement = experimentRequirement(candidate);
 
-  // A referenced experiment must actually be the candidate's own, whether or
-  // not one was required — a borrowed experiment proves nothing about this
-  // candidate.
+  // The linkage must be recorded ON the candidate and match the resolved
+  // record in both directions: a borrowed experiment proves nothing about
+  // this candidate, and an experiment the candidate never names cannot be
+  // re-verified later — the lineage chain would have no way to find which
+  // experiment justified the pass.
   if (options.experiment !== undefined && options.experiment.candidate_ref !== candidate.candidate_id) {
     throw new Error(
       `learning: ${candidate.candidate_id}: experiment ${options.experiment.experiment_id} ` +
@@ -173,6 +170,13 @@ export function assertCandidateCanProceed(
     throw new Error(
       `learning: ${candidate.candidate_id} references ${candidate.experiment_ref} ` +
         `but it was not resolved — pass the declared ExperimentRecord`,
+    );
+  }
+  if (options.experiment !== undefined && candidate.experiment_ref === null) {
+    throw new Error(
+      `learning: ${candidate.candidate_id} does not record experiment_ref ` +
+        `${options.experiment.experiment_id} — the candidate itself must name its experiment, ` +
+        `or the linkage is unverifiable after this call`,
     );
   }
   if (

@@ -125,6 +125,26 @@ describe("assertCandidateCanProceed (done-criterion 2)", () => {
     );
     expect(() => assertCandidateCanProceed(candidate)).toThrow(/was not resolved/);
   });
+
+  it("the candidate itself must record the linkage — a supplied experiment cannot stand in", () => {
+    // A pass justified by an experiment the candidate never names would be
+    // unverifiable on any later re-check of the stored record.
+    const candidate = validateCandidateArtifact(
+      makeCandidate({ claims_efficacy: true, experiment_ref: null }),
+    );
+    expect(() => assertCandidateCanProceed(candidate, { experiment: EXPERIMENT })).toThrow(
+      /must name its experiment/,
+    );
+  });
+
+  it("rejects dot-only scope segments (path traversal is a grammar error)", () => {
+    expect(() =>
+      validateCandidateArtifact(makeCandidate({ proposed_scope: "apps/.." })),
+    ).toThrow(/proposed_scope must be/);
+    expect(() =>
+      validateCandidateArtifact(makeCandidate({ proposed_scope: "roles/../experiments" })),
+    ).toThrow(/proposed_scope must be/);
+  });
 });
 
 describe("claimAfterEval — the one legal upgrade path", () => {

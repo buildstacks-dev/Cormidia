@@ -5,10 +5,10 @@
 // believing the flag, trusted fixtures are immutable to redrafting, and the
 // builtin deterministic build-outcome grader fails closed.
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeOrgHome } from "../fixtures/orgHome.js";
 import { capsulePath, type ReplayCapsule } from "../../src/org/learning/capsule.js";
 import {
   convertCapsuleToEvalFixture,
@@ -27,10 +27,12 @@ afterEach(() => {
   while (CLEANUPS.length > 0) CLEANUPS.pop()!();
 });
 
-function tempDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  CLEANUPS.push(() => rmSync(dir, { recursive: true, force: true }));
-  return dir;
+/** Org-home/state-home stand-in via the packaged fixture (AGENTS.md: reuse
+ *  test/fixtures/orgHome.ts instead of ad-hoc mkdtemp scaffolds). */
+function tempDir(_prefix?: string): string {
+  const home = makeOrgHome({});
+  CLEANUPS.push(home.cleanup);
+  return home.root;
 }
 
 const CAPSULE_ID = "replay_alpha_ticket_0007";
@@ -72,10 +74,21 @@ describe("isValidEvalSet", () => {
     expect(isValidEvalSet("roles/builder/standard-tickets")).toBe(true);
     expect(isValidEvalSet("apps/alpha/regressions")).toBe(true);
     expect(isValidEvalSet("apps/alpha/roles/support/feedback-cases")).toBe(true);
+    expect(isValidEvalSet("apps/buildstacks.dev/regressions")).toBe(true);
     expect(isValidEvalSet("org/global-cases")).toBe(true);
     expect(isValidEvalSet("standard-tickets")).toBe(false);
     expect(isValidEvalSet("identities/alice/cases")).toBe(false);
     expect(isValidEvalSet("roles/builder/")).toBe(false);
+  });
+
+  it("rejects dot-only segments — a set is a directory, not a path escape", () => {
+    // `roles/../experiments` would write into the sibling experiments store.
+    expect(isValidEvalSet("roles/../experiments")).toBe(false);
+    expect(isValidEvalSet("apps/../roles/../..")).toBe(false);
+    expect(isValidEvalSet("roles/builder/..")).toBe(false);
+    expect(isValidEvalSet("roles/builder/.")).toBe(false);
+    // Dots INSIDE a name stay legal.
+    expect(isValidEvalSet("roles/builder/v1.2-cases")).toBe(true);
   });
 });
 
@@ -242,6 +255,41 @@ describe("scanForSecrets", () => {
       "github-token",
     ]);
     expect(scanForSecrets({ a: "clean text", n: 4 })).toEqual([]);
+  });
+
+  it("is stateless across strings — a match in one string cannot mask the next", () => {
+    // Regression: a shared /g regex carries lastIndex between .test() calls,
+    // so after matching late in string A it would start mid-string in B and
+    // miss a secret near B's start — under-reporting on the trust boundary.
+    const tokenA = "ghp_0123456789abcdefghij0123456789abcdef";
+    const tokenB = "ghp_zyxwvutsrqponmlkjihg9876543210fedcba";
+    expect(
+      scanForSecrets({
+        a: `${"x".repeat(120)} ${tokenA}`, // match far into string A
+        b: `${tokenB} trailing text`, // secret at the START of string B
+      }),
+    ).toEqual(["github-token"]);
+  });
+
+  it("counts every match during sanitization, not merely touched strings", async () => {
+    const orgHome = tempDir("operon-fx-org-");
+    const stateHome = tempDir("operon-fx-state-");
+    storeCapsule(
+      stateHome,
+      makeCapsule({
+        artifacts: [
+          "two in one string: ghp_0123456789abcdefghij0123456789abcdef and ghp_zyxwvutsrqponmlkjihg9876543210fedcba",
+        ],
+      }),
+    );
+    const converted = await convertCapsuleToEvalFixture({
+      orgHome,
+      stateHome,
+      capsuleId: CAPSULE_ID,
+      set: SET,
+      draftedBy: "human-operator",
+    });
+    expect(converted.redactions).toBe(2);
   });
 });
 

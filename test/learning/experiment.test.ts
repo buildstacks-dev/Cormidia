@@ -5,10 +5,10 @@
 // done-criterion 1 (first half): an experiment declared against two stored
 // fingerprints validates.
 
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeOrgHome } from "../fixtures/orgHome.js";
 import {
   declareExperiment,
   experimentPath,
@@ -28,10 +28,12 @@ afterEach(() => {
   while (CLEANUPS.length > 0) CLEANUPS.pop()!();
 });
 
-function tempDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  CLEANUPS.push(() => rmSync(dir, { recursive: true, force: true }));
-  return dir;
+/** Org-home/state-home stand-in via the packaged fixture (AGENTS.md: reuse
+ *  test/fixtures/orgHome.ts instead of ad-hoc mkdtemp scaffolds). */
+function tempDir(_prefix?: string): string {
+  const home = makeOrgHome({});
+  CLEANUPS.push(home.cleanup);
+  return home.root;
 }
 
 async function twoStoredFingerprints(stateHome: string): Promise<[string, string]> {

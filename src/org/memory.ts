@@ -237,7 +237,14 @@ function validateFrontmatter(value: unknown, source: string): OkfFrontmatter {
   return { ...base, loop };
 }
 
-const LOOP_SCOPE_RE = /^(org|roles\/[A-Za-z0-9._-]+|apps\/[A-Za-z0-9._-]+(\/roles\/[A-Za-z0-9._-]+)?)$/;
+// One scope segment: dots are legal inside a name (`buildstacks.dev`) but a
+// segment of ONLY dots is a path traversal, not a name — scopes become
+// filesystem paths (learning/evals/<scope>/…, M4 bundle dirs), so `apps/..`
+// must be a grammar error, never a directory escape.
+const LOOP_SCOPE_SEG = String.raw`(?!\.+(?:/|$))[A-Za-z0-9._-]+`;
+const LOOP_SCOPE_RE = new RegExp(
+  `^(org|roles/${LOOP_SCOPE_SEG}|apps/${LOOP_SCOPE_SEG}(/roles/${LOOP_SCOPE_SEG})?)$`,
+);
 
 /** The V1 scope grammar (spec §2) — shared with the candidate contract
  *  (src/org/learning/candidate.ts) so a proposed_scope that would be rejected

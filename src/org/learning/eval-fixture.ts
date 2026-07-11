@@ -80,13 +80,17 @@ export interface EvalFixture {
 
 /** `<scope>/<set-name>` where scope is the V1 scope grammar (spec §2) — the
  *  same grammar concepts use, so eval sets and the concepts they test line
- *  up (`evals/roles/builder/standard-tickets` tests `roles/builder`). */
+ *  up (`evals/roles/builder/standard-tickets` tests `roles/builder`). The
+ *  set name, like every scope segment, may contain dots but must not BE
+ *  dots: the set becomes a directory under the gate-protected
+ *  `learning/evals/**`, and `roles/../experiments` escaping into a sibling
+ *  store is a grammar error, not a path. */
 export function isValidEvalSet(set: string): boolean {
   const slash = set.lastIndexOf("/");
   if (slash <= 0) return false;
   const scope = set.slice(0, slash);
   const name = set.slice(slash + 1);
-  return isValidLoopScope(scope) && /^[A-Za-z0-9._-]+$/.test(name);
+  return isValidLoopScope(scope) && /^[A-Za-z0-9._-]+$/.test(name) && !/^\.+$/.test(name);
 }
 
 export function evalsDir(orgHome: string): string {
@@ -193,25 +197,38 @@ export async function convertCapsuleToEvalFixture(
   return { fixture, path, redactions, trust_gaps: fixtureTrustGaps(fixture) };
 }
 
+/** One traversal shared by the scrubber and the scanner. They are a matched
+ *  pair by design — validation re-verifies sanitization, which only holds if
+ *  the scanner visits at least everything the scrubber visited — so a single
+ *  walker is a security property here, not a style choice. `visit` returns
+ *  the (possibly replaced) string; walkStrings returns the mapped copy. */
+function walkStrings(value: unknown, visit: (s: string) => string): unknown {
+  if (typeof value === "string") return visit(value);
+  if (Array.isArray(value)) return value.map((entry) => walkStrings(entry, visit));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        walkStrings(entry, visit),
+      ]),
+    );
+  }
+  return value;
+}
+
 /** Deep-copy with every string scrubbed through the canonical secret list
- *  (src/runtime/secret-patterns.ts — the ONE list), counting replacements. */
+ *  (src/runtime/secret-patterns.ts — the ONE list). `redactions` counts
+ *  individual secret matches, not touched strings — the CLI reports it as an
+ *  audit figure, and three secrets in one string are three, not one. */
 function sanitizeDeep<T>(input: T): { value: T; redactions: number } {
   let redactions = 0;
-  const walk = (value: unknown): unknown => {
-    if (typeof value === "string") {
-      const scrubbed = scrubSecrets(value);
-      if (scrubbed !== value) redactions += 1;
-      return scrubbed;
+  const value = walkStrings(input, (s) => {
+    for (const pattern of SECRET_PATTERNS) {
+      redactions += s.match(asGlobal(pattern))?.length ?? 0;
     }
-    if (Array.isArray(value)) return value.map(walk);
-    if (value !== null && typeof value === "object") {
-      return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, walk(entry)]),
-      );
-    }
-    return value;
-  };
-  return { value: walk(input) as T, redactions };
+    return scrubSecrets(s);
+  }) as T;
+  return { value, redactions };
 }
 
 // ---------------------------------------------------------------------------
@@ -262,22 +279,19 @@ export async function trustEvalFixture(options: TrustFixtureOptions): Promise<Ev
   return trusted;
 }
 
-/** Names of secret patterns that still match anywhere in the fixture. */
+/** Names of secret patterns that still match anywhere in the fixture. Uses
+ *  the same walker as the scrubber (see walkStrings) and the patterns'
+ *  STATELESS form — a shared /g regex carries lastIndex between .test()
+ *  calls and would skip matches early in the next string, which is exactly
+ *  the under-report this scan exists to prevent. */
 export function scanForSecrets(fixture: unknown): string[] {
-  const strings: string[] = [];
-  const walk = (value: unknown): void => {
-    if (typeof value === "string") strings.push(value);
-    else if (Array.isArray(value)) value.forEach(walk);
-    else if (value !== null && typeof value === "object") {
-      Object.values(value as Record<string, unknown>).forEach(walk);
-    }
-  };
-  walk(fixture);
   const hits = new Set<string>();
-  for (const pattern of SECRET_PATTERNS) {
-    const re = asGlobal(pattern);
-    if (strings.some((s) => re.test(s))) hits.add(pattern.name);
-  }
+  walkStrings(fixture, (s) => {
+    for (const pattern of SECRET_PATTERNS) {
+      if (pattern.pattern.test(s)) hits.add(pattern.name);
+    }
+    return s;
+  });
   return [...hits].sort();
 }
 

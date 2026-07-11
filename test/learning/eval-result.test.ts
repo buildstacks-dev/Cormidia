@@ -5,10 +5,8 @@
 // not_evaluatable — plus the fail-closed guardrail rules and the
 // declared-before-results decide path.
 
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeOrgHome } from "../fixtures/orgHome.js";
 import {
   computeEvalResult,
   decideExperiment,
@@ -29,10 +27,12 @@ afterEach(() => {
   while (CLEANUPS.length > 0) CLEANUPS.pop()!();
 });
 
-function tempDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  CLEANUPS.push(() => rmSync(dir, { recursive: true, force: true }));
-  return dir;
+/** Org-home stand-in via the packaged fixture (AGENTS.md: reuse
+ *  test/fixtures/orgHome.ts instead of ad-hoc mkdtemp scaffolds). */
+function tempDir(_prefix?: string): string {
+  const home = makeOrgHome({});
+  CLEANUPS.push(home.cleanup);
+  return home.root;
 }
 
 // Experiment: review_cycles must DECREASE by >= 20%; merge_success must not
@@ -144,6 +144,16 @@ describe("computeEvalResult — the four verdict classes", () => {
       compute(trials).eval_id,
     );
   });
+
+  it("eval ids see content, not key insertion order (canonicalized hash)", () => {
+    // Two structurally identical trial sets built in different key order must
+    // dedup to ONE decision, or a re-run would refuse as a rival verdict.
+    const ordered = [pair(1, { a: 1, review_cycles: 2 }, { a: 1, review_cycles: 1 })];
+    const reversed = [
+      { pair: 1, control: { review_cycles: 2, a: 1 }, treatment: { review_cycles: 1, a: 1 } },
+    ];
+    expect(compute(ordered).eval_id).toBe(compute(reversed).eval_id);
+  });
 });
 
 describe("decideExperiment", () => {
@@ -184,6 +194,31 @@ describe("decideExperiment", () => {
   it("refuses a result for an experiment that was never declared", async () => {
     const orgHome = tempDir("operon-eval-org-");
     await expect(decideExperiment(orgHome, compute([]))).rejects.toThrow(/no experiment/);
+  });
+
+  it("an orphaned result file (crash between the two writes) blocks a rival verdict", async () => {
+    const orgHome = tempDir("operon-eval-org-");
+    await declareExperiment(makeExperiment(), { orgHome });
+    const first = compute([
+      pair(1, { review_cycles: 3, merge_success: 1, cost_usd: 11 }, { review_cycles: 1, merge_success: 1, cost_usd: 11 }),
+    ]);
+    // Simulate the crash window: the result file landed, the experiment flip
+    // did not — the experiment still reads "declared".
+    const { writeFileAtomic } = await import("../../src/org/learning/../atomic.js");
+    const { evalResultPath } = await import("../../src/org/learning/eval-result.js");
+    await writeFileAtomic(
+      evalResultPath(orgHome, first.eval_id),
+      JSON.stringify(first, null, 2) + "\n",
+    );
+
+    const rival = compute([
+      pair(1, { review_cycles: 3, merge_success: 1, cost_usd: 11 }, { review_cycles: 3, merge_success: 1, cost_usd: 11 }),
+    ]);
+    await expect(decideExperiment(orgHome, rival)).rejects.toThrow(/one experiment, one verdict/);
+    // Resuming with the SAME result completes the interrupted decide.
+    const resumed = await decideExperiment(orgHome, first);
+    expect(resumed.experiment.status).toBe("decided");
+    expect(resumed.experiment.result).toBe(first.eval_id);
   });
 });
 

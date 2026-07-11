@@ -28,10 +28,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { resolveOperonHomes, type OperonHomes } from "../org/home.js";
-import { createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
+import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
 import { projectCaptureEvents, type CaptureProjectionResult } from "../org/learning/capture.js";
 import {
   createEpisodeProjector,
+  readEpisodeRecord,
   readEpisodeRecords,
   type EpisodeProjector,
   type EpisodeRecord,
@@ -88,16 +89,18 @@ export async function cmdLearn(args: string[]): Promise<number> {
       return emit(stateHome, rest, appNames, appStages, projector);
     case "show": {
       const id = positional(rest, "learn show", "<event-id>");
-      await projectCaptureEvents({ stateHome, appStages });
-      await projector.project();
+      // exp_/eval_/int_ ids read single org-home records — the state-home
+      // projections cannot affect them, so don't pay a full runs/** scan.
+      if (!/^(exp|eval|int)_/.test(id)) {
+        await projectCaptureEvents({ stateHome, appStages });
+        await projector.project();
+      }
       return show(homes, id);
     }
-    case "fixture": {
-      const episodeId = positional(rest, "learn fixture", "<episode-id>");
-      await projectCaptureEvents({ stateHome, appStages });
-      await projector.project();
-      return fixture(homes, episodeId, rest);
-    }
+    case "fixture":
+      // The draft path refreshes the projections itself; --validate only
+      // touches one fixture file under the org home.
+      return fixture(homes, rest, appStages, projector);
     case "report": {
       const json = rest.includes("--json");
       const projection = await projectCaptureEvents({ stateHome, appStages });
@@ -558,39 +561,46 @@ function mintEventId(now: Date): string {
 async function show(homes: OperonHomes, id: string): Promise<number> {
   const stateHome = homes.stateHome;
 
-  // M3 record ids route to the committed org home's learning stores.
-  if (id.startsWith("exp_")) {
-    const experiment = await readExperimentRecord(homes.orgHome, id);
-    console.log(JSON.stringify(experiment, null, 2));
-    console.log("");
-    console.log(
-      experiment.status === "decided"
-        ? `disposition: decided by ${experiment.result} — trace it with: operon learn show ${experiment.result}`
-        : `disposition: ${experiment.status} — no results yet (declared-before-results, design §9.1)`,
-    );
-    return 0;
-  }
-  if (id.startsWith("eval_")) {
-    const result = await readEvalResult(homes.orgHome, id);
-    console.log(JSON.stringify(result, null, 2));
-    console.log("");
-    console.log(
-      `disposition: verdict ${result.verdict} for ${result.experiment_ref} ` +
-        `(grader ${result.grader.kind}: ${result.grader.ref})`,
-    );
-    return 0;
-  }
-  if (id.startsWith("int_")) {
-    const intervention = await readInterventionRecord(homes.orgHome, id);
-    console.log(JSON.stringify(intervention, null, 2));
-    console.log("");
-    const gaps = interventionChainGaps(intervention);
-    console.log(
-      `disposition: ${intervention.status} ${intervention.destination}` +
-        (intervention.activation !== null ? `; claim ${claimLabel(intervention.activation.claim)}` : "") +
-        (gaps.length > 0 ? `; chain INCOMPLETE — missing ${gaps.join(", ")}` : "; chain complete"),
-    );
-    return 0;
+  // M3 record ids route to the committed org home's learning stores. A
+  // missing record is the same class of user mistake as an unknown event id:
+  // guidance on stderr and exit 1, not a stack trace.
+  if (/^(exp|eval|int)_/.test(id)) {
+    try {
+      if (id.startsWith("exp_")) {
+        const experiment = await readExperimentRecord(homes.orgHome, id);
+        console.log(JSON.stringify(experiment, null, 2));
+        console.log("");
+        console.log(
+          experiment.status === "decided"
+            ? `disposition: decided by ${experiment.result} — trace it with: operon learn show ${experiment.result}`
+            : `disposition: ${experiment.status} — no results yet (declared-before-results, design §9.1)`,
+        );
+      } else if (id.startsWith("eval_")) {
+        const result = await readEvalResult(homes.orgHome, id);
+        console.log(JSON.stringify(result, null, 2));
+        console.log("");
+        console.log(
+          `disposition: verdict ${result.verdict} for ${result.experiment_ref} ` +
+            `(grader ${result.grader.kind}: ${result.grader.ref})`,
+        );
+      } else {
+        const intervention = await readInterventionRecord(homes.orgHome, id);
+        console.log(JSON.stringify(intervention, null, 2));
+        console.log("");
+        const gaps = interventionChainGaps(intervention);
+        console.log(
+          `disposition: ${intervention.status} ${intervention.destination}` +
+            (intervention.activation !== null
+              ? `; claim ${claimLabel(intervention.activation.claim)}`
+              : "") +
+            (gaps.length > 0 ? `; chain INCOMPLETE — missing ${gaps.join(", ")}` : "; chain complete"),
+        );
+      }
+      return 0;
+    } catch (error) {
+      console.error((error as Error).message);
+      return 1;
+    }
   }
 
   const events = await readLearningEvents(stateHome);
@@ -625,27 +635,42 @@ function claimLabel(claim: "authorized" | "validated"): string {
 // fixture — capsule -> sanitized eval fixture (draft), then independent trust
 // ---------------------------------------------------------------------------
 
-async function fixture(homes: OperonHomes, episodeId: string, args: string[]): Promise<number> {
+async function fixture(
+  homes: OperonHomes,
+  args: string[],
+  appStages: Record<string, string>,
+  projector: EpisodeProjector,
+): Promise<number> {
+  // One positional (the episode id, consumed by POSITION so a flag value may
+  // legally equal it) plus flags in any order.
+  let episodeId: string | undefined;
   let set: string | undefined;
   let by: string | undefined;
   let validate = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg === episodeId) continue;
-    else if (arg === "--set") set = needValue(args, ++i, arg);
+    if (arg === "--set") set = needValue(args, ++i, arg);
     else if (arg === "--by") by = needValue(args, ++i, arg);
     else if (arg === "--validate") validate = true;
+    else if (!arg.startsWith("--") && episodeId === undefined) episodeId = arg;
     else throw new Error(`learn fixture: unknown argument "${arg}"`);
   }
+  if (episodeId === undefined) throw new Error("learn fixture: <episode-id> is required");
   if (set === undefined) {
     throw new Error("learn fixture: --set <scope>/<set-name> is required (e.g. roles/builder/standard-tickets)");
   }
-  const capsuleId = `replay_${episodeId.replace(/^ep_/, "")}`;
+  if (by === undefined) {
+    // Both acts are identity-bearing: the independence check pivots on who
+    // drafted, so an anonymous default drafter would let one human play both
+    // actors (draft as the default, validate as themselves).
+    throw new Error(
+      `learn fixture: --by <name> is required — ${validate ? "validation" : "drafting"} records who acted, ` +
+        "and the drafter/validator independence check depends on it",
+    );
+  }
+  const capsuleId = capsuleIdFor(episodeId);
 
   if (validate) {
-    if (by === undefined) {
-      throw new Error("learn fixture: --validate requires --by <name> — validation records who checked");
-    }
     const trusted = await trustEvalFixture({
       orgHome: homes.orgHome,
       set,
@@ -658,25 +683,33 @@ async function fixture(homes: OperonHomes, episodeId: string, args: string[]): P
   }
 
   // Draft path: make sure the capsule reflects the current projection first.
-  const record = (await readEpisodeRecords(homes.stateHome)).find(
-    (candidate) => candidate.episode_id === episodeId,
-  );
-  if (record === undefined) {
-    console.error(`learn: no projected record for ${episodeId} — operon learn report lists episodes`);
+  await projectCaptureEvents({ stateHome: homes.stateHome, appStages });
+  await projector.project();
+  let record: EpisodeRecord;
+  try {
+    record = await readEpisodeRecord(homes.stateHome, episodeId);
+  } catch (error) {
+    console.error((error as Error).message);
     return 1;
   }
-  await assembleCapsule(homes, record);
+  const { fingerprintFailure } = await assembleCapsule(homes, record);
 
   const converted = await convertCapsuleToEvalFixture({
     orgHome: homes.orgHome,
     stateHome: homes.stateHome,
     capsuleId,
     set,
-    draftedBy: by ?? "human-operator",
+    draftedBy: by,
   });
   console.log(`drafted ${converted.fixture.fixture_id} (by ${converted.fixture.drafted_by})`);
   console.log(`  ${converted.path}`);
-  console.log(`  secrets scrubbed: ${converted.redactions} replacement(s)`);
+  console.log(`  secrets scrubbed: ${converted.redactions} match(es) redacted`);
+  if (fingerprintFailure !== undefined) {
+    // A trust gap the validate step cannot fix — name the cause so the
+    // operator re-drafts after repairing it instead of trusting a fixture
+    // that can never reach trusted replayability.
+    console.log(`  fingerprint not computed: ${fingerprintFailure}`);
+  }
   if (converted.trust_gaps.length > 0) {
     console.log(`  not yet trusted — missing: ${converted.trust_gaps.join(", ")}`);
     console.log(
@@ -696,11 +729,23 @@ async function report(
   json: boolean,
 ): Promise<number> {
   const stateHome = homes.stateHome;
-  const events = await readLearningEvents(stateHome);
-  const records = await readEpisodeRecords(stateHome);
-  const experiments = await listExperimentRecords(homes.orgHome);
-  const evalResults = await listEvalResults(homes.orgHome);
-  const interventions = await listInterventionRecords(homes.orgHome);
+  // One corrupt governance file (hand edit, merge conflict) must not take
+  // the whole human window down: each org-home store degrades to an error
+  // line, loudly, while the capture/episode report still renders — the same
+  // shape loadBundle uses for a malformed memory doc.
+  const storeErrors: string[] = [];
+  const guarded = async <T>(read: Promise<T[]>): Promise<T[]> =>
+    read.catch((error: Error) => {
+      storeErrors.push(error.message);
+      return [];
+    });
+  const [events, records, experiments, evalResults, interventions] = await Promise.all([
+    readLearningEvents(stateHome),
+    readEpisodeRecords(stateHome),
+    guarded(listExperimentRecords(homes.orgHome)),
+    guarded(listEvalResults(homes.orgHome)),
+    guarded(listInterventionRecords(homes.orgHome)),
+  ]);
   const evalById = new Map(evalResults.map((result) => [result.eval_id, result]));
   const byType = count(events.map((event) => event.type));
   const byApp = count(events.map((event) => event.app));
@@ -760,7 +805,7 @@ async function report(
             treatment: experiment.treatment.fingerprint_ref,
             result: experiment.result,
             ...(experiment.result !== null
-              ? { verdict: evalById.get(experiment.result)?.verdict ?? "unknown" }
+              ? { verdict: verdictFor(experiment, evalById) }
               : {}),
           })),
           interventions: interventions.map((intervention) => ({
@@ -773,6 +818,7 @@ async function report(
               : {}),
             chain_gaps: interventionChainGaps(intervention),
           })),
+          ...(storeErrors.length > 0 ? { store_errors: storeErrors } : {}),
         },
         null,
         2,
@@ -820,7 +866,11 @@ async function report(
   if (experiments.length > 0) {
     lines.push("", `Experiments: ${experiments.length}`);
     for (const experiment of experiments) {
-      lines.push(`  ${experiment.experiment_id} — ${experiment.unit}, ${experiment.status}${verdictSuffix(experiment, evalById)}`);
+      const suffix =
+        experiment.result !== null
+          ? ` → ${experiment.result} (${verdictFor(experiment, evalById)})`
+          : "";
+      lines.push(`  ${experiment.experiment_id} — ${experiment.unit}, ${experiment.status}${suffix}`);
       lines.push(`    control ${experiment.control.fingerprint_ref} vs treatment ${experiment.treatment.fingerprint_ref}`);
     }
   }
@@ -837,17 +887,19 @@ async function report(
       );
     }
   }
+  if (storeErrors.length > 0) {
+    lines.push("", "STORE ERRORS (records excluded from this report until fixed):");
+    for (const message of storeErrors) lines.push(`  ${message}`);
+  }
   console.log(lines.join("\n"));
   return 0;
 }
 
-function verdictSuffix(
-  experiment: ExperimentRecord,
-  evalById: Map<string, EvalResult>,
-): string {
-  if (experiment.result === null) return "";
-  const verdict = evalById.get(experiment.result)?.verdict ?? "verdict unknown";
-  return ` → ${experiment.result} (${verdict})`;
+/** One spelling for a dangling result ref in both report modes. */
+function verdictFor(experiment: ExperimentRecord, evalById: Map<string, EvalResult>): string {
+  return experiment.result !== null
+    ? (evalById.get(experiment.result)?.verdict ?? "verdict unknown")
+    : "verdict unknown";
 }
 
 // ---------------------------------------------------------------------------

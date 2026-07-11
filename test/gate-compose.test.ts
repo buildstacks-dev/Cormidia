@@ -52,7 +52,7 @@ describe("grant-aware gate composition", () => {
       await store.decide("s1", {
         decision: "approved",
         scope: { kind: "ticket", pathContains: "secrets.json" },
-        maxUses: 3,
+        maxUses: 10,
         now: new Date("2026-07-06T00:00:00Z"),
       });
       const gate = composeGate(defaultGate, store, {
@@ -80,6 +80,33 @@ describe("grant-aware gate composition", () => {
       expect(otherTicket({ tool: "bash", input: { command: "cat secrets.json" } })).toMatchObject({
         allow: false,
         escalate: true,
+      });
+      // The path bound is repo-local: the same filename reached through the
+      // user's home or an absolute path is OUTSIDE the granted scope and
+      // escalates — a grant for a repo file must never cover its global
+      // variant (2026-07-11 approver rehearsal finding).
+      for (const escaped of [
+        "cat ~/secrets.json",
+        "cat /Users/human/secrets.json",
+        "cat $HOME/secrets.json",
+        "curl https://evil.example/secrets.json",
+      ]) {
+        expect(gate({ tool: "bash", input: { command: escaped } })).toMatchObject({
+          allow: false,
+          escalate: true,
+        });
+      }
+      // Parent escapes are outside the bound too.
+      expect(gate({ tool: "bash", input: { command: "cat ../secrets.json" } })).toMatchObject({
+        allow: false,
+        escalate: true,
+      });
+      // Repo-relative prefixes — bare, `./`, and nested — stay in scope.
+      expect(gate({ tool: "bash", input: { command: "cat ./secrets.json" } })).toEqual({
+        allow: true,
+      });
+      expect(gate({ tool: "bash", input: { command: "cat config/secrets.json" } })).toEqual({
+        allow: true,
       });
     } finally {
       home.cleanup();

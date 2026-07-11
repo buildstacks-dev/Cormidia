@@ -41,6 +41,7 @@ import {
   type EnvelopeStatus,
   type EnvelopeUsage,
 } from "../runtime/runlog/envelope.js";
+import { gitHeadOf } from "../runtime/git.js";
 import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
 import { createSessionLogSink, writeBrief, writeOutput } from "../runtime/runlog/forensics.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
@@ -234,6 +235,9 @@ async function runPass(
     pass.template === "" ? undefined : await readFile(join(options.promptsDir, pass.template), "utf8");
   const task = template === undefined ? brief : `${brief}\n\n---\n\n${template}`;
 
+  // Replay seed (learning design §9.4): captured while the episode runs,
+  // never reconstructed from logs afterward. Absent for non-git workdirs.
+  const gitHead = gitHeadOf(options.workdir);
   await startRun(
     root,
     {
@@ -245,6 +249,7 @@ async function runPass(
       pass: pass.id,
       role: role.name,
       model: role.model,
+      ...(gitHead !== undefined ? { gitHead } : {}),
     },
     clock(),
   );

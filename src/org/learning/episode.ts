@@ -245,14 +245,7 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
     },
 
     async get(episodeId: string): Promise<EpisodeRecord> {
-      const path = episodePath(stateHome, episodeId);
-      if (!existsSync(path)) {
-        throw new Error(
-          `learning: no projected record for ${episodeId} — run a projection first ` +
-            `(operon learn report) or check the id (operon learn report lists known episodes)`,
-        );
-      }
-      return JSON.parse(await readFile(path, "utf8")) as EpisodeRecord;
+      return readEpisodeRecord(stateHome, episodeId);
     },
 
     async recordLateOutcome(
@@ -806,6 +799,22 @@ async function emitLifecycleEvents(
     }
   }
   await appendLearningEventsDeduped(stateHome, events);
+}
+
+/** One projected record by id; throws with a pointer when it was never
+ *  projected. The capsule builder and CLI read through this. */
+export async function readEpisodeRecord(
+  stateHome: string,
+  episodeId: string,
+): Promise<EpisodeRecord> {
+  const path = episodePath(stateHome, episodeId);
+  if (!existsSync(path)) {
+    throw new Error(
+      `learning: no projected record for ${episodeId} — run a projection first ` +
+        `(operon learn report) or check the id (operon learn report lists known episodes)`,
+    );
+  }
+  return JSON.parse(await readFile(path, "utf8")) as EpisodeRecord;
 }
 
 /** Every projected episode record, sorted by episode id — the read side for

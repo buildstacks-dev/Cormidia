@@ -55,6 +55,9 @@ export interface RunEnvelope {
   pass: string;
   role: string;
   model?: string;
+  /** Workdir HEAD at pass start — the replay seed commit (learning-loop
+   *  spec §7). Absent for non-git workdirs and pre-M2b runs. */
+  git_head?: string;
   status: EnvelopeStatus;
   started_at: string;
   finished_at?: string;
@@ -90,6 +93,10 @@ export interface StartRunMeta {
   pass: string;
   role: string;
   model?: string;
+  /** Workdir HEAD at pass start — the replay seed (learning-loop design
+   *  §9.4: capture for replay while the episode runs, never reconstruct
+   *  afterward). Absent when the workdir is not a git checkout. */
+  gitHead?: string;
 }
 
 /** Everything updateEnvelope may patch mid-run. Provided keys replace;
@@ -128,6 +135,7 @@ export async function startRun(
     pass: meta.pass,
     role: meta.role,
     ...(meta.model !== undefined ? { model: meta.model } : {}),
+    ...(meta.gitHead !== undefined ? { git_head: meta.gitHead } : {}),
     status: "running",
     started_at: now.toISOString(),
     refs: {

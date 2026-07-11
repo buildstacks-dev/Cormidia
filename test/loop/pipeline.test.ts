@@ -5,7 +5,8 @@
 // Uses FakeRuntime, FakeClock, local prompt fixtures, and temp runlogs; no
 // network, auth, real org state, or live wall clock is required.
 
-import { existsSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { executePipeline, type ExecutePipelineOptions } from "../../src/loop/pipeline.js";
@@ -401,6 +402,43 @@ describe("executePipeline", () => {
       }
     } finally {
       h.cleanup();
+    }
+  });
+
+  it("stamps the workdir's git HEAD into the envelope as the replay seed; non-git workdirs stay absent", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const seeded = makeHarness(build, [scripted("done")], { selection: { tier: "quick" } });
+    try {
+      const workdir = `${seeded.options.runlog.root}/checkout`;
+      mkdirSync(workdir, { recursive: true });
+      writeFileSync(`${workdir}/README.md`, "seed\n");
+      execSync(
+        "git init -q && git -c user.email=t@t -c user.name=t add -A && " +
+          "git -c user.email=t@t -c user.name=t commit -qm seed",
+        { cwd: workdir },
+      );
+      const result = await executePipeline({ ...seeded.options, workdir });
+      const envelope = await readEnvelope(
+        seeded.options.runlog.root,
+        "civic",
+        result.passes[0]!.runId,
+      );
+      expect(envelope.git_head).toMatch(/^[0-9a-f]{40}$/);
+    } finally {
+      seeded.cleanup();
+    }
+
+    const bare = makeHarness(build, [scripted("done")], { selection: { tier: "quick" } });
+    try {
+      const result = await executePipeline(bare.options); // workdir /tmp/workdir — not a repo
+      const envelope = await readEnvelope(
+        bare.options.runlog.root,
+        "civic",
+        result.passes[0]!.runId,
+      );
+      expect(envelope.git_head).toBeUndefined();
+    } finally {
+      bare.cleanup();
     }
   });
 

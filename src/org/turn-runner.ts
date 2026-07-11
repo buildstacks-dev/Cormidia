@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
-import { recordTurn, toRecord } from "../runtime/telemetry.js";
+import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
 import type { ContextBundle, RoleConfig, Runtime, Trigger, TurnHooks, TurnResult, TurnUsage } from "../runtime/types.js";
 import { loadGateCommands, runLoopOnce } from "../loop/driver.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
@@ -102,6 +102,13 @@ export async function runDispatchedTurn(
 
     const route = resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
 
+    // Every executor-routed provider turn settles its own ledger row per pass
+    // (Defect B); the dispatcher's turn row below is a lifecycle record only.
+    const telemetry = {
+      orgDir: runtimeHome,
+      ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind as TriggerKind } : {}),
+    };
+
     let result: TurnResult;
     if (route.kind === "build-loop") {
       result = await runBuilderTicketTurn({
@@ -111,6 +118,7 @@ export async function runDispatchedTurn(
         localRepo,
         context,
         hooks,
+        telemetry,
       });
     } else if (route.kind === "pipeline") {
       result = await runProtocolPipelineTurn({
@@ -122,6 +130,7 @@ export async function runDispatchedTurn(
         hooks,
         journal,
         pipelineName: route.pipeline,
+        telemetry,
       });
     } else if (route.kind === "review-loop") {
       result = zeroResult(
@@ -141,6 +150,7 @@ export async function runDispatchedTurn(
         hooks,
         context,
         clock,
+        telemetry,
       });
       result = generic.record?.result ?? zeroResult("completed", "role turn completed", options.role);
     }
@@ -154,13 +164,19 @@ export async function runDispatchedTurn(
         .filter((item) => item.turnId === options.turnId)
         .map((item) => item.id),
     });
-    await recordTurn(
-      runtimeHome,
-      toRecord(options.role, result, clock(), {
-        app: options.app.name,
-        ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind } : {}),
-      }),
-    );
+    // Executor-routed turns settled per pass already; a second turn-level row
+    // would double-count cost and escalations and inflate retro/scorecard turn
+    // counts (each pass IS a provider turn). Only the review-loop route runs
+    // no passes, so only it still records its (zero-usage) turn row here.
+    if (route.kind === "review-loop") {
+      await recordTurn(
+        runtimeHome,
+        toRecord(options.role, result, clock(), {
+          app: options.app.name,
+          ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind } : {}),
+        }),
+      );
+    }
     await writeJournalPatch(runtimeHome, options.turnId, {
       role: options.role.name,
       app: options.app.name,
@@ -202,6 +218,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   hooks: TurnHooks;
   journal: TurnJournal;
   pipelineName: string;
+  telemetry: { orgDir: string; trigger?: TriggerKind };
 }): Promise<TurnResult> {
   const rolesFile = await import("./roles.js").then((m) => m.loadRoles(join(options.orgRoot, "roles.yaml")));
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
@@ -268,6 +285,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
       traceId: options.turnId,
     },
     ...(options.now !== undefined ? { clock: options.now } : {}),
+    telemetry: options.telemetry,
     afterPass: (record) => {
       priorOutputs.set(record.pass.id, record.result.summary);
     },
@@ -282,6 +300,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   localRepo: string;
   context: ContextBundle;
   hooks: TurnHooks;
+  telemetry: { orgDir: string; trigger?: TriggerKind };
 }): Promise<TurnResult> {
   const rolesFile = await import("./roles.js").then((m) => m.loadRoles(join(options.orgRoot, "roles.yaml")));
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
@@ -309,6 +328,18 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       runlogRoot: options.runtimeHome,
       hooks: options.hooks,
       context: options.context,
+      telemetry: options.telemetry,
+      budgetGuard: async () => {
+        const rows = await rollupBudgets(options.runtimeHome, options.appsFile, options.now?.() ?? new Date());
+        const row = rows.find((r) => r.app === options.app.name);
+        if (row !== undefined && row.status === "exceeded") {
+          return {
+            allowed: false,
+            reason: `${row.app} spent $${row.spentUsd.toFixed(2)} of $${row.budgetUsd.toFixed(2)} this month`,
+          };
+        }
+        return { allowed: true };
+      },
       ...(options.now !== undefined ? { clock: options.now } : {}),
     },
   });
@@ -324,6 +355,15 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
         value: event.value,
       },
       options.now?.() ?? new Date(),
+    );
+  }
+  if (result.budgetRefusal !== undefined) {
+    // The tick never claimed — say so. "completed / no-ready-ticket" would
+    // hide an exhausted cap behind an idle-looking turn.
+    return zeroResult(
+      "blocked_on_gate",
+      `builder ticket turn refused by budget preflight: ${result.budgetRefusal}`,
+      options.role,
     );
   }
   const phase = result.items[0]?.phase;

@@ -4,10 +4,17 @@
 // makeOrgHome supplies a disposable telemetry directory and timestamps are
 // explicit; no network, auth, real org state, or live clock is required.
 
-import { readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { recordTurn, toRecord } from "../src/runtime/telemetry.js";
+import {
+  readSettledKeys,
+  recordInvocation,
+  recordTurn,
+  recordTurnOnce,
+  settlementKey,
+  toRecord,
+} from "../src/runtime/telemetry.js";
 import type { RoleConfig, TurnResult } from "../src/runtime/types.js";
 import { makeOrgHome, type OrgHomeFixture } from "./fixtures/orgHome.js";
 
@@ -104,6 +111,112 @@ describe("toRecord attribution (M3.2)", () => {
 
     expect(record.trigger).toBe("schedule");
     expect("app" in record).toBe(false);
+  });
+});
+
+describe("pass settlement (Stage 1 — Defect B)", () => {
+  let home: OrgHomeFixture;
+  afterEach(() => home?.cleanup());
+
+  it("toRecord carries run-log correlation, costEstimated, and unmeasured", () => {
+    const record = toRecord(
+      ROLE,
+      { ...RESULT, usage: { ...RESULT.usage, costEstimated: true } },
+      AT,
+      {
+        app: "buildstacks.dev",
+        trigger: "manual",
+        runId: "20260706-093000-build-implement",
+        traceId: "turn-9",
+        pipeline: "build",
+        pass: "implement",
+      },
+    );
+
+    expect(record).toMatchObject({
+      runId: "20260706-093000-build-implement",
+      traceId: "turn-9",
+      pipeline: "build",
+      pass: "implement",
+      costEstimated: true,
+    });
+    // Absent correlation stays off the wire (back-compat with old readers).
+    const bare = JSON.stringify(toRecord(ROLE, RESULT, AT));
+    expect(bare).not.toContain('"runId"');
+    expect(bare).not.toContain('"costEstimated"');
+    expect(bare).not.toContain('"unmeasured"');
+  });
+
+  it("recordTurnOnce appends the first time and skips the duplicate", async () => {
+    home = makeOrgHome();
+    const record = toRecord(ROLE, RESULT, AT, { app: "a", runId: "20260706-093000-build-implement" });
+
+    expect(await recordTurnOnce(home.root, record)).toBe(true);
+    expect(await recordTurnOnce(home.root, record)).toBe(false);
+
+    const raw = await readFile(join(home.root, "telemetry", "2026-07-06.jsonl"), "utf8");
+    expect(raw.trimEnd().split("\n")).toHaveLength(1);
+  });
+
+  it("settlement is app-scoped: two apps sharing a second-granular runId both settle", async () => {
+    home = makeOrgHome();
+    // mintRunId is YYYYMMDD-HHMMSS-<pipeline>-<pass>; two apps running the
+    // packaged build/implement pass in the same UTC second collide on runId.
+    const runId = "20260706-093000-build-implement";
+    expect(await recordTurnOnce(home.root, toRecord(ROLE, RESULT, AT, { app: "alpha", runId }))).toBe(true);
+    expect(await recordTurnOnce(home.root, toRecord(ROLE, RESULT, AT, { app: "beta", runId }))).toBe(true);
+    expect(await recordTurnOnce(home.root, toRecord(ROLE, RESULT, AT, { app: "beta", runId }))).toBe(false);
+
+    const raw = await readFile(join(home.root, "telemetry", "2026-07-06.jsonl"), "utf8");
+    expect(raw.trimEnd().split("\n")).toHaveLength(2);
+  });
+
+  it("recordTurnOnce requires a runId — idempotency has no key without one", async () => {
+    home = makeOrgHome();
+    await expect(recordTurnOnce(home.root, toRecord(ROLE, RESULT, AT))).rejects.toThrow(/runId/);
+  });
+
+  it("readSettledKeys sees keys across day files and tolerates torn lines", async () => {
+    home = makeOrgHome();
+    await recordTurn(home.root, toRecord(ROLE, RESULT, AT, { app: "a", runId: "run-day-one" }));
+    await recordTurn(
+      home.root,
+      toRecord(ROLE, RESULT, new Date("2026-07-07T08:00:00Z"), { app: "a", runId: "run-day-two" }),
+    );
+    await appendFile(join(home.root, "telemetry", "2026-07-07.jsonl"), '{"at":"2026-07-07T09', "utf8");
+
+    const keys = await readSettledKeys(home.root);
+    expect(keys.has(settlementKey("a", "run-day-one"))).toBe(true);
+    expect(keys.has(settlementKey("a", "run-day-two"))).toBe(true);
+    expect(keys.has(settlementKey("b", "run-day-one"))).toBe(false);
+  });
+});
+
+describe("recordInvocation (telemetry doc §6)", () => {
+  let home: OrgHomeFixture;
+  afterEach(() => home?.cleanup());
+
+  it("writes one row per orchestrator invocation into its own directory", async () => {
+    home = makeOrgHome();
+    await mkdir(join(home.root, "telemetry"), { recursive: true });
+    await recordInvocation(home.root, {
+      at: "2026-07-10T12:00:00.000Z",
+      kind: "loop",
+      app: "buildstacks.dev",
+      itemsClaimed: 1,
+      outcome: "#2=merged",
+      wallClockMs: 120_000,
+    });
+
+    const raw = await readFile(join(home.root, "invocations", "2026-07-10.jsonl"), "utf8");
+    const rows = raw.trimEnd().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: "loop", app: "buildstacks.dev", itemsClaimed: 1 });
+    // The invocation ledger must never leak into TurnRecord readers: nothing
+    // is written under telemetry/.
+    const telemetryDir = join(home.root, "telemetry");
+    const { readdir } = await import("node:fs/promises");
+    expect((await readdir(telemetryDir)).filter((f) => f.includes("invocation"))).toEqual([]);
   });
 });
 

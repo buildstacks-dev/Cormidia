@@ -54,6 +54,28 @@ describe("envelope lifecycle", () => {
       });
     }));
 
+  it("finalize drops the session_log ref when the sink never wrote the file", () =>
+    withHome(async (root) => {
+      await startRun(root, META, T0);
+      await finalizeRun(root, "civic", RUN_ID, { status: "completed" }, T0);
+
+      const env = await readEnvelope(root, "civic", RUN_ID);
+      // A ref is a promise (telemetry doc Defect C): a terminal envelope must
+      // never reference a file that does not exist.
+      expect(env.refs).toEqual({ events: "events.jsonl", brief: "brief.md", output: "output.md" });
+      expect(JSON.stringify(env)).not.toContain("session_log");
+    }));
+
+  it("finalize keeps the session_log ref when the file exists", () =>
+    withHome(async (root) => {
+      await startRun(root, META, T0);
+      writeFileSync(runPaths(root, "civic", RUN_ID).sessionLog, "[tool_use] bash\n", "utf8");
+      await finalizeRun(root, "civic", RUN_ID, { status: "completed" }, T0);
+
+      const env = await readEnvelope(root, "civic", RUN_ID);
+      expect(env.refs.session_log).toBe("session.log");
+    }));
+
   it("update merges without clobbering earlier patches", () =>
     withHome(async (root) => {
       await startRun(root, META, T0);

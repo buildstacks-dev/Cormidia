@@ -22,6 +22,7 @@ import { cmdPruneRuns } from "./cli/prune-runs.js";
 import { cmdRetro } from "./cli/retro.js";
 import { cmdRunRole } from "./cli/run-role.js";
 import { cmdStatus } from "./cli/status.js";
+import { cmdTelemetry } from "./cli/telemetry.js";
 import { cmdOrg } from "./cli/org.js";
 import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.js";
 
@@ -61,6 +62,8 @@ Usage:
                            show recent L1/L2 run status
   operon analyze [--state-home <path>] [--app <app>]
                            report L1/L2 anomaly flags and recommendations
+  operon telemetry [--app <app>] [--date YYYY-MM-DD] [--json] [--html <path>]
+                           historical pass/trace/cost view over run records
   operon dispatch [--state-home <path>] [--dry-run]
                            run one autonomous scheduler tick
   operon prune-runs [root] [--retention-days N]
@@ -92,9 +95,10 @@ const HELP = {
   loop: `Usage: operon loop --app <app-name> [--once|--follow] [--dry-run] [--allow-network] [--repo-dir <local-path>]${HOME_HELP}`,
   doctor: `Usage: operon doctor [--json]${HOME_HELP}`,
   approvals: `Usage: operon approvals [list|review|show <id>] [--state-home <path>] [--now <ISO-time>]${HOME_HELP}`,
-  budget: `Usage: operon budget [--apps <apps.yaml-path>]${HOME_HELP}`,
+  budget: `Usage: operon budget [--apps <apps.yaml-path>] [--reconcile]${HOME_HELP}\n\n--reconcile back-fills the org ledger from runs/**/envelope.json (idempotent, keyed on app+run_id) so historical loop passes reach budget, retro, and scorecards. Caveat: dispatched turns recorded before per-pass settlement wrote aggregate turn rows without run ids; reconciling such a ledger can count that older window twice.`,
   status: `Usage: operon status [--app <app-name>] [--limit N]${HOME_HELP}`,
   analyze: `Usage: operon analyze [--app <app-name>]${HOME_HELP}`,
+  telemetry: `Usage: operon telemetry [--app <app-name>] [--date YYYY-MM-DD] [--json] [--html <path>]${HOME_HELP}\n\nHistorical view over runs/**/envelope.json: per-ticket trace blocks, role/model/ticket cost totals, and still-running passes. --html writes a self-contained static report (Gantt + pass table + cost attribution).`,
   dispatch: `Usage: operon dispatch [--dry-run] [--apps <path>] [--roles <path>]${HOME_HELP}`,
   "prune-runs": `Usage: operon prune-runs [state-home-path] [--retention-days N]${HOME_HELP}`,
   retro: `Usage: operon retro [--date YYYY-MM-DD] [--apps <path>] [--roles <path>]${HOME_HELP}`,
@@ -123,6 +127,7 @@ const COMMANDS: Record<string, CliCommand> = {
   "new-app": { run: (args) => cmdNewApp(args), help: HELP["new-app"] },
   "run-role": { run: (args) => cmdRunRole(args), help: HELP["run-role"] },
   status: { run: (args) => cmdStatus(args), help: HELP.status },
+  telemetry: { run: (args) => cmdTelemetry(args), help: HELP.telemetry },
 };
 
 async function main(): Promise<number> {

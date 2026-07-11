@@ -13,6 +13,7 @@
 // calls Date.now(). Writes go through tmp+rename so a reader never sees a
 // half-written envelope.
 
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { runPaths } from "./paths.js";
 import { scrubSecrets, truncatePreview } from "./redact.js";
@@ -68,8 +69,12 @@ export interface RunEnvelope {
   previews?: Record<string, string>;
   /** Machine error code on infra failures (§9 infra-vs-merit). */
   error_code?: string;
-  /** REFERENCES to the L3/L2 siblings, relative to the run dir. */
-  refs: { events: string; brief: string; output: string; session_log: string };
+  /** REFERENCES to the L3/L2 siblings, relative to the run dir. A ref is a
+   *  promise: `session_log` is declared while the run is live (the sink may
+   *  still produce it) and dropped at finalize when no file was written —
+   *  adapters that emit no TurnEvents leave nothing for the sink to append
+   *  (telemetry doc Defect C). */
+  refs: { events: string; brief: string; output: string; session_log?: string };
 }
 
 export interface StartRunMeta {
@@ -180,6 +185,11 @@ export async function finalizeRun(
     envelope.verdict_summary = truncatePreview(scrubSecrets(outcome.verdictSummary));
   }
   if (outcome.errorCode !== undefined) envelope.error_code = outcome.errorCode;
+  // Keep the session_log ref only when the sink actually produced the file —
+  // a terminal envelope must never reference a file that does not exist.
+  if (!existsSync(runPaths(root, app, runId).sessionLog)) {
+    delete envelope.refs.session_log;
+  }
 
   await writeEnvelope(runPaths(root, app, runId).envelope, envelope);
   return envelope;

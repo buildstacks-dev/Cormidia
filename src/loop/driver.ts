@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { parse } from "yaml";
 import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
+import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GhIssue, GhOps } from "./github.js";
 import { GhCliOps } from "./github.js";
 import {
@@ -72,12 +73,22 @@ export interface LoopEngineOptions {
   clock?: () => Date;
   /** Explicit network grant for runtime turns in this loop tick. */
   networkAccess?: boolean;
+  /** Per-pass ledger settlement target — see ExecutePipelineOptions.telemetry. */
+  telemetry?: { orgDir: string; trigger?: TriggerKind };
+  /** Budget preflight (telemetry doc Defect B item 3). Consulted before any
+   *  ticket is claimed; a refusal means the tick claims nothing and no pass
+   *  starts — tickets stay op:ready instead of stranding in op:building. The
+   *  org layer supplies the answer (loop code never reads org budget state —
+   *  one-way imports). */
+  budgetGuard?: () => Promise<{ allowed: boolean; reason?: string }>;
 }
 
 export interface LoopDriverResult {
   lines: string[];
   items: LoopItem[];
   scorecardEvents: ScorecardEvent[];
+  /** Set when budgetGuard refused the tick before any claim. */
+  budgetRefusal?: string;
 }
 
 export function planLoopTick(
@@ -109,6 +120,21 @@ export function planLoopTick(
 
 export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDriverResult> {
   const maxConcurrent = options.maxConcurrent ?? 1;
+  // Budget preflight before ANY claim: an exhausted app cap must stop work
+  // before a ticket leaves op:ready, not mid-turn (Stage 1 exit criterion —
+  // "a pass that would exceed the app cap does not start").
+  if (options.engine?.budgetGuard !== undefined && options.planOnly !== true) {
+    const verdict = await options.engine.budgetGuard();
+    if (!verdict.allowed) {
+      const reason = verdict.reason ?? "app budget exhausted";
+      return {
+        lines: [`budget preflight refused the tick: ${reason}`],
+        items: [],
+        scorecardEvents: [],
+        budgetRefusal: reason,
+      };
+    }
+  }
   const readyIssues = await options.gh.listIssues({
     labels: ["op:ready"],
     state: "open",
@@ -318,6 +344,7 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string) {
     ...(engine.context !== undefined ? { context: engine.context } : {}),
     ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
     ...(engine.networkAccess === true ? { networkAccess: true } : {}),
+    ...(engine.telemetry !== undefined ? { telemetry: engine.telemetry } : {}),
     ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
   };
 }

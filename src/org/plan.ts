@@ -232,6 +232,12 @@ export async function recordPlanTelemetry(options: {
   endedAt: Date;
 }): Promise<void> {
   const wallClockMs = Math.max(0, options.endedAt.getTime() - options.startedAt.getTime());
+  // The interactive session runs through the native CLI with inherited stdio:
+  // its tokens flow to the operator's terminal and never through Operon, so
+  // there is no usage to record. Zeros alone would silently sum into budget
+  // totals as if the session were free — mark the row `unmeasured` so readers
+  // report "cost unknown" instead of "cost zero" (telemetry doc Defect A; the
+  // real fix is the non-interactive runtime-backed planning mode, Stage 4).
   const result: TurnResult = {
     status: options.status,
     summary: "manual planner co-planning session",
@@ -242,6 +248,10 @@ export async function recordPlanTelemetry(options: {
   };
   await recordTurn(
     options.orgDir,
-    toRecord(options.role, result, options.endedAt, { app: options.app, trigger: "manual" }),
+    toRecord(options.role, result, options.endedAt, {
+      app: options.app,
+      trigger: "manual",
+      unmeasured: true,
+    }),
   );
 }

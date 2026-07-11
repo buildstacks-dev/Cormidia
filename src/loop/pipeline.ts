@@ -30,6 +30,11 @@ import type {
   TurnUsage,
 } from "../runtime/types.js";
 import {
+  recordTurnOnce,
+  toRecord,
+  type TriggerKind,
+} from "../runtime/telemetry.js";
+import {
   finalizeRun,
   startRun,
   updateEnvelope,
@@ -82,6 +87,13 @@ export interface ExecutePipelineOptions {
   verdictSchemaFor?: (pass: PassConfig) => Record<string, unknown> | undefined;
   /** Explicit per-turn network grant; omitted/false keeps the sandbox offline. */
   networkAccess?: boolean;
+  /** Ledger settlement target (telemetry doc Defect B). When present, every
+   *  pass settles its measured usage into `<orgDir>/telemetry/` exactly once,
+   *  keyed on its runId, at the moment the provider turn returns — regardless
+   *  of the pipeline's terminal status. Failed, blocked, and aborted passes
+   *  consume budget too. Callers that pass this MUST NOT sum pass usage into a
+   *  second turn-level ledger row. */
+  telemetry?: { orgDir: string; trigger?: TriggerKind };
   /** Runs after a pass completes and before the next sequential stage starts. */
   afterPass?: (record: PassRunRecord) => void | Promise<void>;
   /** Parse + record the pass's typed verdict, AFTER the turn and BEFORE the
@@ -264,6 +276,7 @@ async function runPass(
 
   // Verdict recording runs before finalize so an unparseable verdict finalizes
   // the pass as an infra failure, not a completed pass (§6, §13 row 11).
+  let settledUsage = result.usage;
   let verdictOutcome: VerdictRecordOutcome = { ok: true };
   if (options.recordVerdict !== undefined && result.status === "completed") {
     verdictOutcome = await options.recordVerdict({
@@ -282,8 +295,9 @@ async function runPass(
     // pass usage so analyze/status don't undercount it (the retry cost was
     // previously discarded).
     if (verdictOutcome.ok && verdictOutcome.extraUsage !== undefined) {
+      settledUsage = sumTurnUsage(result.usage, verdictOutcome.extraUsage);
       await updateEnvelope(root, app, runId, {
-        usage: toEnvelopeUsage(sumTurnUsage(result.usage, verdictOutcome.extraUsage)),
+        usage: toEnvelopeUsage(settledUsage),
       });
     }
   }
@@ -314,6 +328,40 @@ async function runPass(
     },
     clock(),
   );
+
+  // Settle the pass's measured spend into the org ledger exactly once, after
+  // the run record is durable and regardless of terminal status — a blocked or
+  // failed pass consumed budget too (Defect B). Idempotency is keyed on
+  // (app, runId). The settled status matches the envelope's: a verdict-infra
+  // failure is `failed` in both records, never completed-in-one-store.
+  if (options.telemetry !== undefined) {
+    const settled = await recordTurnOnce(
+      options.telemetry.orgDir,
+      toRecord(
+        role,
+        { ...result, status: verdictOutcome.ok ? result.status : "failed", usage: settledUsage },
+        clock(),
+        {
+          app,
+          ...(options.telemetry.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
+          runId,
+          traceId,
+          pipeline: options.pipeline.name,
+          pass: pass.id,
+        },
+      ),
+    );
+    if (!settled) {
+      // Something else already settled this (app, runId) — normally impossible
+      // (reconcile refuses in-flight envelopes). Loud, never silent: the
+      // dropped row means the ledger may carry a stale status for this pass.
+      await events.append({
+        type: "telemetry.settle_skipped",
+        severity: "warn",
+        detail: { runId, reason: "a ledger row with this app+runId already exists" },
+      });
+    }
+  }
 
   // The record is durable; NOW surface the loud typed failure to the caller.
   if (!verdictOutcome.ok) throw verdictOutcome.error;

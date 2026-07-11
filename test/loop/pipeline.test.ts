@@ -279,6 +279,56 @@ describe("executePipeline", () => {
     }
   });
 
+  it("settles one ledger row per pass, keyed on runId, when a telemetry target is set", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(build, [
+      scripted("contract out"),
+      scripted("implement out", "blocked_on_gate", { costUsd: 7.02, costEstimated: true }),
+    ]);
+    h.options.telemetry = { orgDir: h.options.runlog.root, trigger: "manual" };
+    try {
+      const run = await executePipeline(h.options);
+      // The second pass ended blocked — it consumed budget too (Defect B).
+      expect(run.aborted).toBe(true);
+
+      const raw = readFileSync(
+        `${h.options.runlog.root}/telemetry/2026-07-05.jsonl`,
+        "utf8",
+      );
+      const rows = raw.trimEnd().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
+      expect(rows).toHaveLength(2);
+      expect(rows.map((row) => row["runId"])).toEqual(run.passes.map((record) => record.runId));
+      expect(rows[0]).toMatchObject({
+        app: "civic",
+        trigger: "manual",
+        traceId: "turn-1",
+        pipeline: "build",
+        pass: "contract",
+        status: "completed",
+        costUsd: 0.01,
+      });
+      expect(rows[1]).toMatchObject({
+        pass: "implement",
+        status: "blocked_on_gate",
+        costUsd: 7.02,
+        costEstimated: true,
+      });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("settles nothing when no telemetry target is given (library callers opt in)", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(build, [scripted("contract"), scripted("implement")]);
+    try {
+      await executePipeline(h.options);
+      expect(existsSync(`${h.options.runlog.root}/telemetry`)).toBe(false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("every executed pass leaves a complete run record with matching runIds", async () => {
     const build = getPipeline(await loadFixture(), "build");
     const h = makeHarness(build, [

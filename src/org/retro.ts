@@ -178,7 +178,11 @@ async function readTelemetry(orgHome: string): Promise<TelemetryRecord[]> {
     const raw = await readFile(join(dir, file), "utf8");
     for (const line of raw.split("\n")) {
       if (line.trim() === "") continue;
-      rows.push(JSON.parse(line) as TelemetryRecord);
+      try {
+        rows.push(JSON.parse(line) as TelemetryRecord);
+      } catch {
+        // Torn trailing append — skip the line, never the retro.
+      }
     }
   }
   return rows;

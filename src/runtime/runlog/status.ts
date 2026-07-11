@@ -9,17 +9,27 @@ import type { RunEnvelope } from "./envelope.js";
 export interface StatusRow {
   runId: string;
   app: string;
+  /** Correlation ids the telemetry view groups on (envelope ticket/trace_id). */
+  ticket?: string;
+  traceId: string;
   pipeline: string;
   pass: string;
+  role: string;
+  model?: string;
   status: string;
   durationMs: number;
   tokensIn: number;
   tokensOut: number;
+  /** Cache-priced input tokens, when the adapter reported them (§9). */
+  cacheReadTokens?: number;
   costUsd: number;
   /** cost_usd is a local estimate (e.g. codex), not a provider-reported charge. */
   costEstimated: boolean;
   escalations: number;
   startedAt: string;
+  /** Truncated + scrubbed at write time (envelope.ts) — safe to display. */
+  verdictSummary?: string;
+  previews?: Record<string, string>;
 }
 
 export async function readStatusRows(
@@ -51,16 +61,25 @@ export async function readStatusRows(
       rows.push({
         runId,
         app,
+        ...(envelope.ticket !== undefined ? { ticket: envelope.ticket } : {}),
+        traceId: envelope.trace_id,
         pipeline: envelope.pipeline,
         pass: envelope.pass,
+        role: envelope.role,
+        ...(envelope.model !== undefined ? { model: envelope.model } : {}),
         status: statusLabel(envelope),
         durationMs: envelope.wall_clock_ms ?? 0,
         tokensIn: envelope.usage?.tokens_in ?? 0,
         tokensOut: envelope.usage?.tokens_out ?? 0,
+        ...(envelope.usage?.cache_read_tokens !== undefined
+          ? { cacheReadTokens: envelope.usage.cache_read_tokens }
+          : {}),
         costUsd: envelope.usage?.cost_usd ?? 0,
         costEstimated: envelope.usage?.cost_estimated === true,
         escalations: events.filter((event) => event.event === "escalation.raised").length,
         startedAt: envelope.started_at,
+        ...(envelope.verdict_summary !== undefined ? { verdictSummary: envelope.verdict_summary } : {}),
+        ...(envelope.previews !== undefined ? { previews: envelope.previews } : {}),
       });
     }
   }
@@ -95,7 +114,7 @@ function statusLabel(envelope: RunEnvelope): string {
   return envelope.status;
 }
 
-function formatDuration(ms: number): string {
+export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const seconds = Math.round(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
@@ -123,8 +142,10 @@ function unreadableRow(runId: string, app: string): StatusRow {
   return {
     runId,
     app,
+    traceId: "?",
     pipeline: "?",
     pass: "?",
+    role: "?",
     status: "corrupt(envelope)",
     durationMs: 0,
     tokensIn: 0,

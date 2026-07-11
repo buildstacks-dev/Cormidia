@@ -207,8 +207,25 @@ describe("dispatched turn runner", () => {
         phase: string;
       };
       expect(journal.phase).toBe("done");
+      // Stage 1 settlement model: the pass executor settles the provider turn
+      // (runId-keyed, real usage); the dispatcher writes NO second turn-level
+      // row for executor-routed turns — that row would double-count cost and
+      // inflate retro/scorecard turn counts.
       const telemetry = readFileSync(`${home.root}/telemetry/2026-07-06.jsonl`, "utf8");
-      expect(telemetry).toContain('"trigger":"schedule"');
+      const rows = telemetry
+        .trimEnd()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>)
+        .filter((row) => row["trigger"] !== undefined); // drop the seeded 90%-warning fixture row
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        trigger: "schedule",
+        app: "alpha",
+        pipeline: "groom",
+        pass: "groom",
+        costUsd: 0.03,
+      });
+      expect(typeof rows[0]!["runId"]).toBe("string");
     } finally {
       home.cleanup();
       pair.cleanup();

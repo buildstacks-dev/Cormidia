@@ -67,7 +67,22 @@ import {
   readInterventionRecord,
 } from "../org/learning/intervention.js";
 import { loadRoles } from "../org/roles.js";
+import { findCandidateArtifact } from "../org/learning/candidate-store.js";
+import { loadLearningPolicy } from "../org/learning/policy.js";
+import { readRejections } from "../org/learning/rejections.js";
+import { listReviewerVerdicts, readReviewerVerdict } from "../org/learning/review.js";
 import { extractHomeFlags } from "./home-flags.js";
+import {
+  activationReport,
+  learnDisable,
+  learningRoots,
+  learnProvisional,
+  learnPublish,
+  learnResolve,
+  learnReview,
+  learnRollback,
+  renderVerdictLine,
+} from "./learn-activation.js";
 
 export async function cmdLearn(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "learn");
@@ -89,9 +104,9 @@ export async function cmdLearn(args: string[]): Promise<number> {
       return emit(stateHome, rest, appNames, appStages, projector);
     case "show": {
       const id = positional(rest, "learn show", "<event-id>");
-      // exp_/eval_/int_ ids read single org-home records — the state-home
+      // exp_/eval_/int_/cand_ ids read org-home records — the state-home
       // projections cannot affect them, so don't pay a full runs/** scan.
-      if (!/^(exp|eval|int)_/.test(id)) {
+      if (!/^(exp|eval|int|cand)_/.test(id)) {
         await projectCaptureEvents({ stateHome, appStages });
         await projector.project();
       }
@@ -107,11 +122,26 @@ export async function cmdLearn(args: string[]): Promise<number> {
       await projector.project();
       return report(homes, projection, json);
     }
+    // M4 — the manual governed-activation surface (learn-activation.ts).
+    case "review":
+      return learnReview(homes, rest);
+    case "publish":
+      return learnPublish(homes, rest);
+    case "resolve":
+      return learnResolve(homes, rest);
+    case "disable":
+      return learnDisable(homes, rest);
+    case "rollback":
+      return learnRollback(homes, rest);
+    case "provisional":
+      return learnProvisional(homes, rest);
     default:
       throw new Error(
         'learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | ' +
           'show <event|experiment|eval|intervention-id> | ' +
-          'fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | report [--json]',
+          'fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | report [--json] | ' +
+          'review <candidate-id> | publish <candidate-id> | resolve --app <app> --role <role> | ' +
+          'disable <concept-id> | rollback --root org|app | provisional',
       );
   }
 }
@@ -603,15 +633,45 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
     }
   }
 
+  // Candidate ids trace review → publish/rejection disposition (M4).
+  if (id.startsWith("cand_")) {
+    const { orgRoot, appRoots } = learningRoots(homes);
+    const found = await findCandidateArtifact([orgRoot, ...Object.values(appRoots)], id);
+    if (found === undefined) {
+      console.error(`learn: no candidate ${id} in any learning root`);
+      return 1;
+    }
+    console.log(JSON.stringify(found.candidate, null, 2));
+    console.log("");
+    const verdict = await readReviewerVerdict(homes.orgHome, id);
+    if (verdict === undefined) {
+      console.log("disposition: awaiting review (fails closed) — operon learn review " + id);
+      return 0;
+    }
+    console.log(`review: ${verdict.verdict} by ${verdict.reviewed_by} — ${verdict.rationale}`);
+    try {
+      const intervention = await readInterventionRecord(homes.orgHome, `int_${id.replace(/^cand_/, "")}`);
+      console.log(
+        `disposition: ${intervention.status} ${intervention.destination} — ` +
+          `trace it with: operon learn show ${intervention.intervention_id}`,
+      );
+    } catch {
+      const rejected = (await readRejections(homes.orgHome)).find(
+        (entry) => entry.candidate_id === id,
+      );
+      console.log(
+        rejected !== undefined
+          ? `disposition: rejected ${rejected.rejected_at} by ${rejected.by} — ${rejected.reason}`
+          : `disposition: reviewed, not yet published — operon learn publish ${id}`,
+      );
+    }
+    return 0;
+  }
+
   const events = await readLearningEvents(stateHome);
   const match = events.find((event) => event.event_id === id);
   if (match === undefined) {
-    console.error(
-      `learn: no captured event with id ${id}` +
-        (id.startsWith("cand_")
-          ? " — candidate storage lands with M4; distillation with M6"
-          : ""),
-    );
+    console.error(`learn: no captured event with id ${id}`);
     return 1;
   }
   console.log(JSON.stringify(match, null, 2));
@@ -739,13 +799,26 @@ async function report(
       storeErrors.push(error.message);
       return [];
     });
-  const [events, records, experiments, evalResults, interventions] = await Promise.all([
+  const [events, records, experiments, evalResults, interventions, verdicts] = await Promise.all([
     readLearningEvents(stateHome),
     readEpisodeRecords(stateHome),
     guarded(listExperimentRecords(homes.orgHome)),
     guarded(listEvalResults(homes.orgHome)),
     guarded(listInterventionRecords(homes.orgHome)),
+    guarded(listReviewerVerdicts(homes.orgHome)),
   ]);
+  // M4 activation sections: review queue + SLA, reviewer-human agreement,
+  // suppression ledger size, and per-concept load counts from resolver events.
+  const policy = await loadLearningPolicy(homes.orgHome);
+  const activation = await activationReport(homes, policy).catch((error: Error) => {
+    storeErrors.push(error.message);
+    return undefined;
+  });
+  const conceptLoads = count(
+    events
+      .filter((event) => event.type === "concept_loaded")
+      .map((event) => String(event.payload?.["concept_id"] ?? "unknown")),
+  );
   const evalById = new Map(evalResults.map((result) => [result.eval_id, result]));
   const byType = count(events.map((event) => event.type));
   const byApp = count(events.map((event) => event.app));
@@ -818,6 +891,24 @@ async function report(
               : {}),
             chain_gaps: interventionChainGaps(intervention),
           })),
+          reviews: verdicts.map((verdict) => ({
+            candidate_id: verdict.candidate_id,
+            verdict: verdict.verdict,
+            proposed_destination: verdict.proposed_destination,
+            proposed_tier: verdict.proposed_tier,
+            reviewed_by: verdict.reviewed_by,
+          })),
+          ...(activation !== undefined
+            ? {
+                activation: {
+                  pending_review: activation.pendingReview,
+                  reviewer_sla_hours: activation.slaHours,
+                  reviewer_human_agreement: activation.agreement,
+                  rejection_entries: activation.suppressions,
+                  concept_loads: Object.fromEntries(conceptLoads),
+                },
+              }
+            : {}),
           ...(storeErrors.length > 0 ? { store_errors: storeErrors } : {}),
         },
         null,
@@ -828,7 +919,9 @@ async function report(
   }
 
   const lines: string[] = [];
-  lines.push("Learning report (capture + episode + experiment substrate — nothing activates yet)");
+  lines.push(
+    "Learning report (capture + episode + experiment + governed activation — M4: every activation human-approved)",
+  );
   lines.push("");
   lines.push(
     `Projection: ${projection.runsProjected} run(s) newly captured, ` +
@@ -885,6 +978,37 @@ async function report(
             : "") +
           (gaps.length > 0 ? `; chain INCOMPLETE (missing ${gaps.join(", ")})` : ""),
       );
+    }
+  }
+  if (verdicts.length > 0) {
+    lines.push("", `Reviews: ${verdicts.length}`);
+    for (const verdict of verdicts) lines.push(renderVerdictLine(verdict));
+  }
+  if (activation !== undefined) {
+    lines.push("", "Activation:");
+    if (activation.pendingReview.length === 0) {
+      lines.push("  review queue empty");
+    } else {
+      for (const pending of activation.pendingReview) {
+        lines.push(
+          `  ${pending.candidate_id} awaiting review (${pending.ageHours.toFixed(1)}h)` +
+            (pending.overSla
+              ? ` — OVER the ${activation.slaHours}h reviewer SLA (policy §13); review fails closed, nothing merges`
+              : ""),
+        );
+      }
+    }
+    if (conceptLoads.length > 0) {
+      lines.push("  concept loads (resolver):");
+      for (const [conceptId, n] of conceptLoads) lines.push(`    ${conceptId}: ${n}`);
+    }
+    if (activation.agreement.compared > 0) {
+      lines.push(
+        `  reviewer-human agreement: ${activation.agreement.agreed}/${activation.agreement.compared}`,
+      );
+    }
+    if (activation.suppressions > 0) {
+      lines.push(`  rejection ledger entries: ${activation.suppressions}`);
     }
   }
   if (storeErrors.length > 0) {

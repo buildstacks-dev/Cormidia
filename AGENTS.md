@@ -40,13 +40,25 @@ lifecycle, late outcomes); `learning/episodes/*.json` is the M2 episode
 projection over runs + ledger + approvals + ticket claim state (rebuildable;
 closed records freeze as the archive once their runs are pruned);
 `learning/capsules/` and `learning/fingerprints/` hold build-episode
-ReplayCapsules and content-addressed SystemFingerprints. The M3 experiment
-substrate lives in the **committed org home** instead: `learning/experiments/`
-(ExperimentRecords + EvalResults, declared-before-results),
-`learning/interventions/` (one lineage record per published change), and
-`learning/evals/**` (sanitized fixtures converted from capsules, trusted only
-after independent validation) — all gate-protected. (`operon learn` is the
-human window; M1–M3 substrate — nothing activates.) README.md →
+ReplayCapsules and content-addressed SystemFingerprints;
+`learning/resolved/<turnId>.json` is the per-turn pinned resolve record and
+`learning/publish-journal/` the publisher's crash-resumable transactions.
+The M3–M4 experiment + activation substrate lives in the **committed org
+home** instead: `learning/experiments/` (ExperimentRecords + EvalResults,
+declared-before-results), `learning/interventions/` (one lineage record per
+published change), `learning/evals/**` (sanitized fixtures converted from
+capsules, trusted only after independent validation),
+`learning/candidates/` (agent-emitted, never resolvable — deliberately NOT
+gate-protected), `learning/reviews/` + `learning/rejections.jsonl`
+(fail-closed verdicts + suppression windows), `learning/quarantine/`
+(human-authored provisionals, resolver-enforced TTL), `learning/bundle/**` +
+`learning/manifest.yaml` (active concepts + version cuts), and
+`learning/proposals/**` (unmerged drafts, routine). M4 is live: context
+assembly resolves governed concepts once per turn (pinned; spec §8.1 shares
++ narrowest-first redistribution), and `operon learn
+review|publish|resolve|disable|rollback|provisional` is the manual governed
+activation surface — every activation human-approved and content-bound; M5
+canary/replay and M6 distillation are still unbuilt. README.md →
 Observability is the operator-facing version of this note.
 
 ## Map
@@ -70,7 +82,7 @@ Observability is the operator-facing version of this note.
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/org/home.ts` | Package/org/state boundary: complete org initialization, validation, active pointer, and independent state-home resolution |
-| `src/org/learning/` | Learning loop (design in `docs/learning-loop/`): event schema + sink, idempotent capture projector, deterministic episode ids/anchors, EpisodeRecord projection, content-addressed SystemFingerprint, build-episode ReplayCapsule, ExperimentRecord (declared-before-results), CandidateArtifact with the conditional experiment gate, InterventionRecord lineage, EvalResult four-class verdicts, capsule→sanitized eval fixture with two-actor trust — M1 capture + M2 episode/replay + M3 experiment substrate; `operon learn` is the human window |
+| `src/org/learning/` | Learning loop (design in `docs/learning-loop/`): event schema + sink, idempotent capture projector, deterministic episode ids/anchors, EpisodeRecord projection, content-addressed SystemFingerprint, build-episode ReplayCapsule, ExperimentRecord (declared-before-results), CandidateArtifact with the conditional experiment gate, InterventionRecord lineage, EvalResult four-class verdicts, capsule→sanitized eval fixture with two-actor trust, plus the M4 activation substrate: policy loader (`policy.ts`), concept store with manifests/disable/rollback (`concepts.ts`), fail-closed reviewer verdicts (`review.ts`), rejection ledger with suppression windows (`rejections.ts`), content-bound `learning_publish` binding (`binding.ts`), the deterministic journaled publisher (`publisher.ts`), and the per-turn pinned resolver wired into context assembly (`resolver.ts` → `src/org/context.ts`) — M1 capture + M2 episode/replay + M3 experiments + M4 manual governed activation; `operon learn` is the human window |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `agent-skills/operon/` | Packaged `$operon` Agent Skill: agent-facing CLI discovery, onboarding, safety, and diagnosis workflow |
 | `scripts/link-local.mjs`, `scripts/operon-local.mjs` | Source-backed local installation; exposes `operon` and the skill without conflating package and org homes |
@@ -120,6 +132,13 @@ Observability is the operator-facing version of this note.
   `pnpm dev learn emit --episode <id> --observation "<text>"` ·
   `pnpm dev learn fixture <episode-id> --set roles/<role>/<set>
   [--validate --by <name>]` ·
+  `pnpm dev learn review <candidate-id> --verdict approve --rationale "<why>"
+  --by <name>` · `pnpm dev learn publish <candidate-id> [--waiver "<why>"]` ·
+  `pnpm dev learn resolve --app <app> --role <role>` ·
+  `pnpm dev learn disable <concept-id>` ·
+  `pnpm dev learn rollback --root org|app [--app <name>]` ·
+  `pnpm dev learn provisional --scope <scope> --name <n> --description <d>
+  --ttl-days N --by <name> --body "<text>"` ·
   `pnpm dev run-role <role> --app <app> --dry-run` ·
   `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs` ·
   `pnpm dev doctor`

@@ -21,6 +21,11 @@ import type { AppEntry, AppsFile } from "./apps.js";
 import { rollupBudgets } from "./budget.js";
 import { assembleContext } from "./context.js";
 import { composeGate } from "./gate-compose.js";
+import {
+  eventEpisodeAnchor,
+  ticketEpisodeAnchor,
+  turnEpisodeAnchor,
+} from "./learning/episodes.js";
 import { acquireLock, heartbeatLock, lockExists, readLock, releaseLock } from "./locks.js";
 import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
 import { appendScorecardEvent } from "./scorecards.js";
@@ -82,7 +87,10 @@ export async function runDispatchedTurn(
     const localRepo = await withAppGitLock(runtimeHome, options.app.name, () =>
       ensureManagedClone(options.app, runtimeHome),
     );
-    const context = await buildContext(orgRoot, localRepo, options.app.name, options.role, journal);
+    const context = await buildContext(orgRoot, localRepo, options.app.name, options.role, journal, {
+      stateHome: runtimeHome,
+      turnId: options.turnId,
+    });
     const store = new ApprovalStore(runtimeHome);
     const hooks = {
       gate: composeGate(defaultGate, store, {
@@ -651,6 +659,7 @@ async function buildContext(
   app: string,
   role: RoleConfig,
   journal: TurnJournal,
+  learning?: { stateHome: string; turnId: string },
 ): Promise<ContextBundle> {
   const trigger = [journal.triggerKind, journal.trigger].filter(Boolean).join(" ");
   // Event-triggered turns select memory on the payload CONTENT, not just
@@ -664,6 +673,23 @@ async function buildContext(
       app,
       role,
       taskText: trigger === "" ? `${role.name} turn for ${app}` : `${role.name} ${trigger}${payload}`,
+      // The turn's one governed resolve (learning-loop spec §8.1), pinned for
+      // the whole turn. The episode anchor mirrors the capture projector's
+      // derivation so resolve events land on the same episode.
+      ...(learning !== undefined
+        ? {
+            learning: {
+              stateHome: learning.stateHome,
+              turnId: learning.turnId,
+              episodeId:
+                journal.event !== undefined
+                  ? eventEpisodeAnchor(app, journal.event).episodeId
+                  : journal.ticketRef !== undefined
+                    ? ticketEpisodeAnchor(app, journal.ticketRef).episodeId
+                    : turnEpisodeAnchor(app, learning.turnId).episodeId,
+            },
+          }
+        : {}),
     })
   ).bundle;
 }

@@ -195,14 +195,23 @@ learning/episodes/        # EpisodeRecord projection over runs + ledger +
                           # approvals + ticket claim state (M2; rebuildable)
 learning/capsules/        # build-episode ReplayCapsules with replayability
 learning/fingerprints/    # content-addressed SystemFingerprints
+learning/resolved/        # per-turn pinned resolve records (M4; never prompt bytes)
+learning/publish-journal/ # the publisher's crash-resumable transaction journals (M4)
 ```
 
-The experiment substrate (M3) lives in the *committed org home* instead —
-`learning/experiments/` (ExperimentRecords + EvalResults, declared before
-results), `learning/interventions/` (one lineage record per published
-change), and `learning/evals/**` (sanitized eval fixtures converted from
-replay capsules, trusted only after independent validation) — all
-gate-protected paths only humans and orchestrator code write.
+The experiment and activation substrate (M3–M4) lives in the *committed org
+home* instead — `learning/experiments/` (ExperimentRecords + EvalResults,
+declared before results), `learning/interventions/` (one lineage record per
+published change), `learning/evals/**` (sanitized eval fixtures converted
+from replay capsules, trusted only after independent validation),
+`learning/candidates/` (agent-emitted, no authority, never resolvable),
+`learning/reviews/` + `learning/rejections.jsonl` (fail-closed reviewer
+verdicts and the suppression ledger), `learning/quarantine/` (human-authored
+provisionals with resolver-enforced TTLs), `learning/bundle/**` +
+`learning/manifest.yaml` (active concepts and version cuts), and
+`learning/proposals/**` (unmerged drafts) — everything except candidates and
+proposals is gate-protected; only humans and the deterministic publisher
+write inside.
 
 `runs/` is the per-pass source of truth (what was asked, what happened, what
 it cost). The ledger is the rollup `operon budget`, `operon status`, retro,
@@ -219,11 +228,20 @@ intervention lineage (an unevaluated activation always renders as
 `authorized (unproven)`), `inspect <episode-id>` for one episode's full
 record (turns, gates, outcome, ledger cost, replay capsule), `emit` to
 record an observation or an append-only late outcome (`--late-outcome
-<kind> --ref <ref>`), `show <id>` to trace an event, experiment, eval
-result, or intervention to its disposition, and `fixture <episode-id> --set
-<scope>/<set>` to convert a closed build episode's capsule into a sanitized
-eval fixture (`--validate --by <someone-else>` records the independent
-validation that makes it trusted).
+<kind> --ref <ref>`), `show <id>` to trace an event, candidate, experiment,
+eval result, or intervention to its disposition, and `fixture <episode-id>
+--set <scope>/<set>` to convert a closed build episode's capsule into a
+sanitized eval fixture (`--validate --by <someone-else>` records the
+independent validation that makes it trusted). The M4 activation verbs:
+`review <candidate-id>` records a fail-closed reviewer verdict, `publish
+<candidate-id>` routes it proportionally (tickets and proposal drafts
+publish routinely, deduped and rate-capped; activation into context and
+T2/T3 raise a content-bound approval and publish only after the human
+approves), `resolve --app <app> --role <role>` dry-runs the governed-concept
+resolver, `disable <concept-id>` deprecates a concept for every subsequent
+turn (in-flight turns keep their pin), `rollback --root org|app` reverts the
+latest bundle version cut, and `provisional` quarantines an urgent
+human-authored concept under an UNVERIFIED label with a hard TTL.
 
 ## Status
 

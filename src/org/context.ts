@@ -8,6 +8,11 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ContextBundle, RoleConfig } from "../runtime/types.js";
+import { loadLearningPolicy } from "./learning/policy.js";
+import {
+  resolveLearningContext,
+  type ResolvedLearningContext,
+} from "./learning/resolver.js";
 import { selectExcerpts } from "./memory.js";
 
 export interface AssembleContextOptions {
@@ -19,6 +24,18 @@ export interface AssembleContextOptions {
    * callers pass the ticket text once and reuse the result across passes. */
   taskText: string;
   memoryCapBytes?: number;
+  /** Governed-concept resolution (learning-loop M4, spec §8.1). When set,
+   * the resolver runs ONCE here — the turn/pipeline pin — loading active
+   * bundle concepts and unexpired provisionals ahead of the legacy memory
+   * trees, emitting `concept_loaded`/eviction/expiry events, and persisting
+   * the resolved-context record under the state home (never prompt bytes,
+   * design §12.1). Omitted (capture-only callers, dry runs), context keeps
+   * the legacy selector alone. */
+  learning?: {
+    stateHome: string;
+    turnId: string;
+    episodeId: string;
+  };
 }
 
 export interface AssembledContext {
@@ -27,6 +44,8 @@ export interface AssembledContext {
   systemPrompt: string;
   byteSize: number;
   sources: string[];
+  /** The turn's pinned resolve, when learning resolution ran. */
+  resolvedLearning?: ResolvedLearningContext;
 }
 
 export async function assembleContext(options: AssembleContextOptions): Promise<AssembledContext> {
@@ -56,15 +75,35 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
 
   taste.push(roleProtocol(options.role));
 
+  // Governed concepts resolve first (higher trust, per-scope budget shares);
+  // legacy memory trees keep resolving at lowest precedence with whatever
+  // bytes remain (trust: legacy seed, design §7.1).
+  let resolved: ResolvedLearningContext | undefined;
+  let legacyCap = options.memoryCapBytes ?? 16 * 1024;
+  if (options.learning !== undefined) {
+    resolved = await resolveLearningContext({
+      orgHome,
+      appWorkdir,
+      app: options.app,
+      role: options.role.name,
+      turnId: options.learning.turnId,
+      episodeId: options.learning.episodeId,
+      taskText: options.taskText,
+      policy: await loadLearningPolicy(orgHome),
+      stateHome: options.learning.stateHome,
+    });
+    legacyCap = Math.min(legacyCap, resolved.bytes_remaining);
+    sources.push(join(orgHome, "learning"), join(appWorkdir, ".operon", "learning"));
+  }
+
   const memoryDirs = [
     join(orgHome, "memory", "roles", options.role.name),
     join(appWorkdir, ".operon", "memory", options.role.name),
   ].filter((dir) => existsSync(dir));
-  const memoryExcerpts = await selectExcerpts(
-    memoryDirs,
-    options.taskText,
-    options.memoryCapBytes ?? 16 * 1024,
-  );
+  const memoryExcerpts = [
+    ...(resolved?.sections ?? []),
+    ...(await selectExcerpts(memoryDirs, options.taskText, legacyCap)),
+  ];
   sources.push(...memoryDirs);
 
   const bundle: ContextBundle = { taste, memoryExcerpts };
@@ -74,6 +113,7 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
     systemPrompt,
     byteSize: Buffer.byteLength(systemPrompt, "utf8"),
     sources,
+    ...(resolved !== undefined ? { resolvedLearning: resolved } : {}),
   };
 }
 

@@ -310,6 +310,59 @@ describe.skipIf(!auth.ok)("ClaudeRuntime live conformance (real SDK, real model)
     expect(probe.summary).toBe("unrepresentable");
   });
 
+  it("cache stability: two back-to-back passes under the same pinned bundle read cache on the second", {
+    timeout: 240_000,
+  }, async () => {
+    // The learning-loop resolver's contract (design §12.1, milestone M4):
+    // the pinned bundle renders byte-identically per (bundle versions, role,
+    // app), so the second pass of a pipeline must hit the provider prompt
+    // cache. This drives the REAL context channel with a stable, cache-
+    // eligible payload (>1024 tokens) and asserts cacheReadTokens > 0 on the
+    // second turn — the same-shape live check the milestone names.
+    const pinnedBundle = {
+      taste: [HARNESS_CONTEXT],
+      memoryExcerpts: [
+        [
+          "## Learning concept cache-stability-probe (roles/conformance-live)",
+          "Description: deterministic pinned-bundle payload for the cache conformance case.",
+          "Keywords: cache, conformance",
+          "",
+          // Stable filler, no timestamps or turn ids (the resolver's rule) —
+          // large enough that the prompt prefix is cache-eligible.
+          ("The pinned bundle renders byte-identically for the same versions. ".repeat(120)),
+        ].join("\n"),
+      ],
+    };
+    const cacheDir = tmpWorkdir("operon-live-cache-");
+    try {
+      const rt = new ClaudeRuntime({
+        queryFn: teeQuery,
+        baseOptions: { tools: [], persistSession: false, maxTurns: 1 },
+      });
+      const runPass = async () => {
+        const result = await rt.runTurn(
+          {
+            role: LIVE_ROLE,
+            workdir: cacheDir,
+            task: "Do not use any tools. Reply with exactly: OK",
+            context: pinnedBundle,
+          },
+          { gate: () => ({ allow: true }) },
+        );
+        totalCostUsd += result.usage.costUsd;
+        liveTurns += 1;
+        return result;
+      };
+      const first = await runPass();
+      expect(first.status).toBe("completed");
+      const second = await runPass();
+      expect(second.status).toBe("completed");
+      expect(second.usage.cacheReadTokens ?? 0).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
+  });
+
   afterAll(() => {
     fs.rmSync(workdir, { recursive: true, force: true });
     console.log(

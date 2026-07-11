@@ -12,6 +12,26 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 export type OkfType = "lesson" | "fact" | "procedure";
 export type OkfStatus = "active" | "deprecated";
 
+export type LoopTier = "T0" | "T1" | "T2" | "T3";
+export type LoopStatus = "candidate" | "provisional" | "active" | "deprecated" | "archived";
+export type LoopClaim = "authorized" | "validated";
+
+/** The learning loop's governance block (docs/learning-loop/ spec §3).
+ *  Known fields are validated; the WHOLE mapping — unknown keys included —
+ *  is preserved verbatim through parse → serialize, because a validator that
+ *  reconstructs only the fields it knows silently destroys governance
+ *  metadata on every rewrite (the exact defect this extension fixes for the
+ *  eight top-level fields). */
+export interface OkfLoopBlock {
+  id: string;
+  tier: LoopTier;
+  status: LoopStatus;
+  scope: string;
+  version: number;
+  claim: LoopClaim;
+  [key: string]: unknown;
+}
+
 export interface OkfFrontmatter {
   name: string;
   description: string;
@@ -21,6 +41,8 @@ export interface OkfFrontmatter {
   status: OkfStatus;
   created: string;
   updated: string;
+  /** Absent on legacy docs — they remain valid as `trust: legacy` seed. */
+  loop?: OkfLoopBlock;
 }
 
 export interface OkfDocument {
@@ -197,7 +219,80 @@ function validateFrontmatter(value: unknown, source: string): OkfFrontmatter {
   const status = requireEnum(spec, "status", ["active", "deprecated"] as const, source);
   const created = requireDate(spec, "created", source);
   const updated = requireDate(spec, "updated", source);
-  return { name, description, type, keywords, evidence, status, created, updated };
+  const base = { name, description, type, keywords, evidence, status, created, updated };
+  if (spec["loop"] === undefined) return base;
+
+  const loop = validateLoopBlock(spec["loop"], source);
+  // Storage/status consistency (spec §3 table): a candidate, provisional, or
+  // active concept keeps top-level `active`; deprecated/archived must carry
+  // top-level `deprecated`. Rejecting the mismatch here means a half-updated
+  // rewrite (e.g. deprecating the doc without touching its loop status)
+  // fails loudly instead of silently corrupting governance state.
+  const wantsDeprecated = loop.status === "deprecated" || loop.status === "archived";
+  if (wantsDeprecated !== (status === "deprecated")) {
+    throw new OkfValidationError(
+      `${source}: top-level status "${status}" disagrees with loop.status "${loop.status}"`,
+    );
+  }
+  return { ...base, loop };
+}
+
+const LOOP_SCOPE_RE = /^(org|roles\/[A-Za-z0-9._-]+|apps\/[A-Za-z0-9._-]+(\/roles\/[A-Za-z0-9._-]+)?)$/;
+
+function validateLoopBlock(value: unknown, source: string): OkfLoopBlock {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new OkfValidationError(`${source}: frontmatter.loop must be a mapping`);
+  }
+  const spec = value as Record<string, unknown>;
+  const id = spec["id"];
+  if (typeof id !== "string" || id.trim() === "") {
+    throw new OkfValidationError(`${source}: frontmatter.loop.id must be a non-empty string`);
+  }
+  requireLoopEnum(spec, "tier", ["T0", "T1", "T2", "T3"] as const, source);
+  requireLoopEnum(
+    spec,
+    "status",
+    ["candidate", "provisional", "active", "deprecated", "archived"] as const,
+    source,
+  );
+  requireLoopEnum(spec, "claim", ["authorized", "validated"] as const, source);
+
+  const scope = spec["scope"];
+  if (typeof scope !== "string" || !LOOP_SCOPE_RE.test(scope)) {
+    const reserved = typeof scope === "string" && /^(identities|accounts)\//.test(scope);
+    throw new OkfValidationError(
+      reserved
+        ? `${source}: frontmatter.loop.scope "${scope}" is reserved for a future version (spec §2)`
+        : `${source}: frontmatter.loop.scope must be org | roles/<role> | apps/<app> | apps/<app>/roles/<role>`,
+    );
+  }
+
+  const version = spec["version"];
+  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
+    throw new OkfValidationError(`${source}: frontmatter.loop.version must be a positive integer`);
+  }
+  const ttl = spec["ttl_days"];
+  if (ttl !== undefined && ttl !== null && (typeof ttl !== "number" || ttl <= 0)) {
+    throw new OkfValidationError(`${source}: frontmatter.loop.ttl_days must be a positive number`);
+  }
+
+  // Deep-copy the whole mapping: known fields validated above, unknown fields
+  // preserved untouched (see OkfLoopBlock).
+  return structuredClone(spec) as OkfLoopBlock;
+}
+
+function requireLoopEnum<const T extends readonly string[]>(
+  spec: Record<string, unknown>,
+  key: string,
+  allowed: T,
+  source: string,
+): void {
+  const value = spec[key];
+  if (typeof value !== "string" || !allowed.includes(value)) {
+    throw new OkfValidationError(
+      `${source}: frontmatter.loop.${key} must be one of ${allowed.join(" | ")}`,
+    );
+  }
 }
 
 function requireString(spec: Record<string, unknown>, key: string, source: string): string {

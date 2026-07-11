@@ -19,17 +19,21 @@
 // guarantees stalled runs eventually finalize.
 
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { readEnvelope, type GateResultEntry, type RunEnvelope } from "../../runtime/runlog/envelope.js";
 import { readEvents, type RunlogEvent } from "../../runtime/runlog/events.js";
 import { RUN_ID_RE } from "../../runtime/runlog/paths.js";
 import { writeFileAtomic } from "../atomic.js";
 import { readJournal } from "../journal.js";
-import { buildTicketEpisodeId, eventEpisodeId, turnEpisodeId } from "./episodes.js";
 import {
-  learningEventPath,
-  readLearningEventFile,
+  eventEpisodeAnchor,
+  ticketEpisodeAnchor,
+  turnEpisodeAnchor,
+  type EpisodeAnchor,
+} from "./episodes.js";
+import {
+  appendLearningEventsDeduped,
   type GateVerdictStatus,
   type LearningEvent,
 } from "./events.js";
@@ -97,7 +101,7 @@ export async function projectCaptureEvents(
     }
 
     const events = await deriveRunEvents(stateHome, envelope, options.appStages);
-    const { emitted, deduped } = await appendNewEvents(stateHome, events);
+    const { emitted, deduped } = await appendLearningEventsDeduped(stateHome, events);
     result.eventsEmitted += emitted;
     result.eventsDeduped += deduped;
     cursor.runs[key] = { projected_at: clock().toISOString(), events: events.length };
@@ -118,9 +122,9 @@ async function deriveRunEvents(
   appStages: Record<string, string> | undefined,
 ): Promise<LearningEvent[]> {
   const l2 = await readRunEvents(stateHome, envelope);
-  const episodeId = await deriveEpisodeId(stateHome, envelope);
+  const anchor = await deriveEpisodeAnchor(stateHome, envelope);
   const base = {
-    episode_id: episodeId,
+    episode_id: anchor.episodeId,
     turn_id: envelope.trace_id,
     run_id: envelope.run_id,
     app: envelope.app,
@@ -193,20 +197,26 @@ async function deriveRunEvents(
 
 /** Build runs anchor on their ticket; dispatched turns anchor on the
  *  journal's persisted TurnEvent (issue #26); schedule-triggered turns are
- *  their own episode (spec §5, design §8.1). */
-async function deriveEpisodeId(stateHome: string, envelope: RunEnvelope): Promise<string> {
+ *  their own episode (spec §5, design §8.1). Shared with the M2 episode
+ *  projector, which needs the anchor's kind and source ref too. */
+export async function deriveEpisodeAnchor(
+  stateHome: string,
+  envelope: RunEnvelope,
+): Promise<EpisodeAnchor> {
   if (envelope.ticket !== undefined) {
-    return buildTicketEpisodeId(envelope.app, envelope.ticket);
+    return ticketEpisodeAnchor(envelope.app, envelope.ticket);
   }
   try {
     const journal = await readJournal(stateHome, envelope.trace_id);
-    if (journal.event !== undefined) return eventEpisodeId(envelope.app, journal.event);
-    if (journal.ticketRef !== undefined) return buildTicketEpisodeId(envelope.app, journal.ticketRef);
+    if (journal.event !== undefined) return eventEpisodeAnchor(envelope.app, journal.event);
+    if (journal.ticketRef !== undefined) {
+      return ticketEpisodeAnchor(envelope.app, journal.ticketRef);
+    }
   } catch {
     // No journal for this trace (loop passes journal under ticket state, not
     // state/turns) — fall through to the turn-anchored id.
   }
-  return turnEpisodeId(envelope.app, envelope.trace_id);
+  return turnEpisodeAnchor(envelope.app, envelope.trace_id);
 }
 
 async function readRunEvents(stateHome: string, envelope: RunEnvelope): Promise<RunlogEvent[]> {
@@ -232,38 +242,12 @@ function idSegment(part: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// exactly-once append + cursor
+// run listing + cursor
 // ---------------------------------------------------------------------------
 
-async function appendNewEvents(
+export async function listRuns(
   stateHome: string,
-  events: LearningEvent[],
-): Promise<{ emitted: number; deduped: number }> {
-  const byPath = new Map<string, LearningEvent[]>();
-  for (const event of events) {
-    const path = learningEventPath(stateHome, event);
-    const bucket = byPath.get(path);
-    if (bucket === undefined) byPath.set(path, [event]);
-    else bucket.push(event);
-  }
-
-  let emitted = 0;
-  let deduped = 0;
-  for (const [path, bucket] of byPath) {
-    const existing = existsSync(path)
-      ? new Set((await readLearningEventFile(path)).map((event) => event.event_id))
-      : new Set<string>();
-    const fresh = bucket.filter((event) => !existing.has(event.event_id));
-    deduped += bucket.length - fresh.length;
-    if (fresh.length === 0) continue;
-    await mkdir(dirname(path), { recursive: true });
-    await appendFile(path, fresh.map((event) => JSON.stringify(event)).join("\n") + "\n", "utf8");
-    emitted += fresh.length;
-  }
-  return { emitted, deduped };
-}
-
-async function listRuns(stateHome: string): Promise<Array<{ app: string; runId: string }>> {
+): Promise<Array<{ app: string; runId: string }>> {
   const root = join(stateHome, "runs");
   if (!existsSync(root)) return [];
   const out: Array<{ app: string; runId: string }> = [];

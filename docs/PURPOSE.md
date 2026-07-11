@@ -285,6 +285,37 @@ config file, not a fork.
   (A5) denial reasons persist as curated role memory so no denial is
   re-litigated. Agents gain no unilateral power anywhere in this amendment —
   every widening is a human act at decision time.
+- **Learning loop design** (ratified 2026-07-11; full design, schemas, and
+  release plan in `docs/learning-loop/` — design/spec/milestones; the
+  2026-07-10 review feedback that drove the v0.8 revision is archived at
+  `docs/learning-loop/archive/2026-07-10_feedback.md`). Operon's governed
+  self-improvement system: agents stop writing active memory directly and
+  emit candidates instead; a distiller routes evidence to the
+  lowest-authority useful destination (OKF concept, skill draft, protocol
+  proposal, eval/gate proposal, ticket, rejection ledger); a cross-provider
+  reviewer screens; a deterministic publisher — the sole writer of
+  gate-protected learning surfaces — executes one content-hash-bound
+  transaction per approval. Core decisions: (L1) the **episode**
+  (ticket / incident / feedback thread / campaign) is the unit of treatment
+  assignment and outcome measurement — canary lineage is `hash(episode_id)`,
+  sticky across every turn; `EpisodeRecord` is a projection over
+  process-owned state, never a second store. (L2) `authorized` and
+  `validated` are distinct permanent claims; executable `ExperimentRecord`s
+  are required only for efficacy-claiming candidates and T2/T3 activation,
+  so scoped facts are not taxed with experiment apparatus. (L3) evaluation
+  is three-layered — deterministic tests, paired offline replay from
+  `ReplayCapsule`s, human-started episode-sticky canary; V1 capsules cover
+  build episodes only, and T3 live canary exposure is forbidden (sandbox,
+  replay, shadow, or bounded manual trials only). (L4) approvals are
+  proportional: activation into context, ratified-surface merges, T2/T3, and
+  promotion are human-gated; deduplicated rate-capped tickets and unmerged
+  proposal drafts publish routinely. (L5) OKF holds bounded facts and
+  procedures — permissions, security posture, deployment, tools, gates, and
+  constitutional behavior are never expressible as memory. Milestones M1–M6
+  sequence capture → episode/replay substrate → experiment substrate →
+  governed activation → offline eval + canary → scheduled distillation;
+  autonomy is earned by measured agreement plus outcomes, never granted by
+  release.
 
 ## Prior art (ours)
 

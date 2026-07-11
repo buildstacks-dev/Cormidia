@@ -1,36 +1,39 @@
 ---
-title: Operon Learning Loop - Data Flow (v0.7)
+title: Operon Learning Loop - Data Flow (v0.8)
 ---
 flowchart TD
     subgraph EXEC["Execution plane"]
-        CTX["Resolved context (pinned per turn)"] --> AGENT["Agent turn (app + role)"]
+        CTX["Resolved context (pinned per turn,<br/>lineage sticky per episode)"] --> AGENT["Agent turn (app + role)"]
         AGENT -->|"advisory self-reports"| EVENTS
-        VERIFIERS["Gates, runlogs, approvals, scorecards, humans, resolver"] -->|"metric-bearing events"| EVENTS
+        VERIFIERS["Gates, runlogs, approvals, scorecards,<br/>humans, resolver, publisher"] -->|"metric-bearing events"| EVENTS
     end
 
     EVENTS["Runtime learning event store<br/>~/.operon/&lt;org&gt;/learning/events"]
 
-    EVENTS -->|"daily window"| CLUSTER["Cluster by error_class + cause_hypothesis"]
+    EVENTS --> EPISODES["EpisodeRecord projections<br/>~/.operon/&lt;org&gt;/learning/episodes<br/>(projection over ticket state machine,<br/>runlogs, telemetry, approvals)"]
+    EPISODES --> CAPSULES["ReplayCapsules (build episodes, V1)<br/>~/.operon/&lt;org&gt;/learning/capsules"]
+    HUMANOBS["Human observations<br/>operon learn emit --episode"] --> EVENTS
+
+    EVENTS -->|"deterministic precheck, then window"| CLUSTER["Cluster by error_class + cause_hypothesis"]
     LEDGER["Rejection ledger"] -->|"suppression fingerprints"| CLUSTER
     CLUSTER --> ROUTER["Destination router"]
 
-    ROUTER -->|"okf_concept"| OKF["OKF candidate"]
-    ROUTER -->|"skill_draft"| SKILL["Skill proposal"]
-    ROUTER -->|"protocol_proposal"| PROTO["Protocol proposal"]
-    ROUTER -->|"eval_or_gate_proposal"| EVAL["Eval/gate proposal"]
-    ROUTER -->|"ticket"| TICKET["GitHub issue"]
-    ROUTER -->|"reject"| LEDGER
+    ROUTER --> CANDS["learning/candidates/ (never resolvable)"]
+    CANDS --> REVIEW["Reviewer (cross-provider role)"]
+    REVIEW -->|"activation / T2-T3 / ratified surface"| APPROVAL["Human approval (content-bound,<br/>existing approvals store)"]
+    REVIEW -->|"routine: ticket, unmerged draft"| PUBLISHER
+    APPROVAL --> PUBLISHER["Deterministic publisher<br/>(sole writer of protected paths;<br/>atomic, idempotent, journaled)"]
+    REVIEW -->|"rejected"| LEDGER
 
-    OKF --> REVIEW["Reviewer (cross-provider role) + human approval via approvals store"]
-    SKILL --> REVIEW
-    PROTO --> REVIEW
-    EVAL --> REVIEW
-    TICKET --> REVIEW
+    CAPSULES --> RUNNER["ExperimentRunner:<br/>paired control/treatment replay"]
+    EXPERIMENTS["learning/experiments/<br/>ExperimentRecords + EvalResults"] <--> RUNNER
 
-    subgraph ORG["Org home learning root"]
+    subgraph ORG["Committed org home (operon org init)"]
         ORGMAN["learning/manifest.yaml"]
-        ORGBUNDLE["learning/bundle/org + roles"]
+        ORGBUNDLE["learning/bundle/org + roles (active only)"]
+        ORGQUAR["learning/quarantine/ (TTL-bound)"]
         ORGEVALS["learning/evals/roles"]
+        INTERV["learning/interventions/<br/>InterventionRecords (all destinations)"]
     end
 
     subgraph APP["Current app repo"]
@@ -39,22 +42,25 @@ flowchart TD
         APPEVALS[".operon/learning/evals/apps"]
     end
 
-    REVIEW -->|"approved OKF org/role"| ORGBUNDLE
-    REVIEW -->|"approved OKF app/app-role"| APPBUNDLE
-    REVIEW -->|"approved skill/protocol/eval/gate"| PROPOSALS["Proposal PRs or implementation tickets"]
-    REVIEW -->|"approved ticket"| ISSUES["Operon issue loop"]
-    REVIEW -->|"rejected"| LEDGER
+    PUBLISHER -->|"approved OKF org/role"| ORGBUNDLE
+    PUBLISHER -->|"approved OKF app/app-role"| APPBUNDLE
+    PUBLISHER -->|"skill/protocol/eval/gate drafts"| PROPOSALS["Proposal PRs or implementation tickets"]
+    PUBLISHER -->|"ticket (deduped, rate-capped)"| ISSUES["Operon issue loop"]
+    PUBLISHER --> INTERV
 
     ORGMAN --> RESOLVER
     APPMAN --> RESOLVER
     ORGBUNDLE --> RESOLVER
     APPBUNDLE --> RESOLVER
-    RESOLVER["Resolver: org -> role -> app -> app-role"] --> CTX
-    RESOLVER -->|"concept_loaded, context_evicted, conflict_resolved"| EVENTS
+    ORGQUAR -->|"unexpired only; UNVERIFIED label"| RESOLVER
+    RESOLVER["Resolver: conflicts first, then scope shares<br/>org -> role -> app -> app-role<br/>lineage = hash(episode_id)"] --> CTX
+    RESOLVER -->|"concept_loaded, context_evicted,<br/>conflict_resolved, provisional_expired"| EVENTS
 
     EVENTS -->|"trusted emitters only"| METRICS["JSONL metric projections"]
+    EPISODES -->|"outcomes by bundle lineage"| METRICS
+    EXPERIMENTS --> METRICS
     ORGEVALS --> METRICS
     APPEVALS --> METRICS
-    METRICS --> REPORTS["Canary report, compaction report, bundle health"]
+    METRICS --> REPORTS["Canary/experiment report, compaction report,<br/>bundle health, cost per accepted improvement"]
     REPORTS -->|"human promote / rollback / disable in V1"| ORGMAN
     REPORTS -->|"human promote / rollback / disable in V1"| APPMAN

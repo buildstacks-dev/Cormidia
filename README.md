@@ -190,7 +190,11 @@ runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
 telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
 invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)
 learning/events/<date>/   # learning-loop capture: gate outcomes, pass verdicts,
-                          # and human observations projected from runs/ (M1)
+                          # human observations, episode lifecycle, late outcomes
+learning/episodes/        # EpisodeRecord projection over runs + ledger +
+                          # approvals + ticket claim state (M2; rebuildable)
+learning/capsules/        # build-episode ReplayCapsules with replayability
+learning/fingerprints/    # content-addressed SystemFingerprints
 ```
 
 `runs/` is the per-pass source of truth (what was asked, what happened, what
@@ -202,9 +206,12 @@ monthly cap refuses to claim before any pass starts. `operon budget
 --reconcile` back-fills the ledger from run envelopes (idempotent).
 Subscription-backed provider costs are Operon-computed equivalent-cost
 estimates, flagged as such on every row. `operon telemetry --app <app>
-[--html out.html]` renders the run view. `operon learn` is the capture-side
-human window: `report` for totals, `inspect <episode-id>` for one episode's
-events, `emit` to record an observation, `show <event-id>` to trace it.
+[--html out.html]` renders the run view. `operon learn` is the learning
+loop's human window: `report` for totals and episode records, `inspect
+<episode-id>` for one episode's full record (turns, gates, outcome, ledger
+cost, replay capsule), `emit` to record an observation or an append-only
+late outcome (`--late-outcome <kind> --ref <ref>`), `show <event-id>` to
+trace it.
 
 ## Status
 

@@ -35,9 +35,14 @@ the org ledger every provider turn settles into exactly once, keyed on
 `runId` (`operon budget --reconcile` back-fills it from envelopes);
 `invocations/<date>.jsonl` records each loop/dispatch invocation;
 `learning/events/<date>/*.jsonl` is the learning loop's capture projection
-over `runs/` (gate outcomes, pass verdicts, human observations — `operon
-learn`, M1 capture-only). README.md → Observability is the operator-facing
-version of this note.
+over `runs/` (gate outcomes, pass verdicts, human observations, episode
+lifecycle, late outcomes); `learning/episodes/*.json` is the M2 episode
+projection over runs + ledger + approvals + ticket claim state (rebuildable;
+closed records freeze as the archive once their runs are pruned);
+`learning/capsules/` and `learning/fingerprints/` hold build-episode
+ReplayCapsules and content-addressed SystemFingerprints (`operon learn` is
+the human window; M2 substrate — nothing activates). README.md →
+Observability is the operator-facing version of this note.
 
 ## Map
 | Path | What it is |
@@ -60,7 +65,7 @@ version of this note.
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/org/home.ts` | Package/org/state boundary: complete org initialization, validation, active pointer, and independent state-home resolution |
-| `src/org/learning/` | Learning loop (design in `docs/learning-loop/`): event schema + sink, idempotent capture projector, deterministic episode ids — M1 capture-only; `operon learn` is the human window |
+| `src/org/learning/` | Learning loop (design in `docs/learning-loop/`): event schema + sink, idempotent capture projector, deterministic episode ids/anchors, EpisodeRecord projection, content-addressed SystemFingerprint, build-episode ReplayCapsule — M1 capture + M2 episode/replay substrate; `operon learn` is the human window |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `agent-skills/operon/` | Packaged `$operon` Agent Skill: agent-facing CLI discovery, onboarding, safety, and diagnosis workflow |
 | `scripts/link-local.mjs`, `scripts/operon-local.mjs` | Source-backed local installation; exposes `operon` and the skill without conflating package and org homes |

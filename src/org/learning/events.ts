@@ -11,8 +11,9 @@
 // throws loudly.
 
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, readFile, readdir } from "node:fs/promises";
+import { appendFile, mkdir, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { readJsonLinesTolerant } from "./records.js";
 
 /** Spec §4 type enum, plus `pass_verdict`: capture explicitly persists L2
  *  `verdict.recorded` (design §5 — verdicts exist nowhere else on disk), but
@@ -100,7 +101,7 @@ export function learningEventsDir(stateHome: string): string {
 /** `<events-dir>/<YYYY-MM-DD of event.ts>/<stream>.jsonl`. */
 export function learningEventPath(stateHome: string, event: LearningEvent): string {
   const date = event.ts.slice(0, 10);
-  const stream = sanitizeStream(event.turn_id ?? event.emitter);
+  const stream = sanitizeIdSegment(event.turn_id ?? event.emitter);
   return join(learningEventsDir(stateHome), date, `${stream}.jsonl`);
 }
 
@@ -179,23 +180,14 @@ export async function listLearningEventFiles(stateHome: string): Promise<string[
 }
 
 export async function readLearningEventFile(path: string): Promise<LearningEvent[]> {
-  const lines = (await readFile(path, "utf8")).split("\n").filter((line) => line !== "");
-  const events: LearningEvent[] = [];
-  lines.forEach((line, i) => {
-    try {
-      events.push(JSON.parse(line) as LearningEvent);
-    } catch {
-      if (i !== lines.length - 1) {
-        throw new Error(
-          `learning: ${path}:${i + 1} is malformed mid-file — corruption, not a torn append`,
-        );
-      }
-    }
-  });
-  return events;
+  return readJsonLinesTolerant<LearningEvent>(path);
 }
 
-function sanitizeStream(part: string): string {
+/** Sanitize an id (turn id, journal id, event-id segment) into a safe
+ *  filename/identifier segment — shared by every component that derives
+ *  paths or deterministic event ids from ids, so the dedupe keys and file
+ *  names they produce can never disagree. */
+export function sanitizeIdSegment(part: string): string {
   const cleaned = part.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "");
   return cleaned === "" ? "unknown" : cleaned;
 }

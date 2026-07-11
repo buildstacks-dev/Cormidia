@@ -20,7 +20,9 @@ import {
   appLearningRoot,
   disableConcept,
   orgLearningRoot,
+  provisionalExpiry,
   rollbackRoot,
+  scopeApp,
   writeProvisionalConcept,
   type LearningRoot,
 } from "../org/learning/concepts.js";
@@ -186,10 +188,9 @@ export async function learnPublish(homes: OperonHomes, args: string[]): Promise<
   let repo = flag(flags, "repo");
   if (repo === undefined) {
     const verdict = await readReviewerVerdict(homes.orgHome, candidateId);
-    const scope = verdict?.proposed_scope;
-    if (scope !== undefined && scope.startsWith("apps/")) {
-      const app = homes.appsFile.apps.find((a) => a.name === scope.split("/")[1]);
-      repo = app?.repo;
+    const app = verdict !== undefined ? scopeApp(verdict.proposed_scope) : undefined;
+    if (app !== undefined) {
+      repo = homes.appsFile.apps.find((a) => a.name === app)?.repo;
     }
   }
 
@@ -384,7 +385,8 @@ export async function learnProvisional(homes: OperonHomes, args: string[]): Prom
     body: body.trim() + "\n",
   };
   const { orgRoot, appRoots } = learningRoots(homes);
-  const root = scope.startsWith("apps/") ? appRoots[scope.split("/")[1]!] : orgRoot;
+  const app = scopeApp(scope);
+  const root = app !== undefined ? appRoots[app] : orgRoot;
   if (root === undefined) {
     console.error(`learn provisional: no local checkout for the app in scope "${scope}"`);
     return 1;
@@ -394,16 +396,13 @@ export async function learnProvisional(homes: OperonHomes, args: string[]): Prom
   console.log(`quarantined provisional ${doc.frontmatter.loop!.id} (${basename(path)})`);
   console.log(`  ${path}`);
   console.log(
-    `  renders under "${policy.quarantine.context_label}" until ${expiryDate(today, ttl)}; ` +
+    // provisionalExpiry is the same computation the resolver enforces — the
+    // printed date can never drift from the honored one.
+    `  renders under "${policy.quarantine.context_label}" until ` +
+      `${provisionalExpiry(doc).toISOString().slice(0, 10)}; ` +
       "it never silently promotes (design §7)",
   );
   return 0;
-}
-
-function expiryDate(created: string, ttlDays: number): string {
-  return new Date(new Date(`${created}T00:00:00Z`).getTime() + ttlDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
 }
 
 // ---------------------------------------------------------------------------
@@ -420,16 +419,20 @@ export interface ActivationReport {
 export async function activationReport(
   homes: OperonHomes,
   policy: LearningPolicy,
+  /** Already-loaded verdicts (the report reads them once for its Reviews
+   *  section); omitted, they load here. */
+  verdicts?: ReviewerVerdict[],
   now: Date = new Date(),
 ): Promise<ActivationReport> {
   const { orgRoot, appRoots } = learningRoots(homes);
   const roots = [orgRoot, ...Object.values(appRoots)];
+  const allVerdicts = verdicts ?? (await listReviewerVerdicts(homes.orgHome));
+  const reviewed = new Set(allVerdicts.map((verdict) => verdict.candidate_id));
 
   const pendingReview: ActivationReport["pendingReview"] = [];
   for (const root of roots) {
     for (const candidate of await listCandidateArtifacts(root)) {
-      const verdict = await readReviewerVerdict(homes.orgHome, candidate.candidate_id);
-      if (verdict !== undefined) continue;
+      if (reviewed.has(candidate.candidate_id)) continue;
       const path = candidateArtifactPath(root, candidate.candidate_id);
       const ageMs = existsSync(path)
         ? now.getTime() - (await stat(path)).mtime.getTime()
@@ -449,7 +452,7 @@ export async function activationReport(
   const decided = await store.listDecided();
   let compared = 0;
   let agreed = 0;
-  for (const verdict of await listReviewerVerdicts(homes.orgHome)) {
+  for (const verdict of allVerdicts) {
     const item = decided
       .filter((entry) => bindingOf(entry)?.candidate_id === verdict.candidate_id)
       .at(-1);

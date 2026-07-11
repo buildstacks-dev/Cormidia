@@ -31,17 +31,18 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
-import type { OkfDocument } from "../memory.js";
+import { keywordsMatchTask, type OkfDocument } from "../memory.js";
 import {
   appLearningRoot,
   loadConceptDir,
   orgLearningRoot,
+  provisionalExpiry,
   quarantineDir,
   readManifest,
   bundleDir,
   type LearningRoot,
 } from "./concepts.js";
-import { appendLearningEventsDeduped, type LearningEvent } from "./events.js";
+import { appendLearningEventsDeduped, sanitizeIdSegment, type LearningEvent } from "./events.js";
 import type { LearningPolicy, ScopeShareKey } from "./policy.js";
 
 export interface ResolveInput {
@@ -56,6 +57,11 @@ export interface ResolveInput {
   /** Tie-break relevance inside a scope that overflows its share. */
   taskText: string;
   policy: LearningPolicy;
+  /** Caller-imposed hard ceiling on governed-context bytes (context
+   *  assembly's memoryCapBytes) — the effective budget is the smaller of
+   *  this and the policy budget, so an explicit caller cap always bounds
+   *  the combined memory section. */
+  budgetCapBytes?: number;
   /** When set, the resolver emits learning events and persists the
    *  resolved-context record; a dry resolve (CLI) omits it. */
   stateHome?: string;
@@ -99,8 +105,7 @@ const SCOPE_ORDER: Array<{ key: ScopeShareKey; scope: (app: string, role: string
 ];
 
 export function resolvedContextPath(stateHome: string, turnId: string): string {
-  const safe = turnId.replace(/[^A-Za-z0-9._-]+/g, "-");
-  return join(stateHome, "learning", "resolved", `${safe}.json`);
+  return join(stateHome, "learning", "resolved", `${sanitizeIdSegment(turnId)}.json`);
 }
 
 export async function resolveLearningContext(input: ResolveInput): Promise<ResolvedLearningContext> {
@@ -117,13 +122,16 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
     const root = key === "org" || key === "role" ? orgRoot : appRoot;
     if (root === undefined) continue;
 
+    // "skip-warn": one malformed governed file degrades that file with a
+    // loud stderr line — it must never wedge context assembly for every
+    // turn org-wide (the loadBundle precedent for memory docs).
     const dir = join(bundleDir(root), scopeName);
     if (existsSync(dir)) {
-      for (const concept of await loadConceptDir(dir, "bundle")) {
+      for (const concept of await loadConceptDir(dir, "bundle", { onError: "skip-warn" })) {
         const loop = concept.doc.frontmatter.loop!;
         if (loop.status !== "active" || concept.doc.frontmatter.status !== "active") continue;
         if (loop.scope !== scopeName) continue;
-        gathered.push(toResolved(concept.doc, scopeName, key, false, input.policy));
+        gathered.push(toResolved(concept.doc, scopeName, key, false, input));
       }
     }
 
@@ -132,7 +140,7 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
     if (key === "org" || key === "app") {
       const qdir = quarantineDir(root);
       if (!existsSync(qdir)) continue;
-      for (const concept of await loadConceptDir(qdir, "quarantine")) {
+      for (const concept of await loadConceptDir(qdir, "quarantine", { onError: "skip-warn" })) {
         const loop = concept.doc.frontmatter.loop!;
         const conceptScope = loop.scope;
         const match = SCOPE_ORDER.find((s) => s.scope(input.app, input.role) === conceptScope);
@@ -148,7 +156,7 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
           );
           continue;
         }
-        gathered.push(toResolved(concept.doc, conceptScope, match.key, true, input.policy));
+        gathered.push(toResolved(concept.doc, conceptScope, match.key, true, input));
       }
     }
   }
@@ -185,20 +193,29 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
   const eligible = gathered.filter((concept) => !excluded.has(concept.id));
 
   // -- budget by scope share, redistribute narrowest-first ------------------
-  const totalBudget = input.policy.context_budget.roles[input.role] ?? input.policy.context_budget.default_bytes;
+  const policyBudget =
+    input.policy.context_budget.roles[input.role] ?? input.policy.context_budget.default_bytes;
+  const totalBudget = Math.min(policyBudget, input.budgetCapBytes ?? Infinity);
   const selected = new Set<string>();
   let used = 0;
 
-  const inScopeOrder = (key: ScopeShareKey): ResolvedConcept[] =>
+  const protectedTiers = input.policy.context_budget.eviction.protected_tiers;
+  const inScopeOrder = (key: ScopeShareKey): ResolvedConceptInternal[] =>
     eligible
       .filter((concept) => concept.scopeKey === key)
       .sort(
         (a, b) =>
+          // Protected tiers select FIRST: the publisher validated that a
+          // scope's protected concepts always fit its share, and that check
+          // is only sufficient if selection can never let an unprotected
+          // concept crowd a protected one into the fail-loud eviction path.
+          Number(protectedTiers.includes(b.tier as never)) -
+            Number(protectedTiers.includes(a.tier as never)) ||
           // provisional_first eviction => active concepts are selected first;
           Number(a.provisional) - Number(b.provisional) ||
           // keyword relevance is ONLY a tie-breaker inside an overflowing
           // scope (spec §8.1), applied as selection priority here;
-          Number(keywordHit(b, input.taskText)) - Number(keywordHit(a, input.taskText)) ||
+          Number(b.keywordHit) - Number(a.keywordHit) ||
           a.id.localeCompare(b.id),
       );
 
@@ -231,7 +248,7 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
   // Anything still dropped is an eviction; protected tiers fail loud.
   for (const concept of eligible) {
     if (selected.has(concept.id)) continue;
-    if (input.policy.context_budget.eviction.protected_tiers.includes(concept.tier as never)) {
+    if (protectedTiers.includes(concept.tier as never)) {
       throw new Error(
         `learning: resolve would evict protected ${concept.tier} concept ${concept.id} ` +
           `(scope ${concept.scope}) — protected tiers fail loud (spec §8.1); ` +
@@ -310,6 +327,8 @@ function scopeIndex(key: ScopeShareKey): number {
 
 interface ResolvedConceptInternal extends ResolvedConcept {
   topicKey?: string;
+  /** Precomputed once per concept — never inside a sort comparator. */
+  keywordHit: boolean;
 }
 
 function toResolved(
@@ -317,10 +336,10 @@ function toResolved(
   scope: string,
   scopeKey: ScopeShareKey,
   provisional: boolean,
-  policy: LearningPolicy,
+  input: ResolveInput,
 ): ResolvedConceptInternal {
   const loop = doc.frontmatter.loop!;
-  const rendered = renderConcept(doc, scope, provisional, policy);
+  const rendered = renderConcept(doc, scope, provisional, input.policy);
   const topicKey = typeof loop["topic_key"] === "string" ? loop["topic_key"] : undefined;
   return {
     id: loop.id,
@@ -330,6 +349,9 @@ function toResolved(
     tier: loop.tier,
     provisional,
     keywords: [...doc.frontmatter.keywords],
+    // Same matcher as the legacy memory selector (src/org/memory.ts) — the
+    // two selection layers must not rank the same keyword differently.
+    keywordHit: keywordsMatchTask(doc.frontmatter.keywords, input.taskText),
     bytes: Buffer.byteLength(rendered, "utf8"),
     rendered,
     ...(topicKey !== undefined ? { topicKey } : {}),
@@ -361,20 +383,6 @@ function renderConcept(
   return lines.join("\n").trimEnd();
 }
 
-/** TTL base is the `created` date (spec §3: quarantine concepts are
- *  short-lived by construction; `updated` would let a touch extend life). */
-function provisionalExpiry(doc: OkfDocument): Date {
-  const loop = doc.frontmatter.loop!;
-  const ttlDays = typeof loop["ttl_days"] === "number" ? loop["ttl_days"] : 0;
-  const created = new Date(`${doc.frontmatter.created}T00:00:00Z`);
-  return new Date(created.getTime() + ttlDays * 24 * 60 * 60 * 1000);
-}
-
-function keywordHit(concept: ResolvedConcept, taskText: string): boolean {
-  const lower = taskText.toLowerCase();
-  return concept.keywords.some((keyword) => lower.includes(keyword.toLowerCase()));
-}
-
 function resolveEvent(
   input: ResolveInput,
   now: Date,
@@ -382,10 +390,8 @@ function resolveEvent(
   idSuffix: string,
   payload: Record<string, unknown>,
 ): LearningEvent {
-  const safeTurn = input.turnId.replace(/[^A-Za-z0-9._-]+/g, "-");
-  const safeSuffix = idSuffix.replace(/[^A-Za-z0-9._-]+/g, "-");
   return {
-    event_id: `evt_resolve_${safeTurn}_${safeSuffix}`,
+    event_id: `evt_resolve_${sanitizeIdSegment(input.turnId)}_${sanitizeIdSegment(idSuffix)}`,
     episode_id: input.episodeId,
     turn_id: input.turnId,
     ts: now.toISOString(),

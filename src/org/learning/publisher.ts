@@ -21,7 +21,7 @@
 // publish routinely; rejections go to the ledger.
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import type { GhOps } from "../../loop/github.js";
 import type { ApprovalStore } from "../approvals.js";
@@ -34,7 +34,6 @@ import {
 } from "./candidate.js";
 import {
   candidateArtifactHash,
-  candidateArtifactPath,
   conceptDraftPath,
   findCandidateArtifact,
   sha256Ref,
@@ -48,6 +47,8 @@ import {
   readManifest,
   renderActivatedConcept,
   rootKindForScope,
+  scopeApp,
+  scopeShareKey,
   type LearningRoot,
 } from "./concepts.js";
 import {
@@ -57,7 +58,7 @@ import {
   raiseLearningPublish,
   type LearningPublishBinding,
 } from "./binding.js";
-import { appendLearningEventsDeduped } from "./events.js";
+import { appendLearningEventsDeduped, sanitizeIdSegment } from "./events.js";
 import { readExperimentRecord } from "./experiment.js";
 import {
   listInterventionRecords,
@@ -67,7 +68,12 @@ import {
   type PublishKind,
 } from "./intervention.js";
 import type { LearningPolicy } from "./policy.js";
-import { appendRejection, checkSuppression, type RejectionEntry } from "./rejections.js";
+import {
+  appendRejection,
+  checkSuppression,
+  readRejections,
+  type RejectionEntry,
+} from "./rejections.js";
 import { readReviewerVerdict, reviewDisposition, reviewerVerdictHash, type ReviewerVerdict } from "./review.js";
 
 export const LEARNING_TICKET_LABEL = "op:learning";
@@ -155,6 +161,12 @@ export async function publishCandidate(
   const scope = verdict.proposed_scope;
 
   if (destination === "reject") {
+    // Idempotent per candidate: the ledger is append-only, so a re-run must
+    // report the existing entry, never write a duplicate.
+    const existing = (await readRejections(deps.orgHome)).find(
+      (entry) => entry.candidate_id === candidateId,
+    );
+    if (existing !== undefined) return { status: "rejected", entry: existing };
     const entry = await appendRejection(deps.orgHome, {
       candidate,
       reason: verdict.rationale,
@@ -182,7 +194,7 @@ export async function publishCandidate(
       : undefined;
   const gateInput = { ...candidate, proposed_tier: tier };
 
-  const destRoot = resolveDestinationRoot(deps, orgRoot, scope, candidateRoot);
+  const destRoot = resolveDestinationRoot(deps, orgRoot, scope);
   if (typeof destRoot === "string") return { status: "refused", reason: destRoot };
 
   // A completed transaction is terminal — checked before rendering, because
@@ -199,9 +211,25 @@ export async function publishCandidate(
     };
   }
 
+  // Resume an in-flight (crashed) transaction BEFORE re-rendering anything:
+  // the artifact step may already have moved the concept draft out of
+  // candidates/, so a fresh render cannot succeed — the journal carries the
+  // exact rendered bytes instead (design §11.1 crash resume).
+  const routineJournalId = `routine-${candidateId}`;
+  const resumeId = (await journalInFlight(deps.stateHome, routineJournalId))
+    ? routineJournalId
+    : decided !== undefined &&
+        decided.decision === "approved" &&
+        (await journalInFlight(deps.stateHome, decided.id))
+      ? decided.id
+      : undefined;
+  if (resumeId !== undefined) {
+    return executePublish(deps, { journalId: resumeId, candidate, candidateRoot, destRoot, now });
+  }
+
   // Render the final artifact now: the binding hashes the exact bytes the
   // publish will write, and the routine path writes those same bytes.
-  const artifact = await renderArtifact(deps, destRoot, candidate, verdict, destination);
+  const artifact = await renderArtifact(deps, destRoot, candidateRoot, candidate, verdict, destination);
   if ("refused" in artifact) return { status: "refused", reason: artifact.refused };
 
   if (!requiresHumanGate(destination, tier)) {
@@ -210,17 +238,19 @@ export async function publishCandidate(
       ...(experiment !== undefined ? { experiment } : {}),
     });
     return executePublish(deps, {
-      journalId: `routine-${candidateId}`,
+      journalId: routineJournalId,
       candidate,
       candidateRoot,
       destRoot,
-      destination,
-      tier,
-      scope,
-      artifact,
-      approvalRef: null,
-      claim: evaluability.claim,
       now,
+      create: {
+        destination,
+        tier,
+        scope,
+        artifact,
+        approvalRef: null,
+        claim: evaluability.claim,
+      },
     });
   }
 
@@ -240,16 +270,47 @@ export async function publishCandidate(
 
   const pending = await findLearningPublishItem(deps.approvals, candidateId, "pending");
 
+  // A pending item that still matches current bytes is simply awaiting the
+  // human; anything else (void approval, changed content after a denial,
+  // stale pending) supersedes into a FRESH content-bound raise — a candidate
+  // must never dead-end just because its bytes moved after a decision.
+  const raiseFresh = async (note?: string): Promise<PublishOutcome> => {
+    assertCandidateCanProceed(gateInput, {
+      ...(experiment !== undefined ? { experiment } : {}),
+      ...(options.waiver !== undefined ? { humanWaiver: options.waiver } : {}),
+      ...(options.waiver === undefined && binding.waivers.length > 0
+        ? { humanWaiver: binding.waivers.join("; ") }
+        : {}),
+    });
+    const raised = await raiseLearningPublish(deps.approvals, {
+      binding,
+      app: scopeApp(scope) ?? "org",
+      justification: note !== undefined ? `${note}; ${verdict.rationale}` : verdict.rationale,
+      now: now(),
+    });
+    return { status: "raised", approvalId: raised.item.id };
+  };
+
+  if (pending !== undefined) {
+    const pendingBinding = bindingOf(pending)!;
+    if (bindingMismatches(pendingBinding, binding).length === 0) {
+      return { status: "awaiting_approval", approvalId: pending.id };
+    }
+    return {
+      status: "refused",
+      reason:
+        `pending approval ${pending.id} no longer matches current bytes — ` +
+        `deny it (operon approvals) and re-run publish to raise a fresh one`,
+    };
+  }
+
   if (decided !== undefined && decided.decision === "approved") {
     const approved = bindingOf(decided)!;
     const mismatches = bindingMismatches(approved, binding);
     if (mismatches.length > 0) {
-      return {
-        status: "refused",
-        reason:
-          `approval ${decided.id} is VOID — bound bytes changed after approval ` +
-          `(${mismatches.join("; ")}); re-run publish to raise a fresh approval`,
-      };
+      // The approval is VOID (bound bytes changed after the decision) —
+      // supersede it with a fresh binding rather than dead-ending.
+      return raiseFresh(`supersedes VOID approval ${decided.id} (${mismatches.join("; ")})`);
     }
     // The waiver the human approved is the one that counts.
     const evaluability = assertCandidateCanProceed(gateInput, {
@@ -261,52 +322,37 @@ export async function publishCandidate(
       candidate,
       candidateRoot,
       destRoot,
-      destination,
-      tier,
-      scope,
-      artifact,
-      approvalRef: decided.id,
-      claim: evaluability.claim,
-      waivers: approved.waivers,
       now,
+      create: {
+        destination,
+        tier,
+        scope,
+        artifact,
+        approvalRef: decided.id,
+        claim: evaluability.claim,
+        waivers: approved.waivers,
+      },
     });
   }
 
-  if (decided !== undefined && decided.decision === "denied" && pending === undefined) {
-    return {
-      status: "denied",
-      approvalId: decided.id,
-      ...(decided.reason !== undefined ? { reason: decided.reason } : {}),
-    };
-  }
-
-  if (pending !== undefined) {
-    const pendingBinding = bindingOf(pending)!;
-    const mismatches = bindingMismatches(pendingBinding, binding);
-    if (mismatches.length > 0) {
+  if (decided !== undefined && decided.decision === "denied") {
+    const denied = bindingOf(decided);
+    if (denied === undefined || bindingMismatches(denied, binding).length === 0) {
+      // Same bytes the human already said no to — the denial stands.
       return {
-        status: "refused",
-        reason:
-          `pending approval ${pending.id} no longer matches current bytes ` +
-          `(${mismatches.join("; ")}) — deny it and re-run publish to raise a fresh one`,
+        status: "denied",
+        approvalId: decided.id,
+        ...(decided.reason !== undefined ? { reason: decided.reason } : {}),
       };
     }
-    return { status: "awaiting_approval", approvalId: pending.id };
+    // The content changed since the denial (re-review, amended draft) — a
+    // fresh decision on the new bytes is legitimate.
+    return raiseFresh(`supersedes denied approval ${decided.id} (content changed since denial)`);
   }
 
   // Fail early on an unsatisfiable experiment gate BEFORE raising: a human
   // tap on an approval the publisher would refuse anyway is wasted attention.
-  assertCandidateCanProceed(gateInput, {
-    ...(experiment !== undefined ? { experiment } : {}),
-    ...(options.waiver !== undefined ? { humanWaiver: options.waiver } : {}),
-  });
-  const raised = await raiseLearningPublish(deps.approvals, {
-    binding,
-    app: scope.startsWith("apps/") ? scope.split("/")[1]! : "org",
-    justification: verdict.rationale,
-    now: now(),
-  });
-  return { status: "raised", approvalId: raised.item.id };
+  return raiseFresh();
 }
 
 // ---------------------------------------------------------------------------
@@ -324,14 +370,16 @@ interface RenderedArtifact {
   issueTitle?: string;
 }
 
+/** The scope alone picks the destination root — a candidate emitted into the
+ *  "wrong" root still publishes to the scope's root; the candidate file
+ *  location carries no authority. */
 function resolveDestinationRoot(
   deps: PublisherDeps,
   orgRoot: LearningRoot,
   scope: string,
-  candidateRoot: LearningRoot,
 ): LearningRoot | string {
   if (rootKindForScope(scope) === "org") return orgRoot;
-  const app = scope.split("/")[1]!;
+  const app = scopeApp(scope)!;
   const root = deps.appRoots?.[app];
   if (root === undefined) {
     return (
@@ -339,29 +387,33 @@ function resolveDestinationRoot(
       `resolved — pass --app or onboard the app first`
     );
   }
-  // A candidate emitted into the wrong root still publishes to the scope's
-  // root; the candidate file location carries no authority.
-  void candidateRoot;
   return root;
 }
 
 async function renderArtifact(
   deps: PublisherDeps,
   destRoot: LearningRoot,
+  candidateRoot: LearningRoot,
   candidate: CandidateArtifact,
   verdict: ReviewerVerdict,
   destination: CandidateDestination,
 ): Promise<RenderedArtifact | { refused: string }> {
   switch (destination) {
     case "okf_concept": {
-      const draftPath = conceptDraftPath(destRoot, candidate.candidate_id);
-      const fallback = conceptDraftPath(orgLearningRoot(deps.orgHome), candidate.candidate_id);
-      const source = existsSync(draftPath) ? draftPath : fallback;
-      if (!existsSync(source)) {
+      // The draft may sit beside the candidate JSON in ANY root (an app-repo
+      // candidate re-scoped by review to an org scope still has its draft in
+      // the app root); the destination root and org root are checked too.
+      const source = [
+        conceptDraftPath(destRoot, candidate.candidate_id),
+        conceptDraftPath(candidateRoot, candidate.candidate_id),
+        conceptDraftPath(orgLearningRoot(deps.orgHome), candidate.candidate_id),
+      ].find((path) => existsSync(path));
+      if (source === undefined) {
         return {
           refused:
             `${candidate.candidate_id} routes to okf_concept but has no concept draft ` +
-            `(${relative(deps.orgHome, fallback)}) — the .md beside the candidate JSON is what activates`,
+            `(${relative(deps.orgHome, conceptDraftPath(candidateRoot, candidate.candidate_id))}) — ` +
+            `the .md beside the candidate JSON is what activates`,
         };
       }
       const rendered = await renderActivatedConcept(source);
@@ -436,8 +488,9 @@ async function renderArtifact(
 /** Publish-time bundle-size validation (spec §3, §8.1): a protected-tier
  *  (T2/T3) concept must ALWAYS fit — together with every other protected
  *  concept already in its scope — inside the scope's share of the smallest
- *  configured byte budget. Enforced here so resolve() can fail loud instead
- *  of ever evicting a protected concept. */
+ *  configured byte budget. Enforced here, paired with the resolver's
+ *  protected-first selection, so resolve() can fail loud instead of ever
+ *  evicting a protected concept. */
 async function protectedBundleOversize(
   deps: PublisherDeps,
   destRoot: LearningRoot,
@@ -449,15 +502,7 @@ async function protectedBundleOversize(
   }
   const budget = deps.policy.context_budget;
   const smallestTotal = Math.min(budget.default_bytes, ...Object.values(budget.roles));
-  const shareKey =
-    verdict.proposed_scope === "org"
-      ? "org"
-      : verdict.proposed_scope.startsWith("roles/")
-        ? "role"
-        : verdict.proposed_scope.includes("/roles/")
-          ? "app_role"
-          : "app";
-  const shareBytes = Math.floor(smallestTotal * budget.shares[shareKey]);
+  const shareBytes = Math.floor(smallestTotal * budget.shares[scopeShareKey(verdict.proposed_scope)]);
 
   let used = Buffer.byteLength(bytes, "utf8");
   const dir = bundleScopeDir(destRoot, verdict.proposed_scope);
@@ -466,7 +511,7 @@ async function protectedBundleOversize(
       const loop = concept.doc.frontmatter.loop!;
       if (loop.status !== "active") continue;
       if (!deps.policy.context_budget.eviction.protected_tiers.includes(loop.tier)) continue;
-      used += Buffer.byteLength(await readFile(concept.path, "utf8"), "utf8");
+      used += (await stat(concept.path)).size; // file bytes; no second content read
     }
   }
   if (used <= shareBytes) return null;
@@ -504,15 +549,23 @@ interface PublishJournal {
 }
 
 function journalPath(stateHome: string, journalId: string): string {
-  const safe = journalId.replace(/[^A-Za-z0-9._-]+/g, "-");
-  return join(stateHome, "learning", "publish-journal", `${safe}.json`);
+  return join(stateHome, "learning", "publish-journal", `${sanitizeIdSegment(journalId)}.json`);
+}
+
+async function readJournal(stateHome: string, journalId: string): Promise<PublishJournal | undefined> {
+  const path = journalPath(stateHome, journalId);
+  if (!existsSync(path)) return undefined;
+  return JSON.parse(await readFile(path, "utf8")) as PublishJournal;
 }
 
 async function journalIsDone(stateHome: string, journalId: string): Promise<boolean> {
-  const path = journalPath(stateHome, journalId);
-  if (!existsSync(path)) return false;
-  const journal = JSON.parse(await readFile(path, "utf8")) as PublishJournal;
-  return journal.done_at !== undefined;
+  return (await readJournal(stateHome, journalId))?.done_at !== undefined;
+}
+
+/** A journal that exists but never committed — a crashed transaction. */
+async function journalInFlight(stateHome: string, journalId: string): Promise<boolean> {
+  const journal = await readJournal(stateHome, journalId);
+  return journal !== undefined && journal.done_at === undefined;
 }
 
 interface ExecuteInput {
@@ -520,28 +573,32 @@ interface ExecuteInput {
   candidate: CandidateArtifact;
   candidateRoot: LearningRoot;
   destRoot: LearningRoot;
-  destination: CandidateDestination;
-  tier: LoopTier;
-  scope: string;
-  artifact: RenderedArtifact;
-  approvalRef: string | null;
-  claim: "authorized" | "validated";
-  waivers?: string[];
   now: () => Date;
+  /** Present on first execution; absent when resuming a crashed journal —
+   *  the journal is then the sole source for the transaction's content. */
+  create?: {
+    destination: CandidateDestination;
+    tier: LoopTier;
+    scope: string;
+    artifact: RenderedArtifact;
+    approvalRef: string | null;
+    claim: "authorized" | "validated";
+    waivers?: string[];
+  };
 }
 
 async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise<PublishOutcome> {
-  const path = journalPath(deps.stateHome, input.journalId);
-  let journal: PublishJournal;
-  if (existsSync(path)) {
-    journal = JSON.parse(await readFile(path, "utf8")) as PublishJournal;
-    if (journal.done_at !== undefined) {
-      // Crash between done-mark and the caller seeing it, or a plain re-run:
-      // the transaction already committed — report it, change nothing.
-      const intervention = await readExistingIntervention(deps, journal);
-      return { status: "published", intervention, refs: refsOf(journal) };
+  let journal = await readJournal(deps.stateHome, input.journalId);
+  if (journal !== undefined && journal.done_at !== undefined) {
+    // Crash between done-mark and the caller seeing it, or a plain re-run:
+    // the transaction already committed — report it, change nothing.
+    const intervention = await readExistingIntervention(deps, journal);
+    return { status: "published", intervention, refs: refsOf(journal) };
+  }
+  if (journal === undefined) {
+    if (input.create === undefined) {
+      throw new Error(`learning: no publish journal ${input.journalId} to resume`);
     }
-  } else {
     journal = {
       schema_version: 1,
       journal_id: input.journalId,
@@ -550,13 +607,13 @@ async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise
         input.candidateRoot,
         input.candidate.candidate_id,
       ),
-      destination: input.destination,
-      tier: input.tier,
-      scope: input.scope,
-      approval_ref: input.approvalRef,
-      claim: input.claim,
-      waivers: input.waivers ?? [],
-      artifact: input.artifact,
+      destination: input.create.destination,
+      tier: input.create.tier,
+      scope: input.create.scope,
+      approval_ref: input.create.approvalRef,
+      claim: input.create.claim,
+      waivers: input.create.waivers ?? [],
+      artifact: input.create.artifact,
     };
     await writeJournal(deps.stateHome, journal);
   }
@@ -592,10 +649,10 @@ async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise
   // Step: publish_committed event — deterministic id, deduped on replay.
   await appendLearningEventsDeduped(deps.stateHome, [
     {
-      event_id: `evt_publish_${journal.journal_id.replace(/[^A-Za-z0-9._-]+/g, "-")}`,
+      event_id: `evt_publish_${sanitizeIdSegment(journal.journal_id)}`,
       episode_id: input.candidate.episode_ids[0] ?? `ep_learning_publish_${journal.candidate_id}`,
       ts: input.now().toISOString(),
-      app: input.scope.startsWith("apps/") ? input.scope.split("/")[1]! : "org",
+      app: scopeApp(journal.scope) ?? "org",
       type: "publish_committed",
       emitter: "publisher",
       source_channel: "internal",
@@ -652,10 +709,13 @@ async function writeDestinationArtifact(
         await writeFileAtomic(dest, artifact.bytes);
       }
       // Move semantics (spec §14 step 3): the candidate draft leaves
-      // candidates/ so the same lesson cannot be re-reviewed or re-published
-      // from a stale copy.
+      // candidates/ — from every root renderArtifact would look in — so the
+      // same lesson cannot be re-reviewed or re-published from a stale copy.
       await rm(conceptDraftPath(input.destRoot, journal.candidate_id), { force: true });
       await rm(conceptDraftPath(input.candidateRoot, journal.candidate_id), { force: true });
+      await rm(conceptDraftPath(orgLearningRoot(deps.orgHome), journal.candidate_id), {
+        force: true,
+      });
       return dest;
     }
     case "ticket": {
@@ -665,9 +725,14 @@ async function writeDestinationArtifact(
       // Dedupe by candidate fingerprint (policy §13): an open learning issue
       // carrying this content hash IS this publish. This also makes the
       // create step crash-safe — a re-run finds the issue instead of filing
-      // a duplicate.
+      // a duplicate. The marker comes from the JOURNALED bytes, so a resume
+      // matches the issue this transaction rendered even if the candidate
+      // file was re-distilled between crash and resume.
       const open = await deps.gh.listIssues({ state: "open", labels: [LEARNING_TICKET_LABEL] });
-      const marker = `${FINGERPRINT_MARKER} ${input.candidate.content_hash}`;
+      const journaledHash = new RegExp(`${FINGERPRINT_MARKER} (sha256:[0-9a-f]{64})`).exec(
+        journal.artifact.bytes,
+      )?.[1];
+      const marker = `${FINGERPRINT_MARKER} ${journaledHash ?? input.candidate.content_hash}`;
       const existing = open.find((issue) => issue.body.includes(marker));
       if (existing !== undefined) return `#${existing.number}`;
 

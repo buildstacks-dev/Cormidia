@@ -221,6 +221,43 @@ describe("rollback (milestone M4: revert the latest version cut)", () => {
     const fixture = orgFixture();
     await expect(rollbackRoot(orgLearningRoot(fixture.root))).rejects.toThrow(/no version cuts/);
   });
+
+  it("refuses a no-op rollback: the latest cut's concepts are no longer active", async () => {
+    const fixture = orgFixture();
+    const root = orgLearningRoot(fixture.root);
+    seedConcept(
+      bundleScopeDir(root, "org"),
+      "gone.md",
+      conceptMarkdown({ name: "gone", id: "lrn_gone", scope: "org", status: "active" }),
+    );
+    const now = new Date("2026-07-11T10:00:00Z");
+    await cutManifestVersion(root, { concepts: ["lrn_gone"], now });
+    await disableConcept(root, "lrn_gone", { now });
+    // The latest cut is the disable — rolling it back would change nothing
+    // while blocking the rollback of the publish underneath it.
+    await expect(rollbackRoot(root, { now })).rejects.toThrow(/no still-active concepts/);
+  });
+});
+
+describe("safe concept names", () => {
+  it("a provisional whose name would escape quarantine/ is rejected", async () => {
+    const fixture = orgFixture();
+    const root = orgLearningRoot(fixture.root);
+    const doc = parseOkfDocument(
+      conceptMarkdown({
+        name: "placeholder",
+        id: "lrn_esc",
+        scope: "org",
+        status: "provisional",
+        ttlDays: 7,
+        author: "human",
+      }),
+    );
+    doc.frontmatter.name = "../bundle/org/hotfix";
+    await expect(
+      writeProvisionalConcept(root, { doc, policy: defaultLearningPolicy() }),
+    ).rejects.toThrow(/plain filename segment/);
+  });
 });
 
 describe("quarantine authoring (design §7 urgent human lane)", () => {

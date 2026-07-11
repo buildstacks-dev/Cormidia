@@ -236,6 +236,62 @@ describe("budget shares with narrowest-first redistribution (Done #8)", () => {
     );
   });
 
+  it("protected tiers select FIRST, so unprotected concepts can never crowd them into eviction", async () => {
+    const policy = defaultLearningPolicy();
+    policy.context_budget.default_bytes = 2048; // org share: 512 bytes
+    const rig = makeRig(policy);
+    // A large unprotected concept that sorts before the protected one by id
+    // and cannot coexist with it inside the total budget — protected-first
+    // selection must load the T2 and evict the T1, or the publish-time size
+    // validation is meaningless.
+    seed(rig, "org-bundle", {
+      name: "big-t1",
+      id: "lrn_aaa-big",
+      scope: "org",
+      status: "active",
+      tier: "T1",
+      body: "b".repeat(1900),
+    });
+    seed(rig, "org-bundle", {
+      name: "small-t2",
+      id: "lrn_zzz-protected",
+      scope: "org",
+      status: "active",
+      tier: "T2",
+      body: "small protected protocol rule",
+    });
+    const resolved = await resolveLearningContext(rig.input);
+    expect(resolved.concept_ids).toContain("lrn_zzz-protected");
+    expect(resolved.concept_ids).not.toContain("lrn_aaa-big");
+  });
+
+  it("one malformed governed file degrades with a warning instead of wedging the resolve", async () => {
+    const rig = makeRig();
+    seed(rig, "org-bundle", { name: "good", id: "lrn_good", scope: "org", status: "active" });
+    const dir = join(rig.orgHome.root, "learning", "bundle", "org");
+    writeFileSync(join(dir, "corrupt.md"), "# not OKF at all\n", "utf8");
+    // A misplaced status is skipped the same way (placement violation).
+    writeFileSync(
+      join(dir, "misplaced.md"),
+      conceptMarkdown({ name: "misplaced", id: "lrn_mis", scope: "org", status: "candidate" }),
+      "utf8",
+    );
+    const warnings: string[] = [];
+    const original = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      warnings.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const resolved = await resolveLearningContext(rig.input);
+      expect(resolved.concept_ids).toEqual(["lrn_good"]);
+    } finally {
+      process.stderr.write = original;
+    }
+    expect(warnings.join("")).toContain("skipping malformed governed concept");
+    expect(warnings.join("")).toContain("skipping misplaced governed concept");
+  });
+
   it("dropping a protected-tier concept fails loud instead of evicting", async () => {
     const policy = defaultLearningPolicy();
     policy.context_budget.default_bytes = 256;

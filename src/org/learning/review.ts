@@ -14,7 +14,6 @@
 // provenance — the reviewer-human agreement metric (spec §18) needs to know
 // who reviewed, and the sketch had no field for it.
 
-import { createHash } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -29,6 +28,7 @@ import {
   requireRecord,
   requireString,
   requireStringArray,
+  sha256Ref,
 } from "./validate.js";
 
 export const REVIEW_VERDICTS = ["approve", "revise", "reject", "escalate"] as const;
@@ -175,5 +175,5 @@ export async function reviewerVerdictHash(orgHome: string, candidateId: string):
   if (!existsSync(path)) {
     throw new Error(`learning: no reviewer verdict for ${candidateId} — review fails closed`);
   }
-  return `sha256:${createHash("sha256").update(await readFile(path)).digest("hex")}`;
+  return sha256Ref(await readFile(path));
 }

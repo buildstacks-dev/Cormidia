@@ -127,10 +127,11 @@ describe("operon learn — M4 governed activation flow", () => {
     expect(after.logs.join("\n")).not.toContain("map-criteria-to-tests");
     vi.restoreAllMocks();
 
-    // Rollback reverts the latest cut (the disable) and stays append-only.
-    const rollback = captureLogs();
-    expect(await cmdLearn(["rollback", "--root", "org", ...HOME_FLAGS])).toBe(0);
-    expect(rollback.logs.join("\n")).toContain("rolled back");
+    // Rollback refuses when the latest cut (the disable) has nothing still
+    // active — a silent no-op that blocks future rollbacks would be worse.
+    await expect(cmdLearn(["rollback", "--root", "org", ...HOME_FLAGS])).rejects.toThrow(
+      /no still-active concepts/,
+    );
   });
 
   it("quarantines a provisional through the urgent human lane and reports activation sections", async () => {

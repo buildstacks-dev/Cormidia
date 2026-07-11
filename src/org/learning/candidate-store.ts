@@ -13,7 +13,6 @@
 // under per-role subdirectories; they are distillation input (M6), not
 // publishable candidates, and this module ignores them.
 
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -21,6 +20,9 @@ import { writeFileAtomic } from "../atomic.js";
 import { validateCandidateArtifact, type CandidateArtifact } from "./candidate.js";
 import { candidatesDir, type LearningRoot } from "./concepts.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";
+import { sha256Ref } from "./validate.js";
+
+export { sha256Ref };
 
 export function candidateArtifactPath(root: LearningRoot, candidateId: string): string {
   return join(candidatesDir(root), `${candidateId}.json`);
@@ -84,8 +86,4 @@ export async function candidateArtifactHash(
     throw new Error(`learning: no candidate ${candidateId} under ${candidatesDir(root)}`);
   }
   return sha256Ref(await readFile(path));
-}
-
-export function sha256Ref(bytes: Buffer | string): string {
-  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }

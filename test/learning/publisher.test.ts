@@ -5,7 +5,7 @@
 // proportional lanes), plus rate caps and publish-time bundle-size
 // validation for protected tiers.
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -28,6 +28,7 @@ import {
   type PublisherDeps,
 } from "../../src/org/learning/publisher.js";
 import { listInterventionRecords } from "../../src/org/learning/intervention.js";
+import { readRejections } from "../../src/org/learning/rejections.js";
 import { writeReviewerVerdict } from "../../src/org/learning/review.js";
 import { parseOkfDocument } from "../../src/org/memory.js";
 import { makeOrgHome, type OrgHomeFixture } from "../fixtures/orgHome.js";
@@ -284,7 +285,7 @@ describe("human-gated lane: okf_concept activation (Done #2)", () => {
     expect((await readManifest(orgLearningRoot(rig.orgHome.root)))?.history).toHaveLength(1);
   });
 
-  it("mutating the approved bytes voids the approval and the publish refuses (Done #2)", async () => {
+  it("mutating the approved bytes voids the approval; a fresh binding is raised, never published (Done #2)", async () => {
     const rig = makeRig();
     const id = await seedCandidate(rig, {
       destination: "okf_concept",
@@ -307,10 +308,137 @@ describe("human-gated lane: okf_concept activation (Done #2)", () => {
       }),
       "utf8",
     );
+    // The void approval is superseded by a FRESH content-bound raise — the
+    // mutated bytes are never published under the stale decision.
     const outcome = await publishCandidate(rig.deps, id);
-    expect(outcome).toMatchObject({ status: "refused" });
-    expect((outcome as { reason: string }).reason).toMatch(/VOID/);
-    expect((outcome as { reason: string }).reason).toMatch(/final_diff_hash/);
+    expect(outcome).toMatchObject({ status: "raised" });
+    const freshId = (outcome as { approvalId: string }).approvalId;
+    expect(freshId).not.toBe(approvalId);
+    const fresh = (await rig.deps.approvals.listPending()).find((item) => item.id === freshId);
+    expect(fresh?.justification).toMatch(/supersedes VOID approval/);
+    const bundleFile = join(
+      bundleScopeDir(orgLearningRoot(rig.orgHome.root), "roles/builder"),
+      `concept-${id.slice(-5).toLowerCase()}.md`,
+    );
+    expect(existsSync(bundleFile)).toBe(false);
+  });
+
+  it("a denied candidate whose content changed can raise a fresh approval; unchanged content stays denied", async () => {
+    const rig = makeRig();
+    const id = await seedCandidate(rig, {
+      destination: "okf_concept",
+      candidate_id: "cand_20260711_REDO1",
+    });
+    const raised = await publishCandidate(rig.deps, id);
+    await rig.deps.approvals.decide((raised as { approvalId: string }).approvalId, {
+      decision: "denied",
+      reason: "too broad",
+    });
+    // Same bytes → the denial stands.
+    expect(await publishCandidate(rig.deps, id)).toMatchObject({ status: "denied" });
+
+    // Re-review (new verdict bytes) → a fresh decision is legitimate.
+    await writeReviewerVerdict(
+      rig.orgHome.root,
+      makeReviewerVerdict({
+        candidate_id: id,
+        proposed_destination: "okf_concept",
+        rationale: "narrowed after the denial feedback",
+      }),
+    );
+    expect(await publishCandidate(rig.deps, id)).toMatchObject({ status: "raised" });
+  });
+
+  it("resumes a crashed okf publish from the journal after the draft moved (Done #3)", async () => {
+    const rig = makeRig();
+    const id = await seedCandidate(rig, {
+      destination: "okf_concept",
+      candidate_id: "cand_20260711_CRASH",
+    });
+    const raised = await publishCandidate(rig.deps, id);
+    const approvalId = (raised as { approvalId: string }).approvalId;
+    await rig.deps.approvals.decide(approvalId, { decision: "approved" });
+
+    // Reconstruct the crash state a real transaction leaves after its
+    // artifact step: journal written with the artifact receipt, draft moved
+    // into bundle/, and nothing else committed.
+    const name = `concept-${id.slice(-5).toLowerCase()}`;
+    const draftPath = conceptDraftPath(orgLearningRoot(rig.orgHome.root), id);
+    const bytes = await readFile(draftPath, "utf8");
+    const activatedBytes = bytes
+      .replace("status: active", "status: active") // top-level already active
+      .replace("  status: candidate", "  status: active");
+    const bundleFile = join(
+      bundleScopeDir(orgLearningRoot(rig.orgHome.root), "roles/builder"),
+      `${name}.md`,
+    );
+    mkdirSync(join(bundleFile, ".."), { recursive: true });
+    writeFileSync(bundleFile, activatedBytes, "utf8");
+    rmSync(draftPath);
+    const journalDir = join(rig.stateHome.root, "learning", "publish-journal");
+    mkdirSync(journalDir, { recursive: true });
+    writeFileSync(
+      join(journalDir, `${approvalId.replace(/[^A-Za-z0-9._-]+/g, "-")}.json`),
+      JSON.stringify({
+        schema_version: 1,
+        journal_id: approvalId,
+        candidate_id: id,
+        candidate_hash: `sha256:${"77".repeat(32)}`,
+        destination: "okf_concept",
+        tier: "T1",
+        scope: "roles/builder",
+        approval_ref: approvalId,
+        claim: "authorized",
+        waivers: [],
+        artifact: {
+          kind: "bundle_version",
+          bytes: activatedBytes,
+          conceptId: `lrn_${id.slice(-5).toLowerCase()}`,
+          conceptName: name,
+        },
+        artifact_ref: bundleFile,
+      }),
+      "utf8",
+    );
+
+    // The resume completes the remaining steps instead of refusing on the
+    // missing draft: manifest cut, intervention, done-mark.
+    const outcome = await publishCandidate(rig.deps, id);
+    expect(outcome).toMatchObject({ status: "published" });
+    expect((await readManifest(orgLearningRoot(rig.orgHome.root)))?.history).toHaveLength(1);
+    const interventions = await listInterventionRecords(rig.orgHome.root);
+    expect(interventions[0]).toMatchObject({ status: "active", approval_ref: approvalId });
+
+    // And the whole transaction is terminal on the next run.
+    expect(await publishCandidate(rig.deps, id)).toMatchObject({ status: "refused" });
+  });
+
+  it("the learning-publish rule is never scopeable — one decision, one publish", async () => {
+    const rig = makeRig();
+    const id = await seedCandidate(rig, {
+      destination: "okf_concept",
+      candidate_id: "cand_20260711_SCOPE",
+    });
+    const raised = await publishCandidate(rig.deps, id);
+    await expect(
+      rig.deps.approvals.decide((raised as { approvalId: string }).approvalId, {
+        decision: "approved",
+        scope: { kind: "app" },
+      }),
+    ).rejects.toThrow(/never scopeable/);
+  });
+
+  it("a reject-routed candidate writes exactly one ledger entry across re-runs", async () => {
+    const rig = makeRig();
+    const id = await seedCandidate(
+      rig,
+      { destination: "ticket", candidate_id: "cand_20260711_REJI1" },
+      { proposed_destination: "reject", rationale: "not a real lesson" },
+    );
+    expect(await publishCandidate(rig.deps, id)).toMatchObject({ status: "rejected" });
+    expect(await publishCandidate(rig.deps, id)).toMatchObject({ status: "rejected" });
+    const entries = await readRejections(rig.orgHome.root);
+    expect(entries.filter((entry) => entry.candidate_id === id)).toHaveLength(1);
   });
 
   it("a denied approval reports denied and publishes nothing", async () => {

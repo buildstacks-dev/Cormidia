@@ -385,6 +385,13 @@ function signalWords(text: string): Set<string> {
   return new Set((text.toLowerCase().match(/[a-z0-9-]{3,}/g) ?? []).values());
 }
 
+/** The ONE keyword-vs-task matcher (legacy selector above, learning resolver
+ *  tie-break) — exported so the two selection layers running on the same
+ *  taskText cannot drift in matching semantics. */
+export function keywordsMatchTask(keywords: readonly string[], taskText: string): boolean {
+  return keywordOverlap(keywords, signalWords(taskText), taskText);
+}
+
 function keywordOverlap(keywords: readonly string[], taskWords: Set<string>, taskText: string): boolean {
   const lowerTask = taskText.toLowerCase();
   return keywords.some((keyword) => {

@@ -180,6 +180,21 @@ describe("assembleContext", () => {
         existsSync(join(state.root, "learning", "resolved", "turn-ctx.json")),
       ).toBe(true);
 
+      // An explicit caller cap bounds the COMBINED memory section — governed
+      // concepts spend from it first, legacy memory gets the remainder.
+      const capped = await assembleContext({
+        orgHome: org.root,
+        appWorkdir: app.root,
+        app: "alpha",
+        role: REVIEWER,
+        taskText: "security review",
+        memoryCapBytes: 64,
+        learning: { stateHome: state.root, turnId: "turn-cap", episodeId: "ep_alpha_ticket_0002" },
+      });
+      expect(
+        Buffer.byteLength(capped.bundle.memoryExcerpts.join(""), "utf8"),
+      ).toBeLessThanOrEqual(64);
+
       // Without the learning option, assembly is unchanged legacy behavior.
       const plain = await assembleContext({
         orgHome: org.root,

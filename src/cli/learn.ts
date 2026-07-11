@@ -24,6 +24,7 @@
 
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
@@ -63,6 +64,7 @@ import {
 } from "../org/learning/experiment.js";
 import {
   interventionChainGaps,
+  interventionPath,
   listInterventionRecords,
   readInterventionRecord,
 } from "../org/learning/intervention.js";
@@ -649,13 +651,17 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
       return 0;
     }
     console.log(`review: ${verdict.verdict} by ${verdict.reviewed_by} — ${verdict.rationale}`);
-    try {
-      const intervention = await readInterventionRecord(homes.orgHome, `int_${id.replace(/^cand_/, "")}`);
+    // Distinguish "no record" from "corrupt record": a lineage record that
+    // exists but fails validation must surface loudly, never read as
+    // "not yet published" (that advice would re-run a committed publish).
+    const interventionId = `int_${id.replace(/^cand_/, "")}`;
+    if (existsSync(interventionPath(homes.orgHome, interventionId))) {
+      const intervention = await readInterventionRecord(homes.orgHome, interventionId);
       console.log(
         `disposition: ${intervention.status} ${intervention.destination} — ` +
           `trace it with: operon learn show ${intervention.intervention_id}`,
       );
-    } catch {
+    } else {
       const rejected = (await readRejections(homes.orgHome)).find(
         (entry) => entry.candidate_id === id,
       );
@@ -809,11 +815,19 @@ async function report(
   ]);
   // M4 activation sections: review queue + SLA, reviewer-human agreement,
   // suppression ledger size, and per-concept load counts from resolver events.
-  const policy = await loadLearningPolicy(homes.orgHome);
-  const activation = await activationReport(homes, policy).catch((error: Error) => {
+  // Same degrade-gracefully contract as every other org-home store: a
+  // malformed policy.yaml becomes a STORE ERRORS line, never a dead report.
+  const policy = await loadLearningPolicy(homes.orgHome).catch((error: Error) => {
     storeErrors.push(error.message);
     return undefined;
   });
+  const activation =
+    policy === undefined
+      ? undefined
+      : await activationReport(homes, policy, verdicts).catch((error: Error) => {
+          storeErrors.push(error.message);
+          return undefined;
+        });
   const conceptLoads = count(
     events
       .filter((event) => event.type === "concept_loaded")

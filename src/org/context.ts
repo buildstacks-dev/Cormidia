@@ -90,6 +90,11 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
       episodeId: options.learning.episodeId,
       taskText: options.taskText,
       policy: await loadLearningPolicy(orgHome),
+      // An explicit caller cap bounds the COMBINED memory section: governed
+      // concepts spend from it first, legacy memory gets the remainder.
+      ...(options.memoryCapBytes !== undefined
+        ? { budgetCapBytes: options.memoryCapBytes }
+        : {}),
       stateHome: options.learning.stateHome,
     });
     legacyCap = Math.min(legacyCap, resolved.bytes_remaining);

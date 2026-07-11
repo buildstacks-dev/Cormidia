@@ -117,6 +117,10 @@ export const NEVER_SCOPEABLE_RULES: readonly string[] = [
   "protocol-self-edit",
   "scorecard-tamper",
   "approval-store-tamper",
+  // One human decision authorizes ONE content-hashed publish transaction
+  // (learning-loop design §6.1/§11.1) — a multi-use scoped grant would turn
+  // that into a standing authorization the binding contract forbids.
+  "learning-publish",
 ];
 
 const DEFAULT_SCOPED_MAX_USES = 20;

@@ -24,8 +24,8 @@
 //     had no field recording one.
 
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rm } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { mkdir, readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   isValidLoopScope,
@@ -63,6 +63,33 @@ export function appLearningRoot(appWorkdir: string): LearningRoot {
  *  in the org home; `apps/<app>` and deeper in the app repo. */
 export function rootKindForScope(scope: string): LearningRootKind {
   return scope.startsWith("apps/") ? "app" : "org";
+}
+
+/** The scope's budget-share key (policy §13 `context_budget.shares`) — ONE
+ *  owner for the scope-shape mapping, shared by the resolver's budgeting and
+ *  the publisher's bundle-size validation so the two can never disagree. */
+export function scopeShareKey(scope: string): "org" | "role" | "app" | "app_role" {
+  if (scope === "org") return "org";
+  if (scope.startsWith("roles/")) return "role";
+  return scope.includes("/roles/") ? "app_role" : "app";
+}
+
+/** The app segment of an `apps/<app>[/roles/<role>]` scope. */
+export function scopeApp(scope: string): string | undefined {
+  return scope.startsWith("apps/") ? scope.split("/")[1] : undefined;
+}
+
+/** Concept names become filenames (`<name>.md`); a separator or traversal
+ *  segment would let a quarantine write escape into bundle/ — the exact
+ *  surface the placement table protects. */
+export function assertSafeConceptName(name: string): string {
+  if (!/^[A-Za-z0-9._-]+$/.test(name) || /^\.+$/.test(name)) {
+    throw new Error(
+      `learning: concept name "${name}" must be a plain filename segment ` +
+        `([A-Za-z0-9._-], no path separators)`,
+    );
+  }
+  return name;
 }
 
 export function candidatesDir(root: LearningRoot): string {
@@ -148,23 +175,44 @@ export interface LoadedConcept {
   path: string;
 }
 
-/** Governed concepts in one directory. Malformed docs are LOUD here — unlike
+/** Governed concepts in one directory. Default is LOUD — unlike
  *  agent-writable memory trees, everything under quarantine/ and bundle/ went
  *  through the publisher or a human, so a broken file is corruption, not
- *  noise. Docs that fail OKF parsing or placement throw with their path. */
+ *  noise. The RESOLVER passes `onError: "skip-warn"` instead: one typo'd
+ *  file in a governed dir must degrade that file (loud stderr warning, same
+ *  contract as loadBundle's memory-doc handling) rather than wedge context
+ *  assembly for every turn org-wide. */
 export async function loadConceptDir(
   dir: string,
   placement: ConceptPlacement,
+  options: { onError?: "throw" | "skip-warn" } = {},
 ): Promise<LoadedConcept[]> {
+  const onError = options.onError ?? "throw";
   const bundle = await loadBundle(dir);
   if (bundle.errors.length > 0) {
-    const first = bundle.errors[0]!;
-    throw new Error(`learning: ${first.path}: ${first.message}`);
+    if (onError === "throw") {
+      const first = bundle.errors[0]!;
+      throw new Error(`learning: ${first.path}: ${first.message}`);
+    }
+    for (const error of bundle.errors) {
+      process.stderr.write(`operon: skipping malformed governed concept — ${error.message}\n`);
+    }
   }
-  return bundle.docs.map((doc) => ({
-    doc: assertConceptPlacement(doc, placement),
-    path: doc.path ?? join(dir, `${doc.frontmatter.name}.md`),
-  }));
+  const out: LoadedConcept[] = [];
+  for (const doc of bundle.docs) {
+    try {
+      out.push({
+        doc: assertConceptPlacement(doc, placement),
+        path: doc.path ?? join(dir, `${doc.frontmatter.name}.md`),
+      });
+    } catch (error) {
+      if (onError === "throw") throw error;
+      process.stderr.write(
+        `operon: skipping misplaced governed concept — ${(error as Error).message}\n`,
+      );
+    }
+  }
+  return out;
 }
 
 /** Find one concept by `loop.id` across a root's bundle scope dirs. */
@@ -343,6 +391,24 @@ export interface DisableResult {
   version: string;
 }
 
+/** Deprecate a loaded concept file in place (loop.status + top-level status
+ *  together, loop block byte-preserved) — the one shape `disable` and
+ *  `rollback` both write. */
+async function deprecateInPlace(found: LoadedConcept): Promise<void> {
+  const loop = found.doc.frontmatter.loop!;
+  await writeFileAtomic(
+    found.path,
+    serializeOkfDocument({
+      ...found.doc,
+      frontmatter: {
+        ...found.doc.frontmatter,
+        status: "deprecated",
+        loop: { ...loop, status: "deprecated" },
+      },
+    }),
+  );
+}
+
 /** Deprecate one active concept in place. Takes effect for every
  *  subsequently resolved turn immediately (the resolver requires
  *  `loop.status: active`); in-flight turns keep their pin because resolve
@@ -359,15 +425,7 @@ export async function disableConcept(
   if (loop.status !== "active") {
     throw new Error(`learning: ${conceptId} is already "${loop.status}" — nothing to disable`);
   }
-  const next: OkfDocument = {
-    ...found.doc,
-    frontmatter: {
-      ...found.doc.frontmatter,
-      status: "deprecated",
-      loop: { ...loop, status: "deprecated" },
-    },
-  };
-  await writeFileAtomic(found.path, serializeOkfDocument(next));
+  await deprecateInPlace(found);
   const cut = await cutManifestVersion(root, {
     concepts: [conceptId],
     note: `disable ${conceptId}`,
@@ -400,23 +458,29 @@ export async function rollbackRoot(
         `re-publish through the candidate path instead of rolling back twice`,
     );
   }
+  // One walk of the bundle, then O(1) lookups — a cut can name many concepts.
+  const byId = new Map<string, LoadedConcept>();
+  for (const dir of await listBundleScopeDirs(root)) {
+    for (const concept of await loadConceptDir(dir, "bundle")) {
+      byId.set(concept.doc.frontmatter.loop!.id, concept);
+    }
+  }
   const deactivated: string[] = [];
   for (const conceptId of last.concepts) {
-    const found = await findBundleConcept(root, conceptId);
+    const found = byId.get(conceptId);
     if (found === undefined || found.doc.frontmatter.loop?.status !== "active") continue;
-    const loop = found.doc.frontmatter.loop;
-    await writeFileAtomic(
-      found.path,
-      serializeOkfDocument({
-        ...found.doc,
-        frontmatter: {
-          ...found.doc.frontmatter,
-          status: "deprecated",
-          loop: { ...loop, status: "deprecated" },
-        },
-      }),
-    );
+    await deprecateInPlace(found);
     deactivated.push(conceptId);
+  }
+  if (deactivated.length === 0) {
+    // Rolling back a cut whose concepts are no longer active (typically a
+    // disable cut) would change nothing while blocking future rollbacks —
+    // refuse loudly instead of recording a no-op that reads as success.
+    throw new Error(
+      `learning: the latest cut (${last.version}${last.note !== undefined ? `, "${last.note}"` : ""}) ` +
+        `has no still-active concepts — nothing to roll back; ` +
+        `use \`operon learn disable <concept-id>\` for individual concepts`,
+    );
   }
   const cut = await cutManifestVersion(root, {
     concepts: deactivated,
@@ -457,24 +521,19 @@ export async function writeProvisionalConcept(
   }
   const dir = quarantineDir(root);
   await mkdir(dir, { recursive: true });
-  const path = join(dir, `${doc.frontmatter.name}.md`);
+  const path = join(dir, `${assertSafeConceptName(doc.frontmatter.name)}.md`);
   await writeFileAtomic(path, serializeOkfDocument(doc));
   return path;
 }
 
 // ---------------------------------------------------------------------------
-// publish-time move (called by publisher.ts only)
+// publish-time render (the publisher writes; spec §14 step 3)
 // ---------------------------------------------------------------------------
-
-export interface ActivateConceptInput {
-  /** The candidate concept file (candidates/<candidate_id>.md). */
-  sourcePath: string;
-  root: LearningRoot;
-  now?: Date;
-}
 
 export interface ActivatedConcept {
   conceptId: string;
+  name: string;
+  scope: string;
   path: string;
   /** The exact bytes written — what final_diff_hash binds (spec §14). */
   bytes: string;
@@ -484,7 +543,7 @@ export interface ActivatedConcept {
  *  loop.status candidate -> active, everything else byte-preserved. Pure so
  *  the publisher can hash the result for the approval binding BEFORE any
  *  write happens, and write the identical bytes after approval. */
-export async function renderActivatedConcept(sourcePath: string): Promise<ActivatedConcept & { name: string; scope: string }> {
+export async function renderActivatedConcept(sourcePath: string): Promise<ActivatedConcept> {
   const doc = parseOkfDocument(await readFile(sourcePath, "utf8"), sourcePath);
   assertConceptPlacement({ ...doc, path: sourcePath }, "candidates");
   const loop = doc.frontmatter.loop!;
@@ -492,29 +551,21 @@ export async function renderActivatedConcept(sourcePath: string): Promise<Activa
     ...doc,
     frontmatter: { ...doc.frontmatter, status: "active", loop: { ...loop, status: "active" } },
   };
-  const bytes = serializeOkfDocument(activated);
   return {
     conceptId: loop.id,
-    name: doc.frontmatter.name,
+    name: assertSafeConceptName(doc.frontmatter.name),
     scope: loop.scope,
     path: sourcePath,
-    bytes,
+    bytes: serializeOkfDocument(activated),
   };
 }
 
-/** Move the concept into its bundle scope dir with the pre-rendered bytes.
- *  Idempotent: destination already carrying the bytes counts as done; the
- *  source file is removed either way. */
-export async function commitActivatedConcept(
-  root: LearningRoot,
-  activated: { name: string; scope: string; bytes: string; path: string },
-): Promise<string> {
-  const dir = bundleScopeDir(root, activated.scope);
-  await mkdir(dir, { recursive: true });
-  const dest = join(dir, `${basename(activated.name)}.md`);
-  if (!existsSync(dest) || (await readFile(dest, "utf8")) !== activated.bytes) {
-    await writeFileAtomic(dest, activated.bytes);
-  }
-  await rm(activated.path, { force: true });
-  return dest;
+/** TTL base is the `created` date (spec §3): quarantine concepts are
+ *  short-lived by construction, and `updated` would let a touch extend
+ *  life. ONE owner — the resolver enforces it and the CLI prints it. */
+export function provisionalExpiry(doc: OkfDocument): Date {
+  const loop = doc.frontmatter.loop!;
+  const ttlDays = typeof loop["ttl_days"] === "number" ? loop["ttl_days"] : 0;
+  const created = new Date(`${doc.frontmatter.created}T00:00:00Z`);
+  return new Date(created.getTime() + ttlDays * 24 * 60 * 60 * 1000);
 }

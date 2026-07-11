@@ -13,11 +13,11 @@
 // candidate about the same recurring failure still suppresses, while two
 // unrelated candidates never collide.
 
-import { existsSync } from "node:fs";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { CandidateArtifact } from "./candidate.js";
 import type { LearningPolicy } from "./policy.js";
+import { readJsonLinesTolerant } from "./records.js";
 
 export interface RejectionEntry {
   rejected_at: string;
@@ -77,26 +77,9 @@ export async function appendRejection(
   return entry;
 }
 
-/** Same torn-tail contract as every learning JSONL surface: a malformed
- *  FINAL line is a torn append and is dropped; malformed anywhere else is
- *  corruption and throws. */
+/** Same torn-tail contract as every learning JSONL surface (records.ts). */
 export async function readRejections(orgHome: string): Promise<RejectionEntry[]> {
-  const path = rejectionsPath(orgHome);
-  if (!existsSync(path)) return [];
-  const lines = (await readFile(path, "utf8")).split("\n").filter((line) => line !== "");
-  const entries: RejectionEntry[] = [];
-  lines.forEach((line, i) => {
-    try {
-      entries.push(JSON.parse(line) as RejectionEntry);
-    } catch {
-      if (i !== lines.length - 1) {
-        throw new Error(
-          `learning: ${path}:${i + 1} is malformed mid-file — corruption, not a torn append`,
-        );
-      }
-    }
-  });
-  return entries;
+  return readJsonLinesTolerant<RejectionEntry>(rejectionsPath(orgHome));
 }
 
 export interface SuppressionCheck {

@@ -1,10 +1,16 @@
-// Weekly retro reporting and memory curation (docs/architecture.md §6).
+// Weekly retro reporting (docs/architecture.md §6).
+//
+// Memory curation (runRetroCuration) was retired with learning-loop M1
+// (issue #34): its destructive dedupe/delete was ungated, it was never wired
+// to any runtime path, and curation authority now belongs to the governed
+// learning loop (docs/learning-loop/ design §7.1). Its one good idea — skill
+// drafts from recurring keywords — is recorded there for the M6 distiller's
+// skill_draft destination.
 
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
-import { deleteMemoryDoc, loadBundle, regenerateIndex, type OkfDocument } from "./memory.js";
 import { readScorecards, type ScorecardEvent } from "./scorecards.js";
 
 export interface RetroOptions {
@@ -73,102 +79,6 @@ export async function runRetro(options: RetroOptions): Promise<RetroResult> {
   return { path, content };
 }
 
-export interface CurationResult {
-  deleted: string[];
-  merged: string[];
-  skillDrafts: string[];
-  proposalPath: string;
-  proposalBody: string;
-}
-
-export async function runRetroCuration(options: {
-  orgHome: string;
-  role: string;
-  date: string;
-}): Promise<CurationResult> {
-  const bundleDir = join(options.orgHome, "memory", "roles", options.role);
-  const bundle = await loadBundle(bundleDir);
-  const deleted: string[] = [];
-  const merged: string[] = [];
-
-  for (const doc of bundle.docs) {
-    if (doc.frontmatter.evidence.some((entry) => /(^contradicted:|\[contradicted\])/i.test(entry))) {
-      await deleteMemoryDoc(bundleDir, doc.frontmatter.name);
-      deleted.push(doc.frontmatter.name);
-    }
-  }
-
-  const afterDeletes = await loadBundle(bundleDir);
-  const byDescription = new Map<string, string>();
-  for (const doc of afterDeletes.docs.filter((entry) => entry.frontmatter.status === "active")) {
-    const key = doc.frontmatter.description.trim().toLowerCase();
-    const existing = byDescription.get(key);
-    if (existing === undefined) {
-      byDescription.set(key, doc.frontmatter.name);
-    } else {
-      await deleteMemoryDoc(bundleDir, doc.frontmatter.name);
-      merged.push(`${doc.frontmatter.name} -> ${existing}`);
-    }
-  }
-
-  await regenerateIndex(bundleDir);
-  const curated = await loadBundle(bundleDir);
-  const skillDrafts = await writeSkillDrafts(options.orgHome, options.date, options.role, curated.docs);
-  const proposalBody = [
-    `# Retro proposal ${options.date}`,
-    "",
-    "No direct writes to TASTE.md or roles.yaml were made.",
-    "",
-    "## Suggested protocol follow-ups",
-    "- Review any skill drafts produced from recurring memory.",
-    "- Open human-ratified PRs for protocol changes only if scorecards justify them.",
-    "",
-  ].join("\n");
-  const proposalPath = join(options.orgHome, "retro", "proposals", `${options.date}-protocol-proposals.md`);
-  await mkdir(dirname(proposalPath), { recursive: true });
-  await writeFile(proposalPath, proposalBody, "utf8");
-
-  return { deleted, merged, skillDrafts, proposalPath, proposalBody };
-}
-
-async function writeSkillDrafts(
-  orgHome: string,
-  date: string,
-  role: string,
-  docs: readonly OkfDocument[],
-): Promise<string[]> {
-  const active = docs.filter((doc) => doc.frontmatter.status === "active");
-  const keywordCounts = new Map<string, number>();
-  for (const doc of active) {
-    for (const keyword of doc.frontmatter.keywords) {
-      const key = slugify(keyword);
-      keywordCounts.set(key, (keywordCounts.get(key) ?? 0) + 1);
-    }
-  }
-  const drafts: string[] = [];
-  for (const [keyword, count] of keywordCounts) {
-    if (count < 2) continue;
-    const skillName = `${role}-${keyword}`;
-    const path = join(orgHome, "proposal-branches", `retro-${date}`, "skills", skillName, "SKILL.md");
-    const body = [
-      `# ${skillName}`,
-      "",
-      "Proposal-pending-ratification skill draft produced by retro curation.",
-      "",
-      "## When to use",
-      `Use for recurring ${role} lessons tagged "${keyword}".`,
-      "",
-      "## Instructions",
-      "- Validate this draft in review before installing or promoting it.",
-      "",
-    ].join("\n");
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, body, "utf8");
-    drafts.push(path);
-  }
-  return drafts;
-}
-
 async function readTelemetry(orgHome: string): Promise<TelemetryRecord[]> {
   const dir = join(orgHome, "telemetry");
   if (!existsSync(dir)) return [];
@@ -207,12 +117,4 @@ function counts(values: readonly string[]): Array<[string, number]> {
   const map = new Map<string, number>();
   for (const value of values) map.set(value, (map.get(value) ?? 0) + 1);
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-}
-
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
 }

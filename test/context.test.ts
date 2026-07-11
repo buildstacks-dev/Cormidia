@@ -60,7 +60,13 @@ describe("assembleContext", () => {
       expect(context.bundle.taste[3]).toContain("Expected outputs from roles.yaml");
       expect(context.bundle.taste[3]).toContain("- review");
       expect(context.bundle.taste[3]).toContain("GitHub conventions marker");
-      expect(context.bundle.taste[3]).toContain("End-of-turn memory write instruction");
+      // Learning-loop M1 (design §7.1): the protocol requests candidate
+      // learning notes, and must no longer request active memory writes —
+      // this assertion pair pins the migration off agent-direct OKF writes.
+      expect(context.bundle.taste[3]).toContain("End-of-turn learning note instruction");
+      expect(context.bundle.taste[3]).toContain("learning/candidates/<role>/");
+      expect(context.bundle.taste[3]).not.toContain("memory write");
+      expect(context.bundle.taste[3]).not.toContain("memory/roles/<role>/");
     } finally {
       org.cleanup();
       app.cleanup();

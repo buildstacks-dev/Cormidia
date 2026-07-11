@@ -21,6 +21,7 @@ import type {
   TurnUsage,
 } from "../types.js";
 import { renderContextBundle } from "../worktree-context.js";
+import { toolUseEvent } from "../tool-events.js";
 
 export type JsonRpcId = number | string;
 
@@ -361,6 +362,35 @@ export class CodexRuntime implements Runtime {
     const type = item.type;
     if (type === "agentMessage" && typeof item.text === "string") {
       state.finalSummary = item.text.trim();
+    } else if (type === "commandExecution") {
+      // Executed command item (issue #27): unlike Claude's pre-execution
+      // hook, the completed item carries the outcome — exit code and, when
+      // the server reports it, duration. Approval-declined commands never
+      // reach item/completed, so this emits executed tools only.
+      const command = typeof item.command === "string" ? item.command : "";
+      const exitCode = typeof item.exitCode === "number" ? item.exitCode : undefined;
+      hooks.onEvent?.(
+        toolUseEvent(
+          { tool: "bash", input: { command } },
+          {
+            ...(exitCode !== undefined ? { success: exitCode === 0 } : {}),
+            ...(typeof item.durationMs === "number" ? { durationMs: item.durationMs } : {}),
+          },
+        ),
+      );
+    } else if (type === "fileChange") {
+      // One tool_use per changed file when the item lists them; a bare item
+      // still emits one event so the write is never invisible (issue #27).
+      const changes = Array.isArray(item.changes) ? item.changes : [undefined];
+      for (const change of changes) {
+        const path =
+          isRecord(change) && typeof change.path === "string"
+            ? change.path
+            : typeof item.path === "string"
+              ? item.path
+              : "";
+        hooks.onEvent?.(toolUseEvent({ tool: "write", input: { path } }));
+      }
     } else if (type === "subAgentActivity") {
       state.subagentTurns += item.kind === "started" || item.kind === "start" ? 1 : 0;
       hooks.onEvent?.({

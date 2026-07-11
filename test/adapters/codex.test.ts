@@ -17,7 +17,7 @@ import {
   type JsonRpcId,
 } from "../../src/runtime/adapters/codex.js";
 import { defaultGate } from "../../src/runtime/gate.js";
-import type { RoleConfig, ToolAction, TurnRequest, TurnResult } from "../../src/runtime/types.js";
+import type { RoleConfig, ToolAction, TurnEvent, TurnRequest, TurnResult } from "../../src/runtime/types.js";
 
 const CODEX_ROLE: RoleConfig = {
   name: "builder",
@@ -334,6 +334,64 @@ describe("CodexRuntime (App Server mocked)", () => {
       { id: "elicit-1", result: { action: "decline", content: null, _meta: null } },
     ]);
     expect(events).toContain("text:codex mcp elicitation declined: browser form");
+  });
+
+  it("emits tool_use with outcomes from commandExecution and fileChange items (issue #27)", async () => {
+    const item = { type: "agentMessage", id: "agent-1", text: "done", phase: null, memoryCitation: null };
+    const completed = (payload: Record<string, unknown>) => ({
+      method: "item/completed",
+      params: { threadId: "thread-1", turnId: "turn-1", completedAtMs: 1, item: payload },
+    });
+    const client = new ScriptedMessageClient([
+      completed({ type: "commandExecution", id: "cmd-1", command: "pnpm install", exitCode: 1, durationMs: 4200 }),
+      completed({ type: "commandExecution", id: "cmd-2", command: "pnpm test", exitCode: 0 }),
+      completed({
+        type: "fileChange",
+        id: "fc-1",
+        changes: [
+          { path: "src/a.ts", kind: "edit" },
+          { path: "src/b.ts", kind: "add" },
+        ],
+      }),
+      completed(item as unknown as Record<string, unknown>),
+      {
+        method: "turn/completed",
+        params: {
+          threadId: "thread-1",
+          turn: {
+            id: "turn-1",
+            items: [item],
+            itemsView: "full",
+            status: "completed",
+            error: null,
+            startedAt: 0,
+            completedAt: 1,
+            durationMs: 3,
+          },
+        },
+      },
+    ]);
+    const events: TurnEvent[] = [];
+
+    const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(makeReq(), {
+      gate: defaultGate,
+      onEvent: (event) => events.push(event),
+    });
+
+    expect(result.status).toBe("completed");
+    const toolUses = events.filter((event) => event.type === "tool_use");
+    expect(toolUses).toEqual([
+      expect.objectContaining({
+        name: "bash",
+        detail: "bash: pnpm install",
+        success: false,
+        durationMs: 4200,
+        category: "environment_retry",
+      }),
+      expect.objectContaining({ name: "bash", detail: "bash: pnpm test", success: true }),
+      expect.objectContaining({ name: "write", args: { path: "src/a.ts" } }),
+      expect.objectContaining({ name: "write", args: { path: "src/b.ts" } }),
+    ]);
   });
 
   it("gates EVERY file in a multi-file patch, not just the first (fail-closed)", async () => {

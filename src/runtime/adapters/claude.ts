@@ -27,11 +27,13 @@
 // - `effort` maps 1:1: the SDK's EffortLevel and our Effort are the same
 //   five-level union.
 //
-// Event emission is deliberately minimal: exactly one TurnEvent type
-// ("subagent", from task_started notifications) is emitted for now. The
-// conformance harness asserts the precise event/gate interleaving for the
-// subagent case; richer text/tool_use event streams arrive with the runlog
-// layer (M2.6), where the harness's expectations get extended deliberately.
+// Event emission: "subagent" from task_started notifications, plus one
+// "tool_use" per gate-ALLOWED tool action (issue #27) — emitted from the
+// same PreToolUse channel the gate rides, so it covers main-thread and
+// subagent calls alike. Emission is pre-execution (the hook fires before
+// the tool runs), so outcome fields stay unset; denied attempts emit no
+// tool_use — they are escalations, not tool activity. The L2 bridge
+// (src/loop/pipeline.ts) turns these into tool.called rows + tool_counts.
 
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
@@ -51,6 +53,7 @@ import type {
   TurnResult,
 } from "../types.js";
 import { claudeDenyRulesForRole } from "../role-shaping.js";
+import { toolUseEvent } from "../tool-events.js";
 
 /** The SDK's query() shape, injectable so unit tests run with a scripted
  *  stand-in and zero network/CLI dependency. */
@@ -157,7 +160,15 @@ export class ClaudeRuntime implements Runtime {
     ): { allow: true } | { allow: false; reason: string } => {
       const action = normalizeToolAction(toolName, input, req.workdir);
       const decision = hooks.gate(action);
-      if (decision.allow) return { allow: true };
+      if (decision.allow) {
+        // The tool WILL run: emit the L2-bridgeable tool_use (issue #27).
+        // Pre-execution channel — no outcome fields. The dormant canUseTool
+        // backstop shares this closure, but it never fires while the hook
+        // answers (the conformance one-gate-call assertions are the tripwire),
+        // so no double emission.
+        hooks.onEvent?.(toolUseEvent(action));
+        return { allow: true };
+      }
       if (decision.escalate) {
         escalations.push({ action, reason: decision.reason });
       }

@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import type { ExtensionFactory, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
+import { toolUseEvent } from "../tool-events.js";
 
 export function normalizePiToolAction(
   toolName: string,
@@ -57,7 +58,13 @@ export function createPiGateExtension(
         workdir,
       );
       const decision = hooks.gate(action);
-      if (decision.allow) return undefined;
+      if (decision.allow) {
+        // The tool WILL run: emit the L2-bridgeable tool_use (issue #27).
+        // Pre-execution channel (pi blocks on this handler) — no outcome
+        // fields; denied attempts are escalations, not tool activity.
+        hooks.onEvent?.(toolUseEvent(action));
+        return undefined;
+      }
       if (decision.escalate) {
         escalations.push({ action, reason: decision.reason });
       }

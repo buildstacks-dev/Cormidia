@@ -40,6 +40,28 @@ describe("pi gate extension", () => {
     expect(escalations[0]?.action).toEqual({ tool: "bash", input: { command: "rm -rf /workspace/data" } });
   });
 
+  it("emits tool_use for allowed calls, none for blocked ones (issue #27)", async () => {
+    const events: TurnEvent[] = [];
+    let handler: ((event: { toolName: string; input: unknown }) => Promise<unknown>) | undefined;
+    createPiGateExtension(
+      "/repo",
+      { gate: defaultGate, onEvent: (event) => events.push(event) },
+      [],
+    )({ on: (_name, h) => (handler = h as typeof handler) } as never);
+
+    await handler?.({ toolName: "bash", input: { command: "pnpm install" } });
+    await handler?.({ toolName: "bash", input: { command: "rm -rf /workspace/data" } });
+
+    const toolUses = events.filter((event) => event.type === "tool_use");
+    expect(toolUses).toEqual([
+      expect.objectContaining({
+        name: "bash",
+        detail: "bash: pnpm install",
+        category: "environment_retry",
+      }),
+    ]);
+  });
+
   it("emits subagent events before routing subagent-like tool calls", async () => {
     const events: TurnEvent[] = [];
     const order: string[] = [];

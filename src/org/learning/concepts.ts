@@ -500,6 +500,10 @@ export async function disableConcept(
   conceptId: string,
   options: { now?: Date } = {},
 ): Promise<DisableResult | undefined> {
+  // Guard BEFORE the mutation: a refusal that has already deprecated the
+  // file would remove content from both trial arms while reporting
+  // "refused" (adversarial-verify finding).
+  await assertNoActiveCanary(root, "disable a concept");
   const found = await findBundleConcept(root, conceptId);
   if (found === undefined) return undefined;
   const loop = found.doc.frontmatter.loop!;
@@ -528,6 +532,10 @@ export async function rollbackRoot(
   root: LearningRoot,
   options: { now?: Date } = {},
 ): Promise<RollbackResult> {
+  // Guard BEFORE deprecating anything: mid-trial the latest cut IS the
+  // canary version, and a half-applied rollback would strip the trial's
+  // own concepts while status still reports a live trial.
+  await assertNoActiveCanary(root, "roll back a version cut");
   const manifest = await readManifest(root);
   const last = manifest?.history.at(-1);
   if (manifest === null || last === undefined) {
@@ -711,6 +719,19 @@ export async function stopCanaryOnManifest(
   };
   await writeManifest(root, next);
   return { version: meta.version, newVersion: entry.version, meta, deactivated };
+}
+
+/** Shared mid-trial write guard: the version pointers double as the trial's
+ *  control/treatment boundary (design §8.4), so bundle mutations wait for
+ *  promote/stop. Called BEFORE any file is touched. */
+export async function assertNoActiveCanary(root: LearningRoot, action: string): Promise<void> {
+  const manifest = await readManifest(root);
+  if (manifest !== null && manifest.canary !== null) {
+    throw new Error(
+      `learning: ${manifestPath(root)} has an active canary (${manifest.canary}) — ` +
+        `cannot ${action} mid-trial; \`operon learn canary promote|stop --root ${root.kind}\` first`,
+    );
+  }
 }
 
 async function requireActiveCanary(

@@ -269,10 +269,22 @@ async function run(homes: OperonHomes, args: string[]): Promise<number> {
       `learn experiment run: immaterial drift since declaration (${delta.join(", ")}) — proceeding\n`,
     );
   }
+  if (arms.treatmentId !== experiment.treatment.fingerprint_ref) {
+    throw new Error(
+      `learn experiment run: the candidate changed since ${experimentId} was declared ` +
+        `(treatment arm ${experiment.treatment.fingerprint_ref}, current ${arms.treatmentId}) — ` +
+        `the replay would test different intervention bytes than the declaration bound; ` +
+        `declare a fresh experiment`,
+    );
+  }
   const outcome = await runExperiment(experimentId, {
     orgHome: homes.orgHome,
     policy,
     decidedBy,
+    // The candidate was already located across org AND app roots — the
+    // runner's org-root-only default must not decide held-in coverage for
+    // app-repo candidates.
+    heldInEpisodeIds: overlay.candidate.episode_ids,
     executor: createLoopReplayExecutor({
       orgHome: homes.orgHome,
       stateHome: homes.stateHome,
@@ -358,6 +370,7 @@ export async function learnCanary(homes: OperonHomes, args: string[]): Promise<n
         ...appWorkdirFlag(homes, flags),
         interventionId,
         policy,
+        stateHome: homes.stateHome,
       });
       console.log(
         `canary started on the ${started.root} root: version ${started.version} ` +

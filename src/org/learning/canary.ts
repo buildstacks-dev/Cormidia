@@ -35,6 +35,7 @@ import {
 import { sanitizeIdSegment } from "./events.js";
 import { readEvalResult } from "./eval-result.js";
 import { readExperimentRecord } from "./experiment.js";
+import { listInFlightOkfJournals } from "./publisher.js";
 import {
   readInterventionRecord,
   writeInterventionRecord,
@@ -75,6 +76,11 @@ export interface CanaryAssignmentRecord {
   assigned_at: string;
   bucket: number;
   roots: Partial<Record<CanaryRootKind, CanaryRootAssignment>>;
+  /** Roots whose manifest was unreadable at pin time: their entry could not
+   *  be decided, so the first later resolve that CAN read the manifest
+   *  decides and merges it in — a missing entry here means pre-trial stable
+   *  forever, an undecided one stays open. */
+  undecided?: CanaryRootKind[];
   /** `canary` when any root assigned canary — the episode-level label the
    *  EpisodeRecord and reports fold. */
   lineage: BundleLineage;
@@ -115,6 +121,37 @@ export async function writeCanaryAssignmentOnce(
   await mkdir(dirname(path), { recursive: true });
   await writeFileAtomic(path, JSON.stringify(record, null, 2) + "\n");
   return record;
+}
+
+/** Settle one previously-undecided root on an existing record: writes the
+ *  root's entry (or just clears the undecided marker for a stable no-trial
+ *  decision with no entry) exactly once — a root that already has an entry
+ *  is never rewritten. */
+export async function settleCanaryAssignmentRoot(
+  stateHome: string,
+  episodeId: string,
+  kind: CanaryRootKind,
+  assignment: CanaryRootAssignment | undefined,
+): Promise<CanaryAssignmentRecord | undefined> {
+  const existing = await readCanaryAssignment(stateHome, episodeId);
+  if (existing === undefined) return undefined;
+  if (existing.roots[kind] !== undefined || !(existing.undecided ?? []).includes(kind)) {
+    return existing;
+  }
+  const undecided = (existing.undecided ?? []).filter((entry) => entry !== kind);
+  const next: CanaryAssignmentRecord = {
+    ...existing,
+    roots: { ...existing.roots, ...(assignment !== undefined ? { [kind]: assignment } : {}) },
+    ...(undecided.length > 0 ? { undecided } : {}),
+    lineage:
+      assignment?.lineage === "canary" ? "canary" : existing.lineage,
+  };
+  if (undecided.length === 0) delete (next as { undecided?: CanaryRootKind[] }).undecided;
+  await writeFileAtomic(
+    canaryAssignmentPath(stateHome, episodeId),
+    JSON.stringify(next, null, 2) + "\n",
+  );
+  return next;
 }
 
 /** Every assignment record, sorted by file name. One torn record degrades
@@ -216,6 +253,10 @@ export interface StartCanaryOptions {
   appWorkdir?: string;
   interventionId: string;
   policy: LearningPolicy;
+  /** When given, an in-flight okf publish journal targeting the same root
+   *  refuses the start: its resume would land ungoverned content
+   *  mid-window. */
+  stateHome?: string;
   now?: Date;
 }
 
@@ -272,6 +313,16 @@ export async function startCanary(options: StartCanaryOptions): Promise<StartedC
   }
   if (tierPolicy.canary.requires_replay_pass) {
     await requireReplayPass(options.orgHome, intervention, tier);
+  }
+  if (options.stateHome !== undefined) {
+    const inFlight = await listInFlightOkfJournals(options.stateHome, rootKind);
+    if (inFlight.length > 0) {
+      throw new Error(
+        `learning: publish journal(s) ${inFlight.join(", ")} are mid-transaction on the ` +
+          `${rootKind} root — finish (re-run publish) or resolve them before starting a trial; ` +
+          `a resume mid-window would land ungoverned content in both arms`,
+      );
+    }
   }
 
   const manifest = await startCanaryOnManifest(root, {

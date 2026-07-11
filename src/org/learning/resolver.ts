@@ -39,6 +39,7 @@ import {
   canaryBucket,
   decideRootLineage,
   readCanaryAssignment,
+  settleCanaryAssignmentRoot,
   writeCanaryAssignmentOnce,
   type BundleLineage,
   type CanaryAssignmentRecord,
@@ -168,6 +169,10 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
       : undefined;
   const bucket = existingAssignment?.bucket ?? canaryBucket(input.episodeId);
   const decisions: Partial<Record<CanaryRootKind, RootLineageDecision>> = {};
+  // Roots this resolve decided FRESH (no prior entry): recorded on the pin.
+  // A root the pin marked undecided (its manifest was unreadable back then)
+  // settles at the first resolve that can read it — never re-derives.
+  const settleRoots: CanaryRootKind[] = [];
   for (const kind of ["org", "app"] as const) {
     const manifest = manifests[kind];
     if (manifest === undefined) continue;
@@ -178,10 +183,15 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
     // episodes whose FIRST governed resolve happens inside the window —
     // an episode already in flight when the trial starts must not flip
     // lineage mid-episode (design §8.4 stickiness).
+    const undecidedHere =
+      existingAssignment !== undefined &&
+      existingAssignment.roots[kind] === undefined &&
+      (existingAssignment.undecided ?? []).includes(kind);
+    if (undecidedHere) settleRoots.push(kind);
     const existing =
       input.lineageOverride !== undefined && manifest !== null && manifest.canary !== null
         ? { version: manifest.canary, lineage: input.lineageOverride }
-        : existingAssignment !== undefined
+        : existingAssignment !== undefined && !undecidedHere
           ? (existingAssignment.roots[kind] ?? { version: "pre-trial", lineage: "stable" as const })
           : undefined;
     decisions[kind] = decideRootLineage({
@@ -392,19 +402,35 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
     );
   }
 
-  if (input.stateHome !== undefined) {
+  if (input.stateHome !== undefined && input.lineageOverride === undefined) {
     // The FIRST governed resolve pins the episode's assignment (design
     // §8.4) — one record, first write wins, and the record exists even when
     // no trial is running: an episode already in flight when a later trial
     // starts must read as pre-trial stable, never get admitted mid-episode.
-    // Unreadable roots write nothing — the assignment happens on the first
-    // resolve that could actually decide.
+    // A root whose manifest was unreadable pins as `undecided` and settles
+    // at the first resolve that CAN read it — decided roots pin now either
+    // way, so one corrupt manifest never disables pinning org-wide.
     const freshRoots: CanaryAssignmentRecord["roots"] = {};
     for (const kind of ["org", "app"] as const) {
       const assignment = decisions[kind]?.assignment;
       if (assignment !== undefined) freshRoots[kind] = assignment;
     }
-    if (existingAssignment === undefined && input.lineageOverride === undefined && unreadable.size === 0) {
+    const admissionEvent = (roots: CanaryAssignmentRecord["roots"], suffix: string): void => {
+      events.push({
+        event_id: `evt_canary_${sanitizeIdSegment(input.episodeId)}_${suffix}`,
+        episode_id: input.episodeId,
+        turn_id: input.turnId,
+        ts: now.toISOString(),
+        app: input.app,
+        agent_role: input.role,
+        type: "canary_assigned",
+        emitter: "resolver",
+        source_channel: "internal",
+        trust: "trusted",
+        payload: { bucket, lineage, roots },
+      });
+    };
+    if (existingAssignment === undefined) {
       await writeCanaryAssignmentOnce(input.stateHome, {
         episode_id: input.episodeId,
         app: input.app,
@@ -412,24 +438,17 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
         assigned_at: now.toISOString(),
         bucket,
         roots: freshRoots,
+        ...(unreadable.size > 0 ? { undecided: [...unreadable].sort() } : {}),
         lineage,
       });
       // The event marks trial admission (either arm); a no-trial record is
       // bookkeeping, not a signal.
-      if (Object.keys(freshRoots).length > 0) {
-        events.push({
-          event_id: `evt_canary_${sanitizeIdSegment(input.episodeId)}`,
-          episode_id: input.episodeId,
-          turn_id: input.turnId,
-          ts: now.toISOString(),
-          app: input.app,
-          agent_role: input.role,
-          type: "canary_assigned",
-          emitter: "resolver",
-          source_channel: "internal",
-          trust: "trusted",
-          payload: { bucket, lineage, roots: freshRoots },
-        });
+      if (Object.keys(freshRoots).length > 0) admissionEvent(freshRoots, "pin");
+    } else {
+      for (const kind of settleRoots) {
+        const assignment = decisions[kind]?.assignment;
+        await settleCanaryAssignmentRoot(input.stateHome, input.episodeId, kind, assignment);
+        if (assignment !== undefined) admissionEvent({ [kind]: assignment }, kind);
       }
     }
 

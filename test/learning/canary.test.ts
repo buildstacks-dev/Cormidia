@@ -19,10 +19,12 @@ import {
 import {
   bundleScopeDir,
   cutManifestVersion,
+  disableConcept,
   manifestPath,
   orgLearningRoot,
   promoteCanaryOnManifest,
   readManifest,
+  rollbackRoot,
   startCanaryOnManifest,
   stopCanaryOnManifest,
 } from "../../src/org/learning/concepts.js";
@@ -366,6 +368,38 @@ describe("manifest canary lifecycle", () => {
     expect(cut.version).toBe("2026.07.12-2");
   });
 
+  it("disable and rollback refuse mid-trial BEFORE touching any file (verify round)", async () => {
+    const org = tempOrg();
+    const root = orgLearningRoot(org.root);
+    const scopeDir = bundleScopeDir(root, "roles/builder");
+    mkdirSync(scopeDir, { recursive: true });
+    writeFileSync(
+      join(scopeDir, "base.md"),
+      conceptMarkdown({ name: "base", id: "lrn_base", scope: "roles/builder", status: "active" }),
+    );
+    writeFileSync(
+      join(scopeDir, "trial.md"),
+      conceptMarkdown({ name: "trial", id: "lrn_trial", scope: "roles/builder", status: "active" }),
+    );
+    await cutTwice(root);
+    await startCanaryOnManifest(root, {
+      version: "2026.07.11-1",
+      windowHours: 48,
+      fraction: 0.1,
+      tier: "T1",
+      interventionRef: "int_x",
+      now: NOW,
+    });
+
+    await expect(disableConcept(root, "lrn_base")).rejects.toThrow(/active canary/);
+    // The refusal must not have deprecated the file — a half-applied
+    // "refusal" would strip content from both trial arms.
+    expect(readFileSync(join(scopeDir, "base.md"), "utf8")).toContain("status: active");
+
+    await expect(rollbackRoot(root)).rejects.toThrow(/active canary/);
+    expect(readFileSync(join(scopeDir, "trial.md"), "utf8")).toContain("status: active");
+  });
+
   it("readManifest rejects a canary pointer without its trial metadata", async () => {
     const org = tempOrg();
     const root = orgLearningRoot(org.root);
@@ -515,6 +549,37 @@ describe("startCanary gating", () => {
       now: NOW,
     });
     expect(started.meta.tier).toBe("T2");
+  });
+
+  it("refuses to start while an okf publish journal is mid-transaction on the root (verify round)", async () => {
+    const rig = await gateRig("T1");
+    const journalDir = join(rig.state.root, "learning", "publish-journal");
+    mkdirSync(journalDir, { recursive: true });
+    writeFileSync(
+      join(journalDir, "pub-inflight.json"),
+      JSON.stringify({
+        schema_version: 1,
+        journal_id: "pub-inflight",
+        candidate_id: "cand_x",
+        candidate_hash: "sha256:" + "ab".repeat(32),
+        destination: "okf_concept",
+        tier: "T1",
+        scope: "roles/builder",
+        approval_ref: null,
+        claim: "authorized",
+        waivers: [],
+        artifact: { kind: "bundle_version", bytes: "x" },
+      }) + "\n",
+    );
+    await expect(
+      startCanary({
+        orgHome: rig.org.root,
+        interventionId: "int_20260711_01JGHI",
+        policy: defaultLearningPolicy(),
+        stateHome: rig.state.root,
+        now: NOW,
+      }),
+    ).rejects.toThrow(/mid-transaction/);
   });
 
   it("refuses non-activation interventions and app roots without a checkout", async () => {
@@ -734,6 +799,37 @@ describe("resolver lineage under a running canary", () => {
     const after = await resolveLearningContext(rig.input(ids.canary, "turn-after-stop"));
     expect(after.bundle_lineage).toBe("stable");
     expect(after.concept_ids).toEqual(["lrn_base"]); // trial concept deprecated
+  });
+
+  it("a corrupt org manifest degrades that root only — the app trial still pins, and the org root settles once readable (verify round)", async () => {
+    const rig = await canaryRig(); // org-root trial, fraction 0.5
+    const ids = episodeIdsFor(0.5);
+    // Corrupt the org manifest AFTER the trial started.
+    const root = orgLearningRoot(rig.org.root);
+    const good = readFileSync(manifestPath(root), "utf8");
+    writeFileSync(manifestPath(root), "canary: [not-a-mapping\n");
+
+    const during = await resolveLearningContext(rig.input(ids.canary, "turn-corrupt"));
+    // Org root skipped (no concepts, unreadable version), but the pin is
+    // still written with the org root marked undecided.
+    expect(during.concept_ids).toEqual([]);
+    expect(during.bundle_versions["org"]).toBe("unreadable");
+    const pinned = await readCanaryAssignment(rig.state.root, ids.canary);
+    expect(pinned?.undecided).toEqual(["org"]);
+    expect(pinned?.roots).toEqual({});
+
+    // Manifest restored: the next resolve SETTLES the org root (window
+    // still open, bucket admits) instead of re-deriving per turn.
+    writeFileSync(manifestPath(root), good);
+    const after = await resolveLearningContext(rig.input(ids.canary, "turn-settle"));
+    expect(after.bundle_lineage).toBe("canary");
+    const settled = await readCanaryAssignment(rig.state.root, ids.canary);
+    expect(settled?.roots["org"]).toEqual({ version: "2026.07.11-1", lineage: "canary" });
+    expect(settled?.undecided).toBeUndefined();
+
+    // And the settled entry is honored thereafter (fraction change ignored).
+    const again = await resolveLearningContext(rig.input(ids.canary, "turn-after-settle"));
+    expect(again.bundle_lineage).toBe("canary");
   });
 
   it("lineageOverride forces stable under a running trial and records nothing (replay arms)", async () => {

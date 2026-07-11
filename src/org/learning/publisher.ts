@@ -21,7 +21,7 @@
 // publish routinely; rejections go to the ledger.
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import type { GhOps } from "../../loop/github.js";
 import type { ApprovalStore } from "../approvals.js";
@@ -553,6 +553,33 @@ function journalPath(stateHome: string, journalId: string): string {
   return join(stateHome, "learning", "publish-journal", `${sanitizeIdSegment(journalId)}.json`);
 }
 
+/** In-flight (not-done) okf publish journals targeting a root kind — the
+ *  canary start gate reads this: starting a trial while an activation is
+ *  mid-journal would let the resume land ungoverned content mid-window. */
+export async function listInFlightOkfJournals(
+  stateHome: string,
+  rootKind: "org" | "app",
+): Promise<string[]> {
+  const dir = join(stateHome, "learning", "publish-journal");
+  if (!existsSync(dir)) return [];
+  const ids: string[] = [];
+  for (const name of (await readdir(dir)).filter((entry) => entry.endsWith(".json")).sort()) {
+    try {
+      const journal = JSON.parse(await readFile(join(dir, name), "utf8")) as PublishJournal;
+      if (
+        journal.done_at === undefined &&
+        journal.destination === "okf_concept" &&
+        rootKindForScope(journal.scope) === rootKind
+      ) {
+        ids.push(journal.journal_id);
+      }
+    } catch {
+      // A torn journal is the publisher's own crash-resume concern.
+    }
+  }
+  return ids;
+}
+
 async function readJournal(stateHome: string, journalId: string): Promise<PublishJournal | undefined> {
   const path = journalPath(stateHome, journalId);
   if (!existsSync(path)) return undefined;
@@ -620,6 +647,25 @@ async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise
   }
 
   const refs: string[] = [];
+
+  // Mid-trial guard, BEFORE any mutation (adversarial-verify finding): the
+  // artifact step writes the activated concept straight into bundle/<scope>,
+  // where the resolver loads any active file — a later cut refusal would
+  // leave ungoverned content live in BOTH trial arms. Fresh publishes and
+  // resumed journals alike wait for the trial to close; the journal (when
+  // one exists) stays in-flight and resumes cleanly afterwards.
+  if (journal.destination === "okf_concept" && journal.manifest_version === undefined) {
+    const trialManifest = await readManifest(input.destRoot);
+    if (trialManifest !== null && trialManifest.canary !== null) {
+      return {
+        status: "refused",
+        reason:
+          `the ${input.destRoot.kind} root has an active canary (${trialManifest.canary}) — ` +
+          `activation mid-trial would contaminate the population under measurement; ` +
+          `\`operon learn canary promote|stop --root ${input.destRoot.kind}\`, then re-run publish`,
+      };
+    }
+  }
 
   // Step: destination artifact (idempotent via the artifact_ref receipt).
   if (journal.artifact_ref === undefined) {

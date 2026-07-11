@@ -99,8 +99,10 @@ Observability is the operator-facing version of this note.
   the active org independently of cwd.
 - CLI in source-development mode: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
   `pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run` ·
-  `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run`
-  · `pnpm dev loop --app <app> --once --dry-run` ·
+  `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run` ·
+  `pnpm dev plan <app> --auto --goal "<text>" [--no-publish]` (non-interactive
+  runtime-backed bootstrap plan: schema-validated, orchestrator-published) ·
+  `pnpm dev loop --app <app> --once --dry-run` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
   `pnpm dev telemetry --app <app> --date 2026-07-04 --html out.html` ·

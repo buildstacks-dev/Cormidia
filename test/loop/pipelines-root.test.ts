@@ -28,13 +28,17 @@ async function loadRoot(): Promise<PipelinesFile> {
 }
 
 describe("root pipelines.yaml", () => {
-  it("loads against the real roles.yaml and prompts/ — M8 pipeline set", async () => {
+  it("loads against the real roles.yaml and prompts/ — M8 pipeline set + Stage 4 bootstrap plan", async () => {
     const file = await loadRoot();
     expect(file.pipelines.map((p) => p.name)).toEqual([
       "build",
       "review",
       "fix",
       "ship",
+      // Stage 4 (proportionality-review): a new app's first milestone plans
+      // through ONE pass, not five — deliberate intent change landing in the
+      // same proposal PR that added the pipeline.
+      "plan-bootstrap",
       "plan",
       "groom",
       "triage",
@@ -44,6 +48,12 @@ describe("root pipelines.yaml", () => {
       "marketing-release",
       "ci-sweep",
     ]);
+  });
+
+  it("plan-bootstrap: a single planner pass at every tier", async () => {
+    const bootstrap = getPipeline(await loadRoot(), "plan-bootstrap");
+    expect(selectPasses(bootstrap, { tier: "standard" }).map((p) => p.id)).toEqual(["bootstrap-plan"]);
+    expect(selectPasses(bootstrap, { tier: "deep" }).map((p) => p.id)).toEqual(["bootstrap-plan"]);
   });
 
   it("build: quick tier skips contract, standard runs both passes", async () => {

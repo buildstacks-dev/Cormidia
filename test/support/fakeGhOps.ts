@@ -113,6 +113,42 @@ export class FakeGhOps implements GhOps {
     return (this.issueComments.get(issueNumber) ?? []).map((body) => ({ body }));
   }
 
+  async createIssue(input: { title: string; body: string; labels: string[] }): Promise<GhIssue> {
+    this.log("createIssue", { title: input.title, labels: input.labels.join(",") });
+    for (const label of input.labels) {
+      if (!this.repoLabels.has(label)) {
+        throw new GhOpsError("fake gh: label does not exist on the repo", {
+          args: ["issue", "create", "--label", label],
+          stdout: "",
+          stderr: `could not add label: '${label}' not found`,
+          exitCode: 1,
+        });
+      }
+    }
+    const number = Math.max(0, ...this.issues.keys()) + 1;
+    const issue: GhIssue = {
+      number,
+      title: input.title,
+      body: input.body,
+      labels: [...input.labels],
+      state: "OPEN",
+    };
+    this.issues.set(number, issue);
+    return cloneIssue(issue);
+  }
+
+  async updateIssueBody(issueNumber: number, body: string): Promise<void> {
+    this.log("updateIssueBody", { issueNumber });
+    this.requireIssue(issueNumber).body = body;
+  }
+
+  readonly repoLabels = new Set<string>();
+
+  async ensureLabel(input: { name: string; color: string; description: string }): Promise<void> {
+    this.log("ensureLabel", { name: input.name });
+    this.repoLabels.add(input.name);
+  }
+
   async listIssues(options: ListIssueOptions = {}): Promise<GhIssue[]> {
     this.log("listIssues", { labels: options.labels ?? [], state: options.state ?? "open" });
     const labels = options.labels ?? [];

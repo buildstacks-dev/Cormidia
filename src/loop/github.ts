@@ -78,11 +78,30 @@ export interface GhIssueComment {
   createdAt?: string;
 }
 
+export interface CreateIssueInput {
+  title: string;
+  body: string;
+  labels: string[];
+}
+
+export interface EnsureLabelInput {
+  name: string;
+  color: string;
+  description: string;
+}
+
 export interface GhOps {
   addLabel(issueNumber: number, label: string): Promise<void>;
   removeLabel(issueNumber: number, label: string): Promise<void>;
   swapLabel(issueNumber: number, removeLabel: string, addLabel: string): Promise<void>;
   commentIssue(issueNumber: number, body: string): Promise<void>;
+  /** Orchestrator-owned ticket publication (Stage 4): create an issue with a
+   *  validated body and canonical labels. */
+  createIssue(input: CreateIssueInput): Promise<GhIssue>;
+  updateIssueBody(issueNumber: number, body: string): Promise<void>;
+  /** Idempotently create-or-update a repo label — the loop's label contract
+   *  must exist before the first `op:ready -> op:building` swap. */
+  ensureLabel(input: EnsureLabelInput): Promise<void>;
   /** All comments on the issue, oldest first — the durable artifacts
    *  (contract, review verdicts, fix resolutions) that rehydration reads back
    *  on a re-claim (proportionality-review Stage 2). */
@@ -271,6 +290,45 @@ export class GhCliOps implements GhOps {
         ISSUE_FIELDS,
       ]),
     );
+  }
+
+  async createIssue(input: CreateIssueInput): Promise<GhIssue> {
+    const args = ["issue", "create", "--repo", this.repo, "--title", input.title, "--body-file", "-"];
+    for (const label of input.labels) args.push("--label", label);
+    const { stdout } = await this.run(args, input.body);
+    const match = /\/issues\/(\d+)\s*$/.exec(stdout.trim());
+    if (match === null) {
+      throw new GhOpsError("issue create returned no issue URL", {
+        args,
+        stdout,
+        stderr: "",
+        exitCode: 0,
+      });
+    }
+    return this.readIssue(Number(match[1]));
+  }
+
+  async updateIssueBody(issueNumber: number, body: string): Promise<void> {
+    await this.run(
+      ["issue", "edit", String(issueNumber), "--repo", this.repo, "--body-file", "-"],
+      body,
+    );
+  }
+
+  async ensureLabel(input: EnsureLabelInput): Promise<void> {
+    // --force updates an existing label in place — idempotent by contract.
+    await this.run([
+      "label",
+      "create",
+      input.name,
+      "--repo",
+      this.repo,
+      "--color",
+      input.color,
+      "--description",
+      input.description,
+      "--force",
+    ]);
   }
 
   async listIssueComments(issueNumber: number): Promise<GhIssueComment[]> {

@@ -15,6 +15,7 @@ import { basename, dirname } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
+import type { TriggerKind } from "../runtime/telemetry.js";
 import { assembleBrief } from "./brief.js";
 import { executePipeline, type PassRunRecord } from "./pipeline.js";
 import type { PipelineConfig } from "./pipelines.js";
@@ -40,6 +41,8 @@ export interface RunRoleRequest {
   context?: ContextBundle;
   briefBudgetTokens?: number;
   clock?: () => Date;
+  /** Per-pass ledger settlement target — see ExecutePipelineOptions.telemetry. */
+  telemetry?: { orgDir: string; trigger?: TriggerKind };
 }
 
 export interface RunRoleResult {
@@ -109,6 +112,7 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
       traceId: request.turnId ?? mintRunId(clock(), "manual", request.role.name),
     },
     clock,
+    ...(request.telemetry !== undefined ? { telemetry: request.telemetry } : {}),
   });
 
   const record = result.passes[0];

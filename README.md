@@ -175,6 +175,33 @@ research/      decision records
 
 Imports flow downward only: `org -> loop -> runtime`.
 
+## Observability: where agent activity is recorded
+
+Two stores, one authority each (both under the org's *state home*,
+`~/.operon/<org>/` by default):
+
+```
+runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
+├── envelope.json    # ids, status, timings, token/cost rollups, verdict — L1
+├── events.jsonl     # trace/span-scoped lifecycle events — L2
+├── brief.md         # the exact prompt the pass received — L3, verbatim
+├── output.md        # what the pass produced — L3, verbatim
+└── session.log      # present only when the adapter streamed TurnEvents
+telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
+invocations/<date>.jsonl  # one row per orchestrator invocation (operon loop)
+```
+
+`runs/` is the per-pass source of truth (what was asked, what happened, what
+it cost). The ledger is the rollup `operon budget`, `operon status`, retro,
+and scorecards read. Every provider turn the pass executor runs settles into
+the ledger exactly once, keyed on its `runId` — completed, blocked, and failed
+passes alike — so the budget cap is enforced against real spend and a tick
+whose app has exhausted its monthly cap refuses to claim before any pass
+starts. `operon budget --reconcile` back-fills the ledger from existing run
+envelopes (idempotent), which is how orgs created before per-pass settlement
+recover their history. Subscription-backed provider costs are Operon-computed
+equivalent-cost estimates, flagged as such on every row.
+
 ## Status
 
 M0-M12 are complete and the runtime has been hardened and proven live
@@ -217,11 +244,11 @@ degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
   cannot fire. The other three detectors (`low_tokens_high_time`,
   `single_turn_long_run`, `cold_cache`) work off envelope fields that are
   written.
-- **The manual `operon loop` path does not feed the org telemetry ledger**
-  (`telemetry/<day>.jsonl`); only the autonomous `dispatch` path records turn
-  spend there, so `operon budget` shows `$0` for manually-driven loops.
-  Per-pass spend is still fully visible in `operon status` and the run
-  envelopes. Production uses the dispatcher, which records.
+- **Interactive co-planning usage is unmeasured.** `operon plan` spawns the
+  native `claude` CLI with inherited stdio, so session tokens never flow
+  through Operon; those ledger rows carry an explicit `unmeasured: true`
+  marker (cost unknown, not zero). The runtime-backed non-interactive
+  planning mode (proportionality-review Stage 4) is the real fix.
 - **Codex App-Server read bypass:** under the `untrusted` approval policy the
   App Server auto-runs trusted read-only commands (`cat`, `ls`) without an
   approval request, so those reads do not reach the gate hook. Tracked in

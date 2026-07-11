@@ -92,7 +92,7 @@ const HELP = {
   loop: `Usage: operon loop --app <app-name> [--once|--follow] [--dry-run] [--allow-network] [--repo-dir <local-path>]${HOME_HELP}`,
   doctor: `Usage: operon doctor [--json]${HOME_HELP}`,
   approvals: `Usage: operon approvals [list|review|show <id>] [--state-home <path>] [--now <ISO-time>]${HOME_HELP}`,
-  budget: `Usage: operon budget [--apps <apps.yaml-path>]${HOME_HELP}`,
+  budget: `Usage: operon budget [--apps <apps.yaml-path>] [--reconcile]${HOME_HELP}\n\n--reconcile back-fills the org ledger from runs/**/envelope.json (idempotent, keyed on run_id) so historical loop passes reach budget, retro, and scorecards.`,
   status: `Usage: operon status [--app <app-name>] [--limit N]${HOME_HELP}`,
   analyze: `Usage: operon analyze [--app <app-name>]${HOME_HELP}`,
   dispatch: `Usage: operon dispatch [--dry-run] [--apps <path>] [--roles <path>]${HOME_HELP}`,

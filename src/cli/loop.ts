@@ -13,7 +13,9 @@ import { assembleContext } from "../org/context.js";
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
+import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 import { composeGate } from "../org/gate-compose.js";
+import { recordInvocation } from "../runtime/telemetry.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -128,11 +130,14 @@ export async function cmdLoop(args: string[]): Promise<number> {
     promptsDir,
   });
 
+  let sawBudgetRefusal = false;
+
   async function tick(): Promise<void> {
     // Stamp a turn id on this tick so claimed items carry one — the loop only
     // emits scorecard events for items with a turnId (loop.ts), and this is the
     // attribution/dedupe key the org scorecard ledger records under.
     const turnId = `loop-${selectedApp.name}-${Date.now()}`;
+    const tickStarted = Date.now();
     const result = await runLoopOnce({
       app: selectedApp.name,
       repo: selectedApp.repo,
@@ -173,6 +178,30 @@ export async function cmdLoop(args: string[]): Promise<number> {
               taskText: `build loop for ${selectedApp.name}`,
             })).bundle,
             ...(allowNetwork ? { networkAccess: true } : {}),
+            // Every provider turn this tick runs settles into the org ledger
+            // per pass, keyed on runId (telemetry doc Defect B). Manual loop
+            // spend was previously invisible to `operon budget`.
+            telemetry: { orgDir: homes.stateHome, trigger: "manual" },
+            budgetGuard: async () => {
+              const rows = await rollupBudgets(homes.stateHome, appsFile);
+              const row = rows.find((r) => r.app === selectedApp.name);
+              if (row !== undefined && row.status === "exceeded") {
+                return {
+                  allowed: false,
+                  reason:
+                    `${row.app} spent $${row.spentUsd.toFixed(2)} of its ` +
+                    `$${row.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
+                    `or wait for the month to reset`,
+                };
+              }
+              if (await isOverlayPaused(homes.stateHome, selectedApp.name)) {
+                return {
+                  allowed: false,
+                  reason: `${selectedApp.name} is paused by the budget overlay (operon approvals has the item)`,
+                };
+              }
+              return { allowed: true };
+            },
             },
           }
         : {}),
@@ -182,9 +211,24 @@ export async function cmdLoop(args: string[]): Promise<number> {
     for (const item of result.items) {
       console.log(`${item.ticketRef}: ${item.phase}`);
     }
+    if (result.budgetRefusal !== undefined) sawBudgetRefusal = true;
     if (result.lines.length === 0 && result.items.length === 0) {
       console.log(`loop: no ready tickets for ${selectedApp.name}`);
     }
+    // One durable row per orchestrator invocation (telemetry doc §6): the
+    // 2026-07-10 review could not even recover how many times the loop ran.
+    await recordInvocation(homes.stateHome, {
+      at: new Date().toISOString(),
+      kind: "loop",
+      app: selectedApp.name,
+      ...(dryRun ? { dryRun: true } : {}),
+      itemsClaimed: result.items.length,
+      outcome:
+        result.budgetRefusal !== undefined
+          ? `budget-refused: ${result.budgetRefusal}`
+          : result.items.map((item) => `${item.ticketRef}=${item.phase}`).join(", ") || "no-ready-tickets",
+      wallClockMs: Date.now() - tickStarted,
+    });
   }
 
   await tick();
@@ -192,7 +236,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
     await new Promise((resolve) => setTimeout(resolve, 30_000));
     await tick();
   }
-  return 0;
+  return sawBudgetRefusal ? 1 : 0;
 }
 
 function needValue(args: string[], index: number, flag: string): string {

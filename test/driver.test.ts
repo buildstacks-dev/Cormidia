@@ -113,6 +113,45 @@ describe("loop driver", () => {
     }
   });
 
+  it("a budget-guard refusal claims nothing and touches no GitHub state", async () => {
+    const gh = new FakeGhOps({
+      issues: [{ number: 1, title: "Seeded ready ticket", body: issueBody, labels: ["op:ready"] }],
+    });
+
+    const result = await runLoopOnce({
+      app: "fixture",
+      repo: "fixture/repo",
+      gh,
+      localRepo: "/tmp/not-used",
+      worktreeRoot: "/tmp/not-used-worktrees",
+      policy: DEFAULT_LOOP_POLICY,
+      commands: {},
+      engine: {
+        // The guard refuses before anything else runs, so the engine surface
+        // is never touched — empty placeholders keep the test type-honest.
+        pipelines: { pipelines: [] } as never,
+        roles: {},
+        runtimeFor: () => {
+          throw new Error("budget refusal must not construct a runtime");
+        },
+        promptsDir: "/tmp/not-used-prompts",
+        runlogRoot: "/tmp/not-used-runlog",
+        hooks: { gate: () => ({ allow: true }) },
+        budgetGuard: async () => ({
+          allowed: false,
+          reason: "fixture spent $301.00 of $300.00",
+        }),
+      },
+    });
+
+    expect(result.budgetRefusal).toBe("fixture spent $301.00 of $300.00");
+    expect(result.items).toEqual([]);
+    expect(result.lines[0]).toContain("budget preflight refused");
+    // The seeded ticket must still be op:ready — a refused tick never claims.
+    const issues = await gh.listIssues({ labels: ["op:ready"], state: "open", limit: 10 });
+    expect(issues).toHaveLength(1);
+  });
+
   it("loadGateCommands reads commands from the sole registry-style app entry", () => {
     const root = mkdtempSync(join(tmpdir(), "operon-driver-"));
     try {

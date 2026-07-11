@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { ContextBundle, RoleConfig, Runtime, TurnHooks, TurnUsage } from "../runtime/types.js";
+import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
@@ -134,6 +135,8 @@ export interface LoopPipelineOptions {
   authorization?: ReviewAuthorization;
   /** Explicitly allow runtime network access for this loop tick. */
   networkAccess?: boolean;
+  /** Per-pass ledger settlement target — see ExecutePipelineOptions.telemetry. */
+  telemetry?: { orgDir: string; trigger?: TriggerKind };
 }
 
 export interface BuilderPipelineOptions extends LoopPipelineOptions {
@@ -400,6 +403,7 @@ export async function runBuilderPipeline(
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
+    ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
     verdictSchemaFor: (pass) => VERDICT_SCHEMAS[verdictKindForPass(pass)],
     recordVerdict: async (ctx) => {
       const kind = verdictKindForPass(ctx.pass);
@@ -463,6 +467,7 @@ export async function runReviewPipeline(
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
+    ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);
@@ -540,6 +545,7 @@ export async function runShipCheckPipeline(
     },
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
+    ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);

@@ -14,6 +14,7 @@ import { cmdBootstrap } from "./cli/bootstrap.js";
 import { cmdBudget } from "./cli/budget.js";
 import { cmdDispatch } from "./cli/dispatch.js";
 import { cmdDoctorArgs } from "./cli/doctor.js";
+import { cmdLearn } from "./cli/learn.js";
 import { cmdLoop } from "./cli/loop.js";
 import { cmdNewApp } from "./cli/new-app.js";
 import { cmdPlan } from "./cli/plan.js";
@@ -70,6 +71,9 @@ Usage:
                            delete finalized run dirs past retention
   operon retro [--date YYYY-MM-DD] [--state-home <path>] [--apps <path>] [--roles <path>]
                            write a weekly evidence retro report
+  operon learn <inspect|emit|show|report> [...]
+                           learning-loop capture: inspect an episode, record
+                           a human observation, trace an event, or report
   operon loop --app <app> [--once|--follow] [--dry-run]
                            run the build loop over ready tickets
   operon run-role <role> [--app <app>] [--turn <id>] [--template <path>] [--dry-run]
@@ -102,6 +106,7 @@ const HELP = {
   dispatch: `Usage: operon dispatch [--dry-run] [--apps <path>] [--roles <path>]${HOME_HELP}`,
   "prune-runs": `Usage: operon prune-runs [state-home-path] [--retention-days N]${HOME_HELP}`,
   retro: `Usage: operon retro [--date YYYY-MM-DD] [--apps <path>] [--roles <path>]${HOME_HELP}`,
+  learn: `Usage:\n  operon learn inspect <episode-id>     what capture knows about the episode\n  operon learn emit [--episode <id>] [--app <name>] [--observation <text>]\n                    [--cause <text>] [--intervention <text>] [--artifact <ref>]...\n                    [--file <json>]  record a human observation (interactive in a terminal)\n  operon learn show <event-id>          trace a captured event to its disposition\n  operon learn report [--json]          read-only capture totals${HOME_HELP}\n\nCapture-only (learning-loop M1): observation, cause hypothesis, and suggested\nintervention are recorded as separate fields; nothing activates from here.`,
   "run-role": `Usage: operon run-role <role-name> [--app <app-name>] [--turn <id>] [--template <path>] [--workdir <path>] [--dry-run]${HOME_HELP}`,
   context: `Usage: operon context [--json]${HOME_HELP}`,
   capabilities: "Usage: operon capabilities [--json]",
@@ -122,6 +127,7 @@ const COMMANDS: Record<string, CliCommand> = {
   pipelines: { run: (args) => cmdPipelines(args), help: HELP.pipelines },
   doctor: { run: (args) => cmdDoctorArgs(args), help: HELP.doctor },
   "prune-runs": { run: (args) => cmdPruneRuns(args), help: HELP["prune-runs"] },
+  learn: { run: (args) => cmdLearn(args), help: HELP.learn },
   retro: { run: (args) => cmdRetro(args), help: HELP.retro },
   loop: { run: (args) => cmdLoop(args), help: HELP.loop },
   "new-app": { run: (args) => cmdNewApp(args), help: HELP["new-app"] },

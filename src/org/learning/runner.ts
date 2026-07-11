@@ -23,7 +23,7 @@
 import { listCandidateArtifacts } from "./candidate-store.js";
 import { orgLearningRoot } from "./concepts.js";
 import type { EvalResult, EvalTrial } from "./eval-result.js";
-import { computeEvalResult, decideExperiment } from "./eval-result.js";
+import { computeEvalResult, decideExperiment, evaluateGuardrail } from "./eval-result.js";
 import { listEvalFixtures, type EvalFixture } from "./eval-fixture.js";
 import {
   markExperimentRunning,
@@ -32,6 +32,7 @@ import {
 } from "./experiment.js";
 import { claimAfterEval } from "./candidate.js";
 import {
+  interventionIdForCandidate,
   interventionPath,
   readInterventionRecord,
   writeInterventionRecord,
@@ -118,17 +119,23 @@ export async function runExperiment(
     );
   }
   const spend = options.spend;
-  if (spend.monthUsd >= caps.monthly_usd) {
+  let localCost = 0;
+  // ONE spelling of the cap arithmetic: the start preflight is the same
+  // check the between-pair halt runs, at localCost 0.
+  const overBudget = (): string | null => {
+    if (spend.monthUsd + localCost >= caps.monthly_usd) {
+      return `monthly learning budget cap ($${caps.monthly_usd.toFixed(2)}) reached`;
+    }
+    if (spend.candidateUsd + localCost >= caps.per_candidate_replay_usd) {
+      return `per-candidate replay cap ($${caps.per_candidate_replay_usd.toFixed(2)}) reached`;
+    }
+    return null;
+  };
+  const preflightHalt = overBudget();
+  if (preflightHalt !== null) {
     throw new Error(
-      `learning: monthly learning budget exhausted ($${spend.monthUsd.toFixed(2)} of ` +
-        `$${caps.monthly_usd.toFixed(2)}) — no replay starts this month (policy §13)`,
-    );
-  }
-  if (spend.candidateUsd >= caps.per_candidate_replay_usd) {
-    throw new Error(
-      `learning: per-candidate replay cap reached for ${experiment.candidate_ref ?? "this candidate"} ` +
-        `($${spend.candidateUsd.toFixed(2)} of $${caps.per_candidate_replay_usd.toFixed(2)}) — ` +
-        `the evidence so far is the evidence (policy §13)`,
+      `learning: ${preflightHalt} for ${experiment.candidate_ref ?? experimentId} — ` +
+        `no replay starts (policy §13); the evidence so far is the evidence`,
     );
   }
   if (!spend.experimentCounted && spend.experimentsThisMonth >= caps.max_experiments_per_month) {
@@ -146,28 +153,28 @@ export async function runExperiment(
         `convert and independently validate a capsule first (operon learn fixture)`,
     );
   }
+  // The held-in case is the specific weakness the candidate claims to fix
+  // (design §10). When the candidate names episodes and the eval set covers
+  // NONE of them, running would early-stop the one-shot experiment on
+  // evidence the candidate never claimed to affect — refuse instead.
   const heldInIds = new Set(
     options.heldInEpisodeIds ?? (await candidateEpisodeIds(options.orgHome, experiment)),
   );
-  const heldIn =
-    fixtures.find((fixture) => heldInIds.has(fixture.episode_ref)) ?? fixtures[0]!;
+  const heldInMatch = fixtures.find((fixture) => heldInIds.has(fixture.episode_ref));
+  if (heldInIds.size > 0 && heldInMatch === undefined) {
+    throw new Error(
+      `learning: ${experiment.eligibility.episodes} has no trusted fixture for the candidate's ` +
+        `claimed episodes (${[...heldInIds].join(", ")}) — convert one of THOSE episodes' ` +
+        `capsules into the set, or the held-in eval would grade an unrelated case`,
+    );
+  }
+  const heldIn = heldInMatch ?? fixtures[0]!;
 
   // -- run ------------------------------------------------------------------
   await markExperimentRunning(options.orgHome, experimentId);
   const attempts: ReplayAttempt[] = [];
   const trials: EvalTrial[] = [];
-  let localCost = 0;
   let halted: string | null = null;
-
-  const overBudget = (): string | null => {
-    if (spend.monthUsd + localCost >= caps.monthly_usd) {
-      return `monthly learning budget cap ($${caps.monthly_usd.toFixed(2)}) reached`;
-    }
-    if (spend.candidateUsd + localCost >= caps.per_candidate_replay_usd) {
-      return `per-candidate replay cap ($${caps.per_candidate_replay_usd.toFixed(2)}) reached`;
-    }
-    return null;
-  };
 
   const runPair = async (
     pair: number,
@@ -186,12 +193,12 @@ export async function runExperiment(
   };
 
   // Targeted role-level eval: the cheap step before full replay (§9.5).
-  const targeted = await runPair(0, "targeted", heldIn);
-  const targetedTreatmentFailed = attempts.at(-1)!.heldInPass === false;
-  if (experiment.trials.early_stop.on_held_in_failure && targetedTreatmentFailed) {
+  // The pair lands in `trials` via runPair; the treatment attempt is the
+  // last one pushed.
+  await runPair(0, "targeted", heldIn);
+  if (experiment.trials.early_stop.on_held_in_failure && !attempts.at(-1)!.heldInPass) {
     halted = "targeted held-in eval failed under the treatment arm — full replay skipped";
   }
-  void targeted;
 
   if (halted === null) {
     for (let pair = 1; pair <= experiment.trials.repetitions; pair++) {
@@ -269,21 +276,16 @@ async function candidateEpisodeIds(
   }
 }
 
-/** Guardrail early-stop check over the FULL pairs run so far. Pair 0 is the
- *  targeted eval and measures fewer metrics; including it would trip the
- *  fail-closed "not measured" rule on every experiment. */
+/** Guardrail early-stop check over the FULL pairs run so far — the same
+ *  evaluator the final verdict uses. Pair 0 is the targeted eval and
+ *  measures fewer metrics; including it would trip the fail-closed "not
+ *  measured" rule on every experiment. */
 function guardrailTripped(experiment: ExperimentRecord, trials: EvalTrial[]): boolean {
   const fullTrials = trials.filter((trial) => trial.pair > 0);
   if (fullTrials.length === 0) return false;
-  const provisional = computeEvalResult({
-    experiment,
-    trials: fullTrials,
-    graderRef: "runner:early-stop-check",
-    costUsd: 0,
-    decidedBy: "runner",
-    decidedAt: "1970-01-01T00:00:00.000Z",
-  });
-  return provisional.guardrails.some((guardrail) => !guardrail.pass);
+  return experiment.guardrails.some(
+    (guardrail) => !evaluateGuardrail(guardrail, fullTrials).pass,
+  );
 }
 
 /** Post-verdict lineage: when the candidate was already activated (an
@@ -298,7 +300,7 @@ async function linkIntervention(
   result: EvalResult,
 ): Promise<void> {
   if (experiment.candidate_ref === null) return;
-  const interventionId = `int_${experiment.candidate_ref.replace(/^cand_/, "")}`;
+  const interventionId = interventionIdForCandidate(experiment.candidate_ref);
   if (!existsSync(interventionPath(orgHome, interventionId))) return;
   const intervention = await readInterventionRecord(orgHome, interventionId);
   if (intervention.status === "rolled_back" || intervention.status === "retired") return;

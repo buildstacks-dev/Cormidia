@@ -13,10 +13,9 @@
 //                       intervention; assignment is by episode hash.
 // canary status/promote/stop — observe, then advance stable or roll back.
 
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { rollupLearningSpend } from "../org/budget.js";
 import type { OperonHomes } from "../org/home.js";
@@ -34,7 +33,6 @@ import {
   orgLearningRoot,
   readManifest,
   scopeApp,
-  type ManifestCanaryMeta,
 } from "../org/learning/concepts.js";
 import { listEvalResults } from "../org/learning/eval-result.js";
 import {
@@ -47,18 +45,22 @@ import {
 import { readEpisodeRecords, type EpisodeRecord } from "../org/learning/episode.js";
 import {
   computeSystemFingerprint,
+  deriveFingerprintWithBundle,
+  fingerprintDelta,
+  readFingerprint,
   storeFingerprint,
+  type SystemFingerprint,
 } from "../org/learning/fingerprint.js";
 import {
   loadLearningPolicy,
   type LearningPolicy,
   type TierPromoteRule,
 } from "../org/learning/policy.js";
-import { createLoopReplayExecutor, renderCandidateOverlay } from "../org/learning/replay.js";
+import { createLoopReplayExecutor, gitIn, renderCandidateOverlay } from "../org/learning/replay.js";
 import { eligibleFixtures, runExperiment } from "../org/learning/runner.js";
 import { loadRoles } from "../org/roles.js";
 import { getRuntime } from "../runtime/registry.js";
-import { learningRoots } from "./learn-activation.js";
+import { flag, learningRoots, parseFlags, requireFlag, type Flags } from "./learn-activation.js";
 
 // ---------------------------------------------------------------------------
 // experiment
@@ -95,7 +97,7 @@ async function declare(homes: OperonHomes, args: string[]): Promise<number> {
     return 1;
   }
   const candidate = found.candidate;
-  const appName = flags.values.get("app") ?? scopeApp(candidate.proposed_scope);
+  const appName = flag(flags, "app") ?? scopeApp(candidate.proposed_scope);
   if (appName === undefined) {
     throw new Error(
       "learn experiment declare: --app <name> is required for org-scoped candidates — " +
@@ -107,27 +109,27 @@ async function declare(homes: OperonHomes, args: string[]): Promise<number> {
     throw new Error(`learn experiment declare: unknown app "${appName}" in apps.yaml`);
   }
 
-  const metric = flags.values.get("metric") ?? "held_in_pass";
+  const metric = flag(flags, "metric") ?? "held_in_pass";
   const direction =
-    flags.values.get("direction") ??
+    flag(flags, "direction") ??
     (["review_cycles", "cost_usd", "gate_failures"].includes(metric) ? "decrease" : "increase");
   if (direction !== "increase" && direction !== "decrease") {
     throw new Error('learn experiment declare: --direction must be "increase" or "decrease"');
   }
   const repetitions = Math.min(
-    Number(flags.values.get("repetitions") ?? 3),
+    Number(flag(flags, "repetitions") ?? 3),
     policy.learning_budget.max_repetitions_per_experiment,
   );
-  const minImprovement = Number(flags.values.get("min-improvement-pct") ?? 0);
+  const minImprovement = Number(flag(flags, "min-improvement-pct") ?? 0);
 
   const guardrails: ExperimentGuardrail[] =
-    flags.multi.get("guardrail")?.map(parseGuardrail) ?? [
+    flags.values.get("guardrail")?.map(parseGuardrail) ?? [
       { metric: "merged", rule: "must_not_decrease" },
     ];
 
   const arms = await armFingerprints(homes, appName, candidate);
   const experimentId =
-    flags.values.get("id") ?? (await nextExperimentId(homes.orgHome, candidateId));
+    flag(flags, "id") ?? (await nextExperimentId(homes.orgHome, candidateId));
 
   const record: ExperimentRecord = {
     schema_version: 1,
@@ -181,7 +183,7 @@ async function run(homes: OperonHomes, args: string[]): Promise<number> {
   if (experimentId === undefined) {
     throw new Error("learn experiment run: <experiment-id> is required");
   }
-  const decidedBy = flags.values.get("by") ?? "human-operator";
+  const decidedBy = flag(flags, "by") ?? "human-operator";
   const policy = await loadLearningPolicy(homes.orgHome);
   const experiment = await readExperimentRecord(homes.orgHome, experimentId);
   if (experiment.candidate_ref === null) {
@@ -191,7 +193,7 @@ async function run(homes: OperonHomes, args: string[]): Promise<number> {
     );
   }
 
-  const appName = flags.values.get("app") ?? experiment.eligibility.app;
+  const appName = flag(flags, "app") ?? experiment.eligibility.app;
   const appEntry = homes.appsFile.apps.find((app) => app.name === appName);
   if (appEntry === undefined) {
     throw new Error(`learn experiment run: unknown app "${appName}" — pass --app`);
@@ -217,7 +219,7 @@ async function run(homes: OperonHomes, args: string[]): Promise<number> {
 
   // Seed clone: replay worktrees check out fixture seed commits from a local
   // clone that never pushes (the executor constructs no GhOps).
-  const repoDir = flags.values.get("repo-dir") ?? join(homes.stateHome, "repos", appEntry.name);
+  const repoDir = flag(flags, "repo-dir") ?? join(homes.stateHome, "repos", appEntry.name);
   ensureSeedClone(appEntry.repo, repoDir);
   for (const fixture of fixtures) {
     if (fixture.seed.commit !== null) ensureCommit(repoDir, appEntry.repo, fixture.seed.commit);
@@ -234,10 +236,39 @@ async function run(homes: OperonHomes, args: string[]): Promise<number> {
 
   const spendRollup = await rollupLearningSpend(homes.stateHome);
   const worktreeRoot =
-    flags.values.get("worktree-root") ?? join(homes.stateHome, "worktrees", "learning-replay");
+    flag(flags, "worktree-root") ?? join(homes.stateHome, "worktrees", "learning-replay");
   await mkdir(worktreeRoot, { recursive: true });
 
+  // Drift check (design §9.1: arms are declared before results): refuse on
+  // MATERIAL drift — the surfaces that shape agent behavior — and only note
+  // the rest (org/app commits move on every unrelated commit; refusing on
+  // them would push operators into declare-and-run-atomically, hollowing
+  // out declared-before-results).
   const arms = await armFingerprints(homes, appEntry.name, overlay.candidate);
+  const declaredControl = await readFingerprint(homes.stateHome, experiment.control.fingerprint_ref);
+  if (declaredControl === undefined) {
+    process.stderr.write(
+      `learn experiment run: declared control arm ${experiment.control.fingerprint_ref} is not ` +
+        `in the fingerprint store — drift cannot be checked\n`,
+    );
+  } else if (arms.controlId !== experiment.control.fingerprint_ref) {
+    const delta = fingerprintDelta(declaredControl, arms.control);
+    const material = delta.filter((path) =>
+      MATERIAL_FINGERPRINT_PREFIXES.some(
+        (prefix) => path === prefix || path.startsWith(`${prefix}.`),
+      ),
+    );
+    if (material.length > 0) {
+      throw new Error(
+        `learn experiment run: the system has materially drifted since ${experimentId} was ` +
+          `declared (${material.join(", ")}) — a replay now would measure the drift, not the ` +
+          `candidate; declare a fresh experiment`,
+      );
+    }
+    process.stderr.write(
+      `learn experiment run: immaterial drift since declaration (${delta.join(", ")}) — proceeding\n`,
+    );
+  }
   const outcome = await runExperiment(experimentId, {
     orgHome: homes.orgHome,
     policy,
@@ -260,7 +291,6 @@ async function run(homes: OperonHomes, args: string[]): Promise<number> {
       experimentCounted: spendRollup.byExperiment.has(experimentId),
     },
     fixtures,
-    currentFingerprintId: arms.controlId,
   });
 
   console.log(`experiment ${experimentId}: verdict ${outcome.result.verdict}`);
@@ -357,7 +387,7 @@ export async function learnCanary(homes: OperonHomes, args: string[]): Promise<n
     case "stop": {
       const flags = parseFlags(rest, "learn canary stop");
       const root = rootFlag(flags, "learn canary stop");
-      const reason = flags.values.get("reason") ?? "stopped by operator";
+      const reason = flag(flags, "reason") ?? "stopped by operator";
       const result = await stopCanary({
         orgHome: homes.orgHome,
         ...appWorkdirFlag(homes, flags),
@@ -383,14 +413,17 @@ export async function learnCanary(homes: OperonHomes, args: string[]): Promise<n
   }
 }
 
-/** Shared by `canary status` and the learn report's canary section. */
+/** Shared by `canary status` and the learn report's canary section; the
+ *  report passes its already-loaded episode records instead of re-walking
+ *  the store. */
 export async function canaryStatusLines(
   homes: OperonHomes,
   policy: LearningPolicy,
+  preloadedEpisodes?: EpisodeRecord[],
 ): Promise<string[]> {
   const lines: string[] = [];
   const assignments = await listCanaryAssignments(homes.stateHome);
-  const episodes = await readEpisodeRecords(homes.stateHome);
+  const episodes = preloadedEpisodes ?? (await readEpisodeRecords(homes.stateHome));
   const byEpisode = new Map(episodes.map((episode) => [episode.episode_id, episode]));
 
   const roots: Array<{ label: string; kind: CanaryRootKind; appWorkdir?: string }> = [
@@ -423,11 +456,19 @@ export async function canaryStatusLines(
     const windowEnd = new Date(
       new Date(meta.started_at).getTime() + meta.window_hours * 60 * 60 * 1000,
     );
-    const inTrial = assignments.filter((assignment) =>
-      Object.values(assignment.roots).some((entry) => entry.version === meta.version),
+    // Match on THIS root's assignment entry: version strings are minted
+    // per root (org and app can both cut "YYYY.MM.DD-1" the same day), and
+    // an episode's lineage in this trial is its entry for this root, never
+    // the episode-level fold.
+    const inTrial = assignments.filter(
+      (assignment) => assignment.roots[root.kind]?.version === meta.version,
     );
-    const canaryIds = inTrial.filter((a) => a.lineage === "canary").map((a) => a.episode_id);
-    const stableIds = inTrial.filter((a) => a.lineage === "stable").map((a) => a.episode_id);
+    const canaryIds = inTrial
+      .filter((a) => a.roots[root.kind]?.lineage === "canary")
+      .map((a) => a.episode_id);
+    const stableIds = inTrial
+      .filter((a) => a.roots[root.kind]?.lineage === "stable")
+      .map((a) => a.episode_id);
     lines.push(
       `${root.label}: canary ${meta.version} (tier ${meta.tier}, fraction ${meta.fraction}, ` +
         `window until ${windowEnd.toISOString()}) — intervention ${meta.intervention_ref}`,
@@ -522,6 +563,20 @@ function recommend(
 // arm fingerprints
 // ---------------------------------------------------------------------------
 
+/** Fingerprint leaves whose drift invalidates a declared experiment: the
+ *  surfaces that shape agent behavior. Commits and env move on every
+ *  unrelated change and are deliberately immaterial. */
+const MATERIAL_FINGERPRINT_PREFIXES = [
+  "org.taste_hash",
+  "org.roles_hash",
+  "org.pipelines_hash",
+  "org.prompts_hash",
+  "app.config_hash",
+  "models",
+  "bundle_versions",
+  "bundle_lineage",
+];
+
 /** Control = the current stable system (manifest versions, stable lineage);
  *  treatment = the identical system plus the candidate marker in the
  *  lineage. Both are stored content-addressed so declare can verify them
@@ -530,7 +585,7 @@ async function armFingerprints(
   homes: OperonHomes,
   appName: string,
   candidate: CandidateArtifact,
-): Promise<{ controlId: string; treatmentId: string }> {
+): Promise<{ control: SystemFingerprint; controlId: string; treatmentId: string }> {
   const rolesFile = await loadRoles(join(homes.orgHome, "roles.yaml"));
   const appEntry = homes.appsFile.apps.find((app) => app.name === appName);
   let workdir: string | undefined;
@@ -547,7 +602,9 @@ async function armFingerprints(
   const versions: Record<string, string> = {
     org: (await readManifest(orgLearningRoot(homes.orgHome)))?.stable ?? "unversioned",
   };
-  const base = {
+  // One full compute; the treatment arm differs only in its bundle block,
+  // so it derives from the control's hashes instead of re-walking the org.
+  const control = await computeSystemFingerprint({
     packageRoot: homes.packageRoot,
     orgHome: homes.orgHome,
     app: {
@@ -556,17 +613,15 @@ async function armFingerprints(
       ...(appEntry !== undefined ? { budgetUsdMonth: appEntry.budgetUsdMonth } : {}),
     },
     roles: Object.fromEntries(rolesFile.roles.map((role) => [role.name, role])),
-  };
-  const control = await computeSystemFingerprint({
-    ...base,
     bundle: { versions, lineage: "stable" },
   });
   const marker = candidate.content_hash.replace(/^sha256:/, "").slice(0, 12);
-  const treatment = await computeSystemFingerprint({
-    ...base,
-    bundle: { versions, lineage: `candidate:${marker}` },
+  const treatment = deriveFingerprintWithBundle(control, {
+    versions,
+    lineage: `candidate:${marker}`,
   });
   return {
+    control,
     controlId: await storeFingerprint(homes.stateHome, control),
     treatmentId: await storeFingerprint(homes.stateHome, treatment),
   };
@@ -590,22 +645,32 @@ async function nextExperimentId(orgHome: string, candidateId: string): Promise<s
 
 function ensureSeedClone(repoSlug: string, repoDir: string): void {
   if (existsSync(join(repoDir, ".git"))) {
-    git(repoDir, "fetch", "origin", "main");
+    try {
+      gitIn(repoDir, "fetch", "origin");
+    } catch (error) {
+      // Offline with a warm clone is fine — ensureCommit still verifies the
+      // seed is present before any token is spent.
+      process.stderr.write(
+        `learn experiment: fetch failed (continuing with the local clone): ` +
+          `${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    }
     return;
   }
-  git(join(repoDir, ".."), "clone", `https://github.com/${repoSlug}.git`, repoDir);
+  mkdirSync(dirname(repoDir), { recursive: true });
+  gitIn(dirname(repoDir), "clone", `https://github.com/${repoSlug}.git`, repoDir);
 }
 
 function ensureCommit(repoDir: string, repoSlug: string, commit: string): void {
   try {
-    git(repoDir, "cat-file", "-e", `${commit}^{commit}`);
+    gitIn(repoDir, "cat-file", "-e", `${commit}^{commit}`);
     return;
   } catch {
     // Not local yet — a seed commit predating the clone or on a pruned ref.
   }
   try {
-    git(repoDir, "fetch", "origin", commit);
-    git(repoDir, "cat-file", "-e", `${commit}^{commit}`);
+    gitIn(repoDir, "fetch", "origin", commit);
+    gitIn(repoDir, "cat-file", "-e", `${commit}^{commit}`);
   } catch {
     throw new Error(
       `learn experiment run: seed commit ${commit} is not reachable in ${repoSlug} — ` +
@@ -614,63 +679,18 @@ function ensureCommit(repoDir: string, repoSlug: string, commit: string): void {
   }
 }
 
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
-}
-
 // ---------------------------------------------------------------------------
-// flags
+// flags (shared grammar: learn-activation.ts parseFlags/flag/requireFlag)
 // ---------------------------------------------------------------------------
-
-interface Flags {
-  positionals: string[];
-  values: Map<string, string>;
-  multi: Map<string, string[]>;
-}
-
-function parseFlags(args: string[], command: string): Flags {
-  const positionals: string[] = [];
-  const values = new Map<string, string>();
-  const multi = new Map<string, string[]>();
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]!;
-    if (!arg.startsWith("--")) {
-      positionals.push(arg);
-      continue;
-    }
-    const name = arg.slice(2);
-    const value = args[++i];
-    if (value === undefined || value.startsWith("--")) {
-      throw new Error(`${command}: --${name} requires a value`);
-    }
-    if (name === "guardrail") {
-      multi.set(name, [...(multi.get(name) ?? []), value]);
-    } else {
-      values.set(name, value);
-    }
-  }
-  return { positionals, values, multi };
-}
-
-function requireFlag(flags: Flags, name: string, command: string): string {
-  const value = flags.values.get(name);
-  if (value === undefined) throw new Error(`${command}: --${name} <value> is required`);
-  return value;
-}
 
 function rootFlag(flags: Flags, command: string): CanaryRootKind {
-  const root = flags.values.get("root");
+  const root = flag(flags, "root");
   if (root !== "org" && root !== "app") throw new Error(`${command}: --root org|app is required`);
   return root;
 }
 
 function appWorkdirFlag(homes: OperonHomes, flags: Flags): { appWorkdir?: string } {
-  const appName = flags.values.get("app");
+  const appName = flag(flags, "app");
   if (appName === undefined) return {};
   const appEntry = homes.appsFile.apps.find((app) => app.name === appName);
   if (appEntry === undefined) throw new Error(`learn canary: unknown app "${appName}"`);
@@ -707,6 +727,3 @@ function renderMetrics(metrics: Record<string, number>): string {
 function fmt(value: number | null): string {
   return value === null ? "n/a" : String(Math.round(value * 1000) / 1000);
 }
-
-/** Unused-type guard for the canary meta import (renderers reference it). */
-export type { ManifestCanaryMeta };

@@ -262,10 +262,10 @@ describe("learning budget caps", () => {
 
     await expect(
       runExperiment(id, { ...baseOptions(org.root, executor), spend: spend({ monthUsd: 200 }) }),
-    ).rejects.toThrow(/monthly learning budget exhausted/);
+    ).rejects.toThrow(/monthly learning budget cap.*no replay starts/);
     await expect(
       runExperiment(id, { ...baseOptions(org.root, executor), spend: spend({ candidateUsd: 75 }) }),
-    ).rejects.toThrow(/per-candidate replay cap/);
+    ).rejects.toThrow(/per-candidate replay cap.*no replay starts/);
     await expect(
       runExperiment(id, {
         ...baseOptions(org.root, executor),
@@ -329,6 +329,20 @@ describe("prechecks", () => {
     await expect(runExperiment(done, baseOptions(org.root, executor))).rejects.toThrow(
       /already decided/,
     );
+  });
+
+  it("refuses when the eval set covers none of the candidate's claimed episodes", async () => {
+    const org = tempOrg();
+    writeFixture(org.root, fixtureRecord());
+    const id = await declared(org.root, { experiment_id: "exp_runner_11" });
+    const executor = scriptedExecutor(() => ({ held_in_pass: 1 }));
+    await expect(
+      runExperiment(id, {
+        ...baseOptions(org.root, executor),
+        heldInEpisodeIds: ["ep_alpha_ticket_9999"], // not in the set
+      }),
+    ).rejects.toThrow(/no trusted fixture for the candidate's claimed episodes/);
+    expect(executor.requests).toHaveLength(0);
   });
 
   it("refuses when the eval set has no trusted fixtures — unvalidated drafts never spend tokens", async () => {

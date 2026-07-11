@@ -6,7 +6,7 @@ import {
   rollupLearningSpend,
 } from "../org/budget.js";
 import { loadApps } from "../org/apps.js";
-import { loadLearningPolicy } from "../org/learning/policy.js";
+import { defaultLearningPolicy, loadLearningPolicy } from "../org/learning/policy.js";
 import { loadRoles } from "../org/roles.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -55,7 +55,14 @@ export async function cmdBudget(args: string[]): Promise<number> {
   // into the same ledger; this is the rollup against the learning caps.
   const learning = await rollupLearningSpend(homes.stateHome);
   if (learning.monthUsd > 0 || learning.byCandidate.size > 0) {
-    const policy = await loadLearningPolicy(homes.orgHome);
+    // A corrupt learning policy must not take down the org's core budget
+    // view — degrade to the spec §13 defaults with a loud note.
+    const policy = await loadLearningPolicy(homes.orgHome).catch((error: Error) => {
+      console.error(
+        `note: learning policy unreadable (${error.message}) — learning caps shown are the spec defaults`,
+      );
+      return defaultLearningPolicy();
+    });
     const cap = policy.learning_budget.monthly_usd;
     const monthStatus =
       learning.monthUsd >= cap ? "EXCEEDED" : learning.monthUsd >= cap * 0.8 ? "WARNING" : "OK";

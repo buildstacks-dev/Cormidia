@@ -418,7 +418,11 @@ export interface CutVersionInput {
 
 /** Append one history entry and advance bundle_version + stable. Idempotent
  *  by approval ref: a re-run for an approval that already cut returns the
- *  existing entry (crash-resume, spec §14 step 4). */
+ *  existing entry (crash-resume, spec §14 step 4). Refuses while a canary
+ *  runs: `stable` doubles as the trial's control pointer (design §8.4), so
+ *  a mid-trial publish/disable/rollback would silently contaminate the
+ *  population under measurement — the trial must close first. A publish
+ *  refused here resumes cleanly from its journal after the canary closes. */
 export async function cutManifestVersion(
   root: LearningRoot,
   input: CutVersionInput,
@@ -435,6 +439,13 @@ export async function cutManifestVersion(
   if (input.approvalRef !== undefined) {
     const existing = manifest.history.find((entry) => entry.approval_ref === input.approvalRef);
     if (existing !== undefined) return existing;
+  }
+  if (manifest.canary !== null) {
+    throw new Error(
+      `learning: ${manifestPath(root)} has an active canary (${manifest.canary}) — ` +
+        `a version cut mid-trial would corrupt the trial population; ` +
+        `\`operon learn canary promote|stop --root ${root.kind}\` first`,
+    );
   }
   const entry: ManifestHistoryEntry = {
     version: nextVersion(manifest.history, now),

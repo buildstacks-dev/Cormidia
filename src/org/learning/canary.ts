@@ -94,7 +94,13 @@ export async function readCanaryAssignment(
 ): Promise<CanaryAssignmentRecord | undefined> {
   const path = canaryAssignmentPath(stateHome, episodeId);
   if (!existsSync(path)) return undefined;
-  return JSON.parse(await readFile(path, "utf8")) as CanaryAssignmentRecord;
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as CanaryAssignmentRecord;
+  } catch (error) {
+    throw new Error(
+      `learning: ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 /** First write wins: assignment is made once per episode; a concurrent or
@@ -111,6 +117,9 @@ export async function writeCanaryAssignmentOnce(
   return record;
 }
 
+/** Every assignment record, sorted by file name. One torn record degrades
+ *  with a loud stderr line (skip-warn) — status and reports must not die on
+ *  a single crashed write. */
 export async function listCanaryAssignments(
   stateHome: string,
 ): Promise<CanaryAssignmentRecord[]> {
@@ -119,7 +128,14 @@ export async function listCanaryAssignments(
   const files = (await readdir(dir)).filter((name) => name.endsWith(".json")).sort();
   const records: CanaryAssignmentRecord[] = [];
   for (const name of files) {
-    records.push(JSON.parse(await readFile(join(dir, name), "utf8")) as CanaryAssignmentRecord);
+    try {
+      records.push(JSON.parse(await readFile(join(dir, name), "utf8")) as CanaryAssignmentRecord);
+    } catch (error) {
+      process.stderr.write(
+        `learning: skipping ${join(dir, name)} — ` +
+          `${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    }
   }
   return records;
 }

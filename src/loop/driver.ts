@@ -90,7 +90,7 @@ export interface LoopEngineOptions {
   context?: ContextBundle;
   /** Per-episode governed context (learning-loop M5): see
    *  LoopPipelineOptions.contextFor. */
-  contextFor?: (item: LoopItem, pipeline: string) => Promise<ContextBundle | undefined>;
+  contextFor?: (item: LoopItem, pipeline: string, role: string) => Promise<ContextBundle | undefined>;
   clock?: () => Date;
   /** Explicit network grant for runtime turns in this loop tick. */
   networkAccess?: boolean;

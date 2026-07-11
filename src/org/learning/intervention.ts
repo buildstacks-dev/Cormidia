@@ -226,6 +226,13 @@ export function interventionChainGaps(record: InterventionRecord): string[] {
 // storage (committed org home, spec §1)
 // ---------------------------------------------------------------------------
 
+/** The ONE candidate→intervention id derivation (`cand_x` → `int_x`). The
+ *  publisher mints with it and the runner/CLI trace with it — encoded once
+ *  so a scheme change cannot silently break the consumers into no-ops. */
+export function interventionIdForCandidate(candidateId: string): string {
+  return `int_${candidateId.replace(/^cand_/, "")}`;
+}
+
 export function interventionsDir(orgHome: string): string {
   return join(orgHome, "learning", "interventions");
 }

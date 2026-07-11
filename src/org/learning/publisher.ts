@@ -61,6 +61,7 @@ import {
 import { appendLearningEventsDeduped, sanitizeIdSegment } from "./events.js";
 import { readExperimentRecord } from "./experiment.js";
 import {
+  interventionIdForCandidate,
   listInterventionRecords,
   readInterventionRecord,
   writeInterventionRecord,
@@ -790,7 +791,7 @@ async function writeLineage(
   input: ExecuteInput,
   journal: PublishJournal,
 ): Promise<InterventionRecord> {
-  const interventionId = `int_${journal.candidate_id.replace(/^cand_/, "")}`;
+  const interventionId = interventionIdForCandidate(journal.candidate_id);
   const publishedAt = input.now().toISOString();
   const activates = journal.destination === "okf_concept";
   const record: InterventionRecord = {
@@ -826,7 +827,7 @@ async function readExistingIntervention(
 ): Promise<InterventionRecord> {
   return readInterventionRecord(
     deps.orgHome,
-    journal.intervention_id ?? `int_${journal.candidate_id.replace(/^cand_/, "")}`,
+    journal.intervention_id ?? interventionIdForCandidate(journal.candidate_id),
   );
 }
 

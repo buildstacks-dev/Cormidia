@@ -342,6 +342,30 @@ describe("manifest canary lifecycle", () => {
     expect(manifest.history.at(-1)?.note).toBe("stop canary 2026.07.11-1");
   });
 
+  it("refuses version cuts while a trial runs — publish/disable/rollback cannot corrupt the population", async () => {
+    const org = tempOrg();
+    const root = orgLearningRoot(org.root);
+    await cutTwice(root);
+    await startCanaryOnManifest(root, {
+      version: "2026.07.11-1",
+      windowHours: 48,
+      fraction: 0.1,
+      tier: "T1",
+      interventionRef: "int_x",
+      now: NOW,
+    });
+    await expect(
+      cutManifestVersion(root, { concepts: ["lrn_new"], now: new Date("2026-07-11T12:00:00Z") }),
+    ).rejects.toThrow(/active canary.*promote\|stop/);
+    // Closing the trial re-opens the cut path.
+    await promoteCanaryOnManifest(root, { now: new Date("2026-07-12T08:00:00Z") });
+    const cut = await cutManifestVersion(root, {
+      concepts: ["lrn_new"],
+      now: new Date("2026-07-12T09:00:00Z"),
+    });
+    expect(cut.version).toBe("2026.07.12-2");
+  });
+
   it("readManifest rejects a canary pointer without its trial metadata", async () => {
     const org = tempOrg();
     const root = orgLearningRoot(org.root);
@@ -619,13 +643,64 @@ describe("resolver lineage under a running canary", () => {
     expect(assignment?.turn_id).toBe("turn-1"); // first write stood
   });
 
-  it("after the window elapses new episodes resolve stable with no assignment record", async () => {
+  it("after the window elapses new episodes resolve stable, pinned OUTSIDE the trial population", async () => {
     const rig = await canaryRig();
     const ids = episodeIdsFor(0.5);
     const lateInput = { ...rig.input(ids.canary, "turn-late"), clock: () => new Date("2026-07-14T10:00:00Z") };
     const resolved = await resolveLearningContext(lateInput);
     expect(resolved.bundle_lineage).toBe("stable");
-    expect(await readCanaryAssignment(rig.state.root, ids.canary)).toBeUndefined();
+    // The episode still gets its first-resolve pin — with NO trial entry, so
+    // it can never be admitted to this (or a later) trial mid-episode.
+    const record = await readCanaryAssignment(rig.state.root, ids.canary);
+    expect(record?.lineage).toBe("stable");
+    expect(record?.roots).toEqual({});
+  });
+
+  it("an episode first resolved BEFORE a trial starts is never admitted mid-episode (stickiness)", async () => {
+    const org = tempOrg();
+    const state = tempOrg();
+    const root = orgLearningRoot(org.root);
+    const scopeDir = bundleScopeDir(root, "roles/builder");
+    mkdirSync(scopeDir, { recursive: true });
+    writeFileSync(
+      join(scopeDir, "base.md"),
+      conceptMarkdown({ name: "base", id: "lrn_base", scope: "roles/builder", status: "active" }),
+    );
+    writeFileSync(
+      join(scopeDir, "trial.md"),
+      conceptMarkdown({ name: "trial", id: "lrn_trial", scope: "roles/builder", status: "active" }),
+    );
+    await cutManifestVersion(root, { concepts: ["lrn_base"], now: new Date("2026-07-10T08:00:00Z") });
+    const ids = episodeIdsFor(0.99); // canary-bucketed under almost any fraction
+    const input = (turnId: string, clock: Date): ResolveInput => ({
+      orgHome: org.root,
+      app: "alpha",
+      role: "builder",
+      turnId,
+      episodeId: ids.canary,
+      taskText: "builder turn",
+      policy: defaultLearningPolicy(),
+      stateHome: state.root,
+      clock: () => clock,
+    });
+
+    // First resolve happens with NO trial running.
+    const before = await resolveLearningContext(input("turn-1", new Date("2026-07-10T10:00:00Z")));
+    expect(before.bundle_lineage).toBe("stable");
+
+    // A trial starts later; the episode's bucket WOULD admit it.
+    await cutManifestVersion(root, { concepts: ["lrn_trial"], now: new Date("2026-07-11T08:00:00Z") });
+    await startCanaryOnManifest(root, {
+      version: "2026.07.11-1",
+      windowHours: 48,
+      fraction: 0.99,
+      tier: "T1",
+      interventionRef: "int_x",
+      now: new Date("2026-07-11T09:00:00Z"),
+    });
+    const after = await resolveLearningContext(input("turn-2", new Date("2026-07-11T10:00:00Z")));
+    expect(after.bundle_lineage).toBe("stable"); // pre-trial pin wins
+    expect(after.concept_ids).toEqual(["lrn_base"]); // trial concept excluded
   });
 
   it("stopCanary ends the trial for subsequent resolves; the sticky record does not resurrect it", async () => {

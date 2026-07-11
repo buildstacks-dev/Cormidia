@@ -222,7 +222,14 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
   return {
     async project(): Promise<EpisodeRecord[]> {
       const learningEvents = await readLearningEvents(stateHome);
-      const folded = await foldEpisodes(stateHome, options.appStages, clock(), learningEvents);
+      const resolvedLineages = await readResolvedLineages(stateHome);
+      const folded = await foldEpisodes(
+        stateHome,
+        options.appStages,
+        clock(),
+        learningEvents,
+        resolvedLineages,
+      );
       const records: EpisodeRecord[] = [];
       const foldedIds = new Set<string>();
       for (const record of folded) {
@@ -230,10 +237,11 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
         records.push(await preserveOrWrite(stateHome, record, learningEvents));
       }
       // Episodes whose runs were all pruned: their record files ARE the
-      // archive — never re-folded, but append-only fields keep flowing.
+      // archive — never re-folded, but append-only fields keep flowing, and
+      // lineage backfills from resolved-context records (they outlive runs).
       for (const existing of await readEpisodeRecords(stateHome)) {
         if (foldedIds.has(existing.episode_id)) continue;
-        const refreshed = withAppendOnlyFields(existing, learningEvents);
+        const refreshed = withAppendOnlyFields(existing, learningEvents, resolvedLineages);
         await writeRecordIfChanged(stateHome, refreshed);
         records.push(refreshed);
       }
@@ -309,6 +317,7 @@ async function foldEpisodes(
   appStages: Record<string, string> | undefined,
   now: Date,
   learningEvents: LearningEvent[],
+  resolvedLineages: Map<string, Set<string>>,
 ): Promise<EpisodeRecord[]> {
   // Source 1: run records, grouped by episode anchor.
   const byEpisode = new Map<string, RunView[]>();
@@ -344,11 +353,6 @@ async function foldEpisodes(
     (a, b) => a.raisedAt.localeCompare(b.raisedAt) || a.id.localeCompare(b.id),
   );
 
-  // Source 4: resolved-context records — the per-turn pins whose lineage
-  // agreement the record asserts (M5 done-means: "verified from
-  // resolved-context records").
-  const resolvedLineages = await readResolvedLineages(stateHome);
-
   const records: EpisodeRecord[] = [];
   for (const [episodeId, views] of [...byEpisode.entries()].sort((a, b) =>
     a[0].localeCompare(b[0]),
@@ -367,8 +371,10 @@ async function foldEpisodes(
   return records;
 }
 
-/** episode id → distinct lineages observed across its pinned resolves.
- *  Torn/foreign files skip silently — projection state, rebuildable. */
+/** episode id → distinct lineages observed across its pinned resolves
+ *  (source 4 of the fold; M5 done-means: lineage "verified from
+ *  resolved-context records"). Torn/foreign files skip silently —
+ *  projection state, rebuildable. */
 async function readResolvedLineages(stateHome: string): Promise<Map<string, Set<string>>> {
   const byEpisode = new Map<string, Set<string>>();
   const dir = resolvedContextDir(stateHome);
@@ -771,11 +777,16 @@ function foldLineage(
 function withAppendOnlyFields(
   record: EpisodeRecord,
   learningEvents: LearningEvent[],
+  resolvedLineages?: Map<string, Set<string>>,
 ): EpisodeRecord {
-  // bundle_lineage normalizes pre-M5 archives (absent key) to null.
+  // Archived records backfill lineage from the resolved-context records
+  // (they outlive run pruning); pre-M5 archives with no resolves read null.
   return {
     ...record,
-    bundle_lineage: record.bundle_lineage ?? null,
+    bundle_lineage:
+      resolvedLineages !== undefined
+        ? foldLineage(record.episode_id, resolvedLineages)
+        : (record.bundle_lineage ?? null),
     ...appendOnlyFields(record.episode_id, learningEvents),
   };
 }
@@ -799,7 +810,12 @@ async function preserveOrWrite(
       // fold below replaces it.
     }
     if (existing !== undefined && existing.status === "closed" && anyRunPruned(existing, folded)) {
-      const preserved = withAppendOnlyFields(existing, learningEvents);
+      // The archive keeps its fold-time truth; lineage refreshes from the
+      // freshly folded record (resolved records outlive run pruning).
+      const preserved = {
+        ...withAppendOnlyFields(existing, learningEvents),
+        bundle_lineage: folded.bundle_lineage,
+      };
       await writeRecordIfChanged(stateHome, preserved);
       return preserved;
     }

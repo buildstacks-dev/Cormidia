@@ -87,13 +87,31 @@ export async function rollupLearningSpend(
     const text = await readFile(join(dir, file), "utf8");
     for (const line of text.split("\n")) {
       if (line.trim().length === 0) continue;
+      // The all-time byCandidate scan reads every ledger file ever written;
+      // skip the JSON.parse for lines that cannot carry learning
+      // attribution — the string probe keeps old months near-free.
+      if (
+        !line.includes('"experimentRef"') &&
+        !line.includes('"candidateRef"') &&
+        !line.includes('"learning-replay"')
+      ) {
+        continue;
+      }
       let record: TurnRecord;
       try {
         record = JSON.parse(line) as TurnRecord;
       } catch {
         continue;
       }
-      if (record.experimentRef === undefined && record.candidateRef === undefined) continue;
+      // Rows reconciled from crashed replay passes carry the reserved app
+      // but no refs (envelopes don't store them — documented M5 boundary):
+      // they still count against the monthly cap; per-candidate attribution
+      // for them is lost.
+      const isReplayRow =
+        record.experimentRef !== undefined ||
+        record.candidateRef !== undefined ||
+        record.app === "learning-replay";
+      if (!isReplayRow) continue;
       if (record.candidateRef !== undefined) {
         rollup.byCandidate.set(
           record.candidateRef,

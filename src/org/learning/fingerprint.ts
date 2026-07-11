@@ -129,6 +129,22 @@ export async function computeSystemFingerprint(
   return { fingerprint_id: `sys_${contentHash(body).slice(0, 12)}`, ...body };
 }
 
+/** Derive a sibling fingerprint that differs only in the bundle block —
+ *  the M5 treatment arm. Reuses the base's file hashes instead of
+ *  re-hashing the whole org for a one-field change. */
+export function deriveFingerprintWithBundle(
+  base: SystemFingerprint,
+  bundle: { versions: Record<string, string>; lineage: string },
+): SystemFingerprint {
+  const { fingerprint_id: _id, ...body } = base;
+  const next = {
+    ...body,
+    bundle_versions: { ...bundle.versions },
+    bundle_lineage: bundle.lineage,
+  };
+  return { fingerprint_id: `sys_${contentHash(next).slice(0, 12)}`, ...next };
+}
+
 export function fingerprintsDir(stateHome: string): string {
   return join(stateHome, "learning", "fingerprints");
 }

@@ -467,6 +467,26 @@ export class VerdictParseError extends Error {
   }
 }
 
+/** Parse a verdict preferring native structured JSON output when the text
+ *  is a JSON object, else the lenient §6 text grammar. Never throws — a
+ *  failure is a typed marker the reformat retry acts on. The ONE
+ *  JSON-or-text parser: the loop's verdict recorder and the M5 replay
+ *  executor both route through it so a schema-shaped failure is always
+ *  reported as a schema failure, never as a text-grammar miss. */
+export function parseVerdictEither<K extends VerdictKind>(kind: K, text: string): ParseResult<K> {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{")) {
+    let json: unknown;
+    try {
+      json = JSON.parse(trimmed);
+    } catch {
+      return parseVerdict(kind, text); // looked like JSON but wasn't — try the grammar
+    }
+    return validateVerdict(kind, json);
+  }
+  return parseVerdict(kind, text);
+}
+
 /** One parse-failure retry (§6): `reformat` asks the SAME session to restate
  *  its verdict — it receives the failure reason and returns the new text.
  *  Exactly one retry, then a loud VerdictParseError. `parse` defaults to the

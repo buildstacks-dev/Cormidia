@@ -235,9 +235,9 @@ describe("createEpisodeContextResolver (learning-loop M5)", () => {
         turnId: "loop-alpha-1",
       });
 
-      const build = await contextFor(ITEM, "build");
-      const fix = await contextFor(ITEM, "fix");
-      const review = await contextFor(ITEM, "review");
+      const build = await contextFor(ITEM, "build", "builder");
+      const fix = await contextFor(ITEM, "fix", "builder");
+      const review = await contextFor(ITEM, "review", "reviewer");
       expect(build).toBeDefined();
       // build and fix share the builder pin (memoized — one resolve record);
       // review resolves separately with the reviewer role.
@@ -260,8 +260,10 @@ describe("createEpisodeContextResolver (learning-loop M5)", () => {
       ) as { episode_id: string; role: string };
       expect(reviewerPin).toMatchObject({ episode_id: "ep_alpha_ticket_0007", role: "reviewer" });
 
-      // Unknown pipelines fall back to the engine's tick-level context.
-      expect(await contextFor(ITEM, "mystery")).toBeUndefined();
+      // A role missing from roles.yaml falls back to the engine's
+      // tick-level context (pipelines.yaml validation makes this unreachable
+      // in a healthy org).
+      expect(await contextFor(ITEM, "mystery", "no-such-role")).toBeUndefined();
     } finally {
       org.cleanup();
       state.cleanup();

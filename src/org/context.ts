@@ -133,16 +133,6 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   };
 }
 
-/** Which role's concepts a loop pipeline resolves (learning-loop M5): the
- *  pipeline's lead role per pipelines.yaml — build and fix are Builder work,
- *  review and ship judgment are Reviewer work. */
-const PIPELINE_ROLE: Record<string, string> = {
-  build: "builder",
-  fix: "builder",
-  review: "reviewer",
-  ship: "reviewer",
-};
-
 export interface EpisodeContextResolverOptions {
   orgHome: string;
   appWorkdir: string;
@@ -160,17 +150,21 @@ export interface EpisodeContextResolverOptions {
  *  tick so build and fix passes on one ticket share one pin. This replaces
  *  the M4 tick-level builder-only pin — the resolve now lands on the same
  *  ticket episode the capture projector attributes the passes to, and
- *  reviewer-scoped concepts reach review passes. */
+ *  reviewer-scoped concepts reach review passes. The role name comes from
+ *  the loop's loaded pipeline config (never a parallel table here). A
+ *  failed resolve degrades LOUDLY to the engine's fallback context — the
+ *  ticket is already claimed when pipelines run, and stranding it in
+ *  op:building over a corrupt learning store would be the worse failure. */
 export function createEpisodeContextResolver(
   options: EpisodeContextResolverOptions,
 ): (
   item: { issueNumber: number; ticketRef: string; title: string; body: string },
   pipeline: string,
+  role: string,
 ) => Promise<ContextBundle | undefined> {
   const memo = new Map<string, Promise<ContextBundle | undefined>>();
-  return (item, pipeline) => {
-    const roleName = PIPELINE_ROLE[pipeline];
-    const role = roleName !== undefined ? options.roles[roleName] : undefined;
+  return (item, _pipeline, roleName) => {
+    const role = options.roles[roleName];
     if (role === undefined) return Promise.resolve(undefined);
     const key = `${item.issueNumber}:${role.name}`;
     const existing = memo.get(key);
@@ -189,7 +183,17 @@ export function createEpisodeContextResolver(
         turnId: `${options.turnId}-i${item.issueNumber}-${role.name}`,
         episodeId: ticketEpisodeAnchor(options.app, item.ticketRef).episodeId,
       },
-    }).then((result) => result.bundle);
+    }).then(
+      (result) => result.bundle,
+      (error: unknown) => {
+        process.stderr.write(
+          `learning: per-episode resolve failed for ${item.ticketRef} (${roleName}) — ` +
+            `falling back to the tick context: ` +
+            `${error instanceof Error ? error.message : String(error)}\n`,
+        );
+        return undefined;
+      },
+    );
     memo.set(key, assembled);
     return assembled;
   };

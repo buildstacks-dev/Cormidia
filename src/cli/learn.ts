@@ -65,6 +65,7 @@ import {
 } from "../org/learning/experiment.js";
 import {
   interventionChainGaps,
+  interventionIdForCandidate,
   interventionPath,
   listInterventionRecords,
   readInterventionRecord,
@@ -663,7 +664,7 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
     // Distinguish "no record" from "corrupt record": a lineage record that
     // exists but fails validation must surface loudly, never read as
     // "not yet published" (that advice would re-run a committed publish).
-    const interventionId = `int_${id.replace(/^cand_/, "")}`;
+    const interventionId = interventionIdForCandidate(id);
     if (existsSync(interventionPath(homes.orgHome, interventionId))) {
       const intervention = await readInterventionRecord(homes.orgHome, interventionId);
       console.log(
@@ -754,6 +755,11 @@ async function fixture(
     });
     console.log(`fixture ${trusted.fixture_id} validated by ${trusted.validated_by}`);
     console.log("  sanitization re-verified against the canonical secret patterns");
+    console.log(
+      "  note: the secret scan is regex-shaped only — the fixture embeds the verbatim " +
+        "brief, so validation includes reviewing it for sensitive free text (PII, internal " +
+        "hostnames) the patterns cannot catch",
+    );
     return 0;
   }
 
@@ -873,7 +879,7 @@ async function report(
     improvedThisMonth > 0 ? learningSpend.monthUsd / improvedThisMonth : null;
   const canaryLines =
     policy !== undefined
-      ? await canaryStatusLines(homes, policy).catch((error: Error) => {
+      ? await canaryStatusLines(homes, policy, records).catch((error: Error) => {
           storeErrors.push(error.message);
           return [];
         })

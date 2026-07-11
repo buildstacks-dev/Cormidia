@@ -23,20 +23,17 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { gateCommandsForWorktree, loadGateCommands, DEFAULT_LOOP_POLICY } from "../../loop/driver.js";
+import { loadGateCommands, DEFAULT_LOOP_POLICY } from "../../loop/driver.js";
 import { defaultCriterionTests, parseAcceptanceCriteria } from "../../loop/loop.js";
 import type { PipelineConfig } from "../../loop/pipelines.js";
 import { executePipeline } from "../../loop/pipeline.js";
 import { loadPolicy, resolveTier } from "../../loop/policy.js";
 import { runGates, type GateRunResult } from "../../loop/qgates.js";
 import {
-  parseVerdict,
+  parseVerdictEither,
   parseWithRetry,
-  validateVerdict,
   VERDICT_SCHEMAS,
-  type ParseResult,
   type ReviewVerdict,
 } from "../../loop/verdicts.js";
 import { defaultGate } from "../../runtime/gate.js";
@@ -210,7 +207,7 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
                           );
                           return retry.summary;
                         },
-                        parseReviewEither,
+                        (t) => parseVerdictEither("review", t),
                       );
                       await ctx.events.append({
                         type: "verdict.recorded",
@@ -427,12 +424,15 @@ const DIFF_CAP_BYTES = 24 * 1024;
 function reviewBrief(brief: string, worktree: string, seedCommit: string): string {
   let diff: string;
   try {
-    diff = git(worktree, "diff", seedCommit, "HEAD");
+    diff = gitIn(worktree, "diff", seedCommit, "HEAD");
   } catch (error) {
     diff = `(diff unavailable: ${error instanceof Error ? error.message : String(error)})`;
   }
   if (Buffer.byteLength(diff, "utf8") > DIFF_CAP_BYTES) {
-    diff = `${diff.slice(0, DIFF_CAP_BYTES)}\n… (diff truncated at ${DIFF_CAP_BYTES} bytes)`;
+    // Truncate in BYTES (the cap's unit); toString drops a split multibyte
+    // sequence into a replacement char rather than a lone surrogate.
+    const capped = Buffer.from(diff, "utf8").subarray(0, DIFF_CAP_BYTES).toString("utf8");
+    diff = `${capped}\n… (diff truncated at ${DIFF_CAP_BYTES} bytes)`;
   }
   return [
     "You are reviewing a replayed implementation attempt. The original task brief follows, then the diff.",
@@ -479,10 +479,10 @@ async function runReplayGates(
 ): Promise<GateRunResult> {
   const policyPath = join(worktree, ".operon", "policy.yaml");
   const policy = existsSync(policyPath) ? await loadPolicy(policyPath) : DEFAULT_LOOP_POLICY;
-  const changed = git(worktree, "diff", "--name-only", seedCommit, "HEAD")
+  const changed = gitIn(worktree, "diff", "--name-only", seedCommit, "HEAD")
     .split("\n")
     .filter((line) => line.trim() !== "");
-  const head = git(worktree, "rev-parse", "HEAD");
+  const head = gitIn(worktree, "rev-parse", "HEAD");
   const criteria = parseAcceptanceCriteria(brief);
   return runGates(
     resolveTier(policy, changed),
@@ -494,23 +494,10 @@ async function runReplayGates(
     { approvedCommitId: head, headCommitId: head },
     {
       policy,
-      commands: gateCommandsForWorktree(loadGateCommands(worktree), worktree),
+      commands: loadGateCommands(worktree),
       criterionTests: defaultCriterionTests(criteria, "replay"),
     },
   );
-}
-
-function parseReviewEither(text: string): ParseResult<"review"> {
-  const trimmed = text.trim();
-  if (trimmed.startsWith("{")) {
-    try {
-      const validated = validateVerdict("review", JSON.parse(trimmed));
-      if (validated.ok) return validated;
-    } catch {
-      // fall through to the lenient text grammar
-    }
-  }
-  return parseVerdict("review", text);
 }
 
 // ---------------------------------------------------------------------------
@@ -550,13 +537,22 @@ function removeSeedWorktree(localRepo: string, worktree: string): void {
   }
 }
 
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+/** Shared by the executor and the experiment CLI: one git wrapper whose
+ *  errors carry stderr — an opaque "Command failed: git …" hides whether a
+ *  fetch failed on auth or a missing ref. */
+export function gitIn(cwd: string, ...args: string[]): string {
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch (error) {
+    const stderr = (error as { stderr?: unknown }).stderr;
+    const detail = typeof stderr === "string" && stderr.trim() !== "" ? `\n${stderr.trim()}` : "";
+    throw new Error(`git ${args.join(" ")} failed in ${cwd}${detail}`);
+  }
 }
 
 function requireRole(roles: Record<string, RoleConfig>, name: string): RoleConfig {
@@ -565,10 +561,4 @@ function requireRole(roles: Record<string, RoleConfig>, name: string): RoleConfi
     throw new Error(`learning: replay needs a "${name}" role in roles.yaml`);
   }
   return role;
-}
-
-/** Unused import guard: mkdir is used by callers that pre-create the
- *  worktree root; keep the fs surface minimal here. */
-export async function ensureWorktreeRoot(worktreeRoot: string): Promise<void> {
-  await mkdir(worktreeRoot, { recursive: true });
 }

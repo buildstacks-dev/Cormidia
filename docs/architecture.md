@@ -505,8 +505,8 @@ defaults):
 [2] taste/<role>.md                   role craft (when it exists)
 [3] <app>/.operon/TASTE.md            product charter (when it exists)
 [4] role turn protocol                generated: expected outputs, GitHub
-                                      conventions (§10), end-of-turn memory
-                                      write instruction, approval etiquette
+                                      conventions (§10), end-of-turn learning
+                                      note instruction, approval etiquette
 [5] memory excerpts                   role craft bundle + this app's domain
                                       bundle (§6) — capped
 ```
@@ -599,17 +599,24 @@ Body: the lesson, with the why. Wrong lessons get deleted, not hedged.
 Each bundle carries an `INDEX.md` (one line per doc) — the always-included
 excerpt layer.
 
-**End-of-turn write** is part of the role protocol (context layer [4], per
-TASTE §12): before finishing, record corrections and confirmed approaches in
-the appropriate bundle. Memory dirs are deliberately agent-writable routine
-ops (the `protocol-self-edit` gate rule does not cover them); commits ride
-the turn's normal git flow — craft lessons to the org home, domain lessons
-to the ticket branch (they merge with the work).
+**End-of-turn learning notes** (learning-loop M1, design §7.1 in
+`docs/learning-loop/`): the role protocol (context layer [4]) instructs
+agents to record lessons and corrections as **candidate notes** —
+`learning/candidates/<role>/` in the org home, `.operon/learning/candidates/
+<role>/` on the ticket branch — never as active OKF docs. Candidate trees are
+deliberately agent-writable routine ops; they carry no authority and nothing
+in them loads into future context until it passes review. The learning
+GOVERNANCE surfaces (`learning/{bundle,quarantine,evals,reviews,experiments,
+interventions}/**`, `manifest.yaml`, `policy.yaml`, `rejections.jsonl`, and
+their `.operon/learning/**` counterparts) are critical ops by the
+`learning-surface-tamper` gate rule — publisher/human-only. Existing
+`memory/**` trees remain read-only legacy seed context: still resolved into
+layer [5] at lowest precedence, no longer written by anyone.
 
-**Curation** is a weekly maintenance turn (`operon retro`, below): dedupe,
-delete wrong lessons, `status: deprecated` for doubtful ones, and promote
-recurring lessons up a tier to `skills/` — skill promotion is a PR, i.e.
-review-gated (docs/PURPOSE.md knowledge tiers).
+**Curation** belongs to the governed learning loop (review → approval →
+publish, `docs/learning-loop/`); the old direct-write retro curation pass
+(`runRetroCuration`) was retired with M1 — its destructive dedupe/delete was
+ungated and never wired, and its skill-draft idea moves to the M6 distiller.
 
 ### Scorecards
 
@@ -636,7 +643,8 @@ here) that consumes the week's telemetry + scorecards and emits:
 
 1. `retro/<date>.md` in org home (committed) — scores per (role, app),
   trends, incidents;
-2. memory curation edits (routine);
+2. learning notes into `learning/candidates/` (routine — curation itself is
+  the governed learning loop's job, `docs/learning-loop/`);
 3. proposed TASTE/roles.yaml changes — **as proposals only** (issues/PRs for
   the human; the gate's `protocol-self-edit` rule backstops this).
 

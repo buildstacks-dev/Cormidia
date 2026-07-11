@@ -132,6 +132,23 @@ export const CRITICAL_RULES: CriticalRule[] = [
     matches: (a) => isWrite(a) && /\bscorecards\/[^\s"']+/.test(asText(a)),
   },
   {
+    // The learning loop's governance surfaces (docs/learning-loop/ spec §1):
+    // active bundles, manifests, policy, quarantine, evals, reviews, the
+    // rejection ledger, experiments, and interventions — in the org home
+    // (learning/**) and the app repo (.operon/learning/**) alike. Only the
+    // deterministic publisher and humans write inside them; an agent write is
+    // active-context self-modification (a prompt-injection persistence
+    // channel, design §11). learning/candidates/** and learning/proposals/**
+    // are deliberately NOT matched: agents emit candidate notes and draft
+    // proposals freely — those carry no authority until reviewed.
+    name: "learning-surface-tamper",
+    matches: (a) =>
+      isWrite(a) &&
+      /\blearning\/(bundle|quarantine|evals|reviews|experiments|interventions|manifest\.yaml|policy\.yaml|rejections\.jsonl)\b/.test(
+        asText(a),
+      ),
+  },
+  {
     // The approval store (<org-home>/approvals/{grants,pending,decided}/*.json
     // + log.jsonl) is the ROOT OF TRUST for the whole gate: composeGate lets
     // any op through if a matching single-use grant file exists (src/org/

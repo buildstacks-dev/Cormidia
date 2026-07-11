@@ -58,6 +58,14 @@ export const EVENT_KINDS: EventKind[] = [
   "alert-webhook",
 ];
 
+/** Per-role consumption key. Multi-subscriber events are consumed per
+ *  (eventKey, role) so a co-subscriber pushed to a later tick by the WIP
+ *  limit still sees the event; the bare eventKey — what poll() filters on —
+ *  is only written once every subscribed role has consumed (issue #25). */
+export function roleConsumedKey(eventKey: string, role: string): string {
+  return `${eventKey}::role::${role}`;
+}
+
 export function dedupKey(kind: EventKind, payload: Record<string, unknown>): string {
   switch (kind) {
     case "ticket-ready":
@@ -129,6 +137,25 @@ export class EventStore {
     await this.ensure();
     const consumed = new Set(await this.readConsumed());
     for (const key of keys) consumed.add(key);
+    await this.writeConsumed(consumed);
+  }
+
+  /** Record that one subscribed role has consumed the event. The bare event
+   *  key is added only when every role in `subscribers` has consumed, so the
+   *  event keeps polling for co-subscribers that have not run yet — including
+   *  ones currently gated on channel presence (issue #25). One
+   *  read-modify-write; atomic rename via writeFileAtomic. */
+  async markRoleConsumed(eventKey: string, role: string, subscribers: readonly string[]): Promise<void> {
+    await this.ensure();
+    const consumed = new Set(await this.readConsumed());
+    consumed.add(roleConsumedKey(eventKey, role));
+    if (subscribers.every((name) => consumed.has(roleConsumedKey(eventKey, name)))) {
+      consumed.add(eventKey);
+    }
+    await this.writeConsumed(consumed);
+  }
+
+  private async writeConsumed(consumed: ReadonlySet<string>): Promise<void> {
     await writeFileAtomic(this.consumedPath(), `${JSON.stringify([...consumed].sort(), null, 2)}\n`);
   }
 

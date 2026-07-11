@@ -9,7 +9,7 @@ import type { Trigger } from "../runtime/types.js";
 import { GhCliOps } from "../loop/github.js";
 import { loadApps, resolveTriggers, type AppEntry, type AppsFile } from "./apps.js";
 import { enforceBudgetOverlay, isOverlayPaused } from "./budget.js";
-import { EventStore, type DueEvent, type GitHubEventSource } from "./events.js";
+import { EventStore, roleConsumedKey, type DueEvent, type GitHubEventSource } from "./events.js";
 import { listJournals, readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
 import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./locks.js";
 import { recoverStaleTurn } from "./recovery.js";
@@ -57,6 +57,10 @@ export interface DueTurn {
   triggerKind: keyof Trigger;
   trigger: string;
   eventKey?: string;
+  /** Every role subscribed to this event (spawned or not), so consumption can
+   *  be recorded per (eventKey, role) and the event fully retires only after
+   *  all of them have run (issue #25). */
+  eventSubscribers?: string[];
 }
 
 export async function dispatchTick(options: DispatchTickOptions = {}): Promise<DispatchTickResult> {
@@ -180,7 +184,15 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
         await schedule.recordFired(turn.app, turn.role, turn.trigger, now());
       }
       if (turn.eventKey !== undefined) {
-        await eventStore.markConsumed([turn.eventKey]);
+        // Per-role consumption: this spawn retires the event for THIS role
+        // only. Co-subscribed roles pushed to a later tick by the WIP limit
+        // keep seeing the event; the bare key (which poll filters on) is
+        // written only when every subscriber has consumed (issue #25).
+        await eventStore.markRoleConsumed(
+          turn.eventKey,
+          turn.role,
+          turn.eventSubscribers ?? [turn.role],
+        );
       }
     } catch (error) {
       result.errors.push(
@@ -204,6 +216,9 @@ async function computeDueTurns(input: {
   result: DispatchTickResult;
 }): Promise<DueTurn[]> {
   const due: DueTurn[] = [];
+  // One read per tick: per-role consumption marks filter out roles that have
+  // already run for a still-live multi-subscriber event (issue #25).
+  const consumed = new Set(await input.eventStore.readConsumed());
   for (const journal of await listJournals(input.runtimeHome)) {
     if (journal.phase === "blocked_on_gate") {
       due.push({
@@ -230,6 +245,8 @@ async function computeDueTurns(input: {
 
     const channels = app.channels ?? {};
     const subscribedEventKeys = new Set<string>();
+    const subscribersByEvent = new Map<string, Set<string>>();
+    const pendingEventTurns: Array<{ role: string; trigger: string; event: DueEvent }> = [];
     for (const role of input.rolesFile.roles) {
       const triggers = resolveTriggers(role, app);
       for (const trigger of triggers) {
@@ -240,12 +257,19 @@ async function computeDueTurns(input: {
             // A matching subscriber exists even if it is then gated/unrouted:
             // this event is NOT orphaned, so don't record it as unsubscribed.
             subscribedEventKeys.add(event.key);
+            // Count the role as a subscriber even when it already consumed or
+            // is gated below — retiring the bare event key needs the complete
+            // subscriber set (issue #25).
+            const subscribers = subscribersByEvent.get(event.key) ?? new Set<string>();
+            subscribers.add(role.name);
+            subscribersByEvent.set(event.key, subscribers);
+            if (consumed.has(roleConsumedKey(event.key, role.name))) continue;
             const route = resolveTriggerRoute({ role: role.name, trigger, channels });
             if (route.kind === "skip") {
               input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
               continue;
             }
-            due.push(eventTurn(app, role.name, trigger.event, event));
+            pendingEventTurns.push({ role: role.name, trigger: trigger.event, event });
           }
         }
         if (trigger.schedule !== undefined) {
@@ -259,6 +283,21 @@ async function computeDueTurns(input: {
           due.push(scheduleTurn(app.name, role.name, trigger.schedule, input.now));
         }
       }
+    }
+
+    // Event turns are pushed only after every role has been scanned, so each
+    // one carries the COMPLETE subscriber set for its event key (issue #25).
+    for (const pending of pendingEventTurns) {
+      const subscribers = subscribersByEvent.get(pending.event.key);
+      due.push(
+        eventTurn(
+          app,
+          pending.role,
+          pending.trigger,
+          pending.event,
+          subscribers === undefined ? [pending.role] : [...subscribers].sort(),
+        ),
+      );
     }
 
     // An event kind that no role subscribes to is recorded, never lost: it
@@ -276,7 +315,13 @@ async function computeDueTurns(input: {
   return due.sort(compareDue);
 }
 
-function eventTurn(app: AppEntry, role: string, trigger: string, event: DueEvent): DueTurn {
+function eventTurn(
+  app: AppEntry,
+  role: string,
+  trigger: string,
+  event: DueEvent,
+  subscribers: string[],
+): DueTurn {
   return {
     app: app.name,
     role,
@@ -284,6 +329,7 @@ function eventTurn(app: AppEntry, role: string, trigger: string, event: DueEvent
     triggerKind: "event",
     trigger,
     eventKey: event.key,
+    eventSubscribers: subscribers,
   };
 }
 

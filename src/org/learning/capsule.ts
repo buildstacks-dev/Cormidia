@@ -122,7 +122,13 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
       const briefHash = seedRun !== undefined ? await briefHashOf(stateHome, seedRun) : null;
       if (briefHash === null) missing.push("brief_hash");
 
-      const fingerprintRef = options.fingerprintRef ?? null;
+      // Assembly-time provenance is sticky: the FIRST assembly stamps the
+      // fingerprint; later re-assemblies (an operator inspecting under a
+      // drifted config) must not overwrite it — drift surfaces through a
+      // fingerprint diff, never by rewriting what the capsule recorded.
+      const existing = await readCapsule(stateHome, `replay_${episodeId.replace(/^ep_/, "")}`);
+      const fingerprintRef =
+        existing?.fingerprint_ref ?? options.fingerprintRef ?? null;
       if (fingerprintRef === null) missing.push("fingerprint");
 
       const observed =

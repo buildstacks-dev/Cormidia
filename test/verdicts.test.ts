@@ -232,6 +232,29 @@ describe("build verdict parser", () => {
     expect(r.verdict.status).toBe("done");
   });
 
+  it("captures fix-pass resolution lines: fixed and rebutted, unicode dash tolerated", () => {
+    const r = parseVerdict(
+      "build",
+      [
+        "- fixed src/a.ts:12 -- commit abc1234, regression in test/a.test.ts",
+        "- rebutted ci.yml:4 — documented behavior, see docs/deploy.md",
+        "",
+        "Verdict: done",
+      ].join("\n"),
+    );
+    expectOk(r);
+    expect(r.verdict.resolutions).toEqual([
+      { outcome: "fixed", location: "src/a.ts:12", note: "commit abc1234, regression in test/a.test.ts" },
+      { outcome: "rebutted", location: "ci.yml:4", note: "documented behavior, see docs/deploy.md" },
+    ]);
+  });
+
+  it("a verdict without resolution lines carries no resolutions key (legacy outputs)", () => {
+    const r = parseVerdict("build", "Verdict: done");
+    expectOk(r);
+    expect("resolutions" in r.verdict).toBe(false);
+  });
+
   it("captures a full four-part blocked entry verbatim, multi-line error included", () => {
     const text = [
       "Status: blocked",

@@ -107,6 +107,12 @@ export class FakeGhOps implements GhOps {
     this.issueComments.set(issueNumber, list);
   }
 
+  async listIssueComments(issueNumber: number): Promise<{ body: string }[]> {
+    this.log("listIssueComments", { issueNumber });
+    this.requireIssue(issueNumber);
+    return (this.issueComments.get(issueNumber) ?? []).map((body) => ({ body }));
+  }
+
   async listIssues(options: ListIssueOptions = {}): Promise<GhIssue[]> {
     this.log("listIssues", { labels: options.labels ?? [], state: options.state ?? "open" });
     const labels = options.labels ?? [];

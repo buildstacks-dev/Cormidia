@@ -14,6 +14,7 @@ import {
   advanceGates,
   advanceReviewing,
   advanceShipping,
+  branchNameForIssue,
   claimTicket,
   defaultCriterionTests,
   itemFromIssue,
@@ -23,6 +24,13 @@ import {
   runShipCheckPipeline,
   type ReviewAuthorization,
 } from "./loop.js";
+import {
+  parkedDigestComment,
+  readTicketClaimState,
+  rehydrateTicketState,
+  writeTicketClaimState,
+  type RehydratedState,
+} from "./rehydrate.js";
 import type { LoopRunlog } from "./loop-runlog.js";
 import type { PipelinesFile } from "./pipelines.js";
 import type { Policy } from "./policy.js";
@@ -54,6 +62,10 @@ export interface LoopDriverOptions {
   afterClaim?: (item: LoopItem) => Promise<LoopItem> | LoopItem;
   injectReview?: (item: LoopItem) => Promise<void> | void;
   engine?: LoopEngineOptions;
+  /** Cross-claim attempt cap (Stage 2): after this many claims without a
+   *  merge, the ticket parks as op:returned with an evidence digest instead
+   *  of being claimed again. Default 3. */
+  maxClaims?: number;
   /** Merge-authorization policy for the reviewing phase (self-approval secret,
    *  builder/reviewer identities). Passed through to advanceReviewing so a
    *  forged/self-authored approval cannot merge. */
@@ -90,6 +102,8 @@ export interface LoopDriverResult {
   /** Set when budgetGuard refused the tick before any claim. */
   budgetRefusal?: string;
 }
+
+const DEFAULT_MAX_CLAIMS = 3;
 
 export function planLoopTick(
   issues: readonly GhIssue[],
@@ -145,9 +159,49 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   if (options.planOnly) return { lines, items: [], scorecardEvents: [] };
 
   const items: LoopItem[] = [];
+  const maxClaims = options.maxClaims ?? DEFAULT_MAX_CLAIMS;
   for (const planned of plan) {
     const issue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
     if (issue === undefined) continue;
+
+    // Cross-claim accounting + rehydration (Stage 2) — engine path only; the
+    // injector path is the simulated M5 state machine and stays blank-slate.
+    let rehydrated: RehydratedState | undefined;
+    if (options.engine !== undefined) {
+      const branch = branchNameForIssue(issue);
+      rehydrated = await rehydrateTicketState(
+        { issueNumber: issue.number, body: issue.body },
+        { gh: options.gh, branch },
+      );
+      const claimState = readTicketClaimState(options.engine.runlogRoot, options.app, issue.number);
+      if (claimState.claims >= maxClaims) {
+        // Nothing in the episode ever said "this ticket has bounced N times;
+        // stop and summon the human" — this is that stop. Bounded attempts,
+        // then park with the assembled evidence (never a bare label flip).
+        await options.gh.commentIssue(
+          issue.number,
+          parkedDigestComment({
+            claims: claimState.claims,
+            maxClaims,
+            outcomes: claimState.outcomes,
+            ...(rehydrated.prNumber !== undefined ? { prNumber: rehydrated.prNumber } : {}),
+            openFindings: rehydrated.findings,
+            hasContract: rehydrated.contract !== undefined,
+          }),
+        );
+        await options.gh.swapLabel(issue.number, "op:ready", "op:returned");
+        lines.push(
+          `#${issue.number} ${issue.title}: parked after ${claimState.claims} claims (cap ${maxClaims})`,
+        );
+        continue;
+      }
+      writeTicketClaimState(options.engine.runlogRoot, options.app, issue.number, {
+        claims: claimState.claims + 1,
+        lastClaimAt: (options.engine.clock?.() ?? new Date()).toISOString(),
+        outcomes: claimState.outcomes,
+      });
+    }
+
     let item = await claimTicket(issue, {
       gh: options.gh,
       targetRepo: options.repo,
@@ -155,6 +209,22 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       worktreeRoot: options.worktreeRoot,
     });
     if (options.turnId !== undefined) item = { ...item, turnId: options.turnId };
+    if (rehydrated !== undefined) {
+      item = {
+        ...item,
+        ...(rehydrated.contract !== undefined ? { contract: rehydrated.contract } : {}),
+        findings: rehydrated.findings,
+        cycles: rehydrated.cycles,
+        ...(rehydrated.prNumber !== undefined ? { prNumber: rehydrated.prNumber } : {}),
+      };
+      // An open PR with no open findings means build+gates already succeeded
+      // once: re-validate gates and go to review — never a full rebuild. Open
+      // findings keep phase "building", where the nonzero findings/cycles
+      // select the fix pipeline instead of a blank-slate "build".
+      if (rehydrated.prNumber !== undefined && rehydrated.findings.length === 0) {
+        item = { ...item, phase: "gates" };
+      }
+    }
     if (options.engine === undefined) {
       item = await (options.afterClaim?.(item) ?? item);
     }
@@ -271,6 +341,16 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       });
     }
     items.push(item);
+    if (options.engine !== undefined) {
+      // Append this claim's outcome to the cross-claim record — it is the
+      // evidence the park digest shows the human after the claim cap.
+      const claimState = readTicketClaimState(options.engine.runlogRoot, options.app, item.issueNumber);
+      claimState.outcomes = [
+        ...claimState.outcomes.slice(-9),
+        `claim ${claimState.claims}: ended ${item.phase}${item.prNumber !== undefined ? ` (PR #${item.prNumber})` : ""}`,
+      ];
+      writeTicketClaimState(options.engine.runlogRoot, options.app, item.issueNumber, claimState);
+    }
   }
   return { lines, items, scorecardEvents: items.flatMap((item) => item.scorecardEvents ?? []) };
 }

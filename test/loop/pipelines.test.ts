@@ -152,6 +152,19 @@ describe("selectPasses", () => {
     expect(standard.map((p) => p.id)).toEqual(["contract", "implement"]);
   });
 
+  it("excludePasses removes a pass whose durable output already exists (Stage 2 continuation)", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+
+    const rehydrated = selectPasses(build, { tier: "standard", excludePasses: ["contract"] });
+    expect(rehydrated.map((p) => p.id)).toEqual(["implement"]);
+
+    // No exclusion — unchanged semantics.
+    expect(selectPasses(build, { tier: "standard", excludePasses: [] }).map((p) => p.id)).toEqual([
+      "contract",
+      "implement",
+    ]);
+  });
+
   it("only_on filters (OR across risk, labels, dimension_globs)", async () => {
     const review = getPipeline(await loadFixture(), "review");
     const ids = (sel: Parameters<typeof selectPasses>[1]) =>

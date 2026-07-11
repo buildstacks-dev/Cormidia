@@ -114,6 +114,43 @@ export function createLearningEventSink(stateHome: string): LearningEventSink {
   };
 }
 
+/** Append events whose deterministic `event_id` is not already present in
+ *  their target file — the exactly-once layer shared by every projector: a
+ *  crash between append and cursor write re-derives byte-identical events and
+ *  drops them as duplicates instead of double-emitting. */
+export async function appendLearningEventsDeduped(
+  stateHome: string,
+  events: LearningEvent[],
+): Promise<{ emitted: number; deduped: number }> {
+  const byPath = new Map<string, LearningEvent[]>();
+  for (const event of events) {
+    const path = learningEventPath(stateHome, event);
+    const bucket = byPath.get(path);
+    if (bucket === undefined) byPath.set(path, [event]);
+    else bucket.push(event);
+  }
+
+  let emitted = 0;
+  let deduped = 0;
+  for (const [path, bucket] of byPath) {
+    const existing = existsSync(path)
+      ? new Set((await readLearningEventFile(path)).map((event) => event.event_id))
+      : new Set<string>();
+    // Batch-internal dedup too: two same-id events in one call are one event.
+    const fresh = bucket.filter((event) => {
+      if (existing.has(event.event_id)) return false;
+      existing.add(event.event_id);
+      return true;
+    });
+    deduped += bucket.length - fresh.length;
+    if (fresh.length === 0) continue;
+    await mkdir(dirname(path), { recursive: true });
+    await appendFile(path, fresh.map((event) => JSON.stringify(event)).join("\n") + "\n", "utf8");
+    emitted += fresh.length;
+  }
+  return { emitted, deduped };
+}
+
 /** Every learning event across all dates/streams, in (date, stream, line)
  *  order. Per-file torn-tail contract; see module header. */
 export async function readLearningEvents(stateHome: string): Promise<LearningEvent[]> {

@@ -163,6 +163,26 @@ export async function readSettledKeys(orgDir: string): Promise<Set<string>> {
   return ids;
 }
 
+/** Every ledger row, in (date-file, line) order. Same torn-line tolerance as
+ *  readSettledKeys: a crashed append must not wedge every later reader. */
+export async function readTurnRecords(orgDir: string): Promise<TurnRecord[]> {
+  const dir = join(orgDir, "telemetry");
+  const rows: TurnRecord[] = [];
+  if (!existsSync(dir)) return rows;
+  for (const file of (await readdir(dir)).filter((name) => name.endsWith(".jsonl")).sort()) {
+    const text = await readFile(join(dir, file), "utf8");
+    for (const line of text.split("\n")) {
+      if (line.trim().length === 0) continue;
+      try {
+        rows.push(JSON.parse(line) as TurnRecord);
+      } catch {
+        // Torn trailing append — skip the line, never the read.
+      }
+    }
+  }
+  return rows;
+}
+
 /** One row per orchestrator invocation (`operon loop`, dispatch ticks), so
  *  orchestrator activity is reconstructable, not only agent activity
  *  (telemetry doc §6). Lives in its own sibling directory: every existing

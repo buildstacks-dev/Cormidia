@@ -1,8 +1,8 @@
 # Operon Architecture
 
-*v1.1 — 2026-07-09. The design layer docs/PURPOSE.md deliberately does not
-hold. docs/PURPOSE.md → Decided is upstream and authoritative; this document adds
-the detail needed to implement the remaining roadmap. §11 records decisions
+*v1.2 — last aligned 2026-07-11. docs/PURPOSE.md → Decided is upstream and
+authoritative; this document holds the implementation detail the decision
+layer deliberately does not. §11 records decisions
 ratified into docs/PURPOSE.md on 2026-07-06; future new decisions should be
 proposed here first, then promoted only after human ratification.*
 
@@ -69,6 +69,9 @@ Module placement respects the one-way import rule
 | Pass prompt templates + pipeline config                 | `prompts/`, `pipelines.yaml` (org home)                        | human-ratified protocol surfaces        |
 | Runtime contract, gate, telemetry, adapters             | `src/runtime/`                                                 | exists                                  |
 | Run status + anomaly readers                            | `src/runtime/runlog/status.ts`, `anomalies.ts`                 | implemented M9; L1/L2 only             |
+| Governed learning loop (capture, episodes, activation, resolver) | `src/org/learning/`                                    | design in `docs/learning-loop/`         |
+| A4 release handoff                                      | `src/org/release.ts`                                           | ship-gate P7; deploy trigger queued as a critical op |
+| Package/org/state boundary                              | `src/org/home.ts`                                              | org init, validation, active pointer, state-home resolution |
 
 
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
@@ -151,11 +154,18 @@ worktrees/<app>/<branch>/
 state/schedule.json      last-fired per (role, app, trigger)
 state/events/            consumed-event keys (dedup) + file-drop event inbox
 state/turns/<turnId>.json  turn journals (§3)
+state/budget-overlay.json  dispatcher budget-pause overlay (§7)
 locks/<app>--<role>.lock
 approvals/               pending/ decided/ grants/ log.jsonl (§4)
 sessions/                adapter session artifacts where the SDK needs a home
-telemetry/<day>.jsonl    exists today (src/runtime/telemetry.ts orgDir)
+runs/<app>/<runId>/      L1–L3 per-pass runlogs: envelope, events, brief,
+                         output, session log (docs/loop.md §9)
+telemetry/<day>.jsonl    org cost ledger (src/runtime/telemetry.ts orgDir)
+invocations/<day>.jsonl  one record per loop/dispatch invocation
+tickets/<app>/<issue>.json  cross-process ticket claim state (docs/loop.md §7.1)
 scorecards/<app>/<role>.jsonl  raw scorecard events (§6)
+learning/**              learning-loop capture/episode/activation state —
+                         see docs/learning-loop/ and the AGENTS.md inventory
 ```
 
 The org id `<org>` comes from org-home config. `OPERON_STATE_HOME` overrides
@@ -222,12 +232,16 @@ runs. Unknown mappings remain loud skips in dispatch, never undefined turns.
 | --- | --- |
 | Planner `daily ...` | `groom` pipeline |
 | Planner `weekly ...` | `plan` pipeline |
+| Planner `support-feedback` / `adoption-signal` (file-drop) | `groom` pipeline |
 | Builder `ticket-ready` | build-loop claim/build path |
 | Reviewer `pr-opened` | review-loop path owned by the ticket state machine |
 | SRE `hourly` | `sre-health` pipeline |
-| SRE `ci-failed` / `alert-webhook` | `sre-incident` pipeline |
+| SRE `ci-failed` / `alert-webhook` / `health-alert` | `sre-incident` pipeline |
+| Support `support-feedback` | `support-digest` pipeline |
 | Support scheduled trigger | `support-digest` pipeline |
 | Marketing `release-shipped` | `marketing-release` pipeline |
+| Marketing `launch-calendar` | `marketing-release` pipeline |
+| Marketing `adoption-signal` | `ci-sweep` pipeline |
 | Marketing weekly trigger | `ci-sweep` pipeline |
 
 **Scope note — software lifecycle now, company lifecycle via the same
@@ -312,40 +326,25 @@ checkout of main, removed at turn end.
 The loop is Operon's center of gravity — a framework-agnostic TypeScript
 re-engineering of the predecessor orchestrator (`docs/loop.md` §0), **not**
 a thin state machine over opaque role turns (decided 2026-07-04: control and
-gates, never "throw a ticket at an agent"). `docs/loop.md` is the full
-design. Summary:
+gates, never "throw a ticket at an agent"). `docs/loop.md` is the
+authoritative design — passes, briefs, gates, verdicts, review dimensions,
+and acceptance-criteria discipline all live there. Summary:
 
 - A role turn decomposes into a **pass pipeline** (`pipelines.yaml` +
-versioned prompts in `prompts/`): contract → implement for the Builder,
-acceptance-criteria verification for the Reviewer, competing-PMs →
-arbitration → decomposition for the Planner. Each pass = one `runTurn`
-with an assembled, budgeted **brief** (ticket + spec excerpts + findings
-  - memory); fresh session per pass; per-pass model/effort overrides.
-
-- **Mechanical quality gates** (tests/lint/e2e/secret-scan/completeness/  
-review-freshness, risk-tiered by `.operon/policy.yaml`) run as  
-orchestrator subprocesses after build passes and twice at ship. A `setup`  
-gate runs first when the app configures `setup_command` (e.g. `npm ci`),  
-installing dependencies in the fresh worktree before any test/lint gate  
-(`runSetupGate` in `src/loop/qgates.ts`) — distinct  
-from the safety gate; no agent prose ever drives a side effect. Gates are  
-only as strong as the acceptance criteria they check, so criteria are a  
-first-class artifact: binary and mechanically checkable by protocol,  
-human-signed-off for deep/high-risk tickets, mapped to named tests by the  
-contract pass, enforced by the completeness gate (`docs/loop.md` §5).
-
-- **Review dimensions are risk-selected; security review is always-on**  
-(`docs/loop.md` §4): a security lens plus the mechanical secret scan on  
-every PR, a dedicated deep security pass on security-sensitive globs or  
-high risk tier; performance/scale review by glob or label; scheduled  
-whole-repo standing sweeps.
-
+versioned prompts in `prompts/`); each pass = one `runTurn` with an
+assembled, budgeted **brief**; fresh session per pass; per-pass
+model/effort overrides (`docs/loop.md` §§2–4).
+- **Mechanical quality gates** (setup/tests/lint/e2e/secret-scan/
+completeness/review-freshness, risk-tiered by `.operon/policy.yaml`) run
+as orchestrator subprocesses after build passes and twice at ship —
+distinct from the safety gate; no agent prose ever drives a side effect
+(`docs/loop.md` §5).
 - Item states: `ready → building → gates → reviewing → shipping → merged`,
 with bounded remediation (3) and review cycles (3) → `returned`.
 `approve` + green gates + freshness → **the orchestrator squash-merges**
 (agents never merge), deletes the branch, closes the ticket via
 `Closes #N`. All states derive from GitHub artifacts; any tick advances
-any item.
+any item (`docs/loop.md` §7).
 
 
 
@@ -523,6 +522,18 @@ the contract.
 small enough that this stays adequate; retrieval sophistication is earned by
 evidence, not assumed.
 
+**Governed concepts resolve ahead of legacy memory** (learning-loop M4/M5,
+`docs/learning-loop/`). When learning is enabled, `resolveLearningContext`
+(`src/org/learning/resolver.ts`, wired into `src/org/context.ts`) runs once
+per turn as a **pinned resolve** — promotion, disable, or rollback mid-turn
+never shifts a running turn's context. Its concept sections fill layer [5]
+first, and the legacy keyword selection above spends only the bytes the
+concepts leave. In the build loop the pin is per (ticket episode, pipeline
+role) via `createEpisodeContextResolver` (`src/org/context.ts`), so build
+and fix passes on one ticket share one pin and reviewer-scoped concepts
+reach review passes. Every governed resolve persists a pinned record at
+`learning/resolved/<turnId>.json` in the state home.
+
 **Cache-stable assembly** (added 2026-07-04, reviewed with the human
 operator; economics in `research/2026-07-04_prompt-caching.md`). Provider
 prompt caches are org-wide *prefix matches*, not session state: a fresh
@@ -535,8 +546,9 @@ Two rules protect that:
    Never embed per-turn bytes — timestamps, turn ids, ticket refs, attempt
    counters. Per-turn facts belong in the task payload (the brief), which
    renders after the stable prefix.
-2. **Layer [5] is selected once per pipeline execution and held fixed
-   across its passes.** Keyword matching runs against the *ticket* text,
+2. **Layer [5] is pinned per resolve and held fixed across its passes** —
+   once per role turn, and in the build loop once per (ticket episode,
+   pipeline role). Keyword matching runs against the *ticket* text,
    never the per-pass brief — re-selecting per pass would silently change
    the prefix on every pass (and hand the builder and the fix pass
    different lessons; pinning is better for coherence, not just cost).
@@ -868,9 +880,11 @@ ready when the Builder declares done.
 structured findings comment — numbered findings, each must be resolved or
 explicitly rebutted before merge (TASTE §8). Findings ride to the fix turn
 as context. Single-account pilot caveat: GitHub forbids approving your own
-PR, so until Operon has a separate bot/app identity, a same-account approval
-is recorded as a marked COMMENTED review and accepted only with the
-`operon:self-approval-fallback` marker plus freshness.
+PR, so a same-account approval lands as a marked COMMENTED review — trusted
+only when its `operon:self-approval-fallback` marker carries a verifying
+HMAC signed with an orchestrator-only secret, plus a structured
+`Verdict: approve` and commit freshness. No secret configured = fail
+closed; a bare marker is never trusted (`docs/loop.md` §6).
 - Merge: squash-merge only, performed by the loop after APPROVE; branch
 deleted; PR description survives as the commit body (state-in-markdown, a
 predecessor pattern).

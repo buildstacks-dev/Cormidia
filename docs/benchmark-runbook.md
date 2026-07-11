@@ -4,6 +4,10 @@ The comparable benchmark required by PURPOSE's sandbox-before-production
 rule and `docs/proportionality-review.md` §5 Stage 7. Everything below is
 measured by the Stage 1 telemetry; nothing is anecdotal.
 
+**Status:** targets met 2026-07-11 by benchmark round 2 (results recorded
+in `docs/proportionality-review.md` §7); this runbook remains the
+procedure for re-runs.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

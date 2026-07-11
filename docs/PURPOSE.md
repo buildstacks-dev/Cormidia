@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v1.5 — 2026-07-09. Human-ratified decision log. Keep this file high-level;
+*v1.7 — 2026-07-11. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -17,7 +17,7 @@ runtime, N applications.
 ## Validation and launch path
 
 The product is proven on disposable sandbox apps before touching production
-applications (updated 2026-07-06):
+applications (updated 2026-07-11):
 
 1. **operon-sandbox-alpha** — well-kept Node library with tests, lint, CI, and
    agent docs. Primary build-loop target.
@@ -27,6 +27,9 @@ applications (updated 2026-07-06):
    service with `/health`, a local/container deploy script, and seeded
    feedback/adoption/health events. Its job is to give SRE, Support, and
    Marketing real functional coverage before production onboarding.
+4. **operon-sandbox-delta** ("Ledgerette") — created 2026-07-06. Built from
+   scratch through `operon new-app`; the from-scratch onboarding + live
+   build-loop proof (the loop fixed and merged its planted bugs unaided).
 
 **Build-complete means M10.** After M10, production onboarding happens with the
 human as launch activity, not as product-development proof. Current status:
@@ -319,7 +322,8 @@ config file, not a fork.
 
 ## Prior art (ours)
 
-**claude-loop** (`~/Documents/Build/claude-loop-teams`) already proved the core
+**claude-loop** (read-only reference checkout at
+`scratchpad-gitignore/claude-loop-teams/`) already proved the core
 shape: vision.md → plan → dev → review → ship, state in plain markdown in the
 target repo, per-role model selection in `roles.yaml`, fresh agent sessions,
 squash-merge to main. Operon is its successor, generalizing on two axes:
@@ -428,3 +432,12 @@ will resolve them.
   Agent Skill; package, org, state, and app paths are explicit and separate;
   bootstrap always joins a complete active org and no longer creates a nested
   single-app org profile.
+- 2026-07-10 — v1.6: approval & release boundary amendment ratified (A1–A5:
+  scoped grants, approve-and-rearm, batch review, release handoff, denial
+  lessons; full design `docs/approval-and-release-amendment.md`). Recorded in
+  Decided above; implemented through Stage 6 of the proportionality plan.
+- 2026-07-11 — v1.7: learning loop design ratified (v0.8 suite,
+  `docs/learning-loop/`; governed self-improvement — capture → episodes →
+  experiments → governed activation → offline eval + human-started canary →
+  scheduled distillation). Preflight + M1–M5 built and live-verified; M6
+  distillation open. Recorded in Decided above.

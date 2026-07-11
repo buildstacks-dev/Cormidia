@@ -24,9 +24,9 @@ defaults:
   budget_usd_month: 1000        # decided 2026-07-04; configurable per app
 
 apps:
-  # Self-referential placeholder: this repo doubles as its own org home for
-  # now (docs/PURPOSE.md → Bootstrap & artifact home, dogfood note). Real target
-  # apps (the sandbox apps) enter as they are onboarded.
+  # Historical self-registration from the dogfood period. The Operon source
+  # repo never doubles as the active org (docs/PURPOSE.md v1.5) — the active
+  # org home's apps.yaml is authoritative; this packaged copy is a template.
   operon:
     repo: buildstacks-dev/Operon
     status: onboarding

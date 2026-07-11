@@ -6,3 +6,6 @@ scratchpad-gitignore/
 .org/telemetry/
 *.log
 .DS_Store
+
+# generated benchmark telemetry report (docs/benchmark-runbook.md step 5)
+bench-report.html

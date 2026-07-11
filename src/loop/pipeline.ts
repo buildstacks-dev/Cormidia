@@ -18,6 +18,7 @@
 // The loop layer never imports src/org (one-way imports): role resolution
 // arrives as a plain name→RoleConfig map, runtimes as a factory.
 
+import { execSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
@@ -234,6 +235,7 @@ async function runPass(
     pass.template === "" ? undefined : await readFile(join(options.promptsDir, pass.template), "utf8");
   const task = template === undefined ? brief : `${brief}\n\n---\n\n${template}`;
 
+  const gitHead = workdirHead(options.workdir);
   await startRun(
     root,
     {
@@ -245,6 +247,7 @@ async function runPass(
       pass: pass.id,
       role: role.name,
       model: role.model,
+      ...(gitHead !== undefined ? { gitHead } : {}),
     },
     clock(),
   );
@@ -499,6 +502,23 @@ async function flushBridgedEvents(
 }
 
 /** Best-effort tool name when the adapter only gave us a detail string. */
+/** Workdir HEAD at pass start — the replay seed the learning loop's capsule
+ *  builder reads back (design §9.4: capture while the episode runs, never
+ *  reconstruct from logs afterward). Undefined for non-git workdirs; never
+ *  fails the pass. */
+function workdirHead(workdir: string): string | undefined {
+  try {
+    return execSync("git rev-parse HEAD", {
+      cwd: workdir,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return undefined;
+  }
+}
+
 function toolNameFromDetail(detail: string): string {
   const token = detail.trim().split(/[\s:(]/, 1)[0];
   return token !== undefined && token.length > 0 ? token : "unknown";

@@ -88,10 +88,10 @@ follow-on hardening campaign (atomic org state, per-tick budget auto-pause,
 the setup gate, per-app clone serialization, kind-based company-event
 routing, and the delta from-scratch onboarding). Real-application onboarding
 is not gated behind a single "build-complete" moment: the first production
-app, **buildstacks.dev**, is already registered in `apps.yaml` at
-`status: onboarding` — brought in together with the human operator, as a
-launch step rather than an experiment, while the runtime keeps hardening
-around it.
+app, **buildstacks.dev**, is registered in `apps.yaml` at
+`status: onboarding` — currently frozen as the proportionality benchmark
+baseline (docs/proportionality-review.md §5 Stage 7); it re-enters as the
+production confirmation once the sandbox benchmark meets its targets.
 
 ## What the current test apps cover — and what they don't
 

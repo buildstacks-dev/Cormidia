@@ -14,7 +14,7 @@ import {
   type QueryFn,
 } from "../../src/runtime/adapters/claude.js";
 import { defaultGate } from "../../src/runtime/gate.js";
-import type { RoleConfig, ToolAction, TurnRequest } from "../../src/runtime/types.js";
+import type { RoleConfig, ToolAction, TurnEvent, TurnRequest } from "../../src/runtime/types.js";
 
 const USAGE = {
   input_tokens: 100,
@@ -162,6 +162,47 @@ describe("ClaudeRuntime (SDK mocked)", () => {
 
     expect(gateCalls).toEqual([{ tool: "bash", input: { command: "cat .env" } }]);
     expect(result.escalations).toHaveLength(1);
+  });
+
+  it("emits tool_use for a gate-allowed action, none for a denied one (issue #27)", async () => {
+    const events: TurnEvent[] = [];
+    const queryFn: QueryFn = ({ options }) =>
+      (async function* () {
+        yield initMsg("s1");
+        const hook = options!.hooks!.PreToolUse![0]!.hooks[0]!;
+        const invoke = (id: string, command: string) =>
+          hook(
+            {
+              hook_event_name: "PreToolUse",
+              tool_name: "Bash",
+              tool_input: { command },
+              tool_use_id: id,
+              session_id: "s1",
+              transcript_path: "",
+              cwd: "/wd",
+            } as Parameters<typeof hook>[0],
+            id,
+            { signal: CAN_USE_CTX.signal },
+          );
+        await invoke("tu-1", "pnpm install");
+        await invoke("tu-2", "cat .env"); // denied: secrets-or-auth
+        yield successMsg("s1");
+      })();
+
+    await new ClaudeRuntime({ queryFn }).runTurn(makeReq(), {
+      gate: defaultGate,
+      onEvent: (event) => events.push(event),
+    });
+
+    const toolUses = events.filter((event) => event.type === "tool_use");
+    expect(toolUses).toEqual([
+      expect.objectContaining({
+        name: "bash",
+        detail: "bash: pnpm install",
+        category: "environment_retry",
+        args: { command: "pnpm install" },
+      }),
+    ]);
   });
 
   it("PreToolUse hook allows subagent spawns without consulting the gate", async () => {

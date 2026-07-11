@@ -178,7 +178,19 @@ function isProtocolSurface(text: string): boolean {
   );
 }
 
+/** The structured-output pseudo-tool is the typed verdict channel back to
+ *  the orchestrator (TurnRequest.verdictSchema): calling it performs no
+ *  action — the orchestrator validates the payload and acts itself. Its
+ *  CONTENT must therefore never be classified: a plan that *talks about*
+ *  deployment is not an attempt *to deploy*. Without this, the 2026-07-11
+ *  A4 live run deadlocked — four StructuredOutput attempts blocked under
+ *  three different rules, and the planner (correctly refusing to reword
+ *  its way past a human gate) failed the turn. Real tools with side
+ *  effects keep full pattern matching. */
+const VERDICT_TOOLS = new Set(["structuredoutput", "structured_output"]);
+
 export function classify(action: ToolAction): { cls: OpClass; rule?: string } {
+  if (VERDICT_TOOLS.has(action.tool.toLowerCase())) return { cls: "routine" };
   for (const rule of CRITICAL_RULES) {
     if (rule.matches(action)) return { cls: "critical", rule: rule.name };
   }

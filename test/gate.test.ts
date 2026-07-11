@@ -172,6 +172,18 @@ const ROUTINE_CASES: ToolAction[] = [
   bash("gh pr view 7"),
   bash("gh pr list --state open"),
   bash("gh pr checkout 7"),
+  // The typed verdict channel: content that would trip every content rule —
+  // deploy verbs, protocol filenames, secret words — is DATA returned to the
+  // orchestrator, not an action (2026-07-11 A4 live deadlock). Both adapter
+  // spellings classify routine.
+  {
+    tool: "structuredoutput",
+    input: {
+      releaseDisposition: "deploy to prod via kubectl apply after merge",
+      notes: "edit TASTE.md and roles.yaml; rotate key; secrets in .env",
+    },
+  },
+  { tool: "StructuredOutput", input: { plan: "npm publish then force-push" } },
 ];
 
 describe("critical-ops gate (default policy)", () => {
@@ -190,4 +202,13 @@ describe("critical-ops gate (default policy)", () => {
       expect(defaultGate(action)).toEqual({ allow: true });
     });
   }
+
+  it("the verdict-channel exemption is tool-scoped, never content-scoped", () => {
+    // The same deploy-shaped text on a tool with side effects stays critical.
+    const viaBash = classify(bash("kubectl apply -f prod.yaml # deploy"));
+    expect(viaBash.cls).toBe("critical");
+    // And a tool whose NAME merely contains the words does not qualify.
+    const lookalike = classify({ tool: "structuredoutput-exec", input: "deploy" });
+    expect(lookalike.cls).toBe("critical");
+  });
 });

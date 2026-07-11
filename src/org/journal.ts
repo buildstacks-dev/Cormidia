@@ -14,12 +14,23 @@ export type JournalPhase =
   | "blocked_on_gate"
   | "failed";
 
+/** The event that triggered a dispatched turn, persisted at dispatch time so
+ *  the turn's briefs can quote the original payload with a provenance stamp
+ *  instead of trigger metadata only (issue #26). */
+export interface TurnEvent {
+  kind: string;
+  key: string;
+  source: "github-poll" | "file-drop-inbox";
+  payload: Record<string, unknown>;
+}
+
 export interface TurnJournal {
   turnId: string;
   role: string;
   app: string;
   trigger?: string;
   triggerKind?: keyof Trigger;
+  event?: TurnEvent;
   phase: JournalPhase;
   attempt: number;
   startedAt: string;
@@ -64,6 +75,7 @@ export async function writeJournalPatch(
     }),
     ...(existing?.trigger !== undefined ? { trigger: existing.trigger } : {}),
     ...(existing?.triggerKind !== undefined ? { triggerKind: existing.triggerKind } : {}),
+    ...(existing?.event !== undefined ? { event: existing.event } : {}),
     ...(existing?.passStartedAt !== undefined ? { passStartedAt: existing.passStartedAt } : {}),
     ...(existing?.wallClockCapMs !== undefined ? { wallClockCapMs: existing.wallClockCapMs } : {}),
     ...(existing?.session !== undefined ? { session: existing.session } : {}),

@@ -181,6 +181,14 @@ export class EventStore {
     const errors: EventPollError[] = [];
     for (const file of files) {
       if (consumed.has(file)) continue;
+      // "::" is reserved for per-role consumption marks (roleConsumedKey);
+      // a filename containing it could impersonate or shadow another event's
+      // marks in the shared consumed set. Reject loudly at the transport
+      // boundary — filenames are our own contract.
+      if (file.includes("::")) {
+        errors.push(inboxError(app, file, new Error("filename must not contain '::' (reserved for consumption marks)")));
+        continue;
+      }
       let payload: Record<string, unknown>;
       try {
         payload = JSON.parse(await readFile(join(dir, file), "utf8")) as Record<string, unknown>;

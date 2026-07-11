@@ -77,6 +77,13 @@ export function capsulesDir(stateHome: string): string {
   return join(stateHome, "learning", "capsules");
 }
 
+/** The one place the capsule-id scheme lives (`ep_x` → `replay_x`) — the
+ *  builder and the `learn fixture` CLI both derive through this, so the
+ *  scheme cannot fork across the module boundary. */
+export function capsuleIdFor(episodeId: string): string {
+  return `replay_${episodeId.replace(/^ep_/, "")}`;
+}
+
 export function capsulePath(stateHome: string, capsuleId: string): string {
   return join(capsulesDir(stateHome), `${capsuleId}.json`);
 }
@@ -126,7 +133,7 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
       // fingerprint; later re-assemblies (an operator inspecting under a
       // drifted config) must not overwrite it — drift surfaces through a
       // fingerprint diff, never by rewriting what the capsule recorded.
-      const existing = await readCapsule(stateHome, `replay_${episodeId.replace(/^ep_/, "")}`);
+      const existing = await readCapsule(stateHome, capsuleIdFor(episodeId));
       const fingerprintRef =
         existing?.fingerprint_ref ?? options.fingerprintRef ?? null;
       if (fingerprintRef === null) missing.push("fingerprint");
@@ -145,7 +152,7 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
       missing.push("trusted_expected_outcome");
 
       const capsule: ReplayCapsule = {
-        capsule_id: `replay_${episodeId.replace(/^ep_/, "")}`,
+        capsule_id: capsuleIdFor(episodeId),
         episode_ref: episodeId,
         kind: "build_ticket",
         seed: { repo, commit, fixtures: [] },

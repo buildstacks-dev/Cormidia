@@ -6,7 +6,7 @@
 // is exercised via its required-flags error. Temp dirs only; no network.
 
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -336,7 +336,7 @@ describe("operon learn", () => {
 
     const showOut = captureLogs();
     expect(await cmdLearn(["show", "cand_20260711_nope", ...HOME_FLAGS])).toBe(1);
-    expect(showOut.errors.join("\n")).toContain("later milestones");
+    expect(showOut.errors.join("\n")).toContain("candidate storage lands with M4");
   });
 
   it("emit requires --episode/--observation outside a terminal and derives the app", async () => {
@@ -355,6 +355,195 @@ describe("operon learn", () => {
 
   it("rejects an unknown subcommand with usage guidance", async () => {
     await expect(cmdLearn(["distill", ...HOME_FLAGS])).rejects.toThrow(/expected a subcommand/);
+  });
+});
+
+describe("operon learn — M3 experiment substrate", () => {
+  it("fixture drafts a sanitized eval fixture and validation must be independent", async () => {
+    // Merge evidence (idempotent with the earlier tests) closes the episode
+    // so the capsule carries an observed outcome to draft from.
+    mkdirSync(join(STATE_HOME, "tickets", "alpha"), { recursive: true });
+    writeFileSync(
+      join(STATE_HOME, "tickets", "alpha", "7.json"),
+      JSON.stringify({ claims: 1, outcomes: ["claim 1: ended merged (PR #12)"] }, null, 2) + "\n",
+    );
+
+    // Drafting is identity-bearing: no anonymous default drafter, or one
+    // human could play both actors of the two-actor trust model.
+    await expect(
+      cmdLearn(["fixture", EPISODE, "--set", "roles/builder/standard-tickets", ...HOME_FLAGS]),
+    ).rejects.toThrow(/--by <name> is required/);
+
+    const draft = captureLogs();
+    // Flags may precede the positional — order must not change the parse.
+    expect(
+      await cmdLearn([
+        "fixture",
+        "--set",
+        "roles/builder/standard-tickets",
+        "--by",
+        "human-operator",
+        EPISODE,
+        ...HOME_FLAGS,
+      ]),
+    ).toBe(0);
+    const draftText = draft.logs.join("\n");
+    expect(draftText).toContain(
+      "drafted evals/roles/builder/standard-tickets/replay_alpha_ticket_0007 (by human-operator)",
+    );
+    expect(draftText).toContain("not yet trusted — missing: independent_validation");
+    vi.restoreAllMocks();
+
+    // The drafter cannot validate their own draft.
+    await expect(
+      cmdLearn([
+        "fixture",
+        EPISODE,
+        "--set",
+        "roles/builder/standard-tickets",
+        "--validate",
+        "--by",
+        "human-operator",
+        ...HOME_FLAGS,
+      ]),
+    ).rejects.toThrow(/must be independent/);
+
+    const trust = captureLogs();
+    expect(
+      await cmdLearn([
+        "fixture",
+        EPISODE,
+        "--set",
+        "roles/builder/standard-tickets",
+        "--validate",
+        "--by",
+        "reviewer-2",
+        ...HOME_FLAGS,
+      ]),
+    ).toBe(0);
+    expect(trust.logs.join("\n")).toContain("validated by reviewer-2");
+
+    const fixtureOnDisk = JSON.parse(
+      readFileSync(
+        join(
+          ORG_HOME,
+          "learning",
+          "evals",
+          "roles",
+          "builder",
+          "standard-tickets",
+          "replay_alpha_ticket_0007.json",
+        ),
+        "utf8",
+      ),
+    ) as { expected_outcome: { merged: boolean }; validated_by: string; sanitized: boolean };
+    expect(fixtureOnDisk.expected_outcome.merged).toBe(true);
+    expect(fixtureOnDisk.validated_by).toBe("reviewer-2");
+    expect(fixtureOnDisk.sanitized).toBe(true);
+  });
+
+  it("show traces experiments, eval results, and interventions to disposition", async () => {
+    const [{ declareExperiment }, { computeEvalResult, decideExperiment }, { writeInterventionRecord }] =
+      await Promise.all([
+        import("../../src/org/learning/experiment.js"),
+        import("../../src/org/learning/eval-result.js"),
+        import("../../src/org/learning/intervention.js"),
+      ]);
+    const { makeExperiment, makeIntervention } = await import("./helpers.js");
+
+    const declared = await declareExperiment(makeExperiment(), { orgHome: ORG_HOME });
+    const shownDeclared = captureLogs();
+    expect(await cmdLearn(["show", declared.record.experiment_id, ...HOME_FLAGS])).toBe(0);
+    expect(shownDeclared.logs.join("\n")).toContain("disposition: declared — no results yet");
+    vi.restoreAllMocks();
+
+    const result = computeEvalResult({
+      experiment: declared.record,
+      trials: [
+        {
+          pair: 1,
+          control: { review_cycles: 3, merge_success: 1, cost_usd: 11 },
+          treatment: { review_cycles: 1, merge_success: 1, cost_usd: 11 },
+        },
+      ],
+      graderRef: "evals/roles/builder/standard-tickets/grader",
+      costUsd: 0,
+      decidedBy: "human-operator",
+      decidedAt: "2026-07-11T14:00:00.000Z",
+    });
+    await decideExperiment(ORG_HOME, result);
+
+    const shownDecided = captureLogs();
+    expect(await cmdLearn(["show", declared.record.experiment_id, ...HOME_FLAGS])).toBe(0);
+    expect(shownDecided.logs.join("\n")).toContain(`disposition: decided by ${result.eval_id}`);
+    vi.restoreAllMocks();
+
+    const shownEval = captureLogs();
+    expect(await cmdLearn(["show", result.eval_id, ...HOME_FLAGS])).toBe(0);
+    expect(shownEval.logs.join("\n")).toContain(
+      "disposition: verdict improved for exp_builder-test-mapping_01",
+    );
+    vi.restoreAllMocks();
+
+    await writeInterventionRecord(ORG_HOME, makeIntervention());
+    const shownIntervention = captureLogs();
+    expect(await cmdLearn(["show", "int_20260711_01JKLM", ...HOME_FLAGS])).toBe(0);
+    expect(shownIntervention.logs.join("\n")).toContain(
+      "disposition: published ticket; chain complete",
+    );
+  });
+
+  it("report renders experiments with verdicts and interventions with unproven claims", async () => {
+    const { writeInterventionRecord } = await import("../../src/org/learning/intervention.js");
+    const { makeIntervention } = await import("./helpers.js");
+    // An activated concept whose claim was authorized, never validated — the
+    // report must say so (M3 done-criterion 2's reporting half).
+    await writeInterventionRecord(
+      ORG_HOME,
+      makeIntervention({
+        intervention_id: "int_20260711_02QRST",
+        destination: "okf_concept",
+        status: "active",
+        publish: {
+          kind: "bundle_version",
+          ref: "org@2026.07.11-1",
+          commit: null,
+          published_at: "2026-07-11T15:00:00.000Z",
+        },
+        activation: { activated_at: "2026-07-11T15:00:00.000Z", claim: "authorized" },
+      }),
+    );
+
+    const { logs } = captureLogs();
+    expect(await cmdLearn(["report", ...HOME_FLAGS])).toBe(0);
+    const text = logs.join("\n");
+    expect(text).toContain("Experiments: 1");
+    expect(text).toContain("exp_builder-test-mapping_01 — build_ticket, decided → eval_");
+    expect(text).toContain("(improved)");
+    expect(text).toContain("Interventions: 2");
+    expect(text).toContain("int_20260711_01JKLM — ticket, published");
+    expect(text).toContain(
+      "int_20260711_02QRST — okf_concept, active; claim authorized (unproven); " +
+        "chain INCOMPLETE (missing approval_ref, affected_episodes)",
+    );
+
+    vi.restoreAllMocks();
+    const json = captureLogs();
+    expect(await cmdLearn(["report", "--json", ...HOME_FLAGS])).toBe(0);
+    const data = JSON.parse(json.logs.join("\n")) as {
+      experiments: Array<{ experiment_id: string; verdict?: string }>;
+      interventions: Array<{ intervention_id: string; claim_display?: string; chain_gaps: string[] }>;
+    };
+    expect(data.experiments[0]).toMatchObject({
+      experiment_id: "exp_builder-test-mapping_01",
+      verdict: "improved",
+    });
+    expect(
+      data.interventions.find((i) => i.intervention_id === "int_20260711_02QRST"),
+    ).toMatchObject({
+      claim_display: "authorized (unproven)",
+      chain_gaps: ["approval_ref", "affected_episodes"],
+    });
   });
 });
 

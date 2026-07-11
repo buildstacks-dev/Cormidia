@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   computeSystemFingerprint,
+  fingerprintDelta,
   fingerprintPath,
   readFingerprint,
   storeFingerprint,
@@ -142,6 +143,28 @@ describe("computeSystemFingerprint", () => {
       );
       expect(fingerprint.app.commit).toMatch(/^[0-9a-f]{40}$/);
       expect(fingerprint.app.config_hash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    } finally {
+      home.cleanup();
+    }
+  });
+});
+
+describe("fingerprintDelta", () => {
+  it("names exactly the leaves that differ, excluding the id itself (M3 arm evidence)", async () => {
+    const home = makeOrgHome({});
+    try {
+      orgSurfaces(home.root);
+      const control = await computeSystemFingerprint(options(home.root));
+      const treatment = await computeSystemFingerprint(
+        options(home.root, {
+          roles: {
+            builder: { runtime: "codex", model: "gpt-5.5", effort: "medium", maxTurnBudgetUsd: 15 },
+            reviewer: { runtime: "claude", model: "claude-fable-5", effort: "high", maxTurnBudgetUsd: 15 },
+          },
+        }),
+      );
+      expect(fingerprintDelta(control, treatment)).toEqual(["models.builder.effort"]);
+      expect(fingerprintDelta(control, control)).toEqual([]);
     } finally {
       home.cleanup();
     }

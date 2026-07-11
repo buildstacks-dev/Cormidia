@@ -197,6 +197,13 @@ learning/capsules/        # build-episode ReplayCapsules with replayability
 learning/fingerprints/    # content-addressed SystemFingerprints
 ```
 
+The experiment substrate (M3) lives in the *committed org home* instead —
+`learning/experiments/` (ExperimentRecords + EvalResults, declared before
+results), `learning/interventions/` (one lineage record per published
+change), and `learning/evals/**` (sanitized eval fixtures converted from
+replay capsules, trusted only after independent validation) — all
+gate-protected paths only humans and orchestrator code write.
+
 `runs/` is the per-pass source of truth (what was asked, what happened, what
 it cost). The ledger is the rollup `operon budget`, `operon status`, retro,
 and scorecards read: every provider turn settles into it exactly once, keyed
@@ -207,11 +214,16 @@ monthly cap refuses to claim before any pass starts. `operon budget
 Subscription-backed provider costs are Operon-computed equivalent-cost
 estimates, flagged as such on every row. `operon telemetry --app <app>
 [--html out.html]` renders the run view. `operon learn` is the learning
-loop's human window: `report` for totals and episode records, `inspect
-<episode-id>` for one episode's full record (turns, gates, outcome, ledger
-cost, replay capsule), `emit` to record an observation or an append-only
-late outcome (`--late-outcome <kind> --ref <ref>`), `show <event-id>` to
-trace it.
+loop's human window: `report` for totals, episode records, experiments, and
+intervention lineage (an unevaluated activation always renders as
+`authorized (unproven)`), `inspect <episode-id>` for one episode's full
+record (turns, gates, outcome, ledger cost, replay capsule), `emit` to
+record an observation or an append-only late outcome (`--late-outcome
+<kind> --ref <ref>`), `show <id>` to trace an event, experiment, eval
+result, or intervention to its disposition, and `fixture <episode-id> --set
+<scope>/<set>` to convert a closed build episode's capsule into a sanitized
+eval fixture (`--validate --by <someone-else>` records the independent
+validation that makes it trusted).
 
 ## Status
 

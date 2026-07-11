@@ -6,7 +6,7 @@
 
 import { readdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { dedupKey, EventStore, type GitHubEventSource } from "../src/org/events.js";
+import { dedupKey, EventStore, roleConsumedKey, type GitHubEventSource } from "../src/org/events.js";
 import type { AppEntry } from "../src/org/apps.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
@@ -56,6 +56,24 @@ describe("event polling", () => {
       await store.markConsumed(first.events.map((event) => event.key));
       const second = await store.poll(APP, source);
       expect(second.events).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("per-role marks keep the event polling; retireEvent writes the bare key and prunes them (issue #25)", async () => {
+    const home = makeOrgHome({ state: { eventsInbox: { "alert.json": HEALTH_ALERT } } });
+    try {
+      const store = new EventStore(home.root);
+      await store.markConsumed([roleConsumedKey("alert.json", "planner")]);
+      // Still polls: the bare key is what poll filters on.
+      expect((await store.poll(APP, fakeSource({}))).events.map((e) => e.key)).toEqual(["alert.json"]);
+
+      await store.retireEvent("alert.json");
+      const consumed = await store.readConsumed();
+      expect(consumed).toContain("alert.json");
+      expect(consumed).not.toContain(roleConsumedKey("alert.json", "planner"));
+      expect((await store.poll(APP, fakeSource({}))).events).toEqual([]);
     } finally {
       home.cleanup();
     }

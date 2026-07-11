@@ -58,6 +58,16 @@ export const EVENT_KINDS: EventKind[] = [
   "alert-webhook",
 ];
 
+/** Per-role consumption mark. Multi-subscriber events are consumed per
+ *  (eventKey, role) so a co-subscriber pushed to a later tick by the WIP
+ *  limit still sees the event. The bare eventKey — what poll() filters on —
+ *  is written by the dispatcher's per-tick retirement sweep once every
+ *  CURRENT subscriber holds a mark (issue #25); the store never decides
+ *  retirement itself because only the dispatcher knows the subscriber set. */
+export function roleConsumedKey(eventKey: string, role: string): string {
+  return `${eventKey}::role::${role}`;
+}
+
 export function dedupKey(kind: EventKind, payload: Record<string, unknown>): string {
   switch (kind) {
     case "ticket-ready":
@@ -129,6 +139,28 @@ export class EventStore {
     await this.ensure();
     const consumed = new Set(await this.readConsumed());
     for (const key of keys) consumed.add(key);
+    await this.writeConsumed(consumed);
+  }
+
+  /** Retire an event: write the bare key (what poll() filters on) and prune
+   *  the event's now-redundant per-role marks in the same atomic write, so
+   *  consumed.json converges back to one entry per retired event. WHEN to
+   *  retire is the dispatcher's per-tick decision — every current subscriber
+   *  holds a mark — never the store's: a store-side completeness check would
+   *  depend on callers supplying a subscriber set it cannot validate, and an
+   *  incomplete one would silently starve co-subscribers (issue #25). */
+  async retireEvent(eventKey: string): Promise<void> {
+    await this.ensure();
+    const consumed = new Set(await this.readConsumed());
+    const rolePrefix = `${eventKey}::role::`;
+    for (const key of [...consumed]) {
+      if (key.startsWith(rolePrefix)) consumed.delete(key);
+    }
+    consumed.add(eventKey);
+    await this.writeConsumed(consumed);
+  }
+
+  private async writeConsumed(consumed: ReadonlySet<string>): Promise<void> {
     await writeFileAtomic(this.consumedPath(), `${JSON.stringify([...consumed].sort(), null, 2)}\n`);
   }
 

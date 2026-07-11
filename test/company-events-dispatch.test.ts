@@ -9,7 +9,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { dispatchTick } from "../src/org/dispatch.js";
-import type { GitHubEventSource } from "../src/org/events.js";
+import { EventStore, type GitHubEventSource } from "../src/org/events.js";
+import { releaseLock } from "../src/org/locks.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
 const REAL_ROLES = fileURLToPath(new URL("../roles.yaml", import.meta.url));
@@ -69,7 +70,7 @@ function emptySource(): GitHubEventSource {
   };
 }
 
-function appsYaml(withChannels: boolean): string {
+function appsYaml(withChannels: boolean, maxConcurrent = 20): string {
   const channels = withChannels
     ? `    channels:
       support: ["email"]
@@ -79,7 +80,7 @@ function appsYaml(withChannels: boolean): string {
   return `schema_version: 1
 org:
   name: test
-  max_concurrent_turns: 20
+  max_concurrent_turns: ${maxConcurrent}
 defaults:
   budget_usd_month: 1000
 apps:
@@ -168,6 +169,150 @@ describe("company-lifecycle event routing (GAP B)", () => {
     const result = await runDispatch({ inbox: { "health.json": HEALTH_ALERT }, rolesYaml });
     expect(eventTurns(result)).toEqual([]);
     expect(result.skipped).toContain("alpha: event health-alert (health.json) has no subscriber");
+  });
+});
+
+describe("multi-subscriber fan-out under WIP limits (issue #25)", () => {
+  function roleYaml(name: string, event: string): string {
+    return `  ${name}:
+    runtime: claude
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - event: ${event}
+    outputs: []
+`;
+  }
+  const TWO_SUBSCRIBERS = `roles:\n${roleYaml("planner", "support-feedback")}${roleYaml("support", "support-feedback")}`;
+
+  /** Multi-tick fan-out harness: real dispatchTick + EventStore + locks with
+   *  only the spawn call injected. `tick()` accepts option overrides. */
+  function fanoutHome(opts: {
+    withChannels: boolean;
+    maxConcurrent?: number;
+    inbox?: Record<string, unknown>;
+    rolesYaml?: string;
+  }) {
+    const home = makeOrgHome({
+      state: { eventsInbox: opts.inbox ?? { "sf.json": SUPPORT_FEEDBACK } },
+      approvals: true,
+    });
+    const appsPath = join(home.root, "apps.yaml");
+    writeFileSync(appsPath, appsYaml(opts.withChannels, opts.maxConcurrent ?? 20), "utf8");
+    const rolesPath = join(home.root, "roles.yaml");
+    writeFileSync(rolesPath, opts.rolesYaml ?? TWO_SUBSCRIBERS, "utf8");
+    const spawned: string[] = [];
+    const tick = (overrides: Parameters<typeof dispatchTick>[0] = {}) =>
+      dispatchTick({
+        runtimeHome: home.root,
+        appsPath,
+        rolesPath,
+        now: () => new Date("2026-07-06T10:00:00Z"),
+        eventSource: emptySource(),
+        spawn: async ({ role }) => {
+          spawned.push(role);
+        },
+        ...overrides,
+      });
+    return { home, appsPath, rolesPath, spawned, tick, store: new EventStore(home.root) };
+  }
+
+  it("one event reaches both subscribers when the WIP limit splits them across ticks", async () => {
+    const f = fanoutHome({ withChannels: true, maxConcurrent: 1 });
+    try {
+      await f.tick();
+      expect(f.spawned).toHaveLength(1);
+      // The event must NOT be retired: its co-subscriber has not run.
+      expect(await f.store.readConsumed()).not.toContain("sf.json");
+
+      await releaseLock(f.home.root, "alpha", f.spawned[0]!); // first turn completes
+      await f.tick();
+      expect(f.spawned).toHaveLength(2);
+      expect([...f.spawned].sort()).toEqual(["planner", "support"]);
+
+      await releaseLock(f.home.root, "alpha", f.spawned[1]!);
+      // Both subscribers hold marks: the next tick's sweep retires the event
+      // (bare key written, per-role marks pruned) and neither role re-fires.
+      const third = await f.tick();
+      expect(f.spawned).toHaveLength(2);
+      expect(third.skipped.join("\n")).toContain("(sf.json) retired");
+      const consumed = await f.store.readConsumed();
+      expect(consumed).toContain("sf.json");
+      expect(consumed.filter((key) => key.includes("::role::"))).toEqual([]);
+    } finally {
+      f.home.cleanup();
+    }
+  });
+
+  it("a channel-gated co-subscriber is not starved by an earlier spawn", async () => {
+    const f = fanoutHome({ withChannels: false });
+    try {
+      const first = await f.tick();
+      // Planner (not gated) spawns; Support is channel-gated with a reason.
+      expect(f.spawned).toEqual(["planner"]);
+      expect(first.skipped.join("\n")).toContain("support channel gate");
+      expect(await f.store.readConsumed()).not.toContain("sf.json");
+
+      await releaseLock(f.home.root, "alpha", "planner");
+      const second = await f.tick();
+      // Planner does not re-fire; Support stays observably gated; no retire.
+      expect(f.spawned).toEqual(["planner"]);
+      expect(second.skipped.join("\n")).toContain("support channel gate");
+      expect(await f.store.readConsumed()).not.toContain("sf.json");
+
+      // The app grows a support channel: the waiting event now reaches Support.
+      writeFileSync(f.appsPath, appsYaml(true), "utf8");
+      await f.tick();
+      expect(f.spawned).toEqual(["planner", "support"]);
+      await releaseLock(f.home.root, "alpha", "support");
+      await f.tick(); // sweep retires once both marks exist
+      expect(await f.store.readConsumed()).toContain("sf.json");
+    } finally {
+      f.home.cleanup();
+    }
+  });
+
+  it("a subscriber removed mid-fan-out cannot strand the event live forever", async () => {
+    const f = fanoutHome({ withChannels: true, maxConcurrent: 1 });
+    try {
+      await f.tick();
+      expect(f.spawned).toHaveLength(1);
+      await releaseLock(f.home.root, "alpha", f.spawned[0]!);
+
+      // The OTHER subscriber is removed from roles.yaml before it ever runs.
+      writeFileSync(f.rolesPath, `roles:\n${roleYaml(f.spawned[0]!, "support-feedback")}`, "utf8");
+
+      // Dry-run computes retirement but must not write state.
+      await f.tick({ dryRun: true });
+      expect(await f.store.readConsumed()).not.toContain("sf.json");
+
+      // The real tick's sweep sees every CURRENT subscriber consumed → retire.
+      const swept = await f.tick();
+      expect(f.spawned).toHaveLength(1); // no re-fire
+      expect(swept.skipped.join("\n")).toContain("(sf.json) retired");
+      expect(await f.store.readConsumed()).toContain("sf.json");
+    } finally {
+      f.home.cleanup();
+    }
+  });
+
+  it("a single-subscriber event retires on the tick after its spawn", async () => {
+    const f = fanoutHome({
+      withChannels: true,
+      inbox: { "ha.json": HEALTH_ALERT },
+      rolesYaml: `roles:\n${roleYaml("sre", "health-alert")}`,
+    });
+    try {
+      await f.tick();
+      expect(f.spawned).toEqual(["sre"]);
+      await releaseLock(f.home.root, "alpha", "sre");
+      await f.tick();
+      expect(f.spawned).toEqual(["sre"]); // no re-fire
+      expect(await f.store.readConsumed()).toContain("ha.json");
+    } finally {
+      f.home.cleanup();
+    }
   });
 });
 

@@ -6,47 +6,34 @@ single TypeScript package and one file covers it. `docs/PURPOSE.md` is the decis
 log; on conflict, its Decided section wins and this file is stale — fix this file.
 
 ## What this repo is
-An installable **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
-SRE, Support, Marketing) that develops and operates a software product through
-a private GitHub repo, with a human gating critical ops only. M0-M12 are
-complete and the runtime has since been hardened and proven live end-to-end.
-ClaudeRuntime/CodexRuntime/PiRuntime are live-conformance-tested; the pass
-executor/runlog/bootstrap/qgates layers are real. Quality gates now run a
-`setup` gate first (GateId `"setup"`, driven by `setup_command` in an app's
-`.operon/config.yaml`) so app deps install in the fresh worktree before
-tests/lint. The A4 release handoff is implemented: an app may declare a
-`release:` block (kind deploy|package|merge-only, command, owner) in
-`.operon/config.yaml`/apps.yaml; plans carry a machine-readable
-`releaseKind` rendered as a `Release-kind:` ticket trailer; the ship path
-fails a deploy/package milestone whose app declares no matching mechanism
-(P7) and queues a merged one as a `production-deploy` critical op — the
-command never runs without a human decision (`src/org/release.ts`). The GitHub ticket state machine takes a real issue through
-Builder/Reviewer passes, PR, gates, review fallback, and squash-merge with
-unforgeable HMAC merge authorization; company events route by payload kind to
-Planner/SRE/Support/Marketing pipelines with channel-presence gating. OKF
-memory, full context assembly, scorecards, retro reporting/curation,
-status/analyze CLIs, cache-token telemetry, atomic org state, and per-turn
-budget caps across adapters are implemented; manual app commands resolve real
-app checkouts and app-aware context. `operon-sandbox-delta` ("Ledgerette") is
-the primary from-scratch onboarding + loop proof — onboarded live this
-campaign and driven end-to-end (both planted bugs fixed by the loop and
-merged, PRs #11/#12). alpha and gamma were hardened with more modules/tests;
-beta stays deliberately minimal. buildstacks.dev is onboarded as a production
-app in `status: onboarding`. The offline suite is 610 tests
-(`pnpm test`). Known limitations are documented in README.md → Known
-limitations (empty `tool_counts` + two inert anomaly detectors pending adapter
-`tool_use` emission; interactive co-planning usage recorded as `unmeasured`;
-the Codex App-Server read bypass).
+An installable **org runtime**: a standing team of AI agents (Planner, Builder,
+Reviewer, SRE, Support, Marketing) that develops and operates a software
+product through a private GitHub repo, with a human gating critical ops only.
+Build-complete and proven live end-to-end: ClaudeRuntime/CodexRuntime/
+PiRuntime are live-conformance-tested; the GitHub ticket state machine takes
+a real issue through Builder/Reviewer passes, quality gates (a `setup` gate
+installs app deps in the fresh worktree first), PR, cross-provider review,
+and squash-merge with unforgeable HMAC merge authorization; company events
+route by payload kind to Planner/SRE/Support/Marketing pipelines with
+channel-presence gating. Planning is proportional (one-pass bootstrap plans,
+schema-validated and orchestrator-published with canonical labels); tickets
+continue from durable artifacts across interruptions; every provider turn
+settles once into the org ledger where budget caps are enforced; the approval
+boundary supports scoped grants, role toolset shaping (forbidden acts
+unrepresentable on Claude, flat-denied everywhere), durable denial lessons,
+and the A4 release handoff (`release:` block, ship-gate P7, deploy trigger
+queued as a critical op — `src/org/release.ts`). `operon-sandbox-delta`
+("Ledgerette") is the from-scratch onboarding + loop proof; buildstacks.dev
+is onboarded as a production app in `status: onboarding`. Run `pnpm test`
+for the current offline suite. Known limitations live in README.md → Known
+limitations; open work lives in the GitHub issue tracker.
 
 **Where agent activity is recorded** (state home, `~/.operon/<org>/`):
-`runs/<app>/<runId>/` is the per-pass source of truth — `envelope.json`
-(ids/status/usage), `events.jsonl` (L2), `brief.md`/`output.md` (verbatim L3).
-`telemetry/<date>.jsonl` is the org ledger: the pass executor settles every
-provider turn there exactly once, keyed on `runId` (completed, blocked, and
-failed passes alike) — this is what `operon budget` enforces caps against, and
-a loop tick refuses to claim when the app's cap is exhausted. `operon budget
---reconcile` back-fills the ledger from envelopes (idempotent).
-`invocations/<date>.jsonl` records each orchestrator invocation. README.md →
+`runs/<app>/<runId>/` is the per-pass source of truth (`envelope.json`,
+`events.jsonl`, verbatim `brief.md`/`output.md`); `telemetry/<date>.jsonl` is
+the org ledger every provider turn settles into exactly once, keyed on
+`runId` (`operon budget --reconcile` back-fills it from envelopes);
+`invocations/<date>.jsonl` records each loop/dispatch invocation. README.md →
 Observability is the operator-facing version of this note.
 
 ## Map
@@ -58,12 +45,13 @@ Observability is the operator-facing version of this note.
 | `roles.yaml` | Packaged executable org-chart template: role → runtime/model/effort/triggers |
 | `pipelines.yaml` | Packaged build-protocol template (build/review/fix/ship) — human-ratified; validated by `operon pipelines` |
 | `prompts/` | Versioned pass templates the pipelines reference — human-ratified protocol surfaces, one file per pass |
-| `TODO.md` | Roadmap + session-handoff state — pick up the top unchecked item |
 | `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 decisions ratified into docs/PURPOSE.md) |
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
 | `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
 | `docs/event-schemas.md` | File-drop company-lifecycle event payload contract for Support / Marketing / SRE inputs |
 | `docs/capability-matrix.md` | Adapter capability matrix: native / adapter-built / degraded surfaces for Claude, Codex, and pi |
+| `docs/benchmark-runbook.md` | Stage 7 clean-room benchmark: procedure, targets, and rules |
+| `docs/proportionality-review.md` | The 2026-07-10 systemic review + staged plan (landed); §7 records benchmark round 1 |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
@@ -76,7 +64,7 @@ Observability is the operator-facing version of this note.
 | `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
-## Commands (all verified 2026-07-09)
+## Commands (verified 2026-07-10)
 - Node: >= 26 (`engines`, `.nvmrc`; `nvm use`). Node >= 25 no longer bundles
   corepack — `npm install -g corepack && corepack enable` once per Node
   install. `node:sqlite` is stable on this floor (relevant to the learning
@@ -185,7 +173,8 @@ Observability is the operator-facing version of this note.
 - Constitution the org's agents load: `TASTE.md`
 - Adapter integration facts (SDKs, embedding modes, risks): `research/2026-07-03_runtime-layer.md`
 - Prompt-caching economics + cache-stable assembly rules: `research/2026-07-04_prompt-caching.md`
-- Roadmap / where the last session stopped: `TODO.md`
+- Open work / where the last session stopped: the GitHub issue tracker
+  (`gh issue list`)
 
 ## Maintenance
 When you change code, update the nearest AGENTS.md or linked reference doc if

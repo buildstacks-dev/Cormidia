@@ -16,7 +16,9 @@ measured by the Stage 1 telemetry; nothing is anecdotal.
 
 The seed's product doc declares the first milestone's release disposition
 as *intentionally ends at merge*, so disposition execution = the merge
-itself (A4 deploy enforcement is a tracked follow-up).
+itself (the A4 release handoff — `release:` block, ship-gate P7, deploy
+trigger behind the approval queue — landed as PR #13; a merge-only
+milestone exercises none of it by design).
 
 ## Procedure (one clean run)
 
@@ -70,5 +72,6 @@ operon approvals   # decision count; expect ≤ 5, ideally 0-1
 - `pnpm test:live` — adapter conformance re-run (Stage 3 added
   `TurnResult.errorCode`; the suite must stay green on live turns), with a
   dated note in `research/`.
-- PR #8 (Stage 4) merges when step 3 passes — that run IS its exit
-  criterion.
+- PR #8 (Stage 4) merged 2026-07-10 on exactly this step-3 live pass —
+  the plan run IS its exit criterion. Benchmark rounds and their analyses
+  are recorded in `docs/proportionality-review.md` §7.

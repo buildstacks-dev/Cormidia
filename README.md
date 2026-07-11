@@ -188,50 +188,38 @@ runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
 ├── output.md        # what the pass produced — L3, verbatim
 └── session.log      # present only when the adapter streamed TurnEvents
 telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
-invocations/<date>.jsonl  # one row per orchestrator invocation (operon loop)
+invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)
 ```
 
 `runs/` is the per-pass source of truth (what was asked, what happened, what
 it cost). The ledger is the rollup `operon budget`, `operon status`, retro,
-and scorecards read. Every provider turn the pass executor runs settles into
-the ledger exactly once, keyed on its `runId` — completed, blocked, and failed
-passes alike — so the budget cap is enforced against real spend and a tick
-whose app has exhausted its monthly cap refuses to claim before any pass
-starts. `operon budget --reconcile` back-fills the ledger from existing run
-envelopes (idempotent), which is how orgs created before per-pass settlement
-recover their history. Subscription-backed provider costs are Operon-computed
-equivalent-cost estimates, flagged as such on every row.
+and scorecards read: every provider turn settles into it exactly once, keyed
+on its `runId` — completed, blocked, and failed passes alike — so budget caps
+are enforced against real spend, and a tick whose app has exhausted its
+monthly cap refuses to claim before any pass starts. `operon budget
+--reconcile` back-fills the ledger from run envelopes (idempotent).
+Subscription-backed provider costs are Operon-computed equivalent-cost
+estimates, flagged as such on every row. `operon telemetry --app <app>
+[--html out.html]` renders the run view.
 
 ## Status
 
-M0-M12 are complete and the runtime has been hardened and proven live
-end-to-end. Implemented and tested: the runtime contract, critical-ops gate,
-ClaudeRuntime / CodexRuntime / PiRuntime, the pass executor, L1-L3 run logs,
-the app registry, bootstrap flow, co-planning launcher, quality gates
-(including a `setup` gate that installs app deps before tests run), typed
-verdict parsers with an in-session reformat retry, the GitHub ticket state
-machine, the scheduler, the manual loop driver, real Builder/Reviewer pipeline
-integration, the approval queue with unforgeable merge authorization, the
-budget overlay with auto-pause, Planner and standing-role pipelines,
-kind-based company-event routing with channel-presence gating, OKF memory,
-full context assembly, per-(app,role) scorecards, and weekly retro
-reporting/curation. Manual app commands resolve real app checkouts and
-assemble app-aware context.
-
-Proven against real repos:
-
-- **M5** — a disposable private GitHub repo: ready issue → claim → real gates →
-  PR → injected review → squash merge → closed issue.
-- **M6** — `operon-sandbox-alpha`: real Claude Builder/Reviewer passes shipped
-  issue #1 through PR #2 to a merged squash commit.
-- **M8** — `operon-sandbox-gamma`: a running `/health` service, a real private
-  `op:incident` issue, and Support/Marketing draft artifacts.
-- **M11** — the private `buildstacks-dev/buildstacks.dev` repo onboarded as
-  `status: onboarding` without changing Operon runtime code.
-- **M12 + hardening** — `operon-sandbox-delta` ("Ledgerette") onboarded from
-  scratch and driven end-to-end: both planted bugs were fixed live by the loop
-  and merged (PRs #11, #12). alpha, beta, gamma, and the live Claude adapter
-  conformance were re-verified.
+Operon is build-complete and proven live: real Planner/Builder/Reviewer turns
+take GitHub issues from `op:ready` through quality gates, PR, cross-provider
+review, and squash-merge on real repos — most recently `operon-sandbox-delta`
+("Ledgerette"), onboarded from scratch, where the loop fixed and merged both
+planted bugs unaided. A proportionality campaign (2026-07-10,
+[`docs/proportionality-review.md`](docs/proportionality-review.md)) then
+rebuilt the org's economics end to end: per-pass ledger settlement with
+enforced budget caps, durable continuation from artifacts, honest stops with
+token-free environment preflight, one-pass proportional bootstrap planning
+published by the orchestrator, a ratified approval & release boundary (scoped
+grants, release handoff, adapter-level role toolset shaping), and a
+repeatable clean-room benchmark
+([`docs/benchmark-runbook.md`](docs/benchmark-runbook.md)). The latest dated
+live evidence is
+[`research/2026-07-10_stage7-live-conformance-and-benchmark.md`](research/2026-07-10_stage7-live-conformance-and-benchmark.md);
+open work lives in the [issue tracker](https://github.com/buildstacks-dev/Operon/issues).
 
 `docs/capability-matrix.md` records each adapter's native, adapter-built, and
 degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
@@ -244,11 +232,11 @@ degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
   cannot fire. The other three detectors (`low_tokens_high_time`,
   `single_turn_long_run`, `cold_cache`) work off envelope fields that are
   written.
-- **Interactive co-planning usage is unmeasured.** `operon plan` spawns the
-  native `claude` CLI with inherited stdio, so session tokens never flow
-  through Operon; those ledger rows carry an explicit `unmeasured: true`
-  marker (cost unknown, not zero). The runtime-backed non-interactive
-  planning mode (proportionality-review Stage 4) is the real fix.
+- **Interactive co-planning usage is unmeasured.** Interactive `operon plan`
+  spawns the native `claude` CLI with inherited stdio, so session tokens never
+  flow through Operon; those ledger rows carry an explicit `unmeasured: true`
+  marker (cost unknown, not zero). The runtime-backed `plan --auto` mode is
+  fully measured — prefer it wherever a goal can be stated non-interactively.
 - **Codex App-Server read bypass:** under the `untrusted` approval policy the
   App Server auto-runs trusted read-only commands (`cat`, `ls`) without an
   approval request, so those reads do not reach the gate hook. Tracked in

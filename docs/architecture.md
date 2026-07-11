@@ -399,7 +399,8 @@ deny-with-reason, persisted audit trail, app-tagged, single queue.
 ```
 pending/<id>.json     one file per open item
 decided/<id>.json     moved here on decision (decision fields merged in)
-grants/<grantId>.json single-use grants created by approvals
+grants/<grantId>.json grants created by approvals (single-use by default;
+                      the human may widen to ticket/app scope at decision time)
 log.jsonl             append-only audit trail (every event: raised, decided)
 ```
 
@@ -432,19 +433,32 @@ Item schema:
    `blocked_on_gate`. Either way the item is persisted to `pending/` at
    collection time, tagged with app and turnId.
 3. Human reviews via CLI (below). **Approve ≠ auto-execute.** Approval mints
-  a grant: `{app, role, actionHash, expiresAt, uses: 1}` where `actionHash`
-   = SHA-256 of the normalized `{tool, input, description?}` (lower-cased
-   tool, key-sorted input, and the optional description when present —
-   `normalizeAction`/`actionHash` in `src/org/approvals.ts`). Nothing replays tool calls
+  a grant: `{app, role, actionHash, scope, expiresAt, uses, maxUses,
+   revokedAt?}` where `actionHash` = SHA-256 of the normalized
+   `{tool, input, description?}` (`normalizeAction`/`actionHash` in
+   `src/org/approvals.ts`). The default scope is `once` — a single-use
+   action hash, exactly the pre-amendment behavior. At decision time the
+   human (never the agent) may widen to `ticket` or `app` scope: every
+   action matching (rule, path prefix) for that app±ticket until TTL,
+   use-count cap (default 20), or `operon approvals revoke <grant-id>`.
+   Self-merge, production deploy, protocol-surface writes, and
+   out-of-boundary actions are never scopeable. Nothing replays tool calls
    outside a session.
 4. Next tick re-dispatches any `blocked_on_gate` turn whose escalations are
   all decided (resume the session if fresh, else restart with a decision
    summary in context). The effective gate = grant lookup **then** default
-   rules, so the retried op passes exactly once. Deny-with-reason: the reason
-   is injected into that turn's context ("your request to X was denied:
-   ") — the role adjusts course instead of retrying blind.
-5. Grants expire (default TTL 24 h) and are consumed on use; both events go
-  to `log.jsonl`.
+   rules — a `once` grant passes exactly once; a scoped grant passes
+   matching actions until exhausted, each use appending its own audit row.
+   Deny-with-reason: the reason is injected into that turn's context ("your
+   request to X was denied: ") — and persisted as a durable denial lesson
+   for the (app, role) pair so the same denial is never re-litigated.
+   Role-forbidden acts (builder/reviewer self-merge, deploy,
+   provider-global-memory) never reach the queue at all: the composed gate
+   denies them flat with standing guidance, and on Claude the adapter
+   removes them from the tool surface itself (`src/runtime/role-shaping.ts`).
+5. Grants expire (default TTL 24 h), count uses against their cap, and are
+  revocable; grant mint, each use, exhaustion, and revocation all go to
+   `log.jsonl`.
 
 
 
@@ -452,9 +466,16 @@ Item schema:
 
 ```
 operon approvals              count + one-line-per-item table (app-tagged)
-operon approvals review       one-by-one: full item, then [a]pprove /
-                              [d]eny (reason required) / [s]kip
+operon approvals review       one-by-one: full item, then [a]pprove (with
+                              optional scope: `a ticket [path]` / `a app
+                              [path]`) / [d]eny (reason required) / [s]kip;
+                              approving may also re-arm the parked ticket
+                              (op:blocked → op:ready) so the next tick
+                              continues from artifacts
+operon approvals review --batch   group pending items with identical
+                              (rule, app); one decision, per-item audit rows
 operon approvals show <id>    full detail incl. turn-event context
+operon approvals revoke <grant-id>   immediate revocation of a live grant
 ```
 
 Decision writes are ordered: append to `log.jsonl` first, then move the item
@@ -675,10 +696,19 @@ line.
 
 ## 8. Planner co-planning mode
 
-A third invocation shape beside schedule and event: **manual, interactive**.
+Manual planning has two shapes beside schedule and event: **interactive
+co-planning** (this section) and the **non-interactive `--auto` mode**
+(Stage 4 of the proportionality campaign) — one Planner turn through the
+real pass executor (real gate, approval store, per-pass settlement) whose
+schema-validated 1–3-ticket bootstrap plan the ORCHESTRATOR validates
+against the loop's label contract and publishes transactionally
+(`src/org/plan-auto.ts`, `src/loop/plan-tickets.ts`). Prefer `--auto`
+whenever the goal can be stated up front; it exists because the episode's
+interactive session published tickets through an agent-authored shell loop.
 
 ```
 operon plan <app> [--topic "stats percentile helper"] [--workdir <app-checkout>]
+operon plan <app> --auto --goal "<product goal>" [--stage bootstrap] [--no-publish]
 ```
 
 - Assembles the Planner's context exactly as §5 (same TASTE layers, same
@@ -695,10 +725,13 @@ Anthropic-native v1; it generalizes when another runtime hosts the Planner.
 - The contract at session end is unchanged — artifacts out: drafted tickets
 (GitHub issues in the §10 format, labeled by the human's call: `op:ready`
 or left unlabeled for another pass) and/or a spec note committed under the
-app's `.operon/planning/`.
-- Recorded in telemetry with `trigger: manual`; the `Trigger` type gains a
-`manual?: boolean` kind that the dispatcher **never** auto-fires
-(implementation delta to `src/runtime/types.ts`).
+app's `.operon/planning/`. In `--auto` mode the orchestrator publishes the
+validated plan itself with canonical labels — agents author no `gh` side
+effects.
+- Recorded in telemetry with `trigger: manual`; interactive-session rows
+carry `unmeasured: true` (the native CLI's tokens never flow through
+Operon), while `--auto` turns settle real usage per pass. The `Trigger`
+type's `manual?: boolean` kind is one the dispatcher **never** auto-fires.
 - Gate applies as always — interactivity doesn't change the approval
 boundary; the human approving in-terminal *is* the approval surface for any
 critical op raised live (recorded to the same audit log).
@@ -836,9 +869,13 @@ New decisions made by this document, ratified by the human operator on
   (launchd/systemd, ~5 min); turns spawn detached so schedulers never kill
    work; events by GitHub polling + file-drop inbox in v1 (webhook parity
    later without dispatcher changes).
-2. **Approve ≠ execute — grants.** Queue approval mints a single-use,
-  action-hashed, expiring grant consumed by the gate on re-dispatch; the
-   orchestrator never replays tool calls itself.
+2. **Approve ≠ execute — grants.** Queue approval mints an expiring,
+  action-hashed grant consumed by the gate on re-dispatch; the orchestrator
+   never replays tool calls itself. Amended 2026-07-10 (approval & release
+   amendment, ratified): single-use stays the default, and the human may
+   widen a decision to a rule+path-scoped ticket/app grant with TTL,
+   use-count cap, revocation, and per-use audit rows; self-merge, deploys,
+   and protocol-surface writes are never scopeable.
 3. **Idempotency contract** (§3): durable effects are git/GitHub ops only;
   artifact-before-label; claims are label flips; non-git writes append-only
    keyed by turnId.

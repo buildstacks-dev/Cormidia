@@ -1,6 +1,12 @@
 # Telemetry Review and Proposed Fixes
 
-Status: analysis, 2026-07-10. No code changed.
+Status: historical analysis (2026-07-10) — **its staged fix has landed** as
+Stage 1 of the proportionality campaign (PR #5, 2026-07-10): per-pass ledger
+settlement keyed on `runId` (completed/blocked/failed alike), enforced budget
+caps, `operon budget --reconcile`, planner-usage honesty (`unmeasured: true`),
+and the `operon telemetry` read-only view over `runs/` (`--html` report).
+Dispatch invocation rows landed later the same campaign (PR #14). Kept
+unrewritten as the record of what the org could not see and why.
 
 This document reviews what Operon actually records when its agents run, names
 the defects found, and lays out a staged path to a live and historical

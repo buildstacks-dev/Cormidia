@@ -1,7 +1,7 @@
 # PURPOSE — Operon
 
 *v1.5 — 2026-07-09. Human-ratified decision log. Keep this file high-level;
-execution details belong in TODO.md, docs/architecture.md, and docs/loop.md.*
+execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
 
@@ -321,7 +321,7 @@ These are the areas where the product earns trust or fails:
 ## Open questions
 
 No high-level PURPOSE questions are open right now. Current build-time
-verification questions live with the subsystem docs and TODO.md items that
+verification questions live with the subsystem docs and the issue-tracker items that
 will resolve them.
 
 ## Status

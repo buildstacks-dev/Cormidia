@@ -681,17 +681,17 @@ regexes double as a log scrubber. L3 stays local, retention =
 - **Attribution is exact** — runs are ticket-scoped by construction; costs
 roll up run → ticket → (role, app) → monthly budget with no
 weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
-  - **Which spend reaches the monthly budget rollup:** the per-pass L1
-  envelope and L2 events are written by **every** driver (dispatched *and*
-  manual). The org **telemetry ledger** (`~/.operon/<org>/telemetry/<day>.jsonl`,
-  the source `operon budget` sums) is written only by the autonomous dispatch
-  path (`src/org/turn-runner.ts` → `recordTurn`). The manual `operon loop`
-  driver (src/cli/loop.ts) writes the per-pass run envelopes and persists
-  scorecard events, but does **not** append to the telemetry ledger — so
-  `operon budget` shows `$0` for a manually-driven loop, while that same
-  spend is fully visible in `operon status` and the run envelopes. Production
-  runs through the dispatcher, which records; the budget hard-stop
-  (architecture.md §7) therefore governs dispatched turns.
+  - **Which spend reaches the monthly budget rollup:** all of it. The pass
+  executor settles **every** provider turn into the org telemetry ledger
+  (`~/.operon/<org>/telemetry/<day>.jsonl`, the source `operon budget` sums)
+  exactly once, keyed on `runId` — completed, blocked, and failed passes
+  alike, from the dispatcher and the manual `operon loop` driver both
+  (Stage 1 of the proportionality campaign). A loop tick whose app has
+  exhausted its monthly cap refuses to claim before any pass starts, so the
+  budget hard-stop (architecture.md §7) governs manual and dispatched turns
+  equally. `operon budget --reconcile` back-fills the ledger from run
+  envelopes (idempotent); interactive co-planning rows carry
+  `unmeasured: true` (cost unknown, not zero).
 - **Cache visibility.** Input tokens come in three price classes (uncached
 ~1×, cache-write 1.25–2×, cache-read ~0.1×); both SDKs report the split
 per response. L1 rollups and telemetry carry it (`TurnUsage` delta, §10),

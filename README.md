@@ -189,6 +189,8 @@ runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
 └── session.log      # present only when the adapter streamed TurnEvents
 telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
 invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)
+learning/events/<date>/   # learning-loop capture: gate outcomes, pass verdicts,
+                          # and human observations projected from runs/ (M1)
 ```
 
 `runs/` is the per-pass source of truth (what was asked, what happened, what
@@ -200,7 +202,9 @@ monthly cap refuses to claim before any pass starts. `operon budget
 --reconcile` back-fills the ledger from run envelopes (idempotent).
 Subscription-backed provider costs are Operon-computed equivalent-cost
 estimates, flagged as such on every row. `operon telemetry --app <app>
-[--html out.html]` renders the run view.
+[--html out.html]` renders the run view. `operon learn` is the capture-side
+human window: `report` for totals, `inspect <episode-id>` for one episode's
+events, `emit` to record an observation, `show <event-id>` to trace it.
 
 ## Status
 

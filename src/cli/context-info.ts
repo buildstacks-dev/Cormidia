@@ -57,6 +57,7 @@ const CAPABILITIES = [
   { command: "analyze", writes: false, spendsTokens: false, summary: "report run anomaly signals" },
   { command: "telemetry", writes: false, spendsTokens: false, summary: "historical pass/trace/cost view over run records" },
   { command: "retro", writes: true, spendsTokens: false, summary: "write an evidence-based org retro" },
+  { command: "learn", writes: true, spendsTokens: false, summary: "learning-loop capture: inspect episodes, record human observations, trace events, report" },
   { command: "prune-runs", writes: true, spendsTokens: false, summary: "delete finalized run data beyond retention" },
   { command: "doctor", writes: false, spendsTokens: false, summary: "validate installation and active org configuration" },
   { command: "context", writes: false, spendsTokens: false, summary: "show resolved paths and registered apps" },

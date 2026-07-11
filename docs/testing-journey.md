@@ -9,7 +9,8 @@ real repositories, real commands, real GitHub — but disposable, so
 mistakes cost nothing.
 
 This document explains, in plain language, what those test applications
-are, what gets tested at each stage of the build plan (TODO.md), and —
+are, what gets tested at each stage of the build plan (the M0–M12 roadmap,
+now archived in git history; open work lives in the GitHub issue tracker), and —
 honestly — what the current test apps *cannot* cover yet.
 
 ## The test applications
@@ -124,7 +125,7 @@ exercises them against *synthetic* operating material, below):
 
 ### The third test application
 
-Created and smoke-tested 2026-07-06 as TODO.md M8.5:
+Created and smoke-tested 2026-07-06 as roadmap item M8.5:
 **`operon-sandbox-gamma` — a tiny deployable web service**
 (a small HTTP API with a health endpoint and a local/container deploy
 script), plus a seeded, synthetic user-feedback inbox.

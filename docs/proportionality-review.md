@@ -1,8 +1,15 @@
 # Proportionality Review: One Ticket, Fifty-Five Passes
 
-Status: analysis, 2026-07-10. No code changed. This is the systemic review of
-the 2026-07-10 buildstacks.dev episode — why a simple bootstrap became
-complex, where the time and money actually went, and the plan to fix it.
+Status: historical analysis (2026-07-10) — **the §5 plan has landed**:
+Stage 1 (PR #5), Stage 2 (PR #6), Stage 3 (PR #7), Stage 4 (PR #8,
+live-verified), Stage 5 (PR #9, ratified), Stage 6 core (PR #10) with its
+deferred follow-ups A4 release handoff (PR #13), dispatch invocation rows
+(PR #14), and adapter toolset shaping (PR #15), and the Stage 7 harness
+(PR #11). §7 records benchmark round 1 and its fix (PR #12). Kept
+unrewritten as the record of the episode and the reasoning. This is the
+systemic review of the 2026-07-10 buildstacks.dev episode — why a simple
+bootstrap became complex, where the time and money actually went, and the
+plan to fix it.
 
 Companions, and how to read the three documents:
 - **This document is the master.** Read it first: it names the systemic

@@ -264,11 +264,29 @@ export interface ManifestHistoryEntry {
   note?: string;
 }
 
+/** Live-canary trial state (M5, design §8.4). Present exactly while a canary
+ *  is running. `concepts` — the ids the canary version introduced — is what
+ *  derives the stable set deterministically from one bundle directory:
+ *  stable lineage = active bundle minus these ids; canary lineage = the full
+ *  bundle. Spec delta: the §8 sketch carries only the bare `canary` pointer,
+ *  which cannot answer "which concepts are on trial" without mtime
+ *  archaeology (the manifest-history `concepts` precedent from M4). */
+export interface ManifestCanaryMeta {
+  version: string;
+  started_at: string;
+  window_hours: number;
+  fraction: number;
+  tier: string;
+  intervention_ref: string;
+  concepts: string[];
+}
+
 export interface LearningManifest {
   schema_version: 1;
   bundle_version: string;
   stable: string;
   canary: string | null;
+  canary_meta: ManifestCanaryMeta | null;
   history: ManifestHistoryEntry[];
 }
 
@@ -314,11 +332,62 @@ export async function readManifest(root: LearningRoot): Promise<LearningManifest
   if (typeof bundleVersion !== "string" || typeof stable !== "string") {
     throw new Error(`learning: ${path}: bundle_version and stable must be strings`);
   }
+  const canary = typeof spec["canary"] === "string" ? spec["canary"] : null;
+  let canaryMeta: ManifestCanaryMeta | null = null;
+  const rawMeta = spec["canary_meta"];
+  if (rawMeta !== undefined && rawMeta !== null) {
+    if (typeof rawMeta !== "object" || Array.isArray(rawMeta)) {
+      throw new Error(`learning: ${path}: canary_meta must be a mapping`);
+    }
+    const meta = rawMeta as Record<string, unknown>;
+    const version = meta["version"];
+    const startedAt = meta["started_at"];
+    const windowHours = meta["window_hours"];
+    const fraction = meta["fraction"];
+    const tier = meta["tier"];
+    const interventionRef = meta["intervention_ref"];
+    const metaConcepts = meta["concepts"];
+    if (
+      typeof version !== "string" ||
+      typeof startedAt !== "string" ||
+      typeof windowHours !== "number" ||
+      typeof fraction !== "number" ||
+      typeof tier !== "string" ||
+      typeof interventionRef !== "string" ||
+      !Array.isArray(metaConcepts)
+    ) {
+      throw new Error(
+        `learning: ${path}: canary_meta needs version, started_at, window_hours, fraction, ` +
+          `tier, intervention_ref, and concepts`,
+      );
+    }
+    canaryMeta = {
+      version,
+      started_at: startedAt,
+      window_hours: windowHours,
+      fraction,
+      tier,
+      intervention_ref: interventionRef,
+      concepts: metaConcepts.map(String),
+    };
+  }
+  // The pointer and the trial state travel together — one without the other
+  // is a corrupt manifest, not a recoverable ambiguity.
+  if ((canary === null) !== (canaryMeta === null)) {
+    throw new Error(
+      `learning: ${path}: canary and canary_meta must be set together — ` +
+        `a canary pointer without its trial metadata (or vice versa) is unresolvable`,
+    );
+  }
+  if (canaryMeta !== null && canaryMeta.version !== canary) {
+    throw new Error(`learning: ${path}: canary_meta.version must equal the canary pointer`);
+  }
   return {
     schema_version: 1,
     bundle_version: bundleVersion,
     stable,
-    canary: typeof spec["canary"] === "string" ? spec["canary"] : null,
+    canary,
+    canary_meta: canaryMeta,
     history: entries,
   };
 }
@@ -349,7 +418,11 @@ export interface CutVersionInput {
 
 /** Append one history entry and advance bundle_version + stable. Idempotent
  *  by approval ref: a re-run for an approval that already cut returns the
- *  existing entry (crash-resume, spec §14 step 4). */
+ *  existing entry (crash-resume, spec §14 step 4). Refuses while a canary
+ *  runs: `stable` doubles as the trial's control pointer (design §8.4), so
+ *  a mid-trial publish/disable/rollback would silently contaminate the
+ *  population under measurement — the trial must close first. A publish
+ *  refused here resumes cleanly from its journal after the canary closes. */
 export async function cutManifestVersion(
   root: LearningRoot,
   input: CutVersionInput,
@@ -360,11 +433,19 @@ export async function cutManifestVersion(
     bundle_version: "0",
     stable: "0",
     canary: null,
+    canary_meta: null,
     history: [],
   };
   if (input.approvalRef !== undefined) {
     const existing = manifest.history.find((entry) => entry.approval_ref === input.approvalRef);
     if (existing !== undefined) return existing;
+  }
+  if (manifest.canary !== null) {
+    throw new Error(
+      `learning: ${manifestPath(root)} has an active canary (${manifest.canary}) — ` +
+        `a version cut mid-trial would corrupt the trial population; ` +
+        `\`operon learn canary promote|stop --root ${root.kind}\` first`,
+    );
   }
   const entry: ManifestHistoryEntry = {
     version: nextVersion(manifest.history, now),
@@ -419,6 +500,10 @@ export async function disableConcept(
   conceptId: string,
   options: { now?: Date } = {},
 ): Promise<DisableResult | undefined> {
+  // Guard BEFORE the mutation: a refusal that has already deprecated the
+  // file would remove content from both trial arms while reporting
+  // "refused" (adversarial-verify finding).
+  await assertNoActiveCanary(root, "disable a concept");
   const found = await findBundleConcept(root, conceptId);
   if (found === undefined) return undefined;
   const loop = found.doc.frontmatter.loop!;
@@ -447,6 +532,10 @@ export async function rollbackRoot(
   root: LearningRoot,
   options: { now?: Date } = {},
 ): Promise<RollbackResult> {
+  // Guard BEFORE deprecating anything: mid-trial the latest cut IS the
+  // canary version, and a half-applied rollback would strip the trial's
+  // own concepts while status still reports a live trial.
+  await assertNoActiveCanary(root, "roll back a version cut");
   const manifest = await readManifest(root);
   const last = manifest?.history.at(-1);
   if (manifest === null || last === undefined) {
@@ -488,6 +577,171 @@ export async function rollbackRoot(
     ...(options.now !== undefined ? { now: options.now } : {}),
   });
   return { revertedVersion: last.version, newVersion: cut.version, deactivated };
+}
+
+// ---------------------------------------------------------------------------
+// canary lifecycle on the manifest (M5, design §8.4; policy gating lives in
+// canary.ts — these functions own only the manifest mechanics)
+// ---------------------------------------------------------------------------
+
+export interface StartCanaryInput {
+  /** The bundle version under trial — must be the latest cut. */
+  version: string;
+  windowHours: number;
+  fraction: number;
+  tier: string;
+  interventionRef: string;
+  now?: Date;
+}
+
+/** Re-point the manifest for a live trial: `stable` returns to the cut
+ *  before `version`, `canary` points at `version`. No new cut — starting a
+ *  trial changes exposure, not content; history already records the publish. */
+export async function startCanaryOnManifest(
+  root: LearningRoot,
+  input: StartCanaryInput,
+): Promise<LearningManifest> {
+  const manifest = await readManifest(root);
+  if (manifest === null || manifest.history.length === 0) {
+    throw new Error(`learning: ${manifestPath(root)} has no version cuts — nothing to canary`);
+  }
+  if (manifest.canary !== null) {
+    throw new Error(
+      `learning: ${manifestPath(root)} already has an active canary (${manifest.canary}) — ` +
+        `one trial per root; promote or stop it first`,
+    );
+  }
+  const index = manifest.history.findIndex((entry) => entry.version === input.version);
+  if (index === -1) {
+    throw new Error(`learning: ${manifestPath(root)} has no cut ${input.version}`);
+  }
+  if (index !== manifest.history.length - 1) {
+    throw new Error(
+      `learning: ${input.version} is not the latest cut in ${manifestPath(root)} — ` +
+        `later cuts already build on it; re-publish the candidate to trial it`,
+    );
+  }
+  const entry = manifest.history[index]!;
+  const previous = index > 0 ? manifest.history[index - 1]!.version : "0";
+  const now = input.now ?? new Date();
+  const next: LearningManifest = {
+    ...manifest,
+    stable: previous,
+    canary: input.version,
+    canary_meta: {
+      version: input.version,
+      started_at: now.toISOString(),
+      window_hours: input.windowHours,
+      fraction: input.fraction,
+      tier: input.tier,
+      intervention_ref: input.interventionRef,
+      concepts: [...entry.concepts],
+    },
+  };
+  await writeManifest(root, next);
+  return next;
+}
+
+export interface CanaryCloseResult {
+  version: string;
+  newVersion: string;
+  meta: ManifestCanaryMeta;
+  /** stop only: concepts the close deprecated (still-active trial ids). */
+  deactivated: string[];
+}
+
+/** Promote the running canary: its concepts join the stable lineage. One
+ *  atomic manifest write appends the promote cut and clears the trial. */
+export async function promoteCanaryOnManifest(
+  root: LearningRoot,
+  options: { now?: Date } = {},
+): Promise<CanaryCloseResult> {
+  const { manifest, meta } = await requireActiveCanary(root);
+  const now = options.now ?? new Date();
+  const entry: ManifestHistoryEntry = {
+    version: nextVersion(manifest.history, now),
+    commit: null,
+    promoted: now.toISOString(),
+    approval_ref: null,
+    concepts: [...meta.concepts],
+    note: `promote canary ${meta.version}`,
+  };
+  const next: LearningManifest = {
+    ...manifest,
+    bundle_version: entry.version,
+    stable: entry.version,
+    canary: null,
+    canary_meta: null,
+    history: [...manifest.history, entry],
+  };
+  await writeManifest(root, next);
+  return { version: meta.version, newVersion: entry.version, meta, deactivated: [] };
+}
+
+/** Stop the running canary: deprecate its still-active concepts (the same
+ *  shape as rollback), record the stop as an append-only cut, clear the
+ *  trial. Concepts are deprecated BEFORE the manifest write so a crash
+ *  between the two fails safe — the trial content is already inert. */
+export async function stopCanaryOnManifest(
+  root: LearningRoot,
+  options: { now?: Date } = {},
+): Promise<CanaryCloseResult> {
+  const { manifest, meta } = await requireActiveCanary(root);
+  const byId = new Map<string, LoadedConcept>();
+  for (const dir of await listBundleScopeDirs(root)) {
+    for (const concept of await loadConceptDir(dir, "bundle")) {
+      byId.set(concept.doc.frontmatter.loop!.id, concept);
+    }
+  }
+  const deactivated: string[] = [];
+  for (const conceptId of meta.concepts) {
+    const found = byId.get(conceptId);
+    if (found === undefined || found.doc.frontmatter.loop?.status !== "active") continue;
+    await deprecateInPlace(found);
+    deactivated.push(conceptId);
+  }
+  const now = options.now ?? new Date();
+  const entry: ManifestHistoryEntry = {
+    version: nextVersion(manifest.history, now),
+    commit: null,
+    promoted: now.toISOString(),
+    approval_ref: null,
+    concepts: deactivated,
+    note: `stop canary ${meta.version}`,
+  };
+  const next: LearningManifest = {
+    ...manifest,
+    bundle_version: entry.version,
+    stable: entry.version,
+    canary: null,
+    canary_meta: null,
+    history: [...manifest.history, entry],
+  };
+  await writeManifest(root, next);
+  return { version: meta.version, newVersion: entry.version, meta, deactivated };
+}
+
+/** Shared mid-trial write guard: the version pointers double as the trial's
+ *  control/treatment boundary (design §8.4), so bundle mutations wait for
+ *  promote/stop. Called BEFORE any file is touched. */
+export async function assertNoActiveCanary(root: LearningRoot, action: string): Promise<void> {
+  const manifest = await readManifest(root);
+  if (manifest !== null && manifest.canary !== null) {
+    throw new Error(
+      `learning: ${manifestPath(root)} has an active canary (${manifest.canary}) — ` +
+        `cannot ${action} mid-trial; \`operon learn canary promote|stop --root ${root.kind}\` first`,
+    );
+  }
+}
+
+async function requireActiveCanary(
+  root: LearningRoot,
+): Promise<{ manifest: LearningManifest; meta: ManifestCanaryMeta }> {
+  const manifest = await readManifest(root);
+  if (manifest === null || manifest.canary === null || manifest.canary_meta === null) {
+    throw new Error(`learning: ${manifestPath(root)} has no active canary`);
+  }
+  return { manifest, meta: manifest.canary_meta };
 }
 
 // ---------------------------------------------------------------------------

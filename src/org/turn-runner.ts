@@ -19,7 +19,7 @@ import { runRole } from "../loop/runRole.js";
 import { ApprovalStore } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { rollupBudgets } from "./budget.js";
-import { assembleContext } from "./context.js";
+import { assembleContext, createEpisodeContextResolver } from "./context.js";
 import { composeGate } from "./gate-compose.js";
 import { journalEpisodeAnchor } from "./learning/episodes.js";
 import { acquireLock, heartbeatLock, lockExists, readLock, releaseLock } from "./locks.js";
@@ -335,6 +335,18 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       runlogRoot: options.runtimeHome,
       hooks: options.hooks,
       context: options.context,
+      // Per-episode governed resolve (learning-loop M5): loop passes pin on
+      // the TICKET episode with the pipeline's role, closing the M4
+      // mid-turn ticket-claim boundary — the dispatch turn's own turn-start
+      // pin (options.context) stays for non-ticket work.
+      contextFor: createEpisodeContextResolver({
+        orgHome: options.orgRoot,
+        appWorkdir: options.localRepo,
+        app: options.app.name,
+        roles,
+        stateHome: options.runtimeHome,
+        turnId: options.turnId,
+      }),
       telemetry: options.telemetry,
       budgetGuard: async () => {
         const rows = await rollupBudgets(options.runtimeHome, options.appsFile, options.now?.() ?? new Date());

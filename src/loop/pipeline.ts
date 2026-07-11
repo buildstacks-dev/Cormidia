@@ -94,7 +94,15 @@ export interface ExecutePipelineOptions {
    *  of the pipeline's terminal status. Failed, blocked, and aborted passes
    *  consume budget too. Callers that pass this MUST NOT sum pass usage into a
    *  second turn-level ledger row. */
-  telemetry?: { orgDir: string; trigger?: TriggerKind };
+  telemetry?: {
+    orgDir: string;
+    trigger?: TriggerKind;
+    /** Learning-loop attribution (M5): stamped on every settled row so the
+     *  learning budget overlay can roll replay spend up per experiment and
+     *  per candidate. */
+    experimentRef?: string;
+    candidateRef?: string;
+  };
   /** Runs after a pass completes and before the next sequential stage starts. */
   afterPass?: (record: PassRunRecord) => void | Promise<void>;
   /** Parse + record the pass's typed verdict, AFTER the turn and BEFORE the
@@ -430,6 +438,12 @@ async function runPass(
           pass: pass.id,
           // A watchdog-abandoned turn's spend is unknown, not zero.
           ...(result.errorCode === ERROR_WALL_CLOCK_EXCEEDED ? { unmeasured: true } : {}),
+          ...(options.telemetry.experimentRef !== undefined
+            ? { experimentRef: options.telemetry.experimentRef }
+            : {}),
+          ...(options.telemetry.candidateRef !== undefined
+            ? { candidateRef: options.telemetry.candidateRef }
+            : {}),
         },
       ),
     );

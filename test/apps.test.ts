@@ -64,6 +64,15 @@ describe("loadApps", () => {
     expect(buildstacks.cadence).toEqual({}); // cadence is optional
   });
 
+  it("rejects the reserved learning-replay app name (M5 replay namespace)", async () => {
+    const path = appsFile(`
+org: {name: operon}
+apps:
+  learning-replay: {repo: owner/tools, status: onboarding}
+`);
+    await expect(loadApps(path)).rejects.toThrow(/reserved for the learning loop/);
+  });
+
   it("rejects an unknown status", async () => {
     const path = appsFile(`
 org: {name: operon}

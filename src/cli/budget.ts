@@ -1,6 +1,12 @@
 import { join, resolve } from "node:path";
-import { countUnmeasured, enforceBudgetOverlay, reconcileLedger } from "../org/budget.js";
+import {
+  countUnmeasured,
+  enforceBudgetOverlay,
+  reconcileLedger,
+  rollupLearningSpend,
+} from "../org/budget.js";
 import { loadApps } from "../org/apps.js";
+import { defaultLearningPolicy, loadLearningPolicy } from "../org/learning/policy.js";
 import { loadRoles } from "../org/roles.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -45,6 +51,34 @@ export async function cmdBudget(args: string[]): Promise<number> {
       `${row.app.padEnd(20)} ${money(row.spentUsd).padStart(10)} ${money(row.budgetUsd).padStart(10)} ${row.status.toUpperCase()}`,
     );
   }
+  // Learning overlay (learning-loop M5, spec §13): replay/eval spend settles
+  // into the same ledger; this is the rollup against the learning caps.
+  const learning = await rollupLearningSpend(homes.stateHome);
+  if (learning.monthUsd > 0 || learning.byCandidate.size > 0) {
+    // A corrupt learning policy must not take down the org's core budget
+    // view — degrade to the spec §13 defaults with a loud note.
+    const policy = await loadLearningPolicy(homes.orgHome).catch((error: Error) => {
+      console.error(
+        `note: learning policy unreadable (${error.message}) — learning caps shown are the spec defaults`,
+      );
+      return defaultLearningPolicy();
+    });
+    const cap = policy.learning_budget.monthly_usd;
+    const monthStatus =
+      learning.monthUsd >= cap ? "EXCEEDED" : learning.monthUsd >= cap * 0.8 ? "WARNING" : "OK";
+    console.log(
+      `${"learning (overlay)".padEnd(20)} ${money(learning.monthUsd).padStart(10)} ${money(cap).padStart(10)} ${monthStatus}` +
+        ` — ${learning.experimentsThisMonth}/${policy.learning_budget.max_experiments_per_month} experiments this month`,
+    );
+    for (const [candidate, spent] of [...learning.byCandidate.entries()].sort()) {
+      const candidateCap = policy.learning_budget.per_candidate_replay_usd;
+      const status = spent >= candidateCap ? "EXCEEDED" : spent >= candidateCap * 0.8 ? "WARNING" : "OK";
+      console.log(
+        `  ${candidate.padEnd(18)} ${money(spent).padStart(10)} ${money(candidateCap).padStart(10)} ${status}`,
+      );
+    }
+  }
+
   const month = new Date().toISOString().slice(0, 7);
   const unmeasured = await countUnmeasured(homes.stateHome, month);
   if (unmeasured.size > 0) {

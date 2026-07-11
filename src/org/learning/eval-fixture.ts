@@ -160,10 +160,24 @@ export async function convertCapsuleToEvalFixture(
   const path = fixturePath(options.orgHome, options.set, capsule.capsule_id);
   if (existsSync(path)) {
     const existing = validateEvalFixture(JSON.parse(await readFile(path, "utf8")));
-    if (existing.validated_by !== null) {
+    // A trusted fixture is immutable to redrafting — with ONE recovery
+    // path: a pre-M5 fixture without the verbatim brief can never replay,
+    // so redrafting to backfill it is allowed, and the redraft resets
+    // validated_by (new content entered; a second actor must re-trust it).
+    if (
+      existing.validated_by !== null &&
+      existing.input.brief !== null &&
+      existing.input.brief !== undefined
+    ) {
       throw new Error(
         `learning: ${existing.fixture_id} is already validated by ${existing.validated_by} — ` +
           `a trusted fixture is immutable; convert into a different set instead`,
+      );
+    }
+    if (existing.validated_by !== null) {
+      process.stderr.write(
+        `learning: ${existing.fixture_id} was validated without a verbatim brief (pre-M5) — ` +
+          `redrafting to backfill it; validation resets and a second actor must re-trust it\n`,
       );
     }
   }
@@ -300,6 +314,9 @@ export function fixtureTrustGaps(fixture: EvalFixture): string[] {
   if (fixture.validated_by === null) gaps.push("independent_validation");
   if (fixture.seed.repo === null || fixture.seed.commit === null) gaps.push("seed");
   if (fixture.fingerprint_ref === null) gaps.push("fingerprint");
+  // Replay recreates the original inputs; without the verbatim brief the
+  // fixture can grade but never replay (M5).
+  if (fixture.input.brief === null || fixture.input.brief === undefined) gaps.push("brief");
   return gaps;
 }
 

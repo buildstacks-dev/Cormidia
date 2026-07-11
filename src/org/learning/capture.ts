@@ -242,6 +242,11 @@ function idSegment(part: string): string {
 // run listing + cursor
 // ---------------------------------------------------------------------------
 
+/** Reserved runlog namespace for M5 replay attempts (replay.ts executes
+ *  under it). Declared here — the projection side — because the exclusion
+ *  is what makes the reservation real. */
+export const REPLAY_RUNLOG_APP = "learning-replay";
+
 export async function listRuns(
   stateHome: string,
 ): Promise<Array<{ app: string; runId: string }>> {
@@ -249,7 +254,11 @@ export async function listRuns(
   if (!existsSync(root)) return [];
   const out: Array<{ app: string; runId: string }> = [];
   const apps = (await readdir(root, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
+    // The reserved replay namespace (M5) never enters capture or episode
+    // projection: a replay attempt must not become evidence in the store it
+    // is judged against. Reconcile still walks it — spend recovery is about
+    // money, not evidence.
+    .filter((entry) => entry.isDirectory() && entry.name !== REPLAY_RUNLOG_APP)
     .map((entry) => entry.name)
     .sort();
   for (const app of apps) {

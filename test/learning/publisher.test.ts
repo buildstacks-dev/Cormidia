@@ -16,8 +16,11 @@ import {
 } from "../../src/org/learning/candidate-store.js";
 import {
   bundleScopeDir,
+  cutManifestVersion,
   orgLearningRoot,
+  promoteCanaryOnManifest,
   readManifest,
+  startCanaryOnManifest,
 } from "../../src/org/learning/concepts.js";
 import { readLearningEvents } from "../../src/org/learning/events.js";
 import { defaultLearningPolicy } from "../../src/org/learning/policy.js";
@@ -283,6 +286,51 @@ describe("human-gated lane: okf_concept activation (Done #2)", () => {
     expect(rerun).toMatchObject({ status: "refused" });
     expect((rerun as { reason: string }).reason).toMatch(/already published/);
     expect((await readManifest(orgLearningRoot(rig.orgHome.root)))?.history).toHaveLength(1);
+  });
+
+  it("refuses an approved activation mid-trial BEFORE any artifact write (M5 cut guard)", async () => {
+    const rig = makeRig();
+    // The trial is already running when the candidate is raised and
+    // approved — the binding's base manifest is the trial-state manifest,
+    // so the approval stays valid and the publish hits the canary guard.
+    const root = orgLearningRoot(rig.orgHome.root);
+    await cutManifestVersion(root, { concepts: ["lrn_base"], now: new Date("2026-07-10T08:00:00Z") });
+    await startCanaryOnManifest(root, {
+      version: "2026.07.10-1",
+      windowHours: 48,
+      fraction: 0.1,
+      tier: "T1",
+      interventionRef: "int_x",
+      now: new Date("2026-07-11T09:00:00Z"),
+    });
+    const id = await seedCandidate(rig, {
+      destination: "okf_concept",
+      candidate_id: "cand_20260711_TRIAL",
+    });
+    const raised = await publishCandidate(rig.deps, id);
+    const approvalId = (raised as { approvalId: string }).approvalId;
+    await rig.deps.approvals.decide(approvalId, { decision: "approved" });
+
+    const refused = await publishCandidate(rig.deps, id);
+    expect(refused).toMatchObject({ status: "refused" });
+    expect((refused as { reason: string }).reason).toMatch(/active canary.*contaminate/);
+    // NOTHING was written: the concept is not in the bundle, the draft
+    // survives, no manifest cut happened — the resolver cannot see the
+    // refused content in either arm.
+    const bundleFile = join(
+      bundleScopeDir(root, "roles/builder"),
+      `concept-${id.slice(-5).toLowerCase()}.md`,
+    );
+    expect(existsSync(bundleFile)).toBe(false);
+    expect(existsSync(conceptDraftPath(root, id))).toBe(true);
+    expect((await readManifest(root))?.history).toHaveLength(1);
+
+    // Trial closes: the SAME content-bound approval publishes cleanly —
+    // exactly what the refusal message promises.
+    await promoteCanaryOnManifest(root, { now: new Date("2026-07-12T08:00:00Z") });
+    const published = await publishCandidate(rig.deps, id);
+    expect(published).toMatchObject({ status: "published" });
+    expect(existsSync(bundleFile)).toBe(true);
   });
 
   it("mutating the approved bytes voids the approval; a fresh binding is raised, never published (Done #2)", async () => {

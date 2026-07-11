@@ -24,14 +24,28 @@
 //      dropping a protected-tier (T2/T3) concept fails LOUD — the publisher's
 //      bundle-size validation exists so this can never fire in a healthy org.
 //
-// M4 lineage is always `stable`; episode-sticky canary assignment lands in
-// M5 (design §8.4).
+// Lineage is episode-sticky (M5, design §8.4): while a root runs a live
+// canary, the episode's deterministic bucket — recorded once at first
+// resolve — decides whether this turn sees the canary version (the full
+// bundle) or the stable version (the bundle minus the trial's concepts).
+// Every turn in one episode resolves the same lineage.
 
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
 import { keywordsMatchTask, type OkfDocument } from "../memory.js";
+import {
+  canaryBucket,
+  decideRootLineage,
+  readCanaryAssignment,
+  settleCanaryAssignmentRoot,
+  writeCanaryAssignmentOnce,
+  type BundleLineage,
+  type CanaryAssignmentRecord,
+  type CanaryRootKind,
+  type RootLineageDecision,
+} from "./canary.js";
 import {
   appLearningRoot,
   loadConceptDir,
@@ -40,6 +54,7 @@ import {
   quarantineDir,
   readManifest,
   bundleDir,
+  type LearningManifest,
   type LearningRoot,
 } from "./concepts.js";
 import { appendLearningEventsDeduped, sanitizeIdSegment, type LearningEvent } from "./events.js";
@@ -65,6 +80,10 @@ export interface ResolveInput {
   /** When set, the resolver emits learning events and persists the
    *  resolved-context record; a dry resolve (CLI) omits it. */
   stateHome?: string;
+  /** Force a lineage instead of the episode-sticky assignment (M5 replay
+   *  arms: control resolves stable regardless of any running trial). No
+   *  assignment record is read or written under an override. */
+  lineageOverride?: BundleLineage;
   clock?: () => Date;
 }
 
@@ -86,7 +105,9 @@ export interface ResolvedLearningContext {
   app: string;
   role: string;
   bundle_versions: Record<string, string>;
-  bundle_lineage: "stable";
+  /** `canary` when any root's episode-sticky assignment put this episode in
+   *  a running trial (design §8.4). */
+  bundle_lineage: BundleLineage;
   concept_ids: string[];
   context_bytes: number;
   /** Rendered blocks in final deterministic order — the context assembler's
@@ -104,8 +125,12 @@ const SCOPE_ORDER: Array<{ key: ScopeShareKey; scope: (app: string, role: string
   { key: "app_role", scope: (app, role) => `apps/${app}/roles/${role}` },
 ];
 
+export function resolvedContextDir(stateHome: string): string {
+  return join(stateHome, "learning", "resolved");
+}
+
 export function resolvedContextPath(stateHome: string, turnId: string): string {
-  return join(stateHome, "learning", "resolved", `${sanitizeIdSegment(turnId)}.json`);
+  return join(resolvedContextDir(stateHome), `${sanitizeIdSegment(turnId)}.json`);
 }
 
 export async function resolveLearningContext(input: ResolveInput): Promise<ResolvedLearningContext> {
@@ -115,12 +140,83 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
   const events: LearningEvent[] = [];
   const now = clock();
 
+  // -- lineage before gather (M5, design §8.4) -------------------------------
+  // The episode's sticky assignment decides which version-set each root
+  // resolves; the stable lineage excludes the running trial's concepts.
+  // A root whose manifest cannot be read degrades LOUDLY to contributing
+  // nothing (the skip-warn philosophy): a hand-edited manifest.yaml must
+  // not wedge context assembly org-wide, and resolving its bundle with an
+  // unknowable lineage could leak trial concepts into the control arm.
+  const manifests: Partial<Record<CanaryRootKind, LearningManifest | null>> = {};
+  const unreadable = new Set<CanaryRootKind>();
+  const readRootManifest = async (kind: CanaryRootKind, root: LearningRoot): Promise<void> => {
+    try {
+      manifests[kind] = await readManifest(root);
+    } catch (error) {
+      unreadable.add(kind);
+      process.stderr.write(
+        `learning: skipping the ${kind} learning root this resolve — ` +
+          `${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    }
+  };
+  await readRootManifest("org", orgRoot);
+  if (appRoot !== undefined) await readRootManifest("app", appRoot);
+
+  const existingAssignment =
+    input.stateHome !== undefined && input.lineageOverride === undefined
+      ? await readCanaryAssignment(input.stateHome, input.episodeId)
+      : undefined;
+  const bucket = existingAssignment?.bucket ?? canaryBucket(input.episodeId);
+  const decisions: Partial<Record<CanaryRootKind, RootLineageDecision>> = {};
+  // Roots this resolve decided FRESH (no prior entry): recorded on the pin.
+  // A root the pin marked undecided (its manifest was unreadable back then)
+  // settles at the first resolve that can read it — never re-derives.
+  const settleRoots: CanaryRootKind[] = [];
+  for (const kind of ["org", "app"] as const) {
+    const manifest = manifests[kind];
+    if (manifest === undefined) continue;
+    // A replay arm forces its lineage: an override reads as a pre-made
+    // assignment for the running trial (or plain stable when none runs) —
+    // never as a fresh assignment to record. An episode whose assignment
+    // record predates this root's trial reads as stable: trials admit only
+    // episodes whose FIRST governed resolve happens inside the window —
+    // an episode already in flight when the trial starts must not flip
+    // lineage mid-episode (design §8.4 stickiness).
+    const undecidedHere =
+      existingAssignment !== undefined &&
+      existingAssignment.roots[kind] === undefined &&
+      (existingAssignment.undecided ?? []).includes(kind);
+    if (undecidedHere) settleRoots.push(kind);
+    const existing =
+      input.lineageOverride !== undefined && manifest !== null && manifest.canary !== null
+        ? { version: manifest.canary, lineage: input.lineageOverride }
+        : existingAssignment !== undefined && !undecidedHere
+          ? (existingAssignment.roots[kind] ?? { version: "pre-trial", lineage: "stable" as const })
+          : undefined;
+    decisions[kind] = decideRootLineage({
+      manifest,
+      existing,
+      bucket,
+      now,
+    });
+  }
+  const lineage: BundleLineage = Object.values(decisions).some((d) => d.lineage === "canary")
+    ? "canary"
+    : "stable";
+  const excludedByRoot: Record<CanaryRootKind, Set<string>> = {
+    org: new Set(decisions.org?.excluded ?? []),
+    app: new Set(decisions.app?.excluded ?? []),
+  };
+
   // -- gather ---------------------------------------------------------------
   const gathered: ResolvedConceptInternal[] = [];
   for (const { key, scope } of SCOPE_ORDER) {
     const scopeName = scope(input.app, input.role);
     const root = key === "org" || key === "role" ? orgRoot : appRoot;
     if (root === undefined) continue;
+    const rootKind: CanaryRootKind = key === "org" || key === "role" ? "org" : "app";
+    if (unreadable.has(rootKind)) continue;
 
     // "skip-warn": one malformed governed file degrades that file with a
     // loud stderr line — it must never wedge context assembly for every
@@ -131,6 +227,8 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
         const loop = concept.doc.frontmatter.loop!;
         if (loop.status !== "active" || concept.doc.frontmatter.status !== "active") continue;
         if (loop.scope !== scopeName) continue;
+        // Stable lineage never sees the running trial's concepts.
+        if (excludedByRoot[rootKind].has(loop.id)) continue;
         gathered.push(toResolved(concept.doc, scopeName, key, false, input));
       }
     }
@@ -270,11 +368,13 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
     .filter((concept) => selected.has(concept.id))
     .sort((a, b) => scopeIndex(a.scopeKey) - scopeIndex(b.scopeKey) || a.id.localeCompare(b.id));
 
+  // The resolve record reports the version each root's lineage actually
+  // resolved: the stable pointer, or the trial version for a canary episode.
+  const versionOf = (kind: CanaryRootKind): string =>
+    unreadable.has(kind) ? "unreadable" : (decisions[kind]?.version ?? "unversioned");
   const bundleVersions: Record<string, string> = {
-    org: (await readManifest(orgRoot))?.bundle_version ?? "unversioned",
-    ...(appRoot !== undefined
-      ? { app: (await readManifest(appRoot))?.bundle_version ?? "unversioned" }
-      : {}),
+    org: versionOf("org"),
+    ...(appRoot !== undefined ? { app: versionOf("app") } : {}),
   };
 
   const resolved: ResolvedLearningContext = {
@@ -283,7 +383,7 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
     app: input.app,
     role: input.role,
     bundle_versions: bundleVersions,
-    bundle_lineage: "stable",
+    bundle_lineage: lineage,
     concept_ids: final.map((concept) => concept.id),
     context_bytes: used,
     sections: final.map((concept) => concept.rendered),
@@ -302,10 +402,59 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
     );
   }
 
-  if (input.stateHome !== undefined) {
+  if (input.stateHome !== undefined && input.lineageOverride === undefined) {
+    // The FIRST governed resolve pins the episode's assignment (design
+    // §8.4) — one record, first write wins, and the record exists even when
+    // no trial is running: an episode already in flight when a later trial
+    // starts must read as pre-trial stable, never get admitted mid-episode.
+    // A root whose manifest was unreadable pins as `undecided` and settles
+    // at the first resolve that CAN read it — decided roots pin now either
+    // way, so one corrupt manifest never disables pinning org-wide.
+    const freshRoots: CanaryAssignmentRecord["roots"] = {};
+    for (const kind of ["org", "app"] as const) {
+      const assignment = decisions[kind]?.assignment;
+      if (assignment !== undefined) freshRoots[kind] = assignment;
+    }
+    const admissionEvent = (roots: CanaryAssignmentRecord["roots"], suffix: string): void => {
+      events.push({
+        event_id: `evt_canary_${sanitizeIdSegment(input.episodeId)}_${suffix}`,
+        episode_id: input.episodeId,
+        turn_id: input.turnId,
+        ts: now.toISOString(),
+        app: input.app,
+        agent_role: input.role,
+        type: "canary_assigned",
+        emitter: "resolver",
+        source_channel: "internal",
+        trust: "trusted",
+        payload: { bucket, lineage, roots },
+      });
+    };
+    if (existingAssignment === undefined) {
+      await writeCanaryAssignmentOnce(input.stateHome, {
+        episode_id: input.episodeId,
+        app: input.app,
+        turn_id: input.turnId,
+        assigned_at: now.toISOString(),
+        bucket,
+        roots: freshRoots,
+        ...(unreadable.size > 0 ? { undecided: [...unreadable].sort() } : {}),
+        lineage,
+      });
+      // The event marks trial admission (either arm); a no-trial record is
+      // bookkeeping, not a signal.
+      if (Object.keys(freshRoots).length > 0) admissionEvent(freshRoots, "pin");
+    } else {
+      for (const kind of settleRoots) {
+        const assignment = decisions[kind]?.assignment;
+        await settleCanaryAssignmentRoot(input.stateHome, input.episodeId, kind, assignment);
+        if (assignment !== undefined) admissionEvent({ [kind]: assignment }, kind);
+      }
+    }
+
     for (const event of events) {
       event.bundle_versions = bundleVersions;
-      event.bundle_lineage = "stable";
+      event.bundle_lineage = lineage;
     }
     await appendLearningEventsDeduped(input.stateHome, events);
     const path = resolvedContextPath(input.stateHome, input.turnId);
@@ -359,8 +508,11 @@ function toResolved(
 }
 
 /** Deterministic render (§12.1): no timestamps, no turn ids. The provisional
- *  label carries the expiry DATE — stable until the file changes. */
-function renderConcept(
+ *  label carries the expiry DATE — stable until the file changes. Exported
+ *  for the M5 replay treatment overlay: an unpublished candidate must render
+ *  EXACTLY as the resolver would render it once active, or the replay
+ *  measures the rendering difference instead of the concept. */
+export function renderConcept(
   doc: OkfDocument,
   scope: string,
   provisional: boolean,

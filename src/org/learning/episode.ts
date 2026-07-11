@@ -56,6 +56,7 @@ import { ApprovalStore, type ApprovalItem } from "../approvals.js";
 import { writeFileAtomic } from "../atomic.js";
 import { deriveEpisodeAnchor, listRuns } from "./capture.js";
 import { ticketNumber, type EpisodeAnchor, type EpisodeKind, type EpisodeSource } from "./episodes.js";
+import { resolvedContextDir } from "./resolver.js";
 import {
   appendLearningEventsDeduped,
   readLearningEvents,
@@ -153,6 +154,11 @@ export interface EpisodeRecord {
   status: EpisodeStatus;
   /** Content-addressed SystemFingerprint ref (spec §6) — M2b wires it. */
   fingerprint_ref: string | null;
+  /** Episode-sticky lineage folded from resolved-context records (M5,
+   *  design §8.4): every governed resolve in the episode must agree —
+   *  `mixed` is the loud inconsistency signal, never silently collapsed.
+   *  Null when no turn in the episode resolved governed context. */
+  bundle_lineage: "stable" | "canary" | "mixed" | null;
   turns: EpisodeTurnEntry[];
   gates: EpisodeGateEntry[];
   approvals: string[];
@@ -216,7 +222,14 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
   return {
     async project(): Promise<EpisodeRecord[]> {
       const learningEvents = await readLearningEvents(stateHome);
-      const folded = await foldEpisodes(stateHome, options.appStages, clock(), learningEvents);
+      const resolvedLineages = await readResolvedLineages(stateHome);
+      const folded = await foldEpisodes(
+        stateHome,
+        options.appStages,
+        clock(),
+        learningEvents,
+        resolvedLineages,
+      );
       const records: EpisodeRecord[] = [];
       const foldedIds = new Set<string>();
       for (const record of folded) {
@@ -224,10 +237,11 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
         records.push(await preserveOrWrite(stateHome, record, learningEvents));
       }
       // Episodes whose runs were all pruned: their record files ARE the
-      // archive — never re-folded, but append-only fields keep flowing.
+      // archive — never re-folded, but append-only fields keep flowing, and
+      // lineage backfills from resolved-context records (they outlive runs).
       for (const existing of await readEpisodeRecords(stateHome)) {
         if (foldedIds.has(existing.episode_id)) continue;
-        const refreshed = withAppendOnlyFields(existing, learningEvents);
+        const refreshed = withAppendOnlyFields(existing, learningEvents, resolvedLineages);
         await writeRecordIfChanged(stateHome, refreshed);
         records.push(refreshed);
       }
@@ -303,6 +317,7 @@ async function foldEpisodes(
   appStages: Record<string, string> | undefined,
   now: Date,
   learningEvents: LearningEvent[],
+  resolvedLineages: Map<string, Set<string>>,
 ): Promise<EpisodeRecord[]> {
   // Source 1: run records, grouped by episode anchor.
   const byEpisode = new Map<string, RunView[]>();
@@ -348,6 +363,7 @@ async function foldEpisodes(
         ledgerByRun,
         approvals,
         learningEvents,
+        resolvedLineages,
         now,
       }),
     );
@@ -355,11 +371,37 @@ async function foldEpisodes(
   return records;
 }
 
+/** episode id → distinct lineages observed across its pinned resolves
+ *  (source 4 of the fold; M5 done-means: lineage "verified from
+ *  resolved-context records"). Torn/foreign files skip silently —
+ *  projection state, rebuildable. */
+async function readResolvedLineages(stateHome: string): Promise<Map<string, Set<string>>> {
+  const byEpisode = new Map<string, Set<string>>();
+  const dir = resolvedContextDir(stateHome);
+  if (!existsSync(dir)) return byEpisode;
+  for (const name of (await readdir(dir)).filter((entry) => entry.endsWith(".json")).sort()) {
+    let record: { episode_id?: unknown; bundle_lineage?: unknown };
+    try {
+      record = JSON.parse(await readFile(join(dir, name), "utf8")) as typeof record;
+    } catch {
+      continue;
+    }
+    if (typeof record.episode_id !== "string" || typeof record.bundle_lineage !== "string") {
+      continue;
+    }
+    const set = byEpisode.get(record.episode_id) ?? new Set<string>();
+    set.add(record.bundle_lineage);
+    byEpisode.set(record.episode_id, set);
+  }
+  return byEpisode;
+}
+
 interface FoldContext {
   appStages: Record<string, string> | undefined;
   ledgerByRun: Map<string, TurnRecord>;
   approvals: ApprovalItem[];
   learningEvents: LearningEvent[];
+  resolvedLineages: Map<string, Set<string>>;
   now: Date;
 }
 
@@ -478,6 +520,7 @@ async function foldOne(
     ...(closed ? { closed: lastActivity } : {}),
     status: closed ? "closed" : "open",
     fingerprint_ref: null,
+    bundle_lineage: foldLineage(episodeId, context.resolvedLineages),
     turns,
     gates,
     approvals: joinedApprovals.map((item) => item.id),
@@ -717,11 +760,35 @@ function appendOnlyFields(
   };
 }
 
+/** Sticky-lineage agreement across the episode's pinned resolves; `mixed`
+ *  surfaces loudly in reports — a canaried episode whose turns disagreed is
+ *  a stickiness bug, not a rendering choice. */
+function foldLineage(
+  episodeId: string,
+  resolvedLineages: Map<string, Set<string>>,
+): EpisodeRecord["bundle_lineage"] {
+  const lineages = resolvedLineages.get(episodeId);
+  if (lineages === undefined || lineages.size === 0) return null;
+  if (lineages.size > 1) return "mixed";
+  const [only] = lineages;
+  return only === "canary" ? "canary" : "stable";
+}
+
 function withAppendOnlyFields(
   record: EpisodeRecord,
   learningEvents: LearningEvent[],
+  resolvedLineages?: Map<string, Set<string>>,
 ): EpisodeRecord {
-  return { ...record, ...appendOnlyFields(record.episode_id, learningEvents) };
+  // Archived records backfill lineage from the resolved-context records
+  // (they outlive run pruning); pre-M5 archives with no resolves read null.
+  return {
+    ...record,
+    bundle_lineage:
+      resolvedLineages !== undefined
+        ? foldLineage(record.episode_id, resolvedLineages)
+        : (record.bundle_lineage ?? null),
+    ...appendOnlyFields(record.episode_id, learningEvents),
+  };
 }
 
 /** A closed record whose sources were pruned is the durable archive: keep it
@@ -743,7 +810,12 @@ async function preserveOrWrite(
       // fold below replaces it.
     }
     if (existing !== undefined && existing.status === "closed" && anyRunPruned(existing, folded)) {
-      const preserved = withAppendOnlyFields(existing, learningEvents);
+      // The archive keeps its fold-time truth; lineage refreshes from the
+      // freshly folded record (resolved records outlive run pruning).
+      const preserved = {
+        ...withAppendOnlyFields(existing, learningEvents),
+        bundle_lineage: folded.bundle_lineage,
+      };
       await writeRecordIfChanged(stateHome, preserved);
       return preserved;
     }

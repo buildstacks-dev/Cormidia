@@ -40,12 +40,12 @@ import {
 } from "../org/learning/review.js";
 import type { OkfDocument } from "../org/memory.js";
 
-interface Flags {
+export interface Flags {
   values: Map<string, string[]>;
   positionals: string[];
 }
 
-function parseFlags(args: string[], command: string): Flags {
+export function parseFlags(args: string[], command: string): Flags {
   const values = new Map<string, string[]>();
   const positionals: string[] = [];
   for (let i = 0; i < args.length; i++) {
@@ -64,11 +64,11 @@ function parseFlags(args: string[], command: string): Flags {
   return { values, positionals };
 }
 
-function flag(flags: Flags, name: string): string | undefined {
+export function flag(flags: Flags, name: string): string | undefined {
   return flags.values.get(name)?.at(-1);
 }
 
-function requireFlag(flags: Flags, name: string, command: string): string {
+export function requireFlag(flags: Flags, name: string, command: string): string {
   const value = flag(flags, name);
   if (value === undefined) throw new Error(`${command}: --${name} is required`);
   return value;

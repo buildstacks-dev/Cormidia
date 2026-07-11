@@ -88,6 +88,9 @@ export interface LoopEngineOptions {
   /** Role-aware critical-op gate for durable approval composition. */
   gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   context?: ContextBundle;
+  /** Per-episode governed context (learning-loop M5): see
+   *  LoopPipelineOptions.contextFor. */
+  contextFor?: (item: LoopItem, pipeline: string, role: string) => Promise<ContextBundle | undefined>;
   clock?: () => Date;
   /** Explicit network grant for runtime turns in this loop tick. */
   networkAccess?: boolean;
@@ -457,6 +460,7 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string) {
     hooks: engine.hooks,
     ...(engine.gateForRole !== undefined ? { gateForRole: engine.gateForRole } : {}),
     ...(engine.context !== undefined ? { context: engine.context } : {}),
+    ...(engine.contextFor !== undefined ? { contextFor: engine.contextFor } : {}),
     ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
     ...(engine.networkAccess === true ? { networkAccess: true } : {}),
     ...(engine.telemetry !== undefined ? { telemetry: engine.telemetry } : {}),

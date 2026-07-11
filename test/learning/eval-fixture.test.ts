@@ -44,7 +44,11 @@ function makeCapsule(overrides: Partial<ReplayCapsule> = {}): ReplayCapsule {
     episode_ref: "ep_alpha_ticket_0007",
     kind: "build_ticket",
     seed: { repo: "owner/alpha", commit: "a1b2c3d", fixtures: [] },
-    input: { ticket_ref: "github:#7", brief_hash: `sha256:${"ef".repeat(32)}` },
+    input: {
+      ticket_ref: "github:#7",
+      brief_hash: `sha256:${"ef".repeat(32)}`,
+      brief: "## Ticket\n\nImplement the CSV export (#7).",
+    },
     fingerprint_ref: "sys_0123456789ab",
     artifacts: ["pull-request-12"],
     observed_outcome: { merged: true, review_cycles: 2, cost_usd: 12.41 },

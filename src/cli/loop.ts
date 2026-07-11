@@ -9,14 +9,13 @@ import { defaultLoopInputs, runLoopOnce } from "../loop/driver.js";
 import { loadPipelines } from "../loop/pipelines.js";
 import type { ScorecardEvent as LoopScorecardEvent } from "../loop/types.js";
 import { loadApps } from "../org/apps.js";
-import { assembleContext } from "../org/context.js";
+import { assembleContext, createEpisodeContextResolver } from "../org/context.js";
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
 import { enforceBudgetOverlay } from "../org/budget.js";
 import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
-import { turnEpisodeId } from "../org/learning/episodes.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -176,22 +175,30 @@ export async function cmdLoop(args: string[]): Promise<number> {
               turnId,
               homes.orgHome,
             ),
+            // Fallback context (unknown pipeline names): taste layers plus
+            // legacy memory, no governed resolve — the per-episode resolves
+            // below own the governed pins.
             context: (await assembleContext({
               orgHome: homes.orgHome,
               appWorkdir: localRepo,
               app: selectedApp.name,
               role: builderRole,
               taskText: `build loop for ${selectedApp.name}`,
-              // One governed resolve pinned for the whole tick (learning-loop
-              // spec §8.1). The tick spans tickets, so the pin anchors on the
-              // tick's own turn episode; per-ticket lineage assignment is the
-              // M5 canary concern (lineage is always `stable` in M4).
-              learning: {
-                stateHome: homes.stateHome,
-                turnId,
-                episodeId: turnEpisodeId(selectedApp.name, turnId),
-              },
             })).bundle,
+            // One governed resolve per (ticket episode, pipeline role),
+            // pinned for the tick (learning-loop M5, design §8.4). This
+            // replaces the M4 tick-level builder-only pin: the resolve now
+            // anchors on the same ticket episode the capture projector
+            // attributes the passes to, lineage is episode-sticky, and
+            // reviewer-scoped concepts reach review passes.
+            contextFor: createEpisodeContextResolver({
+              orgHome: homes.orgHome,
+              appWorkdir: localRepo,
+              app: selectedApp.name,
+              roles,
+              stateHome: homes.stateHome,
+              turnId,
+            }),
             ...(allowNetwork ? { networkAccess: true } : {}),
             // Every provider turn this tick runs settles into the org ledger
             // per pass, keyed on runId (telemetry doc Defect B). Manual loop

@@ -26,7 +26,7 @@ import { VerdictParseError } from "../src/loop/verdicts.js";
 import { readEnvelope } from "../src/runtime/runlog/envelope.js";
 import { readEvents } from "../src/runtime/runlog/events.js";
 import { FakeRuntime, type ScriptedTurn } from "../src/runtime/testing/fakeRuntime.js";
-import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../src/runtime/types.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../src/runtime/types.js";
 import { makeBareWithClone, type BareCloneFixture } from "./fixtures/gitRepo.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
@@ -138,6 +138,35 @@ describe("M6 loop engine integration", () => {
       expect(fake.calls.length).toBe(1);
       expect(fake.calls[0]?.req.task).toContain("# Pass: implement");
       expect(fake.calls[0]?.req.task).not.toContain("# Pass: contract");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  it("contextFor resolves per (ticket, pipeline) and its bundle reaches every pass (learning M5)", async () => {
+    const h = await claimedHarness("Per-Episode Context", ["op:ready", "op:tier-quick"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([scripted(DONE)]);
+    const episodeBundle: ContextBundle = {
+      taste: ["## Org TASTE.md\n\nepisode-resolved taste"],
+      memoryExcerpts: ["## Learning concept trial (roles/builder)\n\ngoverned"],
+    };
+    const seen: Array<{ issue: number; pipeline: string }> = [];
+    try {
+      await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+        // Tick-level fallback context that must NOT reach the pass.
+        context: { taste: ["## Org TASTE.md\n\ntick-level taste"], memoryExcerpts: [] },
+        contextFor: async (item, pipeline) => {
+          seen.push({ issue: item.issueNumber, pipeline });
+          return episodeBundle;
+        },
+      });
+
+      expect(seen).toEqual([{ issue: 1, pipeline: "build" }]);
+      expect(fake.calls[0]?.req.context).toBe(episodeBundle);
     } finally {
       home.cleanup();
       h.cleanup();

@@ -269,6 +269,46 @@ describe("createEpisodeProjector().project()", () => {
     }
   });
 
+  it("folds bundle_lineage from resolved-context records; disagreement reads `mixed` (M5 Done #2)", async () => {
+    const home = mergedTicketHome();
+    try {
+      const resolvedDir = join(home.root, "learning", "resolved");
+      mkdirSync(resolvedDir, { recursive: true });
+      const pin = (turnId: string, lineage: string): void =>
+        writeFileSync(
+          join(resolvedDir, `${turnId}.json`),
+          JSON.stringify({
+            turn_id: turnId,
+            episode_id: EPISODE,
+            app: "alpha",
+            role: "builder",
+            bundle_versions: { org: "2026.07.11-1" },
+            bundle_lineage: lineage,
+            concept_ids: [],
+            context_bytes: 0,
+            bytes_remaining: 16384,
+          }) + "\n",
+        );
+
+      // No resolves yet: lineage is unknown, honestly null.
+      let [record] = await projector(home.root).project();
+      expect(record?.bundle_lineage).toBeNull();
+
+      // Every turn pinned the same lineage: the sticky assignment held.
+      pin("t-build-1", "canary");
+      pin("t-review-1", "canary");
+      [record] = await projector(home.root).project();
+      expect(record?.bundle_lineage).toBe("canary");
+
+      // A disagreeing pin is a stickiness violation — loud, never collapsed.
+      pin("t-build-2", "stable");
+      [record] = await projector(home.root).project();
+      expect(record?.bundle_lineage).toBe("mixed");
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("attributes the merge side effect to the merged claim's PR, not a later claim's", async () => {
     const home = mergedTicketHome();
     try {

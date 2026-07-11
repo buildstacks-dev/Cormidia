@@ -180,7 +180,9 @@ export function computeEvalResult(options: ComputeEvalResultOptions): EvalResult
   };
 }
 
-function evaluateGuardrail(
+/** Exported for the M5 runner's between-pair early-stop check (design §9.5)
+ *  — one guardrail evaluator, never a throwaway EvalResult. */
+export function evaluateGuardrail(
   guardrail: ExperimentGuardrail,
   trials: EvalTrial[],
 ): EvalGuardrailOutcome {

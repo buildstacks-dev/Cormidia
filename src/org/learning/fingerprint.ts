@@ -11,8 +11,9 @@
 //     externalizes into config worth hashing separately.
 //   - `budget_caps` carries what actually exists today — the app's monthly
 //     cap and each role's per-turn cap — not the sketch's org-daily shape.
-//   - `bundle_versions` stays empty and `bundle_lineage` "stable" until M4
-//     introduces manifests; capture never fakes them (M1 precedent).
+//   - `bundle_versions`/`bundle_lineage` default empty/"stable"; M5's
+//     experiment arms inject the resolved manifest state (`options.bundle`)
+//     — capture never fakes them (M1 precedent).
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -61,6 +62,11 @@ export interface ComputeFingerprintOptions {
   >;
   /** Injectable for deterministic tests; defaults to the live process. */
   env?: { node: string; platform: string };
+  /** Resolved bundle versions + lineage for the arm this fingerprint
+   *  describes (M5): the control arm carries the manifests' stable state,
+   *  the treatment arm the same plus its candidate marker. Absent keeps
+   *  the M2 empty/"stable" shape. */
+  bundle?: { versions: Record<string, string>; lineage: string };
 }
 
 export async function computeSystemFingerprint(
@@ -108,8 +114,8 @@ export async function computeSystemFingerprint(
         options.app.workdir !== undefined ? (gitHeadOf(options.app.workdir) ?? null) : null,
       config_hash: configHash,
     },
-    bundle_versions: {},
-    bundle_lineage: "stable",
+    bundle_versions: options.bundle?.versions ?? {},
+    bundle_lineage: options.bundle?.lineage ?? "stable",
     models,
     gates_hash: null,
     permissions_hash: null,
@@ -121,6 +127,22 @@ export async function computeSystemFingerprint(
   };
 
   return { fingerprint_id: `sys_${contentHash(body).slice(0, 12)}`, ...body };
+}
+
+/** Derive a sibling fingerprint that differs only in the bundle block —
+ *  the M5 treatment arm. Reuses the base's file hashes instead of
+ *  re-hashing the whole org for a one-field change. */
+export function deriveFingerprintWithBundle(
+  base: SystemFingerprint,
+  bundle: { versions: Record<string, string>; lineage: string },
+): SystemFingerprint {
+  const { fingerprint_id: _id, ...body } = base;
+  const next = {
+    ...body,
+    bundle_versions: { ...bundle.versions },
+    bundle_lineage: bundle.lineage,
+  };
+  return { fingerprint_id: `sys_${contentHash(next).slice(0, 12)}`, ...next };
 }
 
 export function fingerprintsDir(stateHome: string): string {

@@ -127,6 +127,13 @@ function parseApp(
   path: string,
 ): AppEntry {
   const err = (msg: string) => new Error(`${path}: app "${name}": ${msg}`);
+  if (name === "learning-replay") {
+    // Reserved runlog namespace (learning-loop M5, src/org/learning/capture.ts):
+    // an app under this name would have every run silently excluded from
+    // learning capture and episode projection — refuse at registration, not
+    // by degradation at projection time.
+    throw err('the name "learning-replay" is reserved for the learning loop\'s replay runs');
+  }
   if (!specUnknown || typeof specUnknown !== "object") throw err("not a mapping");
   const spec = specUnknown as Record<string, unknown>;
 

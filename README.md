@@ -195,11 +195,14 @@ learning/episodes/        # EpisodeRecord projection over runs + ledger +
                           # approvals + ticket claim state (M2; rebuildable)
 learning/capsules/        # build-episode ReplayCapsules with replayability
 learning/fingerprints/    # content-addressed SystemFingerprints
-learning/resolved/        # per-turn pinned resolve records (M4; never prompt bytes)
+learning/resolved/        # per-turn pinned resolve records with lineage (M4/M5; never prompt bytes)
+learning/canary/          # episode-sticky canary assignments (M5; first resolve wins)
 learning/publish-journal/ # the publisher's crash-resumable transaction journals (M4)
+runs/learning-replay/     # reserved replay namespace (M5) — reconciled for spend,
+                          # excluded from capture/episode projection
 ```
 
-The experiment and activation substrate (M3–M4) lives in the *committed org
+The experiment and activation substrate (M3–M5) lives in the *committed org
 home* instead — `learning/experiments/` (ExperimentRecords + EvalResults,
 declared before results), `learning/interventions/` (one lineage record per
 published change), `learning/evals/**` (sanitized eval fixtures converted
@@ -208,10 +211,10 @@ from replay capsules, trusted only after independent validation),
 `learning/reviews/` + `learning/rejections.jsonl` (fail-closed reviewer
 verdicts and the suppression ledger), `learning/quarantine/` (human-authored
 provisionals with resolver-enforced TTLs), `learning/bundle/**` +
-`learning/manifest.yaml` (active concepts and version cuts), and
-`learning/proposals/**` (unmerged drafts) — everything except candidates and
-proposals is gate-protected; only humans and the deterministic publisher
-write inside.
+`learning/manifest.yaml` (active concepts, version cuts, and live-canary
+trial state), and `learning/proposals/**` (unmerged drafts) — everything
+except candidates and proposals is gate-protected; only humans and the
+deterministic publisher write inside.
 
 `runs/` is the per-pass source of truth (what was asked, what happened, what
 it cost). The ledger is the rollup `operon budget`, `operon status`, retro,
@@ -241,7 +244,24 @@ approves), `resolve --app <app> --role <role>` dry-runs the governed-concept
 resolver, `disable <concept-id>` deprecates a concept for every subsequent
 turn (in-flight turns keep their pin), `rollback --root org|app` reverts the
 latest bundle version cut, and `provisional` quarantines an urgent
-human-authored concept under an UNVERIFIED label with a hard TTL.
+human-authored concept under an UNVERIFIED label with a hard TTL. The M5
+evaluation verbs spend model tokens in the design §9.5 funnel: `experiment
+declare --candidate <id> --evals <scope>/<set> --hypothesis "<why>"` builds
+both arm fingerprints and persists the declared-before-results record;
+`experiment run <exp-id>` executes deterministic prechecks (trusted fixtures
+only, repetition cap, fingerprint drift, budget preflight), then a targeted
+paired builder eval, then full paired control/treatment replays in seed
+worktrees — early-stopping on a held-in failure or guardrail trip, halting
+between pairs at the learning-budget caps, and deciding the verdict from
+whatever pairs ran. Replay turns settle into the org ledger with
+experiment/candidate attribution; `operon budget` renders the learning
+overlay (monthly cap, per-candidate replay caps). `canary start
+<intervention-id>` begins the human-started, tier-gated live trial
+(episode-sticky assignment by hash of episode id; a T3 live canary is
+unrepresentable in policy), `canary status` reports outcomes by lineage with
+the promote-rule recommendation (insufficient volume reads `inconclusive` —
+human judgment, never limbo), and `canary promote` / `canary stop` advance
+stable or roll the trial back.
 
 ## Status
 

@@ -40,8 +40,8 @@ import {
 } from "./qgates.js";
 import {
   parseVerdict,
+  parseVerdictEither,
   parseWithRetry,
-  validateVerdict,
   VerdictParseError,
   VERDICT_SCHEMAS,
   type BuildVerdict,
@@ -136,6 +136,14 @@ export interface LoopPipelineOptions {
   /** Role-aware critical-op gate used by manual loop execution. */
   gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   context?: ContextBundle;
+  /** Per-episode governed context (learning-loop M5, design §8.4): invoked
+   *  once per pipeline invocation with the ticket item, pipeline name, and
+   *  the pipeline's lead role (from the loaded pipelines.yaml config — never
+   *  a parallel role table) so the resolve pins on the TICKET episode with
+   *  the role that actually runs. An undefined return falls back to
+   *  `context`. The org layer supplies the resolver-backed implementation;
+   *  loop code never reads learning state (one-way imports). */
+  contextFor?: (item: LoopItem, pipeline: string, role: string) => Promise<ContextBundle | undefined>;
   baseRef?: string;
   headRef?: string;
   clock?: () => Date;
@@ -424,7 +432,10 @@ export async function runBuilderPipeline(
         ...(options.gateResult !== undefined ? { gateResult: options.gateResult } : {}),
       }),
     promptsDir: options.promptsDir,
-    context: options.context ?? EMPTY_CONTEXT,
+    context:
+      (await options.contextFor?.(item, pipelineName, pipeline.passes[0]?.role ?? "builder")) ??
+      options.context ??
+      EMPTY_CONTEXT,
     workdir: worktree,
     hooks: options.hooks,
     ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
@@ -549,7 +560,10 @@ export async function runReviewPipeline(
     runtimeFor: options.runtimeFor,
     briefFor: (pass) => reviewBrief(item, options, pass),
     promptsDir: options.promptsDir,
-    context: options.context ?? EMPTY_CONTEXT,
+    context:
+      (await options.contextFor?.(item, "review", pipeline.passes[0]?.role ?? "reviewer")) ??
+      options.context ??
+      EMPTY_CONTEXT,
     workdir: requireField(item, "worktree"),
     hooks: options.hooks,
     ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
@@ -629,7 +643,10 @@ export async function runShipCheckPipeline(
     runtimeFor: options.runtimeFor,
     briefFor: (pass) => reviewBrief(item, options, pass),
     promptsDir: options.promptsDir,
-    context: options.context ?? EMPTY_CONTEXT,
+    context:
+      (await options.contextFor?.(item, "ship", pipeline.passes[0]?.role ?? "reviewer")) ??
+      options.context ??
+      EMPTY_CONTEXT,
     workdir: requireField(item, "worktree"),
     hooks: options.hooks,
     ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
@@ -1029,22 +1046,6 @@ function verdictKindForPass(pass: PassConfig): VerdictKind {
   return "review";
 }
 
-/** Parse a pass verdict, preferring native structured JSON output when the
- *  summary is a JSON object, else the lenient §6 text grammar. Never throws —
- *  a failure is a typed marker the reformat retry acts on. */
-function parseEither<K extends VerdictKind>(kind: K, text: string): ParseResult<K> {
-  const trimmed = text.trim();
-  if (trimmed.startsWith("{")) {
-    let json: unknown;
-    try {
-      json = JSON.parse(trimmed);
-    } catch {
-      return parseVerdict(kind, text); // looked like JSON but wasn't — try the grammar
-    }
-    return validateVerdict(kind, json);
-  }
-  return parseVerdict(kind, text);
-}
 
 type PassVerdictOutcome<K extends VerdictKind> =
   | { ok: true; verdict: VerdictTypes[K]; retryUsage?: TurnUsage }
@@ -1077,7 +1078,7 @@ async function recordPassVerdict<K extends VerdictKind>(
     return res.summary;
   };
   try {
-    const verdict = await parseWithRetry(kind, ctx.result.summary, reformat, (t) => parseEither(kind, t));
+    const verdict = await parseWithRetry(kind, ctx.result.summary, reformat, (t) => parseVerdictEither(kind, t));
     await ctx.events.append({ type: "verdict.recorded", detail: verdictDetail(kind, verdict) });
     return { ok: true, verdict, ...(retryUsage !== undefined ? { retryUsage } : {}) };
   } catch (error) {

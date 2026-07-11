@@ -266,6 +266,25 @@ config file, not a fork.
   opt-in live-environment verifier when a pipeline needs evidence artifacts
   from real execution. Competitive intelligence stays a Marketing pipeline
   (`ci-sweep`) unless scorecards later justify a standalone role.
+- **Approval & release boundary amendment** (ratified 2026-07-10; full design,
+  threat model, adapter feasibility, and regression requirements in
+  `docs/approval-and-release-amendment.md`). Amends the 2026-07-04/06
+  approval decisions after the buildstacks.dev episode (42 decisions in one
+  afternoon, mostly false positives): (A1) the human may widen a grant at
+  decision time to rule+path scope for a ticket or app — TTL, use-count cap,
+  revocation, per-use audit; the single-use action hash stays the default and
+  self-merge, production deploy, protocol-surface writes, and
+  outside-worktree actions are never scopeable. (A2) approval semantics stay
+  later-retry, now with explicit approve-and-rearm (`op:blocked → op:ready`)
+  continuing from durable artifacts; literal same-pass session resume is
+  deferred pending per-adapter live conformance. (A3) same-rule batch review
+  is allowed with unchanged per-item audit rows. (A4) every app declares a
+  `release:` mechanism and owner; the orchestrator (default) or SRE triggers
+  the declared deploy as a critical op after merge, SRE owns smoke/rollback,
+  and a deployable milestone with no declared mechanism fails the ship gate.
+  (A5) denial reasons persist as curated role memory so no denial is
+  re-litigated. Agents gain no unilateral power anywhere in this amendment —
+  every widening is a human act at decision time.
 
 ## Prior art (ours)
 

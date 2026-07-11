@@ -239,6 +239,19 @@ function validateFrontmatter(value: unknown, source: string): OkfFrontmatter {
 
 const LOOP_SCOPE_RE = /^(org|roles\/[A-Za-z0-9._-]+|apps\/[A-Za-z0-9._-]+(\/roles\/[A-Za-z0-9._-]+)?)$/;
 
+/** The V1 scope grammar (spec §2) — shared with the candidate contract
+ *  (src/org/learning/candidate.ts) so a proposed_scope that would be rejected
+ *  as a concept scope is rejected at the candidate boundary too. */
+export function isValidLoopScope(scope: string): boolean {
+  return LOOP_SCOPE_RE.test(scope);
+}
+
+/** `identities/**` and `accounts/**` are reserved for future versions and
+ *  must not be accepted by V1 validators (spec §2). */
+export function isReservedLoopScope(scope: string): boolean {
+  return /^(identities|accounts)\//.test(scope);
+}
+
 function validateLoopBlock(value: unknown, source: string): OkfLoopBlock {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new OkfValidationError(`${source}: frontmatter.loop must be a mapping`);
@@ -256,10 +269,25 @@ function validateLoopBlock(value: unknown, source: string): OkfLoopBlock {
     source,
   );
   requireLoopEnum(spec, "claim", ["authorized", "validated"] as const, source);
+  // `authorized` and `validated` are distinct permanent markings (design
+  // §9.1): nothing but a completed experiment produces `validated`, so a
+  // validated concept must name the experiment that produced it. `authorized`
+  // never upgrades silently — the upgrade path rewrites claim AND
+  // experiment_ref together, and this check keeps a half-done upgrade from
+  // validating.
+  if (spec["claim"] === "validated") {
+    const experimentRef = spec["experiment_ref"];
+    if (typeof experimentRef !== "string" || !experimentRef.startsWith("exp_")) {
+      throw new OkfValidationError(
+        `${source}: frontmatter.loop.claim "validated" requires loop.experiment_ref ` +
+          `naming the completed experiment (exp_…) — nothing upgrades to validated without one`,
+      );
+    }
+  }
 
   const scope = spec["scope"];
-  if (typeof scope !== "string" || !LOOP_SCOPE_RE.test(scope)) {
-    const reserved = typeof scope === "string" && /^(identities|accounts)\//.test(scope);
+  if (typeof scope !== "string" || !isValidLoopScope(scope)) {
+    const reserved = typeof scope === "string" && isReservedLoopScope(scope);
     throw new OkfValidationError(
       reserved
         ? `${source}: frontmatter.loop.scope "${scope}" is reserved for a future version (spec §2)`

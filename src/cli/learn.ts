@@ -9,9 +9,18 @@
 // outcome; show traces one event id to its disposition; report adds an
 // episodes section over the capture totals. Every read subcommand refreshes
 // the capture AND episode projections first, so output reflects the current
-// run records. Distillation, candidates, and activation land in later
-// milestones — the only writes here are human_correction / late_outcome
-// events and the projections' own idempotent state.
+// run records.
+//
+// M3 surface (experiment substrate): show additionally traces exp_/eval_/
+// int_ ids to their disposition (declared-before-results status, verdict,
+// lineage-chain gaps); report gains experiments and interventions sections
+// where an authorized claim always renders as "authorized (unproven)"
+// (design §9.1); fixture converts a closed build episode's capsule into a
+// sanitized eval fixture under the org home's learning/evals/** and — as a
+// separate, independent act — validates it (spec §7 two-actor trust).
+// Distillation, candidates, and activation land in later milestones — the
+// only writes here are human_correction / late_outcome events, fixture
+// drafts/validations, and the projections' own idempotent state.
 
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
@@ -37,6 +46,25 @@ import {
   computeSystemFingerprint,
   storeFingerprint,
 } from "../org/learning/fingerprint.js";
+import {
+  convertCapsuleToEvalFixture,
+  trustEvalFixture,
+} from "../org/learning/eval-fixture.js";
+import {
+  listEvalResults,
+  readEvalResult,
+  type EvalResult,
+} from "../org/learning/eval-result.js";
+import {
+  listExperimentRecords,
+  readExperimentRecord,
+  type ExperimentRecord,
+} from "../org/learning/experiment.js";
+import {
+  interventionChainGaps,
+  listInterventionRecords,
+  readInterventionRecord,
+} from "../org/learning/intervention.js";
 import { loadRoles } from "../org/roles.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -62,17 +90,25 @@ export async function cmdLearn(args: string[]): Promise<number> {
       const id = positional(rest, "learn show", "<event-id>");
       await projectCaptureEvents({ stateHome, appStages });
       await projector.project();
-      return show(stateHome, id);
+      return show(homes, id);
+    }
+    case "fixture": {
+      const episodeId = positional(rest, "learn fixture", "<episode-id>");
+      await projectCaptureEvents({ stateHome, appStages });
+      await projector.project();
+      return fixture(homes, episodeId, rest);
     }
     case "report": {
       const json = rest.includes("--json");
       const projection = await projectCaptureEvents({ stateHome, appStages });
       await projector.project();
-      return report(stateHome, projection, json);
+      return report(homes, projection, json);
     }
     default:
       throw new Error(
-        'learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | show <event-id> | report [--json]',
+        'learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | ' +
+          'show <event|experiment|eval|intervention-id> | ' +
+          'fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | report [--json]',
       );
   }
 }
@@ -258,10 +294,13 @@ async function inspect(
   return 0;
 }
 
-/** Replay-capsule section for a closed build episode: assembled best-effort
- *  (a broken roles.yaml or missing checkout degrades the fingerprint, never
- *  the inspect), always naming what is missing for trusted replay. */
-async function capsuleLines(homes: OperonHomes, record: EpisodeRecord): Promise<string[]> {
+/** Best-effort capsule assembly for a build episode: a broken roles.yaml or
+ *  missing checkout degrades the fingerprint (recorded as a failure reason),
+ *  never the caller. Shared by inspect's capsule section and `learn fixture`. */
+async function assembleCapsule(
+  homes: OperonHomes,
+  record: EpisodeRecord,
+): Promise<{ capsule: ReplayCapsule; fingerprintFailure?: string }> {
   let fingerprintRef: string | undefined;
   let fingerprintFailure: string | undefined;
   try {
@@ -291,17 +330,24 @@ async function capsuleLines(homes: OperonHomes, record: EpisodeRecord): Promise<
     fingerprintRef = await storeFingerprint(homes.stateHome, fingerprint);
   } catch (error) {
     // Fingerprint is best-effort here; the capsule lists it as missing and
-    // the reason renders below.
+    // the reason renders in the caller.
     fingerprintFailure = (error as Error).message;
   }
 
+  const capsule = await createCapsuleBuilder({
+    stateHome: homes.stateHome,
+    repoByApp: Object.fromEntries(homes.appsFile.apps.map((app) => [app.name, app.repo])),
+    ...(fingerprintRef !== undefined ? { fingerprintRef } : {}),
+  }).assemble(record.episode_id);
+  return { capsule, ...(fingerprintFailure !== undefined ? { fingerprintFailure } : {}) };
+}
+
+/** Replay-capsule section for a closed build episode. */
+async function capsuleLines(homes: OperonHomes, record: EpisodeRecord): Promise<string[]> {
   let capsule: ReplayCapsule;
+  let fingerprintFailure: string | undefined;
   try {
-    capsule = await createCapsuleBuilder({
-      stateHome: homes.stateHome,
-      repoByApp: Object.fromEntries(homes.appsFile.apps.map((app) => [app.name, app.repo])),
-      ...(fingerprintRef !== undefined ? { fingerprintRef } : {}),
-    }).assemble(record.episode_id);
+    ({ capsule, fingerprintFailure } = await assembleCapsule(homes, record));
   } catch (error) {
     return [`Replay capsule: not assembled — ${(error as Error).message}`];
   }
@@ -509,14 +555,51 @@ function mintEventId(now: Date): string {
 // show
 // ---------------------------------------------------------------------------
 
-async function show(stateHome: string, id: string): Promise<number> {
+async function show(homes: OperonHomes, id: string): Promise<number> {
+  const stateHome = homes.stateHome;
+
+  // M3 record ids route to the committed org home's learning stores.
+  if (id.startsWith("exp_")) {
+    const experiment = await readExperimentRecord(homes.orgHome, id);
+    console.log(JSON.stringify(experiment, null, 2));
+    console.log("");
+    console.log(
+      experiment.status === "decided"
+        ? `disposition: decided by ${experiment.result} — trace it with: operon learn show ${experiment.result}`
+        : `disposition: ${experiment.status} — no results yet (declared-before-results, design §9.1)`,
+    );
+    return 0;
+  }
+  if (id.startsWith("eval_")) {
+    const result = await readEvalResult(homes.orgHome, id);
+    console.log(JSON.stringify(result, null, 2));
+    console.log("");
+    console.log(
+      `disposition: verdict ${result.verdict} for ${result.experiment_ref} ` +
+        `(grader ${result.grader.kind}: ${result.grader.ref})`,
+    );
+    return 0;
+  }
+  if (id.startsWith("int_")) {
+    const intervention = await readInterventionRecord(homes.orgHome, id);
+    console.log(JSON.stringify(intervention, null, 2));
+    console.log("");
+    const gaps = interventionChainGaps(intervention);
+    console.log(
+      `disposition: ${intervention.status} ${intervention.destination}` +
+        (intervention.activation !== null ? `; claim ${claimLabel(intervention.activation.claim)}` : "") +
+        (gaps.length > 0 ? `; chain INCOMPLETE — missing ${gaps.join(", ")}` : "; chain complete"),
+    );
+    return 0;
+  }
+
   const events = await readLearningEvents(stateHome);
   const match = events.find((event) => event.event_id === id);
   if (match === undefined) {
     console.error(
       `learn: no captured event with id ${id}` +
-        (id.startsWith("cand_") || id.startsWith("int_")
-          ? " — candidates and interventions do not exist until later milestones"
+        (id.startsWith("cand_")
+          ? " — candidate storage lands with M4; distillation with M6"
           : ""),
     );
     return 1;
@@ -532,17 +615,93 @@ async function show(stateHome: string, id: string): Promise<number> {
   return 0;
 }
 
+/** `validated` is earned; `authorized` renders as unproven everywhere
+ *  (design §9.1) so an unevaluated activation can never read as a win. */
+function claimLabel(claim: "authorized" | "validated"): string {
+  return claim === "validated" ? "validated" : "authorized (unproven)";
+}
+
+// ---------------------------------------------------------------------------
+// fixture — capsule -> sanitized eval fixture (draft), then independent trust
+// ---------------------------------------------------------------------------
+
+async function fixture(homes: OperonHomes, episodeId: string, args: string[]): Promise<number> {
+  let set: string | undefined;
+  let by: string | undefined;
+  let validate = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === episodeId) continue;
+    else if (arg === "--set") set = needValue(args, ++i, arg);
+    else if (arg === "--by") by = needValue(args, ++i, arg);
+    else if (arg === "--validate") validate = true;
+    else throw new Error(`learn fixture: unknown argument "${arg}"`);
+  }
+  if (set === undefined) {
+    throw new Error("learn fixture: --set <scope>/<set-name> is required (e.g. roles/builder/standard-tickets)");
+  }
+  const capsuleId = `replay_${episodeId.replace(/^ep_/, "")}`;
+
+  if (validate) {
+    if (by === undefined) {
+      throw new Error("learn fixture: --validate requires --by <name> — validation records who checked");
+    }
+    const trusted = await trustEvalFixture({
+      orgHome: homes.orgHome,
+      set,
+      capsuleId,
+      validatedBy: by,
+    });
+    console.log(`fixture ${trusted.fixture_id} validated by ${trusted.validated_by}`);
+    console.log("  sanitization re-verified against the canonical secret patterns");
+    return 0;
+  }
+
+  // Draft path: make sure the capsule reflects the current projection first.
+  const record = (await readEpisodeRecords(homes.stateHome)).find(
+    (candidate) => candidate.episode_id === episodeId,
+  );
+  if (record === undefined) {
+    console.error(`learn: no projected record for ${episodeId} — operon learn report lists episodes`);
+    return 1;
+  }
+  await assembleCapsule(homes, record);
+
+  const converted = await convertCapsuleToEvalFixture({
+    orgHome: homes.orgHome,
+    stateHome: homes.stateHome,
+    capsuleId,
+    set,
+    draftedBy: by ?? "human-operator",
+  });
+  console.log(`drafted ${converted.fixture.fixture_id} (by ${converted.fixture.drafted_by})`);
+  console.log(`  ${converted.path}`);
+  console.log(`  secrets scrubbed: ${converted.redactions} replacement(s)`);
+  if (converted.trust_gaps.length > 0) {
+    console.log(`  not yet trusted — missing: ${converted.trust_gaps.join(", ")}`);
+    console.log(
+      `  validate independently with: operon learn fixture ${episodeId} --set ${set} --validate --by <someone-else>`,
+    );
+  }
+  return 0;
+}
+
 // ---------------------------------------------------------------------------
 // report
 // ---------------------------------------------------------------------------
 
 async function report(
-  stateHome: string,
+  homes: OperonHomes,
   projection: CaptureProjectionResult,
   json: boolean,
 ): Promise<number> {
+  const stateHome = homes.stateHome;
   const events = await readLearningEvents(stateHome);
   const records = await readEpisodeRecords(stateHome);
+  const experiments = await listExperimentRecords(homes.orgHome);
+  const evalResults = await listEvalResults(homes.orgHome);
+  const interventions = await listInterventionRecords(homes.orgHome);
+  const evalById = new Map(evalResults.map((result) => [result.eval_id, result]));
   const byType = count(events.map((event) => event.type));
   const byApp = count(events.map((event) => event.app));
   const eventsByEpisode = new Map<string, number>();
@@ -592,6 +751,28 @@ async function report(
           ],
           gate_failures: gateFailures,
           human_observations: humans.map((event) => event.event_id),
+          experiments: experiments.map((experiment) => ({
+            experiment_id: experiment.experiment_id,
+            status: experiment.status,
+            unit: experiment.unit,
+            candidate_ref: experiment.candidate_ref,
+            control: experiment.control.fingerprint_ref,
+            treatment: experiment.treatment.fingerprint_ref,
+            result: experiment.result,
+            ...(experiment.result !== null
+              ? { verdict: evalById.get(experiment.result)?.verdict ?? "unknown" }
+              : {}),
+          })),
+          interventions: interventions.map((intervention) => ({
+            intervention_id: intervention.intervention_id,
+            destination: intervention.destination,
+            status: intervention.status,
+            claim: intervention.activation?.claim ?? null,
+            ...(intervention.activation !== null
+              ? { claim_display: claimLabel(intervention.activation.claim) }
+              : {}),
+            chain_gaps: interventionChainGaps(intervention),
+          })),
         },
         null,
         2,
@@ -601,7 +782,7 @@ async function report(
   }
 
   const lines: string[] = [];
-  lines.push("Learning report (capture + episode substrate — nothing activates yet)");
+  lines.push("Learning report (capture + episode + experiment substrate — nothing activates yet)");
   lines.push("");
   lines.push(
     `Projection: ${projection.runsProjected} run(s) newly captured, ` +
@@ -636,8 +817,37 @@ async function report(
   for (const event of humans.slice(-5)) {
     lines.push(`  ${event.event_id} → ${event.episode_id}`);
   }
+  if (experiments.length > 0) {
+    lines.push("", `Experiments: ${experiments.length}`);
+    for (const experiment of experiments) {
+      lines.push(`  ${experiment.experiment_id} — ${experiment.unit}, ${experiment.status}${verdictSuffix(experiment, evalById)}`);
+      lines.push(`    control ${experiment.control.fingerprint_ref} vs treatment ${experiment.treatment.fingerprint_ref}`);
+    }
+  }
+  if (interventions.length > 0) {
+    lines.push("", `Interventions: ${interventions.length}`);
+    for (const intervention of interventions) {
+      const gaps = interventionChainGaps(intervention);
+      lines.push(
+        `  ${intervention.intervention_id} — ${intervention.destination}, ${intervention.status}` +
+          (intervention.activation !== null
+            ? `; claim ${claimLabel(intervention.activation.claim)}`
+            : "") +
+          (gaps.length > 0 ? `; chain INCOMPLETE (missing ${gaps.join(", ")})` : ""),
+      );
+    }
+  }
   console.log(lines.join("\n"));
   return 0;
+}
+
+function verdictSuffix(
+  experiment: ExperimentRecord,
+  evalById: Map<string, EvalResult>,
+): string {
+  if (experiment.result === null) return "";
+  const verdict = evalById.get(experiment.result)?.verdict ?? "verdict unknown";
+  return ` → ${experiment.result} (${verdict})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -652,7 +862,7 @@ function positional(args: string[], command: string, what: string): string {
 
 function needValue(args: string[], index: number, flag: string): string {
   const value = args[index];
-  if (!value || value.startsWith("--")) throw new Error(`learn emit: ${flag} requires a value`);
+  if (!value || value.startsWith("--")) throw new Error(`learn: ${flag} requires a value`);
   return value;
 }
 

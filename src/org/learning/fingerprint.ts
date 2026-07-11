@@ -154,6 +154,32 @@ export async function readFingerprint(
   return JSON.parse(await readFile(path, "utf8")) as SystemFingerprint;
 }
 
+/** Dotted paths of every leaf that differs between two fingerprints,
+ *  `fingerprint_id` excluded (it differs by construction). This is how an
+ *  experiment's control/treatment arms show a reviewer they "differ only in
+ *  the intervention under test" (spec §6, §10) — software reports the exact
+ *  delta; the intent judgment stays human. */
+export function fingerprintDelta(a: SystemFingerprint, b: SystemFingerprint): string[] {
+  const paths = new Set<string>();
+  collectLeafDiffs(canonical(a), canonical(b), "", paths);
+  paths.delete("fingerprint_id");
+  return [...paths].sort();
+}
+
+function collectLeafDiffs(a: unknown, b: unknown, prefix: string, out: Set<string>): void {
+  if (isPlainObject(a) && isPlainObject(b)) {
+    for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      collectLeafDiffs(a[key], b[key], prefix === "" ? key : `${prefix}.${key}`, out);
+    }
+    return;
+  }
+  if (JSON.stringify(a) !== JSON.stringify(b)) out.add(prefix === "" ? "(root)" : prefix);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 // ---------------------------------------------------------------------------
 // input readers
 // ---------------------------------------------------------------------------

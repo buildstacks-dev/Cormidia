@@ -234,6 +234,30 @@ describe("OKF loop block (learning-loop spec §3)", () => {
     }
   });
 
+  it('claim "validated" requires the experiment that produced it (design §9.1, M3)', () => {
+    const validatedWithout = FULL_LOOP.map((line) =>
+      line === "claim: authorized" ? "claim: validated" : line,
+    );
+    expect(() => parseOkfDocument(loopDoc(validatedWithout))).toThrow(
+      /claim "validated" requires loop\.experiment_ref/,
+    );
+    // A non-exp_ ref is a half-done upgrade, not provenance.
+    const wrongRef = validatedWithout.map((line) =>
+      line === "experiment_ref: null" ? "experiment_ref: some-note" : line,
+    );
+    expect(() => parseOkfDocument(loopDoc(wrongRef))).toThrow(/loop\.experiment_ref/);
+    const upgraded = validatedWithout.map((line) =>
+      line === "experiment_ref: null" ? "experiment_ref: exp_builder-test-mapping_01" : line,
+    );
+    const doc = parseOkfDocument(loopDoc(upgraded));
+    expect(doc.frontmatter.loop?.claim).toBe("validated");
+    expect(doc.frontmatter.loop?.["experiment_ref"]).toBe("exp_builder-test-mapping_01");
+    // The upgraded doc still round-trips byte-for-byte.
+    expect(serializeOkfDocument(parseOkfDocument(serializeOkfDocument(doc)))).toBe(
+      serializeOkfDocument(doc),
+    );
+  });
+
   it("rejects reserved identities/accounts scopes explicitly (spec §2)", () => {
     const lines = FULL_LOOP.map((line) =>
       line.startsWith("scope:") ? "scope: identities/support-us-anna" : line,

@@ -124,11 +124,17 @@ export interface PassSelection {
   labels?: string[];
   /** dimension_globs keys the changed files matched (M4.2/M6.2 wiring). */
   dimensions?: string[];
+  /** Pass ids whose durable output already exists and still applies —
+   *  continuation from artifacts, never re-derivation (Stage 2). Today's
+   *  only producer is a rehydrated contract excluding the contract pass. */
+  excludePasses?: string[];
 }
 
-/** Apply skip_on_tier and only_on to a pipeline's ordered passes. */
+/** Apply skip_on_tier, only_on, and artifact-continuation exclusions to a
+ *  pipeline's ordered passes. */
 export function selectPasses(pipeline: PipelineConfig, sel: PassSelection): PassConfig[] {
   return pipeline.passes.filter((pass) => {
+    if (sel.excludePasses?.includes(pass.id)) return false;
     if (pass.skipOnTier?.includes(sel.tier)) return false;
     if (pass.onlyOn !== undefined) return onlyOnMatches(pass.onlyOn, sel);
     return true;

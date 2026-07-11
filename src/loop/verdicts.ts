@@ -86,12 +86,26 @@ export interface BlockedEntry {
   assessment: string;
 }
 
+/** A fix pass's per-finding disposition (proportionality-review Stage 2 —
+ *  findings stay open until individually fixed or rebutted, durably). */
+export interface FindingResolution {
+  outcome: "fixed" | "rebutted";
+  /** The finding's `file:line` location, verbatim from the finding line. */
+  location: string;
+  /** Evidence: the proving commit/test for fixed, the reason for rebutted. */
+  note: string;
+}
+
 export interface BuildVerdict {
   status: "done" | "blocked";
   /** Present when the pass reported blocked with the full four-part entry.
    *  A partial entry is a parse failure; a blocked verdict with no entry at
    *  all parses (the type allows it) — demanding evidence is caller policy. */
   blockedEntry?: BlockedEntry;
+  /** Fix passes: one line per finding, `- fixed <location> -- <evidence>` or
+   *  `- rebutted <location> -- <reason>`. Optional — build passes and legacy
+   *  outputs parse unchanged. */
+  resolutions?: FindingResolution[];
 }
 
 export interface ReviewVerdict {
@@ -251,6 +265,24 @@ function parseContract(text: string): ParseResult<"contract"> {
 
 const BLOCKED_KEYS = ["Error", "Attempted", "Result", "Assessment"] as const;
 
+/** `- fixed <location> -- <note>` / `- rebutted <location> -- <note>`;
+ *  unicode or ASCII dashes, same tolerance as the finding grammar. */
+const RESOLUTION_LINE = /^\s*-\s+(fixed|rebutted)\s+(\S+)\s+(?:--|—)\s+(.+?)\s*$/i;
+
+function parseResolutions(text: string): FindingResolution[] {
+  const resolutions: FindingResolution[] = [];
+  for (const line of text.split("\n")) {
+    const match = RESOLUTION_LINE.exec(line);
+    if (match === null) continue;
+    resolutions.push({
+      outcome: match[1]!.toLowerCase() as FindingResolution["outcome"],
+      location: match[2]!,
+      note: match[3]!,
+    });
+  }
+  return resolutions;
+}
+
 function parseBuild(text: string): ParseResult<"build"> {
   const status = extractKeywordValue(text, ["Status", "Verdict"]);
   if (status === undefined) {
@@ -263,11 +295,13 @@ function parseBuild(text: string): ParseResult<"build"> {
   if (status !== "done" && status !== "blocked") {
     return failure("build", `status "${status}" not recognized (expected done | blocked)`);
   }
-  if (status === "done") return { ok: true, verdict: { status } };
+  const resolutions = parseResolutions(text);
+  const withResolutions = resolutions.length > 0 ? { resolutions } : {};
+  if (status === "done") return { ok: true, verdict: { status, ...withResolutions } };
 
   const sections = extractSections(text, BLOCKED_KEYS);
   const present = BLOCKED_KEYS.filter((k) => (sections.get(k) ?? "").length > 0);
-  if (present.length === 0) return { ok: true, verdict: { status } };
+  if (present.length === 0) return { ok: true, verdict: { status, ...withResolutions } };
   if (present.length < BLOCKED_KEYS.length) {
     const missing = BLOCKED_KEYS.filter((k) => !present.includes(k));
     return failure(
@@ -286,6 +320,7 @@ function parseBuild(text: string): ParseResult<"build"> {
         result: sections.get("Result")!,
         assessment: sections.get("Assessment")!,
       },
+      ...withResolutions,
     },
   };
 }

@@ -13,6 +13,7 @@ import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
+import { contractMarker, hashTicketBody, renderFixResolutionsComment } from "./rehydrate.js";
 import { isMergeConflict } from "./github.js";
 import { verifiedSelfApprovalMarker } from "./github.js";
 import { openPhaseRun, type LoopRunlog, type PhaseRun } from "./loop-runlog.js";
@@ -410,7 +411,10 @@ export async function runBuilderPipeline(
       const outcome = await recordPassVerdict(kind, ctx);
       if (!outcome.ok) return outcome.failure;
       if (kind === "contract") {
-        contract = renderContractComment(outcome.verdict as ContractVerdict);
+        // The marker binds the contract to the exact ticket body it was
+        // derived from, so a re-claim can reuse it (skip the contract pass)
+        // while the body is unchanged and re-derive when it is not (Stage 2).
+        contract = `${renderContractComment(outcome.verdict as ContractVerdict)}\n\n${contractMarker(hashTicketBody(item.body))}`;
         await options.gh.commentIssue(item.issueNumber, contract);
       } else if (kind === "build") {
         buildVerdict = outcome.verdict as BuildVerdict;
@@ -420,6 +424,16 @@ export async function runBuilderPipeline(
   });
 
   if (result.aborted) throw new Error(`${pipelineName} pipeline aborted before completion`);
+
+  // Fix verdicts carry per-finding dispositions; post them durably so the
+  // findings ledger survives the pass (verdicts otherwise live only in the
+  // run log) and every later review round sees fixed/rebutted vs still open.
+  if (pipelineName === "fix" && buildVerdict?.resolutions !== undefined) {
+    await options.gh.commentIssue(
+      item.issueNumber,
+      renderFixResolutionsComment(buildVerdict.resolutions),
+    );
+  }
 
   if (buildVerdict?.status === "blocked") {
     const comment = renderBuildBlockedComment(buildVerdict);
@@ -703,6 +717,10 @@ function passSelectionForItem(item: LoopItem, options: LoopPipelineOptions): Pas
     riskTier: resolveTier(options.policy, changedFiles),
     labels: item.labels,
     dimensions: matchedDimensions(options.policy, changedFiles),
+    // A rehydrated, still-applicable contract makes the contract pass
+    // redundant: 21 claims must never again produce 20 contract passes.
+    // The implement brief carries the reused contract verbatim.
+    ...(item.contract !== undefined ? { excludePasses: ["contract"] } : {}),
   };
 }
 
@@ -1225,8 +1243,24 @@ function createWorktree(
   mkdirSync(worktreeRoot, { recursive: true });
   const worktree = join(worktreeRoot, pathSafeBranch(branch));
   if (existsSync(worktree)) return worktree;
+  if (branchExists(localRepo, branch)) {
+    // Resuming a ticket whose worktree was pruned: check out the existing
+    // branch (with its commits) instead of failing on `-b` or, worse,
+    // restarting from the base branch and abandoning prior work (Stage 2).
+    git(localRepo, "worktree", "add", worktree, branch);
+    return worktree;
+  }
   git(localRepo, "worktree", "add", "-b", branch, worktree, baseBranch);
   return worktree;
+}
+
+function branchExists(localRepo: string, branch: string): boolean {
+  try {
+    git(localRepo, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function removeWorktree(localRepo: string, worktree: string): void {

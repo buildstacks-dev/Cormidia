@@ -33,9 +33,18 @@ unaddressed finding blocks merge no matter how good the rest of the work is.
 
 ## Output
 
-Respond to every finding, one line each, in the order given:
-`Fixed in <commit>` (with the proving test) or `Rebuttal: <reason + evidence>`.
-For reviewer findings, post this as a reply on the PR. For gate remediation
+Respond to every finding with exactly one machine-readable resolution line,
+in the order given:
+
+```
+- fixed <location as given in the finding> -- <proving commit and test>
+- rebutted <location as given in the finding> -- <reason + evidence>
+```
+
+The location must match the finding's location verbatim — these lines feed
+the orchestrator's durable findings ledger; a finding without a resolution
+line stays open and carries into every later review round. For reviewer
+findings, also post your responses as a reply on the PR. For gate remediation
 there is no PR yet — the gate output is the finding list, and your response
 lives in the commits and the verdict. Then report exactly one verdict: `done` (every finding addressed, full
 suite green — output attached) or `blocked`, carrying the standard entry:

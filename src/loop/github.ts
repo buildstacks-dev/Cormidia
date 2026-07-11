@@ -72,11 +72,21 @@ export interface ListPullRequestOptions {
   state?: "open" | "closed" | "merged" | "all";
 }
 
+export interface GhIssueComment {
+  body: string;
+  /** ISO timestamp; absent when the backend does not report it. */
+  createdAt?: string;
+}
+
 export interface GhOps {
   addLabel(issueNumber: number, label: string): Promise<void>;
   removeLabel(issueNumber: number, label: string): Promise<void>;
   swapLabel(issueNumber: number, removeLabel: string, addLabel: string): Promise<void>;
   commentIssue(issueNumber: number, body: string): Promise<void>;
+  /** All comments on the issue, oldest first — the durable artifacts
+   *  (contract, review verdicts, fix resolutions) that rehydration reads back
+   *  on a re-claim (proportionality-review Stage 2). */
+  listIssueComments(issueNumber: number): Promise<GhIssueComment[]>;
   listIssues(options?: ListIssueOptions): Promise<GhIssue[]>;
   readIssue(issueNumber: number): Promise<GhIssue>;
   createPR(input: CreatePrInput): Promise<GhPullRequest>;
@@ -261,6 +271,24 @@ export class GhCliOps implements GhOps {
         ISSUE_FIELDS,
       ]),
     );
+  }
+
+  async listIssueComments(issueNumber: number): Promise<GhIssueComment[]> {
+    const raw = (await this.runJson([
+      "issue",
+      "view",
+      String(issueNumber),
+      "--repo",
+      this.repo,
+      "--json",
+      "comments",
+    ])) as { comments?: { body?: unknown; createdAt?: unknown }[] };
+    return (raw.comments ?? [])
+      .filter((comment) => typeof comment.body === "string")
+      .map((comment) => ({
+        body: comment.body as string,
+        ...(typeof comment.createdAt === "string" ? { createdAt: comment.createdAt } : {}),
+      }));
   }
 
   async createPR(input: CreatePrInput): Promise<GhPullRequest> {

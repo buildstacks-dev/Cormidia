@@ -545,6 +545,38 @@ Completion detection is **state-based, never string-based**: the tick reads
 labels, PR/review state, and gate results — the predecessor's
 completion-detection philosophy with GitHub as the state store.
 
+### 7.1 Continuation from durable artifacts (proportionality-review Stage 2)
+
+A re-claim is **not** a blank slate. Before claiming, the driver rehydrates
+ticket-lifetime state from the artifacts previous turns left behind
+(`src/loop/rehydrate.ts`):
+
+- **Contract reuse.** The contract comment carries an HTML marker binding it
+  to a sha-256 of the ticket body. While the body is unchanged, a re-claim
+  reuses the contract verbatim (the contract pass is excluded via
+  `PassSelection.excludePasses`) and the implement brief carries it; a body
+  edit invalidates it and the contract is re-derived. The latest contract
+  comment wins — a superseded contract is never resurrected.
+- **Findings ledger.** Findings live across turns: every `## Structured
+  review verdict` comment raises them; the fix pass's machine-readable
+  resolution lines (`- fixed <location> -- <evidence>` /
+  `- rebutted <location> -- <reason>`, posted durably as `## Fix
+  resolutions`) close them; a later round re-raising a location reopens it.
+  A finding a later review round silently drops **stays open** — silence
+  never closes a finding. Open findings feed every fix and review brief.
+- **PR-aware phase entry.** The open PR is consulted *before* pipeline
+  selection: open PR + open findings enters the fix pipeline (rehydrated
+  `cycles` = review rounds already spent, so the cycle cap holds across
+  claims); open PR + no open findings fast-forwards to `gates` →
+  review — never a rebuild. A pruned worktree with a surviving branch is
+  recreated *from the branch*, keeping its commits.
+- **Claim cap.** `<stateHome>/tickets/<app>/<issue>.json` counts claims
+  across processes. At the cap (default 3, `LoopDriverOptions.maxClaims`)
+  the driver refuses to claim and parks the ticket `op:returned` with an
+  evidence digest (prior claim outcomes, contract state, PR, open
+  findings) — bounded attempts, then summon the human. The episode's human
+  performed all twenty re-arms by hand; this is the stop that was missing.
+
 ## 8. Parallelism — tickets, not tasks
 
 The predecessor tried worktree parallelism *within* a scope and removed it

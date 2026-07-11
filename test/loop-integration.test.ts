@@ -144,6 +144,55 @@ describe("M6 loop engine integration", () => {
     }
   });
 
+  it("a rehydrated still-applicable contract skips the contract pass (Stage 2)", async () => {
+    const h = await claimedHarness("Reused Contract", ["op:ready"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([scripted(DONE)]);
+    try {
+      const next = await runBuilderPipeline(
+        { ...h.item, contract: CONTRACT },
+        {
+          ...engineOptions(h, home.root, fake),
+          pipelines: await rootPipelines(),
+        },
+      );
+
+      // 21 claims produced 20 contract passes in the episode; a reusable
+      // contract must reach the implement brief without a contract turn.
+      expect(next.phase).toBe("gates");
+      expect(fake.calls.length).toBe(1);
+      expect(fake.calls[0]?.req.task).toContain("# Pass: implement");
+      expect(fake.calls[0]?.req.task).toContain("[contract]\n## Implementation contract");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  it("a fix verdict's resolution lines are posted as a durable Fix resolutions comment", async () => {
+    const h = await claimedHarness("Fix Resolutions", ["op:ready"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([
+      scripted("- fixed src/a.ts:1 -- commit abc, regression added\nVerdict: done"),
+    ]);
+    try {
+      await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+        pipelineName: "fix",
+        gateResult: failedGate("failing output"),
+      });
+
+      const comments = h.gh.issueComments.get(1) ?? [];
+      const resolutions = comments.find((c) => c.startsWith("## Fix resolutions"));
+      expect(resolutions).toBeDefined();
+      expect(resolutions).toContain("- fixed src/a.ts:1 -- commit abc, regression added");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
   it("fix pass brief carries verbatim gate output", async () => {
     const h = await claimedHarness("Fix Gates", ["op:ready"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });

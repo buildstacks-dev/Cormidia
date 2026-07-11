@@ -15,6 +15,7 @@ import {
   planLoopTick,
   runLoopOnce,
 } from "../src/loop/driver.js";
+import { writeTicketClaimState } from "../src/loop/rehydrate.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
 
 const issueBody = [
@@ -150,6 +151,50 @@ describe("loop driver", () => {
     // The seeded ticket must still be op:ready — a refused tick never claims.
     const issues = await gh.listIssues({ labels: ["op:ready"], state: "open", limit: 10 });
     expect(issues).toHaveLength(1);
+  });
+
+  it("parks a ticket at the claim cap with an evidence digest instead of claiming it", async () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-park-"));
+    const gh = new FakeGhOps({
+      issues: [{ number: 1, title: "Bouncing ticket", body: issueBody, labels: ["op:ready"] }],
+    });
+    writeTicketClaimState(root, "fixture", 1, {
+      claims: 3,
+      lastClaimAt: "2026-07-10T10:00:00Z",
+      outcomes: ["claim 1: ended returned", "claim 2: ended returned", "claim 3: ended blocked"],
+    });
+    try {
+      const result = await runLoopOnce({
+        app: "fixture",
+        repo: "fixture/repo",
+        gh,
+        localRepo: "/tmp/not-used",
+        worktreeRoot: "/tmp/not-used-worktrees",
+        policy: DEFAULT_LOOP_POLICY,
+        commands: {},
+        engine: {
+          pipelines: { pipelines: [] } as never,
+          roles: {},
+          runtimeFor: () => {
+            throw new Error("a parked ticket must not construct a runtime");
+          },
+          promptsDir: "/tmp/not-used-prompts",
+          runlogRoot: root,
+          hooks: { gate: () => ({ allow: true }) },
+        },
+      });
+
+      expect(result.items).toEqual([]);
+      expect(result.lines.some((line) => line.includes("parked after 3 claims"))).toBe(true);
+      const issue = (await gh.listIssues({ state: "all", limit: 10 }))[0]!;
+      expect(issue.labels).toContain("op:returned");
+      expect(issue.labels).not.toContain("op:ready");
+      const digest = (gh.issueComments.get(1) ?? []).find((c) => c.startsWith("## Parked after"));
+      expect(digest).toBeDefined();
+      expect(digest).toContain("claim 3: ended blocked");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("loadGateCommands reads commands from the sole registry-style app entry", () => {

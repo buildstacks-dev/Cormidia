@@ -136,7 +136,12 @@ export async function appendLearningEventsDeduped(
     const existing = existsSync(path)
       ? new Set((await readLearningEventFile(path)).map((event) => event.event_id))
       : new Set<string>();
-    const fresh = bucket.filter((event) => !existing.has(event.event_id));
+    // Batch-internal dedup too: two same-id events in one call are one event.
+    const fresh = bucket.filter((event) => {
+      if (existing.has(event.event_id)) return false;
+      existing.add(event.event_id);
+      return true;
+    });
     deduped += bucket.length - fresh.length;
     if (fresh.length === 0) continue;
     await mkdir(dirname(path), { recursive: true });

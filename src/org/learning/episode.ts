@@ -5,12 +5,17 @@
 // This module PROJECTS episode records from sources that already own their
 // state — run records (`runs/<app>/<runId>/`), the telemetry ledger, the
 // approvals store, the loop's ticket claim state, and captured learning
-// events — and never becomes a second writable store (design §8.3): deleting
-// `learning/episodes/` and re-projecting rebuilds byte-identical records.
-// The one append-only exception is late-maturing outcomes: recordLateOutcome
-// emits a durable `late_outcome` learning event (the same append-only store
-// M1 capture writes), and projection folds those events back in — so late
-// outcomes survive a projection-state wipe like everything else.
+// events — and never becomes a second writable store (design §8.3): while
+// the sources survive, deleting `learning/episodes/` and re-projecting
+// rebuilds byte-identical records. Once `operon prune-runs` retires a closed
+// episode's run dirs, the projection stops re-folding it: the existing
+// closed record is preserved as the durable archive (only its append-only
+// fields keep refreshing) instead of being silently degraded to whatever
+// runs survive. The one append-only exception is late-maturing outcomes:
+// recordLateOutcome emits a durable `late_outcome` learning event (the same
+// append-only store M1 capture writes), and projection folds those events
+// back in — so late outcomes survive a projection-state wipe like
+// everything else.
 //
 // Determinism rules:
 //   - No wall-clock stamp ever lands in a record; every timestamp comes from
@@ -26,14 +31,18 @@
 //     once part — lifecycle event emission — reuses the deterministic-id
 //     dedup-on-append layer every projector shares.
 //
-// Closure semantics (documented decision, PR #TBD):
-//   - build_ticket: closed only on durable merge evidence — the claim
-//     outcome `ended merged (PR #n)` in the loop's ticket claim state, the
-//     only local record of ticket end (advanceShipping opens no phase run).
-//     Parked/returned tickets stay open: a human can re-arm them.
-//   - every other kind: closed when the episode has runs and none is live —
-//     a killed pass whose heartbeat went stale does not hold its episode
-//     open, which is what lets an interrupted episode close truthfully.
+// Closure semantics (documented decision, PR #44):
+//   - build_ticket with a numeric ref: closed only on durable merge
+//     evidence — the claim outcome `ended merged (PR #n)` in the loop's
+//     ticket claim state, the only local record of ticket end
+//     (advanceShipping opens no phase run). Parked/returned tickets stay
+//     open: a human can re-arm them.
+//   - every other kind (and build tickets with non-numeric refs, which have
+//     no claim state to consult): closed when the episode has runs, none is
+//     live, and the last activity is older than the stall window — the
+//     quiescence guard keeps a projection that lands in the seconds between
+//     two passes from closing a pipeline mid-flight, while a killed pass
+//     whose heartbeat went stale still cannot hold its episode open.
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -206,11 +215,32 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
 
   return {
     async project(): Promise<EpisodeRecord[]> {
-      const records = await foldEpisodes(stateHome, options.appStages, clock());
-      for (const record of records) {
-        await writeRecordIfChanged(stateHome, record);
+      const learningEvents = await readLearningEvents(stateHome);
+      const folded = await foldEpisodes(stateHome, options.appStages, clock(), learningEvents);
+      const records: EpisodeRecord[] = [];
+      const foldedIds = new Set<string>();
+      for (const record of folded) {
+        foldedIds.add(record.episode_id);
+        records.push(await preserveOrWrite(stateHome, record, learningEvents));
       }
-      await emitLifecycleEvents(stateHome, records);
+      // Episodes whose runs were all pruned: their record files ARE the
+      // archive — never re-folded, but append-only fields keep flowing.
+      for (const existing of await readEpisodeRecords(stateHome)) {
+        if (foldedIds.has(existing.episode_id)) continue;
+        const refreshed = withAppendOnlyFields(existing, learningEvents);
+        await writeRecordIfChanged(stateHome, refreshed);
+        records.push(refreshed);
+      }
+      records.sort((a, b) => a.episode_id.localeCompare(b.episode_id));
+      // Exactly-once across date files too: lifecycle timestamps can move
+      // (a re-closed episode, an opened anchor shifting), which would land
+      // the same event_id in a different date file than the one the
+      // per-file dedup checks — filter against every id already captured.
+      await emitLifecycleEvents(
+        stateHome,
+        records,
+        new Set(learningEvents.map((event) => event.event_id)),
+      );
       return records;
     },
 
@@ -234,6 +264,13 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
         .update(`${episodeId}\n${outcome.kind}\n${outcome.ref}`, "utf8")
         .digest("hex")
         .slice(0, 12);
+      // Idempotent across days, not only within one date file: a repeat on a
+      // later date would otherwise land in a fresh file and dodge the
+      // per-file dedup.
+      const existing = (await readLearningEvents(stateHome)).find(
+        (candidate) => candidate.event_id === `evt_late_${hash}`,
+      );
+      if (existing !== undefined) return existing;
       const event: LearningEvent = {
         event_id: `evt_late_${hash}`,
         episode_id: episodeId,
@@ -272,6 +309,7 @@ async function foldEpisodes(
   stateHome: string,
   appStages: Record<string, string> | undefined,
   now: Date,
+  learningEvents: LearningEvent[],
 ): Promise<EpisodeRecord[]> {
   // Source 1: run records, grouped by episode anchor.
   const byEpisode = new Map<string, RunView[]>();
@@ -307,9 +345,6 @@ async function foldEpisodes(
     (a, b) => a.raisedAt.localeCompare(b.raisedAt) || a.id.localeCompare(b.id),
   );
 
-  // Source 4: captured learning events (late outcomes, human observations).
-  const learningEvents = await readLearningEvents(stateHome);
-
   const records: EpisodeRecord[] = [];
   for (const [episodeId, views] of [...byEpisode.entries()].sort((a, b) =>
     a[0].localeCompare(b[0]),
@@ -320,6 +355,7 @@ async function foldEpisodes(
         ledgerByRun,
         approvals,
         learningEvents,
+        now,
       }),
     );
   }
@@ -331,6 +367,7 @@ interface FoldContext {
   ledgerByRun: Map<string, TurnRecord>;
   approvals: ApprovalItem[];
   learningEvents: LearningEvent[];
+  now: Date;
 }
 
 async function foldOne(
@@ -409,27 +446,22 @@ async function foldOne(
   );
 
   const merged = claim?.merged === true;
-  const closed =
-    anchor.kind === "build_ticket" ? merged : views.length > 0 && !liveWork;
+  // Quiescence guard: a projection landing in the seconds between one pass
+  // finalizing and the next pass's startRun must not close a pipeline
+  // mid-flight — closure needs the last activity to predate the stall
+  // window, not merely the absence of a live envelope.
+  const quiescent =
+    views.length > 0 &&
+    !liveWork &&
+    context.now.getTime() - new Date(lastActivity).getTime() >= EPISODE_STALL_MS;
+  // Non-numeric ticket refs (bootstrap milestone keys) have no claim state
+  // to consult, so merge evidence can never arrive — they close on
+  // quiescence like every non-build kind instead of staying open forever.
+  const ticketTracked = anchor.kind === "build_ticket" && ticketNo !== undefined;
+  const closed = ticketTracked ? merged : quiescent;
 
-  const episodeEvents = context.learningEvents.filter(
-    (event) => event.episode_id === episodeId,
-  );
-  const lateOutcomes: LateOutcome[] = episodeEvents
-    .filter((event) => event.type === "late_outcome")
-    .map((event) => ({
-      kind: String(event.payload?.["kind"] ?? "unknown"),
-      ref: String(event.payload?.["ref"] ?? ""),
-      recorded: event.ts,
-      ...(typeof event.payload?.["note"] === "string"
-        ? { note: event.payload["note"] }
-        : {}),
-    }))
-    .sort((a, b) => a.recorded.localeCompare(b.recorded) || a.ref.localeCompare(b.ref));
-  const humanObservations: EpisodeHumanObservation[] = episodeEvents
-    .filter((event) => event.type === "human_correction")
-    .map((event) => ({ event_id: event.event_id, disposition_ref: null }))
-    .sort((a, b) => a.event_id.localeCompare(b.event_id));
+  const { late_outcomes: lateOutcomes, human_observations: humanObservations } =
+    appendOnlyFields(episodeId, context.learningEvents);
 
   const artifacts: string[] = [];
   const sideEffects: EpisodeSideEffect[] = [];
@@ -463,6 +495,7 @@ async function foldOne(
           outcome: foldOutcome(views, {
             anchor,
             merged,
+            ticketTracked,
             turns,
             gates,
             joinedApprovals,
@@ -481,6 +514,7 @@ function foldOutcome(
   input: {
     anchor: EpisodeAnchor;
     merged: boolean;
+    ticketTracked: boolean;
     turns: EpisodeTurnEntry[];
     gates: EpisodeGateEntry[];
     joinedApprovals: ApprovalItem[];
@@ -506,14 +540,19 @@ function foldOutcome(
       .map((view) => view.envelope.trace_id),
   ).size;
 
-  const completed =
-    input.anchor.kind === "build_ticket"
-      ? input.merged
-      : input.turns.length > 0 && input.turns.every((turn) => turn.status === "completed");
+  // Non-build completion reads the chronologically LAST turn entry: a failed
+  // attempt re-dispatched under a fresh turn id leaves its failed entry in
+  // the history, and requiring every entry to complete would report a
+  // successfully retried episode as incomplete forever.
+  const completed = input.ticketTracked
+    ? input.merged
+    : input.turns.length > 0 && input.turns.at(-1)!.status === "completed";
 
   return {
     completed,
-    ...(input.anchor.kind === "build_ticket" ? { merged: input.merged } : {}),
+    // merged is asserted only when claim tracking exists; a non-numeric
+    // ticket ref may well have merged remotely — unknown, never false.
+    ...(input.ticketTracked ? { merged: input.merged } : {}),
     release_disposition: releaseDisposition(input.anchor.kind, input.merged, input.joinedApprovals),
     review_cycles: reviewCycles,
     gate_failures: input.gates.filter((gate) => gate.status === "fail").length,
@@ -600,14 +639,23 @@ function readClaimEvidence(
   const issue = buildTicketNumber(views);
   if (issue === undefined) return undefined;
   const state = readTicketClaimState(stateHome, app, issue);
-  const evidence: ClaimEvidence = { merged: false };
+  let merged = false;
+  let mergedPr: number | undefined;
+  let lastPr: number | undefined;
   for (const outcome of state.outcomes) {
     const match = /^claim \d+: ended (\S+)(?: \(PR #(\d+)\))?$/.exec(outcome);
     if (match === null) continue;
-    if (match[2] !== undefined) evidence.prNumber = Number(match[2]);
-    if (match[1] === "merged") evidence.merged = true;
+    const pr = match[2] !== undefined ? Number(match[2]) : undefined;
+    if (pr !== undefined) lastPr = pr;
+    if (match[1] === "merged") {
+      merged = true;
+      if (pr !== undefined) mergedPr = pr;
+    }
   }
-  return evidence;
+  // The merge side effect must name the PR of the MERGED claim — a later
+  // returned claim may carry a different PR number.
+  const prNumber = mergedPr ?? lastPr;
+  return { merged, ...(prNumber !== undefined ? { prNumber } : {}) };
 }
 
 function buildTicketNumber(views: RunView[]): number | undefined {
@@ -631,6 +679,73 @@ function stripRepoPrefix(ticketRef: string): string {
 // record write + lifecycle events
 // ---------------------------------------------------------------------------
 
+/** The append-only slice of a record — always recomputed from the durable
+ *  event store, even for episodes whose runs were pruned. Duplicate event
+ *  ids (historical artifacts of pre-fix appends) collapse to one entry. */
+function appendOnlyFields(
+  episodeId: string,
+  learningEvents: LearningEvent[],
+): Pick<EpisodeRecord, "late_outcomes" | "human_observations"> {
+  const episodeEvents = learningEvents.filter((event) => event.episode_id === episodeId);
+  const seen = new Set<string>();
+  const unique = episodeEvents.filter((event) => {
+    if (seen.has(event.event_id)) return false;
+    seen.add(event.event_id);
+    return true;
+  });
+  return {
+    late_outcomes: unique
+      .filter((event) => event.type === "late_outcome")
+      .map((event) => ({
+        kind: String(event.payload?.["kind"] ?? "unknown"),
+        ref: String(event.payload?.["ref"] ?? ""),
+        recorded: event.ts,
+        ...(typeof event.payload?.["note"] === "string"
+          ? { note: event.payload["note"] }
+          : {}),
+      }))
+      .sort((a, b) => a.recorded.localeCompare(b.recorded) || a.ref.localeCompare(b.ref)),
+    human_observations: unique
+      .filter((event) => event.type === "human_correction")
+      .map((event) => ({ event_id: event.event_id, disposition_ref: null }))
+      .sort((a, b) => a.event_id.localeCompare(b.event_id)),
+  };
+}
+
+function withAppendOnlyFields(
+  record: EpisodeRecord,
+  learningEvents: LearningEvent[],
+): EpisodeRecord {
+  return { ...record, ...appendOnlyFields(record.episode_id, learningEvents) };
+}
+
+/** A closed record whose sources were pruned is the durable archive: keep it
+ *  (append-only fields still refresh) instead of overwriting it with the
+ *  degraded fold of whatever runs survive. A fold that still sees every
+ *  recorded run — or new ones — writes normally. */
+async function preserveOrWrite(
+  stateHome: string,
+  folded: EpisodeRecord,
+  learningEvents: LearningEvent[],
+): Promise<EpisodeRecord> {
+  const path = episodePath(stateHome, folded.episode_id);
+  if (existsSync(path)) {
+    const existing = JSON.parse(await readFile(path, "utf8")) as EpisodeRecord;
+    if (existing.status === "closed" && anyRunPruned(existing, folded)) {
+      const preserved = withAppendOnlyFields(existing, learningEvents);
+      await writeRecordIfChanged(stateHome, preserved);
+      return preserved;
+    }
+  }
+  await writeRecordIfChanged(stateHome, folded);
+  return folded;
+}
+
+function anyRunPruned(existing: EpisodeRecord, folded: EpisodeRecord): boolean {
+  const foldedRuns = new Set(folded.turns.flatMap((turn) => turn.run_ids));
+  return existing.turns.some((turn) => turn.run_ids.some((runId) => !foldedRuns.has(runId)));
+}
+
 async function writeRecordIfChanged(stateHome: string, record: EpisodeRecord): Promise<void> {
   const path = episodePath(stateHome, record.episode_id);
   const next = JSON.stringify(record, null, 2) + "\n";
@@ -640,12 +755,15 @@ async function writeRecordIfChanged(stateHome: string, record: EpisodeRecord): P
 }
 
 /** `episode_opened` once per episode, `episode_closed` once when first
- *  observed closed — deterministic ids, deduped on append, so replaying the
- *  projection never re-emits (and a re-armed ticket that re-closes does not
- *  emit a second close; the record itself is the truth, events are signals). */
+ *  observed closed — deterministic ids, filtered against every id already
+ *  captured (any date file) and then deduped on append, so replaying the
+ *  projection never re-emits even when a moved timestamp would target a
+ *  different date file (a re-armed ticket that re-closes does not emit a
+ *  second close; the record itself is the truth, events are signals). */
 async function emitLifecycleEvents(
   stateHome: string,
   records: EpisodeRecord[],
+  knownEventIds: Set<string>,
 ): Promise<void> {
   const events: LearningEvent[] = [];
   for (const record of records) {
@@ -659,14 +777,20 @@ async function emitLifecycleEvents(
       source_channel: "internal",
       trust: "trusted",
     } as const;
-    events.push({
-      ...base,
-      event_id: `evt_${record.episode_id}_opened`,
-      ts: record.opened,
-      type: "episode_opened",
-      payload: { kind: record.kind, source_ref: record.source.ref },
-    });
-    if (record.status === "closed" && record.closed !== undefined) {
+    if (!knownEventIds.has(`evt_${record.episode_id}_opened`)) {
+      events.push({
+        ...base,
+        event_id: `evt_${record.episode_id}_opened`,
+        ts: record.opened,
+        type: "episode_opened",
+        payload: { kind: record.kind, source_ref: record.source.ref },
+      });
+    }
+    if (
+      record.status === "closed" &&
+      record.closed !== undefined &&
+      !knownEventIds.has(`evt_${record.episode_id}_closed`)
+    ) {
       events.push({
         ...base,
         event_id: `evt_${record.episode_id}_closed`,

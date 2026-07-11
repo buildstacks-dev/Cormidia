@@ -97,10 +97,11 @@ function episodeId(app: string, kindShort: string, key: string): string {
 }
 
 /** `#42` → `0042`, matching the spec's zero-padded examples; non-numeric
- *  refs sanitize as-is. */
+ *  refs sanitize as-is. Keeps the raw digit STRING (`#00042` → `00042`) —
+ *  round-tripping through Number would shift existing episode ids. */
 function ticketKey(ticketRef: string): string {
-  const numeric = ticketNumber(ticketRef);
-  if (numeric !== undefined) return String(numeric).padStart(4, "0");
+  const numeric = /^#?(\d+)$/.exec(ticketRef.trim());
+  if (numeric !== null) return numeric[1]!.padStart(4, "0");
   return ticketRef;
 }
 

@@ -7,6 +7,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  appendLearningEventsDeduped,
   createLearningEventSink,
   learningEventPath,
   readLearningEvents,
@@ -87,6 +88,20 @@ describe("readLearningEvents", () => {
     const home = makeOrgHome();
     try {
       expect(await readLearningEvents(home.root)).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("appendLearningEventsDeduped dedups within one batch, not only against the file", async () => {
+    const home = makeOrgHome();
+    try {
+      const duplicate = event({ event_id: "evt_twice" });
+      const result = await appendLearningEventsDeduped(home.root, [duplicate, { ...duplicate }]);
+      expect(result).toEqual({ emitted: 1, deduped: 1 });
+      expect((await readLearningEvents(home.root)).map((entry) => entry.event_id)).toEqual([
+        "evt_twice",
+      ]);
     } finally {
       home.cleanup();
     }

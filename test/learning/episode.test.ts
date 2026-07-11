@@ -17,6 +17,7 @@ import {
   readEpisodeRecords,
   type EpisodeRecord,
 } from "../../src/org/learning/episode.js";
+import { buildTicketEpisodeId } from "../../src/org/learning/episodes.js";
 import { readLearningEvents } from "../../src/org/learning/events.js";
 import type { RunEnvelope } from "../../src/runtime/runlog/envelope.js";
 import { FakeClock } from "../fixtures/fakeClock.js";
@@ -268,6 +269,235 @@ describe("createEpisodeProjector().project()", () => {
     }
   });
 
+  it("attributes the merge side effect to the merged claim's PR, not a later claim's", async () => {
+    const home = mergedTicketHome();
+    try {
+      writeClaimState(home.root, 7, [
+        "claim 1: ended merged (PR #3)",
+        "claim 2: ended returned (PR #5)",
+      ]);
+      const [record] = await projector(home.root).project();
+      expect(record?.artifacts).toEqual(["pull-request-3"]);
+      expect(record?.side_effects).toEqual([
+        { kind: "github_pr", ref: "#3", reversible: true },
+        { kind: "github_merge", ref: "#3", reversible: false },
+      ]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("closes a non-numeric ticket ref (bootstrap milestone key) on quiescence, merged unknown", async () => {
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            "20260711-100000-build-implement": {
+              envelope: envelope("20260711-100000-build-implement", { ticket: "m1-bootstrap" }),
+              events: [],
+            },
+          },
+        },
+      },
+    });
+    try {
+      const [record] = await projector(home.root).project();
+      expect(record).toMatchObject({
+        episode_id: "ep_alpha_ticket_m1-bootstrap",
+        kind: "build_ticket",
+        source: { kind: "github_issue", ref: "alpha:m1-bootstrap" },
+        status: "closed",
+      });
+      expect(record?.outcome).toMatchObject({ completed: true, release_disposition: null });
+      // No claim tracking exists for this ref: merged is unknown, never false.
+      expect(record?.outcome?.merged).toBeUndefined();
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("does not close a non-build episode in the gap between two passes (quiescence guard)", async () => {
+    const noTicket = envelope("20260711-060000-support-triage", {
+      trace_id: "turn-alpha-9",
+      pipeline: "support",
+      pass: "triage",
+      role: "support",
+      started_at: "2026-07-11T06:00:00.000Z",
+      finished_at: "2026-07-11T06:04:00.000Z",
+    });
+    delete (noTicket as Partial<RunEnvelope>).ticket;
+    const home = makeOrgHome({
+      runs: {
+        records: { alpha: { "20260711-060000-support-triage": { envelope: noTicket, events: [] } } },
+      },
+    });
+    try {
+      // Two minutes after the pass finished: terminal, but not yet quiescent —
+      // the next pass's startRun may be milliseconds away.
+      const [gap] = await projector(home.root, "2026-07-11T06:06:00.000Z").project();
+      expect(gap).toMatchObject({ status: "open" });
+
+      const [settled] = await projector(home.root, "2026-07-11T06:30:00.000Z").project();
+      expect(settled).toMatchObject({ status: "closed" });
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("counts a re-dispatched retry as completed via the last turn entry", async () => {
+    const failed = envelope("20260711-060000-support-triage", {
+      trace_id: "turn-alpha-1",
+      pipeline: "support",
+      pass: "triage",
+      role: "support",
+      status: "failed",
+      started_at: "2026-07-11T06:00:00.000Z",
+      finished_at: "2026-07-11T06:01:00.000Z",
+    });
+    const retried = envelope("20260711-070000-support-triage", {
+      trace_id: "turn-alpha-2",
+      pipeline: "support",
+      pass: "triage",
+      role: "support",
+      started_at: "2026-07-11T07:00:00.000Z",
+      finished_at: "2026-07-11T07:05:00.000Z",
+    });
+    delete (failed as Partial<RunEnvelope>).ticket;
+    delete (retried as Partial<RunEnvelope>).ticket;
+    const journal = (turnId: string) => ({
+      turnId,
+      role: "support",
+      app: "alpha",
+      phase: "done" as const,
+      attempt: 1,
+      startedAt: "2026-07-11T06:00:00.000Z",
+      updatedAt: "2026-07-11T07:05:00.000Z",
+      event: {
+        kind: "support-feedback",
+        key: "fb-7",
+        source: "file-drop-inbox" as const,
+        payload: {},
+      },
+    });
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            "20260711-060000-support-triage": { envelope: failed, events: [] },
+            "20260711-070000-support-triage": { envelope: retried, events: [] },
+          },
+        },
+      },
+      state: { turns: { "turn-alpha-1": journal("turn-alpha-1"), "turn-alpha-2": journal("turn-alpha-2") } },
+    });
+    try {
+      const [record] = await projector(home.root).project();
+      expect(record?.episode_id).toBe("ep_alpha_feedback_fb-7");
+      expect(record?.turns.map((turn) => turn.status)).toEqual(["failed", "completed"]);
+      expect(record?.outcome).toMatchObject({ completed: true });
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("preserves a closed record when its runs are pruned, still folding append-only fields", async () => {
+    const home = mergedTicketHome();
+    try {
+      const p = projector(home.root);
+      const [full] = await p.project();
+      expect(full?.turns).toHaveLength(4);
+
+      // Retention prunes two of the four run dirs.
+      rmSync(join(home.root, "runs", "alpha", "20260711-100000-build-contract"), {
+        recursive: true,
+      });
+      rmSync(join(home.root, "runs", "alpha", "20260711-101300-review-verify"), {
+        recursive: true,
+      });
+      const [preserved] = await p.project();
+      expect(preserved).toEqual(full);
+
+      // Then ALL of them — the record file is the archive now, and the
+      // append-only lane still flows into it.
+      rmSync(join(home.root, "runs", "alpha"), { recursive: true });
+      await p.recordLateOutcome(EPISODE, { kind: "escaped_defect", ref: "alpha#9" });
+      const records = await p.project();
+      const archived = records.find((record) => record.episode_id === EPISODE);
+      expect(archived?.turns).toHaveLength(4);
+      expect(archived?.outcome?.cost_usd).toBe(4.0);
+      expect(archived?.late_outcomes).toHaveLength(1);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("never re-emits episode_closed when a re-closed episode crosses a date boundary", async () => {
+    const noTicket = envelope("20260711-050000-support-triage", {
+      trace_id: "turn-alpha-9",
+      pipeline: "support",
+      pass: "triage",
+      role: "support",
+      started_at: "2026-07-11T05:00:00.000Z",
+      finished_at: "2026-07-11T05:10:00.000Z",
+    });
+    delete (noTicket as Partial<RunEnvelope>).ticket;
+    const journal = {
+      turnId: "turn-alpha-9",
+      role: "support",
+      app: "alpha",
+      phase: "done" as const,
+      attempt: 1,
+      startedAt: "2026-07-11T05:00:00.000Z",
+      updatedAt: "2026-07-11T05:10:00.000Z",
+      event: {
+        kind: "support-feedback",
+        key: "fb-0142",
+        source: "file-drop-inbox" as const,
+        payload: {},
+      },
+    };
+    const home = makeOrgHome({
+      runs: {
+        records: { alpha: { "20260711-050000-support-triage": { envelope: noTicket, events: [] } } },
+      },
+      state: { turns: { "turn-alpha-9": journal } },
+    });
+    try {
+      const [closed] = await projector(home.root).project();
+      expect(closed?.status).toBe("closed");
+
+      // The same feedback key fires again the NEXT DAY: a new run joins the
+      // same anchor, the episode re-closes with a later-date timestamp.
+      const followUp = envelope("20260712-090000-support-triage", {
+        trace_id: "turn-alpha-10",
+        pipeline: "support",
+        pass: "triage",
+        role: "support",
+        started_at: "2026-07-12T09:00:00.000Z",
+        finished_at: "2026-07-12T09:05:00.000Z",
+      });
+      delete (followUp as Partial<RunEnvelope>).ticket;
+      const runDir = join(home.root, "runs", "alpha", "20260712-090000-support-triage");
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(join(runDir, "envelope.json"), JSON.stringify(followUp, null, 2) + "\n");
+      writeFileSync(join(runDir, "events.jsonl"), "");
+      writeFileSync(
+        home.paths.turn("turn-alpha-10"),
+        JSON.stringify({ ...journal, turnId: "turn-alpha-10" }, null, 2) + "\n",
+      );
+
+      const [reclosed] = await projector(home.root, "2026-07-12T10:00:00.000Z").project();
+      expect(reclosed).toMatchObject({ status: "closed", closed: "2026-07-12T09:05:00.000Z" });
+
+      const closedEvents = (await readLearningEvents(home.root)).filter(
+        (event) => event.type === "episode_closed",
+      );
+      expect(closedEvents).toHaveLength(1);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("closes a build ticket truthfully around a killed pass via the heartbeat reading", async () => {
     const home = makeOrgHome({
       runs: {
@@ -402,6 +632,13 @@ describe("createEpisodeProjector().project()", () => {
   });
 });
 
+describe("episode ids", () => {
+  it("preserves the raw digit string for zero-padded ticket refs", () => {
+    expect(buildTicketEpisodeId("alpha", "#00042")).toBe("ep_alpha_ticket_00042");
+    expect(buildTicketEpisodeId("alpha", "#7")).toBe("ep_alpha_ticket_0007");
+  });
+});
+
 describe("recordLateOutcome", () => {
   it("appends a durable late outcome that survives a projection-state wipe", async () => {
     const home = mergedTicketHome();
@@ -431,12 +668,20 @@ describe("recordLateOutcome", () => {
       const [rebuilt] = await p.project();
       expect(rebuilt?.late_outcomes).toHaveLength(1);
 
-      // Idempotent per (episode, kind, ref): a repeat emit dedups.
+      // Idempotent per (episode, kind, ref): a repeat emit dedups — even on
+      // a LATER DATE, where the per-file dedup alone would miss it.
       await p.recordLateOutcome(EPISODE, { kind: "escaped_defect", ref: "alpha#9" });
+      const nextDay = projector(home.root, "2026-07-13T09:00:00.000Z");
+      const repeat = await nextDay.recordLateOutcome(EPISODE, {
+        kind: "escaped_defect",
+        ref: "alpha#9",
+      });
+      expect(repeat.ts).toBe("2026-07-11T11:00:00.000Z"); // the original event
       const lateEvents = (await readLearningEvents(home.root)).filter(
         (candidate) => candidate.type === "late_outcome",
       );
       expect(lateEvents).toHaveLength(1);
+      expect((await nextDay.project()).find((r) => r.episode_id === EPISODE)?.late_outcomes).toHaveLength(1);
     } finally {
       home.cleanup();
     }

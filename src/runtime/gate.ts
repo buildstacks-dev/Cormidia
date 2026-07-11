@@ -24,9 +24,29 @@ export const CRITICAL_RULES: CriticalRule[] = [
     matches: (a) => /\b(deploy|rollout|release to prod|kubectl apply|doctl apps)\b/.test(asText(a)),
   },
   {
+    // Calibrated (Stage 6, approval-and-release-amendment): irreversible
+    // remote/data operations stay critical unconditionally, but `rm -rf` on a
+    // RELATIVE path is bounded by the sandbox cwd (the ticket worktree) and
+    // is routine — the 2026-07-10 episode escalated deleting a temp folder
+    // inside the worktree while twelve hours of human attention flowed
+    // freely. Absolute paths, `~`, `$HOME`, and parent escapes (`..`) remain
+    // critical.
     name: "destructive-or-irreversible",
-    matches: (a) =>
-      /\b(drop table|truncate|rm -rf|force[- ]?push|delete (database|bucket|droplet|dns))\b/.test(asText(a)),
+    matches: (a) => {
+      const t = asText(a);
+      if (/\b(drop table|truncate|force[- ]?push|delete (database|bucket|droplet|dns))\b/.test(t)) {
+        return true;
+      }
+      const rm = /\brm\s+(-[a-z]*\s+)*([^\s;|&]+)/.exec(t);
+      if (rm === null || !/\brm\s+-[a-z]*r/.test(t)) return false;
+      const target = rm[2] ?? "";
+      return (
+        target.startsWith("/") ||
+        target.startsWith("~") ||
+        target.startsWith("$home") ||
+        target.includes("..")
+      );
+    },
   },
   {
     name: "dns-or-domain",
@@ -42,10 +62,40 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // plural secret-bearing filenames — `secrets.json`, `credentials.json` —
     // trip too; plus the common credential FILES (SSH keys, PEM material,
     // .npmrc/.netrc) an exfil would target by name.
-    matches: (a) =>
-      /\b(secrets?|api[_ ]?key|credentials?|rotate key|oauth client)\b|\.env\b|\b(id_rsa|id_ed25519)\b|\.(pem|npmrc|netrc)\b/.test(
-        asText(a),
-      ),
+    //
+    // Calibrated (Stage 6): a REPO-LOCAL `.npmrc`/`.netrc` (relative path, no
+    // `~`/absolute/home prefix) no longer trips the rule by name alone — the
+    // episode burned 24 escalations and its final $30 pass on a repo `.npmrc`
+    // containing only `engine-strict=true`. User/global variants (`~/.npmrc`,
+    // absolute paths) and every other secret pattern still escalate, and
+    // exfiltration channels are closed independently by outbound-network.
+    matches: (a) => {
+      const scrubbed = asText(a).replace(
+        /(^|[\s"'=([])(?:\.\/)?\.(npmrc|netrc)\b/g,
+        "$1repo-local-rc-file",
+      );
+      return /\b(secrets?|api[_ ]?key|credentials?|rotate key|oauth client)\b|\.env\b|\b(id_rsa|id_ed25519)\b|\.(pem|npmrc|netrc)\b/.test(
+        scrubbed,
+      );
+    },
+  },
+  {
+    // Global provider memory/config (~/.claude, ~/.codex, $CODEX_HOME…) is
+    // outside every app boundary: an agent writing there rewires its own
+    // future behavior across apps. The episode denied this by hand eight
+    // times; the rule makes it a named class (and role shaping in
+    // src/org/gate-compose.ts auto-denies it for builder/reviewer without
+    // burning a human decision).
+    name: "provider-global-memory",
+    matches: (a) => {
+      const t = asText(a);
+      return (
+        isWrite(a) &&
+        /(~|\$home|\/users\/[^\s/]+|\/home\/[^\s/]+)\/\.(claude|codex|gemini|config\/(claude|codex))\b|\$codex_home|\$claude_home/.test(
+          t,
+        )
+      );
+    },
   },
   {
     // Outbound network from a build turn is the exfiltration channel: a

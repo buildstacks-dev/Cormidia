@@ -61,6 +61,7 @@ export function createLoopGateForRole(
   stateHome: string,
   app: string,
   turnId: string,
+  orgHome?: string,
 ): (role: RoleConfig) => GateFn {
   const store = new ApprovalStore(stateHome);
   return (role) =>
@@ -68,6 +69,7 @@ export function createLoopGateForRole(
       app,
       role: role.name,
       turnId,
+      ...(orgHome !== undefined ? { orgHome } : {}),
     });
 }
 
@@ -169,6 +171,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
               homes.stateHome,
               selectedApp.name,
               turnId,
+              homes.orgHome,
             ),
             context: (await assembleContext({
               orgHome: homes.orgHome,

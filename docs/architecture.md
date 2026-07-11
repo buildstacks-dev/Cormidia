@@ -198,10 +198,19 @@ public ingress. Each tick polls GitHub (via `gh`/REST) per live app:
 | `alert-webhook`   | file-drop inbox `state/events/inbox/*.json`                        | file name                   |
 
 
-Consumed keys are recorded in `state/events/` so a tick never refires an
-event; keys are pruned on retention. The file-drop inbox gives webhook parity
-later: a droplet webhook receiver just writes JSON files into the same inbox
-— the dispatcher does not change.
+Consumed-event state is recorded in `state/events/` per (event, role): a
+spawn writes a `<key>::role::<role>` mark, so one event fans out to every
+subscribed role even when the WIP limit splits them across ticks, and a role
+never refires on an event it already handled. The dispatcher's per-tick sweep
+retires the bare key — what polling filters on — once every *current*
+subscriber holds a mark, pruning the per-role marks in the same atomic write;
+because retirement is evaluated fresh against roles.yaml each tick, a
+subscriber removed mid-fan-out cannot strand an event live forever. A
+channel-gated subscriber deliberately holds retirement open: the event stays
+observably pending (a skip line per tick) until the app grows the channel and
+the gated role runs. The file-drop inbox gives webhook parity later: a
+droplet webhook receiver just writes JSON files into the same inbox — the
+dispatcher does not change.
 
 ### Trigger routing
 

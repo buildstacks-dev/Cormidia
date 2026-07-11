@@ -58,10 +58,12 @@ export const EVENT_KINDS: EventKind[] = [
   "alert-webhook",
 ];
 
-/** Per-role consumption key. Multi-subscriber events are consumed per
+/** Per-role consumption mark. Multi-subscriber events are consumed per
  *  (eventKey, role) so a co-subscriber pushed to a later tick by the WIP
- *  limit still sees the event; the bare eventKey — what poll() filters on —
- *  is only written once every subscribed role has consumed (issue #25). */
+ *  limit still sees the event. The bare eventKey — what poll() filters on —
+ *  is written by the dispatcher's per-tick retirement sweep once every
+ *  CURRENT subscriber holds a mark (issue #25); the store never decides
+ *  retirement itself because only the dispatcher knows the subscriber set. */
 export function roleConsumedKey(eventKey: string, role: string): string {
   return `${eventKey}::role::${role}`;
 }
@@ -140,18 +142,21 @@ export class EventStore {
     await this.writeConsumed(consumed);
   }
 
-  /** Record that one subscribed role has consumed the event. The bare event
-   *  key is added only when every role in `subscribers` has consumed, so the
-   *  event keeps polling for co-subscribers that have not run yet — including
-   *  ones currently gated on channel presence (issue #25). One
-   *  read-modify-write; atomic rename via writeFileAtomic. */
-  async markRoleConsumed(eventKey: string, role: string, subscribers: readonly string[]): Promise<void> {
+  /** Retire an event: write the bare key (what poll() filters on) and prune
+   *  the event's now-redundant per-role marks in the same atomic write, so
+   *  consumed.json converges back to one entry per retired event. WHEN to
+   *  retire is the dispatcher's per-tick decision — every current subscriber
+   *  holds a mark — never the store's: a store-side completeness check would
+   *  depend on callers supplying a subscriber set it cannot validate, and an
+   *  incomplete one would silently starve co-subscribers (issue #25). */
+  async retireEvent(eventKey: string): Promise<void> {
     await this.ensure();
     const consumed = new Set(await this.readConsumed());
-    consumed.add(roleConsumedKey(eventKey, role));
-    if (subscribers.every((name) => consumed.has(roleConsumedKey(eventKey, name)))) {
-      consumed.add(eventKey);
+    const rolePrefix = `${eventKey}::role::`;
+    for (const key of [...consumed]) {
+      if (key.startsWith(rolePrefix)) consumed.delete(key);
     }
+    consumed.add(eventKey);
     await this.writeConsumed(consumed);
   }
 

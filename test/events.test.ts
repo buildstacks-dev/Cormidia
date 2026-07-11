@@ -61,20 +61,18 @@ describe("event polling", () => {
     }
   });
 
-  it("retires the bare key only after every subscriber consumed (issue #25)", async () => {
+  it("per-role marks keep the event polling; retireEvent writes the bare key and prunes them (issue #25)", async () => {
     const home = makeOrgHome({ state: { eventsInbox: { "alert.json": HEALTH_ALERT } } });
     try {
       const store = new EventStore(home.root);
-      await store.markRoleConsumed("alert.json", "planner", ["planner", "support"]);
-      let consumed = await store.readConsumed();
-      expect(consumed).toContain(roleConsumedKey("alert.json", "planner"));
-      expect(consumed).not.toContain("alert.json");
+      await store.markConsumed([roleConsumedKey("alert.json", "planner")]);
       // Still polls: the bare key is what poll filters on.
       expect((await store.poll(APP, fakeSource({}))).events.map((e) => e.key)).toEqual(["alert.json"]);
 
-      await store.markRoleConsumed("alert.json", "support", ["planner", "support"]);
-      consumed = await store.readConsumed();
+      await store.retireEvent("alert.json");
+      const consumed = await store.readConsumed();
       expect(consumed).toContain("alert.json");
+      expect(consumed).not.toContain(roleConsumedKey("alert.json", "planner"));
       expect((await store.poll(APP, fakeSource({}))).events).toEqual([]);
     } finally {
       home.cleanup();

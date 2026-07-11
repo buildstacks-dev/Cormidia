@@ -53,6 +53,17 @@ ship:
       template: ship/check.md
       only_on: { risk: [high], tier: [deep] }
 
+# One-pass bootstrap planning (proportionality-review Stage 4): a new app's
+# first milestone is a single planning turn producing a schema-validated
+# 1-3-ticket plan the orchestrator publishes. The five-pass plan pipeline
+# below remains the mature-app path.
+plan-bootstrap:
+  passes:
+    - id: bootstrap-plan
+      role: planner
+      template: plan/bootstrap.md
+      effort: high
+
 plan:
   passes:
     - id: visionary

@@ -18,7 +18,9 @@ import { readJsonLinesTolerant } from "./records.js";
 /** Spec §4 type enum, plus `pass_verdict`: capture explicitly persists L2
  *  `verdict.recorded` (design §5 — verdicts exist nowhere else on disk), but
  *  the draft enum predates that and has no member for it. Recorded as a spec
- *  delta in the M1a PR. */
+ *  delta in the M1a PR. `canary_assigned` is the M5 sticky-assignment event
+ *  (design §8.4): emitted once per episode at first governed resolve while a
+ *  canary is active. */
 export type LearningEventType =
   | "error"
   | "human_correction"
@@ -32,6 +34,7 @@ export type LearningEventType =
   | "context_evicted"
   | "conflict_resolved"
   | "provisional_expired"
+  | "canary_assigned"
   | "episode_opened"
   | "episode_closed"
   | "late_outcome"

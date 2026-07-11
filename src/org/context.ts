@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ContextBundle, RoleConfig } from "../runtime/types.js";
+import { ticketEpisodeAnchor } from "./learning/episodes.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import {
   resolveLearningContext,
@@ -32,9 +33,14 @@ export interface AssembleContextOptions {
    * design §12.1). Omitted (capture-only callers, dry runs), context keeps
    * the legacy selector alone. */
   learning?: {
-    stateHome: string;
+    /** Omitted for record-free resolves (M5 replay arms): concepts load,
+     *  but no events or resolved-context records are written. */
+    stateHome?: string;
     turnId: string;
     episodeId: string;
+    /** Force a lineage instead of the episode-sticky assignment (M5 replay
+     *  arms; see ResolveInput.lineageOverride). */
+    lineageOverride?: "stable" | "canary";
   };
 }
 
@@ -95,7 +101,12 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
       ...(options.memoryCapBytes !== undefined
         ? { budgetCapBytes: options.memoryCapBytes }
         : {}),
-      stateHome: options.learning.stateHome,
+      ...(options.learning.stateHome !== undefined
+        ? { stateHome: options.learning.stateHome }
+        : {}),
+      ...(options.learning.lineageOverride !== undefined
+        ? { lineageOverride: options.learning.lineageOverride }
+        : {}),
     });
     legacyCap = Math.min(legacyCap, resolved.bytes_remaining);
     sources.push(join(orgHome, "learning"), join(appWorkdir, ".operon", "learning"));
@@ -119,6 +130,68 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
     byteSize: Buffer.byteLength(systemPrompt, "utf8"),
     sources,
     ...(resolved !== undefined ? { resolvedLearning: resolved } : {}),
+  };
+}
+
+/** Which role's concepts a loop pipeline resolves (learning-loop M5): the
+ *  pipeline's lead role per pipelines.yaml — build and fix are Builder work,
+ *  review and ship judgment are Reviewer work. */
+const PIPELINE_ROLE: Record<string, string> = {
+  build: "builder",
+  fix: "builder",
+  review: "reviewer",
+  ship: "reviewer",
+};
+
+export interface EpisodeContextResolverOptions {
+  orgHome: string;
+  appWorkdir: string;
+  app: string;
+  roles: Record<string, RoleConfig>;
+  stateHome: string;
+  /** The dispatch/tick turn id — resolve records key on
+   *  `<turnId>-i<issue>-<role>` so each episode pin is its own record. */
+  turnId: string;
+  memoryCapBytes?: number;
+}
+
+/** The loop engine's `contextFor` (learning-loop M5, design §8.4): one
+ *  governed resolve per (ticket episode, pipeline role), memoized for the
+ *  tick so build and fix passes on one ticket share one pin. This replaces
+ *  the M4 tick-level builder-only pin — the resolve now lands on the same
+ *  ticket episode the capture projector attributes the passes to, and
+ *  reviewer-scoped concepts reach review passes. */
+export function createEpisodeContextResolver(
+  options: EpisodeContextResolverOptions,
+): (
+  item: { issueNumber: number; ticketRef: string; title: string; body: string },
+  pipeline: string,
+) => Promise<ContextBundle | undefined> {
+  const memo = new Map<string, Promise<ContextBundle | undefined>>();
+  return (item, pipeline) => {
+    const roleName = PIPELINE_ROLE[pipeline];
+    const role = roleName !== undefined ? options.roles[roleName] : undefined;
+    if (role === undefined) return Promise.resolve(undefined);
+    const key = `${item.issueNumber}:${role.name}`;
+    const existing = memo.get(key);
+    if (existing !== undefined) return existing;
+    const assembled = assembleContext({
+      orgHome: options.orgHome,
+      appWorkdir: options.appWorkdir,
+      app: options.app,
+      role,
+      taskText: `${item.title}\n\n${item.body}`,
+      ...(options.memoryCapBytes !== undefined
+        ? { memoryCapBytes: options.memoryCapBytes }
+        : {}),
+      learning: {
+        stateHome: options.stateHome,
+        turnId: `${options.turnId}-i${item.issueNumber}-${role.name}`,
+        episodeId: ticketEpisodeAnchor(options.app, item.ticketRef).episodeId,
+      },
+    }).then((result) => result.bundle);
+    memo.set(key, assembled);
+    return assembled;
   };
 }
 

@@ -35,7 +35,11 @@ export interface ReplayCapsule {
   episode_ref: string;
   kind: "build_ticket";
   seed: { repo: string | null; commit: string | null; fixtures: string[] };
-  input: { ticket_ref: string; brief_hash: string | null };
+  /** `brief` is the verbatim first-build-pass brief (M5 spec delta): replay
+   *  recreates the original inputs, and the hash alone cannot reconstruct
+   *  them once `runs/` prunes. Capsules live in the state home, so the
+   *  verbatim text is L3-adjacent; the fixture conversion sanitizes it. */
+  input: { ticket_ref: string; brief_hash: string | null; brief: string | null };
   fingerprint_ref: string | null;
   artifacts: string[];
   observed_outcome: {
@@ -126,8 +130,8 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
       const commit = seedRun?.git_head ?? null;
       if (commit === null) missing.push("seed_commit");
 
-      const briefHash = seedRun !== undefined ? await briefHashOf(stateHome, seedRun) : null;
-      if (briefHash === null) missing.push("brief_hash");
+      const brief = seedRun !== undefined ? await briefOf(stateHome, seedRun) : null;
+      if (brief === null) missing.push("brief_hash");
 
       // Assembly-time provenance is sticky: the FIRST assembly stamps the
       // fingerprint; later re-assemblies (an operator inspecting under a
@@ -156,7 +160,11 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
         episode_ref: episodeId,
         kind: "build_ticket",
         seed: { repo, commit, fixtures: [] },
-        input: { ticket_ref: ticketRefOf(record), brief_hash: briefHash },
+        input: {
+          ticket_ref: ticketRefOf(record),
+          brief_hash: brief?.hash ?? null,
+          brief: brief?.text ?? null,
+        },
         fingerprint_ref: fingerprintRef,
         artifacts: [...record.artifacts],
         observed_outcome: observed,
@@ -191,7 +199,11 @@ export async function readCapsule(
 ): Promise<ReplayCapsule | undefined> {
   const path = capsulePath(stateHome, capsuleId);
   if (!existsSync(path)) return undefined;
-  return JSON.parse(await readFile(path, "utf8")) as ReplayCapsule;
+  const capsule = JSON.parse(await readFile(path, "utf8")) as ReplayCapsule;
+  // Pre-M5 capsules predate input.brief — absent normalizes to null (a
+  // re-assembly backfills it while the run's brief.md survives).
+  capsule.input.brief ??= null;
+  return capsule;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,13 +232,16 @@ async function earliestBuildRun(
   }
 }
 
-async function briefHashOf(
+async function briefOf(
   stateHome: string,
   envelope: RunEnvelope,
-): Promise<string | null> {
+): Promise<{ text: string; hash: string } | null> {
   try {
     const brief = await readFile(runPaths(stateHome, envelope.app, envelope.run_id).brief);
-    return `sha256:${createHash("sha256").update(brief).digest("hex")}`;
+    return {
+      text: brief.toString("utf8"),
+      hash: `sha256:${createHash("sha256").update(brief).digest("hex")}`,
+    };
   } catch {
     return null;
   }

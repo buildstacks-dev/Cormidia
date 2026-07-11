@@ -52,11 +52,17 @@ export interface TurnRecord {
    *  through the native CLI). costUsd stays 0 — the honest reading is
    *  "unknown", never "free"; readers surface the count separately. */
   unmeasured?: boolean;
+  /** Learning-loop attribution (M5): replay/eval passes settle like every
+   *  provider turn, and these refs are what the learning budget overlay
+   *  rolls up — monthly learning spend and per-candidate replay spend
+   *  (spec §13 learning_budget). Omitted on non-learning rows. */
+  experimentRef?: string;
+  candidateRef?: string;
 }
 
 /** Optional per-turn attribution (build plan M3.2): which app the turn ran
  *  against and which trigger kind fired it, plus run-log correlation for
- *  pass-settled rows (Stage 1). */
+ *  pass-settled rows (Stage 1) and learning-loop refs (M5). */
 export interface TurnAttribution {
   app?: string;
   trigger?: TriggerKind;
@@ -65,6 +71,8 @@ export interface TurnAttribution {
   pipeline?: string;
   pass?: string;
   unmeasured?: boolean;
+  experimentRef?: string;
+  candidateRef?: string;
 }
 
 export function toRecord(
@@ -95,6 +103,8 @@ export function toRecord(
   if (attribution.pipeline !== undefined) record.pipeline = attribution.pipeline;
   if (attribution.pass !== undefined) record.pass = attribution.pass;
   if (attribution.unmeasured === true) record.unmeasured = true;
+  if (attribution.experimentRef !== undefined) record.experimentRef = attribution.experimentRef;
+  if (attribution.candidateRef !== undefined) record.candidateRef = attribution.candidateRef;
   if (result.usage.costEstimated === true) record.costEstimated = true;
   if (result.usage.tokensInUncached !== undefined) {
     record.tokensInUncached = result.usage.tokensInUncached;

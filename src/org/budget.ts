@@ -50,6 +50,71 @@ export async function rollupBudgets(
   });
 }
 
+/** Learning budget overlay (learning-loop M5, spec §13 `learning_budget`):
+ *  replay and eval passes settle into the same ledger as every provider
+ *  turn, attributed by `experimentRef`/`candidateRef` — the overlay is a
+ *  rollup over those rows, not a second ledger. */
+export interface LearningSpendRollup {
+  /** All learning-attributed spend this month (USD). */
+  monthUsd: number;
+  /** Spend per experiment id, this month. */
+  byExperiment: Map<string, number>;
+  /** ALL-TIME spend per candidate id: the per-candidate replay cap bounds a
+   *  candidate's total evaluation cost, not a monthly allowance. */
+  byCandidate: Map<string, number>;
+  /** Distinct experiments with settled spend this month —
+   *  max_experiments_per_month reads this. */
+  experimentsThisMonth: number;
+}
+
+export async function rollupLearningSpend(
+  orgHome: string,
+  now: Date = new Date(),
+): Promise<LearningSpendRollup> {
+  const month = now.toISOString().slice(0, 7);
+  const rollup: LearningSpendRollup = {
+    monthUsd: 0,
+    byExperiment: new Map(),
+    byCandidate: new Map(),
+    experimentsThisMonth: 0,
+  };
+  const dir = join(orgHome, "telemetry");
+  if (!existsSync(dir)) return rollup;
+  const monthExperiments = new Set<string>();
+  for (const file of (await readdir(dir)).sort()) {
+    if (!file.endsWith(".jsonl")) continue;
+    const inMonth = file.startsWith(month);
+    const text = await readFile(join(dir, file), "utf8");
+    for (const line of text.split("\n")) {
+      if (line.trim().length === 0) continue;
+      let record: TurnRecord;
+      try {
+        record = JSON.parse(line) as TurnRecord;
+      } catch {
+        continue;
+      }
+      if (record.experimentRef === undefined && record.candidateRef === undefined) continue;
+      if (record.candidateRef !== undefined) {
+        rollup.byCandidate.set(
+          record.candidateRef,
+          (rollup.byCandidate.get(record.candidateRef) ?? 0) + record.costUsd,
+        );
+      }
+      if (!inMonth) continue;
+      rollup.monthUsd += record.costUsd;
+      if (record.experimentRef !== undefined) {
+        monthExperiments.add(record.experimentRef);
+        rollup.byExperiment.set(
+          record.experimentRef,
+          (rollup.byExperiment.get(record.experimentRef) ?? 0) + record.costUsd,
+        );
+      }
+    }
+  }
+  rollup.experimentsThisMonth = monthExperiments.size;
+  return rollup;
+}
+
 export async function enforceBudgetOverlay(
   orgHome: string,
   apps: AppsFile,

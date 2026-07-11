@@ -136,6 +136,13 @@ export interface LoopPipelineOptions {
   /** Role-aware critical-op gate used by manual loop execution. */
   gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   context?: ContextBundle;
+  /** Per-episode governed context (learning-loop M5, design §8.4): invoked
+   *  once per pipeline invocation with the ticket item and pipeline name so
+   *  the resolve pins on the TICKET episode with the pipeline's own role —
+   *  not one tick-level builder-only pin. An undefined return falls back to
+   *  `context`. The org layer supplies the resolver-backed implementation;
+   *  loop code never reads learning state (one-way imports). */
+  contextFor?: (item: LoopItem, pipeline: string) => Promise<ContextBundle | undefined>;
   baseRef?: string;
   headRef?: string;
   clock?: () => Date;
@@ -424,7 +431,7 @@ export async function runBuilderPipeline(
         ...(options.gateResult !== undefined ? { gateResult: options.gateResult } : {}),
       }),
     promptsDir: options.promptsDir,
-    context: options.context ?? EMPTY_CONTEXT,
+    context: (await options.contextFor?.(item, pipelineName)) ?? options.context ?? EMPTY_CONTEXT,
     workdir: worktree,
     hooks: options.hooks,
     ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
@@ -549,7 +556,7 @@ export async function runReviewPipeline(
     runtimeFor: options.runtimeFor,
     briefFor: (pass) => reviewBrief(item, options, pass),
     promptsDir: options.promptsDir,
-    context: options.context ?? EMPTY_CONTEXT,
+    context: (await options.contextFor?.(item, "review")) ?? options.context ?? EMPTY_CONTEXT,
     workdir: requireField(item, "worktree"),
     hooks: options.hooks,
     ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
@@ -629,7 +636,7 @@ export async function runShipCheckPipeline(
     runtimeFor: options.runtimeFor,
     briefFor: (pass) => reviewBrief(item, options, pass),
     promptsDir: options.promptsDir,
-    context: options.context ?? EMPTY_CONTEXT,
+    context: (await options.contextFor?.(item, "ship")) ?? options.context ?? EMPTY_CONTEXT,
     workdir: requireField(item, "worktree"),
     hooks: options.hooks,
     ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),

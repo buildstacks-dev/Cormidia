@@ -56,6 +56,7 @@ import { ApprovalStore, type ApprovalItem } from "../approvals.js";
 import { writeFileAtomic } from "../atomic.js";
 import { deriveEpisodeAnchor, listRuns } from "./capture.js";
 import { ticketNumber, type EpisodeAnchor, type EpisodeKind, type EpisodeSource } from "./episodes.js";
+import { resolvedContextDir } from "./resolver.js";
 import {
   appendLearningEventsDeduped,
   readLearningEvents,
@@ -153,6 +154,11 @@ export interface EpisodeRecord {
   status: EpisodeStatus;
   /** Content-addressed SystemFingerprint ref (spec §6) — M2b wires it. */
   fingerprint_ref: string | null;
+  /** Episode-sticky lineage folded from resolved-context records (M5,
+   *  design §8.4): every governed resolve in the episode must agree —
+   *  `mixed` is the loud inconsistency signal, never silently collapsed.
+   *  Null when no turn in the episode resolved governed context. */
+  bundle_lineage: "stable" | "canary" | "mixed" | null;
   turns: EpisodeTurnEntry[];
   gates: EpisodeGateEntry[];
   approvals: string[];
@@ -338,6 +344,11 @@ async function foldEpisodes(
     (a, b) => a.raisedAt.localeCompare(b.raisedAt) || a.id.localeCompare(b.id),
   );
 
+  // Source 4: resolved-context records — the per-turn pins whose lineage
+  // agreement the record asserts (M5 done-means: "verified from
+  // resolved-context records").
+  const resolvedLineages = await readResolvedLineages(stateHome);
+
   const records: EpisodeRecord[] = [];
   for (const [episodeId, views] of [...byEpisode.entries()].sort((a, b) =>
     a[0].localeCompare(b[0]),
@@ -348,6 +359,7 @@ async function foldEpisodes(
         ledgerByRun,
         approvals,
         learningEvents,
+        resolvedLineages,
         now,
       }),
     );
@@ -355,11 +367,35 @@ async function foldEpisodes(
   return records;
 }
 
+/** episode id → distinct lineages observed across its pinned resolves.
+ *  Torn/foreign files skip silently — projection state, rebuildable. */
+async function readResolvedLineages(stateHome: string): Promise<Map<string, Set<string>>> {
+  const byEpisode = new Map<string, Set<string>>();
+  const dir = resolvedContextDir(stateHome);
+  if (!existsSync(dir)) return byEpisode;
+  for (const name of (await readdir(dir)).filter((entry) => entry.endsWith(".json")).sort()) {
+    let record: { episode_id?: unknown; bundle_lineage?: unknown };
+    try {
+      record = JSON.parse(await readFile(join(dir, name), "utf8")) as typeof record;
+    } catch {
+      continue;
+    }
+    if (typeof record.episode_id !== "string" || typeof record.bundle_lineage !== "string") {
+      continue;
+    }
+    const set = byEpisode.get(record.episode_id) ?? new Set<string>();
+    set.add(record.bundle_lineage);
+    byEpisode.set(record.episode_id, set);
+  }
+  return byEpisode;
+}
+
 interface FoldContext {
   appStages: Record<string, string> | undefined;
   ledgerByRun: Map<string, TurnRecord>;
   approvals: ApprovalItem[];
   learningEvents: LearningEvent[];
+  resolvedLineages: Map<string, Set<string>>;
   now: Date;
 }
 
@@ -478,6 +514,7 @@ async function foldOne(
     ...(closed ? { closed: lastActivity } : {}),
     status: closed ? "closed" : "open",
     fingerprint_ref: null,
+    bundle_lineage: foldLineage(episodeId, context.resolvedLineages),
     turns,
     gates,
     approvals: joinedApprovals.map((item) => item.id),
@@ -717,11 +754,30 @@ function appendOnlyFields(
   };
 }
 
+/** Sticky-lineage agreement across the episode's pinned resolves; `mixed`
+ *  surfaces loudly in reports — a canaried episode whose turns disagreed is
+ *  a stickiness bug, not a rendering choice. */
+function foldLineage(
+  episodeId: string,
+  resolvedLineages: Map<string, Set<string>>,
+): EpisodeRecord["bundle_lineage"] {
+  const lineages = resolvedLineages.get(episodeId);
+  if (lineages === undefined || lineages.size === 0) return null;
+  if (lineages.size > 1) return "mixed";
+  const [only] = lineages;
+  return only === "canary" ? "canary" : "stable";
+}
+
 function withAppendOnlyFields(
   record: EpisodeRecord,
   learningEvents: LearningEvent[],
 ): EpisodeRecord {
-  return { ...record, ...appendOnlyFields(record.episode_id, learningEvents) };
+  // bundle_lineage normalizes pre-M5 archives (absent key) to null.
+  return {
+    ...record,
+    bundle_lineage: record.bundle_lineage ?? null,
+    ...appendOnlyFields(record.episode_id, learningEvents),
+  };
 }
 
 /** A closed record whose sources were pruned is the durable archive: keep it

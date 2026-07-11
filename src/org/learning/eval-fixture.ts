@@ -300,6 +300,9 @@ export function fixtureTrustGaps(fixture: EvalFixture): string[] {
   if (fixture.validated_by === null) gaps.push("independent_validation");
   if (fixture.seed.repo === null || fixture.seed.commit === null) gaps.push("seed");
   if (fixture.fingerprint_ref === null) gaps.push("fingerprint");
+  // Replay recreates the original inputs; without the verbatim brief the
+  // fixture can grade but never replay (M5).
+  if (fixture.input.brief === null || fixture.input.brief === undefined) gaps.push("brief");
   return gaps;
 }
 

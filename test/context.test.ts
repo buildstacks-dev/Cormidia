@@ -4,11 +4,12 @@
 // makeOrgHome and makeAppRepo are disposable local fixtures; no network, auth,
 // real org state, or wall-clock time is required.
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { assembleContext } from "../src/org/context.js";
+import { assembleContext, createEpisodeContextResolver } from "../src/org/context.js";
 import { assembleBrief } from "../src/loop/brief.js";
+import { resolvedContextPath } from "../src/org/learning/resolver.js";
 import type { RoleConfig } from "../src/runtime/types.js";
 import { makeAppRepo, makeOrgHome } from "./fixtures/orgHome.js";
 
@@ -205,6 +206,62 @@ describe("assembleContext", () => {
       });
       expect(plain.resolvedLearning).toBeUndefined();
       expect(plain.bundle.memoryExcerpts.join("\n")).not.toContain("Learning concept governed");
+    } finally {
+      org.cleanup();
+      state.cleanup();
+      app.cleanup();
+    }
+  });
+});
+
+describe("createEpisodeContextResolver (learning-loop M5)", () => {
+  const ROLES: Record<string, RoleConfig> = {
+    builder: { ...REVIEWER, name: "builder" },
+    reviewer: REVIEWER,
+  };
+  const ITEM = { issueNumber: 7, ticketRef: "#7", title: "CSV export", body: "Ship it." };
+
+  it("pins one resolve per (ticket episode, pipeline role) and memoizes within the tick", async () => {
+    const org = makeOrgHome({ taste: { org: "# Org\n" } });
+    const state = makeOrgHome();
+    const app = makeAppRepo();
+    try {
+      const contextFor = createEpisodeContextResolver({
+        orgHome: org.root,
+        appWorkdir: app.root,
+        app: "alpha",
+        roles: ROLES,
+        stateHome: state.root,
+        turnId: "loop-alpha-1",
+      });
+
+      const build = await contextFor(ITEM, "build");
+      const fix = await contextFor(ITEM, "fix");
+      const review = await contextFor(ITEM, "review");
+      expect(build).toBeDefined();
+      // build and fix share the builder pin (memoized — one resolve record);
+      // review resolves separately with the reviewer role.
+      expect(fix).toBe(build);
+      expect(review).not.toBe(build);
+
+      // The pinned records anchor on the TICKET episode, per role.
+      const builderPin = JSON.parse(
+        readFileSync(
+          resolvedContextPath(state.root, "loop-alpha-1-i7-builder"),
+          "utf8",
+        ),
+      ) as { episode_id: string; role: string };
+      expect(builderPin).toMatchObject({ episode_id: "ep_alpha_ticket_0007", role: "builder" });
+      const reviewerPin = JSON.parse(
+        readFileSync(
+          resolvedContextPath(state.root, "loop-alpha-1-i7-reviewer"),
+          "utf8",
+        ),
+      ) as { episode_id: string; role: string };
+      expect(reviewerPin).toMatchObject({ episode_id: "ep_alpha_ticket_0007", role: "reviewer" });
+
+      // Unknown pipelines fall back to the engine's tick-level context.
+      expect(await contextFor(ITEM, "mystery")).toBeUndefined();
     } finally {
       org.cleanup();
       state.cleanup();

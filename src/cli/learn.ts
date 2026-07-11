@@ -28,6 +28,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
+import { rollupLearningSpend } from "../org/budget.js";
 import { resolveOperonHomes, type OperonHomes } from "../org/home.js";
 import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
 import { projectCaptureEvents, type CaptureProjectionResult } from "../org/learning/capture.js";
@@ -85,6 +86,7 @@ import {
   learnRollback,
   renderVerdictLine,
 } from "./learn-activation.js";
+import { canaryStatusLines, learnCanary, learnExperiment } from "./learn-experiment.js";
 
 export async function cmdLearn(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "learn");
@@ -137,13 +139,20 @@ export async function cmdLearn(args: string[]): Promise<number> {
       return learnRollback(homes, rest);
     case "provisional":
       return learnProvisional(homes, rest);
+    // M5 — offline evaluation and the human-started canary
+    // (learn-experiment.ts).
+    case "experiment":
+      return learnExperiment(homes, rest);
+    case "canary":
+      return learnCanary(homes, rest);
     default:
       throw new Error(
         'learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | ' +
           'show <event|experiment|eval|intervention-id> | ' +
           'fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | report [--json] | ' +
           'review <candidate-id> | publish <candidate-id> | resolve --app <app> --role <role> | ' +
-          'disable <concept-id> | rollback --root org|app | provisional',
+          'disable <concept-id> | rollback --root org|app | provisional | ' +
+          'experiment declare|run|list | canary start|status|promote|stop',
       );
   }
 }
@@ -849,6 +858,27 @@ async function report(
   const open = records.filter((record) => record.status === "open");
   const closed = records.filter((record) => record.status === "closed");
 
+  // M5: learning-budget accountability (design §9.5 — cost per experiment,
+  // cost per accepted improvement) and the canary view.
+  const learningSpend = await rollupLearningSpend(stateHome);
+  const month = new Date().toISOString().slice(0, 7);
+  const improvedThisMonth = evalResults.filter(
+    (result) => result.verdict === "improved" && result.decided_at.startsWith(month),
+  ).length;
+  const costPerExperiment =
+    learningSpend.experimentsThisMonth > 0
+      ? learningSpend.monthUsd / learningSpend.experimentsThisMonth
+      : null;
+  const costPerImprovement =
+    improvedThisMonth > 0 ? learningSpend.monthUsd / improvedThisMonth : null;
+  const canaryLines =
+    policy !== undefined
+      ? await canaryStatusLines(homes, policy).catch((error: Error) => {
+          storeErrors.push(error.message);
+          return [];
+        })
+      : [];
+
   if (json) {
     console.log(
       JSON.stringify(
@@ -883,6 +913,14 @@ async function report(
           ],
           gate_failures: gateFailures,
           human_observations: humans.map((event) => event.event_id),
+          learning_spend: {
+            month_usd: learningSpend.monthUsd,
+            experiments_this_month: learningSpend.experimentsThisMonth,
+            cost_per_experiment: costPerExperiment,
+            cost_per_accepted_improvement: costPerImprovement,
+            by_candidate: Object.fromEntries(learningSpend.byCandidate),
+          },
+          canary_status: canaryLines,
           experiments: experiments.map((experiment) => ({
             experiment_id: experiment.experiment_id,
             status: experiment.status,
@@ -950,8 +988,12 @@ async function report(
         ? `; ${record.outcome.completed ? "completed" : "incomplete"}` +
           `; cost ${record.outcome.cost_estimated ? "~" : ""}$${record.outcome.cost_usd.toFixed(2)}`
         : "";
+    const lineage =
+      record.bundle_lineage !== null && record.bundle_lineage !== undefined
+        ? `; lineage ${record.bundle_lineage}${record.bundle_lineage === "mixed" ? " (STICKINESS VIOLATION — turns disagreed)" : ""}`
+        : "";
     lines.push(
-      `  ${record.episode_id} — ${record.kind} ${record.status}${outcome}; ` +
+      `  ${record.episode_id} — ${record.kind} ${record.status}${outcome}${lineage}; ` +
         `${eventsByEpisode.get(record.episode_id) ?? 0} event(s)`,
     );
   }
@@ -977,9 +1019,29 @@ async function report(
         experiment.result !== null
           ? ` → ${experiment.result} (${verdictFor(experiment, evalById)})`
           : "";
-      lines.push(`  ${experiment.experiment_id} — ${experiment.unit}, ${experiment.status}${suffix}`);
+      const cost = learningSpend.byExperiment.get(experiment.experiment_id);
+      lines.push(
+        `  ${experiment.experiment_id} — ${experiment.unit}, ${experiment.status}${suffix}` +
+          (cost !== undefined ? `; $${cost.toFixed(2)} this month` : ""),
+      );
       lines.push(`    control ${experiment.control.fingerprint_ref} vs treatment ${experiment.treatment.fingerprint_ref}`);
     }
+  }
+  if (learningSpend.monthUsd > 0) {
+    lines.push("", "Learning spend (this month, from the org ledger):");
+    lines.push(
+      `  $${learningSpend.monthUsd.toFixed(2)} across ${learningSpend.experimentsThisMonth} experiment(s)` +
+        (costPerExperiment !== null ? `; cost per experiment $${costPerExperiment.toFixed(2)}` : ""),
+    );
+    lines.push(
+      costPerImprovement !== null
+        ? `  cost per accepted improvement: $${costPerImprovement.toFixed(2)} (${improvedThisMonth} improved verdict(s))`
+        : "  cost per accepted improvement: n/a — no improved verdict this month",
+    );
+  }
+  if (canaryLines.length > 0) {
+    lines.push("", "Canary:");
+    for (const line of canaryLines) lines.push(`  ${line}`);
   }
   if (interventions.length > 0) {
     lines.push("", `Interventions: ${interventions.length}`);

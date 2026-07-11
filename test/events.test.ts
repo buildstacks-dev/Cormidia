@@ -79,6 +79,18 @@ describe("event polling", () => {
     }
   });
 
+  it("rejects inbox filenames containing '::' loudly — reserved for consumption marks", async () => {
+    const home = makeOrgHome({ state: { eventsInbox: { "sf::role::support": HEALTH_ALERT } } });
+    try {
+      const store = new EventStore(home.root);
+      const result = await store.poll(APP, fakeSource({}));
+      expect(result.events).toEqual([]);
+      expect(result.errors.some((e) => e.message.includes("reserved for consumption marks"))).toBe(true);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("routes inbox files under their parsed company-lifecycle kind", async () => {
     const home = makeOrgHome({ state: { eventsInbox: { "alert.json": HEALTH_ALERT } } });
     try {

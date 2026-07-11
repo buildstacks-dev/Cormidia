@@ -9,8 +9,15 @@ import type { Trigger } from "../runtime/types.js";
 import { GhCliOps } from "../loop/github.js";
 import { loadApps, resolveTriggers, type AppEntry, type AppsFile } from "./apps.js";
 import { enforceBudgetOverlay, isOverlayPaused } from "./budget.js";
-import { EventStore, roleConsumedKey, type DueEvent, type GitHubEventSource } from "./events.js";
-import { listJournals, readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
+import {
+  EVENT_KINDS,
+  EventStore,
+  roleConsumedKey,
+  type DueEvent,
+  type EventKind,
+  type GitHubEventSource,
+} from "./events.js";
+import { listJournals, readJournal, writeJournalPatch, type TurnEvent, type TurnJournal } from "./journal.js";
 import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./locks.js";
 import { recoverStaleTurn } from "./recovery.js";
 import { loadRoles, type RolesFile } from "./roles.js";
@@ -57,6 +64,9 @@ export interface DueTurn {
   triggerKind: keyof Trigger;
   trigger: string;
   eventKey?: string;
+  /** Full triggering event, persisted into the turn journal at spawn so the
+   *  turn's briefs can quote the original payload with provenance (issue #26). */
+  event?: TurnEvent;
 }
 
 /** An event whose every current subscriber holds a per-role consumption mark;
@@ -181,6 +191,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       attempt: 0,
       triggerKind: turn.triggerKind,
       trigger: turn.trigger,
+      ...(turn.event !== undefined ? { event: turn.event } : {}),
       pid: lock.lock.pid,
     }, now());
 
@@ -334,6 +345,33 @@ function eventTurn(app: AppEntry, role: string, trigger: string, event: DueEvent
     triggerKind: "event",
     trigger,
     eventKey: event.key,
+    event: {
+      kind: event.kind,
+      key: event.key,
+      // GitHub events keep their transport kind; file-drop inbox events carry
+      // the parsed company-lifecycle kind, which is never in EVENT_KINDS.
+      source: EVENT_KINDS.includes(event.kind as EventKind) ? "github-poll" : "file-drop-inbox",
+      payload: journalEventPayload(event),
+    },
+  };
+}
+
+/** Journals are read by listJournals on every tick and rendered into every
+ *  pass brief, and the company-event schema puts no upper bound on payload
+ *  size — so an oversized payload is summarized instead of copied. The full
+ *  content stays at the event source (the inbox file is never deleted;
+ *  GitHub payloads are always small). */
+const MAX_EVENT_PAYLOAD_BYTES = 16 * 1024;
+
+function journalEventPayload(event: DueEvent): Record<string, unknown> {
+  const raw = JSON.stringify(event.payload);
+  const bytes = Buffer.byteLength(raw, "utf8");
+  if (bytes <= MAX_EVENT_PAYLOAD_BYTES) return event.payload;
+  return {
+    truncated: true,
+    original_bytes: bytes,
+    note: `payload exceeded ${MAX_EVENT_PAYLOAD_BYTES} bytes; full content remains at the event source (${event.key})`,
+    preview: raw.slice(0, 2048),
   };
 }
 

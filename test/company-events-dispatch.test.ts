@@ -4,7 +4,7 @@
 // Uses temp inboxes and synthetic apps.yaml with repo-local roles.yaml; no
 // network, auth, real org state, or live clock is required.
 
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -203,6 +203,7 @@ describe("multi-subscriber fan-out under WIP limits (issue #25)", () => {
     const rolesPath = join(home.root, "roles.yaml");
     writeFileSync(rolesPath, opts.rolesYaml ?? TWO_SUBSCRIBERS, "utf8");
     const spawned: string[] = [];
+    const spawnInputs: Array<{ role: string; app: string; turnId: string }> = [];
     const tick = (overrides: Parameters<typeof dispatchTick>[0] = {}) =>
       dispatchTick({
         runtimeHome: home.root,
@@ -210,12 +211,13 @@ describe("multi-subscriber fan-out under WIP limits (issue #25)", () => {
         rolesPath,
         now: () => new Date("2026-07-06T10:00:00Z"),
         eventSource: emptySource(),
-        spawn: async ({ role }) => {
-          spawned.push(role);
+        spawn: async (input) => {
+          spawned.push(input.role);
+          spawnInputs.push(input);
         },
         ...overrides,
       });
-    return { home, appsPath, rolesPath, spawned, tick, store: new EventStore(home.root) };
+    return { home, appsPath, rolesPath, spawned, spawnInputs, tick, store: new EventStore(home.root) };
   }
 
   it("one event reaches both subscribers when the WIP limit splits them across ticks", async () => {
@@ -292,6 +294,48 @@ describe("multi-subscriber fan-out under WIP limits (issue #25)", () => {
       expect(f.spawned).toHaveLength(1); // no re-fire
       expect(swept.skipped.join("\n")).toContain("(sf.json) retired");
       expect(await f.store.readConsumed()).toContain("sf.json");
+    } finally {
+      f.home.cleanup();
+    }
+  });
+
+  it("persists the triggering event payload into every spawned turn's journal (issue #26)", async () => {
+    const f = fanoutHome({ withChannels: true });
+    try {
+      await f.tick();
+      expect(f.spawnInputs.length).toBeGreaterThan(0);
+      for (const input of f.spawnInputs) {
+        const journal = JSON.parse(
+          readFileSync(join(f.home.root, "state", "turns", `${input.turnId}.json`), "utf8"),
+        ) as { event?: { kind: string; key: string; source: string; payload: Record<string, unknown> } };
+        expect(journal.event).toMatchObject({
+          kind: "support-feedback",
+          key: "sf.json",
+          source: "file-drop-inbox",
+        });
+        expect(journal.event?.payload["summary"]).toBe(SUPPORT_FEEDBACK.summary);
+      }
+    } finally {
+      f.home.cleanup();
+    }
+  });
+
+  it("summarizes an oversized event payload instead of copying it into the journal", async () => {
+    // CJK on purpose: ~16k code units but ~48k UTF-8 bytes — the cap must
+    // measure bytes, not string length.
+    const f = fanoutHome({
+      withChannels: true,
+      inbox: { "big.json": { ...SUPPORT_FEEDBACK, summary: "あ".repeat(16_000) } },
+    });
+    try {
+      await f.tick();
+      expect(f.spawnInputs.length).toBeGreaterThan(0);
+      const journal = JSON.parse(
+        readFileSync(join(f.home.root, "state", "turns", `${f.spawnInputs[0]!.turnId}.json`), "utf8"),
+      ) as { event?: { payload: Record<string, unknown> } };
+      expect(journal.event?.payload["truncated"]).toBe(true);
+      expect(journal.event?.payload["note"]).toContain("big.json");
+      expect(JSON.stringify(journal.event?.payload).length).toBeLessThan(4096);
     } finally {
       f.home.cleanup();
     }

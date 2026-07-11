@@ -82,6 +82,35 @@ export interface ApprovalGrant {
 /** Rules the human may never widen beyond single-use (amendment A1): the
  *  review boundary, production deploys, the org's own protocol surfaces, and
  *  the gate's root of trust. */
+/** A1 scope semantics: `pathContains` is a repo-local path bound, not a bare
+ *  substring. An occurrence matches only when the path TOKEN containing it is
+ *  repo-relative: the token may be nested (`config/credentials.json`,
+ *  `./secrets.json`) but is rejected when it is rooted at `/`, `~`, or an
+ *  env indirection (`$HOME/...`), contains a parent escape (`..`), or is a
+ *  URL. Without this, a grant the human scoped to a repo file (`.npmrc`)
+ *  would silently authorize its user-global variant (`~/.npmrc`) — the exact
+ *  boundary Stage 6 calibration keeps critical (found by the 2026-07-11
+ *  approver rehearsal). */
+export function pathBoundaryMatch(actionText: string, pathContains: string): boolean {
+  const text = actionText.toLowerCase();
+  const needle = pathContains.toLowerCase();
+  if (needle.length === 0) return false;
+  const isTokenBoundary = (ch: string) => /[\s"'=([{,]/.test(ch);
+  for (let i = text.indexOf(needle); i !== -1; i = text.indexOf(needle, i + 1)) {
+    let tokenStart = i;
+    while (tokenStart > 0 && !isTokenBoundary(text[tokenStart - 1]!)) tokenStart--;
+    const prefix = text.slice(tokenStart, i);
+    const escapesRepo =
+      prefix.startsWith("/") ||
+      prefix.startsWith("~") ||
+      prefix.startsWith("$") ||
+      prefix.includes("://") ||
+      prefix.includes("..");
+    if (!escapesRepo) return true;
+  }
+  return false;
+}
+
 export const NEVER_SCOPEABLE_RULES: readonly string[] = [
   "self-merge-or-approve",
   "production-deploy",
@@ -316,12 +345,12 @@ export class ApprovalStore {
         continue;
       }
       // Scoped grant: same rule, same ticket when ticket-scoped, and the
-      // path substring (when set) present in the action text.
+      // path (when set) present in the action text at a repo-local boundary.
       if (input.rule === undefined || grant.scope.rule !== input.rule) continue;
       if (grant.scope.kind === "ticket" && grant.scope.ticketRef !== input.ticketRef) continue;
       if (
         grant.scope.pathContains !== undefined &&
-        !(input.actionText ?? "").includes(grant.scope.pathContains)
+        !pathBoundaryMatch(input.actionText ?? "", grant.scope.pathContains)
       ) {
         continue;
       }

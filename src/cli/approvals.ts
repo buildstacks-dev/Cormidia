@@ -12,6 +12,7 @@ import {
   type ApprovalItem,
   type DecideApprovalInput,
 } from "../org/approvals.js";
+import { appendDenialLesson } from "../org/denial-lessons.js";
 import { loadApps } from "../org/apps.js";
 import { GhCliOps } from "../loop/github.js";
 import { resolveOperonHomes } from "../org/home.js";
@@ -133,18 +134,39 @@ async function reviewQueue(store: ApprovalStore, orgHome: string, batch: boolean
         for (const item of group) {
           await store.decide(item.id, { decision: "denied", reason });
           console.log(`denied ${item.id}`);
+          // A5: EVERY human denial reason persists as role memory — not only
+          // the composed gate's role-forbidden flat denies. Without this, the
+          // same CLI denial is re-litigated next pass (the episode made the
+          // identical denial eight times).
+          const recorded = appendDenialLesson(orgHome, item.role, {
+            app: item.app,
+            rule: item.rule,
+            reason,
+            at: new Date().toISOString(),
+          });
+          if (recorded) console.log(`lesson recorded for role ${item.role}`);
         }
         continue;
       }
       for (const item of group) {
-        const decided = await store.decide(item.id, {
-          decision: "approved",
-          ...(decision.scope !== undefined ? { scope: decision.scope } : {}),
-        });
-        console.log(
-          `approved ${item.id}${decided.grantId ? ` grant=${decided.grantId}` : ""}` +
-            (decision.scope !== undefined ? ` scope=${decision.scope.kind}` : ""),
-        );
+        // One wrong answer must not kill the review session: a scope request
+        // on a never-scopeable rule throws — report it, leave the item
+        // pending, and continue with the rest of the queue.
+        try {
+          const decided = await store.decide(item.id, {
+            decision: "approved",
+            ...(decision.scope !== undefined ? { scope: decision.scope } : {}),
+          });
+          console.log(
+            `approved ${item.id}${decided.grantId ? ` grant=${decided.grantId}` : ""}` +
+              (decision.scope !== undefined ? ` scope=${decision.scope.kind}` : ""),
+          );
+        } catch (error) {
+          console.log(
+            `NOT decided ${item.id}: ${error instanceof Error ? error.message : String(error)} ` +
+              `— still pending, review it again`,
+          );
+        }
       }
       // A2 approve-and-rearm: continue the parked ticket from its artifacts.
       const ticketed = group.find((item) => item.ticketRef !== undefined);

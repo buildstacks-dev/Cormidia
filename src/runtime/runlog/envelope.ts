@@ -58,6 +58,10 @@ export interface RunEnvelope {
   status: EnvelopeStatus;
   started_at: string;
   finished_at?: string;
+  /** Heartbeat: stamped periodically while the pass runs, so a reader can
+   *  tell a live pass from a hung one (Stage 3) — the episode lost five
+   *  hours to a stall indistinguishable from progress. */
+  last_seen_at?: string;
   wall_clock_ms?: number;
   usage?: EnvelopeUsage;
   /** tool name → call count. Never args (§9) — those live hashed in L2. */
@@ -95,6 +99,8 @@ export interface EnvelopePatch {
   tool_counts?: Record<string, number>;
   gate_results?: GateResultEntry[];
   previews?: Record<string, string>;
+  /** Heartbeat stamp (ISO). */
+  lastSeenAt?: string;
 }
 
 export interface FinalizeOutcome {
@@ -149,6 +155,7 @@ export async function updateEnvelope(
   }
 
   if (patch.usage !== undefined) envelope.usage = patch.usage;
+  if (patch.lastSeenAt !== undefined) envelope.last_seen_at = patch.lastSeenAt;
   if (patch.gate_results !== undefined) envelope.gate_results = patch.gate_results;
   if (patch.tool_counts !== undefined) {
     envelope.tool_counts = { ...envelope.tool_counts, ...patch.tool_counts };

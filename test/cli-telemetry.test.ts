@@ -21,6 +21,7 @@ interface EnvOverrides {
   model?: string;
   usage?: Record<string, unknown>;
   previews?: Record<string, string>;
+  lastSeenAt?: string;
 }
 
 function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
@@ -36,6 +37,7 @@ function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
     model: over.model ?? "model-a",
     status: over.status ?? "completed",
     started_at: started,
+    ...(over.lastSeenAt !== undefined ? { last_seen_at: over.lastSeenAt } : {}),
     finished_at: started,
     wall_clock_ms: 60000,
     usage: over.usage ?? { tokens_in: 100, tokens_out: 20, cost_usd: 0.1 },
@@ -153,12 +155,20 @@ describe("cmdTelemetry terminal view", () => {
     }
   });
 
-  it("lists running envelopes in a still-running section with the Stage 3 caveat", async () => {
+  it("lists running envelopes with heartbeat-derived liveness (Stage 3)", async () => {
     const home = makeOrgHome({
       runs: {
         records: {
           alpha: {
             live1: { envelope: env("live1", "2026-07-04T10:00:00Z", { ticket: "#9", status: "running" }), events: [] },
+            live2: {
+              envelope: env("live2", "2026-07-04T10:00:00Z", {
+                ticket: "#9",
+                status: "running",
+                lastSeenAt: "2026-07-04T10:05:00Z",
+              }),
+              events: [],
+            },
           },
         },
       },
@@ -166,8 +176,11 @@ describe("cmdTelemetry terminal view", () => {
     try {
       const { out } = await run(["--home", home.root]);
       expect(out).toContain("STILL RUNNING");
-      expect(out).toContain("heartbeats land in Stage 3");
-      expect(out).toContain("live1");
+      // No heartbeat recorded → unknown; an old heartbeat → stalled with the
+      // last stamp. (A "live" pass needs a heartbeat within 3m of now — not
+      // constructible from a fixed fixture date.)
+      expect(out).toMatch(/live1.*unknown \(no heartbeat\)/);
+      expect(out).toMatch(/live2.*stalled \(last heartbeat 2026-07-04T10:05:00Z\)/);
     } finally {
       home.cleanup();
     }

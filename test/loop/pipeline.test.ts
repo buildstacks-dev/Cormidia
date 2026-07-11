@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { executePipeline, type ExecutePipelineOptions } from "../../src/loop/pipeline.js";
-import { getPipeline, loadPipelines, type PipelinesFile } from "../../src/loop/pipelines.js";
+import { getPipeline, loadPipelines, type PipelineConfig, type PipelinesFile } from "../../src/loop/pipelines.js";
 import { readEnvelope } from "../../src/runtime/runlog/envelope.js";
 import { readEvents, reconstructSpanTree } from "../../src/runtime/runlog/events.js";
 import { runPaths } from "../../src/runtime/runlog/paths.js";
@@ -313,6 +313,36 @@ describe("executePipeline", () => {
         costUsd: 7.02,
         costEstimated: true,
       });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("wall-clock watchdog abandons a hung pass: failed envelope, distinct code, unmeasured row", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    // A pass whose runtime never resolves, capped at ~30ms.
+    const hung: PipelineConfig = {
+      ...build,
+      passes: build.passes.map((p) => ({ ...p, wallClockMinutes: 0.0005 })),
+    };
+    const never: Runtime = { kind: "claude", runTurn: () => new Promise(() => {}) };
+    const h = makeHarness(hung, [], { runtimeFor: () => never, selection: { tier: "quick" } });
+    h.options.telemetry = { orgDir: h.options.runlog.root, trigger: "manual" };
+    try {
+      const run = await executePipeline(h.options);
+      expect(run.aborted).toBe(true);
+      const record = run.passes[0]!;
+      expect(record.result.status).toBe("failed");
+      expect(record.result.errorCode).toBe("error_wall_clock_exceeded");
+
+      const env = await readEnvelope(h.options.runlog.root, "civic", record.runId);
+      expect(env.status).toBe("failed");
+      expect(env.error_code).toBe("error_wall_clock_exceeded");
+
+      // The abandoned turn's spend is unknown, not zero — the ledger says so.
+      const raw = readFileSync(`${h.options.runlog.root}/telemetry/2026-07-05.jsonl`, "utf8");
+      const row = JSON.parse(raw.trimEnd()) as Record<string, unknown>;
+      expect(row).toMatchObject({ status: "failed", unmeasured: true, costUsd: 0 });
     } finally {
       h.cleanup();
     }

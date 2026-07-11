@@ -27,6 +27,9 @@ export interface StatusRow {
   costEstimated: boolean;
   escalations: number;
   startedAt: string;
+  /** Heartbeat stamp (Stage 3) — present while (and after) the executor's
+   *  30s heartbeat ran, so a reader can tell live from stalled. */
+  lastSeenAt?: string;
   /** Truncated + scrubbed at write time (envelope.ts) — safe to display. */
   verdictSummary?: string;
   previews?: Record<string, string>;
@@ -78,6 +81,7 @@ export async function readStatusRows(
         costEstimated: envelope.usage?.cost_estimated === true,
         escalations: events.filter((event) => event.event === "escalation.raised").length,
         startedAt: envelope.started_at,
+        ...(envelope.last_seen_at !== undefined ? { lastSeenAt: envelope.last_seen_at } : {}),
         ...(envelope.verdict_summary !== undefined ? { verdictSummary: envelope.verdict_summary } : {}),
         ...(envelope.previews !== undefined ? { previews: envelope.previews } : {}),
       });

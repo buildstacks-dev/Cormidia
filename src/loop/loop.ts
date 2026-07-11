@@ -11,6 +11,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import type { ContextBundle, RoleConfig, Runtime, TurnHooks, TurnUsage } from "../runtime/types.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
+import { scrubSecrets } from "../runtime/runlog/redact.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
 import { contractMarker, hashTicketBody, renderFixResolutionsComment } from "./rehydrate.js";
@@ -262,15 +263,40 @@ async function recordGateResult(rec: PhaseRun | undefined, result: GateRunResult
     if (gate.status === "pass") {
       await rec.events.append({ type: "gate.passed", detail: { gate: gate.gate, detail: gate.detail } });
     } else if (gate.status === "fail") {
-      await rec.events.append({ type: "gate.failed", severity: "error", detail: { gate: gate.gate, detail: gate.detail } });
+      // Retain the exact command and a bounded output tail in the durable
+      // record: "setup failed (exit 1)" alone forced a costly model turn to
+      // rediscover the cause in the 2026-07-10 episode (Stage 3). The event
+      // writer scrubs detail strings; the tail is already size-bounded.
+      await rec.events.append({
+        type: "gate.failed",
+        severity: "error",
+        detail: {
+          gate: gate.gate,
+          detail: gate.detail,
+          ...(gate.command !== undefined ? { command: gate.command } : {}),
+          ...(gate.outputTail !== undefined ? { outputTail: boundTail(gate.outputTail) } : {}),
+        },
+      });
     }
   }
   await rec.setGateResults(result.results.map(toGateResultEntry));
 }
 
+const GATE_TAIL_EVENT_BOUND = 2_000;
+
+function boundTail(tail: string): string {
+  return tail.length <= GATE_TAIL_EVENT_BOUND ? tail : `…${tail.slice(-GATE_TAIL_EVENT_BOUND)}`;
+}
+
 function toGateResultEntry(gate: GateResult): GateResultEntry {
   const status = gate.status === "pass" ? "passed" : gate.status === "fail" ? "failed" : "skipped";
-  return { gate: gate.gate, status, detail: gate.detail };
+  // Envelopes are L1 (export-eligible): the failing command and its bounded
+  // tail ride along, scrubbed — remediation must never need a model turn just
+  // to learn what the gate saw (Stage 3).
+  const parts = [gate.detail];
+  if (status === "failed" && gate.command !== undefined) parts.push(`$ ${gate.command}`);
+  if (status === "failed" && gate.outputTail !== undefined) parts.push(boundTail(gate.outputTail));
+  return { gate: gate.gate, status, detail: scrubSecrets(parts.join("\n")) };
 }
 
 export async function advanceReviewing(
@@ -423,7 +449,55 @@ export async function runBuilderPipeline(
     },
   });
 
-  if (result.aborted) throw new Error(`${pipelineName} pipeline aborted before completion`);
+  if (result.aborted) {
+    // Honest terminal handling (Stage 3): report BOTH the turn outcome and
+    // the durable-work outcome, and leave the ticket in a recoverable state.
+    // The episode's final $30 fix pass had already pushed its commit when the
+    // budget cap killed it; the bare "failed" invited a needless full re-run,
+    // and the stranded op:building label needed a human relabel to recover.
+    // Remediation-context aborts (gateResult present) keep throwing —
+    // advanceGates owns that loop's bookkeeping.
+    if (options.gateResult === undefined) {
+      const last = result.passes[result.passes.length - 1]?.result;
+      const work = durableWorkSummary(worktree, item.branch);
+      const stopped =
+        `## Turn stopped before completion\n\n` +
+        `The ${pipelineName} pipeline stopped: ${last?.summary ?? "no pass result"}` +
+        `${last?.errorCode !== undefined ? ` (\`${last.errorCode}\`)` : ""}.\n\n` +
+        `**Durable work preserved:** ${work}\n\n`;
+      if (last?.status === "blocked_on_gate") {
+        // An approval wait, not a defect: op:blocked is the approval path.
+        await options.gh.commentIssue(
+          item.issueNumber,
+          `${stopped}Waiting on the pending approval (\`operon approvals\`); the ticket re-arms after the decision.`,
+        );
+        await options.gh.swapLabel(item.issueNumber, stateLabelForPhase(item.phase), "op:blocked");
+        return {
+          ...item,
+          ...(contract !== undefined ? { contract } : {}),
+          labels: replaceLabel(item.labels, stateLabelForPhase(item.phase), "op:blocked"),
+          phase: "blocked",
+        };
+      }
+      // A stopped turn is not lost work: re-arm op:ready so the next tick
+      // continues from the durable artifacts. The cross-claim cap (default 3)
+      // bounds this — the human is summoned with a digest, never used as the
+      // retry loop.
+      await options.gh.commentIssue(
+        item.issueNumber,
+        `${stopped}Re-armed \`op:ready\`: the next claim continues from these artifacts ` +
+          `(contract reused while the ticket body is unchanged; open PR consulted before pipeline selection).`,
+      );
+      await options.gh.swapLabel(item.issueNumber, stateLabelForPhase(item.phase), "op:ready");
+      return {
+        ...item,
+        ...(contract !== undefined ? { contract } : {}),
+        labels: replaceLabel(item.labels, stateLabelForPhase(item.phase), "op:ready"),
+        phase: "ready",
+      };
+    }
+    throw new Error(`${pipelineName} pipeline aborted before completion`);
+  }
 
   // Fix verdicts carry per-finding dispositions; post them durably so the
   // findings ledger survives the pass (verdicts otherwise live only in the
@@ -1338,6 +1412,25 @@ function phaseFromLabels(labels: readonly string[]): LoopPhase {
   if (labels.includes("op:returned")) return "returned";
   if (labels.includes("op:blocked")) return "blocked";
   return "ready";
+}
+
+/** What survives a stopped turn: commits on the ticket branch and whether
+ *  they reached the remote. Read-only; a broken worktree degrades to a note. */
+function durableWorkSummary(worktree: string, branch: string | undefined): string {
+  try {
+    const ahead = git(worktree, "rev-list", "--count", "origin/main..HEAD");
+    if (ahead.trim() === "0") return "no commits beyond origin/main";
+    let pushed = "unpushed";
+    try {
+      const unpushed = git(worktree, "rev-list", "--count", "@{u}..HEAD");
+      pushed = unpushed.trim() === "0" ? "pushed" : `${unpushed.trim()} commit(s) unpushed`;
+    } catch {
+      // No upstream — nothing pushed yet.
+    }
+    return `${ahead.trim()} commit(s) on ${branch ?? "the ticket branch"} (${pushed})`;
+  } catch {
+    return "(worktree state unreadable)";
+  }
 }
 
 function stateLabelForPhase(phase: LoopPhase): string {

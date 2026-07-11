@@ -194,10 +194,20 @@ function formatWall(view: PassView): string {
   return view.running ? "—" : formatDuration(view.durationMs);
 }
 
-/** In-flight and hung passes are indistinguishable until Stage 3 heartbeats
- *  land — both are `running` envelopes with no terminating event. */
-const RUNNING_CAVEAT =
-  "in-flight or hung — which is unknowable until heartbeats land in Stage 3";
+/** A running pass with a heartbeat younger than this reads as live; older
+ *  (or absent — pre-Stage-3 records) reads as stalled/unknown. Three missed
+ *  30-second heartbeats is decisively not "briefly busy". */
+const STALL_AFTER_MS = 3 * 60 * 1000;
+
+const RUNNING_CAVEAT = "live = heartbeat within 3m; stalled = heartbeat stopped; unknown = no heartbeat recorded";
+
+function livenessLabel(view: PassView, now: Date): string {
+  if (view.lastSeenAt === undefined) return "unknown (no heartbeat)";
+  const age = now.getTime() - new Date(view.lastSeenAt).getTime();
+  return age <= STALL_AFTER_MS
+    ? "live"
+    : `stalled (last heartbeat ${view.lastSeenAt})`;
+}
 
 // ---------------------------------------------------------------------------
 // terminal renderer
@@ -237,9 +247,12 @@ function renderTerminal(report: TelemetryReport): string {
   }
 
   if (report.running.length > 0) {
+    const now = new Date();
     lines.push("", `STILL RUNNING (${RUNNING_CAVEAT})`);
     for (const view of report.running) {
-      lines.push(`  ${view.runId}  ${view.app}  ${view.pipeline}/${view.pass}  started ${view.startedAt}`);
+      lines.push(
+        `  ${view.runId}  ${view.app}  ${view.pipeline}/${view.pass}  started ${view.startedAt}  ${livenessLabel(view, now)}`,
+      );
     }
   }
   return lines.join("\n");

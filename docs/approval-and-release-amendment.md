@@ -1,10 +1,12 @@
 # Approval & Release Boundary Amendment (Stage 5)
 
-Status: proposal, 2026-07-10. Documentation only — no approval or release
-code changes ride with this document (Stage 6 implements it after
-ratification). Companion to `docs/proportionality-review.md` §5 Stage 5;
-supersedes, where stated, parts of PURPOSE's 2026-07-04/06 approval
-decisions.
+Status: ratified 2026-07-10 (docs/PURPOSE.md → Decided) and implemented —
+A1 scoped grants (`src/org/approvals.ts`), A2 approve-and-rearm, A3 batch
+review, A4 release handoff (`src/org/release.ts` + ship-gate P7), and A5
+durable denial lessons are all live; A4's deploy-command execution is the
+open follow-up (issue #18). Companion to `docs/proportionality-review.md`
+§5 Stage 5; supersedes, where stated, parts of PURPOSE's 2026-07-04/06
+approval decisions.
 
 ## Why amend
 

@@ -167,7 +167,7 @@ src/loop/      pass pipelines, briefs, quality gates, verdict parsing, and
                the ticket -> PR -> review -> merge state machine
 src/org/       app registry, bootstrap, co-planning, dispatch, approvals,
                budget overlays, trigger routing, context, memory, scorecards,
-               retro
+               retro, and the governed learning loop (src/org/learning/)
 src/cli/       one module per subcommand; src/cli.ts is a thin dispatch table
 test/          adapter conformance, gate, pipelines, bootstrap, qgates, CLI
 research/      decision records
@@ -225,43 +225,23 @@ monthly cap refuses to claim before any pass starts. `operon budget
 --reconcile` back-fills the ledger from run envelopes (idempotent).
 Subscription-backed provider costs are Operon-computed equivalent-cost
 estimates, flagged as such on every row. `operon telemetry --app <app>
-[--html out.html]` renders the run view. `operon learn` is the learning
-loop's human window: `report` for totals, episode records, experiments, and
-intervention lineage (an unevaluated activation always renders as
-`authorized (unproven)`), `inspect <episode-id>` for one episode's full
-record (turns, gates, outcome, ledger cost, replay capsule), `emit` to
-record an observation or an append-only late outcome (`--late-outcome
-<kind> --ref <ref>`), `show <id>` to trace an event, candidate, experiment,
-eval result, or intervention to its disposition, and `fixture <episode-id>
---set <scope>/<set>` to convert a closed build episode's capsule into a
-sanitized eval fixture (`--validate --by <someone-else>` records the
-independent validation that makes it trusted). The M4 activation verbs:
-`review <candidate-id>` records a fail-closed reviewer verdict, `publish
-<candidate-id>` routes it proportionally (tickets and proposal drafts
-publish routinely, deduped and rate-capped; activation into context and
-T2/T3 raise a content-bound approval and publish only after the human
-approves), `resolve --app <app> --role <role>` dry-runs the governed-concept
-resolver, `disable <concept-id>` deprecates a concept for every subsequent
-turn (in-flight turns keep their pin), `rollback --root org|app` reverts the
-latest bundle version cut, and `provisional` quarantines an urgent
-human-authored concept under an UNVERIFIED label with a hard TTL. The M5
-evaluation verbs spend model tokens in the design §9.5 funnel: `experiment
-declare --candidate <id> --evals <scope>/<set> --hypothesis "<why>"` builds
-both arm fingerprints and persists the declared-before-results record;
-`experiment run <exp-id>` executes deterministic prechecks (trusted fixtures
-only, repetition cap, fingerprint drift, budget preflight), then a targeted
-paired builder eval, then full paired control/treatment replays in seed
-worktrees — early-stopping on a held-in failure or guardrail trip, halting
-between pairs at the learning-budget caps, and deciding the verdict from
-whatever pairs ran. Replay turns settle into the org ledger with
-experiment/candidate attribution; `operon budget` renders the learning
-overlay (monthly cap, per-candidate replay caps). `canary start
-<intervention-id>` begins the human-started, tier-gated live trial
-(episode-sticky assignment by hash of episode id; a T3 live canary is
-unrepresentable in policy), `canary status` reports outcomes by lineage with
-the promote-rule recommendation (insufficient volume reads `inconclusive` —
-human judgment, never limbo), and `canary promote` / `canary stop` advance
-stable or roll the trial back.
+[--html out.html]` renders the run view.
+
+`operon learn` is the learning loop's human window; `operon learn --help`
+has the full argument semantics. The capture verbs (`report`, `inspect
+<episode-id>`, `show <id>`, `emit`, `fixture`) read and annotate episodes
+and convert closed episodes into eval fixtures (trusted only after an
+independent `--validate --by <someone-else>`). The M4 activation verbs
+(`review`, `publish`, `resolve`, `disable`, `rollback`, `provisional`)
+drive manual governed activation: review fails closed, activation into
+context or T2/T3 raises a content-bound approval, and nothing
+self-activates. The M5 evaluation verbs (`experiment declare|run|list`,
+`canary start|status|promote|stop`) run the design-§9.5 offline funnel —
+paired control/treatment replays in seed worktrees, early stopping, spend
+settled into the org ledger and capped by the learning budget `operon
+budget` renders — and the human-started, episode-sticky live canary (a T3
+live canary is unrepresentable in policy; insufficient volume reads
+`inconclusive` — human judgment, never limbo).
 
 ## Status
 
@@ -277,9 +257,14 @@ token-free environment preflight, one-pass proportional bootstrap planning
 published by the orchestrator, a ratified approval & release boundary (scoped
 grants, release handoff, adapter-level role toolset shaping), and a
 repeatable clean-room benchmark
-([`docs/benchmark-runbook.md`](docs/benchmark-runbook.md)). The latest dated
-live evidence is
-[`research/2026-07-10_stage7-live-conformance-and-benchmark.md`](research/2026-07-10_stage7-live-conformance-and-benchmark.md);
+([`docs/benchmark-runbook.md`](docs/benchmark-runbook.md)). On top of that
+substrate, a governed learning loop
+([`docs/learning-loop/`](docs/learning-loop/), ratified 2026-07-11) is built
+and live through M5: every pass is captured into episodes and replay
+capsules, and learned changes activate only through human review, offline
+paired-replay evaluation, and a human-started canary (M6 scheduled
+distillation is open). The latest dated live evidence is
+[`research/2026-07-11_adapter-tool-events.md`](research/2026-07-11_adapter-tool-events.md);
 open work lives in the [issue tracker](https://github.com/buildstacks-dev/Operon/issues).
 
 `docs/capability-matrix.md` records each adapter's native, adapter-built, and
@@ -287,12 +272,13 @@ degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
 
 ### Known limitations
 
-- **Tool-level telemetry is partial.** The L2 event bridge is wired, but the
-  adapters do not yet emit `tool_use` turn events, so `envelope.tool_counts`
-  stays empty and the `bash_heavy` / `environment_retry` anomaly detectors
-  cannot fire. The other three detectors (`low_tokens_high_time`,
-  `single_turn_long_run`, `cold_cache`) work off envelope fields that are
-  written.
+- **Tool-event outcomes are partial on Claude and pi.** All three adapters
+  emit `tool_use` turn events (issue #27, live-verified 2026-07-11 —
+  `research/2026-07-11_adapter-tool-events.md`), so `envelope.tool_counts`
+  is populated and all five anomaly detectors can fire. But Claude and pi
+  surface tool calls before execution, so their events carry no
+  `success`/`durationMs` outcome fields; per-tool failure and latency
+  analytics are Codex-only for now.
 - **Interactive co-planning usage is unmeasured.** Interactive `operon plan`
   spawns the native `claude` CLI with inherited stdio, so session tokens never
   flow through Operon; those ledger rows carry an explicit `unmeasured: true`

@@ -89,9 +89,11 @@ the setup gate, per-app clone serialization, kind-based company-event
 routing, and the delta from-scratch onboarding). Real-application onboarding
 is not gated behind a single "build-complete" moment: the first production
 app, **buildstacks.dev**, is registered in `apps.yaml` at
-`status: onboarding` — currently frozen as the proportionality benchmark
-baseline (docs/proportionality-review.md §5 Stage 7); it re-enters as the
-production confirmation once the sandbox benchmark meets its targets.
+`status: onboarding` — frozen as the proportionality benchmark baseline
+(docs/proportionality-review.md §5 Stage 7). The sandbox benchmark met its
+targets on 2026-07-11 (round 2, docs/proportionality-review.md §7); its
+re-entry as the production confirmation is now an open disposition
+(issue #17) awaiting a human go.
 
 ## What the current test apps cover — and what they don't
 

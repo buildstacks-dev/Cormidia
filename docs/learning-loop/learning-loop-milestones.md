@@ -6,6 +6,18 @@ loop design); revised per the consolidated design feedback of 2026-07-10
 post-proportionality codebase on 2026-07-11  
 **Companions:** `learning-loop-design.md`, `learning-loop-spec.md`
 
+**Build status (2026-07-11):**
+
+| Milestone | Status |
+| --- | --- |
+| Preflight | Done — PRs #29, #30, #31, #32 (all rebased items landed) |
+| M1 (+M1b) | Done — PRs #37, #39, #40; M1b PR #38 |
+| M2 | Done — PRs #44, #45, #46 |
+| M3 | Done — PR #48 |
+| M4 | Done — PR #50; the `cacheReadTokens > 0` two-pass case lives in the live suite only (`test/runtime/claude-sdk.live.test.ts`) — the offline suite pins byte-identical rendering (`test/learning/resolver.test.ts`) |
+| M5 | Done — PR #52 |
+| M6 | Open |
+
 The cadence follows one rule:
 
 > Autonomy is earned by measurement, never granted by release.
@@ -37,31 +49,24 @@ them. The rebased split:
   conformance test that a killed pass is distinguishable and reconcilable —
   the episode projector depends on it to close episodes truthfully.
 
-**Still open — tickets that block capture becoming authoritative:**
+**Since landed — the tickets that blocked capture becoming authoritative
+(all three closed before M1):**
 
-- **Event fan-out fix**: one file-drop event that matches multiple roles must
-  not be consumed after the first spawned turn.  
-  *Anchor:* co-subscribed roles share one `eventKey`; `markConsumed` runs
-  after each spawn (`src/org/dispatch.ts`), so when WIP capacity pushes the
-  second subscriber to a later tick, the next poll filters the consumed key
-  out before it runs.  
-  *Fix shape:* consume per `(eventKey, role)`, or defer `markConsumed` until
-  every subscribed role has spawned or explicitly skipped. Test: two
-  subscribers, `max_concurrent_turns` forcing the second onto a later tick.
-- **Dispatched role briefs include the original event payload, with
-  provenance.**  
-  *Anchor:* dispatch spawns only `{role, app, turnId, runtimeHome}`;
-  `protocolBrief` (`src/org/turn-runner.ts`) renders trigger metadata only.  
-  *Fix shape:* persist the payload (or its inbox path) into the dispatch
-  journal and spawn args; render into the brief with a provenance stamp. Also
-  feeds the resolver's selection text (spec §8.1).
-- **Runtime adapters emit enough `tool_use` events for the existing L2 bridge
-  and tool-count anomaly detectors to work.**  
-  *Anchor:* adapters emit only `subagent` events today
-  (`src/runtime/adapters/claude.ts`, `codex.ts`); the L2 bridge in
-  `src/loop/pipeline.ts` (`flushBridgedEvents`) is ready but receives no
-  named `tool_use` events, so `tool_counts` stays empty, `bash_heavy` reads a
-  constant 0, and nothing ever sets `category: "environment_retry"`.
+- **Event fan-out consumes per `(eventKey, role)`.** One file-drop event that
+  matches multiple roles now survives WIP-limited ticks: each spawn marks
+  consumption for its own role only (`roleConsumedKey`,
+  `src/org/events.ts:67`; `src/org/dispatch.ts:227`), and the bare key
+  retires only once every subscriber holds a mark (PR #29).
+- **Dispatched role briefs quote the original event payload, verbatim, with
+  a provenance stamp.** The dispatch journal persists the payload and
+  `protocolBrief` renders it as externally sourced data, never as
+  instructions (`src/org/turn-runner.ts:429-451`; PR #30). Also feeds the
+  resolver's selection text (spec §8.1).
+- **Runtime adapters emit named `tool_use` events.** All three adapters emit
+  them for the L2 bridge and the tool-count anomaly detectors
+  (`src/runtime/adapters/claude.ts:164`, `codex.ts:382`, `pi-gate.ts:62`;
+  issue #27, PR #32 — live-verified in
+  `research/2026-07-11_adapter-tool-events.md`).
 
 The human correction input path (v0.3 Preflight's sixth item) moved into M1,
 where it ships as the complete episode-linked workflow rather than a stopgap

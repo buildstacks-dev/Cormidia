@@ -1,6 +1,7 @@
 # The Build Loop — engineering design
 
-*v0 draft — 2026-07-04. The loop is Operon's center of gravity: a TypeScript
+*Living design doc — last aligned 2026-07-11. The loop is Operon's center
+of gravity: a TypeScript
 re-engineering of the predecessor orchestrator — a private Python prototype
 that proved the approach, called simply "the predecessor" throughout
 (maintainers can find it read-only at* `scratchpad-gitignore/claude-loop-teams/`*)
@@ -258,10 +259,12 @@ triage:                     # bug batch: issues → tiered ready tickets
 ```
 
 As of M8, the root `pipelines.yaml` carries the executable v0 set:
-`build`, `review`, `fix`, `ship`, `plan`, `groom`, `triage`,
-`sre-incident`, `sre-health`, `support-digest`, `marketing-release`, and
-`ci-sweep`. Trigger-to-pipeline routing lives in `src/org/trigger-routing.ts`
-so roles.yaml stays declarative and unknown mappings fail as loud skips.
+`build`, `review`, `fix`, `ship`, `plan`, `plan-bootstrap` (the one-pass
+bootstrap plan for a new app — proportionality-review Stage 4), `groom`,
+`triage`, `sre-incident`, `sre-health`, `support-digest`,
+`marketing-release`, and `ci-sweep`. Trigger-to-pipeline routing lives in
+`src/org/trigger-routing.ts` so roles.yaml stays declarative and unknown
+mappings fail as loud skips.
 
 
 
@@ -366,8 +369,8 @@ review); agents never silently rewrite the documents that define "good".
 Passes name their role (`role: builder`); the loop executes whatever
 roles.yaml defines. New seats — a `writer` for content-heavy apps, a `lab`
 verification role (open question §12) — are config additions, not loop
-changes. This supersedes the current `LoopConfig {builder, reviewer}`
-skeleton, which hardcodes two seats.
+changes. (This superseded the early `LoopConfig {builder, reviewer}`
+skeleton, which hardcoded two seats — since removed.)
 
 ## 5. Quality gates — deterministic, orchestrator-run
 
@@ -623,7 +626,7 @@ for, never a rewrite.
 ~/.operon/<org>/runs/<app>/<runId>/
   envelope.json     L1 — one per pass: ids, status, timings, token/cost
                     rollups, gate results, verdict summary, tool counts
-                    (see the tool-telemetry caveat below), truncated
+                    (see the tool-telemetry note below), truncated
                     previews, and the workdir's git HEAD at pass start
                     (git_head — the learning loop's replay seed, absent for
                     non-git workdirs and pre-M2 runs); REFERENCES to
@@ -666,13 +669,15 @@ from the adapters' `onEvent` stream into L2 (`flushBridgedEvents`,
 src/loop/pipeline.ts); the state machine emits `gate.started/passed/failed`
 and `ticket.transition` (via a per-step run record, src/loop/loop-runlog.ts
 `openPhaseRun`) and populates `envelope.gate_results`; `verdict.recorded`
-lands from `recordPassVerdict`. **Tool-telemetry caveat (honest gap):**
-`tool.called` and `envelope.tool_counts` stay **empty**. The L2 bridge is
-built and fires on `TurnEvent{type:"tool_use"}`, but the runtime adapters
-(Claude/Codex/pi) currently emit only `type:"subagent"` events, never
-`tool_use` — so per-tool call telemetry is pending an adapter change. Nothing
-downstream is wrong; the field is simply unpopulated until the adapters emit
-tool-use events (an adapter edit gated on `pnpm test:live`).
+lands from `recordPassVerdict`. **Tool telemetry is live** (issue #27,
+live-verified 2026-07-11 — `research/2026-07-11_adapter-tool-events.md`):
+all three adapters emit `TurnEvent{type:"tool_use"}` for gate-allowed tool
+calls through the one shared builder (`src/runtime/tool-events.ts`), and the
+L2 bridge turns them into `tool.called` events and `envelope.tool_counts`.
+Residual caveat: Claude and pi emit at their pre-execution intercept points,
+so their events carry no outcome fields and the bridge defaults
+`success: true` / `durationMs: 0`; Codex emits post-execution with real exit
+codes and durations.
 - **Infra and merit never conflate** (the doc's sharpest lesson: "infra
 failures looked like merit failures until you read verify stats"). A
 pass that *errors* is `failed` with an `error_code`; a pass that
@@ -710,15 +715,13 @@ src/runtime/runlog/anomalies.ts) — ported detectors: `low_tokens_high_time`
 `bash_heavy` (≥20 calls), `environment_retry` (≥3 docker/install/wait
 retries), plus new `cold_cache` (zero cache reads on a pass whose predecessor
 in the same pipeline ran within the cache TTL — a silent prefix invalidator
-shipped in context assembly). **Three fire today** off envelope fields that
-are populated — `low_tokens_high_time`, `single_turn_long_run`, and
-`cold_cache`. **Two are inert until tool telemetry exists:** `bash_heavy`
-reads `envelope.tool_counts["bash"]` and `environment_retry` reads
-`tool.called` events tagged `environment_retry` — both depend on the
-`tool_use` bridge above, so neither can fire until the adapters emit
-`type:"tool_use"` events (same pending adapter change; the detector code is
-present and unit-covered). Flags map to canned recommendations and feed the
-weekly retro (architecture.md §6).
+shipped in context assembly). **All five fire today:**
+`low_tokens_high_time`,
+`single_turn_long_run`, and `cold_cache` read envelope timing/usage fields;
+`bash_heavy` reads `envelope.tool_counts["bash"]` and `environment_retry`
+reads `tool.called` events tagged `environment_retry` — both populated by
+the adapters' `tool_use` events (issue #27, note above). Flags map to canned
+recommendations and feed the weekly retro (architecture.md §6).
 
 
 
@@ -726,39 +729,47 @@ weekly retro (architecture.md §6).
 
 ```
 src/loop/
-  loop.ts        ticket state machine (implemented — phases, label swaps,
-                 bounded review/gate/ship cycles, squash-merge)
-  pipeline.ts    pass executor: load pipelines.yaml, run passes, parallel
-                 groups, per-pass overrides, re-read state between passes
-  brief.ts       brief assembler (§3), state-budgeted
-  qgates.ts      quality-gate engine (§5) — pure subprocess + git, no
-                 adapter dependency, unit-testable day one
-  verdicts.ts    typed verdicts + lenient parsers (§6)
-prompts/         pass templates (org home, human-ratified)
-pipelines.yaml   pipeline → passes config (org home, human-ratified)
+  loop.ts          ticket state machine (§7): phases, label swaps, bounded
+                   review/gate/ship cycles, squash-merge
+  driver.ts        manual tick driver: advance ready tickets once (`operon
+                   loop` and the sandbox e2e; dispatch calls the same phases)
+  pipeline.ts      pass executor: run passes, parallel groups, per-pass
+                   overrides, runlog + ledger settlement per pass
+  pipelines.ts     pipelines.yaml schema/loader — typed, validated config
+  brief.ts         brief assembler (§3), state-budgeted
+  qgates.ts        quality-gate engine (§5) — pure subprocess + git
+  verdicts.ts      typed verdicts + lenient parsers (§6)
+  github.ts        provider-blind GitHub ops (`gh` wrapper): labels, PRs,
+                   reviews, verified self-approval fallback, squash-merge
+  loop-runlog.ts   per-step run records for between-pass work (gates,
+                   ticket transitions)
+  rehydrate.ts     continuation from durable artifacts (§7.1): contract
+                   reuse, findings ledger, claim cap
+  scheduling.ts    ticket-level scheduling (§8): dependency-aware,
+                   scope-overlap conservative, WIP-bounded
+  policy.ts        .operon/policy.yaml loader: risk tiers → gate sets
+  preflight.ts     token-free environment probes before any model turn
+  plan-tickets.ts  schema-validated, orchestrator-published planning tickets
+  runRole.ts       manual role turn as a synthesized one-pass pipeline
+  types.ts         LoopItem/LoopPhase and shared loop types
+prompts/           pass templates (org home, human-ratified)
+pipelines.yaml     pipeline → passes config (org home, human-ratified)
 ```
 
 Import direction holds: `src/org` (dispatcher) → `src/loop` → `src/runtime`.
 The Planner's pipelines run on the same `pipeline.ts` executor — the
 executor is loop-layer machinery, not build-loop-specific.
 
-Deltas to existing code (small, flagged):
-
-- `gate.ts`: `protocol-self-edit` rule adds `pipelines.yaml` and
-`prompts/**`; conformance cases both sides (critical + routine near-miss).
-- `types.ts`: optional `TurnRequest.verdictSchema` so adapters with native
-structured output can enforce it; others ignore it and the parser layer
-handles text.
-- `types.ts`: `TurnUsage` splits input tokens into `tokensInUncached`,
-`cacheReadTokens`, `cacheCreationTokens` (`tokensIn` stays as the sum);
-adapter cost tracking prices the three buckets separately (§9 cache
-visibility) — the per-turn budget abort and monthly rollups depend on it.
-- `LoopItem` gains `tier`, `remediationAttempts`, `gateResults`; `LoopPhase`
-gains `gates`/`shipping` states per §7.
-- Conformance suite: large-payload case (§2) and a cache-stability case —
-two back-to-back passes with identical (role, app) context must show
-`cacheReadTokens > 0` on the second (catches silent prefix invalidators
-mechanically) — added for every adapter.
+The contract deltas this design flagged all landed: the gate's
+`protocol-self-edit` rule covers `pipelines.yaml` and `prompts/**`
+(src/runtime/gate.ts, conformance cases both sides);
+`TurnRequest.verdictSchema` and the `TurnUsage` cache split
+(`tokensInUncached` / `cacheCreationTokens` / `cacheReadTokens`) live in
+src/runtime/types.ts; `LoopItem` carries `tier` / `remediationAttempts` /
+`gateResults` and `LoopPhase` the `gates`/`shipping` states
+(src/loop/types.ts); the conformance suite carries the large-payload case
+(test/conformance/cases.ts) and the cache-stability case runs live
+(test/runtime/claude-sdk.live.test.ts).
 
 
 

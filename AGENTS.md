@@ -28,50 +28,34 @@ is onboarded as a production app in `status: onboarding`. Run `pnpm test`
 for the current offline suite. Known limitations live in README.md → Known
 limitations; open work lives in the GitHub issue tracker.
 
-**Where agent activity is recorded** (state home, `~/.operon/<org>/`):
+**Where agent activity is recorded** (state home, `~/.operon/<org>/`;
+README.md → Observability is the authoritative inventory):
 `runs/<app>/<runId>/` is the per-pass source of truth (`envelope.json`,
-`events.jsonl`, verbatim `brief.md`/`output.md`); `telemetry/<date>.jsonl` is
-the org ledger every provider turn settles into exactly once, keyed on
-`runId` (`operon budget --reconcile` back-fills it from envelopes);
-`invocations/<date>.jsonl` records each loop/dispatch invocation;
-`learning/events/<date>/*.jsonl` is the learning loop's capture projection
-over `runs/` (gate outcomes, pass verdicts, human observations, episode
-lifecycle, late outcomes); `learning/episodes/*.json` is the M2 episode
-projection over runs + ledger + approvals + ticket claim state (rebuildable;
-closed records freeze as the archive once their runs are pruned);
-`learning/capsules/` and `learning/fingerprints/` hold build-episode
-ReplayCapsules (verbatim first-build brief included) and content-addressed
-SystemFingerprints; `learning/resolved/<turnId>.json` is the per-turn pinned
-resolve record (now carrying `bundle_lineage`);
-`learning/canary/assignments/<episodeId>.json` is the episode-sticky canary
-assignment (first governed resolve wins, design §8.4);
-`learning/publish-journal/` holds the publisher's crash-resumable
-transactions; `runs/learning-replay/` is the reserved replay namespace —
-excluded from capture/episode projection, still reconciled for spend.
+`events.jsonl`, verbatim `brief.md`/`output.md`); `telemetry/<date>.jsonl`
+is the org ledger every provider turn settles into exactly once, keyed on
+`runId` (`operon budget --reconcile` back-fills); `invocations/<date>.jsonl`
+records each loop/dispatch invocation; `learning/` holds the capture
+projection (`events/`), rebuildable episode records (`episodes/`),
+ReplayCapsules + SystemFingerprints (`capsules/`, `fingerprints/`), per-turn
+pinned resolve records with `bundle_lineage` (`resolved/`), episode-sticky
+canary assignments (`canary/assignments/`), and the publisher's
+crash-resumable journal (`publish-journal/`); `runs/learning-replay/` is the
+reserved replay namespace (reconciled for spend, excluded from capture).
 The M3–M5 experiment + activation substrate lives in the **committed org
-home** instead: `learning/experiments/` (ExperimentRecords + EvalResults,
-declared-before-results), `learning/interventions/` (one lineage record per
-published change), `learning/evals/**` (sanitized fixtures converted from
-capsules, trusted only after independent validation),
-`learning/candidates/` (agent-emitted, never resolvable — deliberately NOT
-gate-protected), `learning/reviews/` + `learning/rejections.jsonl`
-(fail-closed verdicts + suppression windows), `learning/quarantine/`
-(human-authored provisionals, resolver-enforced TTL), `learning/bundle/**` +
-`learning/manifest.yaml` (active concepts + version cuts + live-canary trial
-state), and `learning/proposals/**` (unmerged drafts, routine). M4+M5 are
-live: context assembly resolves governed concepts once per turn (pinned;
-spec §8.1 shares + narrowest-first redistribution) and per ticket episode in
-the build loop (each pipeline resolves with its own role — the M4 tick-level
-builder-only pin is closed); lineage is episode-sticky when a human-started
-canary runs (T3 structurally forbidden by the policy loader); `operon learn
-review|publish|resolve|disable|rollback|provisional` is the manual governed
-activation surface, `operon learn experiment declare|run|list` the offline
-§9.5 evaluation funnel (deterministic prechecks → targeted paired eval →
-full paired replay from trusted fixtures, early stopping, learning-budget
-caps enforced from the org ledger and rendered by `operon budget`), and
-`operon learn canary start|status|promote|stop` the live-trial lifecycle.
-M6 distillation is still unbuilt. README.md → Observability is the
-operator-facing version of this note.
+home** `learning/**`: experiments (declared-before-results), interventions
+(lineage), evals (trusted only after independent validation), candidates
+(agent-emitted, never resolvable — deliberately NOT gate-protected), reviews
++ `rejections.jsonl` (fail-closed verdicts + suppression), quarantine
+(human provisionals, resolver-enforced TTL), `bundle/**` + `manifest.yaml`
+(active concepts, version cuts, canary trial state), and `proposals/**`
+(unmerged drafts). M4+M5 are live: context assembly resolves governed
+concepts once per turn (pinned) and per (ticket episode, pipeline role) in
+the build loop; a T3 live canary is structurally forbidden by the policy
+loader; `operon learn` is the manual surface — activation verbs
+(`review|publish|resolve|disable|rollback|provisional`), the offline §9.5
+funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
+`operon budget`), and the live-trial lifecycle
+(`canary start|status|promote|stop`). M6 distillation is still unbuilt.
 
 ## Map
 | Path | What it is |
@@ -89,6 +73,8 @@ operator-facing version of this note.
 | `docs/capability-matrix.md` | Adapter capability matrix: native / adapter-built / degraded surfaces for Claude, Codex, and pi |
 | `docs/benchmark-runbook.md` | Stage 7 clean-room benchmark: procedure, targets, and rules |
 | `docs/proportionality-review.md` | The 2026-07-10 systemic review + staged plan (landed); §7 records benchmark rounds 1–2 |
+| `docs/approval-and-release-amendment.md` | A1–A5 approval & release boundary design (ratified 2026-07-10, implemented; cited by code) |
+| `docs/bugs-to-be-fixed.md` | Known UX gaps not yet in the issue tracker (shrinking; new defects go to issues) |
 | `docs/learning-loop/` | Learning-loop design suite (v0.8, 2026-07-11): governed self-improvement — design, spec, milestones, control/data-flow diagrams; superseded review feedback under `archive/` |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
@@ -98,12 +84,12 @@ operator-facing version of this note.
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `agent-skills/operon/` | Packaged `$operon` Agent Skill: agent-facing CLI discovery, onboarding, safety, and diagnosis workflow |
 | `scripts/link-local.mjs`, `scripts/operon-local.mjs` | Source-backed local installation; exposes `operon` and the skill without conflating package and org homes |
-| `test/` | Gate conformance seed + roles.yaml validation + CLI dispatch conformance |
+| `test/` | The offline suite (~100 files): gates, adapter conformance, loop state machine, qgates, learning loop, org layer, CLI dispatch |
 | `test/fixtures/orgHome.ts`, `test/fixtures/fakeClock.ts` | Composable temp-dir fixtures for `~/.operon/<org>/` and app-repo `.operon/` trees, plus a deterministic clock — reuse instead of a new ad-hoc mkdtemp scaffold |
 | `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 
-## Commands (verified 2026-07-10)
+## Commands (verified 2026-07-11)
 - Node: >= 26 (`engines`, `.nvmrc`; `nvm use`). Node >= 25 no longer bundles
   corepack — `npm install -g corepack && corepack enable` once per Node
   install. `node:sqlite` is stable on this floor (relevant to the learning

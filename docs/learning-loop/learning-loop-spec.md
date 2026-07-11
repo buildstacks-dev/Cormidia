@@ -3,6 +3,7 @@
 **Status:** v0.8 - ratified 2026-07-11 (`docs/PURPOSE.md` → Decided → Learning
 loop design); revised per the consolidated design feedback of 2026-07-10
 (`archive/2026-07-10_feedback.md`)  
+**Build status:** built through M5 (PR #52, 2026-07-11); where this document and the code diverge, the code and `AGENTS.md` are authoritative  
 **Companions:** `learning-loop-design.md`, `learning-loop-milestones.md`
 
 All schemas are draft contracts. Field names may change before implementation.
@@ -61,14 +62,15 @@ learning/
   bundle/
     apps/<app>/
     apps/<app>/roles/<role>/
-  evals/
-    apps/<app>/
-    apps/<app>/roles/<role>/
   proposals/
     skills/
     protocol/
     gates/
 ```
+
+The draft's app-side `evals/` was not built: eval fixtures live only under the
+committed org home `learning/evals/**`, for app scopes too
+(`src/org/learning/eval-fixture.ts`).
 
 The resolver treats these as one logical bundle for a turn:
 
@@ -86,13 +88,18 @@ new governed concepts land under `learning/bundle/**`.
 ```text
 ~/.operon/<org>/
   learning/
-    events/<date>/<turn_id>.jsonl
-    episodes/<app>/<episode_id>.json     # EpisodeRecord projections
-    capsules/<app>/<episode_id>/         # ReplayCapsule payloads
-    metrics/                             # JSONL projections + cursor state
-    reports/
-    canaries/
+    events/<date>/*.jsonl                # stream file = turn id, else emitter
+    episodes/<episode_id>.json           # EpisodeRecord projections (flat)
+    capsules/<capsule_id>.json           # ReplayCapsule payloads (flat)
+    fingerprints/                        # content-addressed SystemFingerprints
+    resolved/<turn_id>.json              # per-turn pinned resolve records
+    canary/assignments/<episode_id>.json # episode-sticky canary assignments
+    publish-journal/                     # crash-resumable publish transactions
+    metrics/                             # capture cursor only
 ```
+
+(As built — `src/org/learning/{events,episode,capsule,fingerprint,resolver,canary,publisher,capture}.ts`;
+the draft's `reports/` and `canaries/` directories were never created.)
 
 V1 metrics are JSONL projections with computed aggregates — the same pattern
 `runRetro` already uses over `telemetry/*.jsonl`. No new dependency
@@ -310,6 +317,7 @@ evaluation).
 error
 human_correction
 gate_verdict
+pass_verdict
 env_fact
 tool_outcome
 retro_note
@@ -318,11 +326,15 @@ concept_loaded
 context_evicted
 conflict_resolved
 provisional_expired
+canary_assigned
 episode_opened
 episode_closed
 late_outcome
 publish_committed
 ```
+
+(`pass_verdict` and `canary_assigned` were added in the build —
+`src/org/learning/events.ts`.)
 
 `emitter` enum:
 
@@ -371,11 +383,7 @@ e.g. ep_buildstacks-dev_ticket_0002, ep_operon-sandbox-gamma_incident_disk-alert
   "closed": "2026-07-09T19:44:03Z",
   "status": "closed",
   "fingerprint_ref": "sys_01ABC",
-  "assignment": {
-    "bundle_lineage": "stable",
-    "assigned_at": "2026-07-09T14:02:11Z",
-    "assigned_by": "hash(episode_id) mod canary_fraction"
-  },
+  "bundle_lineage": "stable",
   "turns": [
     { "turn_id": "turn_...", "role": "builder", "pipeline": "build", "pass": "implement", "run_ids": ["20260709-140300-build-implement"] },
     { "turn_id": "turn_...", "role": "reviewer", "pipeline": "review", "pass": "review", "run_ids": ["20260709-153000-review-review"] }
@@ -402,6 +410,12 @@ e.g. ep_buildstacks-dev_ticket_0002, ep_operon-sandbox-gamma_incident_disk-alert
   ]
 }
 ```
+
+`bundle_lineage` (`stable | canary | mixed | null`) is derived by folding the
+lineage of the episode's resolved turns (`src/org/learning/episode.ts`); the
+sticky assignment record itself lives in the state home at
+`learning/canary/assignments/<episode_id>.json` (first governed resolve wins,
+design §8.4) — it is not stored on the `EpisodeRecord`.
 
 `kind` enum and episode boundaries:
 
@@ -526,9 +540,10 @@ Resolved context records:
 }
 ```
 
-The resolved-context record is written into the turn's runlog (alongside
-`brief.md`), never into prompt bytes — turn ids in the cached prefix are a
-silent cache invalidator (design §12.1). This also gives the per-turn
+The resolved-context record is written into the state home at
+`learning/resolved/<turn_id>.json` (`src/org/learning/resolver.ts`), never
+into prompt bytes — turn ids in the cached prefix are a silent cache
+invalidator (design §12.1). This also gives the per-turn
 "which concepts were loaded" record that today exists only implicitly inside
 `brief.md`.
 
@@ -846,6 +861,17 @@ compaction:
     superseded: true
 ```
 
+As built, the loader (`src/org/learning/policy.ts`) reads the tier table
+(canary fraction/window, experiment requirement, promote rules — and rejects
+any policy granting T3 a canary block or a `live_canary` other than
+`forbidden`), `learning_budget`, `quarantine`, `rejections`,
+`reviewer_sla_hours`, `context_budget`, and the `ticket` destination caps.
+The other knobs shown (`version_cut`, `rollback_owner`, `approver`,
+`overrides`, `approval_routing`, and the `distiller`/`compaction` schedules)
+are deliberately unparsed until M6 — an unread policy knob would imply
+enforcement that does not exist. Version cuts happen per publish transaction,
+not on a schedule.
+
 V1 uses low-volume thresholds. They are confidence aids, not mandatory sample
 sizes for every promotion; insufficient volume resolves to `inconclusive` plus
 human judgment, never permanent limbo.
@@ -1005,13 +1031,14 @@ Implementation notes binding these interfaces to existing code:
   It introduces no second ticket-state store (design §8.3).
 - **Reviewer verdict parsing** reuses `parseWithRetry` and the native
   structured-output path in `src/loop/verdicts.ts`.
-- **`ticket` destination** requires adding `createIssue` to
-  `GhOps`/`GhCliOps` (`src/loop/github.ts`) — no programmatic issue-creation
-  helper exists today. Publishes are deduped by candidate fingerprint and
-  rate-capped per policy §13.
+- **`ticket` destination** requires `createIssue` on `GhOps`/`GhCliOps`
+  (`src/loop/github.ts` — landed). Publishes are deduped by candidate
+  fingerprint and rate-capped per policy §13.
 - **Distiller/reviewer** are `roles.yaml` entries with schedule triggers,
-  executed by the normal turn runner (design §5); `operon learn distill` /
-  `review` are manual invocations of the same passes.
+  executed by the normal turn runner (design §5) — M6, not yet built. As
+  built, `operon learn review` records a human-authored fail-closed verdict
+  (`src/org/learning/review.ts`); no reviewer pass exists until M6, and
+  `operon learn distill` does not exist yet.
 - **Gate rules**: the full protected-path list in §1, same shape as
   `scorecard-tamper` in `src/runtime/gate.ts`, each with critical-side and
   routine near-miss test cases.
@@ -1019,20 +1046,26 @@ Implementation notes binding these interfaces to existing code:
 - **Tests** reuse `test/fixtures/orgHome.ts` and `test/fixtures/fakeClock.ts`;
   no ad-hoc mkdtemp scaffolds.
 
-CLI surface (new file `src/cli/learn.ts` + one registry line in
-`src/cli.ts`, per the dispatch-table pattern):
+CLI surface (as built it spans `src/cli/learn.ts`, `learn-activation.ts`, and
+`learn-experiment.ts` + one registry line in `src/cli.ts`, per the
+dispatch-table pattern):
 
 ```text
 operon learn inspect <episode-id>       # full episode: turns, gates, artifacts, outcome
 operon learn emit [--episode <id>]      # human observation (interactive or from file)
-operon learn show <event|candidate|intervention-id>   # trace to disposition
-operon learn distill
-operon learn review
-operon learn resolve
-operon learn report
+operon learn emit --late-outcome <kind> --ref <ref> --episode <id>
+operon learn show <event|candidate|experiment|eval|intervention-id>
+operon learn report [--json]
+operon learn fixture <episode-id> --set <scope>/<set> [--validate --by <name>]
+operon learn review <candidate-id> --verdict <v> --rationale <text> --by <name>
+operon learn publish <candidate-id> [--waiver <text>]
+operon learn resolve --app <app> --role <role>
 operon learn disable <concept-id>
-operon learn rollback --root org|app
-operon learn provisional
+operon learn rollback --root org|app [--app <name>]
+operon learn provisional --scope <s> --name <n> --ttl-days N --by <name>
+operon learn experiment declare|run|list
+operon learn canary start|status|promote|stop
+operon learn distill                    # M6 - not built
 ```
 
 ## 17. Lifecycle

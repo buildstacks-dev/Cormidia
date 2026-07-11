@@ -79,9 +79,22 @@ operon dispatch --dry-run
 operon run-role <role> --app <app> --dry-run
 ```
 
-Live `plan`, `loop`, `dispatch`, and `run-role` operations can spend tokens and
-modify GitHub or worktrees. Critical operations stop in the durable approval
-queue; inspect it with `operon approvals` and never bypass that boundary.
+Interactive `operon plan <app>` hands the terminal to a live session and will
+hang a non-interactive run; headless planning must use
+`operon plan <app> --auto --goal <text>`.
+
+Live `plan`, `loop`, `dispatch`, `run-role`, and `learn experiment run`
+operations can spend tokens and modify GitHub or worktrees; `learn canary
+start` begins a live trial that shapes subsequent turns. Critical operations
+stop in the durable approval queue; inspect it with `operon approvals` and
+never bypass that boundary.
+
+`operon learn` read subcommands (`report`, `inspect`, `show`) are fine for
+diagnosis. The write subcommands — `emit`, `review`, `publish`, `resolve`,
+`disable`, `rollback`, `provisional`, `experiment`, `canary` — are the human
+operator's governed-activation window: never invoke them as an agent (`emit`
+records a human-attributed observation; `review`/`publish` activate learned
+behavior).
 
 ## Diagnose
 

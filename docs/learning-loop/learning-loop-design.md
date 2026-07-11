@@ -3,6 +3,7 @@
 **Status:** v0.8 - ratified 2026-07-11 (`docs/PURPOSE.md` → Decided → Learning
 loop design); revised per the consolidated design feedback of 2026-07-10
 (`archive/2026-07-10_feedback.md`)  
+**Build status:** built through M5 (PR #52, 2026-07-11); where this document and the code diverge, the code and `AGENTS.md` are authoritative  
 **Date:** 2026-07-11  
 **Companions:** `learning-loop-spec.md` (schemas), `learning-loop-milestones.md` (release plan)
 
@@ -268,8 +269,8 @@ one content-hashed publish transaction:
   routine, no human gate — §6.1).
 
 **Resolve.** At turn start, Operon resolves knowledge once for
-`(app, role, turnId)` and pins the resulting bundle versions for the whole
-turn/pipeline. Already-running turns never re-resolve. Canary lineage is
+`(app, role, turnId, episodeId)` and pins the resulting bundle versions for
+the whole turn/pipeline. Already-running turns never re-resolve. Canary lineage is
 chosen per **episode**, not per turn (§8.4), so every turn in one episode sees
 the same bundle lineage.
 
@@ -486,8 +487,12 @@ Canary/treatment assignment is a deterministic function of `episode_id` (never
 `Math.random`, never `turnId`). Every eligible turn in the episode therefore
 resolves the same bundle lineage — Builder, Reviewer, fix, and gate turns all
 see the same world, keeping both the work and the measurement uncontaminated.
-The assignment is also recorded on the `EpisodeRecord` at first resolve for
-auditability. Turn-hash assignment (v0.7) is retired.
+The assignment is recorded at first governed resolve as a sticky record at
+`learning/canary/assignments/<episodeId>.json` (first write wins;
+`src/org/learning/canary.ts`); the `EpisodeRecord` carries the derived
+`bundle_lineage` field (`stable | canary | mixed | null`,
+`src/org/learning/episode.ts`) for auditability. Turn-hash assignment (v0.7)
+is retired.
 
 ## 9. Experiments and Evaluation
 
@@ -805,11 +810,15 @@ V1 integrates with existing Operon surfaces:
   other provider turn, so caps enforce themselves.
 - `src/org/events.ts` and `src/org/dispatch.ts`: company-event payloads must
   reach role briefs, and multi-role fan-out must not consume shared events
-  early (both still open; see milestones Preflight for code anchors).
+  early (both landed: per-`(eventKey, role)` consumption via `roleConsumedKey`
+  in `src/org/events.ts` / `src/org/dispatch.ts`, and the verbatim payload
+  with provenance stamp in `src/org/turn-runner.ts` — see milestones
+  Preflight for anchors).
 - `src/loop/qgates.ts`: provide trusted verifier events and host eval/gate
   proposals.
 - `src/loop/github.ts`: add `createIssue` to `GhOps`/`GhCliOps` — the `ticket`
-  destination needs it and no programmatic issue-creation helper exists today.
+  destination needs it (landed: `createIssue` on `GhOps`/`GhCliOps` in
+  `src/loop/github.ts`).
 - `src/loop/verdicts.ts`: reviewer verdict parsing reuses `parseWithRetry` and
   the native structured-output path rather than fresh JSON parsing.
 - `src/org/approvals.ts`: the human gate is the existing approvals store

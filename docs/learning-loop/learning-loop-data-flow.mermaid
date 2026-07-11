@@ -14,9 +14,9 @@ flowchart TD
     EPISODES --> CAPSULES["ReplayCapsules (build episodes, V1)<br/>~/.operon/&lt;org&gt;/learning/capsules"]
     HUMANOBS["Human observations<br/>operon learn emit --episode"] --> EVENTS
 
-    EVENTS -->|"deterministic precheck, then window"| CLUSTER["Cluster by error_class + cause_hypothesis"]
+    EVENTS -->|"deterministic precheck, then window"| CLUSTER["Cluster by error_class + cause_hypothesis (M6 - not yet built)"]
     LEDGER["Rejection ledger"] -->|"suppression fingerprints"| CLUSTER
-    CLUSTER --> ROUTER["Destination router"]
+    CLUSTER --> ROUTER["Destination router (M6 - not yet built)"]
 
     ROUTER --> CANDS["learning/candidates/ (never resolvable)"]
     CANDS --> REVIEW["Reviewer (cross-provider role)"]
@@ -39,7 +39,7 @@ flowchart TD
     subgraph APP["Current app repo"]
         APPMAN[".operon/learning/manifest.yaml"]
         APPBUNDLE[".operon/learning/bundle/apps + app roles"]
-        APPEVALS[".operon/learning/evals/apps"]
+        APPEVALS[".operon/learning/evals/apps (not built: fixtures live in the org home learning/evals)"]
     end
 
     PUBLISHER -->|"approved OKF org/role"| ORGBUNDLE

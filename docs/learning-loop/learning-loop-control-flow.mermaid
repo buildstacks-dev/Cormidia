@@ -4,7 +4,7 @@ title: Operon Learning Loop - Control Flow (v0.8)
 flowchart TD
     EVENTS["Trusted and advisory learning events<br/>(every event carries episode_id)"] --> ROUTE
 
-    subgraph DAILY["Distillation cycle (deterministic precheck first; no evidence = no model turn)"]
+    subgraph DAILY["Distillation cycle (M6 - not yet built) (deterministic precheck first; no evidence = no model turn)"]
         ROUTE["Classify event clusters"] --> CAND["Candidate artifact (candidates/, never resolvable)"]
         CAND --> DEST{"Destination"}
         DEST -->|"scoped fact or lesson"| OKF["OKF concept candidate"]

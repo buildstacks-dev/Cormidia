@@ -423,6 +423,62 @@ describe("CodexRuntime (App Server mocked)", () => {
     });
   });
 
+  it("classifies an auth-loss server error as error_auth with the unwrapped message", async () => {
+    // The exact payload shape from benchmark round 2, tick 1: a nested
+    // {error:{message}} notification for a dead ChatGPT refresh token.
+    const client = new ScriptedMessageClient([
+      {
+        method: "error",
+        params: {
+          error: {
+            message:
+              "Your access token could not be refreshed because your refresh token was already used.",
+          },
+        },
+      },
+    ]);
+
+    const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(makeReq(), {
+      gate: defaultGate,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.errorCode).toBe("error_auth");
+    expect(result.summary).toContain("refresh token was already used");
+  });
+
+  it("leaves a non-auth server error unclassified (renders as error_unknown downstream)", async () => {
+    const client = new ScriptedMessageClient([
+      { method: "error", params: { message: "model overloaded, try again later" } },
+    ]);
+
+    const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(makeReq(), {
+      gate: defaultGate,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.errorCode).toBeUndefined();
+  });
+
+  it("classifies an unauthorized turn/completed failure as error_auth", async () => {
+    const client = new ScriptedMessageClient([
+      {
+        method: "turn/completed",
+        params: {
+          threadId: "thread-1",
+          turn: { id: "turn-1", items: [], status: "failed", error: { message: "unauthorized" } },
+        },
+      },
+    ]);
+
+    const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(makeReq(), {
+      gate: defaultGate,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.errorCode).toBe("error_auth");
+  });
+
   it("normalizeCodexApprovalActions returns one action per file in the patch", () => {
     const actions = normalizeCodexApprovalActions(
       "legacyPatch",

@@ -189,6 +189,9 @@ interface CodexTurnState {
    *  turn is then stopped and mapped to failed + one incident note, mirroring
    *  ClaudeRuntime's budget-overrun contract. */
   budgetOverrun?: boolean;
+  /** Stable code for a classified failure (e.g. "error_auth"); unclassified
+   *  failures leave it unset and render as error_unknown downstream. */
+  errorCode?: string;
 }
 
 export class CodexRuntime implements Runtime {
@@ -259,7 +262,11 @@ export class CodexRuntime implements Runtime {
         session: { runtime: "codex", id: threadId },
         usage: state.usage ?? zeroUsage(wallClockMs, state.subagentTurns),
         escalations,
-        ...(state.budgetOverrun ? { errorCode: "error_max_budget_usd" } : {}),
+        ...(state.budgetOverrun
+          ? { errorCode: "error_max_budget_usd" }
+          : status === "failed" && state.errorCode !== undefined
+            ? { errorCode: state.errorCode }
+            : {}),
       };
     } finally {
       await client.close();
@@ -334,6 +341,10 @@ export class CodexRuntime implements Runtime {
       case "error":
         state.status = "failed";
         state.finalSummary = errorSummary(message.params);
+        {
+          const code = classifyCodexFailure(state.finalSummary);
+          if (code !== undefined) state.errorCode ??= code;
+        }
         return;
       default:
         if (message.id !== undefined) {
@@ -384,6 +395,8 @@ export class CodexRuntime implements Runtime {
     } else {
       state.status = "failed";
       if (state.finalSummary === undefined) state.finalSummary = turnErrorSummary(turn);
+      const code = classifyCodexFailure(turnErrorSummary(turn));
+      if (code !== undefined) state.errorCode ??= code;
     }
     if (state.usage !== undefined) {
       state.usage = { ...state.usage, subagentTurns: state.subagentTurns, wallClockMs: state.durationMs ?? state.usage.wallClockMs };
@@ -737,8 +750,21 @@ function turnErrorSummary(turn: Record<string, unknown>): string {
 }
 
 function errorSummary(params: unknown): string {
-  if (isRecord(params) && typeof params.message === "string") return params.message;
+  if (isRecord(params)) {
+    if (typeof params.message === "string") return params.message;
+    if (isRecord(params.error) && typeof params.error.message === "string") return params.error.message;
+  }
   return `Codex App Server error: ${JSON.stringify(params)}`;
+}
+
+/** Auth loss (expired/rotated ChatGPT refresh token, 401s) is
+ *  operator-actionable — only an interactive `codex login` fixes it — so it
+ *  must not masquerade as a generic failure in telemetry, the same Stage 3
+ *  rule that carved out budget exhaustion (benchmark round 2, tick 1). */
+function classifyCodexFailure(summary: string): string | undefined {
+  return /refresh token|access token|unauthorized|not logged in|authentication/i.test(summary)
+    ? "error_auth"
+    : undefined;
 }
 
 function extractThreadId(response: unknown): string | undefined {

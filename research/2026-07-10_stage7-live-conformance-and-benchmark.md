@@ -67,3 +67,20 @@ targets met: 6 passes vs ≤ 8, $6.83 vs ≤ $40, 0 decisions vs ≤ 5, ~11 min
 active vs ≤ 90, 1 merged PR vs 1. PR #12 (completeness reads process-owned
 state) squash-merged on this proof. Full table:
 `docs/proportionality-review.md` §7, round 2.
+
+## Codex adapter: `error_auth` classification — live re-run (2026-07-11)
+
+Follow-up to the round-2 telemetry review: tick 1's dead-refresh-token
+failure rendered as `failed(error_unknown)`. `CodexRuntime` now classifies
+auth-loss failures (refresh/access token, unauthorized, not logged in,
+authentication — in App Server `error` notifications and failed
+`turn/completed` payloads) as `errorCode: "error_auth"`, the same Stage 3
+carve-out budget exhaustion got: operator-actionable failures must not
+masquerade as generic ones. `errorSummary` also unwraps nested
+`{error:{message}}` payloads so the envelope carries the message, not JSON.
+Offline: 699 tests green (3 new: the exact tick-1 payload shape, a
+non-auth near-miss staying unclassified, an unauthorized turn/completed)
++ typecheck. Live: `OPERON_CODEX_LIVE=1 pnpm test:live` — Claude 4/4
+(subagent-gate + shaping probe hold, 12 turns, $3.35, claude-sonnet-5),
+Codex App Server smoke 1/1 on the changed adapter; pi skipped (opt-in
+unset). Capability-matrix `codex.ts` line references re-anchored.

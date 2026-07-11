@@ -4,6 +4,41 @@ A fresh session should read `docs/PURPOSE.md` → `AGENTS.md` → this file, the
 up the top unchecked item. Keep this list current as items land; move finished
 items to Done with a date.
 
+## Proportionality campaign (2026-07-10) — current work queue
+
+`docs/proportionality-review.md` §5 is being executed. Landed on main:
+Stage 1 (PR #5, per-pass ledger settlement + budget enforcement +
+`budget --reconcile` + `operon telemetry` view), Stage 2 (PR #6, durable
+continuation: contract reuse, findings ledger, PR-aware phase entry, claim
+cap + park), Stage 3 (PR #7, heartbeats, wall-clock watchdog, honest stops,
+truthful error codes, env preflight, CI=1 gates, gate-output retention),
+Stage 5 (PR #9, approval & release amendment — ratified under the delegated
+process, operator veto explicitly invited), Stage 6 core (PR #10, gate
+calibration, scoped grants, role shaping, denial lessons). Point-defect
+baseline was PR #4.
+
+- [ ] **Live-verify Stage 4 and merge PR #8** (provider session limit reset
+  8:30pm 2026-07-10). Run steps 0–3 of `docs/benchmark-runbook.md`; PR #8's
+  exit criterion is exactly step 3 (`operon plan <bench> --auto --goal …`
+  publishing a valid 1–3-ticket plan). Merge PR #8 on success.
+- [ ] **Run the Stage 7 benchmark** per `docs/benchmark-runbook.md`
+  (targets: ≤8 passes, ≤$40, ≤5 decisions, ≤90 min, 1 merged PR). Ride
+  `pnpm test:live` along (Stage 3 added `TurnResult.errorCode`; record a
+  dated result in `research/`). Misses become the next round of the review.
+- [ ] **A4 release handoff implementation** (deferred from Stage 6):
+  `.operon/config.yaml` `release:` block, ship-gate P7 enforcement
+  (deployable-but-undeclared fails), orchestrator/SRE deploy trigger as a
+  critical op. Design ratified in `docs/approval-and-release-amendment.md`.
+- [ ] **Adapter-level toolset removal for forbidden acts** (Stage 6
+  follow-up): today's backstop is the composed gate's flat deny; make the
+  attempts unrepresentable per adapter, with conformance cases.
+- [ ] **Dispatch invocation ledger rows** (Stage 1 follow-up): `operon loop`
+  writes `invocations/<date>.jsonl`; `operon dispatch` ticks should too.
+- [ ] **buildstacks.dev production confirmation** — only after the sandbox
+  benchmark meets targets; then decide the frozen state's disposition
+  (PR #23, tickets #3–#20, worktree) and reconcile its ledger (already
+  reconciled to $266.41 on 2026-07-10 as the Stage 1 exit proof).
+
 > **Roadmap complete (2026-07-06).** Every milestone below — **M0 through M12** —
 > is landed and checked off, and a post-M12 hardening + live-verification campaign
 > has readied the repo for publication (see the top of the Done section). There

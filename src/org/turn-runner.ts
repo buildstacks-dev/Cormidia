@@ -88,6 +88,7 @@ export async function runDispatchedTurn(
         app: options.app.name,
         role: options.role.name,
         turnId: options.turnId,
+        orgHome: orgRoot,
         now: clock,
       }),
     };

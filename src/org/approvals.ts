@@ -50,6 +50,19 @@ export interface ApprovalItem {
   grantId?: string;
 }
 
+/** Human-chosen widened grant scope (approval-and-release-amendment A1).
+ *  Absent scope = the ratified default: single-use, action-hashed. */
+export interface GrantScope {
+  kind: "ticket" | "app";
+  /** The rule this grant covers — a scoped grant never crosses rules. */
+  rule: string;
+  /** Ticket the scope binds to (kind "ticket"). */
+  ticketRef?: string;
+  /** When present, the action text must contain this substring (path
+   *  scoping, e.g. ".npmrc" or "src/"). */
+  pathContains?: string;
+}
+
 export interface ApprovalGrant {
   grantId: string;
   approvalId: string;
@@ -60,7 +73,24 @@ export interface ApprovalGrant {
   uses: number;
   createdAt: string;
   consumedAt?: string;
+  /** A1: present on multi-use rule+path-scoped grants. */
+  scope?: GrantScope;
+  /** Set by `operon approvals revoke` — a revoked grant never matches. */
+  revokedAt?: string;
 }
+
+/** Rules the human may never widen beyond single-use (amendment A1): the
+ *  review boundary, production deploys, the org's own protocol surfaces, and
+ *  the gate's root of trust. */
+export const NEVER_SCOPEABLE_RULES: readonly string[] = [
+  "self-merge-or-approve",
+  "production-deploy",
+  "protocol-self-edit",
+  "scorecard-tamper",
+  "approval-store-tamper",
+];
+
+const DEFAULT_SCOPED_MAX_USES = 20;
 
 export type ApprovalLogEvent =
   | { type: "raised"; id: string; at: string; app: string; role: string; rule: string }
@@ -74,7 +104,8 @@ export type ApprovalLogEvent =
       grant?: ApprovalGrant;
     }
   | { type: "grant-minted"; id: string; grantId: string; at: string }
-  | { type: "grant-consumed"; id: string; grantId: string; at: string };
+  | { type: "grant-consumed"; id: string; grantId: string; at: string }
+  | { type: "grant-revoked"; id: string; grantId: string; at: string };
 
 export interface RaiseApprovalInput {
   app: string;
@@ -92,6 +123,11 @@ export interface DecideApprovalInput {
   reason?: string;
   now?: Date;
   ttlMs?: number;
+  /** A1: the human widens the grant at decision time. Rejected for
+   *  NEVER_SCOPEABLE_RULES. */
+  scope?: { kind: "ticket" | "app"; pathContains?: string };
+  /** Use-count cap for a scoped grant (default 20; ignored without scope). */
+  maxUses?: number;
 }
 
 export interface ApprovalStoreOptions {
@@ -171,9 +207,15 @@ export class ApprovalStore {
       ...(input.reason !== undefined ? { reason: input.reason } : {}),
     };
 
+    if (input.scope !== undefined && NEVER_SCOPEABLE_RULES.includes(pending.rule)) {
+      throw new Error(
+        `approvals: rule "${pending.rule}" is never scopeable (approval-and-release-amendment A1) — ` +
+          `decide it single-use`,
+      );
+    }
     const grant =
       input.decision === "approved"
-        ? mintGrant(decided, now, input.ttlMs ?? DEFAULT_TTL_MS)
+        ? mintGrant(decided, now, input.ttlMs ?? DEFAULT_TTL_MS, input.scope, input.maxUses)
         : undefined;
     if (grant !== undefined) decided.grantId = grant.grantId;
 
@@ -248,6 +290,11 @@ export class ApprovalStore {
     app: string;
     role: string;
     actionHash: string;
+    /** Rule + action text + ticket enable A1 scoped-grant matching; omitted,
+     *  only exact action-hash grants match (the ratified default). */
+    rule?: string;
+    actionText?: string;
+    ticketRef?: string;
     now?: Date;
   }): ApprovalGrant | undefined {
     this.ensureDirsSync();
@@ -256,16 +303,48 @@ export class ApprovalStore {
       if (!file.endsWith(".json")) continue;
       const grant = readJsonSync<ApprovalGrant>(join(this.grantsDir(), file));
       if (
-        grant.app === input.app &&
-        grant.role === input.role &&
-        grant.actionHash === input.actionHash &&
-        grant.uses > 0 &&
-        new Date(grant.expiresAt).getTime() > now.getTime()
+        grant.app !== input.app ||
+        grant.role !== input.role ||
+        grant.uses <= 0 ||
+        grant.revokedAt !== undefined ||
+        new Date(grant.expiresAt).getTime() <= now.getTime()
       ) {
-        return grant;
+        continue;
       }
+      if (grant.scope === undefined) {
+        if (grant.actionHash === input.actionHash) return grant;
+        continue;
+      }
+      // Scoped grant: same rule, same ticket when ticket-scoped, and the
+      // path substring (when set) present in the action text.
+      if (input.rule === undefined || grant.scope.rule !== input.rule) continue;
+      if (grant.scope.kind === "ticket" && grant.scope.ticketRef !== input.ticketRef) continue;
+      if (
+        grant.scope.pathContains !== undefined &&
+        !(input.actionText ?? "").includes(grant.scope.pathContains)
+      ) {
+        continue;
+      }
+      return grant;
     }
     return undefined;
+  }
+
+  /** A1: immediate revocation. A revoked grant never matches again; the log
+   *  records the act. */
+  revokeGrantSync(grantId: string, now: Date = new Date()): ApprovalGrant {
+    this.ensureDirsSync();
+    const path = this.grantPath(grantId);
+    const grant = readJsonSync<ApprovalGrant>(path);
+    const next: ApprovalGrant = { ...grant, uses: 0, revokedAt: now.toISOString() };
+    writeJsonSync(path, next);
+    appendJsonLineSync(this.logPath(), {
+      type: "grant-revoked",
+      id: next.approvalId,
+      grantId: next.grantId,
+      at: now.toISOString(),
+    } satisfies ApprovalLogEvent);
+    return next;
   }
 
   consumeGrantSync(grantId: string, now: Date = new Date()): ApprovalGrant {
@@ -394,7 +473,13 @@ export function actionHash(action: ToolAction | ApprovalAction): string {
     .digest("hex");
 }
 
-function mintGrant(item: ApprovalItem, now: Date, ttlMs: number): ApprovalGrant {
+function mintGrant(
+  item: ApprovalItem,
+  now: Date,
+  ttlMs: number,
+  scope?: { kind: "ticket" | "app"; pathContains?: string },
+  maxUses?: number,
+): ApprovalGrant {
   return {
     grantId: `grant-${item.id}`,
     approvalId: item.id,
@@ -402,8 +487,20 @@ function mintGrant(item: ApprovalItem, now: Date, ttlMs: number): ApprovalGrant 
     role: item.role,
     actionHash: actionHash(item.action),
     expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
-    uses: 1,
+    uses: scope !== undefined ? maxUses ?? DEFAULT_SCOPED_MAX_USES : 1,
     createdAt: now.toISOString(),
+    ...(scope !== undefined
+      ? {
+          scope: {
+            kind: scope.kind,
+            rule: item.rule,
+            ...(scope.kind === "ticket" && item.ticketRef !== undefined
+              ? { ticketRef: item.ticketRef }
+              : {}),
+            ...(scope.pathContains !== undefined ? { pathContains: scope.pathContains } : {}),
+          },
+        }
+      : {}),
   };
 }
 

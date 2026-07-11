@@ -173,8 +173,6 @@ compaction can propose cleanup. A real semantic conflict without a shared
 
 ## 5. Architecture
 
-[BG] It's not clear to me where a human can give input because when I reviewed the first run of Operon myself manually, I had quite a few feedback. [/BG]
-
 The Operon-first loop has eight components.
 
 **Capture.** The orchestrator records learning events from runlogs, quality

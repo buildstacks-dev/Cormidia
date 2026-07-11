@@ -1,16 +1,27 @@
-// Human approval queue CLI (architecture.md §4).
+// Human approval queue CLI (architecture.md §4; approval-and-release-
+// amendment A1–A3): decisions may widen a grant's scope (never for
+// NEVER_SCOPEABLE_RULES), same-rule items may be reviewed as one batch with
+// per-item audit intact, approvals may re-arm the parked ticket, and grants
+// can be revoked immediately.
 
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { ApprovalStore, type ApprovalItem } from "../org/approvals.js";
+import { join, resolve } from "node:path";
+import {
+  ApprovalStore,
+  type ApprovalItem,
+  type DecideApprovalInput,
+} from "../org/approvals.js";
+import { loadApps } from "../org/apps.js";
+import { GhCliOps } from "../loop/github.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
-import { resolve } from "node:path";
 
 export async function cmdApprovals(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "approvals");
   const parsed = parseArgs(common.rest);
-  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
+  const homes = await resolveOperonHomes(common);
+  const stateHome = common.stateHome ? resolve(common.stateHome) : homes.stateHome;
   const store = new ApprovalStore(stateHome);
   await store.reconcile();
 
@@ -21,8 +32,15 @@ export async function cmdApprovals(args: string[]): Promise<number> {
     return 0;
   }
 
+  if (parsed.subcommand === "revoke") {
+    if (parsed.id === undefined) throw new Error("approvals revoke: grant id required");
+    const revoked = store.revokeGrantSync(parsed.id, parsed.now);
+    console.log(`revoked ${revoked.grantId} (approval ${revoked.approvalId})`);
+    return 0;
+  }
+
   if (parsed.subcommand === "review") {
-    return reviewQueue(store);
+    return reviewQueue(store, homes.orgHome, parsed.batch);
   }
 
   const pending = await store.listPending();
@@ -31,78 +49,152 @@ export async function cmdApprovals(args: string[]): Promise<number> {
 }
 
 interface ParsedArgs {
-  subcommand: "list" | "review" | "show";
+  subcommand: "list" | "review" | "show" | "revoke";
   id?: string;
+  batch: boolean;
   now: Date;
 }
 
 function parseArgs(args: string[]): ParsedArgs {
   let subcommand: ParsedArgs["subcommand"] = "list";
   let id: string | undefined;
+  let batch = false;
   let now = new Date();
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--now") now = new Date(needValue(args, ++i, "--now"));
+    else if (arg === "--batch") batch = true;
     else if (arg === "review") subcommand = "review";
     else if (arg === "show") {
       subcommand = "show";
       id = needValue(args, ++i, "show");
+    } else if (arg === "revoke") {
+      subcommand = "revoke";
+      id = needValue(args, ++i, "revoke");
     } else if (arg === "list") subcommand = "list";
     else throw new Error(`approvals: unknown argument "${arg}"`);
   }
 
-  return { subcommand, ...(id !== undefined ? { id } : {}), now };
+  return { subcommand, batch, ...(id !== undefined ? { id } : {}), now };
 }
 
-async function reviewQueue(store: ApprovalStore): Promise<number> {
+/** `a` = approve single-use; `a ticket [path]` / `a app [path]` = approve
+ *  with an A1 scope; `d` = deny (reason follows); anything else skips. */
+function decisionFromAnswer(answer: string): { kind: "approve" | "deny" | "skip"; scope?: DecideApprovalInput["scope"] } {
+  const parts = answer.trim().toLowerCase().split(/\s+/);
+  const head = parts[0] ?? "";
+  if (head === "d" || head === "deny") return { kind: "deny" };
+  if (head !== "a" && head !== "approve") return { kind: "skip" };
+  const kind = parts[1];
+  if (kind === "ticket" || kind === "app") {
+    return {
+      kind: "approve",
+      scope: { kind, ...(parts[2] !== undefined ? { pathContains: parts[2] } : {}) },
+    };
+  }
+  return { kind: "approve" };
+}
+
+async function reviewQueue(store: ApprovalStore, orgHome: string, batch: boolean): Promise<number> {
   const pending = await store.listPending();
   if (pending.length === 0) {
     console.log("approvals: 0 pending");
     return 0;
   }
-  if (!input.isTTY) return reviewQueueBatch(store, pending);
+  // A3: batching groups the human's keystrokes, never the audit — each item
+  // still gets its own decide() call and log rows.
+  const groups: ApprovalItem[][] = batch ? groupByRuleAndApp(pending) : pending.map((item) => [item]);
 
-  const rl = createInterface({ input, output });
+  const interactive = input.isTTY === true;
+  const rl = interactive ? createInterface({ input, output }) : undefined;
+  const scripted = interactive ? [] : (await readStdin()).split(/\r?\n/);
+  let scriptIndex = 0;
+  const ask = async (prompt: string): Promise<string> =>
+    rl !== undefined ? await rl.question(prompt) : (scripted[scriptIndex++] ?? "");
+
   try {
-    for (const item of pending) {
-      console.log(formatFullItem(item));
-      const answer = (await rl.question("[a]pprove / [d]eny / [s]kip: ")).trim().toLowerCase();
-      if (answer === "a" || answer === "approve") {
-        const decided = await store.decide(item.id, { decision: "approved" });
-        console.log(`approved ${item.id}${decided.grantId ? ` grant=${decided.grantId}` : ""}`);
-      } else if (answer === "d" || answer === "deny") {
-        const reason = (await rl.question("reason: ")).trim();
-        await store.decide(item.id, { decision: "denied", reason });
-        console.log(`denied ${item.id}`);
+    for (const group of groups) {
+      const first = group[0]!;
+      if (group.length === 1) {
+        console.log(formatFullItem(first));
       } else {
-        console.log(`skipped ${item.id}`);
+        console.log(`BATCH ${group.length} item(s) — rule ${first.rule}, app ${first.app}`);
+        for (const item of group) console.log(`  ${item.id} ${JSON.stringify(item.action).slice(0, 100)}`);
+      }
+      const answer = await ask("[a]pprove / a ticket|app [path] / [d]eny / [s]kip: ");
+      const decision = decisionFromAnswer(answer);
+      if (decision.kind === "skip") {
+        for (const item of group) console.log(`skipped ${item.id}`);
+        continue;
+      }
+      if (decision.kind === "deny") {
+        const reason = (await ask("reason: ")).trim();
+        for (const item of group) {
+          await store.decide(item.id, { decision: "denied", reason });
+          console.log(`denied ${item.id}`);
+        }
+        continue;
+      }
+      for (const item of group) {
+        const decided = await store.decide(item.id, {
+          decision: "approved",
+          ...(decision.scope !== undefined ? { scope: decision.scope } : {}),
+        });
+        console.log(
+          `approved ${item.id}${decided.grantId ? ` grant=${decided.grantId}` : ""}` +
+            (decision.scope !== undefined ? ` scope=${decision.scope.kind}` : ""),
+        );
+      }
+      // A2 approve-and-rearm: continue the parked ticket from its artifacts.
+      const ticketed = group.find((item) => item.ticketRef !== undefined);
+      if (interactive && ticketed?.ticketRef !== undefined) {
+        const rearm = (await ask(`re-arm ${ticketed.ticketRef} (op:blocked -> op:ready)? [y/N]: `))
+          .trim()
+          .toLowerCase();
+        if (rearm === "y" || rearm === "yes") {
+          await rearmTicket(orgHome, ticketed);
+        }
       }
     }
   } finally {
-    rl.close();
+    rl?.close();
   }
   return 0;
 }
 
-async function reviewQueueBatch(store: ApprovalStore, pending: readonly ApprovalItem[]): Promise<number> {
-  const lines = (await readStdin()).split(/\r?\n/);
-  let index = 0;
-  for (const item of pending) {
-    console.log(formatFullItem(item));
-    const answer = (lines[index++] ?? "").trim().toLowerCase();
-    if (answer === "a" || answer === "approve") {
-      const decided = await store.decide(item.id, { decision: "approved" });
-      console.log(`approved ${item.id}${decided.grantId ? ` grant=${decided.grantId}` : ""}`);
-    } else if (answer === "d" || answer === "deny") {
-      const reason = (lines[index++] ?? "").trim();
-      await store.decide(item.id, { decision: "denied", reason });
-      console.log(`denied ${item.id}`);
-    } else {
-      console.log(`skipped ${item.id}`);
-    }
+function groupByRuleAndApp(items: readonly ApprovalItem[]): ApprovalItem[][] {
+  const groups = new Map<string, ApprovalItem[]>();
+  for (const item of items) {
+    const key = `${item.rule} ${item.app}`;
+    const list = groups.get(key) ?? [];
+    list.push(item);
+    groups.set(key, list);
   }
-  return 0;
+  return [...groups.values()];
+}
+
+async function rearmTicket(orgHome: string, item: ApprovalItem): Promise<void> {
+  const issueNumber = Number(/#(\d+)/.exec(item.ticketRef ?? "")?.[1]);
+  if (!Number.isInteger(issueNumber)) {
+    console.log(`re-arm skipped: cannot parse ticket ref "${item.ticketRef}"`);
+    return;
+  }
+  try {
+    const apps = await loadApps(join(orgHome, "apps.yaml"));
+    const app = apps.apps.find((entry) => entry.name === item.app);
+    if (app === undefined) {
+      console.log(`re-arm skipped: app "${item.app}" not in apps.yaml`);
+      return;
+    }
+    await new GhCliOps(app.repo).swapLabel(issueNumber, "op:blocked", "op:ready");
+    console.log(`re-armed ${item.ticketRef}: op:blocked -> op:ready`);
+  } catch (error) {
+    console.log(
+      `re-arm failed (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — ` +
+        `swap the label manually if the ticket should continue`,
+    );
+  }
 }
 
 async function readStdin(): Promise<string> {

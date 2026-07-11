@@ -383,7 +383,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
 | security         | regex scan of changed files: `sk-[A-Za-z0-9]{32,}`, `ghp_…`, AWS keys, `-----BEGIN PRIVATE KEY-----`, generic key/token/password assignments; binaries skipped |
-| completeness     | every acceptance criterion checked off; no unresolved findings on the PR                                                                                       |
+| completeness     | criteria present and parseable; every criterion has a covering test in the contract mapping; no unresolved findings on the PR. Checkbox state is gate *output*, not input: the orchestrator renders all boxes checked at merge (no process participant may write them earlier — see docs/proportionality-review.md §7) |
 | review-freshness | branch HEAD == the APPROVE review's `commit_id` (GitHub-native); always runs regardless of tier                                                                |
 
 
@@ -430,10 +430,13 @@ therefore a first-class artifact with named owners at every step:
   the spec (co-planning session or spec-PR review) before any `op:ready`
   label — the human helps define "done", not just approve the diff.
 - The Builder's contract pass maps **each criterion to named tests**; the
-  completeness gate (table above) fails — not warns — when a criterion has
-  no covering test or unchecked box.
+  completeness gate (table above) fails — not warns — when a ticket has no
+  parseable criteria or a criterion has no covering test.
 - Criteria are never summarized out of briefs (§3) and never edited by the
   Builder; a criterion that proves wrong bounces the ticket to the Planner.
+  Checkbox state is written once, by the orchestrator, when the ticket
+  merges — the merged ticket reads checked-off without any agent or human
+  touching the issue body mid-flight.
 
 ## 6. Verdicts — structured outputs, no prose-driven control flow
 

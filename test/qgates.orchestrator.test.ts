@@ -45,15 +45,25 @@ const shellQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 const passCommand = `${shellQuote(process.execPath)} -e ${shellQuote("process.exit(0)")}`;
 
 describe("runCompletenessGate", () => {
-  it("unchecked criterion fails", () => {
+  it("unchecked criterion with a covering test passes — checkbox state is not gate input", () => {
+    // No process participant may write issue-body checkboxes before merge
+    // (docs/proportionality-review.md §7): publication renders them
+    // unchecked and the Builder never edits criteria, so requiring checked
+    // boxes would fail every orchestrator-published ticket.
     const result = runCompletenessGate(
       [{ id: "AC1", text: "wire the endpoint", checked: false }],
       [],
       { AC1: ["unit:endpoint"] },
     );
 
+    expect(result.status).toBe("pass");
+  });
+
+  it("a ticket with no parseable acceptance criteria fails", () => {
+    const result = runCompletenessGate([], [], {});
+
     expect(result.status).toBe("fail");
-    expect(result.outputTail).toContain("unchecked criterion AC1");
+    expect(result.outputTail).toContain("no parseable acceptance criteria");
   });
 
   it("unresolved finding fails", () => {
@@ -178,13 +188,13 @@ describe("runGates", () => {
     const result = await runGates(
       "low",
       r.root,
-      [{ id: "AC1", text: "still unchecked", checked: false }],
+      [{ id: "AC1", text: "no covering test maps to this criterion", checked: false }],
       [],
       { approvedCommitId: r.head() },
       {
         policy,
         commands: { testCommand: passCommand },
-        criterionTests: coveringTests,
+        criterionTests: {},
         currentAttempt: 2,
       },
     );

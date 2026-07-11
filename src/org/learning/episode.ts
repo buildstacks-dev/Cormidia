@@ -597,7 +597,19 @@ async function runGates(stateHome: string, envelope: RunEnvelope): Promise<Episo
     l2 = await readEvents(stateHome, envelope.app, envelope.run_id);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error; // mid-file corruption stays loud (readEvents contract)
+    // Mid-file corruption: loud but ISOLATED — one damaged historical run
+    // must not wedge every projection (and with it every `operon learn`
+    // subcommand) forever. Recorded as a failing gate entry on the run, the
+    // same shape status.ts uses for a corrupt envelope: shown, never
+    // dropped, never fatal.
+    return [
+      {
+        gate: "runlog",
+        status: "fail",
+        run_id: envelope.run_id,
+        detail: `events.jsonl unreadable: ${(error as Error).message}`,
+      },
+    ];
   }
   return l2
     .filter((event) => event.event === "gate.passed" || event.event === "gate.failed")
@@ -723,8 +735,14 @@ async function preserveOrWrite(
 ): Promise<EpisodeRecord> {
   const path = episodePath(stateHome, folded.episode_id);
   if (existsSync(path)) {
-    const existing = JSON.parse(await readFile(path, "utf8")) as EpisodeRecord;
-    if (existing.status === "closed" && anyRunPruned(existing, folded)) {
+    let existing: EpisodeRecord | undefined;
+    try {
+      existing = JSON.parse(await readFile(path, "utf8")) as EpisodeRecord;
+    } catch {
+      // A torn record file is projection state — rebuildable; the fresh
+      // fold below replaces it.
+    }
+    if (existing !== undefined && existing.status === "closed" && anyRunPruned(existing, folded)) {
       const preserved = withAppendOnlyFields(existing, learningEvents);
       await writeRecordIfChanged(stateHome, preserved);
       return preserved;
@@ -810,8 +828,9 @@ export async function readEpisodeRecord(
   const path = episodePath(stateHome, episodeId);
   if (!existsSync(path)) {
     throw new Error(
-      `learning: no projected record for ${episodeId} — run a projection first ` +
-        `(operon learn report) or check the id (operon learn report lists known episodes)`,
+      `learning: no projected record for ${episodeId} — check the id ` +
+        `(operon learn report lists known episodes); an episode gets a record ` +
+        `once it has captured runs`,
     );
   }
   return JSON.parse(await readFile(path, "utf8")) as EpisodeRecord;
@@ -824,7 +843,12 @@ export async function readEpisodeRecords(stateHome: string): Promise<EpisodeReco
   if (!existsSync(dir)) return [];
   const records: EpisodeRecord[] = [];
   for (const name of (await readdir(dir)).filter((file) => file.endsWith(".json")).sort()) {
-    records.push(JSON.parse(await readFile(join(dir, name), "utf8")) as EpisodeRecord);
+    try {
+      records.push(JSON.parse(await readFile(join(dir, name), "utf8")) as EpisodeRecord);
+    } catch {
+      // Torn projection state — the next project() rewrites it; a reader
+      // must not wedge on it.
+    }
   }
   return records;
 }

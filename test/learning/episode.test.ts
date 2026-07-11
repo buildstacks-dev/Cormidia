@@ -582,6 +582,30 @@ describe("createEpisodeProjector().project()", () => {
     }
   });
 
+  it("isolates a corrupt events.jsonl to its run instead of wedging the projection", async () => {
+    const home = mergedTicketHome();
+    try {
+      // The review run has no gate_results rollup, so the fold reads its L2
+      // stream — corrupt it mid-file.
+      const eventsPath = join(
+        home.root,
+        "runs",
+        "alpha",
+        "20260711-101300-review-verify",
+        "events.jsonl",
+      );
+      writeFileSync(eventsPath, '{"broken": tru\n{"also": "broken"}\n');
+
+      const [record] = await projector(home.root).project();
+      expect(record?.status).toBe("closed");
+      const runlogGate = record?.gates.find((gate) => gate.gate === "runlog");
+      expect(runlogGate?.status).toBe("fail");
+      expect(runlogGate?.detail).toContain("unreadable");
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("anchors dispatched turns on the journal's TurnEvent as a feedback_thread episode", async () => {
     const noTicket = envelope("20260711-050000-support-triage", {
       trace_id: "turn-alpha-9",

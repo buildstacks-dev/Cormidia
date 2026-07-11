@@ -238,6 +238,29 @@ describe("operon learn", () => {
   });
 
   it("show traces a late outcome to its episode disposition", async () => {
+    // Self-sufficient: recreate the merge evidence and the (idempotent,
+    // deterministic-id) late outcome so this test survives isolation.
+    mkdirSync(join(STATE_HOME, "tickets", "alpha"), { recursive: true });
+    writeFileSync(
+      join(STATE_HOME, "tickets", "alpha", "7.json"),
+      JSON.stringify({ claims: 1, outcomes: ["claim 1: ended merged (PR #12)"] }, null, 2) + "\n",
+    );
+    const setup = captureLogs();
+    expect(
+      await cmdLearn([
+        "emit",
+        "--late-outcome",
+        "escaped_defect",
+        "--ref",
+        "alpha#9",
+        "--episode",
+        EPISODE,
+        ...HOME_FLAGS,
+      ]),
+    ).toBe(0);
+    vi.restoreAllMocks();
+    void setup;
+
     const events = captureLogs();
     await cmdLearn(["report", "--json", ...HOME_FLAGS]);
     vi.restoreAllMocks();
@@ -250,6 +273,59 @@ describe("operon learn", () => {
     const { logs } = captureLogs();
     expect(await cmdLearn(["show", "evt_late_" + lateOutcomeHash(), ...HOME_FLAGS])).toBe(0);
     expect(logs.join("\n")).toContain(`folded into ${EPISODE}'s record`);
+  });
+
+  it("emit rejects flags from the other lane instead of silently dropping them", async () => {
+    await expect(
+      cmdLearn([
+        "emit",
+        "--late-outcome",
+        "escaped_defect",
+        "--ref",
+        "alpha#9",
+        "--episode",
+        EPISODE,
+        "--observation",
+        "this would be lost",
+        ...HOME_FLAGS,
+      ]),
+    ).rejects.toThrow(/observation lane/);
+    await expect(
+      cmdLearn([
+        "emit",
+        "--episode",
+        EPISODE,
+        "--observation",
+        "x",
+        "--note",
+        "this would be lost",
+        ...HOME_FLAGS,
+      ]),
+    ).rejects.toThrow(/only apply with --late-outcome/);
+  });
+
+  it("inspect falls back to the event view for an episode with no projected record", async () => {
+    const emitOut = captureLogs();
+    expect(
+      await cmdLearn([
+        "emit",
+        "--episode",
+        "ep_alpha_ticket_0099",
+        "--app",
+        "alpha",
+        "--observation",
+        "observed outside any captured run",
+        ...HOME_FLAGS,
+      ]),
+    ).toBe(0);
+    vi.restoreAllMocks();
+    void emitOut;
+
+    const { logs } = captureLogs();
+    expect(await cmdLearn(["inspect", "ep_alpha_ticket_0099", ...HOME_FLAGS])).toBe(0);
+    const text = logs.join("\n");
+    expect(text).toContain("no projected record");
+    expect(text).toContain("observed outside any captured run");
   });
 
   it("inspect and show exit 1 with guidance for unknown ids", async () => {

@@ -133,11 +133,51 @@ async function inspect(
       }
     }
   } else {
+    // No projected record (runs pruned before projection, or an
+    // observation-only id): render what the capture events still carry —
+    // the M1 view — instead of hiding evidence that survives on disk.
     lines.push(`Episode ${episodeId}`);
     lines.push(
       `App: ${events[0]?.app}   Events: ${events.length}` +
         "   (no projected record — its runs may be pruned or it never had any)",
     );
+    const turns = new Map<string, LearningEvent[]>();
+    for (const event of events) {
+      if (event.turn_id === undefined) continue;
+      turns.set(event.turn_id, [...(turns.get(event.turn_id) ?? []), event]);
+    }
+    if (turns.size > 0) {
+      lines.push("", "Turns:");
+      for (const [turnId, turnEvents] of [...turns.entries()].sort()) {
+        const roles = uniq(turnEvents.map((event) => event.agent_role ?? "?"));
+        const passes = uniq(
+          turnEvents.map((event) => `${event.pipeline ?? "?"}/${event.pass ?? "?"}`),
+        );
+        const runs = uniq(turnEvents.map((event) => event.run_id ?? "?"));
+        lines.push(
+          `  ${turnId} — role ${roles.join(", ")}; passes ${passes.join(", ")}; runs ${runs.join(", ")}`,
+        );
+      }
+    }
+    const gateEvents = events.filter((event) => event.type === "gate_verdict");
+    if (gateEvents.length > 0) {
+      lines.push("", "Gate outcomes:");
+      for (const gate of gateEvents) {
+        const detail =
+          typeof gate.payload?.["detail"] === "string" ? ` — ${gate.payload["detail"]}` : "";
+        lines.push(`  [${gate.payload?.["status"]}] ${gate.payload?.["gate"]} (${gate.run_id})${detail}`);
+      }
+    }
+    const lateEvents = events.filter((event) => event.type === "late_outcome");
+    if (lateEvents.length > 0) {
+      lines.push("", "Late outcomes:");
+      for (const late of lateEvents) {
+        lines.push(
+          `  ${late.payload?.["kind"]} ${late.payload?.["ref"]} (recorded ${late.ts})` +
+            (typeof late.payload?.["note"] === "string" ? ` — ${late.payload["note"]}` : ""),
+        );
+      }
+    }
   }
 
   // Pass verdicts live only in capture events (spec §4) — render from there.
@@ -223,6 +263,7 @@ async function inspect(
  *  the inspect), always naming what is missing for trusted replay. */
 async function capsuleLines(homes: OperonHomes, record: EpisodeRecord): Promise<string[]> {
   let fingerprintRef: string | undefined;
+  let fingerprintFailure: string | undefined;
   try {
     const rolesFile = await loadRoles(join(homes.orgHome, "roles.yaml"));
     const appEntry = homes.appsFile.apps.find((app) => app.name === record.app);
@@ -248,8 +289,10 @@ async function capsuleLines(homes: OperonHomes, record: EpisodeRecord): Promise<
       roles: Object.fromEntries(rolesFile.roles.map((role) => [role.name, role])),
     });
     fingerprintRef = await storeFingerprint(homes.stateHome, fingerprint);
-  } catch {
-    // Fingerprint is best-effort here; the capsule lists it as missing.
+  } catch (error) {
+    // Fingerprint is best-effort here; the capsule lists it as missing and
+    // the reason renders below.
+    fingerprintFailure = (error as Error).message;
   }
 
   let capsule: ReplayCapsule;
@@ -267,7 +310,12 @@ async function capsuleLines(homes: OperonHomes, record: EpisodeRecord): Promise<
     ...(capsule.missing.length > 0
       ? [`  missing for trusted replay: ${capsule.missing.join(", ")}`]
       : []),
-    ...(capsule.seed.commit !== null ? [`  seed: ${capsule.seed.repo}@${capsule.seed.commit}`] : []),
+    ...(fingerprintFailure !== undefined
+      ? [`  fingerprint not computed: ${fingerprintFailure}`]
+      : []),
+    ...(capsule.seed.repo !== null && capsule.seed.commit !== null
+      ? [`  seed: ${capsule.seed.repo}@${capsule.seed.commit}`]
+      : []),
   ];
 }
 
@@ -296,6 +344,28 @@ async function emit(
   projector: EpisodeProjector,
 ): Promise<number> {
   const parsed = parseEmitArgs(args);
+
+  // The two lanes take disjoint flags; silently dropping the other lane's
+  // input would be data loss with a success exit code.
+  if (parsed.lateOutcome !== undefined) {
+    const stray = [
+      parsed.observation !== undefined ? "--observation" : undefined,
+      parsed.cause !== undefined ? "--cause" : undefined,
+      parsed.intervention !== undefined ? "--intervention" : undefined,
+      parsed.artifacts.length > 0 ? "--artifact" : undefined,
+      parsed.file !== undefined ? "--file" : undefined,
+    ].filter((flag): flag is string => flag !== undefined);
+    if (stray.length > 0) {
+      throw new Error(
+        `learn emit: ${stray.join(", ")} belong(s) to the observation lane — ` +
+          "record the observation as a separate emit, or drop --late-outcome",
+      );
+    }
+  } else if (parsed.ref !== undefined || parsed.note !== undefined) {
+    throw new Error(
+      "learn emit: --ref/--note only apply with --late-outcome <kind>",
+    );
+  }
 
   // Late outcomes are the record's one append-only lane (design §8.3):
   // routed through the projector so they fold into the EpisodeRecord.
@@ -494,19 +564,32 @@ async function report(
         {
           capture: projection,
           totals: { events: events.length, by_type: byType, by_app: byApp },
-          episodes: records.map((record) => ({
-            episode_id: record.episode_id,
-            kind: record.kind,
-            status: record.status,
-            events: eventsByEpisode.get(record.episode_id) ?? 0,
-            ...(record.outcome !== undefined
-              ? {
-                  completed: record.outcome.completed,
-                  cost_usd: record.outcome.cost_usd,
-                  release_disposition: record.outcome.release_disposition,
-                }
-              : {}),
-          })),
+          episodes: [
+            ...records.map((record) => ({
+              episode_id: record.episode_id,
+              kind: record.kind,
+              status: record.status,
+              events: eventsByEpisode.get(record.episode_id) ?? 0,
+              ...(record.outcome !== undefined
+                ? {
+                    completed: record.outcome.completed,
+                    cost_usd: record.outcome.cost_usd,
+                    cost_estimated: record.outcome.cost_estimated,
+                    release_disposition: record.outcome.release_disposition,
+                  }
+                : {}),
+            })),
+            // Event-bearing episodes without a projected record (pruned
+            // before projection, or observation-only ids) stay visible in
+            // the machine-readable surface too.
+            ...[...eventsByEpisode.entries()]
+              .filter(([episodeId]) => !records.some((r) => r.episode_id === episodeId))
+              .map(([episodeId, n]) => ({
+                episode_id: episodeId,
+                status: "no_record" as const,
+                events: n,
+              })),
+          ],
           gate_failures: gateFailures,
           human_observations: humans.map((event) => event.event_id),
         },
@@ -571,6 +654,10 @@ function needValue(args: string[], index: number, flag: string): string {
   const value = args[index];
   if (!value || value.startsWith("--")) throw new Error(`learn emit: ${flag} requires a value`);
   return value;
+}
+
+function uniq(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function count(values: string[]): Array<[string, number]> {

@@ -191,6 +191,31 @@ describe("createCapsuleBuilder", () => {
     }
   });
 
+  it("keeps the first assembly's fingerprint — provenance survives a drifted re-assembly", async () => {
+    const home = mergedTicketHome();
+    try {
+      await projectHome(home.root);
+      const first = await createCapsuleBuilder({
+        stateHome: home.root,
+        repoByApp: { alpha: "owner/alpha" },
+        fingerprintRef: "sys_original0001",
+      }).assemble(EPISODE);
+      expect(first.fingerprint_ref).toBe("sys_original0001");
+
+      const reassembled = await createCapsuleBuilder({
+        stateHome: home.root,
+        repoByApp: { alpha: "owner/alpha" },
+        fingerprintRef: "sys_drifted00002",
+      }).assemble(EPISODE);
+      expect(reassembled.fingerprint_ref).toBe("sys_original0001");
+      expect((await readCapsule(home.root, first.capsule_id))?.fingerprint_ref).toBe(
+        "sys_original0001",
+      );
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("refuses non-build episodes — V1 scope is build only", async () => {
     const noTicket = envelope("20260711-050000-support-triage", {
       trace_id: "turn-alpha-9",

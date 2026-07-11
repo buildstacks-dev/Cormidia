@@ -45,3 +45,25 @@ function parseValidated<T>(path: string, raw: string, validate: (value: unknown)
     throw new Error(`learning: ${path}: ${(error as Error).message}`);
   }
 }
+
+/** The one torn-tail JSONL read contract every learning ledger shares
+ *  (learning events, rejections): a malformed FINAL line is a torn append
+ *  and is dropped; a malformed line anywhere else is corruption and throws
+ *  loudly. Returns [] for a missing file. */
+export async function readJsonLinesTolerant<T>(path: string): Promise<T[]> {
+  if (!existsSync(path)) return [];
+  const lines = (await readFile(path, "utf8")).split("\n").filter((line) => line !== "");
+  const out: T[] = [];
+  lines.forEach((line, i) => {
+    try {
+      out.push(JSON.parse(line) as T);
+    } catch {
+      if (i !== lines.length - 1) {
+        throw new Error(
+          `learning: ${path}:${i + 1} is malformed mid-file — corruption, not a torn append`,
+        );
+      }
+    }
+  });
+  return out;
+}

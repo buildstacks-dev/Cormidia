@@ -27,7 +27,7 @@ import { RUN_ID_RE } from "../../runtime/runlog/paths.js";
 import { writeFileAtomic } from "../atomic.js";
 import { readJournal } from "../journal.js";
 import {
-  eventEpisodeAnchor,
+  journalEpisodeAnchor,
   ticketEpisodeAnchor,
   turnEpisodeAnchor,
   type EpisodeAnchor,
@@ -208,10 +208,7 @@ export async function deriveEpisodeAnchor(
   }
   try {
     const journal = await readJournal(stateHome, envelope.trace_id);
-    if (journal.event !== undefined) return eventEpisodeAnchor(envelope.app, journal.event);
-    if (journal.ticketRef !== undefined) {
-      return ticketEpisodeAnchor(envelope.app, journal.ticketRef);
-    }
+    return journalEpisodeAnchor(envelope.app, journal, envelope.trace_id);
   } catch {
     // No journal for this trace (loop passes journal under ticket state, not
     // state/turns) — fall through to the turn-anchored id.

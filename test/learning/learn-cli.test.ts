@@ -105,7 +105,7 @@ describe("operon learn", () => {
     const { logs } = captureLogs();
     expect(await cmdLearn(["report", ...HOME_FLAGS])).toBe(0);
     const text = logs.join("\n");
-    expect(text).toContain("nothing activates yet");
+    expect(text).toContain("every activation human-approved");
     expect(text).toContain("gate_verdict: 2");
     expect(text).toContain("pass_verdict: 1");
     expect(text).toContain("episode_opened: 1");
@@ -336,7 +336,7 @@ describe("operon learn", () => {
 
     const showOut = captureLogs();
     expect(await cmdLearn(["show", "cand_20260711_nope", ...HOME_FLAGS])).toBe(1);
-    expect(showOut.errors.join("\n")).toContain("candidate storage lands with M4");
+    expect(showOut.errors.join("\n")).toContain("no candidate cand_20260711_nope in any learning root");
   });
 
   it("emit requires --episode/--observation outside a terminal and derives the app", async () => {

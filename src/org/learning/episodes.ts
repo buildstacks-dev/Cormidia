@@ -84,6 +84,25 @@ export function turnEpisodeId(app: string, turnId: string): string {
   return episodeId(app, "turn", turnId);
 }
 
+/** Anchor derivation from a turn journal's fields — the ONE precedence order
+ *  (event -> ticketRef -> the turn itself) shared by the capture projector
+ *  and the resolver's turn-start pin, so resolve events and capture events
+ *  land on the same episode. Capture additionally prefers the run envelope's
+ *  own `ticket` when present (runtime truth for loop passes); a dispatched
+ *  turn that claims a ticket AFTER its turn-start resolve therefore captures
+ *  under the ticket episode while its resolve pin stays on this anchor —
+ *  a known M4 boundary that M5's episode-sticky assignment moves the
+ *  resolve to close. */
+export function journalEpisodeAnchor(
+  app: string,
+  journal: { event?: Pick<TurnEvent, "kind" | "key">; ticketRef?: string },
+  turnId: string,
+): EpisodeAnchor {
+  if (journal.event !== undefined) return eventEpisodeAnchor(app, journal.event);
+  if (journal.ticketRef !== undefined) return ticketEpisodeAnchor(app, journal.ticketRef);
+  return turnEpisodeAnchor(app, turnId);
+}
+
 export function turnEpisodeAnchor(app: string, turnId: string): EpisodeAnchor {
   return {
     episodeId: turnEpisodeId(app, turnId),

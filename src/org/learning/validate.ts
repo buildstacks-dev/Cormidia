@@ -5,6 +5,15 @@
 // (src/org/memory.ts) without importing it — these records are JSON
 // contracts, not frontmatter.
 
+import { createHash } from "node:crypto";
+
+/** `sha256:<64 hex>` content ref — the ONE producer for every hash the
+ *  approval binding pairs (candidate_hash, verdict_hash, final_diff_hash),
+ *  so two hand-rolled hashers can never drift in format. */
+export function sha256Ref(bytes: Buffer | string): string {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
 export function requireRecord(value: unknown, source: string): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`learning: ${source} must be a JSON object`);

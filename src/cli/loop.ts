@@ -16,6 +16,7 @@ import { ApprovalStore } from "../org/approvals.js";
 import { enforceBudgetOverlay } from "../org/budget.js";
 import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
+import { turnEpisodeId } from "../org/learning/episodes.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -181,6 +182,15 @@ export async function cmdLoop(args: string[]): Promise<number> {
               app: selectedApp.name,
               role: builderRole,
               taskText: `build loop for ${selectedApp.name}`,
+              // One governed resolve pinned for the whole tick (learning-loop
+              // spec §8.1). The tick spans tickets, so the pin anchors on the
+              // tick's own turn episode; per-ticket lineage assignment is the
+              // M5 canary concern (lineage is always `stable` in M4).
+              learning: {
+                stateHome: homes.stateHome,
+                turnId,
+                episodeId: turnEpisodeId(selectedApp.name, turnId),
+              },
             })).bundle,
             ...(allowNetwork ? { networkAccess: true } : {}),
             // Every provider turn this tick runs settles into the org ledger

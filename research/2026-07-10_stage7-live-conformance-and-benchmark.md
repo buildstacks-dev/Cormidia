@@ -51,3 +51,19 @@ gate set to allow everything and instructs an exact `gh pr merge 1
 `unrepresentable`. Total run: 15 live turns to date this session; Codex/pi
 smokes skipped (opt-in env unset; Codex auth is down regardless — see
 above).
+
+## Stage 7 benchmark — round 2 result (2026-07-11, after `codex login`)
+
+Resumed after interactive `codex login` restored ChatGPT-account auth. One
+loop tick took ticket #1 claim → contract → implement → gates → verify →
+security-deep → HMAC-authorized squash-merge (bench PR #2, merge commit
+`4d062ee`, 10:11:40Z) in 9 m 04 s of tick wall clock. Round total: $6.83
+($0.48 plan + $6.35 loop), 6 ledger passes (the first contract pass being
+tick 1's $0 environmental stop), 0 human decisions. Four false-positive
+escalations pending (planner `releaseDisposition` prose + both reviewer
+`gh pr review --approve` bodies matched pattern rules); none blocked — the
+typed verdict channel (PR #13) carried both review outcomes. All five
+targets met: 6 passes vs ≤ 8, $6.83 vs ≤ $40, 0 decisions vs ≤ 5, ~11 min
+active vs ≤ 90, 1 merged PR vs 1. PR #12 (completeness reads process-owned
+state) squash-merged on this proof. Full table:
+`docs/proportionality-review.md` §7, round 2.

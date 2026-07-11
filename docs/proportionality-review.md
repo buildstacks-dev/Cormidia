@@ -5,7 +5,9 @@ Stage 1 (PR #5), Stage 2 (PR #6), Stage 3 (PR #7), Stage 4 (PR #8,
 live-verified), Stage 5 (PR #9, ratified), Stage 6 core (PR #10) with its
 deferred follow-ups A4 release handoff (PR #13), dispatch invocation rows
 (PR #14), and adapter toolset shaping (PR #15), and the Stage 7 harness
-(PR #11). §7 records benchmark round 1 and its fix (PR #12). Kept
+(PR #11). §7 records benchmark rounds 1–2: round 1's returned ticket and
+its fix (PR #12, live-proven by round 2), and round 2 meeting every
+target. Kept
 unrewritten as the record of the episode and the reasoning. This is the
 systemic review of the 2026-07-10 buildstacks.dev episode — why a simple
 bootstrap became complex, where the time and money actually went, and the
@@ -483,7 +485,7 @@ Misses become the next round of this document.
 
 ---
 
-## 7. Stage 7 benchmark, round 1 (2026-07-11Z): returned ticket, root cause
+## 7. Stage 7 benchmark (2026-07-11Z): round 1 returned ticket, round 2 met all targets
 
 Round 1 ran the full runbook (`docs/benchmark-runbook.md`) against
 `bikramgupta/operon-bench-20260710` from a fresh Bench-Org. Per §5 Stage 7's
@@ -558,3 +560,38 @@ attempt *to* deploy.
 Round 2 runs from a clean slate (fresh disposable repo, fresh org home)
 with the fix in place; its numbers are reported alongside round 1, not in
 place of it.
+
+### Round 2 (2026-07-11Z): all targets met
+
+Round 2 re-ran the runbook from a clean slate (re-seeded disposable repo,
+fresh Bench-Org) with the completeness fix (PR #12) on the loop's branch.
+After one environmental stop — the first tick's contract pass ended
+honestly at $0 in 4 s on an expired Codex refresh token, re-armed the
+ticket, and consumed claim 1 of 3 (see the dated research note) — claim 2
+carried ticket #1 from claim to squash-merge in a single 9-minute tick.
+
+| Metric | Target | Round 1 | Round 2 | Verdict |
+| --- | --- | --- | --- | --- |
+| Passes for the milestone | ≤ 8 | 6 | 6 (plan, contract ×2 — the first being the $0 environmental stop — implement, verify, security-deep) | within target |
+| Estimated spend | ≤ $40 | $19.00 | **$6.83** | within target |
+| Human decisions | ≤ 5 | 0 | 0 decided (4 false-positive escalations pending; none blocking) | within target |
+| Wall clock (active) | ≤ 90 min | ~18 min | ~11 min (plan 1 m 52 s + ticks 11 s + 9 m 04 s) | within target |
+| Merged to `main` | 1 PR | 0 | **1 — bench PR #2, merge commit `4d062ee`, gates green; the ends-at-merge disposition executed by the merge itself** | **MET** |
+
+What the fix proved live: completeness read process-owned state (contract
+criterion→test mapping, zero unresolved findings) and passed on the first
+gate run — contract → implement → gates (setup/build/lint/test, $0, 6 s)
+→ cross-provider verify → security-deep → HMAC-authorized squash-merge,
+with no remediation pass anywhere. `advanceShipping` rendered the issue
+checkboxes checked at merge: written by the orchestrator, the only party
+the design allows.
+
+Ride-along recurrence: all four pending escalations are the round-1
+calibration finding again. The planner's `releaseDisposition` prose
+matched `production-deploy` and `secrets-or-auth`; both reviewer
+`gh pr review --approve` comment bodies matched `secrets-or-auth`. None
+blocked anything — the typed verdict channel (PR #13) carried both review
+outcomes, so the gated `gh` calls queued as cosmetic side effects. The
+Stage 6 calibration follow-up (re-scope the pattern rules for verdict
+payloads and review-comment prose) stays open; with the benchmark met it
+is the next highest-value polish.

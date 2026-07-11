@@ -779,6 +779,13 @@ export async function advanceShipping(
 
   await options.gh.deleteBranch(branch);
   await options.gh.removeLabel(item.issueNumber, "op:in-review");
+  // Render done-ness: the merged ticket's acceptance boxes end checked, and
+  // the orchestrator is the only party the design allows to write them
+  // (criteria are never Builder-edited; publication renders them unchecked).
+  const checkedBody = checkAcceptanceBoxes(item.body);
+  if (checkedBody !== item.body) {
+    await options.gh.updateIssueBody(item.issueNumber, checkedBody);
+  }
   removeWorktree(options.localRepo, worktree);
 
   const scorecardEvents: ScorecardEvent[] =
@@ -819,6 +826,20 @@ export function parseAcceptanceCriteria(body: string): AcceptanceCriterion[] {
     });
   }
   return criteria;
+}
+
+/** Check every `- [ ]` box inside the "## Acceptance criteria" section —
+ *  the orchestrator's merge-time rendering of done-ness (advanceShipping).
+ *  Lines outside that section are untouched; no section → body unchanged. */
+export function checkAcceptanceBoxes(body: string): string {
+  const heading = /^##\s+Acceptance criteria\s*$/im.exec(body);
+  if (!heading) return body;
+  const start = heading.index + heading[0].length;
+  const rest = body.slice(start);
+  const next = /^##\s+/m.exec(rest);
+  const end = next ? start + next.index : body.length;
+  const section = body.slice(start, end).replace(/^(\s*[-*]\s+)\[ \]/gm, "$1[x]");
+  return body.slice(0, start) + section + body.slice(end);
 }
 
 export function defaultCriterionTests(

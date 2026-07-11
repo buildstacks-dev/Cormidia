@@ -328,8 +328,18 @@ export function runCompletenessGate(
 ): GateResult {
   const failures: string[] = [];
 
+  // Checkbox state is deliberately NOT an input here. In the predecessor,
+  // "checked" was orchestrator-tracked task status; in this loop no process
+  // participant may write issue-body checkboxes before merge (the Builder
+  // never edits criteria, publication renders them unchecked), so requiring
+  // them would fail every orchestrator-published ticket
+  // (docs/proportionality-review.md §7). advanceShipping renders the boxes
+  // checked at merge — gate output, not gate input.
+  if (criteria.length === 0) {
+    failures.push("no parseable acceptance criteria on the ticket");
+  }
+
   for (const criterion of criteria) {
-    if (!criterion.checked) failures.push(`unchecked criterion ${criterion.id}: ${criterion.text}`);
     const tests = criterionTests[criterion.id] ?? [];
     if (tests.filter((test) => test.trim() !== "").length === 0) {
       failures.push(`criterion ${criterion.id} has no covering test in the contract mapping`);

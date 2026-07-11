@@ -480,3 +480,81 @@ Misses become the next round of this document.
    SRE own the deploy action itself behind a bounded grant?
 6. Benchmark fixture: should the clean replay be a new disposable repository
    per run, or a resettable sandbox app with a pinned seed commit?
+
+---
+
+## 7. Stage 7 benchmark, round 1 (2026-07-11Z): returned ticket, root cause
+
+Round 1 ran the full runbook (`docs/benchmark-runbook.md`) against
+`bikramgupta/operon-bench-20260710` from a fresh Bench-Org. Per §5 Stage 7's
+own rule — a miss is not massaged, it becomes the next round of this
+document — this section records the miss and its root cause.
+
+### Actuals vs targets
+
+| Metric | Target | Round 1 | Verdict |
+| --- | --- | --- | --- |
+| Passes for the milestone | ≤ 8 | 6 (plan, contract, implement, fix ×3) | within target, but yielded no merge |
+| Estimated spend | ≤ $40 | $19.00 | within target; $9.45 of it mechanically futile |
+| Human decisions | ≤ 5 | 0 decided (2 false-positive requests pending) | within target |
+| Wall clock (active) | ≤ 90 min | ~18 min | within target |
+| Merged to `main` | 1 PR | **0 — ticket returned** | **MISS** |
+
+What worked: the Stage 4 planner published exactly 1 ticket with canonical
+labels for $0.71; the builder scaffolded a working site (setup, tests, lint
+all green in the gate set); Stage 1 settlement recorded every pass exactly
+once; Stage 2/3 machinery parked the ticket with an evidence digest instead
+of thrashing. The loop was honest about its own failure — that part of the
+campaign held.
+
+### Root cause: the completeness gate reads a state channel nobody writes
+
+`runCompletenessGate` fails any acceptance criterion whose issue-body
+checkbox is unchecked. That test was ported from the predecessor
+orchestrator, where "checked" meant *task status = done in the
+orchestrator's own tracker*, set by the orchestrator from the builder's
+typed done-verdict (`gates.py: run_gate_completeness`). The port kept the
+check but not the writer:
+
+- Stage 4 publication renders criteria as `- [ ]` — unchecked by
+  construction.
+- `docs/loop.md` §5 forbids the Builder from editing criteria, and Stage 4/6
+  removed agent-authored `gh` side effects generally.
+- The loop driver parses criteria from the issue body once, at claim time,
+  so even an out-of-band check would be invisible to the same tick.
+
+No process participant may write the state the gate demands. Every
+orchestrator-published ticket therefore fails completeness, burns all
+`max_attempts` remediation passes on a defect no code change can fix
+($9.45 here — the three fix passes), and parks as `op:returned`. Earlier
+live episodes (delta, 2026-07-06) passed only because ticket checkboxes were
+checked out-of-band — exactly the untracked manual surgery the benchmark
+rules exist to expose.
+
+### Fix (landed with this section)
+
+Completeness now checks what the process actually maintains: every
+criterion still needs a covering test in the contract mapping and every
+finding must be resolved; a ticket with no parseable acceptance criteria
+fails (the predecessor's "no tasks found in scope"); the checkbox
+requirement is dropped as gate *input*. Checkbox state becomes gate
+*output*: `advanceShipping` renders all boxes checked on the issue at
+merge, so the human-visible ticket still ends checked-off — written by the
+orchestrator, the only party the design allows. `docs/loop.md` §5 updated
+to match. Follow-up (not this fix): make the contract's criterion→test
+mapping typed so the covering-test half of the gate is real instead of the
+`defaultCriterionTests` stub.
+
+### Ride-along finding: the safety gate pattern-matches plan prose
+
+Both pending approval requests were raised *by the planner's structured
+output itself*: the plan JSON's `releaseDisposition` prose ("deployment is
+a later milestone…") matched `production-deploy`, and the ticket body
+matched `protocol-self-edit`. The turn survived (deny + escalate + retry),
+but a Stage 6 calibration follow-up should exempt or re-scope
+`structuredoutput` verdict payloads — content *about* deployment is not an
+attempt *to* deploy.
+
+Round 2 runs from a clean slate (fresh disposable repo, fresh org home)
+with the fix in place; its numbers are reported alongside round 1, not in
+place of it.

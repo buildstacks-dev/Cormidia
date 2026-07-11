@@ -13,6 +13,7 @@ import {
   advanceGates,
   advanceReviewing,
   advanceShipping,
+  checkAcceptanceBoxes,
   claimTicket,
   pushBranch,
   type LoopItem,
@@ -651,6 +652,46 @@ describe("advanceShipping", () => {
       expect(merged.scorecardEvents).toEqual([
         { type: "review_cycles", turnId: "turn-1", ticketRef: "#1", value: 0 },
       ]);
+      // The fixture body's only criterion is already checked — no render write.
+      expect(h.gh.calls.filter((c) => c.op === "updateIssueBody")).toEqual([]);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("renders acceptance boxes checked on the issue at merge — orchestrator-written done-ness", async () => {
+    const h = await shippingHarness("Ship Checked Boxes");
+    const uncheckedBody = [
+      "## Goal",
+      "Ship a small fixture change.",
+      "",
+      "## Acceptance criteria",
+      "- [ ] fixture gates pass",
+      "- [ ] a second criterion",
+      "",
+      "## Out of scope",
+      "- [ ] a checkbox outside the criteria section stays untouched",
+      "",
+    ].join("\n");
+    try {
+      const merged = await advanceShipping(
+        { ...h.item, body: uncheckedBody },
+        {
+          gh: h.gh,
+          localRepo: h.pair.clone.root,
+          policy: policy(),
+          commands: { testCommand: "true" },
+          criteria,
+          criterionTests,
+          gateRunner: async () => gatePass(),
+        },
+      );
+
+      expect(merged.phase).toBe("merged");
+      const issue = await h.gh.readIssue(1);
+      expect(issue.body).toContain("- [x] fixture gates pass");
+      expect(issue.body).toContain("- [x] a second criterion");
+      expect(issue.body).toContain("- [ ] a checkbox outside the criteria section stays untouched");
     } finally {
       h.cleanup();
     }
@@ -803,6 +844,30 @@ describe("advanceShipping", () => {
     } finally {
       pair.cleanup();
     }
+  });
+});
+
+describe("checkAcceptanceBoxes", () => {
+  it("returns the body unchanged when there is no acceptance-criteria section", () => {
+    const noSection = "## Goal\n- [ ] not a criterion\n";
+    expect(checkAcceptanceBoxes(noSection)).toBe(noSection);
+  });
+
+  it("checks boxes only inside the acceptance-criteria section", () => {
+    const input = [
+      "## Acceptance criteria",
+      "- [ ] first",
+      "* [ ] second (star bullet)",
+      "- [x] already checked",
+      "",
+      "## Notes",
+      "- [ ] untouched",
+    ].join("\n");
+    const output = checkAcceptanceBoxes(input);
+    expect(output).toContain("- [x] first");
+    expect(output).toContain("* [x] second (star bullet)");
+    expect(output).toContain("- [x] already checked");
+    expect(output).toContain("- [ ] untouched");
   });
 });
 

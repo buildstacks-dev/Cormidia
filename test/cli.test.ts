@@ -141,4 +141,23 @@ describe("cli dispatch", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("--app <app> is required");
   });
+
+  it("dispatch --dry-run appends an invocation ledger row like loop does", async () => {
+    const { stdout, code } = await runCli(["dispatch", "--dry-run"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("dispatch: spawned=");
+
+    const day = new Date().toISOString().slice(0, 10);
+    const ledger = join(STATE_HOME, "invocations", `${day}.jsonl`);
+    expect(existsSync(ledger)).toBe(true);
+    const rows = (await import("node:fs/promises").then(({ readFile }) => readFile(ledger, "utf8")))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const dispatchRows = rows.filter((row) => row["kind"] === "dispatch");
+    expect(dispatchRows.length).toBeGreaterThan(0);
+    expect(dispatchRows.at(-1)).toMatchObject({ kind: "dispatch", dryRun: true });
+    expect(typeof dispatchRows.at(-1)?.["wallClockMs"]).toBe("number");
+    expect(typeof dispatchRows.at(-1)?.["outcome"]).toBe("string");
+  });
 });

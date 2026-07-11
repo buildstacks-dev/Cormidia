@@ -108,6 +108,11 @@ export interface TurnResult {
   usage: TurnUsage;
   /** Critical-op requests that were denied and escalated to the human. */
   escalations: GateEscalation[];
+  /** Stable machine code for a failed turn (e.g. "error_max_budget_usd") —
+   *  budget exhaustion must never masquerade as a generic failure or a
+   *  secrets/auth escalation (proportionality-review Stage 3). Absent on
+   *  success and on failures with no more specific cause. */
+  errorCode?: string;
 }
 
 export interface GateEscalation {

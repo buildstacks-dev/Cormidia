@@ -675,6 +675,11 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<Shel
       cwd,
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
+      // Gates always run non-interactively: package managers must never wait
+      // on (or fail for lack of) a TTY. pnpm refuses to replace an existing
+      // modules dir without CI=1 — that refusal cost a full remediation turn
+      // in the 2026-07-10 episode (proportionality-review Stage 3).
+      env: { ...process.env, CI: "1" },
     });
 
     const tail = new TailBuffer(MAX_CAPTURE_BYTES);

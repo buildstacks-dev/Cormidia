@@ -169,6 +169,63 @@ describe("M6 loop engine integration", () => {
     }
   });
 
+  it("a stopped turn re-arms op:ready with a durable-work comment instead of stranding op:building", async () => {
+    const h = await claimedHarness("Stopped Turn", ["op:ready"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    // Implement pass fails hard (e.g. budget kill) after the contract pass.
+    const fake = new FakeRuntime([
+      scripted(CONTRACT),
+      { result: { ...turnResultOf("budget kill", "failed"), errorCode: "error_max_budget_usd" } },
+    ]);
+    try {
+      const next = await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+      });
+
+      expect(next.phase).toBe("ready");
+      expect(next.labels).toContain("op:ready");
+      const issue = (await h.gh.listIssues({ state: "all", limit: 5 }))[0]!;
+      expect(issue.labels).toContain("op:ready");
+      expect(issue.labels).not.toContain("op:building");
+      const stopped = (h.gh.issueComments.get(1) ?? []).find((c) =>
+        c.startsWith("## Turn stopped before completion"),
+      );
+      expect(stopped).toBeDefined();
+      expect(stopped).toContain("error_max_budget_usd");
+      expect(stopped).toContain("Durable work preserved");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  it("a turn blocked on an approval parks op:blocked, never op:ready auto-retry", async () => {
+    const h = await claimedHarness("Blocked Turn", ["op:ready"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([
+      scripted(CONTRACT),
+      { result: turnResultOf("denied critical op", "blocked_on_gate") },
+    ]);
+    try {
+      const next = await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+      });
+
+      expect(next.phase).toBe("blocked");
+      const issue = (await h.gh.listIssues({ state: "all", limit: 5 }))[0]!;
+      expect(issue.labels).toContain("op:blocked");
+      const stopped = (h.gh.issueComments.get(1) ?? []).find((c) =>
+        c.startsWith("## Turn stopped before completion"),
+      );
+      expect(stopped).toContain("pending approval");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
   it("a fix verdict's resolution lines are posted as a durable Fix resolutions comment", async () => {
     const h = await claimedHarness("Fix Resolutions", ["op:ready"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
@@ -637,15 +694,17 @@ function failedGate(output: string): GateRunResult {
 }
 
 function scripted(summary: string): ScriptedTurn {
+  return { result: turnResultOf(summary, "completed") };
+}
+
+function turnResultOf(summary: string, status: TurnResult["status"]): TurnResult {
   return {
-    result: {
-      status: "completed",
-      summary,
-      artifacts: [],
-      session: { runtime: "claude", id: `session-${summary.slice(0, 10)}` },
-      usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 100 },
-      escalations: [],
-    },
+    status,
+    summary,
+    artifacts: [],
+    session: { runtime: "claude", id: `session-${summary.slice(0, 10)}` },
+    usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 100 },
+    escalations: [],
   };
 }
 

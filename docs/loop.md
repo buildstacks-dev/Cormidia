@@ -636,8 +636,17 @@ session.log still receives every event live. Plus `app`, `ticket`,
 `pass.started/completed/failed`, `gate.started/passed/failed`,
 `tool.called` (name, duration, success — never full args),
 `subagent.started/completed`, `ticket.transition`, `verdict.recorded`,
-`escalation.raised`. Every line timestamped, severity field, machine
-`error_code`. **What is wired today:** the pass executor emits
+`escalation.raised`, `telemetry.settle_skipped` (a ledger settle found its
+app+runId already present — Stage 1). Every line timestamped, severity
+field, machine `error_code`. **Stage 3 additions:** the executor stamps a
+30-second heartbeat onto the envelope (`last_seen_at`) so live and stalled
+passes are distinguishable; a per-pass wall-clock watchdog
+(`wall_clock_minutes`, default 60) finalizes a hung pass
+`failed(error_wall_clock_exceeded)` with an unmeasured ledger row; adapter
+failure codes (`error_max_budget_usd`, …) flow into `pass.failed` and the
+envelope instead of a generic `error_turn_failed`; failed gates retain the
+exact command and a bounded, scrubbed output tail in both the `gate.failed`
+event and `envelope.gate_results`. **What is wired today:** the pass executor emits
 `run.*`/`pass.*`/`escalation.raised` and bridges `subagent.started/completed`
 from the adapters' `onEvent` stream into L2 (`flushBridgedEvents`,
 src/loop/pipeline.ts); the state machine emits `gate.started/passed/failed`

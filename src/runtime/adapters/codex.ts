@@ -259,6 +259,7 @@ export class CodexRuntime implements Runtime {
         session: { runtime: "codex", id: threadId },
         usage: state.usage ?? zeroUsage(wallClockMs, state.subagentTurns),
         escalations,
+        ...(state.budgetOverrun ? { errorCode: "error_max_budget_usd" } : {}),
       };
     } finally {
       await client.close();

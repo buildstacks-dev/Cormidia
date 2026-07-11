@@ -165,6 +165,47 @@ export async function executePipeline(
   return { passes: records, aborted: false };
 }
 
+const HEARTBEAT_INTERVAL_MS = 30_000;
+/** Default per-pass wall-clock cap when pipelines.yaml sets none — matches
+ *  the dispatcher's hung-turn default. */
+const DEFAULT_PASS_WALL_CLOCK_MINUTES = 60;
+export const ERROR_WALL_CLOCK_EXCEEDED = "error_wall_clock_exceeded";
+
+/** Resolve with the turn's result, or a synthetic failed result once the cap
+ *  passes. The losing turn is abandoned, never awaited again. */
+async function withWallClockCap(
+  turn: Promise<TurnResult>,
+  capMs: number,
+  role: RoleConfig,
+  passId: string,
+): Promise<TurnResult> {
+  let timer: NodeJS.Timeout | undefined;
+  const watchdog = new Promise<TurnResult>((resolve) => {
+    timer = setTimeout(() => {
+      resolve({
+        status: "failed",
+        errorCode: ERROR_WALL_CLOCK_EXCEEDED,
+        summary:
+          `wall-clock watchdog: pass "${passId}" exceeded its ${Math.round(capMs / 60_000)}-minute ` +
+          `cap and was abandoned; its spend is unmeasured (bounded by the role's per-turn budget cap)`,
+        artifacts: [],
+        session: { runtime: role.runtime, id: `watchdog-${passId}` },
+        usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: capMs },
+        escalations: [],
+      });
+    }, capMs);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([turn, watchdog]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    // The abandoned turn's eventual rejection must never surface as an
+    // unhandled rejection after the watchdog already resolved the pass.
+    void turn.catch(() => {});
+  }
+}
+
 async function runPass(
   pass: PassConfig,
   options: ExecutePipelineOptions,
@@ -245,18 +286,44 @@ async function runPass(
   // Fresh session per pass: req.session is never set.
   const runtime = options.runtimeFor(role);
   const verdictSchema = options.verdictSchemaFor?.(pass);
-  const result = await runtime.runTurn(
-    {
+
+  // Heartbeat: stamp the envelope while the provider turn runs so a live
+  // pass is distinguishable from a hung one (Stage 3 — the episode stalled
+  // five hours with no way to tell). Failures are swallowed: a heartbeat
+  // must never kill the turn it observes.
+  const heartbeat = setInterval(() => {
+    void updateEnvelope(root, app, runId, { lastSeenAt: clock().toISOString() }).catch(() => {});
+  }, HEARTBEAT_INTERVAL_MS);
+  heartbeat.unref?.();
+
+  // Wall-clock watchdog: a pass that exceeds its configured cap is finalized
+  // failed instead of wedging the pipeline forever. The provider turn cannot
+  // be force-killed through the Runtime contract — it is abandoned; its spend
+  // (if it ever returns) stays bounded by the role's per-turn budget cap and
+  // its ledger row records unmeasured usage.
+  const capMs = (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000;
+  let result: TurnResult;
+  try {
+    result = await withWallClockCap(
+      runtime.runTurn(
+        {
+          role,
+          workdir: options.workdir,
+          task,
+          context: options.context,
+          ...(verdictSchema !== undefined ? { verdictSchema } : {}),
+          ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
+          ...(options.networkAccess === true ? { networkAccess: true } : {}),
+        },
+        passHooks,
+      ),
+      capMs,
       role,
-      workdir: options.workdir,
-      task,
-      context: options.context,
-      ...(verdictSchema !== undefined ? { verdictSchema } : {}),
-      ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
-      ...(options.networkAccess === true ? { networkAccess: true } : {}),
-    },
-    passHooks,
-  );
+      pass.id,
+    );
+  } finally {
+    clearInterval(heartbeat);
+  }
 
   await writeOutput(root, app, runId, result.summary);
   const toolCounts = await flushBridgedEvents(bridged, events, pass.id);
@@ -304,11 +371,15 @@ async function runPass(
 
   const status = verdictOutcome.ok ? envelopeStatus(result) : "failed";
   if (status === "failed") {
-    // Infra failure — machine code, distinct population from merit (§9).
+    // Infra failure — machine code, distinct population from merit (§9). The
+    // adapter's own code (budget overrun, watchdog) beats the generic one:
+    // budget exhaustion must read as budget exhaustion.
     await events.append({
       type: "pass.failed",
       severity: "error",
-      errorCode: verdictOutcome.ok ? "error_turn_failed" : verdictOutcome.errorCode,
+      errorCode: verdictOutcome.ok
+        ? result.errorCode ?? "error_turn_failed"
+        : verdictOutcome.errorCode,
     });
   } else {
     await events.append({
@@ -324,7 +395,11 @@ async function runPass(
     {
       status,
       verdictSummary: result.summary,
-      ...(verdictOutcome.ok ? {} : { errorCode: verdictOutcome.errorCode }),
+      ...(verdictOutcome.ok
+        ? result.status === "failed" && result.errorCode !== undefined
+          ? { errorCode: result.errorCode }
+          : {}
+        : { errorCode: verdictOutcome.errorCode }),
     },
     clock(),
   );
@@ -348,6 +423,8 @@ async function runPass(
           traceId,
           pipeline: options.pipeline.name,
           pass: pass.id,
+          // A watchdog-abandoned turn's spend is unknown, not zero.
+          ...(result.errorCode === ERROR_WALL_CLOCK_EXCEEDED ? { unmeasured: true } : {}),
         },
       ),
     );

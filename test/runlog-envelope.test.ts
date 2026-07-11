@@ -54,6 +54,16 @@ describe("envelope lifecycle", () => {
       });
     }));
 
+  it("heartbeat patches stamp last_seen_at without touching anything else", () =>
+    withHome(async (root) => {
+      await startRun(root, META, T0);
+      await updateEnvelope(root, "civic", RUN_ID, { lastSeenAt: "2026-07-05T09:31:00.000Z" });
+
+      const env = await readEnvelope(root, "civic", RUN_ID);
+      expect(env.last_seen_at).toBe("2026-07-05T09:31:00.000Z");
+      expect(env.status).toBe("running");
+    }));
+
   it("finalize drops the session_log ref when the sink never wrote the file", () =>
     withHome(async (root) => {
       await startRun(root, META, T0);

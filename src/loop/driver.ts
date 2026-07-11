@@ -31,6 +31,7 @@ import {
   writeTicketClaimState,
   type RehydratedState,
 } from "./rehydrate.js";
+import { runEnvPreflight } from "./preflight.js";
 import type { LoopRunlog } from "./loop-runlog.js";
 import type { PipelinesFile } from "./pipelines.js";
 import type { Policy } from "./policy.js";
@@ -239,6 +240,33 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
 
       if (item.phase === "building") {
         if (options.engine !== undefined) {
+          // Token-free environment preflight before the first provider turn
+          // (Stage 3, P6): a $0 probe must catch what previously took a $7
+          // model turn to discover. Failure returns the ticket with the probe
+          // evidence — no pass starts.
+          const preflight = await runEnvPreflight(
+            item.worktree ?? options.localRepo,
+            gateCommandsForWorktree(options.commands, item.worktree),
+            { ...(options.engine.networkAccess === true ? { networkAccess: true } : {}) },
+          );
+          if (!preflight.ok) {
+            await options.gh.commentIssue(
+              item.issueNumber,
+              [
+                "## Environment preflight failed",
+                "",
+                "No model turn was started. Probes found:",
+                ...preflight.problems.map((p) => `- ${p}`),
+              ].join("\n"),
+            );
+            await options.gh.swapLabel(item.issueNumber, "op:building", "op:returned");
+            item = {
+              ...item,
+              labels: item.labels.map((l) => (l === "op:building" ? "op:returned" : l)),
+              phase: "returned",
+            };
+            continue;
+          }
           item = await runBuilderPipeline(item, {
             ...enginePhaseOptions(options, item.worktree),
             pipelineName:

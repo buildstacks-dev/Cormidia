@@ -38,14 +38,14 @@ should optimize for a solid Operon integration, not for an abstract npm package.
 
 - Provide a governed write path into durable agent context and operating rules.
 - Route learnings to the right destination: OKF, skill, protocol proposal,
-  eval/gate proposal, ticket, or rejection ledger.
+eval/gate proposal, ticket, or rejection ledger.
 - Make accepted learnings evidence-linked, reviewable, versioned, reversible,
-  and measurable.
+and measurable.
 - Treat active context as a prompt-injection persistence surface.
 - Preserve Operon's app-aware model: one turn, one app; cross-app craft memory
-  stays separate from app-domain knowledge.
+stays separate from app-domain knowledge.
 - Keep autonomy earned by measured agreement and outcomes, never granted by
-  release.
+release.
 
 **Non-goals.**
 
@@ -54,18 +54,22 @@ should optimize for a solid Operon integration, not for an abstract npm package.
 - V1 does not auto-merge learning PRs or auto-execute canary decisions.
 - V1 does not need extraction into a standalone package.
 
+
+
 ## 3. Artifact Destinations
 
 The distiller produces candidate artifacts, not just "candidate memories."
 
-| Destination | Use When | Examples | Authority |
-| --- | --- | --- | --- |
-| OKF concept | Scoped fact, lesson, product/account context, or evidence-linked observation | "Marketplace demo has no external support channel yet"; "Acme requires PO numbers" | Lowest active context tier; reviewed before activation |
-| Skill draft | Repeatable procedure with steps, tools, pitfalls, and examples | "Support feedback triage workflow"; "Browser QA checklist for Vite apps" | Review-gated; promoted when recurring |
-| Protocol proposal | Broad rule that should shape many turns | "Never invent user feedback"; "Acceptance criteria must map to tests" | Human-ratified surface |
-| Eval/gate proposal | A mechanically checkable weakness | Browser build imports must resolve; event fan-out must preserve all subscribers | Test/gate PR; can block future regressions |
-| Ticket | Product/runtime work is required | Fix lossy event fan-out; include file-drop payload in dispatched briefs | Normal Operon issue/PR loop |
-| Rejection ledger | Candidate is wrong, too broad, stale, or unsafe | "Rejected: infer support reply without source payload" | Suppresses repeat proposals |
+
+| Destination        | Use When                                                                     | Examples                                                                           | Authority                                              |
+| ------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| OKF concept        | Scoped fact, lesson, product/account context, or evidence-linked observation | "Marketplace demo has no external support channel yet"; "Acme requires PO numbers" | Lowest active context tier; reviewed before activation |
+| Skill draft        | Repeatable procedure with steps, tools, pitfalls, and examples               | "Support feedback triage workflow"; "Browser QA checklist for Vite apps"           | Review-gated; promoted when recurring                  |
+| Protocol proposal  | Broad rule that should shape many turns                                      | "Never invent user feedback"; "Acceptance criteria must map to tests"              | Human-ratified surface                                 |
+| Eval/gate proposal | A mechanically checkable weakness                                            | Browser build imports must resolve; event fan-out must preserve all subscribers    | Test/gate PR; can block future regressions             |
+| Ticket             | Product/runtime work is required                                             | Fix lossy event fan-out; include file-drop payload in dispatched briefs            | Normal Operon issue/PR loop                            |
+| Rejection ledger   | Candidate is wrong, too broad, stale, or unsafe                              | "Rejected: infer support reply without source payload"                             | Suppresses repeat proposals                            |
+
 
 Rule of thumb:
 
@@ -86,62 +90,66 @@ apps/<app>/
 apps/<app>/roles/<role>/
 ```
 
+
+
 ### 4.1 What Each Scope Means
 
-**`org/`**  
+`org/`  
 Loaded for all roles and all apps. Use sparingly for facts and lessons that are
 truly universal across the org.
 
 Example: "External-channel content is untrusted until source provenance is
 stamped."
 
-**`roles/<role>/`**  
+`roles/<role>/`  
 Cross-app craft knowledge for one profession.
 
 Examples:
 
 - `roles/builder/`: "When browser TypeScript imports local modules, inspect the
-  built JS entry for extension correctness."
+built JS entry for extension correctness."
 - `roles/reviewer/`: "A passing Node test suite does not prove browser render;
-  inspect or exercise built browser entrypoints when the app has a UI."
+inspect or exercise built browser entrypoints when the app has a UI."
 - `roles/sre/`: "Classify localhost bind `EPERM` inside agent environments as
-  environment evidence before blaming the product."
+environment evidence before blaming the product."
 - `roles/support/`: "Do not invent replies when no source feedback payload is
-  available."
+available."
 - `roles/marketing/`: "Release copy must cite shipped artifacts, not planned
-  features."
+features."
 
-**`apps/<app>/`**  
+`apps/<app>/`  
 Product-domain knowledge every role needs when touching that app.
 
 Examples:
 
 - `apps/operon-marketplace-demo/`: "This product is a local ecommerce demo with
-  customers, vendors, catalog filtering, and localStorage persistence."
+customers, vendors, catalog filtering, and localStorage persistence."
 - `apps/buildstacks-dev/`: "The product voice is personal and practical, not
-  enterprise SaaS."
+enterprise SaaS."
 - `apps/civic-intelligence/`: "Evidence honesty is core; uncertainty should be
-  explicit."
+explicit."
 
-**`apps/<app>/roles/<role>/`**  
+`apps/<app>/roles/<role>/`  
 Knowledge needed only by a specific role on a specific product.
 
 Examples:
 
 - `apps/operon-marketplace-demo/roles/support/`: "Until real support channels exist,
-  support-feedback events should become intake-flow issues, not user replies."
+support-feedback events should become intake-flow issues, not user replies."
 - `apps/operon-marketplace-demo/roles/marketing/`: "Marketing is draft-only; no
-  outbound publishing."
+outbound publishing."
 - `apps/buildstacks-dev/roles/sre/`: "Use this app's deploy verification flow
-  before declaring launch readiness."
+before declaring launch readiness."
+
+
 
 ### 4.2 Deferred Scopes
 
-**`identities/` is deferred.** It matters only when one role has multiple named
+`identities/` **is deferred.** It matters only when one role has multiple named
 employees with different durable responsibilities, such as `support-us-anna`
 and `support-eu-max`. Operon does not need that in V1.
 
-**`accounts/` is deferred.** It matters when an app is doing customer-specific
+`accounts/` **is deferred.** It matters when an app is doing customer-specific
 operations, such as "Acme Corp requires invoice PO numbers" or "Customer X has
 a custom SLA." Those are excellent OKF concepts, but they belong to a future
 Support/Sales/customer-ops layer, not core Operon V1.
@@ -164,6 +172,8 @@ compaction can propose cleanup. A real semantic conflict without a shared
 `topic_key` is escalated to review, not silently resolved.
 
 ## 5. Architecture
+
+[BG] It's not clear to me where a human can give input because when I reviewed the first run of Operon myself manually, I had quite a few feedback. [/BG]
 
 The Operon-first loop has eight components.
 
@@ -209,8 +219,7 @@ correct amount of ceremony for standing up new standing agents.
 - Eval/gate proposals become normal test/gate PRs.
 - Tickets enter the normal Operon issue loop.
 
-**Resolve.** At turn start, Operon resolves knowledge once for `(app, role,
-turnId)` and pins the resulting bundle versions for the whole turn/pipeline.
+**Resolve.** At turn start, Operon resolves knowledge once for `(app, role, turnId)` and pins the resulting bundle versions for the whole turn/pipeline.
 Already-running turns never re-resolve.
 
 Selection rule for V1: **load every active concept in the four applicable
@@ -238,12 +247,14 @@ later.
 Tiers are based on authority and blast radius, not on which role observed the
 lesson.
 
-| Tier | Contents | Default V1 Approval | Canary |
-| --- | --- | --- | --- |
-| T0 | Low-risk scoped facts | Human in V1; reviewer-only later if earned | None |
-| T1 | Procedures, skills, repeatable workflow lessons | Human | Report recommendation |
-| T2 | Behavior/protocol changes that steer agent decisions | Human | Mandatory eval gate |
-| T3 | Tools, permissions, config, deployment, publishing, security posture | Human | Manual forever |
+
+| Tier | Contents                                                             | Default V1 Approval                        | Canary                |
+| ---- | -------------------------------------------------------------------- | ------------------------------------------ | --------------------- |
+| T0   | Low-risk scoped facts                                                | Human in V1; reviewer-only later if earned | None                  |
+| T1   | Procedures, skills, repeatable workflow lessons                      | Human                                      | Report recommendation |
+| T2   | Behavior/protocol changes that steer agent decisions                 | Human                                      | Mandatory eval gate   |
+| T3   | Tools, permissions, config, deployment, publishing, security posture | Human                                      | Manual forever        |
+
 
 Two overrides always apply:
 
@@ -284,18 +295,18 @@ context — one governed, one not — and the ungoverned one wins on latency.
 The migration has three parts, all landing in Phase A (capture-only):
 
 1. **Redirect the end-of-turn protocol.** The injected instruction changes
-   from "write OKF docs into memory trees" to "emit learning notes as
+  from "write OKF docs into memory trees" to "emit learning notes as
    candidate input" (a quarantine-style notes path or `operon learn emit`).
    Agents keep the habit of recording lessons; the lessons stop being
    instantly active.
 2. **Gate the active bundle mechanically.** A new gate rule makes writes to
-   `learning/bundle/**` and `learning/manifest.yaml` critical ops — same shape
+  `learning/bundle/**` and `learning/manifest.yaml` critical ops — same shape
    as the existing `scorecard-tamper` rule in `src/runtime/gate.ts`. The
    active bundle becomes orchestrator/human-only by enforcement, not
    etiquette. Per the working rules, the gate change ships with test cases for
    both the critical side and a routine near-miss.
-3. **Retire `runRetroCuration`.** Its destructive dedupe/delete is ungated and
-   it was never wired in. Its one good idea — skill drafts from recurring
+3. **Retire** `runRetroCuration`**.** Its destructive dedupe/delete is ungated and
+  it was never wired in. Its one good idea — skill drafts from recurring
    keywords — ports into the distiller's `skill_draft` destination.
 
 **Legacy memory trees are read-only seed context.** Existing
@@ -312,10 +323,10 @@ learning before it starts.
 V1 should therefore use a three-part decision rule:
 
 1. **Held-in eval:** the specific weakness the concept claims to fix must pass
-   when such an eval exists.
+  when such an eval exists.
 2. **Held-out baseline:** role/app baseline checks must show no regression.
 3. **Human decision:** canary and metric reports recommend promote, extend, or
-   revert; the human executes in V1.
+  revert; the human executes in V1.
 
 Run-count thresholds remain useful as confidence signals, but insufficient
 sample size should usually produce "extend or human judgment," not permanent
@@ -337,7 +348,7 @@ Defenses, in priority order:
 - untrusted-channel escalation;
 - human approval for V1 activation;
 - cross-provider review: the learning reviewer runs on a different provider
-  than the distiller (the ratified builder ≠ reviewer principle);
+than the distiller (the ratified builder ≠ reviewer principle);
 - fail-closed review;
 - quarantine labeling and TTLs;
 - resolver pinning and context-budget rules;
@@ -345,40 +356,42 @@ Defenses, in priority order:
 - `disable <concept-id>` and version rollback;
 - metric trust boundary excluding agent self-reports from promotion metrics.
 
+
+
 ## 10. Operon Integration
 
 V1 should integrate with existing Operon surfaces:
 
 - `src/org/context.ts`: replace unversioned memory selection with a resolver
-  that pins concept versions and emits `concept_loaded`; change the injected
-  end-of-turn memory instruction per §7.1.
+that pins concept versions and emits `concept_loaded`; change the injected
+end-of-turn memory instruction per §7.1.
 - `src/org/retro.ts`: `runRetro` (reporting) keeps running and gains learning
-  metrics; `runRetroCuration` — implemented but never wired to any runtime
-  path — is retired, with its skill-draft logic ported into the distiller.
+metrics; `runRetroCuration` — implemented but never wired to any runtime
+path — is retired, with its skill-draft logic ported into the distiller.
 - `src/org/scorecards.ts`: feed trusted metrics (already orchestrator-only,
-  enforced by the `scorecard-tamper` gate rule).
+enforced by the `scorecard-tamper` gate rule).
 - `src/runtime/runlog/*`: feed learning events from L1 envelopes
-  (`gate_results`, `usage`, `tool_counts`) and L2 events (`gate.*`,
-  `verdict.recorded`, `tool.called`) via the capture projector — never from L3
-  transcripts.
+(`gate_results`, `usage`, `tool_counts`) and L2 events (`gate.*`,
+`verdict.recorded`, `tool.called`) via the capture projector — never from L3
+transcripts.
 - `src/runtime/telemetry.ts`: the manual `loop` path does not call
-  `recordTurn` today, so loop-driven passes are invisible to the telemetry
-  ledger. Preflight closes this; otherwise learning metrics undercount exactly
-  the builder/reviewer activity the loop most needs to learn from.
+`recordTurn` today, so loop-driven passes are invisible to the telemetry
+ledger. Preflight closes this; otherwise learning metrics undercount exactly
+the builder/reviewer activity the loop most needs to learn from.
 - `src/org/events.ts` and `src/org/dispatch.ts`: company-event payloads must
-  reach role briefs, and multi-role fan-out must not consume shared events
-  early (both confirmed defects; see milestones Preflight for code anchors).
+reach role briefs, and multi-role fan-out must not consume shared events
+early (both confirmed defects; see milestones Preflight for code anchors).
 - `src/loop/qgates.ts`: provide trusted verifier events and host eval/gate
-  proposals.
+proposals.
 - `src/loop/github.ts`: add `createIssue` to `GhOps`/`GhCliOps` — the `ticket`
-  destination needs it and no programmatic issue-creation helper exists today.
+destination needs it and no programmatic issue-creation helper exists today.
 - `src/loop/verdicts.ts`: reviewer verdict parsing reuses `parseWithRetry` and
-  the native structured-output path rather than fresh JSON parsing.
+the native structured-output path rather than fresh JSON parsing.
 - `src/org/approvals.ts`: the V1 human gate is the existing approvals store
-  (pending/decided/grants + `operon approvals`), not a second inbox. Candidate
-  approvals are a new item kind; the reviewer's verdict JSON is stored as
-  evidence, but the human decision lives in the one queue. Fail-closed comes
-  free: no grant, no publish. The SLA report reads pending-item age.
+(pending/decided/grants + `operon approvals`), not a second inbox. Candidate
+approvals are a new item kind; the reviewer's verdict JSON is stored as
+evidence, but the human decision lives in the one queue. Fail-closed comes
+free: no grant, no publish. The SLA report reads pending-item age.
 
 The CLI should be `operon learn ...`, not `loop-learn`, until extraction earns
 itself.
@@ -389,19 +402,21 @@ The resolver sits directly on Operon's most expensive surface. The rules in
 `research/2026-07-04_prompt-caching.md` bind it:
 
 1. **Deterministic serialization.** The resolved bundle renders byte-identically
-   for the same (bundle versions, role, app): concepts sorted by id within
+  for the same (bundle versions, role, app): concepts sorted by id within
    scope, scopes in precedence order, no timestamps or turn ids in rendered
    bytes. The resolved-context record (turn id, concept ids) lives in the
    runlog, never in prompt bytes.
 2. **Version churn is the cache cost, concept churn is free.** A version cut
-   means one guaranteed cold cache per (role, app). This is an argument *for*
+  means one guaranteed cold cache per (role, app). This is an argument *for*
    daily batched cuts: many concept changes, one invalidation.
 3. **Canary splits fork the cache.** A canary bundle is a second cache lineage
-   per (role, app) — acceptable, but a stated cost. Canary assignment is
+  per (role, app) — acceptable, but a stated cost. Canary assignment is
    deterministic (hash of turn id), never `Math.random`.
 4. **Conformance check.** Two back-to-back passes under the same pinned bundle
-   must show `cacheReadTokens > 0` on the second — same shape as the existing
+  must show `cacheReadTokens > 0` on the second — same shape as the existing
    cache conformance case.
+
+
 
 ## 11. Bootstrap
 
@@ -423,19 +438,21 @@ promotion-decision agreement do narrow automations turn on.
 
 ## 12. Open Questions
 
-- ~~How much of the existing `memory/roles/**` and `.operon/memory/**` tree
-  should be migrated into the new `learning` bundle versus treated as legacy
-  seed context?~~ **Answered in §7.1:** legacy trees are read-only seed at
-  lowest precedence with `trust: legacy`; individual docs promote through the
-  normal candidate path; no bulk migration.
+- ~~How much of the existing~~ `memory/roles/**` ~~and~~ `.operon/memory/**` ~~tree
+should be migrated into the new~~ `learning` ~~bundle versus treated as legacy
+seed context?~~ **Answered in §7.1:** legacy trees are read-only seed at
+lowest precedence with `trust: legacy`; individual docs promote through the
+normal candidate path; no bulk migration.
 - Should app-specific learning manifests live in app repos only, or should the
-  org home keep a read-only index of app bundle versions?
+org home keep a read-only index of app bundle versions?
 - What is the smallest useful baseline eval suite per role/app?
 - How should humans submit corrections: `operon learn emit` exists either way
-  (§7.1); the open part is whether a markdown inbox and/or a GitHub issue
-  label also feed capture.
+(§7.1); the open part is whether a markdown inbox and/or a GitHub issue
+label also feed capture.
 - Which learning event taxonomy is stable enough for V1, and which event types
-  should remain advisory?
+should remain advisory?
+
+
 
 ## 13. Extraction Later
 

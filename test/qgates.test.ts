@@ -43,6 +43,13 @@ describe("runTestsGate", () => {
     expect(result.detail).toContain("passed");
   });
 
+  it("runs gate commands with CI=1 so installs never wait on a TTY (Stage 3)", async () => {
+    const result = await runTestsGate(repoRoot, {
+      testCommand: node('process.exit(process.env.CI === "1" ? 0 : 1)'),
+    });
+    expect(result).toMatchObject({ status: "pass", exitCode: 0 });
+  });
+
   it("runs the command in the worktree (cwd), not the orchestrator's cwd", async () => {
     const repo = makeWorkingRepo();
     repos.push(repo);

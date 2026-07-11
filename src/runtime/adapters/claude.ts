@@ -264,6 +264,7 @@ export class ClaudeRuntime implements Runtime {
     const usage = resultMsg.usage;
     const budgetOverrun = resultMsg.subtype === "error_max_budget_usd";
     return {
+      ...(resultMsg.subtype !== "success" ? { errorCode: resultMsg.subtype } : {}),
       status: resultMsg.subtype === "success" ? "completed" : "failed",
       summary:
         resultMsg.subtype === "success"

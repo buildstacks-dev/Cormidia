@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v1.9 — 2026-07-12. Human-ratified decision log. Keep this file high-level;
+*v2.0 — 2026-07-12. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -345,6 +345,17 @@ config file, not a fork.
   product-delivery queue; onboarding, scheduled/event intake, and approvals
   remain separate concepts. Stopping or restarting the observer cannot affect
   a run.
+- **Reporting is deterministic, ledger-first, and shares the observer**
+  (ratified 2026-07-12; implementation contract in
+  `docs/reporting/design.md`). `operon report` provides token-free org/app
+  usage, allocation, quality, budget-context, and exhaustive session/pass
+  snapshots over an explicit UTC period; the ledger is accounting authority
+  and run/task evidence enriches it without repair or hidden deduplication.
+  `operon observe` remains the one loopback reader server, with Live at `/`
+  and as-of Reports at `/reports`; portable HTML works without a server. No
+  reporting database, workflow controls, reconciliation side effect, provider
+  turn, or model-written management narrative is introduced. `operon
+  telemetry` remains the backward-compatible envelope-first forensic view.
 
 ## Prior art (ours)
 
@@ -478,3 +489,7 @@ will resolve them.
   implemented as `operon observe`: loopback capability URL, versioned
   snapshot projection, SSE reconciliation, deliberate local evidence access,
   and framework-free responsive browser UI without a second workflow store.
+- 2026-07-12 — v2.0: Reporting V1 ratified and implemented as a deterministic
+  ledger-first `operon report` CLI/portable export plus lazily computed
+  `/reports` mode in the existing observer; detailed semantics remain in
+  `docs/reporting/design.md` v0.1.

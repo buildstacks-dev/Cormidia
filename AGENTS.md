@@ -37,6 +37,12 @@ projects historical parent tasks and standalone traces through the same UI;
 it adds no session store. `docs/live-ui/design.md` is its authoritative
 contract.
 
+`operon report` and Observe `/reports` are the deterministic ledger-first
+reporting surface. The pure `src/report/` leaf owns UTC ranges, diagnostic
+ledger/detail reads, presentation-session grouping, projections, portable
+rendering, and the lazy bounded report service; it persists no index or
+session store. `docs/reporting/design.md` is its authoritative contract.
+
 **Where agent activity is recorded** (state home, `~/.operon/<org>/`;
 README.md → Observability is the authoritative inventory):
 `runs/<app>/<runId>/` is the per-pass source of truth (`envelope.json`,
@@ -93,6 +99,7 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/observe/` | Presentation-only Live UI: versioned projection, URL-stable live/historical session selection, source health, bounded read-only GitHub polling, loopback HTTP/SSE, allowlisted local evidence, and embedded framework-free assets |
+| `src/report/` | Presentation-only Reporting V1: diagnostic daily-ledger/range readers, direct run/task enrichment, deterministic sessions, usage/budget projections, portable HTML, and lazy bounded server cache |
 | `src/org/home.ts` | Package/org/state boundary: complete org initialization, validation, active pointer, and independent state-home resolution |
 | `src/org/learning/` | Learning loop (design in `docs/learning-loop/`): M1–M5 capture/episode/replay/experiment/governed activation/evaluation/canary substrate, plus M6 `distillation.ts` (deterministic evidence clustering, live-bundle/candidate/rejection dedupe, policy caps, candidate-store writes, independent structured review, durable skip/cap records, and report-only compaction). Distiller/reviewer/replay turns use the ordinary pass executor and org ledger; the deterministic publisher remains the sole protected-surface writer. |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
@@ -145,6 +152,7 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
   `pnpm dev loop --app <app> --once --dry-run` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
   `pnpm dev observe [--app <app>] [--port 0] [--open]` ·
+  `pnpm dev report [--app <app>] [--period 7d|30d|90d|1y|all] [--json] [--html out.html]` ·
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
   `pnpm dev telemetry --app <app> --date 2026-07-04 --html out.html` ·
   `pnpm dev task begin --id <id> --prompt-file <path> [--app <app>]` ·
@@ -212,6 +220,11 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
   --dry-run`; server tests must use a real ephemeral loopback port and cover
   capability/security headers, SSE replay/resync, corrupt/torn/legacy state,
   traversal/symlink rejection, and observer-shutdown independence.
+- `src/report/**`, `src/cli/report.ts`, or Reports-mode changes: run the same
+  browser/build/smoke/pack checks; semantic tests must pin UTC boundaries,
+  ledger corruption/concurrency, accounting quality and duplicates,
+  deterministic session identity, budget agreement, CSP/L3 exclusion,
+  pagination resync, immutable app scope, and read-only behavior.
 - Packaging, home resolution, CLI discovery, or onboarding changes: also run
   `pnpm smoke:onboarding` and `npm pack --dry-run`; the smoke must use a neutral
   cwd and temporary provider homes so it cannot depend on the source repo as

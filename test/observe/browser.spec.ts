@@ -7,6 +7,9 @@ import type { GhIssue } from "../../src/loop/github.js";
 import type { GitHubReadResult, ObserveGitHubSource } from "../../src/observe/github-source.js";
 import { ObserveService } from "../../src/observe/live-source.js";
 import { startObserveServer, type StartedObserveServer } from "../../src/observe/server.js";
+import { ReportService } from "../../src/report/service.js";
+import { buildReport } from "../../src/report/project.js";
+import { renderReportHtml } from "../../src/report/render-html.js";
 
 let root: string;
 let stateHome: string;
@@ -89,6 +92,10 @@ test.beforeAll(async () => {
     wall_clock_ms: 60_000, usage: { tokens_in: 10, tokens_out: 5, cost_usd: 9.99, quality: "complete" },
     refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md", session_log: "session.log" },
   }, null, 2)}\n`);
+  write(stateHome, "telemetry/2026-07-12.jsonl", [
+    { at: "2026-07-12T12:00:00.000Z", role: "builder", runtime: "codex", model: "gpt-5.5<script>window.__operonInjected=true</script>", status: "completed", tokensIn: 10, tokensOut: 5, costUsd: 0.1, usageQuality: "partial", subagentTurns: 0, wallClockMs: 1000, escalations: 0, app: "alpha", runId: "run-1", traceId: "trace-1", parentTaskId: "task-1", pipeline: "build", pass: "implement", costEstimated: true },
+    { at: "2026-07-11T10:02:00.000Z", role: "reviewer", runtime: "claude", model: "claude-opus-4-1", status: "completed", tokensIn: 20, tokensOut: 10, costUsd: 0.3, usageQuality: "complete", subagentTurns: 0, wallClockMs: 120000, escalations: 0, app: "alpha", runId: "run-2", traceId: "trace-2", parentTaskId: "task-2", pipeline: "review", pass: "historical-review" },
+  ].map(JSON.stringify).join("\n") + "\n");
   github = new MutableGitHub();
   service = new ObserveService({
     orgName: "fixture-org",
@@ -102,7 +109,7 @@ test.beforeAll(async () => {
     clock: () => new Date("2026-07-12T12:00:00.000Z"),
   });
   await service.start();
-  server = await startObserveServer({ service, stateHome, port: 0 });
+  server = await startObserveServer({ service, stateHome, port: 0, reportService: new ReportService({ orgName: "fixture-org", stateHome, appsFile: appsFile(), clock: () => new Date("2026-07-12T12:00:00.000Z") }) });
 });
 
 test.afterAll(async () => {
@@ -191,6 +198,76 @@ test("honors reduced motion and remains page-width responsive at 360px", async (
   const widths = await page.evaluate(() => ({ body: document.body.scrollWidth, viewport: window.innerWidth }));
   expect(widths.body).toBeLessThanOrEqual(widths.viewport);
   await expect(page.locator(".delivery-board")).toBeVisible();
+});
+
+test("navigates to Reports, preserves URL controls, renders exhaustive safe sessions, exports, and prints without external requests", async ({ page }) => {
+  const external: string[] = [];
+  page.on("request", (request) => { if (new URL(request.url()).hostname !== "127.0.0.1") external.push(request.url()); });
+  const url = new URL(server.url); url.pathname = "/reports";
+  await page.goto(url.toString());
+  await expect(page.getByRole("link", { name: "Reports" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("#status")).toContainText("Snapshot generated");
+  await expect(page.locator("#report section").first()).toContainText("Data quality");
+  await expect(page.locator(".session")).toHaveCount(3); // two settled tasks plus one envelope-only beta trace
+  await page.locator(".session").first().click();
+  await expect(page.locator(".session").first()).toContainText("provider_turn");
+  await expect(page.locator("body")).toContainText("gpt-5.5<script>window.__operonInjected=true</script>");
+  expect(await page.evaluate(() => (window as unknown as { __operonInjected?: boolean }).__operonInjected)).toBeUndefined();
+  await page.locator("#app").selectOption("alpha");
+  await page.locator("#period").selectOption("7d");
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(page).toHaveURL(/app=alpha/);
+  await expect(page).toHaveURL(/period=7d/);
+  await expect(page.locator("#json-export")).toHaveAttribute("href", /export\.json\?app=alpha/);
+  await expect(page.locator("#html-export")).toHaveAttribute("href", /export\.html\?app=alpha/);
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => getComputedStyle(document.activeElement!).outlineStyle)).not.toBe("none");
+  await page.emulateMedia({ media: "print" });
+  expect(await page.locator("#controls").evaluate((element) => getComputedStyle(element).display)).toBe("none");
+  expect(external).toEqual([]);
+});
+
+test("Reports honors reduced motion and remains responsive at 360px", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 360, height: 780 });
+  const url = new URL(server.url); url.pathname = "/reports";
+  await page.goto(url.toString());
+  await expect(page.locator("#status")).toContainText("Snapshot generated");
+  const widths = await page.evaluate(() => ({ body: document.body.scrollWidth, viewport: innerWidth }));
+  expect(widths.body).toBeLessThanOrEqual(widths.viewport);
+});
+
+test("generated portable org 7d/90d/1y and app reports work at desktop, 360px, reduced motion, and print with no network", async ({ page }) => {
+  const generated: string[] = [];
+  for (const period of ["7d", "90d", "1y"] as const) {
+    const report = await buildReport({ orgName: "fixture-org", stateHome, appsFile: appsFile(), now: new Date("2026-07-12T12:00:00Z"), query: { period } });
+    const path = join(root, `portable-org-${period}.html`);
+    writeFileSync(path, renderReportHtml(report), "utf8");
+    generated.push(path);
+  }
+  const appReport = await buildReport({ orgName: "fixture-org", stateHome, appsFile: appsFile(), now: new Date("2026-07-12T12:00:00Z"), query: { app: "alpha", period: "90d" } });
+  const appPath = join(root, "portable-alpha-90d.html");
+  writeFileSync(appPath, renderReportHtml(appReport), "utf8");
+  generated.push(appPath);
+
+  const external: string[] = [];
+  page.on("request", (request) => { if (!request.url().startsWith("file:")) external.push(request.url()); });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  for (const path of generated) {
+    await page.goto(`file://${path}`);
+    await expect(page.getByText("OPERON REPORTS")).toBeVisible();
+    await expect(page.locator(".quality")).toBeVisible();
+    await expect(page.getByText("Accessible trend data table")).toBeVisible();
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto(`file://${appPath}`);
+  await expect(page.locator("#session-filter")).toBeVisible();
+  const widths = await page.evaluate(() => ({ body: document.body.scrollWidth, viewport: innerWidth }));
+  expect(widths.body).toBeLessThanOrEqual(widths.viewport);
+  await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
+  expect(await page.locator("#session-filter").evaluate((element) => getComputedStyle(element).display)).toBe("none");
+  expect(external).toEqual([]);
 });
 
 class MutableGitHub implements ObserveGitHubSource {

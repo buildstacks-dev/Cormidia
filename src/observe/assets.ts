@@ -9,7 +9,7 @@ export const OBSERVE_HTML = `<!doctype html>
 <body>
   <a class="skip" href="#main">Skip to live overview</a>
   <header class="global-header">
-    <div><span class="wordmark">OPERON</span><span class="readonly">READ ONLY</span></div>
+    <div><span class="wordmark">OPERON</span><span class="readonly">READ ONLY</span><nav class="primary" aria-label="Primary"><a href="/" aria-current="page">Live</a><a href="/reports">Reports</a></nav></div>
     <div class="health-line" aria-live="polite">
       <span id="connection" class="status unknown">connecting</span>
       <span id="identity">Loading observer…</span>
@@ -87,6 +87,7 @@ button:hover, select:hover { border-color:#65788d; }
 .global-header { position:sticky; top:0; z-index:10; display:grid; grid-template-columns:auto 1fr auto; gap:1rem; align-items:center; padding:.75rem 1rem; background:rgba(11,14,18,.96); border-bottom:1px solid var(--line); }
 .wordmark { font-weight:800; letter-spacing:.16em; }
 .readonly { margin-left:.7rem; color:var(--amber); border:1px solid var(--amber); padding:.15rem .35rem; font-size:.72rem; }
+.primary { display:inline-flex; gap:.3rem; margin-left:.8rem; }.primary a { text-decoration:none; border:1px solid var(--line); border-radius:4px; padding:.25rem .45rem; }.primary [aria-current] { border-color:var(--blue); }
 .health-line { display:flex; justify-content:center; gap:.7rem; color:var(--muted); }
 .header-actions { display:flex; justify-content:flex-end; align-items:center; gap:.6rem; min-width:0; max-width:100%; }
 .session-control { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.72rem; min-width:0; }

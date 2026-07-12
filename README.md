@@ -127,6 +127,7 @@ operon status
 operon budget
 operon analyze
 operon approvals
+operon observe --app <app> --open
 ```
 
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
@@ -182,6 +183,24 @@ Contributors can still use `pnpm dev <command>` inside the Operon source repo,
 but product and org workflows should exercise the installed `operon` command
 from a neutral directory.
 
+## Live UI
+
+`operon observe` starts the read-only Live UI in the foreground. It resolves
+the active org and state home independently of the working directory, binds
+only to `127.0.0.1`, and prints a per-process capability URL. Use `--app`,
+`--parent-task`, or `--ticket` to deep-link a scoped view; `--open` launches the
+local browser. The observer performs no provider turn and spends no tokens.
+
+The page separates app onboarding and non-ticket intake, GitHub delivery work,
+and approvals. Open GitHub issues labeled `op:ready` are the only claimable
+product-delivery queue. HTTP supplies a versioned snapshot and deliberate
+allowlisted evidence; SSE supplies cursor-based live updates. Exact prompts,
+briefs, outputs, and `session.log` are never preloaded or streamed; they require
+an explicit local fetch, and `session.log` is labeled **activity log—not
+transcript**. There are no configuration, approval, retry, merge, label,
+deploy, or other mutation routes or controls. Closing the browser or observer
+cannot stop a run.
+
 ## Setup / auth
 
 The offline commands above need nothing. The live commands need:
@@ -202,6 +221,24 @@ The offline commands above need nothing. The live commands need:
 Environment variables are loaded per project from `.env` / `.env.local` at the
 git root; there is no `.env.example` yet — the variables above are the full set.
 
+## Testing
+
+The complete offline verification for source changes is:
+
+```bash
+pnpm test
+pnpm test:observe-browser   # when Live UI code or assets change
+pnpm typecheck
+pnpm build
+pnpm smoke:onboarding
+npm pack --dry-run
+```
+
+The Live UI browser suite uses a dev-only Playwright dependency and local
+Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real
+ephemeral loopback HTTP/SSE boundaries but no provider tokens, GitHub writes,
+or external browser requests.
+
 ## Layout
 
 ```
@@ -213,6 +250,8 @@ src/loop/      pass pipelines, briefs, quality gates, verdict parsing, and
 src/org/       app registry, bootstrap, co-planning, dispatch, approvals,
                budget overlays, trigger routing, context, memory, scorecards,
                retro, and the governed learning loop (src/org/learning/)
+src/observe/   versioned read projection, bounded GitHub source, loopback
+               HTTP/SSE server, and framework-free Live UI
 src/cli/       one module per subcommand; src/cli.ts is a thin dispatch table
 test/          adapter conformance, gate, pipelines, bootstrap, qgates, CLI
 research/      decision records
@@ -231,7 +270,7 @@ runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
 ├── events.jsonl     # trace/span-scoped lifecycle events — L2
 ├── brief.md         # the exact prompt the pass received — L3, verbatim
 ├── output.md        # what the pass produced — L3, verbatim
-└── session.log      # present only when the adapter streamed TurnEvents
+└── session.log      # activity log—not transcript; present only when TurnEvents streamed
 telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
 invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)
 learning/events/<date>/   # learning-loop capture: gate outcomes, pass verdicts,
@@ -338,6 +377,12 @@ open work lives in the [issue tracker](https://github.com/buildstacks-dev/Operon
 degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
 
 ### Known limitations
+
+- **Live UI V1 is local-only.** It has no remote/public bind, TLS, multi-user
+  auth, cloud ingestion, or workflow controls. Use SSH port forwarding to the
+  loopback capability URL when observing a remote host. GitHub is polled on a
+  bounded interval and may show an explicitly degraded last-known projection
+  while local run evidence remains live.
 
 - **Tool-event outcomes are partial on Claude and pi.** All three adapters
   emit `tool_use` turn events (issue #27, live-verified 2026-07-11 —

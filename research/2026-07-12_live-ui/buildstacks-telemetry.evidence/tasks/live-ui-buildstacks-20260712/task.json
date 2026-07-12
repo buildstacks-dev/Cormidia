@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "taskId": "live-ui-buildstacks-20260712",
+  "app": "buildstacks.dev",
+  "objective": "# buildstacks.dev Live UI acceptance slice",
+  "promptRef": "prompt.md",
+  "promptSha256": "07104971c270a7ade0451c488d3ec259339ab86b1c2e30369b3d3457b17b5b4f",
+  "source": {
+    "harness": "codex"
+  },
+  "repository": {
+    "workdir": "/Users/bikram/Build/buildstacks.dev",
+    "remote": "git@github.com:buildstacks-dev/buildstacks.dev.git",
+    "branch": "build/buildstacks-v1",
+    "head": "14f7fbb624335406a9c7044f32a24e932287c7e8"
+  },
+  "requiredStages": [
+    "planner",
+    "builder",
+    "reviewer"
+  ],
+  "charter": {
+    "profile": "conservative",
+    "version": "legacy-conservative/v1",
+    "sha256": "87c49a0f4621bf7b878a09a371b908c2e4c1854640ac40ec518279418df42733",
+    "sources": [
+      "builtin:legacy-conservative/v1"
+    ]
+  },
+  "executionMode": "mixed",
+  "fallbackEvents": [
+    {
+      "at": "2026-07-12T10:55:20.413Z",
+      "reason": "Operon merged PR #33 after exact-head cross-provider review, but non-default-base closing semantics left issue #32 open and final cleanup targeted a newer snapshot clone; manually closed the already-merged fully-checked issue and pruned the stale registration from its owning snapshot.",
+      "actor": "codex-root"
+    }
+  ],
+  "status": "completed",
+  "startedAt": "2026-07-12T09:35:39.675Z",
+  "refs": {
+    "tickets": [
+      "buildstacks-dev/buildstacks.dev#30",
+      "buildstacks-dev/buildstacks.dev#31",
+      "buildstacks-dev/buildstacks.dev#32"
+    ],
+    "traces": [
+      "plan-buildstacks.dev-1783849049033",
+      "plan-buildstacks.dev-1783850371002",
+      "20260712T100450-build-32",
+      "20260712T101050-build-32",
+      "20260712T102732-review-32"
+    ],
+    "branches": [
+      "op/32-ignore-pnpm-store-on-the-format-and-git-surfaces"
+    ],
+    "prs": [
+      "https://github.com/buildstacks-dev/buildstacks.dev/pull/33"
+    ],
+    "reviews": [
+      "PRR_kwDOTPjFh88AAAABFvGzZA"
+    ],
+    "deployments": []
+  },
+  "endedAt": "2026-07-12T10:55:21.061Z",
+  "resultSummary": "PR #33 merged at 263b79dc after gates and exact-head review; issue #32 manually finalized after the documented cleanup/base fallback; #30 remains returned and #31 remains dependency-blocked; no deployment executed.",
+  "completionState": {
+    "implementation": "complete",
+    "ci": "green",
+    "operonReview": "approved",
+    "humanReview": "not_required",
+    "pr": "merged",
+    "issuesCloseOnMerge": []
+  }
+}

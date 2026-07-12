@@ -4,7 +4,7 @@
 // directory: no real user pointer, PATH entry, provider skill, org, state, or
 // app repository is touched.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -75,6 +75,8 @@ try {
   assert(readFileSync(join(orgHome, "AGENTS.md"), "utf8").includes("operon-authority:start"), "org Codex instructions lack authority");
   assert(readFileSync(join(orgHome, "CLAUDE.md"), "utf8").includes("operon-authority:start"), "org Claude instructions lack authority");
 
+  await smokeObserver(operon, neutral);
+
   const scan = run(operon, ["bootstrap", app, "--scan-only"], neutral);
   assert(scan.includes("App repo:"), "bootstrap did not explain app repo");
   assert(scan.includes("Org home:"), "bootstrap did not explain org home");
@@ -97,6 +99,7 @@ try {
 
   const capabilities = JSON.parse(run(operon, ["capabilities", "--json"], neutral));
   assert(capabilities.commands.some((entry) => entry.command === "bootstrap"), "bootstrap capability is absent");
+  assert(capabilities.commands.some((entry) => entry.command === "observe" && entry.writes === false && entry.spendsTokens === false), "observe capability is absent or not read-only/token-free");
   run(operon, ["doctor", "--json", "--config-only"], neutral);
   run(
     operon,
@@ -137,4 +140,44 @@ function run(command, args, cwd) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(`onboarding smoke: ${message}`);
+}
+
+async function smokeObserver(command, cwd) {
+  const child = spawn(command, ["observe", "--port", "0"], {
+    cwd,
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { stdout += chunk; });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const deadline = Date.now() + 10_000;
+  let url;
+  while (Date.now() < deadline) {
+    const match = /^Operon observer: (http:\/\/127\.0\.0\.1:\d+\/\?token=\S+)$/m.exec(stdout);
+    if (match) {
+      url = match[1];
+      break;
+    }
+    if (child.exitCode !== null) throw new Error(`onboarding smoke: observer exited early: ${stderr}`);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert(url, `observer did not print a loopback capability URL: ${stderr}`);
+  const health = new URL("/healthz", url);
+  health.search = new URL(url).search;
+  const response = await fetch(health, { cache: "no-store" });
+  assert(response.ok, `observer health failed with ${response.status}`);
+  assert(response.headers.get("cache-control")?.includes("no-store"), "observer health omitted no-store");
+  child.kill("SIGTERM");
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("onboarding smoke: observer did not stop")), 5_000);
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`onboarding smoke: observer exit ${code}: ${stderr}`));
+    });
+  });
 }

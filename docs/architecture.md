@@ -1,6 +1,6 @@
 # Operon Architecture
 
-*v1.2 — last aligned 2026-07-11. docs/PURPOSE.md → Decided is upstream and
+*v1.3 — last aligned 2026-07-12. docs/PURPOSE.md → Decided is upstream and
 authoritative; this document holds the implementation detail the decision
 layer deliberately does not. §11 records decisions
 ratified into docs/PURPOSE.md on 2026-07-06; future new decisions should be
@@ -70,6 +70,7 @@ Module placement respects the one-way import rule
 | Pass prompt templates + pipeline config                 | `prompts/`, `pipelines.yaml` (org home)                        | human-ratified protocol surfaces        |
 | Runtime contract, gate, telemetry, adapters             | `src/runtime/`                                                 | exists                                  |
 | Run status + anomaly readers                            | `src/runtime/runlog/status.ts`, `anomalies.ts`                 | implemented M9; L1/L2 only             |
+| Read-only Live UI observer                              | `src/observe/`, `src/cli/observe.ts`                           | presentation-only leaf; HTTP snapshot + SSE; no workflow writes |
 | Governed learning loop (capture, episodes, activation, resolver) | `src/org/learning/`                                    | design in `docs/learning-loop/`         |
 | A4 release handoff                                      | `src/org/release.ts`                                           | ship-gate P7; deploy queued as a critical op, then a later dispatch executes the approved command once and comments the ticket |
 | Package/org/state boundary                              | `src/org/home.ts`                                              | org init, validation, active pointer, state-home resolution |
@@ -212,6 +213,33 @@ The org id `<org>` comes from org-home config. `OPERON_STATE_HOME` overrides
 this location explicitly and independently of `OPERON_ORG_HOME`. Note
 `~/.operon` is not TCC-protected on macOS, unlike `~/Documents` — launchd jobs
 can read it freely (same reasoning that keeps repos at `~/Build`).
+
+### Read-only Live UI (`operon observe`)
+
+`src/observe/` is a presentation-only leaf: it may consume org, loop, and
+runtime readers, while no core layer imports it. At startup it resolves the
+same package/org/state homes as every installed command, reconstructs a strict
+`ObserveSnapshotV1`, reads bounded GitHub issue/PR/review/check state, and
+keeps only a disposable in-memory index plus bounded SSE replay events. It
+never persists a queue or workflow fact.
+
+The server binds only to `127.0.0.1`, mints a new high-entropy capability on
+each process start, and exposes only GET/HEAD routes: `/api/v1/snapshot`,
+`/api/v1/events`, `/healthz`, static same-origin assets, and allowlisted local
+evidence. Every response is no-store, frame-denied, no-referrer, nosniff, and
+covered by a restrictive CSP. Artifact paths are ID-validated and realpath-
+checked; traversal, unknown names, cross-home access, and symlink escapes fail
+closed. L3 prompt/brief/output/activity content never enters snapshots or SSE
+and is fetched deliberately as text. `session.log` is always an activity log,
+not a transcript.
+
+Filesystem notifications provide latency; periodic scans provide correctness.
+GitHub polling is read-only, bounded, and independently degradable: a GitHub
+failure retains the last known external projection with explicit source-health
+state while local pass activity keeps updating. A monotonically increasing
+observer cursor supports SSE replay; clients outside the bounded buffer receive
+`resync` and fetch a fresh durable snapshot. Stopping the server closes only
+observer HTTP streams and never signals a runtime, loop, dispatcher, or pass.
 
 ## 2. Dispatcher & scheduler
 

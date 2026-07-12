@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v1.8 — 2026-07-12. Human-ratified decision log. Keep this file high-level;
+*v1.9 — 2026-07-12. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -334,6 +334,17 @@ config file, not a fork.
   governed activation → offline eval + canary → scheduled distillation;
   autonomy is earned by measured agreement plus outcomes, never granted by
   release.
+- **Live observability is read-only and disposable** (ratified 2026-07-12;
+  implementation contract in `docs/live-ui/design.md`). Operon remains
+  agent-operated through coding agents and the CLI; `operon observe` is a
+  human-observable projection over existing durable files plus bounded,
+  read-only GitHub state. It binds only to loopback with a per-process
+  capability token, uses HTTP snapshots plus SSE, owns no workflow state or
+  second queue, and exposes no configuration, approval, retry, label, merge,
+  deploy, or other mutation controls. GitHub `op:ready` issues are the
+  product-delivery queue; onboarding, scheduled/event intake, and approvals
+  remain separate concepts. Stopping or restarting the observer cannot affect
+  a run.
 
 ## Prior art (ours)
 
@@ -463,3 +474,7 @@ will resolve them.
   fail-closed verdict persistence, and report-only compaction. M6 is complete
   and live in the dispatch/CLI path; offline conformance is complete, and no
   token-spending calibration campaign was required for the implementation.
+- 2026-07-12 — v1.9: the read-only Operon Live UI contract was ratified and
+  implemented as `operon observe`: loopback capability URL, versioned
+  snapshot projection, SSE reconciliation, deliberate local evidence access,
+  and framework-free responsive browser UI without a second workflow store.

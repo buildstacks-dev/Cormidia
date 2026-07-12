@@ -46,7 +46,7 @@ export interface RunPaths {
   prompt: string;
   /** L3 — final output text. */
   output: string;
-  /** L3 — full transcript, fed by TurnHooks.onEvent. */
+  /** L3 — activity log, not a transcript; fed by TurnHooks.onEvent. */
   sessionLog: string;
 }
 

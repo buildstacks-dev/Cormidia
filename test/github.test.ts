@@ -38,6 +38,7 @@ const prJson = JSON.stringify({
   baseRefName: "main",
   isDraft: false,
   url: "https://github.invalid/o/r/pull/7",
+  closingIssuesReferences: [{ number: 1, url: "https://github.invalid/o/r/issues/1" }],
 });
 
 describe("GhCliOps", () => {
@@ -85,6 +86,7 @@ describe("GhCliOps", () => {
 
     expect(pr.number).toBe(7);
     expect(pr.headRefOid).toBe("abc123");
+    expect(pr.closingIssueNumbers).toEqual([1]);
     expect(calls[0]?.args).toContain("--body-file");
     expect(calls[1]?.args).toEqual([
       "pr",
@@ -93,7 +95,7 @@ describe("GhCliOps", () => {
       "--repo",
       "o/r",
       "--json",
-      "number,title,body,url,state,headRefName,headRefOid,baseRefName,isDraft,mergeCommit",
+      "number,title,body,url,state,headRefName,headRefOid,baseRefName,isDraft,mergeCommit,closingIssuesReferences",
     ]);
   });
 

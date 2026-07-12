@@ -94,6 +94,22 @@ describe("cli dispatch", () => {
     expect(stdout).toContain("--force");
   });
 
+  it("observe is discoverable as read-only and token-free", async () => {
+    const help = await runCli(["observe", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.stdout).toContain("loopback-only read-only observer");
+    expect(help.stdout).toContain("no workflow mutation endpoint");
+
+    const capabilities = await runCli(["capabilities", "--json"]);
+    expect(capabilities.code).toBe(0);
+    const parsed = JSON.parse(capabilities.stdout) as { commands: Array<Record<string, unknown>> };
+    expect(parsed.commands).toContainEqual(expect.objectContaining({
+      command: "observe",
+      writes: false,
+      spendsTokens: false,
+    }));
+  });
+
   it("pipelines subcommand validates the root pipelines.yaml", async () => {
     const { stdout, code } = await runCli(["pipelines"]);
     expect(code).toBe(0);

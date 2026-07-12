@@ -42,6 +42,7 @@ import {
   type EnvelopeStatus,
   type EnvelopeUsage,
   type SessionEvidence,
+  type PlanningRouteEvidence,
 } from "../runtime/runlog/envelope.js";
 import { gitSnapshotOf } from "../runtime/git.js";
 import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
@@ -90,6 +91,7 @@ export interface ExecutePipelineOptions {
   runlog: RunlogTarget;
   /** Broader delegated task registered by the top-level operator harness. */
   parentTaskId?: string;
+  planningRoute?: PlanningRouteEvidence;
   /** Injected clock (FakeClock-compatible); defaults to the wall clock. */
   clock?: () => Date;
   /** Optional native structured-output schema per pass. */
@@ -316,6 +318,7 @@ async function runPass(
             reason: "not selected by the active tier/trigger routing policy",
           })),
       },
+      ...(options.planningRoute !== undefined ? { planningRoute: options.planningRoute } : {}),
     },
     clock(),
   );

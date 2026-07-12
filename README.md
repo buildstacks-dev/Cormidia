@@ -237,6 +237,16 @@ Telemetry joins those child traces back to the exact prompt and will not call
 a task “Operon end-to-end complete” when a required stage or Reviewer is
 missing, or when execution used a fallback.
 
+`operon plan <app> --auto --goal "..."` chooses planning depth before any
+model turn. Quick work uses one combined planning/decomposition pass;
+standard uses a visionary, one PM perspective, and a decomposer; deep adds a
+second competing PM and arbitration. The route uses explicit risk,
+ambiguity, coupling, reversibility, external-consequence, expected-ticket,
+and sensitive-domain factors—not prompt length. Every planning envelope
+records the policy version, factors, selected/skipped passes with reasons,
+and a pre-execution historical cost estimate (or an honest unavailable
+marker plus the role-cap upper bound).
+
 `operon learn` is the learning loop's human window; `operon learn --help`
 has the full argument semantics. The capture verbs (`report`, `inspect
 <episode-id>`, `show <id>`, `emit`, `fixture`) read and annotate episodes

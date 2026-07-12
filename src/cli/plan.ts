@@ -10,6 +10,14 @@ import { join, resolve } from "node:path";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
+import {
+  decidePlanningDepth,
+  type ExpectedTicketBand,
+  type ExternalConsequence,
+  type PlanningDepth,
+  type PlanningLevel,
+  type PlanningReversibility,
+} from "../org/planning-depth.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
@@ -26,9 +34,12 @@ export async function cmdPlan(args: string[]): Promise<number> {
     if (app === undefined) throw new Error(`plan: unknown app "${parsed.app}" in apps.yaml`);
     if (parsed.dryRun) {
       const stage = parsed.stage ?? (app.status === "onboarding" ? "bootstrap" : "mature");
+      const decision = decidePlanningDepth({ goal: parsed.goal, stage, ...planningOptions(parsed) });
       console.log(`plan dry-run: ${app.name}`);
       console.log(`goal: ${parsed.goal}`);
       console.log(`stage: ${stage}`);
+      console.log(`planning depth: ${decision.depth}`);
+      console.log(`routing factors: ${decision.decisionFactors.join("; ")}`);
       console.log(`source checkout: ${resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name))}`);
       if (parentTaskId !== undefined) console.log(`parent task: ${parentTaskId}`);
       console.log("(dry-run: no runtime, run envelope, telemetry, learning projection, or GitHub write)");
@@ -46,6 +57,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
       ...(parsed.noPublish ? { publish: false } : {}),
       signal: cancellation.signal,
       ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+      planning: planningOptions(parsed),
     }).finally(() => cancellation.dispose());
     console.log(`plan (${result.status}): ${result.summary}`);
     if (result.plan !== undefined) {
@@ -58,6 +70,18 @@ export async function cmdPlan(args: string[]): Promise<number> {
       });
     }
     for (const problem of result.problems ?? []) console.log(`problem: ${problem}`);
+    if (result.planningDecision !== undefined) {
+      console.log(`planning depth: ${result.planningDecision.depth}`);
+      console.log(`routing factors: ${result.planningDecision.decisionFactors.join("; ")}`);
+    }
+    if (result.planningCostEstimate !== undefined) {
+      console.log(
+        `estimated planning cost: ${result.planningCostEstimate.estimatedCostUsd === null
+          ? "unavailable"
+          : `$${result.planningCostEstimate.estimatedCostUsd.toFixed(4)}`} ` +
+          `(upper bound $${result.planningCostEstimate.upperBoundUsd.toFixed(2)})`,
+      );
+    }
     // A plan that produced no durable output must not exit 0 (the episode's
     // stalled planner exited 0 after doing nothing).
     return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
@@ -111,6 +135,14 @@ interface ParsedPlanArgs {
   stage?: "bootstrap" | "growth" | "mature";
   noPublish: boolean;
   parentTaskId?: string;
+  depth?: PlanningDepth;
+  risk?: PlanningLevel;
+  ambiguity?: PlanningLevel;
+  coupling?: PlanningLevel;
+  reversibility?: PlanningReversibility;
+  externalConsequence?: ExternalConsequence;
+  expectedTickets?: ExpectedTicketBand;
+  sensitiveDomains?: string[];
 }
 
 function parseArgs(args: string[]): ParsedPlanArgs {
@@ -130,6 +162,14 @@ function parseArgs(args: string[]): ParsedPlanArgs {
   let stage: ParsedPlanArgs["stage"];
   let noPublish = false;
   let parentTaskId: string | undefined;
+  let depth: PlanningDepth | undefined;
+  let risk: PlanningLevel | undefined;
+  let ambiguity: PlanningLevel | undefined;
+  let coupling: PlanningLevel | undefined;
+  let reversibility: PlanningReversibility | undefined;
+  let externalConsequence: ExternalConsequence | undefined;
+  let expectedTickets: ExpectedTicketBand | undefined;
+  let sensitiveDomains: string[] | undefined;
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--dry-run") {
@@ -165,6 +205,25 @@ function parseArgs(args: string[]): ParsedPlanArgs {
       if (!next || next.startsWith("--")) throw new Error("plan: --parent-task requires an id");
       parentTaskId = next;
       i++;
+    } else if (arg === "--depth") {
+      depth = enumFlag(args, ++i, "--depth", ["quick", "standard", "deep"]);
+    } else if (arg === "--risk") {
+      risk = enumFlag(args, ++i, "--risk", ["low", "medium", "high"]);
+    } else if (arg === "--ambiguity") {
+      ambiguity = enumFlag(args, ++i, "--ambiguity", ["low", "medium", "high"]);
+    } else if (arg === "--coupling") {
+      coupling = enumFlag(args, ++i, "--coupling", ["low", "medium", "high"]);
+    } else if (arg === "--reversibility") {
+      reversibility = enumFlag(args, ++i, "--reversibility", ["reversible", "costly-to-reverse", "irreversible"]);
+    } else if (arg === "--external-consequence") {
+      externalConsequence = enumFlag(args, ++i, "--external-consequence", ["none", "internal", "customer-public-production"]);
+    } else if (arg === "--expected-tickets") {
+      expectedTickets = enumFlag(args, ++i, "--expected-tickets", ["1-2", "3-6", "7+"]);
+    } else if (arg === "--sensitive-domains") {
+      const next = args[i + 1];
+      if (!next || next.startsWith("--")) throw new Error("plan: --sensitive-domains requires a comma-separated value");
+      sensitiveDomains = [...new Set(next.split(",").map((value) => value.trim()).filter(Boolean))];
+      i++;
     } else {
       throw new Error(`plan: unknown flag "${arg}"`);
     }
@@ -180,7 +239,36 @@ function parseArgs(args: string[]): ParsedPlanArgs {
     ...(topic !== undefined ? { topic } : {}),
     ...(workdir ? { workdir } : {}),
     ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+    ...(depth !== undefined ? { depth } : {}),
+    ...(risk !== undefined ? { risk } : {}),
+    ...(ambiguity !== undefined ? { ambiguity } : {}),
+    ...(coupling !== undefined ? { coupling } : {}),
+    ...(reversibility !== undefined ? { reversibility } : {}),
+    ...(externalConsequence !== undefined ? { externalConsequence } : {}),
+    ...(expectedTickets !== undefined ? { expectedTickets } : {}),
+    ...(sensitiveDomains !== undefined ? { sensitiveDomains } : {}),
   };
+}
+
+function planningOptions(parsed: ParsedPlanArgs) {
+  return {
+    ...(parsed.depth !== undefined ? { minimumDepth: parsed.depth } : {}),
+    ...(parsed.risk !== undefined ? { riskTier: parsed.risk } : {}),
+    ...(parsed.ambiguity !== undefined ? { ambiguity: parsed.ambiguity } : {}),
+    ...(parsed.coupling !== undefined ? { coupling: parsed.coupling } : {}),
+    ...(parsed.reversibility !== undefined ? { reversibility: parsed.reversibility } : {}),
+    ...(parsed.externalConsequence !== undefined ? { externalConsequence: parsed.externalConsequence } : {}),
+    ...(parsed.expectedTickets !== undefined ? { expectedTickets: parsed.expectedTickets } : {}),
+    ...(parsed.sensitiveDomains !== undefined ? { sensitiveDomains: parsed.sensitiveDomains } : {}),
+  };
+}
+
+function enumFlag<const T extends string>(args: string[], index: number, flag: string, allowed: readonly T[]): T {
+  const value = args[index];
+  if (value === undefined || !allowed.includes(value as T)) {
+    throw new Error(`plan: ${flag} must be ${allowed.join(" | ")}`);
+  }
+  return value as T;
 }
 
 function printSummary(

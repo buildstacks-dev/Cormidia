@@ -278,9 +278,41 @@ describe("cmdPlan", () => {
     expect(log.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
       "dry-run",
     );
+    expect(log.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
+      "planning depth: quick",
+    );
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
     expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
     expect(git(app, ["status", "--porcelain=v2", "--branch"])).toBe(before);
+  });
+
+  it("auto dry-run raises a short auth migration to deep even with --depth quick", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stateHome = makeDir("operon-plan-security-dry-state-");
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "Migrate auth keys",
+      "--depth",
+      "quick",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain("planning depth: deep");
+    expect(out).toContain("could not lower the deep safety floor");
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
   });
 
   it("dry-run prints app, branch, topic, and context byte size without spawning", async () => {

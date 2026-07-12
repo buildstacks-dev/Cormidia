@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readEvents } from "./events.js";
-import type { RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
+import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
 import type { Artifact, Effort, RuntimeKind, UsageQuality } from "../types.js";
 
 export interface StatusRow {
@@ -47,6 +47,7 @@ export interface StatusRow {
   artifacts?: Artifact[];
   refs: RunEnvelope["refs"];
   tracePlan?: TracePlanEvidence;
+  planningRoute?: PlanningRouteEvidence;
 }
 
 export async function readStatusRows(
@@ -111,6 +112,7 @@ export async function readStatusRows(
         ...(envelope.artifacts !== undefined ? { artifacts: envelope.artifacts } : {}),
         refs: envelope.refs,
         ...(envelope.trace_plan !== undefined ? { tracePlan: envelope.trace_plan } : {}),
+        ...(envelope.planning_route !== undefined ? { planningRoute: envelope.planning_route } : {}),
       });
     }
   }

@@ -91,6 +91,7 @@ interface TraceGroup {
   traceId: string;
   passes: PassView[];
   integrity: TraceIntegrity;
+  planningRoute?: NonNullable<StatusRow["planningRoute"]>;
 }
 
 interface TraceIntegrity {
@@ -187,6 +188,9 @@ function buildReport(
       ticket.traces.push(trace);
     }
     trace.passes.push(view);
+    if (trace.planningRoute === undefined && view.planningRoute !== undefined) {
+      trace.planningRoute = view.planningRoute;
+    }
   }
 
   for (const ticket of tickets.values()) {
@@ -457,7 +461,12 @@ function renderTerminal(report: TelemetryReport): string {
   for (const ticket of report.tickets) {
     lines.push("", `TICKET ${ticket.ticket ?? NO_TICKET}`);
     for (const trace of ticket.traces) {
-      lines.push(`  trace ${trace.traceId}`);
+      lines.push(
+        `  trace ${trace.traceId}` +
+          (trace.planningRoute !== undefined
+            ? `  planning=${trace.planningRoute.depth} risk=${trace.planningRoute.risk_tier} estimated-cost=${trace.planningRoute.estimated_cost_usd === null ? "unavailable" : `$${trace.planningRoute.estimated_cost_usd.toFixed(2)}`}`
+            : ""),
+      );
       for (const view of trace.passes) {
         lines.push(`    ${passLine(view)}`);
       }
@@ -536,6 +545,7 @@ function reportToJson(report: TelemetryReport): unknown {
           skipped_passes: trace.integrity.skippedPasses,
           complete: trace.integrity.complete,
         },
+        planning_route: trace.planningRoute ?? null,
         passes: trace.passes.map(passToJson),
       })),
     })),
@@ -625,6 +635,7 @@ function passToJson(view: PassView): unknown {
     artifacts: view.artifacts ?? [],
     refs: view.refs,
     trace_plan: view.tracePlan ?? null,
+    planning_route: view.planningRoute ?? null,
   };
 }
 
@@ -762,10 +773,14 @@ function renderTicketSection(ticket: TicketGroup): string {
         : trace.integrity.complete
           ? "all selected passes completed"
           : `incomplete: ${[...trace.integrity.missingPasses.map((p) => `missing ${p}`), ...trace.integrity.nonCompletedPasses].join(", ")}`;
-      const skipped = trace.integrity.skippedPasses.length === 0
+      const routedSkips = trace.planningRoute?.skipped_passes ?? trace.integrity.skippedPasses;
+      const skipped = routedSkips.length === 0
         ? ""
-        : `<div class="muted trace-skip">Skipped by routing: ${esc(trace.integrity.skippedPasses.map((entry) => `${entry.pass} — ${entry.reason}`).join("; "))}</div>`;
-      return `<div class="trace"><div class="trace-id">trace ${esc(trace.traceId)} · ${esc(integrity)}</div>${skipped}\n${bars}</div>`;
+        : `<div class="muted trace-skip">Skipped by routing: ${esc(routedSkips.map((entry) => `${entry.pass} — ${entry.reason}`).join("; "))}</div>`;
+      const route = trace.planningRoute === undefined
+        ? ""
+        : `<div class="planning-route"><strong>Planning route:</strong> ${esc(trace.planningRoute.depth)} · risk ${esc(trace.planningRoute.risk_tier)} · ambiguity ${esc(String(trace.planningRoute.factors["ambiguity"] ?? "unknown"))} · coupling ${esc(String(trace.planningRoute.factors["coupling"] ?? "unknown"))} · estimated cost ${esc(trace.planningRoute.estimated_cost_usd === null ? "unavailable" : `$${trace.planningRoute.estimated_cost_usd.toFixed(4)}`)} (upper bound $${trace.planningRoute.estimated_cost_upper_bound_usd.toFixed(2)})<br><span class="muted">${esc(trace.planningRoute.decision_factors.join("; "))}</span></div>`;
+      return `<div class="trace"><div class="trace-id">trace ${esc(trace.traceId)} · ${esc(integrity)}</div>${route}${skipped}\n${bars}</div>`;
     })
     .join("\n");
 
@@ -839,6 +854,7 @@ function renderPassDetails(view: PassView, evidenceDir: string): string {
 <dt>Provider session</dt><dd>${esc(view.session?.id ?? "not recorded")} · ${native}</dd>
 <dt>Full transcript</dt><dd>${esc(view.session?.transcript_note ?? "Unavailable: this run predates transcript availability metadata. session.log, if present, is activity only.")}</dd>
 <dt>Artifacts</dt><dd>${esc(artifacts)}</dd>
+<dt>Planning route</dt><dd>${esc(view.planningRoute === undefined ? "not a planning pass / legacy run" : `${view.planningRoute.depth}; ${view.planningRoute.decision_factors.join("; ")}`)}</dd>
 <dt>Persisted evidence</dt><dd>${links.join(" · ") || "No copied evidence files"}</dd>
 </dl>`;
 }
@@ -966,6 +982,7 @@ td.summary { white-space: normal; max-width: 20rem; }
 .cost-grid { display: flex; flex-wrap: wrap; gap: 1.5rem; }
 .cost-table { flex: 1 1 18rem; }
 .trace-skip { margin: 0.2rem 0 0.4rem; font-size: 0.78rem; }
+.planning-route { margin: 0.35rem 0; font-size: 0.82rem; }
 .run-detail, .integrity { display: grid; grid-template-columns: minmax(9rem, auto) 1fr; gap: 0.15rem 0.8rem; margin: 0.5rem 0; }
 .run-detail dt, .integrity dt { color: var(--muted); }
 .run-detail dd, .integrity dd { margin: 0; white-space: normal; overflow-wrap: anywhere; }

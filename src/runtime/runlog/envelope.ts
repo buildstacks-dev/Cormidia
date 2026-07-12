@@ -104,6 +104,7 @@ export interface RunEnvelope {
    * by tier/trigger routing. Duplicated per pass so each envelope remains
    * independently auditable. */
   trace_plan?: TracePlanEvidence;
+  planning_route?: PlanningRouteEvidence;
   /** REFERENCES to the L3/L2 siblings, relative to the run dir. A ref is a
    *  promise: `session_log` is declared while the run is live (the sink may
    *  still produce it) and dropped at finalize when no file was written —
@@ -115,6 +116,19 @@ export interface RunEnvelope {
 export interface TracePlanEvidence {
   required_passes: string[];
   skipped_passes: Array<{ pass: string; reason: string }>;
+}
+
+export interface PlanningRouteEvidence {
+  policy_version: string;
+  depth: "quick" | "standard" | "deep";
+  risk_tier: string;
+  factors: Record<string, unknown>;
+  decision_factors: string[];
+  selected_passes: string[];
+  skipped_passes: Array<{ pass: string; reason: string }>;
+  estimated_cost_usd: number | null;
+  estimated_cost_upper_bound_usd: number;
+  estimate_basis: string;
 }
 
 export interface SessionEvidence extends SessionHandle {
@@ -139,6 +153,7 @@ export interface StartRunMeta {
   workdir?: string;
   gitBranch?: string;
   tracePlan?: TracePlanEvidence;
+  planningRoute?: PlanningRouteEvidence;
   /** Workdir HEAD at pass start — the replay seed (learning-loop design
    *  §9.4: capture for replay while the episode runs, never reconstruct
    *  afterward). Absent when the workdir is not a git checkout. */
@@ -190,6 +205,7 @@ export async function startRun(
     ...(meta.workdir !== undefined ? { workdir: meta.workdir } : {}),
     ...(meta.gitBranch !== undefined ? { git_branch: meta.gitBranch } : {}),
     ...(meta.tracePlan !== undefined ? { trace_plan: meta.tracePlan } : {}),
+    ...(meta.planningRoute !== undefined ? { planning_route: meta.planningRoute } : {}),
     ...(meta.gitHead !== undefined ? { git_head: meta.gitHead } : {}),
     status: "running",
     started_at: now.toISOString(),

@@ -122,8 +122,9 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
 - CLI in source-development mode: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
   `pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run` ·
   `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run` ·
-  `pnpm dev plan <app> --auto --goal "<text>" [--no-publish]` (non-interactive
-  runtime-backed bootstrap plan: schema-validated, orchestrator-published) ·
+  `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]
+  [--depth quick|standard|deep] [--no-publish]` (adaptive runtime-backed
+  plan: schema-validated, orchestrator-published) ·
   `pnpm dev loop --app <app> --once --dry-run` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·

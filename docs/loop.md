@@ -266,6 +266,15 @@ bootstrap plan for a new app — proportionality-review Stage 4), `groom`,
 `src/org/trigger-routing.ts` so roles.yaml stays declarative and unknown
 mappings fail as loud skips.
 
+`operon plan --auto` does not execute the full `plan` list by default.
+`planning-depth/v1` resolves a code-owned `includePasses` set before model
+execution: quick = one combined decomposer (or `plan-bootstrap`), standard =
+visionary + PM-A + decomposer, deep = the full configured list. Hard floors
+cover security/auth/secrets, migration/schema, release/deploy, payments,
+infrastructure/DNS, destructive data, high risk/ambiguity/coupling,
+irreversibility, external production consequence, and seven-plus expected
+tickets. A human minimum may raise the depth but cannot lower a floor.
+
 
 
 ### Review dimensions — security always-on, the rest risk-selected

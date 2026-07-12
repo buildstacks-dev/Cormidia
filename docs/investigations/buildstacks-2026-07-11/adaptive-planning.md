@@ -1,5 +1,22 @@
 # Adaptive planning-depth policy
 
+## Implementation status
+
+Implemented in `src/org/planning-depth.ts` and the non-interactive
+`operon plan --auto` path. `planning-depth/v1` chooses quick, standard, or
+deep before constructing a runtime; `PassSelection.includePasses` executes
+only the chosen existing human-ratified protocol passes. Quick selects one
+combined decomposer (or the existing one-pass bootstrap protocol), standard
+selects visionary → PM-A → decomposer, and deep selects the full competing-
+PM/arbitrator/decomposer path. No ratified prompt or safety gate was weakened.
+
+Every pass envelope carries `planning_route`: factor values, decision
+rationale, selected and skipped passes with reasons, and a historical-median
+cost estimate computed before execution. With no comparable history the
+estimate is explicitly unavailable and role caps appear only as an upper
+bound. A missing legacy `plan-bootstrap` pipeline now falls back to the
+quick `plan/decomposer` route rather than failing `unknown pipeline`.
+
 Planning depth is a routing decision, not a proxy for prompt length. The
 router evaluates structured factors before constructing a runtime or creating
 a run envelope.

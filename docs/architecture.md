@@ -764,6 +764,13 @@ effects.
 carry `unmeasured: true` (the native CLI's tokens never flow through
 Operon), while `--auto` turns settle real usage per pass. The `Trigger`
 type's `manual?: boolean` kind is one the dispatcher **never** auto-fires.
+- Before an `--auto` runtime is constructed, `planning-depth/v1` routes on
+  explicit/derived risk, ambiguity, coupling, reversibility, external
+  consequence, expected decomposition, and sensitive-domain floors. Quick
+  selects one combined planning/decomposition pass; standard selects one PM
+  perspective; deep retains competing PMs and arbitration. The envelope
+  records factors, selected/skipped passes, and the pre-execution cost
+  estimate; prompt length is not a routing input.
 - Gate applies as always — interactivity doesn't change the approval
 boundary; the human approving in-terminal *is* the approval surface for any
 critical op raised live (recorded to the same audit log).

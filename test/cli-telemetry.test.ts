@@ -22,6 +22,7 @@ interface EnvOverrides {
   usage?: Record<string, unknown>;
   previews?: Record<string, string>;
   lastSeenAt?: string;
+  planningRoute?: Record<string, unknown>;
 }
 
 function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
@@ -42,6 +43,7 @@ function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
     wall_clock_ms: 60000,
     usage: over.usage ?? { tokens_in: 100, tokens_out: 20, cost_usd: 0.1 },
     ...(over.previews !== undefined ? { previews: over.previews } : {}),
+    ...(over.planningRoute !== undefined ? { planning_route: over.planningRoute } : {}),
     refs: { events: "events.jsonl", brief: "brief.md", output: "output.md" },
   };
 }
@@ -78,6 +80,18 @@ function seededHome(): OrgHomeFixture {
               role: "reviewer",
               model: "model-b",
               usage: { tokens_in: 200, tokens_out: 40, cost_usd: 0.5, cost_estimated: true, cache_read_tokens: 150 },
+              planningRoute: {
+                policy_version: "planning-depth/v1",
+                depth: "standard",
+                risk_tier: "medium",
+                factors: { ambiguity: "medium", coupling: "low" },
+                decision_factors: ["moderate ambiguity"],
+                selected_passes: ["visionary", "pm-a", "decomposer"],
+                skipped_passes: [{ pass: "pm-b", reason: "no disagreement" }],
+                estimated_cost_usd: 1.25,
+                estimated_cost_upper_bound_usd: 15,
+                estimate_basis: "historical median",
+              },
             }),
             events: [
               { event: "escalation.raised", severity: "warn" },
@@ -240,6 +254,7 @@ describe("cmdTelemetry --json", () => {
         cost_usd: 0.5,
         cost_estimated: true,
         escalations: 2,
+        planning_route: { depth: "standard", estimated_cost_usd: 1.25 },
       });
       expect(data.running).toEqual([]);
       expect(data.totals.by_role).toContainEqual({

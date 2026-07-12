@@ -1,5 +1,5 @@
-// Non-interactive planning on the real runtime (proportionality-review
-// Stage 4). The interactive co-planning mode (plan.ts) hands the terminal to
+// Adaptive non-interactive planning on the real runtime. The interactive
+// co-planning mode (plan.ts) hands the terminal to
 // the native CLI: usage is unobservable, output is prose, and publication in
 // the 2026-07-10 episode was an agent-authored shell loop that wiped 19 issue
 // bodies. This mode runs the Planner through the pass executor — real gate,
@@ -14,6 +14,7 @@ import { getRuntime } from "../runtime/registry.js";
 import type { RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import { executePipeline } from "../loop/pipeline.js";
 import { getPipeline, loadPipelines } from "../loop/pipelines.js";
+import { readTurnRecords } from "../runtime/telemetry.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 import {
   PLAN_SCHEMA,
@@ -31,6 +32,15 @@ import { assembleContext } from "./context.js";
 import { composeGate } from "./gate-compose.js";
 import { loadRoles } from "./roles.js";
 import { ensureManagedClone, withAppGitLock } from "./turn-runner.js";
+import {
+  decidePlanningDepth,
+  estimatePlanningCost,
+  routePlanningPasses,
+  type PlanningCostEstimate,
+  type PlanningDepthDecision,
+  type PlanningDepthInput,
+  type PlanningPassRoute,
+} from "./planning-depth.js";
 
 export interface AutoPlanOptions {
   orgHome: string;
@@ -53,6 +63,9 @@ export interface AutoPlanOptions {
   /** Cooperative cancellation from the owning CLI/process. */
   signal?: AbortSignal;
   parentTaskId?: string;
+  /** Explicit/derived routing factors. Omitted fields use stage-aware
+   * conservative defaults; minimumDepth can raise but never lower a floor. */
+  planning?: Omit<PlanningDepthInput, "goal" | "stage">;
 }
 
 export interface AutoPlanResult {
@@ -61,23 +74,19 @@ export interface AutoPlanResult {
   plan?: TicketPlan;
   problems?: string[];
   published?: PublishedTicket[];
+  planningDecision?: PlanningDepthDecision;
+  planningCostEstimate?: PlanningCostEstimate;
 }
 
 export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanResult> {
   const clock = options.now ?? ((): Date => new Date());
   const stage: ProjectStage =
     options.stage ?? (options.app.status === "onboarding" ? "bootstrap" : "mature");
-  if (stage !== "bootstrap") {
-    // The five-pass mature path stays interactive until its passes emit
-    // structured plans too — refusing loudly beats a prose plan that cannot
-    // be validated or published.
-    return {
-      status: "failed",
-      summary:
-        `non-interactive planning currently supports the bootstrap stage only; ` +
-        `stage "${stage}" plans through the interactive co-planning mode`,
-    };
-  }
+  const planningDecision = decidePlanningDepth({
+    goal: options.goal,
+    stage,
+    ...(options.planning ?? {}),
+  });
 
   const rolesFile = await loadRoles(join(options.orgHome, "roles.yaml"));
   const planner = rolesFile.roles.find((role) => role.name === "planner");
@@ -87,7 +96,28 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     roleNames: rolesFile.roles.map((role) => role.name),
     promptsDir: join(options.orgHome, "prompts"),
   });
-  const pipeline = getPipeline(pipelines, "plan-bootstrap");
+  const route = routePlanningPasses(
+    planningDecision,
+    stage,
+    pipelines.pipelines.map((pipeline) => pipeline.name),
+  );
+  const pipeline = getPipeline(pipelines, route.pipeline);
+  const selectedPasses = pipeline.passes.filter((pass) => route.selectedPasses.includes(pass.id));
+  const missingPasses = route.selectedPasses.filter(
+    (pass) => !pipeline.passes.some((candidate) => candidate.id === pass),
+  );
+  if (missingPasses.length > 0) {
+    return {
+      status: "failed",
+      summary: `adaptive planning route needs missing pass(es): ${missingPasses.join(", ")}`,
+      planningDecision,
+    };
+  }
+  const planningCostEstimate = estimatePlanningCost({
+    selectedPasses,
+    roles,
+    history: await readTurnRecords(options.stateHome),
+  });
 
   const turnId = `plan-${options.app.name}-${clock().getTime()}`;
   // Plan from an isolated, trace-scoped snapshot. A supplied checkout is an
@@ -117,27 +147,44 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       appWorkdir: localRepo,
       app: options.app.name,
       role: planner,
-      taskText: `bootstrap plan for ${options.app.name}: ${options.goal}`,
+      taskText: `${stage} ${planningDecision.depth} plan for ${options.app.name}: ${options.goal}`,
     })
   ).bundle;
 
-  const brief = await stageAwareBrief(options, snapshot, clock());
+  const brief = await stageAwareBrief(options, snapshot, clock(), stage, planningDecision, route, planningCostEstimate);
+  const priorOutputs = new Map<string, string>();
+  const finalPassId = route.selectedPasses[route.selectedPasses.length - 1];
   const run = await executePipeline({
     pipeline,
-    selection: { tier: "standard" },
+    selection: { tier: "standard", includePasses: route.selectedPasses },
     roles,
     runtimeFor: options.runtimeFor ?? ((role) => getRuntime(role.runtime)),
-    briefFor: () => brief,
+    briefFor: (pass) => planningBriefForPass(brief, pass.id, priorOutputs, route),
     promptsDir: join(options.orgHome, "prompts"),
     context,
     workdir: localRepo,
     hooks,
     runlog: { root: options.stateHome, app: options.app.name, traceId: turnId },
     clock,
-    verdictSchemaFor: () => PLAN_SCHEMA,
+    verdictSchemaFor: (pass) => (pass.id === finalPassId ? PLAN_SCHEMA : undefined),
     telemetry: { orgDir: options.stateHome, trigger: "manual" },
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+    planningRoute: {
+      policy_version: planningDecision.policyVersion,
+      depth: planningDecision.depth,
+      risk_tier: planningDecision.riskTier,
+      factors: planningDecision.factors,
+      decision_factors: planningDecision.decisionFactors,
+      selected_passes: route.selectedPasses,
+      skipped_passes: route.skippedPasses,
+      estimated_cost_usd: planningCostEstimate.estimatedCostUsd,
+      estimated_cost_upper_bound_usd: planningCostEstimate.upperBoundUsd,
+      estimate_basis: planningCostEstimate.basis,
+    },
+    afterPass: (record) => {
+      priorOutputs.set(record.pass.id, record.result.summary);
+    },
   });
 
   const pass = run.passes[run.passes.length - 1];
@@ -148,6 +195,8 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
           ? pass.result.status
           : "failed",
       summary: `planning turn did not complete: ${pass?.result.summary ?? "no pass ran"}`,
+      planningDecision,
+      planningCostEstimate,
     };
   }
 
@@ -156,36 +205,60 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     return {
       status: "failed",
       summary: "planner output is not a parseable TicketPlan JSON object",
+      planningDecision,
+      planningCostEstimate,
     };
   }
   const validation = validatePlan(plan);
+  if (plan.stage !== stage) {
+    validation.problems.push(`planner returned stage "${plan.stage}" but the requested stage is "${stage}"`);
+    validation.ok = false;
+  }
   if (!validation.ok) {
     return {
       status: "failed",
       summary: `plan failed validation (${validation.problems.length} problem(s))`,
       plan,
       problems: validation.problems,
+      planningDecision,
+      planningCostEstimate,
     };
   }
 
   if (options.publish === false) {
-    return { status: "completed", summary: "plan validated; publication skipped (--no-publish)", plan };
+    return {
+      status: "completed",
+      summary: `${planningDecision.depth} plan validated; publication skipped (--no-publish)`,
+      plan,
+      planningDecision,
+      planningCostEstimate,
+    };
   }
   const gh = options.gh ?? new GhCliOps(options.app.repo);
   const { published } = await publishTickets(gh, plan);
   return {
     status: "completed",
     summary:
-      `published ${published.length} ticket(s): ` +
+      `${planningDecision.depth} planning published ${published.length} ticket(s): ` +
       published.map((t) => `#${t.issueNumber}${t.ready ? " (ready)" : ""}`).join(", "),
     plan,
     published,
+    planningDecision,
+    planningCostEstimate,
   };
 }
 
 /** P2: the plan sees what IS — goal, repo truth from the fresh clone, and the
  *  org's own cost history for this app. */
-async function stageAwareBrief(options: AutoPlanOptions, snapshot: PlanningSnapshot, now: Date): Promise<string> {
+async function stageAwareBrief(
+  options: AutoPlanOptions,
+  snapshot: PlanningSnapshot,
+  now: Date,
+  stage: ProjectStage,
+  decision: PlanningDepthDecision,
+  route: PlanningPassRoute,
+  estimate: PlanningCostEstimate,
+): Promise<string> {
   const localRepo = snapshot.path;
   const entries = readdirSync(localRepo)
     .filter((name) => name !== ".git")
@@ -204,10 +277,27 @@ async function stageAwareBrief(options: AutoPlanOptions, snapshot: PlanningSnaps
     (row) => row.app === options.app.name,
   );
   return [
-    `# Bootstrap plan request: ${options.app.name}`,
+    `# ${stage} plan request: ${options.app.name}`,
     "",
     "## Product goal",
     options.goal,
+    "",
+    "## Adaptive planning route (decided before model execution)",
+    `Policy: ${decision.policyVersion}`,
+    `Selected depth: ${decision.depth}`,
+    `Risk tier: ${decision.riskTier}`,
+    `Ambiguity: ${decision.factors.ambiguity}`,
+    `Coupling: ${decision.factors.coupling}`,
+    `Reversibility: ${decision.factors.reversibility}`,
+    `External consequence: ${decision.factors.externalConsequence}`,
+    `Expected tickets: ${decision.factors.expectedTickets}`,
+    `Sensitive domains: ${decision.factors.sensitiveDomains.join(", ") || "none"}`,
+    `Decision factors: ${decision.decisionFactors.join("; ")}`,
+    `Selected passes: ${route.selectedPasses.join(" -> ")}`,
+    `Skipped passes: ${route.skippedPasses.map((entry) => `${entry.pass} (${entry.reason})`).join("; ") || "none"}`,
+    `Estimated planning cost: ${estimate.estimatedCostUsd === null ? "unavailable" : `$${estimate.estimatedCostUsd.toFixed(4)}`}`,
+    `Planning cost upper bound: $${estimate.upperBoundUsd.toFixed(2)} (role caps; not expected cost)`,
+    `Estimate basis: ${estimate.basis}`,
     "",
     "## Repository snapshot",
     `Source checkout: ${snapshot.sourcePath}`,
@@ -224,8 +314,25 @@ async function stageAwareBrief(options: AutoPlanOptions, snapshot: PlanningSnaps
       ? `Month-to-date spend $${budget.spentUsd.toFixed(2)} of $${budget.budgetUsd.toFixed(2)} (${budget.status}).`
       : "No spend recorded.",
     "",
-    "Plan the smallest shippable first milestone per the pass protocol.",
+    "Plan the smallest shippable milestone per the pass protocol.",
+    `The final selected pass must emit exactly one TicketPlan JSON object with stage "${stage}" matching the provided schema; the orchestrator alone publishes it.`,
   ].join("\n");
+}
+
+function planningBriefForPass(
+  base: string,
+  passId: string,
+  priorOutputs: ReadonlyMap<string, string>,
+  route: PlanningPassRoute,
+): string {
+  const prior = priorOutputs.size === 0
+    ? "None — this is the first selected planning pass."
+    : [...priorOutputs.entries()].map(([id, output]) => `### ${id}\n\n${output}`).join("\n\n");
+  const combined =
+    route.selectedPasses.length === 1
+      ? "This quick route intentionally combines product direction, PM judgment, and decomposition in this one pass. Do not wait for an upstream artifact."
+      : `This is selected pass ${passId}; consume the prior selected outputs below and do not assume skipped passes ran.`;
+  return [base, "", "## Pass-routing instruction", combined, "", "## Prior selected-pass outputs", prior].join("\n");
 }
 
 interface PlanningSnapshot {

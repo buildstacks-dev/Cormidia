@@ -86,6 +86,13 @@ describe("cli dispatch", () => {
     expect(stdout).toMatch(/APP\s+REPO\s+STATUS\s+BUDGET/);
   });
 
+  it("app reset help is available from the top-level dispatch table", async () => {
+    const { stdout, code } = await runCli(["app", "--help"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("operon app reset <app-name>");
+    expect(stdout).toContain("--execute --confirm <app-name>");
+  });
+
   it("pipelines subcommand validates the root pipelines.yaml", async () => {
     const { stdout, code } = await runCli(["pipelines"]);
     expect(code).toBe(0);

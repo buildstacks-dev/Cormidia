@@ -206,6 +206,17 @@ config file, not a fork.
   app-owned `.operon/` artifacts there, and registers the app in the org's
   `apps.yaml`. The Operon source repo never doubles as the active org merely
   because it is the current working directory.
+- **Archive-backed app reset** (2026-07-11). A repeatable app test iteration
+  is `operon app reset <app>`, not deletion/recreation of the whole org. Its
+  default is a non-mutating plan; explicit `--execute --confirm <app>` first
+  writes a checksummed archive outside the state home, then removes only the
+  named app's Operon-managed clone/worktrees/runs/ticket state, app-attributed
+  control records, and registry entry. It refuses active runs, journals,
+  locks, and pending approvals. GitHub cleanup closes only identifiable
+  Operon work (`op:*` issues and linked/`op/` PRs) and deletes its head
+  branches; the repository, default branch, human checkout, and retained
+  closed history stay intact. This is one lifecycle operation, not a new
+  user-facing app-epoch concept.
 - **Local development installation is source-backed** (2026-07-09).
   `pnpm link:local` exposes the `operon` command and Operon Agent Skill while
   retaining a live reference to the local source tree; subsequent invocations

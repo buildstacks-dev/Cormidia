@@ -70,6 +70,7 @@ export interface ListIssueOptions {
 
 export interface ListPullRequestOptions {
   state?: "open" | "closed" | "merged" | "all";
+  limit?: number;
 }
 
 export interface GhIssueComment {
@@ -108,9 +109,17 @@ export interface GhOps {
   listIssueComments(issueNumber: number): Promise<GhIssueComment[]>;
   listIssues(options?: ListIssueOptions): Promise<GhIssue[]>;
   readIssue(issueNumber: number): Promise<GhIssue>;
+  /** Close a tracked issue without changing its body or labels. Used by the
+   *  explicit app-reset lifecycle command, never by an agent turn. */
+  closeIssue(issueNumber: number): Promise<void>;
   createPR(input: CreatePrInput): Promise<GhPullRequest>;
   readPR(selector: number | string): Promise<GhPullRequest>;
+  /** Enumerate PRs for an explicit operator lifecycle operation. The build
+   *  loop itself deliberately uses the narrower branch lookup below. */
+  listPullRequests(options?: ListPullRequestOptions): Promise<GhPullRequest[]>;
   listPRsForBranch(branch: string, options?: ListPullRequestOptions): Promise<GhPullRequest[]>;
+  /** Close a tracked PR without merging it. */
+  closePullRequest(prNumber: number): Promise<void>;
   createReview(prNumber: number, input: CreateReviewInput): Promise<GhReview>;
   listReviews(prNumber: number): Promise<GhReview[]>;
   squashMerge(prNumber: number, input: SquashMergeInput): Promise<GhPullRequest>;
@@ -292,6 +301,10 @@ export class GhCliOps implements GhOps {
     );
   }
 
+  async closeIssue(issueNumber: number): Promise<void> {
+    await this.run(["issue", "close", String(issueNumber), "--repo", this.repo]);
+  }
+
   async createIssue(input: CreateIssueInput): Promise<GhIssue> {
     const args = ["issue", "create", "--repo", this.repo, "--title", input.title, "--body-file", "-"];
     for (const label of input.labels) args.push("--label", label);
@@ -384,6 +397,23 @@ export class GhCliOps implements GhOps {
     );
   }
 
+  async listPullRequests(options: ListPullRequestOptions = {}): Promise<GhPullRequest[]> {
+    return parsePullRequestList(
+      await this.runJson([
+        "pr",
+        "list",
+        "--repo",
+        this.repo,
+        "--state",
+        options.state ?? "open",
+        "--limit",
+        String(options.limit ?? 100),
+        "--json",
+        PR_FIELDS,
+      ]),
+    );
+  }
+
   async listPRsForBranch(
     branch: string,
     options: ListPullRequestOptions = {},
@@ -398,10 +428,16 @@ export class GhCliOps implements GhOps {
         branch,
         "--state",
         options.state ?? "all",
+        "--limit",
+        String(options.limit ?? 100),
         "--json",
         PR_FIELDS,
       ]),
     );
+  }
+
+  async closePullRequest(prNumber: number): Promise<void> {
+    await this.run(["pr", "close", String(prNumber), "--repo", this.repo]);
   }
 
   async createReview(prNumber: number, input: CreateReviewInput): Promise<GhReview> {

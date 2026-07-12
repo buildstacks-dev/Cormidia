@@ -149,6 +149,29 @@ GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup
 GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox
 ```
 
+## Reset an app for another test iteration
+
+Use `operon app reset <app>` to begin another onboarding/build-loop iteration
+without deleting the GitHub repository or the organization. It is a
+non-mutating plan by default: it inventories the selected app's managed local
+state and identifiable Operon GitHub work (`op:*` issues and PRs linked to
+them), and reports blockers such as active turns, locks, journals, or pending
+approvals.
+
+```bash
+operon app reset buildstacks.dev
+operon app reset buildstacks.dev --execute --confirm buildstacks.dev
+```
+
+Execution first writes a checksummed archive to
+`~/.operon/archives/<org>/<timestamp>-<app>-<id>/` (or `--archive-root`), then
+closes the planned PRs/issues, deletes their head branches, removes the app
+from `apps.yaml`, and clears its managed clone, worktrees, runs, ticket state,
+approval records, schedules, and ledger rows. It never deletes the GitHub
+repository, its default branch, a human checkout, or the GitHub history of
+closed work. Re-onboard the checkout with `operon bootstrap <local-repo>
+--answers <answers.json>` when ready.
+
 Contributors can still use `pnpm dev <command>` inside the Operon source repo,
 but product and org workflows should exercise the installed `operon` command
 from a neutral directory.

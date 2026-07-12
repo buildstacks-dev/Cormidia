@@ -120,6 +120,7 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
   context` · `operon capabilities` · `operon doctor`; every command resolves
   the active org independently of cwd.
 - CLI in source-development mode: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
+  `pnpm dev app reset <app> [--execute --confirm <app>]` ·
   `pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run` ·
   `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run` ·
   `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]

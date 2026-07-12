@@ -262,6 +262,23 @@ pnpm smoke:onboarding
 npm pack --dry-run
 ```
 
+The highly efficient organization qualification layer is separate and
+evidence-preserving:
+
+```bash
+pnpm eval:validate                 # schemas, hashes, graders, isolation
+pnpm test:transformation           # required + exact known-red baseline
+pnpm eval:deterministic            # L0-L3, token-free
+pnpm test:transformation:strict    # final gate; red while declared debt remains
+```
+
+Provider and disposable-GitHub campaigns are never implicit. Prepare a
+content-hashed manifest with `pnpm eval:prepare`; preview `eval:github` and
+`eval:live`; execute only with their environment switches, exact campaign
+confirmation, and human-authorized cap. `pnpm eval:qualify` is read-only over
+immutable attempt results. See [`eval/README.md`](eval/README.md) and the
+canonical [`docs/efficiency.md`](docs/efficiency.md).
+
 The Live UI browser suite uses a dev-only Playwright dependency and local
 Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real
 ephemeral loopback HTTP/SSE boundaries but no provider tokens, GitHub writes,
@@ -285,6 +302,8 @@ src/report/    ledger/range/detail readers, deterministic report projection,
 src/cli/       one module per subcommand; src/cli.ts is a thin dispatch table
 test/          adapter conformance, gate, pipelines, bootstrap, qgates, CLI
 research/      decision records
+eval/          portable contracts, schemas, cases, app seeds, graders, corpora,
+               campaign templates, and non-secret price catalogs
 ```
 
 Imports flow downward only: `org -> loop -> runtime`.

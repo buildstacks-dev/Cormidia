@@ -1,0 +1,1 @@
+{"schema_version":1,"episode_id":"historical-ticket-32","kind":"build_ticket","status":"open","app":"fixture-app","disposition":null,"expected_reset_disposition":"reset_abandoned","source_observation":"post-reset projection retained open ticket episodes"}

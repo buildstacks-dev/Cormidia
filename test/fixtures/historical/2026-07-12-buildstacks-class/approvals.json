@@ -1,0 +1,10 @@
+[
+  {"id":"approval-1","status":"denied","rule":"production-deploy","action":{"tool":"write","effect":"worktree_write"},"classification":"false_positive"},
+  {"id":"approval-2","status":"denied","rule":"production-deploy","action":{"tool":"write","effect":"worktree_write"},"classification":"false_positive"},
+  {"id":"approval-3","status":"denied","rule":"production-deploy","action":{"tool":"write","effect":"worktree_write"},"classification":"false_positive"},
+  {"id":"approval-4","status":"denied","rule":"secrets-or-auth","action":{"tool":"write","effect":"worktree_write"},"classification":"false_positive"},
+  {"id":"approval-5","status":"denied","rule":"secrets-or-auth","action":{"tool":"bash","effect":"local_check"},"classification":"false_positive"},
+  {"id":"approval-6","status":"denied","rule":"secrets-or-auth","action":{"tool":"bash","effect":"local_check"},"classification":"false_positive"},
+  {"id":"approval-7","status":"denied","rule":"secrets-or-auth","action":{"tool":"write","effect":"worktree_write"},"classification":"false_positive"},
+  {"id":"approval-8","status":"denied","rule":"secrets-or-auth","action":{"tool":"bash","effect":"local_check"},"classification":"false_positive"}
+]

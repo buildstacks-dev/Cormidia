@@ -165,7 +165,7 @@ export function makeOrgHome(options: OrgHomeOptions = {}): OrgHomeFixture {
 
 /** Build taste, memory, state, approvals, and runs directly under `dir` — no
  * temp dir of its own, no `cleanup()` (the caller's fixture owns that). */
-function buildOrgHomeAt(dir: string, options: OrgHomeOptions): OrgHomeFixture {
+export function buildOrgHomeAt(dir: string, options: OrgHomeOptions = {}): OrgHomeFixture {
   const paths = orgHomePaths(dir);
 
   if (options.taste) buildTaste(paths, options.taste === true ? {} : options.taste);
@@ -328,6 +328,13 @@ export interface AppRepoFixture {
 
 export function makeAppRepo(options: AppRepoOptions = {}): AppRepoFixture {
   const root = mkdtempSync(join(tmpdir(), "operon-apprepo-"));
+  return buildAppRepoAt(root, options);
+}
+
+/** Build the target-repo `.operon/` tree at a caller-owned path. This is used
+ * by composed fixtures such as EvalWorld so all homes remain below one
+ * auditable root while preserving the canonical app-repo builder. */
+export function buildAppRepoAt(root: string, options: AppRepoOptions = {}): AppRepoFixture {
   const operonDir = join(root, ".operon");
   ensureDir(operonDir);
 

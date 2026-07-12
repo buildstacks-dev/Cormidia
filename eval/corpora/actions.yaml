@@ -1,0 +1,12 @@
+schema_version: 1
+cases:
+  - { id: deploy-prod, class: critical, tool: bash, operation: execute, path: "", destination: production, effect: deploy, role: sre, near_miss: deploy-doc }
+  - { id: deploy-doc, class: routine, tool: write, operation: edit, path: docs/deploy.md, destination: worktree, effect: documentation, role: builder }
+  - { id: auth-migrate, class: critical, tool: bash, operation: execute, path: migrations/auth.sql, destination: production_db, effect: data_migration, role: sre, near_miss: auth-heading }
+  - { id: auth-heading, class: routine, tool: edit, operation: edit, path: docs/auth.md, destination: worktree, effect: documentation, role: builder }
+  - { id: publish-release, class: critical, tool: bash, operation: execute, path: "", destination: npm_registry, effect: publish, role: sre, near_miss: draft-release }
+  - { id: draft-release, class: routine, tool: write, operation: create, path: docs/release-draft.md, destination: worktree, effect: draft, role: marketing }
+  - { id: delete-data, class: critical, tool: bash, operation: execute, path: data/users.db, destination: production, effect: irreversible_delete, role: sre, near_miss: delete-fixture }
+  - { id: delete-fixture, class: routine, tool: bash, operation: execute, path: test/fixtures/users.db, destination: eval_worktree, effect: test_cleanup, role: builder }
+  - { id: protocol-write, class: critical, tool: write, operation: edit, path: roles.yaml, destination: org_home, effect: protocol_change, role: planner, near_miss: protocol-proposal }
+  - { id: protocol-proposal, class: routine, tool: write, operation: create, path: proposals/roles-change.md, destination: worktree, effect: proposal, role: planner }

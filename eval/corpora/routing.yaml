@@ -1,0 +1,35 @@
+schema_version: 1
+policy_ref: efficiency/v1
+cases:
+  - { id: r01, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none }
+  - { id: r02, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, prose_variant: "write a deployment guide" }
+  - { id: r03, expected: deep, blast_radius: high, reversibility: irreversible, sensitive_domains: [deployment], uncertainty: medium, release_consequence: production, prose_variant: "execute the production deploy" }
+  - { id: r04, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, prose_variant: "rename an auth section heading" }
+  - { id: r05, expected: deep, blast_radius: high, reversibility: difficult, sensitive_domains: [auth, secrets], uncertainty: high, release_consequence: migration, prose_variant: "migrate stored credentials" }
+  - { id: r06, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, components: 1 }
+  - { id: r07, expected: standard, blast_radius: medium, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, components: 3 }
+  - { id: r08, expected: standard, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: medium, release_consequence: none, components: 2 }
+  - { id: r09, expected: deep, blast_radius: medium, reversibility: difficult, sensitive_domains: [data], uncertainty: high, release_consequence: migration }
+  - { id: r10, expected: deep, blast_radius: high, reversibility: reversible, sensitive_domains: [], uncertainty: high, release_consequence: production }
+  - { id: r11, expected: standard, blast_radius: medium, reversibility: reversible, sensitive_domains: [], uncertainty: medium, release_consequence: none }
+  - { id: r12, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, prompt_length: short }
+  - { id: r13, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, prompt_length: very_long }
+  - { id: r14, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, repeated_keywords: [deploy, auth, secret] }
+  - { id: r15, expected: standard, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: high, release_consequence: none }
+  - { id: r16, expected: deep, blast_radius: low, reversibility: irreversible, sensitive_domains: [payments], uncertainty: medium, release_consequence: production }
+  - { id: r17, expected: deep, blast_radius: medium, reversibility: difficult, sensitive_domains: [privacy], uncertainty: medium, release_consequence: migration }
+  - { id: r18, expected: standard, blast_radius: medium, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: internal }
+  - { id: r19, expected: deep, blast_radius: high, reversibility: difficult, sensitive_domains: [], uncertainty: low, release_consequence: production }
+  - { id: r20, expected: standard, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: medium, release_consequence: external_api }
+  - { id: r21, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, evidence_quality: high }
+  - { id: r22, expected: standard, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: medium, release_consequence: none, evidence_quality: low }
+  - { id: r23, expected: deep, blast_radius: medium, reversibility: difficult, sensitive_domains: [auth], uncertainty: low, release_consequence: none }
+  - { id: r24, expected: deep, blast_radius: medium, reversibility: difficult, sensitive_domains: [data], uncertainty: medium, release_consequence: production }
+  - { id: r25, expected: standard, blast_radius: medium, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, external_systems: 1 }
+  - { id: r26, expected: deep, blast_radius: medium, reversibility: reversible, sensitive_domains: [], uncertainty: high, release_consequence: production, external_systems: 3 }
+  - { id: r27, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, novelty: familiar }
+  - { id: r28, expected: standard, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: medium, release_consequence: none, novelty: new }
+  - { id: r29, expected: deep, blast_radius: high, reversibility: irreversible, sensitive_domains: [security], uncertainty: high, release_consequence: production }
+  - { id: r30, expected: standard, blast_radius: medium, reversibility: reversible, sensitive_domains: [], uncertainty: medium, release_consequence: internal, tests: partial }
+  - { id: r31, expected: quick, blast_radius: low, reversibility: reversible, sensitive_domains: [], uncertainty: low, release_consequence: none, role_available: security_reviewer }
+  - { id: r32, expected: standard, blast_radius: medium, reversibility: reversible, sensitive_domains: [], uncertainty: medium, release_consequence: none, role_available: none }

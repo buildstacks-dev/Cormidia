@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "operon.eval.result.v1",
+  "type": "object",
+  "required": ["schema_version", "campaign_id", "campaign_sha256", "attempt_id", "case_id", "repetition_id", "outcome", "evidence", "metrics", "exclusions", "missing"],
+  "properties": { "schema_version": { "const": 1 }, "outcome": { "enum": ["passed", "product_miss", "safety_stop", "budget_stop", "infra_invalid", "harness_error", "not_run"] } },
+  "additionalProperties": true
+}

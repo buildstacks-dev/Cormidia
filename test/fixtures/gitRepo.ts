@@ -169,6 +169,12 @@ export interface BareCloneFixture {
  * push, squash-merge, and branch-delete semantics with zero network. */
 export function makeBareWithClone(): BareCloneFixture {
   const root = mkdtempSync(join(tmpdir(), "operon-gitpair-"));
+  return makeBareWithCloneAt(root);
+}
+
+/** Build the canonical local bare+clone pair below a caller-owned root. */
+export function makeBareWithCloneAt(root: string): BareCloneFixture {
+  mkdirSync(root, { recursive: true });
   const bareRoot = join(root, "origin.git");
   runGit(root, ["init", "--bare", "--initial-branch=main", bareRoot]);
 

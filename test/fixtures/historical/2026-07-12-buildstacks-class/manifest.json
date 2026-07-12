@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "fixture_id": "2026-07-12-buildstacks-class",
+  "import_tool_version": "operon-eval-sanitizer/v1",
+  "source": {
+    "kind": "checksummed_operon_reset_archive",
+    "archive_id": "20260712T172413Z-buildstacks.dev-c7c8e9a1",
+    "manifest_sha256": "677d68bea111faeb3dbaeecebdc9c8c02ead65ed2facb73c13f9d4d957c2c377",
+    "envelope_set_sha256": "8eefc984435bb85c86aac1d3a8889825c67852df660173d437b13684f7ca5e4a",
+    "approval_set_sha256": "bc248d17f6b6a7919e198b38485dcf33184b062cb0fda46791e555ca6ac87115",
+    "telemetry_sha256": "c8bb20b7af34045321a86c4bbccfa378e607fee21eb05fd1c6b618c6c8a2fb43"
+  },
+  "redactions": [
+    "excluded all L3 brief, prompt, output, and session content",
+    "replaced app, trace, task, run, approval, and actor identities",
+    "removed action input bodies and paths",
+    "retained provider/model ids and accounting values needed for projection"
+  ],
+  "selection": "minimal representative records for stale/cancelled finalization, long review, repeated work, route overrun, false approvals, telemetry/capture disagreement, and reset-abandoned learning",
+  "files": {
+    "approvals.json": "sha256:8d9d1a16d6a4c32e89f360f90e10a377bd5841a8021af8e2740e353b943b8140",
+    "expected.json": "sha256:4c7e1f93e7a5fc0210637e89897284faec89b5f287d2cda67f2e5cce3f2cf835",
+    "learning-episode.json": "sha256:86a95dfab74cd0da580877066a8e7de25d76bd7ac9e7162fda9a017629943e75",
+    "runs.json": "sha256:2e3cd16a0eefb5923e3785cfb1af55f43bbddc9e0d9d6bc50af6eaf7ec945d44",
+    "telemetry.jsonl": "sha256:43d04ffe2e6da4f9ec3d064cabf02d1148b6d3dcb41d84f8ce5ce556710da878"
+  },
+  "independent_validation": "test/transformation/historical-fixture.test.ts"
+}

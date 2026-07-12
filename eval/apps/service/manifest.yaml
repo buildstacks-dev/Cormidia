@@ -1,0 +1,20 @@
+schema_version: 1
+template_id: operon-eval-service
+seed_tree_sha256: sha256:f53e262d8174ea03446fac0e284caecce7305d5c148e2dded0ed5c8488c2ce83
+checkout_branch: main
+default_branch: main
+commands:
+  setup: ""
+  test: npm test
+  lint: npm run lint
+  e2e: npm run e2e
+  release: npm run release:eval
+side_effect_policy:
+  network: loopback_only
+  publishing: forbidden
+  deployment: eval_effect_recorder_only
+grader: graders/deep-auth/v1
+reference_patch: ../../graders/deep-auth/reference.patch
+mutants:
+  - ../../graders/deep-auth/mutants/plaintext.patch
+  - ../../graders/deep-auth/mutants/nondeterministic.patch

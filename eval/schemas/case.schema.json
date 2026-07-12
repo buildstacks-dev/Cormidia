@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "operon.eval.case.v1",
+  "type": "object",
+  "required": ["schema_version", "case_id", "requirements", "app", "episode", "route", "oracle", "side_effect_policy", "faults", "budgets_ref", "repetitions"],
+  "properties": { "schema_version": { "const": 1 }, "case_id": { "type": "string", "minLength": 1 }, "requirements": { "type": "array", "minItems": 1, "items": { "type": "string" } }, "repetitions": { "type": "integer", "minimum": 1 } },
+  "additionalProperties": true
+}

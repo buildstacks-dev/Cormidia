@@ -1,0 +1,14 @@
+{
+  "selected_runs": 7,
+  "provider_runs": 6,
+  "mechanical_runs": 1,
+  "provider_settlements": 6,
+  "mechanical_settlements": 0,
+  "cancelled_runs": 2,
+  "stale_running_runs": 1,
+  "long_reviews": 1,
+  "repeated_artifact_fingerprints": 1,
+  "false_positive_approvals": 8,
+  "capture_disagreement": { "eligible_provider_runs": 6, "projected_runs": 0 },
+  "learning_episode_expected_disposition": "reset_abandoned"
+}

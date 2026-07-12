@@ -1,0 +1,11 @@
+schema_version: 1
+case_id: soak/virtual-seven-day/v1
+requirements: [I-SOAK-01, I-SOAK-02, I-SOAK-03]
+app: { template: operon-eval-service, seed_ref: "sha256:f53e262d8174ea03446fac0e284caecce7305d5c148e2dded0ed5c8488c2ce83" }
+episode: { kind: scheduler_campaign, task_ref: tasks/scheduler-soak.md }
+route: { expected: mechanical, factors: { virtual_time: true } }
+oracle: { visible_commands: ["npm test"], hidden_grader: graders/scheduler-soak.ts, required_artifacts: [tick_journal, skip_reasons, ledger, terminal_episode] }
+side_effect_policy: { github: local_bare_only, network: forbidden, publishing: forbidden, deployment: forbidden }
+faults: [lock, budget_pause, approval_wait, process_restart]
+budgets_ref: efficiency/v1#deterministic-lifecycle
+repetitions: 1

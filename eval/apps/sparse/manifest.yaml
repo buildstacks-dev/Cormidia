@@ -1,0 +1,19 @@
+schema_version: 1
+template_id: operon-eval-sparse
+seed_tree_sha256: sha256:9abd5b9c46e8752061add0426aa8e38affe4c231c6977031d40a3b2f2e7f831a
+checkout_branch: human/topic
+default_branch: main
+commands:
+  setup: ""
+  test: npm test
+  lint: npm run lint
+  e2e: ""
+  release: ""
+side_effect_policy:
+  network: forbidden
+  publishing: forbidden
+  deployment: forbidden
+grader: graders/sparse-lifecycle/v1
+reference_patch: ../../graders/sparse-lifecycle/reference.patch
+mutants:
+  - ../../graders/sparse-lifecycle/mutants/keeps-old-schema.patch

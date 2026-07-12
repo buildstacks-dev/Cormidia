@@ -1,0 +1,10 @@
+diff --git a/.operon/config.yaml b/.operon/config.yaml
+--- a/.operon/config.yaml
++++ b/.operon/config.yaml
+@@ -1,4 +1,5 @@
+-schema_version: 0
++schema_version: 1
+ name: operon-eval-sparse
+ repo: eval/operon-eval-sparse
+ checkout_branch: human/topic
++status: onboarding

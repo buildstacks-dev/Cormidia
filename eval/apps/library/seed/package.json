@@ -1,0 +1,6 @@
+{
+  "name": "operon-eval-library",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test", "lint": "node --check src/slug.js" }
+}

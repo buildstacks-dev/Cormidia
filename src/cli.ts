@@ -54,7 +54,8 @@ Usage:
   operon plan <app> [--topic <string>] [--dry-run] [--workdir <path>]
                            open a Planner co-planning session for an
                            onboarded app
-  operon doctor [--json]   validate installation, active org, state, adapters,
+  operon doctor [--json] [--config-only]
+                           validate installation, active org, state, adapters,
                            and scheduler status
   operon approvals [review|show <id>] [--state-home <path>]
                            inspect or decide the critical-op approval queue
@@ -104,7 +105,7 @@ const HELP = {
   "new-app": `Usage: operon new-app <name-or-goal> --target-dir <local-path> --repo <owner/repo> [--goal <text>] [--name <app>] [--org-home <path>] [--dry-run]`,
   plan: `Usage:\n  operon plan <app-name> [--topic <text>] [--workdir <local-path>] [--dry-run] [--parent-task <id>]\n  operon plan <app-name> --auto --goal <text> [--stage bootstrap|growth|mature] [--no-publish] [--parent-task <id>] [--depth quick|standard|deep] [--risk low|medium|high] [--ambiguity low|medium|high] [--coupling low|medium|high] [--reversibility reversible|costly-to-reverse|irreversible] [--external-consequence none|internal|customer-public-production] [--expected-tickets 1-2|3-6|7+] [--sensitive-domains <csv>]${HOME_HELP}\n\n--auto applies planning-depth/v1 before constructing a runtime: quick runs one combined pass, standard runs visionary + one PM + decomposer, and deep runs competing PMs + arbitration + decomposition. Security, migration, release, destructive, high-risk, high-ambiguity, high-coupling, irreversible, externally consequential, and 7+ ticket work has a deep floor. The final plan is schema-validated and orchestrator-published; no agent-authored gh calls.`,
   loop: `Usage: operon loop --app <app-name> [--once|--follow] [--dry-run] [--allow-network] [--repo-dir <local-path>] [--parent-task <id>]${HOME_HELP}`,
-  doctor: `Usage: operon doctor [--json]${HOME_HELP}`,
+  doctor: `Usage: operon doctor [--json] [--config-only]${HOME_HELP}`,
   approvals: `Usage: operon approvals [list|review [--batch]|show <id>|revoke <grant-id>] [--state-home <path>] [--now <ISO-time>]${HOME_HELP}\n\nreview decisions: "a" approves single-use (default); "a ticket [path]" / "a app [path]" mint a rule+path-scoped multi-use grant (TTL 24h, 20 uses; never for self-merge/deploy/protocol/scorecard/approval-store rules); approving a ticketed item offers op:blocked -> op:ready re-arm. --batch groups same-rule/app items into one decision with per-item audit.`,
   budget: `Usage: operon budget [--apps <apps.yaml-path>] [--reconcile]${HOME_HELP}\n\n--reconcile back-fills the org ledger from runs/**/envelope.json (idempotent, keyed on app+run_id) so historical loop passes reach budget, retro, and scorecards. Caveat: dispatched turns recorded before per-pass settlement wrote aggregate turn rows without run ids; reconciling such a ledger can count that older window twice.`,
   status: `Usage: operon status [--app <app-name>] [--limit N]${HOME_HELP}`,

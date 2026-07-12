@@ -672,7 +672,10 @@ so rather than relabeling the activity log. Plus `app`, `ticket`,
 app+runId already present — Stage 1). Every line timestamped, severity
 field, machine `error_code`. **Stage 3 additions:** the executor stamps a
 30-second heartbeat onto the envelope (`last_seen_at`) so live and stalled
-passes are distinguishable; a per-pass wall-clock watchdog
+passes are distinguishable; a separate 30-second adapter-start deadline waits
+for the first provider progress/event and aborts an initialization/auth/
+transport stall as `failed(error_adapter_start_timeout)`; a per-pass
+wall-clock watchdog
 (`wall_clock_minutes`, default 60) cancels the owned provider tree and
 finalizes a hung pass `timed_out(error_wall_clock_exceeded)` with an
 unavailable-usage ledger row; operator SIGINT/SIGTERM similarly finalizes
@@ -890,7 +893,8 @@ distinct codes end to end (§9).
 | --------------------------- | ---------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Infrastructure**          |                                                      |                                                      |                                                                                                                                              |
 | 1                           | Turn process dies mid-pass                           | stale lock heartbeat + journal `running`             | resume session once, else restart clean; `attempt ≥ 3` → returned + incident (architecture.md §3)                                            |
-| 2                           | SDK session hangs                                    | per-pass wall-clock cap (default 60 min)             | kill; enters #1's recovery path                                                                                                              |
+| 2a                          | Adapter initialize/auth/transport stalls before any provider event | adapter-start deadline (default 30 sec) | abort owned provider tree; finalize `failed(error_adapter_start_timeout)` with partial/unavailable usage                                     |
+| 2b                          | SDK session hangs after starting                     | per-pass wall-clock cap (default 60 min)             | kill; enters #1's recovery path                                                                                                              |
 | 3                           | Dispatcher dies mid-claim                            | next tick                                            | artifact-before-label: state re-derived from GitHub artifacts; no torn claims                                                                |
 | 4                           | Host asleep / offline                                | nothing runs                                         | missed schedules collapse to one firing; distributed item state resumes on any later tick                                                    |
 | 5                           | GitHub API down / rate-limited                       | API errors on tick                                   | loud L2 event; retry next tick (polling is idempotent); repeated → anomaly flag + incident note                                              |

@@ -100,6 +100,16 @@ operon pipelines
 operon doctor --json
 ```
 
+By default `doctor` runs bounded, non-billable readiness probes only for the
+runtimes and models referenced by the active `roles.yaml`: Claude performs an
+SDK initialize/account-info control request, Codex performs App Server
+`initialize` + `account/read`, and pi resolves its model/auth configuration.
+No model prompt is sent. Missing launch artifacts, transport failure, missing
+auth, invalid model configuration, and probe timeout are reported distinctly.
+Use `operon doctor --config-only` only in an isolated/offline packaging check;
+its adapter rows are `WARN` because configuration validity is not runtime
+readiness.
+
 Offline onboarding and inspection do not require provider credentials:
 
 ```bash

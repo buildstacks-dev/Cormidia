@@ -91,7 +91,7 @@ try {
 
   const capabilities = JSON.parse(run(operon, ["capabilities", "--json"], neutral));
   assert(capabilities.commands.some((entry) => entry.command === "bootstrap"), "bootstrap capability is absent");
-  run(operon, ["doctor", "--json"], neutral);
+  run(operon, ["doctor", "--json", "--config-only"], neutral);
   run(
     operon,
     [
@@ -112,7 +112,7 @@ try {
   const compiled = join(packageRoot, "dist", "cli.js");
   assert(existsSync(compiled), "compiled CLI is missing; run pnpm build first");
   run(process.execPath, [compiled, "context", "--json"], neutral);
-  run(process.execPath, [compiled, "doctor", "--json"], neutral);
+  run(process.execPath, [compiled, "doctor", "--json", "--config-only"], neutral);
 
   console.log(`onboarding smoke: PASS (${root})`);
 } finally {

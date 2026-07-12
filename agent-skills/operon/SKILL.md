@@ -109,3 +109,9 @@ Run `operon doctor --json`, `operon org show --json`, and `operon context
 --json`. Report the resolved org home and state home with failures. Use
 `operon <command> --help` for current argument semantics instead of relying on
 memorized flags.
+
+`doctor` performs bounded, non-billable initialize/account/auth probes for
+configured runtimes; it sends no model prompt. Treat `missing_binary`,
+`transport_unavailable`, `unauthenticated`, `misconfigured`, and `timed_out`
+as real readiness failures. `doctor --config-only` is for isolated packaging
+checks and deliberately reports adapter readiness as unverified `WARN`.

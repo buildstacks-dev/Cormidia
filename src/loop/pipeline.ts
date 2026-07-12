@@ -86,6 +86,9 @@ export interface ExecutePipelineOptions {
   signal?: AbortSignal;
   /** Grace after abort for an adapter to return its final partial usage. */
   cancellationGraceMs?: number;
+  /** Deadline for the first provider progress/event. Distinct from the full
+   * pass wall-clock cap so auth/transport startup stalls fail quickly. */
+  adapterStartTimeoutMs?: number;
   /** gate propagates unchanged to every pass; onEvent (when present) still
    *  fires after the executor's own session-log sink. */
   hooks: TurnHooks;
@@ -174,6 +177,14 @@ export interface PipelineRunResult {
 export async function executePipeline(
   options: ExecutePipelineOptions,
 ): Promise<PipelineRunResult> {
+  if (
+    options.adapterStartTimeoutMs !== undefined &&
+    (!Number.isFinite(options.adapterStartTimeoutMs) || options.adapterStartTimeoutMs <= 0)
+  ) {
+    throw new Error(
+      `executePipeline: adapterStartTimeoutMs must be positive; received ${options.adapterStartTimeoutMs}`,
+    );
+  }
   const clock = options.clock ?? ((): Date => new Date());
   const stages = parallelStages(selectPasses(options.pipeline, options.selection));
 
@@ -206,6 +217,8 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
  *  the dispatcher's hung-turn default. */
 const DEFAULT_PASS_WALL_CLOCK_MINUTES = 60;
 export const ERROR_WALL_CLOCK_EXCEEDED = "error_wall_clock_exceeded";
+export const ERROR_ADAPTER_START_TIMEOUT = "error_adapter_start_timeout";
+const DEFAULT_ADAPTER_START_TIMEOUT_MS = 30_000;
 
 // Long enough for adapters to terminate their owned process/session tree and
 // return the last provider checkpoint; still bounded so a broken adapter
@@ -213,7 +226,7 @@ export const ERROR_WALL_CLOCK_EXCEEDED = "error_wall_clock_exceeded";
 const DEFAULT_CANCELLATION_GRACE_MS = 2_000;
 
 interface AbortDescriptor {
-  status: "cancelled" | "timed_out";
+  status: "cancelled" | "timed_out" | "failed";
   errorCode: string;
   reason: string;
 }
@@ -372,14 +385,24 @@ async function runPass(
   const bridged: TurnEvent[] = [];
   let latestProgress: TurnProgress | undefined;
   let checkpointWrites = Promise.resolve();
+  let adapterStarted = false;
+  let adapterStartTimer: NodeJS.Timeout | undefined;
+  const markAdapterStarted = (): void => {
+    if (adapterStarted) return;
+    adapterStarted = true;
+    if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
+    adapterStartTimer = undefined;
+  };
   const passHooks: TurnHooks = {
     gate: options.gateForRole?.(role) ?? options.hooks.gate,
     onEvent: (e) => {
+      markAdapterStarted();
       sessionLog(e);
       if (e.type === "tool_use" || e.type === "subagent") bridged.push(e);
       options.hooks.onEvent?.(e);
     },
     onProgress: (progress) => {
+      markAdapterStarted();
       latestProgress = mergeProgress(latestProgress, progress);
       if (latestProgress.usage !== undefined || latestProgress.session !== undefined) {
         const usage =
@@ -431,6 +454,18 @@ async function runPass(
     } satisfies AbortDescriptor);
   }, capMs);
   timeout.unref?.();
+  const adapterStartTimeoutMs =
+    options.adapterStartTimeoutMs ?? DEFAULT_ADAPTER_START_TIMEOUT_MS;
+  adapterStartTimer = setTimeout(() => {
+    passController.abort({
+      status: "failed",
+      errorCode: ERROR_ADAPTER_START_TIMEOUT,
+      reason:
+        `pass "${pass.id}" received no provider progress or event within ` +
+        `${adapterStartTimeoutMs}ms of adapter start`,
+    } satisfies AbortDescriptor);
+  }, adapterStartTimeoutMs);
+  adapterStartTimer.unref?.();
   let result: TurnResult;
   try {
     result = await runOwnedTurn({
@@ -454,6 +489,7 @@ async function runPass(
     });
   } finally {
     clearTimeout(timeout);
+    if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
     unlinkParent();
     clearInterval(heartbeat);
   }
@@ -748,7 +784,9 @@ function isAbortDescriptor(value: unknown): value is AbortDescriptor {
   if (value === null || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   return (
-    (record["status"] === "cancelled" || record["status"] === "timed_out") &&
+    (record["status"] === "cancelled" ||
+      record["status"] === "timed_out" ||
+      record["status"] === "failed") &&
     typeof record["errorCode"] === "string" &&
     typeof record["reason"] === "string"
   );

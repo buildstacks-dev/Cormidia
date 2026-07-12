@@ -141,7 +141,11 @@ describe("learning-loop preflight conformance (issue #28)", () => {
     });
     const hangingRuntime: Runtime = {
       kind: "claude",
-      async runTurn() {
+      async runTurn(_request, hooks) {
+        // This is a post-initialize session hang, not an adapter-start stall.
+        // A provider event clears the short start deadline without stamping
+        // last_seen_at; the heartbeat remains the evidence under test.
+        hooks.onEvent?.({ type: "text", detail: "provider initialized" });
         await hang;
         return turnResult("finally done");
       },

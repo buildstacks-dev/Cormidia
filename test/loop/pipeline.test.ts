@@ -498,6 +498,37 @@ describe("executePipeline", () => {
     }
   });
 
+  it("fails a pass on the adapter-start deadline when no provider event arrives", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const slowWallClock: PipelineConfig = {
+      ...build,
+      passes: build.passes.map((pass) => ({ ...pass, wallClockMinutes: 0.001 })),
+    };
+    const never: Runtime = { kind: "claude", runTurn: () => new Promise(() => {}) };
+    const h = makeHarness(slowWallClock, [], {
+      runtimeFor: () => never,
+      selection: { tier: "quick" },
+    });
+    const withStartDeadline = h.options as ExecutePipelineOptions & {
+      adapterStartTimeoutMs: number;
+    };
+    withStartDeadline.adapterStartTimeoutMs = 10;
+    withStartDeadline.cancellationGraceMs = 5;
+    try {
+      const run = await executePipeline(withStartDeadline);
+      const record = run.passes[0]!;
+      expect(record.result.status).toBe("failed");
+      expect(record.result.errorCode).toBe("error_adapter_start_timeout");
+
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", record.runId);
+      expect(envelope.status).toBe("failed");
+      expect(envelope.error_code).toBe("error_adapter_start_timeout");
+      expect(envelope.usage?.quality).toBe("unavailable");
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("settles nothing when no telemetry target is given (library callers opt in)", async () => {
     const build = getPipeline(await loadFixture(), "build");
     const h = makeHarness(build, [scripted("contract"), scripted("implement")]);

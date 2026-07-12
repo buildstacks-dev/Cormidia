@@ -392,6 +392,14 @@ child that also holds the per-app clone lock would otherwise let two workers
 mutate one clone. If the pid refuses to die this tick, recovery waits for a
 later one.
 
+Inside a pass, the executor also owns a shorter adapter-start deadline
+(default 30 seconds). The first adapter progress checkpoint or streamed event
+proves startup; silence until the deadline aborts the same owned provider tree
+and finalizes `failed(error_adapter_start_timeout)`, distinct from the full
+turn wall-clock timeout. `operon doctor` uses separate bounded, non-billable
+initialize/account/auth probes to catch missing binaries, transports,
+credentials, and model configuration before an operator starts live work.
+
 ### Idempotency rules
 
 These four rules are why a dead turn never leaves the repo half-done:

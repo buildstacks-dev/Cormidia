@@ -83,7 +83,9 @@ export interface CreatePlanningWorktreeOptions {
 }
 
 /** Create a planning branch/worktree from main. The caller decides whether
- * and when to clean it up; tests and dry-runs use cleanupPlanningWorktree. */
+ * and when to clean it up; tests and dry-runs use cleanupPlanningWorktree.
+ * Issue #60 tracks fetching and resolving the remote default-branch tip before
+ * this cut so an interactive session cannot launch from stale product truth. */
 export async function createPlanningWorktree(
   sourceRepoIn: string,
   options: CreatePlanningWorktreeOptions,

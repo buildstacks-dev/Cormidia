@@ -781,7 +781,7 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
   console.log(
     match.type === "late_outcome"
       ? `disposition: folded into ${match.episode_id}'s record (late_outcomes) — inspect it with: operon learn inspect ${match.episode_id}`
-      : "disposition: captured (M1) — no downstream consumer yet; classification and distillation land in M6",
+      : "disposition: captured — available to the M6 classification and distillation window",
   );
   return 0;
 }

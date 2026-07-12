@@ -20,10 +20,10 @@ Companions, and how to read the three documents:
 - `docs/telemetry-review-and-proposed-fixes.md` — why the org could not *see*
   any of this while it was happening. Read second. Its staged fix **is**
   Stage 1 of the plan here.
-- `docs/bugs-to-be-fixed.md` — the point defects hit during the episode.
-  Read last, as a reference backlog. Most entries are *instances* of the
-  systemic causes named here and are absorbed by Stages 2–6; they get fixed
-  as part of those stages, not as a separate 19-item march.
+- The former `docs/bugs-to-be-fixed.md` — the point defects hit during the
+  episode, retained in git history. It is no longer a backlog surface; open
+  work is in GitHub issues. Most entries were *instances* of the systemic
+  causes named here and were absorbed by Stages 2–6.
 
 Scope separation, per the operator's direction: this plan improves
 **Operon**, not buildstacks.dev. The app, its 19 open tickets, PR #23, and
@@ -238,10 +238,11 @@ Evidence from the artifacts, with the mechanism confirmed in code:
   (advisory prompt language, unenforced) and the human — who performed all
   20 re-arms in this episode by hand.
 
-At least eight entries in `docs/bugs-to-be-fixed.md` (stranded budget
+At least eight entries in the former `docs/bugs-to-be-fixed.md` (stranded budget
 aborts, unresumable review, stale command snapshots, stale briefs, the
 governance deadlock, the stalled planner, gate-output loss, approval-store
-bypass) are instances of this one cause.
+bypass) were instances of this one cause; that historical file is now retained
+only in git history.
 
 ### RC3 — The human gate spends attention on the wrong risks
 

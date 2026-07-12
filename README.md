@@ -326,8 +326,8 @@ grants, release handoff, adapter-level role toolset shaping), and a
 repeatable clean-room benchmark
 ([`docs/benchmark-runbook.md`](docs/benchmark-runbook.md)). On top of that
 substrate, a governed learning loop
-([`docs/learning-loop/`](docs/learning-loop/), ratified 2026-07-11) is built
-through M6 (M1–M5 live-verified; M6 offline-conformance-verified): every pass is captured into episodes and replay
+([`docs/learning-loop/`](docs/learning-loop/), ratified 2026-07-11) is complete
+and live through M6: every pass is captured into episodes and replay
 capsules, and learned changes activate only through human review, offline
 paired-replay evaluation, a human-started canary, and M6 scheduled
 distillation with independent review and report-only compaction. The latest dated live evidence is
@@ -351,7 +351,14 @@ degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
   flow through Operon; those ledger rows carry an explicit `unmeasured: true`
   marker (cost unknown, not zero). The runtime-backed `plan --auto` mode is
   fully measured — prefer it wherever a goal can be stated non-interactively.
+- **Interactive co-planning can use a stale managed clone.** The launcher does
+  not yet fetch the remote default branch before cutting its worktree. Tracked
+  in [issue #60](https://github.com/buildstacks-dev/Operon/issues/60).
+- **Bootstrap publication remains manual.** A safe, draft-PR-only publication
+  workflow with exact staging and dry-run semantics is tracked in
+  [issue #61](https://github.com/buildstacks-dev/Operon/issues/61).
 - **Codex App-Server read bypass:** under the `untrusted` approval policy the
   App Server auto-runs trusted read-only commands (`cat`, `ls`) without an
   approval request, so those reads do not reach the gate hook. Tracked in
-  `docs/capability-matrix.md` as a live-verify follow-up.
+  [issue #20](https://github.com/buildstacks-dev/Operon/issues/20) with live
+  evidence and the required upstream capability.

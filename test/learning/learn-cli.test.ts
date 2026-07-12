@@ -258,7 +258,7 @@ describe("operon learn", () => {
       expect(text).toContain(`"event_id": "${id}"`);
       expect(text).toContain(`"episode_id": "${EPISODE}"`);
       expect(text).toContain('"emitter": "human"');
-      expect(text).toContain("disposition: captured (M1)");
+      expect(text).toContain("disposition: captured — available to the M6 classification and distillation window");
       vi.restoreAllMocks();
     }
   });

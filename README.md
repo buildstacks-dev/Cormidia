@@ -51,8 +51,10 @@ pnpm link:local
 ```
 
 `pnpm link:local` exposes `operon` at `~/.local/bin/operon` (or
-`$OPERON_BIN_DIR/operon`) and links the `$operon` Codex skill into
-`$CODEX_HOME/skills/operon`. Add `~/.local/bin` to `PATH` if necessary. The
+`$OPERON_BIN_DIR/operon`) and links the `$operon` skill into Codex
+(`$CODEX_HOME/skills/operon`), Claude (`$CLAUDE_CONFIG_DIR/skills/operon`),
+and pi (`$PI_CODING_AGENT_DIR/skills/operon`), using each provider's default
+home when its override is unset. Add `~/.local/bin` to `PATH` if necessary. The
 local command is source-backed: the next invocation reads the latest source
 changes, so no `operon update`, relink, or rebuild is needed. A packed or
 published installation instead runs the compiled `dist/cli.js` binary.

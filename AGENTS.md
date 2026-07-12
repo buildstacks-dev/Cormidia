@@ -105,8 +105,9 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
   enable` once if `pnpm --version` doesn't match the pin.
 - Local product install: `pnpm link:local` — creates a source-backed
   `~/.local/bin/operon` (or `$OPERON_BIN_DIR/operon`) and links the packaged
-  skill at `$CODEX_HOME/skills/operon`; later source edits need no update,
-  rebuild, or relink.
+  skill into the Codex, Claude, and pi skill homes (respecting `CODEX_HOME`,
+  `CLAUDE_CONFIG_DIR`, and `PI_CODING_AGENT_DIR`); later source edits need no
+  update, rebuild, or relink.
 - Test: `pnpm test` (vitest — fast, offline; run for any `src/` or
   `roles.yaml` change; `*.live.test.ts` files are excluded here)
 - Live adapter tests: `pnpm test:live` (real Claude Agent SDK turns, plus
@@ -195,8 +196,8 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
 - Packaging, home resolution, CLI discovery, or onboarding changes: also run
   `pnpm smoke:onboarding` and `npm pack --dry-run`; the smoke must use a neutral
-  cwd and temporary HOME/CODEX_HOME so it cannot depend on the source repo as
-  an implicit org.
+  cwd and temporary provider homes so it cannot depend on the source repo as
+  an implicit org or touch real installed skills.
 - Changes that affect app onboarding, `apps.yaml`, bootstrap, planning, or
   loop behavior must also be exercised against the live sandbox apps, not
   only unit tests. Current targets: `~/Build/operon-sandbox-alpha`,

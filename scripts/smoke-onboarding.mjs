@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // Reusable installed-product fixture. Everything lives under one temporary
-// directory: no real user pointer, PATH entry, Codex skill, org, state, or app
-// repository is touched.
+// directory: no real user pointer, PATH entry, provider skill, org, state, or
+// app repository is touched.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -15,6 +15,8 @@ const root = mkdtempSync(join(tmpdir(), "operon-onboarding-smoke-"));
 const home = join(root, "home");
 const bin = join(root, "bin");
 const codexHome = join(root, "codex");
+const claudeHome = join(root, "claude");
+const piHome = join(root, "pi");
 const neutral = join(root, "neutral");
 const orgHome = join(root, "org");
 const stateHome = join(root, "state");
@@ -24,6 +26,8 @@ const env = {
   ...process.env,
   HOME: home,
   CODEX_HOME: codexHome,
+  CLAUDE_CONFIG_DIR: claudeHome,
+  PI_CODING_AGENT_DIR: piHome,
   OPERON_BIN_DIR: bin,
   PATH: `${bin}:${process.env.PATH ?? ""}`,
 };
@@ -53,7 +57,9 @@ try {
   run(process.execPath, [join(packageRoot, "scripts", "link-local.mjs")], packageRoot);
   const operon = join(bin, "operon");
   assert(existsSync(operon), "local binary link was not created");
-  assert(existsSync(join(codexHome, "skills", "operon", "SKILL.md")), "Operon skill link was not created");
+  assert(existsSync(join(codexHome, "skills", "operon", "SKILL.md")), "Codex skill link was not created");
+  assert(existsSync(join(claudeHome, "skills", "operon", "SKILL.md")), "Claude skill link was not created");
+  assert(existsSync(join(piHome, "skills", "operon", "SKILL.md")), "pi skill link was not created");
 
   run(operon, ["--version"], neutral);
   const initialized = run(

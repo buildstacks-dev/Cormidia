@@ -11,7 +11,9 @@ export type AnomalyFlag =
   | "single_turn_long_run"
   | "bash_heavy"
   | "environment_retry"
-  | "cold_cache";
+  | "cold_cache"
+  | "stale_running"
+  | "missing_finalization";
 
 export interface Anomaly {
   flag: AnomalyFlag;
@@ -34,9 +36,12 @@ export const ANOMALY_RECOMMENDATIONS: Record<AnomalyFlag, string> = {
   bash_heavy: "Review shell-heavy behavior; prefer targeted scripts and cached checks.",
   environment_retry: "Fix the underlying docker/install/wait loop before rerunning the role.",
   cold_cache: "Diff the rendered context prefix; a cache-stability invalidator likely changed between passes.",
+  stale_running: "Confirm the owner is dead, cancel descendants, and finalize the run with its last checkpoint.",
+  missing_finalization: "Inspect the cancellation/finalization path; a caller exited without a terminal envelope.",
 };
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const STALE_HEARTBEAT_MS = 3 * 60 * 1000;
 
 export async function analyzeRunlogs(root: string, options: { app?: string } = {}): Promise<Anomaly[]> {
   const evidence = await loadRunEvidence(root, options.app);
@@ -51,6 +56,14 @@ export function detectRunAnomalies(run: RunEvidence): Anomaly[] {
   const bashCount = run.envelope.tool_counts?.["bash"] ?? 0;
   const environmentRetryCount = run.events.filter(isEnvironmentRetry).length;
   const flags: AnomalyFlag[] = [];
+
+  if (run.envelope.status === "running") {
+    const last = new Date(run.envelope.last_seen_at ?? run.envelope.started_at).getTime();
+    const ageMs = Date.now() - last;
+    if (Number.isFinite(ageMs) && ageMs > STALE_HEARTBEAT_MS) {
+      flags.push("stale_running", "missing_finalization");
+    }
+  }
 
   if (elapsedSeconds > 300 && totalTokens < 1000) flags.push("low_tokens_high_time");
   if (elapsedSeconds > 300) flags.push("single_turn_long_run");
@@ -135,6 +148,8 @@ function detailsFor(
   if (flag === "single_turn_long_run") return `${input.elapsedSeconds.toFixed(0)}s single pass`;
   if (flag === "bash_heavy") return `${input.bashCount} bash calls`;
   if (flag === "environment_retry") return `${input.environmentRetryCount} environment retry events`;
+  if (flag === "stale_running") return "running envelope heartbeat is older than 3m";
+  if (flag === "missing_finalization") return "running envelope has no terminal timestamp/status";
   return "";
 }
 

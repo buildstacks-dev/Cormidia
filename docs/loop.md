@@ -30,7 +30,7 @@ The loop must be rock solid for **three workloads**:
 | ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | Greenfield product build | Planner `plan` pipeline: vision → competing roadmaps → arbitration → decomposition into tickets | Dependency-ordered ticket stream; test-infrastructure tickets first; cross-milestone integration tickets last |
 | Feature additions        | Co-planning / `groom` pipeline → spec doc + tickets                                             | Standard pipeline, contract pass mandatory                                                                    |
-| Bug batches              | `triage` pipeline → `tier:quick` tickets                                                        | Contract pass skipped; full mechanical gates — speed comes from fewer passes, never fewer gates               |
+| Bug batches              | `triage` pipeline → `tier:quick` tickets                                                        | Typed contract + implement; full mechanical gates — speed comes from narrow scope, never weaker completeness  |
 
 
 The workloads differ in **planning pipeline and tier defaults, not loop
@@ -342,7 +342,8 @@ cross-milestone integration tickets last.
 Two orthogonal axes, both ported:
 
 - **Ticket tier** (Planner-assigned label `op:tier-quick|standard|deep`)
-selects *passes*: quick skips contract; deep adds the ship-check pass.
+selects *passes*: deep adds the ship-check pass; every tier runs the typed
+contract because completeness cannot be proven without its criterion→test map.
 - **Risk tier** (changed-file globs in the app's `.operon/policy.yaml`,
 highest tier wins, unmatched → medium) selects *gates* (§5). A quick
 ticket that touches `auth/**` still gets high-tier gates — tiering makes
@@ -456,7 +457,8 @@ Every pass has a typed verdict the orchestrator acts on:
 
 ```ts
 // src/loop/verdicts.ts — sketch
-type ContractVerdict = { files: string[]; approach: string; tests: string;
+type ContractVerdict = { files: string[]; approach: string;
+                         tests: { criterionId: string; tests: string[] }[];
                          risks: string; complexity: "low"|"medium"|"high" };
 type BuildVerdict    = { status: "done"|"blocked"; blockedEntry?: BlockedEntry };
 type ReviewVerdict   = { verdict: "approve"|"findings";
@@ -520,7 +522,7 @@ ticks manually for an interactive, watch-it-run experience.
 op:ready (deps merged)
   │ claim: label swap → worktree + branch op/<issue>-<slug>
   ▼
-building ── contract pass (unless tier:quick) → contract comment on issue
+building ── typed contract pass → contract comment on issue
   │         implement pass → commits
   ▼
 gates ──fail→ remediate (fix pass, gate output in brief) ──┐

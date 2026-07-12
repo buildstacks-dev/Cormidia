@@ -69,10 +69,15 @@ export const CONTRACT_COMPLEXITIES = ["low", "medium", "high"] as const;
  *  axis is resolved from changed-file globs, §4). */
 export type Complexity = (typeof CONTRACT_COMPLEXITIES)[number];
 
+export interface ContractCriterionTests {
+  criterionId: string;
+  tests: string[];
+}
+
 export interface ContractVerdict {
   files: string[];
   approach: string;
-  tests: string;
+  tests: ContractCriterionTests[];
   risks: string;
   complexity: Complexity;
 }
@@ -266,6 +271,30 @@ function extractSections(
 // ---------------------------------------------------------------------------
 
 const CONTRACT_KEYS = ["Files", "Approach", "Tests", "Risks", "Complexity"] as const;
+// Bullet is preferred by the current template but optional for durable
+// pre-#19 comments, whose `AC1 -> test` lines must remain rehydratable.
+const CONTRACT_TEST_LINE = /^\s*(?:[-*]\s+)?(AC[1-9]\d*)\s*(?:->|→)\s*(.+?)\s*$/;
+
+function parseContractTests(section: string): ParseResult<"contract"> | ContractCriterionTests[] {
+  const entries: ContractCriterionTests[] = [];
+  for (const line of section.split("\n")) {
+    if (line.trim().length === 0) continue;
+    const match = CONTRACT_TEST_LINE.exec(line);
+    if (match === null) {
+      return failure(
+        "contract",
+        `malformed Tests mapping line ${JSON.stringify(line.trim())} — expected ` +
+          `"- AC1 -> named test; another named test"`,
+      );
+    }
+    entries.push({
+      criterionId: match[1]!,
+      tests: match[2]!.split(";").map((test) => test.trim()).filter(Boolean),
+    });
+  }
+  const problem = contractTestsProblem(entries);
+  return problem === undefined ? entries : failure("contract", problem);
+}
 
 function parseContract(text: string): ParseResult<"contract"> {
   const sections = extractSections(text, CONTRACT_KEYS);
@@ -302,12 +331,15 @@ function parseContract(text: string): ParseResult<"contract"> {
     );
   }
 
+  const tests = parseContractTests(sections.get("Tests")!);
+  if (!Array.isArray(tests)) return tests;
+
   return {
     ok: true,
     verdict: {
       files,
       approach: sections.get("Approach")!,
-      tests: sections.get("Tests")!,
+      tests,
       risks: sections.get("Risks")!,
       complexity: complexity as Complexity,
     },
@@ -737,8 +769,18 @@ export const VERDICT_SCHEMAS: Readonly<Record<VerdictKind, VerdictSchema>> = {
       },
       approach: { type: "string", description: "1-3 sentences: what changes and why this way" },
       tests: {
-        type: "string",
-        description: "test strategy + one line per acceptance criterion → named test(s)",
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["criterionId", "tests"],
+          properties: {
+            criterionId: { type: "string", description: "acceptance criterion id, e.g. AC1" },
+            tests: { type: "array", minItems: 1, items: { type: "string" } },
+          },
+        },
+        description: "one typed criterion id → named test list entry per acceptance criterion",
       },
       risks: { type: "string", description: "what could go wrong; spec/code disagreements" },
       complexity: { type: "string", enum: CONTRACT_COMPLEXITIES },
@@ -894,6 +936,10 @@ export function validateVerdict<K extends VerdictKind>(
   }
   const errors = schemaErrors(schema, value, kind);
   if (errors.length > 0) return failure(kind, errors.join("; "));
+  if (kind === "contract") {
+    const problem = contractTestsProblem((value as ContractVerdict).tests);
+    if (problem !== undefined) return failure(kind, problem);
+  }
   if (kind === "review") {
     const rv = value as ReviewVerdict;
     if (rv.verdict === "approve" && rv.findings.length > 0) {
@@ -908,4 +954,19 @@ export function validateVerdict<K extends VerdictKind>(
     }
   }
   return { ok: true, verdict: value as VerdictTypes[K] };
+}
+
+function contractTestsProblem(entries: readonly ContractCriterionTests[]): string | undefined {
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    if (!/^AC[1-9]\d*$/.test(entry.criterionId)) {
+      return `invalid criterion id ${JSON.stringify(entry.criterionId)} (expected AC1, AC2, ...)`;
+    }
+    if (seen.has(entry.criterionId)) return `duplicate Tests mapping for ${entry.criterionId}`;
+    seen.add(entry.criterionId);
+    if (entry.tests.length === 0 || entry.tests.some((test) => test.trim().length === 0)) {
+      return `criterion ${entry.criterionId} has no named tests`;
+    }
+  }
+  return entries.length === 0 ? "Tests mapping contains no criterion entries" : undefined;
 }

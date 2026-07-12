@@ -37,8 +37,8 @@ ticket issue, with exactly these sections:
 
 **Files:** <every file to create or modify, one per line>
 **Approach:** <1–3 sentences; what changes and why this way>
-**Tests:** <test strategy, then one line per acceptance criterion:
-  criterion → named test(s) that prove it>
+**Tests:** <one typed line per acceptance criterion, using its `ACn` id and
+  semicolon-separated named tests: `- AC1 -> test/name; another test`>
 **Risks:** <what could go wrong; ticket/code disagreements; unbounded scope>
 **Complexity:** low | medium | high
 ```

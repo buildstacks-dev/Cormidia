@@ -319,7 +319,8 @@ const TEMPLATE_CONTRACT = [
   "- src/loop/verdicts.ts",
   "- test/verdicts.test.ts",
   "**Approach:** Add the lenient parser mirroring the predecessor grammar.",
-  "**Tests:** unit; criterion 1 → parses ASCII delimiters; criterion 2 → retry once.",
+  "**Tests:**",
+  "- AC1 -> parses ASCII delimiters; retry once",
   "**Risks:** Tests: 12 passed lines inside sections must not split them.",
   "**Complexity:** low",
 ].join("\n");
@@ -330,7 +331,9 @@ describe("contract verdict parser", () => {
     expectOk(r);
     expect(r.verdict.files).toEqual(["src/loop/verdicts.ts", "test/verdicts.test.ts"]);
     expect(r.verdict.approach).toContain("lenient parser");
-    expect(r.verdict.tests).toContain("criterion 1");
+    expect(r.verdict.tests).toEqual([
+      { criterionId: "AC1", tests: ["parses ASCII delimiters", "retry once"] },
+    ]);
     expect(r.verdict.risks).toContain("must not split");
     expect(r.verdict.complexity).toBe("low");
   });
@@ -342,7 +345,7 @@ describe("contract verdict parser", () => {
       "## Approach",
       "Do the thing.",
       "## Tests",
-      "criterion → test",
+      "AC1 → named test",
       "## Risks",
       "none",
       "## Complexity",
@@ -378,6 +381,21 @@ describe("contract verdict parser", () => {
     expectFail(r);
     expect(r.reason).toContain("gnarly");
     expect(r.reason).toContain(CONTRACT_COMPLEXITIES.join(" | "));
+  });
+
+  it("rejects duplicate criterion ids and mappings without named tests", () => {
+    const duplicate = TEMPLATE_CONTRACT.replace(
+      "- AC1 -> parses ASCII delimiters; retry once",
+      "- AC1 -> first test\n- AC1 -> second test",
+    );
+    expectFail(parseVerdict("contract", duplicate));
+    expectFail(validateVerdict("contract", {
+      files: ["src/a.ts"],
+      approach: "x",
+      tests: [{ criterionId: "AC1", tests: [""] }],
+      risks: "none",
+      complexity: "low",
+    }));
   });
 });
 
@@ -439,7 +457,7 @@ describe("verdict schemas", () => {
   const contractSample: ContractVerdict = {
     files: ["src/a.ts"],
     approach: "Small change.",
-    tests: "criterion → test",
+    tests: [{ criterionId: "AC1", tests: ["criterion parser test"] }],
     risks: "none",
     complexity: "low",
   };

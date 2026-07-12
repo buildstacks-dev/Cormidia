@@ -16,7 +16,6 @@ import { runLoopOnce } from "../src/loop/driver.js";
 import {
   advanceGates,
   claimTicket,
-  defaultCriterionTests,
   parseAcceptanceCriteria,
   runBuilderPipeline,
   runReviewPipeline,
@@ -222,10 +221,7 @@ describe("M6 loop engine integration", () => {
         policy: policy(),
         commands: { testCommand: "true", lintCommand: "true" },
         criteria: parseAcceptanceCriteria(item.body),
-        criterionTests: defaultCriterionTests(
-          parseAcceptanceCriteria(item.body),
-          "operator-boundary-e2e",
-        ),
+        criterionTests: item.criterionTests ?? {},
       });
       expect(item.phase).toBe("reviewing");
       item = await runReviewPipeline(item, phaseOptions);
@@ -327,25 +323,26 @@ describe("M6 loop engine integration", () => {
       expect(fake.calls[1]?.req.task).toContain("[contract]\n## Implementation contract");
       expect(fake.calls[1]?.req.task).toContain("# Pass: implement");
       expect(h.gh.issueComments.get(1)?.[0]).toContain("## Implementation contract");
+      expect(next.criterionTests).toEqual({ AC1: ["loop-driver"] });
     } finally {
       home.cleanup();
       h.cleanup();
     }
   });
 
-  it("tier:quick skips contract and goes straight to implement", async () => {
+  it("tier:quick still runs the typed contract required by completeness", async () => {
     const h = await claimedHarness("Quick Build", ["op:ready", "op:tier-quick"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
-    const fake = new FakeRuntime([scripted(DONE)]);
+    const fake = new FakeRuntime([scripted(CONTRACT), scripted(DONE)]);
     try {
       await runBuilderPipeline(h.item, {
         ...engineOptions(h, home.root, fake),
         pipelines: await rootPipelines(),
       });
 
-      expect(fake.calls.length).toBe(1);
-      expect(fake.calls[0]?.req.task).toContain("# Pass: implement");
-      expect(fake.calls[0]?.req.task).not.toContain("# Pass: contract");
+      expect(fake.calls.length).toBe(2);
+      expect(fake.calls[0]?.req.task).toContain("# Pass: contract");
+      expect(fake.calls[1]?.req.task).toContain("# Pass: implement");
     } finally {
       home.cleanup();
       h.cleanup();
@@ -355,7 +352,7 @@ describe("M6 loop engine integration", () => {
   it("contextFor resolves per (ticket, pipeline) and its bundle reaches every pass (learning M5)", async () => {
     const h = await claimedHarness("Per-Episode Context", ["op:ready", "op:tier-quick"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
-    const fake = new FakeRuntime([scripted(DONE)]);
+    const fake = new FakeRuntime([scripted(CONTRACT), scripted(DONE)]);
     const episodeBundle: ContextBundle = {
       taste: ["## Org TASTE.md\n\nepisode-resolved taste"],
       memoryExcerpts: ["## Learning concept trial (roles/builder)\n\ngoverned"],
@@ -375,6 +372,7 @@ describe("M6 loop engine integration", () => {
 
       expect(seen).toEqual([{ issue: 1, pipeline: "build" }]);
       expect(fake.calls[0]?.req.context).toBe(episodeBundle);
+      expect(fake.calls[1]?.req.context).toBe(episodeBundle);
     } finally {
       home.cleanup();
       h.cleanup();
@@ -490,7 +488,7 @@ describe("M6 loop engine integration", () => {
   it("fix pass brief carries verbatim gate output", async () => {
     const h = await claimedHarness("Fix Gates", ["op:ready"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
-    const fake = new FakeRuntime([scripted(DONE)]);
+    const fake = new FakeRuntime([scripted(CONTRACT), scripted(DONE)]);
     try {
       await runBuilderPipeline(h.item, {
         ...engineOptions(h, home.root, fake),
@@ -718,7 +716,7 @@ describe("GAP F — brief [spec] and [history] population (docs/loop.md §3)", (
     ].join("\n");
     const h = await claimWithBody("Spec Ticket", body, ["op:ready", "op:tier-quick"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
-    const fake = new FakeRuntime([scripted(DONE)]);
+    const fake = new FakeRuntime([scripted(CONTRACT), scripted(DONE)]);
     try {
       mkdirSync(join(h.item.worktree as string, "docs/specs"), { recursive: true });
       writeFileSync(
@@ -744,7 +742,7 @@ describe("GAP F — brief [spec] and [history] population (docs/loop.md §3)", (
   it("a second attempt carries a [history] section with the attempt count", async () => {
     const h = await claimedHarness("History Ticket", ["op:ready", "op:tier-quick"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
-    const fake = new FakeRuntime([scripted(DONE)]);
+    const fake = new FakeRuntime([scripted(CONTRACT), scripted(DONE)]);
     try {
       const retried: LoopItem = { ...h.item, remediationAttempts: 2 };
       await runBuilderPipeline(retried, {
@@ -777,7 +775,7 @@ describe("GAP F — brief [spec] and [history] population (docs/loop.md §3)", (
     ].join("\n");
     const h = await claimWithBody("Missing Spec Ticket", body, ["op:ready", "op:tier-quick"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
-    const fake = new FakeRuntime([scripted(DONE)]);
+    const fake = new FakeRuntime([scripted(CONTRACT), scripted(DONE)]);
     try {
       const next = await runBuilderPipeline(h.item, {
         ...engineOptions(h, home.root, fake),

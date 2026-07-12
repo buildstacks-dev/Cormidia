@@ -16,7 +16,7 @@ import {
   advanceShipping,
   branchNameForIssue,
   claimTicket,
-  defaultCriterionTests,
+  criterionTestMapFromContractText,
   itemFromIssue,
   parseAcceptanceCriteria,
   runBuilderPipeline,
@@ -246,7 +246,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     }
 
     const criteria = parseAcceptanceCriteria(item.body);
-    const criterionTests = defaultCriterionTests(criteria, "loop-driver");
+    let criterionTests = item.criterionTests ?? criterionTestMapFromContractText(item.contract);
     let guard = 0;
     while (!["merged", "returned", "blocked"].includes(item.phase)) {
       if (guard++ > 12) {
@@ -289,6 +289,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
                 ? "fix"
                 : "build",
           });
+          criterionTests = item.criterionTests ?? criterionTests;
           if (item.phase !== "gates") continue;
         }
 

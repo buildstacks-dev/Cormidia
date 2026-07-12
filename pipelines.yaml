@@ -20,7 +20,6 @@ build:
     - id: contract # implementation contract before code; criterion→test mapping feeds the completeness gate (§5)
       role: builder
       template: build/contract.md
-      skip_on_tier: [quick] # bug-batch tickets go straight to implement
     - id: implement
       role: builder
       template: build/implement.md

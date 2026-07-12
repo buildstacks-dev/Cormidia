@@ -543,9 +543,9 @@ requirement is dropped as gate *input*. Checkbox state becomes gate
 *output*: `advanceShipping` renders all boxes checked on the issue at
 merge, so the human-visible ticket still ends checked-off — written by the
 orchestrator, the only party the design allows. `docs/loop.md` §5 updated
-to match. Follow-up (not this fix): make the contract's criterion→test
-mapping typed so the covering-test half of the gate is real instead of the
-`defaultCriterionTests` stub.
+to match. Issue #19 subsequently made the contract's criterion→test mapping
+typed end to end and removed the `defaultCriterionTests` stub, so a missing
+mapping now reaches this gate as a real failure.
 
 ### Ride-along finding: the safety gate pattern-matches plan prose
 

@@ -25,7 +25,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { loadGateCommands, DEFAULT_LOOP_POLICY } from "../../loop/driver.js";
-import { defaultCriterionTests, parseAcceptanceCriteria } from "../../loop/loop.js";
+import { criterionTestMapFromContractText, parseAcceptanceCriteria } from "../../loop/loop.js";
 import type { PipelineConfig } from "../../loop/pipelines.js";
 import { executePipeline } from "../../loop/pipeline.js";
 import { loadPolicy, resolveTier } from "../../loop/policy.js";
@@ -473,8 +473,8 @@ function fixBrief(brief: string, findings: ReviewVerdict["findings"]): string {
 /** Quality gates against the seed diff, with the app's own policy and
  *  commands when the worktree carries them (the setup gate installs deps
  *  first, exactly like a loop tick). Acceptance criteria parse from the
- *  original brief — it embeds the ticket body — and map through the same
- *  placeholder tests the manual loop driver uses. */
+ *  original brief — it embeds the ticket body — and the typed contract map
+ *  is recovered from those same immutable brief bytes. */
 async function runReplayGates(
   worktree: string,
   seedCommit: string,
@@ -498,7 +498,7 @@ async function runReplayGates(
     {
       policy,
       commands: loadGateCommands(worktree),
-      criterionTests: defaultCriterionTests(criteria, "replay"),
+      criterionTests: criterionTestMapFromContractText(brief),
     },
   );
 }

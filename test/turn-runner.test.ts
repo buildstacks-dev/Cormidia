@@ -507,6 +507,25 @@ describe("dispatched turn runner", () => {
       {
         result: {
           status: "completed",
+          summary: [
+            "## Implementation contract",
+            "**Files:**",
+            "- README.md",
+            "**Approach:** Update the requested documentation.",
+            "**Tests:**",
+            "- AC1 -> README regression check",
+            "**Risks:** None.",
+            "**Complexity:** low",
+          ].join("\n"),
+          artifacts: [],
+          session: { runtime: "claude", id: "contract" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        },
+      },
+      {
+        result: {
+          status: "completed",
           summary: "Verdict: done",
           artifacts: [],
           session: { runtime: "claude", id: "build" },

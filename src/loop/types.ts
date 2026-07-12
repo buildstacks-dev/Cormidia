@@ -1,5 +1,5 @@
 import type { Finding } from "./verdicts.js";
-import type { GateRunResult } from "./qgates.js";
+import type { CriterionTestMap, GateRunResult } from "./qgates.js";
 
 export type LoopPhase =
   | "ready"
@@ -64,6 +64,8 @@ export interface LoopItem {
   gateResults: GateRunResult[];
   findings: Finding[];
   contract?: string;
+  /** Parsed, typed contract mapping consumed by the completeness gate. */
+  criterionTests?: CriterionTestMap;
   branch?: string;
   worktree?: string;
   prNumber?: number;

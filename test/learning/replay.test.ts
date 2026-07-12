@@ -45,6 +45,16 @@ const BRIEF = [
   "## Acceptance criteria",
   "- [ ] exports rows as CSV",
   "",
+  "## Implementation contract",
+  "",
+  "**Files:**",
+  "- src/export.ts",
+  "**Approach:** Implement the export path.",
+  "**Tests:**",
+  "- AC1 -> exports rows as CSV",
+  "**Risks:** None.",
+  "**Complexity:** low",
+  "",
 ].join("\n");
 const APPROVE = "Verdict: approve";
 const FINDING =

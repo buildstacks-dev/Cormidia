@@ -458,10 +458,12 @@ export async function runBuilderPipeline(
       const outcome = await recordPassVerdict(kind, ctx);
       if (!outcome.ok) return outcome.failure;
       if (kind === "contract") {
+        const verdict = outcome.verdict as ContractVerdict;
         // The marker binds the contract to the exact ticket body it was
         // derived from, so a re-claim can reuse it (skip the contract pass)
         // while the body is unchanged and re-derive when it is not (Stage 2).
-        contract = `${renderContractComment(outcome.verdict as ContractVerdict)}\n\n${contractMarker(hashTicketBody(item.body))}`;
+        contract = `${renderContractComment(verdict)}\n\n${contractMarker(hashTicketBody(item.body))}`;
+        item = { ...item, criterionTests: criterionTestMapFromContract(verdict) };
         await options.gh.commentIssue(item.issueNumber, contract);
       } else if (kind === "build") {
         buildVerdict = outcome.verdict as BuildVerdict;
@@ -867,13 +869,18 @@ export function checkAcceptanceBoxes(body: string): string {
   return body.slice(0, start) + section + body.slice(end);
 }
 
-export function defaultCriterionTests(
-  criteria: readonly AcceptanceCriterion[],
-  testName = "quality-gates",
-): CriterionTestMap {
+export function criterionTestMapFromContract(verdict: ContractVerdict): CriterionTestMap {
   const map: CriterionTestMap = {};
-  for (const criterion of criteria) map[criterion.id] = [testName];
+  for (const entry of verdict.tests) map[entry.criterionId] = [...entry.tests];
   return map;
+}
+
+/** Recover the typed mapping from a durable rendered contract comment. An
+ * old/malformed comment yields an empty map so completeness fails closed. */
+export function criterionTestMapFromContractText(contract: string | undefined): CriterionTestMap {
+  if (contract === undefined) return {};
+  const parsed = parseVerdictEither("contract", contract);
+  return parsed.ok ? criterionTestMapFromContract(parsed.verdict) : {};
 }
 
 const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
@@ -1136,7 +1143,7 @@ function renderContractComment(verdict: ContractVerdict): string {
     verdict.approach,
     "",
     "**Tests:**",
-    verdict.tests,
+    ...verdict.tests.map((entry) => `- ${entry.criterionId} -> ${entry.tests.join("; ")}`),
     "",
     "**Risks:**",
     verdict.risks,

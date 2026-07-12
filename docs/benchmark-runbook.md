@@ -8,6 +8,13 @@ measured by the Stage 1 telemetry; nothing is anecdotal.
 in `docs/proportionality-review.md` §7); this runbook remains the
 procedure for re-runs.
 
+This historical Stage 7 procedure is no longer the qualification contract by
+itself. New comparable campaigns use `docs/efficiency.md` and `eval/README.md`:
+predeclared ordered cases and repetitions, immutable attempts, hidden graders,
+separate product/evaluator usage, explicit GitHub allowlists, and a read-only
+qualifier. A Stage 7 replay remains useful evidence but cannot replace the
+distribution or make a missing live case green.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |
@@ -66,6 +73,9 @@ operon approvals   # decision count; expect ≤ 5, ideally 0-1
   commands above.
 - A missed target is not massaged — it becomes the next round of
   `docs/proportionality-review.md`.
+- No attempt is deleted or replaced. A typed infrastructure retry links to the
+  original; merit failures are never rerun under the same attempt id.
+- Production is read-only confirmation and never threshold/prompt calibration.
 - Only after the sandbox meets the targets does buildstacks.dev re-enter as
   the production confirmation (its frozen state gets its disposition then:
   merge or close PR #23, re-plan tickets #3–#20, prune the worktree).

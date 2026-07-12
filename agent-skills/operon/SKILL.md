@@ -137,6 +137,26 @@ cluster survives policy caps; do not invoke the live form unless the human
 explicitly asks for a distillation run. Scheduled distiller/reviewer turns use
 the same ordinary ledger and learning-budget overlay as every provider turn.
 
+## Efficiency evaluation
+
+The qualification suite under an Operon package checkout is a separate safety
+boundary from operating the active org. Token-free validation is safe:
+
+```bash
+pnpm eval:validate
+pnpm test:transformation
+pnpm eval:deterministic
+```
+
+Never point an eval at the active org/state, a production app, or a mutable
+sandbox. External campaigns require a prepared content-hashed manifest, an
+allowlisted private `operon-eval-*` repo, the relevant environment switch,
+exact `--confirm <campaign-id>`, and an explicit human-authorized cap.
+`eval:live` must remain a preview unless the human authorized that exact
+campaign/repo/cap. Subscription-backed dollar values are equivalent-cost
+indicators, but token/turn/budget evidence is still retained. Qualify existing
+results with `pnpm eval:qualify`; it performs no provider turn or repair.
+
 ## Diagnose
 
 Run `operon doctor --json`, `operon org show --json`, and `operon context

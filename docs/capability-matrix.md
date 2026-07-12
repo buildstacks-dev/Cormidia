@@ -24,3 +24,17 @@ table), and `test/runtime/pi-budget.unit.test.ts` — each asserting the
 under-budget / over-budget split, the single incident note, and that spend is
 still attributed. Codex and pi live smokes are opt-in in `pnpm test:live`
 because they spend provider quota and depend on local auth.
+
+## Qualification evidence
+
+Provider capability claims are campaign inputs, not inferred successes. An
+efficiency campaign pins the runtime/model/effort and capability reference,
+records cache and usage quality exactly as observed, and treats unsupported or
+unobservable fields as unavailable rather than zero. Missing required auth or
+usage makes the campaign incomplete/invalid.
+
+The 2026-07-12 baseline non-billable probe confirmed Claude Max first-party
+authentication and a ChatGPT Pro Codex account. Its dollar values are
+equivalent-cost indicators because both turns used subscriptions. Codex usage
+remained `estimated`; Claude usage remained provider-complete. The dated result
+is `research/evals/2026-07-12-pre-transformation-baseline.md`.

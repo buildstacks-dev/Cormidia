@@ -8,6 +8,10 @@ proposed here first, then promoted only after human ratification.*
 
 ## 0. Overview
 
+For the human- and company-level view of the system, start with the
+[conceptual overview](architecture/conceptual-overview.md). The diagram below
+then zooms in on the runtime execution path.
+
 ```
 launchd (now) / systemd timer (droplet later)
       │  fires every ~5 min

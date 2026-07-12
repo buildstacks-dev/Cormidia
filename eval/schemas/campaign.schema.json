@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "operon.eval.campaign.v1",
+  "type": "object",
+  "required": ["schema_version", "campaign_id", "candidate", "cases", "assignments", "price_catalog_id", "github", "spend", "stop_rules"],
+  "properties": { "schema_version": { "const": 1 }, "campaign_id": { "type": "string", "minLength": 1 }, "intent": { "enum": ["qualification", "non_qualification"] } },
+  "additionalProperties": true
+}

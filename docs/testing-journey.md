@@ -69,6 +69,27 @@ The sandbox apps are never touched by the ordinary offline test suite
 (`pnpm test`); they exist for functional verification — real commands
 against real repos.
 
+## The qualification test world
+
+Mutable sandbox repositories remain useful exploratory targets, but efficiency
+qualification now uses the hermetic `EvalWorld` and committed assets under
+`eval/`. Every attempt receives a synthetic home, disposable org/state,
+content-addressed sparse/library/service seed, managed worktree, and hidden
+verifier outside actor-readable paths. The exact executable and campaign are
+hashed; production org/state/apps are forbidden targets.
+
+The layers are cumulative: L0 static contracts, L1 pure/property oracles, L2
+filesystem/git/process integration, L3 local bare-remotes and lifecycle fault
+tests, L4 an allowlisted private `operon-eval-*` GitHub repo, L5 explicit
+provider behavior, and L6 bounded soak/confirmation. `pnpm eval:validate`,
+`pnpm test:transformation`, and `pnpm eval:deterministic` spend no tokens.
+Missing auth, usage, evidence, or a required attempt is incomplete/invalid—not
+a passing skip.
+
+The 2026-07-12 provider baseline is recorded in
+`research/evals/2026-07-12-pre-transformation-baseline.md`. Its misses and
+safety stop are retained as the pre-feature comparison point.
+
 ## The journey, stage by stage
 
 | Stage | Question it answers | What actually runs against the test apps |

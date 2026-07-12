@@ -5,10 +5,14 @@ execution details belong in the GitHub issue tracker, docs/architecture.md, and 
 
 ## One-liner
 
-A reusable **org runtime**: a standing team of AI agents (Planner, Builder,
-Reviewer, SRE, Support, Marketing, Distiller, Learning Reviewer) that develops and operates software
-products, coordinated through private GitHub repos as the source of truth,
-with a human approver gating critical operations only.
+Operon is a governed **org runtime** that turns approved goals into verified
+software outcomes with process proportional to risk, minimal human attention,
+durable forward progress, and continuously improving unit economics.
+
+It provides a standing team of AI agents (Planner, Builder, Reviewer, SRE,
+Support, Marketing, Distiller, Learning Reviewer), coordinated through private
+GitHub repos as the source of truth, with a human approver gating critical
+operations only.
 
 **Operon is an installable package/runtime, not an app.** Its CLI is pointed
 at org configuration and target repos; it never contains app code. One org
@@ -80,8 +84,44 @@ config file, not a fork.
    Operon must stay simple, maintainable, and extensible: new roles, models,
    pipelines, and app-specific policies should be config/protocol additions
    unless evidence proves the core runtime must change.
+6. **Efficiency is a correctness property.** Correct outcomes must preserve
+   safety and evidence while using process proportional to demonstrated risk.
+   A result reached through disproportionate retries, repeated context, or
+   human supervision is not fully correct.
+7. **Intelligence is reserved for judgment.** Parsing, migration,
+   synchronization, validation, capture, aggregation, reconciliation, and
+   other deterministic mechanics use zero model turns by default.
+8. **Risk buys process.** Every additional planning, review, isolation, model
+   effort, or context allowance requires a recorded risk or uncertainty
+   factor under the canonical efficiency policy.
+9. **Forward progress is durable.** Valid decisions and artifacts survive
+   interruption, approval, retry, reset, and restart. Re-derivation requires a
+   recorded invalidation reason.
+10. **Human attention and context are budgets.** False or repeated approvals
+    and unexplained context growth are organizational defects. Authority,
+    safety, acceptance criteria, and unresolved findings are never discarded
+    merely to meet a budget.
+11. **Learning is outcome-accountable.** Learning is successful only when a
+    governed intervention measurably improves a later comparable episode; an
+    event or plausible candidate alone is not improvement.
 
 ## Decided
+
+- **Efficiency doctrine and evaluation semantics** (ratified 2026-07-12;
+  canonical contract in `docs/efficiency.md`, T0 decision packet in
+  `docs/efficiency-transformation/t0-eval-ratification-proposal.md`).
+  Efficiency is a correctness property and never weakens safety, independent
+  review, evidence, or critical-operation governance. Provider accounting and
+  execution have distinct identities: every provider turn settles exactly
+  once, every provider or mechanical execution step terminates exactly once,
+  and mechanical work creates no provider settlement. Routes and budgets are
+  admitted before runtime construction from explicit risk/uncertainty factors;
+  nominal quick work uses at most three provider turns and honest escalation
+  preserves both planned and final route. Campaigns are predeclared and retain
+  every attempt; missing live auth/usage or a skipped required case is invalid
+  or incomplete, never green. Qualification runs only in isolated eval orgs
+  and disposable apps; production is read-only confirmation, never
+  calibration.
 
 - **Build, don't buy — TypeScript orchestrator, claude-loop reborn.** Ground-up
   rewrite in TypeScript (strict mode) porting claude-loop's proven patterns
@@ -271,11 +311,15 @@ config file, not a fork.
   loud. Review dimensions are risk-selected, with security always-on.
   Acceptance criteria are a first-class quality contract: binary, mapped to
   named tests, never summarized away, and human-touched for deep/high-risk work.
-- **Resolved operating defaults** (ratified 2026-07-06). High-tier tickets stay
+- **Resolved operating defaults** (ratified 2026-07-06; proportionality and
+  wall-time portions superseded by the 2026-07-12 efficiency doctrine).
+  High-tier tickets stay
   autonomous after the Builder's contract pass in v1; revisit with scorecard
-  evidence if contracts prove weak. Planner depth defaults to deep
-  competing-PM planning for milestones and a lighter weekly groom. Per-pass
-  wall-clock cap defaults to **60 minutes**, with per-pass override later.
+  evidence if contracts prove weak. Planner depth previously defaulted to deep
+  competing-PM planning for milestones and per-pass wall time previously
+  defaulted to 60 minutes. Route depth and time budgets now come from
+  `docs/efficiency.md`; neither former default can override proportional
+  admission.
   Org WIP defaults to `max_concurrent_turns: 2`; approval grants expire after
   24 h; dispatch ticks every 5 minutes; loop review/fix cycles cap at 3.
   Support and Marketing are disabled per app until that app has real feedback

@@ -109,6 +109,7 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 | `test/fixtures/orgHome.ts`, `test/fixtures/fakeClock.ts` | Composable temp-dir fixtures for `~/.operon/<org>/` and app-repo `.operon/` trees, plus a deterministic clock — reuse instead of a new ad-hoc mkdtemp scaffold |
 | `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
+| `eval/` | Highly-efficient-organization qualification assets: exact contract inventory, schemas, content-addressed app seeds, hidden graders/references/mutants, corpora, cases, campaign templates, and price catalogs. Raw attempts live under ignored `.eval-artifacts/`. |
 
 ## Commands (verified 2026-07-11)
 - Node: >= 26 (`engines`, `.nvmrc`; `nvm use`). Node >= 25 no longer bundles
@@ -125,6 +126,14 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
   update, rebuild, or relink.
 - Test: `pnpm test` (vitest — fast, offline; run for any `src/` or
   `roles.yaml` change; `*.live.test.ts` files are excluded here)
+- Efficiency eval, token-free: `pnpm eval:validate` · `pnpm
+  test:transformation` (required + exact known-red) · `pnpm
+  eval:deterministic` · `pnpm test:transformation:strict` (final gate; expected
+  non-zero while declared transformation debt remains).
+- Efficiency eval, explicit external boundary: `pnpm eval:prepare -- --campaign
+  <template> --github-owner <owner>` · preview/execute `pnpm eval:github` and
+  `pnpm eval:live` only with their environment switches, exact campaign
+  confirmation, and human-authorized cap · `pnpm eval:qualify` is read-only.
 - Live UI browser tests: `pnpm test:observe-browser` (Playwright Chromium;
   offline loopback fixtures, responsive/keyboard/reduced-motion/reconnect and
   injection coverage; install the browser once with `pnpm exec playwright
@@ -214,6 +223,12 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 - Single package, deliberately **not** a pnpm workspace (docs/PURPOSE.md → Repo shape).
 
 ## Testing expectations
+- Changes under `eval/**`, `scripts/eval/**`, or transformation eval fixtures:
+  run `pnpm eval:validate`, `pnpm test:transformation`, `pnpm
+  eval:deterministic`, the complete `pnpm test`, and `pnpm typecheck`.
+  `test:transformation:strict` must fail only for the exact declared known-red
+  set until production work promotes those contracts. Never run `eval:github`
+  or `eval:live` merely because these files changed.
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
 - `src/observe/**` or `src/cli/observe.ts` changes: also run `pnpm
   test:observe-browser`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack

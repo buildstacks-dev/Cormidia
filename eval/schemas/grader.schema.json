@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "operon.eval.grader.v1",
+  "type": "object",
+  "required": ["schema_version", "grader_id", "reference", "mutants", "hidden_marker_sha256"],
+  "properties": { "schema_version": { "const": 1 }, "grader_id": { "type": "string" }, "mutants": { "type": "array", "minItems": 1 }, "hidden_marker_sha256": { "pattern": "^sha256:[a-f0-9]{64}$" } },
+  "additionalProperties": true
+}

@@ -1,0 +1,183 @@
+# Efficiency Contract
+
+*Version: efficiency/v1 · Ratified 2026-07-12 · Canonical normative home*
+
+This document defines Operon's route, budget, measurement, variance, and
+qualification semantics. Other documents link here and must not carry a
+divergent numeric budget table. The ratification record is
+`docs/efficiency-transformation/t0-eval-ratification-proposal.md`.
+
+<!-- efficiency-contract:start -->
+
+## Normative identities
+
+- A **campaign** is a predeclared ordered set of cases, repetitions,
+  fingerprints, budgets, exclusions, retry allowances, and stop rules.
+- A **case** is a versioned starting state, task, side-effect policy, oracle,
+  and route expectation.
+- An **episode** is the end-to-end unit responsible for one outcome.
+- An **execution step** is one provider pass or deterministic mechanical
+  operation. Every started step has one truthful terminal execution record.
+- A **provider turn** is one adapter invocation capable of consuming tokens.
+  It joins to exactly one provider settlement.
+- A **mechanical step** is deterministic and constructs no adapter. It joins
+  to zero provider settlements and cannot increase turn, token, or cost totals.
+- An **attempt** is one immutable case repetition, including safety, budget,
+  infrastructure, product, and harness failures.
+
+Readiness states are `ready`, `blocked`, `invalid`, and `incomplete`. A missing
+required live case, authentication, usage observation, or evidence can never
+produce `ready`.
+
+## Route admission
+
+Admission durably records `planned_route`, policy version, explicit risk and
+uncertainty factors, pass set, model/effort selection, budgets, and lower/upper
+cost before a runtime can be constructed. `planned_route` is immutable.
+`current_route` changes only through a recorded reassessment; `final_route`
+records the route under which the episode actually terminated.
+
+Valid depth factors are blast radius, reversibility, sensitive domain,
+uncertainty/ambiguity, component or external-system count, release consequence,
+novelty relative to validated evidence, and evidence/test quality. Prompt
+length, repeated keywords, and role availability are not factors.
+
+A new finding may escalate a route. Escalation preserves valid artifacts and
+records its factor, remaining budget, and newly authorized budget. A cap never
+authorizes false completion: insufficient remaining budget parks or reassesses
+before the next provider turn.
+
+## Canonical route budgets
+
+<!-- efficiency-budgets:start -->
+
+| Route or case | Provider turns | Input tokens | Equivalent cost | Active time | Human decisions |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Deterministic lifecycle | 0 | 0 | $0 | <=5 minutes | Policy-required only |
+| Quick | <=3 | <=2M | <=$8 | <=20 minutes | <=1 |
+| Standard | <=5 | <=4M | <=$15 | <=45 minutes | Declared by policy |
+| Deep | <=8 | Declared per case | <=$40 | <=90 minutes | <=5 genuine decisions |
+
+<!-- efficiency-budgets:end -->
+
+Contract + implementation + independent review consumes the nominal quick
+allowance. A required repair after those three turns is a route reassessment,
+not a fourth quick turn. No required review is skipped to preserve a label.
+
+## Measurements
+
+Each metric exposes its numerator, denominator, excluded record identities,
+and missing inputs. Required missing input yields `invalid_measurement`; it is
+never represented as zero or pass. Orchestrator-owned artifacts and state are
+authoritative; agent prose is not.
+
+- **Model turns:** unique provider settlements attributed to the episode.
+  Grader and replay-orchestration turns are reported separately.
+- **Input/output tokens:** sum adapter settlements by quality. Cache read/write
+  are components of input and are never added to input twice.
+- **Context by source:** rendered bytes by context-manifest category. Adapter
+  token totals stay separate unless authoritative token attribution exists.
+- **Equivalent cost:** provider-reported cost when native, otherwise an
+  estimate from the campaign's versioned conservative catalog. Quality is
+  `reported`, `estimated`, `partial`, or `unavailable`; unknown is not `$0`.
+- **Elapsed time:** terminal timestamp minus admission timestamp, including
+  waits.
+- **Active wall time:** union of process, mechanical-step, and provider-turn
+  execution intervals. Parallel overlap counts once. Provider latency is
+  included; human wait is excluded and reported separately.
+- **Human decisions:** authority/state-changing operator actions: approve or
+  deny, criteria sign-off, route/budget override, or material clarification.
+  Campaign start and passive observation do not count.
+- **Productive model pass:** a turn whose artifact/state hash proves a new
+  required decision, durable transition, code artifact, evidence-backed
+  finding resolution/rebuttal, or required independent verification.
+- **Productive-pass ratio:** productive model passes divided by all episode
+  model passes. Adapter-start failures and unchanged reasoning remain in the
+  denominator.
+- **Repeated-work cost:** cost of a pass whose intended valid fingerprint
+  already existed, including downstream repetition it caused.
+- **Artifact continuation:** eligible interruptions resumed without rerunning
+  a still-valid productive pass divided by all eligible interruptions.
+- **Approval precision:** unique semantically critical approval requests
+  divided by all unique approval requests. Flat role-forbidden denials are not
+  approval requests.
+- **Approval recurrence:** materially identical requests after an unchanged
+  prior denial, keyed by normalized semantic action and scope.
+- **Terminal integrity:** admitted episodes and started execution steps with
+  one truthful terminal record divided by all admitted/started identities.
+- **Ledger coverage:** provider execution steps with exactly one settlement
+  divided by all provider execution steps; mechanical steps separately require
+  zero settlements.
+- **Scheduler reliability:** due ticks executed or given one durable typed
+  skipped/blocked reason divided by all due ticks; duplicates are a separate
+  zero-tolerance failure.
+- **Learning capture:** eligible finalized provider runs projected exactly once
+  divided by all eligible finalized provider runs. Reserved replay runs are
+  explicitly ineligible.
+
+## Threshold semantics
+
+1. **Hard invariants** gate every attempt: outcome oracle, safety, terminal
+   integrity, exact settlement, hidden-answer isolation, deterministic token
+   leakage, and no unapproved outward effect.
+2. **Admission bounds** apply to each episode. Crossing one creates an honest
+   variance, escalation, park, or stop; it never creates a hidden pass.
+3. **Distribution SLOs** evaluate productive ratio, median/p90 context/cost,
+   approval precision, continuation, and scheduler reliability over a
+   predeclared campaign and rolling windows—not one favorable run.
+
+Deterministic injected continuation points require 100% correct continuation.
+Known action corpora require 100% approval precision and recall. Initial
+operations targets are >=95% productive passes, >=95% artifact continuation,
+>=90% live approval precision, >=99% terminal integrity, >=99% scheduler
+reliability, and 100% eligible learning capture. Recalibration requires a new
+versioned human decision.
+
+## Campaign and result semantics
+
+Every live campaign pins exact code/package/suite hashes, org/system
+fingerprints, ordered cases/repetitions, runtime/model/effort assignments,
+capability claims, price catalog, randomization seed, side-effect allowlists,
+retry/exclusion rules, evidence paths, spend caps, and stop rules before its
+first provider turn. Manifest mutation after start invalidates the campaign.
+
+Attempt outcomes are `passed`, `product_miss`, `safety_stop`, `budget_stop`,
+`infra_invalid`, `harness_error`, and `not_run`. Campaign outcomes are
+`qualified`, `not_qualified`, `invalid`, and `incomplete`. Required cases do
+not have a passing skip state. An infrastructure retry links to and retains the
+original attempt; merit failures are never retried under one attempt identity.
+
+| Campaign | Hard cap |
+| --- | ---: |
+| Adapter and harness calibration | $15 |
+| Pre-transformation provider baseline | $250 equivalent cost (campaign-specific amendment dated 2026-07-12) |
+| Full candidate qualification | $375 |
+| Real-time soak | Separately declared and ratified |
+
+Caps are not standing spend authority. Live execution additionally requires
+`OPERON_EVAL_LIVE=1`, validated immutable campaign identity, explicit
+`--max-usd`, exact `--confirm <campaign-id>`, non-billable readiness, disposable
+GitHub allowlist success, and production-path separation.
+
+The baseline cap was amended from the initial $125 recommendation by the
+ratified `docs/efficiency-transformation/t4-baseline-cap-amendment.md`. Its
+Claude Max and ChatGPT Pro dollar values are equivalent-cost indicators rather
+than incremental API billing; per-case route bounds did not change.
+
+## Isolation and qualification
+
+Eval actors run in fresh synthetic homes, an `Operon-Eval-<campaign-id>` org,
+immutable content-addressed sparse/library/service templates, and managed
+clones. Hidden graders, answer keys, reference patches, and mutants stay
+outside actor context and tool-visible paths. GitHub writes are limited to
+predeclared private `operon-eval-*` repositories. No eval publishes, sends,
+changes DNS/cloud infrastructure, deploys to production, or performs an
+irreversible data operation.
+
+The exact candidate package qualifies only after deterministic contracts,
+fixture/grader calibration, disposable GitHub behavior, required provider
+conformance, five fresh quick episodes, and ten predeclared mixed-route
+episodes satisfy all hard invariants and distribution thresholds. Production
+is separately reported read-only confirmation and cannot rewrite qualification.
+
+<!-- efficiency-contract:end -->

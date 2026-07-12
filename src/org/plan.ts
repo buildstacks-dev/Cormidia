@@ -267,6 +267,7 @@ export async function recordPlanTelemetry(options: {
   status: TurnResult["status"];
   startedAt: Date;
   endedAt: Date;
+  parentTaskId?: string;
 }): Promise<void> {
   const wallClockMs = Math.max(0, options.endedAt.getTime() - options.startedAt.getTime());
   // The interactive session runs through the native CLI with inherited stdio:
@@ -289,6 +290,7 @@ export async function recordPlanTelemetry(options: {
       app: options.app,
       trigger: "manual",
       unmeasured: true,
+      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     }),
   );
 }

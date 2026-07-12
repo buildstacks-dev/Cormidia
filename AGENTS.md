@@ -31,10 +31,13 @@ limitations; open work lives in the GitHub issue tracker.
 **Where agent activity is recorded** (state home, `~/.operon/<org>/`;
 README.md → Observability is the authoritative inventory):
 `runs/<app>/<runId>/` is the per-pass source of truth (`envelope.json`,
-`events.jsonl`, verbatim `brief.md`/`output.md`); `telemetry/<date>.jsonl`
+`events.jsonl`, verbatim `brief.md`/`prompt.md`/`output.md`, and activity-only
+`session.log`); `telemetry/<date>.jsonl`
 is the org ledger every provider turn settles into exactly once, keyed on
 `runId` (`operon budget --reconcile` back-fills); `invocations/<date>.jsonl`
-records each loop/dispatch invocation; `learning/` holds the capture
+records each loop/dispatch invocation; `tasks/<taskId>/` holds the broader
+delegated-task record plus exact outer prompt (child envelopes and ledger
+rows carry `parent_task_id`); `learning/` holds the capture
 projection (`events/`), rebuildable episode records (`episodes/`),
 ReplayCapsules + SystemFingerprints (`capsules/`, `fingerprints/`), per-turn
 pinned resolve records with `bundle_lineage` (`resolved/`), episode-sticky
@@ -125,6 +128,9 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
   `pnpm dev telemetry --app <app> --date 2026-07-04 --html out.html` ·
+  `pnpm dev task begin --id <id> --prompt-file <path> [--app <app>]` ·
+  `pnpm dev task fallback --id <id> --reason "<why>"` ·
+  `pnpm dev task finish --id <id> --status completed` ·
   `pnpm dev retro --date 2026-07-04` ·
   `pnpm dev learn report` · `pnpm dev learn inspect <episode-id>` ·
   `pnpm dev learn emit --episode <id> --observation "<text>"` ·

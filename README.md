@@ -225,7 +225,17 @@ monthly cap refuses to claim before any pass starts. `operon budget
 --reconcile` back-fills the ledger from run envelopes (idempotent).
 Subscription-backed provider costs are Operon-computed equivalent-cost
 estimates, flagged as such on every row. `operon telemetry --app <app>
-[--html out.html]` renders the run view.
+[--html out.html]` renders the run view and copies linked artifacts into an
+adjacent evidence bundle.
+
+For work delegated from an outer Codex/Claude session, begin a parent record
+once with `operon task begin --id <id> --prompt-file <exact-prompt>`, export
+the printed `OPERON_PARENT_TASK_ID`, and then run Planner/Builder/Reviewer
+commands normally. Use `operon task fallback` before any external/manual
+continuation and `operon task finish` only at the actual outcome boundary.
+Telemetry joins those child traces back to the exact prompt and will not call
+a task “Operon end-to-end complete” when a required stage or Reviewer is
+missing, or when execution used a fallback.
 
 `operon learn` is the learning loop's human window; `operon learn --help`
 has the full argument semantics. The capture verbs (`report`, `inspect

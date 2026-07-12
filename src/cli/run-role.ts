@@ -16,6 +16,7 @@ import type { ContextBundle } from "../runtime/types.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
+import { resolveParentTaskId } from "../org/parent-task.js";
 
 export async function cmdRunRole(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "run-role");
@@ -26,6 +27,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   let templatePath: string | undefined;
   let workdir: string | undefined;
   let dryRun = false;
+  let parentTaskInput: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -34,12 +36,14 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     else if (arg === "--turn") turnId = needValue(args, ++i, "--turn");
     else if (arg === "--template") templatePath = needValue(args, ++i, "--template");
     else if (arg === "--workdir") workdir = needValue(args, ++i, "--workdir");
+    else if (arg === "--parent-task") parentTaskInput = needValue(args, ++i, "--parent-task");
     else if (arg !== undefined && !arg.startsWith("--") && name === undefined) name = arg;
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
   if (name === undefined) throw new Error("run-role: role name required — operon run-role <role>");
 
   const homes = await resolveOperonHomes(common);
+  const parentTaskId = await resolveParentTaskId(homes.stateHome, parentTaskInput);
   const rolesPath = join(homes.orgHome, "roles.yaml");
   const appsPath = join(homes.orgHome, "apps.yaml");
   const { roles } = await loadRoles(rolesPath);
@@ -65,6 +69,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
       orgRoot: homes.orgHome,
       runtimeHome: homes.stateHome,
       signal: cancellation.signal,
+      ...(parentTaskId !== undefined ? { parentTaskId } : {}),
     }).finally(() => cancellation.dispose());
     console.log(`${turnId}: ${result.status} — ${result.summary}`);
     return cancellation.exitCode ?? (result.status === "failed" ? 1 : 0);
@@ -100,6 +105,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     ...(context !== undefined ? { context } : {}),
     dryRun: true,
     workdir: resolvedWorkdir,
+    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
   });
   console.log(result.brief);
   // The brief references the context by count; a live turn passes the full

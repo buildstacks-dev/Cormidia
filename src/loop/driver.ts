@@ -107,6 +107,7 @@ export interface LoopEngineOptions {
   budgetGuard?: () => Promise<{ allowed: boolean; reason?: string }>;
   /** Cooperative cancellation for all provider stages in this tick. */
   signal?: AbortSignal;
+  parentTaskId?: string;
 }
 
 export interface LoopDriverResult {
@@ -496,6 +497,7 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string) {
     ...(engine.networkAccess === true ? { networkAccess: true } : {}),
     ...(engine.telemetry !== undefined ? { telemetry: engine.telemetry } : {}),
     ...(engine.signal !== undefined ? { signal: engine.signal } : {}),
+    ...(engine.parentTaskId !== undefined ? { parentTaskId: engine.parentTaskId } : {}),
     ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
   };
 }

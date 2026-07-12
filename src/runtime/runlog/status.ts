@@ -13,6 +13,7 @@ export interface StatusRow {
   /** Correlation ids the telemetry view groups on (envelope ticket/trace_id). */
   ticket?: string;
   traceId: string;
+  parentTaskId?: string;
   pipeline: string;
   pass: string;
   role: string;
@@ -79,6 +80,7 @@ export async function readStatusRows(
         app,
         ...(envelope.ticket !== undefined ? { ticket: envelope.ticket } : {}),
         traceId: envelope.trace_id,
+        ...(envelope.parent_task_id !== undefined ? { parentTaskId: envelope.parent_task_id } : {}),
         pipeline: envelope.pipeline,
         pass: envelope.pass,
         role: envelope.role,

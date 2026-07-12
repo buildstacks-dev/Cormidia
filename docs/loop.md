@@ -746,6 +746,15 @@ shows skipped routing passes and stale/interrupted runs, and marks reviewer,
 cost, manual-fallback, and PR evidence as unknown when the run generation did
 not record them.
 
+The broader operator session is explicit rather than inferred from pass text.
+`operon task begin` stores `tasks/<taskId>/task.json` plus the exact outer
+prompt in `prompt.md`; `OPERON_PARENT_TASK_ID` (or `--parent-task`) stamps the
+id on every child envelope and ledger row. `task fallback` is durable evidence
+that work left Operon, and `task finish` records terminal status plus external
+ticket/trace/branch/PR/review/deployment references. Telemetry requires every
+declared stage, completed trace manifests, no fallback, and a terminal parent
+task before it can say “Operon end-to-end complete.”
+
 
 
 ## 10. Module map & contract deltas

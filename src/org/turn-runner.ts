@@ -39,6 +39,7 @@ export interface RunDispatchedTurnOptions {
   now?: () => Date;
   /** Cooperative cancellation sent by the owning CLI/dispatcher process. */
   signal?: AbortSignal;
+  parentTaskId?: string;
 }
 
 export interface RunDispatchedTurnResult {
@@ -160,6 +161,7 @@ export async function runDispatchedTurn(
         clock,
         telemetry,
         ...(options.signal !== undefined ? { signal: options.signal } : {}),
+        ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
       });
       result = generic.record?.result ?? zeroResult("completed", "role turn completed", options.role);
     }
@@ -305,6 +307,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     ...(options.now !== undefined ? { clock: options.now } : {}),
     telemetry: options.telemetry,
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     afterPass: (record) => {
       priorOutputs.set(record.pass.id, record.result.summary);
     },
@@ -362,6 +365,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       }),
       telemetry: options.telemetry,
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
+      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
       budgetGuard: async () => {
         const rows = await rollupBudgets(options.runtimeHome, options.appsFile, options.now?.() ?? new Date());
         const row = rows.find((r) => r.app === options.app.name);

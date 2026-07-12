@@ -45,6 +45,7 @@ export interface RunRoleRequest {
   telemetry?: { orgDir: string; trigger?: TriggerKind };
   /** Cooperative cancellation from the owning process/dispatcher. */
   signal?: AbortSignal;
+  parentTaskId?: string;
 }
 
 export interface RunRoleResult {
@@ -116,6 +117,7 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
     clock,
     ...(request.telemetry !== undefined ? { telemetry: request.telemetry } : {}),
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
+    ...(request.parentTaskId !== undefined ? { parentTaskId: request.parentTaskId } : {}),
   });
 
   const record = result.passes[0];

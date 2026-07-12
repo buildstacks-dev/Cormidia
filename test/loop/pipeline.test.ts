@@ -8,6 +8,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executePipeline, type ExecutePipelineOptions } from "../../src/loop/pipeline.js";
 import { getPipeline, loadPipelines, type PipelineConfig, type PipelinesFile } from "../../src/loop/pipelines.js";
@@ -224,6 +225,27 @@ describe("executePipeline", () => {
       expect(result.passes.map((p) => p.pass.id)).toEqual(["implement"]);
       expect(h.fake.calls[0]?.req.session).toBeUndefined();
       expect("session" in (h.fake.calls[0]?.req ?? {})).toBe(false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("correlates the pass envelope and cost ledger to its broader parent task", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(build, [scripted("done")], {
+      selection: { tier: "quick" },
+      parentTaskId: "outer-task-1",
+      telemetry: { orgDir: "placeholder", trigger: "manual" },
+    });
+    h.options.telemetry = { orgDir: h.options.runlog.root, trigger: "manual" };
+    try {
+      const result = await executePipeline(h.options);
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", result.passes[0]!.runId);
+      expect(envelope.parent_task_id).toBe("outer-task-1");
+      const row = JSON.parse(
+        readFileSync(join(h.options.runlog.root, "telemetry", "2026-07-05.jsonl"), "utf8").trim(),
+      ) as Record<string, unknown>;
+      expect(row["parentTaskId"]).toBe("outer-task-1");
     } finally {
       h.cleanup();
     }

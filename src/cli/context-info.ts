@@ -56,6 +56,7 @@ const CAPABILITIES = [
   { command: "status", writes: false, spendsTokens: false, summary: "show recent run status" },
   { command: "analyze", writes: false, spendsTokens: false, summary: "report run anomaly signals" },
   { command: "telemetry", writes: false, spendsTokens: false, summary: "historical pass/trace/cost view over run records" },
+  { command: "task", writes: true, spendsTokens: false, summary: "record the broader delegated task, fallback, and terminal outcome" },
   { command: "retro", writes: true, spendsTokens: false, summary: "write an evidence-based org retro" },
   { command: "learn", writes: true, spendsTokens: true, summary: "learning loop: inspect/show/report are read-only; emit/review/publish/resolve/canary are the human operator's governed-activation window; only `learn experiment run` spends tokens (paired replay)" },
   { command: "prune-runs", writes: true, spendsTokens: false, summary: "delete finalized run data beyond retention" },

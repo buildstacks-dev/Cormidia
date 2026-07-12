@@ -59,6 +59,8 @@ export interface RunEnvelope {
   run_id: string;
   /** turnId — one per pipeline execution; L2 events correlate on it. */
   trace_id: string;
+  /** Broader delegated operator task, when the top-level harness registered one. */
+  parent_task_id?: string;
   app: string;
   ticket?: string;
   pipeline: string;
@@ -125,6 +127,7 @@ export interface SessionEvidence extends SessionHandle {
 export interface StartRunMeta {
   runId: string;
   traceId: string;
+  parentTaskId?: string;
   app: string;
   ticket?: string;
   pipeline: string;
@@ -175,6 +178,7 @@ export async function startRun(
     schema_version: 1,
     run_id: meta.runId,
     trace_id: meta.traceId,
+    ...(meta.parentTaskId !== undefined ? { parent_task_id: meta.parentTaskId } : {}),
     app: meta.app,
     ...(meta.ticket !== undefined ? { ticket: meta.ticket } : {}),
     pipeline: meta.pipeline,

@@ -362,6 +362,7 @@ function recordFromEnvelope(
     app: envelope.app,
     runId: envelope.run_id,
     traceId: envelope.trace_id,
+    ...(envelope.parent_task_id !== undefined ? { parentTaskId: envelope.parent_task_id } : {}),
     pipeline: envelope.pipeline,
     pass: envelope.pass,
   };

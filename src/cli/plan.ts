@@ -9,11 +9,13 @@ import { resolveOperonHomes } from "../org/home.js";
 import { join, resolve } from "node:path";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
+import { resolveParentTaskId } from "../org/parent-task.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
   const parsed = parseArgs(common.rest);
   const homes = await resolveOperonHomes(common);
+  const parentTaskId = await resolveParentTaskId(homes.stateHome, parsed.parentTaskId);
 
   if (parsed.auto) {
     if (parsed.goal === undefined) {
@@ -28,6 +30,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
       console.log(`goal: ${parsed.goal}`);
       console.log(`stage: ${stage}`);
       console.log(`source checkout: ${resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name))}`);
+      if (parentTaskId !== undefined) console.log(`parent task: ${parentTaskId}`);
       console.log("(dry-run: no runtime, run envelope, telemetry, learning projection, or GitHub write)");
       return 0;
     }
@@ -42,6 +45,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
       ...(parsed.stage !== undefined ? { stage: parsed.stage } : {}),
       ...(parsed.noPublish ? { publish: false } : {}),
       signal: cancellation.signal,
+      ...(parentTaskId !== undefined ? { parentTaskId } : {}),
     }).finally(() => cancellation.dispose());
     console.log(`plan (${result.status}): ${result.summary}`);
     if (result.plan !== undefined) {
@@ -88,6 +92,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
     status: cancellation.signal.aborted ? "cancelled" : code === 0 ? "completed" : "failed",
     startedAt,
     endedAt,
+    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
   });
   console.log(
     `planner session exited ${code}; worktree left at ${session.worktree.path} ` +
@@ -105,6 +110,7 @@ interface ParsedPlanArgs {
   goal?: string;
   stage?: "bootstrap" | "growth" | "mature";
   noPublish: boolean;
+  parentTaskId?: string;
 }
 
 function parseArgs(args: string[]): ParsedPlanArgs {
@@ -123,6 +129,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
   let goal: string | undefined;
   let stage: ParsedPlanArgs["stage"];
   let noPublish = false;
+  let parentTaskId: string | undefined;
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--dry-run") {
@@ -153,6 +160,11 @@ function parseArgs(args: string[]): ParsedPlanArgs {
       if (!next || next.startsWith("--")) throw new Error("plan: --workdir requires a path");
       workdir = next;
       i++;
+    } else if (arg === "--parent-task") {
+      const next = args[i + 1];
+      if (!next || next.startsWith("--")) throw new Error("plan: --parent-task requires an id");
+      parentTaskId = next;
+      i++;
     } else {
       throw new Error(`plan: unknown flag "${arg}"`);
     }
@@ -167,6 +179,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
     ...(stage !== undefined ? { stage } : {}),
     ...(topic !== undefined ? { topic } : {}),
     ...(workdir ? { workdir } : {}),
+    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
   };
 }
 

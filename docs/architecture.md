@@ -158,6 +158,8 @@ state/budget-overlay.json  dispatcher budget-pause overlay (§7)
 locks/<app>--<role>.lock
 approvals/               pending/ decided/ grants/ log.jsonl (§4)
 sessions/                adapter session artifacts where the SDK needs a home
+tasks/<taskId>/           parent delegated-task record + exact operator prompt;
+                         child runs correlate via parent_task_id
 runs/<app>/<runId>/      L1–L3 per-pass runlogs: envelope, events, brief,
                          exact prompt, output, activity log (not a full
                          transcript; docs/loop.md §9)

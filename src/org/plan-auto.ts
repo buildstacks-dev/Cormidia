@@ -52,6 +52,7 @@ export interface AutoPlanOptions {
   now?: () => Date;
   /** Cooperative cancellation from the owning CLI/process. */
   signal?: AbortSignal;
+  parentTaskId?: string;
 }
 
 export interface AutoPlanResult {
@@ -136,6 +137,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     verdictSchemaFor: () => PLAN_SCHEMA,
     telemetry: { orgDir: options.stateHome, trigger: "manual" },
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
   });
 
   const pass = run.passes[run.passes.length - 1];

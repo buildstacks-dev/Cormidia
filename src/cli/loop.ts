@@ -20,6 +20,7 @@ import { recordInvocation } from "../runtime/telemetry.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation, waitForDelay } from "./process-signal.js";
+import { resolveParentTaskId } from "../org/parent-task.js";
 
 /**
  * Persist the scorecard events one loop tick produced into the org scorecard
@@ -85,6 +86,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
   let repoDir: string | undefined;
   let worktreeRoot: string | undefined;
   let allowNetwork = false;
+  let parentTaskInput: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -102,6 +104,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
       worktreeRoot = needValue(args, ++i, "--worktree-root");
     } else if (arg === "--allow-network") {
       allowNetwork = true;
+    } else if (arg === "--parent-task") {
+      parentTaskInput = needValue(args, ++i, "--parent-task");
     } else {
       throw new Error(`loop: unknown flag "${arg}"`);
     }
@@ -112,6 +116,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
   if (once && follow) throw new Error("loop: choose either --once or --follow, not both");
 
   const homes = await resolveOperonHomes(common);
+  const parentTaskId = await resolveParentTaskId(homes.stateHome, parentTaskInput);
   const appsPath = join(homes.orgHome, "apps.yaml");
   const rolesPath = join(homes.orgHome, "roles.yaml");
   const pipelinesPath = join(homes.orgHome, "pipelines.yaml");
@@ -221,6 +226,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
             // spend was previously invisible to `operon budget`.
             telemetry: { orgDir: homes.stateHome, trigger: "manual" },
             ...(cancellation !== undefined ? { signal: cancellation.signal } : {}),
+            ...(parentTaskId !== undefined ? { parentTaskId } : {}),
             budgetGuard: async () => {
               // enforceBudgetOverlay (not a bare rollup) so the pause overlay
               // is recomputed here too: a month-old pause clears once spend
@@ -277,6 +283,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
           ? `budget-refused: ${result.budgetRefusal}`
           : result.items.map((item) => `${item.ticketRef}=${item.phase}`).join(", ") || "no-ready-tickets",
       wallClockMs: Date.now() - tickStarted,
+      ...(parentTaskId !== undefined ? { parentTaskId } : {}),
     });
   }
 

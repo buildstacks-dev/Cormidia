@@ -88,6 +88,8 @@ export interface ExecutePipelineOptions {
    *  actual role running each pass. */
   gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   runlog: RunlogTarget;
+  /** Broader delegated task registered by the top-level operator harness. */
+  parentTaskId?: string;
   /** Injected clock (FakeClock-compatible); defaults to the wall clock. */
   clock?: () => Date;
   /** Optional native structured-output schema per pass. */
@@ -294,6 +296,7 @@ async function runPass(
     {
       runId,
       traceId,
+      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
       app,
       ...(ticket !== undefined ? { ticket } : {}),
       pipeline: options.pipeline.name,
@@ -541,6 +544,7 @@ async function runPass(
           ...(options.telemetry.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
           runId,
           traceId,
+          ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
           pipeline: options.pipeline.name,
           pass: pass.id,
           // A watchdog-abandoned turn's spend is unknown, not zero.

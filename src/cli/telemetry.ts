@@ -11,9 +11,10 @@
 
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { formatDuration, readStatusRows, type StatusRow } from "../runtime/runlog/status.js";
 import type { UsageQuality } from "../runtime/types.js";
+import { listParentTasks, type ParentTaskRecord } from "../org/parent-task.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -23,12 +24,13 @@ export async function cmdTelemetry(args: string[]): Promise<number> {
   const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
 
   const rows = await readStatusRows(stateHome, parsed.app !== undefined ? { app: parsed.app } : {});
-  const report = buildReport(rows, parsed.app ?? null, parsed.date ?? null);
+  const parentTasks = await listParentTasks(stateHome);
+  const report = buildReport(rows, parentTasks, parsed.app ?? null, parsed.date ?? null);
 
   if (parsed.html !== undefined) {
     const target = resolve(parsed.html);
     const evidenceDir = evidenceDirectoryName(target);
-    const bundlePath = join(resolve(target, ".."), evidenceDir);
+    const bundlePath = join(dirname(target), evidenceDir);
     await materializeEvidenceBundle(stateHome, bundlePath, report);
     await writeFile(target, renderHtml(report, evidenceDir), "utf8");
     console.log(`telemetry: wrote ${target} and ${bundlePath}`);
@@ -126,6 +128,21 @@ interface TelemetryReport {
   running: PassView[];
   totals: { byRole: TotalLine[]; byModel: TotalLine[]; byTicket: TotalLine[] };
   completionIntegrity: CompletionIntegrity;
+  parentTasks: ParentTaskView[];
+}
+
+interface ParentTaskView {
+  record: ParentTaskRecord;
+  traces: string[];
+  tickets: string[];
+  branches: string[];
+  prs: string[];
+  reviews: string[];
+  deployments: string[];
+  observedStages: string[];
+  missingRequiredStages: string[];
+  operonEndToEndComplete: boolean;
+  evidenceFiles?: string[];
 }
 
 interface CompletionIntegrity {
@@ -135,13 +152,18 @@ interface CompletionIntegrity {
   staleEnvelopes: string[];
   costTotals: "complete" | "partial" | "estimated" | "unavailable";
   reviewerPass: "completed" | "missing";
-  manualFallback: "not_recorded";
-  prState: "not_recorded";
+  manualFallback: "none" | "present" | "not_recorded";
+  prState: "open" | "merged" | "closed" | "abandoned" | "none" | "mixed" | "referenced_not_verified" | "not_recorded";
 }
 
 const NO_TICKET = "(no ticket)";
 
-function buildReport(rows: StatusRow[], app: string | null, date: string | null): TelemetryReport {
+function buildReport(
+  rows: StatusRow[],
+  taskRecords: ParentTaskRecord[],
+  app: string | null,
+  date: string | null,
+): TelemetryReport {
   const views = rows
     .filter((row) => date === null || row.startedAt.slice(0, 10) === date)
     .map(toPassView)
@@ -180,6 +202,7 @@ function buildReport(rows: StatusRow[], app: string | null, date: string | null)
     accumulate(byTicket, view.ticket ?? NO_TICKET, view);
   }
 
+  const parentTasks = buildParentTaskViews(taskRecords, views, [...tickets.values()], app, date);
   return {
     app,
     date,
@@ -187,7 +210,8 @@ function buildReport(rows: StatusRow[], app: string | null, date: string | null)
     tickets: [...tickets.values()],
     running: views.filter((view) => view.running),
     totals: { byRole: [...byRole.values()], byModel: [...byModel.values()], byTicket: [...byTicket.values()] },
-    completionIntegrity: completionIntegrity(views, [...tickets.values()]),
+    completionIntegrity: completionIntegrity(views, [...tickets.values()], parentTasks),
+    parentTasks,
   };
 }
 
@@ -251,7 +275,11 @@ function traceIntegrity(passes: readonly PassView[]): TraceIntegrity {
   };
 }
 
-function completionIntegrity(views: readonly PassView[], tickets: readonly TicketGroup[]): CompletionIntegrity {
+function completionIntegrity(
+  views: readonly PassView[],
+  tickets: readonly TicketGroup[],
+  parentTasks: readonly ParentTaskView[],
+): CompletionIntegrity {
   const traces = tickets.flatMap((ticket) => ticket.traces);
   const traceStates = traces.map((trace) => trace.integrity.complete);
   const requiredStages = traceStates.some((state) => state === false)
@@ -277,9 +305,81 @@ function completionIntegrity(views: readonly PassView[], tickets: readonly Ticke
     reviewerPass: views.some((view) => view.role === "reviewer" && view.status === "completed")
       ? "completed"
       : "missing",
-    manualFallback: "not_recorded",
-    prState: "not_recorded",
+    manualFallback:
+      parentTasks.length === 0
+        ? "not_recorded"
+        : parentTasks.some((task) => task.record.executionMode !== "operon")
+          ? "present"
+          : "none",
+    prState: parentPrState(parentTasks),
   };
+}
+
+function parentPrState(tasks: readonly ParentTaskView[]): CompletionIntegrity["prState"] {
+  const states = uniqueStrings(
+    tasks
+      .map((task) => task.record.completionState?.pr)
+      .filter((state): state is NonNullable<typeof state> => state !== undefined && state !== "unknown"),
+  );
+  if (states.length === 1) return states[0] as CompletionIntegrity["prState"];
+  if (states.length > 1) return "mixed";
+  return tasks.some((task) => task.prs.length > 0) ? "referenced_not_verified" : "not_recorded";
+}
+
+function buildParentTaskViews(
+  records: readonly ParentTaskRecord[],
+  views: readonly PassView[],
+  tickets: readonly TicketGroup[],
+  app: string | null,
+  date: string | null,
+): ParentTaskView[] {
+  const traceIntegrityById = new Map(
+    tickets.flatMap((ticket) => ticket.traces.map((trace) => [trace.traceId, trace.integrity] as const)),
+  );
+  return records
+    .filter((record) => app === null || record.app === app || views.some((view) => view.parentTaskId === record.taskId && view.app === app))
+    .filter((record) => date === null || record.startedAt.slice(0, 10) === date || views.some((view) => view.parentTaskId === record.taskId))
+    .map((record) => {
+      const taskPasses = views.filter((view) => view.parentTaskId === record.taskId);
+      const traces = uniqueStrings([...record.refs.traces, ...taskPasses.map((view) => view.traceId)]);
+      const observedSet = new Set(taskPasses.filter((view) => view.status === "completed").map((view) => view.role));
+      const observedStages = [
+        ...record.requiredStages.filter((stage) => observedSet.has(stage)),
+        ...[...observedSet].filter((stage) => !record.requiredStages.includes(stage)),
+      ];
+      const missingRequiredStages = record.requiredStages.filter((stage) => !observedStages.includes(stage));
+      const tickets = uniqueStrings([...record.refs.tickets, ...taskPasses.map((view) => view.ticket).filter(isString)]);
+      const branches = uniqueStrings([...record.refs.branches, ...taskPasses.map((view) => view.gitBranch).filter(isString)]);
+      const artifactRefs = taskPasses.flatMap((view) => view.artifacts ?? []);
+      const prs = uniqueStrings([...record.refs.prs, ...artifactRefs.filter((artifact) => artifact.kind === "pr").map((artifact) => artifact.ref)]);
+      const reviews = uniqueStrings([...record.refs.reviews, ...artifactRefs.filter((artifact) => artifact.kind === "review").map((artifact) => artifact.ref)]);
+      const deployments = uniqueStrings(record.refs.deployments);
+      const allTracesComplete = traces.length > 0 && traces.every((trace) => traceIntegrityById.get(trace)?.complete === true);
+      return {
+        record,
+        traces,
+        tickets,
+        branches,
+        prs,
+        reviews,
+        deployments,
+        observedStages,
+        missingRequiredStages,
+        operonEndToEndComplete:
+          record.status === "completed" &&
+          record.executionMode === "operon" &&
+          missingRequiredStages.length === 0 &&
+          allTracesComplete,
+      };
+    });
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.length > 0))];
+}
+
+function isString(value: string | undefined): value is string {
+  return value !== undefined;
 }
 
 function leastCompleteQuality(left: UsageQuality, right: UsageQuality): UsageQuality {
@@ -335,9 +435,24 @@ function renderTerminal(report: TelemetryReport): string {
     ...(report.date !== null ? [`date ${report.date}`] : []),
   ];
   const scope = filters.length > 0 ? ` (${filters.join(", ")})` : "";
-  if (report.passCount === 0) return `telemetry: no run records${scope}`;
+  if (report.passCount === 0 && report.parentTasks.length === 0) return `telemetry: no run records${scope}`;
 
   const lines: string[] = [`Telemetry over runs/ — ${report.passCount} pass(es)${scope}`];
+
+  for (const task of report.parentTasks) {
+    lines.push(
+      "",
+      `PARENT TASK ${task.record.taskId} — ${task.record.status}`,
+      `  objective: ${task.record.objective}`,
+      `  original prompt: ${task.record.promptRef} sha256:${task.record.promptSha256}`,
+      `  native task: ${task.record.source?.nativeRef ?? "not recorded"}`,
+      `  execution mode: ${task.record.executionMode}`,
+      `  required stages: ${task.record.requiredStages.join(", ") || "none"}`,
+      `  observed stages: ${task.observedStages.join(", ") || "none"}`,
+      `  Operon end-to-end complete: ${task.operonEndToEndComplete ? "yes" : "no"}`,
+      `  traces: ${task.traces.join(", ") || "none"}; tickets: ${task.tickets.join(", ") || "none"}; PRs: ${task.prs.join(", ") || "none"}`,
+    );
+  }
 
   for (const ticket of report.tickets) {
     lines.push("", `TICKET ${ticket.ticket ?? NO_TICKET}`);
@@ -370,8 +485,8 @@ function renderTerminal(report: TelemetryReport): string {
     `  stale envelopes: ${report.completionIntegrity.staleEnvelopes.join(", ") || "none"}`,
     `  recorded cost completeness: ${report.completionIntegrity.costTotals}`,
     `  reviewer pass: ${report.completionIntegrity.reviewerPass}`,
-    "  manual fallback: not recorded by this run generation",
-    "  PR/review/merge state: not recorded by this run generation",
+    `  manual fallback: ${report.completionIntegrity.manualFallback}`,
+    `  PR/review/merge state: ${report.completionIntegrity.prState}`,
   );
 
   if (report.running.length > 0) {
@@ -408,6 +523,7 @@ function reportToJson(report: TelemetryReport): unknown {
   return {
     filters: { app: report.app, date: report.date },
     pass_count: report.passCount,
+    parent_tasks: report.parentTasks.map(parentTaskToJson),
     tickets: report.tickets.map((ticket) => ({
       ticket: ticket.ticket,
       traces: ticket.traces.map((trace) => ({
@@ -442,12 +558,47 @@ function reportToJson(report: TelemetryReport): unknown {
   };
 }
 
+function parentTaskToJson(task: ParentTaskView): unknown {
+  return {
+    task_id: task.record.taskId,
+    app: task.record.app ?? null,
+    objective: task.record.objective,
+    completion_criteria: task.record.completionCriteria ?? null,
+    original_prompt: {
+      ref: task.record.promptRef,
+      sha256: task.record.promptSha256,
+    },
+    source: task.record.source ?? null,
+    repository: task.record.repository ?? null,
+    charter: task.record.charter ?? null,
+    status: task.record.status,
+    started_at: task.record.startedAt,
+    ended_at: task.record.endedAt ?? null,
+    execution_mode: task.record.executionMode,
+    completion_state: task.record.completionState ?? null,
+    fallback_events: task.record.fallbackEvents,
+    required_stages: task.record.requiredStages,
+    observed_stages: task.observedStages,
+    missing_required_stages: task.missingRequiredStages,
+    operon_end_to_end_complete: task.operonEndToEndComplete,
+    resulting: {
+      tickets: task.tickets,
+      traces: task.traces,
+      branches: task.branches,
+      prs: task.prs,
+      reviews: task.reviews,
+      deployments: task.deployments,
+    },
+  };
+}
+
 function passToJson(view: PassView): unknown {
   return {
     run_id: view.runId,
     app: view.app,
     ticket: view.ticket ?? null,
     trace_id: view.traceId,
+    parent_task_id: view.parentTaskId ?? null,
     pipeline: view.pipeline,
     pass: view.pass,
     role: view.role,
@@ -518,6 +669,7 @@ function renderHtml(report: TelemetryReport, evidenceDir: string): string {
   const body = [
     `<h1>Operon telemetry</h1>`,
     `<p class="muted">${esc(subtitle)} · source run state was read-only; linked artifacts are copies in <code>${esc(evidenceDir)}</code></p>`,
+    renderParentTasks(report, evidenceDir),
     ...report.tickets.map((ticket) => renderTicketSection(ticket)),
     renderCompletionIntegrity(report),
     renderPassTable(report, evidenceDir),
@@ -540,6 +692,46 @@ ${body}
 </body>
 </html>
 `;
+}
+
+function renderParentTasks(report: TelemetryReport, evidenceDir: string): string {
+  if (report.parentTasks.length === 0) {
+    return `<section><h2>Parent delegated task</h2><p class="muted">Not recorded by this run generation. Pass telemetry cannot reconstruct the exact outer operator prompt.</p></section>`;
+  }
+  return report.parentTasks.map((task) => {
+    const taskLinks = [
+      parentEvidenceLink(task, evidenceDir, "task.json", "Task record"),
+      parentEvidenceLink(task, evidenceDir, task.record.promptRef, "Exact original operator prompt"),
+    ].filter((link): link is string => link !== undefined);
+    const native = task.record.source?.nativeRef !== undefined
+      ? `<a href="${esc(task.record.source.nativeRef)}">${esc(task.record.source.nativeRef)}</a>`
+      : "not recorded";
+    return `<section><h2>Parent task ${esc(task.record.taskId)}</h2><dl class="integrity">
+<dt>Objective</dt><dd>${esc(task.record.objective)}</dd>
+<dt>Original prompt</dt><dd>${taskLinks.join(" · ") || `${esc(task.record.promptRef)} sha256:${esc(task.record.promptSha256)}`}</dd>
+<dt>Native harness task</dt><dd>${native}</dd>
+<dt>Started / ended / status</dt><dd>${esc(task.record.startedAt)} / ${esc(task.record.endedAt ?? "running")} / ${esc(task.record.status)}</dd>
+<dt>Repository</dt><dd><code>${esc(task.record.repository?.workdir ?? "not recorded")}</code> · ${esc(task.record.repository?.branch ?? "unknown branch")} · <code>${esc(task.record.repository?.head ?? "unknown HEAD")}</code></dd>
+<dt>Execution mode</dt><dd>${esc(task.record.executionMode)}${task.record.fallbackEvents.length > 0 ? ` — ${esc(task.record.fallbackEvents.map((event) => event.reason).join("; "))}` : ""}</dd>
+<dt>Required / observed stages</dt><dd>${esc(task.record.requiredStages.join(", ") || "none")} / ${esc(task.observedStages.join(", ") || "none")}</dd>
+<dt>Operon end-to-end complete?</dt><dd>${task.operonEndToEndComplete ? "yes" : `no${task.missingRequiredStages.length > 0 ? ` — missing ${esc(task.missingRequiredStages.join(", "))}` : ""}`}</dd>
+<dt>Lifecycle state</dt><dd>${esc(task.record.completionState === undefined ? "not recorded" : `implementation ${task.record.completionState.implementation}; CI ${task.record.completionState.ci}; Operon review ${task.record.completionState.operonReview}; human review ${task.record.completionState.humanReview}; PR ${task.record.completionState.pr}; issues close on merge ${task.record.completionState.issuesCloseOnMerge.join(", ") || "none"}`)}</dd>
+<dt>Results</dt><dd>tickets ${esc(task.tickets.join(", ") || "none")}; traces ${esc(task.traces.join(", ") || "none")}; branches ${esc(task.branches.join(", ") || "none")}; PRs ${esc(task.prs.join(", ") || "none")}; reviews ${esc(task.reviews.join(", ") || "none")}; deployments ${esc(task.deployments.join(", ") || "none")}</dd>
+</dl></section>`;
+  }).join("\n");
+}
+
+function parentEvidenceLink(
+  task: ParentTaskView,
+  evidenceDir: string,
+  file: string,
+  label: string,
+): string | undefined {
+  if (!task.evidenceFiles?.includes(file)) return undefined;
+  const href = [evidenceDir, "tasks", task.record.taskId, file]
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  return `<a href="${esc(href)}">${esc(label)}</a>`;
 }
 
 function renderTicketSection(ticket: TicketGroup): string {
@@ -673,8 +865,8 @@ function renderCompletionIntegrity(report: TelemetryReport): string {
 <dt>Stale envelopes</dt><dd>${esc(integrity.staleEnvelopes.join(", ") || "none")}</dd>
 <dt>Are recorded cost totals complete?</dt><dd>${esc(integrity.costTotals)}</dd>
 <dt>Did an Operon Reviewer pass complete?</dt><dd>${esc(integrity.reviewerPass)}</dd>
-<dt>Manual/external fallback</dt><dd>not recorded by this run generation</dd>
-<dt>PR approval / merge / issue-close state</dt><dd>not recorded by this run generation</dd>
+<dt>Manual/external fallback</dt><dd>${esc(integrity.manualFallback)}</dd>
+<dt>PR approval / merge / issue-close state</dt><dd>${esc(integrity.prState)}</dd>
 </dl></section>`;
 }
 
@@ -698,6 +890,19 @@ async function materializeEvidenceBundle(
   report: TelemetryReport,
 ): Promise<void> {
   await rm(bundlePath, { recursive: true, force: true });
+  for (const task of report.parentTasks) {
+    const sourceDir = join(stateHome, "tasks", task.record.taskId);
+    const targetDir = join(bundlePath, "tasks", task.record.taskId);
+    const copied: string[] = [];
+    for (const file of ["task.json", task.record.promptRef]) {
+      const source = join(sourceDir, file);
+      if (!existsSync(source)) continue;
+      await mkdir(targetDir, { recursive: true });
+      await copyFile(source, join(targetDir, file));
+      copied.push(file);
+    }
+    task.evidenceFiles = copied;
+  }
   const views = report.tickets.flatMap((ticket) => ticket.traces.flatMap((trace) => trace.passes));
   for (const view of views) {
     const sourceDir = join(stateHome, "runs", view.app, view.runId);

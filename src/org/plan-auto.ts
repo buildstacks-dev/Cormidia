@@ -6,9 +6,9 @@
 // real approval store, real per-pass ledger settlement — and the ORCHESTRATOR
 // publishes the schema-validated plan (src/loop/plan-tickets.ts).
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import type { RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
@@ -40,6 +40,9 @@ export interface AutoPlanOptions {
   /** The product goal the plan serves — required; planning without a goal is
    *  how a website becomes 19 tickets. */
   goal: string;
+  /** Exact operator-supplied source checkout. It is never checked out/reset;
+   * planning runs in a trace-scoped snapshot cloned from its current HEAD. */
+  workdir?: string;
   stage?: ProjectStage;
   /** Publish the validated plan to GitHub (default). False = plan + validate
    *  only, print, publish nothing. */
@@ -47,10 +50,12 @@ export interface AutoPlanOptions {
   gh?: GhOps;
   runtimeFor?: (role: RoleConfig) => Runtime;
   now?: () => Date;
+  /** Cooperative cancellation from the owning CLI/process. */
+  signal?: AbortSignal;
 }
 
 export interface AutoPlanResult {
-  status: "completed" | "failed";
+  status: "completed" | "failed" | "cancelled" | "timed_out";
   summary: string;
   plan?: TicketPlan;
   problems?: string[];
@@ -83,14 +88,19 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   });
   const pipeline = getPipeline(pipelines, "plan-bootstrap");
 
-  // Plan from current repo truth: the managed clone is fetched and reset to
-  // origin/main (the episode planned from a stale bootstrap commit and
-  // concluded the ratified docs did not exist).
-  const localRepo = await withAppGitLock(options.stateHome, options.app.name, () =>
-    ensureManagedClone(options.app, options.stateHome),
-  );
-
   const turnId = `plan-${options.app.name}-${clock().getTime()}`;
+  // Plan from an isolated, trace-scoped snapshot. A supplied checkout is an
+  // immutable source: clone its current HEAD without checking out/resetting it.
+  // The default source remains Operon's explicitly managed clone, which may be
+  // refreshed to origin/main under the app git lock.
+  const snapshot = await withAppGitLock(options.stateHome, options.app.name, async () => {
+    const source =
+      options.workdir !== undefined
+        ? validateSourceCheckout(options.workdir)
+        : await ensureManagedClone(options.app, options.stateHome);
+    return createPlanningSnapshot(source, join(options.stateHome, "worktrees", options.app.name, turnId));
+  });
+  const localRepo = snapshot.path;
   const store = new ApprovalStore(options.stateHome);
   const hooks: TurnHooks = {
     gate: composeGate(defaultGate, store, {
@@ -110,7 +120,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     })
   ).bundle;
 
-  const brief = await stageAwareBrief(options, localRepo, clock());
+  const brief = await stageAwareBrief(options, snapshot, clock());
   const run = await executePipeline({
     pipeline,
     selection: { tier: "standard" },
@@ -125,12 +135,16 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     clock,
     verdictSchemaFor: () => PLAN_SCHEMA,
     telemetry: { orgDir: options.stateHome, trigger: "manual" },
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
   });
 
   const pass = run.passes[run.passes.length - 1];
   if (run.aborted || pass === undefined || pass.result.status !== "completed") {
     return {
-      status: "failed",
+      status:
+        pass?.result.status === "cancelled" || pass?.result.status === "timed_out"
+          ? pass.result.status
+          : "failed",
       summary: `planning turn did not complete: ${pass?.result.summary ?? "no pass ran"}`,
     };
   }
@@ -169,7 +183,8 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
 
 /** P2: the plan sees what IS — goal, repo truth from the fresh clone, and the
  *  org's own cost history for this app. */
-async function stageAwareBrief(options: AutoPlanOptions, localRepo: string, now: Date): Promise<string> {
+async function stageAwareBrief(options: AutoPlanOptions, snapshot: PlanningSnapshot, now: Date): Promise<string> {
+  const localRepo = snapshot.path;
   const entries = readdirSync(localRepo)
     .filter((name) => name !== ".git")
     .sort()
@@ -192,7 +207,11 @@ async function stageAwareBrief(options: AutoPlanOptions, localRepo: string, now:
     "## Product goal",
     options.goal,
     "",
-    "## Repo truth (fresh clone of origin/main)",
+    "## Repository snapshot",
+    `Source checkout: ${snapshot.sourcePath}`,
+    `Source branch: ${snapshot.sourceBranch}`,
+    `Source HEAD: ${snapshot.sourceHead}`,
+    `Planning worktree: ${snapshot.path}`,
     `Top-level entries: ${entries.length === 0 ? "(empty repo)" : entries.join(", ")}`,
     `Docs present: ${["README.md", "docs"].filter((p) => existsSync(join(localRepo, p))).join(", ") || "none"}`,
     "Recent commits:",
@@ -205,6 +224,44 @@ async function stageAwareBrief(options: AutoPlanOptions, localRepo: string, now:
     "",
     "Plan the smallest shippable first milestone per the pass protocol.",
   ].join("\n");
+}
+
+interface PlanningSnapshot {
+  path: string;
+  sourcePath: string;
+  sourceHead: string;
+  sourceBranch: string;
+}
+
+function validateSourceCheckout(input: string): string {
+  const source = resolve(input);
+  if (!existsSync(join(source, ".git"))) {
+    throw new Error(`plan: --workdir is not a git checkout: ${source}`);
+  }
+  gitText(source, "rev-parse", "--verify", "HEAD");
+  return source;
+}
+
+function createPlanningSnapshot(source: string, target: string): PlanningSnapshot {
+  if (existsSync(target)) throw new Error(`plan: planning snapshot already exists: ${target}`);
+  mkdirSync(dirname(target), { recursive: true });
+  const sourceHead = gitText(source, "rev-parse", "HEAD");
+  const sourceBranch = gitText(source, "branch", "--show-current") || "(detached)";
+  execFileSync("git", ["clone", "--quiet", "--no-hardlinks", source, target], {
+    encoding: "utf8",
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+  });
+  gitText(target, "checkout", "--detach", sourceHead);
+  return { path: target, sourcePath: source, sourceHead, sourceBranch };
+}
+
+function gitText(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 }
 
 /** Native structured output returns bare JSON; a non-native adapter may wrap

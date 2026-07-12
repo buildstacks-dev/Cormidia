@@ -37,6 +37,8 @@ export interface RunDispatchedTurnOptions {
   gh?: GhOps;
   runtimeFor?: (role: RoleConfig) => Runtime;
   now?: () => Date;
+  /** Cooperative cancellation sent by the owning CLI/dispatcher process. */
+  signal?: AbortSignal;
 }
 
 export interface RunDispatchedTurnResult {
@@ -157,6 +159,7 @@ export async function runDispatchedTurn(
         context,
         clock,
         telemetry,
+        ...(options.signal !== undefined ? { signal: options.signal } : {}),
       });
       result = generic.record?.result ?? zeroResult("completed", "role turn completed", options.role);
     }
@@ -186,21 +189,30 @@ export async function runDispatchedTurn(
     await writeJournalPatch(runtimeHome, options.turnId, {
       role: options.role.name,
       app: options.app.name,
-      phase: result.status === "blocked_on_gate" ? "blocked_on_gate" : result.status === "failed" ? "failed" : "done",
+      phase: journalPhaseForStatus(result.status),
       session: result.session,
+      ...(result.status === "cancelled" || result.status === "timed_out"
+        ? { message: result.summary }
+        : {}),
     });
     return { status: result.status, summary: result.summary };
   } catch (error) {
     const pending = await new ApprovalStore(runtimeHome).listPending();
     const blocked = pending.some((item) => item.turnId === options.turnId);
+    const stopped = options.signal?.aborted === true;
+    const stop = stopped ? stopDescriptor(options.signal?.reason) : undefined;
     await writeJournalPatch(runtimeHome, options.turnId, {
       role: options.role.name,
       app: options.app.name,
-      phase: blocked ? "blocked_on_gate" : "failed",
-      message: error instanceof Error ? error.message : String(error),
+      phase: stop?.status ?? (blocked ? "blocked_on_gate" : "failed"),
+      message: stop?.reason ?? (error instanceof Error ? error.message : String(error)),
     });
-    const status = blocked ? "blocked_on_gate" : "failed";
-    const result = zeroResult(status, error instanceof Error ? error.message : String(error), options.role);
+    const status: TurnResult["status"] = stop?.status ?? (blocked ? "blocked_on_gate" : "failed");
+    const result = zeroResult(
+      status,
+      stop?.reason ?? (error instanceof Error ? error.message : String(error)),
+      options.role,
+    );
     const failedJournal = await readJournal(runtimeHome, options.turnId);
     await recordTurn(
       runtimeHome,
@@ -292,12 +304,13 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     },
     ...(options.now !== undefined ? { clock: options.now } : {}),
     telemetry: options.telemetry,
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
     afterPass: (record) => {
       priorOutputs.set(record.pass.id, record.result.summary);
     },
   });
 
-  return resultFromPipeline(options.role, options.pipelineName, result);
+  return resultFromPipeline(options.role, options.pipelineName, result, options.signal);
 }
 
 async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
@@ -348,6 +361,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
         turnId: options.turnId,
       }),
       telemetry: options.telemetry,
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
       budgetGuard: async () => {
         const rows = await rollupBudgets(options.runtimeHome, options.appsFile, options.now?.() ?? new Date());
         const row = rows.find((r) => r.app === options.app.name);
@@ -362,6 +376,10 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       ...(options.now !== undefined ? { clock: options.now } : {}),
     },
   });
+  if (options.signal?.aborted) {
+    const stopped = stopDescriptor(options.signal.reason);
+    return zeroResult(stopped.status, stopped.reason, options.role);
+  }
   // A4: a merged deploy/package milestone queues its release as a critical
   // op — dispatch-driven merges must not bypass the approval boundary.
   await queueReleaseApprovals(options.runtimeHome, options.app.name, result.items, options.now);
@@ -477,14 +495,36 @@ function protocolBrief(input: {
   ].join("\n");
 }
 
-function resultFromPipeline(role: RoleConfig, pipelineName: string, result: PipelineRunResult): TurnResult {
+function resultFromPipeline(
+  role: RoleConfig,
+  pipelineName: string,
+  result: PipelineRunResult,
+  signal?: AbortSignal,
+): TurnResult {
   const statuses = result.passes.map((record) => record.result.status);
-  const status = statuses.includes("blocked_on_gate")
+  const stopped = signal?.aborted === true ? stopDescriptor(signal.reason) : undefined;
+  const status: TurnResult["status"] = statuses.includes("timed_out")
+    ? "timed_out"
+    : statuses.includes("cancelled")
+      ? "cancelled"
+      : statuses.includes("blocked_on_gate")
     ? "blocked_on_gate"
-    : statuses.includes("failed") || result.aborted
+    : stopped !== undefined
+      ? stopped.status
+      : statuses.includes("failed") || result.aborted
       ? "failed"
       : "completed";
-  const usage = sumUsage(result.passes.map((record) => record.result.usage));
+  const usage =
+    result.passes.length > 0
+      ? sumUsage(result.passes.map((record) => record.result.usage))
+      : {
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          subagentTurns: 0,
+          wallClockMs: 0,
+          quality: stopped !== undefined ? "unavailable" as const : "complete" as const,
+        };
   const last = result.passes[result.passes.length - 1]?.result;
   return {
     status,
@@ -497,6 +537,7 @@ function resultFromPipeline(role: RoleConfig, pipelineName: string, result: Pipe
     session: last?.session ?? { runtime: role.runtime, id: `pipeline-${pipelineName}-${Date.now()}` },
     usage,
     escalations: result.passes.flatMap((record) => record.result.escalations),
+    ...(last?.errorCode !== undefined ? { errorCode: last.errorCode } : {}),
   };
 }
 
@@ -515,8 +556,46 @@ function sumUsage(usages: TurnUsage[]): TurnUsage {
     if (tokensInUncached > 0) next.tokensInUncached = tokensInUncached;
     if (cacheCreationTokens > 0) next.cacheCreationTokens = cacheCreationTokens;
     if (cacheReadTokens > 0) next.cacheReadTokens = cacheReadTokens;
+    next.quality = leastCompleteUsageQuality(acc.quality, usage.quality);
     return next;
-  }, { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0 });
+  }, { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0, quality: "complete" });
+}
+
+function leastCompleteUsageQuality(
+  left: TurnUsage["quality"],
+  right: TurnUsage["quality"],
+): NonNullable<TurnUsage["quality"]> {
+  const rank = { complete: 0, estimated: 1, partial: 2, unavailable: 3 } as const;
+  const a = left ?? "complete";
+  const b = right ?? "complete";
+  return rank[a] >= rank[b] ? a : b;
+}
+
+function journalPhaseForStatus(status: TurnResult["status"]): TurnJournal["phase"] {
+  if (status === "blocked_on_gate") return "blocked_on_gate";
+  if (status === "failed") return "failed";
+  if (status === "cancelled") return "cancelled";
+  if (status === "timed_out") return "timed_out";
+  return "done";
+}
+
+function stopDescriptor(reason: unknown): {
+  status: "cancelled" | "timed_out";
+  reason: string;
+} {
+  if (reason !== null && typeof reason === "object") {
+    const value = reason as Record<string, unknown>;
+    if (
+      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      typeof value["reason"] === "string"
+    ) {
+      return { status: value["status"], reason: value["reason"] };
+    }
+  }
+  return {
+    status: "cancelled",
+    reason: typeof reason === "string" && reason.length > 0 ? reason : "operator cancellation",
+  };
 }
 
 function triggerFromJournal(journal: TurnJournal): Trigger {
@@ -704,7 +783,14 @@ function zeroResult(status: TurnResult["status"], summary: string, role: RoleCon
     summary,
     artifacts: [],
     session: { runtime: role.runtime, id: `turn-${Date.now()}` },
-    usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0 },
+    usage: {
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      subagentTurns: 0,
+      wallClockMs: 0,
+      ...(status === "cancelled" || status === "timed_out" ? { quality: "unavailable" as const } : {}),
+    },
     escalations: [],
   };
 }

@@ -43,6 +43,8 @@ export interface RunRoleRequest {
   clock?: () => Date;
   /** Per-pass ledger settlement target — see ExecutePipelineOptions.telemetry. */
   telemetry?: { orgDir: string; trigger?: TriggerKind };
+  /** Cooperative cancellation from the owning process/dispatcher. */
+  signal?: AbortSignal;
 }
 
 export interface RunRoleResult {
@@ -113,6 +115,7 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
     },
     clock,
     ...(request.telemetry !== undefined ? { telemetry: request.telemetry } : {}),
+    ...(request.signal !== undefined ? { signal: request.signal } : {}),
   });
 
   const record = result.passes[0];

@@ -76,6 +76,9 @@ export interface LoopDriverOptions {
    *  not declare, and a merged deploy/package milestone returns a
    *  releaseTrigger for the org layer to queue as a critical op. */
   release?: ReleaseConfig;
+  /** Immutable commit/ref captured from a supplied checkout. Ticket branches
+   * start here instead of assuming `main`. */
+  baseRef?: string;
 }
 
 export interface LoopEngineOptions {
@@ -102,6 +105,8 @@ export interface LoopEngineOptions {
    *  org layer supplies the answer (loop code never reads org budget state —
    *  one-way imports). */
   budgetGuard?: () => Promise<{ allowed: boolean; reason?: string }>;
+  /** Cooperative cancellation for all provider stages in this tick. */
+  signal?: AbortSignal;
 }
 
 export interface LoopDriverResult {
@@ -216,6 +221,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       targetRepo: options.repo,
       localRepo: options.localRepo,
       worktreeRoot: options.worktreeRoot,
+      ...(options.baseRef !== undefined ? { baseBranch: options.baseRef } : {}),
     });
     if (options.turnId !== undefined) item = { ...item, turnId: options.turnId };
     if (rehydrated !== undefined) {
@@ -393,18 +399,43 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   return { lines, items, scorecardEvents: items.flatMap((item) => item.scorecardEvents ?? []) };
 }
 
-export async function defaultLoopInputs(repoSlug: string, repoDir: string): Promise<{
+export interface DefaultLoopInputOptions {
+  /** True only when the operator supplied --repo-dir. Such a checkout is an
+   * immutable source and must never be fetched/checked-out/reset. */
+  supplied?: boolean;
+  /** Required for supplied input: Operon-owned clone used for ticket branches. */
+  snapshotDir?: string;
+}
+
+export async function defaultLoopInputs(
+  repoSlug: string,
+  repoDir: string,
+  options: DefaultLoopInputOptions = {},
+): Promise<{
   gh: GhOps;
   localRepo: string;
+  baseRef?: string;
   policy: Policy;
   commands: GateCommands;
 }> {
-  ensureClone(repoSlug, repoDir);
+  let localRepo = repoDir;
+  let baseRef: string | undefined;
+  if (options.supplied === true) {
+    if (options.snapshotDir === undefined) {
+      throw new Error("loop: supplied repo input requires an Operon-owned snapshot directory");
+    }
+    const prepared = snapshotSuppliedCheckout(repoDir, options.snapshotDir);
+    localRepo = prepared.path;
+    baseRef = prepared.head;
+  } else {
+    ensureClone(repoSlug, repoDir);
+  }
   return {
     gh: new GhCliOps(repoSlug, undefined, process.env["OPERON_SELF_APPROVAL_SECRET"]),
-    localRepo: repoDir,
-    policy: await loadRequiredPolicy(join(repoDir, ".operon", "policy.yaml")),
-    commands: loadGateCommands(repoDir),
+    localRepo,
+    ...(baseRef !== undefined ? { baseRef } : {}),
+    policy: await loadRequiredPolicy(join(localRepo, ".operon", "policy.yaml")),
+    commands: loadGateCommands(localRepo),
   };
 }
 
@@ -464,6 +495,7 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string) {
     ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
     ...(engine.networkAccess === true ? { networkAccess: true } : {}),
     ...(engine.telemetry !== undefined ? { telemetry: engine.telemetry } : {}),
+    ...(engine.signal !== undefined ? { signal: engine.signal } : {}),
     ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
   };
 }
@@ -541,6 +573,27 @@ function ensureClone(repoSlug: string, repoDir: string): void {
   }
   mkdirSync(dirname(repoDir), { recursive: true });
   git(dirname(repoDir), "clone", `https://github.com/${repoSlug}.git`, repoDir);
+}
+
+function snapshotSuppliedCheckout(sourceDir: string, snapshotDir: string): { path: string; head: string } {
+  if (!existsSync(join(sourceDir, ".git"))) {
+    throw new Error(`loop: --repo-dir is not a git checkout: ${sourceDir}`);
+  }
+  if (existsSync(snapshotDir)) {
+    throw new Error(`loop: supplied-checkout snapshot already exists: ${snapshotDir}`);
+  }
+  const head = git(sourceDir, "rev-parse", "HEAD");
+  let upstream: string | undefined;
+  try {
+    upstream = git(sourceDir, "remote", "get-url", "origin");
+  } catch {
+    // A local-only repo can still run; its snapshot origin remains the source.
+  }
+  mkdirSync(dirname(snapshotDir), { recursive: true });
+  git(dirname(snapshotDir), "clone", "--quiet", "--no-hardlinks", sourceDir, snapshotDir);
+  git(snapshotDir, "checkout", "--detach", head);
+  if (upstream !== undefined) git(snapshotDir, "remote", "set-url", "origin", upstream);
+  return { path: snapshotDir, head };
 }
 
 function priority(labels: readonly string[]): number {

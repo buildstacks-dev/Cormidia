@@ -19,6 +19,7 @@ import { composeGate } from "../org/gate-compose.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { installProcessCancellation, waitForDelay } from "./process-signal.js";
 
 /**
  * Persist the scorecard events one loop tick produced into the org scorecard
@@ -121,7 +122,20 @@ export async function cmdLoop(args: string[]): Promise<number> {
 
   const localRepo = repoDir ?? join(homes.stateHome, "repos", selectedApp.name);
   const worktrees = worktreeRoot ?? join(homes.stateHome, "worktrees", selectedApp.name);
-  const inputs = await defaultLoopInputs(selectedApp.repo, localRepo);
+  const inputs = await defaultLoopInputs(selectedApp.repo, localRepo, {
+    ...(repoDir !== undefined
+      ? {
+          supplied: true,
+          snapshotDir: join(
+            homes.stateHome,
+            "repos",
+            "snapshots",
+            selectedApp.name,
+            `${Date.now()}-${process.pid}`,
+          ),
+        }
+      : {}),
+  });
   const rolesFile = await loadRoles(rolesPath);
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
   const maybeBuilderRole = roles["builder"];
@@ -134,6 +148,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
   });
 
   let sawBudgetRefusal = false;
+  const cancellation = dryRun ? undefined : installProcessCancellation();
 
   async function tick(): Promise<void> {
     // Stamp a turn id on this tick so claimed items carry one — the loop only
@@ -151,6 +166,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       commands: inputs.commands,
       maxConcurrent: appsFile.org.maxConcurrentTurns,
       turnId,
+      ...(inputs.baseRef !== undefined ? { baseRef: inputs.baseRef } : {}),
       planOnly: dryRun,
       ...(selectedApp.release !== undefined ? { release: selectedApp.release } : {}),
       // Merge authorization: the self-approval fallback must carry an HMAC tag
@@ -204,6 +220,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
             // per pass, keyed on runId (telemetry doc Defect B). Manual loop
             // spend was previously invisible to `operon budget`.
             telemetry: { orgDir: homes.stateHome, trigger: "manual" },
+            ...(cancellation !== undefined ? { signal: cancellation.signal } : {}),
             budgetGuard: async () => {
               // enforceBudgetOverlay (not a bare rollup) so the pause overlay
               // is recomputed here too: a month-old pause clears once spend
@@ -263,15 +280,20 @@ export async function cmdLoop(args: string[]): Promise<number> {
     });
   }
 
-  await tick();
-  // A refused tick ends follow mode too: an exhausted monthly cap will not
-  // clear on a 30-second cadence, and spinning would append a refusal row
-  // every tick until the month reset.
-  while (follow && !sawBudgetRefusal) {
-    await new Promise((resolve) => setTimeout(resolve, 30_000));
+  try {
     await tick();
+    // A refused tick ends follow mode too: an exhausted monthly cap will not
+    // clear on a 30-second cadence, and spinning would append a refusal row
+    // every tick until the month reset.
+    while (follow && !sawBudgetRefusal && cancellation?.signal.aborted !== true) {
+      await waitForDelay(30_000, cancellation?.signal);
+      if (cancellation?.exitCode !== undefined) break;
+      await tick();
+    }
+  } finally {
+    cancellation?.dispose();
   }
-  return sawBudgetRefusal ? 1 : 0;
+  return cancellation?.exitCode ?? (sawBudgetRefusal ? 1 : 0);
 }
 
 function needValue(args: string[], index: number, flag: string): string {

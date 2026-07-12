@@ -6,8 +6,9 @@ import { cleanupPlanningWorktree, preparePlanSession, recordPlanTelemetry, spawn
 import { runAutoPlan } from "../org/plan-auto.js";
 import { loadApps } from "../org/apps.js";
 import { resolveOperonHomes } from "../org/home.js";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { extractHomeFlags } from "./home-flags.js";
+import { installProcessCancellation } from "./process-signal.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
@@ -21,15 +22,27 @@ export async function cmdPlan(args: string[]): Promise<number> {
     const appsFile = await loadApps(join(homes.orgHome, "apps.yaml"));
     const app = appsFile.apps.find((entry) => entry.name === parsed.app);
     if (app === undefined) throw new Error(`plan: unknown app "${parsed.app}" in apps.yaml`);
+    if (parsed.dryRun) {
+      const stage = parsed.stage ?? (app.status === "onboarding" ? "bootstrap" : "mature");
+      console.log(`plan dry-run: ${app.name}`);
+      console.log(`goal: ${parsed.goal}`);
+      console.log(`stage: ${stage}`);
+      console.log(`source checkout: ${resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name))}`);
+      console.log("(dry-run: no runtime, run envelope, telemetry, learning projection, or GitHub write)");
+      return 0;
+    }
+    const cancellation = installProcessCancellation();
     const result = await runAutoPlan({
       orgHome: homes.orgHome,
       stateHome: homes.stateHome,
       app,
       appsFile,
       goal: parsed.goal,
+      ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
       ...(parsed.stage !== undefined ? { stage: parsed.stage } : {}),
       ...(parsed.noPublish ? { publish: false } : {}),
-    });
+      signal: cancellation.signal,
+    }).finally(() => cancellation.dispose());
     console.log(`plan (${result.status}): ${result.summary}`);
     if (result.plan !== undefined) {
       console.log(`stage: ${result.plan.stage}`);
@@ -43,7 +56,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
     for (const problem of result.problems ?? []) console.log(`problem: ${problem}`);
     // A plan that produced no durable output must not exit 0 (the episode's
     // stalled planner exited 0 after doing nothing).
-    return result.status === "completed" ? 0 : 1;
+    return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
   }
 
   const session = await preparePlanSession({
@@ -65,13 +78,14 @@ export async function cmdPlan(args: string[]): Promise<number> {
 
   printSummary(session, false);
   const startedAt = new Date();
-  const code = await spawnClaude(session.invocation);
+  const cancellation = installProcessCancellation();
+  const code = await spawnClaude(session.invocation, cancellation.signal).finally(() => cancellation.dispose());
   const endedAt = new Date();
   await recordPlanTelemetry({
     orgDir: homes.stateHome,
     role: session.plannerRole,
     app: session.app.name,
-    status: code === 0 ? "completed" : "failed",
+    status: cancellation.signal.aborted ? "cancelled" : code === 0 ? "completed" : "failed",
     startedAt,
     endedAt,
   });

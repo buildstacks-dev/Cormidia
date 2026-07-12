@@ -122,6 +122,7 @@ export class PiRuntime implements Runtime {
       sessionManager,
       tools: this.tools,
     });
+    hooks.onProgress?.({ session: { runtime: "pi", id: session.sessionFile ?? session.sessionId } });
 
     // Per-turn budget guard. pi's SDK has no native running budget knob (unlike
     // Claude's --max-budget-usd), so Operon enforces the cap itself: after each
@@ -132,6 +133,11 @@ export class PiRuntime implements Runtime {
     const cap = req.role.maxTurnBudgetUsd;
     let budgetOverrun = false;
     let abortPromise: Promise<void> | undefined;
+    const abortSession = (): void => {
+      abortPromise ??= session.abort();
+    };
+    if (req.signal?.aborted) abortSession();
+    else req.signal?.addEventListener("abort", abortSession, { once: true });
     let streamedText = "";
     const unsubscribe = session.subscribe((event) => {
       if (
@@ -146,13 +152,34 @@ export class PiRuntime implements Runtime {
         budgetOverrun = true;
         abortPromise = session.abort();
       }
+      if (event.type === "turn_end") {
+        const current = session.getSessionStats();
+        hooks.onProgress?.({
+          session: { runtime: "pi", id: session.sessionFile ?? session.sessionId },
+          usage: {
+            tokensIn: current.tokens.input + current.tokens.cacheRead + current.tokens.cacheWrite,
+            tokensInUncached: current.tokens.input,
+            cacheCreationTokens: current.tokens.cacheWrite,
+            cacheReadTokens: current.tokens.cacheRead,
+            tokensOut: current.tokens.output,
+            costUsd: current.cost,
+            subagentTurns: 0,
+            wallClockMs: Date.now() - startTime,
+            quality: "partial",
+          },
+        });
+      }
     });
 
+    let promptError: unknown;
     try {
       await session.prompt(req.task);
+    } catch (error) {
+      promptError = error;
     } finally {
       if (abortPromise !== undefined) await abortPromise;
       unsubscribe();
+      req.signal?.removeEventListener("abort", abortSession);
       session.dispose();
     }
 
@@ -161,6 +188,8 @@ export class PiRuntime implements Runtime {
     // after which no further boundary fires — treat the final total as an
     // overrun too so the incident note is never silently skipped.
     const overBudget = budgetOverrun || stats.cost >= cap;
+    if (promptError !== undefined && !req.signal?.aborted) throw promptError;
+    const stop = req.signal?.aborted ? piStopDescriptor(req.signal.reason) : undefined;
     const summary = overBudget
       ? `Budget overrun: turn stopped at the per-turn cap — spent $${stats.cost.toFixed(4)} ` +
         `against maxTurnBudgetUsd $${cap} (role ${req.role.name}).`
@@ -171,8 +200,8 @@ export class PiRuntime implements Runtime {
       ? [budgetOverrunNote(session.sessionFile ?? session.sessionId, stats.cost, req)]
       : piArtifacts(req);
     return {
-      status: overBudget ? "failed" : escalations.length > 0 ? "blocked_on_gate" : "completed",
-      summary,
+      status: stop?.status ?? (overBudget ? "failed" : escalations.length > 0 ? "blocked_on_gate" : "completed"),
+      summary: stop?.reason ?? summary,
       artifacts,
       session: { runtime: "pi", id: session.sessionFile ?? session.sessionId },
       usage: {
@@ -184,10 +213,38 @@ export class PiRuntime implements Runtime {
         costUsd: stats.cost,
         subagentTurns: 0,
         wallClockMs: Date.now() - startTime,
+        quality: stop === undefined ? "complete" : "partial",
       },
       escalations,
+      ...(stop !== undefined ? { errorCode: stop.errorCode } : {}),
     };
   }
+}
+
+function piStopDescriptor(reason: unknown): {
+  status: "cancelled" | "timed_out";
+  errorCode: string;
+  reason: string;
+} {
+  if (reason !== null && typeof reason === "object") {
+    const value = reason as Record<string, unknown>;
+    if (
+      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      typeof value["errorCode"] === "string" &&
+      typeof value["reason"] === "string"
+    ) {
+      return {
+        status: value["status"],
+        errorCode: value["errorCode"],
+        reason: value["reason"],
+      };
+    }
+  }
+  return {
+    status: "cancelled",
+    errorCode: "error_cancelled",
+    reason: typeof reason === "string" && reason.length > 0 ? reason : "operator cancellation",
+  };
 }
 
 export function resolvePiModel(registry: ModelRegistry, requested: string): PiModel | undefined {

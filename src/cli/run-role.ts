@@ -15,6 +15,7 @@ import { runDispatchedTurn } from "../org/turn-runner.js";
 import type { ContextBundle } from "../runtime/types.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { installProcessCancellation } from "./process-signal.js";
 
 export async function cmdRunRole(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "run-role");
@@ -55,6 +56,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     const appsFile = await loadApps(appsPath);
     const appEntry = appsFile.apps.find((entry) => entry.name === app);
     if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
+    const cancellation = installProcessCancellation();
     const result = await runDispatchedTurn({
       role,
       app: appEntry,
@@ -62,9 +64,10 @@ export async function cmdRunRole(args: string[]): Promise<number> {
       turnId,
       orgRoot: homes.orgHome,
       runtimeHome: homes.stateHome,
-    });
+      signal: cancellation.signal,
+    }).finally(() => cancellation.dispose());
     console.log(`${turnId}: ${result.status} — ${result.summary}`);
-    return result.status === "failed" ? 1 : 0;
+    return cancellation.exitCode ?? (result.status === "failed" ? 1 : 0);
   }
 
   let resolvedWorkdir = workdir ?? process.cwd();

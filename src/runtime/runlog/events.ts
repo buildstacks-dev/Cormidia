@@ -20,6 +20,8 @@ export type RunlogEventType =
   | "pass.started"
   | "pass.completed"
   | "pass.failed"
+  | "pass.cancelled"
+  | "pass.timed_out"
   | "gate.started"
   | "gate.passed"
   | "gate.failed"

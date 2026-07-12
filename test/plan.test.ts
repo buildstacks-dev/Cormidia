@@ -5,7 +5,7 @@
 // Uses local temp git repos and mocked console output; no network, auth, real
 // org state, or live wall clock is required.
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -15,6 +15,7 @@ import {
   buildClaudeInvocation,
   cleanupPlanningWorktree,
   createPlanningWorktree,
+  spawnClaude,
 } from "../src/org/plan.js";
 import { cmdPlan } from "../src/cli/plan.js";
 import type { RoleConfig } from "../src/runtime/types.js";
@@ -172,7 +173,62 @@ describe("Claude invocation", () => {
     ]);
     expect(invocation.cwd).toBe("/tmp/worktree");
   });
+
+  it.skipIf(process.platform === "win32")(
+    "cancellation terminates the native CLI process group, including descendants",
+    async () => {
+      const root = makeDir("operon-plan-process-group-");
+      const pidFile = join(root, "descendant.pid");
+      const script = join(root, "parent.cjs");
+      writeFileSync(
+        script,
+        [
+          "const { spawn } = require('node:child_process');",
+          "const { writeFileSync } = require('node:fs');",
+          "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+          "writeFileSync(process.argv[2], String(child.pid));",
+          "setInterval(() => {}, 1000);",
+          "",
+        ].join("\n"),
+      );
+      const controller = new AbortController();
+      const running = spawnClaude(
+        { command: process.execPath, args: [script, pidFile], cwd: root },
+        controller.signal,
+      );
+      await pollUntil(() => existsSync(pidFile), 1_000);
+      const descendantPid = Number(readFileSync(pidFile, "utf8"));
+      expect(processAlive(descendantPid)).toBe(true);
+
+      controller.abort({
+        status: "cancelled",
+        errorCode: "error_cancelled",
+        reason: "operator cancellation (SIGTERM)",
+      });
+      expect(await running).toBe(143);
+      await pollUntil(() => !processAlive(descendantPid), 2_500);
+      expect(processAlive(descendantPid)).toBe(false);
+    },
+    5_000,
+  );
 });
+
+async function pollUntil(predicate: () => boolean, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error(`condition not met within ${timeoutMs}ms`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe("planning worktree lifecycle", () => {
   it("creates op/plan-<slug> off main and cleans it up", async () => {
@@ -196,6 +252,37 @@ describe("planning worktree lifecycle", () => {
 });
 
 describe("cmdPlan", () => {
+  it("auto dry-run is token-free even when the legacy org has no plan-bootstrap pipeline", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    process.chdir(orgHome);
+    const stateHome = makeDir("operon-plan-auto-dry-state-");
+    const before = git(app, ["status", "--porcelain=v2", "--branch"]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "add one bounded helper",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    expect(log.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
+      "dry-run",
+    );
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
+    expect(git(app, ["status", "--porcelain=v2", "--branch"])).toBe(before);
+  });
+
   it("dry-run prints app, branch, topic, and context byte size without spawning", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp();

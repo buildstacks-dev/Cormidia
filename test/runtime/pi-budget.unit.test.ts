@@ -189,4 +189,31 @@ describe("PiRuntime per-turn budget (SDK mocked)", () => {
     // final-check path.
     expect(session.aborted).toBe(false);
   });
+
+  it("aborts the SDK session and returns checkpointed partial usage on cancellation", async () => {
+    const controller = new AbortController();
+    const session = new FakePiSession([
+      { cost: 0.4, tokens: { input: 10, output: 3, cacheRead: 2, cacheWrite: 1 } },
+      { cost: 0.8, tokens: { input: 20, output: 6, cacheRead: 4, cacheWrite: 2 } },
+    ]);
+    const progress: Array<{ usage?: { costUsd: number; quality?: string } }> = [];
+    const result = await makeRuntime(session).runTurn(
+      { ...makeReq(), signal: controller.signal },
+      {
+        gate: () => ({ allow: true }),
+        onProgress: (event) => {
+          progress.push(event);
+          if (event.usage !== undefined) controller.abort("operator SIGTERM");
+        },
+      },
+    );
+
+    expect(session.aborted).toBe(true);
+    expect(result).toMatchObject({
+      status: "cancelled",
+      summary: "operator SIGTERM",
+      usage: { costUsd: 0.4, tokensIn: 13, tokensOut: 3, quality: "partial" },
+    });
+    expect(progress.some((event) => event.usage?.quality === "partial")).toBe(true);
+  });
 });

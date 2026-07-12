@@ -21,8 +21,14 @@ import { scrubSecrets, truncatePreview } from "./redact.js";
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
  *  infra and merit never conflate (§9). */
-export type EnvelopeStatus = "running" | "completed" | "failed" | "blocked";
-const TERMINAL: EnvelopeStatus[] = ["completed", "failed", "blocked"];
+export type EnvelopeStatus =
+  | "running"
+  | "completed"
+  | "failed"
+  | "blocked"
+  | "cancelled"
+  | "timed_out";
+const TERMINAL: EnvelopeStatus[] = ["completed", "failed", "blocked", "cancelled", "timed_out"];
 
 export interface EnvelopeUsage {
   tokens_in: number;
@@ -36,6 +42,9 @@ export interface EnvelopeUsage {
   cache_read_tokens?: number;
   cache_write_tokens?: number;
   subagent_turns?: number;
+  /** Whether the snapshot is final, partial, locally estimated, or absent at
+   * the provider boundary. */
+  quality?: "complete" | "partial" | "estimated" | "unavailable";
 }
 
 export interface GateResultEntry {
@@ -76,6 +85,8 @@ export interface RunEnvelope {
   previews?: Record<string, string>;
   /** Machine error code on infra failures (§9 infra-vs-merit). */
   error_code?: string;
+  /** Human-readable terminal cause (signal, timeout, provider failure). */
+  terminal_reason?: string;
   /** REFERENCES to the L3/L2 siblings, relative to the run dir. A ref is a
    *  promise: `session_log` is declared while the run is live (the sink may
    *  still produce it) and dropped at finalize when no file was written —
@@ -115,6 +126,7 @@ export interface FinalizeOutcome {
   verdictSummary?: string;
   errorCode?: string;
   usage?: EnvelopeUsage;
+  reason?: string;
 }
 
 export async function startRun(
@@ -200,6 +212,7 @@ export async function finalizeRun(
     envelope.verdict_summary = truncatePreview(scrubSecrets(outcome.verdictSummary));
   }
   if (outcome.errorCode !== undefined) envelope.error_code = outcome.errorCode;
+  if (outcome.reason !== undefined) envelope.terminal_reason = scrubSecrets(outcome.reason);
   // Keep the session_log ref only when the sink actually produced the file —
   // a terminal envelope must never reference a file that does not exist.
   if (!existsSync(runPaths(root, app, runId).sessionLog)) {

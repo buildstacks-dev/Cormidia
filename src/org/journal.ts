@@ -12,7 +12,9 @@ export type JournalPhase =
   | "collecting"
   | "done"
   | "blocked_on_gate"
-  | "failed";
+  | "failed"
+  | "cancelled"
+  | "timed_out";
 
 /** The event that triggered a dispatched turn, persisted at dispatch time so
  *  the turn's briefs can quote the original payload with a provenance stamp

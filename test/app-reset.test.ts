@@ -113,10 +113,13 @@ describe("app reset", () => {
 
   it("archives before removing only the selected app's state and tracked GitHub work", async () => {
     const f = await fixture();
+    const input = await f.input();
+    const plan = await planAppReset(input);
 
-    const result = await executeAppReset(await f.input());
+    const result = await executeAppReset(input, plan);
 
     expect(existsSync(result.archivePath)).toBe(true);
+    expect(result.archivePath).toBe(join(f.archiveRoot, plan.archiveId));
     const manifest = JSON.parse(readFileSync(join(result.archivePath, "manifest.json"), "utf8")) as {
       kind: string;
       app: { name: string };
@@ -145,22 +148,46 @@ describe("app reset", () => {
     expect(f.gh.calls.map((call) => call.op)).toContain("deleteBranch");
   });
 
-  it("refuses execution while a selected app has an active run", async () => {
+  it("requires --force for a stale running record, then archives and resets it", async () => {
     const f = await fixture();
     write(f.stateHome, "runs/alpha/live/envelope.json", JSON.stringify(runningEnvelope()));
     const input = await f.input();
 
     const plan = await planAppReset(input);
 
+    expect(plan.staleRuns).toEqual(["live"]);
+    expect(plan.blockers.join("\n")).toContain("stale run(s): live (use --force to override)");
+    await expect(executeAppReset(input)).rejects.toThrow(/cannot reset "alpha" while stale run/);
+    expect(existsSync(join(f.stateHome, "repos", "alpha"))).toBe(true);
+    expect((await f.gh.readIssue(7)).state).toBe("OPEN");
+
+    await executeAppReset({ ...input, force: true });
+    expect(existsSync(join(f.stateHome, "runs", "alpha", "live"))).toBe(false);
+    expect((await loadApps(join(f.orgHome, "apps.yaml"))).apps).toEqual([]);
+  });
+
+  it("never forces through a fresh running heartbeat", async () => {
+    const f = await fixture();
+    write(f.stateHome, "runs/alpha/live/envelope.json", JSON.stringify(freshRunningEnvelope()));
+    const input = { ...(await f.input()), force: true };
+
+    const plan = await planAppReset(input);
+
+    expect(plan.staleRuns).toEqual([]);
     expect(plan.blockers.join("\n")).toContain("active run(s): live");
     await expect(executeAppReset(input)).rejects.toThrow(/cannot reset "alpha" while active run/);
     expect(existsSync(join(f.stateHome, "repos", "alpha"))).toBe(true);
-    expect((await f.gh.readIssue(7)).state).toBe("OPEN");
   });
 
   it("requires an exact app-name confirmation before resolving the active org", async () => {
     await expect(cmdApp(["reset", "alpha", "--execute"])).rejects.toThrow(
       "--execute requires --confirm alpha",
+    );
+  });
+
+  it("rejects --dry-run and --execute in either order", async () => {
+    await expect(cmdApp(["reset", "alpha", "--dry-run", "--execute", "--confirm", "alpha"])).rejects.toThrow(
+      "choose either --dry-run or --execute",
     );
   });
 });
@@ -183,6 +210,14 @@ function completedEnvelope(): Record<string, unknown> {
 
 function runningEnvelope(): Record<string, unknown> {
   return { ...completedEnvelope(), run_id: "live", status: "running" };
+}
+
+function freshRunningEnvelope(): Record<string, unknown> {
+  return {
+    ...runningEnvelope(),
+    started_at: "2026-07-11T19:59:00.000Z",
+    last_seen_at: "2026-07-11T19:59:00.000Z",
+  };
 }
 
 function write(root: string, rel: string, contents: string): void {

@@ -212,7 +212,9 @@ config file, not a fork.
   writes a checksummed archive outside the state home, then removes only the
   named app's Operon-managed clone/worktrees/runs/ticket state, app-attributed
   control records, and registry entry. It refuses active runs, journals,
-  locks, and pending approvals. GitHub cleanup closes only identifiable
+  locks, and pending approvals. `--force` crosses only stale run envelopes
+  with no heartbeat for ten minutes; it never crosses a fresh run or any other
+  live-work boundary. GitHub cleanup closes only identifiable
   Operon work (`op:*` issues and linked/`op/` PRs) and deletes its head
   branches; the repository, default branch, human checkout, and retained
   closed history stay intact. This is one lifecycle operation, not a new

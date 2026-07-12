@@ -19,6 +19,10 @@ import type { GhIssue, GhOps, GhPullRequest } from "../loop/github.js";
 const RESET_SCHEMA_VERSION = 1;
 const OPERATIONAL_LABEL_PREFIX = "op:";
 const ACTIVE_JOURNAL_PHASES = new Set(["assembling", "running", "collecting", "blocked_on_gate"]);
+/** A pass executor beats its envelope about every 30 seconds. Ten minutes is
+ * deliberately generous: a reset may force only an abandoned record, never a
+ * briefly delayed live pass. Kept aligned with episode stalled-run semantics. */
+export const RESET_STALE_RUN_MS = 10 * 60 * 1000;
 
 export interface AppResetOptions {
   orgHome: string;
@@ -29,6 +33,10 @@ export interface AppResetOptions {
   /** Archive parent. Defaults to a sibling of the state home so reset can
    * never remove its own backup. */
   archiveRoot?: string;
+  /** Permit reset past a `running` envelope whose heartbeat is older than
+   * RESET_STALE_RUN_MS. This never bypasses an actual lock, journal, pending
+   * approval, or a fresh heartbeat. */
+  force?: boolean;
   now?: Date;
 }
 
@@ -47,6 +55,7 @@ export interface AppResetPlan {
   managedPaths: string[];
   approvalFiles: string[];
   activeRuns: string[];
+  staleRuns: string[];
   activeJournals: Array<Pick<TurnJournal, "turnId" | "role" | "phase">>;
   activeLocks: string[];
   pendingApprovalIds: string[];
@@ -94,7 +103,10 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
   const branches = [...new Set(managedPullRequests.map((pr) => pr.headRefName))]
     .filter((branch) => branch.length > 0 && branch !== "main")
     .sort();
-  const activeRuns = status.filter((row) => row.status === "running").map((row) => row.runId);
+  const now = options.now ?? new Date();
+  const runningRows = status.filter((row) => row.status === "running");
+  const staleRuns = runningRows.filter((row) => isStaleRun(row, now)).map((row) => row.runId);
+  const activeRuns = runningRows.filter((row) => !isStaleRun(row, now)).map((row) => row.runId);
   const activeJournals = journals
     .filter((journal) => journal.app === app.name && ACTIVE_JOURNAL_PHASES.has(journal.phase))
     .map(({ turnId, role, phase }) => ({ turnId, role, phase }));
@@ -102,6 +114,9 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
 
   const blockers = [
     ...(activeRuns.length > 0 ? [`active run(s): ${activeRuns.join(", ")}`] : []),
+    ...(!options.force && staleRuns.length > 0
+      ? [`stale run(s): ${staleRuns.join(", ")} (use --force to override)`]
+      : []),
     ...(activeJournals.length > 0
       ? [`active journal(s): ${activeJournals.map((journal) => journal.turnId).join(", ")}`]
       : []),
@@ -118,6 +133,7 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
     managedPaths,
     approvalFiles: approvals.map((item) => item.path),
     activeRuns,
+    staleRuns,
     activeJournals,
     activeLocks: locks,
     pendingApprovalIds,
@@ -138,8 +154,18 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
 /** Execute a reviewed plan. The caller must obtain an explicit user
  * confirmation before reaching here. It reserves every configured role lock
  * first, so a new app turn cannot race the archive and deletion. */
-export async function executeAppReset(options: AppResetOptions): Promise<AppResetResult> {
-  const plan = await planAppReset(options);
+export async function executeAppReset(
+  options: AppResetOptions,
+  reviewedPlan?: AppResetPlan,
+): Promise<AppResetResult> {
+  const plan = reviewedPlan ?? (await planAppReset(options));
+  if (
+    plan.app.name !== options.appName ||
+    plan.orgHome !== resolve(options.orgHome) ||
+    plan.stateHome !== resolve(options.stateHome)
+  ) {
+    throw new Error("app reset: reviewed plan does not match the requested app and homes");
+  }
   if (plan.blockers.length > 0) {
     throw new Error(`app reset: cannot reset "${plan.app.name}" while ${plan.blockers.join("; ")}`);
   }
@@ -278,6 +304,14 @@ function isOperonManagedIssue(issue: GhIssue): boolean {
 
 function linkedIssueNumbers(body: string): number[] {
   return [...body.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi)].map((match) => Number(match[1]));
+}
+
+function isStaleRun(
+  row: { startedAt: string; lastSeenAt?: string },
+  now: Date,
+): boolean {
+  const heartbeat = new Date(row.lastSeenAt ?? row.startedAt).getTime();
+  return Number.isFinite(heartbeat) && now.getTime() - heartbeat > RESET_STALE_RUN_MS;
 }
 
 async function listAppLockPaths(stateHome: string, app: string): Promise<string[]> {

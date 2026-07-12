@@ -90,13 +90,15 @@ Operon-managed GitHub work, removes the app from `apps.yaml`, and clears its
 managed state after first writing an archive outside the state home:
 
 ```bash
-operon app reset <app-name> --execute --confirm <app-name>
+operon app reset <app-name> --execute --confirm <app-name> [--force]
 ```
 
 Never run `--execute` unless the human explicitly asked to reset that named
 app and has reviewed the plan. It does **not** delete the GitHub repository,
 its default branch, closed-history records, or a human checkout. Re-onboard
 with `operon bootstrap <local-repo> --answers <answers.json>` after a reset.
+`--force` is limited to stale running envelopes (no heartbeat for ten minutes)
+and never overrides a fresh run, journal, lock, or pending approval.
 
 ## Operate safely
 

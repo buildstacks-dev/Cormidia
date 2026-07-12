@@ -140,7 +140,9 @@ checksummed archive outside the state home, by default at
 never delete its own recovery material.
 
 The command takes every configured role lock for the app, and refuses if it
-finds a running envelope, active journal/lock, or pending approval. It archives
+finds a fresh-heartbeat running envelope, active journal/lock, or pending approval.
+`--force` permits an old running envelope with no heartbeat for ten minutes;
+it does not bypass any of the other live-work checks. It archives
 and removes only app-scoped managed paths (`repos/<app>`, `worktrees/<app>`,
 `runs/<app>`, `tickets/<app>`), app-attributed approval/schedule/budget/ledger
 entries, and the app registry entry. Its GitHub plan closes only issues bearing

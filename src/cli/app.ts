@@ -16,14 +16,16 @@ export async function cmdApp(args: string[]): Promise<number> {
   }
 
   let execute = false;
+  let force = false;
+  let dryRun = false;
   let confirm: string | undefined;
   let archiveRoot: string | undefined;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i]!;
     if (arg === "--execute") execute = true;
-    else if (arg === "--dry-run") {
-      if (execute) throw new Error("app reset: choose either --dry-run or --execute, not both");
-    } else if (arg === "--confirm") {
+    else if (arg === "--force") force = true;
+    else if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--confirm") {
       confirm = needValue(rest, ++i, "--confirm");
     } else if (arg === "--archive-root") {
       archiveRoot = needValue(rest, ++i, "--archive-root");
@@ -34,6 +36,7 @@ export async function cmdApp(args: string[]): Promise<number> {
   if (execute && confirm !== appName) {
     throw new Error(`app reset: --execute requires --confirm ${appName}`);
   }
+  if (execute && dryRun) throw new Error("app reset: choose either --dry-run or --execute, not both");
 
   const homes = await resolveOperonHomes(common);
   const app = homes.appsFile.apps.find((entry) => entry.name === appName);
@@ -44,22 +47,23 @@ export async function cmdApp(args: string[]): Promise<number> {
     appsFile: homes.appsFile,
     appName,
     gh: new GhCliOps(app.repo),
+    ...(force ? { force: true } : {}),
     ...(archiveRoot !== undefined ? { archiveRoot } : {}),
   };
   const plan = await planAppReset(input);
-  printPlan(plan, execute);
+  printPlan(plan, execute, force);
   if (!execute) return 0;
   if (plan.blockers.length > 0) {
     throw new Error(`app reset: execution blocked — ${plan.blockers.join("; ")}`);
   }
 
-  const result = await executeAppReset(input);
+  const result = await executeAppReset(input, plan);
   console.log(`app reset complete: ${appName}`);
   console.log(`archive: ${result.archivePath}`);
   return 0;
 }
 
-function printPlan(plan: AppResetPlan, execute: boolean): void {
+function printPlan(plan: AppResetPlan, execute: boolean, force: boolean): void {
   console.log(`App reset ${execute ? "execution plan" : "plan"}: ${plan.app.name} (${plan.app.repo})`);
   console.log(`Archive: ${plan.archiveRoot}/${plan.archiveId}`);
   console.log("Local managed paths:");
@@ -71,12 +75,18 @@ function printPlan(plan: AppResetPlan, execute: boolean): void {
   for (const pr of plan.github.pullRequests) console.log(`  PR #${pr.number}: ${pr.title} (${pr.headRefName})`);
   for (const issue of plan.github.issues) console.log(`  issue #${issue.number}: ${issue.title}`);
   for (const branch of plan.github.branches) console.log(`  branch: ${branch}`);
+  if (plan.staleRuns.length > 0) {
+    console.log(`${force ? "Forced stale" : "Stale"} run(s): ${plan.staleRuns.join(", ")}`);
+  }
   if (plan.blockers.length > 0) {
     console.log("Blocked:");
     for (const blocker of plan.blockers) console.log(`  - ${blocker}`);
   }
   if (!execute) {
-    console.log(`No changes made. To execute: operon app reset ${plan.app.name} --execute --confirm ${plan.app.name}`);
+    console.log(
+      `No changes made. To execute: operon app reset ${plan.app.name} --execute --confirm ${plan.app.name}` +
+        (plan.staleRuns.length > 0 ? " --force" : ""),
+    );
   }
 }
 

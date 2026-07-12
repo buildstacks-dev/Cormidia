@@ -91,6 +91,7 @@ describe("cli dispatch", () => {
     expect(code).toBe(0);
     expect(stdout).toContain("operon app reset <app-name>");
     expect(stdout).toContain("--execute --confirm <app-name>");
+    expect(stdout).toContain("--force");
   });
 
   it("pipelines subcommand validates the root pipelines.yaml", async () => {

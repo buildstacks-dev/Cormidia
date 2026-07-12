@@ -130,6 +130,13 @@ operator's governed-activation window: never invoke them as an agent (`emit`
 records a human-attributed observation; `review`/`publish` activate learned
 behavior).
 
+`operon learn distill --dry-run [--app <name>]` runs only the deterministic
+precheck and is safe for diagnosis. The live form writes governed candidate
+artifacts and spends tokens only when an actionable, unsuppressed evidence
+cluster survives policy caps; do not invoke the live form unless the human
+explicitly asks for a distillation run. Scheduled distiller/reviewer turns use
+the same ordinary ledger and learning-budget overlay as every provider turn.
+
 ## Diagnose
 
 Run `operon doctor --json`, `operon org show --json`, and `operon context

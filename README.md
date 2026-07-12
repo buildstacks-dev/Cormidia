@@ -241,6 +241,8 @@ learning/fingerprints/    # content-addressed SystemFingerprints
 learning/resolved/        # per-turn pinned resolve records with lineage (M4/M5; never prompt bytes)
 learning/canary/          # episode-sticky canary assignments (M5; first resolve wins)
 learning/publish-journal/ # the publisher's crash-resumable transaction journals (M4)
+learning/m6-runs/         # durable distillation/review skip, cap, failure, and output records
+learning/compaction/      # weekly report-only compaction snapshots (never bundle mutations)
 runs/learning-replay/     # reserved replay namespace (M5) — reconciled for spend,
                           # excluded from capture/episode projection
 ```
@@ -323,10 +325,10 @@ repeatable clean-room benchmark
 ([`docs/benchmark-runbook.md`](docs/benchmark-runbook.md)). On top of that
 substrate, a governed learning loop
 ([`docs/learning-loop/`](docs/learning-loop/), ratified 2026-07-11) is built
-and live through M5: every pass is captured into episodes and replay
+through M6 (M1–M5 live-verified; M6 offline-conformance-verified): every pass is captured into episodes and replay
 capsules, and learned changes activate only through human review, offline
-paired-replay evaluation, and a human-started canary (M6 scheduled
-distillation is open). The latest dated live evidence is
+paired-replay evaluation, a human-started canary, and M6 scheduled
+distillation with independent review and report-only compaction. The latest dated live evidence is
 [`research/2026-07-11_adapter-tool-events.md`](research/2026-07-11_adapter-tool-events.md);
 open work lives in the [issue tracker](https://github.com/buildstacks-dev/Operon/issues).
 

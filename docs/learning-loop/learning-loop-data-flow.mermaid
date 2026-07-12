@@ -14,9 +14,9 @@ flowchart TD
     EPISODES --> CAPSULES["ReplayCapsules (build episodes, V1)<br/>~/.operon/&lt;org&gt;/learning/capsules"]
     HUMANOBS["Human observations<br/>operon learn emit --episode"] --> EVENTS
 
-    EVENTS -->|"deterministic precheck, then window"| CLUSTER["Cluster by error_class + cause_hypothesis (M6 - not yet built)"]
+    EVENTS -->|"deterministic precheck, then window"| CLUSTER["Cluster by error_class + cause_hypothesis (M6)"]
     LEDGER["Rejection ledger"] -->|"suppression fingerprints"| CLUSTER
-    CLUSTER --> ROUTER["Destination router (M6 - not yet built)"]
+    CLUSTER --> ROUTER["Destination router (M6)"]
 
     ROUTER --> CANDS["learning/candidates/ (never resolvable)"]
     CANDS --> REVIEW["Reviewer (cross-provider role)"]

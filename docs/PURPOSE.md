@@ -1,12 +1,12 @@
 # PURPOSE — Operon
 
-*v1.7 — 2026-07-11. Human-ratified decision log. Keep this file high-level;
+*v1.8 — 2026-07-12. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
 
 A reusable **org runtime**: a standing team of AI agents (Planner, Builder,
-Reviewer, SRE, Support, Marketing) that develops and operates software
+Reviewer, SRE, Support, Marketing, Distiller, Learning Reviewer) that develops and operates software
 products, coordinated through private GitHub repos as the source of truth,
 with a human approver gating critical operations only.
 
@@ -56,6 +56,8 @@ config file, not a fork.
 | **SRE agent** | Infrastructure, scaffolding, CI/CD, deploys; attends to operational issues |
 | **Support agent** | Watches forums / tickets / feedback channels; consolidates feedback, responds to queries, feeds themes back to the Planner |
 | **Marketing agent** | Positioning, changelogs, launch notes, content drafts; watches adoption signals and feeds them to the Planner |
+| **Distiller agent** | Daily, deterministic-prechecked synthesis of captured evidence into governed candidates |
+| **Learning Reviewer agent** | Weekly cross-provider review of candidates plus report-only compaction recommendations |
 | **Human (Bikram)** | Approver for **critical ops only**; final authority |
 | **GitHub (private repo)** | Source of truth: code, tickets/issues, PRs, decisions, agent definitions |
 
@@ -452,5 +454,12 @@ will resolve them.
 - 2026-07-11 — v1.7: learning loop design ratified (v0.8 suite,
   `docs/learning-loop/`; governed self-improvement — capture → episodes →
   experiments → governed activation → offline eval + human-started canary →
-  scheduled distillation). Preflight + M1–M5 built and live-verified; M6
-  distillation open. Recorded in Decided above.
+  scheduled distillation). Preflight + M1–M5 built and live-verified; M6 was
+  still open. Recorded in Decided above.
+- 2026-07-12 — v1.8: M6 scheduled distillation built through the ordinary
+  dispatch/pipeline/ledger path: deterministic zero-token prechecks,
+  evidence clustering and dedupe/suppression, candidate/frequency/budget caps,
+  daily Distiller, weekly cross-provider Learning Reviewer, structured
+  fail-closed verdict persistence, and report-only compaction. Offline
+  conformance is complete; no token-spending live calibration run was required
+  for this implementation change.

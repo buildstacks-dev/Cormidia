@@ -852,6 +852,13 @@ distiller:
   # These run as roles.yaml triggers through the launchd dispatch tick.
   schedule: "daily 06:00"
   precheck: deterministic            # no model turn on an empty evidence window
+  evidence_window_days: 7
+  min_cluster_events: 2              # one trusted human intervention is also actionable
+  max_candidates_per_run: 5
+  max_candidates_per_week: 20
+reviewer:
+  schedule: "weekly mon 07:00"
+  max_candidates_per_run: 20
 compaction:
   schedule: "weekly mon 07:00"
   report_only_v1: true
@@ -865,12 +872,11 @@ As built, the loader (`src/org/learning/policy.ts`) reads the tier table
 (canary fraction/window, experiment requirement, promote rules — and rejects
 any policy granting T3 a canary block or a `live_canary` other than
 `forbidden`), `learning_budget`, `quarantine`, `rejections`,
-`reviewer_sla_hours`, `context_budget`, and the `ticket` destination caps.
-The other knobs shown (`version_cut`, `rollback_owner`, `approver`,
-`overrides`, `approval_routing`, and the `distiller`/`compaction` schedules)
-are deliberately unparsed until M6 — an unread policy knob would imply
-enforcement that does not exist. Version cuts happen per publish transaction,
-not on a schedule.
+`reviewer_sla_hours`, `context_budget`, the `ticket` destination caps, and the
+M6 distiller/reviewer/compaction schedules plus evidence-window and volume
+controls. The remaining descriptive knobs (`version_cut`, `rollback_owner`,
+`approver`, `overrides`, and `approval_routing`) are not executable policy;
+version cuts happen per publish transaction, not on a schedule.
 
 V1 uses low-volume thresholds. They are confidence aids, not mandatory sample
 sizes for every promotion; insufficient volume resolves to `inconclusive` plus
@@ -1035,10 +1041,13 @@ Implementation notes binding these interfaces to existing code:
   (`src/loop/github.ts` — landed). Publishes are deduped by candidate
   fingerprint and rate-capped per policy §13.
 - **Distiller/reviewer** are `roles.yaml` entries with schedule triggers,
-  executed by the normal turn runner (design §5) — M6, not yet built. As
-  built, `operon learn review` records a human-authored fail-closed verdict
-  (`src/org/learning/review.ts`); no reviewer pass exists until M6, and
-  `operon learn distill` does not exist yet.
+  executed by the normal turn runner (design §5). M6 lives in
+  `src/org/learning/distillation.ts` plus the `learning-distill` and
+  `learning-review` pipelines: deterministic prechecks gate provider turns,
+  candidate/review writes route through the existing stores, and durable M6
+  records carry skip/cap reasons. `operon learn review` remains the human
+  review surface; scheduled reviewer verdicts use the same fail-closed schema
+  and publisher flow.
 - **Gate rules**: the full protected-path list in §1, same shape as
   `scorecard-tamper` in `src/runtime/gate.ts`, each with critical-side and
   routine near-miss test cases.
@@ -1065,7 +1074,7 @@ operon learn rollback --root org|app [--app <name>]
 operon learn provisional --scope <s> --name <n> --ttl-days N --by <name>
 operon learn experiment declare|run|list
 operon learn canary start|status|promote|stop
-operon learn distill                    # M6 - not built
+operon learn distill [--app <app>] [--dry-run]
 ```
 
 ## 17. Lifecycle

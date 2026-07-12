@@ -58,9 +58,12 @@ describe("root pipelines.yaml", () => {
     expect(selectPasses(bootstrap, { tier: "deep" }).map((p) => p.id)).toEqual(["bootstrap-plan"]);
   });
 
-  it("build: quick tier skips contract, standard runs both passes", async () => {
+  it("build: every tier runs the typed contract before implementation", async () => {
     const build = getPipeline(await loadRoot(), "build");
-    expect(selectPasses(build, { tier: "quick" }).map((p) => p.id)).toEqual(["implement"]);
+    expect(selectPasses(build, { tier: "quick" }).map((p) => p.id)).toEqual([
+      "contract",
+      "implement",
+    ]);
     expect(selectPasses(build, { tier: "standard" }).map((p) => p.id)).toEqual([
       "contract",
       "implement",

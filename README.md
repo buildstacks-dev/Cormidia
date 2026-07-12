@@ -160,7 +160,7 @@ approvals.
 
 ```bash
 operon app reset buildstacks.dev
-operon app reset buildstacks.dev --execute --confirm buildstacks.dev
+operon app reset buildstacks.dev --execute --confirm buildstacks.dev --force
 ```
 
 Execution first writes a checksummed archive to
@@ -171,6 +171,10 @@ approval records, schedules, and ledger rows. It never deletes the GitHub
 repository, its default branch, a human checkout, or the GitHub history of
 closed work. Re-onboard the checkout with `operon bootstrap <local-repo>
 --answers <answers.json>` when ready.
+
+`--force` is intentionally narrow: it permits cleanup past a `running` record
+whose heartbeat is more than ten minutes old. It never overrides a fresh run,
+active journal/lock, or pending approval.
 
 Contributors can still use `pnpm dev <command>` inside the Operon source repo,
 but product and org workflows should exercise the installed `operon` command

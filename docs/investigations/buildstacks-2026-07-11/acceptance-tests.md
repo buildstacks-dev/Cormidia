@@ -1,5 +1,41 @@
 # Regression and end-to-end acceptance criteria
 
+## Verification record
+
+The focused red tests were added before each behavior change. Final local
+verification:
+
+- `pnpm test` — 108 files, 1,034 tests passed;
+- `pnpm typecheck` — passed;
+- `pnpm build` — passed;
+- `pnpm smoke:onboarding` — passed from a neutral temporary HOME/CODEX_HOME;
+- `npm pack --dry-run` — passed, 157 files in the package inventory;
+- installed `operon doctor --json` — configured Claude and Codex probes ready,
+  no model prompt; unused pi explicitly skipped;
+- installed `operon analyze --app buildstacks.dev` — all four preserved stale
+  envelopes emit `stale_running` plus `missing_finalization`;
+- installed default `operon learn report --json` — before/after learning and
+  approvals hash manifests identical;
+- offline composed E2E — Planner publishes, Builder commits, mechanical gates
+  pass, Reviewer approves, PR remains open, no merge call, telemetry records
+  human review awaiting and all required Operon stages complete.
+
+Sandbox verification used each app's operator checkout without changing its
+branch, HEAD, index, or working tree:
+
+- alpha: `npm test && npm run lint` — 55 tests, lint passed;
+- beta: `npm test` — 4 tests passed;
+- gamma: `npm test && npm run lint && npm run smoke:sre && npm run
+  smoke:support && npm run smoke:marketing` — 45 tests plus all role smokes;
+- delta: `npm test && npm run lint` — 53 tests, ESLint passed;
+- all four: installed `operon bootstrap --scan-only`, adaptive `plan --auto
+  --dry-run --workdir <checkout>`, and `loop --dry-run --repo-dir <checkout>`
+  from temporary state homes. All source checkouts were preserved; no ready
+  live ticket was claimed.
+
+The disposable real-GitHub test is the sole skipped acceptance: GitHub auth is
+ready, but `GH_SANDBOX_REPO` is unset.
+
 ## Lifecycle and cancellation
 
 - A runtime receives one abort signal on SIGINT, SIGTERM, explicit cancel, and

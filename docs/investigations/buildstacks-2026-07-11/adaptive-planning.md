@@ -9,6 +9,7 @@ only the chosen existing human-ratified protocol passes. Quick selects one
 combined decomposer (or the existing one-pass bootstrap protocol), standard
 selects visionary → PM-A → decomposer, and deep selects the full competing-
 PM/arbitrator/decomposer path. No ratified prompt or safety gate was weakened.
+The implementation commit is `3c631cb`.
 
 Every pass envelope carries `planning_route`: factor values, decision
 rationale, selected and skipped passes with reasons, and a historical-median

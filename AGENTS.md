@@ -133,7 +133,8 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
   `pnpm dev task fallback --id <id> --reason "<why>"` ·
   `pnpm dev task finish --id <id> --status completed` ·
   `pnpm dev retro --date 2026-07-04` ·
-  `pnpm dev learn report` · `pnpm dev learn inspect <episode-id>` ·
+  `pnpm dev learn report [--refresh]` (read-only unless refreshed) ·
+  `pnpm dev learn inspect <episode-id>` ·
   `pnpm dev learn emit --episode <id> --observation "<text>"` ·
   `pnpm dev learn fixture <episode-id> --set roles/<role>/<set>
   [--validate --by <name>]` ·
@@ -153,7 +154,8 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
   `pnpm dev learn canary stop --root org|app --reason "<why>"` ·
   `pnpm dev run-role <role> --app <app> --dry-run` ·
   `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs` ·
-  `pnpm dev doctor`
+  `pnpm dev doctor [--config-only]` (default probes configured adapter readiness
+  without a model turn; config-only never claims readiness)
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`
   (idempotent private repo/label setup) then
   `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox` (creates and merges one

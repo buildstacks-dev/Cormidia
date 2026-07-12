@@ -3,6 +3,24 @@
 Telemetry is a provenance graph rooted at a delegated operator task. Pass
 envelopes remain the execution facts; they are no longer the top-level story.
 
+## Implementation status
+
+Implemented in commits `8c237a2`, `20fafc5`, `3c631cb`, `c27523e`, and
+`4fa4ac5`. New parent tasks persist the exact prompt artifact, native task
+reference, repository/charter evidence, fallback mode, lifecycle fields, and
+result graph. Pass envelopes persist runtime/model/effort, actual workdir/git
+identity, authority, session/transcript capability, prompts/outputs/activity,
+usage quality, terminal reason, trace manifests, and planning routing. HTML
+reports create adjacent redacted evidence bundles with relative links and a
+visible completion-integrity section.
+
+Legacy runs are intentionally not synthesized into parent tasks. Where the
+July evidence predates a field, the regenerated report says `unknown` or `not
+recorded`; it never infers a parent prompt, Reviewer approval, PR state, or
+complete cost. Provider-native transcript availability remains provider-
+dependent, and GitHub lifecycle facts must be captured in the parent-task
+result when no connected GitHub state source is available.
+
 ## Parent task record
 
 Store under `tasks/<task-id>/task.json` with an immutable prompt artifact and

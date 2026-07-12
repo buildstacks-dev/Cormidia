@@ -14,7 +14,7 @@ inspection supports it.
 - Evidence: original Codex task; `operon-bugs.md` #5; trace `plan-buildstacks.dev-1783798200442`; `src/cli/plan.ts` parses `dryRun` but omits it from `runAutoPlan` options.
 - Suspected subsystem: confirmed in `src/cli/plan.ts` auto-mode dispatch.
 - Acceptance test: inject a runtime/GitHub fake that throws on construction; auto dry-run exits 0, prints routing/passes, and writes no state.
-- Fix status: confirmed; not yet implemented; commit/PR: pending.
+- Fix status: implemented and regression-tested; commit `0625c32`.
 
 ## BS-002 — `plan --auto --workdir` ignores the supplied checkout
 
@@ -26,7 +26,7 @@ inspection supports it.
 - Evidence: all planning briefs; managed-clone and operator-checkout HEADs; `src/cli/plan.ts` drops `workdir`; `src/org/plan-auto.ts` unconditionally calls `ensureManagedClone`.
 - Suspected subsystem: confirmed in auto-plan CLI/options and workdir resolution.
 - Acceptance test: seed divergent refs, run with a supplied checkout, assert runtime cwd/brief/envelope HEAD match it and branch/HEAD remain unchanged.
-- Fix status: confirmed; pending.
+- Fix status: implemented and regression-tested; commit `0625c32`.
 
 ## BS-003 — `loop --repo-dir` destructively normalizes an operator checkout
 
@@ -38,7 +38,7 @@ inspection supports it.
 - Evidence: original task commentary; checkout reflog/state; `src/cli/loop.ts` passes `repoDir` to `defaultLoopInputs`; `src/loop/driver.ts::ensureClone` runs `fetch`, `checkout main`, and `reset --hard origin/main` on any supplied Git repo.
 - Suspected subsystem: confirmed in loop driver clone preparation.
 - Acceptance test: snapshot branch, HEAD, index, and working tree before a loop dry/live setup; all remain byte-for-byte unchanged.
-- Fix status: confirmed; pending.
+- Fix status: implemented and regression-tested; commit `0625c32`.
 
 ## BS-004 — Parent termination does not cancel provider descendants
 
@@ -50,7 +50,7 @@ inspection supports it.
 - Evidence: thread items 12, 18, and 19; post-stop timestamps; implement `session.log`; current `Runtime` contract has no `AbortSignal`; Codex spawns a child without process-group ownership; pipeline watchdog abandons the losing promise.
 - Suspected subsystem: confirmed across CLI signal handling, `src/loop/pipeline.ts`, runtime contract, and adapters.
 - Acceptance test: SIGTERM kills parent and nested child, no subsequent pass starts, and terminal cancellation is durable.
-- Fix status: confirmed; pending.
+- Fix status: implemented and regression-tested; commit `0625c32`.
 
 ## BS-005 — Interrupted passes never finalize
 
@@ -62,7 +62,7 @@ inspection supports it.
 - Evidence: four envelopes and event streams; envelope status union lacks cancelled/timed-out; finalization occurs only after `runTurn` resolves; watchdog abandons the live turn.
 - Suspected subsystem: confirmed in pass executor/envelope schema.
 - Acceptance test: cancellation and timeout each finalize once with distinct status/reason and terminal events.
-- Fix status: confirmed; pending.
+- Fix status: implemented and regression-tested; commit `0625c32`.
 
 ## BS-006 — `operon analyze` ignores stale running envelopes
 
@@ -74,7 +74,7 @@ inspection supports it.
 - Evidence: installed CLI output; `src/runtime/runlog/anomalies.ts` only evaluates `wall_clock_ms`, which running envelopes do not have.
 - Suspected subsystem: confirmed in runlog anomaly detector.
 - Acceptance test: deterministic clock yields stale-run flags and non-stale heartbeats do not.
-- Fix status: confirmed; pending.
+- Fix status: implemented and regression-tested; commit `421e7cc`.
 
 ## BS-007 — Usage and cost are committed only after a provider turn returns
 
@@ -86,7 +86,7 @@ inspection supports it.
 - Evidence: Codex adapter accumulates usage in memory on `thread/tokenUsage/updated`; the executor writes envelope usage only after `runTurn` resolves.
 - Suspected subsystem: confirmed in runtime hook contract, Codex adapter state, and pipeline envelope settlement.
 - Acceptance test: a usage update followed by cancellation leaves partial tokens/cost in the envelope and ledger exactly once.
-- Fix status: confirmed; pending.
+- Fix status: implemented and regression-tested; commit `0625c32`.
 
 ## BS-008 — Telemetry renders unavailable usage as exact zero
 
@@ -98,7 +98,7 @@ inspection supports it.
 - Evidence: HTML and telemetry JSON; report view defaults absent fields to zero.
 - Suspected subsystem: confirmed in CLI telemetry view/schema.
 - Acceptance test: missing usage renders `unavailable`; checkpointed cancellation renders `partial`; complete estimate remains `estimated`.
-- Fix status: confirmed; pending.
+- Fix status: implemented and regression-tested; commit `8c237a2`.
 
 ## BS-009 — Planning traces have no terminal trace outcome or plan-of-record status
 
@@ -110,7 +110,8 @@ inspection supports it.
 - Evidence: trace maps, untracked PM artifacts, no decomposer envelope, and manually created GitHub tickets.
 - Suspected subsystem: telemetry has only pass grouping; no trace record/schema.
 - Acceptance test: interrupted planning renders `incomplete — intermediate artifacts only; no plan of record`.
-- Fix status: confirmed; pending.
+- Fix status: implemented as derived trace integrity plus fail-closed
+  plan-of-record completion; commits `8c237a2` and `3c631cb`.
 
 ## BS-010 — Intermediate Planner artifacts are written into a shared managed clone
 
@@ -122,7 +123,8 @@ inspection supports it.
 - Evidence: managed clone `git status`; PM session logs; both traces use the same cwd.
 - Suspected subsystem: auto-plan workdir selection and planning protocol artifact placement.
 - Acceptance test: concurrent traces have disjoint worktrees; abandoned artifacts are linked from trace records and never contaminate the shared clone.
-- Fix status: confirmed; pending.
+- Fix status: implemented with trace-scoped planning snapshots; commit
+  `0625c32`.
 
 ## BS-011 — Manual/external fallback lineage is absent
 
@@ -134,7 +136,7 @@ inspection supports it.
 - Evidence: original task, state claim files, missing #27/#28 envelopes, PR closing references.
 - Suspected subsystem: no parent delegated-task/provenance record.
 - Acceptance test: parent task report lists all three issues and marks Builder/Reviewer stages `manual` or `bypassed`.
-- Fix status: confirmed; pending.
+- Fix status: implemented and regression-tested; commit `20fafc5`.
 
 ## BS-012 — Lifecycle labels conflate implementation, CI, review, and merge readiness
 
@@ -146,7 +148,8 @@ inspection supports it.
 - Evidence: GitHub issue/PR JSON and absent review envelopes.
 - Suspected subsystem: ticket state machine/completion projection.
 - Acceptance test: each lifecycle transition requires its own evidence; green CI alone cannot advance to approved.
-- Fix status: confirmed; pending.
+- Fix status: implemented as explicit parent-task lifecycle fields; commits
+  `20fafc5` and `a4a6559`.
 
 ## BS-013 — Completion can be claimed when required Operon stages were bypassed
 
@@ -158,7 +161,8 @@ inspection supports it.
 - Evidence: original final answer, run inventory, GitHub reviews.
 - Suspected subsystem: absent parent-task completion-integrity evaluator.
 - Acceptance test: the report may say product outcome complete, but must say `Operon end-to-end: incomplete` with missing stages.
-- Fix status: confirmed; pending.
+- Fix status: implemented fail-closed for missing stages/manual fallback;
+  commit `20fafc5`.
 
 ## BS-014 — Existing orgs can lack the pipeline hard-coded by `plan --auto`
 
@@ -170,7 +174,8 @@ inspection supports it.
 - Evidence: active `pipelines.yaml`; `operon-bugs.md` #1; `src/org/plan-auto.ts` hard-coded lookup.
 - Suspected subsystem: org upgrade compatibility and planning route resolution.
 - Acceptance test: legacy org gets a deterministic non-mutating migration error or supported synthesized route; no ad-hoc protocol edit required.
-- Fix status: confirmed; pending.
+- Fix status: implemented with legacy `plan/decomposer` fallback; commit
+  `3c631cb`.
 
 ## BS-015 — Adapter health is constructor presence, not readiness
 
@@ -182,7 +187,8 @@ inspection supports it.
 - Evidence: installed doctor output and `src/cli/doctor.ts`, which only calls `getRuntime`.
 - Suspected subsystem: doctor/adapter diagnostics contract.
 - Acceptance test: unavailable runtime is `FAIL`; slow probe times out; healthy probe performs no model turn.
-- Fix status: confirmed; pending.
+- Fix status: implemented with bounded, non-billable configured-runtime
+  probes; commit `b7385db`.
 
 ## BS-016 — Adapter initialization has no dedicated bounded start timeout
 
@@ -194,7 +200,8 @@ inspection supports it.
 - Evidence: Codex initialize/thread/start awaits; Claude stream waits for first message; no start timer/abort signal.
 - Suspected subsystem: runtime contract and adapters.
 - Acceptance test: no first provider event within the configured start timeout cancels the session and finalizes `failed` with `error_adapter_start_timeout`.
-- Fix status: confirmed; pending.
+- Fix status: implemented as a separate first-provider-event deadline;
+  commit `b7385db`.
 
 ## BS-017 — Learning report previously referenced a missing projected event
 
@@ -206,7 +213,8 @@ inspection supports it.
 - Evidence: original task turn 2; `operon-bugs.md` #10; post-investigation projection caveat in evidence.md.
 - Suspected subsystem: partially confirmed; historical failure is credible, current capture code tolerates missing run event streams. Root cause requires a crash-order fixture.
 - Acceptance test: crash between event projection and cursor/episode update, then rerun; report succeeds idempotently without dangling refs.
-- Fix status: partially confirmed; regression fixture pending.
+- Fix status: reproduced as a stale receipt with a missing promised file;
+  recovery and degrade-explicitly readers implemented in commit `0cf17e0`.
 
 ## BS-018 — Nominally read-only learning commands mutate derived state
 
@@ -218,7 +226,8 @@ inspection supports it.
 - Evidence: timestamp/hash inventory in evidence.md; `src/cli/learn.ts` comments say every read refreshes projections.
 - Suspected subsystem: learning CLI command semantics.
 - Acceptance test: default report performs no writes; explicit refresh writes atomically and reports what changed.
-- Fix status: newly confirmed; pending.
+- Fix status: implemented; report is read-only by default and `--refresh` is
+  explicit; commit `9f0e945`.
 
 ## BS-019 — Session logs are tool activity, not transcripts
 
@@ -230,7 +239,8 @@ inspection supports it.
 - Evidence: all session logs and envelope schema; `TurnResult.session` is discarded before envelope finalization.
 - Suspected subsystem: run envelope/provenance persistence and HTML links.
 - Acceptance test: Codex run exposes `codex://threads/<id>`; tool log is labeled activity log; unavailable transcript says so.
-- Fix status: confirmed; pending.
+- Fix status: implemented with native session evidence, honest transcript
+  availability, and activity-log labeling; commit `8c237a2`.
 
 ## BS-020 — Telemetry starts at passes, not the delegated operator task
 
@@ -242,7 +252,8 @@ inspection supports it.
 - Evidence: HTML report and original task URI.
 - Suspected subsystem: no parent-task schema/store/CLI flags.
 - Acceptance test: report begins with exact prompt/reference, repo state, charter hash, outcome graph, and fallback status.
-- Fix status: confirmed; pending.
+- Fix status: implemented with exact prompt artifact, native task reference,
+  fallback ledger, and outcome graph; commit `20fafc5`.
 
 ## BS-021 — Planning depth is ceremony-driven rather than proportional
 
@@ -254,7 +265,7 @@ inspection supports it.
 - Evidence: pipeline config and `$7.5157565` finalized planning cost without a plan of record.
 - Suspected subsystem: pipeline selection lacks planning-depth inputs/policy.
 - Acceptance test: table-driven routing, including short high-risk prompts forced deep and long clear low-risk prompts allowed quick.
-- Fix status: product design complete in adaptive-planning.md; implementation pending.
+- Fix status: implemented as `planning-depth/v1`; commit `3c631cb`.
 
 ## BS-022 — Onboarding has no durable delegated-operator authority charter
 
@@ -266,7 +277,8 @@ inspection supports it.
 - Evidence: org/app artifacts, context assembly, envelope schema.
 - Suspected subsystem: org init, bootstrap, context assembly, and run envelope.
 - Acceptance test: conservative/delegated/custom onboarding choices; safe composition with existing AGENTS.md/CLAUDE.md; narrowing only; critical gates unchanged.
-- Fix status: product design complete in delegated-operator-charter.md; implementation pending.
+- Fix status: implemented across org init, bootstrap, native context, briefs,
+  tasks, and envelopes; commit `c27523e`.
 
 ## BS-023 — Pre-ticket planning grouped as “(no ticket)” is expected but under-explained
 
@@ -278,7 +290,8 @@ inspection supports it.
 - Evidence: telemetry grouping by optional `ticket` field.
 - Suspected subsystem: report presentation/provenance, not pass attribution.
 - Acceptance test: pre-ticket planning is named explicitly and linked to published tickets or an incomplete-plan outcome.
-- Fix status: expected core behavior; presentation fix pending.
+- Fix status: expected core behavior; presentation now says `Pre-ticket
+  planning`; commit `4fa4ac5`.
 
 ## BS-024 — Open issues referenced by an open closing PR are expected
 
@@ -290,4 +303,5 @@ inspection supports it.
 - Evidence: GitHub `closedByPullRequestsReferences` and `closingIssuesReferences`.
 - Suspected subsystem: none; telemetry needs clearer GitHub-state presentation.
 - Acceptance test: completion section says “will close on merge” while PR is open, then “closed by merge” afterward.
-- Fix status: expected; telemetry enhancement pending.
+- Fix status: expected behavior; conditional close-on-merge state is explicit
+  in parent-task telemetry; commit `20fafc5`.

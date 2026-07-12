@@ -122,5 +122,4 @@ broadest profile.
 The implementation lives in `src/org/authority.ts`, `src/org/home.ts`,
 `src/org/bootstrap.ts`, `src/org/context.ts`, and the run-envelope/task paths.
 Focused coverage is in `test/authority.test.ts`, the onboarding tests, and the
-pipeline envelope tests. The associated commit is recorded in
-`implementation-plan.md` after the slice lands.
+pipeline envelope tests. The implementation commit is `c27523e`.

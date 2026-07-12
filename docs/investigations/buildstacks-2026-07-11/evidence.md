@@ -107,3 +107,35 @@ f8db4f0cf5af961704fb7a61a68289a17b6dab6f5ca156e911629d3649c8982f  20260711-19411
 
 The full brief/output/session/event hash inventory can be regenerated without
 mutating evidence using `shasum -a 256 runs/buildstacks.dev/*/{envelope.json,events.jsonl,brief.md,output.md,session.log}`.
+
+## Post-fix verification artifacts
+
+These are derived reports outside the historical state home; generating them
+did not repair or rewrite any July run artifact.
+
+| Artifact | SHA-256 / result |
+| --- | --- |
+| `/private/tmp/buildstacks-operon-telemetry-2026-07-11-improved.html` | `d8788d36131138f59343af8e5245be51f64d0e2ccfd52f91e05d5069f576b5a7` |
+| `/private/tmp/buildstacks-operon-telemetry-2026-07-11-improved.json` | `a45f063c36f7356be03d2926877bf141d77e0c3d0f0979f66f4c93a45565d311` |
+| `/private/tmp/buildstacks-operon-telemetry-2026-07-11-improved.evidence/` | 41 redacted/copied evidence files with relative HTML links |
+| learning-state hashes before/after installed `operon learn report --json` | identical manifest SHA-256 `6990a988c9829611fa4f4dafcdfc9b98a74bfddcd1482cee0d415a660a3a83e2` |
+| `/private/tmp/buildstacks-learning-readonly-report.json` | `7e44c969b366d792f5ff779194bf1a8c0b702762cda113040821d87a838dced3` |
+
+The improved report still—correctly—shows nine historical passes, four
+interrupted/stale envelopes, unavailable cost completeness, a missing Reviewer,
+no parent task record, and unverified PR state. Old envelopes lack the new
+required-pass manifest, so trace completeness is `unknown`, not retroactively
+invented. Planning is labeled `Pre-ticket planning` in current reports.
+
+The installed CLI (`/Users/bikram/.local/bin/operon`) supplied two additional
+behavioral checks against the preserved state:
+
+- `operon analyze --app buildstacks.dev` emits both `stale_running` and
+  `missing_finalization` for each of the four historical envelopes.
+- `operon doctor --json` runs non-billable control-plane probes and reported
+  Claude ready in 915 ms, Codex App Server ready in 83 ms, and pi skipped
+  because no active-org role uses it. No model prompt was sent.
+
+The read-only learning report reports five already captured runs, four pending
+historical runs, and one legacy receipt that would be rebound only by an
+explicit `--refresh`. That refresh was not run against the evidence state.

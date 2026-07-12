@@ -3,6 +3,30 @@
 Each slice is independently reviewable and ends with tests plus a coherent
 commit. Later slices depend on the contracts established earlier.
 
+## Execution record
+
+All bounded slices are implemented. Historical envelopes were deliberately
+left untouched; the fixes govern new work and diagnostics now identify the old
+failure shapes.
+
+| Slice | Status | Commit(s) |
+| --- | --- | --- |
+| 0 — forensic baseline | complete | `ab98be8` |
+| 1 — owned execution and containment | complete | `0625c32` |
+| 2 — usage durability and stale analysis | complete | `0625c32`, `421e7cc`, `8c237a2` |
+| 3 — provenance and completion integrity | complete | `8c237a2`, `20fafc5`, `4fa4ac5` |
+| 4 — adaptive planning | complete | `3c631cb` |
+| 5 — delegated authority | complete | `c27523e` |
+| 6 — end-to-end integrity proof | complete offline | `a4a6559` |
+| Follow-up — learning projection/report integrity | complete | `0cf17e0`, `9f0e945` |
+| Follow-up — adapter admission diagnostics | complete | `b7385db` |
+
+The disposable live GitHub E2E was not run because `GH_SANDBOX_REPO` is not
+set. `gh` authentication is available, but inventing a target repository would
+cross the test's explicit safety boundary. The offline composed acceptance uses
+real git worktrees and fake GitHub/provider boundaries and proves Planner →
+Builder → CI/gates → Reviewer → open PR awaiting human merge.
+
 ## Slice 0 — Forensic baseline and failing tests
 
 Dependencies: none.

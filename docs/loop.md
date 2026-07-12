@@ -667,14 +667,15 @@ availability is explicit in `envelope.session`: Codex records a native
 so rather than relabeling the activity log. Plus `app`, `ticket`,
 `pipeline`, `pass`, `role`, `model` on everything.
 - **L2 event taxonomy:** `run.started/completed`,
-`pass.started/completed/failed`, `gate.started/passed/failed`,
+`pass.started/heartbeat/completed/failed`, `gate.started/passed/failed`,
 `tool.called` (name, duration, success — never full args),
 `subagent.started/completed`, `ticket.transition`, `verdict.recorded`,
 `escalation.raised`, `telemetry.settle_skipped` (a ledger settle found its
 app+runId already present — Stage 1). Every line timestamped, severity
 field, machine `error_code`. **Stage 3 additions:** the executor stamps a
-30-second heartbeat onto the envelope (`last_seen_at`) so live and stalled
-passes are distinguishable; a separate 30-second adapter-start deadline waits
+30-second heartbeat onto the envelope (`last_seen_at`) and emits
+`pass.heartbeat` into `events.jsonl`, so status readers and live tails can
+distinguish active passes from stalled ones; a separate 30-second adapter-start deadline waits
 for the first provider progress/event and aborts an initialization/auth/
 transport stall as `failed(error_adapter_start_timeout)`; a per-pass
 wall-clock watchdog

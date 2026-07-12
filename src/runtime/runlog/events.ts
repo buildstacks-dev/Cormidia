@@ -18,6 +18,7 @@ export type RunlogEventType =
   | "run.started"
   | "run.completed"
   | "pass.started"
+  | "pass.heartbeat"
   | "pass.completed"
   | "pass.failed"
   | "pass.cancelled"

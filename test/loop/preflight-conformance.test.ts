@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { executePipeline, type ExecutePipelineOptions } from "../../src/loop/pipeline.js";
 import { getPipeline, loadPipelines } from "../../src/loop/pipelines.js";
+import { readEvents } from "../../src/runtime/runlog/events.js";
 import { readStatusRows } from "../../src/runtime/runlog/status.js";
 import { reconcileLedger } from "../../src/org/budget.js";
 import { FakeRuntime, type ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";
@@ -132,7 +133,7 @@ describe("learning-loop preflight conformance (issue #28)", () => {
     }
   });
 
-  it("a hung pass is distinguishable from a live one: the heartbeat stamps last_seen_at mid-turn", async () => {
+  it("a hung pass is distinguishable from a live one in status and a live event tail", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const clock = new FakeClock(new Date(Date.UTC(2026, 6, 5, 9, 30, 15)));
     let releaseTurn!: () => void;
@@ -177,6 +178,11 @@ describe("learning-loop preflight conformance (issue #28)", () => {
       expect(new Date(stamped.lastSeenAt!).getTime()).toBeGreaterThan(
         new Date(stamped.startedAt).getTime(),
       );
+      const liveEvents = await readEvents(h.home.root, "civic", stamped.runId);
+      expect(liveEvents.at(-1)).toMatchObject({
+        event: "pass.heartbeat",
+        detail: { observed_at: stamped.lastSeenAt },
+      });
 
       // The turn returns; the pass finalizes terminal, not stuck running.
       releaseTurn();

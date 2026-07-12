@@ -52,6 +52,43 @@ test.beforeAll(async () => {
     refs: { tickets: ["#1"], traces: ["trace-1"], branches: [], prs: [], reviews: [], deployments: [] },
   }, null, 2)}\n`);
   write(stateHome, "tasks/task-1/prompt.md", "Exact outer prompt\n");
+  write(stateHome, "runs/alpha/run-2/envelope.json", `${JSON.stringify({
+    schema_version: 1,
+    run_id: "run-2",
+    trace_id: "trace-2",
+    parent_task_id: "task-2",
+    app: "alpha",
+    ticket: "#2",
+    pipeline: "review",
+    pass: "historical-review",
+    role: "reviewer",
+    runtime: "claude",
+    model: "claude-opus-4-1",
+    effort: "high",
+    status: "completed",
+    started_at: "2026-07-11T10:00:00.000Z",
+    finished_at: "2026-07-11T10:02:00.000Z",
+    wall_clock_ms: 120_000,
+    usage: { tokens_in: 20, tokens_out: 10, cost_usd: 0.3, quality: "complete" },
+    previews: { output: "Historical review complete" },
+    refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md", session_log: "session.log" },
+  }, null, 2)}\n`);
+  write(stateHome, "runs/alpha/run-2/events.jsonl", `${JSON.stringify({
+    trace_id: "trace-2", span_id: "historical-review", app: "alpha", ticket: "#2", pipeline: "review", pass: "historical-review", role: "reviewer", model: "claude-opus-4-1",
+    ts: "2026-07-11T10:01:00.000Z", event: "review.completed", severity: "info", detail: { findings: 0 },
+  })}\n`);
+  write(stateHome, "tasks/task-2/task.json", `${JSON.stringify({
+    schemaVersion: 1, taskId: "task-2", app: "alpha", objective: "Earlier completed delivery", promptRef: "prompt.md", promptSha256: "b".repeat(64),
+    requiredStages: ["reviewer"], executionMode: "operon", fallbackEvents: [], status: "completed", startedAt: "2026-07-11T09:55:00.000Z", endedAt: "2026-07-11T10:03:00.000Z",
+    refs: { tickets: ["#2"], traces: ["trace-2"], branches: [], prs: [], reviews: [], deployments: [] },
+  }, null, 2)}\n`);
+  write(stateHome, "tasks/task-2/prompt.md", "Earlier outer prompt\n");
+  write(stateHome, "runs/beta/run-collision/envelope.json", `${JSON.stringify({
+    schema_version: 1, run_id: "run-collision", trace_id: "trace-2", app: "beta", pipeline: "build", pass: "beta-collision", role: "builder",
+    runtime: "codex", model: "gpt-5.5", status: "completed", started_at: "2026-07-10T10:00:00.000Z", finished_at: "2026-07-10T10:01:00.000Z",
+    wall_clock_ms: 60_000, usage: { tokens_in: 10, tokens_out: 5, cost_usd: 9.99, quality: "complete" },
+    refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md", session_log: "session.log" },
+  }, null, 2)}\n`);
   github = new MutableGitHub();
   service = new ObserveService({
     orgName: "fixture-org",
@@ -84,6 +121,11 @@ test("renders live overview safely, supports keyboard inspection, artifacts, fil
   await expect(page.getByText("READ ONLY")).toBeVisible();
   await expect(page.locator("#connection")).toHaveText("live");
   await expect(page.getByText("fixture-org", { exact: false })).toBeVisible();
+  await expect(page.locator("#session-selector")).toHaveValue("");
+  await expect(page.locator("#session-selector option")).toHaveCount(4);
+  await expect(page.locator("#session-selector")).toContainText("task-1");
+  await expect(page.locator("#session-selector")).toContainText("task-2");
+  await expect(page.locator("#session-selector")).toContainText("beta");
   await expect(page.locator(".ticket")).toHaveCount(1);
   await expect(page.locator(".delivery-column").filter({ hasText: "Ready" }).locator(".ticket")).toHaveCount(1);
   expect(await page.evaluate(() => (window as unknown as { __operonInjected?: boolean }).__operonInjected)).toBeUndefined();
@@ -104,6 +146,25 @@ test("renders live overview safely, supports keyboard inspection, artifacts, fil
   await expect(page).toHaveURL(/app=alpha/);
   await page.reload();
   await expect(page.locator("#app-filter")).toHaveValue("alpha");
+
+  await page.locator("#session-selector").selectOption("task:task-2");
+  await expect(page).toHaveURL(/session=task%3Atask-2/);
+  await expect(page.locator("#session-mode")).toHaveText("historical");
+  await expect(page.locator("#activity-title")).toHaveText("Historical activity");
+  await expect(page.locator(".trace-node")).toHaveCount(1);
+  await expect(page.locator(".trace-node")).toContainText("historical-review");
+  await expect(page.locator("#activity")).toContainText("review.completed");
+  await expect(page.locator("#activity")).not.toContainText("tool.called");
+  await expect(page.locator("#history")).toContainText("task-2");
+  await expect(page.locator("#history")).not.toContainText("task-1");
+  await expect(page.locator("#totals")).toContainText("$0.30");
+  await page.reload();
+  await expect(page.locator("#session-selector")).toHaveValue("task:task-2");
+
+  await page.locator("#session-selector").selectOption("");
+  await expect(page).not.toHaveURL(/session=/);
+  await expect(page.locator("#session-mode")).toHaveText("live");
+  await expect(page.locator(".trace-node")).toHaveCount(3);
 
   github.issue.labels = ["op:building", "p1"];
   await service.refreshGithubNow();
@@ -154,7 +215,10 @@ function appsFile(): AppsFile {
   return {
     org: { name: "fixture-org", maxConcurrentTurns: 2 },
     defaults: { budgetUsdMonth: 1000 },
-    apps: [{ name: "alpha", repo: "owner/alpha", status: "live", budgetUsdMonth: 1000, cadence: {}, channels: {} }],
+    apps: [
+      { name: "alpha", repo: "owner/alpha", status: "live", budgetUsdMonth: 1000, cadence: {}, channels: {} },
+      { name: "beta", repo: "owner/beta", status: "paused", budgetUsdMonth: 1000, cadence: {}, channels: {} },
+    ],
   };
 }
 

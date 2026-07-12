@@ -14,7 +14,15 @@ export const OBSERVE_HTML = `<!doctype html>
       <span id="connection" class="status unknown">connecting</span>
       <span id="identity">Loading observer…</span>
     </div>
-    <div id="totals" class="totals"></div>
+    <div class="header-actions">
+      <label class="session-control">Session
+        <select id="session-selector" aria-label="Choose live or historical session">
+          <option value="">Live org</option>
+        </select>
+      </label>
+      <span id="session-mode" class="pill live">live</span>
+      <div id="totals" class="totals"></div>
+    </div>
   </header>
   <nav class="filters" aria-label="Observer filters">
     <label>App <select id="app-filter"><option value="">All apps</option></select></label>
@@ -43,7 +51,7 @@ export const OBSERVE_HTML = `<!doctype html>
         <div id="graph" class="graph" tabindex="0"></div>
       </div>
       <div>
-        <div class="section-heading"><h2>Live activity</h2><button id="resume-stream" type="button" hidden>Resume latest</button></div>
+        <div class="section-heading"><h2 id="activity-title">Live activity</h2><button id="resume-stream" type="button" hidden>Resume latest</button></div>
         <ol id="activity" class="activity" aria-live="polite" aria-relevant="additions"></ol>
       </div>
     </section>
@@ -80,6 +88,9 @@ button:hover, select:hover { border-color:#65788d; }
 .wordmark { font-weight:800; letter-spacing:.16em; }
 .readonly { margin-left:.7rem; color:var(--amber); border:1px solid var(--amber); padding:.15rem .35rem; font-size:.72rem; }
 .health-line { display:flex; justify-content:center; gap:.7rem; color:var(--muted); }
+.header-actions { display:flex; justify-content:flex-end; align-items:center; gap:.6rem; min-width:0; max-width:100%; }
+.session-control { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.72rem; min-width:0; }
+.session-control select { max-width:min(34vw,430px); min-width:0; }
 .status::before { content:'●'; margin-right:.35rem; }
 .status.live,.good { color:var(--green); }.status.reconnecting,.warn { color:var(--amber); }.status.offline,.bad { color:var(--red); }.status.unknown { color:var(--muted); }
 .totals { display:flex; gap:.8rem; font-size:.78rem; color:var(--muted); }
@@ -125,13 +136,13 @@ h1,h2,h3 { font-family:system-ui,sans-serif; margin:0; } h1,h2 { font-size:1rem;
 dialog { width:min(900px,94vw); max-height:90vh; background:var(--panel); color:var(--text); border:1px solid var(--line); } dialog::backdrop { background:#000b; } pre { white-space:pre-wrap; overflow-wrap:anywhere; }.warning { color:var(--amber); }
 @keyframes pulse { 50% { transform:scale(1.5); opacity:.35; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
-@media (max-width:900px) { .global-header { grid-template-columns:1fr; gap:.35rem; }.health-line { justify-content:flex-start; }.totals { flex-wrap:wrap; }.workspace { grid-template-columns:1fr; }.delivery-board { grid-template-columns:repeat(6,78vw); }.history-row { grid-template-columns:1fr; } }
-@media (max-width:420px) { main { padding:0 .65rem 2rem; }.filters { padding:.55rem .65rem; }.delivery-board { grid-template-columns:repeat(6,86vw); }.app-grid,.attention-grid { grid-template-columns:1fr; }.graph { min-height:180px; }.drawer { width:100vw; }.drawer dl { grid-template-columns:1fr; gap:.15rem; }.global-header { position:static; } }
+@media (max-width:900px) { .global-header { grid-template-columns:minmax(0,1fr); gap:.35rem; }.health-line { justify-content:flex-start; }.header-actions { justify-content:flex-start; flex-wrap:wrap; width:100%; }.session-control select { max-width:min(72vw,430px); }.totals { flex-wrap:wrap; }.workspace { grid-template-columns:minmax(0,1fr); }.delivery-board { grid-template-columns:repeat(6,78vw); }.history-row { grid-template-columns:1fr; } }
+@media (max-width:420px) { main { padding:0 .65rem 2rem; }.filters { padding:.55rem .65rem; }.session-control { width:100%; display:grid; grid-template-columns:minmax(0,1fr); }.session-control select { max-width:100%; min-width:0; width:100%; }.delivery-board { grid-template-columns:repeat(6,86vw); }.app-grid,.attention-grid { grid-template-columns:1fr; }.graph { min-height:180px; }.drawer { width:100vw; }.drawer dl { grid-template-columns:1fr; gap:.15rem; }.global-header { position:static; } }
 `;
 
 export const OBSERVE_JS = String.raw`(() => {
   'use strict';
-  const state = { snapshot:null, selectedPass:null, eventSource:null, autoScroll:true, reconnects:0 };
+  const state = { snapshot:null, selectedPass:null, selectedSession:'', eventSource:null, autoScroll:true, reconnects:0 };
   const q = (id) => document.getElementById(id);
   const token = new URL(location.href).searchParams.get('token') || '';
   const tokenQuery = () => '?token=' + encodeURIComponent(token);
@@ -153,6 +164,7 @@ export const OBSERVE_JS = String.raw`(() => {
   const formatCost = (value, quality) => quality === 'unavailable' ? 'unavailable' : (quality === 'estimated' ? '~' : '') + '$' + Number(value || 0).toFixed(2) + (quality === 'partial' ? ' partial' : '');
   const shortTime = (value) => value ? new Date(value).toLocaleString() : 'not recorded';
   const currentFilters = () => ({ app:q('app-filter').value, role:q('role-filter').value, status:q('status-filter').value });
+  const ticketNumber = (value) => { const match=/(?:^|#)(\d+)$/.exec(String(value||'').trim()); return match?Number(match[1]):null; };
   function setConnection(value, label) { q('connection').className='status '+value; q('connection').textContent=label || value; }
   async function fetchSnapshot() {
     const response = await fetch('/api/v1/snapshot'+tokenQuery(), {cache:'no-store'});
@@ -177,15 +189,20 @@ export const OBSERVE_JS = String.raw`(() => {
   }
   function render() {
     const s=state.snapshot; if(!s) return;
-    q('identity').textContent=s.org.name+' · '+s.org.state_home_id+' · updated '+shortTime(s.generated_at);
+    populateSessions(s);
+    const scope=selectedSession(s);
+    q('identity').textContent=s.org.name+' · '+s.org.state_home_id+' · '+(scope?'historical replay · ':'')+'updated '+shortTime(s.generated_at);
+    q('session-mode').className='pill '+(scope?'unknown':'live'); q('session-mode').textContent=scope?'historical':'live';
+    q('activity-title').textContent=scope?'Historical activity':'Live activity';
+    const totals=scope?sessionTotals(s,scope):s.totals;
     q('totals').replaceChildren(
-      node('span',{},s.totals.active_passes+' active'),
-      node('span',{},s.totals.pending_approvals+' approvals'),
-      node('span',{},s.totals.delivery_ready+' ready'),
-      node('span',{},formatCost(s.totals.recorded_cost_usd,s.totals.usage_quality))
+      node('span',{},totals.active_passes+' active'),
+      node('span',{},totals.pending_approvals+' approvals'),
+      node('span',{},totals.delivery_ready+' ready'),
+      node('span',{},formatCost(totals.recorded_cost_usd,totals.usage_quality))
     );
     populateFilters(s);
-    renderAttention(s); renderApps(s); renderDelivery(s); renderGraph(s); renderActivity(s); renderHistory(s); renderSources(s);
+    renderAttention(s,scope); renderApps(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistory(s,scope); renderSources(s);
     if(state.selectedPass) { const pass=s.passes.find((p)=>p.id===state.selectedPass); if(pass) renderDrawer(pass); else closeDrawer(); }
   }
   function populateFilters(s) {
@@ -197,37 +214,74 @@ export const OBSERVE_JS = String.raw`(() => {
     for(const value of values.sort()) if(value&&!existing.has(value)) select.append(node('option',{value},value));
     select.value=current;
   }
-  function visibleApp(value) { const f=currentFilters(); return !f.app||value===f.app; }
-  function renderAttention(s) {
-    const items=s.attention.filter((v)=>!v.app||visibleApp(v.app)); q('attention-count').textContent=items.length ? items.length+' item(s)' : 'clear';
+  function sessions(s) {
+    const claimed=new Set();
+    const tasks=s.parent_tasks.map((task)=>{
+      const taskTraces=s.traces.filter((trace)=>(trace.parent_task_id===task.task_id||task.trace_ids.includes(trace.trace_id))&&(!task.app||trace.app===task.app));
+      const traceKeys=new Set(taskTraces.map((trace)=>trace.id)), passIds=new Set(taskTraces.flatMap((trace)=>trace.pass_ids));
+      for(const id of traceKeys) claimed.add(id);
+      return { id:'task:'+task.task_id, kind:'task', task, traceKeys, passIds, app:task.app, startedAt:task.started_at, finishedAt:task.ended_at, status:task.status, label:task.task_id+' · '+(task.app||'org')+' · '+task.status+' · '+shortTime(task.started_at) };
+    });
+    const traces=s.traces.filter((trace)=>!claimed.has(trace.id)).map((trace)=>({ id:trace.id, kind:'trace', trace, traceKeys:new Set([trace.id]), passIds:new Set(trace.pass_ids), app:trace.app, startedAt:trace.started_at, finishedAt:trace.finished_at, status:trace.status, label:trace.trace_id+' · '+trace.app+' · '+trace.pipeline+' · '+shortTime(trace.started_at) }));
+    return [...tasks,...traces].sort((a,b)=>b.startedAt.localeCompare(a.startedAt));
+  }
+  function populateSessions(s) {
+    const select=q('session-selector'), available=sessions(s), current=state.selectedSession;
+    const taskOptions=available.filter((v)=>v.kind==='task').map((v)=>node('option',{value:v.id},v.label));
+    const traceOptions=available.filter((v)=>v.kind==='trace').map((v)=>node('option',{value:v.id},v.label));
+    select.replaceChildren(node('option',{value:''},'Live org'),...(taskOptions.length?[node('optgroup',{label:'Parent tasks'},...taskOptions)]:[]),...(traceOptions.length?[node('optgroup',{label:'Standalone traces'},...traceOptions)]:[]));
+    if(current&&available.some((v)=>v.id===current)) select.value=current;
+    else if(current) { state.selectedSession=''; select.value=''; replaceSessionUrl(''); }
+  }
+  function selectedSession(s) { return state.selectedSession?sessions(s).find((v)=>v.id===state.selectedSession)||null:null; }
+  function sessionPasses(s,scope) { return scope?s.passes.filter((pass)=>scope.passIds.has(pass.id)):s.passes; }
+  function sessionTraces(s,scope) { return scope?s.traces.filter((trace)=>scope.traceKeys.has(trace.id)):s.traces; }
+  function sessionTicketKeys(s,scope) {
+    if(!scope) return null; const keys=new Set();
+    for(const pass of sessionPasses(s,scope)) { const number=ticketNumber(pass.ticket); if(number!==null) keys.add(pass.app+'#'+number); }
+    if(scope.kind==='task') for(const ref of scope.task.ticket_refs) { const number=ticketNumber(ref); if(number!==null&&scope.task.app) keys.add(scope.task.app+'#'+number); }
+    return keys;
+  }
+  function sessionTotals(s,scope) {
+    const passes=sessionPasses(s,scope), tickets=sessionTicketKeys(s,scope), ranks={complete:0,estimated:1,partial:2,unavailable:3};
+    const quality=passes.length?passes.map((pass)=>pass.usage.quality).reduce((worst,value)=>ranks[value]>ranks[worst]?value:worst,'complete'):'unavailable';
+    const approvals=s.approvals.filter((approval)=>approval.ticket_ref&&tickets.has(approval.app+'#'+ticketNumber(approval.ticket_ref)));
+    const delivery=s.delivery.filter((ticket)=>tickets.has(ticket.app+'#'+ticket.issue_number));
+    return { active_passes:passes.filter((pass)=>pass.status==='running').length, pending_approvals:approvals.filter((approval)=>approval.status==='pending').length, delivery_ready:delivery.filter((ticket)=>ticket.state==='ready').length, recorded_cost_usd:passes.reduce((total,pass)=>total+Number(pass.usage.cost_usd||0),0), usage_quality:quality };
+  }
+  function visibleApp(value,scope) { const f=currentFilters(); return (!scope||scope.app===null||value===scope.app||sessionPasses(state.snapshot,scope).some((pass)=>pass.app===value))&&(!f.app||value===f.app); }
+  function renderAttention(s,scope) {
+    const entities=scope?new Set([...sessionPasses(s,scope).map((pass)=>pass.id),...(scope.kind==='task'?['task:'+scope.task.task_id]:[]),...[...sessionTicketKeys(s,scope)].map((key)=>'ticket:'+key.replace('#',':'))]):null;
+    const items=s.attention.filter((v)=>(!scope?v.app===null||visibleApp(v.app,scope):v.kind==='source_health'||(v.entity_id&&entities.has(v.entity_id)))); q('attention-count').textContent=items.length ? items.length+' item(s)' : 'clear';
     q('attention').replaceChildren(...(items.length?items.map((v)=>node('article',{class:'attention-item '+v.severity},node('h3',{},v.title),node('p',{class:'meta'},v.detail),badge(v.kind,v.severity))):[empty('No conditions require interpretation.') ]));
   }
-  function renderApps(s) {
-    const apps=s.apps.filter((v)=>visibleApp(v.name));
+  function renderApps(s,scope) {
+    const apps=s.apps.filter((v)=>visibleApp(v.name,scope));
     q('apps').replaceChildren(...apps.map((v)=>node('article',{class:'card'},node('h3',{},v.name),badge(v.lifecycle,v.lifecycle),node('p',{class:'meta'},v.repo),node('p',{class:'meta'},formatCost(v.recorded_monthly_cost_usd,v.usage_quality)+' / $'+v.budget_usd_month.toFixed(0)+' monthly'),...v.channel_gates.map((g)=>node('div',{class:'meta warn'},g)))));
-    const intake=s.intake.filter((v)=>visibleApp(v.app)).slice(0,40);
+    const scopedTraces=scope?new Set(sessionTraces(s,scope).map((trace)=>trace.app+'\u0000'+trace.trace_id)):null;
+    const intake=s.intake.filter((v)=>visibleApp(v.app,scope)&&(!scope||(v.trace_id&&scopedTraces.has(v.app+'\u0000'+v.trace_id))||v.parent_task_id===(scope.kind==='task'?scope.task.task_id:null))).slice(0,40);
     q('intake').replaceChildren(...(intake.length?intake.map((v)=>node('li',{},node('strong',{},v.title+' '),badge(v.status,v.status),node('div',{class:'meta'},v.kind+' · '+(v.trigger||'no trigger recorded')+' · '+shortTime(v.latest_at||v.started_at)),v.quality_reason?node('div',{class:'meta warn'},v.quality_reason):'')):[empty('No onboarding or non-ticket activity in this view.') ]));
   }
-  function renderDelivery(s) {
+  function renderDelivery(s,scope) {
     const defs=[['ready','Ready'],['building','Building'],['in_review','Reviewing'],['blocked_on_approval','Waiting approval'],['returned','Returned'],['merged','Recently completed']];
-    const tickets=s.delivery.filter((v)=>visibleApp(v.app));
+    const sessionTickets=sessionTicketKeys(s,scope); const tickets=s.delivery.filter((v)=>visibleApp(v.app,scope)&&(!sessionTickets||sessionTickets.has(v.app+'#'+v.issue_number)));
     q('delivery').replaceChildren(...defs.map(([key,label])=>{ const rows=tickets.filter((v)=>v.state===key); return node('section',{class:'delivery-column','aria-label':label},node('h3',{},label,node('span',{class:'meta'},String(rows.length))),...(rows.length?rows.map(ticketCard):[empty('None') ])); }));
   }
   function ticketCard(ticket) {
     return node('button',{class:'ticket',type:'button',onclick:()=>selectTicket(ticket)},node('strong',{},'#'+ticket.issue_number+' '+ticket.title),node('span',{class:'meta'},ticket.app+' · '+(ticket.priority?'p'+ticket.priority:'no priority')+' · '+(ticket.tier||'tier unknown')),ticket.dependency_blocked?node('span',{class:'pill blocked'},'dependency blocked'):'',...ticket.pull_requests.flatMap((p)=>[node('span',{class:'pill'},'PR #'+p.number),badge('review '+p.review_integrity,p.review_integrity==='fresh_approved'?'completed':p.review_integrity==='stale_approval'||p.review_integrity==='changes_requested'?'failed':'unknown'),badge('checks '+p.check_integrity,p.check_integrity==='green'?'completed':p.check_integrity==='red'?'failed':p.check_integrity==='pending'?'blocked':'unknown')]));
   }
   function selectTicket(ticket) { const pass=state.snapshot.passes.find((p)=>p.app===ticket.app&&Number(String(p.ticket||'').replace('#',''))===ticket.issue_number); if(pass) openDrawer(pass.id); }
-  function renderGraph(s) {
-    const f=currentFilters(), traces=s.traces.filter((v)=>visibleApp(v.app)); q('graph-scope').textContent=traces.length+' trace(s)';
+  function renderGraph(s,scope) {
+    const f=currentFilters(), traces=sessionTraces(s,scope).filter((v)=>visibleApp(v.app,scope)); q('graph-scope').textContent=traces.length+' trace(s)';
     const graph=q('graph'); graph.replaceChildren(...(traces.length?traces.slice(0,20).map((trace)=>{ const passes=trace.pass_ids.map((id)=>s.passes.find((p)=>p.id===id)).filter(Boolean); const nodes=[]; passes.forEach((pass,index)=>{ if(index) nodes.push(node('span',{class:'arrow','aria-hidden':'true'},'→')); nodes.push(node('button',{class:'trace-node '+pass.status+' '+pass.liveness,type:'button',onclick:()=>openDrawer(pass.id),'aria-label':pass.role+' '+pass.pass+' '+pass.status},node('strong',{},pass.role),node('div',{},pass.pass),node('div',{class:'meta'},pass.runtime+'/'+(pass.model||'?')),badge(pass.status,pass.status),pass.status==='running'?badge(pass.liveness,pass.liveness):'')); }); for(const skip of trace.skipped_passes){ if(nodes.length) nodes.push(node('span',{class:'arrow','aria-hidden':'true'},'→')); nodes.push(node('div',{class:'trace-node skipped','aria-label':'Skipped '+skip.pass},node('strong',{},skip.pass),node('div',{class:'meta'},skip.reason),badge('skipped','unknown'))); } return node('div',{class:'trace','aria-label':'Trace '+trace.trace_id},...nodes); }):[empty('No correlated trace evidence for the selected filters.') ]));
   }
-  function renderActivity(s) {
-    const f=currentFilters(); const events=s.passes.filter((p)=>visibleApp(p.app)&&(!f.role||p.role===f.role)&&(!f.status||p.status===f.status)).flatMap((p)=>p.events.map((e)=>({p,e}))).sort((a,b)=>b.e.ts.localeCompare(a.e.ts)).slice(0,300);
+  function renderActivity(s,scope) {
+    const f=currentFilters(); const events=sessionPasses(s,scope).filter((p)=>visibleApp(p.app,scope)&&(!f.role||p.role===f.role)&&(!f.status||p.status===f.status)).flatMap((p)=>p.events.map((e)=>({p,e}))).sort((a,b)=>b.e.ts.localeCompare(a.e.ts)).slice(0,300);
     const list=q('activity'); const wasBottom=list.scrollTop+list.clientHeight>=list.scrollHeight-20; list.replaceChildren(...(events.length?events.map(({p,e})=>node('li',{},node('time',{},shortTime(e.ts)),node('div',{},e.event+' · '+p.app+' · '+p.role+'/'+p.pass),node('div',{class:'meta'},summarizeDetail(e.detail)),e.error_code?badge(e.error_code,'failed'):'')):[empty('No structured activity in this view.') ])); if(state.autoScroll||wasBottom) list.scrollTop=0;
   }
   function summarizeDetail(detail) { return Object.entries(detail||{}).map(([k,v])=>k+'='+String(v)).join(' · '); }
-  function renderHistory(s) {
-    const tasks=s.parent_tasks.filter((v)=>!v.app||visibleApp(v.app)); const traces=s.traces.filter((v)=>visibleApp(v.app));
+  function renderHistory(s,scope) {
+    const tasks=s.parent_tasks.filter((v)=>(!v.app||visibleApp(v.app,scope))&&(!scope||scope.kind==='task'&&v.task_id===scope.task.task_id)); const traces=sessionTraces(s,scope).filter((v)=>visibleApp(v.app,scope));
     const rows=tasks.length?tasks.map((task)=>node('article',{class:'card history-row'},node('div',{},node('strong',{},task.task_id),node('div',{class:'meta'},task.objective)),node('div',{class:'integrity'},task.completion_integrity.reasons.length?task.completion_integrity.reasons.join(' · '):'All recorded integrity requirements satisfied'),badge(task.status,task.status))):traces.slice(0,30).map((trace)=>node('article',{class:'card history-row'},node('div',{},node('strong',{},trace.trace_id),node('div',{class:'meta'},trace.app+' · '+trace.pipeline)),node('div',{class:'integrity'},trace.completion_integrity.reasons.join(' · ')||'Recorded trace complete'),badge(trace.status,trace.status)));
     q('history').replaceChildren(...(rows.length?rows:[empty('No parent-task or trace history recorded.') ]));
   }
@@ -251,11 +305,13 @@ export const OBSERVE_JS = String.raw`(() => {
     if(!artifact.available||!artifact.href) return; q('artifact-title').textContent=artifact.label; q('artifact-content').textContent='Loading…'; q('artifact-dialog').showModal();
     try { const response=await fetch(artifact.href+tokenQuery(),{cache:'no-store'}); q('artifact-content').textContent=response.ok?await response.text():'Artifact request failed: '+response.status; } catch(error) { q('artifact-content').textContent=String(error); }
   }
+  function replaceSessionUrl(value) { const url=new URL(location.href); if(value) url.searchParams.set('session',value); else url.searchParams.delete('session'); history.replaceState({},'',url); }
   function syncUrl() { const url=new URL(location.href), f=currentFilters(); for(const key of ['app','role','status']) { if(f[key]) url.searchParams.set(key,f[key]); else url.searchParams.delete(key); } history.replaceState({},'',url); render(); }
+  q('session-selector').addEventListener('change',()=>{ state.selectedSession=q('session-selector').value; closeDrawer(); replaceSessionUrl(state.selectedSession); render(); });
   for(const id of ['app-filter','role-filter','status-filter']) q(id).addEventListener('change',syncUrl);
   q('clear-filters').addEventListener('click',()=>{ q('app-filter').value=''; q('role-filter').value=''; q('status-filter').value=''; syncUrl(); });
   q('close-drawer').addEventListener('click',closeDrawer); q('drawer-backdrop').addEventListener('click',closeDrawer); document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&!q('drawer').hidden) closeDrawer(); });
   q('activity').addEventListener('scroll',()=>{ state.autoScroll=q('activity').scrollTop<10; q('resume-stream').hidden=state.autoScroll; }); q('resume-stream').addEventListener('click',()=>{ state.autoScroll=true; q('activity').scrollTop=0; q('resume-stream').hidden=true; });
-  const params=new URL(location.href).searchParams; for(const key of ['app','role','status']) if(params.get(key)) q(key+'-filter').dataset.initial=params.get(key);
+  const params=new URL(location.href).searchParams; state.selectedSession=params.get('session')||''; for(const key of ['app','role','status']) if(params.get(key)) q(key+'-filter').dataset.initial=params.get(key);
   fetchSnapshot().then(()=>{ for(const key of ['app','role','status']) { const value=q(key+'-filter').dataset.initial; if(value) q(key+'-filter').value=value; } render(); connect(state.snapshot.cursor); }).catch((error)=>{ setConnection('offline','offline'); q('banner').hidden=false; q('banner').textContent=String(error); });
 })();`;

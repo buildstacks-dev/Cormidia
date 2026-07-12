@@ -25,7 +25,6 @@ export async function cmdObserve(args: string[]): Promise<number> {
   await mkdir(homes.stateHome, { recursive: true });
   const filters: ObserveFiltersV1 = {
     ...(parsed.app !== undefined ? { app: parsed.app } : {}),
-    ...(parsed.parentTask !== undefined ? { parent_task: parsed.parentTask } : {}),
     ...(parsed.ticket !== undefined ? { ticket: parsed.ticket } : {}),
   };
   const service = new ObserveService({
@@ -41,12 +40,13 @@ export async function cmdObserve(args: string[]): Promise<number> {
     ...(parsed.port !== undefined ? { port: parsed.port } : {}),
   });
 
-  console.log(`Operon observer: ${started.url}`);
+  const observerUrl = initialViewUrl(started.url, parsed);
+  console.log(`Operon observer: ${observerUrl}`);
   console.log(`Package root: ${homes.packageRoot}`);
   console.log(`Org home:     ${homes.orgHome}`);
   console.log(`State home:   ${homes.stateHome}`);
   console.log("Mode:         READ ONLY · loopback only · token-free · no workflow controls");
-  if (parsed.open) openBrowser(started.url);
+  if (parsed.open) openBrowser(observerUrl);
 
   await waitForShutdown();
   await service.stop();
@@ -85,6 +85,14 @@ function portNumber(value: string): number {
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number < 0 || number > 65535) throw new Error("observe: --port must be 0..65535");
   return number;
+}
+
+function initialViewUrl(base: string, parsed: ObserveArgs): string {
+  const url = new URL(base);
+  if (parsed.app !== undefined) url.searchParams.set("app", parsed.app);
+  if (parsed.parentTask !== undefined) url.searchParams.set("session", `task:${parsed.parentTask}`);
+  if (parsed.ticket !== undefined) url.searchParams.set("ticket", String(parsed.ticket));
+  return url.toString();
 }
 
 function openBrowser(url: string): void {

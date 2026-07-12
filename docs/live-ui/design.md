@@ -2,7 +2,7 @@
 
 *Status: ratified and implemented; this is the authoritative V1 contract.*
 
-*Version: 1.0 — 2026-07-12.*
+*Version: 1.1 — 2026-07-12.*
 
 *Audience: a new implementation session, reviewers, and the human operator.*
 
@@ -233,6 +233,8 @@ the operator to delegate the decision workflow to an agent.
 Every page carries a compact header:
 
 - Operon org name and resolved state-home identity;
+- a top-right session chooser with **Live org** plus historical parent tasks
+  and standalone traces from the current org;
 - selected app or “all apps”;
 - connection state: `live`, `reconnecting`, `degraded`, or `offline`;
 - last successful local projection and GitHub refresh times;
@@ -243,6 +245,13 @@ Every page carries a compact header:
 
 Filters belong in URL state so a coding agent can hand the human a stable
 link. Initial filters: app, parent task, ticket, status, role, and time range.
+The selected session is URL state as well. “Session” is presentation
+vocabulary, not a new durable entity: a parent task is the preferred session
+boundary, and a trace without a parent task remains selectable as a standalone
+historical session. The chooser must never group by native provider session ID
+or infer correlation from timestamps or text. `--parent-task` initializes this
+browser selection rather than removing sibling sessions from the snapshot;
+`--app` remains an explicit server-side app scope.
 
 ### 5.2 Overview page
 
@@ -401,6 +410,18 @@ A completed task uses the same graph and activity timeline. The operator can
 scrub to a point in time and inspect what was known then. Replay uses event
 timestamps and envelope final state; it must not manufacture intermediate
 states absent from old records.
+
+The header session chooser provides the entry point to that replay. **Live
+org** shows the ordinary current projection. Choosing a parent task scopes the
+existing app, attention, delivery, graph, activity, history, totals, drawer,
+and evidence components to its explicitly correlated traces and tickets;
+choosing a standalone trace scopes them to that trace. The browser keeps the
+selection while snapshots arrive over SSE and after refresh, labels the view
+as historical, and does not jump back to live until the operator chooses
+**Live org**. Source health remains current observer health, and GitHub ticket
+or PR facts remain current external facts unless a historical event recorded
+their earlier state; the UI must not imply it reconstructed an org-wide
+point-in-time snapshot that does not exist.
 
 The historical page also shows completion integrity:
 

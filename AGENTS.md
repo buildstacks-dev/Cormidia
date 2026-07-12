@@ -32,8 +32,10 @@ limitations; open work lives in the GitHub issue tracker.
 `operon observe` is the read-only Live UI: a presentation-only `src/observe/`
 leaf over durable state and bounded GitHub reads. It binds only to loopback
 with a per-process capability, owns no workflow state, exposes no mutation
-routes, and stopping it never affects a run. `docs/live-ui/design.md` is its
-authoritative contract.
+routes, and stopping it never affects a run. Its URL-stable session chooser
+projects historical parent tasks and standalone traces through the same UI;
+it adds no session store. `docs/live-ui/design.md` is its authoritative
+contract.
 
 **Where agent activity is recorded** (state home, `~/.operon/<org>/`;
 README.md → Observability is the authoritative inventory):
@@ -90,7 +92,7 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
-| `src/observe/` | Presentation-only Live UI: versioned projection, source health, bounded read-only GitHub polling, loopback HTTP/SSE, allowlisted local evidence, and embedded framework-free assets |
+| `src/observe/` | Presentation-only Live UI: versioned projection, URL-stable live/historical session selection, source health, bounded read-only GitHub polling, loopback HTTP/SSE, allowlisted local evidence, and embedded framework-free assets |
 | `src/org/home.ts` | Package/org/state boundary: complete org initialization, validation, active pointer, and independent state-home resolution |
 | `src/org/learning/` | Learning loop (design in `docs/learning-loop/`): M1–M5 capture/episode/replay/experiment/governed activation/evaluation/canary substrate, plus M6 `distillation.ts` (deterministic evidence clustering, live-bundle/candidate/rejection dedupe, policy caps, candidate-store writes, independent structured review, durable skip/cap records, and report-only compaction). Distiller/reviewer/replay turns use the ordinary pass executor and org ledger; the deterministic publisher remains the sole protected-surface writer. |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |

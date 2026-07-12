@@ -189,17 +189,22 @@ from a neutral directory.
 the active org and state home independently of the working directory, binds
 only to `127.0.0.1`, and prints a per-process capability URL. Use `--app`,
 `--parent-task`, or `--ticket` to deep-link a scoped view; `--open` launches the
-local browser. The observer performs no provider turn and spends no tokens.
+local browser. `--parent-task` opens that historical session initially while
+keeping sibling sessions available in the chooser. The observer performs no
+provider turn and spends no tokens.
 
 The page separates app onboarding and non-ticket intake, GitHub delivery work,
-and approvals. Open GitHub issues labeled `op:ready` are the only claimable
-product-delivery queue. HTTP supplies a versioned snapshot and deliberate
-allowlisted evidence; SSE supplies cursor-based live updates. Exact prompts,
-briefs, outputs, and `session.log` are never preloaded or streamed; they require
-an explicit local fetch, and `session.log` is labeled **activity log—not
-transcript**. There are no configuration, approval, retry, merge, label,
-deploy, or other mutation routes or controls. Closing the browser or observer
-cannot stop a run.
+and approvals. A top-right Session chooser switches between **Live org** and
+historical parent tasks (plus standalone traces for older uncorrelated work),
+using the identical dashboard and evidence drawer; the selection survives URL
+refreshes while SSE continues. Open GitHub issues labeled `op:ready` are the
+only claimable product-delivery queue. HTTP supplies a versioned snapshot and
+deliberate allowlisted evidence; SSE supplies cursor-based live updates. Exact
+prompts, briefs, outputs, and `session.log` are never preloaded or streamed;
+they require an explicit local fetch, and `session.log` is labeled **activity
+log—not transcript**. There are no configuration, approval, retry, merge,
+label, deploy, or other mutation routes or controls. Closing the browser or
+observer cannot stop a run.
 
 ## Setup / auth
 

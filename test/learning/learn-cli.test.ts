@@ -456,7 +456,7 @@ describe("operon learn", () => {
   });
 
   it("rejects an unknown subcommand with usage guidance", async () => {
-    await expect(cmdLearn(["distill", ...HOME_FLAGS])).rejects.toThrow(/expected a subcommand/);
+    await expect(cmdLearn(["frobnicate", ...HOME_FLAGS])).rejects.toThrow(/expected a subcommand/);
   });
 });
 

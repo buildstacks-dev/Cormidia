@@ -120,6 +120,7 @@ export interface ExecutePipelineOptions {
      *  per candidate. */
     experimentRef?: string;
     candidateRef?: string;
+    learningActivity?: "distillation" | "review";
   };
   /** Runs after a pass completes and before the next sequential stage starts. */
   afterPass?: (record: PassRunRecord) => void | Promise<void>;
@@ -612,6 +613,9 @@ async function runPass(
             : {}),
           ...(options.telemetry.candidateRef !== undefined
             ? { candidateRef: options.telemetry.candidateRef }
+            : {}),
+          ...(options.telemetry.learningActivity !== undefined
+            ? { learningActivity: options.telemetry.learningActivity }
             : {}),
         },
       ),

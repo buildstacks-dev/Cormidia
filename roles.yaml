@@ -96,3 +96,23 @@ roles:
     outputs: [changelog, launch-post-drafts, positioning-notes, adoption-digest]
     # same rule as support: anything public is a DRAFT until human-approved
     # (external publishing = critical op); adoption-digest flows to Planner ungated
+
+  distiller:
+    runtime: claude
+    model: claude-sonnet-5      # scheduled synthesis after deterministic zero-token prechecks
+    effort: medium
+    delegation:
+      allow: []                 # one bounded evidence batch; no fan-out or direct publication
+    triggers:
+      - schedule: "daily 06:00"
+    outputs: [learning-candidates]
+
+  learning-reviewer:
+    runtime: codex              # DELIBERATELY cross-provider from distiller —
+    model: gpt-5.5              # independent injection/scope/destination screening
+    effort: high
+    delegation:
+      allow: []
+    triggers:
+      - schedule: "weekly mon 07:00"
+    outputs: [learning-review-verdicts, compaction-report]

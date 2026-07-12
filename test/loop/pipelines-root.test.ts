@@ -47,6 +47,8 @@ describe("root pipelines.yaml", () => {
       "support-digest",
       "marketing-release",
       "ci-sweep",
+      "learning-distill",
+      "learning-review",
     ]);
   });
 
@@ -141,6 +143,12 @@ describe("root pipelines.yaml", () => {
     ]);
     expect(getPipeline(file, "ci-sweep").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
       "sweep:marketing",
+    ]);
+    expect(getPipeline(file, "learning-distill").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
+      "distill:distiller",
+    ]);
+    expect(getPipeline(file, "learning-review").passes.map((p) => `${p.id}:${p.role}`)).toEqual([
+      "review:learning-reviewer",
     ]);
   });
 });

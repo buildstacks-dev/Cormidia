@@ -63,7 +63,7 @@ const CAPABILITIES = [
   { command: "telemetry", writes: false, spendsTokens: false, summary: "historical pass/trace/cost view over run records" },
   { command: "task", writes: true, spendsTokens: false, summary: "record the broader delegated task, fallback, and terminal outcome" },
   { command: "retro", writes: true, spendsTokens: false, summary: "write an evidence-based org retro" },
-  { command: "learn", writes: true, spendsTokens: true, summary: "learning loop: inspect/show/report are read-only; emit/review/publish/resolve/canary are the human operator's governed-activation window; only `learn experiment run` spends tokens (paired replay)" },
+  { command: "learn", writes: true, spendsTokens: true, summary: "learning loop: inspect/show/report and `distill --dry-run` are token-free; experiment run and actionable `distill` windows spend learning-budgeted tokens; governed activation remains human-operated" },
   { command: "prune-runs", writes: true, spendsTokens: false, summary: "delete finalized run data beyond retention" },
   { command: "doctor", writes: false, spendsTokens: false, summary: "validate installation and active org configuration" },
   { command: "context", writes: false, spendsTokens: false, summary: "show resolved paths, authority provenance, and registered apps" },

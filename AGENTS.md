@@ -58,7 +58,9 @@ loader; `operon learn` is the manual surface — activation verbs
 (`review|publish|resolve|disable|rollback|provisional`), the offline §9.5
 funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
 `operon budget`), and the live-trial lifecycle
-(`canary start|status|promote|stop`). M6 distillation is still unbuilt.
+(`canary start|status|promote|stop`). M6 is live: daily deterministic-prechecked
+distillation, weekly cross-provider review, policy frequency/volume caps, and
+report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 
 ## Map
 | Path | What it is |
@@ -83,7 +85,7 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/org/home.ts` | Package/org/state boundary: complete org initialization, validation, active pointer, and independent state-home resolution |
-| `src/org/learning/` | Learning loop (design in `docs/learning-loop/`): event schema + sink, idempotent capture projector, deterministic episode ids/anchors, EpisodeRecord projection, content-addressed SystemFingerprint, build-episode ReplayCapsule, ExperimentRecord (declared-before-results), CandidateArtifact with the conditional experiment gate, InterventionRecord lineage, EvalResult four-class verdicts, capsule→sanitized eval fixture with two-actor trust, the M4 activation substrate: policy loader (`policy.ts` — tier table + learning budget, T3 live canary structurally unrepresentable), concept store with manifests/disable/rollback + canary lifecycle (`concepts.ts`), fail-closed reviewer verdicts (`review.ts`), rejection ledger with suppression windows (`rejections.ts`), content-bound `learning_publish` binding (`binding.ts`), the deterministic journaled publisher (`publisher.ts`), the per-turn pinned resolver wired into context assembly (`resolver.ts` → `src/org/context.ts`), and the M5 evaluation/canary layer: episode-sticky assignment + human canary lifecycle (`canary.ts`), the paired-replay executor over seed worktrees with the ordinary pass executor (`replay.ts`), and the §9.5 funnel runner with early stopping and budget caps (`runner.ts`) — M1 capture + M2 episode/replay + M3 experiments + M4 manual governed activation + M5 offline evaluation and human-started canary; `operon learn` is the human window |
+| `src/org/learning/` | Learning loop (design in `docs/learning-loop/`): M1–M5 capture/episode/replay/experiment/governed activation/evaluation/canary substrate, plus M6 `distillation.ts` (deterministic evidence clustering, live-bundle/candidate/rejection dedupe, policy caps, candidate-store writes, independent structured review, durable skip/cap records, and report-only compaction). Distiller/reviewer/replay turns use the ordinary pass executor and org ledger; the deterministic publisher remains the sole protected-surface writer. |
 | `src/cli/` | One module per CLI subcommand (`roles.ts`, `doctor.ts`, …); `src/cli.ts` is a thin dispatch table over them — new subcommands are a new file + one registry line |
 | `agent-skills/operon/` | Packaged `$operon` Agent Skill: agent-facing CLI discovery, onboarding, safety, and diagnosis workflow |
 | `scripts/link-local.mjs`, `scripts/operon-local.mjs` | Source-backed local installation; exposes `operon` and the skill without conflating package and org homes |
@@ -153,6 +155,7 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
   `pnpm dev learn canary status` ·
   `pnpm dev learn canary promote --root org|app [--app <name>]` ·
   `pnpm dev learn canary stop --root org|app --reason "<why>"` ·
+  `pnpm dev learn distill [--app <name>] [--dry-run]` ·
   `pnpm dev run-role <role> --app <app> --dry-run` ·
   `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs` ·
   `pnpm dev doctor [--config-only]` (default probes configured adapter readiness

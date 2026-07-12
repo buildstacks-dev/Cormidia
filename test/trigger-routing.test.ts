@@ -53,6 +53,14 @@ describe("trigger routing", () => {
       kind: "pipeline",
       pipeline: "ci-sweep",
     });
+    expect(route("distiller", { schedule: "daily 06:00" })).toEqual({
+      kind: "pipeline",
+      pipeline: "learning-distill",
+    });
+    expect(route("learning-reviewer", { schedule: "weekly mon 07:00" })).toEqual({
+      kind: "pipeline",
+      pipeline: "learning-review",
+    });
   });
 
   it("routes company-lifecycle event kinds to their documented pipelines", () => {

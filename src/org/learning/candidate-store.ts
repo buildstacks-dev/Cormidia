@@ -17,8 +17,9 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
+import { parseOkfDocument } from "../memory.js";
 import { validateCandidateArtifact, type CandidateArtifact } from "./candidate.js";
-import { candidatesDir, type LearningRoot } from "./concepts.js";
+import { assertConceptPlacement, candidatesDir, type LearningRoot } from "./concepts.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";
 import { sha256Ref } from "./validate.js";
 
@@ -44,6 +45,61 @@ export async function writeCandidateArtifact(
     JSON.stringify(candidate, null, 2) + "\n",
   );
   return candidate;
+}
+
+/** Governed candidate-store entry point used by M6. It is create-only: a
+ * deterministic id may be replayed with byte-identical content, but a later
+ * model response cannot silently rewrite evidence that is already awaiting
+ * review. OKF concept drafts are validated against the candidate placement
+ * contract before either file is written. */
+export async function openCandidateArtifact(
+  root: LearningRoot,
+  value: unknown,
+  conceptMarkdown?: string,
+): Promise<{ candidate: CandidateArtifact; created: boolean }> {
+  const candidate = validateCandidateArtifact(value);
+  const path = candidateArtifactPath(root, candidate.candidate_id);
+  const serialized = JSON.stringify(candidate, null, 2) + "\n";
+
+  if (candidate.destination === "okf_concept") {
+    if (conceptMarkdown === undefined) {
+      throw new Error(`learning: ${candidate.candidate_id}: okf_concept needs a concept draft`);
+    }
+    assertConceptPlacement(parseOkfDocument(conceptMarkdown, conceptDraftPath(root, candidate.candidate_id)), "candidates");
+  } else if (conceptMarkdown !== undefined) {
+    throw new Error(
+      `learning: ${candidate.candidate_id}: only okf_concept candidates may carry a concept draft`,
+    );
+  }
+
+  if (existsSync(path)) {
+    const existing = await readFile(path, "utf8");
+    if (existing !== serialized) {
+      throw new Error(
+        `learning: ${candidate.candidate_id} already exists with different bytes — ` +
+          "distillation is append-only; create a new evidence-bound candidate",
+      );
+    }
+    if (conceptMarkdown !== undefined) {
+      const draftPath = conceptDraftPath(root, candidate.candidate_id);
+      if (!existsSync(draftPath) || (await readFile(draftPath, "utf8")) !== conceptMarkdown) {
+        throw new Error(
+          `learning: ${candidate.candidate_id} concept draft differs from its existing candidate`,
+        );
+      }
+    }
+    return { candidate, created: false };
+  }
+
+  await mkdir(candidatesDir(root), { recursive: true });
+  // For an OKF pair, JSON is the commit marker listCandidateArtifacts sees:
+  // write the draft first so a crash can leave only an ignored draft, never a
+  // reviewable candidate whose required concept bytes are absent.
+  if (conceptMarkdown !== undefined) {
+    await writeFileAtomic(conceptDraftPath(root, candidate.candidate_id), conceptMarkdown);
+  }
+  await writeFileAtomic(path, serialized);
+  return { candidate, created: true };
 }
 
 export async function readCandidateArtifact(

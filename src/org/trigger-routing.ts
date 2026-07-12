@@ -85,6 +85,14 @@ export function resolveTriggerRoute(input: ResolveTriggerRouteInput): TriggerRou
     }
   }
 
+  if (role === "distiller" && trigger.schedule === "daily 06:00") {
+    return { kind: "pipeline", pipeline: "learning-distill" };
+  }
+
+  if (role === "learning-reviewer" && trigger.schedule === "weekly mon 07:00") {
+    return { kind: "pipeline", pipeline: "learning-review" };
+  }
+
   return skip(role, `no route for ${describeTrigger(trigger)}`);
 }
 

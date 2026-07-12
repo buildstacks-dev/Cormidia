@@ -113,10 +113,65 @@ export interface ReviewVerdict {
   findings: Finding[];
 }
 
+/** M6 distiller output. The org layer supplies evidence and owns ids/hashes;
+ * the model only proposes the governed candidate payload. */
+export interface DistillationProposal {
+  cluster_fingerprint: string;
+  destination:
+    | "okf_concept"
+    | "skill_draft"
+    | "protocol_proposal"
+    | "eval_or_gate_proposal"
+    | "ticket"
+    | "reject";
+  title: string;
+  proposed_scope: string;
+  proposed_tier: "T0" | "T1" | "T2" | "T3";
+  claims_efficacy: boolean;
+  draft_summary: string;
+  draft_body: string;
+  acceptance: string[];
+  topic_key: string;
+}
+
+export interface DistillationVerdict {
+  candidates: DistillationProposal[];
+}
+
+/** M6 learning-reviewer output before orchestrator-owned provenance fields
+ * are stamped and persisted through the review store. */
+export interface LearningReviewProposal {
+  candidate_id: string;
+  verdict: "approve" | "revise" | "reject" | "escalate";
+  proposed_destination: DistillationProposal["destination"];
+  proposed_tier: DistillationProposal["proposed_tier"];
+  proposed_scope: string;
+  experiment_required: boolean;
+  rubric: {
+    correctness: number;
+    generality: number;
+    scope_fit: number;
+    destination_fit: number;
+    provenance_trust: number;
+    injection_screen: "clean" | "suspicious" | "flagged";
+  };
+  conflicts_with: string[];
+  duplicates: string[];
+  eval_required: boolean;
+  eval_present: boolean;
+  rationale: string;
+}
+
+export interface LearningReviewVerdict {
+  reviews: LearningReviewProposal[];
+}
+
 export interface VerdictTypes {
   contract: ContractVerdict;
   build: BuildVerdict;
   review: ReviewVerdict;
+  "learning-distill": DistillationVerdict;
+  "learning-review": LearningReviewVerdict;
 }
 export type VerdictKind = keyof VerdictTypes;
 
@@ -429,6 +484,8 @@ const PARSERS: { [P in VerdictKind]: (text: string) => ParseResult<P> } = {
   contract: parseContract,
   build: parseBuild,
   review: parseReview,
+  "learning-distill": () => failure("learning-distill", "expected one structured JSON object"),
+  "learning-review": () => failure("learning-review", "expected one structured JSON object"),
 };
 
 /** Parse a pass's text output into its typed verdict. Never throws on bad
@@ -438,7 +495,8 @@ export function parseVerdict<K extends VerdictKind>(kind: K, text: string): Pars
   const parser = PARSERS[kind] as ((text: string) => ParseResult<K>) | undefined;
   if (!parser) {
     throw new Error(
-      `unknown verdict kind ${JSON.stringify(kind)} (expected contract | build | review)`,
+      `unknown verdict kind ${JSON.stringify(kind)} ` +
+        `(expected contract | build | review | learning-distill | learning-review)`,
     );
   }
   return parser(text);
@@ -514,7 +572,7 @@ export async function parseWithRetry<K extends VerdictKind>(
 // Self-describing JSON-schema shapes — the native-structured-output contract
 // ---------------------------------------------------------------------------
 
-/** The JSON-schema subset the verdict shapes use — object / string / array,
+/** The JSON-schema subset the verdict shapes use — object / scalar / array,
  *  enum, required, additionalProperties, items, minItems. A type alias (not
  *  an interface) so schemas plug straight into `TurnRequest.verdictSchema`
  *  (Record<string, unknown>). `validateVerdict` interprets exactly this
@@ -522,13 +580,15 @@ export async function parseWithRetry<K extends VerdictKind>(
 export type VerdictSchema = {
   readonly title?: string;
   readonly description?: string;
-  readonly type?: "object" | "string" | "array";
+  readonly type?: "object" | "string" | "array" | "boolean" | "integer";
   readonly enum?: readonly string[];
   readonly properties?: Readonly<Record<string, VerdictSchema>>;
   readonly required?: readonly string[];
   readonly additionalProperties?: boolean;
   readonly items?: VerdictSchema;
   readonly minItems?: number;
+  readonly minimum?: number;
+  readonly maximum?: number;
 };
 
 const FINDING_SCHEMA: VerdictSchema = {
@@ -562,6 +622,100 @@ const BLOCKED_ENTRY_SCHEMA: VerdictSchema = {
     attempted: { type: "string", description: "what was tried, concretely" },
     result: { type: "string", description: "what happened when it was tried" },
     assessment: { type: "string", description: "why this is blocked and what would unblock it" },
+  },
+};
+
+const LEARNING_DESTINATIONS = [
+  "okf_concept",
+  "skill_draft",
+  "protocol_proposal",
+  "eval_or_gate_proposal",
+  "ticket",
+  "reject",
+] as const;
+
+const DISTILLATION_PROPOSAL_SCHEMA: VerdictSchema = {
+  title: "DistillationProposal",
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "cluster_fingerprint",
+    "destination",
+    "title",
+    "proposed_scope",
+    "proposed_tier",
+    "claims_efficacy",
+    "draft_summary",
+    "draft_body",
+    "acceptance",
+    "topic_key",
+  ],
+  properties: {
+    cluster_fingerprint: { type: "string" },
+    destination: { type: "string", enum: LEARNING_DESTINATIONS },
+    title: { type: "string" },
+    proposed_scope: { type: "string" },
+    proposed_tier: { type: "string", enum: ["T0", "T1", "T2", "T3"] },
+    claims_efficacy: { type: "boolean" },
+    draft_summary: { type: "string" },
+    draft_body: { type: "string" },
+    acceptance: { type: "array", items: { type: "string" } },
+    topic_key: { type: "string" },
+  },
+};
+
+const LEARNING_RUBRIC_SCHEMA: VerdictSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "correctness",
+    "generality",
+    "scope_fit",
+    "destination_fit",
+    "provenance_trust",
+    "injection_screen",
+  ],
+  properties: {
+    correctness: { type: "integer", minimum: 0, maximum: 5 },
+    generality: { type: "integer", minimum: 0, maximum: 5 },
+    scope_fit: { type: "integer", minimum: 0, maximum: 5 },
+    destination_fit: { type: "integer", minimum: 0, maximum: 5 },
+    provenance_trust: { type: "integer", minimum: 0, maximum: 5 },
+    injection_screen: { type: "string", enum: ["clean", "suspicious", "flagged"] },
+  },
+};
+
+const LEARNING_REVIEW_SCHEMA: VerdictSchema = {
+  title: "LearningReviewProposal",
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "candidate_id",
+    "verdict",
+    "proposed_destination",
+    "proposed_tier",
+    "proposed_scope",
+    "experiment_required",
+    "rubric",
+    "conflicts_with",
+    "duplicates",
+    "eval_required",
+    "eval_present",
+    "rationale",
+  ],
+  properties: {
+    candidate_id: { type: "string" },
+    verdict: { type: "string", enum: ["approve", "revise", "reject", "escalate"] },
+    proposed_destination: { type: "string", enum: LEARNING_DESTINATIONS },
+    proposed_tier: { type: "string", enum: ["T0", "T1", "T2", "T3"] },
+    proposed_scope: { type: "string" },
+    experiment_required: { type: "boolean" },
+    rubric: LEARNING_RUBRIC_SCHEMA,
+    conflicts_with: { type: "array", items: { type: "string" } },
+    duplicates: { type: "array", items: { type: "string" } },
+    eval_required: { type: "boolean" },
+    eval_present: { type: "boolean" },
+    rationale: { type: "string" },
   },
 };
 
@@ -617,6 +771,26 @@ export const VERDICT_SCHEMAS: Readonly<Record<VerdictKind, VerdictSchema>> = {
       findings: { type: "array", items: FINDING_SCHEMA },
     },
   },
+  "learning-distill": {
+    title: "DistillationVerdict",
+    description: "Governed candidate proposals for deterministic evidence clusters.",
+    type: "object",
+    additionalProperties: false,
+    required: ["candidates"],
+    properties: {
+      candidates: { type: "array", items: DISTILLATION_PROPOSAL_SCHEMA },
+    },
+  },
+  "learning-review": {
+    title: "LearningReviewVerdict",
+    description: "Independent fail-closed reviews for supplied pending candidates.",
+    type: "object",
+    additionalProperties: false,
+    required: ["reviews"],
+    properties: {
+      reviews: { type: "array", items: LEARNING_REVIEW_SCHEMA },
+    },
+  },
 };
 
 function typeName(value: unknown): string {
@@ -639,6 +813,23 @@ function schemaErrors(schema: VerdictSchema, value: unknown, path: string): stri
     case "string":
       if (typeof value !== "string") {
         errors.push(`${path}: expected string, got ${typeName(value)}`);
+      }
+      break;
+    case "boolean":
+      if (typeof value !== "boolean") {
+        errors.push(`${path}: expected boolean, got ${typeName(value)}`);
+      }
+      break;
+    case "integer":
+      if (typeof value !== "number" || !Number.isInteger(value)) {
+        errors.push(`${path}: expected integer, got ${typeName(value)}`);
+      } else {
+        if (schema.minimum !== undefined && value < schema.minimum) {
+          errors.push(`${path}: expected >= ${schema.minimum}, got ${value}`);
+        }
+        if (schema.maximum !== undefined && value > schema.maximum) {
+          errors.push(`${path}: expected <= ${schema.maximum}, got ${value}`);
+        }
       }
       break;
     case "array": {
@@ -697,7 +888,8 @@ export function validateVerdict<K extends VerdictKind>(
   const schema = VERDICT_SCHEMAS[kind] as VerdictSchema | undefined;
   if (!schema) {
     throw new Error(
-      `unknown verdict kind ${JSON.stringify(kind)} (expected contract | build | review)`,
+      `unknown verdict kind ${JSON.stringify(kind)} ` +
+        `(expected contract | build | review | learning-distill | learning-review)`,
     );
   }
   const errors = schemaErrors(schema, value, kind);

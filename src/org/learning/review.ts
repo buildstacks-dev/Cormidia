@@ -154,6 +154,31 @@ export async function writeReviewerVerdict(orgHome: string, value: unknown): Pro
   return verdict;
 }
 
+/** Create-only reviewer write used by the scheduled M6 pass. A concurrent
+ * app-hosted reviewer may discover the same org-scope candidate, but it may
+ * not overwrite the first durable verdict. */
+export async function openReviewerVerdict(
+  orgHome: string,
+  value: unknown,
+): Promise<{ verdict: ReviewerVerdict; created: boolean }> {
+  const verdict = validateReviewerVerdict(value);
+  const path = reviewPath(orgHome, verdict.candidate_id);
+  const serialized = JSON.stringify(verdict, null, 2) + "\n";
+  if (existsSync(path)) {
+    const existing = await readFile(path, "utf8");
+    if (existing !== serialized) {
+      return {
+        verdict: await readJsonRecord(path, validateReviewerVerdict, `learning: no review at ${path}`),
+        created: false,
+      };
+    }
+    return { verdict, created: false };
+  }
+  await mkdir(reviewsDir(orgHome), { recursive: true });
+  await writeFileAtomic(path, serialized);
+  return { verdict, created: true };
+}
+
 /** Undefined when no verdict exists — the caller's fail-closed branch. */
 export async function readReviewerVerdict(
   orgHome: string,

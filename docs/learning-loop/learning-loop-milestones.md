@@ -6,7 +6,7 @@ loop design); revised per the consolidated design feedback of 2026-07-10
 post-proportionality codebase on 2026-07-11  
 **Companions:** `learning-loop-design.md`, `learning-loop-spec.md`
 
-**Build status (2026-07-11):**
+**Build status (2026-07-12):**
 
 | Milestone | Status |
 | --- | --- |
@@ -16,7 +16,7 @@ post-proportionality codebase on 2026-07-11
 | M3 | Done — PR #48 |
 | M4 | Done — PR #50; the `cacheReadTokens > 0` two-pass case lives in the live suite only (`test/runtime/claude-sdk.live.test.ts`) — the offline suite pins byte-identical rendering (`test/learning/resolver.test.ts`) |
 | M5 | Done — PR #52 |
-| M6 | Open |
+| M6 | Built — offline conformance complete; live week observation begins after merge |
 
 The cadence follows one rule:
 

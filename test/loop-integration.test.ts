@@ -83,6 +83,8 @@ const ROLES: Record<string, RoleConfig> = {
   sre: role("sre"),
   support: role("support"),
   marketing: role("marketing"),
+  distiller: role("distiller"),
+  "learning-reviewer": role("learning-reviewer"),
 };
 
 function role(name: string, overrides: Partial<RoleConfig> = {}): RoleConfig {

@@ -76,6 +76,12 @@ import {
   readInterventionRecord,
 } from "../org/learning/intervention.js";
 import { loadRoles } from "../org/roles.js";
+import { runDispatchedTurn } from "../org/turn-runner.js";
+import {
+  compactionReport,
+  listM6RunRecords,
+  prepareDistillation,
+} from "../org/learning/distillation.js";
 import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import { loadLearningPolicy } from "../org/learning/policy.js";
 import { readRejections } from "../org/learning/rejections.js";
@@ -93,6 +99,7 @@ import {
   renderVerdictLine,
 } from "./learn-activation.js";
 import { canaryStatusLines, learnCanary, learnExperiment } from "./learn-experiment.js";
+import { installProcessCancellation } from "./process-signal.js";
 
 export async function cmdLearn(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "learn");
@@ -159,6 +166,8 @@ export async function cmdLearn(args: string[]): Promise<number> {
       return learnExperiment(homes, rest);
     case "canary":
       return learnCanary(homes, rest);
+    case "distill":
+      return distill(homes, rest);
     default:
       throw new Error(
         'learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | ' +
@@ -167,9 +176,71 @@ export async function cmdLearn(args: string[]): Promise<number> {
           'report [--json] [--refresh] | ' +
           'review <candidate-id> | publish <candidate-id> | resolve --app <app> --role <role> | ' +
           'disable <concept-id> | rollback --root org|app | provisional | ' +
-          'experiment declare|run|list | canary start|status|promote|stop',
+          'experiment declare|run|list | canary start|status|promote|stop | ' +
+          'distill [--app <app>] [--dry-run]',
       );
   }
+}
+
+async function distill(homes: OperonHomes, args: string[]): Promise<number> {
+  let appName: string | undefined;
+  let dryRun = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--app") appName = needValue(args, ++i, arg);
+    else throw new Error(`learn distill: unknown argument "${arg}"`);
+  }
+  const live = homes.appsFile.apps.filter((app) => app.status === "live");
+  if (appName === undefined) {
+    if (live.length === 0) throw new Error("learn distill: no live app is registered");
+    if (live.length > 1) {
+      throw new Error(
+        `learn distill: multiple live apps are registered (${live.map((app) => app.name).join(", ")}); ` +
+          "pass --app <name> to preserve one-turn-one-app",
+      );
+    }
+    appName = live[0]!.name;
+  }
+  const app = homes.appsFile.apps.find((entry) => entry.name === appName);
+  if (app === undefined) throw new Error(`learn distill: unknown app ${appName}`);
+  if (app.status !== "live") throw new Error(`learn distill: app ${appName} is ${app.status}, not live`);
+
+  const roles = await loadRoles(join(homes.orgHome, "roles.yaml"));
+  const role = roles.roles.find((entry) => entry.name === "distiller");
+  if (role === undefined) throw new Error("learn distill: roles.yaml has no distiller role");
+
+  if (dryRun) {
+    const appWorkdir = resolveAppWorkdir(app, {
+      orgRoot: homes.orgHome,
+      runtimeHome: homes.stateHome,
+    });
+    const preparation = await prepareDistillation({
+      orgHome: homes.orgHome,
+      stateHome: homes.stateHome,
+      app: app.name,
+      appWorkdir,
+      appStages: Object.fromEntries(homes.appsFile.apps.map((entry) => [entry.name, entry.status])),
+      policy: await loadLearningPolicy(homes.orgHome),
+    });
+    console.log(JSON.stringify(preparation, null, 2));
+    return 0;
+  }
+
+  const turnId = `learn-distill-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}`;
+  const cancellation = installProcessCancellation();
+  const result = await runDispatchedTurn({
+    role,
+    app,
+    appsFile: homes.appsFile,
+    turnId,
+    orgRoot: homes.orgHome,
+    runtimeHome: homes.stateHome,
+    pipelineOverride: "learning-distill",
+    signal: cancellation.signal,
+  }).finally(() => cancellation.dispose());
+  console.log(`${turnId}: ${result.status} — ${result.summary}`);
+  return cancellation.exitCode ?? (result.status === "failed" ? 1 : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -902,6 +973,22 @@ async function report(
           return [];
         })
       : [];
+  const m6Runs = await listM6RunRecords(stateHome).catch((error: Error) => {
+    storeErrors.push(error.message);
+    return [];
+  });
+  const { orgRoot, appRoots } = learningRoots(homes);
+  const compaction =
+    policy === undefined
+      ? []
+      : await compactionReport({
+          roots: [orgRoot, ...Object.values(appRoots)],
+          events,
+          policy,
+        }).catch((error: Error) => {
+          storeErrors.push(error.message);
+          return [];
+        });
 
   if (json) {
     console.log(
@@ -940,11 +1027,18 @@ async function report(
           learning_spend: {
             month_usd: learningSpend.monthUsd,
             experiments_this_month: learningSpend.experimentsThisMonth,
+            distillations_this_week: learningSpend.distillationsThisWeek,
+            learning_reviews_this_week: learningSpend.reviewsThisWeek,
             cost_per_experiment: costPerExperiment,
             cost_per_accepted_improvement: costPerImprovement,
             by_candidate: Object.fromEntries(learningSpend.byCandidate),
           },
           canary_status: canaryLines,
+          scheduled_learning: m6Runs,
+          compaction: {
+            report_only: true,
+            recommendations: compaction,
+          },
           experiments: experiments.map((experiment) => ({
             experiment_id: experiment.experiment_id,
             status: experiment.status,
@@ -996,7 +1090,7 @@ async function report(
 
   const lines: string[] = [];
   lines.push(
-    "Learning report (capture + episode + experiment + governed activation — M4: every activation human-approved)",
+    "Learning report (capture + episode + experiment + governed activation + scheduled distillation — every activation human-approved)",
   );
   lines.push("");
   if (projection.mode === "read_only") {
@@ -1059,6 +1153,22 @@ async function report(
   for (const event of humans.slice(-5)) {
     lines.push(`  ${event.event_id} → ${event.episode_id}`);
   }
+  lines.push("", `Scheduled learning runs: ${m6Runs.length}`);
+  for (const run of m6Runs.slice(-10)) {
+    lines.push(
+      `  ${run.run_id}: ${run.kind} ${run.status}; model turns ${run.model_turns}` +
+        (run.reason !== null ? `; ${run.reason}` : ""),
+    );
+  }
+  lines.push("", `Compaction recommendations (report-only): ${compaction.length}`);
+  for (const recommendation of compaction) {
+    lines.push(
+      `  ${recommendation.action}: ${recommendation.concept_ids.join(", ")} — ${recommendation.rationale}` +
+        (recommendation.proposed_scope !== undefined
+          ? `; proposed scope ${recommendation.proposed_scope}`
+          : ""),
+    );
+  }
   if (experiments.length > 0) {
     lines.push("", `Experiments: ${experiments.length}`);
     for (const experiment of experiments) {
@@ -1077,7 +1187,9 @@ async function report(
   if (learningSpend.monthUsd > 0) {
     lines.push("", "Learning spend (this month, from the org ledger):");
     lines.push(
-      `  $${learningSpend.monthUsd.toFixed(2)} across ${learningSpend.experimentsThisMonth} experiment(s)` +
+      `  $${learningSpend.monthUsd.toFixed(2)}; ${learningSpend.distillationsThisWeek} distillation(s) and ` +
+        `${learningSpend.reviewsThisWeek} learning review(s) in the rolling week; ` +
+        `${learningSpend.experimentsThisMonth} experiment(s) this month` +
         (costPerExperiment !== null ? `; cost per experiment $${costPerExperiment.toFixed(2)}` : ""),
     );
     lines.push(

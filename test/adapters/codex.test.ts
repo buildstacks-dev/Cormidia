@@ -93,6 +93,7 @@ class FakeCodexClient implements CodexAppServerClient {
  *  scripted-action mapping) so a multi-file patch approval can be exercised. */
 class ScriptedMessageClient implements CodexAppServerClient {
   readonly responses: Array<{ id: JsonRpcId; result: unknown }> = [];
+  closed = false;
 
   constructor(private readonly messages: CodexServerMessage[]) {}
 
@@ -108,7 +109,9 @@ class ScriptedMessageClient implements CodexAppServerClient {
     this.responses.push({ id, result });
   }
 
-  async close(): Promise<void> {}
+  async close(): Promise<void> {
+    this.closed = true;
+  }
 
   async *[Symbol.asyncIterator](): AsyncIterator<CodexServerMessage> {
     for (const message of this.messages) yield message;
@@ -479,6 +482,48 @@ describe("CodexRuntime (App Server mocked)", () => {
       cacheReadTokens: 6,
       tokensOut: 23,
     });
+  });
+
+  it("closes the App Server and returns checkpointed partial usage on cancellation", async () => {
+    const controller = new AbortController();
+    const progress: Array<{ usage?: { tokensIn: number; quality?: string } }> = [];
+    const token: CodexServerMessage = {
+      method: "thread/tokenUsage/updated",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        tokenUsage: {
+          last: { inputTokens: 30, cachedInputTokens: 4, outputTokens: 12, reasoningOutputTokens: 3 },
+        },
+      },
+    };
+    const client = new ScriptedMessageClient([token]);
+    const originalIterator = client[Symbol.asyncIterator].bind(client);
+    client[Symbol.asyncIterator] = () => {
+      const iterator = originalIterator();
+      return {
+        next: async () => {
+          const next = await iterator.next();
+          if (!next.done) {
+            queueMicrotask(() => controller.abort("operator SIGTERM"));
+          }
+          return next;
+        },
+      };
+    };
+
+    const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(
+      makeReq({ signal: controller.signal }),
+      { gate: defaultGate, onProgress: (event) => progress.push(event) },
+    );
+
+    expect(client.closed).toBe(true);
+    expect(result).toMatchObject({
+      status: "cancelled",
+      summary: "operator SIGTERM",
+      usage: { tokensIn: 34, tokensOut: 15, quality: "partial" },
+    });
+    expect(progress.some((event) => event.usage?.quality === "partial")).toBe(true);
   });
 
   it("classifies an auth-loss server error as error_auth with the unwrapped message", async () => {

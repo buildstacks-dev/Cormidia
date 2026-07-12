@@ -7,11 +7,13 @@ import {
   STATE_HOME_DEFINITION,
 } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { authorityEvidence, resolveAuthority } from "../org/authority.js";
 
 export async function cmdContext(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "context");
   const json = consumeJsonOnly(common.rest, "context");
   const homes = await resolveOperonHomes(common);
+  const authority = await resolveAuthority({ orgHome: homes.orgHome });
   const data = {
     version: await packageVersion(),
     packageRoot: homes.packageRoot,
@@ -25,6 +27,7 @@ export async function cmdContext(args: string[]): Promise<number> {
     rolesPath: join(homes.orgHome, "roles.yaml"),
     pipelinesPath: join(homes.orgHome, "pipelines.yaml"),
     promptsPath: join(homes.orgHome, "prompts"),
+    authority: authorityEvidence(authority),
     apps: homes.appsFile.apps.map((app) => ({ name: app.name, repo: app.repo, status: app.status })),
   };
   if (json) console.log(JSON.stringify(data, null, 2));
@@ -33,13 +36,14 @@ export async function cmdContext(args: string[]): Promise<number> {
     console.log(`Package:    ${data.packageRoot}`);
     console.log(`Org home:   ${data.orgHome} — ${ORG_HOME_DEFINITION}.`);
     console.log(`State home: ${data.stateHome} — ${STATE_HOME_DEFINITION}.`);
+    console.log(`Authority:  ${data.authority.version} (sha256:${data.authority.sha256})`);
     console.log(`Apps:       ${data.apps.length}`);
   }
   return 0;
 }
 
 const CAPABILITIES = [
-  { command: "org init", writes: true, spendsTokens: false, summary: "create and select a separate org home" },
+  { command: "org init", writes: true, spendsTokens: false, summary: "create and select an org home with a versioned authority charter" },
   { command: "org show", writes: false, spendsTokens: false, summary: "show resolved package, org, and state homes" },
   { command: "org use", writes: true, spendsTokens: false, summary: "select an existing complete org home" },
   { command: "roles", writes: false, spendsTokens: false, summary: "validate and list the active org's roles" },
@@ -56,11 +60,12 @@ const CAPABILITIES = [
   { command: "status", writes: false, spendsTokens: false, summary: "show recent run status" },
   { command: "analyze", writes: false, spendsTokens: false, summary: "report run anomaly signals" },
   { command: "telemetry", writes: false, spendsTokens: false, summary: "historical pass/trace/cost view over run records" },
+  { command: "task", writes: true, spendsTokens: false, summary: "record the broader delegated task, fallback, and terminal outcome" },
   { command: "retro", writes: true, spendsTokens: false, summary: "write an evidence-based org retro" },
   { command: "learn", writes: true, spendsTokens: true, summary: "learning loop: inspect/show/report are read-only; emit/review/publish/resolve/canary are the human operator's governed-activation window; only `learn experiment run` spends tokens (paired replay)" },
   { command: "prune-runs", writes: true, spendsTokens: false, summary: "delete finalized run data beyond retention" },
   { command: "doctor", writes: false, spendsTokens: false, summary: "validate installation and active org configuration" },
-  { command: "context", writes: false, spendsTokens: false, summary: "show resolved paths and registered apps" },
+  { command: "context", writes: false, spendsTokens: false, summary: "show resolved paths, authority provenance, and registered apps" },
 ] as const;
 
 export async function cmdCapabilities(args: string[]): Promise<number> {

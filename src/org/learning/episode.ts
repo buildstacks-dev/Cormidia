@@ -73,7 +73,14 @@ export type EpisodeStatus = "open" | "closed";
  *  `running` envelope: `running` means a live heartbeat, `stalled` means the
  *  pass died without finalizing (killed, crashed) — reconcile recovers its
  *  spend but the envelope stays `running` on disk forever. */
-export type EpisodeTurnStatus = "completed" | "failed" | "blocked" | "running" | "stalled";
+export type EpisodeTurnStatus =
+  | "completed"
+  | "failed"
+  | "blocked"
+  | "cancelled"
+  | "timed_out"
+  | "running"
+  | "stalled";
 
 /** One (turn, pipeline, pass) with its run ids — retries append run ids;
  *  `status` reads the latest attempt. `status` is a spec §5 delta: without

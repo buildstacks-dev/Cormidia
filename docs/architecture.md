@@ -59,7 +59,8 @@ Module placement respects the one-way import rule
 | ------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------- |
 | Dispatcher, schedule state, event polling, locks, trigger routing | `src/org/dispatch.ts`, `src/org/trigger-routing.ts`             | M8 route table maps roles.yaml triggers to protocols |
 | App registry (`apps.yaml` loader)                       | `src/org/apps.ts`                                              | implemented (M7)                       |
-| Context assembler                                       | `src/org/context.ts`                                           | implemented M9                         |
+| Authority charter + resolver                            | `src/org/authority.ts`                                         | versioned org grant, app-only narrowing |
+| Context assembler                                       | `src/org/context.ts`                                           | authority + TASTE + memory              |
 | Approval queue + grants                                 | `src/org/approvals.ts`                                         | implemented (M7)                       |
 | OKF memory read/write                                   | `src/org/memory.ts`                                           | implemented M9                         |
 | Scorecards                                              | `src/org/scorecards.ts`                                        | implemented M9                         |
@@ -106,6 +107,9 @@ package, never relative to the caller's current directory.
 
 ```
 TASTE.md                 org constitution (human-ratified)
+AUTHORITY.md             canonical, versioned human authority grant
+AGENTS.md                Codex instructions composed around AUTHORITY.md
+CLAUDE.md                Claude Code instructions composed around AUTHORITY.md
 roles.yaml               org chart (human-ratified)
 apps.yaml                app registry (§7)
 pipelines.yaml           executable build/role protocols
@@ -118,7 +122,11 @@ retro/<date>.md          weekly retro notes (§6)
 
 `operon org init <path> --name <name>` atomically creates and validates this
 complete tree, creates the state home, and writes `~/.operon/config` with the
-active `org_home`. `operon org use <path>` selects an existing complete tree.
+active `org_home`. Onboarding selects `delegated-operator` (default),
+`conservative`, or an attributable custom authority file and previews both
+automatic and human-gated actions. A pre-feature org with no `AUTHORITY.md`
+fails closed to the built-in legacy-conservative profile; it never silently
+inherits the newer delegated default. `operon org use <path>` selects an existing complete tree.
 `OPERON_ORG_HOME` is the explicit non-persistent override.
 
 ### App repo (target product repo)
@@ -126,15 +134,22 @@ active `org_home`. `operon org use <path>` selects an existing complete tree.
 ```
 .operon/
   TASTE.md               app charter ("what this product is; what good means")
+  AUTHORITY.md           session-readable org snapshot + app-only narrowing
   config.yaml            this app's registry entry (same schema as apps.yaml)
   policy.yaml            app-owned quality-gate policy emitted by bootstrap
   memory/<role>/         per-(role, app) domain bundles
   onboarding-report.md   deterministic setup/documentation inventory
   bootstrap/             initial issue and operator next steps for new apps
+AGENTS.md                existing content + one marked Operon authority block
+CLAUDE.md                existing content + one marked Operon authority block
 ```
 
-**Containment invariant.** Operon's entire footprint in an app repo lives
-under `.operon/` — plus the transient GitHub surface (`op/*` branches,
+**Containment invariant.** Operon's owned app artifacts live under `.operon/`,
+with one deliberately narrow exception: onboarding composes an idempotent,
+marked authority pointer into root `AGENTS.md` and `CLAUDE.md` so Codex and
+Claude Code see the charter when launched directly. Existing content outside
+that marker is preserved byte-for-byte. The remaining transient surface is
+GitHub (`op/*` branches,
 `op:*` labels) that closes out as work merges. Nothing Operon-specific is
 scattered through the app's source tree, so contributors who don't run
 Operon can ignore exactly one directory — the same social contract as
@@ -158,8 +173,11 @@ state/budget-overlay.json  dispatcher budget-pause overlay (§7)
 locks/<app>--<role>.lock
 approvals/               pending/ decided/ grants/ log.jsonl (§4)
 sessions/                adapter session artifacts where the SDK needs a home
+tasks/<taskId>/           parent delegated-task record + exact operator prompt;
+                         child runs correlate via parent_task_id
 runs/<app>/<runId>/      L1–L3 per-pass runlogs: envelope, events, brief,
-                         output, session log (docs/loop.md §9)
+                         exact prompt, output, activity log (not a full
+                         transcript; docs/loop.md §9)
 telemetry/<day>.jsonl    org cost ledger (src/runtime/telemetry.ts orgDir)
 invocations/<day>.jsonl  one record per loop/dispatch invocation
 tickets/<app>/<issue>.json  cross-process ticket claim state (docs/loop.md §7.1)
@@ -374,6 +392,14 @@ child that also holds the per-app clone lock would otherwise let two workers
 mutate one clone. If the pid refuses to die this tick, recovery waits for a
 later one.
 
+Inside a pass, the executor also owns a shorter adapter-start deadline
+(default 30 seconds). The first adapter progress checkpoint or streamed event
+proves startup; silence until the deadline aborts the same owned provider tree
+and finalizes `failed(error_adapter_start_timeout)`, distinct from the full
+turn wall-clock timeout. `operon doctor` uses separate bounded, non-billable
+initialize/account/auth probes to catch missing binaries, transports,
+credentials, and model configuration before an operator starts live work.
+
 ### Idempotency rules
 
 These four rules are why a dead turn never leaves the repo half-done:
@@ -500,6 +526,8 @@ different questions, so conflicts are rare; narrower layers specialize
 defaults):
 
 ```
+[0] effective delegated authority    org AUTHORITY.md, optionally narrowed
+                                      by <app>/.operon/AUTHORITY.md
 [1] org TASTE.md                      values + engineering constitution
 [2] taste/<role>.md                   role craft (when it exists)
 [3] <app>/.operon/TASTE.md            product charter (when it exists)
@@ -510,8 +538,12 @@ defaults):
                                       bundle (§6) — capped
 ```
 
-**The org's "What we never do" section is unoverridable — but the guarantee
-is the gate, not prompt order.** Layers [2]/[3] specializing a never-do rule
+**Authority and the org's "What we never do" section are unoverridable by
+narrower context — but the guarantee is the gate, not prompt order.** App
+authority can only inherit, select conservative, or add restrictions; a stale
+app snapshot fails closed. Current-task instructions can narrow the grant.
+Broader authority requires a fresh, attributable human instruction. Layers
+[2]/[3] specializing a never-do rule
 would merely be ignored text; the critical-ops gate enforces the same list
 mechanically on every tool action. Prompt layering is steering; the gate is
 the contract.
@@ -542,7 +574,7 @@ at ~0.1× input price, and every read refreshes the TTL — so back-to-back
 passes stay warm across the loop's fresh-session-per-pass rule for free.
 Two rules protect that:
 
-1. **Layers [1]–[4] are a pure function of (role, app, ratified files).**
+1. **Layers [0]–[4] are a pure function of (role, app, ratified files).**
    Never embed per-turn bytes — timestamps, turn ids, ticket refs, attempt
    counters. Per-turn facts belong in the task payload (the brief), which
    renders after the stable prefix.
@@ -567,10 +599,11 @@ assembled ever lands in a commit:
 | pi      | `.pi/APPEND_SYSTEM.md` in worktree        | worktree-local, masked via `.git/info/exclude` (never the repo's `.gitignore`)            |
 
 
-The assembler produces the existing `ContextBundle` type unchanged: layers
-[1]–[4] fill `taste: string[]` in order (the generated turn protocol rides as
-the final taste element), layer [5] fills `memoryExcerpts` — no type change
-needed.
+The assembler produces `ContextBundle.authority` (effective text, profile,
+version, SHA-256, and source paths), then layers [1]–[4] in `taste: string[]`
+and layer [5] in `memoryExcerpts`. Every pass envelope copies the authority
+provenance without duplicating its full prose. Parent delegated-task records
+capture the same evidence at `operon task begin`.
 
 This section covers the *system context* a pass runs under. The *task
 payload* — ticket, spec excerpts, contract, findings, attempt history — is
@@ -761,6 +794,13 @@ effects.
 carry `unmeasured: true` (the native CLI's tokens never flow through
 Operon), while `--auto` turns settle real usage per pass. The `Trigger`
 type's `manual?: boolean` kind is one the dispatcher **never** auto-fires.
+- Before an `--auto` runtime is constructed, `planning-depth/v1` routes on
+  explicit/derived risk, ambiguity, coupling, reversibility, external
+  consequence, expected decomposition, and sensitive-domain floors. Quick
+  selects one combined planning/decomposition pass; standard selects one PM
+  perspective; deep retains competing PMs and arbitration. The envelope
+  records factors, selected/skipped passes, and the pre-execution cost
+  estimate; prompt length is not a routing input.
 - Gate applies as always — interactivity doesn't change the approval
 boundary; the human approving in-terminal *is* the approval surface for any
 critical op raised live (recorded to the same audit log).
@@ -810,14 +850,18 @@ operon bootstrap        # run inside the product repo
   product is and what "good" means (→ app charter); which roles to enable;
    budget; cadence; app-specific critical ops (deploy commands, publish
    targets, secret locations — these extend the gate's rule set for this
-   app); support/marketing channels if any.
+   app); support/marketing channels if any; and whether app authority inherits
+   the org grant, selects conservative, or adds custom restrictions.
 3. **Emit app-owned artifacts.**
   - `.operon/TASTE.md` — the app charter (layer [3]);
+  - `.operon/AUTHORITY.md` — the effective, content-bound authority snapshot;
   - `.operon/config.yaml` — the app's registry entry (apps.yaml schema);
   - `.operon/policy.yaml` — the app-owned quality-gate policy;
   - `.operon/onboarding-report.md` — deterministic documentation/setup
   inventory and gap report;
   - `.operon/memory/<role>/INDEX.md` — seeded empty bundles.
+  - marked blocks in root `AGENTS.md` and `CLAUDE.md` — safe composition,
+    never replacement, pointing top-level harnesses at the app snapshot.
 4. **Register / join.** Resolve the complete active org through explicit
   `--org-home`, `OPERON_ORG_HOME`, or `~/.operon/config`, then add the app to
   its `apps.yaml` as `status: onboarding`. If no org resolves, stop before

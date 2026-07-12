@@ -26,7 +26,11 @@ const META = {
   pipeline: "build",
   pass: "implement",
   role: "builder",
+  runtime: "codex" as const,
   model: "gpt-5.5",
+  effort: "high" as const,
+  workdir: "/tmp/civic",
+  gitBranch: "op/42",
 };
 
 function withHome<T>(fn: (root: string) => Promise<T>): Promise<T> {
@@ -45,10 +49,18 @@ describe("envelope lifecycle", () => {
       expect(env.trace_id).toBe("turn-8k2f");
       expect(env.pipeline).toBe("build");
       expect(env.pass).toBe("implement");
+      expect(env).toMatchObject({
+        runtime: "codex",
+        model: "gpt-5.5",
+        effort: "high",
+        workdir: "/tmp/civic",
+        git_branch: "op/42",
+      });
       expect(env.started_at).toBe(T0.toISOString());
       expect(env.refs).toEqual({
         events: "events.jsonl",
         brief: "brief.md",
+        prompt: "prompt.md",
         output: "output.md",
         session_log: "session.log",
       });
@@ -72,7 +84,12 @@ describe("envelope lifecycle", () => {
       const env = await readEnvelope(root, "civic", RUN_ID);
       // A ref is a promise (telemetry doc Defect C): a terminal envelope must
       // never reference a file that does not exist.
-      expect(env.refs).toEqual({ events: "events.jsonl", brief: "brief.md", output: "output.md" });
+      expect(env.refs).toEqual({
+        events: "events.jsonl",
+        brief: "brief.md",
+        prompt: "prompt.md",
+        output: "output.md",
+      });
       expect(JSON.stringify(env)).not.toContain("session_log");
     }));
 
@@ -110,6 +127,32 @@ describe("envelope lifecycle", () => {
       expect(env.tool_counts).toEqual({ bash: 5, read: 3 });
       expect(env.status).toBe("running");
       expect(env.started_at).toBe(T0.toISOString()); // untouched
+    }));
+
+  it("checkpoints provider session evidence and redacted artifacts", () =>
+    withHome(async (root) => {
+      await startRun(root, META, T0);
+      await updateEnvelope(root, "civic", RUN_ID, {
+        session: {
+          runtime: "codex",
+          id: "thread-123",
+          native_ref: "codex://threads/thread-123",
+          transcript: "native_task",
+          transcript_note: "Open the native task.",
+        },
+        artifacts: [
+          {
+            kind: "note",
+            ref: `key-sk-${"a1".repeat(20)}`,
+            summary: `secret sk-${"b2".repeat(20)}`,
+          },
+        ],
+      });
+
+      const env = await readEnvelope(root, "civic", RUN_ID);
+      expect(env.session).toMatchObject({ id: "thread-123", transcript: "native_task" });
+      expect(env.artifacts?.[0]?.ref).toContain("[REDACTED:sk-api-key]");
+      expect(env.artifacts?.[0]?.summary).toContain("[REDACTED:sk-api-key]");
     }));
 
   it("previews are truncated (~120) and scrubbed via redact", () =>

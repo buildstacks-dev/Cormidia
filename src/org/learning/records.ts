@@ -50,8 +50,16 @@ function parseValidated<T>(path: string, raw: string, validate: (value: unknown)
  *  (learning events, rejections): a malformed FINAL line is a torn append
  *  and is dropped; a malformed line anywhere else is corruption and throws
  *  loudly. Returns [] for a missing file. */
-export async function readJsonLinesTolerant<T>(path: string): Promise<T[]> {
-  if (!existsSync(path)) return [];
+export async function readJsonLinesTolerant<T>(
+  path: string,
+  options: { missing?: "empty" | "throw" } = {},
+): Promise<T[]> {
+  if (!existsSync(path)) {
+    if (options.missing !== "throw") return [];
+    const error = new Error(`learning: event file is missing: ${path}`) as NodeJS.ErrnoException;
+    error.code = "ENOENT";
+    throw error;
+  }
   const lines = (await readFile(path, "utf8")).split("\n").filter((line) => line !== "");
   const out: T[] = [];
   lines.forEach((line, i) => {

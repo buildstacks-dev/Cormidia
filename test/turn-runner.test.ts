@@ -5,7 +5,7 @@
 // Uses temp git/org fixtures, FakeRuntime, and FakeGhOps; no network, auth,
 // real GitHub/org state, or live wall clock is required.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -63,6 +63,114 @@ const BLOCKED: TurnResult = {
 };
 
 describe("dispatched turn runner", () => {
+  it("propagates cancellation into the active pipeline and journals a terminal cancelled phase", async () => {
+    const pair = makeBareWithClone();
+    const home = makeOrgHome({ approvals: true, state: true });
+    const app: AppEntry = {
+      name: "alpha",
+      repo: pair.bare.root,
+      status: "live",
+      budgetUsdMonth: 1000,
+      cadence: {},
+    };
+    const appsFile: AppsFile = {
+      org: { name: "test", maxConcurrentTurns: 1 },
+      defaults: { budgetUsdMonth: 1000 },
+      apps: [app],
+    };
+    const controller = new AbortController();
+    let announceStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      announceStarted = resolve;
+    });
+    const runtime: Runtime = {
+      kind: "claude",
+      async runTurn(req, hooks) {
+        hooks.onProgress?.({
+          session: { runtime: "claude", id: "cancel-session" },
+          usage: {
+            tokensIn: 200,
+            tokensOut: 10,
+            costUsd: 0.2,
+            subagentTurns: 0,
+            wallClockMs: 500,
+            quality: "partial",
+          },
+        });
+        announceStarted();
+        await new Promise<void>((resolve) => {
+          if (req.signal?.aborted) resolve();
+          else req.signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return {
+          status: "cancelled",
+          errorCode: "error_cancelled",
+          summary: "operator cancellation (SIGTERM)",
+          artifacts: [],
+          session: { runtime: "claude", id: "cancel-session" },
+          usage: {
+            tokensIn: 200,
+            tokensOut: 10,
+            costUsd: 0.2,
+            subagentTurns: 0,
+            wallClockMs: 500,
+            quality: "partial",
+          },
+          escalations: [],
+        };
+      },
+    };
+    try {
+      await writeJournalPatch(home.root, "turn-cancel", {
+        role: PLANNER.name,
+        app: app.name,
+        phase: "assembling",
+        attempt: 0,
+        triggerKind: "schedule",
+        trigger: "daily",
+      });
+      const running = runDispatchedTurn({
+        role: PLANNER,
+        app,
+        appsFile,
+        turnId: "turn-cancel",
+        runtimeHome: home.root,
+        orgRoot: process.cwd(),
+        runtimeFor: () => runtime,
+        signal: controller.signal,
+      });
+      await started;
+      controller.abort({
+        status: "cancelled",
+        errorCode: "error_cancelled",
+        reason: "operator cancellation (SIGTERM)",
+      });
+      const result = await running;
+
+      expect(result).toMatchObject({ status: "cancelled" });
+      const journal = JSON.parse(
+        readFileSync(join(home.root, "state", "turns", "turn-cancel.json"), "utf8"),
+      ) as { phase: string; message?: string };
+      expect(journal).toMatchObject({
+        phase: "cancelled",
+        message: "pipeline groom cancelled; passes: groom=cancelled",
+      });
+      const runDir = join(home.root, "runs", "alpha");
+      const runId = readdirSync(runDir)[0]!;
+      const envelope = JSON.parse(readFileSync(join(runDir, runId, "envelope.json"), "utf8")) as {
+        status: string;
+        usage: { cost_usd: number; quality: string };
+      };
+      expect(envelope).toMatchObject({
+        status: "cancelled",
+        usage: { cost_usd: 0.2, quality: "partial" },
+      });
+    } finally {
+      home.cleanup();
+      pair.cleanup();
+    }
+  });
+
   it("uses managed clone, composed gate, approval persistence, journal, and telemetry", async () => {
     const pair = makeBareWithClone();
     const home = makeOrgHome({ approvals: true, state: true });

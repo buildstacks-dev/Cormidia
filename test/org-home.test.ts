@@ -1,7 +1,7 @@
 // Explicit packaging boundary: package source, committed org home, runtime
 // state, and app repos are separate locations.
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,9 +36,12 @@ describe("org home lifecycle", () => {
 
     expect(result.orgHome).toBe(orgHome);
     expect(result.stateHome).toBe(join(fakeHome, ".operon", "my-org"));
-    for (const rel of ["TASTE.md", "roles.yaml", "apps.yaml", "pipelines.yaml", "prompts"]) {
+    for (const rel of ["AUTHORITY.md", "AGENTS.md", "CLAUDE.md", "TASTE.md", "roles.yaml", "apps.yaml", "pipelines.yaml", "prompts"]) {
       expect(existsSync(join(orgHome, rel))).toBe(true);
     }
+    expect(result.authority.version).toBe("delegated-operator/v1");
+    expect(await readFile(join(orgHome, "AGENTS.md"), "utf8")).toContain("operon-authority:start");
+    expect(await readFile(join(orgHome, "CLAUDE.md"), "utf8")).toContain("AUTHORITY.md");
     expect(result.appsFile.apps).toEqual([]);
     expect(await readFile(join(fakeHome, ".operon", "config"), "utf8")).toContain(`org_home: ${orgHome}`);
 
@@ -86,6 +89,49 @@ describe("org home lifecycle", () => {
     expect(output).toContain(ORG_HOME_DEFINITION);
     expect(output).toContain(STATE_HOME_DEFINITION);
     expect(output).toContain("operon doctor");
+    expect(output).toContain("ordinary reversible decisions");
+    expect(output).toContain("publication or deployment");
+  });
+
+  it("records an explicitly selected conservative authority profile", async () => {
+    const parent = temp("operon-org-conservative-");
+    const fakeHome = temp("operon-user-conservative-");
+    const result = await initOrgHome({
+      target: join(parent, "org"),
+      name: "careful",
+      homeDir: fakeHome,
+      authorityProfile: "conservative",
+    });
+    expect(result.authority.version).toBe("conservative/v1");
+    expect(await readFile(join(result.orgHome, "AUTHORITY.md"), "utf8")).toMatch(
+      /Ask before\s+making edits/,
+    );
+  });
+
+  it("accepts an attributable custom charter through org init", async () => {
+    const parent = temp("operon-org-custom-");
+    const fakeHome = temp("operon-user-custom-");
+    const source = join(parent, "custom-authority.md");
+    writeFileSync(source, "Run routine local work, but ask before changing billing logic.\n");
+    await cmdOrg(
+      [
+        "init",
+        join(parent, "org"),
+        "--name",
+        "custom",
+        "--authority",
+        "custom",
+        "--authority-file",
+        source,
+        "--authority-by",
+        "bikram",
+      ],
+      { homeDir: fakeHome },
+    );
+    const charter = await readFile(join(parent, "org", "AUTHORITY.md"), "utf8");
+    expect(charter).toContain("profile: custom");
+    expect(charter).toContain("granted_by: bikram");
+    expect(charter).toContain("ask before changing billing logic");
   });
 
   it("refuses to replace an existing target", async () => {

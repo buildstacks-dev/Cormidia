@@ -4,13 +4,15 @@
 // line, throw on mid-file corruption), and stream-name fallback/sanitization.
 // Temp dirs only; no network or live clock.
 
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, symlinkSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   appendLearningEventsDeduped,
   createLearningEventSink,
   learningEventPath,
   readLearningEvents,
+  readLearningEventsWithDiagnostics,
   type LearningEvent,
 } from "../../src/org/learning/events.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
@@ -122,6 +124,23 @@ describe("readLearningEvents", () => {
 
       appendFileSync(path, "\n" + JSON.stringify(event({ event_id: "evt_after" })) + "\n");
       await expect(readLearningEvents(home.root)).rejects.toThrow(/malformed mid-file/);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("tolerates and identifies an event file that disappears before read", async () => {
+    const home = makeOrgHome();
+    try {
+      const date = join(home.root, "learning", "events", "2026-07-11");
+      mkdirSync(date, { recursive: true });
+      const dangling = join(date, "missing-turn.jsonl");
+      symlinkSync(join(date, "does-not-exist.jsonl"), dangling);
+
+      const read = await readLearningEventsWithDiagnostics(home.root);
+      expect(read.events).toEqual([]);
+      expect(read.missingFiles).toEqual([dangling]);
+      expect(await readLearningEvents(home.root)).toEqual([]);
     } finally {
       home.cleanup();
     }

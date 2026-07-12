@@ -11,7 +11,7 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { Trigger, TurnResult, RoleConfig } from "./types.js";
+import type { Trigger, TurnResult, RoleConfig, UsageQuality } from "./types.js";
 
 /** Which trigger kind fired a turn — derived from `Trigger` so the two can
  *  never drift apart. Manual turns record `"manual"` (architecture.md §8). */
@@ -29,6 +29,8 @@ export interface TurnRecord {
   cacheReadTokens?: number;
   tokensOut: number;
   costUsd: number;
+  /** Complete, partial, estimated, or unavailable provider usage. */
+  usageQuality: UsageQuality;
   subagentTurns: number;
   wallClockMs: number;
   escalations: number;
@@ -43,6 +45,7 @@ export interface TurnRecord {
    *  pass-settled row; absent on legacy and turn-lifecycle rows. */
   runId?: string;
   traceId?: string;
+  parentTaskId?: string;
   pipeline?: string;
   pass?: string;
   /** True when costUsd is an Operon-computed equivalent-cost estimate for a
@@ -68,6 +71,7 @@ export interface TurnAttribution {
   trigger?: TriggerKind;
   runId?: string;
   traceId?: string;
+  parentTaskId?: string;
   pipeline?: string;
   pass?: string;
   unmeasured?: boolean;
@@ -90,6 +94,13 @@ export function toRecord(
     tokensIn: result.usage.tokensIn,
     tokensOut: result.usage.tokensOut,
     costUsd: result.usage.costUsd,
+    usageQuality:
+      result.usage.quality ??
+      (attribution.unmeasured === true
+        ? "unavailable"
+        : result.usage.costEstimated === true
+          ? "estimated"
+          : "complete"),
     subagentTurns: result.usage.subagentTurns,
     wallClockMs: result.usage.wallClockMs,
     escalations: result.escalations.length,
@@ -100,6 +111,7 @@ export function toRecord(
   if (attribution.trigger !== undefined) record.trigger = attribution.trigger;
   if (attribution.runId !== undefined) record.runId = attribution.runId;
   if (attribution.traceId !== undefined) record.traceId = attribution.traceId;
+  if (attribution.parentTaskId !== undefined) record.parentTaskId = attribution.parentTaskId;
   if (attribution.pipeline !== undefined) record.pipeline = attribution.pipeline;
   if (attribution.pass !== undefined) record.pass = attribution.pass;
   if (attribution.unmeasured === true) record.unmeasured = true;
@@ -205,6 +217,7 @@ export interface InvocationRecord {
   itemsClaimed?: number;
   outcome: string;
   wallClockMs: number;
+  parentTaskId?: string;
 }
 
 export async function recordInvocation(orgDir: string, record: InvocationRecord): Promise<void> {

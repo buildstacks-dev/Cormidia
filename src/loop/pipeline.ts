@@ -19,7 +19,7 @@
 // arrives as a plain name→RoleConfig map, runtimes as a factory.
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   ContextBundle,
   RoleConfig,
@@ -27,6 +27,7 @@ import type {
   TurnEvent,
   TurnHooks,
   TurnResult,
+  TurnProgress,
   TurnUsage,
 } from "../runtime/types.js";
 import {
@@ -40,11 +41,14 @@ import {
   updateEnvelope,
   type EnvelopeStatus,
   type EnvelopeUsage,
+  type SessionEvidence,
+  type PlanningRouteEvidence,
 } from "../runtime/runlog/envelope.js";
-import { gitHeadOf } from "../runtime/git.js";
+import { gitSnapshotOf } from "../runtime/git.js";
 import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
-import { createSessionLogSink, writeBrief, writeOutput } from "../runtime/runlog/forensics.js";
+import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
+import { withAuthorityBrief } from "./brief.js";
 import {
   parallelStages,
   selectPasses,
@@ -73,7 +77,18 @@ export interface ExecutePipelineOptions {
   /** Directory the pass templates live under (pipelines.yaml's sibling). */
   promptsDir: string;
   context: ContextBundle;
+  /** Offline learning replay keeps the independently validated fixture brief
+   * byte-exact; authority still arrives through native context and envelope.
+   * Every live pipeline uses the default append behavior. */
+  authorityBrief?: "append" | "context-only";
   workdir: string;
+  /** Parent cancellation for the whole pipeline. */
+  signal?: AbortSignal;
+  /** Grace after abort for an adapter to return its final partial usage. */
+  cancellationGraceMs?: number;
+  /** Deadline for the first provider progress/event. Distinct from the full
+   * pass wall-clock cap so auth/transport startup stalls fail quickly. */
+  adapterStartTimeoutMs?: number;
   /** gate propagates unchanged to every pass; onEvent (when present) still
    *  fires after the executor's own session-log sink. */
   hooks: TurnHooks;
@@ -82,6 +97,9 @@ export interface ExecutePipelineOptions {
    *  actual role running each pass. */
   gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   runlog: RunlogTarget;
+  /** Broader delegated task registered by the top-level operator harness. */
+  parentTaskId?: string;
+  planningRoute?: PlanningRouteEvidence;
   /** Injected clock (FakeClock-compatible); defaults to the wall clock. */
   clock?: () => Date;
   /** Optional native structured-output schema per pass. */
@@ -159,12 +177,32 @@ export interface PipelineRunResult {
 export async function executePipeline(
   options: ExecutePipelineOptions,
 ): Promise<PipelineRunResult> {
+  if (
+    options.adapterStartTimeoutMs !== undefined &&
+    (!Number.isFinite(options.adapterStartTimeoutMs) || options.adapterStartTimeoutMs <= 0)
+  ) {
+    throw new Error(
+      `executePipeline: adapterStartTimeoutMs must be positive; received ${options.adapterStartTimeoutMs}`,
+    );
+  }
   const clock = options.clock ?? ((): Date => new Date());
   const stages = parallelStages(selectPasses(options.pipeline, options.selection));
 
   const records: PassRunRecord[] = [];
   for (const stage of stages) {
-    const results = await Promise.all(stage.map((pass) => runPass(pass, options, clock)));
+    if (options.signal?.aborted) return { passes: records, aborted: true };
+    const stageController = new AbortController();
+    const unlink = forwardAbort(options.signal, stageController);
+    const stageOptions = { ...options, signal: stageController.signal };
+    const results = await Promise.all(
+      stage.map(async (pass) => {
+        const result = await runPass(pass, stageOptions, clock);
+        if (result.result.status !== "completed" && !stageController.signal.aborted) {
+          stageController.abort(`parallel stage stopped by ${pass.id}=${result.result.status}`);
+        }
+        return result;
+      }),
+    ).finally(unlink);
     records.push(...results);
     for (const record of results) await options.afterPass?.(record);
     if (results.some((r) => r.result.status !== "completed")) {
@@ -179,40 +217,65 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
  *  the dispatcher's hung-turn default. */
 const DEFAULT_PASS_WALL_CLOCK_MINUTES = 60;
 export const ERROR_WALL_CLOCK_EXCEEDED = "error_wall_clock_exceeded";
+export const ERROR_ADAPTER_START_TIMEOUT = "error_adapter_start_timeout";
+const DEFAULT_ADAPTER_START_TIMEOUT_MS = 30_000;
 
-/** Resolve with the turn's result, or a synthetic failed result once the cap
- *  passes. The losing turn is abandoned, never awaited again. */
-async function withWallClockCap(
-  turn: Promise<TurnResult>,
-  capMs: number,
-  role: RoleConfig,
-  passId: string,
-): Promise<TurnResult> {
-  let timer: NodeJS.Timeout | undefined;
-  const watchdog = new Promise<TurnResult>((resolve) => {
-    timer = setTimeout(() => {
-      resolve({
-        status: "failed",
-        errorCode: ERROR_WALL_CLOCK_EXCEEDED,
-        summary:
-          `wall-clock watchdog: pass "${passId}" exceeded its ${Math.round(capMs / 60_000)}-minute ` +
-          `cap and was abandoned; its spend is unmeasured (bounded by the role's per-turn budget cap)`,
-        artifacts: [],
-        session: { runtime: role.runtime, id: `watchdog-${passId}` },
-        usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: capMs },
-        escalations: [],
-      });
-    }, capMs);
-    timer.unref?.();
-  });
-  try {
-    return await Promise.race([turn, watchdog]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-    // The abandoned turn's eventual rejection must never surface as an
-    // unhandled rejection after the watchdog already resolved the pass.
-    void turn.catch(() => {});
+// Long enough for adapters to terminate their owned process/session tree and
+// return the last provider checkpoint; still bounded so a broken adapter
+// cannot hold finalization indefinitely.
+const DEFAULT_CANCELLATION_GRACE_MS = 2_000;
+
+interface AbortDescriptor {
+  status: "cancelled" | "timed_out" | "failed";
+  errorCode: string;
+  reason: string;
+}
+
+interface TurnOutcome {
+  result?: TurnResult;
+  error?: unknown;
+}
+
+async function runOwnedTurn(options: {
+  runtime: Runtime;
+  request: Parameters<Runtime["runTurn"]>[0];
+  hooks: TurnHooks;
+  signal: AbortSignal;
+  role: RoleConfig;
+  passId: string;
+  graceMs: number;
+  latestProgress: () => TurnProgress | undefined;
+}): Promise<TurnResult> {
+  if (options.signal.aborted) {
+    return stoppedResult(abortDescriptor(options.signal.reason), options.role, options.passId, options.latestProgress());
   }
+
+  const outcome: Promise<TurnOutcome> = Promise.resolve()
+    .then(() => options.runtime.runTurn(options.request, options.hooks))
+    .then(
+      (result): TurnOutcome => ({ result }),
+      (error: unknown): TurnOutcome => ({ error }),
+    );
+  const aborted = abortPromise(options.signal);
+  const first = await Promise.race([outcome, aborted]);
+  if ("result" in first && first.result !== undefined) return first.result;
+  if ("error" in first) {
+    return failedResult(first.error, options.role, options.passId, options.latestProgress());
+  }
+
+  const descriptor = abortDescriptor(options.signal.reason);
+  const settledDuringGrace = await Promise.race([
+    outcome.then((value) => ({ value })),
+    delay(options.graceMs).then(() => ({ value: undefined })),
+  ]);
+  void outcome.then(() => {});
+  return stoppedResult(
+    descriptor,
+    options.role,
+    options.passId,
+    options.latestProgress(),
+    settledDuringGrace.value?.result,
+  );
 }
 
 async function runPass(
@@ -233,10 +296,16 @@ async function runPass(
     ...(pass.model !== undefined ? { model: pass.model } : {}),
     ...(pass.effort !== undefined ? { effort: pass.effort } : {}),
   };
+  const selectedPasses = selectPasses(options.pipeline, options.selection);
+  const selectedIds = new Set(selectedPasses.map((candidate) => candidate.id));
 
   const { root, app, ticket, traceId } = options.runlog;
   const runId = mintRunId(clock(), options.pipeline.name, pass.id);
-  const brief = options.briefFor(pass);
+  const rawBrief = options.briefFor(pass);
+  const brief =
+    options.authorityBrief === "context-only"
+      ? rawBrief
+      : withAuthorityBrief(rawBrief, options.context);
   // template "" = brief-only task. Only a synthesized pipeline can carry it
   // (runRole's plain turn) — the loader rejects empty templates in config.
   const template =
@@ -245,23 +314,50 @@ async function runPass(
 
   // Replay seed (learning design §9.4): captured while the episode runs,
   // never reconstructed from logs afterward. Absent for non-git workdirs.
-  const gitHead = gitHeadOf(options.workdir);
+  const git = gitSnapshotOf(options.workdir);
   await startRun(
     root,
     {
       runId,
       traceId,
+      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
       app,
       ...(ticket !== undefined ? { ticket } : {}),
       pipeline: options.pipeline.name,
       pass: pass.id,
       role: role.name,
+      runtime: role.runtime,
       model: role.model,
-      ...(gitHead !== undefined ? { gitHead } : {}),
+      effort: role.effort,
+      workdir: resolve(options.workdir),
+      ...(git !== undefined ? { gitHead: git.head, gitBranch: git.branch } : {}),
+      tracePlan: {
+        required_passes: selectedPasses.map((candidate) => candidate.id),
+        skipped_passes: options.pipeline.passes
+          .filter((candidate) => !selectedIds.has(candidate.id))
+          .map((candidate) => ({
+            pass: candidate.id,
+            reason: "not selected by the active tier/trigger routing policy",
+          })),
+      },
+      ...(options.planningRoute !== undefined ? { planningRoute: options.planningRoute } : {}),
+      ...(options.context.authority !== undefined
+        ? {
+            authority: {
+              profile: options.context.authority.profile,
+              version: options.context.authority.version,
+              sha256: options.context.authority.sha256,
+              sources: [...options.context.authority.sources],
+            },
+          }
+        : {}),
     },
     clock(),
   );
-  await writeBrief(root, app, runId, brief);
+  await Promise.all([
+    writeBrief(root, app, runId, brief),
+    writePrompt(root, app, runId, task),
+  ]);
 
   const events = createEventWriter(
     root,
@@ -287,12 +383,43 @@ async function runPass(
   // to L2 in order afterward (§9: fan-out trees reconstruct without opening
   // transcripts). session.log still receives every event live.
   const bridged: TurnEvent[] = [];
+  let latestProgress: TurnProgress | undefined;
+  let checkpointWrites = Promise.resolve();
+  let adapterStarted = false;
+  let adapterStartTimer: NodeJS.Timeout | undefined;
+  const markAdapterStarted = (): void => {
+    if (adapterStarted) return;
+    adapterStarted = true;
+    if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
+    adapterStartTimer = undefined;
+  };
   const passHooks: TurnHooks = {
     gate: options.gateForRole?.(role) ?? options.hooks.gate,
     onEvent: (e) => {
+      markAdapterStarted();
       sessionLog(e);
       if (e.type === "tool_use" || e.type === "subagent") bridged.push(e);
       options.hooks.onEvent?.(e);
+    },
+    onProgress: (progress) => {
+      markAdapterStarted();
+      latestProgress = mergeProgress(latestProgress, progress);
+      if (latestProgress.usage !== undefined || latestProgress.session !== undefined) {
+        const usage =
+          latestProgress.usage !== undefined
+            ? toEnvelopeUsage(latestProgress.usage, latestProgress.usage.quality ?? "partial")
+            : undefined;
+        checkpointWrites = checkpointWrites.then(() =>
+          updateEnvelope(root, app, runId, {
+            ...(usage !== undefined ? { usage } : {}),
+            ...(latestProgress?.session !== undefined
+              ? { session: sessionEvidence(latestProgress.session) }
+              : {}),
+            lastSeenAt: progress.at ?? clock().toISOString(),
+          }).then(() => undefined),
+        );
+      }
+      options.hooks.onProgress?.(progress);
     },
   };
 
@@ -305,43 +432,76 @@ async function runPass(
   // five hours with no way to tell). Failures are swallowed: a heartbeat
   // must never kill the turn it observes.
   const heartbeat = setInterval(() => {
-    void updateEnvelope(root, app, runId, { lastSeenAt: clock().toISOString() }).catch(() => {});
+    checkpointWrites = checkpointWrites.then(() =>
+      updateEnvelope(root, app, runId, { lastSeenAt: clock().toISOString() })
+        .then(() => undefined)
+        .catch(() => undefined),
+    );
   }, HEARTBEAT_INTERVAL_MS);
   heartbeat.unref?.();
 
-  // Wall-clock watchdog: a pass that exceeds its configured cap is finalized
-  // failed instead of wedging the pipeline forever. The provider turn cannot
-  // be force-killed through the Runtime contract — it is abandoned; its spend
-  // (if it ever returns) stays bounded by the role's per-turn budget cap and
-  // its ledger row records unmeasured usage.
+  // Wall-clock watchdog now aborts the owned provider session instead of
+  // abandoning it. The adapter receives the same signal and has a bounded
+  // grace period to return partial usage before finalization.
   const capMs = (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000;
+  const passController = new AbortController();
+  const unlinkParent = forwardAbort(options.signal, passController);
+  const timeout = setTimeout(() => {
+    passController.abort({
+      status: "timed_out",
+      errorCode: ERROR_WALL_CLOCK_EXCEEDED,
+      reason: `pass "${pass.id}" exceeded its ${Math.round(capMs / 60_000)}-minute wall-clock cap`,
+    } satisfies AbortDescriptor);
+  }, capMs);
+  timeout.unref?.();
+  const adapterStartTimeoutMs =
+    options.adapterStartTimeoutMs ?? DEFAULT_ADAPTER_START_TIMEOUT_MS;
+  adapterStartTimer = setTimeout(() => {
+    passController.abort({
+      status: "failed",
+      errorCode: ERROR_ADAPTER_START_TIMEOUT,
+      reason:
+        `pass "${pass.id}" received no provider progress or event within ` +
+        `${adapterStartTimeoutMs}ms of adapter start`,
+    } satisfies AbortDescriptor);
+  }, adapterStartTimeoutMs);
+  adapterStartTimer.unref?.();
   let result: TurnResult;
   try {
-    result = await withWallClockCap(
-      runtime.runTurn(
-        {
-          role,
-          workdir: options.workdir,
-          task,
-          context: options.context,
-          ...(verdictSchema !== undefined ? { verdictSchema } : {}),
-          ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
-          ...(options.networkAccess === true ? { networkAccess: true } : {}),
-        },
-        passHooks,
-      ),
-      capMs,
+    result = await runOwnedTurn({
+      runtime,
+      request: {
+        role,
+        workdir: options.workdir,
+        task,
+        context: options.context,
+        signal: passController.signal,
+        ...(verdictSchema !== undefined ? { verdictSchema } : {}),
+        ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
+        ...(options.networkAccess === true ? { networkAccess: true } : {}),
+      },
+      hooks: passHooks,
+      signal: passController.signal,
       role,
-      pass.id,
-    );
+      passId: pass.id,
+      graceMs: options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
+      latestProgress: () => latestProgress,
+    });
   } finally {
+    clearTimeout(timeout);
+    if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
+    unlinkParent();
     clearInterval(heartbeat);
   }
+
+  await checkpointWrites;
 
   await writeOutput(root, app, runId, result.summary);
   const toolCounts = await flushBridgedEvents(bridged, events, pass.id);
   await updateEnvelope(root, app, runId, {
     usage: toEnvelopeUsage(result.usage),
+    session: sessionEvidence(result.session),
+    ...(result.artifacts.length > 0 ? { artifacts: result.artifacts } : {}),
     previews: { task, output: result.summary },
     ...(Object.keys(toolCounts).length > 0 ? { tool_counts: toolCounts } : {}),
   });
@@ -394,6 +554,13 @@ async function runPass(
         ? result.errorCode ?? "error_turn_failed"
         : verdictOutcome.errorCode,
     });
+  } else if (status === "cancelled" || status === "timed_out") {
+    await events.append({
+      type: status === "cancelled" ? "pass.cancelled" : "pass.timed_out",
+      severity: "warn",
+      errorCode: result.errorCode ?? (status === "cancelled" ? "error_cancelled" : ERROR_WALL_CLOCK_EXCEEDED),
+      detail: { reason: result.summary },
+    });
   } else {
     await events.append({
       type: "pass.completed",
@@ -409,10 +576,11 @@ async function runPass(
       status,
       verdictSummary: result.summary,
       ...(verdictOutcome.ok
-        ? result.status === "failed" && result.errorCode !== undefined
+        ? result.status !== "completed" && result.errorCode !== undefined
           ? { errorCode: result.errorCode }
           : {}
         : { errorCode: verdictOutcome.errorCode }),
+      ...(status === "cancelled" || status === "timed_out" ? { reason: result.summary } : {}),
     },
     clock(),
   );
@@ -434,10 +602,11 @@ async function runPass(
           ...(options.telemetry.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
           runId,
           traceId,
+          ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
           pipeline: options.pipeline.name,
           pass: pass.id,
           // A watchdog-abandoned turn's spend is unknown, not zero.
-          ...(result.errorCode === ERROR_WALL_CLOCK_EXCEEDED ? { unmeasured: true } : {}),
+          ...(result.usage.quality === "unavailable" ? { unmeasured: true } : {}),
           ...(options.telemetry.experimentRef !== undefined
             ? { experimentRef: options.telemetry.experimentRef }
             : {}),
@@ -526,6 +695,8 @@ function toolNameFromDetail(detail: string): string {
 function envelopeStatus(result: TurnResult): Exclude<EnvelopeStatus, "running"> {
   if (result.status === "completed") return "completed";
   if (result.status === "blocked_on_gate") return "blocked";
+  if (result.status === "cancelled") return "cancelled";
+  if (result.status === "timed_out") return "timed_out";
   return "failed";
 }
 
@@ -539,6 +710,7 @@ function sumTurnUsage(base: TurnUsage, extra: TurnUsage): TurnUsage {
     costUsd: base.costUsd + extra.costUsd,
     subagentTurns: base.subagentTurns + extra.subagentTurns,
     wallClockMs: base.wallClockMs + extra.wallClockMs,
+    quality: leastCompleteUsageQuality(base.quality, extra.quality),
   };
   if (base.tokensInUncached !== undefined || extra.tokensInUncached !== undefined) {
     sum.tokensInUncached = (base.tokensInUncached ?? 0) + (extra.tokensInUncached ?? 0);
@@ -553,7 +725,17 @@ function sumTurnUsage(base: TurnUsage, extra: TurnUsage): TurnUsage {
   return sum;
 }
 
-function toEnvelopeUsage(usage: TurnUsage): EnvelopeUsage {
+function leastCompleteUsageQuality(
+  left: TurnUsage["quality"],
+  right: TurnUsage["quality"],
+): NonNullable<TurnUsage["quality"]> {
+  const rank = { complete: 0, estimated: 1, partial: 2, unavailable: 3 } as const;
+  const a = left ?? "complete";
+  const b = right ?? "complete";
+  return rank[a] >= rank[b] ? a : b;
+}
+
+function toEnvelopeUsage(usage: TurnUsage, quality?: TurnUsage["quality"]): EnvelopeUsage {
   const envelope: EnvelopeUsage = {
     tokens_in: usage.tokensIn,
     tokens_out: usage.tokensOut,
@@ -563,5 +745,137 @@ function toEnvelopeUsage(usage: TurnUsage): EnvelopeUsage {
   if (usage.costEstimated) envelope.cost_estimated = true;
   if (usage.cacheReadTokens !== undefined) envelope.cache_read_tokens = usage.cacheReadTokens;
   if (usage.cacheCreationTokens !== undefined) envelope.cache_write_tokens = usage.cacheCreationTokens;
+  envelope.quality = quality ?? usage.quality ?? (usage.costEstimated ? "estimated" : "complete");
   return envelope;
+}
+
+function forwardAbort(parent: AbortSignal | undefined, child: AbortController): () => void {
+  if (parent === undefined) return () => {};
+  const abort = (): void => {
+    if (!child.signal.aborted) child.abort(parent.reason);
+  };
+  if (parent.aborted) abort();
+  else parent.addEventListener("abort", abort, { once: true });
+  return () => parent.removeEventListener("abort", abort);
+}
+
+function abortPromise(signal: AbortSignal): Promise<TurnOutcome> {
+  return new Promise((resolve) => {
+    const done = (): void => resolve({});
+    if (signal.aborted) done();
+    else signal.addEventListener("abort", done, { once: true });
+  });
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function abortDescriptor(reason: unknown): AbortDescriptor {
+  if (isAbortDescriptor(reason)) return reason;
+  return {
+    status: "cancelled",
+    errorCode: "error_cancelled",
+    reason: typeof reason === "string" && reason.length > 0 ? reason : "operator cancellation",
+  };
+}
+
+function isAbortDescriptor(value: unknown): value is AbortDescriptor {
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    (record["status"] === "cancelled" ||
+      record["status"] === "timed_out" ||
+      record["status"] === "failed") &&
+    typeof record["errorCode"] === "string" &&
+    typeof record["reason"] === "string"
+  );
+}
+
+function stoppedResult(
+  descriptor: AbortDescriptor,
+  role: RoleConfig,
+  passId: string,
+  progress: TurnProgress | undefined,
+  settled?: TurnResult,
+): TurnResult {
+  const usage = settled?.usage ?? progress?.usage ?? unavailableUsage();
+  return {
+    status: descriptor.status,
+    errorCode: descriptor.errorCode,
+    summary: descriptor.reason,
+    artifacts: settled?.artifacts ?? [],
+    session: settled?.session ?? progress?.session ?? { runtime: role.runtime, id: `${descriptor.status}-${passId}` },
+    usage: {
+      ...usage,
+      quality: usage.quality === "unavailable" ? "unavailable" : "partial",
+    },
+    escalations: settled?.escalations ?? [],
+  };
+}
+
+function failedResult(
+  error: unknown,
+  role: RoleConfig,
+  passId: string,
+  progress: TurnProgress | undefined,
+): TurnResult {
+  const message = error instanceof Error ? error.message : String(error);
+  const usage = progress?.usage ?? unavailableUsage();
+  return {
+    status: "failed",
+    errorCode: "error_runtime_failed",
+    summary: message,
+    artifacts: [],
+    session: progress?.session ?? { runtime: role.runtime, id: `failed-${passId}` },
+    usage: {
+      ...usage,
+      quality: progress?.usage === undefined ? "unavailable" : "partial",
+    },
+    escalations: [],
+  };
+}
+
+function unavailableUsage(): TurnUsage {
+  return {
+    tokensIn: 0,
+    tokensOut: 0,
+    costUsd: 0,
+    subagentTurns: 0,
+    wallClockMs: 0,
+    quality: "unavailable",
+  };
+}
+
+function mergeProgress(previous: TurnProgress | undefined, next: TurnProgress): TurnProgress {
+  return {
+    ...(previous ?? {}),
+    ...next,
+    ...(next.usage !== undefined ? { usage: next.usage } : {}),
+    ...(next.session !== undefined ? { session: next.session } : {}),
+  };
+}
+
+function sessionEvidence(session: TurnResult["session"]): SessionEvidence {
+  if (session.runtime === "codex") {
+    return {
+      ...session,
+      native_ref: `codex://threads/${encodeURIComponent(session.id)}`,
+      transcript: "native_task",
+      transcript_note: "Open the native Codex task for the full provider transcript.",
+    };
+  }
+  if (session.runtime === "pi") {
+    return {
+      ...session,
+      native_ref: session.id,
+      transcript: "provider_session",
+      transcript_note: "Provider session reference recorded; session.log is activity only.",
+    };
+  }
+  return {
+    ...session,
+    transcript: "unavailable",
+    transcript_note: "Claude SDK did not expose a full transcript reference; session.log is activity only.",
+  };
 }

@@ -142,6 +142,24 @@ describe("projectCaptureEvents", () => {
     }
   });
 
+  it("repairs a cursor receipt whose projected event file is missing", async () => {
+    const home = buildRunHome();
+    try {
+      await projectCaptureEvents({ stateHome: home.root });
+      rmSync(`${home.root}/learning/events/2026-07-11/${TRACE}.jsonl`);
+
+      const replay = await projectCaptureEvents({ stateHome: home.root });
+      expect(replay).toMatchObject({
+        runsProjected: 0,
+        runsRepaired: 1,
+        eventFilesRecovered: 1,
+      });
+      expect(await readLearningEvents(home.root)).toHaveLength(4);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("is idempotent on replay even after the cursor is lost", async () => {
     const home = buildRunHome();
     try {

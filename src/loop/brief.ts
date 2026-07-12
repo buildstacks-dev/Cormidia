@@ -13,6 +13,8 @@
 // criteria, and gate output ("actual error text, never a summary") are
 // never summarized, whatever the budget.
 
+import type { ContextBundle } from "../runtime/types.js";
+
 export interface TicketSection {
   title: string;
   /** Issue body: goal, context, acceptance criteria, scope — never summarized. */
@@ -61,6 +63,27 @@ export interface BriefOpts {
 /** §3's starting heuristic. Exported so callers budget with the same ruler. */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+/** Append content-bound authority provenance to the executable role brief.
+ * Full charter prose stays in the native system/developer channel; this
+ * compact section makes brief.md independently auditable. Idempotent because
+ * runRole builds once and the pipeline executor enforces it again. */
+export function withAuthorityBrief(brief: string, context: ContextBundle): string {
+  if (context.authority === undefined || /(?:^|\n)\[authority\]\n/.test(brief)) return brief;
+  const authority = context.authority;
+  return [
+    brief.trimEnd(),
+    "",
+    "[authority]",
+    `profile: ${authority.profile}`,
+    `version: ${authority.version}`,
+    `sha256: ${authority.sha256}`,
+    `sources: ${authority.sources.join(", ")}`,
+    "The full effective charter is injected through the runtime's native instruction channel.",
+    "App policy and this task may narrow it; neither can broaden it or bypass a critical-operation gate.",
+    "",
+  ].join("\n");
 }
 
 const SEVERITY_ORDER: Record<BriefFinding["severity"], number> = {

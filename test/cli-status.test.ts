@@ -117,6 +117,24 @@ describe("runlog status", () => {
     }
   });
 
+  it("labels partial and unavailable usage instead of presenting zero as free", async () => {
+    const partial = env("run1", "2026-07-04T10:00:00Z", "cancelled") as Record<string, unknown>;
+    partial["usage"] = { tokens_in: 50, tokens_out: 5, cost_usd: 0.2, quality: "partial" };
+    const unavailable = env("run2", "2026-07-04T09:00:00Z", "timed_out") as Record<string, unknown>;
+    unavailable["usage"] = { tokens_in: 0, tokens_out: 0, cost_usd: 0, quality: "unavailable" };
+    const home = makeOrgHome({
+      runs: { records: { alpha: { run1: { envelope: partial, events: [] }, run2: { envelope: unavailable, events: [] } } } },
+    });
+    try {
+      const text = formatStatusRows(await readStatusRows(home.root));
+      expect(text).toContain("$0.20 partial");
+      expect(text).toContain("unavailable");
+      expect(text).not.toContain("$0.00");
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("CLI prints documented columns", async () => {
     const home = makeOrgHome({
       runs: { records: { alpha: { run1: { envelope: env("run1", "2026-07-04T10:00:00Z", "completed"), events: [] } } } },

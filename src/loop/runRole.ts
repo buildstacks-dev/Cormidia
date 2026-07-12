@@ -16,7 +16,7 @@ import { defaultGate } from "../runtime/gate.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
-import { assembleBrief } from "./brief.js";
+import { assembleBrief, withAuthorityBrief } from "./brief.js";
 import { executePipeline, type PassRunRecord } from "./pipeline.js";
 import type { PipelineConfig } from "./pipelines.js";
 
@@ -43,6 +43,9 @@ export interface RunRoleRequest {
   clock?: () => Date;
   /** Per-pass ledger settlement target — see ExecutePipelineOptions.telemetry. */
   telemetry?: { orgDir: string; trigger?: TriggerKind };
+  /** Cooperative cancellation from the owning process/dispatcher. */
+  signal?: AbortSignal;
+  parentTaskId?: string;
 }
 
 export interface RunRoleResult {
@@ -54,24 +57,27 @@ export interface RunRoleResult {
 export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
   const clock = request.clock ?? ((): Date => new Date());
   const context = request.context ?? { taste: [], memoryExcerpts: [] };
-  const brief = assembleBrief(
-    {
-      ticket: {
-        title: `Manual role turn: ${request.role.name}`,
-        body: [
-          `Goal: run one ${request.role.name} turn, invoked directly by the human operator`,
-          `(operon run-role). There is no ticket behind this turn.`,
-          `App: ${request.app ?? "(none — org-level turn)"}`,
-          "",
-          request.context === undefined
-            ? "Runtime context: no app context supplied; this brief carries the invocation only."
-            : `Runtime context: ${countLabel(context.taste.length, "taste layer")} and ` +
-              `${countLabel(context.memoryExcerpts.length, "memory excerpt")} supplied through the adapter context channel.`,
-        ].join("\n"),
+  const brief = withAuthorityBrief(
+    assembleBrief(
+      {
+        ticket: {
+          title: `Manual role turn: ${request.role.name}`,
+          body: [
+            `Goal: run one ${request.role.name} turn, invoked directly by the human operator`,
+            `(operon run-role). There is no ticket behind this turn.`,
+            `App: ${request.app ?? "(none — org-level turn)"}`,
+            "",
+            request.context === undefined
+              ? "Runtime context: no app context supplied; this brief carries the invocation only."
+              : `Runtime context: ${countLabel(context.taste.length, "taste layer")} and ` +
+                `${countLabel(context.memoryExcerpts.length, "memory excerpt")} supplied through the adapter context channel.`,
+          ].join("\n"),
+        },
+        ...(request.workdir !== undefined ? { repo: `Working directory: ${request.workdir}` } : {}),
       },
-      ...(request.workdir !== undefined ? { repo: `Working directory: ${request.workdir}` } : {}),
-    },
-    { budgetTokens: request.briefBudgetTokens ?? DEFAULT_BRIEF_BUDGET_TOKENS },
+      { budgetTokens: request.briefBudgetTokens ?? DEFAULT_BRIEF_BUDGET_TOKENS },
+    ),
+    context,
   );
 
   if (request.dryRun) {
@@ -113,6 +119,8 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
     },
     clock,
     ...(request.telemetry !== undefined ? { telemetry: request.telemetry } : {}),
+    ...(request.signal !== undefined ? { signal: request.signal } : {}),
+    ...(request.parentTaskId !== undefined ? { parentTaskId: request.parentTaskId } : {}),
   });
 
   const record = result.passes[0];

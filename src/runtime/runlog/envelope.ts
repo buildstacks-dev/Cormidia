@@ -17,12 +17,19 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { runPaths } from "./paths.js";
 import { scrubSecrets, truncatePreview } from "./redact.js";
+import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, SessionHandle } from "../types.js";
 
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
  *  infra and merit never conflate (§9). */
-export type EnvelopeStatus = "running" | "completed" | "failed" | "blocked";
-const TERMINAL: EnvelopeStatus[] = ["completed", "failed", "blocked"];
+export type EnvelopeStatus =
+  | "running"
+  | "completed"
+  | "failed"
+  | "blocked"
+  | "cancelled"
+  | "timed_out";
+const TERMINAL: EnvelopeStatus[] = ["completed", "failed", "blocked", "cancelled", "timed_out"];
 
 export interface EnvelopeUsage {
   tokens_in: number;
@@ -36,6 +43,9 @@ export interface EnvelopeUsage {
   cache_read_tokens?: number;
   cache_write_tokens?: number;
   subagent_turns?: number;
+  /** Whether the snapshot is final, partial, locally estimated, or absent at
+   * the provider boundary. */
+  quality?: "complete" | "partial" | "estimated" | "unavailable";
 }
 
 export interface GateResultEntry {
@@ -49,12 +59,20 @@ export interface RunEnvelope {
   run_id: string;
   /** turnId — one per pipeline execution; L2 events correlate on it. */
   trace_id: string;
+  /** Broader delegated operator task, when the top-level harness registered one. */
+  parent_task_id?: string;
   app: string;
   ticket?: string;
   pipeline: string;
   pass: string;
   role: string;
+  /** Runtime/harness and effort are separate from model identity. */
+  runtime?: RuntimeKind;
   model?: string;
+  effort?: Effort;
+  /** Actual directory and Git identity observed at pass start. */
+  workdir?: string;
+  git_branch?: string;
   /** Workdir HEAD at pass start — the replay seed commit (learning-loop
    *  spec §7). Absent for non-git workdirs and pre-M2b runs. */
   git_head?: string;
@@ -76,23 +94,69 @@ export interface RunEnvelope {
   previews?: Record<string, string>;
   /** Machine error code on infra failures (§9 infra-vs-merit). */
   error_code?: string;
+  /** Human-readable terminal cause (signal, timeout, provider failure). */
+  terminal_reason?: string;
+  /** Native provider session identity and honest transcript availability. */
+  session?: SessionEvidence;
+  /** Structured durable artifacts returned by the runtime. */
+  artifacts?: Artifact[];
+  /** The pass set selected for this trace and the configured passes omitted
+   * by tier/trigger routing. Duplicated per pass so each envelope remains
+   * independently auditable. */
+  trace_plan?: TracePlanEvidence;
+  planning_route?: PlanningRouteEvidence;
+  /** Content-bound effective delegated authority for this run. */
+  authority?: AuthorityEvidence;
   /** REFERENCES to the L3/L2 siblings, relative to the run dir. A ref is a
    *  promise: `session_log` is declared while the run is live (the sink may
    *  still produce it) and dropped at finalize when no file was written —
    *  adapters that emit no TurnEvents leave nothing for the sink to append
    *  (telemetry doc Defect C). */
-  refs: { events: string; brief: string; output: string; session_log?: string };
+  refs: { events: string; brief: string; prompt?: string; output: string; session_log?: string };
+}
+
+export interface TracePlanEvidence {
+  required_passes: string[];
+  skipped_passes: Array<{ pass: string; reason: string }>;
+}
+
+export interface PlanningRouteEvidence {
+  policy_version: string;
+  depth: "quick" | "standard" | "deep";
+  risk_tier: string;
+  factors: Record<string, unknown>;
+  decision_factors: string[];
+  selected_passes: string[];
+  skipped_passes: Array<{ pass: string; reason: string }>;
+  estimated_cost_usd: number | null;
+  estimated_cost_upper_bound_usd: number;
+  estimate_basis: string;
+}
+
+export interface SessionEvidence extends SessionHandle {
+  /** A native task/session link when the harness exposes one. */
+  native_ref?: string;
+  transcript: "native_task" | "provider_session" | "unavailable";
+  transcript_note: string;
 }
 
 export interface StartRunMeta {
   runId: string;
   traceId: string;
+  parentTaskId?: string;
   app: string;
   ticket?: string;
   pipeline: string;
   pass: string;
   role: string;
+  runtime?: RuntimeKind;
   model?: string;
+  effort?: Effort;
+  workdir?: string;
+  gitBranch?: string;
+  tracePlan?: TracePlanEvidence;
+  planningRoute?: PlanningRouteEvidence;
+  authority?: AuthorityEvidence;
   /** Workdir HEAD at pass start — the replay seed (learning-loop design
    *  §9.4: capture for replay while the episode runs, never reconstruct
    *  afterward). Absent when the workdir is not a git checkout. */
@@ -108,6 +172,8 @@ export interface EnvelopePatch {
   previews?: Record<string, string>;
   /** Heartbeat stamp (ISO). */
   lastSeenAt?: string;
+  session?: SessionEvidence;
+  artifacts?: Artifact[];
 }
 
 export interface FinalizeOutcome {
@@ -115,6 +181,7 @@ export interface FinalizeOutcome {
   verdictSummary?: string;
   errorCode?: string;
   usage?: EnvelopeUsage;
+  reason?: string;
 }
 
 export async function startRun(
@@ -129,18 +196,27 @@ export async function startRun(
     schema_version: 1,
     run_id: meta.runId,
     trace_id: meta.traceId,
+    ...(meta.parentTaskId !== undefined ? { parent_task_id: meta.parentTaskId } : {}),
     app: meta.app,
     ...(meta.ticket !== undefined ? { ticket: meta.ticket } : {}),
     pipeline: meta.pipeline,
     pass: meta.pass,
     role: meta.role,
+    ...(meta.runtime !== undefined ? { runtime: meta.runtime } : {}),
     ...(meta.model !== undefined ? { model: meta.model } : {}),
+    ...(meta.effort !== undefined ? { effort: meta.effort } : {}),
+    ...(meta.workdir !== undefined ? { workdir: meta.workdir } : {}),
+    ...(meta.gitBranch !== undefined ? { git_branch: meta.gitBranch } : {}),
+    ...(meta.tracePlan !== undefined ? { trace_plan: meta.tracePlan } : {}),
+    ...(meta.planningRoute !== undefined ? { planning_route: meta.planningRoute } : {}),
+    ...(meta.authority !== undefined ? { authority: meta.authority } : {}),
     ...(meta.gitHead !== undefined ? { git_head: meta.gitHead } : {}),
     status: "running",
     started_at: now.toISOString(),
     refs: {
       events: "events.jsonl",
       brief: "brief.md",
+      prompt: "prompt.md",
       output: "output.md",
       session_log: "session.log",
     },
@@ -164,6 +240,14 @@ export async function updateEnvelope(
 
   if (patch.usage !== undefined) envelope.usage = patch.usage;
   if (patch.lastSeenAt !== undefined) envelope.last_seen_at = patch.lastSeenAt;
+  if (patch.session !== undefined) envelope.session = patch.session;
+  if (patch.artifacts !== undefined) {
+    envelope.artifacts = patch.artifacts.map((artifact) => ({
+      ...artifact,
+      ref: scrubSecrets(artifact.ref),
+      summary: scrubSecrets(artifact.summary),
+    }));
+  }
   if (patch.gate_results !== undefined) envelope.gate_results = patch.gate_results;
   if (patch.tool_counts !== undefined) {
     envelope.tool_counts = { ...envelope.tool_counts, ...patch.tool_counts };
@@ -200,6 +284,7 @@ export async function finalizeRun(
     envelope.verdict_summary = truncatePreview(scrubSecrets(outcome.verdictSummary));
   }
   if (outcome.errorCode !== undefined) envelope.error_code = outcome.errorCode;
+  if (outcome.reason !== undefined) envelope.terminal_reason = scrubSecrets(outcome.reason);
   // Keep the session_log ref only when the sink actually produced the file —
   // a terminal envelope must never reference a file that does not exist.
   if (!existsSync(runPaths(root, app, runId).sessionLog)) {

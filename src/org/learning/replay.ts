@@ -169,6 +169,9 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
             context: withVerdict
               ? context.reviewer ?? context.builder
               : context.builder,
+            // Eval fixtures are independently validated as byte-exact inputs.
+            // Authority remains in native context + envelope, not fixture text.
+            authorityBrief: "context-only",
             workdir: worktree,
             hooks,
             runlog: {

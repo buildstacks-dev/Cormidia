@@ -399,7 +399,42 @@ describe("ClaudeRuntime (SDK mocked)", () => {
       costUsd: 0.12,
       subagentTurns: 0,
       wallClockMs: 1234,
+      quality: "complete",
     });
+  });
+
+  it("aborts the SDK query and preserves checkpointed partial usage", async () => {
+    const controller = new AbortController();
+    const progress: Array<{ usage?: { tokensIn: number; quality?: string } }> = [];
+    const queryFn: QueryFn = () =>
+      (async function* () {
+        yield initMsg("s-cancelled");
+        yield {
+          type: "assistant",
+          session_id: "s-cancelled",
+          message: { usage: USAGE, content: [] },
+        } as unknown as SDKMessage;
+        controller.abort({
+          status: "cancelled",
+          errorCode: "error_cancelled",
+          reason: "operator SIGTERM",
+        });
+        throw new Error("SDK aborted");
+      })();
+
+    const result = await new ClaudeRuntime({ queryFn }).runTurn(
+      makeReq({ signal: controller.signal }),
+      { gate: defaultGate, onProgress: (event) => progress.push(event) },
+    );
+
+    expect(result).toMatchObject({
+      status: "cancelled",
+      errorCode: "error_cancelled",
+      summary: "operator SIGTERM",
+      session: { runtime: "claude", id: "s-cancelled" },
+      usage: { tokensIn: 115, tokensOut: 40, quality: "partial" },
+    });
+    expect(progress.some((event) => event.usage?.quality === "partial")).toBe(true);
   });
 
   it("error results map to failed status with the subtype in the summary", async () => {

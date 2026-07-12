@@ -1055,7 +1055,7 @@ operon learn inspect <episode-id>       # full episode: turns, gates, artifacts,
 operon learn emit [--episode <id>]      # human observation (interactive or from file)
 operon learn emit --late-outcome <kind> --ref <ref> --episode <id>
 operon learn show <event|candidate|experiment|eval|intervention-id>
-operon learn report [--json]
+operon learn report [--json] [--refresh] # default read-only; --refresh projects first
 operon learn fixture <episode-id> --set <scope>/<set> [--validate --by <name>]
 operon learn review <candidate-id> --verdict <v> --rationale <text> --by <name>
 operon learn publish <candidate-id> [--waiver <text>]

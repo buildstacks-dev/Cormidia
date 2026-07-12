@@ -25,6 +25,20 @@ export async function writeBrief(
   await writeFile(path, brief, "utf8");
 }
 
+/** prompt.md — the exact Runtime.runTurn task, including the versioned pass
+ * template appended after the assembled brief. This is distinct from
+ * brief.md so both planning input and executable protocol remain auditable. */
+export async function writePrompt(
+  root: string,
+  app: string,
+  runId: string,
+  prompt: string,
+): Promise<void> {
+  const path = runPaths(root, app, runId).prompt;
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, prompt, "utf8");
+}
+
 /** output.md — the pass's final output text, verbatim. */
 export async function writeOutput(
   root: string,
@@ -37,9 +51,11 @@ export async function writeOutput(
   await writeFile(path, output, "utf8");
 }
 
-/** session.log sink for TurnHooks.onEvent — one line per TurnEvent, in
- *  arrival order. Synchronous appends: onEvent is a sync void callback and
- *  a transcript with holes is worse than a briefly-blocked writer. */
+/** session.log activity sink for TurnHooks.onEvent — one line per structured
+ * runtime event in arrival order. This is NOT a full model transcript; the
+ * envelope records transcript availability separately. Synchronous appends:
+ * onEvent is a sync void callback and an activity log with holes is worse
+ * than a briefly-blocked writer. */
 export function createSessionLogSink(
   root: string,
   app: string,

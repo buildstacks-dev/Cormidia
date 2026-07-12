@@ -68,6 +68,7 @@ describe("toRecord attribution (M3.2)", () => {
       tokensIn: 1200,
       tokensOut: 340,
       costUsd: 0.42,
+      usageQuality: "complete",
       subagentTurns: 1,
       wallClockMs: 65_000,
       escalations: 0,
@@ -111,6 +112,22 @@ describe("toRecord attribution (M3.2)", () => {
 
     expect(record.trigger).toBe("schedule");
     expect("app" in record).toBe(false);
+  });
+
+  it("distinguishes partial and unavailable usage from finalized cost", () => {
+    const partial = toRecord(
+      ROLE,
+      { ...RESULT, status: "cancelled", usage: { ...RESULT.usage, quality: "partial" } },
+      AT,
+    );
+    const unavailable = toRecord(
+      ROLE,
+      { ...RESULT, status: "timed_out", usage: { ...RESULT.usage, costUsd: 0, quality: "unavailable" } },
+      AT,
+      { unmeasured: true },
+    );
+    expect(partial.usageQuality).toBe("partial");
+    expect(unavailable).toMatchObject({ usageQuality: "unavailable", unmeasured: true });
   });
 });
 

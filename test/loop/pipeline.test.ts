@@ -8,6 +8,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executePipeline, type ExecutePipelineOptions } from "../../src/loop/pipeline.js";
 import { getPipeline, loadPipelines, type PipelineConfig, type PipelinesFile } from "../../src/loop/pipelines.js";
@@ -120,6 +121,100 @@ function makeHarness(
 }
 
 describe("executePipeline", () => {
+  it("cancels the active pass, starts no later stage, and finalizes the envelope", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const controller = new AbortController();
+    let calls = 0;
+    let releaseFirst!: () => void;
+    const firstStarted = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const slow: Runtime = {
+      kind: "claude",
+      async runTurn() {
+        calls += 1;
+        releaseFirst();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return turnResult("late success");
+      },
+    };
+    const h = makeHarness(build, [], { runtimeFor: () => slow });
+    const options = { ...h.options, signal: controller.signal } as ExecutePipelineOptions & {
+      signal: AbortSignal;
+    };
+    try {
+      const running = executePipeline(options);
+      await firstStarted;
+      controller.abort("operator SIGTERM");
+      const result = await running;
+
+      expect(result.aborted).toBe(true);
+      expect(calls).toBe(1);
+      expect(result.passes).toHaveLength(1);
+      const envelope = await readEnvelope(
+        h.options.runlog.root,
+        "civic",
+        result.passes[0]!.runId,
+      );
+      expect(envelope.status).toBe("cancelled");
+      expect(envelope.error_code).toBe("error_cancelled");
+      expect(envelope.finished_at).toBeDefined();
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("persists a partial usage checkpoint when the runtime fails before its terminal result", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const crashing: Runtime = {
+      kind: "claude",
+      async runTurn(_req, hooks) {
+        const progressHooks = hooks as typeof hooks & {
+          onProgress?: (event: {
+            usage: TurnResult["usage"];
+            quality: "partial";
+            at: string;
+          }) => void;
+        };
+        progressHooks.onProgress?.({
+          usage: {
+            tokensIn: 1234,
+            tokensOut: 56,
+            costUsd: 0.42,
+            costEstimated: true,
+            subagentTurns: 0,
+            wallClockMs: 500,
+          },
+          quality: "partial",
+          at: "2026-07-05T09:30:16.000Z",
+        });
+        throw new Error("provider connection lost after tool writes");
+      },
+    };
+    const h = makeHarness(build, [], {
+      selection: { tier: "quick" },
+      runtimeFor: () => crashing,
+    });
+    try {
+      const result = await executePipeline(h.options);
+      expect(result.aborted).toBe(true);
+      const envelope = await readEnvelope(
+        h.options.runlog.root,
+        "civic",
+        result.passes[0]!.runId,
+      );
+      expect(envelope.status).toBe("failed");
+      expect(envelope.usage).toMatchObject({
+        tokens_in: 1234,
+        tokens_out: 56,
+        cost_usd: 0.42,
+        quality: "partial",
+      });
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("single-pass pipeline calls runTurn once with no session field", async () => {
     // build at quick tier selects exactly one pass (implement).
     const build = getPipeline(await loadFixture(), "build");
@@ -130,6 +225,59 @@ describe("executePipeline", () => {
       expect(result.passes.map((p) => p.pass.id)).toEqual(["implement"]);
       expect(h.fake.calls[0]?.req.session).toBeUndefined();
       expect("session" in (h.fake.calls[0]?.req ?? {})).toBe(false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("correlates the pass envelope and cost ledger to its broader parent task", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(build, [scripted("done")], {
+      selection: { tier: "quick" },
+      parentTaskId: "outer-task-1",
+      telemetry: { orgDir: "placeholder", trigger: "manual" },
+    });
+    h.options.telemetry = { orgDir: h.options.runlog.root, trigger: "manual" };
+    try {
+      const result = await executePipeline(h.options);
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", result.passes[0]!.runId);
+      expect(envelope.parent_task_id).toBe("outer-task-1");
+      const row = JSON.parse(
+        readFileSync(join(h.options.runlog.root, "telemetry", "2026-07-05.jsonl"), "utf8").trim(),
+      ) as Record<string, unknown>;
+      expect(row["parentTaskId"]).toBe("outer-task-1");
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("records the effective delegated authority version and hash on every pass envelope", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const authority = {
+      profile: "delegated-operator",
+      version: "delegated-operator/v1",
+      sha256: "a".repeat(64),
+      sources: ["/org/AUTHORITY.md", "/app/.operon/AUTHORITY.md"],
+      text: "delegated authority",
+    };
+    const h = makeHarness(build, [scripted("done")], {
+      selection: { tier: "quick" },
+      context: { authority, taste: ["org taste"], memoryExcerpts: [] },
+    });
+    try {
+      const result = await executePipeline(h.options);
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", result.passes[0]!.runId);
+      expect(envelope.authority).toEqual({
+        profile: authority.profile,
+        version: authority.version,
+        sha256: authority.sha256,
+        sources: authority.sources,
+      });
+      expect(h.fake.calls[0]!.req.task).toContain("[authority]");
+      expect(h.fake.calls[0]!.req.task).toContain(`sha256: ${authority.sha256}`);
+      expect(
+        readFileSync(runPaths(h.options.runlog.root, "civic", result.passes[0]!.runId).brief, "utf8"),
+      ).toContain("The full effective charter is injected through the runtime's native instruction channel.");
     } finally {
       h.cleanup();
     }
@@ -319,7 +467,7 @@ describe("executePipeline", () => {
     }
   });
 
-  it("wall-clock watchdog abandons a hung pass: failed envelope, distinct code, unmeasured row", async () => {
+  it("wall-clock watchdog cancels a hung pass: timed-out envelope, distinct code, unmeasured row", async () => {
     const build = getPipeline(await loadFixture(), "build");
     // A pass whose runtime never resolves, capped at ~30ms.
     const hung: PipelineConfig = {
@@ -328,22 +476,54 @@ describe("executePipeline", () => {
     };
     const never: Runtime = { kind: "claude", runTurn: () => new Promise(() => {}) };
     const h = makeHarness(hung, [], { runtimeFor: () => never, selection: { tier: "quick" } });
+    h.options.cancellationGraceMs = 5;
     h.options.telemetry = { orgDir: h.options.runlog.root, trigger: "manual" };
     try {
       const run = await executePipeline(h.options);
       expect(run.aborted).toBe(true);
       const record = run.passes[0]!;
-      expect(record.result.status).toBe("failed");
+      expect(record.result.status).toBe("timed_out");
       expect(record.result.errorCode).toBe("error_wall_clock_exceeded");
 
       const env = await readEnvelope(h.options.runlog.root, "civic", record.runId);
-      expect(env.status).toBe("failed");
+      expect(env.status).toBe("timed_out");
       expect(env.error_code).toBe("error_wall_clock_exceeded");
 
       // The abandoned turn's spend is unknown, not zero — the ledger says so.
       const raw = readFileSync(`${h.options.runlog.root}/telemetry/2026-07-05.jsonl`, "utf8");
       const row = JSON.parse(raw.trimEnd()) as Record<string, unknown>;
-      expect(row).toMatchObject({ status: "failed", unmeasured: true, costUsd: 0 });
+      expect(row).toMatchObject({ status: "timed_out", unmeasured: true, costUsd: 0 });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("fails a pass on the adapter-start deadline when no provider event arrives", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const slowWallClock: PipelineConfig = {
+      ...build,
+      passes: build.passes.map((pass) => ({ ...pass, wallClockMinutes: 0.001 })),
+    };
+    const never: Runtime = { kind: "claude", runTurn: () => new Promise(() => {}) };
+    const h = makeHarness(slowWallClock, [], {
+      runtimeFor: () => never,
+      selection: { tier: "quick" },
+    });
+    const withStartDeadline = h.options as ExecutePipelineOptions & {
+      adapterStartTimeoutMs: number;
+    };
+    withStartDeadline.adapterStartTimeoutMs = 10;
+    withStartDeadline.cancellationGraceMs = 5;
+    try {
+      const run = await executePipeline(withStartDeadline);
+      const record = run.passes[0]!;
+      expect(record.result.status).toBe("failed");
+      expect(record.result.errorCode).toBe("error_adapter_start_timeout");
+
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", record.runId);
+      expect(envelope.status).toBe("failed");
+      expect(envelope.error_code).toBe("error_adapter_start_timeout");
+      expect(envelope.usage?.quality).toBe("unavailable");
     } finally {
       h.cleanup();
     }
@@ -375,12 +555,27 @@ describe("executePipeline", () => {
         expect(existsSync(paths.envelope), record.runId).toBe(true);
         expect(existsSync(paths.events)).toBe(true);
         expect(existsSync(paths.brief)).toBe(true);
+        expect(existsSync(paths.prompt)).toBe(true);
         expect(existsSync(paths.output)).toBe(true);
 
         const envelope = await readEnvelope(h.options.runlog.root, "civic", record.runId);
         expect(envelope.run_id).toBe(record.runId);
         expect(envelope.trace_id).toBe("turn-1");
         expect(envelope.status).toBe("completed");
+        expect(envelope).toMatchObject({
+          runtime: "claude",
+          effort: record.pass.id === "implement" ? "high" : "medium",
+          workdir: "/tmp/workdir",
+          session: {
+            runtime: "claude",
+            id: `session-${record.result.summary}`,
+            transcript: "unavailable",
+          },
+          trace_plan: {
+            required_passes: ["contract", "implement"],
+            skipped_passes: [],
+          },
+        });
         expect(envelope.usage?.cost_usd).toBe(0.01);
         if (record.pass.id === "contract") {
           expect(envelope.usage?.cache_write_tokens).toBe(3);
@@ -389,6 +584,7 @@ describe("executePipeline", () => {
         expect(envelope.previews?.output).toBe(record.result.summary);
 
         expect(readFileSync(paths.brief, "utf8")).toBe(`brief for ${record.pass.id}`);
+        expect(readFileSync(paths.prompt, "utf8")).toContain(`brief for ${record.pass.id}\n\n---\n\n`);
         expect(readFileSync(paths.output, "utf8")).toBe(record.result.summary);
 
         const events = await readEvents(h.options.runlog.root, "civic", record.runId);

@@ -30,6 +30,7 @@ describe("doctor scheduler status", () => {
         orgHome: REPO_ROOT,
         stateHome: home.root,
         launchAgentsDir: join(home.root, "LaunchAgents"),
+        configOnly: true,
       });
       const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(output).toContain("launchd not installed");
@@ -46,7 +47,7 @@ describe("doctor scheduler status", () => {
     writeFileSync(join(dir, "dev.operon.dispatch.plist"), "<plist/>", "utf8");
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      await cmdDoctor({ orgHome: REPO_ROOT, stateHome: dir, launchAgentsDir: dir });
+      await cmdDoctor({ orgHome: REPO_ROOT, stateHome: dir, launchAgentsDir: dir, configOnly: true });
       const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(output).toContain("launchd installed");
       expect(output).toContain("launchctl unload");
@@ -64,11 +65,13 @@ describe("doctor precondition checks", () => {
         orgHome: REPO_ROOT,
         stateHome: mkdtempSync(join(tmpdir(), "operon-doctor-state-")),
         launchAgentsDir: join(tmpdir(), "no-such-launch-agents"),
+        configOnly: true,
       });
       const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(output).toContain("config:");
       expect(output).toContain("roles.yaml");
       expect(output).toContain("pipelines.yaml");
+      expect(output).toContain("legacy-conservative/v1");
       // Real repo root: every ratified config parses, so doctor is green.
       expect(code).toBe(0);
     } finally {
@@ -86,6 +89,7 @@ describe("doctor precondition checks", () => {
         orgHome: empty,
         stateHome: join(empty, "state"),
         launchAgentsDir: join(empty, "LaunchAgents"),
+        configOnly: true,
       });
       const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(code).toBe(1);
@@ -94,6 +98,42 @@ describe("doctor precondition checks", () => {
       process.chdir(cwd);
       spy.mockRestore();
       rmSync(empty, { recursive: true, force: true });
+    }
+  });
+
+  it("probes only configured adapters and fails on an unauthenticated runtime", async () => {
+    const calls: Array<{ runtime: string; models: string[] }> = [];
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const code = await cmdDoctor({
+        orgHome: REPO_ROOT,
+        stateHome: mkdtempSync(join(tmpdir(), "operon-doctor-readiness-")),
+        launchAgentsDir: join(tmpdir(), "no-such-launch-agents"),
+        readinessProbe: async (request) => {
+          calls.push({ runtime: request.runtime, models: [...request.models] });
+          return {
+            runtime: request.runtime,
+            models: [...request.models],
+            billable: false,
+            durationMs: 1,
+            ...(request.runtime === "codex"
+              ? {
+                  status: "unauthenticated" as const,
+                  errorCode: "error_adapter_unauthenticated",
+                  detail: "App Server has no account",
+                }
+              : { status: "ready" as const, detail: "SDK account available" }),
+          };
+        },
+      });
+      const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(code).toBe(1);
+      expect(calls.map((call) => call.runtime).sort()).toEqual(["claude", "codex"]);
+      expect(calls.every((call) => call.models.length > 0)).toBe(true);
+      expect(output).toContain("unauthenticated");
+      expect(output).toContain("not configured by any role; probe skipped");
+    } finally {
+      spy.mockRestore();
     }
   });
 });

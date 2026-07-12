@@ -31,10 +31,13 @@ limitations; open work lives in the GitHub issue tracker.
 **Where agent activity is recorded** (state home, `~/.operon/<org>/`;
 README.md → Observability is the authoritative inventory):
 `runs/<app>/<runId>/` is the per-pass source of truth (`envelope.json`,
-`events.jsonl`, verbatim `brief.md`/`output.md`); `telemetry/<date>.jsonl`
+`events.jsonl`, verbatim `brief.md`/`prompt.md`/`output.md`, and activity-only
+`session.log`); `telemetry/<date>.jsonl`
 is the org ledger every provider turn settles into exactly once, keyed on
 `runId` (`operon budget --reconcile` back-fills); `invocations/<date>.jsonl`
-records each loop/dispatch invocation; `learning/` holds the capture
+records each loop/dispatch invocation; `tasks/<taskId>/` holds the broader
+delegated-task record plus exact outer prompt (child envelopes and ledger
+rows carry `parent_task_id`); `learning/` holds the capture
 projection (`events/`), rebuildable episode records (`episodes/`),
 ReplayCapsules + SystemFingerprints (`capsules/`, `fingerprints/`), per-turn
 pinned resolve records with `bundle_lineage` (`resolved/`), episode-sticky
@@ -119,14 +122,19 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
 - CLI in source-development mode: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
   `pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run` ·
   `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run` ·
-  `pnpm dev plan <app> --auto --goal "<text>" [--no-publish]` (non-interactive
-  runtime-backed bootstrap plan: schema-validated, orchestrator-published) ·
+  `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]
+  [--depth quick|standard|deep] [--no-publish]` (adaptive runtime-backed
+  plan: schema-validated, orchestrator-published) ·
   `pnpm dev loop --app <app> --once --dry-run` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
   `pnpm dev telemetry --app <app> --date 2026-07-04 --html out.html` ·
+  `pnpm dev task begin --id <id> --prompt-file <path> [--app <app>]` ·
+  `pnpm dev task fallback --id <id> --reason "<why>"` ·
+  `pnpm dev task finish --id <id> --status completed` ·
   `pnpm dev retro --date 2026-07-04` ·
-  `pnpm dev learn report` · `pnpm dev learn inspect <episode-id>` ·
+  `pnpm dev learn report [--refresh]` (read-only unless refreshed) ·
+  `pnpm dev learn inspect <episode-id>` ·
   `pnpm dev learn emit --episode <id> --observation "<text>"` ·
   `pnpm dev learn fixture <episode-id> --set roles/<role>/<set>
   [--validate --by <name>]` ·
@@ -146,7 +154,8 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
   `pnpm dev learn canary stop --root org|app --reason "<why>"` ·
   `pnpm dev run-role <role> --app <app> --dry-run` ·
   `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs` ·
-  `pnpm dev doctor`
+  `pnpm dev doctor [--config-only]` (default probes configured adapter readiness
+  without a model turn; config-only never claims readiness)
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`
   (idempotent private repo/label setup) then
   `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox` (creates and merges one

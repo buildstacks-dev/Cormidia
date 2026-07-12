@@ -1,7 +1,7 @@
 // Run-record ids and path builders (build plan M2.4; docs/loop.md §9).
 //
 // One run record per executed pass, under the org runtime home:
-//   runs/<app>/<runId>/{envelope.json,events.jsonl,brief.md,output.md,session.log}
+//   runs/<app>/<runId>/{envelope.json,events.jsonl,brief.md,prompt.md,output.md,session.log}
 // runId = YYYYMMDD-HHMMSS-<pipeline>-<pass> — chronologically sortable as a
 // plain string; two passes minted in the same second differ by their
 // pipeline/pass suffix.
@@ -42,6 +42,8 @@ export interface RunPaths {
   events: string;
   /** L3 — exact assembled brief, verbatim. */
   brief: string;
+  /** L3 — exact runtime input (brief + pass template), verbatim. */
+  prompt: string;
   /** L3 — final output text. */
   output: string;
   /** L3 — full transcript, fed by TurnHooks.onEvent. */
@@ -59,6 +61,7 @@ export function runPaths(root: string, app: string, runId: string): RunPaths {
     envelope: join(dir, "envelope.json"),
     events: join(dir, "events.jsonl"),
     brief: join(dir, "brief.md"),
+    prompt: join(dir, "prompt.md"),
     output: join(dir, "output.md"),
     sessionLog: join(dir, "session.log"),
   };

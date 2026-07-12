@@ -91,8 +91,12 @@ of the agent-direct active-memory path. Nothing activates; nothing distills.
 - `LearningEventSink` writing JSONL under `~/.operon/<org>/learning/events/`.
 - Idempotent capture projector with a persistent cursor over
   `runs/<app>/<runId>/` (runlogs, quality gates, scorecards, approvals,
-  telemetry). Every event carries `episode_id` and episode context fields
-  (spec §4).
+  telemetry). Each cursor receipt binds the derived event-file paths; if a
+  promised file disappears, the projector reconstructs it from immutable run
+  evidence and records the repair instead of permanently skipping the run.
+  Readers tolerate a concurrently vanished file while reporting the
+  incomplete evidence explicitly. Every event carries `episode_id` and
+  episode context fields (spec §4).
 - End-of-turn protocol change (`src/org/context.ts`): agents emit learning
   notes as candidate input instead of writing active OKF docs directly
   (design §7.1).
@@ -109,7 +113,8 @@ of the agent-direct active-memory path. Nothing activates; nothing distills.
   (observation / cause hypothesis / suggested intervention kept separate),
   `operon learn show <id>` tracing an observation to its disposition.
 - Read-only reports over captured events (`operon learn report`, capture-only
-  sections).
+  sections). Projection writes are explicit through `operon learn report
+  --refresh`; the default report only previews whether a refresh is required.
 
 **Done means:**
 

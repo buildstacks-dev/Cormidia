@@ -128,12 +128,16 @@ export interface PassSelection {
    *  continuation from artifacts, never re-derivation (Stage 2). Today's
    *  only producer is a rehydrated contract excluding the contract pass. */
   excludePasses?: string[];
+  /** Explicit route-selected pass ids (adaptive planning). Applied before
+   * ordinary tier/trigger rules; omitted keeps the configured pipeline. */
+  includePasses?: string[];
 }
 
 /** Apply skip_on_tier, only_on, and artifact-continuation exclusions to a
  *  pipeline's ordered passes. */
 export function selectPasses(pipeline: PipelineConfig, sel: PassSelection): PassConfig[] {
   return pipeline.passes.filter((pass) => {
+    if (sel.includePasses !== undefined && !sel.includePasses.includes(pass.id)) return false;
     if (sel.excludePasses?.includes(pass.id)) return false;
     if (pass.skipOnTier?.includes(sel.tier)) return false;
     if (pass.onlyOn !== undefined) return onlyOnMatches(pass.onlyOn, sel);

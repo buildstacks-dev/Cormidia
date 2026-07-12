@@ -2,6 +2,7 @@
 
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import {
   initOrgHome,
   ORG_HOME_DEFINITION,
@@ -12,6 +13,11 @@ import {
   type InitOrgHomeResult,
 } from "../org/home.js";
 import { loadApps } from "../org/apps.js";
+import {
+  authorityPreview,
+  resolveAuthority,
+  type AuthorityProfile,
+} from "../org/authority.js";
 
 export interface OrgCommandOptions {
   homeDir?: string;
@@ -34,15 +40,34 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
   }
   let name: string | undefined;
   let stateHome: string | undefined;
+  let authorityProfile: AuthorityProfile = "delegated-operator";
+  let authorityFile: string | undefined;
+  let authorityBy: string | undefined;
   let json = false;
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--name") name = needValue(args, ++i, "--name");
     else if (arg === "--state-home") stateHome = needValue(args, ++i, "--state-home");
+    else if (arg === "--authority") {
+      const value = needValue(args, ++i, "--authority");
+      if (value === "delegated" || value === "delegated-operator") {
+        authorityProfile = "delegated-operator";
+      } else if (value === "conservative" || value === "custom") authorityProfile = value;
+      else throw new Error("org init: --authority must be delegated-operator | conservative | custom");
+    } else if (arg === "--authority-file") authorityFile = needValue(args, ++i, "--authority-file");
+    else if (arg === "--authority-by") authorityBy = needValue(args, ++i, "--authority-by");
     else if (arg === "--json") json = true;
     else throw new Error(`org init: unknown argument "${arg}"`);
   }
   if (name === undefined) throw new Error("org init: --name <name> is required");
+  if (authorityProfile === "custom" && (authorityFile === undefined || authorityBy === undefined)) {
+    throw new Error("org init: custom authority requires --authority-file <path> and --authority-by <identity>");
+  }
+  if (authorityProfile !== "custom" && (authorityFile !== undefined || authorityBy !== undefined)) {
+    throw new Error("org init: --authority-file/--authority-by are valid only with --authority custom");
+  }
+  const authorityCustomText =
+    authorityFile !== undefined ? await readFile(resolve(authorityFile), "utf8") : undefined;
 
   const result = await initOrgHome({
     target,
@@ -51,6 +76,9 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
     ...(options.homeDir !== undefined ? { homeDir: options.homeDir } : {}),
     ...(options.pointerPath !== undefined ? { pointerPath: options.pointerPath } : {}),
     ...(options.templateRoot !== undefined ? { templateRoot: options.templateRoot } : {}),
+    authorityProfile,
+    ...(authorityCustomText !== undefined ? { authorityCustomText } : {}),
+    ...(authorityBy !== undefined ? { authorityGrantedBy: authorityBy } : {}),
   });
   printHomes(result, json, "created and selected");
   if (!json) {
@@ -69,7 +97,12 @@ async function show(args: string[], options: OrgCommandOptions): Promise<number>
     ...(options.homeDir !== undefined ? { homeDir: options.homeDir } : {}),
     ...(options.pointerPath !== undefined ? { pointerPath: options.pointerPath } : {}),
   });
-  printHomes(homes, json, "active");
+  const authority = await resolveAuthority({ orgHome: homes.orgHome });
+  printHomes(
+    { ...homes, authority, authorityPreview: previewFor(authority.profile) },
+    json,
+    "active",
+  );
   return 0;
 }
 
@@ -96,12 +129,18 @@ async function use(args: string[], options: OrgCommandOptions): Promise<number> 
     homeDir,
     pointerPath,
   });
-  printHomes({ ...homes, appsFile }, json, "selected");
+  const authority = await resolveAuthority({ orgHome: homes.orgHome });
+  printHomes(
+    { ...homes, appsFile, authority, authorityPreview: previewFor(authority.profile) },
+    json,
+    "selected",
+  );
   return 0;
 }
 
 function printHomes(
-  homes: Pick<InitOrgHomeResult, "packageRoot" | "orgHome" | "stateHome" | "pointerPath" | "appsFile">,
+  homes: Pick<InitOrgHomeResult, "packageRoot" | "orgHome" | "stateHome" | "pointerPath" | "appsFile"> &
+    Partial<Pick<InitOrgHomeResult, "authority" | "authorityPreview">>,
   json: boolean,
   status: string,
 ): void {
@@ -118,6 +157,22 @@ function printHomes(
           pointerPath: homes.pointerPath,
           org: homes.appsFile.org.name,
           apps: homes.appsFile.apps.map((app) => app.name),
+          ...(homes.authority !== undefined
+            ? {
+                authority: {
+                  profile: homes.authority.profile,
+                  version: homes.authority.version,
+                  sha256: homes.authority.sha256,
+                  sources: homes.authority.sources,
+                  ...(homes.authorityPreview !== undefined
+                    ? {
+                        automatic: homes.authorityPreview.automatic,
+                        humanGated: homes.authorityPreview.humanGated,
+                      }
+                    : {}),
+                },
+              }
+            : {}),
         },
         null,
         2,
@@ -130,10 +185,29 @@ function printHomes(
   console.log(`State home: ${homes.stateHome} — ${STATE_HOME_DEFINITION}.`);
   console.log(`Pointer:    ${homes.pointerPath}`);
   console.log(`Apps:       ${homes.appsFile.apps.length}`);
+  if (homes.authority !== undefined) {
+    console.log(`Authority:  ${homes.authority.version} (sha256:${homes.authority.sha256})`);
+    if (homes.authorityPreview !== undefined) {
+      console.log("Automatic:");
+      for (const action of homes.authorityPreview.automatic) console.log(`  - ${action}`);
+      console.log("Human-gated:");
+      for (const action of homes.authorityPreview.humanGated) console.log(`  - ${action}`);
+    }
+  }
 }
 
 function needValue(args: string[], index: number, flag: string): string {
   const value = args[index];
   if (!value || value.startsWith("--")) throw new Error(`org: ${flag} requires a value`);
   return value;
+}
+
+function previewFor(profile: string): ReturnType<typeof authorityPreview> {
+  return authorityPreview(
+    profile === "conservative"
+      ? "conservative"
+      : profile === "custom"
+        ? "custom"
+        : "delegated-operator",
+  );
 }

@@ -36,10 +36,26 @@ export interface SessionHandle {
   id: string;
 }
 
+/** Durable authority provenance recorded on tasks and run envelopes. */
+export interface AuthorityEvidence {
+  profile: string;
+  version: string;
+  sha256: string;
+  sources: string[];
+}
+
+/** Effective authority prose plus its content-bound provenance. */
+export interface AuthorityContext extends AuthorityEvidence {
+  text: string;
+}
+
 /** Assembled context for one turn: TASTE layers + role protocol + memory
  *  excerpts. Adapters inject this through their harness's NATIVE channel
  *  (CLAUDE.md / AGENTS.md / pi SYSTEM.md-append) — never a bespoke mechanism. */
 export interface ContextBundle {
+  /** Injected before TASTE. Optional only for legacy/tests that construct a
+   * bundle directly; production assembly always resolves it. */
+  authority?: AuthorityContext;
   taste: string[]; // org TASTE.md, then role addendum, then app override
   memoryExcerpts: string[]; // relevant OKF documents for this task
 }
@@ -65,6 +81,10 @@ export interface TurnRequest {
   /** Allow outbound network inside a workspace-write runtime sandbox for this
    * turn. Defaults to false; the orchestration boundary must opt in. */
   networkAccess?: boolean;
+  /** Orchestrator-owned cancellation. Every adapter must stop its provider
+   * session and descendants when this fires; the pipeline waits only for a
+   * bounded grace period before finalizing the pass. */
+  signal?: AbortSignal;
 }
 
 export interface Artifact {
@@ -98,10 +118,15 @@ export interface TurnUsage {
   /** Subagent turns spawned inside this turn — silent fan-out must be visible. */
   subagentTurns: number;
   wallClockMs: number;
+  /** Completeness of this usage snapshot. Omitted on legacy/final results;
+   * consumers infer complete vs estimated from costEstimated. */
+  quality?: UsageQuality;
 }
 
+export type UsageQuality = "complete" | "partial" | "estimated" | "unavailable";
+
 export interface TurnResult {
-  status: "completed" | "blocked_on_gate" | "failed";
+  status: "completed" | "blocked_on_gate" | "failed" | "cancelled" | "timed_out";
   summary: string;
   artifacts: Artifact[];
   session: SessionHandle;
@@ -113,6 +138,14 @@ export interface TurnResult {
    *  secrets/auth escalation (proportionality-review Stage 3). Absent on
    *  success and on failures with no more specific cause. */
   errorCode?: string;
+}
+
+/** Monotonic provider progress that must survive a crash/cancellation before
+ * the final TurnResult. Usage is cumulative for this turn, never a delta. */
+export interface TurnProgress {
+  at?: string;
+  session?: SessionHandle;
+  usage?: TurnUsage;
 }
 
 export interface GateEscalation {
@@ -163,6 +196,8 @@ export interface TurnHooks {
    *  subagents. Adapters prove this via the gate conformance suite. */
   gate: GateFn;
   onEvent?: (e: TurnEvent) => void;
+  /** Synchronous notification; the executor serializes durable writes. */
+  onProgress?: (progress: TurnProgress) => void;
 }
 
 export interface Runtime {

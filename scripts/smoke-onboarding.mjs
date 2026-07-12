@@ -5,7 +5,7 @@
 // repository is touched.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,6 +31,8 @@ const env = {
 try {
   mkdirSync(neutral, { recursive: true });
   write(app, "README.md", "# Fixture app\n");
+  write(app, "AGENTS.md", "# Existing agent rule\n");
+  write(app, "CLAUDE.md", "# Existing Claude rule\n");
   write(app, "package.json", `${JSON.stringify({ name: "fixture-app", scripts: { test: "node --test" } }, null, 2)}\n`);
   write(app, ".git/config", '[remote "origin"]\n\turl = git@github.com:owner/fixture-app.git\n');
   const answers = join(root, "answers.json");
@@ -61,6 +63,11 @@ try {
   );
   assert(initialized.includes("Org home:"), "org init did not explain org home");
   assert(initialized.includes("State home:"), "org init did not explain state home");
+  assert(initialized.includes("Automatic:"), "org init did not preview automatic authority");
+  assert(initialized.includes("Human-gated:"), "org init did not preview gated authority");
+  assert(existsSync(join(orgHome, "AUTHORITY.md")), "org init did not emit canonical authority");
+  assert(readFileSync(join(orgHome, "AGENTS.md"), "utf8").includes("operon-authority:start"), "org Codex instructions lack authority");
+  assert(readFileSync(join(orgHome, "CLAUDE.md"), "utf8").includes("operon-authority:start"), "org Claude instructions lack authority");
 
   const scan = run(operon, ["bootstrap", app, "--scan-only"], neutral);
   assert(scan.includes("App repo:"), "bootstrap did not explain app repo");
@@ -70,16 +77,21 @@ try {
 
   run(operon, ["bootstrap", app, "--answers", answers], neutral);
   assert(existsSync(join(app, ".operon", "config.yaml")), "full bootstrap did not emit app config");
+  assert(existsSync(join(app, ".operon", "AUTHORITY.md")), "full bootstrap did not emit app authority");
+  assert(readFileSync(join(app, "AGENTS.md"), "utf8").startsWith("# Existing agent rule\n"), "bootstrap replaced existing AGENTS.md content");
+  assert(readFileSync(join(app, "AGENTS.md"), "utf8").includes("operon-authority:start"), "app Codex instructions lack authority");
+  assert(readFileSync(join(app, "CLAUDE.md"), "utf8").startsWith("# Existing Claude rule\n"), "bootstrap replaced existing CLAUDE.md content");
   assert(!existsSync(join(app, ".operon", "org")), "bootstrap emitted the retired nested org profile");
 
   const context = JSON.parse(run(operon, ["context", "--json"], neutral));
   assert(context.orgHome === orgHome, "context resolved the wrong org home");
   assert(context.stateHome === stateHome, "context resolved the wrong state home");
+  assert(context.authority?.version === "delegated-operator/v1", "context omitted the org authority version");
   assert(context.apps.some((entry) => entry.repo === "owner/fixture-app"), "onboarded app is absent from context");
 
   const capabilities = JSON.parse(run(operon, ["capabilities", "--json"], neutral));
   assert(capabilities.commands.some((entry) => entry.command === "bootstrap"), "bootstrap capability is absent");
-  run(operon, ["doctor", "--json"], neutral);
+  run(operon, ["doctor", "--json", "--config-only"], neutral);
   run(
     operon,
     [
@@ -100,7 +112,7 @@ try {
   const compiled = join(packageRoot, "dist", "cli.js");
   assert(existsSync(compiled), "compiled CLI is missing; run pnpm build first");
   run(process.execPath, [compiled, "context", "--json"], neutral);
-  run(process.execPath, [compiled, "doctor", "--json"], neutral);
+  run(process.execPath, [compiled, "doctor", "--json", "--config-only"], neutral);
 
   console.log(`onboarding smoke: PASS (${root})`);
 } finally {

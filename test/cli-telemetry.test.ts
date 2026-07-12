@@ -6,7 +6,7 @@
 // Uses makeOrgHome to seed run records; no network, auth, real org state, or
 // wall-clock time is required.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cmdTelemetry } from "../src/cli/telemetry.js";
@@ -22,6 +22,7 @@ interface EnvOverrides {
   usage?: Record<string, unknown>;
   previews?: Record<string, string>;
   lastSeenAt?: string;
+  planningRoute?: Record<string, unknown>;
 }
 
 function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
@@ -42,6 +43,7 @@ function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
     wall_clock_ms: 60000,
     usage: over.usage ?? { tokens_in: 100, tokens_out: 20, cost_usd: 0.1 },
     ...(over.previews !== undefined ? { previews: over.previews } : {}),
+    ...(over.planningRoute !== undefined ? { planning_route: over.planningRoute } : {}),
     refs: { events: "events.jsonl", brief: "brief.md", output: "output.md" },
   };
 }
@@ -78,6 +80,18 @@ function seededHome(): OrgHomeFixture {
               role: "reviewer",
               model: "model-b",
               usage: { tokens_in: 200, tokens_out: 40, cost_usd: 0.5, cost_estimated: true, cache_read_tokens: 150 },
+              planningRoute: {
+                policy_version: "planning-depth/v1",
+                depth: "standard",
+                risk_tier: "medium",
+                factors: { ambiguity: "medium", coupling: "low" },
+                decision_factors: ["moderate ambiguity"],
+                selected_passes: ["visionary", "pm-a", "decomposer"],
+                skipped_passes: [{ pass: "pm-b", reason: "no disagreement" }],
+                estimated_cost_usd: 1.25,
+                estimated_cost_upper_bound_usd: 15,
+                estimate_basis: "historical median",
+              },
             }),
             events: [
               { event: "escalation.raised", severity: "warn" },
@@ -110,6 +124,32 @@ describe("cmdTelemetry terminal view", () => {
       expect(turn2).toBeLessThan(t8);
       expect(out).toContain("build/implement");
       expect(out).toContain("build/review");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("labels planning before issue publication as pre-ticket planning", async () => {
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            plan1: {
+              envelope: env("plan1", "2026-07-04T09:00:00Z", {
+                trace: "plan-alpha-1",
+                pass: "decomposer",
+                role: "planner",
+              }),
+              events: [],
+            },
+          },
+        },
+      },
+    });
+    try {
+      const { out } = await run(["--home", home.root]);
+      expect(out).toContain("PRE-TICKET PLANNING");
+      expect(out).not.toContain("(no ticket)");
     } finally {
       home.cleanup();
     }
@@ -240,12 +280,15 @@ describe("cmdTelemetry --json", () => {
         cost_usd: 0.5,
         cost_estimated: true,
         escalations: 2,
+        planning_route: { depth: "standard", estimated_cost_usd: 1.25 },
       });
       expect(data.running).toEqual([]);
       expect(data.totals.by_role).toContainEqual({
         role: "reviewer",
         cost_usd: 0.5,
         cost_estimated: true,
+        usage_quality: "estimated",
+        incomplete_passes: 1,
         passes: 1,
         escalations: 2,
       });
@@ -254,6 +297,8 @@ describe("cmdTelemetry --json", () => {
         ticket: "#7",
         cost_usd: expect.closeTo(0.2) as number,
         cost_estimated: false,
+        usage_quality: "complete",
+        incomplete_passes: 0,
         passes: 2,
         escalations: 0,
       });
@@ -283,6 +328,33 @@ describe("cmdTelemetry --html", () => {
     });
     try {
       const target = join(home.root, "telemetry.html");
+      const runDir = home.paths.runDir("alpha", "run1");
+      const envelopePath = join(runDir, "envelope.json");
+      const envelope = JSON.parse(readFileSync(envelopePath, "utf8")) as Record<string, unknown>;
+      envelope["runtime"] = "codex";
+      envelope["effort"] = "high";
+      envelope["workdir"] = "/workspace/buildstacks.dev";
+      envelope["git_branch"] = "op/7";
+      envelope["git_head"] = "a".repeat(40);
+      envelope["session"] = {
+        runtime: "codex",
+        id: "thread-123",
+        native_ref: "codex://threads/thread-123",
+        transcript: "native_task",
+        transcript_note: "Open the native Codex task for the full provider transcript.",
+      };
+      envelope["refs"] = {
+        events: "events.jsonl",
+        brief: "brief.md",
+        prompt: "prompt.md",
+        output: "output.md",
+        session_log: "session.log",
+      };
+      writeFileSync(envelopePath, `${JSON.stringify(envelope)}\n`);
+      writeFileSync(join(runDir, "brief.md"), "assembled brief");
+      writeFileSync(join(runDir, "prompt.md"), "exact prompt");
+      writeFileSync(join(runDir, "output.md"), "verdict");
+      writeFileSync(join(runDir, "session.log"), "[tool_use] bash");
       const { code, out } = await run(["--home", home.root, "--html", target]);
       expect(code).toBe(0);
       expect(out).toContain(target);
@@ -292,12 +364,22 @@ describe("cmdTelemetry --html", () => {
       expect(html).toContain("run2");
       expect(html).toContain("Ticket #7");
       expect(html).toContain("Cost attribution");
+      expect(html).toContain("Completion integrity");
+      expect(html).toContain("codex / model-a / high");
+      expect(html).toContain("Exact input prompt");
+      expect(html).toContain("Activity log (not full transcript)");
+      expect(html).toContain("codex://threads/thread-123");
       // The preview's markup must arrive escaped — and since the report is
       // deliberately script-free, no <script element may exist at all.
       expect(html).toContain("&lt;script&gt;");
       expect(html).not.toContain("<script");
-      // Self-contained: no external fetches of any kind.
-      expect(html).not.toMatch(/src=|href=|url\(|@import/);
+      // No external resources; hrefs point only at the adjacent evidence
+      // bundle or the native Codex task URI.
+      expect(html).not.toMatch(/src=|url\(|@import|https?:\/\//);
+      const bundle = join(home.root, "telemetry.evidence", "alpha", "run1");
+      expect(existsSync(join(bundle, "envelope.json"))).toBe(true);
+      expect(readFileSync(join(bundle, "prompt.md"), "utf8")).toBe("exact prompt");
+      expect(readFileSync(join(bundle, "session.log"), "utf8")).toBe("[tool_use] bash");
     } finally {
       home.cleanup();
     }

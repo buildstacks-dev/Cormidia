@@ -53,12 +53,16 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
   private readonly stderr: string[] = [];
   private nextId = 1;
   private closed = false;
+  private closing?: Promise<void>;
 
   constructor() {
     const require = createRequire(import.meta.url);
     const codexBin = require.resolve("@openai/codex/bin/codex.js");
     this.child = spawn(process.execPath, [codexBin, "app-server", "--listen", "stdio://"], {
       stdio: ["pipe", "pipe", "pipe"],
+      // Own a process group so closing the adapter reaches App Server children,
+      // not only the immediate Node wrapper.
+      detached: process.platform !== "win32",
     });
 
     const stdout = createInterface({ input: this.child.stdout });
@@ -105,14 +109,15 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
   }
 
   async close(): Promise<void> {
-    if (this.closed) return;
+    if (this.closing !== undefined) return this.closing;
     this.closed = true;
     for (const waiter of this.waiters.splice(0)) waiter({ done: true, value: undefined });
     for (const pending of this.pending.values()) {
       pending.reject(new Error("Codex App Server client closed"));
     }
     this.pending.clear();
-    if (!this.child.killed) this.child.kill();
+    this.closing = this.terminateProcessGroup();
+    return this.closing;
   }
 
   private nextMessage(): Promise<IteratorResult<CodexServerMessage>> {
@@ -173,6 +178,38 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
     this.pending.clear();
     for (const waiter of this.waiters.splice(0)) waiter(Promise.reject(error) as never);
   }
+
+  private async terminateProcessGroup(): Promise<void> {
+    if (this.child.exitCode !== null || this.child.signalCode !== null) return;
+    const pid = this.child.pid;
+    const send = (signal: NodeJS.Signals): void => {
+      try {
+        if (process.platform !== "win32" && pid !== undefined) process.kill(-pid, signal);
+        else this.child.kill(signal);
+      } catch {
+        // Already exited.
+      }
+    };
+    await new Promise<void>((resolve) => {
+      let done = false;
+      let hardTimer: NodeJS.Timeout;
+      let giveUpTimer: NodeJS.Timeout;
+      const finish = (): void => {
+        if (done) return;
+        done = true;
+        clearTimeout(hardTimer);
+        clearTimeout(giveUpTimer);
+        this.child.off("close", finish);
+        resolve();
+      };
+      this.child.once("close", finish);
+      hardTimer = setTimeout(() => send("SIGKILL"), 1_000);
+      // A pathological OS/process state must not make adapter close infinite.
+      giveUpTimer = setTimeout(finish, 1_750);
+      send("SIGTERM");
+      if (this.child.exitCode !== null || this.child.signalCode !== null) finish();
+    });
+  }
 }
 
 export interface CodexRuntimeOptions {
@@ -214,7 +251,16 @@ export class CodexRuntime implements Runtime {
     const startTime = Date.now();
     const client = this.clientFactory();
     const escalations: GateEscalation[] = [];
+    const state: CodexTurnState = {
+      threadId: req.session?.id ?? `pending-${startTime}`,
+      subagentTurns: 0,
+    };
+    const abortClient = (): void => {
+      void client.close();
+    };
+    req.signal?.addEventListener("abort", abortClient, { once: true });
     try {
+      if (req.signal?.aborted) return stoppedCodexResult(req, state, escalations, startTime);
       await client.request("initialize", {
         clientInfo: { name: "operon", title: "Operon", version: "0.1.0" },
         capabilities: {
@@ -233,17 +279,17 @@ export class CodexRuntime implements Runtime {
       if (threadId === undefined) {
         throw new Error("CodexRuntime: App Server did not return a thread id");
       }
+      state.threadId = threadId;
+      hooks.onProgress?.({ session: { runtime: "codex", id: threadId } });
 
       await client.request("turn/start", turnParams(req, threadId));
-      const state: CodexTurnState = {
-        threadId,
-        subagentTurns: 0,
-      };
 
       for await (const message of client) {
         await this.handleServerMessage(client, message, req, hooks, escalations, state);
         if (state.status !== undefined) break;
       }
+
+      if (req.signal?.aborted) return stoppedCodexResult(req, state, escalations, startTime);
 
       const wallClockMs = state.durationMs ?? Date.now() - startTime;
       // A budget overrun is a hard stop: it fails the turn and emits exactly
@@ -261,7 +307,7 @@ export class CodexRuntime implements Runtime {
           ? [budgetOverrunNote(threadId, state.usage?.costUsd ?? 0, req)]
           : [],
         session: { runtime: "codex", id: threadId },
-        usage: state.usage ?? zeroUsage(wallClockMs, state.subagentTurns),
+        usage: finalCodexUsage(state.usage ?? zeroUsage(wallClockMs, state.subagentTurns)),
         escalations,
         ...(state.budgetOverrun
           ? { errorCode: "error_max_budget_usd" }
@@ -269,7 +315,11 @@ export class CodexRuntime implements Runtime {
             ? { errorCode: state.errorCode }
             : {}),
       };
+    } catch (error) {
+      if (req.signal?.aborted) return stoppedCodexResult(req, state, escalations, startTime);
+      throw error;
     } finally {
+      req.signal?.removeEventListener("abort", abortClient);
       await client.close();
     }
   }
@@ -314,6 +364,11 @@ export class CodexRuntime implements Runtime {
           );
           if (delta !== undefined) {
             state.usage = addUsageDelta(state.usage, delta, state.subagentTurns, state.durationMs);
+            hooks.onProgress?.({
+              at: new Date().toISOString(),
+              session: { runtime: "codex", id: state.threadId },
+              usage: { ...state.usage, quality: "partial" },
+            });
             // Running per-turn budget guard on the ACCUMULATED estimate. The
             // App Server exposes no native budget knob (unlike Claude's
             // --max-budget-usd), so Operon enforces the cap itself: once the
@@ -432,6 +487,59 @@ export class CodexRuntime implements Runtime {
       state.usage = { ...state.usage, subagentTurns: state.subagentTurns, wallClockMs: state.durationMs ?? state.usage.wallClockMs };
     }
   }
+}
+
+function finalCodexUsage(usage: TurnUsage): TurnUsage {
+  return { ...usage, quality: "estimated" };
+}
+
+function stoppedCodexResult(
+  req: TurnRequest,
+  state: CodexTurnState,
+  escalations: GateEscalation[],
+  startedAt: number,
+): TurnResult {
+  const descriptor = stopDescriptor(req.signal?.reason);
+  const usage = state.usage ?? zeroUsage(Date.now() - startedAt, state.subagentTurns);
+  return {
+    status: descriptor.status,
+    errorCode: descriptor.errorCode,
+    summary: descriptor.reason,
+    artifacts: [],
+    session: { runtime: "codex", id: state.threadId },
+    usage: {
+      ...usage,
+      wallClockMs: Date.now() - startedAt,
+      quality: state.usage === undefined ? "unavailable" : "partial",
+    },
+    escalations,
+  };
+}
+
+function stopDescriptor(reason: unknown): {
+  status: "cancelled" | "timed_out";
+  errorCode: string;
+  reason: string;
+} {
+  if (reason !== null && typeof reason === "object") {
+    const value = reason as Record<string, unknown>;
+    if (
+      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      typeof value["errorCode"] === "string" &&
+      typeof value["reason"] === "string"
+    ) {
+      return {
+        status: value["status"],
+        errorCode: value["errorCode"],
+        reason: value["reason"],
+      };
+    }
+  }
+  return {
+    status: "cancelled",
+    errorCode: "error_cancelled",
+    reason: typeof reason === "string" && reason.length > 0 ? reason : "operator cancellation",
+  };
 }
 
 async function declineMcpElicitation(

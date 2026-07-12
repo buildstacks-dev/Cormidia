@@ -19,9 +19,18 @@ import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stringify } from "yaml";
-import type { Trigger } from "../runtime/types.js";
+import type { AuthorityContext, Trigger } from "../runtime/types.js";
 import { joinExistingOrg, type AppRegistration } from "./apps.js";
 import { loadRoles } from "./roles.js";
+import {
+  applyAppAuthority,
+  authorityPreview,
+  composeProjectInstructions,
+  createAppAuthorityDocument,
+  projectAuthorityBlock,
+  resolveAuthority,
+  type AppAuthoritySelection,
+} from "./authority.js";
 
 // ---------------------------------------------------------------------------
 // Step 1 — scanRepo()
@@ -373,6 +382,9 @@ async function gitOriginSlug(root: string): Promise<string | undefined> {
 export interface EmitResult {
   /** Relative paths written, in emission order. */
   created: string[];
+  /** Existing project instruction files changed only inside the marked
+   * Operon block; all other bytes are preserved. */
+  updated: string[];
 }
 
 /** This package's root (works from both src/ and dist/ — two levels up). */
@@ -432,6 +444,8 @@ export interface BootstrapAnswers {
   /** Feedback/publishing channels. A key may be present only when that
    * audience-facing role is enabled; enabled roles default to []. */
   channels: { support?: string[]; marketing?: string[] };
+  /** App onboarding can inherit or narrow the org's recorded grant. */
+  authority: AppAuthoritySelection;
 }
 
 /** Validate + normalize a raw answers object (from `--answers answers.json`
@@ -444,7 +458,7 @@ export function parseAnswers(rawUnknown: unknown, knownRoles: string[]): Bootstr
   }
   const raw = rawUnknown as Record<string, unknown>;
 
-  const allowedKeys = ["product", "good", "roles", "budgetUsdMonth", "cadence", "criticalOps", "channels"];
+  const allowedKeys = ["product", "good", "roles", "budgetUsdMonth", "cadence", "criticalOps", "channels", "authority"];
   for (const key of Object.keys(raw)) {
     if (!allowedKeys.includes(key)) {
       throw err(`unknown key "${key}" (allowed: ${allowedKeys.join(", ")})`);
@@ -555,7 +569,37 @@ export function parseAnswers(rawUnknown: unknown, knownRoles: string[]): Bootstr
     if (roles.includes(role) && channels[role] === undefined) channels[role] = [];
   }
 
-  return { product, good, roles, budgetUsdMonth, cadence, criticalOps, channels };
+  const authority = parseAppAuthoritySelection(raw["authority"], err);
+
+  return { product, good, roles, budgetUsdMonth, cadence, criticalOps, channels, authority };
+}
+
+function parseAppAuthoritySelection(
+  value: unknown,
+  err: (msg: string) => Error,
+): AppAuthoritySelection {
+  if (value === undefined) return { mode: "inherit" };
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw err("authority must be an object with mode inherit | conservative | custom");
+  }
+  const spec = value as Record<string, unknown>;
+  for (const key of Object.keys(spec)) {
+    if (key !== "mode" && key !== "restrictions") {
+      throw err(`authority: unknown key "${key}" (allowed: mode, restrictions)`);
+    }
+  }
+  const mode = spec["mode"];
+  if (mode !== "inherit" && mode !== "conservative" && mode !== "custom") {
+    throw err("authority.mode must be inherit | conservative | custom");
+  }
+  if (mode === "custom") {
+    const restrictions = requireText(spec["restrictions"], "authority.restrictions", err);
+    return { mode, restrictions };
+  }
+  if (spec["restrictions"] !== undefined) {
+    throw err("authority.restrictions is valid only when authority.mode is custom");
+  }
+  return { mode };
 }
 
 function requireText(v: unknown, field: string, err: (msg: string) => Error): string {
@@ -600,6 +644,9 @@ export interface EmitAppArtifactsOptions {
    * memory bundles; the complement of answers.roles gets an explicit empty
    * cadence override (= disabled, src/org/apps.ts semantics). */
   allRoles: string[];
+  /** Canonical org grant to snapshot. bootstrapRun supplies it; direct unit
+   * callers safely fall back to legacy-conservative resolution. */
+  orgAuthority?: AuthorityContext;
   /** Template root for docs/policy.yaml.template; defaults to this package. */
   templateRoot?: string;
 }
@@ -609,6 +656,7 @@ export function appArtifactFiles(answers: BootstrapAnswers, allRoles: string[]):
   const enabled = allRoles.filter((r) => answers.roles.includes(r));
   return [
     ".operon/TASTE.md",
+    ".operon/AUTHORITY.md",
     ".operon/config.yaml",
     ".operon/policy.yaml",
     ".operon/onboarding-report.md",
@@ -724,8 +772,14 @@ export async function emitAppArtifacts(
   const policyTemplate = await readPolicyTemplate(templateRoot);
   const scan = options.scan ?? (await scanRepo(targetRoot));
   const onboardingReport = buildOnboardingGapReport(scan, answers);
+  const orgAuthority =
+    options.orgAuthority ?? (await resolveAuthority({ orgHome: templateRoot }));
+  const effectiveAuthority = applyAppAuthority(orgAuthority, answers.authority);
+  const appAuthority = createAppAuthorityDocument(orgAuthority, answers.authority);
+  const instructionPlans = await planProjectInstructionFiles(targetRoot, effectiveAuthority);
 
   const created: string[] = [];
+  const updated: string[] = [];
   const emit = async (rel: string, content: string) => {
     const abs = join(targetRoot, rel);
     await mkdir(dirname(abs), { recursive: true });
@@ -734,19 +788,57 @@ export async function emitAppArtifacts(
   };
 
   await emit(".operon/TASTE.md", charterMd(appName, answers));
+  await emit(".operon/AUTHORITY.md", appAuthority);
   await emit(
     ".operon/config.yaml",
     configYaml(appName, repoSlug, options.repoSlug === undefined, answers, allRoles),
   );
   await emit(".operon/policy.yaml", policyTemplate);
-  await emit(".operon/onboarding-report.md", onboardingReportMd(appName, onboardingReport));
+  await emit(
+    ".operon/onboarding-report.md",
+    onboardingReportMd(appName, onboardingReport, effectiveAuthority, answers.authority),
+  );
   for (const role of allRoles) {
     if (answers.roles.includes(role)) {
       await emit(`.operon/memory/${role}/INDEX.md`, memoryIndexMd(role, appName));
     }
   }
 
-  return { created };
+  for (const plan of instructionPlans) {
+    await writeFile(join(targetRoot, plan.rel), plan.content, "utf8");
+    if (plan.existed) updated.push(plan.rel);
+    else created.push(plan.rel);
+  }
+
+  return { created, updated };
+}
+
+interface ProjectInstructionPlan {
+  rel: string;
+  existed: boolean;
+  content: string;
+}
+
+async function planProjectInstructionFiles(
+  targetRoot: string,
+  effectiveAuthority: AuthorityContext,
+): Promise<ProjectInstructionPlan[]> {
+  const instructionBlock = projectAuthorityBlock(
+    ".operon/AUTHORITY.md",
+    effectiveAuthority,
+  );
+  return Promise.all(
+    AGENT_DOCS.map(async (rel) => {
+      const path = join(targetRoot, rel);
+      const existed = existsSync(path);
+      const existing = existed ? await readFile(path, "utf8") : `# ${rel}\n`;
+      return {
+        rel,
+        existed,
+        content: composeProjectInstructions(existing, instructionBlock),
+      };
+    }),
+  );
 }
 
 async function readPolicyTemplate(templateRoot: string): Promise<string> {
@@ -852,7 +944,12 @@ function configYaml(
   return out;
 }
 
-function onboardingReportMd(appName: string, report: OnboardingGapReport): string {
+function onboardingReportMd(
+  appName: string,
+  report: OnboardingGapReport,
+  authority: AuthorityContext,
+  selection: AppAuthoritySelection,
+): string {
   const lines: string[] = [
     `# Operon Onboarding Report — ${appName}`,
     "",
@@ -897,6 +994,26 @@ function onboardingReportMd(appName: string, report: OnboardingGapReport): strin
   for (const note of report.roleReadinessNotes) {
     lines.push(`- ${note.role} (${note.severity}): ${note.message}`);
   }
+  lines.push("");
+
+  const preview = authorityPreview(
+    authority.profile === "conservative"
+      ? "conservative"
+      : authority.profile === "custom"
+        ? "custom"
+        : "delegated-operator",
+  );
+  lines.push("## Delegated Operator Authority", "");
+  lines.push(`- App selection: ${selection.mode}`);
+  lines.push(`- Effective version: ${authority.version}`);
+  lines.push(`- Effective SHA-256: ${authority.sha256}`);
+  if (selection.restrictions !== undefined) {
+    lines.push(`- App restrictions: ${selection.restrictions}`);
+  }
+  lines.push("", "### Automatic", "");
+  for (const action of preview.automatic) lines.push(`- ${action}`);
+  lines.push("", "### Human-gated", "");
+  for (const action of preview.humanGated) lines.push(`- ${action}`);
   lines.push("");
 
   return `${lines.join("\n")}`;
@@ -951,6 +1068,7 @@ export interface BootstrapRunResult {
   answers: BootstrapAnswers;
   /** Relative app-repo paths written, in emission order. */
   created: string[];
+  updated: string[];
   /** Existing org home joined by this run. */
   joinedOrgHome: string;
 }
@@ -978,12 +1096,20 @@ export async function bootstrapRun(
   const appFiles = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, appFiles);
 
+  const orgAuthority = await resolveAuthority({ orgHome });
+  // Composition errors must surface before apps.yaml or the app repo changes.
+  await planProjectInstructionFiles(
+    targetRoot,
+    applyAppAuthority(orgAuthority, answers.authority),
+  );
+
   const joined = await joinExistingOrg(
     orgHome,
     registrationFromAnswers(appName, registrationRepoSlug, answers, allRoles),
   );
 
   const appOptions: EmitAppArtifactsOptions = { appName, answers, scan, allRoles, templateRoot };
+  appOptions.orgAuthority = orgAuthority;
   if (repoSlug) appOptions.repoSlug = repoSlug;
   const app = await emitAppArtifacts(targetRoot, appOptions);
 
@@ -991,6 +1117,7 @@ export async function bootstrapRun(
     scan,
     answers,
     created: app.created,
+    updated: app.updated,
     joinedOrgHome: joined.orgHome,
   };
 }

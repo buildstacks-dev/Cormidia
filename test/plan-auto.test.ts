@@ -7,7 +7,7 @@
 // auth, or real GitHub state is required.
 
 import { mkdtempSync, rmSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -38,6 +38,11 @@ const PLAN_JSON = JSON.stringify({
       notesForBuilder: "Boring dependencies.",
     },
   ],
+});
+
+const MATURE_PLAN_JSON = JSON.stringify({
+  ...(JSON.parse(PLAN_JSON) as Record<string, unknown>),
+  stage: "mature",
 });
 
 function planTurn(summary: string): TurnResult {
@@ -112,6 +117,17 @@ describe("runAutoPlan", () => {
     const ledger = await readFile(join(stateHome, "telemetry", "2026-07-11.jsonl"), "utf8");
     const row = JSON.parse(ledger.trimEnd().split("\n")[0]!) as Record<string, unknown>;
     expect(row).toMatchObject({ role: "planner", costUsd: 0.9, pipeline: "plan-bootstrap", trigger: "manual" });
+    const runId = (await readdir(join(stateHome, "runs", "greenfield")))[0]!;
+    const envelope = JSON.parse(
+      await readFile(join(stateHome, "runs", "greenfield", runId, "envelope.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(envelope["planning_route"]).toMatchObject({
+      policy_version: "planning-depth/v1",
+      depth: "quick",
+      risk_tier: "low",
+      selected_passes: ["bootstrap-plan"],
+      estimated_cost_usd: null,
+    });
   });
 
   it("fails loudly (not exit 0) when the plan violates the stage budget", async () => {
@@ -137,19 +153,67 @@ describe("runAutoPlan", () => {
     expect(await gh.listIssues({ state: "all", limit: 10 })).toEqual([]);
   });
 
-  it("refuses non-bootstrap stages instead of publishing an unvalidatable prose plan", async () => {
+  it("runs the standard mature route with one PM and no arbitrator", async () => {
     const { app, appsFile } = fixture();
+    const runtime = new FakeRuntime([
+      { result: planTurn("visionary evidence") },
+      { result: planTurn("one PM roadmap") },
+      { result: planTurn(MATURE_PLAN_JSON) },
+    ]);
+    const gh = new FakeGhOps();
     const result = await runAutoPlan({
       orgHome: process.cwd(),
       stateHome,
       app: { ...app, status: "live" },
       appsFile,
-      goal: "goal",
-      gh: new FakeGhOps(),
-      runtimeFor: () => new FakeRuntime([]),
+      goal: "Improve the product search experience",
+      gh,
+      runtimeFor: () => runtime,
+      now: () => new Date("2026-07-11T09:00:00Z"),
     });
-    expect(result.status).toBe("failed");
-    expect(result.summary).toContain("bootstrap stage only");
+    expect(result.status).toBe("completed");
+    expect(result.planningDecision?.depth).toBe("standard");
+    expect(runtime.calls).toHaveLength(3);
+    expect(runtime.calls.map((call) => call.req.task.match(/# Pass: ([^\s]+)/)?.[1])).toEqual([
+      "visionary",
+      "pm-a",
+      "decomposer",
+    ]);
+    expect(runtime.calls[2]?.req.task).toContain("visionary evidence");
+    expect(runtime.calls[2]?.req.task).toContain("one PM roadmap");
+    expect(runtime.calls[0]?.req.verdictSchema).toBeUndefined();
+    expect(runtime.calls[2]?.req.verdictSchema?.["title"]).toBe("TicketPlan");
+    expect(await gh.listIssues({ state: "all", limit: 10 })).toHaveLength(1);
+  });
+
+  it("raises a short security migration to the full deep route", async () => {
+    const { app, appsFile } = fixture();
+    const runtime = new FakeRuntime([
+      { result: planTurn("vision") },
+      { result: planTurn("pm a") },
+      { result: planTurn("pm b") },
+      { result: planTurn("arbitrated") },
+      { result: planTurn(MATURE_PLAN_JSON) },
+    ]);
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app: { ...app, status: "live" },
+      appsFile,
+      goal: "Migrate auth keys",
+      gh: new FakeGhOps(),
+      runtimeFor: () => runtime,
+      now: () => new Date("2026-07-11T09:00:00Z"),
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.planningDecision).toMatchObject({ depth: "deep", riskTier: "high" });
+    const passes = runtime.calls.map((call) => call.req.task.match(/# Pass: ([^\s]+)/)?.[1]);
+    expect(passes[0]).toBe("visionary");
+    // The two PM perspectives are one parallel group; start order is
+    // intentionally nondeterministic, but both must precede arbitration.
+    expect(passes.slice(1, 3).sort()).toEqual(["pm-a", "pm-b"]);
+    expect(passes.slice(3)).toEqual(["arbitrator", "decomposer"]);
   });
 });
 

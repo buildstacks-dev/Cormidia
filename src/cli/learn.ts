@@ -7,9 +7,9 @@
 // capsule's replayability for closed build episodes; emit records a human
 // observation (three-field contract kept separate) or an append-only late
 // outcome; show traces one event id to its disposition; report adds an
-// episodes section over the capture totals. Every read subcommand refreshes
-// the capture AND episode projections first, so output reflects the current
-// run records.
+// episodes section over the capture totals. `report` is read-only by default;
+// `report --refresh` explicitly runs capture + episode projection first.
+// Other record-specific read paths retain their existing targeted refreshes.
 //
 // M3 surface (experiment substrate): show additionally traces exp_/eval_/
 // int_ ids to their disposition (declared-before-results status, verdict,
@@ -31,7 +31,11 @@ import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { rollupLearningSpend } from "../org/budget.js";
 import { resolveOperonHomes, type OperonHomes } from "../org/home.js";
 import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
-import { projectCaptureEvents, type CaptureProjectionResult } from "../org/learning/capture.js";
+import {
+  previewCaptureEvents,
+  projectCaptureEvents,
+  type CaptureProjectionResult,
+} from "../org/learning/capture.js";
 import {
   createEpisodeProjector,
   readEpisodeRecord,
@@ -43,6 +47,7 @@ import {
   createLearningEventSink,
   learningEventPath,
   readLearningEvents,
+  readLearningEventsWithDiagnostics,
   type LearningEvent,
 } from "../org/learning/events.js";
 import {
@@ -122,9 +127,17 @@ export async function cmdLearn(args: string[]): Promise<number> {
       // touches one fixture file under the org home.
       return fixture(homes, rest, appStages, projector);
     case "report": {
+      for (const flag of rest) {
+        if (flag !== "--json" && flag !== "--refresh") {
+          throw new Error(`learn report: unknown argument "${flag}"`);
+        }
+      }
       const json = rest.includes("--json");
-      const projection = await projectCaptureEvents({ stateHome, appStages });
-      await projector.project();
+      const refresh = rest.includes("--refresh");
+      const projection = refresh
+        ? await projectCaptureEvents({ stateHome, appStages })
+        : await previewCaptureEvents({ stateHome, appStages });
+      if (refresh) await projector.project();
       return report(homes, projection, json);
     }
     // M4 — the manual governed-activation surface (learn-activation.ts).
@@ -150,7 +163,8 @@ export async function cmdLearn(args: string[]): Promise<number> {
       throw new Error(
         'learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | ' +
           'show <event|experiment|eval|intervention-id> | ' +
-          'fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | report [--json] | ' +
+          'fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | ' +
+          'report [--json] [--refresh] | ' +
           'review <candidate-id> | publish <candidate-id> | resolve --app <app> --role <role> | ' +
           'disable <concept-id> | rollback --root org|app | provisional | ' +
           'experiment declare|run|list | canary start|status|promote|stop',
@@ -820,14 +834,18 @@ async function report(
       storeErrors.push(error.message);
       return [];
     });
-  const [events, records, experiments, evalResults, interventions, verdicts] = await Promise.all([
-    readLearningEvents(stateHome),
+  const [eventRead, records, experiments, evalResults, interventions, verdicts] = await Promise.all([
+    readLearningEventsWithDiagnostics(stateHome),
     readEpisodeRecords(stateHome),
     guarded(listExperimentRecords(homes.orgHome)),
     guarded(listEvalResults(homes.orgHome)),
     guarded(listInterventionRecords(homes.orgHome)),
     guarded(listReviewerVerdicts(homes.orgHome)),
   ]);
+  const events = eventRead.events;
+  for (const path of eventRead.missingFiles) {
+    storeErrors.push(`learning event file disappeared before read: ${path}`);
+  }
   // M4 activation sections: review queue + SLA, reviewer-human agreement,
   // suppression ledger size, and per-concept load counts from resolver events.
   // Same degrade-gracefully contract as every other org-home store: a
@@ -981,10 +999,33 @@ async function report(
     "Learning report (capture + episode + experiment + governed activation — M4: every activation human-approved)",
   );
   lines.push("");
-  lines.push(
-    `Projection: ${projection.runsProjected} run(s) newly captured, ` +
-      `${projection.runsAlreadyProjected} already captured, ${projection.runsPending} pending (not yet terminal)`,
-  );
+  if (projection.mode === "read_only") {
+    lines.push(
+      `Projection (read-only): ${projection.runsProjected} terminal run(s) await capture, ` +
+        `${projection.runsRepaired} receipt(s) await repair, ` +
+        `${projection.receiptsNeedingUpgrade} receipt(s) await path rebinding, ` +
+        `${projection.runsAlreadyProjected} already captured, ` +
+        `${projection.runsPending} pending (not yet terminal)`,
+    );
+    lines.push(
+      projection.refreshRequired
+        ? "Run `operon learn report --refresh` to update derived capture and episode projections."
+        : "Derived capture projection is current; no files were changed.",
+    );
+  } else {
+    lines.push(
+      `Projection refreshed: ${projection.runsProjected} run(s) newly captured, ` +
+        `${projection.runsAlreadyProjected} already captured, ` +
+        `${projection.runsPending} pending (not yet terminal)`,
+    );
+  }
+  if (projection.runsRepaired > 0) {
+    lines.push(
+      `Capture repair: ${projection.runsRepaired} receipt(s), ` +
+        `${projection.eventFilesRecovered} missing event file(s) reconstructed`,
+    );
+  }
+  for (const warning of projection.warnings) lines.push(`Capture warning: ${warning}`);
   lines.push(`Events: ${events.length}`);
   for (const [type, n] of byType) lines.push(`  ${type}: ${n}`);
   lines.push("", `Episodes: ${records.length} (${open.length} open, ${closed.length} closed)`);

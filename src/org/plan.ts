@@ -56,7 +56,7 @@ export async function assemblePlanningContext(
 }
 
 export interface ClaudeInvocation {
-  command: "claude";
+  command: string;
   args: string[];
   cwd: string;
 }
@@ -212,15 +212,52 @@ export async function preparePlanSession(
   return { app, plannerRole, context, worktree, invocation };
 }
 
-export async function spawnClaude(invocation: ClaudeInvocation): Promise<number> {
+export async function spawnClaude(invocation: ClaudeInvocation, signal?: AbortSignal): Promise<number> {
   const child = spawn(invocation.command, invocation.args, {
     cwd: invocation.cwd,
     stdio: "inherit",
+    // The native CLI may create adapter/tool descendants. Give it a process
+    // group that Operon owns so cancellation reaches the whole tree.
+    detached: process.platform !== "win32",
   });
   return new Promise((resolveCode, reject) => {
-    child.on("error", reject);
-    child.on("close", (code) => resolveCode(code ?? 1));
+    let forceTimer: NodeJS.Timeout | undefined;
+    const stop = (): void => {
+      terminateOwnedProcess(child.pid, "SIGTERM");
+      forceTimer = setTimeout(() => terminateOwnedProcess(child.pid, "SIGKILL"), 1_000);
+      forceTimer.unref?.();
+    };
+    if (signal?.aborted) stop();
+    else signal?.addEventListener("abort", stop, { once: true });
+    child.on("error", (error) => {
+      signal?.removeEventListener("abort", stop);
+      if (forceTimer !== undefined) clearTimeout(forceTimer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      signal?.removeEventListener("abort", stop);
+      if (forceTimer !== undefined) clearTimeout(forceTimer);
+      resolveCode(signal?.aborted ? abortExitCode(signal.reason) : code ?? 1);
+    });
   });
+}
+
+function terminateOwnedProcess(pid: number | undefined, signal: NodeJS.Signals): void {
+  if (pid === undefined) return;
+  try {
+    if (process.platform !== "win32") process.kill(-pid, signal);
+    else process.kill(pid, signal);
+  } catch {
+    // The whole group has already exited.
+  }
+}
+
+function abortExitCode(reason: unknown): number {
+  if (reason !== null && typeof reason === "object") {
+    const text = (reason as Record<string, unknown>)["reason"];
+    if (typeof text === "string" && text.includes("SIGTERM")) return 143;
+  }
+  return 130;
 }
 
 export async function recordPlanTelemetry(options: {
@@ -230,6 +267,7 @@ export async function recordPlanTelemetry(options: {
   status: TurnResult["status"];
   startedAt: Date;
   endedAt: Date;
+  parentTaskId?: string;
 }): Promise<void> {
   const wallClockMs = Math.max(0, options.endedAt.getTime() - options.startedAt.getTime());
   // The interactive session runs through the native CLI with inherited stdio:
@@ -252,6 +290,7 @@ export async function recordPlanTelemetry(options: {
       app: options.app,
       trigger: "manual",
       unmeasured: true,
+      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     }),
   );
 }

@@ -130,7 +130,7 @@ describe("cli dispatch", () => {
   });
 
   it("doctor resolves the active org from a neutral cwd", async () => {
-    const { stdout, code } = await runCli(["doctor"]);
+    const { stdout, code } = await runCli(["doctor", "--config-only"]);
     expect(code).toBe(0);
     expect(stdout).toContain("runtime adapters:");
     expect(stdout).toContain(ORG_HOME);

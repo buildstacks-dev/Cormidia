@@ -5,7 +5,12 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeKind } from "../runtime/types.js";
-import { getRuntime, RUNTIME_KINDS } from "../runtime/registry.js";
+import { RUNTIME_KINDS } from "../runtime/registry.js";
+import {
+  probeRuntimeReadiness,
+  type RuntimeReadinessProbe,
+  type RuntimeReadinessRequest,
+} from "../runtime/readiness.js";
 import { loadRoles } from "../org/roles.js";
 import { loadApps } from "../org/apps.js";
 import { loadPipelines } from "../loop/pipelines.js";
@@ -16,16 +21,17 @@ import {
   type OperonHomeOptions,
 } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
-
-const ADAPTER_NOTE: Record<RuntimeKind, string> = {
-  claude: "claude-agent-sdk; auth not verified here",
-  codex: "app-server; auth not verified here",
-  pi: "pi SDK; auth not verified here",
-};
+import { resolveAuthority } from "../org/authority.js";
 
 export interface DoctorOptions extends OperonHomeOptions {
   launchAgentsDir?: string;
   json?: boolean;
+  /** Validate files without starting non-billable adapter probes. Intended
+   * for isolated packaging/offline fixtures; it never claims readiness. */
+  configOnly?: boolean;
+  readinessTimeoutMs?: number;
+  /** Test/embedding injection point. */
+  readinessProbe?: RuntimeReadinessProbe;
 }
 
 interface CheckRow {
@@ -37,37 +43,40 @@ interface CheckRow {
 export async function cmdDoctorArgs(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "doctor");
   let json = false;
+  let configOnly = false;
   for (const arg of common.rest) {
     if (arg === "--json") json = true;
+    else if (arg === "--config-only") configOnly = true;
     else throw new Error(`doctor: unknown argument "${arg}"`);
   }
-  return cmdDoctor({ ...common, json });
+  return cmdDoctor({ ...common, json, configOnly });
 }
 
 export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
-  const adapters: CheckRow[] = [];
-  for (const kind of RUNTIME_KINDS) {
-    try {
-      const rt = getRuntime(kind);
-      adapters.push({ name: rt.kind, status: "OK", detail: ADAPTER_NOTE[rt.kind] });
-    } catch (error) {
-      adapters.push({ name: kind, status: "FAIL", detail: errorMessage(error) });
-    }
-  }
-
   const config: CheckRow[] = [];
   let homes: Awaited<ReturnType<typeof resolveOperonHomes>> | undefined;
+  let roles: Awaited<ReturnType<typeof loadRoles>> | undefined;
   try {
     homes = await resolveOperonHomes(options);
     const rolesPath = join(homes.orgHome, "roles.yaml");
     const appsPath = join(homes.orgHome, "apps.yaml");
     const pipelinesPath = join(homes.orgHome, "pipelines.yaml");
-    const roles = await checked(config, "roles.yaml", () => loadRoles(rolesPath));
+    roles = await checked(config, "roles.yaml", () => loadRoles(rolesPath));
     await checked(config, "apps.yaml", () => loadApps(appsPath));
+    const authority = await resolveAuthority({ orgHome: homes.orgHome });
+    config.push({
+      name: "AUTHORITY.md",
+      status: authority.version === "legacy-conservative/v1" ? "WARN" : "OK",
+      detail:
+        authority.version === "legacy-conservative/v1"
+          ? "missing; effective authority fails closed to legacy-conservative/v1"
+          : `${authority.version} sha256:${authority.sha256}`,
+    });
     if (roles !== undefined) {
+      const loadedRoles = roles;
       await checked(config, "pipelines.yaml", () =>
         loadPipelines(pipelinesPath, {
-          roleNames: roles.roles.map((role) => role.name),
+          roleNames: loadedRoles.roles.map((role) => role.name),
           promptsDir: join(homes!.orgHome, "prompts"),
         }),
       );
@@ -75,6 +84,8 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   } catch (error) {
     config.push({ name: "active org", status: "FAIL", detail: errorMessage(error) });
   }
+
+  const adapters = await adapterChecks(roles?.roles, options);
 
   const launchAgentsDir = options.launchAgentsDir ?? join(homedir(), "Library", "LaunchAgents");
   const plist = join(launchAgentsDir, "dev.operon.dispatch.plist");
@@ -105,6 +116,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
               }
             : null,
           adapters,
+          readinessMode: options.configOnly === true ? "config_only" : "live_nonbillable",
           config,
           state,
           scheduler,
@@ -136,6 +148,67 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
     console.log(`  load after install: launchctl load ${plist}`);
   }
   return ok ? 0 : 1;
+}
+
+async function adapterChecks(
+  roles: Array<{ runtime: RuntimeKind; model: string }> | undefined,
+  options: DoctorOptions,
+): Promise<CheckRow[]> {
+  const probe = options.readinessProbe ?? probeRuntimeReadiness;
+  return Promise.all(
+    RUNTIME_KINDS.map(async (kind): Promise<CheckRow> => {
+      if (roles === undefined) {
+        return {
+          name: kind,
+          status: "WARN",
+          detail: "not probed because roles.yaml is unavailable",
+        };
+      }
+      const models = [
+        ...new Set(roles.filter((role) => role.runtime === kind).map((role) => role.model)),
+      ].sort();
+      if (models.length === 0) {
+        return {
+          name: kind,
+          status: "WARN",
+          detail: "not configured by any role; probe skipped",
+        };
+      }
+      if (options.configOnly === true) {
+        return {
+          name: kind,
+          status: "WARN",
+          detail:
+            `configured for ${models.join(", ")}; readiness probe skipped (--config-only); ` +
+            "configuration validity is not runtime readiness",
+        };
+      }
+      try {
+        const request: RuntimeReadinessRequest = {
+          runtime: kind,
+          models,
+          ...(options.readinessTimeoutMs !== undefined
+            ? { timeoutMs: options.readinessTimeoutMs }
+            : {}),
+        };
+        const result = await probe(request);
+        return {
+          name: kind,
+          status: result.status === "ready" ? "OK" : "FAIL",
+          detail:
+            `${result.status}` +
+            (result.errorCode !== undefined ? ` (${result.errorCode})` : "") +
+            ` — ${result.detail} [${result.durationMs}ms, non-billable]`,
+        };
+      } catch (error) {
+        return {
+          name: kind,
+          status: "FAIL",
+          detail: `readiness probe crashed: ${errorMessage(error)}`,
+        };
+      }
+    }),
+  );
 }
 
 async function checked<T>(rows: CheckRow[], name: string, load: () => Promise<T>): Promise<T | undefined> {

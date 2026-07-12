@@ -11,14 +11,20 @@ import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { cmdTelemetry } from "../src/cli/telemetry.js";
 import { runLoopOnce } from "../src/loop/driver.js";
 import {
+  advanceGates,
   claimTicket,
+  defaultCriterionTests,
+  parseAcceptanceCriteria,
   runBuilderPipeline,
   runReviewPipeline,
   runShipCheckPipeline,
   type LoopItem,
 } from "../src/loop/loop.js";
+import { runAutoPlan } from "../src/org/plan-auto.js";
+import { beginParentTask, finishParentTask } from "../src/org/parent-task.js";
 import { loadPipelines, type PipelinesFile } from "../src/loop/pipelines.js";
 import type { Policy } from "../src/loop/policy.js";
 import type { GateRunResult } from "../src/loop/qgates.js";
@@ -101,6 +107,206 @@ async function rootPipelines(): Promise<PipelinesFile> {
 }
 
 describe("M6 loop engine integration", () => {
+  it("runs Planner -> Builder -> Reviewer and stops at the recorded human-merge boundary", async () => {
+    const pair = makeBareWithClone();
+    const gh = new FakeGhOps({ cloneRoot: pair.clone.root });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const taskId = "e2e-human-merge-boundary";
+    const plan = JSON.stringify({
+      stage: "bootstrap",
+      ticketCountRationale: "One bounded ticket proves the delegated lifecycle.",
+      releaseDisposition: "Human merge is the terminal boundary for this acceptance flow.",
+      releaseKind: "merge-only",
+      tickets: [
+        {
+          title: "Ship the end-to-end fixture",
+          tier: "op:tier-standard",
+          priority: "p1",
+          dependsOn: [],
+          executionGroup: "g1",
+          fileScope: ["src/**"],
+          goal: "Exercise planning, implementation, CI, and independent review.",
+          context: "Offline acceptance fixture.",
+          acceptanceCriteria: ["the test command exits 0"],
+          outOfScope: "Merging without the human boundary.",
+          notesForBuilder: "Keep the implementation local and reversible.",
+        },
+      ],
+    });
+    const calls: Array<{ role: string; task: string }> = [];
+    const runtime: Runtime = {
+      kind: "claude",
+      async runTurn(req) {
+        calls.push({ role: req.role.name, task: req.task });
+        if (req.role.name === "planner") return turnResultOf(plan, "completed");
+        if (req.role.name === "builder") {
+          if (req.task.includes("# Pass: implement")) {
+            commit(req.workdir, "feat: e2e boundary fixture", {
+              "src/e2e-boundary.ts": "export const reachedBoundary = true;\n",
+            });
+            return turnResultOf(DONE, "completed");
+          }
+          return turnResultOf(CONTRACT, "completed");
+        }
+        if (req.role.name === "reviewer") return turnResultOf(APPROVE, "completed");
+        throw new Error(`unexpected E2E role: ${req.role.name}`);
+      },
+    };
+    try {
+      await beginParentTask({
+        stateHome: home.root,
+        taskId,
+        originalPrompt: "Plan, build, and independently review one fixture; stop for human merge.\n",
+        objective: "Reach the human merge boundary with every Operon stage recorded.",
+        completionCriteria: "Planner, Builder, CI, and Reviewer complete; PR remains open for the human.",
+        app: "fixture",
+        workdir: pair.clone.root,
+        harness: "codex",
+        nativeTaskId: "e2e-thread",
+        nativeRef: "codex://threads/e2e-thread",
+        now: new Date("2026-07-11T21:00:00Z"),
+      });
+
+      const app = {
+        name: "fixture",
+        repo: pair.bare.root,
+        status: "onboarding" as const,
+        budgetUsdMonth: 100,
+        cadence: {},
+      };
+      const planned = await runAutoPlan({
+        orgHome: ROOT,
+        stateHome: home.root,
+        app,
+        appsFile: {
+          org: { name: "fixture-org", maxConcurrentTurns: 1 },
+          defaults: { budgetUsdMonth: 100 },
+          apps: [app],
+        },
+        goal: "Ship one bounded end-to-end acceptance fixture",
+        workdir: pair.clone.root,
+        gh,
+        runtimeFor: () => runtime,
+        parentTaskId: taskId,
+        now: () => new Date("2026-07-11T21:01:00Z"),
+      });
+      expect(planned.status).toBe("completed");
+
+      const issue = (await gh.listIssues({ labels: ["op:ready"], state: "open" }))[0]!;
+      let item = await claimTicket(issue, {
+        gh,
+        targetRepo: "fixture/repo",
+        localRepo: pair.clone.root,
+        worktreeRoot: join(pair.root, "worktrees"),
+      });
+      const pipelines = await rootPipelines();
+      const phaseOptions = {
+        gh,
+        pipelines,
+        roles: ROLES,
+        runtimeFor: () => runtime,
+        promptsDir: PROMPTS_DIR,
+        runlogRoot: home.root,
+        app: "fixture",
+        policy: policy(),
+        commands: { testCommand: "true", lintCommand: "true" },
+        hooks: allowAllHooks(),
+        parentTaskId: taskId,
+      };
+      item = await runBuilderPipeline(item, phaseOptions);
+      expect(item.phase).toBe("gates");
+      item = await advanceGates(item, {
+        gh,
+        policy: policy(),
+        commands: { testCommand: "true", lintCommand: "true" },
+        criteria: parseAcceptanceCriteria(item.body),
+        criterionTests: defaultCriterionTests(
+          parseAcceptanceCriteria(item.body),
+          "operator-boundary-e2e",
+        ),
+      });
+      expect(item.phase).toBe("reviewing");
+      item = await runReviewPipeline(item, phaseOptions);
+      expect(item.phase).toBe("shipping");
+
+      const prNumber = item.prNumber!;
+      expect((await gh.readPR(prNumber)).state).toBe("OPEN");
+      expect((await gh.listReviews(prNumber))[0]).toMatchObject({ state: "APPROVED" });
+      expect(gh.calls.some((call) => call.op === "squashMerge")).toBe(false);
+      expect((await gh.readIssue(issue.number)).labels).toContain("op:in-review");
+
+      await finishParentTask({
+        stateHome: home.root,
+        taskId,
+        status: "completed",
+        resultSummary: "Operon stages complete; awaiting human merge.",
+        refs: {
+          tickets: [`#${issue.number}`],
+          prs: [`#${prNumber}`],
+          reviews: [`#${prNumber}:APPROVED`],
+        },
+        completionState: {
+          implementation: "complete",
+          ci: "green",
+          operonReview: "approved",
+          humanReview: "awaiting",
+          pr: "open",
+          issuesCloseOnMerge: [`#${issue.number}`],
+        },
+        now: new Date("2026-07-11T21:10:00Z"),
+      });
+
+      const logs: string[] = [];
+      const originalLog = console.log;
+      console.log = (...parts: unknown[]): void => {
+        logs.push(parts.join(" "));
+      };
+      try {
+        expect(
+          await cmdTelemetry([
+            "--org-home", ROOT,
+            "--state-home", home.root,
+            "--app", "fixture",
+            "--json",
+          ]),
+        ).toBe(0);
+      } finally {
+        console.log = originalLog;
+      }
+      const telemetry = JSON.parse(logs.join("\n")) as {
+        parent_tasks: Array<Record<string, unknown>>;
+        completion_integrity: Record<string, unknown>;
+      };
+      expect(telemetry.parent_tasks[0]).toMatchObject({
+        task_id: taskId,
+        execution_mode: "operon",
+        observed_stages: ["planner", "builder", "reviewer"],
+        missing_required_stages: [],
+        operon_end_to_end_complete: true,
+        completion_state: {
+          operonReview: "approved",
+          humanReview: "awaiting",
+          pr: "open",
+        },
+      });
+      expect(telemetry.completion_integrity).toMatchObject({
+        required_stages: "complete",
+        reviewer_pass: "completed",
+        manual_fallback: "none",
+        pr_state: "open",
+      });
+      expect(calls.map((call) => call.role)).toEqual([
+        "planner",
+        "builder",
+        "builder",
+        "reviewer",
+      ]);
+    } finally {
+      home.cleanup();
+      pair.cleanup();
+    }
+  });
+
   it("building invokes contract then implement with the ticket brief and comments the contract", async () => {
     const h = await claimedHarness("Build Integration", ["op:ready"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });

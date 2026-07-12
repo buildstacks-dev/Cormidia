@@ -79,6 +79,7 @@ describe("parseAnswers", () => {
       secretLocations: [],
     });
     expect(a.channels).toEqual({}); // no audience-facing role enabled
+    expect(a.authority).toEqual({ mode: "inherit" });
   });
 
   it("gives enabled support/marketing explicit empty channel lists", () => {
@@ -118,6 +119,26 @@ describe("parseAnswers", () => {
   it("rejects missing product or good text", () => {
     expect(() => answers({ product: "  " })).toThrow(/product is required/);
     expect(() => answers({ good: undefined })).toThrow(/good is required/);
+  });
+
+  it("accepts only app-level authority narrowing", () => {
+    expect(
+      answers({
+        authority: {
+          mode: "custom",
+          restrictions: "Ask before changing public API contracts.",
+        },
+      }).authority,
+    ).toEqual({
+      mode: "custom",
+      restrictions: "Ask before changing public API contracts.",
+    });
+    expect(() => answers({ authority: { mode: "custom" } })).toThrow(
+      /authority\.restrictions is required/,
+    );
+    expect(() =>
+      answers({ authority: { mode: "inherit", restrictions: "broader" } }),
+    ).toThrow(/valid only when authority\.mode is custom/);
   });
 });
 
@@ -311,18 +332,21 @@ describe("bootstrapRun", () => {
   it("full bootstrapRun writes the tree and config.yaml round-trips through the apps parser", async () => {
     const target = makeRepo(NODE_REPO_FILES);
     const orgHome = await makeCompleteOrg("questionnaire-library");
-    const { scan, created, joinedOrgHome } = await bootstrapRun(target, RAW_ANSWERS, { orgHome });
+    const { scan, created, updated, joinedOrgHome } = await bootstrapRun(target, RAW_ANSWERS, { orgHome });
 
     expect(scan.repoSlug).toBe("bikramgupta/operon-sandbox-alpha");
     expect(joinedOrgHome).toBe(orgHome);
     // Memory bundle order comes from the selected org's roles.yaml.
     expect(created).toEqual([
       ".operon/TASTE.md",
+      ".operon/AUTHORITY.md",
       ".operon/config.yaml",
       ".operon/policy.yaml",
       ".operon/onboarding-report.md",
       ...ALL_ROLES.map((r) => `.operon/memory/${r}/INDEX.md`),
+      "CLAUDE.md",
     ]);
+    expect(updated).toEqual(["AGENTS.md"]);
     for (const rel of created) expect(existsSync(join(target, rel))).toBe(true);
 
     const file = await loadApps(join(target, ".operon", "config.yaml"));
@@ -332,6 +356,15 @@ describe("bootstrapRun", () => {
     expect(file.apps[0]!.repo).toBe("bikramgupta/operon-sandbox-alpha");
     expect(file.apps[0]!.status).toBe("onboarding");
     expect(file.apps[0]!.budgetUsdMonth).toBe(250);
+    const agents = await readFile(join(target, "AGENTS.md"), "utf8");
+    expect(agents.startsWith("# AGENTS\n")).toBe(true);
+    expect(agents.match(/operon-authority:start/g)).toHaveLength(1);
+    expect(await readFile(join(target, "CLAUDE.md"), "utf8")).toContain(
+      ".operon/AUTHORITY.md",
+    );
+    expect(await readFile(join(target, ".operon", "onboarding-report.md"), "utf8")).toContain(
+      "## Delegated Operator Authority",
+    );
   });
 
   it("validates answers before writing anything", async () => {
@@ -341,6 +374,19 @@ describe("bootstrapRun", () => {
       bootstrapRun(target, { ...RAW_ANSWERS, roles: ["astrologer"] }, { orgHome }),
     ).rejects.toThrow(/not a role in the org roles\.yaml/);
     expect(existsSync(join(target, ".operon"))).toBe(false);
+  });
+
+  it("rejects malformed instruction markers before app or org writes", async () => {
+    const target = makeRepo({
+      ...NODE_REPO_FILES,
+      "AGENTS.md": "# Existing\n\n<!-- operon-authority:start -->\nbroken\n",
+    });
+    const orgHome = await makeCompleteOrg("questionnaire-malformed-instructions");
+    await expect(bootstrapRun(target, RAW_ANSWERS, { orgHome })).rejects.toThrow(
+      /malformed Operon authority block/,
+    );
+    expect(existsSync(join(target, ".operon"))).toBe(false);
+    expect((await loadApps(join(orgHome, "apps.yaml"))).apps).toEqual([]);
   });
 });
 
@@ -416,6 +462,7 @@ describe("collectAnswers (interactive questionnaire over injected streams)", () 
         "Green tests, honest docs.", // good
         "planner, builder, support", // roles
         "500", // budget
+        "inherit", // app authority
         "pnpm run deploy", // critical ops: deploy commands
         "", // critical ops: publish targets
         ".env", // critical ops: secret locations
@@ -430,6 +477,7 @@ describe("collectAnswers (interactive questionnaire over injected streams)", () 
       good: "Green tests, honest docs.",
       roles: ["planner", "builder", "support"],
       budgetUsdMonth: 500,
+      authority: { mode: "inherit" },
       criticalOps: {
         deployCommands: ["pnpm run deploy"],
         publishTargets: [],
@@ -443,7 +491,7 @@ describe("collectAnswers (interactive questionnaire over injected streams)", () 
 
   it("empty roles and budget answers mean all roles and the default budget", async () => {
     const raw = await drive(
-      ["A thing.", "It works.", "", "", "", "", "", "", ""],
+      ["A thing.", "It works.", "", "", "", "", "", "", "", ""],
       ALL_ROLES,
     );
     expect(raw["roles"]).toEqual(ALL_ROLES);
@@ -457,6 +505,7 @@ describe("appArtifactFiles", () => {
     const files = appArtifactFiles(answers({ roles: ["reviewer", "planner"], channels: {} }), ALL_ROLES);
     expect(files).toEqual([
       ".operon/TASTE.md",
+      ".operon/AUTHORITY.md",
       ".operon/config.yaml",
       ".operon/policy.yaml",
       ".operon/onboarding-report.md",

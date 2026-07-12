@@ -26,6 +26,7 @@ import {
   STATE_HOME_DEFINITION,
   validateOrgHome,
 } from "../org/home.js";
+import { authorityPreview, resolveAuthority } from "../org/authority.js";
 
 export async function cmdBootstrap(args: string[]): Promise<number> {
   let root = ".";
@@ -85,7 +86,8 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     else console.log("  no files — initialize an org first with `operon org init <path> --name <name>`");
     console.log(
       "  .operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml, " +
-        ".operon/onboarding-report.md, " +
+        ".operon/AUTHORITY.md, .operon/onboarding-report.md, " +
+        "safe AGENTS.md/CLAUDE.md authority blocks, " +
         ".operon/memory/<role>/INDEX.md (with answers)",
     );
     console.log("(nothing written — --scan-only)");
@@ -116,16 +118,31 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   }
 
   if (answersRaw !== undefined) {
-    const { scan, created, joinedOrgHome } = await bootstrapRun(root, answersRaw, {
+    const { scan, created, updated, joinedOrgHome } = await bootstrapRun(root, answersRaw, {
       orgHome: homes.orgHome,
     });
     printScan(scan);
     console.log(`\njoined existing org at ${joinedOrgHome}`);
     console.log("\ncreated:");
     for (const rel of created) console.log(`  ${rel}`);
+    if (updated.length > 0) {
+      console.log("\nupdated (Operon marked block only):");
+      for (const rel of updated) console.log(`  ${rel}`);
+    }
+    const authority = await resolveAuthority({ orgHome: homes.orgHome, appWorkdir: root });
+    const preview = authorityPreview(
+      authority.profile === "conservative"
+        ? "conservative"
+        : authority.profile === "custom"
+          ? "custom"
+          : "delegated-operator",
+    );
+    console.log(`\nauthority: ${authority.version} (sha256:${authority.sha256})`);
+    console.log(`  automatic: ${preview.automatic.join("; ")}`);
+    console.log(`  human-gated: ${preview.humanGated.join("; ")}`);
     console.log(
       "\nnext: review + commit app artifacts under .operon/ in the app repo:\n" +
-        "charter (.operon/TASTE.md), registry entry (.operon/config.yaml),\n" +
+        "charter (.operon/TASTE.md), authority (.operon/AUTHORITY.md), registry entry (.operon/config.yaml),\n" +
         "policy (.operon/policy.yaml), onboarding report (.operon/onboarding-report.md),\n" +
         "and seeded memory bundles.",
     );
@@ -212,6 +229,19 @@ export async function collectAnswers(
     const answers: Record<string, unknown> = { product, good, roles };
     if (budgetText.length > 0) answers["budgetUsdMonth"] = Number(budgetText);
 
+    const authorityMode =
+      (await ask("App authority [inherit | conservative | custom] [inherit]")) || "inherit";
+    if (authorityMode === "custom") {
+      answers["authority"] = {
+        mode: "custom",
+        restrictions: await ask(
+          "App-specific authority restriction (start with Ask before, Do not, Never, Require human approval before, or Limit)",
+        ),
+      };
+    } else {
+      answers["authority"] = { mode: authorityMode };
+    }
+
     answers["criticalOps"] = {
       deployCommands: await askList("App-specific critical ops — deploy commands"),
       publishTargets: await askList("App-specific critical ops — publish targets"),
@@ -260,6 +290,6 @@ function printScan(scan: RepoScan): void {
   console.log(`  git remote:   ${scan.repoSlug ?? "none detected"}`);
   console.log(
     "profile: bootstrap writes app-owned .operon/ artifacts and registers the app in the active org; " +
-      "full bootstrap creates .operon/onboarding-report.md",
+      "full bootstrap creates .operon/onboarding-report.md and .operon/AUTHORITY.md and composes marked AGENTS/CLAUDE blocks",
   );
 }

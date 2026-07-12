@@ -46,6 +46,29 @@ function event(category?: string): RunlogEvent {
 }
 
 describe("runlog anomaly detectors", () => {
+  it("flags a running envelope whose heartbeat is stale even without final wall-clock usage", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-11T20:00:00Z"));
+    try {
+      const flags = detectRunAnomalies({
+        envelope: envelope({
+          status: "running",
+          started_at: "2026-07-11T19:00:00Z",
+          last_seen_at: "2026-07-11T19:05:00Z",
+          finished_at: undefined,
+          wall_clock_ms: undefined,
+          usage: undefined,
+        }),
+        events: [],
+      }).map((flag) => flag.flag);
+
+      expect(flags).toContain("stale_running");
+      expect(flags).toContain("missing_finalization");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("fires explicit thresholds at the documented boundary and not before", () => {
     expect(
       detectRunAnomalies({

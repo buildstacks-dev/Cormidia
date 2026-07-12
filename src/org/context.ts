@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ContextBundle, RoleConfig } from "../runtime/types.js";
+import { resolveAuthority } from "./authority.js";
 import { ticketEpisodeAnchor } from "./learning/episodes.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import {
@@ -59,6 +60,9 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   const appWorkdir = resolve(options.appWorkdir);
   const sources: string[] = [];
   const taste: string[] = [];
+
+  const authority = await resolveAuthority({ orgHome, appWorkdir });
+  sources.push(...authority.sources);
 
   const orgTaste = await readRequiredLayer(join(orgHome, "TASTE.md"), "Org TASTE.md", sources);
   taste.push(orgTaste);
@@ -122,7 +126,7 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   ];
   sources.push(...memoryDirs);
 
-  const bundle: ContextBundle = { taste, memoryExcerpts };
+  const bundle: ContextBundle = { authority, taste, memoryExcerpts };
   const systemPrompt = renderContextBundle(bundle);
   return {
     bundle,
@@ -200,7 +204,12 @@ export function createEpisodeContextResolver(
 }
 
 export function renderContextBundle(bundle: ContextBundle): string {
-  const sections = [...bundle.taste];
+  const sections = [
+    ...(bundle.authority !== undefined
+      ? [`## Effective delegated authority\n\n${bundle.authority.text.trim()}`]
+      : []),
+    ...bundle.taste,
+  ];
   if (bundle.memoryExcerpts.length > 0) {
     sections.push(["## Memory excerpts", ...bundle.memoryExcerpts].join("\n\n"));
   }

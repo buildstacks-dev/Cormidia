@@ -62,7 +62,7 @@ These four locations are intentionally different:
 | Location | One-line meaning |
 | --- | --- |
 | Package root | Operon's installed implementation and reusable templates. |
-| Org home | Committed roles, apps, pipelines, prompts, taste, and curated memory. |
+| Org home | Committed roles, apps, pipelines, prompts, authority, taste, and curated memory. |
 | State home | Local high-churn clones, worktrees, locks, approvals, telemetry, and run logs. |
 | App repo | An independent product checkout that Operon develops or operates. |
 
@@ -75,11 +75,16 @@ operon doctor
 operon context
 ```
 
-`org init` creates a complete org home from packaged templates, creates the
+`org init` creates a complete org home from packaged templates, including a
+versioned `AUTHORITY.md`, creates the
 default state home at `~/.operon/<org>`, and records the active org pointer at
 `~/.operon/config`. Use `operon org use <path>` to switch to another complete
 org. `OPERON_ORG_HOME` and `OPERON_STATE_HOME` are explicit per-process
-overrides.
+overrides. The default `delegated-operator` charter automates ordinary,
+reversible work while Operon's critical-operation gates remain mandatory;
+choose `--authority conservative` or `--authority custom --authority-file
+<path> --authority-by <identity>` during onboarding to narrow or replace the
+human grant explicitly.
 
 ## Commands
 
@@ -94,6 +99,16 @@ operon apps
 operon pipelines
 operon doctor --json
 ```
+
+By default `doctor` runs bounded, non-billable readiness probes only for the
+runtimes and models referenced by the active `roles.yaml`: Claude performs an
+SDK initialize/account-info control request, Codex performs App Server
+`initialize` + `account/read`, and pi resolves its model/auth configuration.
+No model prompt is sent. Missing launch artifacts, transport failure, missing
+auth, invalid model configuration, and probe timeout are reported distinctly.
+Use `operon doctor --config-only` only in an isolated/offline packaging check;
+its adapter rows are `WARN` because configuration validity is not runtime
+readiness.
 
 Offline onboarding and inspection do not require provider credentials:
 
@@ -113,8 +128,9 @@ operon approvals
 ```
 
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
-the active org and writes app-owned files only under the app repo's
-`.operon/` directory. Its opening output explains the app repo, org home, and
+the active org and writes app-owned files under `.operon/`, plus one marked,
+idempotent authority pointer composed into root `AGENTS.md` and `CLAUDE.md`.
+Existing instruction content is preserved. Its opening output explains the app repo, org home, and
 state home before anything is written. A non-interactive run requires
 `--answers` and otherwise writes nothing. `new-app` creates a separate product
 repo skeleton and then follows the same bootstrap/register path. Neither
@@ -225,7 +241,27 @@ monthly cap refuses to claim before any pass starts. `operon budget
 --reconcile` back-fills the ledger from run envelopes (idempotent).
 Subscription-backed provider costs are Operon-computed equivalent-cost
 estimates, flagged as such on every row. `operon telemetry --app <app>
-[--html out.html]` renders the run view.
+[--html out.html]` renders the run view and copies linked artifacts into an
+adjacent evidence bundle.
+
+For work delegated from an outer Codex/Claude session, begin a parent record
+once with `operon task begin --id <id> --prompt-file <exact-prompt>`, export
+the printed `OPERON_PARENT_TASK_ID`, and then run Planner/Builder/Reviewer
+commands normally. Use `operon task fallback` before any external/manual
+continuation and `operon task finish` only at the actual outcome boundary.
+Telemetry joins those child traces back to the exact prompt and will not call
+a task “Operon end-to-end complete” when a required stage or Reviewer is
+missing, or when execution used a fallback.
+
+`operon plan <app> --auto --goal "..."` chooses planning depth before any
+model turn. Quick work uses one combined planning/decomposition pass;
+standard uses a visionary, one PM perspective, and a decomposer; deep adds a
+second competing PM and arbitration. The route uses explicit risk,
+ambiguity, coupling, reversibility, external-consequence, expected-ticket,
+and sensitive-domain factors—not prompt length. Every planning envelope
+records the policy version, factors, selected/skipped passes with reasons,
+and a pre-execution historical cost estimate (or an honest unavailable
+marker plus the role-cap upper bound).
 
 `operon learn` is the learning loop's human window; `operon learn --help`
 has the full argument semantics. The capture verbs (`report`, `inspect

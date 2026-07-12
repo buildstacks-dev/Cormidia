@@ -51,6 +51,7 @@ import type {
   TurnHooks,
   TurnRequest,
   TurnResult,
+  TurnUsage,
 } from "../types.js";
 import { claudeDenyRulesForRole } from "../role-shaping.js";
 import { toolUseEvent } from "../tool-events.js";
@@ -121,10 +122,15 @@ export function normalizeToolAction(
   }
 }
 
-/** Layers joined in ContextBundle order: org TASTE, role addendum, app
- *  override, then memory excerpts (docs/architecture.md §5). */
+/** Layers joined in ContextBundle order: authority, org TASTE, role addendum,
+ * app override, then memory excerpts (docs/architecture.md §5). */
 export function buildSystemPromptAppend(req: TurnRequest): string {
-  const sections: string[] = [...req.context.taste];
+  const sections: string[] = [
+    ...(req.context.authority !== undefined
+      ? [`## Effective delegated authority\n\n${req.context.authority.text.trim()}`]
+      : []),
+    ...req.context.taste,
+  ];
   if (req.context.memoryExcerpts.length > 0) {
     sections.push(["## Memory excerpts", ...req.context.memoryExcerpts].join("\n\n"));
   }
@@ -151,6 +157,10 @@ export class ClaudeRuntime implements Runtime {
     }
 
     const escalations: GateEscalation[] = [];
+    const abortController = new AbortController();
+    const forwardAbort = (): void => abortController.abort(req.signal?.reason);
+    if (req.signal?.aborted) forwardAbort();
+    else req.signal?.addEventListener("abort", forwardAbort, { once: true });
 
     /** Single gate closure both channels route through. Returns the
      *  decision so each channel can shape its own wire response. */
@@ -264,29 +274,69 @@ export class ClaudeRuntime implements Runtime {
       ...(req.verdictSchema !== undefined
         ? { outputFormat: { type: "json_schema" as const, schema: req.verdictSchema } }
         : {}),
+      abortController,
     };
 
     let sessionId = req.session?.id;
     let subagentTurns = 0;
     let resultMsg: Extract<SDKMessage, { type: "result" }> | undefined;
+    let partialUsage: TurnUsage | undefined;
 
-    for await (const message of this.queryFn({ prompt: req.task, options })) {
-      if (message.type === "system" && message.subtype === "init") {
-        sessionId = message.session_id;
-      } else if (
-        message.type === "system" &&
-        message.subtype === "task_started" &&
-        message.subagent_type !== undefined
-      ) {
-        subagentTurns += 1;
-        hooks.onEvent?.({
-          type: "subagent",
-          detail: `subagent started: ${message.subagent_type} — ${message.description}`,
-        });
-      } else if (message.type === "result") {
-        resultMsg = message;
-        sessionId = message.session_id;
+    try {
+      for await (const message of this.queryFn({ prompt: req.task, options })) {
+        if (message.type === "system" && message.subtype === "init") {
+          sessionId = message.session_id;
+          if (sessionId !== undefined) {
+            hooks.onProgress?.({ session: { runtime: "claude", id: sessionId } });
+          }
+        } else if (message.type === "assistant") {
+          sessionId = message.session_id;
+          partialUsage = addClaudeMessageUsage(partialUsage, message.message.usage, subagentTurns);
+          hooks.onProgress?.({
+            ...(sessionId !== undefined
+              ? { session: { runtime: "claude" as const, id: sessionId } }
+              : {}),
+            usage: partialUsage,
+          });
+        } else if (
+          message.type === "system" &&
+          message.subtype === "task_started" &&
+          message.subagent_type !== undefined
+        ) {
+          subagentTurns += 1;
+          hooks.onEvent?.({
+            type: "subagent",
+            detail: `subagent started: ${message.subagent_type} — ${message.description}`,
+          });
+        } else if (message.type === "result") {
+          resultMsg = message;
+          sessionId = message.session_id;
+        }
       }
+    } catch (error) {
+      if (!req.signal?.aborted) throw error;
+    } finally {
+      req.signal?.removeEventListener("abort", forwardAbort);
+    }
+
+    if (req.signal?.aborted) {
+      const descriptor = claudeStopDescriptor(req.signal.reason);
+      return {
+        status: descriptor.status,
+        errorCode: descriptor.errorCode,
+        summary: descriptor.reason,
+        artifacts: [],
+        session: { runtime: "claude", id: sessionId ?? `cancelled-${Date.now()}` },
+        usage: partialUsage ?? {
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          subagentTurns,
+          wallClockMs: 0,
+          quality: "unavailable",
+        },
+        escalations,
+      };
     }
 
     if (resultMsg === undefined) {
@@ -331,8 +381,63 @@ export class ClaudeRuntime implements Runtime {
         costUsd: resultMsg.total_cost_usd,
         subagentTurns,
         wallClockMs: resultMsg.duration_ms,
+        quality: "complete",
       },
       escalations,
     };
   }
+}
+
+function addClaudeMessageUsage(
+  previous: TurnUsage | undefined,
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number | null;
+    cache_read_input_tokens?: number | null;
+  },
+  subagentTurns: number,
+): TurnUsage {
+  const uncached = usage.input_tokens;
+  const cacheCreation = usage.cache_creation_input_tokens ?? 0;
+  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  return {
+    tokensIn: (previous?.tokensIn ?? 0) + uncached + cacheCreation + cacheRead,
+    tokensInUncached: (previous?.tokensInUncached ?? 0) + uncached,
+    cacheCreationTokens: (previous?.cacheCreationTokens ?? 0) + cacheCreation,
+    cacheReadTokens: (previous?.cacheReadTokens ?? 0) + cacheRead,
+    tokensOut: (previous?.tokensOut ?? 0) + usage.output_tokens,
+    // The SDK exposes provider dollars only on the terminal result. Preserve
+    // token evidence now and mark dollar cost incomplete rather than fake it.
+    costUsd: previous?.costUsd ?? 0,
+    subagentTurns,
+    wallClockMs: previous?.wallClockMs ?? 0,
+    quality: "partial",
+  };
+}
+
+function claudeStopDescriptor(reason: unknown): {
+  status: "cancelled" | "timed_out";
+  errorCode: string;
+  reason: string;
+} {
+  if (reason !== null && typeof reason === "object") {
+    const value = reason as Record<string, unknown>;
+    if (
+      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      typeof value["errorCode"] === "string" &&
+      typeof value["reason"] === "string"
+    ) {
+      return {
+        status: value["status"],
+        errorCode: value["errorCode"],
+        reason: value["reason"],
+      };
+    }
+  }
+  return {
+    status: "cancelled",
+    errorCode: "error_cancelled",
+    reason: typeof reason === "string" && reason.length > 0 ? reason : "operator cancellation",
+  };
 }

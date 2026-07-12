@@ -10,12 +10,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   DEFAULT_LOOP_POLICY,
+  defaultLoopInputs,
   gateCommandsForWorktree,
   loadGateCommands,
   planLoopTick,
   runLoopOnce,
 } from "../src/loop/driver.js";
 import { writeTicketClaimState } from "../src/loop/rehydrate.js";
+import { makeBareWithClone } from "./fixtures/gitRepo.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
 
 const issueBody = [
@@ -28,6 +30,50 @@ const issueBody = [
 ].join("\n");
 
 describe("loop driver", () => {
+  it("treats a supplied repo as immutable input instead of checking out and resetting main", async () => {
+    const pair = makeBareWithClone();
+    try {
+      pair.clone.commit("seed app policy", {
+        ".operon/policy.yaml": [
+          "risk_tiers:",
+          "  high: ['auth/**']",
+          "  medium: ['src/**']",
+          "  low: ['**']",
+          "gates:",
+          "  high: [tests]",
+          "  medium: [tests]",
+          "  low: [tests]",
+          "",
+        ].join("\n"),
+        "README.md": "main\n",
+      });
+      pair.clone.git("push", "origin", "main");
+      pair.clone.git("checkout", "-b", "operator/active-work");
+      pair.clone.commit("operator branch", { "README.md": "operator branch\n" });
+      writeFileSync(join(pair.clone.root, "LOCAL-NOTES.md"), "untracked operator work\n");
+
+      const before = {
+        branch: pair.clone.git("branch", "--show-current"),
+        head: pair.clone.git("rev-parse", "HEAD"),
+        status: pair.clone.git("status", "--porcelain=v2", "--untracked-files=all"),
+      };
+
+      const inputs = await defaultLoopInputs(pair.bare.root, pair.clone.root, {
+        supplied: true,
+        snapshotDir: join(pair.root, "prepared-snapshot"),
+      });
+
+      expect(inputs.localRepo).not.toBe(pair.clone.root);
+      expect(pair.clone.git("branch", "--show-current")).toBe(before.branch);
+      expect(pair.clone.git("rev-parse", "HEAD")).toBe(before.head);
+      expect(pair.clone.git("status", "--porcelain=v2", "--untracked-files=all")).toBe(
+        before.status,
+      );
+    } finally {
+      pair.cleanup();
+    }
+  });
+
   it("planLoopTick prints a phase plan for a seeded ready ticket", () => {
     const plan = planLoopTick(
       [

@@ -153,6 +153,9 @@ export interface LoopPipelineOptions {
   networkAccess?: boolean;
   /** Per-pass ledger settlement target — see ExecutePipelineOptions.telemetry. */
   telemetry?: { orgDir: string; trigger?: TriggerKind };
+  /** Cooperative cancellation for every provider pass in this tick. */
+  signal?: AbortSignal;
+  parentTaskId?: string;
 }
 
 export interface BuilderPipelineOptions extends LoopPipelineOptions {
@@ -448,6 +451,8 @@ export async function runBuilderPipeline(
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
     ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     verdictSchemaFor: (pass) => VERDICT_SCHEMAS[verdictKindForPass(pass)],
     recordVerdict: async (ctx) => {
       const kind = verdictKindForPass(ctx.pass);
@@ -576,6 +581,8 @@ export async function runReviewPipeline(
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
     ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);
@@ -659,6 +666,8 @@ export async function runShipCheckPipeline(
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
     ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);

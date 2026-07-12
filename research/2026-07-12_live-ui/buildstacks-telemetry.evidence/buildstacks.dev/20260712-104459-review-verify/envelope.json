@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "run_id": "20260712-104459-review-verify",
+  "trace_id": "20260712T104459-review-32",
+  "parent_task_id": "live-ui-buildstacks-20260712",
+  "app": "buildstacks.dev",
+  "ticket": "#32",
+  "pipeline": "review",
+  "pass": "verify",
+  "role": "reviewer",
+  "runtime": "claude",
+  "model": "claude-opus-4-8",
+  "effort": "xhigh",
+  "workdir": "/Users/bikram/.operon/Bikram-Org/worktrees/buildstacks.dev/op-32-ignore-pnpm-store-on-the-format-and-git-surfaces",
+  "git_branch": "op/32-ignore-pnpm-store-on-the-format-and-git-surfaces",
+  "trace_plan": {
+    "required_passes": [
+      "verify",
+      "security-deep"
+    ],
+    "skipped_passes": [
+      {
+        "pass": "perf-scale",
+        "reason": "not selected by the active tier/trigger routing policy"
+      }
+    ]
+  },
+  "authority": {
+    "profile": "conservative",
+    "version": "legacy-conservative/v1",
+    "sha256": "87c49a0f4621bf7b878a09a371b908c2e4c1854640ac40ec518279418df42733",
+    "sources": [
+      "builtin:legacy-conservative/v1"
+    ]
+  },
+  "git_head": "5c6b8b5a408cc4a60a2508cb36ba338183d5137e",
+  "status": "completed",
+  "started_at": "2026-07-12T10:44:59.566Z",
+  "refs": {
+    "events": "events.jsonl",
+    "brief": "brief.md",
+    "prompt": "prompt.md",
+    "output": "output.md",
+    "session_log": "session.log"
+  },
+  "last_seen_at": "2026-07-12T10:47:07.990Z",
+  "session": {
+    "runtime": "claude",
+    "id": "df5babf4-ed7f-4f46-811b-6fee5386e179",
+    "transcript": "unavailable",
+    "transcript_note": "Claude SDK did not expose a full transcript reference; session.log is activity only."
+  },
+  "usage": {
+    "tokens_in": 353826,
+    "tokens_out": 8714,
+    "cost_usd": 0.6609235000000001,
+    "subagent_turns": 0,
+    "cache_read_tokens": 324121,
+    "cache_write_tokens": 25446,
+    "quality": "complete"
+  },
+  "tool_counts": {
+    "bash": 8,
+    "read": 2,
+    "structuredoutput": 1
+  },
+  "previews": {
+    "task": "[ticket] #32 Ignore .pnpm-store on the format and git surfaces; prove full pipeline green with a project-local store pr…",
+    "output": "{\"verdict\":\"approve\",\"findings\":[]}"
+  },
+  "finished_at": "2026-07-12T10:47:08.192Z",
+  "wall_clock_ms": 128626,
+  "verdict_summary": "{\"verdict\":\"approve\",\"findings\":[]}"
+}

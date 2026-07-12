@@ -45,6 +45,7 @@ export interface StatusRow {
   terminalReason?: string;
   session?: SessionEvidence;
   artifacts?: Artifact[];
+  gateResults?: RunEnvelope["gate_results"];
   refs: RunEnvelope["refs"];
   tracePlan?: TracePlanEvidence;
   planningRoute?: PlanningRouteEvidence;
@@ -111,6 +112,7 @@ export async function readStatusRows(
         ...(envelope.terminal_reason !== undefined ? { terminalReason: envelope.terminal_reason } : {}),
         ...(envelope.session !== undefined ? { session: envelope.session } : {}),
         ...(envelope.artifacts !== undefined ? { artifacts: envelope.artifacts } : {}),
+        ...(envelope.gate_results !== undefined ? { gateResults: envelope.gate_results } : {}),
         refs: envelope.refs,
         ...(envelope.trace_plan !== undefined ? { tracePlan: envelope.trace_plan } : {}),
         ...(envelope.planning_route !== undefined ? { planningRoute: envelope.planning_route } : {}),

@@ -29,6 +29,7 @@
     "e2e:sandbox": "tsx test/e2e/sandboxLoop.ts",
     "e2e:sandbox:setup": "bash scripts/setup-sandbox-repo.sh",
     "test": "vitest run",
+    "test:observe-browser": "playwright test --config playwright.observe.config.ts",
     "typecheck": "tsc --noEmit",
     "smoke:onboarding": "pnpm build && node scripts/smoke-onboarding.mjs",
     "test:live": "vitest run --config vitest.live.config.ts",
@@ -45,6 +46,7 @@
     "yaml": "^2.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",

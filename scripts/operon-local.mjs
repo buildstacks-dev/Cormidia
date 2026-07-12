@@ -15,11 +15,25 @@ const child = spawn(process.execPath, ["--import", tsxLoader, cli, ...process.ar
   env: process.env,
 });
 
+// Keep the source-backed wrapper transparent for foreground commands. In
+// particular, `operon observe` owns graceful SIGINT/SIGTERM shutdown; killing
+// only this wrapper would orphan the real CLI child or report a misleading
+// signal exit even after the observer closed cleanly.
+const forward = (signal) => {
+  if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+};
+const onSigint = () => forward("SIGINT");
+const onSigterm = () => forward("SIGTERM");
+process.on("SIGINT", onSigint);
+process.on("SIGTERM", onSigterm);
+
 child.on("error", (error) => {
   console.error(`operon local launcher: ${error.message}`);
   process.exitCode = 1;
 });
 child.on("exit", (code, signal) => {
+  process.off("SIGINT", onSigint);
+  process.off("SIGTERM", onSigterm);
   if (signal) process.kill(process.pid, signal);
   else process.exitCode = code ?? 1;
 });

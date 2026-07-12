@@ -33,6 +33,11 @@ export interface GhPullRequest {
   headRefOid?: string;
   isDraft?: boolean;
   mergeCommitOid?: string;
+  /** Explicit GitHub relationship from closing keywords, never inferred from
+   * branch names or title/body similarity. Read-only consumers use this to
+   * correlate delivery evidence to an issue even when a non-default PR base
+   * means GitHub has not closed the issue yet. */
+  closingIssueNumbers?: number[];
 }
 
 export interface GhReview {
@@ -220,6 +225,7 @@ const PR_FIELDS = [
   "baseRefName",
   "isDraft",
   "mergeCommit",
+  "closingIssuesReferences",
 ].join(",");
 
 export class GhCliOps implements GhOps {
@@ -637,6 +643,14 @@ function parsePullRequest(raw: unknown): GhPullRequest {
     mergeCommit && typeof mergeCommit === "object" && !Array.isArray(mergeCommit)
       ? (mergeCommit as Record<string, unknown>)["oid"]
       : undefined;
+  const closingIssues = record["closingIssuesReferences"];
+  const closingIssueNumbers = Array.isArray(closingIssues)
+    ? closingIssues.flatMap((value) => {
+        if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
+        const number = (value as Record<string, unknown>)["number"];
+        return typeof number === "number" ? [number] : [];
+      })
+    : [];
   return {
     number: numberField(record, "number", "gh pr output"),
     title: stringField(record, "title", "gh pr output"),
@@ -648,6 +662,7 @@ function parsePullRequest(raw: unknown): GhPullRequest {
     ...(typeof record["headRefOid"] === "string" ? { headRefOid: record["headRefOid"] } : {}),
     ...(typeof record["isDraft"] === "boolean" ? { isDraft: record["isDraft"] } : {}),
     ...(typeof mergeCommitOid === "string" ? { mergeCommitOid } : {}),
+    ...(closingIssueNumbers.length > 0 ? { closingIssueNumbers } : {}),
   };
 }
 

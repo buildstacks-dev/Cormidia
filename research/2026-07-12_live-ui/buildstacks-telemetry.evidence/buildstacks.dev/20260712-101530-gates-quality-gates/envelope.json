@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "run_id": "20260712-101530-gates-quality-gates",
+  "trace_id": "loop-buildstacks.dev-1783851047364",
+  "app": "buildstacks.dev",
+  "ticket": "#32",
+  "pipeline": "gates",
+  "pass": "quality-gates",
+  "role": "orchestrator",
+  "authority": {
+    "profile": "conservative",
+    "version": "legacy-conservative/v1",
+    "sha256": "87c49a0f4621bf7b878a09a371b908c2e4c1854640ac40ec518279418df42733",
+    "sources": [
+      "builtin:legacy-conservative/v1"
+    ]
+  },
+  "status": "completed",
+  "started_at": "2026-07-12T10:15:30.825Z",
+  "refs": {
+    "events": "events.jsonl",
+    "brief": "brief.md",
+    "prompt": "prompt.md",
+    "output": "output.md"
+  },
+  "gate_results": [
+    {
+      "gate": "tests",
+      "status": "passed",
+      "detail": "tests passed (exit 0)"
+    },
+    {
+      "gate": "lint",
+      "status": "passed",
+      "detail": "lint passed (exit 0)"
+    },
+    {
+      "gate": "completeness",
+      "status": "passed",
+      "detail": "completeness passed (8 criteria, 0 findings)"
+    },
+    {
+      "gate": "review-freshness",
+      "status": "passed",
+      "detail": "review-freshness passed (5c6b8b5a408c)"
+    }
+  ],
+  "finished_at": "2026-07-12T10:15:40.089Z",
+  "wall_clock_ms": 9264
+}

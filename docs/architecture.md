@@ -240,6 +240,10 @@ state while local pass activity keeps updating. A monotonically increasing
 observer cursor supports SSE replay; clients outside the bounded buffer receive
 `resync` and fetch a fresh durable snapshot. Stopping the server closes only
 observer HTTP streams and never signals a runtime, loop, dispatcher, or pass.
+The browser's session chooser is a disposable view over the same snapshot:
+parent tasks are the preferred historical boundary, standalone traces cover
+legacy/orphaned work, and URL state scopes the existing components without
+creating a session store or changing correlation semantics.
 
 ## 2. Dispatcher & scheduler
 

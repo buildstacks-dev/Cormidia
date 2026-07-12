@@ -46,6 +46,9 @@ export interface RunRoleRequest {
   /** Cooperative cancellation from the owning process/dispatcher. */
   signal?: AbortSignal;
   parentTaskId?: string;
+  /** Org-owned task brief for a specialized manual turn (for example an
+   * approved SRE release). Callers, never agents, supply these bytes. */
+  briefOverride?: string;
 }
 
 export interface RunRoleResult {
@@ -57,7 +60,7 @@ export interface RunRoleResult {
 export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
   const clock = request.clock ?? ((): Date => new Date());
   const context = request.context ?? { taste: [], memoryExcerpts: [] };
-  const brief = withAuthorityBrief(
+  const brief = request.briefOverride ?? withAuthorityBrief(
     assembleBrief(
       {
         ticket: {

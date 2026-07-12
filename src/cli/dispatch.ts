@@ -1,6 +1,7 @@
 import { join, resolve } from "node:path";
 import { dispatchTick } from "../org/dispatch.js";
 import { loadApps } from "../org/apps.js";
+import { executeApprovedReleases } from "../org/release.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -24,6 +25,13 @@ export async function cmdDispatch(args: string[]): Promise<number> {
   const effectiveRoles = rolesPath ? resolve(rolesPath) : join(homes.orgHome, "roles.yaml");
   const appsFile = await loadApps(effectiveApps);
   const tickStarted = Date.now();
+  const releases = dryRun
+    ? []
+    : await executeApprovedReleases({
+        stateHome: homes.stateHome,
+        orgHome: homes.orgHome,
+        appsFile,
+      });
   const result = await dispatchTick({
     orgRoot: homes.orgHome,
     runtimeHome: homes.stateHome,
@@ -52,7 +60,10 @@ export async function cmdDispatch(args: string[]): Promise<number> {
   }
   for (const line of result.skipped) console.log(`skip ${line}`);
   for (const line of result.errors) console.log(`error ${line}`);
-  return result.errors.length > 0 ? 1 : 0;
+  for (const release of releases) {
+    console.log(`release ${release.approvalId}: ${release.status} — ${release.summary.split("\n")[0]}`);
+  }
+  return result.errors.length > 0 || releases.some((release) => release.status === "failed") ? 1 : 0;
 }
 
 function needValue(args: string[], index: number, flag: string): string {

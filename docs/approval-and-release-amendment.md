@@ -2,9 +2,8 @@
 
 Status: ratified 2026-07-10 (docs/PURPOSE.md → Decided) and implemented —
 A1 scoped grants (`src/org/approvals.ts`), A2 approve-and-rearm, A3 batch
-review, A4 release handoff (`src/org/release.ts` + ship-gate P7), and A5
-durable denial lessons are all live; A4's deploy-command execution is the
-open follow-up (issue #18). Companion to `docs/proportionality-review.md`
+review, A4 release handoff (`src/org/release.ts` + ship-gate P7 + approved
+command execution), and A5 durable denial lessons are all live. Companion to `docs/proportionality-review.md`
 §5 Stage 5; supersedes, where stated, parts of PURPOSE's 2026-07-04/06
 approval decisions.
 
@@ -107,6 +106,14 @@ release:
 - P7 enforcement: a ship gate fails when the merged milestone's release
   disposition requires a mechanism the app does not declare — "deployable
   but unowned" is unfinished, mechanically.
+
+Execution preserves A2's later-retry boundary: the approval decision only
+mints the single-use grant. A later `operon dispatch` tick claims the approved
+release. `owner: orchestrator` runs the exact command in the managed clone
+with `CI=1`; `owner: sre` routes the exact command through one SRE role turn.
+Both paths consume the grant, write an idempotent `releases/<approval>.json`
+record, append a `kind: release` invocation row, and comment the ticket with
+the terminal outcome. An ambiguous `running` record is never auto-retried.
 
 ## A5 — Denial lessons are durable
 

@@ -7,7 +7,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { parse, stringify } from "yaml";
+import { parse, parseDocument, stringify } from "yaml";
 import type { RoleConfig, Trigger } from "../runtime/types.js";
 import { RELEASE_KINDS, RELEASE_OWNERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner } from "../loop/types.js";
 
@@ -78,6 +78,12 @@ export interface AppRegistration {
 }
 
 export interface JoinExistingOrgResult {
+  orgHome: string;
+  appsPath: string;
+  app: AppEntry;
+}
+
+export interface RemoveExistingAppResult {
   orgHome: string;
   appsPath: string;
   app: AppEntry;
@@ -375,6 +381,53 @@ export async function joinExistingOrg(
   }
 
   return { orgHome, appsPath, app: entry };
+}
+
+/** Remove one explicitly named app from the org registry. This is the local
+ * half of `operon app reset`: a human-authorized lifecycle operation, never an
+ * agent action. `parseDocument` retains comments and surrounding hand-edited
+ * structure far better than a parse/stringify rewrite; the post-write reload
+ * is the same fail-safe contract as registration — on any problem, restore
+ * the exact original bytes. */
+export async function removeExistingApp(
+  orgHomeIn: string,
+  appName: string,
+): Promise<RemoveExistingAppResult> {
+  const orgHome = resolve(orgHomeIn);
+  const appsPath = join(orgHome, "apps.yaml");
+  const before = await readFile(appsPath, "utf8");
+  const file = await loadApps(appsPath);
+  const app = file.apps.find((entry) => entry.name === appName);
+  if (app === undefined) throw new Error(`app reset: unknown app "${appName}" in ${appsPath}`);
+
+  const document = parseDocument(before);
+  if (document.errors.length > 0) {
+    throw new Error(
+      `app reset: ${appsPath} cannot be edited because it is invalid YAML: ` +
+        document.errors.map((error) => error.message).join("; "),
+    );
+  }
+  if (!document.hasIn(["apps", appName])) {
+    throw new Error(`app reset: ${appsPath} has no editable apps.${appName} entry`);
+  }
+  document.deleteIn(["apps", appName]);
+  const next = document.toString();
+  await writeFile(appsPath, next, "utf8");
+
+  try {
+    const reloaded = await loadApps(appsPath);
+    if (reloaded.apps.some((entry) => entry.name === appName)) {
+      throw new Error(`app "${appName}" is still present after removal`);
+    }
+  } catch (error) {
+    await writeFile(appsPath, before, "utf8");
+    throw new Error(
+      `app reset: removing "${appName}" from ${appsPath} produced an invalid registry; ` +
+        `rolled back. ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  return { orgHome, appsPath, app };
 }
 
 function numberOr(v: unknown, fallback: number): number {

@@ -129,6 +129,26 @@ fails closed to the built-in legacy-conservative profile; it never silently
 inherits the newer delegated default. `operon org use <path>` selects an existing complete tree.
 `OPERON_ORG_HOME` is the explicit non-persistent override.
 
+### App reset archives
+
+`operon app reset <app>` is the lifecycle command for repeatable onboarding
+and build-loop testing. Planning is the default and reads the selected app's
+managed state plus GitHub surface. Execution requires both `--execute` and an
+exact `--confirm <app>` value. Before every local or remote change it writes a
+checksummed archive outside the state home, by default at
+`~/.operon/archives/<org>/<timestamp>-<app>-<id>/`; a reset can therefore
+never delete its own recovery material.
+
+The command takes every configured role lock for the app, and refuses if it
+finds a running envelope, active journal/lock, or pending approval. It archives
+and removes only app-scoped managed paths (`repos/<app>`, `worktrees/<app>`,
+`runs/<app>`, `tickets/<app>`), app-attributed approval/schedule/budget/ledger
+entries, and the app registry entry. Its GitHub plan closes only issues bearing
+an `op:*` label plus open PRs whose body closes one of those issues (or whose
+branch starts `op/`), then deletes their head branches. It never deletes a
+GitHub repository, rewrites its default branch, or touches a human checkout.
+GitHub's retained closed issue/PR history is intentional.
+
 ### App repo (target product repo)
 
 ```

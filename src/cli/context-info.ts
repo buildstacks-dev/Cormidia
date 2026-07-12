@@ -48,6 +48,7 @@ const CAPABILITIES = [
   { command: "org use", writes: true, spendsTokens: false, summary: "select an existing complete org home" },
   { command: "roles", writes: false, spendsTokens: false, summary: "validate and list the active org's roles" },
   { command: "apps", writes: false, spendsTokens: false, summary: "validate and list registered apps" },
+  { command: "app reset", writes: true, spendsTokens: false, summary: "archive and remove one app's Operon-managed state and tracked GitHub work after explicit confirmation" },
   { command: "pipelines", writes: false, spendsTokens: false, summary: "validate and list pass pipelines" },
   { command: "bootstrap", writes: true, spendsTokens: false, summary: "onboard an existing local app repo" },
   { command: "new-app", writes: true, spendsTokens: false, summary: "create and onboard a greenfield app repo" },

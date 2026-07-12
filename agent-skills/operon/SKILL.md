@@ -75,6 +75,29 @@ Remove `--dry-run` only after the target, repository slug, and goal are correct.
 Follow the generated `.operon/bootstrap/next-commands.md` for GitHub creation
 and the first ticket.
 
+## Reset one app for another test iteration
+
+Use the plan first; it reads the app's managed state and GitHub work surface
+but changes nothing:
+
+```bash
+operon app reset <app-name>
+```
+
+It reports its archive destination and any active runs, journals, locks, or
+pending approvals that make reset unsafe. Execution closes only planned
+Operon-managed GitHub work, removes the app from `apps.yaml`, and clears its
+managed state after first writing an archive outside the state home:
+
+```bash
+operon app reset <app-name> --execute --confirm <app-name>
+```
+
+Never run `--execute` unless the human explicitly asked to reset that named
+app and has reviewed the plan. It does **not** delete the GitHub repository,
+its default branch, closed-history records, or a human checkout. Re-onboard
+with `operon bootstrap <local-repo> --answers <answers.json>` after a reset.
+
 ## Operate safely
 
 Prefer token-free inspection before a live turn:

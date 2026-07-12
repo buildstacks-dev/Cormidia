@@ -46,14 +46,23 @@ class InjectedReviewGhOps implements GhOps {
   readIssue(issueNumber: number) {
     return this.inner.readIssue(issueNumber);
   }
+  closeIssue(issueNumber: number) {
+    return this.inner.closeIssue(issueNumber);
+  }
   createPR(...args: Parameters<GhOps["createPR"]>) {
     return this.inner.createPR(...args);
   }
   readPR(selector: number | string) {
     return this.inner.readPR(selector);
   }
+  listPullRequests(...args: Parameters<GhOps["listPullRequests"]>) {
+    return this.inner.listPullRequests(...args);
+  }
   listPRsForBranch(...args: Parameters<GhOps["listPRsForBranch"]>) {
     return this.inner.listPRsForBranch(...args);
+  }
+  closePullRequest(prNumber: number) {
+    return this.inner.closePullRequest(prNumber);
   }
   createReview(...args: Parameters<GhOps["createReview"]>) {
     return this.inner.createReview(...args);

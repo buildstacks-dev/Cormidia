@@ -166,6 +166,11 @@ export class FakeGhOps implements GhOps {
     return cloneIssue(this.requireIssue(issueNumber));
   }
 
+  async closeIssue(issueNumber: number): Promise<void> {
+    this.log("closeIssue", { issueNumber });
+    this.requireIssue(issueNumber).state = "CLOSED";
+  }
+
   async createPR(input: CreatePrInput): Promise<GhPullRequest> {
     this.log("createPR", { head: input.head, base: input.base, title: input.title });
     const number = this.nextPrNumber++;
@@ -190,6 +195,16 @@ export class FakeGhOps implements GhOps {
     return clonePr(pr);
   }
 
+  async listPullRequests(options: ListPullRequestOptions = {}): Promise<GhPullRequest[]> {
+    this.log("listPullRequests", { state: options.state ?? "open" });
+    const state = options.state ?? "open";
+    const limit = options.limit ?? 100;
+    return [...this.prs.values()]
+      .filter((pr) => state === "all" || pr.state.toLowerCase() === state)
+      .slice(0, limit)
+      .map(clonePr);
+  }
+
   async listPRsForBranch(
     branch: string,
     options: ListPullRequestOptions = {},
@@ -200,6 +215,11 @@ export class FakeGhOps implements GhOps {
       .filter((pr) => pr.headRefName === branch)
       .filter((pr) => state === "all" || pr.state.toLowerCase() === state)
       .map(clonePr);
+  }
+
+  async closePullRequest(prNumber: number): Promise<void> {
+    this.log("closePullRequest", { prNumber });
+    this.requirePr(prNumber).state = "CLOSED";
   }
 
   async createReview(prNumber: number, input: CreateReviewInput, author?: string): Promise<GhReview> {

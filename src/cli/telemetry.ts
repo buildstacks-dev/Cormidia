@@ -157,7 +157,7 @@ interface CompletionIntegrity {
   prState: "open" | "merged" | "closed" | "abandoned" | "none" | "mixed" | "referenced_not_verified" | "not_recorded";
 }
 
-const NO_TICKET = "(no ticket)";
+const PRE_TICKET_PLANNING = "Pre-ticket planning";
 
 function buildReport(
   rows: StatusRow[],
@@ -176,7 +176,7 @@ function buildReport(
   // tickets/traces come out in first-pass start order with no extra sort.
   const tickets = new Map<string, TicketGroup>();
   for (const view of views) {
-    const ticketKey = view.ticket ?? NO_TICKET;
+    const ticketKey = view.ticket ?? PRE_TICKET_PLANNING;
     let ticket = tickets.get(ticketKey);
     if (ticket === undefined) {
       ticket = { ticket: view.ticket ?? null, traces: [] };
@@ -203,7 +203,7 @@ function buildReport(
   for (const view of views) {
     accumulate(byRole, view.role, view);
     accumulate(byModel, view.model ?? "(unknown model)", view);
-    accumulate(byTicket, view.ticket ?? NO_TICKET, view);
+    accumulate(byTicket, view.ticket ?? PRE_TICKET_PLANNING, view);
   }
 
   const parentTasks = buildParentTaskViews(taskRecords, views, [...tickets.values()], app, date);
@@ -459,7 +459,7 @@ function renderTerminal(report: TelemetryReport): string {
   }
 
   for (const ticket of report.tickets) {
-    lines.push("", `TICKET ${ticket.ticket ?? NO_TICKET}`);
+    lines.push("", ticket.ticket === null ? "PRE-TICKET PLANNING" : `TICKET ${ticket.ticket}`);
     for (const trace of ticket.traces) {
       lines.push(
         `  trace ${trace.traceId}` +
@@ -786,7 +786,8 @@ function renderTicketSection(ticket: TicketGroup): string {
     })
     .join("\n");
 
-  return `<section><h2>Ticket ${esc(ticket.ticket ?? NO_TICKET)}</h2>\n${rows}</section>`;
+  const heading = ticket.ticket === null ? "Pre-ticket planning" : `Ticket ${ticket.ticket}`;
+  return `<section><h2>${esc(heading)}</h2>\n${rows}</section>`;
 }
 
 function previewText(view: PassView): string {

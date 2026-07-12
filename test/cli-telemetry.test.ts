@@ -129,6 +129,32 @@ describe("cmdTelemetry terminal view", () => {
     }
   });
 
+  it("labels planning before issue publication as pre-ticket planning", async () => {
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            plan1: {
+              envelope: env("plan1", "2026-07-04T09:00:00Z", {
+                trace: "plan-alpha-1",
+                pass: "decomposer",
+                role: "planner",
+              }),
+              events: [],
+            },
+          },
+        },
+      },
+    });
+    try {
+      const { out } = await run(["--home", home.root]);
+      expect(out).toContain("PRE-TICKET PLANNING");
+      expect(out).not.toContain("(no ticket)");
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("--date keeps only passes whose started_at day matches", async () => {
     const home = seededHome();
     try {

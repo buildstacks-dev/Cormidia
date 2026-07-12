@@ -15,7 +15,16 @@ describe("roles.yaml", () => {
     const { roles, defaults } = await loadRoles(ROLES_PATH);
     expect(defaults.maxTurnBudgetUsd).toBeGreaterThan(0);
     expect(roles.map((r) => r.name).sort()).toEqual(
-      ["builder", "marketing", "planner", "reviewer", "sre", "support"].sort(),
+      [
+        "builder",
+        "distiller",
+        "learning-reviewer",
+        "marketing",
+        "planner",
+        "reviewer",
+        "sre",
+        "support",
+      ].sort(),
     );
     for (const role of roles) {
       expect(role.triggers.length).toBeGreaterThan(0);
@@ -32,5 +41,14 @@ describe("roles.yaml", () => {
     expect(builder?.runtime).toBe("codex");
     expect(reviewer?.runtime).toBe("claude");
     expect(builder?.runtime).not.toBe(reviewer?.runtime);
+  });
+
+  it("distiller and learning reviewer stay cross-provider on the ratified schedules", async () => {
+    const { roles } = await loadRoles(ROLES_PATH);
+    const distiller = roles.find((role) => role.name === "distiller")!;
+    const reviewer = roles.find((role) => role.name === "learning-reviewer")!;
+    expect(distiller.runtime).not.toBe(reviewer.runtime);
+    expect(distiller.triggers).toEqual([{ schedule: "daily 06:00" }]);
+    expect(reviewer.triggers).toEqual([{ schedule: "weekly mon 07:00" }]);
   });
 });

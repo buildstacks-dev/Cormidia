@@ -14,6 +14,7 @@ import { acquireLock, lockExists } from "../src/org/locks.js";
 import type { GitHubEventSource } from "../src/org/events.js";
 import type { AppEntry } from "../src/org/apps.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
+import { FakeClock } from "./fixtures/fakeClock.js";
 
 describe("dispatcher tick", () => {
   it("spawns a due schedule with the fixed run-role identity", async () => {
@@ -45,6 +46,47 @@ describe("dispatcher tick", () => {
       expect(await new ScheduleStore(h.home.root).lastFired("alpha", "planner", "daily 07:00")).toEqual(
         new Date("2026-07-06T10:00:00Z"),
       );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("routes M6 daily distillation and Monday review through the existing dispatch tick", async () => {
+    const h = fixture({
+      maxConcurrent: 2,
+      roles: `roles:
+  distiller:
+    runtime: claude
+    model: m
+    effort: medium
+    delegation: {allow: []}
+    triggers:
+      - schedule: "daily 06:00"
+    outputs: [learning-candidates]
+  learning-reviewer:
+    runtime: codex
+    model: m
+    effort: high
+    delegation: {allow: []}
+    triggers:
+      - schedule: "weekly mon 07:00"
+    outputs: [learning-review-verdicts]
+`,
+    });
+    const clock = new FakeClock("2026-07-13T07:00:00.000Z");
+    try {
+      const result = await dispatchTick({
+        runtimeHome: h.home.root,
+        appsPath: h.appsPath,
+        rolesPath: h.rolesPath,
+        now: () => clock.now(),
+        eventSource: emptySource(),
+        spawn: async () => {},
+      });
+      expect(result.spawned.map((turn) => `${turn.role}:${turn.trigger}`).sort()).toEqual([
+        "distiller:daily 06:00",
+        "learning-reviewer:weekly mon 07:00",
+      ]);
     } finally {
       h.cleanup();
     }

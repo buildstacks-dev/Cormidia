@@ -12,16 +12,45 @@ import type { ContextBundle, RoleConfig, Runtime, Trigger, TurnHooks, TurnResult
 import { loadGateCommands, runLoopOnce } from "../loop/driver.js";
 import { queueReleaseApprovals } from "./release.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
-import { executePipeline, type PipelineRunResult } from "../loop/pipeline.js";
-import { getPipeline, loadPipelines, type PassConfig } from "../loop/pipelines.js";
+import {
+  executePipeline,
+  type PipelineRunResult,
+  type VerdictRecordContext,
+  type VerdictRecordOutcome,
+} from "../loop/pipeline.js";
+import { getPipeline, loadPipelines, type PassConfig, type PipelineConfig } from "../loop/pipelines.js";
 import { loadPolicy } from "../loop/policy.js";
 import { runRole } from "../loop/runRole.js";
+import {
+  parseWithRetry,
+  VerdictParseError,
+  VERDICT_SCHEMAS,
+  type ParseResult,
+  type VerdictTypes,
+} from "../loop/verdicts.js";
 import { ApprovalStore } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
 import { composeGate } from "./gate-compose.js";
+import {
+  distillationBrief,
+  compactionReport,
+  learningReviewBrief,
+  parseDistillationOutput,
+  parseLearningReviewOutput,
+  persistDistillationOutput,
+  persistLearningReviewOutput,
+  prepareDistillation,
+  prepareLearningReview,
+  writeM6RunRecord,
+  writeCompactionSnapshot,
+  type M6RunRecord,
+} from "./learning/distillation.js";
+import { appLearningRoot, orgLearningRoot } from "./learning/concepts.js";
 import { journalEpisodeAnchor } from "./learning/episodes.js";
+import { readLearningEvents } from "./learning/events.js";
+import { loadLearningPolicy } from "./learning/policy.js";
 import { acquireLock, heartbeatLock, lockExists, readLock, releaseLock } from "./locks.js";
 import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
 import { appendScorecardEvent } from "./scorecards.js";
@@ -40,6 +69,9 @@ export interface RunDispatchedTurnOptions {
   /** Cooperative cancellation sent by the owning CLI/dispatcher process. */
   signal?: AbortSignal;
   parentTaskId?: string;
+  /** Explicit human CLI entry into the M6 scheduled protocol. The journal
+   * stays manual for telemetry; only this named pipeline may be overridden. */
+  pipelineOverride?: "learning-distill";
 }
 
 export interface RunDispatchedTurnResult {
@@ -109,13 +141,21 @@ export async function runDispatchedTurn(
       worktree: localRepo,
     });
 
-    const route = resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
+    const route =
+      options.pipelineOverride !== undefined
+        ? ({ kind: "pipeline", pipeline: options.pipelineOverride } as const)
+        : resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
 
     // Every executor-routed provider turn settles its own ledger row per pass
     // (Defect B); the dispatcher's turn row below is a lifecycle record only.
     const telemetry = {
       orgDir: runtimeHome,
       ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind as TriggerKind } : {}),
+      ...(route.kind === "pipeline" && route.pipeline === "learning-distill"
+        ? { learningActivity: "distillation" as const }
+        : route.kind === "pipeline" && route.pipeline === "learning-review"
+          ? { learningActivity: "review" as const }
+          : {}),
     };
 
     let result: TurnResult;
@@ -238,7 +278,11 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   hooks: TurnHooks;
   journal: TurnJournal;
   pipelineName: string;
-  telemetry: { orgDir: string; trigger?: TriggerKind };
+  telemetry: {
+    orgDir: string;
+    trigger?: TriggerKind;
+    learningActivity?: "distillation" | "review";
+  };
 }): Promise<TurnResult> {
   const rolesFile = await import("./roles.js").then((m) => m.loadRoles(join(options.orgRoot, "roles.yaml")));
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
@@ -247,6 +291,13 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     promptsDir: join(options.orgRoot, "prompts"),
   });
   const pipeline = getPipeline(pipelines, options.pipelineName);
+
+  if (options.pipelineName === "learning-distill") {
+    return runM6PipelineTurn({ ...options, pipelineName: "learning-distill", roles, pipeline });
+  }
+  if (options.pipelineName === "learning-review") {
+    return runM6PipelineTurn({ ...options, pipelineName: "learning-review", roles, pipeline });
+  }
 
   // Record the wall-clock kill cap for this running pipeline turn so the
   // dispatcher's killHungTurns honors per-pass `wall_clock_minutes` instead of
@@ -314,6 +365,349 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   });
 
   return resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+}
+
+async function runM6PipelineTurn(
+  options: RunDispatchedTurnOptions & {
+    runtimeHome: string;
+    orgRoot: string;
+    localRepo: string;
+    context: ContextBundle;
+    hooks: TurnHooks;
+    journal: TurnJournal;
+    pipelineName: "learning-distill" | "learning-review";
+    telemetry: {
+      orgDir: string;
+      trigger?: TriggerKind;
+      learningActivity?: "distillation" | "review";
+    };
+    roles: Record<string, RoleConfig>;
+    pipeline: PipelineConfig;
+  },
+): Promise<TurnResult> {
+  const started = options.now?.() ?? new Date();
+  const clock = options.now ?? (() => new Date());
+  const policy = await loadLearningPolicy(options.orgRoot);
+  const scheduled = options.journal.triggerKind === "schedule" ? options.journal.trigger : undefined;
+  const expectedSchedule =
+    options.pipelineName === "learning-distill" ? policy.distiller.schedule : policy.reviewer.schedule;
+  if (scheduled !== undefined && scheduled !== expectedSchedule) {
+    throw new Error(
+      `${options.pipelineName}: roles.yaml schedule ${JSON.stringify(scheduled)} does not match ` +
+        `learning/policy.yaml ${JSON.stringify(expectedSchedule)}`,
+    );
+  }
+
+  let recordWritten = false;
+  const baseRecord = (kind: M6RunRecord["kind"]): Omit<M6RunRecord, "status" | "reason" | "model_turns"> => ({
+    schema_version: 1,
+    run_id: options.turnId,
+    kind,
+    app: options.app.name,
+    started_at: started.toISOString(),
+    finished_at: clock().toISOString(),
+  });
+
+  if (options.pipelineName === "learning-distill") {
+    const preparation = await prepareDistillation({
+      orgHome: options.orgRoot,
+      stateHome: options.runtimeHome,
+      app: options.app.name,
+      appWorkdir: options.localRepo,
+      appStages: Object.fromEntries(options.appsFile.apps.map((app) => [app.name, app.status])),
+      policy,
+      now: started,
+    });
+    if (preparation.status !== "ready") {
+      await writeM6RunRecord(options.runtimeHome, {
+        ...baseRecord("distillation"),
+        status: preparation.status,
+        reason: preparation.reason,
+        model_turns: 0,
+        evidence_events: preparation.evidenceEvents,
+        clusters_seen: preparation.clustersSeen,
+        actionable_clusters: preparation.actionableClusters,
+        deduped_clusters: preparation.dedupedClusters,
+        suppressed_clusters: preparation.suppressedClusters,
+        capped_clusters: preparation.cappedClusters,
+        candidate_ids: [],
+      });
+      return zeroResult(
+        "completed",
+        `learning distillation ${preparation.status}: ${preparation.reason}`,
+        options.role,
+      );
+    }
+
+    const result = await executeM6Pipeline(options, {
+      brief: distillationBrief(preparation),
+      kind: "learning-distill",
+      parse: (text) => parseDistillationOutput(text, preparation, options.app.name),
+      onVerdict: async (verdict) => {
+        const candidateIds = await persistDistillationOutput({
+          orgHome: options.orgRoot,
+          appWorkdir: options.localRepo,
+          app: options.app.name,
+          now: clock(),
+          preparation,
+          verdict,
+        });
+        await writeM6RunRecord(options.runtimeHome, {
+          ...baseRecord("distillation"),
+          finished_at: clock().toISOString(),
+          status: "completed",
+          reason: preparation.reason,
+          model_turns: 1,
+          evidence_events: preparation.evidenceEvents,
+          clusters_seen: preparation.clustersSeen,
+          actionable_clusters: preparation.actionableClusters,
+          deduped_clusters: preparation.dedupedClusters,
+          suppressed_clusters: preparation.suppressedClusters,
+          capped_clusters: preparation.cappedClusters,
+          candidate_ids: candidateIds,
+        });
+        recordWritten = true;
+        return candidateIds.length;
+      },
+    }).catch(async (error) => {
+      if (!recordWritten) {
+        await writeM6RunRecord(options.runtimeHome, {
+          ...baseRecord("distillation"),
+          finished_at: clock().toISOString(),
+          status: "failed",
+          reason: error instanceof Error ? error.message : String(error),
+          model_turns: 1,
+          candidate_ids: [],
+        });
+      }
+      throw error;
+    });
+    if (!recordWritten) {
+      await writeM6RunRecord(options.runtimeHome, {
+        ...baseRecord("distillation"),
+        finished_at: clock().toISOString(),
+        status: "failed",
+        reason: "provider turn did not complete",
+        model_turns: 1,
+        candidate_ids: [],
+      });
+    }
+    await recordM6Scorecard(options, result);
+    return resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+  }
+
+  const recommendations = await compactionReport({
+    roots: [orgLearningRoot(options.orgRoot), appLearningRoot(options.localRepo)],
+    events: await readLearningEvents(options.runtimeHome),
+    policy,
+    now: started,
+  });
+  await writeCompactionSnapshot({
+    stateHome: options.runtimeHome,
+    app: options.app.name,
+    at: started,
+    recommendations,
+  });
+
+  const preparation = await prepareLearningReview({
+    orgHome: options.orgRoot,
+    stateHome: options.runtimeHome,
+    appWorkdir: options.localRepo,
+    app: options.app.name,
+    policy,
+    now: started,
+  });
+  if (preparation.status !== "ready") {
+    await writeM6RunRecord(options.runtimeHome, {
+      ...baseRecord("learning_review"),
+      status: preparation.reason === "learning_monthly_budget" ? "capped" : "skipped",
+      reason: preparation.reason,
+      model_turns: 0,
+      pending_candidates: preparation.pendingCandidates,
+      capped_candidates: preparation.cappedCandidates,
+      reviewed_candidates: [],
+    });
+    return zeroResult(
+      "completed",
+      `learning review skipped: ${preparation.reason}`,
+      options.role,
+    );
+  }
+
+  const result = await executeM6Pipeline(options, {
+    brief: learningReviewBrief(preparation),
+    kind: "learning-review",
+    parse: (text) => parseLearningReviewOutput(text, preparation),
+    onVerdict: async (verdict) => {
+      const reviewed = await persistLearningReviewOutput({
+        orgHome: options.orgRoot,
+        now: clock(),
+        reviewer: `${options.role.name}:${options.role.runtime}/${options.role.model}`,
+        preparation,
+        verdict,
+      });
+      await writeM6RunRecord(options.runtimeHome, {
+        ...baseRecord("learning_review"),
+        finished_at: clock().toISOString(),
+        status: "completed",
+        reason: preparation.cappedCandidates > 0 ? "review_candidate_cap_applied" : null,
+        model_turns: 1,
+        pending_candidates: preparation.pendingCandidates,
+        capped_candidates: preparation.cappedCandidates,
+        reviewed_candidates: reviewed,
+      });
+      recordWritten = true;
+      return reviewed.length;
+    },
+  }).catch(async (error) => {
+    if (!recordWritten) {
+      await writeM6RunRecord(options.runtimeHome, {
+        ...baseRecord("learning_review"),
+        finished_at: clock().toISOString(),
+        status: "failed",
+        reason: error instanceof Error ? error.message : String(error),
+        model_turns: 1,
+        pending_candidates: preparation.pendingCandidates,
+        reviewed_candidates: [],
+      });
+    }
+    throw error;
+  });
+  if (!recordWritten) {
+    await writeM6RunRecord(options.runtimeHome, {
+      ...baseRecord("learning_review"),
+      finished_at: clock().toISOString(),
+      status: "failed",
+      reason: "provider turn did not complete",
+      model_turns: 1,
+      pending_candidates: preparation.pendingCandidates,
+      reviewed_candidates: [],
+    });
+  }
+  await recordM6Scorecard(options, result);
+  return resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+}
+
+async function recordM6Scorecard(
+  options: Pick<RunDispatchedTurnOptions, "role" | "app" | "turnId" | "now"> & {
+    runtimeHome: string;
+    pipelineName: string;
+  },
+  result: PipelineRunResult,
+): Promise<void> {
+  const usage = result.passes.reduce(
+    (sum, pass) => ({
+      costUsd: sum.costUsd + pass.result.usage.costUsd,
+      tokensIn: sum.tokensIn + pass.result.usage.tokensIn,
+      tokensOut: sum.tokensOut + pass.result.usage.tokensOut,
+    }),
+    { costUsd: 0, tokensIn: 0, tokensOut: 0 },
+  );
+  await appendScorecardEvent(
+    options.runtimeHome,
+    {
+      type: "turn_cost",
+      app: options.app.name,
+      role: options.role.name,
+      turnId: options.turnId,
+      note: options.pipelineName,
+      ...usage,
+    },
+    options.now?.() ?? new Date(),
+  );
+}
+
+async function executeM6Pipeline<K extends "learning-distill" | "learning-review">(
+  options: RunDispatchedTurnOptions & {
+    runtimeHome: string;
+    orgRoot: string;
+    localRepo: string;
+    context: ContextBundle;
+    hooks: TurnHooks;
+    pipelineName: "learning-distill" | "learning-review";
+    telemetry: {
+      orgDir: string;
+      trigger?: TriggerKind;
+      learningActivity?: "distillation" | "review";
+    };
+    roles: Record<string, RoleConfig>;
+    pipeline: PipelineConfig;
+  },
+  flow: {
+    brief: string;
+    kind: K;
+    parse: (text: string) => ParseResult<K>;
+    onVerdict: (verdict: VerdictTypes[K]) => Promise<number>;
+  },
+): Promise<PipelineRunResult> {
+  return executePipeline({
+    pipeline: options.pipeline,
+    selection: { tier: "standard" },
+    roles: options.roles,
+    runtimeFor: options.runtimeFor ?? ((role) => getRuntime(role.runtime)),
+    briefFor: () => flow.brief,
+    promptsDir: join(options.orgRoot, "prompts"),
+    context: options.context,
+    workdir: options.localRepo,
+    hooks: options.hooks,
+    runlog: {
+      root: options.runtimeHome,
+      app: options.app.name,
+      traceId: options.turnId,
+    },
+    ...(options.now !== undefined ? { clock: options.now } : {}),
+    verdictSchemaFor: () => VERDICT_SCHEMAS[flow.kind] as Record<string, unknown>,
+    telemetry: options.telemetry,
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+    recordVerdict: async (ctx) => recordM6Verdict(flow, ctx),
+  });
+}
+
+async function recordM6Verdict<K extends "learning-distill" | "learning-review">(
+  flow: {
+    kind: K;
+    parse: (text: string) => ParseResult<K>;
+    onVerdict: (verdict: VerdictTypes[K]) => Promise<number>;
+  },
+  ctx: VerdictRecordContext,
+): Promise<VerdictRecordOutcome> {
+  let retryUsage: TurnUsage | undefined;
+  const reformat = async (reason: string): Promise<string> => {
+    const retried = await ctx.runtime.runTurn(
+      {
+        role: ctx.role,
+        workdir: ctx.workdir,
+        task: [
+          `Your ${flow.kind} structured output could not be accepted:`,
+          reason,
+          "",
+          "Return only one corrected JSON object matching the supplied schema and evidence.",
+        ].join("\n"),
+        context: ctx.context,
+        session: ctx.result.session,
+        verdictSchema: VERDICT_SCHEMAS[flow.kind] as Record<string, unknown>,
+      },
+      ctx.hooks,
+    );
+    retryUsage = retried.usage;
+    return retried.summary;
+  };
+  try {
+    const verdict = await parseWithRetry(flow.kind, ctx.result.summary, reformat, flow.parse);
+    const records = await flow.onVerdict(verdict);
+    await ctx.events.append({
+      type: "verdict.recorded",
+      detail: { kind: flow.kind, records },
+    });
+    return { ok: true, ...(retryUsage !== undefined ? { extraUsage: retryUsage } : {}) };
+  } catch (error) {
+    return {
+      ok: false,
+      errorCode: error instanceof VerdictParseError ? "error_verdict_unparseable" : "error_learning_persist",
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
 }
 
 async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {

@@ -126,3 +126,15 @@ ci-sweep:
     - id: sweep
       role: marketing
       template: marketing/ci-sweep.md
+
+learning-distill:
+  passes:
+    - id: distill
+      role: distiller
+      template: learning/distill.md
+
+learning-review:
+  passes:
+    - id: review
+      role: learning-reviewer
+      template: learning/review.md

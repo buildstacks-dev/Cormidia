@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import type { AppsFile } from "../../src/org/apps.js";
 import { ObserveService } from "../../src/observe/live-source.js";
 import { startObserveServer, type StartedObserveServer } from "../../src/observe/server.js";
 import type { GitHubReadResult, ObserveGitHubSource } from "../../src/observe/github-source.js";
+import { ReportService } from "../../src/report/service.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
@@ -147,6 +148,51 @@ describe("observer server integration", () => {
     }
   });
 
+  it("serves lazy Reports routes under the same capability without exposing L3 or writing exports", async () => {
+    const rig = await startRig({ prompt: "REPORT-MUST-NOT-CONTAIN-L3" });
+    expect(rig.reportService.projectionCount()).toBe(0);
+    expect((await fetch(`${rig.base}/reports`)).status).toBe(401);
+    const page = await authFetch(rig, "/reports");
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("Operon Reports");
+    expect(rig.reportService.projectionCount()).toBe(0);
+    write(rig.stateHome, "telemetry/2026-07-12.jsonl", `${JSON.stringify({ at: "2026-07-12T11:31:01.000Z", role: "builder", runtime: "codex", model: "gpt-5.5", status: "completed", tokensIn: 10, tokensOut: 5, costUsd: 0.1, usageQuality: "complete", subagentTurns: 0, wallClockMs: 60_000, escalations: 0, app: "alpha", runId: "run-1", traceId: "trace-1", pipeline: "build", pass: "implement" })}\n`);
+    const summaryResponse = await authFetch(rig, "/api/v1/reports/summary?period=7d&refresh=1");
+    expect(summaryResponse.status).toBe(200);
+    expect(rig.reportService.projectionCount()).toBe(1);
+    expect(summaryResponse.headers.get("cache-control")).toContain("no-store");
+    const summary = await summaryResponse.json() as { headline: { provider_turns: number }; session_details: unknown[] };
+    expect(summary.headline.provider_turns).toBe(1);
+    expect(summary.session_details).toEqual([]);
+    const sessions = await (await authFetch(rig, "/api/v1/reports/sessions?period=7d&limit=10")).json() as { items: Array<{ summary: { id: string } }> };
+    expect(sessions.items[0]?.summary.id).toBe("trace:alpha:trace-1");
+    const detail = await authFetch(rig, `/api/v1/reports/sessions/${encodeURIComponent("trace:alpha:trace-1")}?period=7d`);
+    expect(detail.status).toBe(200);
+    const html = await authFetch(rig, "/api/v1/reports/export.html?period=7d");
+    expect(html.headers.get("content-disposition")).toContain("operon-report.html");
+    expect(await html.text()).not.toContain("REPORT-MUST-NOT-CONTAIN-L3");
+    const json = await authFetch(rig, "/api/v1/reports/export.json?period=7d&summary_only=1");
+    expect((await json.json() as { summary_only: boolean }).summary_only).toBe(true);
+    expect(existsSync(join(rig.stateHome, "operon-report.html"))).toBe(false);
+    expect((await authFetch(rig, "/api/v1/reports/summary?period=bad")).status).toBe(400);
+    expect((await authFetch(rig, "/api/v1/reports/summary?app=missing")).status).toBe(400);
+    expect((await authFetch(rig, "/api/v1/reports/sessions/not-there?period=7d")).status).toBe(404);
+    expect((await authFetch(rig, "/api/v1/reports/sessions?period=7d&cursor=bad")).status).toBe(400);
+  });
+
+  it("fails closed for app-scoped report service and asks paging clients to resync after source drift", async () => {
+    const rig = await startRig({ reportAppScope: "alpha" });
+    write(rig.stateHome, "telemetry/2026-07-12.jsonl", [
+      { at: "2026-07-12T10:00:00.000Z", role: "builder", runtime: "codex", model: "m", status: "completed", tokensIn: 1, tokensOut: 1, costUsd: 0.1, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1, escalations: 0, app: "alpha", runId: "orphan-a", pipeline: "build", pass: "a" },
+      { at: "2026-07-12T10:01:00.000Z", role: "builder", runtime: "codex", model: "m", status: "completed", tokensIn: 1, tokensOut: 1, costUsd: 0.1, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1, escalations: 0, app: "alpha", runId: "orphan-b", pipeline: "build", pass: "b" },
+    ].map(JSON.stringify).join("\n") + "\n");
+    expect((await authFetch(rig, "/api/v1/reports/summary?app=beta&period=7d")).status).toBe(403);
+    const first = await (await authFetch(rig, "/api/v1/reports/sessions?period=7d&limit=1&refresh=1")).json() as { next_cursor: string };
+    expect(first.next_cursor).toBeTruthy();
+    writeFileSync(join(rig.stateHome, "telemetry", "2026-07-12.jsonl"), `${readFileSync(join(rig.stateHome, "telemetry", "2026-07-12.jsonl"), "utf8")}${JSON.stringify({ at: "2026-07-12T10:02:00.000Z", role: "builder", runtime: "codex", model: "m", status: "completed", tokensIn: 1, tokensOut: 1, costUsd: 0.1, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1, escalations: 0, app: "alpha", runId: "orphan-c", pipeline: "build", pass: "c" })}\n`);
+    expect((await authFetch(rig, `/api/v1/reports/sessions?period=7d&limit=1&cursor=${encodeURIComponent(first.next_cursor)}`)).status).toBe(409);
+  });
+
   it("keeps the last GitHub projection while that source degrades, then recovers independently", async () => {
     const github = new FlakyGitHub();
     const rig = await startRig({ githubSource: github });
@@ -172,9 +218,10 @@ interface Rig {
   started: StartedObserveServer;
   base: string;
   cleanup: () => Promise<void>;
+  reportService: ReportService;
 }
 
-async function startRig(options: { prompt?: string; replayLimit?: number; githubSource?: ObserveGitHubSource } = {}): Promise<Rig> {
+async function startRig(options: { prompt?: string; replayLimit?: number; githubSource?: ObserveGitHubSource; reportAppScope?: string } = {}): Promise<Rig> {
   const root = mkdtempSync(join(tmpdir(), "operon-observe-server-"));
   const stateHome = join(root, "state");
   writeEnvelope(stateHome, { status: "completed", finished_at: "2026-07-12T11:31:00.000Z", wall_clock_ms: 60_000 });
@@ -196,7 +243,13 @@ async function startRig(options: { prompt?: string; replayLimit?: number; github
     clock: () => new Date("2026-07-12T12:00:00.000Z"),
   });
   await service.start();
-  const started = await startObserveServer({ service, stateHome, port: 0 });
+  const reportService = new ReportService({ orgName: "fixture-org", stateHome, appsFile: appsFile(), clock: () => new Date("2026-07-12T12:00:00.000Z"), ...(options.reportAppScope !== undefined ? { appScope: options.reportAppScope } : {}) });
+  const started = await startObserveServer({
+    service,
+    stateHome,
+    port: 0,
+    reportService,
+  });
   let closed = false;
   const cleanup = async (): Promise<void> => {
     if (closed) {
@@ -209,14 +262,17 @@ async function startRig(options: { prompt?: string; replayLimit?: number; github
     rmSync(root, { recursive: true, force: true });
   };
   cleanups.push(cleanup);
-  return { root, stateHome, service, started, base: `http://127.0.0.1:${started.port}`, cleanup };
+  return { root, stateHome, service, started, base: `http://127.0.0.1:${started.port}`, cleanup, reportService };
 }
 
 function appsFile(): AppsFile {
   return {
     org: { name: "fixture-org", maxConcurrentTurns: 2 },
     defaults: { budgetUsdMonth: 1000 },
-    apps: [{ name: "alpha", repo: "owner/alpha", status: "live", budgetUsdMonth: 1000, cadence: {}, channels: {} }],
+    apps: [
+      { name: "alpha", repo: "owner/alpha", status: "live", budgetUsdMonth: 1000, cadence: {}, channels: {} },
+      { name: "beta", repo: "owner/beta", status: "paused", budgetUsdMonth: 1000, cadence: {}, channels: {} },
+    ],
   };
 }
 

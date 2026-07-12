@@ -6,6 +6,7 @@ import { ObserveService } from "../observe/live-source.js";
 import { startObserveServer } from "../observe/server.js";
 import type { ObserveFiltersV1 } from "../observe/types.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { ReportService } from "../report/service.js";
 
 interface ObserveArgs {
   app?: string;
@@ -37,6 +38,12 @@ export async function cmdObserve(args: string[]): Promise<number> {
   const started = await startObserveServer({
     service,
     stateHome: homes.stateHome,
+    reportService: new ReportService({
+      orgName: homes.appsFile.org.name,
+      stateHome: homes.stateHome,
+      appsFile: homes.appsFile,
+      ...(parsed.app !== undefined ? { appScope: parsed.app } : {}),
+    }),
     ...(parsed.port !== undefined ? { port: parsed.port } : {}),
   });
 

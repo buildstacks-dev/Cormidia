@@ -100,6 +100,13 @@ try {
   const capabilities = JSON.parse(run(operon, ["capabilities", "--json"], neutral));
   assert(capabilities.commands.some((entry) => entry.command === "bootstrap"), "bootstrap capability is absent");
   assert(capabilities.commands.some((entry) => entry.command === "observe" && entry.writes === false && entry.spendsTokens === false), "observe capability is absent or not read-only/token-free");
+  assert(capabilities.commands.some((entry) => entry.command === "report" && entry.writes === false && entry.spendsTokens === false), "report capability is absent or not read-only/token-free");
+  const reportJson = JSON.parse(run(operon, ["report", "--period", "7d", "--json"], neutral));
+  assert(reportJson.schema_version === 1 && reportJson.scope.kind === "org", "report JSON contract is unavailable");
+  const portableReport = join(root, "fixture-report.html");
+  run(operon, ["report", "--period", "7d", "--html", portableReport], neutral);
+  assert(existsSync(portableReport), "portable report was not written");
+  assert(!readFileSync(portableReport, "utf8").includes("https://"), "portable report contains an external request");
   run(operon, ["doctor", "--json", "--config-only"], neutral);
   run(
     operon,
@@ -122,6 +129,7 @@ try {
   assert(existsSync(compiled), "compiled CLI is missing; run pnpm build first");
   run(process.execPath, [compiled, "context", "--json"], neutral);
   run(process.execPath, [compiled, "doctor", "--json", "--config-only"], neutral);
+  run(process.execPath, [compiled, "report", "--period", "7d", "--json"], neutral);
 
   console.log(`onboarding smoke: PASS (${root})`);
 } finally {
@@ -171,6 +179,14 @@ async function smokeObserver(command, cwd) {
   const response = await fetch(health, { cache: "no-store" });
   assert(response.ok, `observer health failed with ${response.status}`);
   assert(response.headers.get("cache-control")?.includes("no-store"), "observer health omitted no-store");
+  const reports = new URL("/reports", url);
+  reports.search = new URL(url).search;
+  const reportPage = await fetch(reports, { cache: "no-store" });
+  assert(reportPage.ok && (await reportPage.text()).includes("Operon Reports"), "observer Reports page failed");
+  const summary = new URL("/api/v1/reports/summary?period=7d", url);
+  summary.searchParams.set("token", new URL(url).searchParams.get("token"));
+  const reportSummary = await fetch(summary, { cache: "no-store" });
+  assert(reportSummary.ok && (await reportSummary.json()).schema_version === 1, "observer report API failed");
   child.kill("SIGTERM");
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("onboarding smoke: observer did not stop")), 5_000);

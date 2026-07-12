@@ -110,6 +110,17 @@ describe("cli dispatch", () => {
     }));
   });
 
+  it("report is discoverable as a token-free ledger report", async () => {
+    const help = await runCli(["report", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.stdout).toContain("trailing 90 UTC calendar days");
+    expect(help.stdout).toContain("never reconciles or mutates Operon state");
+
+    const capabilities = await runCli(["capabilities", "--json"]);
+    const parsed = JSON.parse(capabilities.stdout) as { commands: Array<Record<string, unknown>> };
+    expect(parsed.commands).toContainEqual(expect.objectContaining({ command: "report", writes: false, spendsTokens: false }));
+  });
+
   it("pipelines subcommand validates the root pipelines.yaml", async () => {
     const { stdout, code } = await runCli(["pipelines"]);
     expect(code).toBe(0);

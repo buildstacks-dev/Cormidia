@@ -127,6 +127,8 @@ operon status
 operon budget
 operon analyze
 operon approvals
+operon report --period 90d
+operon report --app <app> --period 30d --html app-report.html
 operon observe --app <app> --open
 ```
 
@@ -183,9 +185,11 @@ Contributors can still use `pnpm dev <command>` inside the Operon source repo,
 but product and org workflows should exercise the installed `operon` command
 from a neutral directory.
 
-## Live UI
+## Live UI and Reports
 
-`operon observe` starts the read-only Live UI in the foreground. It resolves
+`operon observe` starts one read-only local server in the foreground. **Live**
+remains at `/`; **Reports** is available at `/reports` under the same
+per-process capability, listener, security headers, and navigation shell. It resolves
 the active org and state home independently of the working directory, binds
 only to `127.0.0.1`, and prints a per-process capability URL. Use `--app`,
 `--parent-task`, or `--ticket` to deep-link a scoped view; `--open` launches the
@@ -205,6 +209,25 @@ they require an explicit local fetch, and `session.log` is labeled **activity
 log—not transcript**. There are no configuration, approval, retry, merge,
 label, deploy, or other mutation routes or controls. Closing the browser or
 observer cannot stop a run.
+
+Reports are explicit as-of snapshots, not SSE-updating live totals. The first
+panel discloses incomplete, estimated, unavailable, duplicate, corrupt,
+unsettled, legacy, or retention-limited data before showing known tokens,
+equivalent-cost provenance, trends, allocations, operating-health
+distributions, current-month budget context, and exhaustive session/pass
+detail. An observer started with `--app` is server-scoped: its Reports mode
+cannot query the org or sibling apps.
+
+`operon report` provides the same ledger-first read model without starting a
+server. Omitted `--app` means the active org; the default is the trailing 90
+UTC calendar days. Terminal output is concise, while `--json` and portable
+`--html` are exhaustive unless `--summary-only` is explicit. Portable HTML is
+one responsive, accessible, print-friendly file with a hash-restricted CSP,
+no external requests, and no prompts, briefs, outputs, or activity logs.
+Report generation never reconciles or mutates state. `operon telemetry`
+remains the envelope-first forensic trace/evidence report, and `operon budget`
+remains the current-calendar-month enforcement rollup; selected multi-month
+report spend is never compared directly with one monthly cap.
 
 ## Setup / auth
 
@@ -256,7 +279,9 @@ src/org/       app registry, bootstrap, co-planning, dispatch, approvals,
                budget overlays, trigger routing, context, memory, scorecards,
                retro, and the governed learning loop (src/org/learning/)
 src/observe/   versioned read projection, bounded GitHub source, loopback
-               HTTP/SSE server, and framework-free Live UI
+               HTTP/SSE server, and framework-free Live UI shell
+src/report/    ledger/range/detail readers, deterministic report projection,
+               portable renderers, lazy cache/paging service, Reports assets
 src/cli/       one module per subcommand; src/cli.ts is a thin dispatch table
 test/          adapter conformance, gate, pipelines, bootstrap, qgates, CLI
 research/      decision records
@@ -318,6 +343,14 @@ Subscription-backed provider costs are Operon-computed equivalent-cost
 estimates, flagged as such on every row. `operon telemetry --app <app>
 [--html out.html]` renders the run view and copies linked artifacts into an
 adjacent evidence bundle.
+
+`operon report [--app <app>] [--period 90d] [--json|--html out.html]`
+instead reads the ledger first, keeps duplicate rows as recorded, separates
+provider-reported, estimated, partial, and unknown cost, and groups explicit
+parent tasks, traces, orphan runs, mechanical passes, and legacy unattributed
+turns for management drill-down without copying L3 evidence. Current-month
+budget context uses the same ledger semantics as `operon budget`; historical
+range spend remains a separate fact.
 
 For work delegated from an outer Codex/Claude session, begin a parent record
 once with `operon task begin --id <id> --prompt-file <exact-prompt>`, export

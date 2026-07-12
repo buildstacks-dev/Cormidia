@@ -5,6 +5,9 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { dirname, join, resolve, sep } from "node:path";
 import { OBSERVE_CSS, OBSERVE_HTML, OBSERVE_JS } from "./assets.js";
 import type { ObserveService } from "./live-source.js";
+import { REPORT_CSS, REPORT_HTML, REPORT_JS } from "../report/assets.js";
+import { ReportServiceError, type ReportService } from "../report/service.js";
+import type { ReportQuery } from "../report/types.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024;
@@ -15,6 +18,7 @@ export interface ObserveServerOptions {
   stateHome: string;
   token?: string;
   artifactLimitBytes?: number;
+  reportService?: ReportService;
 }
 
 export interface StartedObserveServer {
@@ -34,7 +38,7 @@ export function createObserveServer(options: ObserveServerOptions): { server: Se
   const token = options.token ?? mintCapabilityToken();
   const server = createServer((request, response) => {
     void route(request, response, { ...options, token }).catch((error) => {
-      const status = error instanceof HttpError ? error.status : 500;
+      const status = error instanceof HttpError || error instanceof ReportServiceError ? error.status : 500;
       if (!response.headersSent) writeHeaders(response, status, "application/json; charset=utf-8");
       if (!response.writableEnded) response.end(JSON.stringify({ error: safeError(error) }));
     });
@@ -90,6 +94,11 @@ async function route(
     sendText(response, method, 200, "text/html; charset=utf-8", OBSERVE_HTML, cookie);
     return;
   }
+  if (url.pathname === "/reports") {
+    requireReportService(options);
+    sendText(response, method, 200, "text/html; charset=utf-8", REPORT_HTML, cookie);
+    return;
+  }
   if (url.pathname === "/assets/observe.css") {
     sendText(response, method, 200, "text/css; charset=utf-8", OBSERVE_CSS);
     return;
@@ -98,12 +107,56 @@ async function route(
     sendText(response, method, 200, "text/javascript; charset=utf-8", OBSERVE_JS);
     return;
   }
+  if (url.pathname === "/assets/report.css") {
+    requireReportService(options);
+    sendText(response, method, 200, "text/css; charset=utf-8", REPORT_CSS);
+    return;
+  }
+  if (url.pathname === "/assets/report.js") {
+    requireReportService(options);
+    sendText(response, method, 200, "text/javascript; charset=utf-8", REPORT_JS);
+    return;
+  }
   if (url.pathname === "/healthz") {
     sendJson(response, method, 200, { status: "ok", read_only: true, schema_version: 1, cursor: options.service.snapshot().cursor });
     return;
   }
   if (url.pathname === "/api/v1/snapshot") {
     sendJson(response, method, 200, options.service.snapshot());
+    return;
+  }
+  if (url.pathname === "/api/v1/reports/summary") {
+    const service = requireReportService(options);
+    sendJson(response, method, 200, { ...(await service.summary(reportQuery(url), url.searchParams.get("refresh") === "1")), server_scope: service.immutableAppScope() });
+    return;
+  }
+  if (url.pathname === "/api/v1/reports/sessions") {
+    const service = requireReportService(options);
+    const limitValue = url.searchParams.get("limit");
+    const limit = limitValue === null ? undefined : Number(limitValue);
+    sendJson(response, method, 200, await service.sessions(reportQuery(url), {
+      ...(url.searchParams.get("cursor") !== null ? { cursor: url.searchParams.get("cursor")! } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+      refresh: url.searchParams.get("refresh") === "1",
+      ...(url.searchParams.get("filter") !== null ? { filter: url.searchParams.get("filter")! } : {}),
+      ...(url.searchParams.get("sort") !== null ? { sort: url.searchParams.get("sort")! as "newest" | "oldest" | "cost" | "tokens" | "status" | "app" } : {}),
+    }));
+    return;
+  }
+  const reportSession = /^\/api\/v1\/reports\/sessions\/([^/]+)$/.exec(url.pathname);
+  if (reportSession !== null) {
+    const service = requireReportService(options);
+    sendJson(response, method, 200, await service.session(reportQuery(url), decodeSegment(reportSession[1]!)));
+    return;
+  }
+  if (url.pathname === "/api/v1/reports/export.json") {
+    const service = requireReportService(options);
+    sendDownload(response, method, "application/json; charset=utf-8", await service.exportJson(reportQuery(url)), "operon-report.json");
+    return;
+  }
+  if (url.pathname === "/api/v1/reports/export.html") {
+    const service = requireReportService(options);
+    sendDownload(response, method, "text/html; charset=utf-8", await service.exportHtml(reportQuery(url)), "operon-report.html");
     return;
   }
   if (url.pathname === "/api/v1/events") {
@@ -268,6 +321,41 @@ function sendJson(response: ServerResponse, method: string, status: number, body
   sendText(response, method, status, "application/json; charset=utf-8", `${JSON.stringify(body)}\n`);
 }
 
+function sendDownload(response: ServerResponse, method: string, type: string, body: string, filename: string): void {
+  sendText(response, method, 200, type, body, { "Content-Disposition": `attachment; filename="${filename}"` });
+}
+
+function requireReportService(options: ObserveServerOptions): ReportService {
+  if (options.reportService === undefined) throw new HttpError(404, "reports_unavailable");
+  return options.reportService;
+}
+
+function reportQuery(url: URL): ReportQuery {
+  const allowed = new Set(["token", "app", "period", "since", "until", "bucket", "summary_only", "refresh", "cursor", "limit", "sort", "filter"]);
+  for (const key of url.searchParams.keys()) if (!allowed.has(key)) throw new HttpError(400, "invalid_report_parameter");
+  const query: ReportQuery = {};
+  const app = url.searchParams.get("app");
+  const period = url.searchParams.get("period");
+  const since = url.searchParams.get("since");
+  const until = url.searchParams.get("until");
+  const bucket = url.searchParams.get("bucket");
+  if (app !== null && app.length > 0) query.app = app;
+  if (period !== null) {
+    if (!["7d", "30d", "90d", "1y", "all"].includes(period)) throw new HttpError(400, "invalid_report_period");
+    query.period = period as NonNullable<ReportQuery["period"]>;
+  }
+  if (since !== null) query.since = since;
+  if (until !== null) query.until = until;
+  if (bucket !== null) {
+    if (!["auto", "day", "week", "month"].includes(bucket)) throw new HttpError(400, "invalid_report_bucket");
+    query.bucket = bucket as NonNullable<ReportQuery["bucket"]>;
+  }
+  const summaryOnly = url.searchParams.get("summary_only");
+  if (summaryOnly !== null && summaryOnly !== "0" && summaryOnly !== "1") throw new HttpError(400, "invalid_summary_only");
+  if (summaryOnly === "1") query.summaryOnly = true;
+  return query;
+}
+
 function assertId(value: string, kind: string): void {
   if (!ID_RE.test(value) || value === "." || value === "..") throw new HttpError(400, `invalid_${kind}_id`);
 }
@@ -303,7 +391,7 @@ function isAddressInUse(error: unknown): boolean {
 }
 
 function safeError(error: unknown): string {
-  if (error instanceof HttpError) return error.code;
+  if (error instanceof HttpError || error instanceof ReportServiceError) return error.code;
   return error instanceof Error ? error.message : String(error);
 }
 

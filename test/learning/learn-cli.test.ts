@@ -6,7 +6,7 @@
 // is exercised via its required-flags error. Temp dirs only; no network.
 
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -98,12 +98,26 @@ function captureLogs(): { logs: string[]; errors: string[] } {
   return { logs, errors };
 }
 
+function treeHashes(root: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const walk = (dir: string, prefix = ""): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path, relative);
+      else out[relative] = createHash("sha256").update(readFileSync(path)).digest("hex");
+    }
+  };
+  walk(root);
+  return out;
+}
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("operon learn", () => {
   it("report captures runs and prints totals plus the episode section", async () => {
     const { logs } = captureLogs();
-    expect(await cmdLearn(["report", ...HOME_FLAGS])).toBe(0);
+    expect(await cmdLearn(["report", "--refresh", ...HOME_FLAGS])).toBe(0);
     const text = logs.join("\n");
     expect(text).toContain("every activation human-approved");
     expect(text).toContain("gate_verdict: 2");
@@ -113,6 +127,77 @@ describe("operon learn", () => {
     // The ticket has no merge evidence yet: open, no outcome totals.
     expect(text).toContain(`${EPISODE} — build_ticket open; 4 event(s)`);
     expect(text).toContain("gate.lint: 1");
+  });
+
+  it("report is read-only by default and refresh is an explicit projection write", async () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-learn-report-readonly-"));
+    const orgHome = join(root, "org");
+    const stateHome = join(root, "state");
+    const flags = ["--org-home", orgHome, "--state-home", stateHome];
+    try {
+      await initOrgHome({
+        target: orgHome,
+        name: "read-only-report",
+        stateHome,
+        homeDir: join(root, "home"),
+      });
+      writeFileSync(
+        join(orgHome, "apps.yaml"),
+        [
+          "schema_version: 1",
+          "org: { name: read-only-report, max_concurrent_turns: 1 }",
+          "defaults: { budget_usd_month: 100 }",
+          "apps:",
+          "  alpha:",
+          "    repo: owner/alpha",
+          "    status: live",
+          "",
+        ].join("\n"),
+      );
+      const run = runPaths(stateHome, "alpha", "20260711-070000-build-implement");
+      mkdirSync(run.dir, { recursive: true });
+      writeFileSync(
+        run.envelope,
+        JSON.stringify({
+          schema_version: 1,
+          run_id: "20260711-070000-build-implement",
+          trace_id: "turn-alpha-8",
+          app: "alpha",
+          ticket: "#8",
+          pipeline: "build",
+          pass: "implement",
+          role: "builder",
+          runtime: "codex",
+          model: "gpt-test",
+          effort: "medium",
+          status: "completed",
+          started_at: "2026-07-11T07:00:00.000Z",
+          finished_at: "2026-07-11T07:01:00.000Z",
+          gate_results: [{ gate: "test", status: "passed", detail: "green" }],
+          refs: { events: "events.jsonl", brief: "brief.md", output: "output.md" },
+        }) + "\n",
+      );
+      const before = treeHashes(stateHome);
+
+      const readOnly = captureLogs();
+      expect(await cmdLearn(["report", "--json", ...flags])).toBe(0);
+      const readOnlyJson = JSON.parse(readOnly.logs.join("\n")) as {
+        capture: { mode: string; refreshRequired: boolean };
+      };
+      expect(readOnlyJson.capture).toMatchObject({ mode: "read_only", refreshRequired: true });
+      expect(treeHashes(stateHome)).toEqual(before);
+      vi.restoreAllMocks();
+
+      const refresh = captureLogs();
+      expect(await cmdLearn(["report", "--json", "--refresh", ...flags])).toBe(0);
+      const refreshedJson = JSON.parse(refresh.logs.join("\n")) as {
+        capture: { mode: string; refreshRequired: boolean };
+      };
+      expect(refreshedJson.capture).toMatchObject({ mode: "refreshed", refreshRequired: false });
+      expect(treeHashes(stateHome)).not.toEqual(before);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("report stays available and names a missing learning event file", async () => {

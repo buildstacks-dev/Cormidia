@@ -449,7 +449,7 @@ export async function activationReport(
   // Reviewer-human agreement (spec §18): compare each verdict with the human
   // decision on the same candidate's learning_publish approval.
   const store = new ApprovalStore(homes.stateHome);
-  const decided = await store.listDecided();
+  const decided = await store.listDecidedReadOnly();
   let compared = 0;
   let agreed = 0;
   for (const verdict of allVerdicts) {

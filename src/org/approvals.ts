@@ -205,6 +205,16 @@ export class ApprovalStore {
 
   async listDecided(): Promise<ApprovalItem[]> {
     await this.ensureDirs();
+    return this.readDecided();
+  }
+
+  /** Diagnostic read that does not materialize an empty approvals tree. */
+  async listDecidedReadOnly(): Promise<ApprovalItem[]> {
+    if (!existsSync(this.decidedDir())) return [];
+    return this.readDecided();
+  }
+
+  private async readDecided(): Promise<ApprovalItem[]> {
     const ids = await listJsonIds(this.decidedDir());
     const items = await Promise.all(ids.map((id) => readJson<ApprovalItem>(this.decidedPath(id))));
     return items.sort((a, b) => (a.decidedAt ?? a.raisedAt).localeCompare(b.decidedAt ?? b.raisedAt));

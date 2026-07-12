@@ -113,7 +113,8 @@ of the agent-direct active-memory path. Nothing activates; nothing distills.
   (observation / cause hypothesis / suggested intervention kept separate),
   `operon learn show <id>` tracing an observation to its disposition.
 - Read-only reports over captured events (`operon learn report`, capture-only
-  sections).
+  sections). Projection writes are explicit through `operon learn report
+  --refresh`; the default report only previews whether a refresh is required.
 
 **Done means:**
 

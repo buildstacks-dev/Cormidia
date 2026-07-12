@@ -53,6 +53,10 @@ export interface ProjectCaptureOptions {
 }
 
 export interface CaptureProjectionResult {
+  /** `read_only` previews pending projection work; `refreshed` performed the
+   * idempotent projection writes. */
+  mode: "read_only" | "refreshed";
+  refreshRequired: boolean;
   /** Terminal runs projected this call. */
   runsProjected: number;
   /** Runs skipped via cursor receipt (already projected). */
@@ -66,6 +70,8 @@ export interface CaptureProjectionResult {
    * immutable run evidence. */
   runsRepaired: number;
   eventFilesRecovered: number;
+  /** Legacy/path-mismatched receipts that an explicit refresh will rebind. */
+  receiptsNeedingUpgrade: number;
   /** Incomplete projections that could not be fully reconstructed. */
   warnings: string[];
 }
@@ -77,10 +83,28 @@ export function captureCursorPath(stateHome: string): string {
 export async function projectCaptureEvents(
   options: ProjectCaptureOptions,
 ): Promise<CaptureProjectionResult> {
+  return captureEvents(options, true);
+}
+
+/** Read-only scan used by `operon learn report`. It derives enough from the
+ * immutable run evidence to identify new/missing projections but never
+ * appends events, rewrites the cursor, or projects episode records. */
+export async function previewCaptureEvents(
+  options: ProjectCaptureOptions,
+): Promise<CaptureProjectionResult> {
+  return captureEvents(options, false);
+}
+
+async function captureEvents(
+  options: ProjectCaptureOptions,
+  write: boolean,
+): Promise<CaptureProjectionResult> {
   const { stateHome } = options;
   const clock = options.clock ?? ((): Date => new Date());
   const cursor = await readCursor(stateHome);
   const result: CaptureProjectionResult = {
+    mode: write ? "refreshed" : "read_only",
+    refreshRequired: false,
     runsProjected: 0,
     runsAlreadyProjected: 0,
     runsPending: 0,
@@ -88,6 +112,7 @@ export async function projectCaptureEvents(
     eventsDeduped: 0,
     runsRepaired: 0,
     eventFilesRecovered: 0,
+    receiptsNeedingUpgrade: 0,
     warnings: [],
   };
 
@@ -125,21 +150,28 @@ export async function projectCaptureEvents(
     if (receipt !== undefined && missingBefore.length === 0) {
       // Legacy receipt migration: the event file exists, but older cursors did
       // not bind the receipt to its paths. Upgrade without re-appending.
-      cursor.runs[key] = {
-        ...receipt,
-        event_files: eventFiles,
-      };
+      result.receiptsNeedingUpgrade += 1;
+      result.refreshRequired ||= !write;
+      if (write) {
+        cursor.runs[key] = {
+          ...receipt,
+          event_files: eventFiles,
+        };
+      }
       result.runsAlreadyProjected += 1;
       continue;
     }
-    const { emitted, deduped } = await appendLearningEventsDeduped(stateHome, events);
-    result.eventsEmitted += emitted;
-    result.eventsDeduped += deduped;
-    cursor.runs[key] = {
-      projected_at: clock().toISOString(),
-      events: events.length,
-      event_files: eventFiles,
-    };
+    result.refreshRequired ||= !write;
+    if (write) {
+      const { emitted, deduped } = await appendLearningEventsDeduped(stateHome, events);
+      result.eventsEmitted += emitted;
+      result.eventsDeduped += deduped;
+      cursor.runs[key] = {
+        projected_at: clock().toISOString(),
+        events: events.length,
+        event_files: eventFiles,
+      };
+    }
     if (receipt === undefined) {
       result.runsProjected += 1;
     } else {
@@ -148,7 +180,7 @@ export async function projectCaptureEvents(
     }
   }
 
-  await writeCursor(stateHome, cursor);
+  if (write) await writeCursor(stateHome, cursor);
   return result;
 }
 

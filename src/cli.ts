@@ -121,6 +121,14 @@ const HELP = {
   capabilities: "Usage: operon capabilities [--json]",
 } as const;
 
+const LEARN_HELP = HELP.learn.replace(
+  "operon learn report [--json]          capture totals, episodes, experiments,\n" +
+    "                                        reviews, activation + SLA sections",
+  "operon learn report [--json] [--refresh]\n" +
+    "                                        read totals, episodes, experiments, reviews,\n" +
+    "                                        and activation; --refresh projects first",
+);
+
 const COMMANDS: Record<string, CliCommand> = {
   org: { run: (args) => cmdOrg(args), help: HELP.org },
   roles: { run: (args) => cmdRoles(args), help: HELP.roles },
@@ -136,7 +144,7 @@ const COMMANDS: Record<string, CliCommand> = {
   pipelines: { run: (args) => cmdPipelines(args), help: HELP.pipelines },
   doctor: { run: (args) => cmdDoctorArgs(args), help: HELP.doctor },
   "prune-runs": { run: (args) => cmdPruneRuns(args), help: HELP["prune-runs"] },
-  learn: { run: (args) => cmdLearn(args), help: HELP.learn },
+  learn: { run: (args) => cmdLearn(args), help: LEARN_HELP },
   retro: { run: (args) => cmdRetro(args), help: HELP.retro },
   loop: { run: (args) => cmdLoop(args), help: HELP.loop },
   "new-app": { run: (args) => cmdNewApp(args), help: HELP["new-app"] },

@@ -97,7 +97,9 @@ stop in the durable approval queue; inspect it with `operon approvals` and
 never bypass that boundary.
 
 `operon learn` read subcommands (`report`, `inspect`, `show`) are fine for
-diagnosis. The write subcommands — `emit`, `review`, `publish`, `resolve`,
+diagnosis. `report` is read-only by default; use `report --refresh` only when
+the user asks to update derived capture/episode projections. The write
+subcommands — `emit`, `review`, `publish`, `resolve`,
 `disable`, `rollback`, `provisional`, `experiment`, `canary` — are the human
 operator's governed-activation window: never invoke them as an agent (`emit`
 records a human-attributed observation; `review`/`publish` activate learned

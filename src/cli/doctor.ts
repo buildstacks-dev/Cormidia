@@ -16,6 +16,7 @@ import {
   type OperonHomeOptions,
 } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { resolveAuthority } from "../org/authority.js";
 
 const ADAPTER_NOTE: Record<RuntimeKind, string> = {
   claude: "claude-agent-sdk; auth not verified here",
@@ -64,6 +65,15 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
     const pipelinesPath = join(homes.orgHome, "pipelines.yaml");
     const roles = await checked(config, "roles.yaml", () => loadRoles(rolesPath));
     await checked(config, "apps.yaml", () => loadApps(appsPath));
+    const authority = await resolveAuthority({ orgHome: homes.orgHome });
+    config.push({
+      name: "AUTHORITY.md",
+      status: authority.version === "legacy-conservative/v1" ? "WARN" : "OK",
+      detail:
+        authority.version === "legacy-conservative/v1"
+          ? "missing; effective authority fails closed to legacy-conservative/v1"
+          : `${authority.version} sha256:${authority.sha256}`,
+    });
     if (roles !== undefined) {
       await checked(config, "pipelines.yaml", () =>
         loadPipelines(pipelinesPath, {

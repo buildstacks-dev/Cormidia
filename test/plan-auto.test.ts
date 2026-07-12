@@ -208,13 +208,12 @@ describe("runAutoPlan", () => {
 
     expect(result.status).toBe("completed");
     expect(result.planningDecision).toMatchObject({ depth: "deep", riskTier: "high" });
-    expect(runtime.calls.map((call) => call.req.task.match(/# Pass: ([^\s]+)/)?.[1])).toEqual([
-      "visionary",
-      "pm-a",
-      "pm-b",
-      "arbitrator",
-      "decomposer",
-    ]);
+    const passes = runtime.calls.map((call) => call.req.task.match(/# Pass: ([^\s]+)/)?.[1]);
+    expect(passes[0]).toBe("visionary");
+    // The two PM perspectives are one parallel group; start order is
+    // intentionally nondeterministic, but both must precede arbitration.
+    expect(passes.slice(1, 3).sort()).toEqual(["pm-a", "pm-b"]);
+    expect(passes.slice(3)).toEqual(["arbitrator", "decomposer"]);
   });
 });
 

@@ -17,7 +17,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { runPaths } from "./paths.js";
 import { scrubSecrets, truncatePreview } from "./redact.js";
-import type { Artifact, Effort, RuntimeKind, SessionHandle } from "../types.js";
+import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, SessionHandle } from "../types.js";
 
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
@@ -105,6 +105,8 @@ export interface RunEnvelope {
    * independently auditable. */
   trace_plan?: TracePlanEvidence;
   planning_route?: PlanningRouteEvidence;
+  /** Content-bound effective delegated authority for this run. */
+  authority?: AuthorityEvidence;
   /** REFERENCES to the L3/L2 siblings, relative to the run dir. A ref is a
    *  promise: `session_log` is declared while the run is live (the sink may
    *  still produce it) and dropped at finalize when no file was written —
@@ -154,6 +156,7 @@ export interface StartRunMeta {
   gitBranch?: string;
   tracePlan?: TracePlanEvidence;
   planningRoute?: PlanningRouteEvidence;
+  authority?: AuthorityEvidence;
   /** Workdir HEAD at pass start — the replay seed (learning-loop design
    *  §9.4: capture for replay while the episode runs, never reconstruct
    *  afterward). Absent when the workdir is not a git checkout. */
@@ -206,6 +209,7 @@ export async function startRun(
     ...(meta.gitBranch !== undefined ? { git_branch: meta.gitBranch } : {}),
     ...(meta.tracePlan !== undefined ? { trace_plan: meta.tracePlan } : {}),
     ...(meta.planningRoute !== undefined ? { planning_route: meta.planningRoute } : {}),
+    ...(meta.authority !== undefined ? { authority: meta.authority } : {}),
     ...(meta.gitHead !== undefined ? { git_head: meta.gitHead } : {}),
     status: "running",
     started_at: now.toISOString(),

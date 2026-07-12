@@ -36,10 +36,26 @@ export interface SessionHandle {
   id: string;
 }
 
+/** Durable authority provenance recorded on tasks and run envelopes. */
+export interface AuthorityEvidence {
+  profile: string;
+  version: string;
+  sha256: string;
+  sources: string[];
+}
+
+/** Effective authority prose plus its content-bound provenance. */
+export interface AuthorityContext extends AuthorityEvidence {
+  text: string;
+}
+
 /** Assembled context for one turn: TASTE layers + role protocol + memory
  *  excerpts. Adapters inject this through their harness's NATIVE channel
  *  (CLAUDE.md / AGENTS.md / pi SYSTEM.md-append) — never a bespoke mechanism. */
 export interface ContextBundle {
+  /** Injected before TASTE. Optional only for legacy/tests that construct a
+   * bundle directly; production assembly always resolves it. */
+  authority?: AuthorityContext;
   taste: string[]; // org TASTE.md, then role addendum, then app override
   memoryExcerpts: string[]; // relevant OKF documents for this task
 }

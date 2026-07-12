@@ -69,6 +69,7 @@ describe("doctor precondition checks", () => {
       expect(output).toContain("config:");
       expect(output).toContain("roles.yaml");
       expect(output).toContain("pipelines.yaml");
+      expect(output).toContain("legacy-conservative/v1");
       // Real repo root: every ratified config parses, so doctor is green.
       expect(code).toBe(0);
     } finally {

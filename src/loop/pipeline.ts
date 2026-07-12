@@ -48,6 +48,7 @@ import { gitSnapshotOf } from "../runtime/git.js";
 import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
+import { withAuthorityBrief } from "./brief.js";
 import {
   parallelStages,
   selectPasses,
@@ -76,6 +77,10 @@ export interface ExecutePipelineOptions {
   /** Directory the pass templates live under (pipelines.yaml's sibling). */
   promptsDir: string;
   context: ContextBundle;
+  /** Offline learning replay keeps the independently validated fixture brief
+   * byte-exact; authority still arrives through native context and envelope.
+   * Every live pipeline uses the default append behavior. */
+  authorityBrief?: "append" | "context-only";
   workdir: string;
   /** Parent cancellation for the whole pipeline. */
   signal?: AbortSignal;
@@ -283,7 +288,11 @@ async function runPass(
 
   const { root, app, ticket, traceId } = options.runlog;
   const runId = mintRunId(clock(), options.pipeline.name, pass.id);
-  const brief = options.briefFor(pass);
+  const rawBrief = options.briefFor(pass);
+  const brief =
+    options.authorityBrief === "context-only"
+      ? rawBrief
+      : withAuthorityBrief(rawBrief, options.context);
   // template "" = brief-only task. Only a synthesized pipeline can carry it
   // (runRole's plain turn) — the loader rejects empty templates in config.
   const template =
@@ -319,6 +328,16 @@ async function runPass(
           })),
       },
       ...(options.planningRoute !== undefined ? { planningRoute: options.planningRoute } : {}),
+      ...(options.context.authority !== undefined
+        ? {
+            authority: {
+              profile: options.context.authority.profile,
+              version: options.context.authority.version,
+              sha256: options.context.authority.sha256,
+              sources: [...options.context.authority.sources],
+            },
+          }
+        : {}),
     },
     clock(),
   );

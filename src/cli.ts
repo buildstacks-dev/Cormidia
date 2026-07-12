@@ -31,7 +31,7 @@ import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.
 const USAGE = `operon — org runtime for a team of AI agents
 
 Usage:
-  operon org init <local-path> --name <name> [--state-home <path>]
+  operon org init <local-path> --name <name> [--state-home <path>] [--authority delegated-operator|conservative|custom] [--authority-file <path>] [--authority-by <identity>]
                            create and select a separate, complete org home
   operon org show [--json] show the active org and state homes
   operon org use <local-path> [--state-home <path>]
@@ -96,11 +96,11 @@ interface CliCommand {
 const HOME_HELP = `\n\nLocation flags:\n  --org-home <path>    committed org configuration; defaults to the active pointer\n  --state-home <path>  local high-churn runtime state; defaults to ~/.operon/<org>`;
 
 const HELP = {
-  org: `Usage:\n  operon org init <local-path> --name <name> [--state-home <path>] [--json]\n  operon org show [--json]\n  operon org use <local-path> [--state-home <path>] [--json]\n\nOrg home stores committed roles, apps, pipelines, prompts, taste, and curated memory.\nState home stores local clones, worktrees, locks, approvals, telemetry, and run logs.`,
+  org: `Usage:\n  operon org init <local-path> --name <name> [--state-home <path>] [--authority delegated-operator|conservative|custom] [--authority-file <path>] [--authority-by <identity>] [--json]\n  operon org show [--json]\n  operon org use <local-path> [--state-home <path>] [--json]\n\nNew orgs get one versioned AUTHORITY.md. The default delegated-operator profile automates ordinary reversible work while publication/deployment, secrets, cloud/DNS/infrastructure, irreversible data loss, required human merge, and material product decisions remain human-gated. Custom requires both --authority-file and an attributable --authority-by identity.\n\nOrg home stores committed roles, apps, pipelines, prompts, taste, authority, and curated memory.\nState home stores local clones, worktrees, locks, approvals, telemetry, and run logs.`,
   roles: `Usage: operon roles [roles.yaml-path]${HOME_HELP}`,
   apps: `Usage: operon apps [apps.yaml-path]${HOME_HELP}`,
   pipelines: `Usage: operon pipelines [pipelines.yaml-path]${HOME_HELP}`,
-  bootstrap: `Usage: operon bootstrap [local-repo-path] [--scan-only] [--answers <answers.json>] [--org-home <path>] [--state-home <path>]\n\nThe positional value is a local directory, never a GitHub URL. The active org must already exist. Outside an interactive terminal, --answers is required and omission writes nothing.`,
+  bootstrap: `Usage: operon bootstrap [local-repo-path] [--scan-only] [--answers <answers.json>] [--org-home <path>] [--state-home <path>]\n\nThe positional value is a local directory, never a GitHub URL. The active org must already exist. Outside an interactive terminal, --answers is required and omission writes nothing. Answers may include authority.mode=inherit|conservative|custom; custom requires restrictions and can only narrow the org charter. Bootstrap preserves existing AGENTS.md/CLAUDE.md content and composes one marked authority block.`,
   "new-app": `Usage: operon new-app <name-or-goal> --target-dir <local-path> --repo <owner/repo> [--goal <text>] [--name <app>] [--org-home <path>] [--dry-run]`,
   plan: `Usage:\n  operon plan <app-name> [--topic <text>] [--workdir <local-path>] [--dry-run] [--parent-task <id>]\n  operon plan <app-name> --auto --goal <text> [--stage bootstrap|growth|mature] [--no-publish] [--parent-task <id>] [--depth quick|standard|deep] [--risk low|medium|high] [--ambiguity low|medium|high] [--coupling low|medium|high] [--reversibility reversible|costly-to-reverse|irreversible] [--external-consequence none|internal|customer-public-production] [--expected-tickets 1-2|3-6|7+] [--sensitive-domains <csv>]${HOME_HELP}\n\n--auto applies planning-depth/v1 before constructing a runtime: quick runs one combined pass, standard runs visionary + one PM + decomposer, and deep runs competing PMs + arbitration + decomposition. Security, migration, release, destructive, high-risk, high-ambiguity, high-coupling, irreversible, externally consequential, and 7+ ticket work has a deep floor. The final plan is schema-validated and orchestrator-published; no agent-authored gh calls.`,
   loop: `Usage: operon loop --app <app-name> [--once|--follow] [--dry-run] [--allow-network] [--repo-dir <local-path>] [--parent-task <id>]${HOME_HELP}`,

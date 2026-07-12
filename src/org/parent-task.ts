@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { gitSnapshotOf } from "../runtime/git.js";
+import type { AuthorityEvidence } from "../runtime/types.js";
 import { writeFileAtomic } from "./atomic.js";
 
 export type ParentTaskStatus = "running" | "completed" | "failed" | "cancelled" | "timed_out";
@@ -51,7 +52,7 @@ export interface ParentTaskRecord {
     deployments: string[];
   };
   /** Filled by the delegated-authority slice; optional for legacy tasks. */
-  charter?: { source: string; version: string; sha256: string };
+  charter?: AuthorityEvidence;
 }
 
 export interface ParentTaskCompletionState {
@@ -75,6 +76,7 @@ export interface BeginParentTaskOptions {
   nativeTaskId?: string;
   nativeRef?: string;
   requiredStages?: string[];
+  charter?: AuthorityEvidence;
   now?: Date;
 }
 
@@ -104,6 +106,7 @@ export async function beginParentTask(options: BeginParentTaskOptions): Promise<
     ...(source !== undefined ? { source } : {}),
     ...(repository !== undefined ? { repository } : {}),
     requiredStages: options.requiredStages ?? ["planner", "builder", "reviewer"],
+    ...(options.charter !== undefined ? { charter: options.charter } : {}),
     executionMode: "operon",
     fallbackEvents: [],
     status: "running",

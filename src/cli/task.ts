@@ -17,6 +17,8 @@ import {
 } from "../org/parent-task.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { authorityEvidence, resolveAuthority } from "../org/authority.js";
+import { resolveAppWorkdir } from "../org/app-workdir.js";
 
 export async function cmdTask(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "task");
@@ -36,6 +38,15 @@ export async function cmdTask(args: string[]): Promise<number> {
       (parsed.harness === "codex" && parsed.nativeTaskId !== undefined
         ? `codex://threads/${parsed.nativeTaskId}`
         : undefined);
+    let effectiveWorkdir = parsed.workdir;
+    if (effectiveWorkdir === undefined && parsed.app !== undefined) {
+      const app = homes.appsFile.apps.find((candidate) => candidate.name === parsed.app);
+      if (app === undefined) throw new Error(`task begin: unknown app "${parsed.app}" in apps.yaml`);
+      effectiveWorkdir = resolveAppWorkdir(app, {
+        orgRoot: homes.orgHome,
+        runtimeHome: homes.stateHome,
+      });
+    }
     const record = await beginParentTask({
       stateHome: homes.stateHome,
       taskId: parsed.id,
@@ -43,11 +54,17 @@ export async function cmdTask(args: string[]): Promise<number> {
       ...(parsed.objective !== undefined ? { objective: parsed.objective } : {}),
       ...(completionCriteria !== undefined ? { completionCriteria } : {}),
       ...(parsed.app !== undefined ? { app: parsed.app } : {}),
-      ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
+      ...(effectiveWorkdir !== undefined ? { workdir: effectiveWorkdir } : {}),
       ...(parsed.harness !== undefined ? { harness: parsed.harness } : {}),
       ...(parsed.nativeTaskId !== undefined ? { nativeTaskId: parsed.nativeTaskId } : {}),
       ...(nativeRef !== undefined ? { nativeRef } : {}),
       ...(parsed.requiredStages !== undefined ? { requiredStages: parsed.requiredStages } : {}),
+      charter: authorityEvidence(
+        await resolveAuthority({
+          orgHome: homes.orgHome,
+          ...(effectiveWorkdir !== undefined ? { appWorkdir: effectiveWorkdir } : {}),
+        }),
+      ),
     });
     printTask(record);
     console.log(`next: export OPERON_PARENT_TASK_ID=${shellQuote(record.taskId)}`);
@@ -99,6 +116,9 @@ function printTask(record: ParentTaskRecord): void {
   console.log(`execution: ${record.executionMode}`);
   console.log(`required stages: ${record.requiredStages.join(", ") || "none"}`);
   console.log(`prompt: ${record.promptRef} sha256:${record.promptSha256}`);
+  if (record.charter !== undefined) {
+    console.log(`authority: ${record.charter.version} sha256:${record.charter.sha256}`);
+  }
   if (record.source?.nativeRef !== undefined) console.log(`native task: ${record.source.nativeRef}`);
   if (record.fallbackEvents.length > 0) {
     console.log(`fallbacks: ${record.fallbackEvents.map((event) => event.reason).join("; ")}`);

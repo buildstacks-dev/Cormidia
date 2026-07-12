@@ -7,23 +7,26 @@ It has machine-readable frontmatter:
 
 ```yaml
 schema_version: 1
-charter_version: delegated-operator/v1
+kind: operon-org-authority
 profile: delegated-operator
-ratified_by: <human identity>
-ratified_at: <ISO timestamp>
+version: delegated-operator/v1
 ```
 
 The body defines automatic ordinary actions and hard escalation boundaries.
-Its normalized SHA-256 is the run provenance key. App onboarding may create
-`.operon/authority.yaml` containing restrictions only; it cannot restate or
-expand the grant.
+Its byte-level SHA-256 is the run provenance key. A custom profile also records
+`granted_by`, supplied through the required `--authority-by` argument.
+
+App onboarding creates `.operon/AUTHORITY.md`: a session-readable projection
+whose structured frontmatter selects inherit/conservative/custom restrictions.
+The org document remains the only grant source.
 
 ## Profiles
 
 ### Conservative
 
-Automatic: read-only inspection, local analysis, and explicitly requested
-edits/tests. Ask before branches, issues, PRs, network use, or meaningful spend.
+Automatic: read-only inspection, local analysis, and dry-run planning. Ask
+before edits, billable model work, branches, issues, or PR preparation unless
+the current human task explicitly grants them.
 
 ### Delegated operator
 
@@ -39,13 +42,14 @@ Default language:
 
 ### Custom
 
-The human supplies a charter file. Operon validates that required critical-op
-gates remain present and records the source identity/hash.
+The human supplies a charter file plus an attributable identity. Operon wraps
+the custom prose with fixed non-bypassable boundaries and records the resulting
+source/version/hash.
 
 `operon org init` previews the selected profile in two lists: automatic and
-human-gated. Non-interactive initialization requires an explicit profile;
-interactive initialization may recommend delegated-operator but must record
-the human selection.
+human-gated. Delegated-operator is the default for new interactive and
+non-interactive orgs. Pre-feature orgs do not inherit that default: without a
+canonical file they resolve to `legacy-conservative/v1`.
 
 ## Resolution and narrowing
 
@@ -61,24 +65,29 @@ grant requires a new attributable human instruction or a new ratified charter
 version. Models never infer permission from silence, previous sessions, or a
 more permissive app file.
 
-The resolver emits the exact effective text plus source/version/hash and a
-machine-readable allow/escalate summary. A monotonic narrowing validator rejects
-an app file that attempts to add authority.
+The resolver emits the effective text plus profile/source/version/hash.
+Onboarding renders the automatic and gated preview. App custom restrictions
+accept only narrowing statements beginning with `Ask before`, `Do not`,
+`Never`, `Require human approval before`, or `Limit`; grant/bypass language is
+rejected. A stale app snapshot fails closed to a conservative effective
+charter.
 
 ## Harness composition
 
 Role turns receive the effective charter through the existing native channels:
 Codex developer instructions, Claude SDK system-prompt append, and Pi system
-append. The brief includes an authority section with the source/version/hash
-and the effective automatic/human-gated summary.
+append. Every executable `brief.md` includes a compact `[authority]` section
+with profile/source/version/hash; full prose remains in the native channel.
+The reserved offline learning-replay namespace keeps independently validated
+fixture briefs byte-exact; it still receives authority in native context and
+records authority on the envelope.
 
 Top-level sessions need project instruction projections. On org/app onboarding,
 Operon manages a clearly delimited derived block in `AGENTS.md` and
 `CLAUDE.md`. It never overwrites existing content. The block contains the
-effective charter text, canonical source path, version, and hash. Re-running is
-idempotent; changes outside the markers are preserved byte-for-byte. If a file
-cannot be composed safely, onboarding stops before writing and reports the
-manual snippet.
+effective charter projection, canonical source path, version, and hash.
+Re-running composition is idempotent; bytes outside the markers are preserved.
+Malformed or duplicate markers fail before project-instruction writes.
 
 Generated instruction blocks are projections, not additional authority
 sources. The canonical org `AUTHORITY.md` remains the only grant; app policy
@@ -86,21 +95,32 @@ and task instructions only narrow it.
 
 ## Envelope and safety contract
 
-Every run envelope stores:
+Every updated run envelope stores:
 
 ```json
 {
   "authority": {
-    "source": "/org/AUTHORITY.md",
-    "charter_version": "delegated-operator/v1",
+    "sources": ["/org/AUTHORITY.md", "/app/.operon/AUTHORITY.md"],
+    "version": "delegated-operator/v1+app-inherit/v1",
     "profile": "delegated-operator",
-    "sha256": "...",
-    "app_restrictions": "/app/.operon/authority.yaml"
+    "sha256": "..."
   }
 }
 ```
 
+Parent delegated-task records capture the same evidence at `operon task begin`.
+Historical and deliberately low-level run fixtures may lack it and render as
+legacy/unrecorded; production role context always resolves it first.
+
 The authority resolver cannot modify `defaultGate`, approval scopes, release
 policy, or adapter tool shaping. A charter is context and provenance, never a
-gate bypass. Tests must prove that every critical operation remains denied or
-queued under the broadest profile.
+gate bypass. Tests prove that external publication remains denied under the
+broadest profile.
+
+## Implemented contract
+
+The implementation lives in `src/org/authority.ts`, `src/org/home.ts`,
+`src/org/bootstrap.ts`, `src/org/context.ts`, and the run-envelope/task paths.
+Focused coverage is in `test/authority.test.ts`, the onboarding tests, and the
+pipeline envelope tests. The associated commit is recorded in
+`implementation-plan.md` after the slice lands.

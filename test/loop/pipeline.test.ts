@@ -251,6 +251,38 @@ describe("executePipeline", () => {
     }
   });
 
+  it("records the effective delegated authority version and hash on every pass envelope", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const authority = {
+      profile: "delegated-operator",
+      version: "delegated-operator/v1",
+      sha256: "a".repeat(64),
+      sources: ["/org/AUTHORITY.md", "/app/.operon/AUTHORITY.md"],
+      text: "delegated authority",
+    };
+    const h = makeHarness(build, [scripted("done")], {
+      selection: { tier: "quick" },
+      context: { authority, taste: ["org taste"], memoryExcerpts: [] },
+    });
+    try {
+      const result = await executePipeline(h.options);
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", result.passes[0]!.runId);
+      expect(envelope.authority).toEqual({
+        profile: authority.profile,
+        version: authority.version,
+        sha256: authority.sha256,
+        sources: authority.sources,
+      });
+      expect(h.fake.calls[0]!.req.task).toContain("[authority]");
+      expect(h.fake.calls[0]!.req.task).toContain(`sha256: ${authority.sha256}`);
+      expect(
+        readFileSync(runPaths(h.options.runlog.root, "civic", result.passes[0]!.runId).brief, "utf8"),
+      ).toContain("The full effective charter is injected through the runtime's native instruction channel.");
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("sequential passes run in order; task = brief + template", async () => {
     const build = getPipeline(await loadFixture(), "build");
     const h = makeHarness(build, [

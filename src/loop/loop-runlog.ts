@@ -20,6 +20,7 @@ import {
 } from "../runtime/runlog/envelope.js";
 import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
+import type { AuthorityEvidence } from "../runtime/types.js";
 
 /** Where a loop step's run record lives, plus the correlation id every event
  *  shares. Optional on the phase-option interfaces — absent means the step
@@ -31,6 +32,7 @@ export interface LoopRunlog {
   ticket?: string;
   /** turnId — one per pipeline execution; ties gate events back to the run. */
   traceId: string;
+  authority?: AuthorityEvidence;
   clock?: () => Date;
 }
 
@@ -58,7 +60,16 @@ export async function openPhaseRun(
 
   await startRun(
     runlog.root,
-    { runId, traceId: runlog.traceId, app: runlog.app, ...ticketPart, pipeline, pass, role: ORCHESTRATOR_ROLE },
+    {
+      runId,
+      traceId: runlog.traceId,
+      app: runlog.app,
+      ...ticketPart,
+      pipeline,
+      pass,
+      role: ORCHESTRATOR_ROLE,
+      ...(runlog.authority !== undefined ? { authority: runlog.authority } : {}),
+    },
     clock(),
   );
   const events = createEventWriter(

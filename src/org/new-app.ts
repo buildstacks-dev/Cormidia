@@ -77,9 +77,10 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   const plannedCreated = [
     ...scaffold.map((file) => file.rel),
     ...bootstrapFiles,
+    "CLAUDE.md",
     ...operonSeedFiles,
   ];
-  const plannedUpdated = [".operon/config.yaml", `${orgHome}/apps.yaml`];
+  const plannedUpdated = ["AGENTS.md", ".operon/config.yaml", `${orgHome}/apps.yaml`];
 
   if (options.dryRun) {
     return {
@@ -113,7 +114,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     repoSlug: options.repoSlug,
     dryRun: false,
     created: [...scaffold.map((file) => file.rel), ...bootstrap.created, ...operonSeeds.map((file) => file.rel)],
-    updated: plannedUpdated,
+    updated: [...new Set([...plannedUpdated, ...bootstrap.updated])],
     ...(bootstrap.joinedOrgHome ? { joinedOrgHome: bootstrap.joinedOrgHome } : {}),
   };
 }

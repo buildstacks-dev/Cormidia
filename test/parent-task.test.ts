@@ -104,6 +104,10 @@ describe("parent delegated-task ledger", () => {
       expect((await readParentTask(home.root, "outer-1")).source?.nativeRef).toBe(
         "codex://threads/thread-1",
       );
+      expect((await readParentTask(home.root, "outer-1")).charter).toMatchObject({
+        profile: "conservative",
+        version: "legacy-conservative/v1",
+      });
     } finally {
       log.mockRestore();
       home.cleanup();

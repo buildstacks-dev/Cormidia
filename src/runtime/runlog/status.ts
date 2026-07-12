@@ -5,7 +5,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readEvents } from "./events.js";
 import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
-import type { Artifact, Effort, RuntimeKind, UsageQuality } from "../types.js";
+import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
 
 export interface StatusRow {
   runId: string;
@@ -48,6 +48,7 @@ export interface StatusRow {
   refs: RunEnvelope["refs"];
   tracePlan?: TracePlanEvidence;
   planningRoute?: PlanningRouteEvidence;
+  authority?: AuthorityEvidence;
 }
 
 export async function readStatusRows(
@@ -113,6 +114,7 @@ export async function readStatusRows(
         refs: envelope.refs,
         ...(envelope.trace_plan !== undefined ? { tracePlan: envelope.trace_plan } : {}),
         ...(envelope.planning_route !== undefined ? { planningRoute: envelope.planning_route } : {}),
+        ...(envelope.authority !== undefined ? { authority: envelope.authority } : {}),
       });
     }
   }

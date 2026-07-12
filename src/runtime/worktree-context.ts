@@ -4,7 +4,12 @@ import * as path from "node:path";
 import type { ContextBundle } from "./types.js";
 
 export function renderContextBundle(context: ContextBundle): string {
-  const sections = [...context.taste];
+  const sections = [
+    ...(context.authority !== undefined
+      ? [`## Effective delegated authority\n\n${context.authority.text.trim()}`]
+      : []),
+    ...context.taste,
+  ];
   if (context.memoryExcerpts.length > 0) {
     sections.push(["## Memory excerpts", ...context.memoryExcerpts].join("\n\n"));
   }

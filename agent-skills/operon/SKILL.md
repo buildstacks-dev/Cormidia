@@ -8,9 +8,12 @@ description: Operate the Operon org runtime through its installed CLI. Use when 
 Use the installed `operon` command as the source of truth. Do not inspect the
 Operon implementation repository merely to discover commands.
 
-Operon's `TASTE.md` and `taste/<role>.md` files define how the organization and
-its roles behave. This skill is the coding-agent runbook for operating that
-organization; it does not replace or restate those role constitutions.
+Operon's `AUTHORITY.md` defines the human's versioned delegation grant;
+`TASTE.md` and `taste/<role>.md` define how the organization and its roles
+behave. App policy and the current task may narrow authority, never broaden
+it, and no charter bypasses critical-operation approvals. This skill is the
+coding-agent runbook for operating that organization; it does not replace or
+restate those records.
 
 ## Discover the active installation
 
@@ -29,13 +32,13 @@ If no active org exists, create one only when the user asked to initialize an
 organization:
 
 ```bash
-operon org init <local-org-path> --name <org-name>
+operon org init <local-org-path> --name <org-name> --authority delegated-operator
 operon doctor
 ```
 
 Keep these locations distinct:
 
-- Org home: committed roles, apps, pipelines, prompts, taste, and curated memory.
+- Org home: committed roles, apps, pipelines, prompts, authority, taste, and curated memory.
 - State home: local clones, worktrees, locks, approvals, telemetry, and run logs.
 - App repo: the independent product checkout being operated on.
 - Package root: the installed Operon implementation; never use it as org home.
@@ -55,6 +58,10 @@ The bare command opens the questionnaire only in an interactive terminal.
 Coding-agent and other non-interactive runs require `--answers`; if the user
 has not supplied those product choices, ask rather than infer them. Review the
 generated `.operon/` files before committing them.
+The answers may select `authority.mode` as `inherit`, `conservative`, or
+`custom` (with restrictions). Bootstrap preserves existing root `AGENTS.md`
+and `CLAUDE.md` content while composing one marked pointer to
+`.operon/AUTHORITY.md` for top-level sessions.
 
 ## Create a greenfield app
 

@@ -62,7 +62,7 @@ These four locations are intentionally different:
 | Location | One-line meaning |
 | --- | --- |
 | Package root | Operon's installed implementation and reusable templates. |
-| Org home | Committed roles, apps, pipelines, prompts, taste, and curated memory. |
+| Org home | Committed roles, apps, pipelines, prompts, authority, taste, and curated memory. |
 | State home | Local high-churn clones, worktrees, locks, approvals, telemetry, and run logs. |
 | App repo | An independent product checkout that Operon develops or operates. |
 
@@ -75,11 +75,16 @@ operon doctor
 operon context
 ```
 
-`org init` creates a complete org home from packaged templates, creates the
+`org init` creates a complete org home from packaged templates, including a
+versioned `AUTHORITY.md`, creates the
 default state home at `~/.operon/<org>`, and records the active org pointer at
 `~/.operon/config`. Use `operon org use <path>` to switch to another complete
 org. `OPERON_ORG_HOME` and `OPERON_STATE_HOME` are explicit per-process
-overrides.
+overrides. The default `delegated-operator` charter automates ordinary,
+reversible work while Operon's critical-operation gates remain mandatory;
+choose `--authority conservative` or `--authority custom --authority-file
+<path> --authority-by <identity>` during onboarding to narrow or replace the
+human grant explicitly.
 
 ## Commands
 
@@ -113,8 +118,9 @@ operon approvals
 ```
 
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
-the active org and writes app-owned files only under the app repo's
-`.operon/` directory. Its opening output explains the app repo, org home, and
+the active org and writes app-owned files under `.operon/`, plus one marked,
+idempotent authority pointer composed into root `AGENTS.md` and `CLAUDE.md`.
+Existing instruction content is preserved. Its opening output explains the app repo, org home, and
 state home before anything is written. A non-interactive run requires
 `--answers` and otherwise writes nothing. `new-app` creates a separate product
 repo skeleton and then follows the same bootstrap/register path. Neither

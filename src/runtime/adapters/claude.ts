@@ -122,10 +122,15 @@ export function normalizeToolAction(
   }
 }
 
-/** Layers joined in ContextBundle order: org TASTE, role addendum, app
- *  override, then memory excerpts (docs/architecture.md §5). */
+/** Layers joined in ContextBundle order: authority, org TASTE, role addendum,
+ * app override, then memory excerpts (docs/architecture.md §5). */
 export function buildSystemPromptAppend(req: TurnRequest): string {
-  const sections: string[] = [...req.context.taste];
+  const sections: string[] = [
+    ...(req.context.authority !== undefined
+      ? [`## Effective delegated authority\n\n${req.context.authority.text.trim()}`]
+      : []),
+    ...req.context.taste,
+  ];
   if (req.context.memoryExcerpts.length > 0) {
     sections.push(["## Memory excerpts", ...req.context.memoryExcerpts].join("\n\n"));
   }

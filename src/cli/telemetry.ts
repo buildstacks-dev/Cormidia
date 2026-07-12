@@ -636,6 +636,7 @@ function passToJson(view: PassView): unknown {
     refs: view.refs,
     trace_plan: view.tracePlan ?? null,
     planning_route: view.planningRoute ?? null,
+    authority: view.authority ?? null,
   };
 }
 
@@ -721,6 +722,7 @@ function renderParentTasks(report: TelemetryReport, evidenceDir: string): string
 <dt>Objective</dt><dd>${esc(task.record.objective)}</dd>
 <dt>Original prompt</dt><dd>${taskLinks.join(" · ") || `${esc(task.record.promptRef)} sha256:${esc(task.record.promptSha256)}`}</dd>
 <dt>Native harness task</dt><dd>${native}</dd>
+<dt>Delegated authority</dt><dd>${esc(task.record.charter === undefined ? "not recorded (legacy task)" : `${task.record.charter.profile} · ${task.record.charter.version} · sha256:${task.record.charter.sha256} · ${task.record.charter.sources.join(", ")}`)}</dd>
 <dt>Started / ended / status</dt><dd>${esc(task.record.startedAt)} / ${esc(task.record.endedAt ?? "running")} / ${esc(task.record.status)}</dd>
 <dt>Repository</dt><dd><code>${esc(task.record.repository?.workdir ?? "not recorded")}</code> · ${esc(task.record.repository?.branch ?? "unknown branch")} · <code>${esc(task.record.repository?.head ?? "unknown HEAD")}</code></dd>
 <dt>Execution mode</dt><dd>${esc(task.record.executionMode)}${task.record.fallbackEvents.length > 0 ? ` — ${esc(task.record.fallbackEvents.map((event) => event.reason).join("; "))}` : ""}</dd>
@@ -855,6 +857,7 @@ function renderPassDetails(view: PassView, evidenceDir: string): string {
 <dt>Full transcript</dt><dd>${esc(view.session?.transcript_note ?? "Unavailable: this run predates transcript availability metadata. session.log, if present, is activity only.")}</dd>
 <dt>Artifacts</dt><dd>${esc(artifacts)}</dd>
 <dt>Planning route</dt><dd>${esc(view.planningRoute === undefined ? "not a planning pass / legacy run" : `${view.planningRoute.depth}; ${view.planningRoute.decision_factors.join("; ")}`)}</dd>
+<dt>Delegated authority</dt><dd>${esc(view.authority === undefined ? "not recorded (legacy run)" : `${view.authority.profile} · ${view.authority.version} · sha256:${view.authority.sha256} · ${view.authority.sources.join(", ")}`)}</dd>
 <dt>Persisted evidence</dt><dd>${links.join(" · ") || "No copied evidence files"}</dd>
 </dl>`;
 }

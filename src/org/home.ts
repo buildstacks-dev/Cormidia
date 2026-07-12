@@ -11,9 +11,18 @@ import { parse, stringify } from "yaml";
 import { loadPipelines } from "../loop/pipelines.js";
 import { findExistingOrg, loadApps, type AppsFile } from "./apps.js";
 import { loadRoles } from "./roles.js";
+import {
+  authorityPreview,
+  composeProjectInstructions,
+  projectAuthorityBlock,
+  resolveAuthority,
+  writeOrgAuthority,
+  type AuthorityProfile,
+} from "./authority.js";
+import type { AuthorityContext } from "../runtime/types.js";
 
 export const ORG_HOME_DEFINITION =
-  "committed organization configuration: roles, apps, pipelines, prompts, taste, and curated memory";
+  "committed organization configuration: roles, apps, pipelines, prompts, authority, taste, and curated memory";
 export const STATE_HOME_DEFINITION =
   "local high-churn runtime state: managed clones, worktrees, locks, approvals, telemetry, and run logs";
 
@@ -84,6 +93,9 @@ export async function validateOrgHome(orgHomeIn: string): Promise<void> {
     roleNames: roles.roles.map((role) => role.name),
     promptsDir: join(orgHome, "prompts"),
   });
+  if (existsSync(join(orgHome, "AUTHORITY.md"))) {
+    await resolveAuthority({ orgHome });
+  }
 }
 
 export interface InitOrgHomeOptions {
@@ -93,10 +105,17 @@ export interface InitOrgHomeOptions {
   homeDir?: string;
   pointerPath?: string;
   templateRoot?: string;
+  /** Explicit human choice made during onboarding. New orgs default to the
+   * delegated-operator profile; legacy orgs without a file fail closed. */
+  authorityProfile?: AuthorityProfile;
+  authorityCustomText?: string;
+  authorityGrantedBy?: string;
 }
 
 export interface InitOrgHomeResult extends OperonHomes {
   created: string[];
+  authority: AuthorityContext;
+  authorityPreview: ReturnType<typeof authorityPreview>;
 }
 
 export async function initOrgHome(options: InitOrgHomeOptions): Promise<InitOrgHomeResult> {
@@ -121,6 +140,23 @@ export async function initOrgHome(options: InitOrgHomeOptions): Promise<InitOrgH
     await copyFile(templateRoot, staged, "pipelines.yaml", created);
     await copyTree(templateRoot, staged, "prompts", created);
     if (existsSync(join(templateRoot, "taste"))) await copyTree(templateRoot, staged, "taste", created);
+
+    const authority = await writeOrgAuthority(
+      staged,
+      options.authorityProfile ?? "delegated-operator",
+      options.authorityCustomText,
+      options.authorityGrantedBy,
+    );
+    created.push("AUTHORITY.md");
+    const instructionBlock = projectAuthorityBlock("AUTHORITY.md", authority);
+    for (const rel of ["AGENTS.md", "CLAUDE.md"]) {
+      await writeFile(
+        join(staged, rel),
+        composeProjectInstructions(`# ${rel}\n`, instructionBlock),
+        "utf8",
+      );
+      created.push(rel);
+    }
 
     const roles = await loadRoles(join(staged, "roles.yaml"));
     const apps = emptyAppsYaml(name);
@@ -148,7 +184,17 @@ export async function initOrgHome(options: InitOrgHomeOptions): Promise<InitOrgH
   await mkdir(stateHome, { recursive: true });
   await writeActiveOrgPointer(pointerPath, target, stateHome);
   const appsFile = await loadApps(join(target, "apps.yaml"));
-  return { packageRoot: PACKAGE_ROOT, orgHome: target, stateHome, appsFile, pointerPath, created };
+  const authority = await resolveAuthority({ orgHome: target });
+  return {
+    packageRoot: PACKAGE_ROOT,
+    orgHome: target,
+    stateHome,
+    appsFile,
+    pointerPath,
+    created,
+    authority,
+    authorityPreview: authorityPreview(options.authorityProfile ?? "delegated-operator"),
+  };
 }
 
 export async function writeActiveOrgPointer(

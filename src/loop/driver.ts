@@ -472,6 +472,16 @@ function gateRunlog(options: LoopDriverOptions, item: LoopItem): LoopRunlog {
     app: options.app,
     ticket: item.ticketRef,
     traceId: item.turnId ?? `${item.ticketRef}-gates`,
+    ...(engine.context?.authority !== undefined
+      ? {
+          authority: {
+            profile: engine.context.authority.profile,
+            version: engine.context.authority.version,
+            sha256: engine.context.authority.sha256,
+            sources: [...engine.context.authority.sources],
+          },
+        }
+      : {}),
     ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
   };
 }

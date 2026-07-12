@@ -126,7 +126,11 @@ function needValue(args: string[], index: number, flag: string): string {
 }
 
 function printContext(context: ContextBundle): void {
-  console.log("\n[context] assembled taste layers and memory excerpts (adapter context channel):");
+  console.log("\n[context] assembled authority, taste layers, and memory excerpts (adapter context channel):");
+  if (context.authority !== undefined) {
+    console.log(`\n--- authority ${context.authority.version} sha256:${context.authority.sha256} ---`);
+    console.log(context.authority.text);
+  }
   context.taste.forEach((layer, i) => {
     console.log(`\n--- taste[${i}] ---`);
     console.log(layer);

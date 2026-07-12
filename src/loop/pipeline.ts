@@ -428,16 +428,18 @@ async function runPass(
   const runtime = options.runtimeFor(role);
   const verdictSchema = options.verdictSchemaFor?.(pass);
 
-  // Heartbeat: stamp the envelope while the provider turn runs so a live
-  // pass is distinguishable from a hung one (Stage 3 — the episode stalled
-  // five hours with no way to tell). Failures are swallowed: a heartbeat
-  // must never kill the turn it observes.
+  // Heartbeat: stamp both the envelope and the append-only event stream while
+  // the provider turn runs. Status readers use last_seen_at; a live tail uses
+  // pass.heartbeat. Failures are swallowed: observability must never kill the
+  // turn it observes.
   const heartbeat = setInterval(() => {
-    checkpointWrites = checkpointWrites.then(() =>
-      updateEnvelope(root, app, runId, { lastSeenAt: clock().toISOString() })
-        .then(() => undefined)
-        .catch(() => undefined),
-    );
+    checkpointWrites = checkpointWrites.then(async () => {
+      const observedAt = clock().toISOString();
+      await Promise.allSettled([
+        updateEnvelope(root, app, runId, { lastSeenAt: observedAt }),
+        events.append({ type: "pass.heartbeat", detail: { observed_at: observedAt } }),
+      ]);
+    });
   }, HEARTBEAT_INTERVAL_MS);
   heartbeat.unref?.();
 

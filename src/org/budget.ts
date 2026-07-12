@@ -335,6 +335,10 @@ function recordFromEnvelope(
       ? "completed"
       : envelope.status === "blocked"
         ? "blocked_on_gate"
+        : envelope.status === "cancelled"
+          ? "cancelled"
+          : envelope.status === "timed_out"
+            ? "timed_out"
         : "failed"; // running-with-usage means the turn returned but the pass never terminated; the spend is real.
   const record: TurnRecord = {
     at: envelope.started_at,
@@ -345,6 +349,13 @@ function recordFromEnvelope(
     tokensIn: usage.tokens_in,
     tokensOut: usage.tokens_out,
     costUsd: usage.cost_usd,
+    usageQuality:
+      usage.quality ??
+      (envelope.status === "running"
+        ? "partial"
+        : usage.cost_estimated === true
+          ? "estimated"
+          : "complete"),
     subagentTurns: usage.subagent_turns ?? 0,
     wallClockMs: envelope.wall_clock_ms ?? 0,
     escalations: 0,

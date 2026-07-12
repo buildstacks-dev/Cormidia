@@ -470,12 +470,27 @@ describe("executePipeline", () => {
         expect(existsSync(paths.envelope), record.runId).toBe(true);
         expect(existsSync(paths.events)).toBe(true);
         expect(existsSync(paths.brief)).toBe(true);
+        expect(existsSync(paths.prompt)).toBe(true);
         expect(existsSync(paths.output)).toBe(true);
 
         const envelope = await readEnvelope(h.options.runlog.root, "civic", record.runId);
         expect(envelope.run_id).toBe(record.runId);
         expect(envelope.trace_id).toBe("turn-1");
         expect(envelope.status).toBe("completed");
+        expect(envelope).toMatchObject({
+          runtime: "claude",
+          effort: record.pass.id === "implement" ? "high" : "medium",
+          workdir: "/tmp/workdir",
+          session: {
+            runtime: "claude",
+            id: `session-${record.result.summary}`,
+            transcript: "unavailable",
+          },
+          trace_plan: {
+            required_passes: ["contract", "implement"],
+            skipped_passes: [],
+          },
+        });
         expect(envelope.usage?.cost_usd).toBe(0.01);
         if (record.pass.id === "contract") {
           expect(envelope.usage?.cache_write_tokens).toBe(3);
@@ -484,6 +499,7 @@ describe("executePipeline", () => {
         expect(envelope.previews?.output).toBe(record.result.summary);
 
         expect(readFileSync(paths.brief, "utf8")).toBe(`brief for ${record.pass.id}`);
+        expect(readFileSync(paths.prompt, "utf8")).toContain(`brief for ${record.pass.id}\n\n---\n\n`);
         expect(readFileSync(paths.output, "utf8")).toBe(record.result.summary);
 
         const events = await readEvents(h.options.runlog.root, "civic", record.runId);

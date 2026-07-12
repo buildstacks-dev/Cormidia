@@ -11,7 +11,7 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { Trigger, TurnResult, RoleConfig } from "./types.js";
+import type { Trigger, TurnResult, RoleConfig, UsageQuality } from "./types.js";
 
 /** Which trigger kind fired a turn — derived from `Trigger` so the two can
  *  never drift apart. Manual turns record `"manual"` (architecture.md §8). */
@@ -29,6 +29,8 @@ export interface TurnRecord {
   cacheReadTokens?: number;
   tokensOut: number;
   costUsd: number;
+  /** Complete, partial, estimated, or unavailable provider usage. */
+  usageQuality: UsageQuality;
   subagentTurns: number;
   wallClockMs: number;
   escalations: number;
@@ -90,6 +92,13 @@ export function toRecord(
     tokensIn: result.usage.tokensIn,
     tokensOut: result.usage.tokensOut,
     costUsd: result.usage.costUsd,
+    usageQuality:
+      result.usage.quality ??
+      (attribution.unmeasured === true
+        ? "unavailable"
+        : result.usage.costEstimated === true
+          ? "estimated"
+          : "complete"),
     subagentTurns: result.usage.subagentTurns,
     wallClockMs: result.usage.wallClockMs,
     escalations: result.escalations.length,

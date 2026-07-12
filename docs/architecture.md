@@ -159,7 +159,8 @@ locks/<app>--<role>.lock
 approvals/               pending/ decided/ grants/ log.jsonl (§4)
 sessions/                adapter session artifacts where the SDK needs a home
 runs/<app>/<runId>/      L1–L3 per-pass runlogs: envelope, events, brief,
-                         output, session log (docs/loop.md §9)
+                         exact prompt, output, activity log (not a full
+                         transcript; docs/loop.md §9)
 telemetry/<day>.jsonl    org cost ledger (src/runtime/telemetry.ts orgDir)
 invocations/<day>.jsonl  one record per loop/dispatch invocation
 tickets/<app>/<issue>.json  cross-process ticket claim state (docs/loop.md §7.1)

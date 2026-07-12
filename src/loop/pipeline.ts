@@ -19,7 +19,7 @@
 // arrives as a plain name→RoleConfig map, runtimes as a factory.
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   ContextBundle,
   RoleConfig,
@@ -41,10 +41,11 @@ import {
   updateEnvelope,
   type EnvelopeStatus,
   type EnvelopeUsage,
+  type SessionEvidence,
 } from "../runtime/runlog/envelope.js";
-import { gitHeadOf } from "../runtime/git.js";
+import { gitSnapshotOf } from "../runtime/git.js";
 import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
-import { createSessionLogSink, writeBrief, writeOutput } from "../runtime/runlog/forensics.js";
+import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
 import {
   parallelStages,
@@ -273,6 +274,8 @@ async function runPass(
     ...(pass.model !== undefined ? { model: pass.model } : {}),
     ...(pass.effort !== undefined ? { effort: pass.effort } : {}),
   };
+  const selectedPasses = selectPasses(options.pipeline, options.selection);
+  const selectedIds = new Set(selectedPasses.map((candidate) => candidate.id));
 
   const { root, app, ticket, traceId } = options.runlog;
   const runId = mintRunId(clock(), options.pipeline.name, pass.id);
@@ -285,7 +288,7 @@ async function runPass(
 
   // Replay seed (learning design §9.4): captured while the episode runs,
   // never reconstructed from logs afterward. Absent for non-git workdirs.
-  const gitHead = gitHeadOf(options.workdir);
+  const git = gitSnapshotOf(options.workdir);
   await startRun(
     root,
     {
@@ -296,12 +299,27 @@ async function runPass(
       pipeline: options.pipeline.name,
       pass: pass.id,
       role: role.name,
+      runtime: role.runtime,
       model: role.model,
-      ...(gitHead !== undefined ? { gitHead } : {}),
+      effort: role.effort,
+      workdir: resolve(options.workdir),
+      ...(git !== undefined ? { gitHead: git.head, gitBranch: git.branch } : {}),
+      tracePlan: {
+        required_passes: selectedPasses.map((candidate) => candidate.id),
+        skipped_passes: options.pipeline.passes
+          .filter((candidate) => !selectedIds.has(candidate.id))
+          .map((candidate) => ({
+            pass: candidate.id,
+            reason: "not selected by the active tier/trigger routing policy",
+          })),
+      },
     },
     clock(),
   );
-  await writeBrief(root, app, runId, brief);
+  await Promise.all([
+    writeBrief(root, app, runId, brief),
+    writePrompt(root, app, runId, task),
+  ]);
 
   const events = createEventWriter(
     root,
@@ -338,11 +356,17 @@ async function runPass(
     },
     onProgress: (progress) => {
       latestProgress = mergeProgress(latestProgress, progress);
-      if (latestProgress.usage !== undefined) {
-        const usage = toEnvelopeUsage(latestProgress.usage, latestProgress.usage.quality ?? "partial");
+      if (latestProgress.usage !== undefined || latestProgress.session !== undefined) {
+        const usage =
+          latestProgress.usage !== undefined
+            ? toEnvelopeUsage(latestProgress.usage, latestProgress.usage.quality ?? "partial")
+            : undefined;
         checkpointWrites = checkpointWrites.then(() =>
           updateEnvelope(root, app, runId, {
-            usage,
+            ...(usage !== undefined ? { usage } : {}),
+            ...(latestProgress?.session !== undefined
+              ? { session: sessionEvidence(latestProgress.session) }
+              : {}),
             lastSeenAt: progress.at ?? clock().toISOString(),
           }).then(() => undefined),
         );
@@ -415,6 +439,8 @@ async function runPass(
   const toolCounts = await flushBridgedEvents(bridged, events, pass.id);
   await updateEnvelope(root, app, runId, {
     usage: toEnvelopeUsage(result.usage),
+    session: sessionEvidence(result.session),
+    ...(result.artifacts.length > 0 ? { artifacts: result.artifacts } : {}),
     previews: { task, output: result.summary },
     ...(Object.keys(toolCounts).length > 0 ? { tool_counts: toolCounts } : {}),
   });
@@ -763,5 +789,29 @@ function mergeProgress(previous: TurnProgress | undefined, next: TurnProgress): 
     ...next,
     ...(next.usage !== undefined ? { usage: next.usage } : {}),
     ...(next.session !== undefined ? { session: next.session } : {}),
+  };
+}
+
+function sessionEvidence(session: TurnResult["session"]): SessionEvidence {
+  if (session.runtime === "codex") {
+    return {
+      ...session,
+      native_ref: `codex://threads/${encodeURIComponent(session.id)}`,
+      transcript: "native_task",
+      transcript_note: "Open the native Codex task for the full provider transcript.",
+    };
+  }
+  if (session.runtime === "pi") {
+    return {
+      ...session,
+      native_ref: session.id,
+      transcript: "provider_session",
+      transcript_note: "Provider session reference recorded; session.log is activity only.",
+    };
+  }
+  return {
+    ...session,
+    transcript: "unavailable",
+    transcript_note: "Claude SDK did not expose a full transcript reference; session.log is activity only.",
   };
 }

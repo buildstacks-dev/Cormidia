@@ -15,9 +15,14 @@
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 
-export function gitHeadOf(dir: string): string | undefined {
+export interface GitSnapshot {
+  head: string;
+  branch: string;
+}
+
+export function gitSnapshotOf(dir: string): GitSnapshot | undefined {
   try {
-    const out = execFileSync("git", ["rev-parse", "--show-toplevel", "HEAD"], {
+    const out = execFileSync("git", ["rev-parse", "--show-toplevel", "HEAD", "--abbrev-ref", "HEAD"], {
       cwd: dir,
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 5000,
@@ -26,12 +31,16 @@ export function gitHeadOf(dir: string): string | undefined {
       .toString()
       .trim()
       .split("\n");
-    const [toplevel, head] = out;
-    if (toplevel === undefined || head === undefined) return undefined;
+    const [toplevel, head, rawBranch] = out;
+    if (toplevel === undefined || head === undefined || rawBranch === undefined) return undefined;
     // realpath both sides: macOS tempdirs reach /private/tmp via symlink.
     if (realpathSync(toplevel) !== realpathSync(dir)) return undefined;
-    return head;
+    return { head, branch: rawBranch === "HEAD" ? "(detached)" : rawBranch };
   } catch {
     return undefined;
   }
+}
+
+export function gitHeadOf(dir: string): string | undefined {
+  return gitSnapshotOf(dir)?.head;
 }

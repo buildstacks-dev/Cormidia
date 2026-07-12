@@ -6,7 +6,7 @@
 // Uses makeOrgHome to seed run records; no network, auth, real org state, or
 // wall-clock time is required.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cmdTelemetry } from "../src/cli/telemetry.js";
@@ -246,6 +246,8 @@ describe("cmdTelemetry --json", () => {
         role: "reviewer",
         cost_usd: 0.5,
         cost_estimated: true,
+        usage_quality: "estimated",
+        incomplete_passes: 1,
         passes: 1,
         escalations: 2,
       });
@@ -254,6 +256,8 @@ describe("cmdTelemetry --json", () => {
         ticket: "#7",
         cost_usd: expect.closeTo(0.2) as number,
         cost_estimated: false,
+        usage_quality: "complete",
+        incomplete_passes: 0,
         passes: 2,
         escalations: 0,
       });
@@ -283,6 +287,33 @@ describe("cmdTelemetry --html", () => {
     });
     try {
       const target = join(home.root, "telemetry.html");
+      const runDir = home.paths.runDir("alpha", "run1");
+      const envelopePath = join(runDir, "envelope.json");
+      const envelope = JSON.parse(readFileSync(envelopePath, "utf8")) as Record<string, unknown>;
+      envelope["runtime"] = "codex";
+      envelope["effort"] = "high";
+      envelope["workdir"] = "/workspace/buildstacks.dev";
+      envelope["git_branch"] = "op/7";
+      envelope["git_head"] = "a".repeat(40);
+      envelope["session"] = {
+        runtime: "codex",
+        id: "thread-123",
+        native_ref: "codex://threads/thread-123",
+        transcript: "native_task",
+        transcript_note: "Open the native Codex task for the full provider transcript.",
+      };
+      envelope["refs"] = {
+        events: "events.jsonl",
+        brief: "brief.md",
+        prompt: "prompt.md",
+        output: "output.md",
+        session_log: "session.log",
+      };
+      writeFileSync(envelopePath, `${JSON.stringify(envelope)}\n`);
+      writeFileSync(join(runDir, "brief.md"), "assembled brief");
+      writeFileSync(join(runDir, "prompt.md"), "exact prompt");
+      writeFileSync(join(runDir, "output.md"), "verdict");
+      writeFileSync(join(runDir, "session.log"), "[tool_use] bash");
       const { code, out } = await run(["--home", home.root, "--html", target]);
       expect(code).toBe(0);
       expect(out).toContain(target);
@@ -292,12 +323,22 @@ describe("cmdTelemetry --html", () => {
       expect(html).toContain("run2");
       expect(html).toContain("Ticket #7");
       expect(html).toContain("Cost attribution");
+      expect(html).toContain("Completion integrity");
+      expect(html).toContain("codex / model-a / high");
+      expect(html).toContain("Exact input prompt");
+      expect(html).toContain("Activity log (not full transcript)");
+      expect(html).toContain("codex://threads/thread-123");
       // The preview's markup must arrive escaped — and since the report is
       // deliberately script-free, no <script element may exist at all.
       expect(html).toContain("&lt;script&gt;");
       expect(html).not.toContain("<script");
-      // Self-contained: no external fetches of any kind.
-      expect(html).not.toMatch(/src=|href=|url\(|@import/);
+      // No external resources; hrefs point only at the adjacent evidence
+      // bundle or the native Codex task URI.
+      expect(html).not.toMatch(/src=|url\(|@import|https?:\/\//);
+      const bundle = join(home.root, "telemetry.evidence", "alpha", "run1");
+      expect(existsSync(join(bundle, "envelope.json"))).toBe(true);
+      expect(readFileSync(join(bundle, "prompt.md"), "utf8")).toBe("exact prompt");
+      expect(readFileSync(join(bundle, "session.log"), "utf8")).toBe("[tool_use] bash");
     } finally {
       home.cleanup();
     }

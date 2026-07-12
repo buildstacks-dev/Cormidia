@@ -627,15 +627,18 @@ for, never a rewrite.
   envelope.json     L1 — one per pass: ids, status, timings, token/cost
                     rollups, gate results, verdict summary, tool counts
                     (see the tool-telemetry note below), truncated
-                    previews, and the workdir's git HEAD at pass start
-                    (git_head — the learning loop's replay seed, absent for
+                    previews, runtime/model/effort, actual workdir, branch,
+                    and git HEAD at pass start (git_head — the learning loop's replay seed, absent for
                     non-git workdirs and pre-M2 runs); REFERENCES to
-                    brief/transcript, never inlined (the wf_*.json
+                    L3 evidence and native provider session identity, never
+                    full prompts inlined (the wf_*.json
                     monolith lesson)
   events.jsonl      L2 — append-only structured events, timestamped
   brief.md          L3 — exact assembled brief (forensics/reproducibility)
+  prompt.md         L3 — exact Runtime.runTurn input (brief + pass template)
   output.md         L3 — final output text
-  session.log       L3 — full transcript, fed by TurnHooks.onEvent
+  session.log       L3 — structured activity log fed by TurnHooks.onEvent;
+                    explicitly NOT a full transcript
 ```
 
 `runId = YYYYMMDD-HHMMSS-<pipeline>-<pass>`, chronologically sortable.
@@ -647,7 +650,10 @@ dispatch, one per pipeline execution), `span_id` per pass, and
 order afterward as `subagent.started/completed` spans nested under the pass
 span (`flushBridgedEvents`, src/loop/pipeline.ts) — so fan-out trees
 **are** reconstructable (`reconstructSpanTree`) without opening transcripts.
-session.log still receives every event live. Plus `app`, `ticket`,
+session.log still receives every activity event live. Full-transcript
+availability is explicit in `envelope.session`: Codex records a native
+`codex://threads/<id>` task link; runtimes that expose only a session id say
+so rather than relabeling the activity log. Plus `app`, `ticket`,
 `pipeline`, `pass`, `role`, `model` on everything.
 - **L2 event taxonomy:** `run.started/completed`,
 `pass.started/completed/failed`, `gate.started/passed/failed`,
@@ -658,8 +664,12 @@ app+runId already present — Stage 1). Every line timestamped, severity
 field, machine `error_code`. **Stage 3 additions:** the executor stamps a
 30-second heartbeat onto the envelope (`last_seen_at`) so live and stalled
 passes are distinguishable; a per-pass wall-clock watchdog
-(`wall_clock_minutes`, default 60) finalizes a hung pass
-`failed(error_wall_clock_exceeded)` with an unmeasured ledger row; adapter
+(`wall_clock_minutes`, default 60) cancels the owned provider tree and
+finalizes a hung pass `timed_out(error_wall_clock_exceeded)` with an
+unavailable-usage ledger row; operator SIGINT/SIGTERM similarly finalizes
+`cancelled(error_cancelled)`. Adapters checkpoint cumulative usage and native
+session identity during execution, so an interrupted pass retains partial
+spend instead of reverting to zero. Adapter
 failure codes (`error_max_budget_usd`, …) flow into `pass.failed` and the
 envelope instead of a generic `error_turn_failed`; failed gates retain the
 exact command and a bounded, scrubbed output tail in both the `gate.failed`
@@ -702,7 +712,9 @@ weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
   budget hard-stop (architecture.md §7) governs manual and dispatched turns
   equally. `operon budget --reconcile` back-fills the ledger from run
   envelopes (idempotent); interactive co-planning rows carry
-  `unmeasured: true` (cost unknown, not zero).
+`unmeasured: true` (cost unknown, not zero). New ledger rows also carry
+`usageQuality: complete|partial|estimated|unavailable`; dashboards label
+recorded lower bounds instead of presenting unknown spend as free.
 - **Cache visibility.** Input tokens come in three price classes (uncached
 ~1×, cache-write 1.25–2×, cache-read ~0.1×); both SDKs report the split
 per response. L1 rollups and telemetry carry it (`TurnUsage` delta, §10),
@@ -721,7 +733,18 @@ shipped in context assembly). **All five fire today:**
 `bash_heavy` reads `envelope.tool_counts["bash"]` and `environment_retry`
 reads `tool.called` events tagged `environment_retry` — both populated by
 the adapters' `tool_use` events (issue #27, note above). Flags map to canned
-recommendations and feed the weekly retro (architecture.md §6).
+recommendations and feed the weekly retro (architecture.md §6). Stale
+`running` envelopes additionally fire `stale_running` and
+`missing_finalization` after three minutes without a heartbeat.
+
+`operon telemetry --html <report>` writes a static report plus an adjacent
+`<report>.evidence/` copy bundle. Links target the copied envelope, exact
+prompt, brief, output, events, and activity log, so browser file-origin rules
+never require mutating or serving the state home. Its completion-integrity
+section compares observed passes with the trace's selected-pass manifest,
+shows skipped routing passes and stale/interrupted runs, and marks reviewer,
+cost, manual-fallback, and PR evidence as unknown when the run generation did
+not record them.
 
 
 

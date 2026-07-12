@@ -4,7 +4,8 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readEvents } from "./events.js";
-import type { RunEnvelope } from "./envelope.js";
+import type { RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
+import type { Artifact, Effort, RuntimeKind, UsageQuality } from "../types.js";
 
 export interface StatusRow {
   runId: string;
@@ -15,7 +16,12 @@ export interface StatusRow {
   pipeline: string;
   pass: string;
   role: string;
+  runtime?: RuntimeKind;
   model?: string;
+  effort?: Effort;
+  workdir?: string;
+  gitHead?: string;
+  gitBranch?: string;
   status: string;
   durationMs: number;
   tokensIn: number;
@@ -25,7 +31,9 @@ export interface StatusRow {
   costUsd: number;
   /** cost_usd is a local estimate (e.g. codex), not a provider-reported charge. */
   costEstimated: boolean;
+  usageQuality: UsageQuality;
   escalations: number;
+  toolCalls: number;
   startedAt: string;
   /** Heartbeat stamp (Stage 3) — present while (and after) the executor's
    *  30s heartbeat ran, so a reader can tell live from stalled. */
@@ -33,6 +41,11 @@ export interface StatusRow {
   /** Truncated + scrubbed at write time (envelope.ts) — safe to display. */
   verdictSummary?: string;
   previews?: Record<string, string>;
+  terminalReason?: string;
+  session?: SessionEvidence;
+  artifacts?: Artifact[];
+  refs: RunEnvelope["refs"];
+  tracePlan?: TracePlanEvidence;
 }
 
 export async function readStatusRows(
@@ -69,7 +82,12 @@ export async function readStatusRows(
         pipeline: envelope.pipeline,
         pass: envelope.pass,
         role: envelope.role,
+        ...(envelope.runtime !== undefined ? { runtime: envelope.runtime } : {}),
         ...(envelope.model !== undefined ? { model: envelope.model } : {}),
+        ...(envelope.effort !== undefined ? { effort: envelope.effort } : {}),
+        ...(envelope.workdir !== undefined ? { workdir: envelope.workdir } : {}),
+        ...(envelope.git_head !== undefined ? { gitHead: envelope.git_head } : {}),
+        ...(envelope.git_branch !== undefined ? { gitBranch: envelope.git_branch } : {}),
         status: statusLabel(envelope),
         durationMs: envelope.wall_clock_ms ?? 0,
         tokensIn: envelope.usage?.tokens_in ?? 0,
@@ -79,11 +97,18 @@ export async function readStatusRows(
           : {}),
         costUsd: envelope.usage?.cost_usd ?? 0,
         costEstimated: envelope.usage?.cost_estimated === true,
+        usageQuality: usageQuality(envelope),
         escalations: events.filter((event) => event.event === "escalation.raised").length,
+        toolCalls: Object.values(envelope.tool_counts ?? {}).reduce((sum, count) => sum + count, 0),
         startedAt: envelope.started_at,
         ...(envelope.last_seen_at !== undefined ? { lastSeenAt: envelope.last_seen_at } : {}),
         ...(envelope.verdict_summary !== undefined ? { verdictSummary: envelope.verdict_summary } : {}),
         ...(envelope.previews !== undefined ? { previews: envelope.previews } : {}),
+        ...(envelope.terminal_reason !== undefined ? { terminalReason: envelope.terminal_reason } : {}),
+        ...(envelope.session !== undefined ? { session: envelope.session } : {}),
+        ...(envelope.artifacts !== undefined ? { artifacts: envelope.artifacts } : {}),
+        refs: envelope.refs,
+        ...(envelope.trace_plan !== undefined ? { tracePlan: envelope.trace_plan } : {}),
       });
     }
   }
@@ -92,8 +117,15 @@ export async function readStatusRows(
   return options.limit === undefined ? rows : rows.slice(0, options.limit);
 }
 
+function usageQuality(envelope: RunEnvelope): UsageQuality {
+  if (envelope.usage?.quality !== undefined) return envelope.usage.quality;
+  if (envelope.usage === undefined) return "unavailable";
+  if (envelope.usage.cost_estimated === true) return "estimated";
+  return envelope.status === "running" ? "partial" : "complete";
+}
+
 export function formatStatusRows(rows: readonly StatusRow[]): string {
-  const header = "RUN ID                         APP        PIPE/PASS                 STATUS                 DUR     TOKENS     COST   ESC";
+  const header = "RUN ID                         APP        PIPE/PASS                 STATUS                 DUR     TOKENS               COST   ESC";
   const lines = rows.map((row) => {
     const pipePass = `${row.pipeline}/${row.pass}`;
     const tokens = `${row.tokensIn}/${row.tokensOut}`;
@@ -104,13 +136,17 @@ export function formatStatusRows(rows: readonly StatusRow[]): string {
       row.status.padEnd(22),
       formatDuration(row.durationMs).padStart(7),
       tokens.padStart(10),
-      // "~" marks an estimated (non-provider-reported) cost so the operator is
-      // never misled into reading a codex heuristic as a real charge.
-      `${row.costEstimated ? "~" : ""}$${row.costUsd.toFixed(2)}`.padStart(8),
+      formatStatusCost(row).padStart(18),
       String(row.escalations).padStart(5),
     ].join(" ");
   });
   return [header, ...lines].join("\n");
+}
+
+function formatStatusCost(row: StatusRow): string {
+  if (row.usageQuality === "unavailable") return "unavailable";
+  const amount = `${row.costEstimated || row.usageQuality === "estimated" ? "~" : ""}$${row.costUsd.toFixed(2)}`;
+  return row.usageQuality === "partial" ? `${amount} partial` : amount;
 }
 
 function statusLabel(envelope: RunEnvelope): string {
@@ -156,7 +192,10 @@ function unreadableRow(runId: string, app: string): StatusRow {
     tokensOut: 0,
     costUsd: 0,
     costEstimated: false,
+    usageQuality: "unavailable",
     escalations: 0,
+    toolCalls: 0,
     startedAt: "",
+    refs: { events: "events.jsonl", brief: "brief.md", output: "output.md" },
   };
 }

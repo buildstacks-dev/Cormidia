@@ -42,7 +42,7 @@ describe("mintRunId", () => {
 });
 
 describe("run path builders", () => {
-  it("builds the five §9 files under runs/<app>/<runId>/", () => {
+  it("builds the six §9 files under runs/<app>/<runId>/", () => {
     const id = mintRunId(T0, "build", "implement");
     const paths = runPaths("/org/home", "civic", id);
     const dir = ["", "org", "home", "runs", "civic", id].join(sep);
@@ -52,6 +52,7 @@ describe("run path builders", () => {
     expect(paths.envelope).toBe(`${dir}${sep}envelope.json`);
     expect(paths.events).toBe(`${dir}${sep}events.jsonl`);
     expect(paths.brief).toBe(`${dir}${sep}brief.md`);
+    expect(paths.prompt).toBe(`${dir}${sep}prompt.md`);
     expect(paths.output).toBe(`${dir}${sep}output.md`);
     expect(paths.sessionLog).toBe(`${dir}${sep}session.log`);
   });

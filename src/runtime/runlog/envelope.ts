@@ -17,6 +17,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { runPaths } from "./paths.js";
 import { scrubSecrets, truncatePreview } from "./redact.js";
+import type { Artifact, Effort, RuntimeKind, SessionHandle } from "../types.js";
 
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
@@ -63,7 +64,13 @@ export interface RunEnvelope {
   pipeline: string;
   pass: string;
   role: string;
+  /** Runtime/harness and effort are separate from model identity. */
+  runtime?: RuntimeKind;
   model?: string;
+  effort?: Effort;
+  /** Actual directory and Git identity observed at pass start. */
+  workdir?: string;
+  git_branch?: string;
   /** Workdir HEAD at pass start — the replay seed commit (learning-loop
    *  spec §7). Absent for non-git workdirs and pre-M2b runs. */
   git_head?: string;
@@ -87,12 +94,32 @@ export interface RunEnvelope {
   error_code?: string;
   /** Human-readable terminal cause (signal, timeout, provider failure). */
   terminal_reason?: string;
+  /** Native provider session identity and honest transcript availability. */
+  session?: SessionEvidence;
+  /** Structured durable artifacts returned by the runtime. */
+  artifacts?: Artifact[];
+  /** The pass set selected for this trace and the configured passes omitted
+   * by tier/trigger routing. Duplicated per pass so each envelope remains
+   * independently auditable. */
+  trace_plan?: TracePlanEvidence;
   /** REFERENCES to the L3/L2 siblings, relative to the run dir. A ref is a
    *  promise: `session_log` is declared while the run is live (the sink may
    *  still produce it) and dropped at finalize when no file was written —
    *  adapters that emit no TurnEvents leave nothing for the sink to append
    *  (telemetry doc Defect C). */
-  refs: { events: string; brief: string; output: string; session_log?: string };
+  refs: { events: string; brief: string; prompt?: string; output: string; session_log?: string };
+}
+
+export interface TracePlanEvidence {
+  required_passes: string[];
+  skipped_passes: Array<{ pass: string; reason: string }>;
+}
+
+export interface SessionEvidence extends SessionHandle {
+  /** A native task/session link when the harness exposes one. */
+  native_ref?: string;
+  transcript: "native_task" | "provider_session" | "unavailable";
+  transcript_note: string;
 }
 
 export interface StartRunMeta {
@@ -103,7 +130,12 @@ export interface StartRunMeta {
   pipeline: string;
   pass: string;
   role: string;
+  runtime?: RuntimeKind;
   model?: string;
+  effort?: Effort;
+  workdir?: string;
+  gitBranch?: string;
+  tracePlan?: TracePlanEvidence;
   /** Workdir HEAD at pass start — the replay seed (learning-loop design
    *  §9.4: capture for replay while the episode runs, never reconstruct
    *  afterward). Absent when the workdir is not a git checkout. */
@@ -119,6 +151,8 @@ export interface EnvelopePatch {
   previews?: Record<string, string>;
   /** Heartbeat stamp (ISO). */
   lastSeenAt?: string;
+  session?: SessionEvidence;
+  artifacts?: Artifact[];
 }
 
 export interface FinalizeOutcome {
@@ -146,13 +180,19 @@ export async function startRun(
     pipeline: meta.pipeline,
     pass: meta.pass,
     role: meta.role,
+    ...(meta.runtime !== undefined ? { runtime: meta.runtime } : {}),
     ...(meta.model !== undefined ? { model: meta.model } : {}),
+    ...(meta.effort !== undefined ? { effort: meta.effort } : {}),
+    ...(meta.workdir !== undefined ? { workdir: meta.workdir } : {}),
+    ...(meta.gitBranch !== undefined ? { git_branch: meta.gitBranch } : {}),
+    ...(meta.tracePlan !== undefined ? { trace_plan: meta.tracePlan } : {}),
     ...(meta.gitHead !== undefined ? { git_head: meta.gitHead } : {}),
     status: "running",
     started_at: now.toISOString(),
     refs: {
       events: "events.jsonl",
       brief: "brief.md",
+      prompt: "prompt.md",
       output: "output.md",
       session_log: "session.log",
     },
@@ -176,6 +216,14 @@ export async function updateEnvelope(
 
   if (patch.usage !== undefined) envelope.usage = patch.usage;
   if (patch.lastSeenAt !== undefined) envelope.last_seen_at = patch.lastSeenAt;
+  if (patch.session !== undefined) envelope.session = patch.session;
+  if (patch.artifacts !== undefined) {
+    envelope.artifacts = patch.artifacts.map((artifact) => ({
+      ...artifact,
+      ref: scrubSecrets(artifact.ref),
+      summary: scrubSecrets(artifact.summary),
+    }));
+  }
   if (patch.gate_results !== undefined) envelope.gate_results = patch.gate_results;
   if (patch.tool_counts !== undefined) {
     envelope.tool_counts = { ...envelope.tool_counts, ...patch.tool_counts };

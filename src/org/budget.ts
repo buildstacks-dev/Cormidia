@@ -65,6 +65,9 @@ export interface LearningSpendRollup {
   /** Distinct experiments with settled spend this month —
    *  max_experiments_per_month reads this. */
   experimentsThisMonth: number;
+  /** Settled M6 provider turns in the rolling seven-day policy window. */
+  distillationsThisWeek: number;
+  reviewsThisWeek: number;
 }
 
 export async function rollupLearningSpend(
@@ -77,10 +80,13 @@ export async function rollupLearningSpend(
     byExperiment: new Map(),
     byCandidate: new Map(),
     experimentsThisMonth: 0,
+    distillationsThisWeek: 0,
+    reviewsThisWeek: 0,
   };
   const dir = join(orgHome, "telemetry");
   if (!existsSync(dir)) return rollup;
   const monthExperiments = new Set<string>();
+  const weekStart = now.getTime() - 7 * 24 * 60 * 60 * 1000;
   for (const file of (await readdir(dir)).sort()) {
     if (!file.endsWith(".jsonl")) continue;
     const inMonth = file.startsWith(month);
@@ -93,6 +99,7 @@ export async function rollupLearningSpend(
       if (
         !line.includes('"experimentRef"') &&
         !line.includes('"candidateRef"') &&
+        !line.includes('"learningActivity"') &&
         !line.includes('"learning-replay"')
       ) {
         continue;
@@ -110,8 +117,14 @@ export async function rollupLearningSpend(
       const isReplayRow =
         record.experimentRef !== undefined ||
         record.candidateRef !== undefined ||
+        record.learningActivity !== undefined ||
         record.app === "learning-replay";
       if (!isReplayRow) continue;
+      const at = new Date(record.at).getTime();
+      if (at >= weekStart && at <= now.getTime()) {
+        if (record.learningActivity === "distillation") rollup.distillationsThisWeek += 1;
+        if (record.learningActivity === "review") rollup.reviewsThisWeek += 1;
+      }
       if (record.candidateRef !== undefined) {
         rollup.byCandidate.set(
           record.candidateRef,

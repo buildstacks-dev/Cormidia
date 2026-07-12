@@ -9,19 +9,19 @@
 // gate-protected (`learning-surface-tamper`): only humans edit it.
 //
 // M5 parses the tier table (canary fraction/window, experiment requirement,
-// promote rules) and `learning_budget`. A T3 live canary is structurally
+// promote rules) and `learning_budget`. M6 additionally parses the distiller,
+// reviewer-volume, and report-only compaction controls. A T3 live canary is structurally
 // unrepresentable: the loader REJECTS any policy that grants T3 a canary
 // block or sets its `live_canary` to anything but `forbidden` — the refusal
 // lives in the type system and the parse, not in call-site convention
-// (milestones M5 done-means #3). The distiller/compaction schedules are M6
-// consumers and are deliberately not parsed yet — an unread policy knob
-// would imply enforcement that does not exist.
+// (milestones M5 done-means #3).
 
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { LoopTier } from "../memory.js";
+import { parseSchedule } from "../schedule.js";
 
 export type ScopeShareKey = "org" | "role" | "app" | "app_role";
 
@@ -102,6 +102,27 @@ export interface LearningPolicy {
   };
   tiers: Record<LoopTier, TierPolicy>;
   learning_budget: LearningBudgetPolicy;
+  distiller: {
+    schedule: string;
+    precheck: "deterministic";
+    evidence_window_days: number;
+    min_cluster_events: number;
+    max_candidates_per_run: number;
+    max_candidates_per_week: number;
+  };
+  reviewer: {
+    schedule: string;
+    max_candidates_per_run: number;
+  };
+  compaction: {
+    schedule: string;
+    report_only_v1: true;
+    deprecate_if: {
+      loads_zero_days: number;
+      past_ttl: boolean;
+      superseded: boolean;
+    };
+  };
 }
 
 export function defaultLearningPolicy(): LearningPolicy {
@@ -174,6 +195,27 @@ export function defaultLearningPolicy(): LearningPolicy {
       max_experiments_per_month: 4,
       max_distillations_per_week: 7,
       require_benefit_justification: true,
+    },
+    distiller: {
+      schedule: "daily 06:00",
+      precheck: "deterministic",
+      evidence_window_days: 7,
+      min_cluster_events: 2,
+      max_candidates_per_run: 5,
+      max_candidates_per_week: 20,
+    },
+    reviewer: {
+      schedule: "weekly mon 07:00",
+      max_candidates_per_run: 20,
+    },
+    compaction: {
+      schedule: "weekly mon 07:00",
+      report_only_v1: true,
+      deprecate_if: {
+        loads_zero_days: 45,
+        past_ttl: true,
+        superseded: true,
+      },
     },
   };
 }
@@ -315,6 +357,40 @@ export async function loadLearningPolicy(orgHome: string): Promise<LearningPolic
     mergePositiveInt(learningBudget, "max_experiments_per_month", path, (v) => (lb.max_experiments_per_month = v));
     mergePositiveInt(learningBudget, "max_distillations_per_week", path, (v) => (lb.max_distillations_per_week = v));
     mergeBoolean(learningBudget, "require_benefit_justification", path, (v) => (lb.require_benefit_justification = v));
+  }
+
+  const distiller = section(spec, "distiller");
+  if (distiller !== undefined) {
+    mergeSchedule(distiller, "schedule", path, (v) => (policy.distiller.schedule = v));
+    if (distiller["precheck"] !== undefined && distiller["precheck"] !== "deterministic") {
+      throw new Error(`learning: ${path}: distiller.precheck must be "deterministic"`);
+    }
+    mergePositiveInt(distiller, "evidence_window_days", path, (v) => (policy.distiller.evidence_window_days = v));
+    mergePositiveInt(distiller, "min_cluster_events", path, (v) => (policy.distiller.min_cluster_events = v));
+    mergePositiveInt(distiller, "max_candidates_per_run", path, (v) => (policy.distiller.max_candidates_per_run = v));
+    mergePositiveInt(distiller, "max_candidates_per_week", path, (v) => (policy.distiller.max_candidates_per_week = v));
+  }
+
+  const reviewer = section(spec, "reviewer");
+  if (reviewer !== undefined) {
+    mergeSchedule(reviewer, "schedule", path, (v) => (policy.reviewer.schedule = v));
+    mergePositiveInt(reviewer, "max_candidates_per_run", path, (v) => (policy.reviewer.max_candidates_per_run = v));
+  }
+
+  const compaction = section(spec, "compaction");
+  if (compaction !== undefined) {
+    mergeSchedule(compaction, "schedule", path, (v) => (policy.compaction.schedule = v));
+    if (compaction["report_only_v1"] !== undefined && compaction["report_only_v1"] !== true) {
+      throw new Error(
+        `learning: ${path}: compaction.report_only_v1 must stay true — M6 may recommend but never mutate`,
+      );
+    }
+    const deprecate = section(compaction, "deprecate_if");
+    if (deprecate !== undefined) {
+      mergePositiveInt(deprecate, "loads_zero_days", path, (v) => (policy.compaction.deprecate_if.loads_zero_days = v));
+      mergeBoolean(deprecate, "past_ttl", path, (v) => (policy.compaction.deprecate_if.past_ttl = v));
+      mergeBoolean(deprecate, "superseded", path, (v) => (policy.compaction.deprecate_if.superseded = v));
+    }
   }
 
   return policy;
@@ -462,6 +538,25 @@ function mergeString(
   const value = spec[key];
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`learning: ${path}: ${key} must be a non-empty string`);
+  }
+  apply(value);
+}
+
+function mergeSchedule(
+  spec: Record<string, unknown>,
+  key: string,
+  path: string,
+  apply: (value: string) => void,
+): void {
+  if (spec[key] === undefined) return;
+  const value = spec[key];
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`learning: ${path}: ${key} must be a non-empty schedule string`);
+  }
+  try {
+    parseSchedule(value);
+  } catch (error) {
+    throw new Error(`learning: ${path}: ${key}: ${(error as Error).message}`);
   }
   apply(value);
 }

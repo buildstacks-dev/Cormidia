@@ -49,7 +49,6 @@ import {
   type Finding,
   type ParseResult,
   type ReviewVerdict,
-  type VerdictKind,
   type VerdictTypes,
 } from "./verdicts.js";
 import type { LoopItem, LoopPhase, ReleaseConfig, ScorecardEvent, TicketTier } from "./types.js";
@@ -1049,14 +1048,16 @@ function repoBrief(item: LoopItem, options: LoopPipelineOptions): string {
   ].join("\n");
 }
 
-function verdictKindForPass(pass: PassConfig): VerdictKind {
+type PassVerdictKind = "contract" | "build" | "review";
+
+function verdictKindForPass(pass: PassConfig): PassVerdictKind {
   if (pass.id === "contract") return "contract";
   if (pass.role === "builder") return "build";
   return "review";
 }
 
 
-type PassVerdictOutcome<K extends VerdictKind> =
+type PassVerdictOutcome<K extends PassVerdictKind> =
   | { ok: true; verdict: VerdictTypes[K]; retryUsage?: TurnUsage }
   | { ok: false; failure: VerdictRecordOutcome };
 
@@ -1064,7 +1065,7 @@ type PassVerdictOutcome<K extends VerdictKind> =
  *  (docs/loop.md §6, §13 row 11), emit `verdict.recorded` into the pass's run
  *  record on success, and on unparseable-after-retry surface a typed infra
  *  failure (distinct `error_code`, never a merit outcome). */
-async function recordPassVerdict<K extends VerdictKind>(
+async function recordPassVerdict<K extends PassVerdictKind>(
   kind: K,
   ctx: VerdictRecordContext,
 ): Promise<PassVerdictOutcome<K>> {
@@ -1098,7 +1099,7 @@ async function recordPassVerdict<K extends VerdictKind>(
   }
 }
 
-function reformatTask(kind: VerdictKind, reason: string): string {
+function reformatTask(kind: PassVerdictKind, reason: string): string {
   return [
     `Your ${kind} verdict could not be parsed:`,
     reason,
@@ -1109,7 +1110,7 @@ function reformatTask(kind: VerdictKind, reason: string): string {
 }
 
 function verdictDetail(
-  kind: VerdictKind,
+  kind: PassVerdictKind,
   verdict: ContractVerdict | BuildVerdict | ReviewVerdict,
 ): Record<string, string | number | boolean> {
   if (kind === "contract") {

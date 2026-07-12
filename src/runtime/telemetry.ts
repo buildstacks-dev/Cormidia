@@ -61,6 +61,10 @@ export interface TurnRecord {
    *  (spec §13 learning_budget). Omitted on non-learning rows. */
   experimentRef?: string;
   candidateRef?: string;
+  /** M6 scheduled learning roles are ordinary provider turns even when they
+   * are not attributable to one candidate. This marker lets the existing
+   * ledger-based learning overlay include their spend. */
+  learningActivity?: "distillation" | "review";
 }
 
 /** Optional per-turn attribution (build plan M3.2): which app the turn ran
@@ -77,6 +81,7 @@ export interface TurnAttribution {
   unmeasured?: boolean;
   experimentRef?: string;
   candidateRef?: string;
+  learningActivity?: "distillation" | "review";
 }
 
 export function toRecord(
@@ -117,6 +122,7 @@ export function toRecord(
   if (attribution.unmeasured === true) record.unmeasured = true;
   if (attribution.experimentRef !== undefined) record.experimentRef = attribution.experimentRef;
   if (attribution.candidateRef !== undefined) record.candidateRef = attribution.candidateRef;
+  if (attribution.learningActivity !== undefined) record.learningActivity = attribution.learningActivity;
   if (result.usage.costEstimated === true) record.costEstimated = true;
   if (result.usage.tokensInUncached !== undefined) {
     record.tokensInUncached = result.usage.tokensInUncached;

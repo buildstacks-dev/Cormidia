@@ -43,6 +43,7 @@ import {
   createLearningEventSink,
   learningEventPath,
   readLearningEvents,
+  readLearningEventsWithDiagnostics,
   type LearningEvent,
 } from "../org/learning/events.js";
 import {
@@ -820,14 +821,18 @@ async function report(
       storeErrors.push(error.message);
       return [];
     });
-  const [events, records, experiments, evalResults, interventions, verdicts] = await Promise.all([
-    readLearningEvents(stateHome),
+  const [eventRead, records, experiments, evalResults, interventions, verdicts] = await Promise.all([
+    readLearningEventsWithDiagnostics(stateHome),
     readEpisodeRecords(stateHome),
     guarded(listExperimentRecords(homes.orgHome)),
     guarded(listEvalResults(homes.orgHome)),
     guarded(listInterventionRecords(homes.orgHome)),
     guarded(listReviewerVerdicts(homes.orgHome)),
   ]);
+  const events = eventRead.events;
+  for (const path of eventRead.missingFiles) {
+    storeErrors.push(`learning event file disappeared before read: ${path}`);
+  }
   // M4 activation sections: review queue + SLA, reviewer-human agreement,
   // suppression ledger size, and per-concept load counts from resolver events.
   // Same degrade-gracefully contract as every other org-home store: a
@@ -985,6 +990,13 @@ async function report(
     `Projection: ${projection.runsProjected} run(s) newly captured, ` +
       `${projection.runsAlreadyProjected} already captured, ${projection.runsPending} pending (not yet terminal)`,
   );
+  if (projection.runsRepaired > 0) {
+    lines.push(
+      `Capture repair: ${projection.runsRepaired} receipt(s), ` +
+        `${projection.eventFilesRecovered} missing event file(s) reconstructed`,
+    );
+  }
+  for (const warning of projection.warnings) lines.push(`Capture warning: ${warning}`);
   lines.push(`Events: ${events.length}`);
   for (const [type, n] of byType) lines.push(`  ${type}: ${n}`);
   lines.push("", `Episodes: ${records.length} (${open.length} open, ${closed.length} closed)`);

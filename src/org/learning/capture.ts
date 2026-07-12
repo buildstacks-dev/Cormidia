@@ -20,7 +20,7 @@
 
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { readEnvelope, type GateResultEntry, type RunEnvelope } from "../../runtime/runlog/envelope.js";
 import { readEvents, type RunlogEvent } from "../../runtime/runlog/events.js";
 import { RUN_ID_RE } from "../../runtime/runlog/paths.js";
@@ -34,6 +34,7 @@ import {
 } from "./episodes.js";
 import {
   appendLearningEventsDeduped,
+  learningEventPath,
   type GateVerdictStatus,
   type LearningEvent,
 } from "./events.js";
@@ -41,7 +42,7 @@ import {
 export interface CaptureCursor {
   schema_version: 1;
   /** `<app>/<runId>` → projection receipt. Presence means fully projected. */
-  runs: Record<string, { projected_at: string; events: number }>;
+  runs: Record<string, { projected_at: string; events: number; event_files?: string[] }>;
 }
 
 export interface ProjectCaptureOptions {
@@ -61,6 +62,12 @@ export interface CaptureProjectionResult {
   eventsEmitted: number;
   /** Events re-derived but already present in the target file (crash replay). */
   eventsDeduped: number;
+  /** Cursor receipts whose promised event files were absent and rebuilt from
+   * immutable run evidence. */
+  runsRepaired: number;
+  eventFilesRecovered: number;
+  /** Incomplete projections that could not be fully reconstructed. */
+  warnings: string[];
 }
 
 export function captureCursorPath(stateHome: string): string {
@@ -79,11 +86,18 @@ export async function projectCaptureEvents(
     runsPending: 0,
     eventsEmitted: 0,
     eventsDeduped: 0,
+    runsRepaired: 0,
+    eventFilesRecovered: 0,
+    warnings: [],
   };
 
   for (const { app, runId } of await listRuns(stateHome)) {
     const key = `${app}/${runId}`;
-    if (cursor.runs[key] !== undefined) {
+    const receipt = cursor.runs[key];
+    if (
+      receipt !== undefined &&
+      (receipt.events === 0 || receiptFilesExist(stateHome, receipt.event_files))
+    ) {
       result.runsAlreadyProjected += 1;
       continue;
     }
@@ -101,15 +115,60 @@ export async function projectCaptureEvents(
     }
 
     const events = await deriveRunEvents(stateHome, envelope, options.appStages);
+    const eventFiles = eventFileRefs(stateHome, events);
+    if (receipt !== undefined && receipt.events > events.length) {
+      result.warnings.push(
+        `${key}: capture cursor records ${receipt.events} event(s), but surviving run evidence derives only ${events.length}`,
+      );
+    }
+    const missingBefore = eventFiles.filter((path) => !existsSync(join(stateHome, path)));
+    if (receipt !== undefined && missingBefore.length === 0) {
+      // Legacy receipt migration: the event file exists, but older cursors did
+      // not bind the receipt to its paths. Upgrade without re-appending.
+      cursor.runs[key] = {
+        ...receipt,
+        event_files: eventFiles,
+      };
+      result.runsAlreadyProjected += 1;
+      continue;
+    }
     const { emitted, deduped } = await appendLearningEventsDeduped(stateHome, events);
     result.eventsEmitted += emitted;
     result.eventsDeduped += deduped;
-    cursor.runs[key] = { projected_at: clock().toISOString(), events: events.length };
-    result.runsProjected += 1;
+    cursor.runs[key] = {
+      projected_at: clock().toISOString(),
+      events: events.length,
+      event_files: eventFiles,
+    };
+    if (receipt === undefined) {
+      result.runsProjected += 1;
+    } else {
+      result.runsRepaired += 1;
+      result.eventFilesRecovered += missingBefore.length;
+    }
   }
 
   await writeCursor(stateHome, cursor);
   return result;
+}
+
+function eventFileRefs(stateHome: string, events: LearningEvent[]): string[] {
+  return [
+    ...new Set(events.map((event) => relative(stateHome, learningEventPath(stateHome, event)))),
+  ].sort();
+}
+
+function receiptFilesExist(stateHome: string, refs: string[] | undefined): boolean {
+  if (refs === undefined || refs.length === 0) return false;
+  return refs.every((ref) => {
+    const parts = ref.split(/[\\/]/);
+    return (
+      parts[0] === "learning" &&
+      parts[1] === "events" &&
+      !parts.includes("..") &&
+      existsSync(join(stateHome, ref))
+    );
+  });
 }
 
 // ---------------------------------------------------------------------------

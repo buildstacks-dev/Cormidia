@@ -6,7 +6,7 @@
 // is exercised via its required-flags error. Temp dirs only; no network.
 
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -113,6 +113,23 @@ describe("operon learn", () => {
     // The ticket has no merge evidence yet: open, no outcome totals.
     expect(text).toContain(`${EPISODE} — build_ticket open; 4 event(s)`);
     expect(text).toContain("gate.lint: 1");
+  });
+
+  it("report stays available and names a missing learning event file", async () => {
+    const date = join(STATE_HOME, "learning", "events", "2026-07-11");
+    mkdirSync(date, { recursive: true });
+    const dangling = join(date, "missing-current-turn.jsonl");
+    symlinkSync(join(date, "absent.jsonl"), dangling);
+    try {
+      const { logs } = captureLogs();
+      expect(await cmdLearn(["report", "--json", ...HOME_FLAGS])).toBe(0);
+      const data = JSON.parse(logs.join("\n")) as { store_errors?: string[] };
+      expect(data.store_errors).toContain(
+        `learning event file disappeared before read: ${dangling}`,
+      );
+    } finally {
+      rmSync(dangling, { force: true });
+    }
   });
 
   it("two human observations are each traceable by id (M1 done-criterion 3)", async () => {

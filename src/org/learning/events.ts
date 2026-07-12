@@ -158,11 +158,34 @@ export async function appendLearningEventsDeduped(
 /** Every learning event across all dates/streams, in (date, stream, line)
  *  order. Per-file torn-tail contract; see module header. */
 export async function readLearningEvents(stateHome: string): Promise<LearningEvent[]> {
+  return (await readLearningEventsWithDiagnostics(stateHome)).events;
+}
+
+export interface LearningEventReadResult {
+  events: LearningEvent[];
+  /** Files observed during directory enumeration that disappeared before
+   * read (including dangling links). A report can stay available and name
+   * the incomplete evidence instead of crashing. */
+  missingFiles: string[];
+}
+
+export async function readLearningEventsWithDiagnostics(
+  stateHome: string,
+): Promise<LearningEventReadResult> {
   const events: LearningEvent[] = [];
+  const missingFiles: string[] = [];
   for (const path of await listLearningEventFiles(stateHome)) {
-    events.push(...(await readLearningEventFile(path)));
+    try {
+      events.push(...(await readLearningEventFile(path, { missing: "throw" })));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        missingFiles.push(path);
+        continue;
+      }
+      throw error;
+    }
   }
-  return events;
+  return { events, missingFiles };
 }
 
 export async function listLearningEventFiles(stateHome: string): Promise<string[]> {
@@ -182,8 +205,11 @@ export async function listLearningEventFiles(stateHome: string): Promise<string[
   return paths;
 }
 
-export async function readLearningEventFile(path: string): Promise<LearningEvent[]> {
-  return readJsonLinesTolerant<LearningEvent>(path);
+export async function readLearningEventFile(
+  path: string,
+  options: { missing?: "empty" | "throw" } = {},
+): Promise<LearningEvent[]> {
+  return readJsonLinesTolerant<LearningEvent>(path, options);
 }
 
 /** Sanitize an id (turn id, journal id, event-id segment) into a safe

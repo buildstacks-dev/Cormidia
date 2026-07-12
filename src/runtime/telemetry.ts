@@ -217,7 +217,7 @@ export async function readTurnRecords(orgDir: string): Promise<TurnRecord[]> {
  *  reader of telemetry/*.jsonl assumes TurnRecord rows. */
 export interface InvocationRecord {
   at: string; // ISO timestamp
-  kind: "loop" | "dispatch";
+  kind: "loop" | "dispatch" | "release";
   app?: string;
   dryRun?: boolean;
   itemsClaimed?: number;

@@ -71,7 +71,7 @@ Module placement respects the one-way import rule
 | Runtime contract, gate, telemetry, adapters             | `src/runtime/`                                                 | exists                                  |
 | Run status + anomaly readers                            | `src/runtime/runlog/status.ts`, `anomalies.ts`                 | implemented M9; L1/L2 only             |
 | Governed learning loop (capture, episodes, activation, resolver) | `src/org/learning/`                                    | design in `docs/learning-loop/`         |
-| A4 release handoff                                      | `src/org/release.ts`                                           | ship-gate P7; deploy trigger queued as a critical op |
+| A4 release handoff                                      | `src/org/release.ts`                                           | ship-gate P7; deploy queued as a critical op, then a later dispatch executes the approved command once and comments the ticket |
 | Package/org/state boundary                              | `src/org/home.ts`                                              | org init, validation, active pointer, state-home resolution |
 
 

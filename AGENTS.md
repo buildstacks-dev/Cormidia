@@ -22,7 +22,8 @@ settles once into the org ledger where budget caps are enforced; the approval
 boundary supports scoped grants, role toolset shaping (forbidden acts
 unrepresentable on Claude, flat-denied everywhere), durable denial lessons,
 and the A4 release handoff (`release:` block, ship-gate P7, deploy trigger
-queued as a critical op — `src/org/release.ts`). `operon-sandbox-delta`
+queued as a critical op, then executed exactly once by a later dispatch after
+approval — `src/org/release.ts`). `operon-sandbox-delta`
 ("Ledgerette") is the from-scratch onboarding + loop proof; buildstacks.dev
 is onboarded as a production app in `status: onboarding`. Run `pnpm test`
 for the current offline suite. Known limitations live in README.md → Known

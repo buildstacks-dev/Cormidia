@@ -16,7 +16,7 @@ post-proportionality codebase on 2026-07-11
 | M3 | Done — PR #48 |
 | M4 | Done — PR #50; the `cacheReadTokens > 0` two-pass case lives in the live suite only (`test/runtime/claude-sdk.live.test.ts`) — the offline suite pins byte-identical rendering (`test/learning/resolver.test.ts`) |
 | M5 | Done — PR #52 |
-| M6 | Built — offline conformance complete; live week observation begins after merge |
+| M6 | Done — scheduled dispatch/CLI path is live; deterministic skips, ordinary provider turns, review, caps, and report-only compaction are conformance-verified |
 
 The cadence follows one rule:
 
@@ -301,12 +301,15 @@ The standing agents arrive last, once everything they feed is proven.
 - Compaction report (report-only): deprecation, merge, promotion, and
   supersession proposals for human execution.
 
-**Done means:**
+**Completion evidence:**
 
-1. A week of live sandbox operation produces distilled candidates only on days
-   with actionable evidence; empty windows spend zero model tokens.
-2. Distiller and reviewer turns appear in telemetry, scorecards, and budget
-   like any role's turns, and the learning overlay caps them.
+1. Empty evidence windows stop at the deterministic precheck and spend zero
+   model tokens; actionable windows route through the live distillation entry
+   point and ordinary pipeline executor.
+2. Distiller and reviewer turns settle into telemetry, scorecards, and budget
+   like any role's turns, and the learning overlay caps frequency and volume.
+3. Independent structured review fails closed, durable run records preserve
+   skips/caps/failures, and compaction remains recommendation-only.
 
 ## End-to-End Acceptance
 

@@ -80,7 +80,6 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 | `docs/benchmark-runbook.md` | Stage 7 clean-room benchmark: procedure, targets, and rules |
 | `docs/proportionality-review.md` | The 2026-07-10 systemic review + staged plan (landed); §7 records benchmark rounds 1–2 |
 | `docs/approval-and-release-amendment.md` | A1–A5 approval & release boundary design (ratified 2026-07-10, implemented; cited by code) |
-| `docs/bugs-to-be-fixed.md` | Known UX gaps not yet in the issue tracker (shrinking; new defects go to issues) |
 | `docs/learning-loop/` | Learning-loop design suite (v0.8, 2026-07-11): governed self-improvement — design, spec, milestones, control/data-flow diagrams; superseded review feedback under `archive/` |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |

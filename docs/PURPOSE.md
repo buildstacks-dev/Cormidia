@@ -454,12 +454,12 @@ will resolve them.
 - 2026-07-11 — v1.7: learning loop design ratified (v0.8 suite,
   `docs/learning-loop/`; governed self-improvement — capture → episodes →
   experiments → governed activation → offline eval + human-started canary →
-  scheduled distillation). Preflight + M1–M5 built and live-verified; M6 was
-  still open. Recorded in Decided above.
+  scheduled distillation). At that versioned snapshot, Preflight + M1–M5 were
+  built and M6 remained next; v1.8 below supersedes that status.
 - 2026-07-12 — v1.8: M6 scheduled distillation built through the ordinary
   dispatch/pipeline/ledger path: deterministic zero-token prechecks,
   evidence clustering and dedupe/suppression, candidate/frequency/budget caps,
   daily Distiller, weekly cross-provider Learning Reviewer, structured
-  fail-closed verdict persistence, and report-only compaction. Offline
-  conformance is complete; no token-spending live calibration run was required
-  for this implementation change.
+  fail-closed verdict persistence, and report-only compaction. M6 is complete
+  and live in the dispatch/CLI path; offline conformance is complete, and no
+  token-spending calibration campaign was required for the implementation.

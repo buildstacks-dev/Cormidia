@@ -1,7 +1,6 @@
 import {
   chmodSync,
   closeSync,
-  copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -13,8 +12,9 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { SECRET_PATTERNS } from "../../src/runtime/secret-patterns.js";
+import { asGlobal, SECRET_PATTERNS } from "../../src/runtime/secret-patterns.js";
 import {
   hashFile,
   hashManifest,
@@ -22,7 +22,8 @@ import {
   type CampaignManifest,
 } from "./core.js";
 
-const ARCHIVE_POLICY = "sanitized-evidence/v1" as const;
+const ARCHIVE_POLICY = "sanitized-evidence/v2" as const;
+const LEGACY_ARCHIVE_POLICY = "sanitized-evidence/v1" as const;
 const ARCHIVE_KIND = "sanitized-evidence" as const;
 const EXCLUDED_ROOTS = ["provider-scratch/**"] as const;
 const RETAINED_DIRECTORIES = new Set([
@@ -45,18 +46,31 @@ export interface ArchiveManifest {
   campaign_sha256: string;
   archived_at: string;
   excluded_roots: string[];
+  /** Hashes of the sanitized bytes stored in the external archive. */
   files: Record<string, string>;
+  /** Hashes of the exact selected source bytes before actor-worktree redaction. */
+  source_files: Record<string, string>;
+  /** Canonical secret-pattern families redacted from actor-worktree files. */
+  redacted_files: Record<string, string[]>;
 }
 
 interface ArchiveReceipt {
   schema_version: 2;
   archive_kind: typeof ARCHIVE_KIND;
-  policy_version: typeof ARCHIVE_POLICY;
+  policy_version: typeof ARCHIVE_POLICY | typeof LEGACY_ARCHIVE_POLICY;
   campaign_id: string;
   campaign_sha256: string;
   destination: string;
   archive_manifest_sha256: string;
   archived_at: string;
+}
+
+interface SelectedEvidence {
+  rel: string;
+  source_sha256: string;
+  archived_sha256: string;
+  archived_bytes: Buffer;
+  redactions: string[];
 }
 
 export function archiveCampaignEvidence(options: {
@@ -78,29 +92,31 @@ export function archiveCampaignEvidence(options: {
   if (existsSync(destination)) throw new Error("archive_destination_exists");
 
   // Preflight before creating a final destination: unknown evidence classes,
-  // links, special files, binary files, and secret-bearing selected evidence
-  // all fail closed. Provider scratch is excluded structurally and is never
-  // inspected or copied.
-  const before = selectedEvidenceInventory(campaignRoot);
+  // links, special files, binary files, and secret-bearing durable evidence
+  // all fail closed. Secret-like actor-worktree spans are redacted with source
+  // and archived hashes retained separately. Provider scratch is excluded
+  // structurally and is never inspected or copied.
+  const before = selectedEvidenceSnapshot(campaignRoot);
   const staging = `${destination}.tmp-${String(process.pid)}`;
   if (existsSync(staging)) throw new Error("archive_staging_exists");
   mkdirSync(dirname(destination), { recursive: true, mode: 0o700 });
   mkdirSync(staging, { mode: 0o700 });
   try {
-    for (const [rel] of before) {
-      const source = join(campaignRoot, rel);
+    for (const evidence of before) {
+      const rel = evidence.rel;
       const target = join(staging, rel);
       mkdirSync(dirname(target), { recursive: true, mode: 0o700 });
-      copyFileSync(source, target);
+      writeFileSync(target, evidence.archived_bytes, { flag: "wx", mode: 0o600 });
       chmodSync(target, 0o600);
     }
 
     // Refuse a moving source tree rather than producing a receipt for a
     // mixture of pre- and post-mutation evidence.
-    const after = selectedEvidenceInventory(campaignRoot);
-    if (!sameInventory(before, after)) throw new Error("archive_source_changed_during_copy");
+    const after = selectedEvidenceSnapshot(campaignRoot);
+    if (!sameSelectedEvidence(before, after)) throw new Error("archive_source_changed_during_copy");
     const copied = genericInventory(staging);
-    if (!sameInventory(before, copied)) throw new Error("archive_copy_verification_failed");
+    const archivedInventory = before.map((entry) => [entry.rel, entry.archived_sha256] as [string, string]);
+    if (!sameInventory(archivedInventory, copied)) throw new Error("archive_copy_verification_failed");
 
     const manifest: ArchiveManifest = {
       schema_version: 2,
@@ -110,7 +126,9 @@ export function archiveCampaignEvidence(options: {
       campaign_sha256: hashManifest(options.campaign),
       archived_at: (options.now ?? new Date()).toISOString(),
       excluded_roots: [...EXCLUDED_ROOTS],
-      files: Object.fromEntries(before),
+      files: Object.fromEntries(archivedInventory),
+      source_files: Object.fromEntries(before.map((entry) => [entry.rel, entry.source_sha256])),
+      redacted_files: Object.fromEntries(before.filter((entry) => entry.redactions.length > 0).map((entry) => [entry.rel, entry.redactions])),
     };
     writePrivateJson(join(staging, "archive-manifest.json"), manifest);
     renameSync(staging, destination);
@@ -187,7 +205,7 @@ export function executeCleanup(
   return [...plan.removable];
 }
 
-function selectedEvidenceInventory(root: string): Array<[string, string]> {
+function selectedEvidenceSnapshot(root: string): SelectedEvidence[] {
   const entries = readdirSync(root, { withFileTypes: true });
   const selected: string[] = [];
   for (const entry of entries) {
@@ -213,8 +231,7 @@ function selectedEvidenceInventory(root: string): Array<[string, string]> {
   selected.sort();
   return selected.map((rel) => {
     const path = join(root, rel);
-    preflightTextEvidence(path, rel);
-    return [rel, `sha256:${hashFile(path)}`];
+    return sanitizeSelectedEvidence(path, rel);
   });
 }
 
@@ -245,18 +262,34 @@ function retainedTopLevelFile(name: string): boolean {
     /^report[^/]*\.html$/.test(name);
 }
 
-function preflightTextEvidence(path: string, rel: string): void {
+function sanitizeSelectedEvidence(path: string, rel: string): SelectedEvidence {
   const bytes = readFileSync(path);
   if (bytes.includes(0)) throw new Error(`archive_binary_file_forbidden: ${rel}`);
-  const text = bytes.toString("utf8");
+  let text = bytes.toString("utf8");
   if (Buffer.from(text, "utf8").compare(bytes) !== 0) {
     throw new Error(`archive_non_utf8_file_forbidden: ${rel}`);
   }
+  const redactions: string[] = [];
   for (const secret of SECRET_PATTERNS) {
     if (secret.pattern.test(text)) {
-      throw new Error(`archive_secret_pattern_forbidden:${secret.name}:${rel}`);
+      if (!(rel === "world" || rel.startsWith(`world${sep}`))) {
+        throw new Error(`archive_secret_pattern_forbidden:${secret.name}:${rel}`);
+      }
+      text = text.replace(asGlobal(secret), `[REDACTED:${secret.name}]`);
+      redactions.push(secret.name);
     }
   }
+  for (const secret of SECRET_PATTERNS) {
+    if (secret.pattern.test(text)) throw new Error(`archive_redaction_incomplete:${secret.name}:${rel}`);
+  }
+  const archivedBytes = Buffer.from(text, "utf8");
+  return {
+    rel,
+    source_sha256: `sha256:${hashFile(path)}`,
+    archived_sha256: `sha256:${createHash("sha256").update(archivedBytes).digest("hex")}`,
+    archived_bytes: archivedBytes,
+    redactions,
+  };
 }
 
 function genericInventory(root: string): Array<[string, string]> {
@@ -283,7 +316,7 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
     if (
       receipt.schema_version !== 2 ||
       receipt.archive_kind !== ARCHIVE_KIND ||
-      receipt.policy_version !== ARCHIVE_POLICY ||
+      ![ARCHIVE_POLICY, LEGACY_ARCHIVE_POLICY].includes(receipt.policy_version as typeof ARCHIVE_POLICY) ||
       receipt.campaign_id !== campaignId ||
       typeof receipt.campaign_sha256 !== "string" ||
       typeof receipt.destination !== "string" ||
@@ -299,7 +332,7 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
     if (
       manifest.schema_version !== 2 ||
       manifest.archive_kind !== ARCHIVE_KIND ||
-      manifest.policy_version !== ARCHIVE_POLICY ||
+      manifest.policy_version !== receipt.policy_version ||
       manifest.campaign_id !== campaignId ||
       manifest.campaign_sha256 !== receipt.campaign_sha256 ||
       !Array.isArray(manifest.excluded_roots) ||
@@ -315,10 +348,39 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
     const manifestFiles = Object.entries(manifest.files as Record<string, string>).sort(([a], [b]) => a.localeCompare(b));
     if (manifestFiles.some(([rel]) => unsafeManifestPath(rel))) return false;
     if (!sameInventory(manifestFiles, archiveFiles)) return false;
-    return sameInventory(selectedEvidenceInventory(campaignRoot), manifestFiles);
+    const selected = selectedEvidenceSnapshot(campaignRoot);
+    const sourceFiles = selected.map((entry) => [entry.rel, entry.source_sha256] as [string, string]);
+    if (receipt.policy_version === LEGACY_ARCHIVE_POLICY) {
+      return selected.every((entry) => entry.redactions.length === 0) && sameInventory(sourceFiles, manifestFiles);
+    }
+    if (
+      manifest.source_files === null ||
+      typeof manifest.source_files !== "object" ||
+      Array.isArray(manifest.source_files) ||
+      manifest.redacted_files === null ||
+      typeof manifest.redacted_files !== "object" ||
+      Array.isArray(manifest.redacted_files)
+    ) return false;
+    const manifestSourceFiles = Object.entries(manifest.source_files as Record<string, string>).sort(([a], [b]) => a.localeCompare(b));
+    const expectedArchivedFiles = selected.map((entry) => [entry.rel, entry.archived_sha256] as [string, string]);
+    const expectedRedactions = Object.fromEntries(selected.filter((entry) => entry.redactions.length > 0).map((entry) => [entry.rel, entry.redactions]));
+    return sameInventory(sourceFiles, manifestSourceFiles) &&
+      sameInventory(expectedArchivedFiles, manifestFiles) &&
+      JSON.stringify(manifest.redacted_files) === JSON.stringify(expectedRedactions);
   } catch {
     return false;
   }
+}
+
+function sameSelectedEvidence(left: SelectedEvidence[], right: SelectedEvidence[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((entry, index) => {
+    const other = right[index];
+    return other?.rel === entry.rel &&
+      other.source_sha256 === entry.source_sha256 &&
+      other.archived_sha256 === entry.archived_sha256 &&
+      JSON.stringify(other.redactions) === JSON.stringify(entry.redactions);
+  });
 }
 
 function unsafeManifestPath(path: string): boolean {

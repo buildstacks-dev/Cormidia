@@ -58,7 +58,11 @@ campaign.
   a schema-v2 sanitized evidence archive with a per-file checksum manifest.
   Durable evidence and a cache-free worktree snapshot are retained;
   `provider-scratch/**`, provider credentials, dependency caches, Git metadata,
-  and prior receipts are structurally excluded.
+  and prior receipts are structurally excluded. Secret-like spans in isolated
+  actor-worktree files are replaced with canonical redaction markers in the
+  archive while the manifest retains both exact source hashes and archived-byte
+  hashes. A secret match in durable results, state, reports, or control evidence
+  still fails closed instead of being silently rewritten.
 - `pnpm eval:cleanup -- --campaign <id>` previews removal of generated
   worktrees/provider scratch. Execution requires `--execute --confirm <id>`;
   it also requires a verified schema-v2 external archive receipt created by
@@ -135,8 +139,11 @@ real deploy/publication/message/DNS/cloud/destructive-data effect is forbidden.
 App gates treat provider-modifiable code as untrusted: npm script definitions
 must still match the pinned seed, the subprocess receives an isolated HOME and
 TMP plus a credential-free environment, and live macOS runs deny network for
-the full gate process tree. A live platform without that network sandbox fails
-closed instead of executing actor-authored checks with ambient access.
+the full gate process tree. The default is fully network-dark; a case whose
+reviewed side-effect policy declares loopback receives only local inbound and
+outbound socket access while external networking remains denied. A live
+platform without that network sandbox fails closed instead of executing
+actor-authored checks with ambient access.
 
 Run adapter calibration before product episodes. Infrastructure retries are
 limited to one campaign-wide declared retry; the original attempt and any

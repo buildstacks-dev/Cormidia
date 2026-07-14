@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed implementation mandate |
-| Evidence date | 2026-07-12 |
+| Status | Phased implementation authorized; Phase 0 is next |
+| Evidence date | 2026-07-13 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
 | Benchmark app | `/Users/bikram/Build/buildstacks.dev` |
@@ -816,20 +816,49 @@ measurably better with experience.
 
 ## 13. Copy/paste kickoff prompt for a new session
 
-> Work in `/Users/bikram/Build/Operon`. Read
-> `/Users/bikram/Build/Operon/docs/efficiency-transformation/highly-efficient-organization-transformation.md`
-> completely and
-> treat it as the controlling transformation charter. The objective is not to
-> fix one defect; it is to make Operon qualify as a highly efficient, governed
-> organization under the charter's measurable definition.
+> `/goal` Implement Operon's highly efficient organization transformation in
+> `/Users/bikram/Build/Operon`. Use `$operon` for runtime discovery and safe
+> diagnostics. Before editing, read completely: `AGENTS.md`, `docs/PURPOSE.md`,
+> `docs/efficiency.md`,
+> `docs/efficiency-transformation/highly-efficient-organization-transformation.md`,
+> and
+> `docs/efficiency-transformation/highly-efficient-organization-test-eval-transformation.md`.
 >
-> Begin with Phase 0: inspect the current repository and produce the docs-only
-> PURPOSE, VISION, efficiency-contract, and cross-document alignment changes.
-> Preserve unrelated work in the existing checkout. Then proceed through the
-> phases only when each stated gate is satisfied. Use the archived
-> `buildstacks.dev` workflow as immutable benchmark evidence, implement the
-> benchmark matrix, and report misses honestly. Preserve safety and critical-op
-> boundaries; remove waste through deterministic mechanics, proportional
-> routing, context economy, durable continuation, precise approvals, and
-> outcome-accountable learning. Continue until the current phase is complete or
-> a genuinely material human decision is required.
+> Preserve unrelated work, especially the existing uncommitted
+> `docs/architecture/conceptual-overview.md`; do not reset, stash, or include
+> it. Work on a focused branch. Do not mutate production org/state/apps or
+> non-eval GitHub repositories.
+>
+> T0–T5 test/eval readiness is complete. The admitted adapter campaign is
+> `adapter-harness-calibration-v1-20260714-e52bf4335e81`; the valid current
+> baseline is `pre-transformation-baseline-v2-20260714-e52bf4335e81`, with one
+> pass, five honest `product_miss` outcomes, zero eval-system failures, and 72
+> known-red product contracts. Rerun external campaigns only after covered
+> bytes change and exact authorization. Never
+> weaken graders, targets, safety gates, or evidence to make results green.
+>
+> Execute the charter sequentially: Phase 0 doctrine; Phase 1 measurement and
+> invariants; Phase 2 token-free lifecycle; Phase 3 execution economy; Phase 4
+> closed learning; Phase 5 autonomous operation; Phase 6 qualification. Do not
+> parallelize work whose contracts depend on an unfinished phase. Begin with
+> Phase 0 only: inspect current doctrine, prepare a docs-only PURPOSE/VISION/
+> efficiency-contract alignment proposal with rationale, and stop for
+> human ratification before production code. `TASTE.md`, `roles.yaml`,
+> `pipelines.yaml`, `prompts/**`, and `docs/PURPOSE.md` are human-ratified;
+> never silently rewrite them.
+>
+> After ratification, implement one verifiable subsystem slice at a time.
+> Measure before optimizing, preserve import direction
+> `src/org` → `src/loop` → `src/runtime`, use existing fixtures, and promote
+> known-red contracts only when their production behavior genuinely exists.
+> Update nearby architecture/contract docs in the same change. For every
+> source slice run `pnpm test && pnpm typecheck`; for eval/transformation work
+> also run `pnpm eval:validate`, `pnpm test:transformation`,
+> `pnpm eval:deterministic`, and strict mode, which may fail only for the exact
+> remaining known-red set. Run sandbox/live checks only when required and
+> separately authorized.
+>
+> Keep eval validity separate from product outcome; record misses. At each gate
+> report changed files, promoted/still-red contracts, exact checks, benchmark
+> evidence, docs, risks, and the next human decision. Continue until the phase
+> is complete or material authorization is required.

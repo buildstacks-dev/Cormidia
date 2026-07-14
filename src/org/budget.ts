@@ -11,12 +11,20 @@ import type { AppsFile } from "./apps.js";
 import { ApprovalStore } from "./approvals.js";
 import {
   readSettledKeys,
-  recordTurn,
+  recordTurnOnce,
   settlementKey,
   type TurnRecord,
 } from "../runtime/telemetry.js";
-import type { RunEnvelope } from "../runtime/runlog/envelope.js";
+import { finalizeRun, readEnvelope, type RunEnvelope } from "../runtime/runlog/envelope.js";
 import type { TurnResult } from "../runtime/types.js";
+import {
+  finalizeEpisode,
+  readEfficiencyEvidence,
+  readRouteRecord,
+  reconcileStaleProviderSteps,
+  routeRecordPath,
+  type ExecutionStepRecord,
+} from "../loop/efficiency.js";
 
 export interface BudgetRow {
   app: string;
@@ -214,18 +222,16 @@ export interface ReconcileResult {
 
 /** An envelope still `running` younger than this is treated as in flight and
  *  left alone: its pass may be between turn-return and finalize, and settling
- *  it here would race the executor's own settle — the reconcile row would win
- *  the (app, runId) key with a wrong status and stale usage. Older than this,
+ *  it here would race the executor's own settle. Older than this,
  *  a `running` envelope is provably dead (no pass runs for a day) and its
  *  spend is recovered as failed. */
 const IN_FLIGHT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-/** Rebuild the ledger from `runs/<app>/<run>/envelope.json` (telemetry doc
- *  Defect B item 4). Idempotent: settlement is keyed on run_id, so re-running
- *  settles nothing new, and orgs whose loop passes predate per-pass settlement
- *  recover their real history instead of starting from zero. `runtimeByRole`
- *  maps role name → runtime kind for the record (roles.yaml is the caller's to
- *  load); unknown roles record "unknown". */
+/** Repair stale execution receipts, settle terminal provider steps, then
+ *  back-fill legacy `runs/<app>/<run>/envelope.json` evidence. Current rows
+ *  are idempotent by (app, providerTurnId); legacy rows fall back to
+ *  (app, runId). `runtimeByRole` maps role name to runtime kind for legacy
+ *  records; unknown roles record "unknown". */
 export async function reconcileLedger(
   stateHome: string,
   runtimeByRole: Record<string, string> = {},
@@ -241,8 +247,43 @@ export async function reconcileLedger(
     corrupt: 0,
     recoveredUsd: 0,
   };
-  if (!existsSync(runsDir)) return result;
   const settledKeys = await readSettledKeys(stateHome);
+
+  // New-schema execution receipts are authoritative at provider-turn
+  // granularity. Repair stale started receipts first, then settle every
+  // terminal provider step. Legacy envelopes are handled below.
+  const stale = await reconcileStaleProviderSteps(stateHome, now, IN_FLIGHT_WINDOW_MS);
+  result.inFlight += stale.inFlight.length;
+  result.corrupt += stale.corrupt.length;
+  for (const step of stale.finalized) {
+    await terminalizeStaleRun(stateHome, step, now);
+    await terminalizeEpisodeIfOpen(
+      stateHome,
+      step.episode_id,
+      step.reason,
+      step.next_step ?? "resume from the last valid artifact boundary",
+      now,
+    );
+  }
+  for (const episode of await readEfficiencyEvidence(stateHome)) {
+    for (const step of episode.steps.filter((candidate) => candidate.kind === "provider")) {
+      const providerTurnId = step.provider_turn_id;
+      if (providerTurnId === null) {
+        result.corrupt += 1;
+        continue;
+      }
+      const key = settlementKey(step.app, providerTurnId);
+      if (settledKeys.has(key)) continue;
+      const record = recordFromExecutionStep(step);
+      if (await recordTurnOnce(stateHome, record)) {
+        settledKeys.add(key);
+        result.settled += 1;
+        result.recoveredUsd += record.costUsd;
+      }
+    }
+  }
+
+  if (!existsSync(runsDir)) return result;
 
   for (const app of await readdir(runsDir)) {
     const appDir = join(runsDir, app);
@@ -263,19 +304,60 @@ export async function reconcileLedger(
         result.corrupt += 1; // Unreadable spend cannot be reconciled — but count it.
         continue;
       }
+      if (
+        envelope.status === "running" &&
+        !Array.isArray(envelope.provider_turn_ids) &&
+        envelope.usage === undefined
+      ) {
+        // Legacy pre-turn work has no provider identity or measurable spend.
+        // Preserve the historical no-usage population rather than guessing
+        // that it is an in-flight provider invocation.
+        result.noUsage += 1;
+        continue;
+      }
+      if (envelope.status === "running") {
+        const ageMs = now.getTime() - new Date(envelope.started_at).getTime();
+        if (ageMs < IN_FLIGHT_WINDOW_MS) {
+          result.inFlight += 1;
+          continue;
+        }
+        await finalizeRun(
+          stateHome,
+          envelope.app,
+          envelope.run_id,
+          {
+            status: "failed",
+            errorCode: "error_stale_missing_finalization",
+            reason: "pass lost its owner heartbeat before parent finalization",
+          },
+          now,
+        );
+        if (envelope.episode_id !== undefined) {
+          await terminalizeEpisodeIfOpen(
+            stateHome,
+            envelope.episode_id,
+            "pass lost its owner heartbeat before parent finalization",
+            "resume from the last valid artifact boundary",
+            now,
+          );
+        }
+        envelope = await readEnvelope(stateHome, envelope.app, envelope.run_id);
+      }
+      // New envelopes expose the exact provider-turn identities. Their steps
+      // above own reconciliation; never synthesize a second pass-aggregate
+      // settlement, including the empty array of a pre-turn budget refusal.
+      if (Array.isArray(envelope.provider_turn_ids)) {
+        const allSettled = envelope.provider_turn_ids.every((providerTurnId) =>
+          settledKeys.has(settlementKey(envelope.app, providerTurnId)),
+        );
+        if (allSettled) result.alreadySettled += 1;
+        else result.corrupt += 1;
+        continue;
+      }
       if (envelope.usage === undefined) {
         // No usage ever landed (hung before the turn returned, or crashed
         // pre-turn) — there is no measured spend to settle.
         result.noUsage += 1;
-        continue;
-      }
-      if (
-        envelope.status === "running" &&
-        now.getTime() - new Date(envelope.started_at).getTime() < IN_FLIGHT_WINDOW_MS
-      ) {
-        // Possibly a live pass between turn-return and finalize: leave it for
-        // the executor's own settle rather than racing it with a wrong status.
-        result.inFlight += 1;
         continue;
       }
       if (settledKeys.has(settlementKey(envelope.app, envelope.run_id))) {
@@ -284,15 +366,108 @@ export async function reconcileLedger(
       }
       const record = recordFromEnvelope(envelope, runtimeByRole);
       record.escalations = await countEscalations(join(appDir, runId, "events.jsonl"));
-      // settledKeys was read once and is maintained in memory — recordTurn
-      // appends directly instead of re-scanning the ledger per envelope.
-      await recordTurn(stateHome, record);
-      settledKeys.add(settlementKey(envelope.app, envelope.run_id));
-      result.settled += 1;
-      result.recoveredUsd += record.costUsd;
+      if (await recordTurnOnce(stateHome, record)) {
+        settledKeys.add(settlementKey(envelope.app, envelope.run_id));
+        result.settled += 1;
+        result.recoveredUsd += record.costUsd;
+      } else {
+        result.alreadySettled += 1;
+      }
     }
   }
   return result;
+}
+
+async function terminalizeStaleRun(
+  stateHome: string,
+  step: ExecutionStepRecord,
+  now: Date,
+): Promise<void> {
+  try {
+    const envelope = await readEnvelope(stateHome, step.app, step.run_id);
+    if (envelope.status !== "running") return;
+    await finalizeRun(
+      stateHome,
+      step.app,
+      step.run_id,
+      {
+        status: "failed",
+        errorCode: "error_stale_missing_finalization",
+        reason: step.reason,
+      },
+      now,
+    );
+  } catch {
+    // The execution step remains the truthful terminal source even if its
+    // legacy parent envelope was pruned or corrupt; reports name that join.
+  }
+}
+
+async function terminalizeEpisodeIfOpen(
+  stateHome: string,
+  episodeId: string,
+  reason: string,
+  nextStep: string,
+  now: Date,
+): Promise<void> {
+  if (!existsSync(routeRecordPath(stateHome, episodeId))) return;
+  const route = await readRouteRecord(stateHome, episodeId);
+  if (route.terminal !== null) return;
+  await finalizeEpisode({
+    root: stateHome,
+    episodeId,
+    status: "interrupted",
+    reason,
+    nextStep,
+    now,
+  });
+}
+
+function recordFromExecutionStep(step: ExecutionStepRecord): TurnRecord {
+  const usage = step.usage ?? {
+    tokensIn: 0,
+    tokensOut: 0,
+    costUsd: 0,
+    subagentTurns: 0,
+    wallClockMs: Math.max(0, new Date(step.finished_at).getTime() - new Date(step.started_at).getTime()),
+    quality: "unavailable" as const,
+  };
+  const record: TurnRecord = {
+    at: step.finished_at,
+    role: step.role ?? "unknown",
+    runtime: step.runtime ?? "unknown",
+    model: step.model ?? "unknown",
+    status:
+      step.status === "completed"
+        ? "completed"
+        : step.status === "blocked"
+          ? "blocked_on_gate"
+          : step.status === "cancelled"
+            ? "cancelled"
+            : step.status === "timed_out"
+              ? "timed_out"
+              : "failed",
+    tokensIn: usage.tokensIn,
+    tokensOut: usage.tokensOut,
+    costUsd: usage.costUsd,
+    usageQuality: usage.quality ?? (usage.costEstimated ? "estimated" : "complete"),
+    subagentTurns: usage.subagentTurns,
+    wallClockMs: usage.wallClockMs,
+    escalations: 0,
+    app: step.app,
+    runId: step.run_id,
+    ...(step.provider_turn_id !== null ? { providerTurnId: step.provider_turn_id } : {}),
+    executionStepId: step.execution_step_id,
+    episodeId: step.episode_id,
+    pipeline: step.operation.split("/", 1)[0] ?? "unknown",
+    pass: step.operation.includes("/") ? step.operation.slice(step.operation.indexOf("/") + 1) : step.operation,
+  };
+  if (usage.quality === "unavailable") record.unmeasured = true;
+  if (usage.costEstimated === true) record.costEstimated = true;
+  if (usage.tokensInUncached !== undefined) record.tokensInUncached = usage.tokensInUncached;
+  if (usage.cacheCreationTokens !== undefined) record.cacheCreationTokens = usage.cacheCreationTokens;
+  if (usage.cacheReadTokens !== undefined) record.cacheReadTokens = usage.cacheReadTokens;
+  return record;
 }
 
 /** Count of this month's `unmeasured` ledger rows per app (interactive

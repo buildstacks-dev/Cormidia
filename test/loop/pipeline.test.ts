@@ -315,13 +315,25 @@ describe("executePipeline", () => {
       scripted("arbitrator"),
     ]);
     const tracker = { active: 0, maxActive: 0 };
+    let competingArrivals = 0;
+    let releaseCompeting!: () => void;
+    const competingReady = new Promise<void>((resolve) => {
+      releaseCompeting = resolve;
+    });
     const inner = h.options.runtimeFor(ROLES["planner"] as RoleConfig);
     const tracking: Runtime = {
       kind: "claude",
       async runTurn(req, hooks) {
         tracker.active += 1;
         tracker.maxActive = Math.max(tracker.maxActive, tracker.active);
-        await new Promise((r) => setTimeout(r, 20));
+        if (req.task.includes("brief for pm-")) {
+          competingArrivals += 1;
+          if (competingArrivals === 2) releaseCompeting();
+          // Hold the first PM until the second reaches the adapter boundary.
+          // Filesystem evidence writes may legitimately stagger entry under
+          // load; this barrier tests pipeline concurrency, not disk speed.
+          await competingReady;
+        }
         const result = await inner.runTurn(req, hooks);
         tracker.active -= 1;
         return result;
@@ -428,7 +440,7 @@ describe("executePipeline", () => {
     }
   });
 
-  it("settles one ledger row per pass, keyed on runId, when a telemetry target is set", async () => {
+  it("settles one ledger row per provider invocation when a telemetry target is set", async () => {
     const build = getPipeline(await loadFixture(), "build");
     const h = makeHarness(build, [
       scripted("contract out"),
@@ -529,12 +541,55 @@ describe("executePipeline", () => {
     }
   });
 
-  it("settles nothing when no telemetry target is given (library callers opt in)", async () => {
+  it("settles every provider turn even when a caller omits an explicit telemetry target", async () => {
     const build = getPipeline(await loadFixture(), "build");
     const h = makeHarness(build, [scripted("contract"), scripted("implement")]);
     try {
       await executePipeline(h.options);
-      expect(existsSync(`${h.options.runlog.root}/telemetry`)).toBe(false);
+      expect(existsSync(`${h.options.runlog.root}/telemetry`)).toBe(true);
+      const ledger = readFileSync(
+        `${h.options.runlog.root}/telemetry/2026-07-05.jsonl`,
+        "utf8",
+      ).trimEnd().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
+      expect(ledger).toHaveLength(2);
+      expect(ledger[0]).toMatchObject({
+        runId: expect.any(String),
+        providerTurnId: expect.any(String),
+        executionStepId: expect.any(String),
+        episodeId: expect.any(String),
+      });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("terminalizes the parent pass when a verdict repair exceeds the episode allowance", async () => {
+    const review = getPipeline(await loadFixture(), "review");
+    const h = makeHarness(review, [scripted("not a verdict")], { selection: { tier: "quick" } });
+    h.options.episode = {
+      id: "episode:verdict-budget",
+      route: "quick",
+      budgetOverrides: { provider_turns: 1 },
+    };
+    h.options.recordVerdict = async (ctx) => {
+      await ctx.runProviderTurn({
+        operation: "review-verdict-reformat",
+        task: "Reformat the verdict.",
+        session: ctx.result.session,
+      });
+      return { ok: true };
+    };
+    try {
+      await expect(executePipeline(h.options)).rejects.toThrow("provider-turn budget exhausted");
+      const envelope = await readEnvelope(
+        h.options.runlog.root,
+        "civic",
+        "20260705-093015-review-verify",
+      );
+      expect(envelope).toMatchObject({
+        status: "failed",
+        error_code: "error_route_budget_exhausted",
+      });
     } finally {
       h.cleanup();
     }

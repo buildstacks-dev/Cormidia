@@ -36,11 +36,7 @@ const QUALITY_RANK: Record<UsageQuality, number> = {
 
 export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSnapshotV1 {
   const observedAt = input.now.toISOString();
-  const ledger = new Map(
-    input.ledger
-      .filter((row) => row.runId !== undefined)
-      .map((row) => [settlementKey(row.app, row.runId!), row] as const),
-  );
+  const ledger = aggregatePassSettlements(input.ledger);
   const passes = input.passes
     .map((indexed) => projectPass(
       indexed,
@@ -138,6 +134,53 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
     },
     attention,
   };
+}
+
+/** Observe remains pass-oriented, so multiple provider-turn settlements under
+ * one parent run are aggregated for its pass card without changing ledger
+ * identity or hiding the provider-turn rows from Reports. */
+function aggregatePassSettlements(rows: ObserveProjectionInput["ledger"]): Map<string, ObserveProjectionInput["ledger"][number]> {
+  const grouped = new Map<string, ObserveProjectionInput["ledger"][number]>();
+  for (const row of rows) {
+    if (row.runId === undefined) continue;
+    const key = settlementKey(row.app, row.runId);
+    const existing = grouped.get(key);
+    if (existing === undefined) {
+      grouped.set(key, { ...row });
+      continue;
+    }
+    grouped.set(key, {
+      ...existing,
+      at: existing.at > row.at ? existing.at : row.at,
+      status: row.status,
+      tokensIn: existing.tokensIn + row.tokensIn,
+      tokensOut: existing.tokensOut + row.tokensOut,
+      costUsd: existing.costUsd + row.costUsd,
+      usageQuality: worseUsageQuality(existing.usageQuality, row.usageQuality),
+      subagentTurns: existing.subagentTurns + row.subagentTurns,
+      wallClockMs: existing.wallClockMs + row.wallClockMs,
+      escalations: existing.escalations + row.escalations,
+      ...(existing.tokensInUncached !== undefined || row.tokensInUncached !== undefined
+        ? { tokensInUncached: (existing.tokensInUncached ?? 0) + (row.tokensInUncached ?? 0) }
+        : {}),
+      ...(existing.cacheCreationTokens !== undefined || row.cacheCreationTokens !== undefined
+        ? { cacheCreationTokens: (existing.cacheCreationTokens ?? 0) + (row.cacheCreationTokens ?? 0) }
+        : {}),
+      ...(existing.cacheReadTokens !== undefined || row.cacheReadTokens !== undefined
+        ? { cacheReadTokens: (existing.cacheReadTokens ?? 0) + (row.cacheReadTokens ?? 0) }
+        : {}),
+      ...(existing.costEstimated === true || row.costEstimated === true ? { costEstimated: true } : {}),
+      ...(existing.unmeasured === true || row.unmeasured === true ? { unmeasured: true } : {}),
+    });
+  }
+  return grouped;
+}
+
+function worseUsageQuality(left: string | undefined, right: string | undefined): "complete" | "estimated" | "partial" | "unavailable" {
+  const rank = { complete: 0, estimated: 1, partial: 2, unavailable: 3 } as const;
+  const a = normalizeQuality(left);
+  const b = normalizeQuality(right);
+  return rank[a] >= rank[b] ? a : b;
 }
 
 function projectPass(

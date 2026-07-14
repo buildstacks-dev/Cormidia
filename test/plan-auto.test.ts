@@ -102,7 +102,7 @@ describe("runAutoPlan", () => {
       now: () => new Date("2026-07-11T09:00:00Z"),
     });
 
-    expect(result.status).toBe("completed");
+    expect(result.status, result.summary).toBe("completed");
     expect(result.published).toHaveLength(1);
     // The brief is stage-aware: goal + fresh-clone repo truth.
     expect(runtime.calls[0]?.req.task).toContain("A personal website for the founder");
@@ -171,7 +171,7 @@ describe("runAutoPlan", () => {
       runtimeFor: () => runtime,
       now: () => new Date("2026-07-11T09:00:00Z"),
     });
-    expect(result.status).toBe("completed");
+    expect(result.status, result.summary).toBe("completed");
     expect(result.planningDecision?.depth).toBe("standard");
     expect(runtime.calls).toHaveLength(3);
     expect(runtime.calls.map((call) => call.req.task.match(/# Pass: ([^\s]+)/)?.[1])).toEqual([
@@ -206,7 +206,7 @@ describe("runAutoPlan", () => {
       now: () => new Date("2026-07-11T09:00:00Z"),
     });
 
-    expect(result.status).toBe("completed");
+    expect(result.status, result.summary).toBe("completed");
     expect(result.planningDecision).toMatchObject({ depth: "deep", riskTier: "high" });
     const passes = runtime.calls.map((call) => call.req.task.match(/# Pass: ([^\s]+)/)?.[1]);
     expect(passes[0]).toBe("visionary");

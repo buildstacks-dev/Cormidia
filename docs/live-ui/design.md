@@ -526,7 +526,8 @@ Use existing IDs only:
 - GitHub repo plus issue/PR number;
 - parent task ID;
 - trace ID;
-- `(app, runId)` for a pass/ledger settlement;
+- `(app, runId)` for a pass and `(app, providerTurnId)` for a current ledger
+  settlement (legacy rows fall back to run identity);
 - event `span_id`/`parent_span_id`;
 - approval and invocation IDs.
 

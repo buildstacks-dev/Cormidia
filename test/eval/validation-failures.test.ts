@@ -12,11 +12,11 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 describe("eval:validate fail-closed traceability", () => {
   it("positive case validates the complete copied repository evidence", () => { expect(run(makeRoot())).toMatchObject({ status: 0, report: { valid: true } }); });
   it("fails for a nonempty evidence path whose file does not exist", () => {
-    const root = makeRoot(); unlinkSync(join(root, "test/transformation/contracts/workstream-b.test.ts"));
+    const root = makeRoot(); unlinkSync(join(root, "test/efficiency/admission.test.ts"));
     const result = run(root); expect(result.status).not.toBe(0); expect(result.report.failures.join("\n")).toContain("missing evidence file");
   });
   it("fails for an evidence file that does not declare its requirement id", () => {
-    const root = makeRoot(); writeFileSync(join(root, "test/transformation/contracts/workstream-b.test.ts"), "import { it } from 'vitest'; it('unrelated', () => {});\n");
+    const root = makeRoot(); writeFileSync(join(root, "test/efficiency/admission.test.ts"), "import { it } from 'vitest'; it('unrelated', () => {});\n");
     const result = run(root); expect(result.status).not.toBe(0); expect(result.report.failures.join("\n")).toContain("does not declare the requirement id");
   });
   it("fails for an unknown campaign case id", () => {
@@ -63,7 +63,16 @@ describe("eval:validate fail-closed traceability", () => {
 
 function makeRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "operon-validate-copy-")); roots.push(root);
-  for (const path of ["eval", "test/transformation", "test/eval", "docs/efficiency-transformation"]) { const target = join(root, path); mkdirSync(dirname(target), { recursive: true }); cpSync(join(repo, path), target, { recursive: true }); }
+  for (const path of [
+    "eval",
+    "test/transformation",
+    "test/eval",
+    "test/efficiency",
+    "test/report/efficiency.test.ts",
+    "test/context-manifest.test.ts",
+    "test/settlement/property.test.ts",
+    "docs/efficiency-transformation",
+  ]) { const target = join(root, path); mkdirSync(dirname(target), { recursive: true }); cpSync(join(repo, path), target, { recursive: true }); }
   return root;
 }
 function run(root: string): { status: number | null; report: { valid: boolean; failures: string[] } } {

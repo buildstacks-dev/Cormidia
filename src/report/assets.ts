@@ -168,6 +168,23 @@ export const REPORT_JS = String.raw`
       metric('Provider turns', headline.provider_turns, headline.unknown_usage_turns + ' unknown usage'),
       metric('Sessions', headline.sessions, headline.completed_sessions + ' completed'),
     ));
+    const evidence = report.efficiency;
+    const issueCount = Object.values(evidence.issues).reduce((sum, values) => sum + values.length, 0);
+    const efficiency = node('section', {},
+      node('h2', {}, 'Efficiency and invariant evidence'),
+      node('div', { class: 'metrics' },
+        evidenceMetric('Episode terminal integrity', evidence.metrics.terminal_integrity),
+        evidenceMetric('Step terminal integrity', evidence.metrics.execution_step_terminal_integrity),
+        evidenceMetric('Ledger coverage', evidence.metrics.ledger_coverage),
+        evidenceMetric('Productive provider turns', evidence.metrics.productive_pass_ratio),
+        metric('Repeated-work cost', evidence.repeated_work_cost_usd === null ? 'unknown' : money(evidence.repeated_work_cost_usd)),
+        metric('Evidence issues', num(issueCount), evidence.episodes.length + ' episodes'),
+      ),
+      node('div', { class: 'grid' },
+        breakdownContext('Context by category', evidence.context_by_category),
+        issuePanel(evidence.issues),
+      ),
+    );
     const maximum = Math.max(1, ...report.trend.map((value) => (value.known_input_tokens || 0) + (value.known_output_tokens || 0)));
     const trend = node('section', {}, node('h2', {}, 'Token trend'),
       node('div', { class: 'bars' }, ...report.trend.map((value) => node('div', { class: 'bar' },
@@ -181,7 +198,7 @@ export const REPORT_JS = String.raw`
       breakdown('By runtime/model', report.breakdowns.by_runtime_model),
       breakdown('By pipeline/pass', report.breakdowns.by_pipeline_pass),
     ));
-    q('report').replaceChildren(quality, metrics, trend, allocations);
+    q('report').replaceChildren(quality, metrics, efficiency, trend, allocations);
   }
 
   function trendData(rows) {
@@ -212,6 +229,35 @@ export const REPORT_JS = String.raw`
 
   function metric(label, value, note) {
     return node('div', { class: 'metric' }, node('small', {}, label), node('strong', {}, value), note ? node('span', { class: 'muted' }, note) : '');
+  }
+
+  function evidenceMetric(label, value) {
+    const display = value.status === 'valid' && value.value !== null ? (value.value * 100).toFixed(1) + '%' : 'invalid';
+    const note = value.numerator + '/' + value.denominator + (value.missing_inputs.length ? ' · ' + value.missing_inputs.length + ' missing inputs' : '');
+    return metric(label, display, note);
+  }
+
+  function breakdownContext(title, rows) {
+    const body = node('tbody', {}, ...rows.map((value) => node('tr', {},
+      node('td', {}, value.category),
+      node('td', {}, num(value.rendered_bytes)),
+      node('td', {}, num(value.components)),
+      node('td', {}, num(value.run_ids.length)),
+    )));
+    return node('div', { class: 'panel scroll' }, node('h3', {}, title), node('table', {},
+      node('thead', {}, node('tr', {}, ...['Category', 'Bytes', 'Components', 'Runs'].map((value) => node('th', {}, value)))),
+      body,
+    ));
+  }
+
+  function issuePanel(issues) {
+    const rows = Object.entries(issues).filter(([, values]) => values.length > 0);
+    return node('div', { class: 'panel scroll' }, node('h3', {}, 'Named evidence issues'),
+      rows.length
+        ? node('table', {}, node('thead', {}, node('tr', {}, node('th', {}, 'Kind'), node('th', {}, 'Count'))),
+            node('tbody', {}, ...rows.map(([kind, values]) => node('tr', {}, node('td', {}, kind), node('td', {}, values.length)))))
+        : node('p', { class: 'muted' }, 'No efficiency evidence issue detected.'),
+    );
   }
 
   function breakdown(title, rows) {

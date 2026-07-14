@@ -331,8 +331,8 @@ Imports flow downward only: `org -> loop -> runtime`.
 
 ## Observability: where agent activity is recorded
 
-Two stores, one authority each (both under the org's *state home*,
-`~/.operon/<org>/` by default):
+The operational evidence stores live under the org's *state home*
+(`~/.operon/<org>/` by default), with one authority per fact:
 
 ```
 runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
@@ -342,6 +342,8 @@ runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
 ├── output.md        # what the pass produced — L3, verbatim
 └── session.log      # activity log—not transcript; present only when TurnEvents streamed
 telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
+efficiency/episodes/<hash>/ # admitted route + terminal execution steps +
+                            # episode context-manifest projection
 invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)
 learning/events/<date>/   # learning-loop capture: gate outcomes, pass verdicts,
                           # human observations, episode lifecycle, late outcomes
@@ -375,10 +377,12 @@ deterministic publisher write inside.
 `runs/` is the per-pass source of truth (what was asked, what happened, what
 it cost). The ledger is the rollup `operon budget`, `operon status`, retro,
 and scorecards read: every provider turn settles into it exactly once, keyed
-on its `runId` — completed, blocked, and failed passes alike — so budget caps
+on `(app, providerTurnId)` for current rows and `(app, runId)` for legacy rows
+— completed, blocked, and failed provider invocations alike — so budget caps
 are enforced against real spend, and a tick whose app has exhausted its
 monthly cap refuses to claim before any pass starts. `operon budget
---reconcile` back-fills the ledger from run envelopes (idempotent).
+--reconcile` repairs stale terminal execution receipts and back-fills missing
+settlements idempotently.
 Subscription-backed provider costs are Operon-computed equivalent-cost
 estimates, flagged as such on every row. `operon telemetry --app <app>
 [--html out.html]` renders the run view and copies linked artifacts into an
@@ -390,7 +394,11 @@ provider-reported, estimated, partial, and unknown cost, and groups explicit
 parent tasks, traces, orphan runs, mechanical passes, and legacy unattributed
 turns for management drill-down without copying L3 evidence. Current-month
 budget context uses the same ledger semantics as `operon budget`; historical
-range spend remains a separate fact.
+range spend remains a separate fact. CLI, JSON, portable HTML, and Observe
+`/reports` also project route history, terminal/settlement integrity,
+productive and repeated-work evidence, elapsed/active/human-wait time, and
+rendered context bytes by source; missing legacy evidence stays named and
+invalidates the affected metric instead of becoming zero.
 
 For work delegated from an outer Codex/Claude session, begin a parent record
 once with `operon task begin --id <id> --prompt-file <exact-prompt>`, export

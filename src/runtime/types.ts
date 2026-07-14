@@ -58,6 +58,20 @@ export interface ContextBundle {
   authority?: AuthorityContext;
   taste: string[]; // org TASTE.md, then role addendum, then app override
   memoryExcerpts: string[]; // relevant OKF documents for this task
+  /** Source-preserving transport metadata. Adapters ignore this field; the
+   * loop records it in the pass context manifest before constructing a
+   * runtime. Legacy/test bundles may omit it and are reported as explicitly
+   * unattributed components rather than silently guessed. */
+  components?: ContextComponent[];
+}
+
+export interface ContextComponent {
+  category: "authority" | "taste" | "role_protocol" | "memory";
+  source: string;
+  rendered: string;
+  inclusionReason: string;
+  requirement: "required" | "optional";
+  cacheIdentity?: string;
 }
 
 export interface TurnRequest {

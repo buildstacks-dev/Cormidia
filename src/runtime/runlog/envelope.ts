@@ -61,6 +61,8 @@ export interface RunEnvelope {
   trace_id: string;
   /** Broader delegated operator task, when the top-level harness registered one. */
   parent_task_id?: string;
+  /** End-to-end efficiency/admission identity. */
+  episode_id?: string;
   app: string;
   ticket?: string;
   pipeline: string;
@@ -107,12 +109,23 @@ export interface RunEnvelope {
   planning_route?: PlanningRouteEvidence;
   /** Content-bound effective delegated authority for this run. */
   authority?: AuthorityEvidence;
+  /** One parent pass can contain multiple adapter invocations. */
+  provider_turn_ids?: string[];
+  /** Provider and mechanical terminal execution records owned by the episode. */
+  execution_step_ids?: string[];
   /** REFERENCES to the L3/L2 siblings, relative to the run dir. A ref is a
    *  promise: `session_log` is declared while the run is live (the sink may
    *  still produce it) and dropped at finalize when no file was written —
    *  adapters that emit no TurnEvents leave nothing for the sink to append
    *  (telemetry doc Defect C). */
-  refs: { events: string; brief: string; prompt?: string; output: string; session_log?: string };
+  refs: {
+    events: string;
+    brief: string;
+    prompt?: string;
+    output: string;
+    session_log?: string;
+    context_manifest?: string;
+  };
 }
 
 export interface TracePlanEvidence {
@@ -144,6 +157,7 @@ export interface StartRunMeta {
   runId: string;
   traceId: string;
   parentTaskId?: string;
+  episodeId?: string;
   app: string;
   ticket?: string;
   pipeline: string;
@@ -157,6 +171,8 @@ export interface StartRunMeta {
   tracePlan?: TracePlanEvidence;
   planningRoute?: PlanningRouteEvidence;
   authority?: AuthorityEvidence;
+  providerTurnIds?: string[];
+  executionStepIds?: string[];
   /** Workdir HEAD at pass start — the replay seed (learning-loop design
    *  §9.4: capture for replay while the episode runs, never reconstruct
    *  afterward). Absent when the workdir is not a git checkout. */
@@ -174,6 +190,9 @@ export interface EnvelopePatch {
   lastSeenAt?: string;
   session?: SessionEvidence;
   artifacts?: Artifact[];
+  providerTurnIds?: string[];
+  executionStepIds?: string[];
+  contextManifestRef?: string;
 }
 
 export interface FinalizeOutcome {
@@ -197,6 +216,7 @@ export async function startRun(
     run_id: meta.runId,
     trace_id: meta.traceId,
     ...(meta.parentTaskId !== undefined ? { parent_task_id: meta.parentTaskId } : {}),
+    ...(meta.episodeId !== undefined ? { episode_id: meta.episodeId } : {}),
     app: meta.app,
     ...(meta.ticket !== undefined ? { ticket: meta.ticket } : {}),
     pipeline: meta.pipeline,
@@ -210,6 +230,8 @@ export async function startRun(
     ...(meta.tracePlan !== undefined ? { trace_plan: meta.tracePlan } : {}),
     ...(meta.planningRoute !== undefined ? { planning_route: meta.planningRoute } : {}),
     ...(meta.authority !== undefined ? { authority: meta.authority } : {}),
+    ...(meta.providerTurnIds !== undefined ? { provider_turn_ids: [...meta.providerTurnIds] } : {}),
+    ...(meta.executionStepIds !== undefined ? { execution_step_ids: [...meta.executionStepIds] } : {}),
     ...(meta.gitHead !== undefined ? { git_head: meta.gitHead } : {}),
     status: "running",
     started_at: now.toISOString(),
@@ -247,6 +269,15 @@ export async function updateEnvelope(
       ref: scrubSecrets(artifact.ref),
       summary: scrubSecrets(artifact.summary),
     }));
+  }
+  if (patch.providerTurnIds !== undefined) {
+    envelope.provider_turn_ids = [...new Set([...(envelope.provider_turn_ids ?? []), ...patch.providerTurnIds])];
+  }
+  if (patch.executionStepIds !== undefined) {
+    envelope.execution_step_ids = [...new Set([...(envelope.execution_step_ids ?? []), ...patch.executionStepIds])];
+  }
+  if (patch.contextManifestRef !== undefined) {
+    envelope.refs.context_manifest = patch.contextManifestRef;
   }
   if (patch.gate_results !== undefined) envelope.gate_results = patch.gate_results;
   if (patch.tool_counts !== undefined) {

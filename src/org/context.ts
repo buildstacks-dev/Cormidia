@@ -7,7 +7,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { ContextBundle, RoleConfig } from "../runtime/types.js";
+import type { ContextBundle, ContextComponent, RoleConfig } from "../runtime/types.js";
 import { resolveAuthority } from "./authority.js";
 import { ticketEpisodeAnchor } from "./learning/episodes.js";
 import { loadLearningPolicy } from "./learning/policy.js";
@@ -15,7 +15,7 @@ import {
   resolveLearningContext,
   type ResolvedLearningContext,
 } from "./learning/resolver.js";
-import { selectExcerpts } from "./memory.js";
+import { selectAttributedExcerpts } from "./memory.js";
 
 export interface AssembleContextOptions {
   orgHome: string;
@@ -60,30 +60,75 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   const appWorkdir = resolve(options.appWorkdir);
   const sources: string[] = [];
   const taste: string[] = [];
+  const components: ContextComponent[] = [];
 
   const authority = await resolveAuthority({ orgHome, appWorkdir });
   sources.push(...authority.sources);
+  components.push({
+    category: "authority",
+    source: authority.sources.join(" | "),
+    rendered: authority.text,
+    inclusionReason: "effective delegated authority is required for every provider turn",
+    requirement: "required",
+    cacheIdentity: authority.sha256,
+  });
 
-  const orgTaste = await readRequiredLayer(join(orgHome, "TASTE.md"), "Org TASTE.md", sources);
+  const orgTastePath = join(orgHome, "TASTE.md");
+  const orgTaste = await readRequiredLayer(orgTastePath, "Org TASTE.md", sources);
   taste.push(orgTaste);
+  components.push({
+    category: "taste",
+    source: orgTastePath,
+    rendered: orgTaste,
+    inclusionReason: "org constitution applies to every role",
+    requirement: "required",
+  });
 
+  const roleTastePath = join(orgHome, "taste", `${options.role.name}.md`);
   const roleTaste = await readLayer(
-    join(orgHome, "taste", `${options.role.name}.md`),
+    roleTastePath,
     `Role taste/${options.role.name}.md`,
     sources,
     false,
   );
-  if (roleTaste !== undefined) taste.push(roleTaste);
+  if (roleTaste !== undefined) {
+    taste.push(roleTaste);
+    components.push({
+      category: "taste",
+      source: roleTastePath,
+      rendered: roleTaste,
+      inclusionReason: `role-specific craft protocol for ${options.role.name}`,
+      requirement: "required",
+    });
+  }
 
+  const appTastePath = join(appWorkdir, ".operon", "TASTE.md");
   const appTaste = await readLayer(
-    join(appWorkdir, ".operon", "TASTE.md"),
+    appTastePath,
     "App .operon/TASTE.md",
     sources,
     false,
   );
-  if (appTaste !== undefined) taste.push(appTaste);
+  if (appTaste !== undefined) {
+    taste.push(appTaste);
+    components.push({
+      category: "taste",
+      source: appTastePath,
+      rendered: appTaste,
+      inclusionReason: "app-local constitution overrides apply in the target repository",
+      requirement: "required",
+    });
+  }
 
-  taste.push(roleProtocol(options.role));
+  const protocol = roleProtocol(options.role);
+  taste.push(protocol);
+  components.push({
+    category: "role_protocol",
+    source: `${join(orgHome, "roles.yaml")}#${options.role.name}`,
+    rendered: protocol,
+    inclusionReason: "resolved role protocol and delegation limits",
+    requirement: "required",
+  });
 
   // Governed concepts resolve first (higher trust, per-scope budget shares);
   // legacy memory trees keep resolving at lowest precedence with whatever
@@ -120,13 +165,29 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
     join(orgHome, "memory", "roles", options.role.name),
     join(appWorkdir, ".operon", "memory", options.role.name),
   ].filter((dir) => existsSync(dir));
+  const governedSections = resolved?.sections ?? [];
+  const legacyExcerpts = await selectAttributedExcerpts(memoryDirs, options.taskText, legacyCap);
   const memoryExcerpts = [
-    ...(resolved?.sections ?? []),
-    ...(await selectExcerpts(memoryDirs, options.taskText, legacyCap)),
+    ...governedSections,
+    ...legacyExcerpts.map((item) => item.rendered),
   ];
   sources.push(...memoryDirs);
+  memoryExcerpts.forEach((rendered, index) => {
+    const governed = index < governedSections.length;
+    components.push({
+      category: "memory",
+      source: governed
+        ? `governed-learning:${resolved?.concept_ids[index] ?? "unattributed"}`
+        : legacyExcerpts[index - governedSections.length]!.source,
+      rendered,
+      inclusionReason: governed
+        ? "governed concept selected by the pinned learning resolver"
+        : "task-relevant legacy memory selected within the byte cap",
+      requirement: "optional",
+    });
+  });
 
-  const bundle: ContextBundle = { authority, taste, memoryExcerpts };
+  const bundle: ContextBundle = { authority, taste, memoryExcerpts, components };
   const systemPrompt = renderContextBundle(bundle);
   return {
     bundle,

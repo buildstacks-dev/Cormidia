@@ -7,12 +7,13 @@
 // GitHub/org state, or live wall clock is required.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { cmdTelemetry } from "../src/cli/telemetry.js";
 import { runLoopOnce } from "../src/loop/driver.js";
+import { readRouteRecord } from "../src/loop/efficiency.js";
 import {
   advanceGates,
   claimTicket,
@@ -593,6 +594,13 @@ describe("M6 loop engine integration", () => {
 
       expect(result.items[0]?.phase).toBe("merged");
       expect(fake.calls.some((call) => call.req.task.includes("# Pass: ship-check"))).toBe(true);
+      const route = await readRouteRecord(home.root, "ticket:fixture:#1");
+      expect([...new Set(route.authorized_passes.map((pass) => pass.pipeline))].sort()).toEqual([
+        "build",
+        "fix",
+        "review",
+        "ship",
+      ]);
       const ops = gh.calls.map((call) => call.op);
       expect(ops.lastIndexOf("createReview")).toBeLessThan(ops.indexOf("squashMerge"));
     } finally {
@@ -659,12 +667,20 @@ describe("GAP D — verdict reformat retry (docs/loop.md §6, §13 row 11)", () 
       const contractRun = runIdContaining(home.root, "-build-contract");
       const events = await readEvents(home.root, "fixture", contractRun);
       expect(events.some((e) => e.event === "verdict.recorded")).toBe(true);
-      // The reformat retry's spend is folded into the pass usage (loop.ts:766):
-      // contract turn (10 in / $0.01) + reformat turn (10 in / $0.01) = 20 / $0.02,
-      // not the base turn alone.
+      // The envelope keeps a parent aggregate, while each adapter invocation
+      // has its own provider-turn identity and exactly-one settlement.
       const envelope = await readEnvelope(home.root, "fixture", contractRun);
       expect(envelope?.usage?.tokens_in).toBe(20);
       expect(envelope?.usage?.cost_usd).toBeCloseTo(0.02, 5);
+      expect(envelope.provider_turn_ids).toHaveLength(2);
+      expect(envelope.execution_step_ids).toHaveLength(2);
+      const rows = readdirSync(join(home.root, "telemetry"))
+        .filter((name) => name.endsWith(".jsonl"))
+        .flatMap((name) => readFileSync(join(home.root, "telemetry", name), "utf8").trimEnd().split("\n"))
+        .map((line) => JSON.parse(line) as { runId?: string; providerTurnId?: string })
+        .filter((row) => row.runId === contractRun);
+      expect(rows).toHaveLength(2);
+      expect(new Set(rows.map((row) => row.providerTurnId))).toEqual(new Set(envelope.provider_turn_ids));
     } finally {
       home.cleanup();
       h.cleanup();

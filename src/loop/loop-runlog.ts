@@ -11,6 +11,7 @@
 //
 // loop -> runtime is a legal import direction; nothing here reaches upward.
 
+import { existsSync } from "node:fs";
 import {
   finalizeRun,
   startRun,
@@ -21,6 +22,15 @@ import {
 import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
 import type { AuthorityEvidence } from "../runtime/types.js";
+import {
+  admitEpisode,
+  episodeIdFor,
+  fingerprint,
+  recordMechanicalStep,
+  readRouteRecord,
+  routeRecordPath,
+  type ExecutionStatus,
+} from "./efficiency.js";
 
 /** Where a loop step's run record lives, plus the correlation id every event
  *  shares. Optional on the phase-option interfaces — absent means the step
@@ -32,6 +42,7 @@ export interface LoopRunlog {
   ticket?: string;
   /** turnId — one per pipeline execution; ties gate events back to the run. */
   traceId: string;
+  episodeId?: string;
   authority?: AuthorityEvidence;
   clock?: () => Date;
 }
@@ -56,13 +67,37 @@ export async function openPhaseRun(
 ): Promise<PhaseRun> {
   const clock = runlog.clock ?? ((): Date => new Date());
   const runId = mintRunId(clock(), pipeline, pass);
+  const startedAt = clock();
+  const episodeId =
+    runlog.episodeId ??
+    episodeIdFor({ app: runlog.app, ...(runlog.ticket !== undefined ? { ticket: runlog.ticket } : {}), traceId: runlog.traceId });
   const ticketPart = runlog.ticket !== undefined ? { ticket: runlog.ticket } : {};
+
+  if (existsSync(routeRecordPath(runlog.root, episodeId))) {
+    await readRouteRecord(runlog.root, episodeId);
+  } else {
+    await admitEpisode({
+      root: runlog.root,
+      episodeId,
+      app: runlog.app,
+      route: "deterministic",
+      policyVersion: "efficiency/v1-mechanical",
+      factors: [{
+        kind: "evidence_quality",
+        evidence: `${pipeline}/${pass} is a deterministic state-machine operation`,
+        policy_rule: "mechanical_state_machine",
+      }],
+      passes: [],
+      now: startedAt,
+    });
+  }
 
   await startRun(
     runlog.root,
     {
       runId,
       traceId: runlog.traceId,
+      episodeId,
       app: runlog.app,
       ...ticketPart,
       pipeline,
@@ -97,7 +132,27 @@ export async function openPhaseRun(
       await events.append({ type: "ticket.transition", detail: { from, to } });
     },
     async finalize(status: Exclude<EnvelopeStatus, "running">): Promise<void> {
+      const step = await recordMechanicalStep({
+        root: runlog.root,
+        episodeId,
+        app: runlog.app,
+        runId,
+        operation: `${pipeline}/${pass}`,
+        startedAt,
+        finishedAt: clock(),
+        status: mechanicalStatus(status),
+        reason: `${pipeline}/${pass} ${status}`,
+        ...(status === "completed" ? {} : { nextStep: "resume the ticket from its last durable phase" }),
+        inputFingerprint: fingerprint({ pipeline, pass, ticket: runlog.ticket ?? null }),
+      });
+      await updateEnvelope(runlog.root, runlog.app, runId, {
+        executionStepIds: [step.execution_step_id],
+      });
       await finalizeRun(runlog.root, runlog.app, runId, { status }, clock());
     },
   };
+}
+
+function mechanicalStatus(status: Exclude<EnvelopeStatus, "running">): ExecutionStatus {
+  return status === "blocked" ? "blocked" : status;
 }

@@ -315,10 +315,8 @@ describe("dispatched turn runner", () => {
         phase: string;
       };
       expect(journal.phase).toBe("done");
-      // Stage 1 settlement model: the pass executor settles the provider turn
-      // (runId-keyed, real usage); the dispatcher writes NO second turn-level
-      // row for executor-routed turns — that row would double-count cost and
-      // inflate retro/scorecard turn counts.
+      // The pass executor settles the provider invocation by providerTurnId;
+      // the dispatcher writes no second role-level ledger row.
       const telemetry = readFileSync(`${home.root}/telemetry/2026-07-06.jsonl`, "utf8");
       const rows = telemetry
         .trimEnd()

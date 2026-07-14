@@ -1,6 +1,6 @@
 # Operon Architecture
 
-*v1.4 — last aligned 2026-07-13. docs/PURPOSE.md → Decided is upstream and
+*v1.5 — last aligned 2026-07-14. docs/PURPOSE.md → Decided is upstream and
 authoritative; this document holds the implementation detail the decision
 layer deliberately does not. §11 records decisions
 ratified into docs/PURPOSE.md on 2026-07-06 and 2026-07-13; future new decisions should be
@@ -75,7 +75,7 @@ Module placement respects the one-way import rule
 | Runtime contract, gate, telemetry, adapters             | `src/runtime/`                                                 | exists                                  |
 | Run status + anomaly readers                            | `src/runtime/runlog/status.ts`, `anomalies.ts`                 | implemented M9; L1/L2 only             |
 | Read-only Live UI observer                              | `src/observe/`, `src/cli/observe.ts`                           | presentation-only leaf; HTTP snapshot + SSE; no workflow writes |
-| Governed learning loop (capture, episodes, activation, resolver) | `src/org/learning/`                                    | design in `docs/learning-loop/`         |
+| Governed learning loop (capture, recurrence, efficacy, activation, resolver) | `src/org/learning/`                                    | design in `docs/learning-loop/`; Phase 4 closure is token-free outside declared replay turns |
 | A4 release handoff                                      | `src/org/release.ts`                                           | ship-gate P7; deploy queued as a critical op, then a later dispatch executes the approved command once and comments the ticket |
 | Package/org/state boundary                              | `src/org/home.ts`                                              | org init, validation, active pointer, state-home resolution |
 
@@ -105,6 +105,17 @@ Ownership follows the import direction:
 | `src/org` | Own organizational episodes, lifecycle and scheduler transactions, human decisions/wait, cross-pipeline coordination, learning outcomes, and final episode disposition. |
 | `src/report` / `src/observe` | Read-only projections. They perform no admission, reconciliation, workflow mutation, or provider call. |
 | `eval/**` | Qualify an exact candidate. Eval evidence never becomes production workflow authority. |
+
+Phase 4 learning closure stays in `src/org/learning`: `capture.ts` inventories
+eligible finalized provider envelopes and repairs receipts exactly once;
+`efficiency-evidence.ts` derives versioned events and comparable recurrence
+from orchestrator-owned artifacts; `efficiency-health.ts` projects separate
+capture, governance, and efficacy health; and `efficacy.ts` decides declared
+control/treatment observations. These modules import no provider adapter and
+never infer trusted evidence from model prose. They extend the existing
+Candidate, ReplayCapsule, SystemFingerprint, ExperimentRecord, EvalResult,
+Intervention, publisher, and canary authority chain instead of creating a
+parallel state model. Report and Observe remain presentation-only readers.
 
 A **role invocation** is one scheduled, event-driven, or manual invocation of
 an organizational role. A **pass** is a configured protocol stage. A
@@ -285,8 +296,12 @@ telemetry/<day>.jsonl    org cost ledger (src/runtime/telemetry.ts orgDir)
 invocations/<day>.jsonl  one record per loop/dispatch invocation
 tickets/<app>/<issue>.json  cross-process ticket claim state (docs/loop.md §7.1)
 scorecards/<app>/<role>.jsonl  raw scorecard events (§6)
-learning/**              learning-loop capture/episode/activation state —
-                         see docs/learning-loop/ and the AGENTS.md inventory
+learning/**              learning-loop capture/episode/activation state;
+                         metrics/capture-cursor.json binds eligible runs to
+                         exact event ids, metrics/efficiency-health.json is a
+                         refresh-only rebuildable projection, and events/,
+                         episodes/, canary/, resolved/, and m6-runs/ retain
+                         their governed meanings (docs/learning-loop/)
 ```
 
 The org id `<org>` comes from org-home config. `OPERON_STATE_HOME` overrides

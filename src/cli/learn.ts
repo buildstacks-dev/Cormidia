@@ -84,6 +84,10 @@ import {
 } from "../org/learning/distillation.js";
 import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import { loadLearningPolicy } from "../org/learning/policy.js";
+import {
+  projectLearningEfficiencyHealth,
+  type LearningEfficiencyHealth,
+} from "../org/learning/efficiency-health.js";
 import { readRejections } from "../org/learning/rejections.js";
 import { listReviewerVerdicts, readReviewerVerdict } from "../org/learning/review.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -135,17 +139,18 @@ export async function cmdLearn(args: string[]): Promise<number> {
       return fixture(homes, rest, appStages, projector);
     case "report": {
       for (const flag of rest) {
-        if (flag !== "--json" && flag !== "--refresh") {
+        if (flag !== "--json" && flag !== "--refresh" && flag !== "--efficiency-health") {
           throw new Error(`learn report: unknown argument "${flag}"`);
         }
       }
       const json = rest.includes("--json");
       const refresh = rest.includes("--refresh");
+      const efficiencyHealth = rest.includes("--efficiency-health");
       const projection = refresh
         ? await projectCaptureEvents({ stateHome, appStages })
         : await previewCaptureEvents({ stateHome, appStages });
       if (refresh) await projector.project();
-      return report(homes, projection, json);
+      return report(homes, projection, json, efficiencyHealth, refresh);
     }
     // M4 — the manual governed-activation surface (learn-activation.ts).
     case "review":
@@ -173,7 +178,7 @@ export async function cmdLearn(args: string[]): Promise<number> {
         'learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | ' +
           'show <event|experiment|eval|intervention-id> | ' +
           'fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | ' +
-          'report [--json] [--refresh] | ' +
+          'report [--efficiency-health] [--json] [--refresh] | ' +
           'review <candidate-id> | publish <candidate-id> | resolve --app <app> --role <role> | ' +
           'disable <concept-id> | rollback --root org|app | provisional | ' +
           'experiment declare|run|list | canary start|status|promote|stop | ' +
@@ -893,6 +898,8 @@ async function report(
   homes: OperonHomes,
   projection: CaptureProjectionResult,
   json: boolean,
+  efficiencyHealthRequested: boolean,
+  refresh: boolean,
 ): Promise<number> {
   const stateHome = homes.stateHome;
   // One corrupt governance file (hand edit, merge conflict) must not take
@@ -978,6 +985,20 @@ async function report(
     return [];
   });
   const { orgRoot, appRoots } = learningRoots(homes);
+  let efficiencyHealth: LearningEfficiencyHealth | undefined;
+  if (efficiencyHealthRequested && policy !== undefined) {
+    efficiencyHealth = await projectLearningEfficiencyHealth({
+      orgHome: homes.orgHome,
+      stateHome,
+      capture: projection,
+      policy,
+      roots: [orgRoot, ...Object.values(appRoots)],
+      ...(refresh ? { persist: true } : {}),
+    }).catch((error: Error) => {
+      storeErrors.push(error.message);
+      return undefined;
+    });
+  }
   const compaction =
     policy === undefined
       ? []
@@ -1079,6 +1100,7 @@ async function report(
                 },
               }
             : {}),
+          ...(efficiencyHealth !== undefined ? { efficiency_health: efficiencyHealth } : {}),
           ...(storeErrors.length > 0 ? { store_errors: storeErrors } : {}),
         },
         null,
@@ -1244,6 +1266,31 @@ async function report(
     }
     if (activation.suppressions > 0) {
       lines.push(`  rejection ledger entries: ${activation.suppressions}`);
+    }
+  }
+  if (efficiencyHealth !== undefined) {
+    lines.push("", "Learning efficiency health:");
+    lines.push(
+      `  Capture: ${efficiencyHealth.capture.status}; eligible ${efficiencyHealth.capture.eligible_finalized_runs ?? "invalid denominator"}; ` +
+        `exactly-once ${efficiencyHealth.capture.projected_exactly_once}; blocked ${efficiencyHealth.capture.blocked_runs.length}`,
+    );
+    for (const blocked of efficiencyHealth.capture.blocked_runs) {
+      lines.push(`    BLOCKED ${blocked.app}/${blocked.runId}: ${blocked.reason}`);
+    }
+    lines.push(
+      `  Governance: ${efficiencyHealth.governance.status}; actionable ${efficiencyHealth.governance.actionable_clusters}; ` +
+        `non-actionable ${efficiencyHealth.governance.non_actionable_clusters}; lineage gaps ${efficiencyHealth.governance.lineage_gaps.length}`,
+    );
+    for (const [kind, n] of Object.entries(efficiencyHealth.governance.candidate_dispositions)) {
+      if (n > 0) lines.push(`    ${kind}: ${n}`);
+    }
+    lines.push(
+      `  Efficacy: ${efficiencyHealth.efficacy.status}; experiments ${efficiencyHealth.efficacy.declared_experiments}; ` +
+        `valid comparisons ${efficiencyHealth.efficacy.valid_control_treatment_comparisons}; ` +
+        `post-activation coverage ${efficiencyHealth.efficacy.comparable_post_activation_coverage}`,
+    );
+    for (const recommendation of efficiencyHealth.efficacy.recommendations) {
+      lines.push(`    ${recommendation.experiment_ref}: ${recommendation.recommendation}`);
     }
   }
   if (storeErrors.length > 0) {

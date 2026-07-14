@@ -24,6 +24,8 @@ import { dirname, join, relative } from "node:path";
 import { readEnvelope, type GateResultEntry, type RunEnvelope } from "../../runtime/runlog/envelope.js";
 import { readEvents, type RunlogEvent } from "../../runtime/runlog/events.js";
 import { RUN_ID_RE } from "../../runtime/runlog/paths.js";
+import { readEfficiencyEvidence, type EfficiencyEpisodeEvidence } from "../../loop/efficiency.js";
+import { readExecutionJournal, type ExecutionJournal } from "../../loop/execution-journal.js";
 import { writeFileAtomic } from "../atomic.js";
 import { readJournal } from "../journal.js";
 import {
@@ -35,15 +37,32 @@ import {
 import {
   appendLearningEventsDeduped,
   learningEventPath,
+  readLearningEventFile,
   type GateVerdictStatus,
   type LearningEvent,
 } from "./events.js";
+import { projectEfficiencyEvidence } from "./efficiency-evidence.js";
 
 export interface CaptureCursor {
   schema_version: 1;
   /** `<app>/<runId>` → projection receipt. Presence means fully projected. */
-  runs: Record<string, { projected_at: string; events: number; event_files?: string[] }>;
+  runs: Record<string, {
+    projected_at: string;
+    events: number;
+    event_files?: string[];
+    /** Phase 4 binds a receipt to exact deterministic event identities. */
+    event_ids?: string[];
+  }>;
 }
+
+export type CaptureBlockingReason =
+  | "unreadable_envelope"
+  | "corrupt_envelope_identity"
+  | "corrupt_events"
+  | "corrupt_efficiency_artifact"
+  | "still_running"
+  | "stale_finalization"
+  | "missing_finalization";
 
 export interface ProjectCaptureOptions {
   stateHome: string;
@@ -64,7 +83,21 @@ export interface CaptureProjectionResult {
   /** Runs left for a later call: still running, or unreadable envelope. */
   runsPending: number;
   /** Exact retry identities/reasons; a scalar count cannot drive recovery. */
-  pendingRuns: Array<{ app: string; runId: string; reason: "unreadable_envelope" | "still_running" }>;
+  pendingRuns: Array<{ app: string; runId: string; reason: CaptureBlockingReason }>;
+  /** Phase 4 denominator: finalized provider runs eligible for learning. */
+  eligibleFinalizedRuns: number;
+  /** Eligible runs whose receipt is bound to one complete set of event ids. */
+  projectedExactlyOnce: number;
+  /** Receipt/event duplication detected during a rebuild or crash replay. */
+  duplicateProjections: number;
+  /** Non-provider executions are explicit, never silently absent. */
+  ineligibleRuns: Array<{
+    app: string;
+    runId: string;
+    reason: "mechanical_execution" | "learning_replay_reserved";
+  }>;
+  /** Alias with the complete typed recovery inventory used by health JSON. */
+  blockedRuns: Array<{ app: string; runId: string; reason: CaptureBlockingReason }>;
   eventsEmitted: number;
   /** Events re-derived but already present in the target file (crash replay). */
   eventsDeduped: number;
@@ -104,6 +137,8 @@ async function captureEvents(
   const { stateHome } = options;
   const clock = options.clock ?? ((): Date => new Date());
   const cursor = await readCursor(stateHome);
+  const efficiency = await readEfficiencyEvidence(stateHome);
+  const efficiencyByRun = indexEfficiency(efficiency);
   const result: CaptureProjectionResult = {
     mode: write ? "refreshed" : "read_only",
     refreshRequired: false,
@@ -111,6 +146,11 @@ async function captureEvents(
     runsAlreadyProjected: 0,
     runsPending: 0,
     pendingRuns: [],
+    eligibleFinalizedRuns: 0,
+    projectedExactlyOnce: 0,
+    duplicateProjections: 0,
+    ineligibleRuns: await listReplayRuns(stateHome),
+    blockedRuns: [],
     eventsEmitted: 0,
     eventsDeduped: 0,
     runsRepaired: 0,
@@ -122,30 +162,59 @@ async function captureEvents(
   for (const { app, runId } of await listRuns(stateHome)) {
     const key = `${app}/${runId}`;
     const receipt = cursor.runs[key];
-    if (
-      receipt !== undefined &&
-      (receipt.events === 0 || receiptFilesExist(stateHome, receipt.event_files))
-    ) {
-      result.runsAlreadyProjected += 1;
-      continue;
-    }
 
     let envelope: RunEnvelope;
     try {
       envelope = await readEnvelope(stateHome, app, runId);
     } catch {
-      result.runsPending += 1; // no/torn envelope — retry on a later projection
-      result.pendingRuns.push({ app, runId, reason: "unreadable_envelope" });
+      block(result, app, runId, "unreadable_envelope");
+      continue;
+    }
+    if (envelope.app !== app || envelope.run_id !== runId) {
+      block(result, app, runId, "corrupt_envelope_identity");
       continue;
     }
     if (envelope.status === "running") {
-      result.runsPending += 1;
-      result.pendingRuns.push({ app, runId, reason: "still_running" });
+      const last = Date.parse(envelope.last_seen_at ?? envelope.started_at);
+      const stale = Number.isFinite(last) && clock().getTime() - last >= 10 * 60 * 1000;
+      block(result, app, runId, stale ? "stale_finalization" : "still_running");
+      continue;
+    }
+    if (envelope.finished_at === undefined) {
+      block(result, app, runId, "missing_finalization");
       continue;
     }
 
-    const events = await deriveRunEvents(stateHome, envelope, options.appStages);
+    const efficiencyRun = efficiencyByRun.get(key);
+    if (isMechanicalRun(envelope, efficiencyRun)) {
+      result.ineligibleRuns.push({ app, runId, reason: "mechanical_execution" });
+      continue;
+    }
+    if ((efficiencyRun?.corruptFiles.length ?? 0) > 0) {
+      block(result, app, runId, "corrupt_efficiency_artifact");
+      continue;
+    }
+    result.eligibleFinalizedRuns += 1;
+
+    let events: LearningEvent[];
+    try {
+      events = await deriveRunEvents(
+        stateHome,
+        envelope,
+        options.appStages,
+        efficiencyRun,
+      );
+    } catch {
+      block(result, app, runId, "corrupt_events");
+      continue;
+    }
     const eventFiles = eventFileRefs(stateHome, events);
+    const eventIds = events.map((event) => event.event_id).sort();
+    if (receipt !== undefined && await receiptIsComplete(stateHome, receipt, eventIds)) {
+      result.runsAlreadyProjected += 1;
+      result.projectedExactlyOnce += 1;
+      continue;
+    }
     if (receipt !== undefined && receipt.events > events.length) {
       result.warnings.push(
         `${key}: capture cursor records ${receipt.events} event(s), but surviving run evidence derives only ${events.length}`,
@@ -161,9 +230,11 @@ async function captureEvents(
         cursor.runs[key] = {
           ...receipt,
           event_files: eventFiles,
+          event_ids: eventIds,
         };
       }
       result.runsAlreadyProjected += 1;
+      result.projectedExactlyOnce += 1;
       continue;
     }
     result.refreshRequired ||= !write;
@@ -171,11 +242,14 @@ async function captureEvents(
       const { emitted, deduped } = await appendLearningEventsDeduped(stateHome, events);
       result.eventsEmitted += emitted;
       result.eventsDeduped += deduped;
+      result.duplicateProjections += deduped > 0 ? 1 : 0;
       cursor.runs[key] = {
         projected_at: clock().toISOString(),
         events: events.length,
         event_files: eventFiles,
+        event_ids: eventIds,
       };
+      result.projectedExactlyOnce += 1;
     }
     if (receipt === undefined) {
       result.runsProjected += 1;
@@ -216,6 +290,7 @@ async function deriveRunEvents(
   stateHome: string,
   envelope: RunEnvelope,
   appStages: Record<string, string> | undefined,
+  efficiency?: IndexedEfficiencyRun,
 ): Promise<LearningEvent[]> {
   const l2 = await readRunEvents(stateHome, envelope);
   const anchor = await deriveEpisodeAnchor(stateHome, envelope);
@@ -288,7 +363,24 @@ async function deriveRunEvents(
     });
   }
 
-  return out;
+  let journal: ExecutionJournal | null = null;
+  if (efficiency?.episodeId !== undefined) {
+    journal = (await readExecutionJournal(stateHome, efficiency.episodeId).catch(() => null)) ?? null;
+  }
+  out.push(
+    ...projectEfficiencyEvidence({
+      runs: [{
+        envelope: { ...envelope, episode_id: anchor.episodeId },
+        events: l2,
+        route: efficiency?.route ?? null,
+        journal,
+        steps: efficiency?.steps ?? [],
+      }],
+      ...(appStages !== undefined ? { appStages } : {}),
+    }),
+  );
+
+  return out.sort((a, b) => a.event_id.localeCompare(b.event_id));
 }
 
 /** Build runs anchor on their ticket; dispatched turns anchor on the
@@ -365,6 +457,86 @@ export async function listRuns(
     out.push(...runIds.map((runId) => ({ app, runId })));
   }
   return out;
+}
+
+async function listReplayRuns(
+  stateHome: string,
+): Promise<CaptureProjectionResult["ineligibleRuns"]> {
+  const root = join(stateHome, "runs", REPLAY_RUNLOG_APP);
+  if (!existsSync(root)) return [];
+  return (await readdir(root, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      app: REPLAY_RUNLOG_APP,
+      runId: entry.name,
+      reason: "learning_replay_reserved" as const,
+    }))
+    .sort((a, b) => a.runId.localeCompare(b.runId));
+}
+
+interface IndexedEfficiencyRun {
+  episodeId: string;
+  route: EfficiencyEpisodeEvidence["route"];
+  steps: EfficiencyEpisodeEvidence["steps"];
+  corruptFiles: string[];
+}
+
+function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, IndexedEfficiencyRun> {
+  const out = new Map<string, IndexedEfficiencyRun>();
+  for (const episode of evidence) {
+    const episodeId = episode.route?.episode_id ?? episode.steps[0]?.episode_id;
+    if (episodeId === undefined) continue;
+    for (const step of episode.steps) {
+      const key = `${step.app}/${step.run_id}`;
+      const current = out.get(key);
+      out.set(key, {
+        episodeId,
+        route: episode.route,
+        steps: [...(current?.steps ?? []), step],
+        corruptFiles: [...new Set([...(current?.corruptFiles ?? []), ...episode.corrupt_files])].sort(),
+      });
+    }
+  }
+  return out;
+}
+
+function isMechanicalRun(envelope: RunEnvelope, indexed: IndexedEfficiencyRun | undefined): boolean {
+  if (indexed !== undefined && indexed.steps.length > 0) {
+    return indexed.steps.every((step) => step.kind === "mechanical");
+  }
+  return envelope.runtime === undefined &&
+    envelope.model === undefined &&
+    envelope.role === "orchestrator" &&
+    (envelope.pipeline === "gates" || envelope.pass.includes("gate"));
+}
+
+function block(
+  result: CaptureProjectionResult,
+  app: string,
+  runId: string,
+  reason: CaptureBlockingReason,
+): void {
+  const item = { app, runId, reason };
+  result.runsPending += 1;
+  result.pendingRuns.push(item);
+  result.blockedRuns.push(item);
+}
+
+async function receiptIsComplete(
+  stateHome: string,
+  receipt: CaptureCursor["runs"][string],
+  expectedIds: string[],
+): Promise<boolean> {
+  if (receipt.events !== expectedIds.length) return false;
+  if (expectedIds.length === 0) return true;
+  if (!receiptFilesExist(stateHome, receipt.event_files)) return false;
+  if (receipt.event_ids === undefined) return false;
+  if (receipt.event_ids.join("\0") !== expectedIds.join("\0")) return false;
+  const observed = new Set<string>();
+  for (const ref of receipt.event_files ?? []) {
+    for (const event of await readLearningEventFile(join(stateHome, ref))) observed.add(event.event_id);
+  }
+  return expectedIds.every((id) => observed.has(id));
 }
 
 async function readCursor(stateHome: string): Promise<CaptureCursor> {

@@ -127,6 +127,18 @@ describe("routing (design §6.1 proportional approvals)", () => {
     expect((outcome as { reason: string }).reason).toMatch(/fails closed/);
   });
 
+  it("refuses to count a candidate author as its independent reviewer", async () => {
+    const rig = makeRig();
+    const id = await seedCandidate(
+      rig,
+      { destination: "ticket", draft: { generated_by: "distiller" } },
+      { reviewed_by: "distiller" },
+    );
+    const outcome = await publishCandidate(rig.deps, id);
+    expect(outcome).toMatchObject({ status: "refused" });
+    expect((outcome as { reason: string }).reason).toContain("cannot count as its independent reviewer");
+  });
+
   it("a non-clean injection screen escalates even an approve verdict", async () => {
     const rig = makeRig();
     const id = await seedCandidate(

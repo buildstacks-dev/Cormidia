@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and deterministic production Phases 1–3 complete; the provider baseline remains valid historical evidence and honestly `not_qualified` |
+| Status | T0–T5 readiness and deterministic production Phases 1–4 complete; the provider baseline remains valid historical evidence and honestly `not_qualified` |
 | Evidence date | 2026-07-14 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
@@ -51,6 +51,8 @@ implementation, not a product qualification result.
 | T5 implementation and gate | Complete | Package scripts, PR/nightly/manual-release wiring, reporting, L6 preview/execute boundary, archive/cleanup, runbooks, Agent Skill, and `AGENTS.md` expectations execute. A fresh operator can run the token-free suite, preview external boundaries without spend, and reproduce the final baseline qualifier/report from its stored prepared manifest. |
 | Production Phase 1 | Complete | Durable route admission, terminal provider/mechanical execution-step evidence, exactly-once settlement/reconciliation, efficiency reporting, context-manifest foundations, and settlement properties promote B, E-CTX-01/02, and F-SET-01/02/03. |
 | Production Phase 2 | Complete | Additive archived org upgrade, normalized answer recovery, typed reset remediation, immutable-checkout onboarding, deterministic clone convergence, token-free verification, and journaled promotion pass `LIFE-LEGACY-001` plus every lifecycle fault/security/isolation contract. C-LIFE-01–04 are required. |
+| Production Phase 3 | Complete | Factor-backed routes, context budgets/deltas, token-free preflight, durable execution journals, bounded repair, semantic approvals, denial recurrence, and reset-abandonment closure are executable. |
+| Production Phase 4 | Complete | Typed trusted efficiency evidence, exactly-once repairable capture, app/role recurrence, explainable dispositions, declared efficacy, governed sandbox activation/rollback, and independent learning-health dimensions promote all ten H contracts without a provider campaign. |
 
 The L6 real-time soak path is implemented and tested as an explicitly
 authorized 48–72 hour boundary. It has not been executed and is not authorized
@@ -77,20 +79,18 @@ The complete Phase 2 local pass on 2026-07-14 produced:
   exited non-zero only because the exact 52 post-Phase-2 production contracts
   below remain deliberately known-red.
 
-After the deterministic production Phase 3 slice, the exact known-red set is
-25 contracts. The D/E live contracts and G-MET-01 remain red because their
+After the deterministic production Phase 4 slice, the exact known-red set is
+15 contracts. The D/E live contracts and G-MET-01 remain red because their
 provider campaigns were not authorized, not because their deterministic
 production paths are absent:
 
 - D (3): `D-LIVE-01`–`D-LIVE-03`;
 - E (2): `E-LIVE-01`–`E-LIVE-02`;
 - G (1): `G-MET-01`;
-- H (10): `H-CAP-01`–`H-CAP-03`, `H-CLU-01`–`H-CLU-02`,
-  `H-GOV-01`, `H-EVAL-01`–`H-EVAL-03`, `H-RPT-01`;
 - I (9): `I-INSTALL-01`–`I-INSTALL-02`, `I-SOAK-01`–`I-SOAK-03`,
   `I-ROLE-01`–`I-ROLE-03`, `I-LIVE-01`.
 
-The 59 required contracts in A–G and J are green. Historical provider baseline
+The 69 required contracts in A–H and J are green. Historical provider baseline
 results remain the pre-transformation comparison and are not relabeled, and no
 live result is inferred from deterministic evidence.
 
@@ -114,6 +114,34 @@ The Phase 3 offline gate on 2026-07-14 produced:
 
 No calibration, baseline, qualification, soak, or other provider campaign was
 run for Phase 3.
+
+The Phase 4 offline gate on 2026-07-14 proved the ten H contracts through
+production imports. The closure fixture copied its immutable historical inputs
+into temporary state, projected all eligible provider runs or exact blockers,
+formed deterministic recurrence, exercised independent review and declared
+efficacy, rejected sham/harmful treatments, restored stable lineage on
+disable/rollback, and produced byte-stable health. Capture, repair,
+clustering, disposition, and reporting constructed no provider runtime and
+wrote no telemetry. No calibration, baseline, qualification, live replay,
+canary, soak, or other provider campaign was run for Phase 4. Phase 5 scheduler
+management is next.
+
+The recorded deterministic Phase 4 validation was:
+
+- `pnpm eval:validate`: valid, 84 requirements with 84 executable evidence
+  paths, 14 cases, 12 benchmark families, 60 fault boundaries, and no orphan;
+- `pnpm test:transformation`: 28 files and 238 tests passed, then the contract
+  runner reported exactly 15 known-red IDs and no unexpected failure;
+- `pnpm eval:deterministic`: 45 files and 369 tests passed;
+- `pnpm test`: 173 files and 1,516 tests passed;
+- `pnpm typecheck`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack
+  --dry-run`: passed;
+- isolated alpha (55 tests + lint), beta (4 tests), gamma (45 tests + lint +
+  SRE/Support/Marketing smokes), and delta (53 tests + lint) passed with clean
+  worktrees afterward;
+- the temporary-HOME/TMPDIR Phase 4 closure replay passed 4 files and 12 tests;
+- `pnpm test:transformation:strict` passed all 238 executable test cases, then
+  exited non-zero only for the exact 15 D/E/G-live and I IDs above.
 
 ### Retained external evidence and findings
 
@@ -1112,6 +1140,17 @@ Suggested suites: `test/learning/efficiency-capture.test.ts`,
 
 Use the existing ReplayCapsule/SystemFingerprint/ExperimentRecord/EvalResult
 substrate. Extend it; do not create a competing global eval record model.
+
+**Phase 4 evidence (2026-07-14):** all ten contracts are `required` in
+`eval/contracts.yaml`. `test/learning/efficiency-capture.test.ts` imports the
+production evidence/capture modules for trusted classification, exact-once
+repair, exclusion, isolation, and deterministic recurrence;
+`test/learning/efficacy.test.ts` imports the production experiment/efficacy
+modules for declaration, blindness, fingerprint, hidden-guardrail, sham, and
+harm decisions; and `test/learning/learning-closure.test.ts` proves durable
+dispositions, lineage health, read-only reporting, and idempotent projection.
+The evaluation-oracle scripts remain independent checks and are not imported
+by `src/**`.
 
 ### 8.9 Workstream I — autonomous scheduler
 

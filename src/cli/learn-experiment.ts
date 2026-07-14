@@ -13,6 +13,7 @@
 //                       intervention; assignment is by episode hash.
 // canary status/promote/stop — observe, then advance stable or roll back.
 
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -161,6 +162,32 @@ async function declare(homes: OperonHomes, args: string[]): Promise<number> {
       promote_if: "primary_metric_improves_and_all_guardrails_pass",
       otherwise: "reject_extend_or_revise",
     },
+    efficacy_protocol: {
+      declared_at: new Date().toISOString(),
+      baseline: {
+        metric,
+        value: Number(flag(flags, "baseline") ?? 0),
+        source_ref: flag(flags, "baseline-ref") ?? evalsRef,
+      },
+      hidden_guardrail_commitment: {
+        sha256: sha256Ref(JSON.stringify({ evals: evalsRef, guardrails })),
+        fixture_refs: [evalsRef.startsWith("evals/") ? evalsRef : `evals/${evalsRef}`],
+      },
+      eligibility_sha256: sha256Ref(JSON.stringify({ app: appName, stage: [appEntry.status], evals: evalsRef })),
+      actor_blinding: { treatment_identity_hidden: true },
+      pairing: { seed: `${experimentId}:paired-v1`, order: "alternating_control_treatment" },
+      budget: { max_usd: policy.learning_budget.per_candidate_replay_usd },
+      stop_rules: {
+        retain_attempted_pairs: true,
+        early_stop_reasons: ["held_in_failure", "guardrail_trip", "budget_stop"],
+      },
+      side_effect_replacement: {
+        network: "fixture_only",
+        publishing: "forbidden",
+        deployment: "sandbox_only",
+      },
+      missingness: { missing: "invalid_measurement", invalid: "fail_closed" },
+    },
     status: "declared",
     result: null,
   };
@@ -175,6 +202,10 @@ async function declare(homes: OperonHomes, args: string[]): Promise<number> {
   );
   console.log(`  run it with: operon learn experiment run ${declared.record.experiment_id}`);
   return 0;
+}
+
+function sha256Ref(value: string): string {
+  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
 async function run(homes: OperonHomes, args: string[]): Promise<number> {
@@ -390,6 +421,8 @@ export async function learnCanary(homes: OperonHomes, args: string[]): Promise<n
         orgHome: homes.orgHome,
         ...appWorkdirFlag(homes, flags),
         root,
+        stateHome: homes.stateHome,
+        policy: await loadLearningPolicy(homes.orgHome),
       });
       console.log(
         `promoted canary ${result.version} on the ${root} root -> stable ${result.newVersion} ` +

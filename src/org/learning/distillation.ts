@@ -352,6 +352,8 @@ export async function persistDistillationOutput(input: {
   orgHome: string;
   appWorkdir: string;
   app: string;
+  /** Durable author identity; the same identity cannot satisfy independent review. */
+  generatedBy: string;
   now: Date;
   preparation: DistillationPreparation;
   verdict: DistillationVerdict;
@@ -385,6 +387,8 @@ export async function persistDistillationOutput(input: {
         topic_key: proposal.topic_key,
         cluster_fingerprint: cluster.fingerprint,
         source_app: input.app,
+        source_role: cluster.roles[0] ?? "unattributed",
+        generated_by: input.generatedBy,
       },
     };
     const root =
@@ -664,14 +668,17 @@ function clusterEvidence(events: LearningEvent[]): EvidenceCluster[] {
         stringPayload(event, "cause_hypothesis_text") ??
         "unresolved",
     );
-    const key = `${event.app}\u0000${errorClass}\u0000${cause}`;
+    // Comparable recurrence is app AND role scoped. Cross-role coincidence
+    // is useful report context, never evidence that one intervention recurs.
+    const role = event.agent_role ?? "unattributed";
+    const key = `${event.app}\u0000${role}\u0000${errorClass}\u0000${cause}`;
     const bucket = groups.get(key);
     if (bucket === undefined) groups.set(key, [event]);
     else bucket.push(event);
   }
   return [...groups.entries()]
     .map(([key, bucket]) => {
-      const [app, errorClass, cause] = key.split("\u0000") as [string, string, string];
+      const [app, role, errorClass, cause] = key.split("\u0000") as [string, string, string, string];
       const eventIds = unique(bucket.map((event) => event.event_id));
       const keywords = recurringKeywords(bucket);
       return {
@@ -682,7 +689,7 @@ function clusterEvidence(events: LearningEvent[]): EvidenceCluster[] {
         event_ids: eventIds,
         episode_ids: unique(bucket.map((event) => event.episode_id)),
         evidence_refs: eventIds.map((eventId) => `learning:event:${eventId}`),
-        roles: unique(bucket.map((event) => event.agent_role).filter((value): value is string => value !== undefined)),
+        roles: [role],
         trusted_events: bucket.filter((event) => event.trust === "trusted").length,
         human_intervention: bucket.some(
           (event) =>
@@ -748,6 +755,7 @@ function candidateClusterFingerprint(candidate: CandidateArtifact): string | und
   if (candidate.error_class === undefined) return undefined;
   return sha256Ref(
     `${candidate.proposed_scope.startsWith("apps/") ? candidate.proposed_scope.split("/")[1] : ""}\u0000` +
+      `${typeof candidate.draft?.["source_role"] === "string" ? candidate.draft["source_role"] : "unattributed"}\u0000` +
       `${candidate.error_class}\u0000${normalizeCause(candidate.cause_hypothesis ?? "unresolved")}`,
   ).slice(7);
 }

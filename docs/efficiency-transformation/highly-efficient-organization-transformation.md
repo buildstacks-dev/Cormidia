@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phased implementation authorized; Phase 0 is next |
-| Evidence date | 2026-07-13 |
+| Status | Phases 0–4 complete; Phase 5 autonomous production posture is next |
+| Evidence date | 2026-07-14 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
 | Benchmark app | `/Users/bikram/Build/buildstacks.dev` |
@@ -650,6 +650,18 @@ explainability, evaluation, and efficacy reporting.
 **Gate:** injected anomalies reach governed candidates/evaluations and an
 activated sandbox intervention measurably improves later comparable episodes.
 
+**Status:** complete on 2026-07-14. Production now projects versioned trusted
+efficiency evidence from orchestrator artifacts, repairs capture receipts
+exactly once, closes reset/stale episodes explicitly, clusters only comparable
+app/role evidence, and records explainable candidate dispositions. The existing
+governed Candidate → review → ExperimentRecord → content-bound approval →
+publisher → Intervention/Canary chain remains the only authority path.
+Experiments pin baselines, SystemFingerprints, hidden guardrails, actor-blind
+pairing, budgets, stops, missingness, and side-effect replacement before
+results. The token-free sandbox gate proves improvement, sham/harm exclusion,
+rollback, idempotency, and separate capture/governance/efficacy health. All ten
+H contracts are required; no provider campaign was run. Phase 5 is next.
+
 ### Phase 5 — Autonomous production posture
 
 Install and prove scheduler management, soak behavior, and operational reports.
@@ -861,13 +873,13 @@ measurably better with experience.
 > `adapter-harness-calibration-v1-20260714-e52bf4335e81`; the valid current
 > baseline is `pre-transformation-baseline-v2-20260714-e52bf4335e81`, with one
 > pass, five honest `product_miss` outcomes, and zero eval-system failures.
-> Production Phases 1–3 are complete and 25 product contracts remain
+> Production Phases 1–4 are complete and 15 product contracts remain
 > known-red. Rerun external campaigns only after covered
 > bytes change and exact authorization. Never
 > weaken graders, targets, safety gates, or evidence to make results green.
 >
-> Execute the charter sequentially. Phases 0–3 are complete; begin with Phase 4
-> closed learning only, then Phase 5 autonomous
+> Execute the charter sequentially. Phases 0–4 are complete; begin with Phase 5
+> autonomous
 > operation, and Phase 6 qualification. Do not parallelize work whose
 > contracts depend on an unfinished phase. `TASTE.md`, `roles.yaml`,
 > `pipelines.yaml`, `prompts/**`, and `docs/PURPOSE.md` are human-ratified;

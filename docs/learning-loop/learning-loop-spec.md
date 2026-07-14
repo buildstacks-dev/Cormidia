@@ -99,7 +99,7 @@ new governed concepts land under `learning/bundle/**`.
     resolved/<turn_id>.json              # per-turn pinned resolve records
     canary/assignments/<episode_id>.json # episode-sticky canary assignments
     publish-journal/                     # crash-resumable publish transactions
-    metrics/                             # capture cursor only
+    metrics/                             # capture cursor + rebuildable efficiency-health projection
 ```
 
 (As built — `src/org/learning/{events,episode,capsule,fingerprint,resolver,canary,publisher,capture}.ts`;
@@ -269,6 +269,23 @@ plus direct emitters (resolver, publisher, human corrections, approvals).
 vocabulary (`pass | fail | skip`); the projector maps L1's
 `passed | failed | skipped` onto it. Pass verdicts are captured from L2
 `verdict.recorded` events — they are not persisted anywhere else on disk.
+
+Phase 4 cursor receipts bind each eligible finalized provider run to its exact
+deterministic event ids. Mechanical executions and `runs/learning-replay/**`
+are explicitly ineligible. Unreadable/corrupt/torn, stale, running, and
+missing-finalization artifacts remain named blockers; a stale receipt repairs
+by replaying immutable evidence and atomically rebinding the same ids.
+
+`efficiency-evidence/v1` adds these stable trusted `error_class` values:
+`execution.cancelled`, `execution.cap_stop`, `environment.retry_cluster`,
+`route.budget_variance`, `route.budget_overrun`,
+`execution.stale_finalization`, `execution.missing_finalization`,
+`approval.false_positive`, `execution.repeated_work`,
+`review.long_duration`, `tooling.bash_heavy`,
+`tooling.shell_heavy_repetition`, and `scheduler.missed_tick`. Scheduler-miss
+evidence is a future-compatible class; this phase does not install a scheduler.
+Trusted recurrence is keyed by app, role, class, and normalized cause, with
+distinct source identities and the policy's `min_cluster_events` threshold.
 
 Every event carries its **episode context**: `episode_id` plus the pipeline,
 pass, stage, and risk tier under which it occurred. Turn-level fields remain
@@ -669,6 +686,19 @@ trials:
   early_stop:
     on_held_in_failure: true
     on_guardrail_trip: true
+efficacy_protocol:
+  declared_at: 2026-07-10T08:00:00Z
+  baseline: { metric: average_review_cycles, value: 2.5, source_ref: baseline:builder-standard/v1 }
+  hidden_guardrail_commitment:
+    sha256: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    fixture_refs: [evals/hidden/builder-baseline/v1]
+  eligibility_sha256: sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+  actor_blinding: { treatment_identity_hidden: true }
+  pairing: { seed: builder-standard-v1, order: alternating_control_treatment }
+  budget: { max_usd: 25 }
+  stop_rules: { retain_attempted_pairs: true, early_stop_reasons: [budget_stop, held_in_failure, guardrail_trip] }
+  side_effect_replacement: { network: fixture_only, publishing: forbidden, deployment: sandbox_only }
+  missingness: { missing: invalid_measurement, invalid: fail_closed }
 observation:
   outcome_maturity_days: 7         # wait for late outcomes before final verdict
 stop_thresholds:
@@ -679,6 +709,13 @@ decision:
 status: declared                   # declared | running | decided
 result: null                       # EvalResult ref once decided
 ```
+
+Legacy declarations without `efficacy_protocol` remain readable for audit, but
+cannot execute, activate, or promote. The protocol is immutable with the
+declaration. Every observed timestamp must be later than `declared_at`; a
+fingerprint mismatch or treatment identity in actor-visible bytes fails
+closed. Pair order alternates deterministically, assignment remains sticky by
+episode, and attempted pairs survive budget and early stops.
 
 ## 11. InterventionRecord
 
@@ -732,6 +769,18 @@ outcome was, and whether it was rolled back.
     { "metric": "average_cost_usd", "pass": true }
   ],
   "verdict": "improved",
+  "execution": {
+    "validity": "valid",
+    "attempted_pairs": [0, 1, 2],
+    "completed_pairs": [0, 1, 2],
+    "pair_order": [
+      { "pair": 0, "order": ["control", "treatment"] },
+      { "pair": 1, "order": ["treatment", "control"] },
+      { "pair": 2, "order": ["control", "treatment"] }
+    ],
+    "halted_reason": null,
+    "invalid_reasons": []
+  },
   "grader": { "kind": "deterministic", "ref": "evals/roles/builder/standard-tickets/grader.ts" },
   "cost_usd": 61.40,
   "decided_by": "human-operator",
@@ -750,6 +799,9 @@ not_evaluatable
 
 `grader.kind` enum: `deterministic | model | human`. Model graders are allowed
 only for qualitative guardrails and must themselves be validated fixtures.
+`execution.validity` is `valid | invalid_measurement | missing_measurement`.
+An invalid or missing result cannot promote even if another aggregate field
+looks favorable.
 
 ## 13. policy.yaml
 

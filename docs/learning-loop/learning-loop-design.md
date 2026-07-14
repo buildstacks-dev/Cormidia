@@ -3,7 +3,9 @@
 **Status:** v0.8 - ratified 2026-07-11 (`docs/PURPOSE.md` → Decided → Learning
 loop design); revised per the consolidated design feedback of 2026-07-10
 (`archive/2026-07-10_feedback.md`)  
-**Build status:** built through M5 (PR #52, 2026-07-11); where this document and the code diverge, the code and `AGENTS.md` are authoritative  
+**Build status:** M1–M6 plus the Phase 4 closed-loop efficiency extension are
+built (2026-07-14); where this document and the code diverge, the code and
+`AGENTS.md` are authoritative
 **Date:** 2026-07-11  
 **Companions:** `learning-loop-spec.md` (schemas), `learning-loop-milestones.md` (release plan)
 
@@ -66,6 +68,19 @@ baseline -> isolated intervention -> comparable outcomes -> measured effect -> p
 V1 ships the first loop and builds the substrate for the second (§8–§9).
 Every activation records which claim it holds; `authorized` never silently
 upgrades to `validated`.
+
+The Phase 4 extension makes the second loop executable for bounded sandbox and
+replay evidence. `efficiency-evidence/v1` derives trusted anomaly events only
+from orchestrator-owned envelopes, L2 action records, routes, execution
+journals/steps, verifier-owned approval classifications, and scheduler records.
+It excludes mechanical and reserved replay execution, clusters only comparable
+app/role/class/cause events, and gives every cluster a durable disposition.
+Efficacy-claiming experiments additionally declare the baseline, control and
+treatment fingerprints, hidden-guardrail commitment, eligibility hash,
+actor-blind pairing, budget, stop/missingness rules, and side-effect replacement
+before results. `operon learn report --efficiency-health` then reports capture,
+governance, and efficacy independently under the measurement rules in
+`docs/efficiency.md`.
 
 The implementation target is **inside Operon first**. The interface boundaries
 should stay clean enough that this can later become a standalone library, but V1

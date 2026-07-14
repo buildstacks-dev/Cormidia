@@ -444,6 +444,7 @@ async function runM6PipelineTurn(
           orgHome: options.orgRoot,
           appWorkdir: options.localRepo,
           app: options.app.name,
+          generatedBy: options.role.name,
           now: clock(),
           preparation,
           verdict,

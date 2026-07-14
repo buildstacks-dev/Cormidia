@@ -6,7 +6,7 @@ loop design); revised per the consolidated design feedback of 2026-07-10
 post-proportionality codebase on 2026-07-11  
 **Companions:** `learning-loop-design.md`, `learning-loop-spec.md`
 
-**Build status (2026-07-12):**
+**Build status (2026-07-14):**
 
 | Milestone | Status |
 | --- | --- |
@@ -17,6 +17,7 @@ post-proportionality codebase on 2026-07-11
 | M4 | Done — PR #50; the `cacheReadTokens > 0` two-pass case lives in the live suite only (`test/runtime/claude-sdk.live.test.ts`) — the offline suite pins byte-identical rendering (`test/learning/resolver.test.ts`) |
 | M5 | Done — PR #52 |
 | M6 | Done — scheduled dispatch/CLI path is live; deterministic skips, ordinary provider turns, review, caps, and report-only compaction are conformance-verified |
+| Efficiency Phase 4 | Done — typed orchestrator evidence, deterministic recurrence/dispositions, declared efficacy, sandbox closure, and three-dimensional learning health are production-backed and token-free |
 
 The cadence follows one rule:
 

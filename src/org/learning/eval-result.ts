@@ -90,6 +90,16 @@ export interface EvalResult {
   };
   guardrails: EvalGuardrailOutcome[];
   verdict: EvalVerdict;
+  /** Phase 4 keeps every attempted pair/order and terminal reason. Missing or
+   * invalid measurements never disappear behind the aggregate verdict. */
+  execution?: {
+    validity: "valid" | "invalid_measurement" | "missing_measurement";
+    attempted_pairs: number[];
+    completed_pairs: number[];
+    pair_order: Array<{ pair: number; order: ["control", "treatment"] | ["treatment", "control"] }>;
+    halted_reason: string | null;
+    invalid_reasons: string[];
+  };
   grader: { kind: GraderKind; ref: string };
   cost_usd: number;
   decided_by: string;
@@ -116,6 +126,7 @@ export interface ComputeEvalResultOptions {
   decidedAt: string;
   /** Defaults to a deterministic id derived from (experiment, trials). */
   evalId?: string;
+  execution?: EvalResult["execution"];
 }
 
 export function computeEvalResult(options: ComputeEvalResultOptions): EvalResult {
@@ -173,6 +184,7 @@ export function computeEvalResult(options: ComputeEvalResultOptions): EvalResult
     },
     guardrails,
     verdict,
+    ...(options.execution !== undefined ? { execution: options.execution } : {}),
     grader: { kind: "deterministic", ref: options.graderRef },
     cost_usd: options.costUsd,
     decided_by: options.decidedBy,
@@ -328,6 +340,38 @@ export function validateEvalResult(value: unknown): EvalResult {
     ref: requireString(graderSpec, "ref", `${source}.grader`),
   };
 
+  let execution: EvalResult["execution"];
+  if (spec["execution"] !== undefined) {
+    const value = requireRecord(spec["execution"], `${source}.execution`);
+    const pairOrder = value["pair_order"];
+    if (!Array.isArray(pairOrder)) throw new Error(`learning: ${source}.execution.pair_order must be an array`);
+    execution = {
+      validity: requireEnum(
+        value,
+        "validity",
+        ["valid", "invalid_measurement", "missing_measurement"] as const,
+        `${source}.execution`,
+      ),
+      attempted_pairs: numberArray(value["attempted_pairs"], `${source}.execution.attempted_pairs`),
+      completed_pairs: numberArray(value["completed_pairs"], `${source}.execution.completed_pairs`),
+      pair_order: pairOrder.map((entry, index) => {
+        const row = requireRecord(entry, `${source}.execution.pair_order[${index}]`);
+        const order = row["order"];
+        if (!Array.isArray(order) || order.length !== 2 ||
+          !((order[0] === "control" && order[1] === "treatment") ||
+            (order[0] === "treatment" && order[1] === "control"))) {
+          throw new Error(`learning: ${source}.execution.pair_order[${index}].order is invalid`);
+        }
+        return {
+          pair: requireFiniteNumber(row, "pair", `${source}.execution.pair_order[${index}]`),
+          order: order as ["control", "treatment"] | ["treatment", "control"],
+        };
+      }),
+      halted_reason: optionalString(value, "halted_reason", `${source}.execution`),
+      invalid_reasons: requireStringArray(value, "invalid_reasons", `${source}.execution`),
+    };
+  }
+
   return {
     schema_version: 1,
     eval_id: evalId,
@@ -338,11 +382,19 @@ export function validateEvalResult(value: unknown): EvalResult {
     primary_metric: primary,
     guardrails,
     verdict,
+    ...(execution !== undefined ? { execution } : {}),
     grader,
     cost_usd: requireNonNegativeNumber(spec, "cost_usd", source),
     decided_by: requireString(spec, "decided_by", source),
     decided_at: requireString(spec, "decided_at", source),
   };
+}
+
+function numberArray(value: unknown, source: string): number[] {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "number" || !Number.isFinite(entry))) {
+    throw new Error(`learning: ${source} must be an array of finite numbers`);
+  }
+  return value as number[];
 }
 
 function metricMap(value: unknown, source: string): Record<string, number> {

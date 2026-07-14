@@ -74,8 +74,9 @@ describe("F-SET-04 reset and unprojected-run truth", () => {
     const result = await previewCaptureEvents({ stateHome: home.root });
     expect(result.runsPending).toBe(2);
     expect(result.pendingRuns).toEqual([
-      { app: "app", runId: running, reason: "still_running" },
+      { app: "app", runId: running, reason: "stale_finalization" },
       { app: "app", runId: torn, reason: "unreadable_envelope" },
     ]);
   });
 });
+// Phase 4 terminal-finalization contract: H-CAP-03.

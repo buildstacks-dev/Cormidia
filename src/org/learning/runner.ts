@@ -28,6 +28,7 @@ import { listEvalFixtures, type EvalFixture } from "./eval-fixture.js";
 import {
   markExperimentRunning,
   readExperimentRecord,
+  requireEfficacyProtocol,
   type ExperimentRecord,
 } from "./experiment.js";
 import { claimAfterEval } from "./candidate.js";
@@ -85,6 +86,7 @@ export async function runExperiment(
 ): Promise<ExperimentRunOutcome> {
   const clock = options.clock ?? ((): Date => new Date());
   const experiment = await readExperimentRecord(options.orgHome, experimentId);
+  const efficacy = requireEfficacyProtocol(experiment);
 
   // -- deterministic prechecks (zero tokens) --------------------------------
   if (experiment.status === "decided") {
@@ -99,6 +101,12 @@ export async function runExperiment(
         `executes replay experiments; deterministic checks run in CI and canary trials run ` +
         `live through \`operon learn canary\``,
     );
+  }
+  if (Date.parse(efficacy.declared_at) >= clock().getTime()) {
+    throw new Error(`learning: ${experimentId} result window does not follow its declaration`);
+  }
+  if (efficacy.baseline.metric !== experiment.primary_metric.name) {
+    throw new Error(`learning: ${experimentId} baseline metric does not match the declared primary metric`);
   }
   const caps = options.policy.learning_budget;
   if (experiment.trials.repetitions > caps.max_repetitions_per_experiment) {
@@ -129,6 +137,9 @@ export async function runExperiment(
     if (spend.candidateUsd + localCost >= caps.per_candidate_replay_usd) {
       return `per-candidate replay cap ($${caps.per_candidate_replay_usd.toFixed(2)}) reached`;
     }
+    if (localCost >= efficacy.budget.max_usd) {
+      return `declared experiment budget cap ($${efficacy.budget.max_usd.toFixed(2)}) reached`;
+    }
     return null;
   };
   const preflightHalt = overBudget();
@@ -152,6 +163,17 @@ export async function runExperiment(
       `learning: no trusted fixtures for ${experiment.eligibility.episodes} — ` +
         `convert and independently validate a capsule first (operon learn fixture)`,
     );
+  }
+  if (efficacy.hidden_guardrail_commitment.fixture_refs.length === 0) {
+    throw new Error(`learning: ${experimentId} has no committed hidden guardrail fixture refs`);
+  }
+  const leakedIdentity = fixtures.find((fixture) => {
+    const visible = fixture.input.brief ?? "";
+    return visible.includes(experiment.treatment.fingerprint_ref) ||
+      visible.includes(efficacy.hidden_guardrail_commitment.sha256);
+  });
+  if (leakedIdentity !== undefined) {
+    throw new Error(`learning: actor_blindness_violated in ${leakedIdentity.fixture_id}`);
   }
   // The held-in case is the specific weakness the candidate claims to fix
   // (design §10). When the candidate names episodes and the eval set covers
@@ -181,12 +203,21 @@ export async function runExperiment(
     mode: "targeted" | "full",
     fixture: EvalFixture,
   ): Promise<EvalTrial> => {
-    const control = await options.executor.attempt({ fixture, arm: "control", pair, mode, experiment });
-    attempts.push(control);
-    localCost += control.costUsd;
-    const treatment = await options.executor.attempt({ fixture, arm: "treatment", pair, mode, experiment });
-    attempts.push(treatment);
-    localCost += treatment.costUsd;
+    // Alternating order makes order effects observable while preserving an
+    // exact deterministic pair. The executor receives an arm internally;
+    // actor-visible bytes never receive the treatment label.
+    const order = pair % 2 === 0
+      ? (["control", "treatment"] as const)
+      : (["treatment", "control"] as const);
+    const rows = new Map<"control" | "treatment", ReplayAttempt>();
+    for (const arm of order) {
+      const attempt = await options.executor.attempt({ fixture, arm, pair, mode, experiment });
+      attempts.push(attempt);
+      localCost += attempt.costUsd;
+      rows.set(arm, attempt);
+    }
+    const control = rows.get("control")!;
+    const treatment = rows.get("treatment")!;
     const trial: EvalTrial = { pair, control: control.metrics, treatment: treatment.metrics };
     trials.push(trial);
     return trial;
@@ -196,7 +227,8 @@ export async function runExperiment(
   // The pair lands in `trials` via runPair; the treatment attempt is the
   // last one pushed.
   await runPair(0, "targeted", heldIn);
-  if (experiment.trials.early_stop.on_held_in_failure && !attempts.at(-1)!.heldInPass) {
+  const targetedTreatment = attempts.find((attempt) => attempt.pair === 0 && attempt.arm === "treatment")!;
+  if (experiment.trials.early_stop.on_held_in_failure && !targetedTreatment.heldInPass) {
     halted = "targeted held-in eval failed under the treatment arm — full replay skipped";
   }
 
@@ -209,7 +241,9 @@ export async function runExperiment(
       }
       const fixture = fixtures[(pair - 1) % fixtures.length]!;
       await runPair(pair, "full", fixture);
-      const treatment = attempts.at(-1)!;
+      const treatment = [...attempts].reverse().find(
+        (attempt) => attempt.pair === pair && attempt.arm === "treatment",
+      )!;
       if (experiment.trials.early_stop.on_held_in_failure && !treatment.heldInPass) {
         halted = `held-in failure on pair ${pair} — remaining pairs skipped`;
         break;
@@ -231,10 +265,51 @@ export async function runExperiment(
     costUsd: round2(localCost),
     decidedBy: options.decidedBy,
     decidedAt: clock().toISOString(),
+    execution: executionEvidence(experiment, attempts, trials, halted),
   });
   const { result, experiment: decided } = await decideExperiment(options.orgHome, computed);
   await linkIntervention(options.orgHome, decided, result);
   return { experiment: decided, result, attempts, halted };
+}
+
+function executionEvidence(
+  experiment: ExperimentRecord,
+  attempts: ReplayAttempt[],
+  trials: EvalTrial[],
+  halted: string | null,
+): NonNullable<EvalResult["execution"]> {
+  const attemptedPairs = [...new Set(attempts.map((attempt) => attempt.pair))].sort((a, b) => a - b);
+  const pairOrder = attemptedPairs.map((pair) => ({
+    pair,
+    order: attempts
+      .filter((attempt) => attempt.pair === pair)
+      .map((attempt) => attempt.arm) as ["control", "treatment"] | ["treatment", "control"],
+  }));
+  const invalidReasons: string[] = [];
+  const full = trials.filter((trial) => trial.pair > 0);
+  if (trials.every((trial) =>
+    !Number.isFinite(trial.control[experiment.primary_metric.name]) ||
+    !Number.isFinite(trial.treatment[experiment.primary_metric.name])
+  )) invalidReasons.push("missing_primary_metric");
+  for (const guardrail of experiment.guardrails) {
+    if (full.length === 0 || full.every((trial) =>
+      !Number.isFinite(trial.control[guardrail.metric]) ||
+      !Number.isFinite(trial.treatment[guardrail.metric])
+    )) invalidReasons.push(`missing_guardrail:${guardrail.metric}`);
+  }
+  const validity = invalidReasons.some((reason) => reason.startsWith("missing_guardrail"))
+    ? "invalid_measurement"
+    : invalidReasons.length > 0
+      ? "missing_measurement"
+      : "valid";
+  return {
+    validity,
+    attempted_pairs: attemptedPairs,
+    completed_pairs: trials.map((trial) => trial.pair).sort((a, b) => a - b),
+    pair_order: pairOrder,
+    halted_reason: halted,
+    invalid_reasons: invalidReasons.sort(),
+  };
 }
 
 // ---------------------------------------------------------------------------

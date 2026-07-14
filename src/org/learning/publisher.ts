@@ -141,6 +141,15 @@ export async function publishCandidate(
         `record one with: operon learn review ${candidateId}`,
     };
   }
+  const candidateAuthor = ["generated_by", "emitted_by", "author"]
+    .map((key) => candidate.draft?.[key])
+    .find((value): value is string => typeof value === "string");
+  if (candidateAuthor !== undefined && candidateAuthor === verdict.reviewed_by) {
+    return {
+      status: "refused",
+      reason: `${candidateId} author ${candidateAuthor} cannot count as its independent reviewer`,
+    };
+  }
   const disposition = reviewDisposition(verdict);
   if (disposition !== "proceed") {
     return {

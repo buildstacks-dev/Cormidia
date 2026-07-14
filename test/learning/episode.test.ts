@@ -206,6 +206,7 @@ describe("createEpisodeProjector().project()", () => {
         cost_usd: 4.0,
         cost_estimated: false,
         unsettled_runs: [],
+        terminal_reason: "completed",
       });
     } finally {
       home.cleanup();

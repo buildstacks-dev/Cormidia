@@ -1581,41 +1581,8 @@ This test/eval campaign is complete when:
 
 ## 18. Copy/paste continuation goal for a new session
 
-> `/goal` Continue the Operon highly-efficient-organization transformation in
-> `/Users/bikram/Build/Operon`. First read
-> `AGENTS.md`, `docs/PURPOSE.md`,
-> `docs/efficiency-transformation/highly-efficient-organization-transformation.md`,
-> and
-> `docs/efficiency-transformation/highly-efficient-organization-test-eval-transformation.md`
-> completely. Treat that document's **Current implementation and handoff
-> status** section as authoritative. Preserve all unrelated work, especially
-> the existing uncommitted `docs/architecture/conceptual-overview.md` change;
-> do not reset or clean the worktree.
->
-> T0–T5 and the overall test/eval readiness gate are complete. The admitted
-> adapter campaign is
-> `adapter-harness-calibration-v1-20260714-e52bf4335e81`; the current-schema
-> provider baseline is
-> `pre-transformation-baseline-v2-20260714-e52bf4335e81`. Do not rerun either
-> unless covered adapter/eval bytes change. The baseline is valid evidence and
-> an honest `not_qualified` product result: one pass, five product misses, and
-> zero eval-system failures. Begin production implementation only through the
-> charter's reviewed workstream order, promote contracts deliberately, and run
-> the required token-free suites after each relevant change. The strict gate
-> may fail only for the exact declared known-red set remaining at that commit.
->
-> Operon is not product-ready, so product failures and known-red contract misses
-> are expected and may be the correct eval result. The objective is to prove
-> that production work promotes those contracts without invalidating the now
-> proven eval system. Never weaken a grader, change an
-> expectation, or implement product behavior merely to make an eval green.
-> Distinguish `product_miss` from harness/evidence failure explicitly. Candidate
-> qualification, L6 execution, and `pnpm test:live` remain separate and require
-> their own preview and authorization.
->
-> Provider execution uses my existing subscriptions. All dollar values are
-> equivalent-cost accounting caps/measurements, not incremental charges. Do
-> not ask me again about credential mode. Never touch the active production
-> org/state/apps or any non-eval repository. Finish with exact verification
-> results, the full known-red set, benchmark/fault coverage, GitHub/provider
-> effects, equivalent cost, and any remaining readiness gap.
+The canonical implementation-session prompt now lives in
+`docs/efficiency-transformation/highly-efficient-organization-transformation.md`
+§13. It incorporates this document's completed T0–T5 gate, admitted campaign
+identities, known-red baseline, isolation rules, phased implementation order,
+verification requirements, and separately authorized external boundaries.

@@ -131,6 +131,10 @@ it("J-GRADE-01 dispatches every evidence-backed live benchmark to its calibrated
   writeFileSync(join(root, "grader-evidence.json"), "{}\n");
   expect(await gradeLiveCase("approval/semantics/v1", root)).toBe(false);
   expect(await gradeLiveCase("unknown/not-real/v1", root)).toBe(false);
+
+  cpSync(join(process.cwd(), "eval/apps/service/seed"), join(root, "broken-service"), { recursive: true });
+  writeFileSync(join(root, "broken-service/src/auth.js"), "export const unrelated = true;\n");
+  await expect(gradeLiveCase("deep/auth-migration/v1", join(root, "broken-service"))).resolves.toBe(false);
 });
 
 it("G-SHAPE-01 flat-denies role-forbidden acts without an approval request while preserving other roles' ordinary gate", () => {

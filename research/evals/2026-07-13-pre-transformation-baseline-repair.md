@@ -93,3 +93,56 @@ The repaired detached tree passed the complete token-free preflight on
 - `pnpm typecheck` and `pnpm build`: passed.
 - `pnpm test:transformation:strict`: all 396 executable tests passed and the
   command exited 1 solely because the same 72 known-red contracts remain.
+
+## Replacement-baseline classification defects
+
+Fresh adapter campaign `adapter-harness-calibration-v1-20260714-fb96dfa288e8`
+qualified all three provider probes on repaired commit `4a550455` with 20
+provider turns, 20 settlements, and $2.3119345 equivalent cost. The first
+replacement baseline on those bytes,
+`pre-transformation-baseline-v2-20260714-fb96dfa288e8` (SHA-256
+`3029995150f03dcd31a0fd0e5b3d5dcfd84504395a5869d14c684fbe123abf65`),
+remains another immutable invalid eval-system sample. Its product evidence is
+two quick passes and three honest product misses. The deep attempt completed
+two provider turns but a rejected async hidden-grader promise escaped its
+wrapper because the deep branch returned rather than awaited it, misclassifying
+a missing product export as `harness_error` instead of `product_miss`.
+
+Archiving that terminal sample also failed closed before copying bytes because
+an isolated actor-worktree source file contained a secret-like assignment.
+The archive policy previously attempted to copy cache-free actor worktrees
+verbatim, despite those trees being untrusted output. The follow-up repair
+awaits the deep grader and upgrades sanitized evidence so canonical secret
+matches in actor-worktree files are redacted in the external copy while exact
+source hashes and archived-byte hashes are both retained. Secret matches in
+durable results, state, reports, or control evidence continue to fail closed.
+No grader, reference, mutant, fixture expectation, or product implementation
+was changed.
+
+The replacement campaign's L4 lifecycle passed twice in the retained private
+repository: issue #5 and PR #6 were created, commented, non-approvingly
+reviewed, squash-merged, closed, branch-cleaned, and then reverified
+idempotently. Its six terminal attempts contain two passes, three product
+misses, and the one misclassified deep harness error. Ten provider turns join
+to ten settlements; two mechanical steps join to zero provider settlements.
+Product equivalent cost is $8.137450 and evaluator equivalent cost is
+$0.765008, for $8.902458 total.
+
+The portable invalid-sample report SHA-256 is
+`99d501ac085cea67fbb789aa95a8125a096fb4c19886c8fc1ead381b28594f25`.
+After the archive-policy repair, the actual campaign produced a 109-file
+schema-v2 sanitized archive at
+`/Users/bikram/Build/operon-eval-archives/pre-transformation-baseline-v2-20260714-fb96dfa288e8-30299951-evidence-v2`;
+its archive-manifest SHA-256 is
+`c70a51bc2f685120bdf48b9f35fe9bbffe683825873cf1ce232ee254e4981280`.
+Cleanup preview revalidated that receipt without deleting local evidence, and
+the upgraded verifier also continued to accept the prior schema-v2
+`sanitized-evidence/v1` adapter archive.
+
+The second repair passed the full token-free preflight: `eval:validate`
+reported 84/84 executable requirements, 56 case links, 14 cases, 12 benchmark
+families, 60 fault boundaries, 13 graders, 3 capabilities, and zero orphans;
+`test:transformation` passed 29 files/396 tests; `eval:deterministic` passed 38
+files/468 tests; the complete suite passed 159 files/1,583 tests; typecheck and
+build passed. The strict gate ran all 396 tests successfully and exited 1 only
+for the exact same 72 declared known-red production contracts.

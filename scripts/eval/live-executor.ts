@@ -578,7 +578,7 @@ export async function gradeLiveCase(caseId: string, root: string): Promise<boole
   try {
     if (caseId.startsWith("quick/")) return gradeLibrary(root);
     if (caseId.startsWith("standard/")) return gradeStandard(root);
-    if (caseId.startsWith("deep/")) return gradeService(root);
+    if (caseId.startsWith("deep/")) return await gradeService(root);
     if (caseId.startsWith("planning/")) return gradePlanQuality(root);
     if (caseId.startsWith("context/")) return gradeContextDelta(root);
     if (caseId.startsWith("continuation/")) return gradeContinuation(root);

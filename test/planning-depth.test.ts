@@ -24,7 +24,11 @@ const PLANNER: RoleConfig = {
 
 describe("adaptive planning depth", () => {
   it("routes a short security task deep and a long bounded reversible task quick", () => {
-    const short = decidePlanningDepth({ goal: "Rotate auth keys", stage: "mature" });
+    const short = decidePlanningDepth({
+      goal: "Rotate auth keys",
+      stage: "mature",
+      sensitiveDomains: ["security/auth/secrets"],
+    });
     const long = decidePlanningDepth({
       goal: "Rewrite the wording in one local documentation page. ".repeat(100),
       stage: "mature",
@@ -47,6 +51,7 @@ describe("adaptive planning depth", () => {
       goal: "Deploy a database schema migration",
       stage: "mature",
       minimumDepth: "quick",
+      sensitiveDomains: ["data/schema"],
     });
     expect(floored.depth).toBe("deep");
     expect(floored.decisionFactors.some((factor) => factor.includes("could not lower"))).toBe(true);
@@ -62,7 +67,11 @@ describe("adaptive planning depth", () => {
       expectedTickets: "1-2",
     });
     const standard = decidePlanningDepth({ goal: "moderate feature", stage: "mature" });
-    const deep = decidePlanningDepth({ goal: "payment migration", stage: "mature" });
+    const deep = decidePlanningDepth({
+      goal: "payment migration",
+      stage: "mature",
+      sensitiveDomains: ["payments"],
+    });
 
     expect(routePlanningPasses(quick, "mature", ["plan"]).selectedPasses).toEqual(["decomposer"]);
     expect(routePlanningPasses(standard, "mature", ["plan"]).selectedPasses).toEqual([

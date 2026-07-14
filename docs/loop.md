@@ -287,19 +287,17 @@ recorded reassessment before extra spend; `current_route` changes only there,
 and `final_route` records the terminal route. Required independent review and
 safety evidence are never removed merely to retain a route label.
 
-The production pass executor now durably commits this episode-wide admission
+The production pass executor durably commits this episode-wide admission
 record before constructing a runtime, and the ticket driver shares it across
-build/review/fix/ship transitions. `operon plan --auto` also uses
-`planning-depth/v1` to resolve a code-owned `includePasses` set before model
-execution: quick = one combined decomposer (or
-`plan-bootstrap`), standard = visionary + PM-A + decomposer, deep = the full
-configured list. It is an interim planning pass-selection value—effectively
-`planning_depth`—not a competing quick/standard/deep route authority. Hard
-floors cover security/auth/secrets, migration/schema, release/deploy, payments,
-infrastructure/DNS, destructive data, high risk/ambiguity/coupling,
-irreversibility, external production consequence, and seven-plus expected
-tickets. A human minimum may raise the planning pass set but cannot lower a
-safety floor; pipeline shape and role availability cannot deepen the episode.
+build/review/fix/ship transitions. `route-policy/v1` consumes structured risk
+facts, not ticket prose, and binds every selected pass plus its model/effort to
+the factor that authorized it. Quick uses the minimum ratified pass set,
+standard retains independent review, and deep adds the security/rollback/
+approval evidence required by its factors. `operon plan --auto` uses that same
+episode route as its planning authority. A human minimum may raise the route
+but cannot lower a safety floor; pipeline shape and role availability cannot
+deepen the episode. Unexpected findings trigger a monotonic reassessment and
+new pass authorization before more provider work.
 
 
 
@@ -602,6 +600,14 @@ A re-claim is **not** a blank slate. Before claiming, the driver rehydrates
 ticket-lifetime state from the artifacts previous turns left behind
 (`src/loop/rehydrate.ts`):
 
+`efficiency/episodes/<episode>/execution-journal.json` then selects the next
+legal boundary across route, contract, implementation, push, gates, PR,
+findings, approvals, merge, and release. Accepted boundary fingerprints are
+reused. Ticket, commit, or reopened-finding drift records why the affected
+suffix was invalidated; no still-valid productive prefix repeats. `operon loop
+--resume-episode <episode>` exposes that decision without constructing an
+adapter.
+
 Every still-valid decision and accepted artifact survives cancellation,
 timeout, approval wait, cap, retry, and process restart. A productive pass may
 repeat only after a durable invalidation record names the artifact or decision,
@@ -714,10 +720,9 @@ transport stall as `failed(error_adapter_start_timeout)`; a per-pass
 wall-clock watchdog cancels the owned provider tree and
 finalizes a hung pass `timed_out(error_wall_clock_exceeded)` with an
 unavailable-usage ledger row; operator SIGINT/SIGTERM similarly finalizes
-`cancelled(error_cancelled)`. When no override is present, production still
-uses a legacy 60-minute kill ceiling. That is a conservative safety fallback
-and known implementation gap, not the active-time policy; route-conformant
-execution derives the watchdog from the episode's remaining allowance.
+`cancelled(error_cancelled)`. When no pass override is present, the configured
+ceiling remains 60 minutes, but the effective watchdog is always the smaller
+of that ceiling and the episode's remaining active-time allowance.
 Adapters checkpoint cumulative usage and native
 session identity during execution, so an interrupted pass retains partial
 spend instead of reverting to zero. Adapter
@@ -832,7 +837,11 @@ src/loop/
   scheduling.ts    ticket-level scheduling (§8): dependency-aware,
                    scope-overlap conservative, WIP-bounded
   policy.ts        .operon/policy.yaml loader: risk tiers → gate sets
-  preflight.ts     token-free environment probes before any model turn
+  preflight.ts     token-free config/capability/budget/artifact/environment
+                   admission before any model turn
+  route-policy.ts  deterministic structured-risk route/pass/model policy
+  execution-journal.ts durable route-to-release boundary and invalidation log
+  context-manifest.ts component budgets, hashes, deltas, dedupe and explain
   plan-tickets.ts  schema-validated, orchestrator-published planning tickets
   runRole.ts       manual role turn as a synthesized one-pass pipeline
   types.ts         LoopItem/LoopPhase and shared loop types
@@ -942,7 +951,7 @@ distinct codes end to end (§9).
 | **Infrastructure**          |                                                      |                                                      |                                                                                                                                              |
 | 1                           | Turn process dies mid-pass                           | stale lock heartbeat + journal `running`             | resume session once, else restart clean; `attempt ≥ 3` → returned + incident (architecture.md §3)                                            |
 | 2a                          | Adapter initialize/auth/transport stalls before any provider event | adapter-start deadline (default 30 sec) | abort owned provider tree; finalize `failed(error_adapter_start_timeout)` with partial/unavailable usage                                     |
-| 2b                          | SDK session hangs after starting                     | per-pass wall-clock cap (legacy 60-minute fallback when unset; non-normative) | kill; enters #1's recovery path; target cap derives from episode remaining allowance                                                        |
+| 2b                          | SDK session hangs after starting                     | smaller of configured per-pass ceiling and episode remaining active-time allowance | kill; retain partial usage and resume from the next legal journal boundary                                                         |
 | 3                           | Dispatcher dies mid-claim                            | next tick                                            | artifact-before-label: state re-derived from GitHub artifacts; no torn claims                                                                |
 | 4                           | Host asleep / offline                                | nothing runs                                         | missed schedules collapse to one firing; distributed item state resumes on any later tick                                                    |
 | 5                           | GitHub API down / rate-limited                       | API errors on tick                                   | loud L2 event; retry next tick (polling is idempotent); repeated → anomaly flag + incident note                                              |

@@ -53,7 +53,7 @@ describe("context manifests", () => {
     ]);
     const first = await writeContextManifest({
       root: home.root,
-      episodeId: "episode:stable",
+      episodeId: "episode:stable-a",
       app: "fixture",
       runId: "run-z",
       context: bundle(),
@@ -62,7 +62,7 @@ describe("context manifests", () => {
     });
     const second = await writeContextManifest({
       root: home.root,
-      episodeId: "episode:stable",
+      episodeId: "episode:stable-b",
       app: "fixture",
       runId: "run-a",
       context: bundle(),

@@ -1,11 +1,11 @@
-import { definePublicSurfaceDebt } from "./harness.js";
+import { describe, expect, it } from "vitest";
+import { EXECUTION_BOUNDARIES } from "../../../src/loop/execution-journal.js";
 
-definePublicSurfaceDebt(
-  ["F-CONT-01", "F-CONT-02", "F-CONT-03", "F-CONT-04", "F-SET-04", "F-BOUND-01"].map((id) => ({
-    id,
-    expectedFailure: "continuation_journal_absent",
-    help: ["loop"],
-    missingToken: "--resume-episode",
-    nearMissToken: "--once",
-  })),
-);
+describe("Workstream F promoted production surface", () => {
+  it("keeps every ratified execution boundary in the durable journal", () => {
+    expect(EXECUTION_BOUNDARIES).toEqual([
+      "route", "contract", "implementation", "push", "gates", "pr",
+      "findings", "approvals", "merge", "release",
+    ]);
+  });
+});

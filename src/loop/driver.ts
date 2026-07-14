@@ -22,10 +22,12 @@ import {
   runBuilderPipeline,
   runReviewPipeline,
   runShipCheckPipeline,
+  type ExecutionJournalTarget,
   type ReviewAuthorization,
 } from "./loop.js";
 import {
   parkedDigestComment,
+  hashTicketBody,
   readTicketClaimState,
   rehydrateTicketState,
   writeTicketClaimState,
@@ -35,14 +37,29 @@ import { runEnvPreflight } from "./preflight.js";
 import type { LoopRunlog } from "./loop-runlog.js";
 import type { PipelinesFile } from "./pipelines.js";
 import type { Policy } from "./policy.js";
-import { loadPolicy } from "./policy.js";
+import { loadPolicy, matchedDimensions, resolveTier } from "./policy.js";
 import type { GateCommands } from "./qgates.js";
 import {
   admitEpisode,
   episodeIdFor,
-  type AuthorizedPass,
+  readRouteRecord,
+  reassessEpisode,
   type EpisodeTerminal,
 } from "./efficiency.js";
+import {
+  authorizeRoutePasses,
+  decideExecutionRoute,
+  executionBoundsFor,
+  nextRouteAfterUnexpectedFinding,
+  type RouteDecision,
+} from "./route-policy.js";
+import {
+  initializeExecutionJournal,
+  invalidateExecutionFrom,
+  readExecutionJournal,
+  recordExecutionBoundary,
+  resumeExecutionJournal,
+} from "./execution-journal.js";
 import { parseDependsOn, parseScope, selectReadyTickets } from "./scheduling.js";
 import type { LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
 
@@ -135,8 +152,6 @@ export interface LoopDriverResult {
   budgetRefusal?: string;
 }
 
-const DEFAULT_MAX_CLAIMS = 3;
-
 export function planLoopTick(
   issues: readonly GhIssue[],
   repo: string,
@@ -191,7 +206,6 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   if (options.planOnly) return { lines, items: [], scorecardEvents: [] };
 
   const items: LoopItem[] = [];
-  const maxClaims = options.maxClaims ?? DEFAULT_MAX_CLAIMS;
   for (const planned of plan) {
     const issue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
     if (issue === undefined) continue;
@@ -206,6 +220,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         { gh: options.gh, branch },
       );
       const claimState = readTicketClaimState(options.engine.runlogRoot, options.app, issue.number);
+      const maxClaims = options.maxClaims ?? executionBoundsFor(planned.tier).claimAttempts;
       if (claimState.claims >= maxClaims) {
         // Nothing in the episode ever said "this ticket has bounced N times;
         // stop and summon the human" — this is that stop. Bounded attempts,
@@ -259,7 +274,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       }
     }
     if (options.engine !== undefined) {
-      await admitTicketEpisode(options, item);
+      item = await admitTicketEpisode(options, item);
     }
     if (options.engine === undefined) {
       item = await (options.afterClaim?.(item) ?? item);
@@ -275,6 +290,11 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
 
       if (item.phase === "building") {
         if (options.engine !== undefined) {
+          if (item.findings.length > 0) {
+            item = await reassessTicketEpisode(options, item, "unexpected review finding");
+          } else if (item.rebaseNote !== undefined) {
+            item = await reassessTicketEpisode(options, item, "merge conflict invalidated the implementation");
+          }
           // Token-free environment preflight before the first provider turn
           // (Stage 3, P6): a $0 probe must catch what previously took a $7
           // model turn to discover. Failure returns the ticket with the probe
@@ -322,12 +342,16 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
           ...(options.engine !== undefined
             ? {
                 remediate: (current, result) =>
-                  runBuilderPipeline(current, {
-                    ...enginePhaseOptions(options, current.worktree, current),
-                    pipelineName: "fix",
-                    gateResult: result,
-                  }),
+                  reassessTicketEpisode(options, current, "unexpected quality-gate finding").then((reassessed) =>
+                    runBuilderPipeline(reassessed, {
+                      ...enginePhaseOptions(options, reassessed.worktree, reassessed),
+                      pipelineName: "fix",
+                      gateResult: result,
+                    }),
+                  ),
+                maxRemediationAttempts: executionBoundsFor(item.tier).repairAttempts,
                 runlog: gateRunlog(options, item),
+                journal: journalTarget(options, item),
               }
             : {}),
         });
@@ -344,12 +368,16 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
           ...(options.engine !== undefined
             ? {
                 remediate: (current, result) =>
-                  runBuilderPipeline(current, {
-                    ...enginePhaseOptions(options, current.worktree, current),
-                    pipelineName: "fix",
-                    gateResult: result,
-                  }),
+                  reassessTicketEpisode(options, current, "unexpected quality-gate finding").then((reassessed) =>
+                    runBuilderPipeline(reassessed, {
+                      ...enginePhaseOptions(options, reassessed.worktree, reassessed),
+                      pipelineName: "fix",
+                      gateResult: result,
+                    }),
+                  ),
+                maxRemediationAttempts: executionBoundsFor(item.tier).repairAttempts,
                 runlog: gateRunlog(options, item),
+                journal: journalTarget(options, item),
               }
             : {}),
         });
@@ -358,7 +386,20 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
 
       if (item.phase === "reviewing") {
         if (options.engine !== undefined) {
-          item = await runReviewPipeline(item, enginePhaseOptions(options, item.worktree, item));
+          item = await reassessForObservedWorktreeRisk(options, item);
+          const journal = await readExecutionJournal(
+            journalTarget(options, item).root,
+            journalTarget(options, item).episodeId,
+          );
+          if (journal?.next_boundary === "approvals") {
+            item = await advanceReviewing(item, {
+              gh: options.gh,
+              ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
+              journal: journalTarget(options, item),
+            });
+          } else {
+            item = await runReviewPipeline(item, enginePhaseOptions(options, item.worktree, item));
+          }
         } else {
           await options.injectReview?.(item);
           item = await advanceReviewing(item, {
@@ -381,6 +422,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
           commands: gateCommandsForWorktree(options.commands, item.worktree),
           criteria,
           criterionTests,
+          ...(options.engine !== undefined ? { journal: journalTarget(options, item) } : {}),
           ...(options.release !== undefined ? { release: options.release } : {}),
         });
         continue;
@@ -526,6 +568,7 @@ function gateRunlog(options: LoopDriverOptions, item: LoopItem): LoopRunlog {
 function enginePhaseOptions(options: LoopDriverOptions, worktree?: string, item?: LoopItem) {
   const engine = options.engine;
   if (engine === undefined) throw new Error("loop driver: engine options missing");
+  const decision = item === undefined ? undefined : routeDecisionForItem(item);
   return {
     gh: options.gh,
     pipelines: engine.pipelines,
@@ -545,6 +588,7 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string, item?
     ...(engine.telemetry !== undefined ? { telemetry: engine.telemetry } : {}),
     ...(engine.signal !== undefined ? { signal: engine.signal } : {}),
     ...(engine.parentTaskId !== undefined ? { parentTaskId: engine.parentTaskId } : {}),
+    ...(item !== undefined ? { maxReviewCycles: executionBoundsFor(item.tier).reviewCycles } : {}),
     episode: {
       id: episodeIdFor({
         app: options.app,
@@ -552,53 +596,247 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string, item?
         traceId: item?.turnId ?? item?.ticketRef ?? "unknown",
       }),
       ...(item !== undefined ? { route: item.tier } : {}),
+      ...(decision !== undefined
+        ? {
+            policyVersion: decision.policyVersion,
+            factors: decision.factors,
+            authorizedPasses: authorizeRoutePasses({
+              decision,
+              pipelines: engine.pipelines.pipelines,
+              roles: engine.roles,
+            }),
+          }
+        : {}),
+      ...(item?.tier === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
       finalize: false,
     },
     ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
   };
 }
 
-async function admitTicketEpisode(options: LoopDriverOptions, item: LoopItem): Promise<void> {
+async function admitTicketEpisode(options: LoopDriverOptions, item: LoopItem): Promise<LoopItem> {
   const engine = options.engine;
-  if (engine === undefined) return;
-  const factor = {
-    kind: "uncertainty" as const,
-    evidence: `ticket ${item.ticketRef} carries the explicit ${item.tier} route classification`,
-    policy_rule: "ticket_tier",
-  };
-  const ticketPipelineNames = new Set(["build", "fix", "review", "ship"]);
-  const passes: AuthorizedPass[] = engine.pipelines.pipelines
-    .filter((pipeline) => ticketPipelineNames.has(pipeline.name))
-    .flatMap((pipeline) =>
-      pipeline.passes.map((pass) => {
-        const role = engine.roles[pass.role];
-        if (role === undefined) throw new Error(`loop admission: missing role ${pass.role}`);
-        return {
-          pipeline: pipeline.name,
-          pass: pass.id,
-          role: role.name,
-          runtime: role.runtime,
-          model: pass.model ?? role.model,
-          effort: pass.effort ?? role.effort,
-          factor_rules: [factor.policy_rule],
-        };
-      }),
-    );
+  if (engine === undefined) return item;
+  const episodeId = episodeIdFor({
+    app: options.app,
+    ticket: item.ticketRef,
+    traceId: item.turnId ?? item.ticketRef,
+  });
+  let effective = item;
+  try {
+    const existing = await readRouteRecord(engine.runlogRoot, episodeId);
+    if (existing.current_route !== "deterministic") effective = { ...item, tier: existing.current_route };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const decision = routeDecisionForItem(effective);
+  const passes = authorizeRoutePasses({
+    decision,
+    pipelines: engine.pipelines.pipelines,
+    roles: engine.roles,
+  });
   await admitEpisode({
+    root: engine.runlogRoot,
+    episodeId,
+    app: options.app,
+    route: decision.route,
+    policyVersion: decision.policyVersion,
+    factors: decision.factors,
+    passes,
+    now: engine.clock?.() ?? new Date(),
+    ...(effective.tier === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
+  });
+  await initializeExecutionJournal({
+    root: engine.runlogRoot,
+    episodeId,
+    app: options.app,
+    ticketRef: item.ticketRef,
+    now: engine.clock?.() ?? new Date(),
+  });
+  const journal = await readExecutionJournal(engine.runlogRoot, episodeId);
+  if (!journal?.stages.some((stage) => stage.boundary === "route" && stage.status === "completed")) {
+    await recordExecutionBoundary({
+      root: engine.runlogRoot,
+      episodeId,
+      boundary: "route",
+      artifact: decision,
+      now: engine.clock?.() ?? new Date(),
+    });
+  }
+  const resume = await resumeExecutionJournal({
+    root: engine.runlogRoot,
+    episodeId,
+    artifacts: {
+      ...(effective.contract !== undefined
+        ? {
+            contract: {
+              ticketBodyHash: hashTicketBody(effective.body),
+              contract: effective.contract,
+            },
+          }
+        : {}),
+      ...(effective.worktree !== undefined
+        ? { implementation: { head: git(effective.worktree, "rev-parse", "HEAD") } }
+        : {}),
+    },
+    now: engine.clock?.() ?? new Date(),
+  });
+  if (["ready", "building", "gates", "reviewing", "shipping"].includes(effective.phase)) {
+    if (["push", "gates", "pr"].includes(resume.nextBoundary ?? "")) {
+      effective = { ...effective, phase: "gates" };
+    } else if (["findings", "approvals"].includes(resume.nextBoundary ?? "") && effective.prNumber !== undefined) {
+      effective = { ...effective, phase: "reviewing" };
+    } else if (["merge", "release"].includes(resume.nextBoundary ?? "") && effective.prNumber !== undefined) {
+      effective = { ...effective, phase: "shipping" };
+    }
+  }
+  return effective;
+}
+
+async function reassessTicketEpisode(
+  options: LoopDriverOptions,
+  item: LoopItem,
+  reason: string,
+): Promise<LoopItem> {
+  const engine = options.engine;
+  if (engine === undefined) return item;
+  const target = journalTarget(options, item);
+  const record = await readRouteRecord(target.root, target.episodeId);
+  if (record === undefined) throw new Error(`loop reassessment: missing route record ${target.episodeId}`);
+  const current = record.current_route === "deterministic" ? "quick" : record.current_route;
+  const next = nextRouteAfterUnexpectedFinding(current);
+  const journal = await readExecutionJournal(target.root, target.episodeId);
+  if (journal?.stages.some((stage) => stage.boundary === "implementation" && stage.status === "completed")) {
+    await invalidateExecutionFrom({
+      root: target.root,
+      episodeId: target.episodeId,
+      boundary: "implementation",
+      reason,
+      now: engine.clock?.() ?? new Date(),
+    });
+  }
+  if (next === current) return { ...item, tier: next };
+  const reassessed = { ...item, tier: next };
+  const decision = routeDecisionForItem(reassessed);
+  await reassessEpisode({
+    root: target.root,
+    episodeId: target.episodeId,
+    toRoute: next,
+    factor: {
+      kind: "uncertainty",
+      evidence: reason,
+      policy_rule: "unexpected_finding",
+    },
+    authorizedPasses: authorizeRoutePasses({
+      decision,
+      pipelines: engine.pipelines.pipelines,
+      roles: engine.roles,
+    }),
+    now: engine.clock?.() ?? new Date(),
+    ...(next === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
+  });
+  return reassessed;
+}
+
+async function reassessForObservedWorktreeRisk(
+  options: LoopDriverOptions,
+  item: LoopItem,
+): Promise<LoopItem> {
+  const engine = options.engine;
+  if (engine === undefined || item.worktree === undefined) return item;
+  const changedFiles = git(item.worktree, "diff", "--name-only", options.baseRef ?? "origin/main", "HEAD")
+    .split("\n")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const risk = resolveTier(options.policy, changedFiles);
+  const dimensions = matchedDimensions(options.policy, changedFiles);
+  if (risk !== "high" && !dimensions.includes("security")) return item;
+  const target = journalTarget(options, item);
+  const record = await readRouteRecord(target.root, target.episodeId);
+  if (record.current_route === "deep") return { ...item, tier: "deep" };
+  const reassessed = { ...item, tier: "deep" as const };
+  const decision = routeDecisionForItem(reassessed);
+  await reassessEpisode({
+    root: target.root,
+    episodeId: target.episodeId,
+    toRoute: "deep",
+    factor: {
+      kind: "sensitive_domain",
+      evidence: `observed changed paths resolved risk=${risk}; dimensions=${dimensions.join(",") || "none"}`,
+      policy_rule: "observed_worktree_risk",
+    },
+    authorizedPasses: authorizeRoutePasses({
+      decision,
+      pipelines: engine.pipelines.pipelines,
+      roles: engine.roles,
+    }),
+    budgetOverrides: { input_tokens: 8_000_000 },
+    now: engine.clock?.() ?? new Date(),
+  });
+  return reassessed;
+}
+
+function routeDecisionForItem(item: LoopItem): RouteDecision {
+  const sensitiveDomains = item.labels
+    .filter((label) => /auth|security|secret|privacy|payment|data/.test(label))
+    .sort();
+  const profile =
+    item.tier === "quick"
+      ? {
+          blastRadius: "low" as const,
+          reversibility: "reversible" as const,
+          sensitiveDomains: [],
+          uncertainty: "low" as const,
+          componentCount: 1,
+          externalSystemCount: 0,
+          releaseConsequence: "none" as const,
+          novelty: "familiar" as const,
+          evidenceQuality: "high" as const,
+        }
+      : item.tier === "standard"
+        ? {
+            blastRadius: "medium" as const,
+            reversibility: "reversible" as const,
+            sensitiveDomains,
+            uncertainty: "medium" as const,
+            componentCount: 2,
+            externalSystemCount: 0,
+            releaseConsequence: "none" as const,
+            novelty: "familiar" as const,
+            evidenceQuality: "high" as const,
+          }
+        : {
+            blastRadius: "high" as const,
+            reversibility: "difficult" as const,
+            sensitiveDomains,
+            uncertainty: "high" as const,
+            componentCount: 3,
+            externalSystemCount: 1,
+            releaseConsequence: "internal" as const,
+            novelty: "new" as const,
+            evidenceQuality: "partial" as const,
+          };
+  const decision = decideExecutionRoute(profile);
+  if (decision.route !== item.tier) {
+    throw new Error(
+      `ticket ${item.ticketRef} route label ${item.tier} conflicts with structured decision ${decision.route}`,
+    );
+  }
+  return decision;
+}
+
+function journalTarget(options: LoopDriverOptions, item: LoopItem): ExecutionJournalTarget {
+  const engine = options.engine;
+  if (engine === undefined) throw new Error("loop driver: engine options missing");
+  return {
     root: engine.runlogRoot,
     episodeId: episodeIdFor({
       app: options.app,
       ticket: item.ticketRef,
       traceId: item.turnId ?? item.ticketRef,
     }),
-    app: options.app,
-    route: item.tier,
-    policyVersion: "efficiency/v1-ticket-tier",
-    factors: [factor],
-    passes,
-    now: engine.clock?.() ?? new Date(),
-    ...(item.tier === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
-  });
+    ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
+  };
 }
 
 function terminalDisposition(item: LoopItem): {

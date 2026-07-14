@@ -373,7 +373,12 @@ describe("M6 loop engine integration", () => {
 
       expect(seen).toEqual([{ issue: 1, pipeline: "build" }]);
       expect(fake.calls[0]?.req.context).toBe(episodeBundle);
-      expect(fake.calls[1]?.req.context).toBe(episodeBundle);
+      expect(fake.calls[1]?.req.context.taste).toEqual(episodeBundle.taste);
+      expect(fake.calls[1]?.req.context.memoryExcerpts).toEqual([
+        expect.stringMatching(/^\[context-reference source="unattributed:memory:0" sha256="[a-f0-9]{64}"\]$/),
+      ]);
+      expect(fake.calls[1]?.req.context.components?.find((component) => component.category === "memory")?.rendered)
+        .toBe(fake.calls[1]?.req.context.memoryExcerpts[0]);
     } finally {
       home.cleanup();
       h.cleanup();

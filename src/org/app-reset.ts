@@ -16,6 +16,7 @@ import { loadRoles } from "./roles.js";
 import { readStatusRows } from "../runtime/runlog/status.js";
 import type { GhIssue, GhOps, GhPullRequest } from "../loop/github.js";
 import { onboardingAnswersPath } from "./onboarding-answers.js";
+import { markAppEpisodesResetAbandoned } from "./learning/episode.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
   type LifecycleBlocker,
@@ -179,6 +180,7 @@ export async function finalizeInterruptedAppReset(
 ): Promise<void> {
   const manifest = await verifyResetArchive(archivePath, app);
   const archiveId = String(manifest["archive_id"]);
+  await markAppEpisodesResetAbandoned(stateHome, app, new Date());
   await emitLifecycleStep({
     stateHome,
     app,
@@ -366,6 +368,7 @@ export async function executeAppReset(
       await restoreResetArchive(plan, archivePath);
       throw error;
     }
+    await markAppEpisodesResetAbandoned(plan.stateHome, plan.app.name, options.now ?? new Date());
     await emitLifecycleStep({
       stateHome: plan.stateHome,
       app: plan.app.name,

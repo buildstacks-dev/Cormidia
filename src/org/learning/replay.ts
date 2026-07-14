@@ -353,6 +353,16 @@ async function armContext(
       return {
         ...assembled.bundle,
         memoryExcerpts: [options.treatmentOverlay, ...assembled.bundle.memoryExcerpts],
+        components: [
+          {
+            category: "memory",
+            source: `learning:treatment:${request.experiment.experiment_id}`,
+            rendered: options.treatmentOverlay,
+            inclusionReason: "declared candidate treatment overlay",
+            requirement: "optional",
+          },
+          ...(assembled.bundle.components ?? []),
+        ],
       };
     }
     return assembled.bundle;

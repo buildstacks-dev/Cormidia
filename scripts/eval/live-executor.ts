@@ -379,6 +379,11 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
               clock: nextTurnClock(),
               signal: request.signal,
               briefOverride: request.task,
+              // Adapter conformance deliberately transports a >300 KiB task
+              // to prove the SDK boundary is not argv-sized. Admit that exact
+              // protocol probe under an explicit, manifest-visible budget;
+              // product routes continue to use their normal context caps.
+              contextBudgetBytes: 384 * 1024,
             });
             if (run.record === undefined) {
               throw new Error(`adapter_record_missing: ${scenario}`);

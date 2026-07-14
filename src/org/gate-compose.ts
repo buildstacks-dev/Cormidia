@@ -63,6 +63,33 @@ export function composeGate(
       return { allow: false, reason, escalate: false };
     }
 
+    if (rule !== undefined) {
+      const denied = store.findDeniedEquivalentSync({
+        app: context.app,
+        role: context.role,
+        rule,
+        action,
+        ...(context.turnId !== undefined ? { turnId: context.turnId } : {}),
+        ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
+        now,
+      });
+      if (denied !== undefined) {
+        store.recordDeniedRecurrenceSync(denied, action, now);
+        const reason =
+          `governed denial ${denied.id} still applies to this exact action` +
+          `${denied.reason !== undefined ? `: ${denied.reason}` : ""}`;
+        if (context.orgHome !== undefined) {
+          appendDenialLesson(context.orgHome, context.role, {
+            app: context.app,
+            rule,
+            reason,
+            at: now.toISOString(),
+          });
+        }
+        return { allow: false, reason, escalate: false };
+      }
+    }
+
     const decision = baseGate(action);
     if (!decision.allow && decision.escalate) {
       store.raiseSync({

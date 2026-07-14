@@ -624,8 +624,8 @@ synchronization, and lifecycle idempotency.
 app from the reset fixture.
 
 **Status:** complete on 2026-07-14. The gate is carried by
-`test/lifecycle/{transaction,cli,faults,security,isolation}.test.ts`; the next
-sequential implementation phase is Phase 3.
+`test/lifecycle/{transaction,cli,faults,security,isolation}.test.ts` and remains
+part of every later phase gate.
 
 ### Phase 3 — Execution economy
 
@@ -634,6 +634,13 @@ continuation, bounded repair, and approval precision.
 
 **Gate:** low-risk and interrupted-work benchmarks meet their targets without
 weakening gates.
+
+**Status:** deterministic production slice complete on 2026-07-14. Structured
+routing, context budgets/deltas, token-free admission, route-to-release
+execution journals, route-wide bounds, semantic approvals, denial recurrence,
+and reset-abandonment closure are executable. D/E live provider samples and
+the live portion of G-MET-01 remain unpromoted because no campaign was
+authorized; the next sequential implementation phase is Phase 4.
 
 ### Phase 4 — Closed learning loop
 
@@ -854,13 +861,13 @@ measurably better with experience.
 > `adapter-harness-calibration-v1-20260714-e52bf4335e81`; the valid current
 > baseline is `pre-transformation-baseline-v2-20260714-e52bf4335e81`, with one
 > pass, five honest `product_miss` outcomes, and zero eval-system failures.
-> Production Phases 1–2 are complete and 52 product contracts remain
+> Production Phases 1–3 are complete and 25 product contracts remain
 > known-red. Rerun external campaigns only after covered
 > bytes change and exact authorization. Never
 > weaken graders, targets, safety gates, or evidence to make results green.
 >
-> Execute the charter sequentially. Phases 0–2 are complete; begin with Phase 3
-> execution economy only, then Phase 4 closed learning, Phase 5 autonomous
+> Execute the charter sequentially. Phases 0–3 are complete; begin with Phase 4
+> closed learning only, then Phase 5 autonomous
 > operation, and Phase 6 qualification. Do not parallelize work whose
 > contracts depend on an unfinished phase. `TASTE.md`, `roles.yaml`,
 > `pipelines.yaml`, `prompts/**`, and `docs/PURPOSE.md` are human-ratified;

@@ -8,9 +8,9 @@ interface RouteRow { id: string; expected: "quick" | "standard" | "deep"; blast_
 const rows = (parse(readFileSync(fileURLToPath(new URL("../../eval/corpora/routing.yaml", import.meta.url)), "utf8")) as { cases: RouteRow[] }).cases;
 
 describe("ROUTE-CORPUS-001 executes the reviewed table against the production planning boundary", () => {
-  it("positive baseline records the exact semantic mismatches instead of treating inventory as execution", () => {
+  it("positive baseline maps the reviewed corpus without semantic mismatches", () => {
     const mismatches = rows.flatMap((row) => decidePlanningDepth(input(row)).depth === row.expected ? [] : [row.id]);
-    expect(mismatches).toEqual(["r04", "r15"]);
+    expect(mismatches).toEqual([]);
   });
   it("near-miss metamorphic variants ignore length, repeated keywords metadata, and role availability", () => {
     for (const [left, right] of [["r12", "r13"], ["r01", "r14"], ["r01", "r31"]]) {
@@ -18,11 +18,11 @@ describe("ROUTE-CORPUS-001 executes the reviewed table against the production pl
       expect(decidePlanningDepth(input(a)).depth).toBe(decidePlanningDepth(input(b)).depth);
     }
   });
-  it("honest failure exposes prose-about-deploy/auth keyword inflation as product debt", () => {
+  it("prose-about-deploy/auth no longer inflates a structured low-risk route", () => {
     for (const id of ["r04"]) {
       const row = rows.find((item) => item.id === id)!;
       expect(row.expected).toBe("quick");
-      expect(decidePlanningDepth(input(row)).depth).toBe("deep");
+      expect(decidePlanningDepth(input(row)).depth).toBe("quick");
     }
   });
 });

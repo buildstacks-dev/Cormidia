@@ -63,6 +63,8 @@ export interface CaptureProjectionResult {
   runsAlreadyProjected: number;
   /** Runs left for a later call: still running, or unreadable envelope. */
   runsPending: number;
+  /** Exact retry identities/reasons; a scalar count cannot drive recovery. */
+  pendingRuns: Array<{ app: string; runId: string; reason: "unreadable_envelope" | "still_running" }>;
   eventsEmitted: number;
   /** Events re-derived but already present in the target file (crash replay). */
   eventsDeduped: number;
@@ -108,6 +110,7 @@ async function captureEvents(
     runsProjected: 0,
     runsAlreadyProjected: 0,
     runsPending: 0,
+    pendingRuns: [],
     eventsEmitted: 0,
     eventsDeduped: 0,
     runsRepaired: 0,
@@ -132,10 +135,12 @@ async function captureEvents(
       envelope = await readEnvelope(stateHome, app, runId);
     } catch {
       result.runsPending += 1; // no/torn envelope — retry on a later projection
+      result.pendingRuns.push({ app, runId, reason: "unreadable_envelope" });
       continue;
     }
     if (envelope.status === "running") {
       result.runsPending += 1;
+      result.pendingRuns.push({ app, runId, reason: "still_running" });
       continue;
     }
 

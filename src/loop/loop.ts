@@ -6,9 +6,10 @@
 // that those turns plug into.
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
-import type { ContextBundle, RoleConfig, Runtime, TurnHooks, TurnUsage } from "../runtime/types.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
@@ -55,6 +56,12 @@ import {
 import type { LoopItem, LoopPhase, ReleaseConfig, ScorecardEvent, TicketTier } from "./types.js";
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
 import { parseReleaseKind } from "./plan-tickets.js";
+import {
+  recordExecutionBoundary,
+  stopExecutionJournal,
+  type ExecutionBoundary,
+  type JournalStopKind,
+} from "./execution-journal.js";
 
 export interface ClaimTicketOptions {
   gh: GhOps;
@@ -85,6 +92,17 @@ export interface GatePhaseOptions {
    *  passed/failed` + `ticket.transition` events and `envelope.gate_results`
    *  (docs/loop.md §9). Absent → no run record, identical behavior. */
   runlog?: LoopRunlog;
+  /** Ticket execution journal prepared by the driver. Pure state-machine
+   * callers omit it and retain the same provider-free behavior. */
+  journal?: ExecutionJournalTarget;
+  /** Route-owned repair cap. The policy cap remains an upper bound. */
+  maxRemediationAttempts?: number;
+}
+
+export interface ExecutionJournalTarget {
+  root: string;
+  episodeId: string;
+  clock?: () => Date;
 }
 
 export interface ReviewPhaseOptions {
@@ -94,6 +112,7 @@ export interface ReviewPhaseOptions {
    *  as today (independence still enforced by the cross-provider reviewer), but
    *  the single-account self-approval fallback is never trusted (fail closed). */
   authorization?: ReviewAuthorization;
+  journal?: ExecutionJournalTarget;
 }
 
 /** Who may authorize a merge. Guards against (a) an arbitrary/self-authored
@@ -158,6 +177,7 @@ export interface LoopPipelineOptions {
   parentTaskId?: string;
   /** Ticket-wide route admission prepared by the loop driver. */
   episode?: ExecutePipelineOptions["episode"];
+  maxReviewCycles?: number;
 }
 
 export interface BuilderPipelineOptions extends LoopPipelineOptions {
@@ -231,7 +251,16 @@ export async function advanceGates(
 
     if (result.status === "pass") {
       pushBranch(worktree, branch);
+      await journalBoundary(options.journal, "push", {
+        branch,
+        head: headSha(worktree),
+      });
+      await journalBoundary(options.journal, "gates", result);
       const pr = await ensurePr(current, options.gh, options.prDraft === true);
+      await journalBoundary(options.journal, "pr", {
+        number: pr.number,
+        head: headSha(worktree),
+      });
       await options.gh.swapLabel(current.issueNumber, "op:building", "op:in-review");
       await rec?.transition("op:building", "op:in-review");
       await rec?.finalize("completed");
@@ -244,7 +273,11 @@ export async function advanceGates(
       };
     }
 
-    if (result.remediation.canRetry) {
+    const repairCap = Math.min(
+      options.policy.remediation.maxAttempts,
+      options.maxRemediationAttempts ?? options.policy.remediation.maxAttempts,
+    );
+    if (result.remediation.canRetry && current.remediationAttempts < repairCap) {
       const remediated = await options.remediate?.(current, result);
       current = {
         ...(remediated ?? current),
@@ -264,6 +297,7 @@ export async function advanceGates(
     await options.gh.swapLabel(current.issueNumber, fromLabel, "op:returned");
     await rec?.transition(fromLabel, "op:returned");
     await rec?.finalize("blocked");
+    await journalStop(options.journal, "cap_stop", `quality-gate repair cap exhausted at ${current.remediationAttempts}`);
     return {
       ...current,
       labels: replaceLabel(current.labels, fromLabel, "op:returned"),
@@ -378,6 +412,12 @@ export async function advanceReviewing(
         "the latest approval does not match the current reviewed commit (stale approval)",
       );
     }
+    await journalBoundary(options.journal, "approvals", {
+      submittedAt: latest.submittedAt ?? null,
+      reviewer: latest.author,
+      commitId: latest.commitId,
+      state: latest.state,
+    });
     return {
       ...item,
       approvedCommitId: latest.commitId,
@@ -424,6 +464,13 @@ export async function runBuilderPipeline(
   const pipeline = getPipeline(options.pipelines, pipelineName);
   let contract = item.contract;
   let buildVerdict: BuildVerdict | undefined;
+  const journal = journalFromPipelineOptions(options);
+  if (contract !== undefined) {
+    await journalBoundary(journal, "contract", {
+      ticketBodyHash: hashTicketBody(item.body),
+      contract,
+    });
+  }
 
   const result = await executePipeline({
     pipeline,
@@ -469,6 +516,10 @@ export async function runBuilderPipeline(
         contract = `${renderContractComment(verdict)}\n\n${contractMarker(hashTicketBody(item.body))}`;
         item = { ...item, criterionTests: criterionTestMapFromContract(verdict) };
         await options.gh.commentIssue(item.issueNumber, contract);
+        await journalBoundary(journal, "contract", {
+          ticketBodyHash: hashTicketBody(item.body),
+          contract,
+        });
       } else if (kind === "build") {
         buildVerdict = outcome.verdict as BuildVerdict;
       }
@@ -486,6 +537,11 @@ export async function runBuilderPipeline(
     // advanceGates owns that loop's bookkeeping.
     if (options.gateResult === undefined) {
       const last = result.passes[result.passes.length - 1]?.result;
+      await journalStop(
+        journal,
+        journalStopKind(last?.errorCode, last?.status),
+        last?.summary ?? `${pipelineName} pipeline aborted`,
+      );
       const work = durableWorkSummary(worktree, item.branch);
       const stopped =
         `## Turn stopped before completion\n\n` +
@@ -526,6 +582,10 @@ export async function runBuilderPipeline(
     throw new Error(`${pipelineName} pipeline aborted before completion`);
   }
 
+  await journalBoundary(journal, "implementation", {
+    head: headSha(worktree),
+  });
+
   // Fix verdicts carry per-finding dispositions; post them durably so the
   // findings ledger survives the pass (verdicts otherwise live only in the
   // run log) and every later review round sees fixed/rebutted vs still open.
@@ -562,6 +622,7 @@ export async function runReviewPipeline(
   const prNumber = requireField(item, "prNumber");
   const pipeline = getPipeline(options.pipelines, "review");
   const verdicts: { pass: string; verdict: ReviewVerdict }[] = [];
+  const journal = journalFromPipelineOptions(options);
 
   const result = await executePipeline({
     pipeline,
@@ -600,7 +661,15 @@ export async function runReviewPipeline(
     },
   });
 
-  if (result.aborted) throw new Error("review pipeline aborted before completion");
+  if (result.aborted) {
+    const last = result.passes[result.passes.length - 1]?.result;
+    await journalStop(
+      journal,
+      journalStopKind(last?.errorCode, last?.status),
+      last?.summary ?? "review pipeline aborted",
+    );
+    throw new Error("review pipeline aborted before completion");
+  }
 
   const body = renderReviewBody(verdicts);
   await options.gh.commentIssue(item.issueNumber, `## Structured review verdict\n\n${body}`);
@@ -609,6 +678,11 @@ export async function runReviewPipeline(
     state: findings.length > 0 ? "request_changes" : "approve",
     body,
   });
+  await journalBoundary(journal, "findings", {
+    reviewedHead: headSha(requireField(item, "worktree")),
+    findings,
+    passes: verdicts.map((entry) => entry.pass),
+  });
   // GitHub rejects REQUEST_CHANGES on a PR authored by the same account. The
   // adapter records a comment-review fallback in that case, but the structured
   // Reviewer verdict is already trusted pipeline output. Bounce directly from
@@ -616,7 +690,7 @@ export async function runReviewPipeline(
   // cannot exist for a self-authored PR.
   if (findings.length > 0) {
     const cycles = item.cycles + 1;
-    if (cycles > DEFAULT_MAX_REVIEW_CYCLES) {
+    if (cycles > (options.maxReviewCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
       await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
       await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
       return {
@@ -638,7 +712,9 @@ export async function runReviewPipeline(
   }
   return advanceReviewing(item, {
     gh: options.gh,
+    ...(options.maxReviewCycles !== undefined ? { maxCycles: options.maxReviewCycles } : {}),
     ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
+    ...(journal !== undefined ? { journal } : {}),
   });
 }
 
@@ -648,6 +724,7 @@ export async function runShipCheckPipeline(
 ): Promise<LoopItem> {
   const pipeline = getPipeline(options.pipelines, "ship");
   const verdicts: { pass: string; verdict: ReviewVerdict }[] = [];
+  const journal = journalFromPipelineOptions(options);
 
   const result = await executePipeline({
     pipeline,
@@ -686,7 +763,15 @@ export async function runShipCheckPipeline(
     },
   });
 
-  if (result.aborted) throw new Error("ship pipeline aborted before completion");
+  if (result.aborted) {
+    const last = result.passes[result.passes.length - 1]?.result;
+    await journalStop(
+      journal,
+      journalStopKind(last?.errorCode, last?.status),
+      last?.summary ?? "ship-check pipeline aborted",
+    );
+    throw new Error("ship pipeline aborted before completion");
+  }
   if (result.passes.length === 0) return item;
 
   const body = renderReviewBody(verdicts);
@@ -705,7 +790,7 @@ export async function runShipCheckPipeline(
   // for the Planner (mirrors advanceReviewing / advanceGates bounding).
   const findings = verdicts.flatMap((entry) => entry.verdict.findings);
   const cycles = item.cycles + 1;
-  if (cycles > DEFAULT_MAX_REVIEW_CYCLES) {
+  if (cycles > (options.maxReviewCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
     await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
     await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
     return {
@@ -798,6 +883,11 @@ export async function advanceShipping(
       body: `Closes ${item.ticketRef}`,
       ...(item.approvedCommitId !== undefined ? { matchHeadCommit: item.approvedCommitId } : {}),
     });
+    await journalBoundary(options.journal, "merge", {
+      prNumber,
+      approvedCommitId: item.approvedCommitId ?? null,
+      method: "squash",
+    });
   } catch (error) {
     if (!isMergeConflict(error)) throw error;
     return {
@@ -834,6 +924,15 @@ export async function advanceShipping(
     requiredKind !== undefined && requiredKind !== "merge-only" && options.release?.command !== undefined
       ? { kind: requiredKind, command: options.release.command, owner: options.release.owner }
       : undefined;
+  await journalBoundary(options.journal, "release", {
+    disposition: releaseTrigger === undefined ? "merge-only" : "queued-for-scoped-approval",
+    kind: releaseTrigger?.kind ?? "merge-only",
+    owner: releaseTrigger?.owner ?? null,
+    commandHash:
+      releaseTrigger === undefined
+        ? null
+        : createHash("sha256").update(releaseTrigger.command).digest("hex"),
+  });
 
   return {
     ...item,
@@ -1521,6 +1620,57 @@ function durableWorkSummary(worktree: string, branch: string | undefined): strin
   } catch {
     return "(worktree state unreadable)";
   }
+}
+
+function journalFromPipelineOptions(options: LoopPipelineOptions): ExecutionJournalTarget | undefined {
+  if (options.episode?.id === undefined) return undefined;
+  return {
+    root: options.runlogRoot,
+    episodeId: options.episode.id,
+    ...(options.clock !== undefined ? { clock: options.clock } : {}),
+  };
+}
+
+async function journalBoundary(
+  journal: ExecutionJournalTarget | undefined,
+  boundary: ExecutionBoundary,
+  artifact: unknown,
+): Promise<void> {
+  if (journal === undefined) return;
+  await recordExecutionBoundary({
+    root: journal.root,
+    episodeId: journal.episodeId,
+    boundary,
+    artifact,
+    now: journal.clock?.() ?? new Date(),
+  });
+}
+
+async function journalStop(
+  journal: ExecutionJournalTarget | undefined,
+  kind: JournalStopKind,
+  reason: string,
+): Promise<void> {
+  if (journal === undefined) return;
+  await stopExecutionJournal({
+    root: journal.root,
+    episodeId: journal.episodeId,
+    kind,
+    reason,
+    now: journal.clock?.() ?? new Date(),
+  });
+}
+
+function journalStopKind(
+  errorCode: string | undefined,
+  status: string | undefined,
+): JournalStopKind {
+  if (status === "cancelled" || errorCode === "error_cancelled") return "cancelled";
+  if (status === "timed_out" || errorCode?.includes("timeout") || errorCode?.includes("wall_clock")) {
+    return "provider_timeout";
+  }
+  if (errorCode?.includes("budget") || errorCode?.includes("cap")) return "cap_stop";
+  return "crash";
 }
 
 function stateLabelForPhase(phase: LoopPhase): string {

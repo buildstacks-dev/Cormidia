@@ -299,6 +299,8 @@ describe("cmdPlan", () => {
       "Migrate auth keys",
       "--depth",
       "quick",
+      "--sensitive-domains",
+      "security/auth/secrets",
       "--dry-run",
       "--workdir",
       app,

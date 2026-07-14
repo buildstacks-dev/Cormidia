@@ -87,19 +87,21 @@ measurement, and qualification authority. Every organizational **episode**
 owns one immutable `planned_route`, a reassessed `current_route`, and a
 terminal `final_route`. Admission must record factors, selected pass set,
 model/effort, context and human-attention allowances, and cost bounds before
-constructing a runtime. Phase 1 implements that boundary in the production
-pass executor: the durable route precedes runtime construction, each provider
-invocation reserves remaining allowance and owns one terminal execution step
-plus one settlement, and each pass writes a versioned context manifest. Later
-transformation contracts still govern route-quality optimization and lifecycle
-work; older planning-depth or timeout settings are not competing authorities.
+constructing a runtime. The production pass executor enforces that boundary:
+the durable route and token-free configuration/capability/artifact preflight
+precede runtime construction; each provider invocation reserves remaining
+turn, cost, time, and tool allowance and owns one terminal execution step plus
+one settlement; and each pass writes a budgeted, component-hashed context
+manifest. `route-policy/v1` makes pass/model/effort selection factor-backed and
+monotonic. Older planning-depth or timeout settings are not competing
+authorities.
 
 Ownership follows the import direction:
 
 | Layer | Efficiency responsibility |
 | --- | --- |
 | `src/runtime` | Execute adapter calls, checkpoint usage/session facts, and settle each provider turn exactly once. It never chooses a route. |
-| `src/loop` | Own provider-neutral route admission and reassessment primitives, pass-selection evidence, episode counters, context manifests, work fingerprints, pre-turn checks, and terminal provider/mechanical execution-step records. |
+| `src/loop` | Own provider-neutral route admission and reassessment, pass/model/effort evidence, token-free preflight, episode execution journals and bounds, context manifests/deltas, work fingerprints, pre-turn checks, and terminal provider/mechanical execution-step records. |
 | `src/org` | Own organizational episodes, lifecycle and scheduler transactions, human decisions/wait, cross-pipeline coordination, learning outcomes, and final episode disposition. |
 | `src/report` / `src/observe` | Read-only projections. They perform no admission, reconciliation, workflow mutation, or provider call. |
 | `eval/**` | Qualify an exact candidate. Eval evidence never becomes production workflow authority. |
@@ -502,18 +504,16 @@ any item (`docs/loop.md` §7).
 
 
 
-### Crash recovery: resume vs restart
+### Crash recovery: artifact boundary first
 
-A stale lock or an in-flight journal at tick time triggers recovery:
-
-
-| Journal state                                                        | Action                                                                                                                                   |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `phase: running`, session handle recorded, `attempt < 2`             | **Resume** the `SessionHandle` with an interruption notice ("your previous turn was interrupted; reassess repo state before continuing") |
-| No session handle yet (died before first SDK event)                  | Restart clean, `attempt++`                                                                                                               |
-| Resume fails / session invalid / older than `session_retention_days` | Restart clean, `attempt++`                                                                                                               |
-| `attempt ≥ 3`                                                        | Mark `failed`; incident note; loop item → `returned`                                                                                     |
-| `phase: collecting`                                                  | Don't re-run the model: re-run collection only (artifacts are already on GitHub; telemetry/memory writes are idempotent by turnId)       |
+A stale lock or interrupted tick reopens the episode execution journal before
+choosing work. The ordered boundaries are `route → contract → implementation
+→ push → gates → pr → findings → approvals → merge → release`. A boundary is
+reused only while its recorded artifact fingerprint is still valid. Ticket,
+commit, or finding drift writes an invalidation reason and clears only the
+affected suffix; the next tick resumes at the first now-legal boundary. A cap
+stop, cancellation, crash, or timeout retains the last valid artifact refs and
+a typed resume decision.
 
 
 **Restart clean** currently resets worktree scratch to the branch tip with
@@ -522,14 +522,13 @@ been accepted as a valid episode artifact. Commits, pushed refs, contracts,
 findings, approvals, gate evidence, usage checkpoints, execution records, and
 any other accepted artifact survive interruption. Repeating a productive pass
 requires a durable invalidation reason tied to the artifact or decision it
-invalidates; route-aware recovery is a transformation implementation gap.
+invalidates. Claim, repair, review, retry, tool-call, active-time, provider-turn,
+and cost bounds are route-owned and remain in force across process restarts.
 
 A role invocation whose running pass exceeds its wall-clock cap is killed by
-the dispatcher — SIGTERM escalating to SIGKILL. The current implementation
-falls back to a legacy 60-minute per-pass kill ceiling when no override exists.
-That fallback is a conservative safety mechanism and a named non-conformant
-implementation gap, not active efficiency policy. The target watchdog derives
-from the episode's remaining active-time allowance in `docs/efficiency.md`.
+the dispatcher — SIGTERM escalating to SIGKILL. The pass executor derives its
+effective watchdog from the smaller of its configured ceiling and the
+episode's remaining active-time allowance in `docs/efficiency.md`.
 Recovery (restart-clean + respawn) is **deferred until the process is
 confirmed dead** (`killHungTurns` in `src/org/dispatch.ts`): a still-alive
 child that also holds the per-app clone lock would otherwise let two workers
@@ -940,16 +939,14 @@ effects.
 carry `unmeasured: true` (the native CLI's tokens never flow through
 Operon), while `--auto` turns settle real usage per pass. The `Trigger`
 type's `manual?: boolean` kind is one the dispatcher **never** auto-fires.
-- Before an `--auto` runtime is constructed, the current
-  `planning-depth/v1` implementation selects a planning pass set from
-  explicit/derived risk, ambiguity, coupling, reversibility, external
-  consequence, expected decomposition, and sensitive-domain floors. Quick
-  selects one combined planning/decomposition pass; standard selects one PM
-  perspective; deep retains competing PMs and arbitration. This value is an
-  interim `planning_depth` decision, not an episode route authority. Under
-  `efficiency/v1`, episode admission owns the route and the selected pass set
-  is evidence derived from it. The envelope records factors, selected/skipped
-  passes, and the pre-execution cost estimate; prompt length is not an input.
+- Before an `--auto` runtime is constructed, `route-policy/v1` selects the
+  episode route and planning pass set from structured risk, ambiguity,
+  coupling, reversibility, external consequence, expected decomposition, and
+  sensitive-domain floors. Quick selects one combined planning/decomposition
+  pass; standard selects one PM perspective; deep retains competing PMs and
+  arbitration. The envelope records factors, selected/skipped passes,
+  model/effort, and the pre-execution cost estimate; prompt length is not an
+  input.
 - Gate applies as always — interactivity doesn't change the approval
 boundary; the human approving in-terminal *is* the approval surface for any
 critical op raised live (recorded to the same audit log).

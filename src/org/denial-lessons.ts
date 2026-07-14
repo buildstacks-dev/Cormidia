@@ -14,8 +14,17 @@ export interface DenialLesson {
   at: string; // ISO
 }
 
+export interface DenialLessonRecord extends DenialLesson {
+  schema_version: 1;
+  role: string;
+}
+
 export function denialLessonsPath(orgHome: string, role: string): string {
   return join(orgHome, "memory", "roles", role, "denial-lessons.md");
+}
+
+export function denialLessonsLedgerPath(orgHome: string, role: string): string {
+  return join(orgHome, "memory", "roles", role, "denial-lessons.jsonl");
 }
 
 /** Append a lesson unless an entry with the same rule+reason already exists —
@@ -23,14 +32,27 @@ export function denialLessonsPath(orgHome: string, role: string): string {
  *  new lesson was recorded. */
 export function appendDenialLesson(orgHome: string, role: string, lesson: DenialLesson): boolean {
   const path = denialLessonsPath(orgHome, role);
-  const key = `[${lesson.rule}] ${lesson.reason.trim()}`;
+  if (role.trim() === "" || lesson.app.trim() === "" || lesson.rule.trim() === "" || lesson.reason.trim() === "") {
+    throw new Error("denial lesson requires role, app, rule, and reason");
+  }
+  if (!Number.isFinite(new Date(lesson.at).getTime())) throw new Error("denial lesson requires an ISO timestamp");
+  const key = `${lesson.app} [${lesson.rule}] ${lesson.reason.trim()}`;
   const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
   if (existing.includes(key)) return false;
   mkdirSync(dirname(path), { recursive: true });
+  const record: DenialLessonRecord = {
+    schema_version: 1,
+    role,
+    app: lesson.app,
+    rule: lesson.rule,
+    reason: lesson.reason.trim(),
+    at: lesson.at,
+  };
+  appendFileSync(denialLessonsLedgerPath(orgHome, role), `${JSON.stringify(record)}\n`, "utf8");
   const header = existing.length === 0 ? "# Denial lessons (orchestrator-curated)\n\n" : "";
   appendFileSync(
     path,
-    `${header}- ${lesson.at} ${lesson.app} ${key}\n`,
+    `${header}- ${lesson.at} ${key}\n`,
     "utf8",
   );
   // Surface the file through the role's memory index so context assembly

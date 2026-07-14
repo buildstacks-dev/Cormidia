@@ -56,7 +56,7 @@ function planTurn(summary: string): TurnResult {
   };
 }
 
-describe("runAutoPlan", () => {
+describe("runAutoPlan (D-PLAN-01 quick/standard/deep plan-of-record evidence)", () => {
   let stateHome: string;
   let pair: BareCloneFixture;
   afterEach(() => {
@@ -186,7 +186,7 @@ describe("runAutoPlan", () => {
     expect(await gh.listIssues({ state: "all", limit: 10 })).toHaveLength(1);
   });
 
-  it("raises a short security migration to the full deep route", async () => {
+  it("raises a structured high-risk security migration to the full deep route", async () => {
     const { app, appsFile } = fixture();
     const runtime = new FakeRuntime([
       { result: planTurn("vision") },
@@ -204,6 +204,13 @@ describe("runAutoPlan", () => {
       gh: new FakeGhOps(),
       runtimeFor: () => runtime,
       now: () => new Date("2026-07-11T09:00:00Z"),
+      planning: {
+        riskTier: "high",
+        ambiguity: "high",
+        reversibility: "irreversible",
+        externalConsequence: "customer-public-production",
+        sensitiveDomains: ["auth"],
+      },
     });
 
     expect(result.status, result.summary).toBe("completed");

@@ -1,10 +1,14 @@
 # Efficiency Contract
 
-*Version: efficiency/v1 · Ratified 2026-07-12 · Canonical normative home*
+*Version: efficiency/v1 · Evaluation semantics ratified 2026-07-12 ·
+Organization-wide operating doctrine ratified 2026-07-13 · Canonical normative
+home*
 
 This document defines Operon's route, budget, measurement, variance, and
 qualification semantics. Other documents link here and must not carry a
-divergent numeric budget table. The ratification record is
+divergent numeric budget table. The operating-doctrine ratification record is
+`docs/efficiency-transformation/phase0-doctrine-ratification-proposal.md`; the
+earlier evaluation-semantics record is
 `docs/efficiency-transformation/t0-eval-ratification-proposal.md`.
 
 <!-- efficiency-contract:start -->
@@ -15,9 +19,15 @@ divergent numeric budget table. The ratification record is
   fingerprints, budgets, exclusions, retry allowances, and stop rules.
 - A **case** is a versioned starting state, task, side-effect policy, oracle,
   and route expectation.
-- An **episode** is the end-to-end unit responsible for one outcome.
-- An **execution step** is one provider pass or deterministic mechanical
-  operation. Every started step has one truthful terminal execution record.
+- An **episode** is the end-to-end unit responsible for one outcome and one
+  route.
+- A **role invocation** is one scheduled, event-driven, or manual invocation
+  of an organizational role; it may execute a pipeline.
+- A **pass** is one configured protocol stage. It is an orchestration identity,
+  not a provider-accounting identity.
+- An **execution step** is one terminal provider or deterministic operation
+  record within an episode. Every started step has one truthful terminal
+  execution record.
 - A **provider turn** is one adapter invocation capable of consuming tokens.
   It joins to exactly one provider settlement.
 - A **mechanical step** is deterministic and constructs no adapter. It joins
@@ -28,6 +38,11 @@ divergent numeric budget table. The ratification record is
 Readiness states are `ready`, `blocked`, `invalid`, and `incomplete`. A missing
 required live case, authentication, usage observation, or evidence can never
 produce `ready`.
+
+Avoid bare “turn” in normative text when the intended identity is ambiguous.
+If one configured pass invokes a provider again for reformatting, recovery, or
+another substep, each adapter invocation is a distinct provider turn and must
+settle exactly once. A pass-level summary cannot hide those turns.
 
 ## Route admission
 
@@ -46,6 +61,27 @@ A new finding may escalate a route. Escalation preserves valid artifacts and
 records its factor, remaining budget, and newly authorized budget. A cap never
 authorizes false completion: insufficient remaining budget parks or reassesses
 before the next provider turn.
+
+The route belongs to the episode. A planning-depth or selected-pass-set value
+is evidence derived from admission, not a second route authority. Pipeline
+shape, role availability, prompt length, and prose keywords cannot deepen an
+episode by themselves.
+
+## Lifecycle evidence vocabulary
+
+These evidence states do not replace the persisted app registry states
+`onboarding | live | paused`:
+
+| Evidence state | Claim permitted |
+| --- | --- |
+| Generated | Local app/org artifacts were created; no registry, remote, runtime, or schedule claim follows. |
+| Registered | The org registry and app-owned config agree; the app remains onboarding. |
+| Runtime-ready | Deterministic verification proves refs, ancestry, managed clone, authority/config hashes, app checks, locks/approvals, and required adapters. |
+| Live | Human-selected registry policy permits ordinary manual/dispatch work; scheduler installation is not implied. |
+| Autonomously scheduled | The correct org-scoped scheduler is installed, healthy, and emits attributable due/executed/skipped/blocked evidence. |
+
+The ladder is a claim vocabulary projected from real evidence, not a second
+database or lifecycle state machine.
 
 ## Canonical route budgets
 
@@ -71,8 +107,8 @@ and missing inputs. Required missing input yields `invalid_measurement`; it is
 never represented as zero or pass. Orchestrator-owned artifacts and state are
 authoritative; agent prose is not.
 
-- **Model turns:** unique provider settlements attributed to the episode.
-  Grader and replay-orchestration turns are reported separately.
+- **Model turns:** unique provider-turn settlements attributed to the episode.
+  Grader and replay-orchestration provider turns are reported separately.
 - **Input/output tokens:** sum adapter settlements by quality. Cache read/write
   are components of input and are never added to input twice.
 - **Context by source:** rendered bytes by context-manifest category. Adapter
@@ -88,11 +124,11 @@ authoritative; agent prose is not.
 - **Human decisions:** authority/state-changing operator actions: approve or
   deny, criteria sign-off, route/budget override, or material clarification.
   Campaign start and passive observation do not count.
-- **Productive model pass:** a turn whose artifact/state hash proves a new
+- **Productive model pass:** a provider turn whose artifact/state hash proves a new
   required decision, durable transition, code artifact, evidence-backed
   finding resolution/rebuttal, or required independent verification.
 - **Productive-pass ratio:** productive model passes divided by all episode
-  model passes. Adapter-start failures and unchanged reasoning remain in the
+  provider turns. Adapter-start failures and unchanged reasoning remain in the
   denominator.
 - **Repeated-work cost:** cost of a pass whose intended valid fingerprint
   already existed, including downstream repetition it caused.

@@ -6,6 +6,10 @@ loop design); revised per the consolidated design feedback of 2026-07-10
 **Build status:** built through M5 (PR #52, 2026-07-11); where this document and the code diverge, the code and `AGENTS.md` are authoritative  
 **Companions:** `learning-loop-design.md`, `learning-loop-milestones.md`
 
+Episode identity, learning-capture coverage, and outcome-accountable efficacy
+use the canonical definitions and missingness rules in `docs/efficiency.md`.
+The schemas below carry those facts but do not redefine their measurements.
+
 All schemas are draft contracts. Field names may change before implementation.
 
 v0.8 changes: candidates moved out of active bundles; resolver requires

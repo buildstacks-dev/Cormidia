@@ -37,6 +37,12 @@ New to the code? Open [`docs/wiki.html`](docs/wiki.html) — a standalone,
 self-contained wiki that walks the three layers, the build loop, and the
 runtime adapters, with curated reading paths for coming up to speed.
 
+Operon turns approved goals into verified software outcomes with process
+proportional to risk, minimal human attention, durable forward progress, and
+continuously improving unit economics. `docs/VISION.md` states the operator
+outcome; `docs/efficiency.md` is the sole normative route, budget,
+measurement, and qualification contract.
+
 ## Install locally
 
 Operon requires **Node.js >= 26** and the pnpm version pinned in
@@ -140,6 +146,21 @@ state home before anything is written. A non-interactive run requires
 `--answers` and otherwise writes nothing. `new-app` creates a separate product
 repo skeleton and then follows the same bootstrap/register path. Neither
 command creates or publishes a GitHub repo.
+
+Onboarding claims follow an evidence ladder:
+
+| Evidence | What it proves |
+| --- | --- |
+| Generated | Local app/org artifacts exist; no registry, remote, runtime, or schedule claim follows. |
+| Registered | The org registry and app-owned config agree; the app remains onboarding. |
+| Runtime-ready | Deterministic verification proves refs, ancestry, managed clone, authority/config hashes, app checks, locks/approvals, and required adapters. |
+| Live | Human-selected registry policy permits ordinary manual/dispatch work; a scheduler is not implied. |
+| Autonomously scheduled | The correct org-scoped scheduler is installed, healthy, and emits attributable due/executed/skipped/blocked evidence. |
+
+These are evidence claims, not five new `apps.yaml` values; registry state
+remains `onboarding | live | paused`. `new-app` reaches generated, while a
+successful bootstrap reaches registered. Neither alone proves runtime-ready,
+live, or autonomous scheduling.
 
 The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
 `run-role` assemble real context but spend no tokens. Live forms can spend
@@ -380,15 +401,17 @@ Telemetry joins those child traces back to the exact prompt and will not call
 a task “Operon end-to-end complete” when a required stage or Reviewer is
 missing, or when execution used a fallback.
 
-`operon plan <app> --auto --goal "..."` chooses planning depth before any
-model turn. Quick work uses one combined planning/decomposition pass;
-standard uses a visionary, one PM perspective, and a decomposer; deep adds a
-second competing PM and arbitration. The route uses explicit risk,
+`operon plan <app> --auto --goal "..."` currently chooses a planning pass set
+before any model turn. Quick planning uses one combined
+planning/decomposition pass; standard uses a visionary, one PM perspective,
+and a decomposer; deep adds a second competing PM and arbitration. The route uses explicit risk,
 ambiguity, coupling, reversibility, external-consequence, expected-ticket,
 and sensitive-domain factors—not prompt length. Every planning envelope
 records the policy version, factors, selected/skipped passes with reasons,
 and a pre-execution historical cost estimate (or an honest unavailable
-marker plus the role-cap upper bound).
+marker plus the role-cap upper bound). Under `efficiency/v1`, this
+`planning_depth` is evidence derived from episode admission, not a second
+quick/standard/deep route authority.
 
 `operon learn` is the learning loop's human window; `operon learn --help`
 has the full argument semantics. The capture verbs (`report`, `inspect

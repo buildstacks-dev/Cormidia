@@ -21,6 +21,7 @@ import {
 import { getPipeline, loadPipelines, type PassConfig, type PipelineConfig } from "../loop/pipelines.js";
 import { loadPolicy } from "../loop/policy.js";
 import { runRole } from "../loop/runRole.js";
+import { finalizeEpisode } from "../loop/efficiency.js";
 import {
   parseWithRetry,
   VerdictParseError,
@@ -146,8 +147,8 @@ export async function runDispatchedTurn(
         ? ({ kind: "pipeline", pipeline: options.pipelineOverride } as const)
         : resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
 
-    // Every executor-routed provider turn settles its own ledger row per pass
-    // (Defect B); the dispatcher's turn row below is a lifecycle record only.
+    // Every executor-routed provider invocation settles its own ledger row;
+    // the dispatcher journal remains the role-invocation lifecycle record.
     const telemetry = {
       orgDir: runtimeHome,
       ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind as TriggerKind } : {}),
@@ -215,10 +216,10 @@ export async function runDispatchedTurn(
         .filter((item) => item.turnId === options.turnId)
         .map((item) => item.id),
     });
-    // Executor-routed turns settled per pass already; a second turn-level row
-    // would double-count cost and escalations and inflate retro/scorecard turn
-    // counts (each pass IS a provider turn). Only the review-loop route runs
-    // no passes, so only it still records its (zero-usage) turn row here.
+    // Executor-routed provider invocations already settled individually; a
+    // second role-level row would double-count cost/escalations and inflate
+    // retro/scorecard counts. Only the review-loop route runs no passes, so
+    // only it still records its (zero-usage) turn row here.
     if (route.kind === "review-loop") {
       await recordTurn(
         runtimeHome,
@@ -255,14 +256,9 @@ export async function runDispatchedTurn(
       stop?.reason ?? (error instanceof Error ? error.message : String(error)),
       options.role,
     );
-    const failedJournal = await readJournal(runtimeHome, options.turnId);
-    await recordTurn(
-      runtimeHome,
-      toRecord(options.role, result, clock(), {
-        app: options.app.name,
-        ...(failedJournal.triggerKind !== undefined ? { trigger: failedJournal.triggerKind } : {}),
-      }),
-    );
+    // Provider failures are already terminalized and settled by the pass
+    // executor. Failures before provider construction are journal/invocation
+    // facts, not zero-cost provider turns; do not synthesize a ledger row.
     return { status, summary: result.summary };
   } finally {
     clearInterval(heartbeat);
@@ -672,25 +668,18 @@ async function recordM6Verdict<K extends "learning-distill" | "learning-review">
   },
   ctx: VerdictRecordContext,
 ): Promise<VerdictRecordOutcome> {
-  let retryUsage: TurnUsage | undefined;
   const reformat = async (reason: string): Promise<string> => {
-    const retried = await ctx.runtime.runTurn(
-      {
-        role: ctx.role,
-        workdir: ctx.workdir,
-        task: [
+    const retried = await ctx.runProviderTurn({
+      operation: `${flow.kind}-verdict-reformat`,
+      task: [
           `Your ${flow.kind} structured output could not be accepted:`,
           reason,
           "",
           "Return only one corrected JSON object matching the supplied schema and evidence.",
         ].join("\n"),
-        context: ctx.context,
-        session: ctx.result.session,
-        verdictSchema: VERDICT_SCHEMAS[flow.kind] as Record<string, unknown>,
-      },
-      ctx.hooks,
-    );
-    retryUsage = retried.usage;
+      session: ctx.result.session,
+      verdictSchema: VERDICT_SCHEMAS[flow.kind] as Record<string, unknown>,
+    });
     return retried.summary;
   };
   try {
@@ -700,7 +689,7 @@ async function recordM6Verdict<K extends "learning-distill" | "learning-review">
       type: "verdict.recorded",
       detail: { kind: flow.kind, records },
     });
-    return { ok: true, ...(retryUsage !== undefined ? { extraUsage: retryUsage } : {}) };
+    return { ok: true };
   } catch (error) {
     return {
       ok: false,
@@ -758,6 +747,16 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
         turnId: options.turnId,
       }),
       telemetry: options.telemetry,
+      onEpisodeTerminal: async (terminal) => {
+        await finalizeEpisode({
+          root: options.runtimeHome,
+          episodeId: terminal.episodeId,
+          status: terminal.status,
+          reason: terminal.reason,
+          ...(terminal.nextStep !== undefined ? { nextStep: terminal.nextStep } : {}),
+          now: terminal.now,
+        });
+      },
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
       ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
       budgetGuard: async () => {

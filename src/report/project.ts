@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import type { AppsFile } from "../org/apps.js";
 import { rollupBudgets } from "../org/budget.js";
-import { settlementKey } from "../runtime/telemetry.js";
+import { settlementIdentity, settlementKey } from "../runtime/telemetry.js";
 import { readReportDetails } from "./detail-source.js";
 import { earliestLedgerDay, readLedgerRange, type LedgerRowSource } from "./ledger-source.js";
 import { bucketStart, nextBucket, normalizeReportRange } from "./range.js";
 import { groupReportSessions, normalizedQuality, worstQuality } from "./sessions.js";
 import { deterministicCounts, nearestRank, share } from "./statistics.js";
+import { buildEfficiencyReport } from "./efficiency.js";
 import {
   REPORT_SCHEMA_VERSION,
   type ReportAppRowV1,
@@ -50,6 +51,14 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
   const partial = costKnown.filter((turn) => turn.usage_quality === "partial");
   const sessions = grouped.sessions;
   const duplicate = duplicateFacts(scopedRows);
+  const efficiency = await buildEfficiencyReport({
+    stateHome: options.stateHome,
+    rows: scopedRows,
+    details,
+    range,
+    ...(query.app !== undefined ? { app: query.app } : {}),
+    duplicateKeys: duplicate.keys,
+  });
   const overallQuality = allTurns.length === 0 ? "unavailable" : worstQuality(allTurns.map((turn) => turn.usage_quality));
   const notices = qualityNotices(allTurns, ledger.diagnostics.length, details.missingEnvelopes.length, details.unsettled.length, duplicate.rows, range.open_interval);
   if (details.scanLimited) notices.push("Envelope-only activity scan reached its 20,000-run safety bound.");
@@ -75,6 +84,7 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
   const sourceFingerprint = createHash("sha256")
     .update(ledger.fingerprint)
     .update(JSON.stringify(detailsFingerprint(details)))
+    .update(JSON.stringify(efficiency))
     .digest("hex");
   return {
     schema_version: REPORT_SCHEMA_VERSION,
@@ -122,6 +132,7 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
       by_usage_quality: breakdown(allTurns, sessions, (turn) => turn.usage_quality),
     },
     health: buildHealth(sessions),
+    efficiency,
     apps: buildAppRows(options.appsFile, budgetRows, sessions, allTurns, headline.known_total_tokens, query.app),
     sessions: {
       total: sessions.length,
@@ -252,11 +263,12 @@ function duplicateFacts(rows: LedgerRowSource[]): { rows: number; keys: string[]
   let tokens = 0;
   let cost = 0;
   for (const { record } of rows) {
-    if (record.runId === undefined) continue;
-    const key = settlementKey(record.app, record.runId);
+    const identity = settlementIdentity(record);
+    if (identity === undefined) continue;
+    const key = settlementKey(record.app, identity);
     if (!seen.has(key)) { seen.add(key); continue; }
     duplicates += 1;
-    keys.add(`${record.app ?? "(unattributed)"}/${record.runId}`);
+    keys.add(`${record.app ?? "(unattributed)"}/${identity}`);
     if (record.unmeasured !== true && normalizedQuality(record.usageQuality) !== "unavailable") tokens += record.tokensIn + record.tokensOut;
     cost += record.costUsd;
   }

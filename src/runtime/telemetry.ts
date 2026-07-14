@@ -9,7 +9,7 @@
 // executor-routed turns, or the ledger would double-count.
 
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, readFile, readdir } from "node:fs/promises";
+import { appendFile, mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Trigger, TurnResult, RoleConfig, UsageQuality } from "./types.js";
 
@@ -44,6 +44,14 @@ export interface TurnRecord {
    *  `runs/<app>/<runId>/` and makes settlement idempotent. Present on every
    *  pass-settled row; absent on legacy and turn-lifecycle rows. */
   runId?: string;
+  /** Stable identity for one Runtime.runTurn invocation. A pass may invoke
+   * the provider more than once (for example, a structured-output repair),
+   * so new settlements key on this value rather than the parent runId. */
+  providerTurnId?: string;
+  /** Durable provider/mechanical execution record that produced this row. */
+  executionStepId?: string;
+  /** Organizational episode that admitted this provider turn. */
+  episodeId?: string;
   traceId?: string;
   parentTaskId?: string;
   pipeline?: string;
@@ -74,6 +82,9 @@ export interface TurnAttribution {
   app?: string;
   trigger?: TriggerKind;
   runId?: string;
+  providerTurnId?: string;
+  executionStepId?: string;
+  episodeId?: string;
   traceId?: string;
   parentTaskId?: string;
   pipeline?: string;
@@ -115,6 +126,9 @@ export function toRecord(
   if (attribution.app !== undefined) record.app = attribution.app;
   if (attribution.trigger !== undefined) record.trigger = attribution.trigger;
   if (attribution.runId !== undefined) record.runId = attribution.runId;
+  if (attribution.providerTurnId !== undefined) record.providerTurnId = attribution.providerTurnId;
+  if (attribution.executionStepId !== undefined) record.executionStepId = attribution.executionStepId;
+  if (attribution.episodeId !== undefined) record.episodeId = attribution.episodeId;
   if (attribution.traceId !== undefined) record.traceId = attribution.traceId;
   if (attribution.parentTaskId !== undefined) record.parentTaskId = attribution.parentTaskId;
   if (attribution.pipeline !== undefined) record.pipeline = attribution.pipeline;
@@ -148,29 +162,38 @@ export async function recordTurn(orgDir: string, record: TurnRecord): Promise<vo
  *  the packaged pipelines collide when their passes start in the same UTC
  *  second; the disk layout disambiguates by `runs/<app>/`, so the ledger key
  *  must too. */
-export function settlementKey(app: string | undefined, runId: string): string {
-  return `${app ?? ""}\u0000${runId}`;
+export function settlementKey(app: string | undefined, settlementId: string): string {
+  return `${app ?? ""}\u0000${settlementId}`;
 }
 
-/** Append `record` unless a row with the same (app, runId) already exists in
- *  the ledger. This is what makes settlement idempotent: a resumed pass, a
- *  crashed-then-retried settle, or a `--reconcile` walk over run envelopes can
- *  never count the same provider turn twice. Returns true when appended.
- *  Check-then-append without a lock: two same-key settles racing across
- *  processes can still both land — reconcile refuses in-flight envelopes
- *  precisely so that pairing cannot arise in normal operation. */
+/** New rows settle one provider invocation; legacy rows settle one pass. */
+export function settlementIdentity(record: Pick<TurnRecord, "providerTurnId" | "runId">): string | undefined {
+  return record.providerTurnId ?? record.runId;
+}
+
+/** Append `record` unless a row with the same provider-turn identity already
+ *  exists in the ledger. New rows key on (app, providerTurnId); legacy rows
+ *  fall back to (app, runId). The cross-process lock makes the read+append
+ *  transaction race-free. Returns true when appended. */
 export async function recordTurnOnce(orgDir: string, record: TurnRecord): Promise<boolean> {
-  if (record.runId === undefined) {
-    throw new Error("recordTurnOnce: record.runId is required — idempotency is keyed on it");
+  const identity = settlementIdentity(record);
+  if (identity === undefined) {
+    throw new Error(
+      "recordTurnOnce: providerTurnId or legacy runId is required for idempotent settlement",
+    );
   }
-  if ((await readSettledKeys(orgDir)).has(settlementKey(record.app, record.runId))) return false;
-  await recordTurn(orgDir, record);
-  return true;
+  const release = await acquireSettlementLock(orgDir);
+  try {
+    if ((await readSettledKeys(orgDir)).has(settlementKey(record.app, identity))) return false;
+    await recordTurn(orgDir, record);
+    return true;
+  } finally {
+    await release();
+  }
 }
 
-/** Every settlement key (app + runId) already in the ledger. Tolerates
- *  torn/corrupt lines (a crashed append must not wedge every later
- *  settlement). */
+/** Every settlement key already in the ledger. Tolerates torn/corrupt lines
+ *  (a crashed append must not wedge every later settlement). */
 export async function readSettledKeys(orgDir: string): Promise<Set<string>> {
   const dir = join(orgDir, "telemetry");
   const ids = new Set<string>();
@@ -182,13 +205,70 @@ export async function readSettledKeys(orgDir: string): Promise<Set<string>> {
       if (line.trim().length === 0) continue;
       try {
         const row = JSON.parse(line) as TurnRecord;
-        if (typeof row.runId === "string") ids.add(settlementKey(row.app, row.runId));
+        const identity = settlementIdentity(row);
+        if (identity !== undefined) ids.add(settlementKey(row.app, identity));
       } catch {
         // Torn trailing append — skip the line, never the settlement.
       }
     }
   }
   return ids;
+}
+
+const SETTLEMENT_LOCK_TIMEOUT_MS = 5_000;
+const SETTLEMENT_LOCK_STALE_MS = 30_000;
+
+/** Serialize the read+append settlement transaction across Operon processes.
+ * O_EXCL makes acquisition atomic; a dead/stale owner is reclaimable. */
+async function acquireSettlementLock(orgDir: string): Promise<() => Promise<void>> {
+  const path = join(orgDir, "telemetry", ".settlement.lock");
+  await mkdir(dirname(path), { recursive: true });
+  const started = Date.now();
+  while (true) {
+    try {
+      const handle = await open(path, "wx");
+      try {
+        await handle.writeFile(`${process.pid}\n${new Date().toISOString()}\n`, "utf8");
+        await handle.close();
+      } catch (error) {
+        await handle.close().catch(() => {});
+        await rm(path, { force: true }).catch(() => {});
+        throw error;
+      }
+      return async () => rm(path, { force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (await settlementLockIsStale(path)) {
+        await rm(path, { force: true }).catch(() => {});
+        continue;
+      }
+      if (Date.now() - started >= SETTLEMENT_LOCK_TIMEOUT_MS) {
+        throw new Error(`telemetry settlement lock timed out: ${path}`);
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    }
+  }
+}
+
+async function settlementLockIsStale(path: string): Promise<boolean> {
+  try {
+    const [metadata, contents] = await Promise.all([stat(path), readFile(path, "utf8")]);
+    const old = Date.now() - metadata.mtimeMs > SETTLEMENT_LOCK_STALE_MS;
+    const pid = Number(contents.split("\n", 1)[0]);
+    if (!Number.isInteger(pid) || pid <= 0) return old;
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      return code === "ESRCH" || (code !== "EPERM" && old);
+    }
+  } catch {
+    // The owner may have released between our EEXIST and this read. Treat a
+    // vanished/unreadable path as "retry acquisition", never as authority to
+    // unlink a lock another process may have just created at the same path.
+    return false;
+  }
 }
 
 /** Every ledger row, in (date-file, line) order. Same torn-line tolerance as

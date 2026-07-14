@@ -140,9 +140,14 @@ describe("learning-loop preflight conformance (issue #28)", () => {
     const hang = new Promise<void>((resolve) => {
       releaseTurn = resolve;
     });
+    let markProviderStarted!: () => void;
+    const providerStarted = new Promise<void>((resolve) => {
+      markProviderStarted = resolve;
+    });
     const hangingRuntime: Runtime = {
       kind: "claude",
       async runTurn(_request, hooks) {
+        markProviderStarted();
         // This is a post-initialize session hang, not an adapter-start stall.
         // A provider event clears the short start deadline without stamping
         // last_seen_at; the heartbeat remains the evidence under test.
@@ -155,6 +160,9 @@ describe("learning-loop preflight conformance (issue #28)", () => {
     h.options.pipeline = await loadBuild();
     try {
       const running = executePipeline(h.options);
+      // Runtime entry proves the executor registered its heartbeat interval;
+      // observing only the early running envelope is not that boundary.
+      await providerStarted;
 
       // The pass is live: envelope exists, status running, no heartbeat yet.
       const before = await vi.waitFor(async () => {

@@ -37,6 +37,12 @@ import type { PipelinesFile } from "./pipelines.js";
 import type { Policy } from "./policy.js";
 import { loadPolicy } from "./policy.js";
 import type { GateCommands } from "./qgates.js";
+import {
+  admitEpisode,
+  episodeIdFor,
+  type AuthorizedPass,
+  type EpisodeTerminal,
+} from "./efficiency.js";
 import { parseDependsOn, parseScope, selectReadyTickets } from "./scheduling.js";
 import type { LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
 
@@ -108,6 +114,17 @@ export interface LoopEngineOptions {
   /** Cooperative cancellation for all provider stages in this tick. */
   signal?: AbortSignal;
   parentTaskId?: string;
+  /** Organizational owner records the final ticket disposition. The loop
+   * supplies the admitted episode id and terminal item, but does not invent
+   * an org outcome. */
+  onEpisodeTerminal?: (input: {
+    episodeId: string;
+    item: LoopItem;
+    status: EpisodeTerminal["status"];
+    reason: string;
+    nextStep?: string;
+    now: Date;
+  }) => Promise<void>;
 }
 
 export interface LoopDriverResult {
@@ -241,6 +258,9 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         item = { ...item, phase: "gates" };
       }
     }
+    if (options.engine !== undefined) {
+      await admitTicketEpisode(options, item);
+    }
     if (options.engine === undefined) {
       item = await (options.afterClaim?.(item) ?? item);
     }
@@ -283,7 +303,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             continue;
           }
           item = await runBuilderPipeline(item, {
-            ...enginePhaseOptions(options, item.worktree),
+            ...enginePhaseOptions(options, item.worktree, item),
             pipelineName:
               item.cycles > 0 || item.findings.length > 0 || item.rebaseNote !== undefined
                 ? "fix"
@@ -303,7 +323,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             ? {
                 remediate: (current, result) =>
                   runBuilderPipeline(current, {
-                    ...enginePhaseOptions(options, current.worktree),
+                    ...enginePhaseOptions(options, current.worktree, current),
                     pipelineName: "fix",
                     gateResult: result,
                   }),
@@ -325,7 +345,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             ? {
                 remediate: (current, result) =>
                   runBuilderPipeline(current, {
-                    ...enginePhaseOptions(options, current.worktree),
+                    ...enginePhaseOptions(options, current.worktree, current),
                     pipelineName: "fix",
                     gateResult: result,
                   }),
@@ -338,7 +358,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
 
       if (item.phase === "reviewing") {
         if (options.engine !== undefined) {
-          item = await runReviewPipeline(item, enginePhaseOptions(options, item.worktree));
+          item = await runReviewPipeline(item, enginePhaseOptions(options, item.worktree, item));
         } else {
           await options.injectReview?.(item);
           item = await advanceReviewing(item, {
@@ -351,7 +371,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
 
       if (item.phase === "shipping") {
         if (options.engine !== undefined) {
-          item = await runShipCheckPipeline(item, enginePhaseOptions(options, item.worktree));
+          item = await runShipCheckPipeline(item, enginePhaseOptions(options, item.worktree, item));
           if (item.phase !== "shipping") continue;
         }
         item = await advanceShipping(item, {
@@ -396,6 +416,17 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         `claim ${claimState.claims}: ended ${item.phase}${item.prNumber !== undefined ? ` (PR #${item.prNumber})` : ""}`,
       ];
       writeTicketClaimState(options.engine.runlogRoot, options.app, item.issueNumber, claimState);
+      const terminal = terminalDisposition(item);
+      await options.engine.onEpisodeTerminal?.({
+        episodeId: episodeIdFor({
+          app: options.app,
+          ticket: item.ticketRef,
+          traceId: item.turnId ?? item.ticketRef,
+        }),
+        item,
+        ...terminal,
+        now: options.engine.clock?.() ?? new Date(),
+      });
     }
   }
   return { lines, items, scorecardEvents: items.flatMap((item) => item.scorecardEvents ?? []) };
@@ -473,6 +504,11 @@ function gateRunlog(options: LoopDriverOptions, item: LoopItem): LoopRunlog {
     app: options.app,
     ticket: item.ticketRef,
     traceId: item.turnId ?? `${item.ticketRef}-gates`,
+    episodeId: episodeIdFor({
+      app: options.app,
+      ticket: item.ticketRef,
+      traceId: item.turnId ?? `${item.ticketRef}-gates`,
+    }),
     ...(engine.context?.authority !== undefined
       ? {
           authority: {
@@ -487,7 +523,7 @@ function gateRunlog(options: LoopDriverOptions, item: LoopItem): LoopRunlog {
   };
 }
 
-function enginePhaseOptions(options: LoopDriverOptions, worktree?: string) {
+function enginePhaseOptions(options: LoopDriverOptions, worktree?: string, item?: LoopItem) {
   const engine = options.engine;
   if (engine === undefined) throw new Error("loop driver: engine options missing");
   return {
@@ -509,9 +545,82 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string) {
     ...(engine.telemetry !== undefined ? { telemetry: engine.telemetry } : {}),
     ...(engine.signal !== undefined ? { signal: engine.signal } : {}),
     ...(engine.parentTaskId !== undefined ? { parentTaskId: engine.parentTaskId } : {}),
+    episode: {
+      id: episodeIdFor({
+        app: options.app,
+        ...(item !== undefined ? { ticket: item.ticketRef } : {}),
+        traceId: item?.turnId ?? item?.ticketRef ?? "unknown",
+      }),
+      ...(item !== undefined ? { route: item.tier } : {}),
+      finalize: false,
+    },
     ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
   };
 }
+
+async function admitTicketEpisode(options: LoopDriverOptions, item: LoopItem): Promise<void> {
+  const engine = options.engine;
+  if (engine === undefined) return;
+  const factor = {
+    kind: "uncertainty" as const,
+    evidence: `ticket ${item.ticketRef} carries the explicit ${item.tier} route classification`,
+    policy_rule: "ticket_tier",
+  };
+  const ticketPipelineNames = new Set(["build", "fix", "review", "ship"]);
+  const passes: AuthorizedPass[] = engine.pipelines.pipelines
+    .filter((pipeline) => ticketPipelineNames.has(pipeline.name))
+    .flatMap((pipeline) =>
+      pipeline.passes.map((pass) => {
+        const role = engine.roles[pass.role];
+        if (role === undefined) throw new Error(`loop admission: missing role ${pass.role}`);
+        return {
+          pipeline: pipeline.name,
+          pass: pass.id,
+          role: role.name,
+          runtime: role.runtime,
+          model: pass.model ?? role.model,
+          effort: pass.effort ?? role.effort,
+          factor_rules: [factor.policy_rule],
+        };
+      }),
+    );
+  await admitEpisode({
+    root: engine.runlogRoot,
+    episodeId: episodeIdFor({
+      app: options.app,
+      ticket: item.ticketRef,
+      traceId: item.turnId ?? item.ticketRef,
+    }),
+    app: options.app,
+    route: item.tier,
+    policyVersion: "efficiency/v1-ticket-tier",
+    factors: [factor],
+    passes,
+    now: engine.clock?.() ?? new Date(),
+    ...(item.tier === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
+  });
+}
+
+function terminalDisposition(item: LoopItem): {
+  status: EpisodeTerminal["status"];
+  reason: string;
+  nextStep?: string;
+} {
+  if (item.phase === "merged") return { status: "completed", reason: `${item.ticketRef} merged` };
+  if (item.phase === "blocked") {
+    return {
+      status: "blocked",
+      reason: `${item.ticketRef} blocked`,
+      nextStep: "resolve the named blocker and re-arm the ticket",
+    };
+  }
+  return {
+    status: "interrupted",
+    reason: `${item.ticketRef} returned for human triage`,
+    nextStep: "review the durable evidence digest and re-arm or close the ticket",
+  };
+}
+
 
 export function loadGateCommands(repoDir: string): GateCommands {
   const commands: GateCommands = {};

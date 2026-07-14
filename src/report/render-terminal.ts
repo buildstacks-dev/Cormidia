@@ -20,6 +20,28 @@ export function renderReportTerminal(report: ReportSnapshotV1): string {
   if (report.quality.notices.length > 0) {
     lines.push("", "Data quality", ...report.quality.notices.slice(0, 5).map((notice) => `  - ${notice}`));
   }
+  lines.push("", "Efficiency evidence");
+  for (const [name, metric] of Object.entries(report.efficiency.metrics)) {
+    lines.push(
+      `  ${name}  ${metric.numerator}/${metric.denominator} · ${metric.status}` +
+        (metric.value === null ? "" : ` · ${(metric.value * 100).toFixed(1)}%`),
+      `    excluded: ${metric.excluded_ids.join(", ") || "none"}`,
+      `    missing: ${metric.missing_inputs.join(", ") || "none"}`,
+    );
+  }
+  lines.push(
+    `  repeated_work_cost_usd  ${report.efficiency.repeated_work_cost_usd === null ? "invalid measurement" : `$${report.efficiency.repeated_work_cost_usd.toFixed(2)}`}`,
+    `  context_by_category  ${report.efficiency.context_by_category.map((row) => `${row.category}=${row.rendered_bytes}B/${row.components}`).join(" · ") || "none"}`,
+  );
+  for (const episode of report.efficiency.episodes) {
+    lines.push(
+      `  ${episode.episode_id}  route ${episode.planned_route ?? "missing"} -> ${episode.current_route ?? "missing"} -> ${episode.final_route ?? "missing"} · ${episode.provider_turns} provider / ${episode.mechanical_steps} mechanical · ${episode.route_variances} variance(s) · ${episode.terminal_status ?? "incomplete"}`,
+      ...(episode.issues.length === 0 ? [] : [`    issues: ${episode.issues.join(", ")}`]),
+    );
+  }
+  for (const [name, ids] of Object.entries(report.efficiency.issues)) {
+    if (ids.length > 0) lines.push(`  ${name}: ${ids.join(", ")}`);
+  }
   const allocation = (report.scope.kind === "org" ? report.breakdowns.by_app : report.breakdowns.by_role).slice(0, 5);
   if (allocation.length > 0) {
     lines.push("", `Top ${report.scope.kind === "org" ? "apps" : "roles"}`);

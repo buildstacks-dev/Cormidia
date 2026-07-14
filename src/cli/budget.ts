@@ -27,9 +27,9 @@ export async function cmdBudget(args: string[]): Promise<number> {
   const apps = await loadApps(effectiveAppsPath);
 
   if (reconcile) {
-    // Back-fill the ledger from runs/**/envelope.json — idempotent (run_id
-    // keyed), so this is safe to run any time and repairs orgs whose loop
-    // passes predate per-pass settlement.
+    // Repair stale provider receipts, settle terminal provider steps, and
+    // back-fill legacy envelopes. ProviderTurnId/app identity keeps this
+    // idempotent; legacy rows fall back to runId/app.
     const rolesFile = await loadRoles(join(homes.orgHome, "roles.yaml"));
     const runtimeByRole = Object.fromEntries(
       rolesFile.roles.map((role) => [role.name, role.runtime]),

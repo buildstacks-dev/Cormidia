@@ -22,6 +22,7 @@ export function renderReportHtml(report: ReportSnapshotV1): string {
 <p class="confidential"><strong>Confidential operational metadata.</strong> Portable local projection; no external requests. Equivalent cost is not a provider invoice.</p>
 ${quality(report)}
 <section aria-labelledby="headline"><h1 id="headline">Usage overview</h1><div class="metrics">${metric("Known input", formatInt(report.headline.known_input_tokens))}${metric("Known output", formatInt(report.headline.known_output_tokens))}${metric("Known total", formatInt(report.headline.known_total_tokens))}${metric("Equivalent cost", money(report.headline.recorded_equivalent_cost_usd), `reported ${money(report.headline.provider_reported_cost_usd)} · estimated ${money(report.headline.operon_estimated_cost_usd)} · partial ${money(report.headline.partial_recorded_cost_usd)}`)}${metric("Provider turns", String(report.headline.provider_turns), `${report.headline.unknown_usage_turns} unknown usage`)}${metric("Sessions", String(report.headline.sessions), `${report.headline.completed_sessions} completed`)}</div></section>
+${efficiency(report)}
 ${budget(report)}
 ${trend(report)}
 ${allocations(report)}
@@ -34,6 +35,23 @@ ${report.unattributed_turns.length === 0 ? "" : `<section><h2>Unattributed turns
 <script id="report-data" type="application/json">${json}</script>
 <script>${JS}</script>
 </body></html>\n`;
+}
+
+function efficiency(report: ReportSnapshotV1): string {
+  const metrics = Object.entries(report.efficiency.metrics).map(([name, value]) =>
+    `<tr><th>${esc(name)}</th><td>${value.numerator} / ${value.denominator}</td><td>${value.value === null ? "—" : `${(value.value * 100).toFixed(1)}%`}</td><td>${esc(value.status)}</td><td>${esc(value.excluded_ids.join(", ") || "none")}</td><td>${esc(value.missing_inputs.join(", ") || "none")}</td></tr>`,
+  ).join("");
+  const episodes = report.efficiency.episodes.map((episode) =>
+    `<tr><td><code>${esc(episode.episode_id)}</code><br><small>${esc(episode.evidence)}</small></td><td>${esc(episode.planned_route ?? "missing")} → ${esc(episode.current_route ?? "missing")} → ${esc(episode.final_route ?? "missing")}</td><td>${episode.route_variances}</td><td>${episode.provider_turns} / ${episode.mechanical_steps}</td><td>${esc(episode.terminal_status ?? "incomplete")}</td><td>${esc(episode.issues.join(", ") || "none")}</td></tr>`,
+  ).join("");
+  const context = report.efficiency.context_by_category.map((row) =>
+    `<tr><td>${esc(row.category)}</td><td>${formatInt(row.rendered_bytes)}</td><td>${row.components}</td><td>${esc(row.run_ids.join(", "))}</td></tr>`,
+  ).join("");
+  const issueRows = Object.entries(report.efficiency.issues)
+    .filter(([, ids]) => ids.length > 0)
+    .map(([name, ids]) => `<dt>${esc(name)}</dt><dd>${esc(ids.join(", "))}</dd>`)
+    .join("");
+  return `<section aria-labelledby="efficiency"><h2 id="efficiency">Efficiency and invariant evidence</h2><p>Repeated-work cost: <strong>${report.efficiency.repeated_work_cost_usd === null ? "invalid measurement" : money(report.efficiency.repeated_work_cost_usd)}</strong>. Missing evidence is named and never treated as zero.</p><div class="scroll"><table><thead><tr><th>Metric</th><th>Numerator / denominator</th><th>Value</th><th>Status</th><th>Excluded identities</th><th>Missing inputs</th></tr></thead><tbody>${metrics}</tbody></table></div><h3>Episodes and route variance</h3><div class="scroll"><table><thead><tr><th>Episode</th><th>Planned → current → final</th><th>Variances</th><th>Provider / mechanical</th><th>Terminal</th><th>Issues</th></tr></thead><tbody>${episodes}</tbody></table></div><h3>Context attribution</h3><div class="scroll"><table><thead><tr><th>Category</th><th>Rendered bytes</th><th>Components</th><th>Run identities</th></tr></thead><tbody>${context}</tbody></table></div>${issueRows === "" ? "" : `<details><summary>Named incomplete and invalid evidence</summary><dl>${issueRows}</dl></details>`}</section>`;
 }
 
 function quality(report: ReportSnapshotV1): string {

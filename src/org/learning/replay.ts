@@ -198,16 +198,11 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
                         "review",
                         ctx.result.summary,
                         async (reason) => {
-                          const retry = await ctx.runtime.runTurn(
-                            {
-                              role: ctx.role,
-                              workdir: ctx.workdir,
-                              task: `Your review verdict could not be parsed (${reason}). Restate ONLY the structured review verdict.`,
-                              context: ctx.context,
-                              session: ctx.result.session,
-                            },
-                            ctx.hooks,
-                          );
+                          const retry = await ctx.runProviderTurn({
+                            operation: "review-verdict-reformat",
+                            task: `Your review verdict could not be parsed (${reason}). Restate ONLY the structured review verdict.`,
+                            session: ctx.result.session,
+                          });
                           return retry.summary;
                         },
                         (t) => parseVerdictEither("review", t),

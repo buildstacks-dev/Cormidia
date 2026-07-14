@@ -32,8 +32,8 @@ export type RunlogEventType =
   | "ticket.transition"
   | "verdict.recorded"
   | "escalation.raised"
-  /** A pass's ledger settle found its (app, runId) already present and was
-   *  dropped — the ledger may carry a stale row for this pass (Stage 1). */
+  /** A provider settle found its (app, providerTurnId), or legacy
+   *  (app, runId), already present and was skipped. */
   | "telemetry.settle_skipped";
 
 export type EventSeverity = "info" | "warn" | "error";

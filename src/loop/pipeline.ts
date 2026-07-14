@@ -49,6 +49,20 @@ import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
 import { withAuthorityBrief } from "./brief.js";
+import { writeContextManifest } from "./context-manifest.js";
+import {
+  admitEpisode,
+  beginProviderStep,
+  episodeIdFor,
+  finalizeEpisode,
+  finalizeProviderStep,
+  fingerprint,
+  ProviderBudgetRefusalError,
+  worktreeFingerprint,
+  type AdmissionFactor,
+  type AuthorizedPass,
+  type RouteBudget,
+} from "./efficiency.js";
 import {
   parallelStages,
   selectPasses,
@@ -100,18 +114,30 @@ export interface ExecutePipelineOptions {
   /** Broader delegated task registered by the top-level operator harness. */
   parentTaskId?: string;
   planningRoute?: PlanningRouteEvidence;
+  /** End-to-end route authority. Omitted callers get an explicit trace-scoped
+   * admission; build-loop callers pass a ticket episode admitted by the
+   * driver and keep it open across build/review/ship pipelines. */
+  episode?: {
+    id?: string;
+    route?: PassSelection["tier"];
+    policyVersion?: string;
+    factors?: AdmissionFactor[];
+    authorizedPasses?: AuthorizedPass[];
+    budgetOverrides?: Partial<RouteBudget>;
+    finalize?: boolean;
+    nextTurnEstimate?: { inputTokens?: number; costUsd?: number; activeTimeMs?: number };
+  };
   /** Injected clock (FakeClock-compatible); defaults to the wall clock. */
   clock?: () => Date;
   /** Optional native structured-output schema per pass. */
   verdictSchemaFor?: (pass: PassConfig) => Record<string, unknown> | undefined;
   /** Explicit per-turn network grant; omitted/false keeps the sandbox offline. */
   networkAccess?: boolean;
-  /** Ledger settlement target (telemetry doc Defect B). When present, every
-   *  pass settles its measured usage into `<orgDir>/telemetry/` exactly once,
-   *  keyed on its runId, at the moment the provider turn returns — regardless
-   *  of the pipeline's terminal status. Failed, blocked, and aborted passes
-   *  consume budget too. Callers that pass this MUST NOT sum pass usage into a
-   *  second turn-level ledger row. */
+  /** Ledger settlement target. Every provider invocation settles measured
+   *  usage into `<orgDir>/telemetry/` exactly once, keyed by providerTurnId,
+   *  when it returns — regardless of the parent pass/pipeline status. Failed,
+   *  blocked, and aborted invocations consume budget too. Callers MUST NOT sum
+   *  the pass envelope's aggregate usage into a second ledger row. */
   telemetry?: {
     orgDir: string;
     trigger?: TriggerKind;
@@ -146,8 +172,6 @@ export interface VerdictRecordContext {
   result: TurnResult;
   /** The resolved (per-pass-overridden) role. */
   role: RoleConfig;
-  /** The exact runtime instance that ran the turn — required to resume it. */
-  runtime: Runtime;
   /** The pass hooks (the conformance gate is preserved) for the reformat turn. */
   hooks: TurnHooks;
   workdir: string;
@@ -155,6 +179,15 @@ export interface VerdictRecordContext {
   /** The pass's own L2 writer — `verdict.recorded` lands in this run record. */
   events: EventWriter;
   clock: () => Date;
+  /** Any repair/reformat adapter invocation MUST use this wrapper so it gets
+   * its own execution step, route-budget precheck, and exactly-one ledger
+   * settlement instead of disappearing into the parent pass. */
+  runProviderTurn: (request: {
+    operation: string;
+    task: string;
+    session?: TurnResult["session"];
+    verdictSchema?: Record<string, unknown>;
+  }) => Promise<TurnResult>;
 }
 
 export type VerdictRecordOutcome =
@@ -188,29 +221,133 @@ export async function executePipeline(
   }
   const clock = options.clock ?? ((): Date => new Date());
   const stages = parallelStages(selectPasses(options.pipeline, options.selection));
+  const admission = await admitPipelineEpisode(options, clock(), stages.flat());
+  const admittedOptions: ExecutePipelineOptions = {
+    ...options,
+    episode: { ...options.episode, id: admission.episode_id },
+  };
 
   const records: PassRunRecord[] = [];
-  for (const stage of stages) {
-    if (options.signal?.aborted) return { passes: records, aborted: true };
-    const stageController = new AbortController();
-    const unlink = forwardAbort(options.signal, stageController);
-    const stageOptions = { ...options, signal: stageController.signal };
-    const results = await Promise.all(
-      stage.map(async (pass) => {
-        const result = await runPass(pass, stageOptions, clock);
-        if (result.result.status !== "completed" && !stageController.signal.aborted) {
-          stageController.abort(`parallel stage stopped by ${pass.id}=${result.result.status}`);
-        }
-        return result;
-      }),
-    ).finally(unlink);
-    records.push(...results);
-    for (const record of results) await options.afterPass?.(record);
-    if (results.some((r) => r.result.status !== "completed")) {
-      return { passes: records, aborted: true };
+  try {
+    for (const stage of stages) {
+      if (options.signal?.aborted) {
+        const stopped = { passes: records, aborted: true };
+        await finalizePipelineEpisode(admittedOptions, stopped, clock());
+        return stopped;
+      }
+      const stageController = new AbortController();
+      const unlink = forwardAbort(options.signal, stageController);
+      const stageOptions = { ...admittedOptions, signal: stageController.signal };
+      const results = await Promise.all(
+        stage.map(async (pass) => {
+          const result = await runPass(pass, stageOptions, clock);
+          if (result.result.status !== "completed" && !stageController.signal.aborted) {
+            stageController.abort(`parallel stage stopped by ${pass.id}=${result.result.status}`);
+          }
+          return result;
+        }),
+      ).finally(unlink);
+      records.push(...results);
+      for (const record of results) await options.afterPass?.(record);
+      if (results.some((r) => r.result.status !== "completed")) {
+        const stopped = { passes: records, aborted: true };
+        await finalizePipelineEpisode(admittedOptions, stopped, clock());
+        return stopped;
+      }
     }
+    const completed = { passes: records, aborted: false };
+    await finalizePipelineEpisode(admittedOptions, completed, clock());
+    return completed;
+  } catch (error) {
+    if (admittedOptions.episode?.finalize !== false) {
+      await finalizeEpisode({
+        root: options.runlog.root,
+        episodeId: admission.episode_id,
+        status: "failed",
+        reason: error instanceof Error ? error.message : String(error),
+        nextStep: "resume from the last valid artifact boundary",
+        now: clock(),
+      });
+    }
+    throw error;
   }
-  return { passes: records, aborted: false };
+}
+
+async function admitPipelineEpisode(
+  options: ExecutePipelineOptions,
+  now: Date,
+  selected: PassConfig[],
+) {
+  const episodeId =
+    options.episode?.id ??
+    episodeIdFor({
+      app: options.runlog.app,
+      traceId:
+        `${options.runlog.traceId}:${options.pipeline.name}:` +
+        fingerprint(selected.map((pass) => pass.id)).slice(0, 12),
+    });
+  const route = options.episode?.route ?? options.selection.tier;
+  const factors = options.episode?.factors ?? [{
+    kind: "uncertainty" as const,
+    evidence: `explicit ${route} route supplied by the invoking workflow`,
+    policy_rule: "explicit_invocation_route",
+  }];
+  const factorRules = factors.map((factor) => factor.policy_rule);
+  const passes = options.episode?.authorizedPasses ?? selected.map((pass): AuthorizedPass => {
+    const role = options.roles[pass.role];
+    if (role === undefined) throw new Error(`executePipeline: missing role ${pass.role}`);
+    return {
+      pipeline: options.pipeline.name,
+      pass: pass.id,
+      role: role.name,
+      runtime: role.runtime,
+      model: pass.model ?? role.model,
+      effort: pass.effort ?? role.effort,
+      factor_rules: factorRules,
+    };
+  });
+  return admitEpisode({
+    root: options.runlog.root,
+    episodeId,
+    app: options.runlog.app,
+    route,
+    policyVersion: options.episode?.policyVersion ?? "efficiency/v1-explicit-route",
+    factors,
+    passes,
+    now,
+    ...(options.episode?.budgetOverrides !== undefined
+      ? { budgetOverrides: options.episode.budgetOverrides }
+      : route === "deep"
+        ? { budgetOverrides: { input_tokens: 8_000_000 } }
+        : {}),
+  });
+}
+
+async function finalizePipelineEpisode(
+  options: ExecutePipelineOptions,
+  result: PipelineRunResult,
+  now: Date,
+): Promise<void> {
+  if (options.episode?.finalize === false || options.episode?.id === undefined) return;
+  const last = result.passes.at(-1)?.result;
+  const status =
+    !result.aborted && result.passes.every((pass) => pass.result.status === "completed")
+      ? "completed"
+      : last?.status === "cancelled"
+        ? "cancelled"
+        : last?.status === "timed_out"
+          ? "timed_out"
+          : last?.status === "blocked_on_gate"
+            ? "blocked"
+            : "failed";
+  await finalizeEpisode({
+    root: options.runlog.root,
+    episodeId: options.episode.id,
+    status,
+    reason: last?.summary ?? (status === "completed" ? "pipeline completed" : "pipeline stopped"),
+    ...(status === "completed" ? {} : { nextStep: "resume from the last valid artifact boundary" }),
+    now,
+  });
 }
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -301,6 +438,8 @@ async function runPass(
   const selectedIds = new Set(selectedPasses.map((candidate) => candidate.id));
 
   const { root, app, ticket, traceId } = options.runlog;
+  const episodeId = options.episode?.id;
+  if (episodeId === undefined) throw new Error("executePipeline: episode admission missing");
   const runId = mintRunId(clock(), options.pipeline.name, pass.id);
   const rawBrief = options.briefFor(pass);
   const brief =
@@ -321,6 +460,9 @@ async function runPass(
     {
       runId,
       traceId,
+      episodeId,
+      providerTurnIds: [],
+      executionStepIds: [],
       ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
       app,
       ...(ticket !== undefined ? { ticket } : {}),
@@ -355,10 +497,24 @@ async function runPass(
     },
     clock(),
   );
+  let runFinalized = false;
+  try {
   await Promise.all([
     writeBrief(root, app, runId, brief),
     writePrompt(root, app, runId, task),
   ]);
+  const contextManifest = await writeContextManifest({
+    root,
+    episodeId,
+    app,
+    runId,
+    context: options.context,
+    brief,
+    ...(template !== undefined ? { template } : {}),
+  });
+  await updateEnvelope(root, app, runId, {
+    contextManifestRef: contextManifest.relativeRef,
+  });
 
   const events = createEventWriter(
     root,
@@ -424,8 +580,11 @@ async function runPass(
     },
   };
 
-  // Fresh session per pass: req.session is never set.
-  const runtime = options.runtimeFor(role);
+  // Runtime construction is lazy inside runProviderTurn, after durable route
+  // admission, a context manifest, and the per-turn remaining-budget check.
+  let runtime: Runtime | undefined;
+  let providerOrdinal = 0;
+  const providerResults: TurnResult[] = [];
   const verdictSchema = options.verdictSchemaFor?.(pass);
 
   // Heartbeat: stamp both the envelope and the append-only event stream while
@@ -459,37 +618,151 @@ async function runPass(
   timeout.unref?.();
   const adapterStartTimeoutMs =
     options.adapterStartTimeoutMs ?? DEFAULT_ADAPTER_START_TIMEOUT_MS;
-  adapterStartTimer = setTimeout(() => {
-    passController.abort({
-      status: "failed",
-      errorCode: ERROR_ADAPTER_START_TIMEOUT,
-      reason:
-        `pass "${pass.id}" received no provider progress or event within ` +
-        `${adapterStartTimeoutMs}ms of adapter start`,
-    } satisfies AbortDescriptor);
-  }, adapterStartTimeoutMs);
-  adapterStartTimer.unref?.();
+  const runProviderTurn = async (request: {
+    operation: string;
+    task: string;
+    session?: TurnResult["session"];
+    verdictSchema?: Record<string, unknown>;
+  }): Promise<TurnResult> => {
+    const ordinal = (providerOrdinal += 1);
+    const inputFingerprint = fingerprint({
+      operation: request.operation,
+      role: { name: role.name, runtime: role.runtime, model: role.model, effort: role.effort },
+      task: request.task,
+      context: contextManifest.manifest.render_sha256,
+      session: request.session?.id ?? null,
+    });
+    const started = await beginProviderStep({
+      root,
+      episodeId,
+      app,
+      runId,
+      ordinal,
+      operation: request.operation,
+      role,
+      inputFingerprint,
+      now: clock(),
+      ...(options.episode?.nextTurnEstimate !== undefined
+        ? { next: options.episode.nextTurnEstimate }
+        : {}),
+    });
+    await updateEnvelope(root, app, runId, {
+      providerTurnIds: [started.providerTurnId],
+      executionStepIds: [started.executionStepId],
+    });
+    const before = worktreeFingerprint(options.workdir);
+    let turnResult: TurnResult;
+    adapterStarted = false;
+    adapterStartTimer = setTimeout(() => {
+      passController.abort({
+        status: "failed",
+        errorCode: ERROR_ADAPTER_START_TIMEOUT,
+        reason:
+          `pass "${pass.id}" received no provider progress or event within ` +
+          `${adapterStartTimeoutMs}ms of adapter start`,
+      } satisfies AbortDescriptor);
+    }, adapterStartTimeoutMs);
+    adapterStartTimer.unref?.();
+    try {
+      runtime ??= options.runtimeFor(role);
+      turnResult = await runOwnedTurn({
+        runtime,
+        request: {
+          role,
+          workdir: options.workdir,
+          task: request.task,
+          context: options.context,
+          signal: passController.signal,
+          ...(request.session !== undefined ? { session: request.session } : {}),
+          ...(request.verdictSchema !== undefined ? { verdictSchema: request.verdictSchema } : {}),
+          ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
+          ...(options.networkAccess === true ? { networkAccess: true } : {}),
+        },
+        hooks: passHooks,
+        signal: passController.signal,
+        role,
+        passId: pass.id,
+        graceMs: options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
+        latestProgress: () => latestProgress,
+      });
+    } catch (error) {
+      turnResult = failedResult(error, role, pass.id, latestProgress);
+    } finally {
+      if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
+      adapterStartTimer = undefined;
+    }
+    const artifactFingerprint =
+      turnResult.artifacts.length === 0 ? undefined : fingerprint(turnResult.artifacts);
+    const after = worktreeFingerprint(options.workdir);
+    await finalizeProviderStep({
+      root,
+      episodeId,
+      app,
+      runId,
+      started,
+      operation: request.operation,
+      role,
+      result: turnResult,
+      finishedAt: clock(),
+      contextManifestRef: contextManifest.relativeRef,
+      ...(before !== undefined ? { workFingerprintBefore: before } : {}),
+      ...(after !== undefined ? { workFingerprintAfter: after } : {}),
+      ...(artifactFingerprint !== undefined ? { artifactFingerprint } : {}),
+    });
+    const settlement = toRecord(role, turnResult, clock(), {
+      app,
+      ...(options.telemetry?.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
+      runId,
+      providerTurnId: started.providerTurnId,
+      executionStepId: started.executionStepId,
+      episodeId,
+      traceId,
+      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+      pipeline: options.pipeline.name,
+      pass: pass.id,
+      ...(turnResult.usage.quality === "unavailable" ? { unmeasured: true } : {}),
+      ...(options.telemetry?.experimentRef !== undefined
+        ? { experimentRef: options.telemetry.experimentRef }
+        : {}),
+      ...(options.telemetry?.candidateRef !== undefined
+        ? { candidateRef: options.telemetry.candidateRef }
+        : {}),
+      ...(options.telemetry?.learningActivity !== undefined
+        ? { learningActivity: options.telemetry.learningActivity }
+        : {}),
+    });
+    const settled = await recordTurnOnce(options.telemetry?.orgDir ?? root, settlement);
+    if (!settled) {
+      await events.append({
+        type: "telemetry.settle_skipped",
+        severity: "warn",
+        detail: {
+          providerTurnId: started.providerTurnId,
+          reason: "a ledger row with this app+providerTurnId already exists",
+        },
+      });
+    }
+    providerResults.push(turnResult);
+    return turnResult;
+  };
   let result: TurnResult;
   try {
-    result = await runOwnedTurn({
-      runtime,
-      request: {
-        role,
-        workdir: options.workdir,
-        task,
-        context: options.context,
-        signal: passController.signal,
-        ...(verdictSchema !== undefined ? { verdictSchema } : {}),
-        ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
-        ...(options.networkAccess === true ? { networkAccess: true } : {}),
-      },
-      hooks: passHooks,
-      signal: passController.signal,
-      role,
-      passId: pass.id,
-      graceMs: options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
-      latestProgress: () => latestProgress,
+    result = await runProviderTurn({
+      operation: `${options.pipeline.name}/${pass.id}`,
+      task,
+      ...(verdictSchema !== undefined ? { verdictSchema } : {}),
     });
+  } catch (error) {
+    if (!(error instanceof ProviderBudgetRefusalError)) throw error;
+    result = {
+      status: "blocked_on_gate",
+      errorCode: "error_route_budget_exhausted",
+      summary: error.message,
+      artifacts: [],
+      session: { runtime: role.runtime, id: `route-budget-${pass.id}` },
+      usage: unavailableUsage(),
+      escalations: [],
+    };
   } finally {
     clearTimeout(timeout);
     if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
@@ -522,23 +795,36 @@ async function runPass(
   let settledUsage = result.usage;
   let verdictOutcome: VerdictRecordOutcome = { ok: true };
   if (options.recordVerdict !== undefined && result.status === "completed") {
-    verdictOutcome = await options.recordVerdict({
-      pass,
-      runId,
-      result,
-      role,
-      runtime,
-      hooks: passHooks,
-      workdir: options.workdir,
-      context: options.context,
-      events,
-      clock,
-    });
-    // A verdict reformat retry is an extra runTurn; fold its spend into the
-    // pass usage so analyze/status don't undercount it (the retry cost was
-    // previously discarded).
-    if (verdictOutcome.ok && verdictOutcome.extraUsage !== undefined) {
-      settledUsage = sumTurnUsage(result.usage, verdictOutcome.extraUsage);
+    try {
+      verdictOutcome = await options.recordVerdict({
+        pass,
+        runId,
+        result,
+        role,
+        hooks: passHooks,
+        workdir: options.workdir,
+        context: options.context,
+        events,
+        clock,
+        runProviderTurn,
+      });
+    } catch (error) {
+      verdictOutcome = {
+        ok: false,
+        errorCode:
+          error instanceof ProviderBudgetRefusalError
+            ? "error_route_budget_exhausted"
+            : "error_verdict_persist",
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+    // Each reformat/recovery call is already settled independently; the pass
+    // envelope retains an aggregate parent summary for legacy readers.
+    if (providerResults.length > 1) {
+      settledUsage = providerResults.slice(1).reduce(
+        (sum, providerResult) => sumTurnUsage(sum, providerResult.usage),
+        result.usage,
+      );
       await updateEnvelope(root, app, runId, {
         usage: toEnvelopeUsage(settledUsage),
       });
@@ -587,57 +873,28 @@ async function runPass(
     },
     clock(),
   );
-
-  // Settle the pass's measured spend into the org ledger exactly once, after
-  // the run record is durable and regardless of terminal status — a blocked or
-  // failed pass consumed budget too (Defect B). Idempotency is keyed on
-  // (app, runId). The settled status matches the envelope's: a verdict-infra
-  // failure is `failed` in both records, never completed-in-one-store.
-  if (options.telemetry !== undefined) {
-    const settled = await recordTurnOnce(
-      options.telemetry.orgDir,
-      toRecord(
-        role,
-        { ...result, status: verdictOutcome.ok ? result.status : "failed", usage: settledUsage },
-        clock(),
-        {
-          app,
-          ...(options.telemetry.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
-          runId,
-          traceId,
-          ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
-          pipeline: options.pipeline.name,
-          pass: pass.id,
-          // A watchdog-abandoned turn's spend is unknown, not zero.
-          ...(result.usage.quality === "unavailable" ? { unmeasured: true } : {}),
-          ...(options.telemetry.experimentRef !== undefined
-            ? { experimentRef: options.telemetry.experimentRef }
-            : {}),
-          ...(options.telemetry.candidateRef !== undefined
-            ? { candidateRef: options.telemetry.candidateRef }
-            : {}),
-          ...(options.telemetry.learningActivity !== undefined
-            ? { learningActivity: options.telemetry.learningActivity }
-            : {}),
-        },
-      ),
-    );
-    if (!settled) {
-      // Something else already settled this (app, runId) — normally impossible
-      // (reconcile refuses in-flight envelopes). Loud, never silent: the
-      // dropped row means the ledger may carry a stale status for this pass.
-      await events.append({
-        type: "telemetry.settle_skipped",
-        severity: "warn",
-        detail: { runId, reason: "a ledger row with this app+runId already exists" },
-      });
-    }
-  }
+  runFinalized = true;
 
   // The record is durable; NOW surface the loud typed failure to the caller.
   if (!verdictOutcome.ok) throw verdictOutcome.error;
 
   return { pass, runId, result };
+  } catch (error) {
+    if (!runFinalized) {
+      await finalizeRun(
+        root,
+        app,
+        runId,
+        {
+          status: "failed",
+          errorCode: "error_pass_executor",
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        clock(),
+      );
+    }
+    throw error;
+  }
 }
 
 /** Drain the buffered tool/subagent TurnEvents into L2 (§9): `tool.called`

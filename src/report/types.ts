@@ -108,6 +108,9 @@ export interface ReportTurnV1 {
   activity_type: "provider_turn" | "mechanical_pass";
   app: string | null;
   run_id: string | null;
+  provider_turn_id: string | null;
+  execution_step_id: string | null;
+  episode_id: string | null;
   trace_id: string | null;
   parent_task_id: string | null;
   ticket: string | null;
@@ -141,6 +144,72 @@ export interface ReportTurnV1 {
   envelope_available: boolean;
   events_available: boolean;
   warnings: string[];
+}
+
+export interface ReportEvidenceMetricV1 {
+  status: "valid" | "invalid_measurement";
+  numerator: number;
+  denominator: number;
+  value: number | null;
+  excluded_ids: string[];
+  missing_inputs: string[];
+}
+
+export interface ReportEfficiencyEpisodeV1 {
+  episode_id: string;
+  app: string;
+  evidence: "durable" | "legacy_inferred";
+  planned_route: string | null;
+  current_route: string | null;
+  final_route: string | null;
+  terminal_status: string | null;
+  provider_turns: number;
+  mechanical_steps: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  equivalent_cost_usd: number | null;
+  active_time_ms: number | null;
+  elapsed_time_ms: number | null;
+  human_wait_ms: number | null;
+  productive_provider_turns: number | null;
+  repeated_work_cost_usd: number | null;
+  route_variances: number;
+  issues: string[];
+}
+
+export interface ReportEfficiencyV1 {
+  episodes: ReportEfficiencyEpisodeV1[];
+  metrics: {
+    terminal_integrity: ReportEvidenceMetricV1;
+    execution_step_terminal_integrity: ReportEvidenceMetricV1;
+    ledger_coverage: ReportEvidenceMetricV1;
+    productive_pass_ratio: ReportEvidenceMetricV1;
+  };
+  context_by_category: Array<{
+    category: string;
+    rendered_bytes: number;
+    components: number;
+    run_ids: string[];
+  }>;
+  repeated_work_cost_usd: number | null;
+  issues: {
+    missing_route_episode_ids: string[];
+    missing_context_manifest_run_ids: string[];
+    invalid_context_manifest_run_ids: string[];
+    missing_execution_step_run_ids: string[];
+    orphan_execution_step_ids: string[];
+    pending_execution_step_ids: string[];
+    incomplete_run_ids: string[];
+    unattributed_pass_ids: string[];
+    duplicate_settlement_keys: string[];
+    duplicate_provider_turn_ids: string[];
+    duplicate_execution_step_ids: string[];
+    unsettled_provider_step_ids: string[];
+    mechanical_with_settlement_step_ids: string[];
+    corrupt_evidence_files: string[];
+    partial_or_unavailable_provider_turn_ids: string[];
+    repeated_provider_step_ids: string[];
+  };
 }
 
 export interface ReportSessionSummaryV1 {
@@ -225,6 +294,7 @@ export interface ReportSnapshotV1 {
     by_usage_quality: ReportBreakdownV1[];
   };
   health: ReportHealthV1;
+  efficiency: ReportEfficiencyV1;
   apps: ReportAppRowV1[];
   sessions: {
     total: number;

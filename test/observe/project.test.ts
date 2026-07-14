@@ -86,16 +86,26 @@ describe("observe projection", () => {
       usageQuality: "partial",
     });
     input.passes = [indexed(running)];
-    input.ledger = [{
-      at: NOW.toISOString(), role: "builder", runtime: "codex", model: "gpt-5.5", status: "completed",
-      tokensIn: 20, tokensOut: 10, costUsd: 0.2, usageQuality: "estimated", subagentTurns: 0,
-      wallClockMs: 1000, escalations: 0, app: "alpha", runId: "run-1", traceId: "trace-1", pipeline: "build", pass: "implement", costEstimated: true,
-    }];
+    input.ledger = [
+      {
+        at: NOW.toISOString(), role: "builder", runtime: "codex", model: "gpt-5.5", status: "completed",
+        tokensIn: 20, tokensOut: 10, costUsd: 0.2, usageQuality: "estimated", subagentTurns: 0,
+        wallClockMs: 1000, escalations: 0, app: "alpha", runId: "run-1", providerTurnId: "turn-1",
+        traceId: "trace-1", pipeline: "build", pass: "implement", costEstimated: true,
+      },
+      {
+        at: NOW.toISOString(), role: "builder", runtime: "codex", model: "gpt-5.5", status: "completed",
+        tokensIn: 3, tokensOut: 2, costUsd: 0.1, usageQuality: "partial", subagentTurns: 0,
+        wallClockMs: 100, escalations: 0, app: "alpha", runId: "run-1", providerTurnId: "turn-2",
+        traceId: "trace-1", pipeline: "build", pass: "implement",
+      },
+    ];
     const snapshot = projectObserveSnapshot(input);
     expect(snapshot.passes[0]).toMatchObject({
       liveness: "live",
-      usage: { tokens_in: 20, quality: "estimated", settled: true, cost_estimated: true },
+      usage: { tokens_in: 23, tokens_out: 12, quality: "partial", settled: true, cost_estimated: true },
     });
+    expect(snapshot.passes[0]?.usage.cost_usd).toBeCloseTo(0.3, 10);
     expect(snapshot.traces[0]).toMatchObject({
       required_passes: ["contract", "implement"],
       observed_passes: ["implement"],

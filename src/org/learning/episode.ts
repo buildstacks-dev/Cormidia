@@ -345,12 +345,13 @@ async function foldEpisodes(
     else bucket.push(view);
   }
 
-  // Source 2: the org ledger, joined on runId (first row wins — settlement
-  // is exactly-once keyed on it).
-  const ledgerByRun = new Map<string, TurnRecord>();
+  // Source 2: the org ledger, joined on (app, parent runId). One pass can
+  // contain multiple provider turns, each with its own settlement.
+  const ledgerByRun = new Map<string, TurnRecord[]>();
   for (const row of await readTurnRecords(stateHome)) {
-    if (typeof row.runId === "string" && !ledgerByRun.has(row.runId)) {
-      ledgerByRun.set(row.runId, row);
+    if (typeof row.runId === "string") {
+      const key = `${row.app ?? ""}\0${row.runId}`;
+      ledgerByRun.set(key, [...(ledgerByRun.get(key) ?? []), row]);
     }
   }
 
@@ -405,7 +406,7 @@ async function readResolvedLineages(stateHome: string): Promise<Map<string, Set<
 
 interface FoldContext {
   appStages: Record<string, string> | undefined;
-  ledgerByRun: Map<string, TurnRecord>;
+  ledgerByRun: Map<string, TurnRecord[]>;
   approvals: ApprovalItem[];
   learningEvents: LearningEvent[];
   resolvedLineages: Map<string, Set<string>>;
@@ -561,18 +562,26 @@ function foldOutcome(
     turns: EpisodeTurnEntry[];
     gates: EpisodeGateEntry[];
     joinedApprovals: ApprovalItem[];
-    ledgerByRun: Map<string, TurnRecord>;
+    ledgerByRun: Map<string, TurnRecord[]>;
   },
 ): EpisodeOutcome {
   let costUsd = 0;
   let costEstimated = false;
   const unsettled: string[] = [];
   for (const view of views) {
-    const row = input.ledgerByRun.get(view.envelope.run_id);
-    if (row !== undefined) {
+    const rows = input.ledgerByRun.get(`${view.envelope.app}\0${view.envelope.run_id}`) ?? [];
+    for (const row of rows) {
       costUsd += row.costUsd;
       if (row.costEstimated === true) costEstimated = true;
-    } else if (view.envelope.usage !== undefined && view.status !== "running") {
+    }
+    const expectedProviderTurns = view.envelope.provider_turn_ids;
+    const settledProviderTurns = new Set(rows.map((row) => row.providerTurnId).filter((id): id is string => id !== undefined));
+    const incompleteNewRun =
+      expectedProviderTurns !== undefined &&
+      expectedProviderTurns.some((providerTurnId) => !settledProviderTurns.has(providerTurnId));
+    const incompleteLegacyRun =
+      expectedProviderTurns === undefined && rows.length === 0 && view.envelope.usage !== undefined;
+    if ((incompleteNewRun || incompleteLegacyRun) && view.status !== "running") {
       unsettled.push(view.envelope.run_id);
     }
   }

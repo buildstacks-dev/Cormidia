@@ -40,8 +40,9 @@ contract.
 `operon report` and Observe `/reports` are the deterministic ledger-first
 reporting surface. The pure `src/report/` leaf owns UTC ranges, diagnostic
 ledger/detail reads, presentation-session grouping, projections, portable
-rendering, and the lazy bounded report service; it persists no index or
-session store. `docs/reporting/design.md` is its authoritative contract.
+rendering, efficiency/invariant projections, and the lazy bounded report
+service; it persists no index or session store. `docs/reporting/design.md` is
+its authoritative contract.
 
 **Where agent activity is recorded** (state home, `~/.operon/<org>/`;
 README.md → Observability is the authoritative inventory):
@@ -49,7 +50,10 @@ README.md → Observability is the authoritative inventory):
 `events.jsonl`, verbatim `brief.md`/`prompt.md`/`output.md`, and activity-only
 `session.log`); `telemetry/<date>.jsonl`
 is the org ledger every provider turn settles into exactly once, keyed on
-`runId` (`operon budget --reconcile` back-fills); `invocations/<date>.jsonl`
+`(app, providerTurnId)` with `(app, runId)` fallback for legacy rows (`operon
+budget --reconcile` back-fills); `efficiency/episodes/<hash>/` holds the
+episode route, terminal provider/mechanical execution steps, and context
+manifest projection; `invocations/<date>.jsonl`
 records each loop/dispatch invocation; `tasks/<taskId>/` holds the broader
 delegated-task record plus exact outer prompt (child envelopes and ledger
 rows carry `parent_task_id`); `learning/` holds the capture

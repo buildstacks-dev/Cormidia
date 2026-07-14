@@ -87,9 +87,12 @@ measurement, and qualification authority. Every organizational **episode**
 owns one immutable `planned_route`, a reassessed `current_route`, and a
 terminal `final_route`. Admission must record factors, selected pass set,
 model/effort, context and human-attention allowances, and cost bounds before
-constructing a runtime. The existing production path does not yet implement
-that entire record; the gap is tracked by the transformation contracts and is
-not papered over by the older planning-depth or timeout settings.
+constructing a runtime. Phase 1 implements that boundary in the production
+pass executor: the durable route precedes runtime construction, each provider
+invocation reserves remaining allowance and owns one terminal execution step
+plus one settlement, and each pass writes a versioned context manifest. Later
+transformation contracts still govern route-quality optimization and lifecycle
+work; older planning-depth or timeout settings are not competing authorities.
 
 Ownership follows the import direction:
 
@@ -864,7 +867,7 @@ line.
 Manual planning has two shapes beside schedule and event: **interactive
 co-planning** (this section) and the **non-interactive `--auto` mode**
 (Stage 4 of the proportionality campaign) — one Planner turn through the
-real pass executor (real gate, approval store, per-pass settlement) whose
+real pass executor (real gate, approval store, per-provider settlement) whose
 schema-validated 1–3-ticket bootstrap plan the ORCHESTRATOR validates
 against the loop's label contract and publishes transactionally
 (`src/org/plan-auto.ts`, `src/loop/plan-tickets.ts`). Prefer `--auto`

@@ -7,6 +7,7 @@ import type { GateFn, RoleConfig } from "../runtime/types.js";
 import { getRuntime } from "../runtime/registry.js";
 import { defaultLoopInputs, runLoopOnce } from "../loop/driver.js";
 import { loadPipelines } from "../loop/pipelines.js";
+import { finalizeEpisode } from "../loop/efficiency.js";
 import type { ScorecardEvent as LoopScorecardEvent } from "../loop/types.js";
 import { loadApps } from "../org/apps.js";
 import { assembleContext, createEpisodeContextResolver } from "../org/context.js";
@@ -221,10 +222,20 @@ export async function cmdLoop(args: string[]): Promise<number> {
               turnId,
             }),
             ...(allowNetwork ? { networkAccess: true } : {}),
-            // Every provider turn this tick runs settles into the org ledger
-            // per pass, keyed on runId (telemetry doc Defect B). Manual loop
-            // spend was previously invisible to `operon budget`.
+            // Every provider invocation this tick settles into the org ledger
+            // under its providerTurnId. Manual loop spend was previously
+            // invisible to `operon budget`.
             telemetry: { orgDir: homes.stateHome, trigger: "manual" },
+            onEpisodeTerminal: async (terminal) => {
+              await finalizeEpisode({
+                root: homes.stateHome,
+                episodeId: terminal.episodeId,
+                status: terminal.status,
+                reason: terminal.reason,
+                ...(terminal.nextStep !== undefined ? { nextStep: terminal.nextStep } : {}),
+                now: terminal.now,
+              });
+            },
             ...(cancellation !== undefined ? { signal: cancellation.signal } : {}),
             ...(parentTaskId !== undefined ? { parentTaskId } : {}),
             budgetGuard: async () => {

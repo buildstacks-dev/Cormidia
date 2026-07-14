@@ -52,6 +52,11 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
   if (row.runId === undefined || row.app === undefined) warnings.push("legacy correlation missing");
   if (row.app !== undefined && row.runId !== undefined && envelope === undefined) warnings.push("execution detail expired by retention or is unreadable");
   if (unavailable) warnings.push("usage unavailable; stored zero placeholders are not known zero");
+  const ownsPassEvidence =
+    envelope?.provider_turn_ids === undefined ||
+    row.providerTurnId === undefined ||
+    envelope.provider_turn_ids[0] === row.providerTurnId;
+  if (!ownsPassEvidence) warnings.push("pass-level tool and gate evidence is attached to the first provider turn only");
   const refs = envelopeRefs(envelope);
   const gates = envelope?.gate_results ?? [];
   return {
@@ -60,6 +65,9 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
     activity_type: "provider_turn",
     app: row.app ?? null,
     run_id: row.runId ?? null,
+    provider_turn_id: row.providerTurnId ?? null,
+    execution_step_id: row.executionStepId ?? null,
+    episode_id: row.episodeId ?? envelope?.episode_id ?? null,
     trace_id: row.traceId ?? envelope?.trace_id ?? null,
     parent_task_id: row.parentTaskId ?? envelope?.parent_task_id ?? null,
     ticket: envelope?.ticket ?? null,
@@ -84,10 +92,10 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
     cost_usd: unavailable ? null : row.costUsd,
     cost_estimated: row.costEstimated === true || row.usageQuality === "estimated",
     subagent_turns: row.subagentTurns,
-    tool_calls: joined?.events?.toolCalls ?? (envelope === undefined ? null : Object.values(envelope.tool_counts ?? {}).reduce((a, b) => a + b, 0)),
-    escalations: Math.max(row.escalations, joined?.events?.escalations ?? 0),
-    gate_passes: envelope === undefined ? null : gates.filter((gate) => gate.status === "passed").length,
-    gate_failures: envelope === undefined ? null : gates.filter((gate) => gate.status === "failed").length,
+    tool_calls: ownsPassEvidence ? joined?.events?.toolCalls ?? (envelope === undefined ? null : Object.values(envelope.tool_counts ?? {}).reduce((a, b) => a + b, 0)) : null,
+    escalations: ownsPassEvidence ? Math.max(row.escalations, joined?.events?.escalations ?? 0) : row.escalations,
+    gate_passes: envelope === undefined || !ownsPassEvidence ? null : gates.filter((gate) => gate.status === "passed").length,
+    gate_failures: envelope === undefined || !ownsPassEvidence ? null : gates.filter((gate) => gate.status === "failed").length,
     refs,
     native_session_ref: envelope?.session?.native_ref ?? null,
     envelope_available: envelope !== undefined,
@@ -109,6 +117,9 @@ function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope
     activity_type: isMechanical ? "mechanical_pass" : "provider_turn",
     app: envelope.app,
     run_id: envelope.run_id,
+    provider_turn_id: null,
+    execution_step_id: envelope.execution_step_ids?.[0] ?? null,
+    episode_id: envelope.episode_id ?? null,
     trace_id: envelope.trace_id,
     parent_task_id: envelope.parent_task_id ?? null,
     ticket: envelope.ticket ?? null,

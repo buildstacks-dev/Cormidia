@@ -287,9 +287,11 @@ recorded reassessment before extra spend; `current_route` changes only there,
 and `final_route` records the terminal route. Required independent review and
 safety evidence are never removed merely to retain a route label.
 
-The current implementation has not yet completed this episode-wide admission
-record. `operon plan --auto` uses `planning-depth/v1` to resolve a code-owned
-`includePasses` set before model execution: quick = one combined decomposer (or
+The production pass executor now durably commits this episode-wide admission
+record before constructing a runtime, and the ticket driver shares it across
+build/review/fix/ship transitions. `operon plan --auto` also uses
+`planning-depth/v1` to resolve a code-owned `includePasses` set before model
+execution: quick = one combined decomposer (or
 `plan-bootstrap`), standard = visionary + PM-A + decomposer, deep = the full
 configured list. It is an interim planning pass-selection value—effectively
 `planning_depth`—not a competing quick/standard/deep route authority. Hard
@@ -702,7 +704,7 @@ so rather than relabeling the activity log. Plus `app`, `ticket`,
 `tool.called` (name, duration, success — never full args),
 `subagent.started/completed`, `ticket.transition`, `verdict.recorded`,
 `escalation.raised`, `telemetry.settle_skipped` (a ledger settle found its
-app+runId already present — Stage 1). Every line timestamped, severity
+app+providerTurnId, or legacy app+runId, already present). Every line timestamped, severity
 field, machine `error_code`. **Stage 3 additions:** the executor stamps a
 30-second heartbeat onto the envelope (`last_seen_at`) and emits
 `pass.heartbeat` into `events.jsonl`, so status readers and live tails can
@@ -754,8 +756,9 @@ weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
   - **Which spend reaches the monthly budget rollup:** all of it. The pass
   executor settles **every** provider turn into the org telemetry ledger
   (`~/.operon/<org>/telemetry/<day>.jsonl`, the source `operon budget` sums)
-  exactly once, keyed on `runId` — completed, blocked, and failed passes
-  alike, from the dispatcher and the manual `operon loop` driver both
+  exactly once, keyed on `(app, providerTurnId)` for new rows with legacy
+  `(app, runId)` fallback — completed, blocked, and failed invocations alike,
+  from the dispatcher and the manual `operon loop` driver both
   (Stage 1 of the proportionality campaign). A loop tick whose app has
   exhausted its monthly cap refuses to claim before any pass starts, so the
   budget hard-stop (architecture.md §7) governs manual and dispatched turns

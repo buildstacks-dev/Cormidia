@@ -1,7 +1,7 @@
 import { defineProviderEvidenceDebt, definePublicSurfaceDebt } from "./harness.js";
 
 definePublicSurfaceDebt(
-  ["E-CTX-01", "E-CTX-02", "E-CTX-03", "E-CTX-04", "E-CTX-05", "E-CTX-06", "E-CTX-07", "E-CTX-08"].map((id) => ({
+  ["E-CTX-03", "E-CTX-04", "E-CTX-05", "E-CTX-06", "E-CTX-07", "E-CTX-08"].map((id) => ({
     id,
     expectedFailure: "context_manifest_absent",
     help: ["loop"],

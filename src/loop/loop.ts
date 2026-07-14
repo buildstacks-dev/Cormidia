@@ -22,6 +22,7 @@ import type { Policy, RiskTier } from "./policy.js";
 import { matchedDimensions, resolveTier } from "./policy.js";
 import {
   executePipeline,
+  type ExecutePipelineOptions,
   type PassRunRecord,
   type VerdictRecordContext,
   type VerdictRecordOutcome,
@@ -155,6 +156,8 @@ export interface LoopPipelineOptions {
   /** Cooperative cancellation for every provider pass in this tick. */
   signal?: AbortSignal;
   parentTaskId?: string;
+  /** Ticket-wide route admission prepared by the loop driver. */
+  episode?: ExecutePipelineOptions["episode"];
 }
 
 export interface BuilderPipelineOptions extends LoopPipelineOptions {
@@ -452,6 +455,7 @@ export async function runBuilderPipeline(
     ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+    ...(options.episode !== undefined ? { episode: options.episode } : {}),
     verdictSchemaFor: (pass) => VERDICT_SCHEMAS[verdictKindForPass(pass)],
     recordVerdict: async (ctx) => {
       const kind = verdictKindForPass(ctx.pass);
@@ -468,7 +472,7 @@ export async function runBuilderPipeline(
       } else if (kind === "build") {
         buildVerdict = outcome.verdict as BuildVerdict;
       }
-      return { ok: true, ...(outcome.retryUsage !== undefined ? { extraUsage: outcome.retryUsage } : {}) };
+      return { ok: true };
     },
   });
 
@@ -584,6 +588,7 @@ export async function runReviewPipeline(
     ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+    ...(options.episode !== undefined ? { episode: options.episode } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);
@@ -591,7 +596,7 @@ export async function runReviewPipeline(
       verdicts.push({ pass: ctx.pass.id, verdict: outcome.verdict });
       // Forward reformat-retry spend so the envelope and ledger settle it —
       // the builder pipeline already does; undercounting here is Defect B.
-      return { ok: true, ...(outcome.retryUsage !== undefined ? { extraUsage: outcome.retryUsage } : {}) };
+      return { ok: true };
     },
   });
 
@@ -669,6 +674,7 @@ export async function runShipCheckPipeline(
     ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+    ...(options.episode !== undefined ? { episode: options.episode } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);
@@ -676,7 +682,7 @@ export async function runShipCheckPipeline(
       verdicts.push({ pass: ctx.pass.id, verdict: outcome.verdict });
       // Forward reformat-retry spend so the envelope and ledger settle it —
       // the builder pipeline already does; undercounting here is Defect B.
-      return { ok: true, ...(outcome.retryUsage !== undefined ? { extraUsage: outcome.retryUsage } : {}) };
+      return { ok: true };
     },
   });
 
@@ -1065,7 +1071,7 @@ function verdictKindForPass(pass: PassConfig): PassVerdictKind {
 
 
 type PassVerdictOutcome<K extends PassVerdictKind> =
-  | { ok: true; verdict: VerdictTypes[K]; retryUsage?: TurnUsage }
+  | { ok: true; verdict: VerdictTypes[K] }
   | { ok: false; failure: VerdictRecordOutcome };
 
 /** Parse the pass's verdict with exactly one session-resuming reformat retry
@@ -1076,28 +1082,18 @@ async function recordPassVerdict<K extends PassVerdictKind>(
   kind: K,
   ctx: VerdictRecordContext,
 ): Promise<PassVerdictOutcome<K>> {
-  // The reformat retry is an extra runTurn; its spend must not vanish from the
-  // pass's usage rollup. Capture the retry turn's usage so the executor can add
-  // it to the envelope (loop.ts:766 finding — was silently discarded).
-  let retryUsage: TurnUsage | undefined;
   const reformat = async (reason: string): Promise<string> => {
-    const res = await ctx.runtime.runTurn(
-      {
-        role: ctx.role,
-        workdir: ctx.workdir,
-        task: reformatTask(kind, reason),
-        context: ctx.context,
-        session: ctx.result.session,
-      },
-      ctx.hooks,
-    );
-    retryUsage = res.usage;
+    const res = await ctx.runProviderTurn({
+      operation: `${kind}-verdict-reformat`,
+      task: reformatTask(kind, reason),
+      session: ctx.result.session,
+    });
     return res.summary;
   };
   try {
     const verdict = await parseWithRetry(kind, ctx.result.summary, reformat, (t) => parseVerdictEither(kind, t));
     await ctx.events.append({ type: "verdict.recorded", detail: verdictDetail(kind, verdict) });
-    return { ok: true, verdict, ...(retryUsage !== undefined ? { retryUsage } : {}) };
+    return { ok: true, verdict };
   } catch (error) {
     if (error instanceof VerdictParseError) {
       return { ok: false, failure: { ok: false, errorCode: "error_verdict_unparseable", error } };

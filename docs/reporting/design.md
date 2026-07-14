@@ -107,6 +107,10 @@ At org scope:
    without pretending that a 90-day total is a 90-day budget?
 10. Which facts are missing because runs were pruned, records are legacy, or
     correlation was never captured?
+11. Do admitted episodes and started execution steps have truthful terminal
+    records, and does every provider step have exactly one settlement?
+12. Which route variances, repeated provider turns, context categories, and
+    human-wait intervals explain the episode's efficiency?
 
 At app scope, the report must additionally answer:
 
@@ -234,12 +238,13 @@ This keeps saved reports reproducible and makes the browser server optional.
 
 ## 5. Vocabulary and identity
 
-### 5.1 Accounting turn, pass, trace, and session
+### 5.1 Provider turn, execution step, pass, trace, and session
 
 | Term | Meaning in reporting | Identity/source |
 | --- | --- | --- |
-| Accounting turn | One settled provider `Runtime.runTurn` record | ledger row, normally `(app, runId)` |
-| Pass | One run envelope; may be a provider turn or a token-free mechanical pass | `(app, runId)` |
+| Provider turn | One settled provider `Runtime.runTurn` invocation | ledger row, `(app, providerTurnId)`; legacy fallback `(app, runId)` |
+| Execution step | One terminal provider or deterministic operation | `executionStepId` within an episode |
+| Pass | One run envelope; may contain multiple provider turns or a token-free mechanical pass | `(app, runId)` |
 | Trace | Correlated pipeline execution with one or more passes | `(app, traceId)` |
 | Parent task | Broader operator-delegated outcome spanning traces/tickets | `taskId` |
 | Report session | Presentation group used for management drill-down | deterministic hierarchy below |
@@ -625,9 +630,10 @@ is not zero.
 
 ### 8.5 Duplicate and legacy rows
 
-The report detects repeated `(app, runId)` settlement keys. It must not
-silently deduplicate because `operon budget` currently consumes ledger rows as
-recorded and hidden adjustment would make the two surfaces disagree.
+The report detects repeated `(app, providerTurnId)` settlement keys, falling
+back to `(app, runId)` for legacy rows. It must not silently deduplicate
+because `operon budget` consumes ledger rows as recorded and hidden adjustment
+would make the two surfaces disagree.
 
 Totals remain **ledger-recorded totals** and the quality panel reports:
 
@@ -651,6 +657,18 @@ Every percentage includes its denominator:
   / correlatable settled rows;
 - completion-integrity coverage = sessions with a known integrity boundary /
   sessions.
+- episode terminal integrity = admitted episodes with one truthful terminal /
+  admitted episodes;
+- execution-step terminal integrity = terminal execution steps / started
+  execution steps;
+- ledger coverage = provider execution steps with exactly one settlement /
+  provider execution steps, while mechanical steps require zero settlements;
+- productive-pass ratio = fingerprint-proven productive provider steps / all
+  qualifying episode provider steps.
+
+Each efficiency metric carries numerator, denominator, excluded identities,
+and missing inputs. A required missing route, step, manifest, settlement, or
+usage-quality input yields `invalid_measurement`; it never becomes zero.
 
 Do not average categorical quality values into a numeric score.
 
@@ -994,6 +1012,10 @@ stable identifiers, structured statuses, and durable refs. It does not include:
 
 Use the canonical secret scrubber for every bounded preview. Preserve hashes
 or safe refs where useful.
+
+Efficiency readers accept only the allowlisted `context-manifest.json` sibling
+of a run envelope. Missing files are named as missing; malformed, traversal,
+or symlink references are named as invalid and are never followed.
 
 ### 13.3 Export safety
 

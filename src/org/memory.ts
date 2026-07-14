@@ -123,12 +123,18 @@ export async function loadBundle(dir: string): Promise<MemoryBundle> {
   return { dir, index, docs, errors };
 }
 
-export async function selectExcerpts(
+export interface SelectedMemoryExcerpt {
+  source: string;
+  rendered: string;
+}
+
+/** Source-preserving selector used by context manifests. */
+export async function selectAttributedExcerpts(
   bundleDirs: readonly string[],
   taskText: string,
   capBytes = 16 * 1024,
-): Promise<string[]> {
-  const out: string[] = [];
+): Promise<SelectedMemoryExcerpt[]> {
+  const out: SelectedMemoryExcerpt[] = [];
   let remaining = Math.max(0, capBytes);
   const taskWords = signalWords(taskText);
 
@@ -139,17 +145,35 @@ export async function selectExcerpts(
       process.stderr.write(`operon: skipping malformed memory doc — ${error.message}\n`);
     }
     if (bundle.index.trim() !== "") {
-      remaining = appendCapped(out, `## Memory INDEX (${basename(dir)})\n\n${bundle.index.trimEnd()}`, remaining);
+      remaining = appendAttributedCapped(
+        out,
+        join(dir, "INDEX.md"),
+        `## Memory INDEX (${basename(dir)})\n\n${bundle.index.trimEnd()}`,
+        remaining,
+      );
     }
     for (const doc of bundle.docs) {
       if (remaining <= 0) break;
       if (doc.frontmatter.status !== "active") continue;
       if (!keywordOverlap(doc.frontmatter.keywords, taskWords, taskText)) continue;
-      remaining = appendCapped(out, renderExcerpt(doc), remaining);
+      remaining = appendAttributedCapped(
+        out,
+        doc.path ?? join(dir, `${doc.frontmatter.name}.md`),
+        renderExcerpt(doc),
+        remaining,
+      );
     }
   }
 
   return out;
+}
+
+export async function selectExcerpts(
+  bundleDirs: readonly string[],
+  taskText: string,
+  capBytes = 16 * 1024,
+): Promise<string[]> {
+  return (await selectAttributedExcerpts(bundleDirs, taskText, capBytes)).map((item) => item.rendered);
 }
 
 export async function writeMemoryDoc(
@@ -421,6 +445,18 @@ function appendCapped(out: string[], text: string, remaining: number): number {
   }
   out.push(truncateUtf8(text, remaining));
   return 0;
+}
+
+function appendAttributedCapped(
+  out: SelectedMemoryExcerpt[],
+  source: string,
+  text: string,
+  remaining: number,
+): number {
+  const rendered: string[] = [];
+  const next = appendCapped(rendered, text, remaining);
+  if (rendered[0] !== undefined) out.push({ source, rendered: rendered[0] });
+  return next;
 }
 
 function truncateUtf8(text: string, maxBytes: number): string {

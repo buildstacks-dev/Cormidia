@@ -595,6 +595,15 @@ architecture ownership, and terminology. Resolve contradictions before code.
 Implement route records, context manifests, complete ledger settlement,
 terminal reconciliation, and benchmark reporting.
 
+**Delivered 2026-07-13:** production execution now admits a durable episode
+route before runtime construction, reserves route allowance atomically per
+provider invocation, writes versioned context manifests and terminal
+provider/mechanical step records, settles provider identities exactly once
+under a cross-process lock, reconciles stale receipts, and projects the
+evidence read-only through CLI/JSON/HTML/Observe reports. The historical
+archive remains legacy evidence: every missing route, context manifest,
+execution step, and incomplete run is named rather than inferred away.
+
 **Gate:** the existing archive can be explained end to end with no unattributed
 pass and every pending/incomplete item named.
 

@@ -54,12 +54,24 @@ describe("M8 planning and standing-role pipelines", () => {
     );
     const prior = new Map<string, string>();
     const tracker = { active: 0, maxActive: 0 };
+    let competingArrivals = 0;
+    let releaseCompeting!: () => void;
+    const competingReady = new Promise<void>((resolve) => {
+      releaseCompeting = resolve;
+    });
     const tracking: Runtime = {
       kind: "claude",
       async runTurn(req, hooks) {
         tracker.active += 1;
         tracker.maxActive = Math.max(tracker.maxActive, tracker.active);
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        if (req.task.includes("brief for pm-")) {
+          competingArrivals += 1;
+          if (competingArrivals === 2) releaseCompeting();
+          // Hold the first PM until the second reaches the adapter boundary.
+          // Filesystem evidence writes may legitimately stagger entry under
+          // load; this barrier tests pipeline concurrency, not disk speed.
+          await competingReady;
+        }
         const turn = await fake.runTurn(req, hooks);
         tracker.active -= 1;
         return turn;

@@ -70,6 +70,16 @@ describe("assembleContext", () => {
       expect(context.bundle.taste[3]).toContain("learning/candidates/<role>/");
       expect(context.bundle.taste[3]).not.toContain("memory write");
       expect(context.bundle.taste[3]).not.toContain("memory/roles/<role>/");
+      expect(context.bundle.components).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          category: "role_protocol",
+          source: `${join(org.root, "roles.yaml")}#reviewer`,
+        }),
+        expect.objectContaining({
+          category: "memory",
+          source: join(org.paths.memoryRoleDir("reviewer"), "INDEX.md"),
+        }),
+      ]));
     } finally {
       org.cleanup();
       app.cleanup();
@@ -177,6 +187,10 @@ describe("assembleContext", () => {
       expect(governed).toBeGreaterThanOrEqual(0);
       expect(legacy).toBeGreaterThan(governed); // legacy resolves last (lowest precedence)
       expect(context.resolvedLearning?.concept_ids).toEqual(["lrn_ctx01"]);
+      expect(context.bundle.components).toContainEqual(expect.objectContaining({
+        category: "memory",
+        source: "governed-learning:lrn_ctx01",
+      }));
       expect(
         existsSync(join(state.root, "learning", "resolved", "turn-ctx.json")),
       ).toBe(true);

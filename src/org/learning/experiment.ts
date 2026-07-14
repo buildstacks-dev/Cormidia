@@ -64,6 +64,26 @@ export interface ExperimentGuardrail {
   pct?: number;
 }
 
+/** Phase 4's immutable, declared-before-results efficacy protocol. Legacy M3
+ * declarations load with null but cannot execute or promote until re-declared
+ * under this protocol. */
+export interface ExperimentEfficacyProtocol {
+  declared_at: string;
+  baseline: { metric: string; value: number; source_ref: string };
+  hidden_guardrail_commitment: { sha256: string; fixture_refs: string[] };
+  eligibility_sha256: string;
+  actor_blinding: { treatment_identity_hidden: true };
+  pairing: { seed: string; order: "alternating_control_treatment" };
+  budget: { max_usd: number };
+  stop_rules: { retain_attempted_pairs: true; early_stop_reasons: string[] };
+  side_effect_replacement: {
+    network: "fixture_only";
+    publishing: "forbidden";
+    deployment: "sandbox_only";
+  };
+  missingness: { missing: "invalid_measurement"; invalid: "fail_closed" };
+}
+
 export interface ExperimentRecord {
   schema_version: 1;
   experiment_id: string;
@@ -100,6 +120,7 @@ export interface ExperimentRecord {
     rollback_immediately_if: { metric: string; below_control_pct: number };
   } | null;
   decision: { promote_if: string; otherwise: string };
+  efficacy_protocol: ExperimentEfficacyProtocol | null;
   status: ExperimentStatus;
   /** EvalResult ref — present exactly when status is `decided`. */
   result: string | null;
@@ -215,6 +236,8 @@ export function validateExperimentRecord(value: unknown): ExperimentRecord {
     otherwise: requireString(decisionSpec, "otherwise", `${source}.decision`),
   };
 
+  const efficacyProtocol = validateEfficacyProtocol(spec["efficacy_protocol"], source);
+
   const status = requireEnum(spec, "status", ["declared", "running", "decided"] as const, source);
   const result = optionalString(spec, "result", source);
   // Declared-before-results (spec §10): only a decided experiment carries a
@@ -244,9 +267,111 @@ export function validateExperimentRecord(value: unknown): ExperimentRecord {
     observation,
     stop_thresholds: stopThresholds,
     decision,
+    efficacy_protocol: efficacyProtocol,
     status,
     result,
   };
+}
+
+function validateEfficacyProtocol(
+  value: unknown,
+  source: string,
+): ExperimentEfficacyProtocol | null {
+  if (value === undefined || value === null) return null;
+  const protocol = requireRecord(value, `${source}.efficacy_protocol`);
+  const declaredAt = requireString(protocol, "declared_at", `${source}.efficacy_protocol`);
+  if (!Number.isFinite(Date.parse(declaredAt))) {
+    throw new Error(`learning: ${source}.efficacy_protocol.declared_at must be ISO time`);
+  }
+  const baseline = requireRecord(protocol["baseline"], `${source}.efficacy_protocol.baseline`);
+  const commitment = requireRecord(
+    protocol["hidden_guardrail_commitment"],
+    `${source}.efficacy_protocol.hidden_guardrail_commitment`,
+  );
+  const sha256 = requireString(commitment, "sha256", `${source}.efficacy_protocol.hidden_guardrail_commitment`);
+  const eligibilitySha = requireString(protocol, "eligibility_sha256", `${source}.efficacy_protocol`);
+  for (const [label, hash] of [["hidden_guardrail_commitment.sha256", sha256], ["eligibility_sha256", eligibilitySha]] as const) {
+    if (!/^sha256:[a-f0-9]{64}$/.test(hash)) {
+      throw new Error(`learning: ${source}.efficacy_protocol.${label} must be sha256:<64 lowercase hex>`);
+    }
+  }
+  const blinding = requireRecord(protocol["actor_blinding"], `${source}.efficacy_protocol.actor_blinding`);
+  if (blinding["treatment_identity_hidden"] !== true) {
+    throw new Error(`learning: ${source}.efficacy_protocol must hide treatment identity`);
+  }
+  const pairing = requireRecord(protocol["pairing"], `${source}.efficacy_protocol.pairing`);
+  if (pairing["order"] !== "alternating_control_treatment") {
+    throw new Error(`learning: ${source}.efficacy_protocol.pairing.order is unsupported`);
+  }
+  const budget = requireRecord(protocol["budget"], `${source}.efficacy_protocol.budget`);
+  const stop = requireRecord(protocol["stop_rules"], `${source}.efficacy_protocol.stop_rules`);
+  if (stop["retain_attempted_pairs"] !== true) {
+    throw new Error(`learning: ${source}.efficacy_protocol must retain attempted pairs`);
+  }
+  const sideEffects = requireRecord(
+    protocol["side_effect_replacement"],
+    `${source}.efficacy_protocol.side_effect_replacement`,
+  );
+  if (
+    sideEffects["network"] !== "fixture_only" ||
+    sideEffects["publishing"] !== "forbidden" ||
+    sideEffects["deployment"] !== "sandbox_only"
+  ) {
+    throw new Error(`learning: ${source}.efficacy_protocol side effects do not fail closed`);
+  }
+  const missingness = requireRecord(protocol["missingness"], `${source}.efficacy_protocol.missingness`);
+  if (missingness["missing"] !== "invalid_measurement" || missingness["invalid"] !== "fail_closed") {
+    throw new Error(`learning: ${source}.efficacy_protocol missingness must fail closed`);
+  }
+  return {
+    declared_at: declaredAt,
+    baseline: {
+      metric: requireString(baseline, "metric", `${source}.efficacy_protocol.baseline`),
+      value: requireNonNegativeNumber(baseline, "value", `${source}.efficacy_protocol.baseline`),
+      source_ref: requireString(baseline, "source_ref", `${source}.efficacy_protocol.baseline`),
+    },
+    hidden_guardrail_commitment: {
+      sha256,
+      fixture_refs: requireStringArray(
+        commitment,
+        "fixture_refs",
+        `${source}.efficacy_protocol.hidden_guardrail_commitment`,
+      ),
+    },
+    eligibility_sha256: eligibilitySha,
+    actor_blinding: { treatment_identity_hidden: true },
+    pairing: {
+      seed: requireString(pairing, "seed", `${source}.efficacy_protocol.pairing`),
+      order: "alternating_control_treatment",
+    },
+    budget: {
+      max_usd: requireNonNegativeNumber(budget, "max_usd", `${source}.efficacy_protocol.budget`),
+    },
+    stop_rules: {
+      retain_attempted_pairs: true,
+      early_stop_reasons: requireStringArray(
+        stop,
+        "early_stop_reasons",
+        `${source}.efficacy_protocol.stop_rules`,
+      ),
+    },
+    side_effect_replacement: {
+      network: "fixture_only",
+      publishing: "forbidden",
+      deployment: "sandbox_only",
+    },
+    missingness: { missing: "invalid_measurement", invalid: "fail_closed" },
+  };
+}
+
+export function requireEfficacyProtocol(experiment: ExperimentRecord): ExperimentEfficacyProtocol {
+  if (experiment.efficacy_protocol === null) {
+    throw new Error(
+      `learning: ${experiment.experiment_id} predates the closed-loop efficacy protocol — ` +
+        `declare a fresh experiment before observing results`,
+    );
+  }
+  return experiment.efficacy_protocol;
 }
 
 function validateGuardrail(value: unknown, source: string): ExperimentGuardrail {

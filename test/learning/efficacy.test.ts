@@ -1,27 +1,92 @@
 import { describe, expect, it } from "vitest";
-import { declareEfficacy, evaluateEfficacy, rollbackLineage, stickyArm, type EfficacyObservation } from "../../scripts/eval/learning-efficacy.js";
+import {
+  evaluateEfficacy,
+  stickyEfficacyArm,
+  type EfficacyObservation,
+} from "../../src/org/learning/efficacy.js";
+import { validateExperimentRecord } from "../../src/org/learning/experiment.js";
+import { makeExperiment } from "./helpers.js";
 
-const declaration = declareEfficacy({ declared_at: "2026-07-12T00:00:00.000Z", hypothesis: "A scoped retry lesson reduces environment recovery recurrence", metric: "successful_clean_setup", baseline_fingerprint: `sha256:${"a".repeat(64)}`, treatment_fingerprint: `sha256:${"b".repeat(64)}`, hidden_guardrails_sha256: `sha256:${"c".repeat(64)}` });
-const controls: EfficacyObservation[] = [1, 2, 3].map((n) => ({ arm: "control", weakness_score: 0, guardrail_score: 1, actor_visible_bytes: `task-${n}` }));
+const experiment = validateExperimentRecord(makeExperiment({
+  experiment_id: "exp_closed_loop_01",
+  primary_metric: {
+    name: "held_in_pass",
+    expected_direction: "increase",
+    min_useful_improvement_pct: 0,
+  },
+  efficacy_protocol: {
+    ...(makeExperiment()["efficacy_protocol"] as object),
+    declared_at: "2026-07-12T00:00:00.000Z",
+    baseline: { metric: "held_in_pass", value: 0, source_ref: "fixture:weakness-v1" },
+  },
+}));
 
-describe("LEARNING-CLOSURE-001 paired efficacy and rollback harness", () => {
-  it("positive genuine intervention improves the held-in weakness and preserves hidden guardrails", () => {
-    const treatment: EfficacyObservation[] = [1, 2, 3].map((n) => ({ arm: "treatment", weakness_score: 1, guardrail_score: 1, actor_visible_bytes: `task-${n}` }));
-    expect(evaluateEfficacy(declaration, [...controls, ...treatment], "2026-07-12T01:00:00.000Z")).toEqual({ verdict: "improved", weakness_delta: 1, guardrail_delta: 0, promotable: true, reasons: ["held_in_weakness_improved", "guardrails_preserved"] });
+function observations(
+  treatment: { weakness: number | null; guardrail: number | null },
+): EfficacyObservation[] {
+  return [1, 2, 3].flatMap((pair): EfficacyObservation[] => [
+    {
+      pair,
+      arm: "control",
+      observed_at: `2026-07-12T01:0${pair}:00.000Z`,
+      weakness_score: 0,
+      guardrail_score: 1,
+      fingerprint_ref: experiment.control.fingerprint_ref,
+      actor_visible_bytes: `task-${pair}`,
+    },
+    {
+      pair,
+      arm: "treatment",
+      observed_at: `2026-07-12T01:0${pair}:30.000Z`,
+      weakness_score: treatment.weakness,
+      guardrail_score: treatment.guardrail,
+      fingerprint_ref: experiment.treatment.fingerprint_ref,
+      actor_visible_bytes: `task-${pair}`,
+    },
+  ]);
+}
+
+describe("LEARNING-CLOSURE-001 production efficacy and rollback recommendation", () => {
+  it("a genuine intervention improves the held-in weakness without regressing hidden guardrails", () => {
+    expect(evaluateEfficacy(experiment, observations({ weakness: 1, guardrail: 1 }), "2026-07-12T02:00:00.000Z"))
+      .toMatchObject({ verdict: "improved", weakness_delta: 1, guardrail_delta: 0, promotable: true, recommendation: "retain" });
   });
-  it("near-miss sham is inconclusive and episode assignment remains sticky", () => {
-    const sham = controls.map((row) => ({ ...row, arm: "treatment" as const }));
-    expect(evaluateEfficacy(declaration, [...controls, ...sham], "2026-07-12T01:00:00.000Z").verdict).toBe("inconclusive");
-    expect(stickyArm("episode-7", declaration.experiment_id)).toBe(stickyArm("episode-7", declaration.experiment_id));
+
+  it("a sham is inconclusive and episode assignment is sticky across every turn", () => {
+    expect(evaluateEfficacy(experiment, observations({ weakness: 0, guardrail: 1 }), "2026-07-12T02:00:00.000Z"))
+      .toMatchObject({ verdict: "inconclusive", promotable: false, recommendation: "revise" });
+    const first = stickyEfficacyArm("episode-7", experiment.experiment_id);
+    for (let turn = 0; turn < 10; turn++) {
+      expect(stickyEfficacyArm("episode-7", experiment.experiment_id)).toBe(first);
+    }
   });
-  it("honest harmful intervention is regressed, cannot promote, and rollback restores stable lineage", () => {
-    const harmful: EfficacyObservation[] = controls.map((row) => ({ ...row, arm: "treatment", weakness_score: 1, guardrail_score: 0 }));
-    expect(evaluateEfficacy(declaration, [...controls, ...harmful], "2026-07-12T01:00:00.000Z")).toMatchObject({ verdict: "regressed", promotable: false, guardrail_delta: -1 });
-    expect(rollbackLineage({ active: "treatment-v2", stable: "stable-v1", reason: "hidden guardrail regressed" })).toMatchObject({ active: "stable-v1", previous: "treatment-v2", rolled_back: true });
+
+  it("a harmful intervention regresses, cannot promote, and recommends rollback when active", () => {
+    expect(evaluateEfficacy(
+      experiment,
+      observations({ weakness: 1, guardrail: 0 }),
+      "2026-07-12T02:00:00.000Z",
+      { activated: true },
+    )).toMatchObject({ verdict: "regressed", promotable: false, guardrail_delta: -1, recommendation: "roll_back" });
   });
-  it("honest failure rejects result-before-declaration and treatment identity leakage", () => {
-    expect(() => evaluateEfficacy(declaration, [...controls, ...controls.map((row) => ({ ...row, arm: "treatment" as const }))], "2026-07-11T23:59:00.000Z")).toThrow("not_declared_before_results");
-    const leaked = [...controls, { arm: "treatment" as const, weakness_score: 1, guardrail_score: 1, actor_visible_bytes: declaration.treatment_fingerprint }, { arm: "treatment" as const, weakness_score: 1, guardrail_score: 1, actor_visible_bytes: "x" }, { arm: "treatment" as const, weakness_score: 1, guardrail_score: 1, actor_visible_bytes: "y" }];
-    expect(() => evaluateEfficacy(declaration, leaked, "2026-07-12T01:00:00.000Z")).toThrow("actor_blindness_violated");
+
+  it("fails closed for result-before-declaration, identity leakage, drift, and missing measurements", () => {
+    expect(() => evaluateEfficacy(experiment, observations({ weakness: 0, guardrail: 1 }), "2026-07-11T23:59:00.000Z"))
+      .toThrow("experiment_not_declared_before_results");
+    const earlyObservation = observations({ weakness: 1, guardrail: 1 });
+    earlyObservation[0]!.observed_at = "2026-07-11T23:59:00.000Z";
+    expect(() => evaluateEfficacy(experiment, earlyObservation, "2026-07-12T02:00:00.000Z"))
+      .toThrow("observation_outside_declared_result_window");
+    const leaked = observations({ weakness: 1, guardrail: 1 });
+    leaked[1]!.actor_visible_bytes = experiment.treatment.fingerprint_ref;
+    expect(() => evaluateEfficacy(experiment, leaked, "2026-07-12T02:00:00.000Z"))
+      .toThrow("actor_blindness_violated");
+    const drifted = observations({ weakness: 1, guardrail: 1 });
+    drifted[1]!.fingerprint_ref = "sys_drifted";
+    expect(() => evaluateEfficacy(experiment, drifted, "2026-07-12T02:00:00.000Z"))
+      .toThrow("system_fingerprint_drift");
+    expect(evaluateEfficacy(experiment, observations({ weakness: null, guardrail: 1 }), "2026-07-12T02:00:00.000Z"))
+      .toMatchObject({ verdict: "missing", promotable: false, recommendation: "revise" });
   });
 });
+// Phase 4 production efficacy contracts: H-EVAL-01, H-EVAL-02.

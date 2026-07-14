@@ -145,10 +145,10 @@ const HELP = {
 
 const LEARN_HELP = HELP.learn.replace(
   "operon learn report [--json]          capture totals, episodes, experiments,\n" +
-    "                                        reviews, activation + SLA sections",
-  "operon learn report [--json] [--refresh]\n" +
-    "                                        read totals, episodes, experiments, reviews,\n" +
-    "                                        and activation; --refresh projects first",
+    "                                        scheduled runs, compaction, reviews, activation",
+  "operon learn report [--efficiency-health] [--json] [--refresh]\n" +
+    "                                        separate capture, governance, efficacy health;\n" +
+    "                                        read-only unless --refresh projects",
 );
 
 const COMMANDS: Record<string, CliCommand> = {

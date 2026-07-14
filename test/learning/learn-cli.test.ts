@@ -129,6 +129,23 @@ describe("operon learn", () => {
     expect(text).toContain("gate.lint: 1");
   });
 
+  it("reports separate fail-closed efficiency health facts in JSON without mutating on read", async () => {
+    const before = treeHashes(STATE_HOME);
+    const { logs } = captureLogs();
+    expect(await cmdLearn(["report", "--efficiency-health", "--json", ...HOME_FLAGS])).toBe(0);
+    const data = JSON.parse(logs.join("\n")) as {
+      efficiency_health: {
+        capture: { status: string; blocked_runs: unknown[] };
+        governance: { status: string; candidate_dispositions: Record<string, number> };
+        efficacy: { status: string; declared_experiments: number };
+      };
+    };
+    expect(data.efficiency_health.capture).toHaveProperty("blocked_runs");
+    expect(data.efficiency_health.governance.candidate_dispositions).toHaveProperty("awaiting_evidence");
+    expect(data.efficiency_health.efficacy.status).toBe("invalid_measurement");
+    expect(treeHashes(STATE_HOME)).toEqual(before);
+  });
+
   it("report is read-only by default and refresh is an explicit projection write", async () => {
     const root = mkdtempSync(join(tmpdir(), "operon-learn-report-readonly-"));
     const orgHome = join(root, "org");

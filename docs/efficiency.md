@@ -179,6 +179,20 @@ authoritative; agent prose is not.
 - **Learning capture:** eligible finalized provider runs projected exactly once
   divided by all eligible finalized provider runs. Reserved replay runs are
   explicitly ineligible.
+- **Learning governance:** every comparable evidence event has one durable
+  disposition, and every activated intervention has complete evidence,
+  cluster, candidate, independent-review, experiment, approval, publication,
+  activation, and outcome lineage. Missing lineage is degraded, never green.
+- **Learning efficacy:** valid comparable control/treatment outcomes whose
+  declared primary metric improves without a hidden guardrail regression.
+  Missing denominators, fixtures, fingerprints, guardrails, or post-activation
+  coverage are `invalid_measurement`; event and candidate counts are not an
+  efficacy numerator.
+
+`operon learn report --efficiency-health` is the canonical projection of these
+three independent dimensions. It is read-only unless `--refresh` is supplied;
+the refresh writes only rebuildable evidence/health projections and cannot
+write protected active learning state.
 
 ## Threshold semantics
 

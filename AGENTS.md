@@ -81,6 +81,15 @@ funnel (`experiment declare|run|list`, learning-budget-capped, rendered by
 (`canary start|status|promote|stop`). M6 is live: daily deterministic-prechecked
 distillation, weekly cross-provider review, policy frequency/volume caps, and
 report-only compaction run through the ordinary dispatch/pipeline/ledger path.
+Phase 4 closes that loop in production: `efficiency-evidence/v1` projects
+orchestrator-owned run, route, journal, execution-step, approval-analyzer, and
+scheduler-miss records into stable trusted learning events; deterministic
+app/role-scoped recurrence and durable dispositions feed the existing governed
+candidate/review/experiment/publisher/canary chain; efficacy declarations pin
+fingerprints, hidden-guardrail commitments, pairing, budgets, missingness, and
+side-effect replacement before results; and `operon learn report
+--efficiency-health [--json] [--refresh]` reports capture, governance, and
+efficacy health independently. The mechanics construct no provider runtime.
 
 ## Map
 | Path | What it is |
@@ -182,7 +191,7 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
   `pnpm dev task fallback --id <id> --reason "<why>"` ·
   `pnpm dev task finish --id <id> --status completed` ·
   `pnpm dev retro --date 2026-07-04` ·
-  `pnpm dev learn report [--refresh]` (read-only unless refreshed) ·
+  `pnpm dev learn report [--efficiency-health] [--json] [--refresh]` (read-only unless refreshed) ·
   `pnpm dev learn inspect <episode-id>` ·
   `pnpm dev learn emit --episode <id> --observation "<text>"` ·
   `pnpm dev learn fixture <episode-id> --set roles/<role>/<set>

@@ -36,6 +36,28 @@ export function makeExperiment(overrides: Record<string, unknown> = {}): Record<
       promote_if: "primary_metric_improves_and_all_guardrails_pass",
       otherwise: "reject_extend_or_revise",
     },
+    efficacy_protocol: {
+      declared_at: "2026-07-11T08:00:00.000Z",
+      baseline: { metric: "review_cycles", value: 2, source_ref: "fixture:baseline-v1" },
+      hidden_guardrail_commitment: {
+        sha256: `sha256:${"c".repeat(64)}`,
+        fixture_refs: ["evals/roles/builder/standard-tickets"],
+      },
+      eligibility_sha256: `sha256:${"d".repeat(64)}`,
+      actor_blinding: { treatment_identity_hidden: true },
+      pairing: { seed: "paired-replay-v1", order: "alternating_control_treatment" },
+      budget: { max_usd: 75 },
+      stop_rules: {
+        retain_attempted_pairs: true,
+        early_stop_reasons: ["held_in_failure", "guardrail_trip", "budget_stop"],
+      },
+      side_effect_replacement: {
+        network: "fixture_only",
+        publishing: "forbidden",
+        deployment: "sandbox_only",
+      },
+      missingness: { missing: "invalid_measurement", invalid: "fail_closed" },
+    },
     status: "declared",
     result: null,
     ...overrides,

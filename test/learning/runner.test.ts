@@ -103,6 +103,11 @@ async function declared(
     },
     ...overrides,
   });
+  const primary = record["primary_metric"] as { name: string };
+  const protocol = record["efficacy_protocol"] as {
+    baseline: { metric: string; value: number; source_ref: string };
+  };
+  protocol.baseline = { ...protocol.baseline, metric: primary.name };
   await declareExperiment(record, { orgHome });
   return record["experiment_id"] as string;
 }

@@ -132,8 +132,17 @@ export interface EpisodeOutcome {
   /** Terminal/stalled runs with measured usage but no ledger row — the
    *  reconcile target (`operon budget --reconcile`); spec §5 delta. */
   unsettled_runs: string[];
-  /** Explicit lifecycle terminal when ordinary completion never happened. */
-  terminal_reason?: "reset_abandoned";
+  /** Explicit lifecycle terminal. Model/pass, artifact, execution-step, and
+   * episode outcomes remain separate fields; this value names only why the
+   * episode itself stopped accepting work. */
+  terminal_reason?:
+    | "completed"
+    | "cancelled"
+    | "timeout"
+    | "cap_stop"
+    | "crash"
+    | "stale_finalization"
+    | "reset_abandoned";
 }
 
 export interface LateOutcome {
@@ -503,7 +512,14 @@ async function foldOne(
   // to consult, so merge evidence can never arrive — they close on
   // quiescence like every non-build kind instead of staying open forever.
   const ticketTracked = anchor.kind === "build_ticket" && ticketNo !== undefined;
-  const closed = ticketTracked ? merged : quiescent;
+  // A tracked ticket normally closes on merge, but an explicitly terminal
+  // execution outcome must also close after quiescence. Otherwise cancelled,
+  // timed-out, cap-stopped, crashed, and stale-finalization episodes remain
+  // pending forever and poison capture-health denominators. A later re-arm
+  // adds a new run and the full fold deterministically opens/closes from the
+  // new terminal truth.
+  const terminalInterrupted = quiescent && terminalReasonFor(views) !== "completed";
+  const closed = ticketTracked ? merged || terminalInterrupted : quiescent;
 
   const { late_outcomes: lateOutcomes, human_observations: humanObservations } =
     appendOnlyFields(episodeId, context.learningEvents);
@@ -614,7 +630,25 @@ function foldOutcome(
     cost_usd: costUsd,
     cost_estimated: costEstimated,
     unsettled_runs: unsettled,
+    terminal_reason: terminalReasonFor(views),
   };
+}
+
+function terminalReasonFor(
+  views: RunView[],
+): Exclude<EpisodeOutcome["terminal_reason"], undefined> {
+  const latest = [...views].sort(
+    (a, b) => lastSeen(a.envelope).localeCompare(lastSeen(b.envelope)) ||
+      a.envelope.run_id.localeCompare(b.envelope.run_id),
+  ).at(-1);
+  if (latest === undefined) return "crash";
+  const reason = `${latest.envelope.error_code ?? ""} ${latest.envelope.terminal_reason ?? ""}`.toLowerCase();
+  if (reason.includes("cap") || reason.includes("budget")) return "cap_stop";
+  if (latest.status === "cancelled") return "cancelled";
+  if (latest.status === "timed_out") return "timeout";
+  if (latest.status === "stalled") return "stale_finalization";
+  if (latest.status === "failed" || latest.status === "blocked") return "crash";
+  return "completed";
 }
 
 function releaseDisposition(

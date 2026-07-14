@@ -35,6 +35,7 @@ import {
 import { sanitizeIdSegment } from "./events.js";
 import { readEvalResult } from "./eval-result.js";
 import { readExperimentRecord } from "./experiment.js";
+import { readEpisodeRecords } from "./episode.js";
 import { listInFlightOkfJournals } from "./publisher.js";
 import {
   readInterventionRecord,
@@ -345,11 +346,64 @@ export interface CloseCanaryOptions {
   orgHome: string;
   appWorkdir?: string;
   root: CanaryRootKind;
+  /** Promotion is an efficacy decision and therefore needs the trusted
+   * episode/assignment projection plus the ratified tier rule. */
+  stateHome?: string;
+  policy?: LearningPolicy;
   now?: Date;
 }
 
 export async function promoteCanary(options: CloseCanaryOptions): Promise<CanaryCloseResult> {
   const root = resolveRoot(options.root, options);
+  const manifest = await readManifest(root);
+  const meta = manifest?.canary_meta;
+  if (meta === null || meta === undefined) throw new Error("learning: no active canary to promote");
+  if (options.stateHome === undefined || options.policy === undefined) {
+    throw new Error("learning: canary promotion requires trusted efficacy state and policy");
+  }
+  const intervention = await readInterventionRecord(options.orgHome, meta.intervention_ref);
+  if (intervention.experiment_ref === null || intervention.outcome_ref === null) {
+    throw new Error("learning: canary promotion requires complete experiment/outcome lineage");
+  }
+  const replay = await readEvalResult(options.orgHome, intervention.outcome_ref);
+  if (replay.verdict !== "improved" || replay.guardrails.some((guardrail) => !guardrail.pass)) {
+    throw new Error(`learning: ${replay.eval_id} is not a guardrail-clean improved result`);
+  }
+  const rule = options.policy.tiers[meta.tier as keyof LearningPolicy["tiers"]]?.promote_rule;
+  if (rule === null || rule === undefined) {
+    throw new Error(`learning: tier ${meta.tier} has no deterministic promote rule`);
+  }
+  const [assignments, episodes] = await Promise.all([
+    listCanaryAssignments(options.stateHome),
+    readEpisodeRecords(options.stateHome),
+  ]);
+  const byEpisode = new Map(episodes.map((episode) => [episode.episode_id, episode]));
+  const inTrial = assignments.filter((assignment) => assignment.roots[options.root]?.version === meta.version);
+  const canary = inTrial
+    .filter((assignment) => assignment.roots[options.root]?.lineage === "canary")
+    .map((assignment) => byEpisode.get(assignment.episode_id))
+    .filter((episode) => episode?.outcome !== undefined);
+  const stable = inTrial
+    .filter((assignment) => assignment.roots[options.root]?.lineage === "stable")
+    .map((assignment) => byEpisode.get(assignment.episode_id))
+    .filter((episode) => episode?.outcome !== undefined);
+  if (canary.length < rule.min_canary_episodes || stable.length === 0) {
+    throw new Error(
+      `learning: canary efficacy is inconclusive (${canary.length}/${rule.min_canary_episodes} ` +
+        `closed treatment, ${stable.length} closed control)`,
+    );
+  }
+  const rate = (rows: typeof canary): number =>
+    rows.filter((episode) => episode!.outcome!.completed).length / rows.length;
+  const stableRate = rate(stable);
+  const canaryRate = rate(canary);
+  if (stableRate <= 0) throw new Error("learning: canary efficacy has no successful stable baseline");
+  const regression = ((stableRate - canaryRate) / stableRate) * 100;
+  if (regression > rule.max_regression_pct) {
+    throw new Error(
+      `learning: canary regressed ${regression.toFixed(1)}% (cap ${rule.max_regression_pct}%) — stop/rollback required`,
+    );
+  }
   return promoteCanaryOnManifest(root, options.now !== undefined ? { now: options.now } : {});
 }
 

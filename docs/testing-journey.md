@@ -125,6 +125,25 @@ remain complete and reconcilable.
 | **M10 — Multiple AI providers** | Does it work beyond one vendor? | Builder and reviewer run on different AI providers (uncorrelated review blind spots), verified with real turns; a capability matrix records what each provider supports. |
 | **M12 — Manual app hardening** | Do human-invoked app commands use the actual app, not the org repo? | Completed 2026-07-06: plan/run-role dry-runs resolve managed or sibling sandbox checkouts, assemble app-aware context, and were verified across alpha, beta, and gamma after the full package gates and Claude live conformance. |
 
+### Phase 4 closed-learning fixture
+
+The efficiency transformation adds a token-free closure gate on top of M9.
+Temporary org/state trees receive trusted environment-retry, stale-finalization,
+shell-repetition, false-approval, and long-review records. Production capture
+must either project every eligible finalized provider run exactly once or name
+the blocking run and typed reason; mechanical and `learning-replay` records are
+ineligible. Comparable app/role events form stable clusters and dispositions,
+then reuse the existing candidate, independent-review, experiment, approval,
+publisher, intervention, and canary chain. Declared paired observations prove
+an improvement with hidden guardrails while sham/harmful variants cannot
+promote; disable/rollback restores stable lineage. The fixture constructs no
+runtime, makes no network call, and writes only inside its temporary trees.
+
+The public read is `operon learn report --efficiency-health [--json]`.
+`--refresh` is the sole explicit projection-write switch; capture, governance,
+and efficacy remain separate so event volume cannot manufacture a green
+efficacy result.
+
 Build work continued past M10 through the M12 manual-app hardening and a
 follow-on hardening campaign (atomic org state, per-tick budget auto-pause,
 the setup gate, per-app clone serialization, kind-based company-event

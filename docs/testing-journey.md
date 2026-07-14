@@ -119,7 +119,7 @@ remain complete and reconcilable.
 | **M4 — Quality gates** | Can work be checked mechanically, trusting no one's word? | The gate machinery (tests, lint, secret scan, completeness, review freshness) is built and proven on local fixtures — it becomes the checkpoint everything later must pass. |
 | **M5 — The build loop** | Can a task flow through the factory? | Completed 2026-07-06 against a disposable private GitHub repo: setup creates the `op:*`, priority, and tier labels idempotently; the e2e creates one ready issue, claims it, makes a tiny branch change, runs real quality gates, opens a PR, injects the simulated approval, squash-merges, deletes the branch, and verifies the issue closed. |
 | **M6 — Fully real delivery** | Can it do the whole thing for real? | Completed 2026-07-06 on `operon-sandbox-alpha`: issue #1 was built by real Claude Builder passes, checked by real gates, reviewed by real Claude Reviewer output recorded as a GitHub review comment fallback (same-account APPROVE is blocked by GitHub), and squash-merged as PR #2. |
-| **M7 — Unattended operation** | Can it run alone — and stop when it should? | The dispatcher wakes on schedule and works without a human driving. Crashes recover; budgets auto-pause an overspending app. The safety drill: an agent attempts a critical operation on a sandbox app, is blocked, the request lands in the human's approval queue, approval releases exactly that one action, and a complete audit trail exists. |
+| **M7 — Unattended operation** | Can it run alone — and stop when it should? | Completed deterministically in Phase 5: the org-scoped scheduler previews/installs/statuses/uninstalls through an injected manager; seven virtual days exercise 2,016 durable decisions, four restart/crash boundaries, locks, WIP, per-app budgets, approvals, channel gates, empty learning, and missed windows. Every decision executes once or records one typed reason; duplicate/orphan/provider-mechanical leakage remains zero and FakeRuntime turns exactly match settlements. A real host install and 48–72 hour L6 soak remain separately authorized. |
 | **M8 — Planning + standing roles** | Can it plan, not just build? | Completed 2026-07-06: the root protocol now has executable `plan`, `groom`, `triage`, SRE, Support, and Marketing pipelines; dispatch routes roles.yaml triggers to those protocols; file-drop company event schemas are documented and validated. Gamma proves the non-build roles with a running `/health` service, private `op:incident` issue, and draft-only Support/Marketing artifacts. |
 | **M9 — Learning & visibility** | Does it get better, and can you see what it does? | Agents record lessons per app and reuse them; each role gets a scorecard; a weekly retro turns scores into adjustments; status/analysis views work without reading transcripts. |
 | **M10 — Multiple AI providers** | Does it work beyond one vendor? | Builder and reviewer run on different AI providers (uncorrelated review blind spots), verified with real turns; a capability matrix records what each provider supports. |
@@ -138,6 +138,24 @@ publisher, intervention, and canary chain. Declared paired observations prove
 an improvement with hidden guardrails while sham/harmful variants cannot
 promote; disable/rollback restores stable lineage. The fixture constructs no
 runtime, makes no network call, and writes only inside its temporary trees.
+
+### Phase 5 autonomous-production fixture
+
+The Phase 5 gate starts from fresh temporary HOME, TMPDIR, org, state, app, and
+scheduler-definition trees. It previews with zero writes, uses an injected
+launchd/systemd-manager boundary, proves install/status/repair/uninstall
+idempotency and hostile-definition refusal, and rebuilds status exclusively
+from durable evidence after restart. The production virtual-soak module—not an
+eval helper—runs 2,016 five-minute windows across seven days, including four
+process/crash restarts. SRE, Support, and Marketing run through ordinary
+FakeRuntime passes and persist source-hashed, draft-only artifacts plus one
+Planner feed each; deploy-shaped SRE work remains parked. No real scheduler,
+provider, repository, or outward integration is touched.
+
+The five deterministic Workstream I contracts (`I-INSTALL-01..02` and
+`I-SOAK-01..03`) are production-backed. `I-ROLE-01..03` remain provider-result
+contracts and `I-LIVE-01` remains the authorized 48–72 hour campaign, so their
+deterministic paths do not promote those four contracts.
 
 The public read is `operon learn report --efficiency-health [--json]`.
 `--refresh` is the sole explicit projection-write switch; capture, governance,

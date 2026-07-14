@@ -596,6 +596,7 @@ function managedStatePaths(stateHome: string, app: string): string[] {
     join(stateHome, "worktrees", app),
     join(stateHome, "runs", app),
     join(stateHome, "tickets", app),
+    join(stateHome, "standing-roles", app),
     join(stateHome, "lifecycle", "apps", app),
     join(stateHome, "lifecycle", "readiness", `${app}.json`),
   ];

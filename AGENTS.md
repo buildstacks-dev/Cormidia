@@ -44,6 +44,15 @@ rendering, efficiency/invariant projections, and the lazy bounded report
 service; it persists no index or session store. `docs/reporting/design.md` is
 its authoritative contract.
 
+`operon scheduler` is the org-scoped autonomous-operation surface. Install and
+uninstall preview by default, require exact confirmation to execute, and call
+the ordinary stateless `operon dispatch` boundary through an absolute command.
+`scheduler/evidence/**` keeps versioned invocation/decision/alert records;
+`operon scheduler status` and doctor require definition, manager, tick, and
+settlement evidence rather than treating file presence as health.
+`docs/scheduler.md` is the authoritative schema, identity, reason-code, and
+health contract.
+
 **Where agent activity is recorded** (state home, `~/.operon/<org>/`;
 README.md → Observability is the authoritative inventory):
 `runs/<app>/<runId>/` is the per-pass source of truth (`envelope.json`,
@@ -64,6 +73,10 @@ pinned resolve records with `bundle_lineage` (`resolved/`), episode-sticky
 canary assignments (`canary/assignments/`), and the publisher's
 crash-resumable journal (`publish-journal/`); `runs/learning-replay/` is the
 reserved replay namespace (reconciled for spend, excluded from capture).
+`scheduler/installation.json` and `scheduler/evidence/{invocations,decisions,alerts}/`
+hold scheduler ownership, exact-once ticks, route decisions, and local alerts;
+`standing-roles/<app>/{artifacts,planner-feeds}/` holds source-bound draft-only
+SRE/Support/Marketing results and deterministic Planner feeds.
 The M3–M5 experiment + activation substrate lives in the **committed org
 home** `learning/**`: experiments (declared-before-results), interventions
 (lineage), evals (trusted only after independent validation), candidates
@@ -102,6 +115,7 @@ efficacy health independently. The mechanics construct no provider runtime.
 | `prompts/` | Versioned pass templates the pipelines reference — human-ratified protocol surfaces, one file per pass |
 | `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 decisions ratified into docs/PURPOSE.md) |
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
+| `docs/scheduler.md` | Authoritative autonomous scheduler contract: lifecycle CLI, backend boundary, definition/evidence schemas, exact identities, reason codes, health semantics, and L6 boundary |
 | `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
 | `docs/event-schemas.md` | File-drop company-lifecycle event payload contract for Support / Marketing / SRE inputs |
 | `docs/capability-matrix.md` | Adapter capability matrix: native / adapter-built / degraded surfaces for Claude, Codex, and pi |
@@ -183,6 +197,11 @@ efficacy health independently. The mechanics construct no provider runtime.
   --explain-context <episode-id>` · `pnpm dev loop --resume-episode
   <episode-id>` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
+  `pnpm dev scheduler install [--backend launchd|systemd] [--json]` (preview) ·
+  `pnpm dev scheduler install --execute --confirm <scheduler-id-or-org>` ·
+  `pnpm dev scheduler status [--json]` ·
+  `pnpm dev scheduler uninstall [--json]` (preview; execution also requires
+  exact confirmation) ·
   `pnpm dev observe [--app <app>] [--port 0] [--open]` ·
   `pnpm dev report [--app <app>] [--period 7d|30d|90d|1y|all] [--json] [--html out.html]` ·
   `pnpm dev budget` · `pnpm dev status` · `pnpm dev analyze` ·
@@ -280,6 +299,13 @@ efficacy health independently. The mechanics construct no provider runtime.
   beta: `npm test`; gamma: `npm test && npm run lint` plus the role smokes;
   delta: `npm test && npm run lint` — its `.operon/config.yaml` sets the
   `setup_command` the `setup` gate runs) and report the exact commands/results.
+- Scheduler lifecycle, dispatch-evidence, or scheduler-health changes must run
+  the production-backed `test/scheduler/` suite under temporary HOME, TMPDIR,
+  org, state, app, and definition trees with an injected manager. Never invoke
+  a real launchd/systemd mutation in tests. The seven-day virtual soak must use
+  fake clocks, include restart/fault/isolation cases, and prove exact provider
+  settlement plus zero mechanical-runtime construction. L6 execution remains
+  separately authorized; ordinary changes may run preview only.
 - M5 loop-state-machine changes should also run the disposable GitHub e2e
   when `gh` auth and `GH_SANDBOX_REPO` are available:
   `pnpm e2e:sandbox:setup` twice for idempotency, then `pnpm e2e:sandbox`.

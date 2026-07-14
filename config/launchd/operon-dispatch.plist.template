@@ -1,23 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Reference shape only. `operon scheduler install` renders owned metadata,
+     exact absolute paths, and an org-scoped identity; do not install this
+     unrendered template directly. -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>dev.operon.dispatch</string>
+  <string>${SCHEDULER_ID}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/env</string>
-    <string>operon</string>
+    <string>${ABSOLUTE_NODE_EXECUTABLE}</string>
+    <string>${ABSOLUTE_PACKAGE_ENTRY}</string>
     <string>dispatch</string>
+    <string>--org-home</string>
+    <string>${ABSOLUTE_ORG_HOME}</string>
+    <string>--state-home</string>
+    <string>${ABSOLUTE_STATE_HOME}</string>
   </array>
   <key>StartInterval</key>
   <integer>300</integer>
   <key>RunAtLoad</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>${HOME}/.operon/launchd.out.log</string>
+  <string>${ABSOLUTE_STATE_HOME}/scheduler/logs/stdout.log</string>
   <key>StandardErrorPath</key>
-  <string>${HOME}/.operon/launchd.err.log</string>
+  <string>${ABSOLUTE_STATE_HOME}/scheduler/logs/stderr.log</string>
 </dict>
 </plist>

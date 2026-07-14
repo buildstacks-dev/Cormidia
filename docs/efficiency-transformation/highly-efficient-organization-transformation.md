@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phases 0–4 complete; Phase 5 autonomous production posture is next |
+| Status | Phases 0–5 complete; Phase 6 efficiency qualification is next |
 | Evidence date | 2026-07-14 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
@@ -560,6 +560,25 @@ efficient org cannot depend on a human remembering every tick.
 2. Verify scheduler health in `doctor` and report due, executed, skipped,
    blocked, and missed ticks.
 3. Keep dispatch idempotent and lock-safe.
+
+**Phase 5 status (2026-07-14): complete for deterministic production.**
+`operon scheduler install|status|uninstall` now owns an org-scoped,
+preview-first, exact-confirmation lifecycle behind an injected backend manager.
+The versioned scheduler ledger separates due-window invocations, app/role/trigger
+decisions, spawned episodes, and ordinary provider turns/settlements; stable
+identities and durable spawn boundaries make retries restart-safe. Status and
+doctor join definition ownership/hash/cadence, manager active state, recent
+ticks, typed outcomes, duplicates/orphans, and settlement denominators. The
+production-backed seven-day virtual soak proves 2,016 decisions, four
+restart/crash points, zero duplicates/orphans/mechanical runtime construction,
+and exact receipt settlement; the standing-role gate separately proves three
+ordinary FakeRuntime turns and three ledger settlements. The canonical operational contract is
+`docs/scheduler.md`.
+
+The deterministic `I-INSTALL-01..02` and `I-SOAK-01..03` contracts are
+required. `I-ROLE-01..03` remain provider-result contracts despite completed
+deterministic production paths, and `I-LIVE-01` remains the separately
+authorized 48–72 hour L6 campaign. No provider or L6 campaign was run.
 4. Ensure scheduled learning uses the same budgets and ledger as product work.
 5. Alert through durable local state first; external notification remains a
    separately governed integration.
@@ -669,6 +688,15 @@ Install and prove scheduler management, soak behavior, and operational reports.
 **Gate:** multi-day unattended sandbox soak with truthful scheduling and no
 orphaned work.
 
+**Status:** complete on 2026-07-14 for the deterministic production boundary.
+Install/status/uninstall, exact-once dispatch evidence, truthful health,
+standing-role artifacts/Planner feeds, scheduled-learning blockers, and the
+seven-day virtual soak run through production modules. Five deterministic I
+contracts were promoted. The remaining ten known-red contracts are
+`D-LIVE-01..03`, `E-LIVE-01..02`, `G-MET-01`, `I-ROLE-01..03`, and
+`I-LIVE-01`; each still requires its separately authorized provider or
+real-time evidence. Phase 6 is next.
+
 ### Phase 6 — Efficiency qualification
 
 Run the full benchmark matrix and production confirmation.
@@ -759,6 +787,7 @@ as cleanup afterward:
 | `docs/efficiency.md` | Canonical routes, budgets, metrics, variance semantics, and benchmark targets |
 | `README.md` | Explain efficient operating promise and lifecycle readiness states |
 | `docs/architecture.md` | Add efficiency control plane, route admission, context manifest, lifecycle transactions, continuation, and ownership |
+| `docs/scheduler.md` | Canonical scheduler definition/evidence schemas, identities, reason codes, crash boundaries, health semantics, and L6 boundary |
 | `docs/loop.md` | Define tier routing, pass selection, budget reassessment, continuation, and terminal settlement |
 | `docs/proportionality-review.md` | Add the production regression and point forward to the durable efficiency contract |
 | `docs/approval-and-release-amendment.md` | Specify semantic action classification, approval-precision metrics, and denial-learning validity |
@@ -873,14 +902,13 @@ measurably better with experience.
 > `adapter-harness-calibration-v1-20260714-e52bf4335e81`; the valid current
 > baseline is `pre-transformation-baseline-v2-20260714-e52bf4335e81`, with one
 > pass, five honest `product_miss` outcomes, and zero eval-system failures.
-> Production Phases 1–4 are complete and 15 product contracts remain
+> Production Phases 1–5 are complete and 10 provider/real-time contracts remain
 > known-red. Rerun external campaigns only after covered
 > bytes change and exact authorization. Never
 > weaken graders, targets, safety gates, or evidence to make results green.
 >
-> Execute the charter sequentially. Phases 0–4 are complete; begin with Phase 5
-> autonomous
-> operation, and Phase 6 qualification. Do not parallelize work whose
+> Execute the charter sequentially. Phases 0–5 are complete; begin with Phase 6
+> qualification. Do not parallelize work whose
 > contracts depend on an unfinished phase. `TASTE.md`, `roles.yaml`,
 > `pipelines.yaml`, `prompts/**`, and `docs/PURPOSE.md` are human-ratified;
 > never silently rewrite them.

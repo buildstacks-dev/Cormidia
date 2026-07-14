@@ -132,6 +132,9 @@ operon new-app marketplace --target-dir ../marketplace --repo owner/marketplace 
 operon plan <app> --dry-run
 operon loop --app <app> --once --dry-run
 operon dispatch --dry-run
+operon scheduler install --json                       # preview, zero writes
+operon scheduler status --json                        # read-only health
+operon scheduler uninstall --json                     # preview, zero writes
 operon run-role <role> --app <app> --dry-run
 operon status
 operon budget
@@ -169,6 +172,26 @@ These are evidence claims, not five new `apps.yaml` values; registry state
 remains `onboarding | live | paused`. `new-app` reaches generated, while a
 successful bootstrap reaches registered. Neither alone proves runtime-ready,
 live, or autonomous scheduling.
+
+Scheduler lifecycle is explicitly gated. Preview the exact org-scoped
+definition first, then execute only with the reported identity (or exact org
+name):
+
+```bash
+operon scheduler install --json
+operon scheduler install --execute --confirm <scheduler-id>
+operon scheduler status --json
+operon scheduler uninstall --json
+operon scheduler uninstall --execute --confirm <scheduler-id>
+```
+
+The generated host definition uses absolute executable, package, org-home, and
+state-home paths. It contains no credentials or inherited environment dump.
+Status joins ownership/hash/cadence validation, loaded/active manager state,
+recent durable ticks, duplicate/orphan checks, and provider settlement
+agreement; a definition file alone is never healthy. See
+[`docs/scheduler.md`](docs/scheduler.md) for the canonical schema, identities,
+reason codes, and health rules.
 
 The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
 `run-role` assemble real context but spend no tokens. Live forms can spend
@@ -344,7 +367,8 @@ src/loop/      pass pipelines, briefs, quality gates, verdict parsing, and
                the ticket -> PR -> review -> merge state machine
 src/org/       app registry, bootstrap, co-planning, dispatch, approvals,
                budget overlays, trigger routing, context, memory, scorecards,
-               retro, and the governed learning loop (src/org/learning/)
+               retro, org-scoped scheduler lifecycle/evidence, standing-role
+               artifacts, and the governed learning loop (src/org/learning/)
 src/observe/   versioned read projection, bounded GitHub source, loopback
                HTTP/SSE server, and framework-free Live UI shell
 src/report/    ledger/range/detail readers, deterministic report projection,
@@ -374,6 +398,9 @@ telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
 efficiency/episodes/<hash>/ # admitted route + terminal execution steps +
                             # episode context-manifest projection
 invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)
+scheduler/installation.json # owned definition/install record
+scheduler/evidence/       # exact-once invocation, decision, and local-alert JSON
+standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
 learning/events/<date>/   # learning-loop capture: gate outcomes, pass verdicts,
                           # human observations, episode lifecycle, late outcomes
 learning/episodes/        # EpisodeRecord projection over runs + ledger +

@@ -80,6 +80,8 @@ function makeRoot(): string {
     "test/approval-semantics.test.ts",
     "test/plan-auto.test.ts",
     "test/settlement/property.test.ts",
+    "test/scheduler/lifecycle.test.ts",
+    "test/scheduler/virtual-soak.test.ts",
     "docs/efficiency-transformation",
   ]) { const target = join(root, path); mkdirSync(dirname(target), { recursive: true }); cpSync(join(repo, path), target, { recursive: true }); }
   return root;

@@ -12,6 +12,7 @@
     "agent-skills/operon/",
     "config/launchd/",
     "docs/policy.yaml.template",
+    "docs/scheduler.md",
     "prompts/",
     "taste/",
     "TASTE.md",

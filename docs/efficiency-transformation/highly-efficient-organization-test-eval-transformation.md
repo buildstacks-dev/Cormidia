@@ -143,6 +143,53 @@ The recorded deterministic Phase 4 validation was:
 - `pnpm test:transformation:strict` passed all 238 executable test cases, then
   exited non-zero only for the exact 15 D/E/G-live and I IDs above.
 
+The Phase 5 deterministic gate promotes the production-backed
+`I-INSTALL-01..02` and `I-SOAK-01..03` contracts. Scheduler lifecycle and
+status operate on temporary definitions through an injected manager; the
+production virtual-soak module records 2,016 five-minute decisions across
+seven days, 1,758 executed receipt-bearing decisions and matching settlements,
+four restart/crash boundaries, zero duplicate decisions or
+episodes, zero silent misses, zero orphaned locks/journals/runs/settlements,
+zero cross-app budget leakage, zero mechanical-provider leakage, and zero
+unapproved outward effects. Stable evidence replay is byte-identical.
+
+Standing-role deterministic production paths persist source-hashed, draft-only
+SRE/Support/Marketing artifacts plus an exact-once Planner feed for each,
+reject wrong-app/stale/unprovenanced payloads, and park deploy-shaped SRE work
+at the ordinary approval boundary. Three ordinary FakeRuntime pass executions
+produce three exact telemetry settlements. This is necessary deterministic coverage,
+not provider-result evidence. No provider standing-role campaign, real
+scheduler mutation, real-time L6 soak, or Phase 6 qualification was run. The
+exact post-Phase-5 known-red set is ten: `D-LIVE-01..03`, `E-LIVE-01..02`,
+`G-MET-01`, `I-ROLE-01..03`, and `I-LIVE-01`.
+
+The recorded deterministic Phase 5 validation was:
+
+- `pnpm eval:validate`: valid, with 84 requirements, 84 executable evidence
+  paths, 14 cases, 12 benchmark families, 60 fault boundaries, 13 graders,
+  three capability declarations, and zero orphaned records;
+- `pnpm test:transformation`: 28 files and 223 tests passed; the contract
+  runner reported exactly the ten known-red IDs above and no unexpected
+  failure;
+- `pnpm eval:deterministic`: passed, including production lifecycle,
+  continuation, efficiency, standing-role, and scheduler suites;
+- `pnpm test`: 177 files and 1,514 tests passed;
+- `pnpm typecheck`, `pnpm build`, neutral-cwd `pnpm smoke:onboarding`, and
+  `npm pack --dry-run` passed; the package contains `docs/scheduler.md` and all
+  scheduler runtime/CLI modules;
+- the fresh-HOME/TMPDIR scheduler gate passed 7 files and 23 tests without a
+  real host manager; the production projection reported 2,016/2,016 reasoned
+  decisions, 1,758/1,758 receipt settlements, four restarts, and zero
+  duplicates, silent misses, orphans, leakage, or outward effects;
+- isolated alpha (55 tests + lint), beta (4 tests), gamma (45 tests + lint +
+  SRE/Support/Marketing smokes), and delta (53 tests + lint) passed with clean
+  worktrees afterward;
+- the L6 command ran in preview mode only and retained 48 hours, five-minute
+  cadence, 12 useful turns, a 24-hour restart receipt, and a $40 cap;
+- `pnpm test:transformation:strict` passed all 223 executable test cases, then
+  exited non-zero only because the exact ten provider/real-time contracts
+  above remain known-red.
+
 ### Retained external evidence and findings
 
 The final admitted adapter campaign
@@ -1182,6 +1229,17 @@ Suggested suites: `test/scheduler/lifecycle.test.ts`,
 The virtual soak is an ordinary deterministic release gate. The real-time
 soak is required for high-efficiency qualification but must not block normal
 PR feedback for several days.
+
+**Phase 5 evidence (2026-07-14):** lifecycle assertions import
+`src/org/scheduler/{definition,manager,lifecycle,status}.ts`; the primary soak
+assertions import `src/org/scheduler/virtual-soak.ts`; dispatch/restart tests
+exercise the production evidence store; and standing-role tests use the
+ordinary pass executor with FakeRuntime before persisting trusted artifacts.
+The eval scripts remain independent oracles and `src/**` imports none of them.
+`I-INSTALL-01..02` and `I-SOAK-01..03` are `required` in
+`eval/contracts.yaml`. `I-ROLE-01..03` retain
+`provider_standing_role_evidence_not_run`; `I-LIVE-01` retains
+`realtime_soak_not_run`.
 
 ### 8.10 Workstream J — durable qualification
 

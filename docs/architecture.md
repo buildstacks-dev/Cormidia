@@ -284,6 +284,9 @@ state/schedule.json      last-fired per (role, app, trigger)
 state/events/            consumed-event keys (dedup) + file-drop event inbox
 state/turns/<turnId>.json  turn journals (§3)
 state/budget-overlay.json  dispatcher budget-pause overlay (§7)
+scheduler/installation.json  org-scoped scheduler ownership/definition record
+scheduler/evidence/      versioned invocation, route-decision, and alert JSON
+standing-roles/<app>/    grounded draft artifacts + deterministic Planner feeds
 locks/<app>--<role>.lock
 approvals/               pending/ decided/ grants/ log.jsonl (§4)
 sessions/                adapter session artifacts where the SDK needs a home
@@ -342,13 +345,34 @@ creating a session store or changing correlation semantics.
 
 ## 2. Dispatcher & scheduler
 
-**Model: stateless tick, not a daemon.** launchd (`StartInterval: 300`) runs
-`operon dispatch` every ~5 minutes; systemd timer does the same on the
-droplet. Each tick reads config + state, computes what is due, starts turns,
-exits. No daemon to supervise; a wedged host resumes on the next tick;
-migration is "install the timer" (docs/PURPOSE.md: dispatcher is a plain CLI
-entrypoint any scheduler can call). Cadence is flexi — ticks run at all hours
-(decided 2026-07-04).
+**Model: stateless tick, not a daemon.** `operon scheduler install` creates an
+org-scoped launchd definition (`StartInterval: 300` by default) that invokes an
+absolute Node/package entry with explicit org and state homes. A future systemd
+user timer uses the same backend boundary, but Operon does not claim its health
+on an unexercised platform. Each tick calls the ordinary `operon dispatch`,
+reads config + durable state, computes what is due, starts detached turns, and
+exits. There is no competing daemon or workflow engine. A wedged host resumes
+on the next tick; cadence remains flexi and ticks run at all hours (decided
+2026-07-04).
+
+Lifecycle mutations preview by default and require `--execute` plus exact org
+or scheduler-id confirmation. Ownership metadata, the rendered-definition
+hash, and a crash-resumable transaction prevent silent overwrite/removal of a
+malformed, foreign, or wrong-org definition. `operon scheduler status` and
+doctor join definition, loaded/active manager state, recent tick evidence,
+duplicate/orphan checks, and provider-settlement agreement. Definition-file
+existence is never sufficient for health. The canonical definition schema,
+identity derivations, state layout, reason codes, crash boundaries, and health
+semantics are in [scheduler.md](scheduler.md).
+
+The scheduler evidence model deliberately keeps four ids separate: OS cadence
+invocation, app/role/trigger decision, spawned episode/turn, and ordinary
+provider turn/settlement. A decision is durable before lock/journal/spawn
+boundaries and reaches one typed terminal outcome. Stable hashes bind org,
+window, app, role, trigger, and event rather than enumeration order or random
+process state. `spawn_committed` precedes detached spawn, so retry after
+post-spawn bookkeeping failure cannot start a second child. Missed host windows
+still collapse to one firing with explicit missed/reconciled counts.
 
 ### Trigger resolution
 

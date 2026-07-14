@@ -121,6 +121,18 @@ describe("cli dispatch", () => {
     expect(parsed.commands).toContainEqual(expect.objectContaining({ command: "report", writes: false, spendsTokens: false }));
   });
 
+  it("scheduler lifecycle is discoverable as preview-first and token-free", async () => {
+    const help = await runCli(["scheduler", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.stdout).toContain("operon scheduler install");
+    expect(help.stdout).toContain("--execute --confirm <exact-org-or-scheduler-id>");
+    expect(help.stdout).toContain("preview without writes");
+
+    const capabilities = await runCli(["capabilities", "--json"]);
+    const parsed = JSON.parse(capabilities.stdout) as { commands: Array<Record<string, unknown>> };
+    expect(parsed.commands).toContainEqual(expect.objectContaining({ command: "scheduler", writes: true, spendsTokens: false }));
+  });
+
   it("pipelines subcommand validates the root pipelines.yaml", async () => {
     const { stdout, code } = await runCli(["pipelines"]);
     expect(code).toBe(0);

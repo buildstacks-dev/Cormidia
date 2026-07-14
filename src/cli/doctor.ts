@@ -22,6 +22,8 @@ import {
 } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { resolveAuthority } from "../org/authority.js";
+import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
+import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
 
 export interface DoctorOptions extends OperonHomeOptions {
   launchAgentsDir?: string;
@@ -32,6 +34,9 @@ export interface DoctorOptions extends OperonHomeOptions {
   readinessTimeoutMs?: number;
   /** Test/embedding injection point. */
   readinessProbe?: RuntimeReadinessProbe;
+  schedulerManager?: SchedulerManager;
+  platform?: NodeJS.Platform;
+  now?: () => Date;
 }
 
 interface CheckRow {
@@ -87,11 +92,33 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
 
   const adapters = await adapterChecks(roles?.roles, options);
 
-  const launchAgentsDir = options.launchAgentsDir ?? join(homedir(), "Library", "LaunchAgents");
-  const plist = join(launchAgentsDir, "dev.operon.dispatch.plist");
-  const scheduler: CheckRow = existsSync(plist)
-    ? { name: "launchd", status: "OK", detail: `installed: ${plist}` }
-    : { name: "launchd", status: "WARN", detail: "not installed; autonomous dispatch is not scheduled" };
+  const platform = options.platform ?? process.platform;
+  const backend = platform === "darwin" ? "launchd" : "systemd";
+  const manager = options.schedulerManager ?? new PlatformSchedulerManager({
+    backend,
+    platform,
+    ...(options.launchAgentsDir !== undefined ? { definitionDir: options.launchAgentsDir } : {}),
+  });
+  let schedulerStatus: SchedulerOperationalStatus | null = null;
+  let scheduler: CheckRow;
+  if (homes === undefined) {
+    scheduler = { name: backend, status: "FAIL", detail: "scheduler identity cannot resolve until the org and state homes resolve" };
+  } else {
+    schedulerStatus = await schedulerOperationalStatus({
+      backend: manager.backend,
+      orgName: homes.appsFile.org.name,
+      orgHome: homes.orgHome,
+      stateHome: homes.stateHome,
+      packageEntryPath: existsSync(join(homes.packageRoot, "dist", "cli.js"))
+        ? join(homes.packageRoot, "dist", "cli.js")
+        : join(homes.packageRoot, "src", "cli.ts"),
+      executablePath: process.execPath,
+      manager,
+      runtime: options.configOnly !== true,
+      now: options.now?.() ?? new Date(),
+    });
+    scheduler = schedulerCheck(schedulerStatus, options.configOnly === true);
+  }
 
   const state: CheckRow = homes
     ? existsSync(homes.stateHome)
@@ -99,7 +126,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
       : { name: "state home", status: "WARN", detail: `${homes.stateHome} (created on first write)` }
     : { name: "state home", status: "FAIL", detail: "unresolved until an active org is selected" };
 
-  const ok = ![...adapters, ...config, state].some((row) => row.status === "FAIL");
+  const ok = ![...adapters, ...config, state, scheduler].some((row) => row.status === "FAIL");
   if (options.json === true) {
     console.log(
       JSON.stringify(
@@ -120,6 +147,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
           config,
           state,
           scheduler,
+          schedulerStatus,
         },
         null,
         2,
@@ -138,16 +166,33 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   printRows("config", config);
   printRows("state", [state]);
   printRows("scheduler", [scheduler]);
-  if (existsSync(plist)) {
-    console.log("  launchd installed");
-    console.log(`  unload: launchctl unload ${plist}`);
-  } else if (homes) {
-    console.log("  launchd not installed");
-    const template = join(homes.packageRoot, "config", "launchd", "operon-dispatch.plist.template");
-    console.log(`  install template: ${template}`);
-    console.log(`  load after install: launchctl load ${plist}`);
-  }
+  if (schedulerStatus?.definition.installed === true) console.log(`  ${manager.backend} installed; inspect/repair with: operon scheduler status`);
+  else if (homes) console.log(`  ${manager.backend} not installed; preview with: operon scheduler install --backend ${manager.backend}`);
   return ok ? 0 : 1;
+}
+
+function schedulerCheck(status: SchedulerOperationalStatus, configOnly: boolean): CheckRow {
+  if (!status.definition.installed) {
+    return { name: status.definition.backend, status: "WARN", detail: "not installed; autonomous dispatch is not scheduled" };
+  }
+  const definitionFailure = status.definition.reason_codes.some((reason) => [
+    "malformed_definition",
+    "ownership_mismatch",
+    "wrong_org",
+    "wrong_state_home",
+    "wrong_executable",
+    "cadence_drift",
+    "stale_definition",
+    "scheduler_state_missing",
+    "scheduler_state_corrupt",
+  ].includes(reason));
+  if (definitionFailure) return { name: status.definition.backend, status: "FAIL", detail: status.blocking_reasons.join(", ") };
+  if (configOnly) {
+    return { name: status.definition.backend, status: "WARN", detail: "definition valid; execution health not inspected (--config-only)" };
+  }
+  return status.healthy
+    ? { name: status.definition.backend, status: "OK", detail: `healthy; last tick ${status.evidence.last_completed_tick}` }
+    : { name: status.definition.backend, status: "FAIL", detail: status.blocking_reasons.join(", ") || "health cannot be measured" };
 }
 
 async function adapterChecks(

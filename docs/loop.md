@@ -1,6 +1,6 @@
 # The Build Loop — engineering design
 
-*Living design doc — last aligned 2026-07-11. The loop is Operon's center
+*Living design doc — last aligned 2026-07-13. The loop is Operon's center
 of gravity: a TypeScript
 re-engineering of the predecessor orchestrator — a private Python prototype
 that proved the approach, called simply "the predecessor" throughout
@@ -8,7 +8,7 @@ that proved the approach, called simply "the predecessor" throughout
 — made framework-agnostic through the runtime adapters. This doc is the
 detail layer for* `src/loop/`*;* `docs/architecture.md` *§3 holds the
 surrounding turn/worktree machinery. §11 records decisions ratified into
-docs/PURPOSE.md on 2026-07-06; future new decisions should be proposed here
+docs/PURPOSE.md on 2026-07-06 and 2026-07-13; future new decisions should be proposed here
 first, then promoted only after human ratification.*
 
 ## 0. Position
@@ -109,15 +109,23 @@ separate branches/worktrees, where git actually isolates them.
 
 ## 2. The pass model
 
-A **pass** is the atomic unit of agent work:
+A **pass** is a configured protocol stage and an orchestration identity:
 
 ```
-pass = one Runtime.runTurn(req, hooks) where
+pass normally invokes Runtime.runTurn(req, hooks) where
   req.task    = brief (assembled, §3) + pass prompt template (versioned file)
   req.context = TASTE layers + memory excerpts (architecture.md §5)
   req.role    = the role this pass belongs to (adapter, model, budget)
   overrides   = per-pass model/effort within the role's provider
 ```
+
+A pass is not the provider-accounting identity. Each adapter invocation is a
+distinct **provider turn** with exactly one settlement. If verdict reformatting,
+recovery, or another substep invokes the adapter again, the pass may retain one
+parent summary but must expose multiple provider turns and terminal execution
+steps. A deterministic **mechanical step** constructs no adapter and has zero
+provider settlements. The end-to-end **episode** owns the outcome and route;
+a role invocation or pipeline does not create an independent route.
 
 Rules, all inherited from the predecessor and now contract-level:
 
@@ -139,8 +147,10 @@ Rules, all inherited from the predecessor and now contract-level:
 5. **Harness delegation is per-pass discretion.** `delegation.allow` governs
   what a pass may fan out *internally* (scouts, adversarial verifiers).
    The pipeline is the protocol; delegation is tactics inside one step.
-6. **Turn caps per pass** (the predecessor used `max_turns=50`) and the role's
-  `max_turn_budget_usd` apply to every pass individually.
+6. **Legacy per-pass safety caps** (the predecessor used `max_turns=50`) and
+  the role's `max_turn_budget_usd` still bound the current implementation.
+  They do not authorize additional episode spend. The target pre-provider-turn
+  check uses the route's remaining allowance from `docs/efficiency.md`.
 
 Adapter requirement surfaced by the predecessor's sharpest edge: briefs are
 large (it needed a custom stdin transport because prompts overflow ARG_MAX).
@@ -266,14 +276,28 @@ bootstrap plan for a new app — proportionality-review Stage 4), `groom`,
 `src/org/trigger-routing.ts` so roles.yaml stays declarative and unknown
 mappings fail as loud skips.
 
-`operon plan --auto` does not execute the full `plan` list by default.
-`planning-depth/v1` resolves a code-owned `includePasses` set before model
-execution: quick = one combined decomposer (or `plan-bootstrap`), standard =
-visionary + PM-A + decomposer, deep = the full configured list. Hard floors
-cover security/auth/secrets, migration/schema, release/deploy, payments,
+### Episode admission and pass selection
+
+Before constructing any runtime, the execution contract admits the episode
+under `docs/efficiency.md`: immutable `planned_route`, policy version,
+risk/uncertainty factors, selected pass set, model/effort choices, context and
+human-attention allowances, and lower/upper cost. Before any additional
+provider turn, the loop checks the remaining allowance. A new factor requires a
+recorded reassessment before extra spend; `current_route` changes only there,
+and `final_route` records the terminal route. Required independent review and
+safety evidence are never removed merely to retain a route label.
+
+The current implementation has not yet completed this episode-wide admission
+record. `operon plan --auto` uses `planning-depth/v1` to resolve a code-owned
+`includePasses` set before model execution: quick = one combined decomposer (or
+`plan-bootstrap`), standard = visionary + PM-A + decomposer, deep = the full
+configured list. It is an interim planning pass-selection value—effectively
+`planning_depth`—not a competing quick/standard/deep route authority. Hard
+floors cover security/auth/secrets, migration/schema, release/deploy, payments,
 infrastructure/DNS, destructive data, high risk/ambiguity/coupling,
 irreversibility, external production consequence, and seven-plus expected
-tickets. A human minimum may raise the depth but cannot lower a floor.
+tickets. A human minimum may raise the planning pass set but cannot lower a
+safety floor; pipeline shape and role availability cannot deepen the episode.
 
 
 
@@ -576,6 +600,13 @@ A re-claim is **not** a blank slate. Before claiming, the driver rehydrates
 ticket-lifetime state from the artifacts previous turns left behind
 (`src/loop/rehydrate.ts`):
 
+Every still-valid decision and accepted artifact survives cancellation,
+timeout, approval wait, cap, retry, and process restart. A productive pass may
+repeat only after a durable invalidation record names the artifact or decision,
+the new evidence, and the executable next step. Unaccepted worktree scratch may
+remain disposable; contracts, commits, pushed refs, findings, approvals, gate
+evidence, usage checkpoints, and terminal records do not.
+
 - **Contract reuse.** The contract comment carries an HTML marker binding it
   to a sha-256 of the ticket body. While the body is unchanged, a re-claim
   reuses the contract verbatim (the contract pass is excluded via
@@ -678,11 +709,14 @@ field, machine `error_code`. **Stage 3 additions:** the executor stamps a
 distinguish active passes from stalled ones; a separate 30-second adapter-start deadline waits
 for the first provider progress/event and aborts an initialization/auth/
 transport stall as `failed(error_adapter_start_timeout)`; a per-pass
-wall-clock watchdog
-(`wall_clock_minutes`, default 60) cancels the owned provider tree and
+wall-clock watchdog cancels the owned provider tree and
 finalizes a hung pass `timed_out(error_wall_clock_exceeded)` with an
 unavailable-usage ledger row; operator SIGINT/SIGTERM similarly finalizes
-`cancelled(error_cancelled)`. Adapters checkpoint cumulative usage and native
+`cancelled(error_cancelled)`. When no override is present, production still
+uses a legacy 60-minute kill ceiling. That is a conservative safety fallback
+and known implementation gap, not the active-time policy; route-conformant
+execution derives the watchdog from the episode's remaining allowance.
+Adapters checkpoint cumulative usage and native
 session identity during execution, so an interrupted pass retains partial
 spend instead of reverting to zero. Adapter
 failure codes (`error_max_budget_usd`, …) flow into `pass.failed` and the
@@ -822,8 +856,8 @@ src/runtime/types.ts; `LoopItem` carries `tier` / `remediationAttempts` /
 
 ## 11. Ratified decisions promoted to docs/PURPOSE.md
 
-Ratified by the human operator on 2026-07-06 and promoted to
-docs/PURPOSE.md:
+Decisions 1–8 were ratified by the human operator on 2026-07-06; decision 9
+was ratified on 2026-07-13. All are promoted to docs/PURPOSE.md:
 
 1. **The loop is protocol-driven at the substage level.** The orchestrator
   owns pass pipelines — versioned prompt templates, per-pass model/effort,
@@ -855,6 +889,12 @@ docs/PURPOSE.md:
    tickets before `op:ready`; mapped to named tests by the contract pass;
    enforced by the completeness gate; never summarized or builder-edited.
    (§5)
+9. **The episode owns route and execution economy** (ratified 2026-07-13).
+  Admission precedes runtime construction; a pass is orchestration while each
+  adapter invocation is a separately settled provider turn; valid artifacts
+  survive interruption; and `docs/efficiency.md` is the sole route-budget
+  authority. Review and safety evidence are never traded away for a route
+  label.
 
 
 
@@ -871,14 +911,16 @@ docs/PURPOSE.md:
    rules (architecture.md §5 cache-stable assembly) hold regardless of the
    answer. *(build-time verification)*
 
-Resolved 2026-07-06: high-tier Builder contracts stay autonomous in v1;
-milestone planning uses the deep `plan` pipeline while weekly grooming stays
-lighter; Lab is approved as a future opt-in role; competitive intelligence
-stays a Marketing `ci-sweep` pipeline for now; per-pass wall-clock cap default
-is **60 minutes**, and the per-pass `wall_clock_minutes` override is now
-honored — the dispatcher records the pipeline's max per-pass value at claim
-time and `killHungTurns` (src/org/dispatch.ts) enforces it against the
-journal's `wallClockCapMs`, falling back to 60 min when unset.
+Historical decision, 2026-07-06: milestone planning used the deep `plan`
+pipeline and the per-pass wall-clock cap fell back to 60 minutes. P0-06,
+ratified 2026-07-13, supersedes both as operating defaults. Planning ceremony
+does not select an episode route; admission factors select the smallest safe
+pass set. The implementation still honors per-pass `wall_clock_minutes` and
+`killHungTurns` still uses the legacy fallback when unset, but that fallback is
+a non-normative kill ceiling until route remaining-time enforcement replaces
+it. The same 2026-07-06 decision retained high-tier autonomous Builder
+contracts, approved Lab as a future opt-in role, and kept competitive
+intelligence in the Marketing `ci-sweep` pipeline.
 
 
 
@@ -897,7 +939,7 @@ distinct codes end to end (§9).
 | **Infrastructure**          |                                                      |                                                      |                                                                                                                                              |
 | 1                           | Turn process dies mid-pass                           | stale lock heartbeat + journal `running`             | resume session once, else restart clean; `attempt ≥ 3` → returned + incident (architecture.md §3)                                            |
 | 2a                          | Adapter initialize/auth/transport stalls before any provider event | adapter-start deadline (default 30 sec) | abort owned provider tree; finalize `failed(error_adapter_start_timeout)` with partial/unavailable usage                                     |
-| 2b                          | SDK session hangs after starting                     | per-pass wall-clock cap (default 60 min)             | kill; enters #1's recovery path                                                                                                              |
+| 2b                          | SDK session hangs after starting                     | per-pass wall-clock cap (legacy 60-minute fallback when unset; non-normative) | kill; enters #1's recovery path; target cap derives from episode remaining allowance                                                        |
 | 3                           | Dispatcher dies mid-claim                            | next tick                                            | artifact-before-label: state re-derived from GitHub artifacts; no torn claims                                                                |
 | 4                           | Host asleep / offline                                | nothing runs                                         | missed schedules collapse to one firing; distributed item state resumes on any later tick                                                    |
 | 5                           | GitHub API down / rate-limited                       | API errors on tick                                   | loud L2 event; retry next tick (polling is idempotent); repeated → anomaly flag + incident note                                              |

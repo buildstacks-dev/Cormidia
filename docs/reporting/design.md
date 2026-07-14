@@ -6,6 +6,11 @@
 
 *Audience: the org owner, a new implementation session, and reviewers.*
 
+Route, context, provider-turn, active-time, human-decision, scheduler, and
+learning metrics use `docs/efficiency.md` as their canonical definitions.
+Reporting projects durable facts and measurement quality; it never admits a
+route, repairs workflow state, or converts missing evidence into zero.
+
 ## 1. Executive recommendation
 
 Build reporting as a distinct product mode over the same durable facts as

@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v2.0 — 2026-07-12. Human-ratified decision log. Keep this file high-level;
+*v2.1 — 2026-07-13. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -107,8 +107,12 @@ config file, not a fork.
 
 ## Decided
 
-- **Efficiency doctrine and evaluation semantics** (ratified 2026-07-12;
-  canonical contract in `docs/efficiency.md`, T0 decision packet in
+- **Efficiency doctrine and evaluation semantics** (evaluation semantics
+  ratified 2026-07-12; organization-wide operating doctrine ratified
+  2026-07-13; operator outcome in `docs/VISION.md`, canonical contract in
+  `docs/efficiency.md`, Phase 0 decision record in
+  `docs/efficiency-transformation/phase0-doctrine-ratification-proposal.md`,
+  and T0 eval decision in
   `docs/efficiency-transformation/t0-eval-ratification-proposal.md`).
   Efficiency is a correctness property and never weakens safety, independent
   review, evidence, or critical-operation governance. Provider accounting and
@@ -116,12 +120,17 @@ config file, not a fork.
   once, every provider or mechanical execution step terminates exactly once,
   and mechanical work creates no provider settlement. Routes and budgets are
   admitted before runtime construction from explicit risk/uncertainty factors;
-  nominal quick work uses at most three provider turns and honest escalation
-  preserves both planned and final route. Campaigns are predeclared and retain
+  the episode owns `planned_route`, `current_route`, and `final_route`; a
+  planning pass-set decision is not a competing route authority. Role
+  invocations and configured passes are orchestration identities, while each
+  adapter invocation is a separately settled provider turn. Campaigns are
+  predeclared and retain
   every attempt; missing live auth/usage or a skipped required case is invalid
   or incomplete, never green. Qualification runs only in isolated eval orgs
   and disposable apps; production is read-only confirmation, never
-  calibration.
+  calibration. Readiness claims follow the generated → registered →
+  runtime-ready → live → autonomously scheduled evidence ladder without
+  replacing the `onboarding | live | paused` registry states.
 
 - **Build, don't buy — TypeScript orchestrator, claude-loop reborn.** Ground-up
   rewrite in TypeScript (strict mode) porting claude-loop's proven patterns
@@ -537,3 +546,9 @@ will resolve them.
   ledger-first `operon report` CLI/portable export plus lazily computed
   `/reports` mode in the existing observer; detailed semantics remain in
   `docs/reporting/design.md` v0.1.
+- 2026-07-13 — v2.1: P0-01 through P0-09 ratified as Operon's
+  organization-wide efficiency operating doctrine. The episode now owns its
+  route; execution/accounting terms and layer ownership are explicit; legacy
+  deep/60-minute defaults are non-normative; durable progress and lifecycle
+  evidence claims are part of the product contract. Numeric budgets remain
+  solely in `docs/efficiency.md` (`efficiency/v1`).

@@ -7,6 +7,12 @@ command execution), and A5 durable denial lessons are all live. Companion to `do
 §5 Stage 5; supersedes, where stated, parts of PURPOSE's 2026-07-04/06
 approval decisions.
 
+Approval efficiency and human-decision accounting use the canonical
+definitions in `docs/efficiency.md`: approval precision and recurrence are
+measured at the semantic action/scope level, and only authority- or
+state-changing operator actions count as human decisions. This amendment owns
+authorization behavior, not a separate efficiency budget.
+
 ## Why amend
 
 The 2026-07-10 episode spent 42 recorded human decisions in one afternoon.

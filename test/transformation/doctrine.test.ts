@@ -7,20 +7,35 @@ import { parse } from "yaml";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const efficiency = readFileSync(join(root, "docs/efficiency.md"), "utf8");
+const purpose = readFileSync(join(root, "docs/PURPOSE.md"), "utf8");
+const vision = readFileSync(join(root, "docs/VISION.md"), "utf8");
+const architecture = readFileSync(join(root, "docs/architecture.md"), "utf8");
+const loop = readFileSync(join(root, "docs/loop.md"), "utf8");
+const readme = readFileSync(join(root, "README.md"), "utf8");
+const phaseZeroDecision = readFileSync(join(root, "docs/efficiency-transformation/phase0-doctrine-ratification-proposal.md"), "utf8");
 
 describe("ratified efficiency doctrine", () => {
   it("A-DOC-01 gives normative identities and measurements one canonical definition", () => {
     expect(efficiency.match(/<!-- efficiency-contract:start -->/g)).toHaveLength(1);
-    for (const term of ["provider turn", "execution step", "mechanical step", "active wall time", "Readiness states"]) expect(efficiency.toLowerCase()).toContain(term.toLowerCase());
+    for (const term of ["episode", "role invocation", "pass", "provider turn", "execution step", "mechanical step", "attempt", "active wall time", "Readiness states", "planned_route", "current_route", "final_route"]) {
+      expect(efficiency.toLowerCase()).toContain(term.toLowerCase());
+    }
+    expect(phaseZeroDecision).toContain("Status | Ratified as written");
+    for (const [name, text] of [["PURPOSE", purpose], ["VISION", vision], ["README", readme], ["architecture", architecture], ["loop", loop]] as const) {
+      expect(text, `${name} must link the canonical authority`).toContain("docs/efficiency.md");
+      expect(identityConflicts(text), name).toEqual([]);
+    }
   });
   it("A-DOC-02 has exactly one authoritative route-budget table", () => {
     expect(efficiency.match(/<!-- efficiency-budgets:start -->/g)).toHaveLength(1);
     expect(efficiency.match(/<!-- efficiency-budgets:end -->/g)).toHaveLength(1);
   });
   it("A-DOC-03 explicitly supersedes unconditional deep/60-minute defaults", () => {
-    const purpose = readFileSync(join(root, "docs/PURPOSE.md"), "utf8");
     expect(purpose).toContain("superseded by the 2026-07-12 efficiency doctrine");
     expect(purpose).toMatch(/neither former default can override proportional\s+admission/);
+    for (const [name, text] of [["architecture", architecture], ["loop", loop]] as const) {
+      expect(activeDefaultViolations(text), name).toEqual([]);
+    }
   });
   it("A-DOC-04 capabilities type every existing token-spending command", () => {
     const result = spawnSync(process.execPath, ["--import", "tsx", join(root, "src/cli.ts"), "capabilities", "--json"], { cwd: root, encoding: "utf8" });
@@ -43,9 +58,11 @@ describe("ratified efficiency doctrine", () => {
   it("A-DOC-01 near-miss does not confuse an explanatory use of turn with a second canonical identity", () => {
     expect(efficiency.match(/<!-- efficiency-contract:start -->/g)).toHaveLength(1);
     expect(efficiency.match(/<!-- efficiency-contract:end -->/g)).toHaveLength(1);
+    expect(identityConflicts("A pass is not the provider-accounting identity; one pass may expose two provider turns.")).toEqual([]);
   });
   it("A-DOC-01 honest failure detects a duplicated canonical contract marker", () => {
     expect(() => oneMarker(`${efficiency}\n<!-- efficiency-contract:start -->`, "efficiency-contract")).toThrow("duplicate_canonical_marker");
+    expect(identityConflicts("A pass is the provider-accounting identity. A mechanical step has one provider settlement.")).toHaveLength(2);
   });
   it("A-DOC-02 near-miss permits linked budget discussion outside the one authoritative table", () => {
     expect(oneMarker(efficiency, "efficiency-budgets")).toBe(true);
@@ -55,8 +72,8 @@ describe("ratified efficiency doctrine", () => {
     expect(() => oneMarker(`${efficiency}\n<!-- efficiency-budgets:start -->`, "efficiency-budgets")).toThrow("duplicate_canonical_marker");
   });
   it("A-DOC-03 near-miss preserves historical defaults only when explicitly marked superseded", () => {
-    const purpose = readFileSync(join(root, "docs/PURPOSE.md"), "utf8");
     expect(purpose).toMatch(/superseded by the 2026-07-12 efficiency doctrine[\s\S]{0,800}60 minutes/);
+    expect(hasUnconditionalDefault("Historical decision: milestone planning used deep and the pass cap was 60 minutes. This is superseded and non-normative.")).toBe(false);
   });
   it("A-DOC-03 honest failure catches an unconditional active default fixture", () => {
     expect(hasUnconditionalDefault("Planner depth defaults to deep. Every pass has a 60-minute cap.")).toBe(true);
@@ -85,7 +102,22 @@ describe("ratified efficiency doctrine", () => {
 });
 
 function oneMarker(text: string, name: string): true { const starts = text.match(new RegExp(`<!-- ${name}:start -->`, "g")) ?? []; const ends = text.match(new RegExp(`<!-- ${name}:end -->`, "g")) ?? []; if (starts.length !== 1 || ends.length !== 1) throw new Error("duplicate_canonical_marker"); return true; }
-function hasUnconditionalDefault(text: string): boolean { const lower = text.toLowerCase(); return (lower.includes("defaults to deep") || lower.includes("60-minute cap")) && !lower.includes("superseded"); }
+function activeDefaultViolations(text: string): string[] {
+  const defaultPattern = /(?:defaults?\s+to\s+deep|milestone\s+planning\s+(?:uses|used|use|runs?)\s+(?:the\s+)?deep|(?:default|fallback|falls?\s+back|fell\s+back)\s+(?:is\s+|to\s+)?(?:\*\*)?60(?:-minute|\s+min(?:ute)?s?)|60-minute\s+cap)/i;
+  const historicalQualifier = /(?:historical|superseded|legacy|non-normative|implementation gap|not active policy|not the active-time policy)/i;
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+    .filter((paragraph) => defaultPattern.test(paragraph) && !historicalQualifier.test(paragraph));
+}
+function hasUnconditionalDefault(text: string): boolean { return activeDefaultViolations(text).length > 0; }
+function identityConflicts(text: string): string[] {
+  const patterns = [
+    /\bpass\s+is\s+(?:the\s+)?provider-accounting identity\b/i,
+    /\bmechanical step\s+(?:has|creates|joins? to)\s+(?:exactly\s+)?(?:one|a)\s+provider settlement\b/i,
+  ];
+  return patterns.filter((pattern) => pattern.test(text)).map((pattern) => pattern.source);
+}
 function validCapability(value: unknown): boolean { const item = typeof value === "object" && value !== null ? value as Record<string, unknown> : {}; return typeof item.command === "string" && typeof item.writes === "boolean" && typeof item.spendsTokens === "boolean"; }
 
 function yamlFiles(dir: string): string[] {

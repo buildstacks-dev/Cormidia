@@ -13,6 +13,12 @@ systemic review of the 2026-07-10 buildstacks.dev episode — why a simple
 bootstrap became complex, where the time and money actually went, and the
 plan to fix it.
 
+This document's targets, defaults, and benchmark actuals are historical
+evidence. The durable operating policy is now `docs/efficiency.md`
+(`efficiency/v1`), ratified organization-wide on 2026-07-13 by the Phase 0
+doctrine decision. Historical numbers below remain unchanged and are not a
+second normative route-budget table.
+
 Companions, and how to read the three documents:
 - **This document is the master.** Read it first: it names the systemic
   causes and owns the staged plan of action (§5). The other two are its

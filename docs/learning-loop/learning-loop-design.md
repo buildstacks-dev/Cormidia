@@ -7,6 +7,11 @@ loop design); revised per the consolidated design feedback of 2026-07-10
 **Date:** 2026-07-11  
 **Companions:** `learning-loop-spec.md` (schemas), `learning-loop-milestones.md` (release plan)
 
+Learning efficacy, capture, episode identity, and later-comparable outcome
+claims use `docs/efficiency.md` as their canonical measurement contract. This
+design governs interventions and evidence; it does not define a second route or
+budget authority.
+
 v0.8 changes: the **episode** replaces the turn as the unit of treatment
 assignment and outcome measurement (§8); **executable experiment contracts**,
 required conditionally by claim and tier (§9.1); intervention lineage across

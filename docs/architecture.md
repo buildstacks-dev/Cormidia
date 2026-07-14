@@ -1,9 +1,9 @@
 # Operon Architecture
 
-*v1.3 — last aligned 2026-07-12. docs/PURPOSE.md → Decided is upstream and
+*v1.4 — last aligned 2026-07-13. docs/PURPOSE.md → Decided is upstream and
 authoritative; this document holds the implementation detail the decision
 layer deliberately does not. §11 records decisions
-ratified into docs/PURPOSE.md on 2026-07-06; future new decisions should be
+ratified into docs/PURPOSE.md on 2026-07-06 and 2026-07-13; future new decisions should be
 proposed here first, then promoted only after human ratification.*
 
 ## 0. Overview
@@ -78,6 +78,37 @@ Module placement respects the one-way import rule
 | Governed learning loop (capture, episodes, activation, resolver) | `src/org/learning/`                                    | design in `docs/learning-loop/`         |
 | A4 release handoff                                      | `src/org/release.ts`                                           | ship-gate P7; deploy queued as a critical op, then a later dispatch executes the approved command once and comments the ticket |
 | Package/org/state boundary                              | `src/org/home.ts`                                              | org init, validation, active pointer, state-home resolution |
+
+
+### Efficiency control plane
+
+`docs/efficiency.md` (`efficiency/v1`) is the sole normative route, budget,
+measurement, and qualification authority. Every organizational **episode**
+owns one immutable `planned_route`, a reassessed `current_route`, and a
+terminal `final_route`. Admission must record factors, selected pass set,
+model/effort, context and human-attention allowances, and cost bounds before
+constructing a runtime. The existing production path does not yet implement
+that entire record; the gap is tracked by the transformation contracts and is
+not papered over by the older planning-depth or timeout settings.
+
+Ownership follows the import direction:
+
+| Layer | Efficiency responsibility |
+| --- | --- |
+| `src/runtime` | Execute adapter calls, checkpoint usage/session facts, and settle each provider turn exactly once. It never chooses a route. |
+| `src/loop` | Own provider-neutral route admission and reassessment primitives, pass-selection evidence, episode counters, context manifests, work fingerprints, pre-turn checks, and terminal provider/mechanical execution-step records. |
+| `src/org` | Own organizational episodes, lifecycle and scheduler transactions, human decisions/wait, cross-pipeline coordination, learning outcomes, and final episode disposition. |
+| `src/report` / `src/observe` | Read-only projections. They perform no admission, reconciliation, workflow mutation, or provider call. |
+| `eval/**` | Qualify an exact candidate. Eval evidence never becomes production workflow authority. |
+
+A **role invocation** is one scheduled, event-driven, or manual invocation of
+an organizational role. A **pass** is a configured protocol stage. A
+**provider turn** is one adapter invocation and one provider settlement. An
+**execution step** is one terminal provider or deterministic operation record;
+a **mechanical step** constructs no adapter and has zero settlements. If a pass
+calls the adapter again for recovery or verdict reformatting, that is another
+provider turn even when the pass retains one parent summary. Use the specific
+identity in normative text instead of ambiguous bare “turn.”
 
 
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
@@ -359,7 +390,7 @@ it on time.
 
 
 
-### One role turn
+### One role invocation
 
 ```
 dispatch → journal(assembling) → context assembly (§5)
@@ -374,10 +405,12 @@ The journal `state/turns/<turnId>.json` is written synchronously at every
 phase transition — it is the crash-recovery source of truth:
 `{turnId, role, app, trigger, phase, attempt, session?, worktree?, ticketRef?, escalationIds?, startedAt, updatedAt}`.
 
-**Per-turn budget.** The adapter tracks running cost from SDK usage events;
+**Legacy role-invocation budget.** The adapter tracks running cost from SDK usage events;
 crossing `max_turn_budget_usd` aborts the turn gracefully → status `failed`
 with an incident note artifact (roles.yaml: "overrun = incident note, not
-silent spend").
+silent spend"). It remains a safety backstop while episode route admission and
+pre-provider-turn remaining-budget enforcement are implemented; it is not a
+second canonical route budget.
 
 ### Worktrees
 
@@ -406,10 +439,12 @@ gates, never "throw a ticket at an agent"). `docs/loop.md` is the
 authoritative design — passes, briefs, gates, verdicts, review dimensions,
 and acceptance-criteria discipline all live there. Summary:
 
-- A role turn decomposes into a **pass pipeline** (`pipelines.yaml` +
-versioned prompts in `prompts/`); each pass = one `runTurn` with an
-assembled, budgeted **brief**; fresh session per pass; per-pass
-model/effort overrides (`docs/loop.md` §§2–4).
+- A role invocation may decompose into a **pass pipeline** (`pipelines.yaml` +
+versioned prompts in `prompts/`). A configured pass currently invokes
+`runTurn` with an assembled, budgeted **brief** and a fresh session; any extra
+adapter invocation inside that pass remains a distinct provider turn and
+settlement. Per-pass model/effort overrides remain within the admitted episode
+(`docs/loop.md` §§2–4).
 - **Mechanical quality gates** (setup/tests/lint/e2e/secret-scan/
 completeness/review-freshness, risk-tiered by `.operon/policy.yaml`) run
 as orchestrator subprocesses after build passes and twice at ship —
@@ -438,13 +473,21 @@ A stale lock or an in-flight journal at tick time triggers recovery:
 | `phase: collecting`                                                  | Don't re-run the model: re-run collection only (artifacts are already on GitHub; telemetry/memory writes are idempotent by turnId)       |
 
 
-**Restart clean** means: `git reset --hard && git clean -fd` in the worktree
-back to the branch tip. Committed-and-pushed work survives; uncommitted work
-is disposable *by rule* (below).
+**Restart clean** currently resets worktree scratch to the branch tip with
+`git reset --hard && git clean -fd`. It may discard only scratch that has not
+been accepted as a valid episode artifact. Commits, pushed refs, contracts,
+findings, approvals, gate evidence, usage checkpoints, execution records, and
+any other accepted artifact survive interruption. Repeating a productive pass
+requires a durable invalidation reason tied to the artifact or decision it
+invalidates; route-aware recovery is a transformation implementation gap.
 
-A turn whose running pass exceeds its wall-clock cap (per-pass override, else
-the org default 60 min) is killed by the dispatcher — SIGTERM escalating to
-SIGKILL. Recovery (restart-clean + respawn) is **deferred until the process is
+A role invocation whose running pass exceeds its wall-clock cap is killed by
+the dispatcher — SIGTERM escalating to SIGKILL. The current implementation
+falls back to a legacy 60-minute per-pass kill ceiling when no override exists.
+That fallback is a conservative safety mechanism and a named non-conformant
+implementation gap, not active efficiency policy. The target watchdog derives
+from the episode's remaining active-time allowance in `docs/efficiency.md`.
+Recovery (restart-clean + respawn) is **deferred until the process is
 confirmed dead** (`killHungTurns` in `src/org/dispatch.ts`): a still-alive
 child that also holds the per-app clone lock would otherwise let two workers
 mutate one clone. If the pid refuses to die this tick, recovery waits for a
@@ -462,9 +505,11 @@ credentials, and model configuration before an operator starts live work.
 
 These four rules are why a dead turn never leaves the repo half-done:
 
-1. **Durable side effects are git/GitHub ops only** — commit, push, PR
-  create, label flip, review, comment, merge. Everything else (worktree
-   contents, session files) is disposable scratch.
+1. **Durable progress is explicit.** Git/GitHub operations remain the durable
+  product effects: commit, push, PR create, label flip, review, comment, merge.
+  Episode contracts, findings, approvals, gate evidence, usage checkpoints,
+  and terminal records are also durable orchestration artifacts. Only
+  unaccepted worktree/session scratch is disposable.
 2. **Artifact before label.** State labels flip only *after* the artifact
   they announce exists (push branch → then `op:building`; open PR → then
    `op:in-review`). A restarted turn re-derives state from artifacts (`gh pr  list --head <branch>`), never trusts the label alone, and skips
@@ -852,13 +897,16 @@ effects.
 carry `unmeasured: true` (the native CLI's tokens never flow through
 Operon), while `--auto` turns settle real usage per pass. The `Trigger`
 type's `manual?: boolean` kind is one the dispatcher **never** auto-fires.
-- Before an `--auto` runtime is constructed, `planning-depth/v1` routes on
+- Before an `--auto` runtime is constructed, the current
+  `planning-depth/v1` implementation selects a planning pass set from
   explicit/derived risk, ambiguity, coupling, reversibility, external
   consequence, expected decomposition, and sensitive-domain floors. Quick
   selects one combined planning/decomposition pass; standard selects one PM
-  perspective; deep retains competing PMs and arbitration. The envelope
-  records factors, selected/skipped passes, and the pre-execution cost
-  estimate; prompt length is not a routing input.
+  perspective; deep retains competing PMs and arbitration. This value is an
+  interim `planning_depth` decision, not an episode route authority. Under
+  `efficiency/v1`, episode admission owns the route and the selected pass set
+  is evidence derived from it. The envelope records factors, selected/skipped
+  passes, and the pre-execution cost estimate; prompt length is not an input.
 - Gate applies as always — interactivity doesn't change the approval
 boundary; the human approving in-terminal *is* the approval surface for any
 critical op raised live (recorded to the same audit log).
@@ -872,6 +920,26 @@ critical op raised live (recorded to the same audit log).
 
 Greenfield products start one step earlier than existing-app bootstrap. Both
 paths require a complete active org created with `operon org init`:
+
+Readiness claims use this evidence ladder; it does not add registry states or
+replace `onboarding | live | paused`:
+
+1. **Generated:** local app/org artifacts exist; registry, remote, runtime,
+   and schedule claims do not follow.
+2. **Registered:** the org registry and app-owned config agree; the app is
+   still onboarding.
+3. **Runtime-ready:** deterministic verification proves refs, ancestry,
+   managed clone, authority/config hashes, app checks, locks/approvals, and
+   required adapters.
+4. **Live:** the human-selected registry state permits ordinary manual and
+   dispatch work; scheduler installation is not implied.
+5. **Autonomously scheduled:** the correct org-scoped scheduler is installed,
+   healthy, and producing attributable due/executed/skipped/blocked evidence.
+
+The lifecycle transaction belongs to `src/org`; reporting and observation only
+project the evidence. `new-app` reaches generated, and successful bootstrap
+reaches registered. Neither command alone proves runtime-ready, live, or
+autonomously scheduled.
 
 ```
 operon new-app "marketplace for dummy products" \
@@ -995,8 +1063,8 @@ predecessor pattern).
 
 ## 11. Ratified decisions promoted to docs/PURPOSE.md
 
-New decisions made by this document, ratified by the human operator on
-2026-07-06 and promoted to docs/PURPOSE.md:
+Decisions 1–10 were ratified by the human operator beginning 2026-07-06;
+decision 11 was ratified on 2026-07-13. All are promoted to docs/PURPOSE.md:
 
 1. **Tick dispatcher, detached turns.** Stateless `operon dispatch` tick
   (launchd/systemd, ~5 min); turns spawn detached so schedulers never kill
@@ -1009,9 +1077,10 @@ New decisions made by this document, ratified by the human operator on
    widen a decision to a rule+path-scoped ticket/app grant with TTL,
    use-count cap, revocation, and per-use audit rows; self-merge, deploys,
    and protocol-surface writes are never scopeable.
-3. **Idempotency contract** (§3): durable effects are git/GitHub ops only;
-  artifact-before-label; claims are label flips; non-git writes append-only
-   keyed by turnId.
+3. **Idempotency contract** (§3): durable product effects are git/GitHub ops;
+  artifact-before-label; claims are label flips; durable orchestration records
+  are append-only and identity-keyed. P0-07 later clarified that accepted
+  non-git episode artifacts also survive interruption.
 4. **Org-managed clones.** The org works only in its own clones/worktrees
   under `~/.operon/`; GitHub is the sole sync point with the human's
    checkouts.
@@ -1035,7 +1104,13 @@ New decisions made by this document, ratified by the human operator on
    carries `schema_version` from day one.
 10. **Company-lifecycle events ride the file-drop inbox** (§2): external
   producers write event JSON; the dispatcher's trigger mechanism is
-   unchanged. Enumerating producers per role is roadmap work.
+  unchanged. Enumerating producers per role is roadmap work.
+11. **Efficiency control-plane ownership** (ratified 2026-07-13; P0-01 through
+   P0-09): the episode owns admission and route history; `src/loop` owns shared
+   execution-economy primitives, `src/org` owns organizational lifecycle,
+   `src/runtime` executes and settles, and report/observe remain read-only.
+   Legacy deep-planning and 60-minute fallbacks are implementation history,
+   not policy; `docs/efficiency.md` is the sole numeric authority.
 
 
 

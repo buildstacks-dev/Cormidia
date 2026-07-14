@@ -8,6 +8,11 @@ application, every capability is proven against **test applications**:
 real repositories, real commands, real GitHub — but disposable, so
 mistakes cost nothing.
 
+The durable qualification bar, attempt outcomes, isolation rules, and route
+measurements are defined in `docs/efficiency.md` and implemented by `eval/**`.
+The sandbox journey supplies product evidence; a successful demo or one
+favorable run cannot replace the predeclared qualification campaign.
+
 This document explains, in plain language, what those test applications
 are, what gets tested at each stage of the build plan (the M0–M12 roadmap,
 now archived in git history; open work lives in the GitHub issue tracker), and —

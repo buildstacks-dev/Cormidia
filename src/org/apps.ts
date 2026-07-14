@@ -4,12 +4,13 @@
 // never inside a turn (docs/PURPOSE.md → One turn, one app).
 
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse, parseDocument, stringify } from "yaml";
 import type { RoleConfig, Trigger } from "../runtime/types.js";
 import { RELEASE_KINDS, RELEASE_OWNERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner } from "../loop/types.js";
+import { writeFileAtomic } from "./atomic.js";
 
 export type AppStatus = "live" | "paused" | "onboarding";
 
@@ -87,6 +88,14 @@ export interface RemoveExistingAppResult {
   orgHome: string;
   appsPath: string;
   app: AppEntry;
+}
+
+export interface UpdateAppStatusResult {
+  orgHome: string;
+  appsPath: string;
+  before: AppStatus;
+  after: AppStatus;
+  changed: boolean;
 }
 
 export async function loadApps(path: string): Promise<AppsFile> {
@@ -358,7 +367,7 @@ export async function joinExistingOrg(
   const next = emptyAppsLine.test(before)
     ? `${before.replace(emptyAppsLine, `apps:\n${block}`).trimEnd()}\n`
     : `${before.endsWith("\n") ? before : `${before}\n`}${block}\n`;
-  await writeFile(appsPath, next, "utf8");
+  await writeFileAtomic(appsPath, next);
 
   // The 2-space EOF append assumes `apps:` is the last top-level key at 2-space
   // indent. apps.yaml is a human-ratified surface, so a reorder/reindent can
@@ -373,7 +382,7 @@ export async function joinExistingOrg(
       throw new Error(`app "${entry.name}" is not present after append (non-canonical apps.yaml layout?)`);
     }
   } catch (error) {
-    await writeFile(appsPath, before, "utf8");
+    await writeFileAtomic(appsPath, before);
     throw new Error(
       `bootstrap: appending "${entry.name}" to ${appsPath} produced an invalid registry; ` +
         `rolled back. ${error instanceof Error ? error.message : String(error)}`,
@@ -412,7 +421,7 @@ export async function removeExistingApp(
   }
   document.deleteIn(["apps", appName]);
   const next = document.toString();
-  await writeFile(appsPath, next, "utf8");
+  await writeFileAtomic(appsPath, next);
 
   try {
     const reloaded = await loadApps(appsPath);
@@ -420,7 +429,7 @@ export async function removeExistingApp(
       throw new Error(`app "${appName}" is still present after removal`);
     }
   } catch (error) {
-    await writeFile(appsPath, before, "utf8");
+    await writeFileAtomic(appsPath, before);
     throw new Error(
       `app reset: removing "${appName}" from ${appsPath} produced an invalid registry; ` +
         `rolled back. ${error instanceof Error ? error.message : String(error)}`,
@@ -428,6 +437,39 @@ export async function removeExistingApp(
   }
 
   return { orgHome, appsPath, app };
+}
+
+/** Human-invoked lifecycle promotion updates only one existing status scalar.
+ * The exact original bytes are restored if the edited registry does not
+ * round-trip through the authoritative loader. */
+export async function updateAppStatus(
+  orgHomeIn: string,
+  appName: string,
+  status: AppStatus,
+): Promise<UpdateAppStatusResult> {
+  const orgHome = resolve(orgHomeIn);
+  const appsPath = join(orgHome, "apps.yaml");
+  const beforeBytes = await readFile(appsPath, "utf8");
+  const file = await loadApps(appsPath);
+  const app = file.apps.find((entry) => entry.name === appName);
+  if (app === undefined) throw new Error(`app promote: unknown app "${appName}" in ${appsPath}`);
+  if (app.status === status) return { orgHome, appsPath, before: app.status, after: status, changed: false };
+  const document = parseDocument(beforeBytes);
+  if (document.errors.length > 0 || !document.hasIn(["apps", appName])) {
+    throw new Error(`app promote: ${appsPath} has no valid editable apps.${appName} entry`);
+  }
+  document.setIn(["apps", appName, "status"], status);
+  await writeFileAtomic(appsPath, document.toString());
+  try {
+    const reloaded = await loadApps(appsPath);
+    if (reloaded.apps.find((entry) => entry.name === appName)?.status !== status) {
+      throw new Error(`app status did not round-trip as ${status}`);
+    }
+  } catch (error) {
+    await writeFileAtomic(appsPath, beforeBytes);
+    throw new Error(`app promote: invalid registry edit rolled back: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return { orgHome, appsPath, before: app.status, after: status, changed: true };
 }
 
 function numberOr(v: unknown, fallback: number): number {

@@ -15,6 +15,7 @@ export async function cmdNewApp(args: string[]): Promise<number> {
     repoSlug: parsed.repoSlug,
     goal: parsed.goal,
     orgHome: homes.orgHome,
+    stateHome: homes.stateHome,
     supportChannels: parsed.supportChannels,
     marketingChannels: parsed.marketingChannels,
     dryRun: parsed.dryRun,

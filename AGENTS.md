@@ -101,7 +101,7 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 | `docs/learning-loop/` | Learning-loop design suite (v0.8, 2026-07-11): governed self-improvement — design, spec, milestones, control/data-flow diagrams; superseded review feedback under `archive/` |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
-| `src/org/` | Standing-org layer: roles/apps loaders, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
+| `src/org/` | Standing-org layer: roles/apps loaders, token-free upgrade/reset/recovery/verify/promote lifecycle, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/observe/` | Presentation-only Live UI: versioned projection, URL-stable live/historical session selection, source health, bounded read-only GitHub polling, loopback HTTP/SSE, allowlisted local evidence, and embedded framework-free assets |
 | `src/report/` | Presentation-only Reporting V1: diagnostic daily-ledger/range readers, direct run/task enrichment, deterministic sessions, usage/budget projections, portable HTML, and lazy bounded server cache |
 | `src/org/home.ts` | Package/org/state boundary: complete org initialization, validation, active pointer, and independent state-home resolution |
@@ -115,7 +115,7 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
 | `eval/` | Highly-efficient-organization qualification assets: exact contract inventory, schemas, content-addressed app seeds, content-hashed hidden graders/references/mutants, adapter capability and content-bound operator declarations, corpora, cases, campaign templates, and price catalogs. Raw attempts live under ignored `.eval-artifacts/`. |
 
-## Commands (verified 2026-07-11)
+## Commands (verified 2026-07-14)
 - Node: >= 26 (`engines`, `.nvmrc`; `nvm use`). Node >= 25 no longer bundles
   corepack — `npm install -g corepack && corepack enable` once per Node
   install. `node:sqlite` is stable on this floor (relevant to the learning
@@ -159,9 +159,13 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
   context` · `operon capabilities` · `operon doctor`; every command resolves
   the active org independently of cwd.
 - CLI in source-development mode: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·
+  `pnpm dev org upgrade [--authority preserve|delegated-operator|conservative|custom] [--execute] [--json]` ·
   `pnpm dev app reset <app> [--execute --confirm <app>] [--force]` ·
+  `pnpm dev app verify <app> [--json]` ·
+  `pnpm dev app promote <app> --to live [--execute] [--json]` ·
   `pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run` ·
-  `pnpm dev bootstrap --scan-only <repo>` · `pnpm dev plan <app> --dry-run` ·
+  `pnpm dev bootstrap --scan-only <repo>` ·
+  `pnpm dev bootstrap <repo> --answers-from <archive|app> [--json]` · `pnpm dev plan <app> --dry-run` ·
   `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]
   [--depth quick|standard|deep] [--no-publish]` (adaptive runtime-backed
   plan: schema-validated, orchestrator-published) ·

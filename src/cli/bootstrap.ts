@@ -10,7 +10,7 @@
 
 import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
   bootstrapRun,
@@ -27,24 +27,38 @@ import {
   validateOrgHome,
 } from "../org/home.js";
 import { authorityPreview, resolveAuthority } from "../org/authority.js";
+import { readOnboardingRecoverySource } from "../org/onboarding-answers.js";
+import { bootstrapFromRecoveredAnswers, type RecoveredBootstrapResult } from "../org/app-lifecycle.js";
+import { stableJson } from "../org/lifecycle.js";
 
 export async function cmdBootstrap(args: string[]): Promise<number> {
   let root = ".";
   let scanOnly = false;
   let answersPath: string | undefined;
+  let answersFrom: string | undefined;
   let orgHome: string | undefined;
   let stateHome: string | undefined;
+  let json = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--scan-only") {
       scanOnly = true;
+    } else if (arg === "--json") {
+      json = true;
     } else if (arg === "--answers") {
       const next = args[i + 1];
       if (!next || next.startsWith("--")) {
         throw new Error("bootstrap: --answers requires a path to an answers.json file");
       }
       answersPath = next;
+      i++;
+    } else if (arg === "--answers-from") {
+      const next = args[i + 1];
+      if (!next || next.startsWith("--")) {
+        throw new Error("bootstrap: --answers-from requires a reset archive path or app name");
+      }
+      answersFrom = next;
       i++;
     } else if (arg === "--org-home") {
       const next = args[i + 1];
@@ -67,6 +81,10 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     }
   }
 
+  if (answersPath !== undefined && answersFrom !== undefined) {
+    throw new Error("bootstrap: choose either --answers or --answers-from, not both");
+  }
+
   validateLocalTarget(root);
   const existingOrgHome = await findExistingOrg(orgHome ? { orgHome } : {});
   if (existingOrgHome !== undefined) await validateOrgHome(existingOrgHome);
@@ -79,6 +97,19 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
 
   if (scanOnly) {
     const scan = await scanRepo(root);
+    if (json) {
+      console.log(stableJson({
+        schema_version: 1,
+        kind: "bootstrap-scan",
+        app_root: scan.root,
+        org_home: homes?.orgHome ?? null,
+        state_home: homes?.stateHome ?? null,
+        scan,
+        mutating: false,
+        provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
+      }).trimEnd());
+      return 0;
+    }
     printHomes(scan.root, homes?.orgHome, homes?.stateHome);
     printScan(scan);
     console.log("\nwould create:");
@@ -100,14 +131,21 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     );
   }
   if (homes === undefined) throw new Error("bootstrap: active org resolution failed");
-  printHomes(resolve(root), homes.orgHome, homes.stateHome);
+  if (!json) printHomes(resolve(root), homes.orgHome, homes.stateHome);
 
   // Step 2 — the answers object: injected file, or interactive when a
   // human is present. One validation path either way (parseAnswers, inside
   // bootstrapRun).
   let answersRaw: unknown;
+  let recoveredAppName: string | undefined;
   if (answersPath) {
     answersRaw = await readAnswersFile(answersPath);
+  } else if (answersFrom !== undefined) {
+    const recovery = await readOnboardingRecoverySource(answersFrom, homes.stateHome, {
+      archiveRoot: join(dirname(homes.stateHome), "archives", safeSegment(homes.appsFile.org.name)),
+    });
+    answersRaw = recovery.answers;
+    recoveredAppName = recovery.app;
   } else if (process.stdin.isTTY && process.stdout.isTTY) {
     const orgRoles = await loadRoles(join(homes.orgHome, "roles.yaml"));
     answersRaw = await collectAnswers(
@@ -118,9 +156,40 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   }
 
   if (answersRaw !== undefined) {
-    const { scan, created, updated, joinedOrgHome } = await bootstrapRun(root, answersRaw, {
-      orgHome: homes.orgHome,
-    });
+    const result = answersFrom !== undefined
+      ? await bootstrapFromRecoveredAnswers(root, answersRaw, {
+          orgHome: homes.orgHome,
+          stateHome: homes.stateHome,
+          ...(recoveredAppName !== undefined ? { appName: recoveredAppName } : {}),
+        })
+      : await bootstrapRun(root, answersRaw, {
+          orgHome: homes.orgHome,
+          stateHome: homes.stateHome,
+        });
+    const { scan, created, updated, joinedOrgHome } = result;
+    const recovered = "immutableSource" in result && result.immutableSource === true
+      ? result as RecoveredBootstrapResult
+      : undefined;
+    const authority = await resolveAuthority({ orgHome: homes.orgHome, appWorkdir: recovered?.managedClone ?? root });
+    if (json) {
+      console.log(stableJson({
+        schema_version: 1,
+        kind: "bootstrap-result",
+        status: "registered",
+        app_root: scan.root,
+        org_home: joinedOrgHome,
+        state_home: homes.stateHome,
+        created,
+        updated,
+        immutable_source: recovered !== undefined,
+        managed_clone: recovered?.managedClone ?? null,
+        onboarding_commit: recovered?.onboardingCommit ?? null,
+        default_branch: recovered?.defaultBranch ?? null,
+        authority: { profile: authority.profile, version: authority.version, sha256: authority.sha256 },
+        provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
+      }).trimEnd());
+      return 0;
+    }
     printScan(scan);
     console.log(`\njoined existing org at ${joinedOrgHome}`);
     console.log("\ncreated:");
@@ -129,7 +198,12 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
       console.log("\nupdated (Operon marked block only):");
       for (const rel of updated) console.log(`  ${rel}`);
     }
-    const authority = await resolveAuthority({ orgHome: homes.orgHome, appWorkdir: root });
+    if (recovered !== undefined) {
+      console.log(`\nmanaged onboarding commit: ${recovered.onboardingCommit}`);
+      console.log(`default branch: ${recovered.defaultBranch}`);
+      console.log(`source checkout unchanged: ${root}`);
+      console.log("next: make the onboarding commit reachable from the remote default branch, then run `operon app verify <app>`.");
+    }
     const preview = authorityPreview(
       authority.profile === "conservative"
         ? "conservative"
@@ -140,18 +214,20 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     console.log(`\nauthority: ${authority.version} (sha256:${authority.sha256})`);
     console.log(`  automatic: ${preview.automatic.join("; ")}`);
     console.log(`  human-gated: ${preview.humanGated.join("; ")}`);
-    console.log(
-      "\nnext: review + commit app artifacts under .operon/ in the app repo:\n" +
-        "charter (.operon/TASTE.md), authority (.operon/AUTHORITY.md), registry entry (.operon/config.yaml),\n" +
-        "policy (.operon/policy.yaml), onboarding report (.operon/onboarding-report.md),\n" +
-        "and seeded memory bundles.",
-    );
+    if (recovered === undefined) {
+      console.log(
+        "\nnext: review + commit app artifacts under .operon/ in the app repo:\n" +
+          "charter (.operon/TASTE.md), authority (.operon/AUTHORITY.md), registry entry (.operon/config.yaml),\n" +
+          "policy (.operon/policy.yaml), onboarding report (.operon/onboarding-report.md),\n" +
+          "and seeded memory bundles.",
+      );
+    }
     return 0;
   }
 
   throw new Error(
     "bootstrap: questionnaire answers are required outside an interactive terminal — " +
-      "pass --answers <answers.json>; no files or registry entries were written",
+      "pass --answers <answers.json> or --answers-from <archive|app>; no files or registry entries were written",
   );
 }
 
@@ -166,6 +242,10 @@ function validateLocalTarget(rootIn: string): void {
   if (!existsSync(root) || !statSync(root).isDirectory()) {
     throw new Error(`bootstrap: local repository path does not exist or is not a directory: ${root}`);
   }
+}
+
+function safeSegment(value: string): string {
+  return value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "org";
 }
 
 function printHomes(appRoot: string, orgHome?: string, stateHome?: string): void {

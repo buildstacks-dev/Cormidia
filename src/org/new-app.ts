@@ -9,6 +9,7 @@ import {
   appArtifactFiles,
   bootstrapRun,
   parseAnswers,
+  validateEmittedArtifacts,
   type BootstrapAnswers,
 } from "./bootstrap.js";
 import { loadRoles } from "./roles.js";
@@ -24,6 +25,8 @@ export interface NewAppOptions {
   goal: string;
   /** Existing org home to join. */
   orgHome: string;
+  /** Resolved runtime state used to preserve normalized recovery answers. */
+  stateHome?: string;
   /** Declaring at least one support channel enables the Support role. */
   supportChannels?: string[];
   /** Declaring at least one marketing channel enables the Marketing role. */
@@ -102,11 +105,19 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     appName,
     repoSlug: options.repoSlug,
     orgHome,
+    ...(options.stateHome !== undefined ? { stateHome: options.stateHome } : {}),
   });
 
   await appendGateCommands(targetDir);
   const operonSeeds = generatedOperonSeedFiles(appName, options.repoSlug, goal, targetDir);
   for (const file of operonSeeds) await writeGeneratedFile(targetDir, file);
+  await validateEmittedArtifacts(
+    targetDir,
+    appName,
+    options.repoSlug,
+    [...scaffold.map((file) => file.rel), ...bootstrap.created, ...operonSeeds.map((file) => file.rel)],
+    bootstrap.updated,
+  );
 
   return {
     appName,

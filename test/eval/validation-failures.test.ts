@@ -68,6 +68,7 @@ function makeRoot(): string {
     "test/transformation",
     "test/eval",
     "test/efficiency",
+    "test/lifecycle",
     "test/report/efficiency.test.ts",
     "test/context-manifest.test.ts",
     "test/settlement/property.test.ts",

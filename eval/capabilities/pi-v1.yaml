@@ -1,0 +1,17 @@
+schema_version: 1
+capability_id: pi/v1
+runtime: pi
+task_transport: native_sdk_call
+large_payload: true
+gate_top_level: adapter_all_tool_calls
+gate_delegated: extension_metadata_when_present
+tool_events: adapter_pre_execution
+cancellation: native_abort
+partial_usage_checkpoint: true
+session_continuation: native
+budget_enforcement: adapter_turn_boundary
+cost_quality: reported
+cache_visibility: split_reported
+role_shaping: degraded_flat_deny
+intra_turn_fanout: unavailable
+known_gaps: [no_native_intra_turn_fanout]

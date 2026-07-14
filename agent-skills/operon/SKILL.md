@@ -156,6 +156,15 @@ exact `--confirm <campaign-id>`, and an explicit human-authorized cap.
 campaign/repo/cap. Subscription-backed dollar values are equivalent-cost
 indicators, but token/turn/budget evidence is still retained. Qualify existing
 results with `pnpm eval:qualify`; it performs no provider turn or repair.
+Execution reruns the complete validator, production-path separation, pristine
+app gates, and non-billable readiness probes before any provider turn. Do not
+bypass a failed precheck or treat an old result bundle as compatible with a
+newer schema; retain it and prepare a new content-hashed campaign.
+The L6 runner is a separate boundary: preview with `pnpm eval:soak --
+--campaign <prepared-file>`. Never execute it without explicit authorization
+for that exact 48–72 hour campaign, GitHub target, provider assignments, and
+cap; execution additionally requires `OPERON_EVAL_SOAK=1` and the exact
+confirmation. Preserve and archive terminal evidence before cleanup.
 
 ## Diagnose
 

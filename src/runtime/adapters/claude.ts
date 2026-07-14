@@ -72,6 +72,11 @@ export interface ClaudeRuntimeOptions {
    *  conformance harness's per-scenario knobs (tools, agents, maxTurns)
    *  enter. */
   baseOptions?: Partial<SdkOptions>;
+  /** Optional host home needed only for macOS Keychain-backed authentication.
+   * Bash reads are sandbox-denied from this path while the turn worktree is
+   * explicitly re-allowed. Writes remain confined to the SDK sandbox's cwd,
+   * and the Operon gate applies the same worktree boundary to every tool. */
+  protectedHome?: string;
 }
 
 /** Subagent-spawn tool names ("Agent" is what the CLI emits live; "Task"
@@ -142,10 +147,12 @@ export class ClaudeRuntime implements Runtime {
 
   private readonly queryFn: QueryFn;
   private readonly baseOptions: Partial<SdkOptions>;
+  private readonly protectedHome: string | undefined;
 
   constructor(opts: ClaudeRuntimeOptions = {}) {
     this.queryFn = opts.queryFn ?? (sdkQuery as QueryFn);
     this.baseOptions = opts.baseOptions ?? {};
+    this.protectedHome = opts.protectedHome;
   }
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
@@ -229,6 +236,9 @@ export class ClaudeRuntime implements Runtime {
     // The composed gate stays as the adapter-independent backstop.
     const denyRules = claudeDenyRulesForRole(req.role.name);
     let settings = this.baseOptions.settings;
+    if (this.protectedHome !== undefined) {
+      settings = protectHostHome(settings, this.protectedHome, req.workdir);
+    }
     if (denyRules.length > 0) {
       if (typeof settings === "string") {
         throw new Error(
@@ -314,7 +324,16 @@ export class ClaudeRuntime implements Runtime {
         }
       }
     } catch (error) {
-      if (!req.signal?.aborted) throw error;
+      if (!req.signal?.aborted) {
+        // The Agent SDK can yield a terminal error result (including
+        // error_max_budget_usd) and then reject the iterator when the owned
+        // CLI exits non-zero. The terminal result is the authoritative usage
+        // checkpoint; throwing here discarded its real tokens/cost and made a
+        // measured provider stop look like an unmeasured transport failure.
+        // A success followed by an iterator failure is still suspicious and
+        // remains loud; only the SDK's explicit error-result path is retained.
+        if (resultMsg === undefined || resultMsg.subtype === "success") throw error;
+      }
     } finally {
       req.signal?.removeEventListener("abort", forwardAbort);
     }
@@ -348,6 +367,14 @@ export class ClaudeRuntime implements Runtime {
 
     const usage = resultMsg.usage;
     const budgetOverrun = resultMsg.subtype === "error_max_budget_usd";
+    const tokensIn =
+      usage.input_tokens +
+      (usage.cache_creation_input_tokens ?? 0) +
+      (usage.cache_read_input_tokens ?? 0);
+    const tokensOut = usage.output_tokens;
+    const usageQuality = resultMsg.total_cost_usd > 0 && tokensIn + tokensOut === 0
+      ? "partial"
+      : "complete";
     return {
       ...(resultMsg.subtype !== "success" ? { errorCode: resultMsg.subtype } : {}),
       status: resultMsg.subtype === "success" ? "completed" : "failed",
@@ -370,22 +397,62 @@ export class ClaudeRuntime implements Runtime {
         : [],
       session: { runtime: "claude", id: sessionId },
       usage: {
-        tokensIn:
-          usage.input_tokens +
-          (usage.cache_creation_input_tokens ?? 0) +
-          (usage.cache_read_input_tokens ?? 0),
+        tokensIn,
         tokensInUncached: usage.input_tokens,
         cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
         cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-        tokensOut: usage.output_tokens,
+        tokensOut,
         costUsd: resultMsg.total_cost_usd,
         subagentTurns,
         wallClockMs: resultMsg.duration_ms,
-        quality: "complete",
+        quality: usageQuality,
       },
       escalations,
     };
   }
+}
+
+function protectHostHome(
+  settings: SdkOptions["settings"],
+  protectedHome: string,
+  workdir: string,
+): SdkOptions["settings"] {
+  if (typeof settings === "string") {
+    throw new Error(
+      "ClaudeRuntime: protected-home isolation cannot merge into a settings file path — " +
+        "pass baseOptions.settings as an object",
+    );
+  }
+  const base = (settings ?? {}) as Record<string, unknown>;
+  const sandbox = (base["sandbox"] ?? {}) as Record<string, unknown>;
+  const filesystem = (sandbox["filesystem"] ?? {}) as Record<string, unknown>;
+  const appendPath = (key: string, value: string): string[] => [
+    ...new Set([
+      ...(Array.isArray(filesystem[key])
+        ? filesystem[key].filter((item): item is string => typeof item === "string")
+        : []),
+      path.resolve(value),
+    ]),
+  ];
+  return {
+    ...base,
+    sandbox: {
+      ...sandbox,
+      enabled: true,
+      failIfUnavailable: true,
+      allowUnsandboxedCommands: false,
+      filesystem: {
+        ...filesystem,
+        denyRead: appendPath("denyRead", protectedHome),
+        // The SDK explicitly documents allowRead as taking precedence over an
+        // enclosing denyRead. Writes need no analogous home deny: its sandbox
+        // already limits writes to cwd, and a parent deny could also block the
+        // nested eval worktree because allowWrite is not a deny override.
+        allowRead: appendPath("allowRead", workdir),
+        allowWrite: [path.resolve(workdir)],
+      },
+    },
+  } as SdkOptions["settings"];
 }
 
 function addClaudeMessageUsage(

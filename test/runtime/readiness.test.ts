@@ -2,13 +2,64 @@
 // injected: these tests exercise deadlines and diagnostics without auth,
 // subprocesses, sockets, network, or model turns.
 
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import {
+  claudeAuthIsConfigured,
+  probePi,
   probeRuntimeReadiness,
   type RuntimeReadinessImplementations,
 } from "../../src/runtime/readiness.js";
 
 describe("probeRuntimeReadiness", () => {
+  it("does not treat stale Claude account metadata as a usable first-party credential", () => {
+    expect(
+      claudeAuthIsConfigured({
+        apiProvider: "firstParty",
+        email: "stale@example.invalid",
+        subscriptionType: "max",
+      }),
+    ).toBe(false);
+    expect(
+      claudeAuthIsConfigured({ apiProvider: "firstParty", tokenSource: "oauth" }),
+    ).toBe(true);
+    expect(
+      claudeAuthIsConfigured({ apiProvider: "firstParty", tokenSource: "none" }),
+    ).toBe(false);
+    expect(
+      claudeAuthIsConfigured(
+        {
+          apiProvider: "firstParty",
+          tokenSource: "none",
+          email: "current@example.invalid",
+          subscriptionType: "max",
+        },
+        {
+          loggedIn: true,
+          authMethod: "claude.ai",
+          apiProvider: "firstParty",
+          subscriptionType: "max",
+        },
+      ),
+    ).toBe(true);
+    expect(
+      claudeAuthIsConfigured(
+        { apiProvider: "firstParty", subscriptionType: "max" },
+        { loggedIn: false, authMethod: "none", apiProvider: "firstParty" },
+      ),
+    ).toBe(false);
+    expect(
+      claudeAuthIsConfigured({ apiProvider: "firstParty", apiKeySource: " NONE " }),
+    ).toBe(false);
+    expect(
+      claudeAuthIsConfigured({ apiProvider: "firstParty", apiKeySource: "environment" }),
+    ).toBe(true);
+    expect(claudeAuthIsConfigured({ apiProvider: "bedrock" })).toBe(true);
+  });
+
   it("reports a configured adapter as ready and explicitly non-billable", async () => {
     const implementations: RuntimeReadinessImplementations = {
       codex: async () => ({ status: "ready", detail: "App Server account available" }),
@@ -71,5 +122,93 @@ describe("probeRuntimeReadiness", () => {
       status: "unauthenticated",
       errorCode: "error_adapter_unauthenticated",
     });
+  });
+
+  it("pi readiness resolves OAuth through the file-backed store used by the runtime", async () => {
+    const agentDir = mkdtempSync(join(tmpdir(), "operon-pi-readiness-"));
+    const authPath = join(agentDir, "auth.json");
+    writeFileSync(authPath, '{"anthropic":{"type":"oauth","refresh":"old"}}\n');
+    let createdPath: string | undefined;
+    const authStorage = {} as AuthStorage;
+    const model = { provider: "anthropic", id: "fixture" };
+    const registry = {
+      getError: () => undefined,
+      getAll: () => [model],
+      find: (provider: string, id: string) =>
+        provider === model.provider && id === model.id ? model : undefined,
+      hasConfiguredAuth: () => true,
+      getProviderAuthStatus: () => ({ source: "oauth" }),
+      getApiKeyAndHeaders: async () => {
+        writeFileSync(authPath, '{"anthropic":{"type":"oauth","refresh":"rotated"}}\n');
+        return { ok: true, apiKey: "fixture", headers: {} };
+      },
+    } as unknown as ModelRegistry;
+
+    try {
+      const result = await probePi(
+        {
+          runtime: "pi",
+          models: ["anthropic/fixture"],
+          signal: new AbortController().signal,
+        },
+        {
+          agentDir,
+          createAuthStorage: (path) => {
+            createdPath = path;
+            return authStorage;
+          },
+          createModelRegistry: (storage, path) => {
+            expect(storage).toBe(authStorage);
+            expect(path).toBe(join(agentDir, "models.json"));
+            return registry;
+          },
+        },
+      );
+
+      expect(result.status).toBe("ready");
+      expect(createdPath).toBe(authPath);
+      expect(readFileSync(authPath, "utf8")).toContain('"rotated"');
+    } finally {
+      rmSync(agentDir, { recursive: true, force: true });
+    }
+  });
+
+  it("pi readiness rejects an expired credential that resolves without an API key", async () => {
+    const agentDir = mkdtempSync(join(tmpdir(), "operon-pi-readiness-expired-"));
+    const authPath = join(agentDir, "auth.json");
+    writeFileSync(authPath, '{"anthropic":{"type":"oauth","refresh":"expired"}}\n');
+    const model = { provider: "anthropic", id: "fixture" };
+    const registry = {
+      getError: () => undefined,
+      getAll: () => [model],
+      find: (provider: string, id: string) =>
+        provider === model.provider && id === model.id ? model : undefined,
+      hasConfiguredAuth: () => true,
+      getProviderAuthStatus: () => ({ configured: true, source: "oauth" }),
+      getApiKeyAndHeaders: async () => ({ ok: true, apiKey: undefined }),
+    } as unknown as ModelRegistry;
+
+    try {
+      await expect(
+        probePi(
+          {
+            runtime: "pi",
+            models: ["anthropic/fixture"],
+            signal: new AbortController().signal,
+          },
+          {
+            agentDir,
+            createAuthStorage: () => ({}) as AuthStorage,
+            createModelRegistry: () => registry,
+          },
+        ),
+      ).resolves.toMatchObject({
+        status: "unauthenticated",
+        errorCode: "error_adapter_unauthenticated",
+        detail: expect.stringContaining("produced no API key"),
+      });
+    } finally {
+      rmSync(agentDir, { recursive: true, force: true });
+    }
   });
 });

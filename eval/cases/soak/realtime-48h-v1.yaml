@@ -1,0 +1,12 @@
+schema_version: 1
+case_id: soak/realtime-48h/v1
+benchmark_id: SCHEDULER-SOAK-001
+requirements: [I-LIVE-01]
+app: { template: operon-eval-service, seed_ref: "sha256:5d4c7881e02f254e706d1a34c2d613499069a51935d59986c9e600faf6acf6ba" }
+episode: { kind: realtime_scheduler_campaign, task_ref: tasks/scheduler-soak.md }
+route: { expected: standard, factors: { realtime_hours: 48, deliberate_restart_hour: 24, useful_turn_cap: 12 } }
+oracle: { visible_commands: ["npm test", "npm run e2e"], hidden_grader: graders/scheduler-soak.ts, required_artifacts: [tick_journal, skip_reasons, ledger, restart_receipt, terminal_episode] }
+side_effect_policy: { github: disposable_repo_only, network: provider_and_loopback_only, publishing: forbidden, deployment: eval_effect_recorder_only }
+faults: [lock, budget_pause, approval_wait, process_restart]
+budgets_ref: efficiency/v1#standard
+repetitions: 1

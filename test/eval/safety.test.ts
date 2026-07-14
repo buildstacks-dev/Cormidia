@@ -1,5 +1,9 @@
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { assertGitHubTarget, assertLiveConfirmation } from "../../scripts/eval/safety.js";
+import { assertEvalSeparation, assertGitHubTarget, assertLiveConfirmation, makeEvalActorGate } from "../../scripts/eval/safety.js";
+import { evalCommandEnv, runEvalAppGates } from "../../scripts/eval/app-gates.js";
 
 describe("external eval safety", () => {
   it("accepts only exact private operon-eval targets", () => {
@@ -13,5 +17,39 @@ describe("external eval safety", () => {
     expect(() => assertLiveConfirmation({ envEnabled: false, campaignId: "c1", confirmedId: "c1", requestedMaxUsd: 10, manifestMaxUsd: 10 })).toThrow("env_not_enabled");
     expect(() => assertLiveConfirmation({ envEnabled: true, campaignId: "c1", confirmedId: "wrong", requestedMaxUsd: 10, manifestMaxUsd: 10 })).toThrow("confirmation_mismatch");
     expect(() => assertLiveConfirmation({ envEnabled: true, campaignId: "c1", confirmedId: "c1", requestedMaxUsd: 11, manifestMaxUsd: 10 })).toThrow("cap_exceeds_manifest");
+  });
+  it("fails before execution when eval and active production paths overlap in either direction", () => {
+    expect(() => assertEvalSeparation("/tmp/operon-eval/campaign", ["/tmp/operon-production"])).not.toThrow();
+    expect(() => assertEvalSeparation("/tmp/operon-eval/campaign", ["/tmp/operon-eval"])).toThrow("production_path_overlap");
+    expect(() => assertEvalSeparation("/tmp/operon-eval/campaign", ["/tmp/operon-eval/campaign/state"])).toThrow("production_path_overlap");
+  });
+  it("runs app gates without inheriting provider credentials or arbitrary host environment", () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-eval-app-gate-"));
+    try {
+      cpSync(join(process.cwd(), "eval/apps/library/seed"), root, { recursive: true });
+      process.env.OPERON_EVAL_TEST_SECRET = "must-not-cross";
+      const env = evalCommandEnv(root);
+      expect(env.OPERON_EVAL_TEST_SECRET).toBeUndefined();
+      expect(env.ANTHROPIC_API_KEY).toBeUndefined(); expect(env.OPENAI_API_KEY).toBeUndefined();
+      runEvalAppGates({ cwd: root, seedDir: join(process.cwd(), "eval/apps/library/seed"), commands: ["npm test", "npm run lint"] });
+    } finally { delete process.env.OPERON_EVAL_TEST_SECRET; rmSync(root, { recursive: true, force: true }); }
+  });
+  it("rejects provider-modified npm script definitions before invoking them", () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-eval-app-script-drift-"));
+    try {
+      const seed = join(process.cwd(), "eval/apps/library/seed"); cpSync(seed, root, { recursive: true });
+      const path = join(root, "package.json"); const value = JSON.parse(readFileSync(path, "utf8")); value.scripts.test = "curl https://example.invalid"; writeFileSync(path, `${JSON.stringify(value)}\n`);
+      expect(() => runEvalAppGates({ cwd: root, seedDir: seed, commands: ["npm test"] })).toThrow("eval_app_script_drift:test");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("denies model tools from reading paths outside the isolated worktree", () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-eval-actor-gate-"));
+    try {
+      const gate = makeEvalActorGate({ workdir: root, forbiddenRoots: [] });
+      expect(gate({ tool: "bash", input: { command: "cat package.json" } }).allow).toBe(true);
+      expect(gate({ tool: "bash", input: { command: "cat ~/.claude/settings.json" } })).toMatchObject({ allow: false, reason: expect.stringContaining("outside_worktree") });
+      expect(gate({ tool: "bash", input: { command: "python /etc/passwd" } })).toMatchObject({ allow: false, reason: expect.stringContaining("outside_worktree") });
+      expect(gate({ tool: "read", input: { path: "$HOME/.claude.json" } })).toMatchObject({ allow: false, reason: expect.stringContaining("outside_worktree") });
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

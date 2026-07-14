@@ -1,6 +1,6 @@
 schema_version: 1
 template_id: operon-eval-service
-seed_tree_sha256: sha256:f53e262d8174ea03446fac0e284caecce7305d5c148e2dded0ed5c8488c2ce83
+seed_tree_sha256: sha256:5d4c7881e02f254e706d1a34c2d613499069a51935d59986c9e600faf6acf6ba
 checkout_branch: main
 default_branch: main
 commands:

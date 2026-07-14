@@ -3,6 +3,31 @@
   "$id": "operon.eval.contracts.v1",
   "type": "object",
   "required": ["schema_version", "contracts"],
-  "properties": { "schema_version": { "const": 1 }, "contracts": { "type": "array", "minItems": 1 } },
+  "properties": {
+    "schema_version": { "const": 1 },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "requirement", "state", "workstream", "phase", "evidence", "promotion"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-J]-(?:[A-Z]+-)*[0-9]{2}$" },
+          "requirement": { "type": "string", "minLength": 1 },
+          "state": { "enum": ["required", "known_red"] },
+          "expected_failure": { "type": "string", "minLength": 1 },
+          "workstream": { "type": "string", "pattern": "^[A-J]$" },
+          "phase": { "type": "string", "pattern": "^T[0-5]$" },
+          "evidence": { "type": "string", "pattern": "^(?!/)(?!.*\\.\\.).+\\.test\\.ts$" },
+          "promotion": { "type": "string", "minLength": 1 }
+        },
+        "allOf": [
+          { "if": { "properties": { "state": { "const": "known_red" } } }, "then": { "required": ["expected_failure"] } },
+          { "if": { "properties": { "state": { "const": "required" } } }, "then": { "not": { "required": ["expected_failure"] } } }
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
   "additionalProperties": false
 }

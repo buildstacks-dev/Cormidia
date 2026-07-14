@@ -1,5 +1,6 @@
 schema_version: 1
 case_id: continuation/matrix/v1
+benchmark_id: CONTINUATION-MATRIX-001
 requirements: [F-CONT-01, F-CONT-02, F-CONT-03, F-CONT-04]
 app: { template: operon-eval-library, seed_ref: "sha256:d4407fb716181cc799fc1f205821573ff3b1fc62a7aa9fba9fafeaaec71d1cf6" }
 episode: { kind: build_ticket, task_ref: tasks/continuation.md }
@@ -8,4 +9,4 @@ oracle: { visible_commands: ["npm test", "npm run lint"], hidden_grader: graders
 side_effect_policy: { github: local_bare_only, network: forbidden, publishing: forbidden, deployment: forbidden }
 faults: [after_contract, after_commit, after_gates, after_review, after_approval]
 budgets_ref: efficiency/v1#standard
-repetitions: 1
+repetitions: 2

@@ -1,5 +1,6 @@
 schema_version: 1
 case_id: standard/slug-options/v1
+benchmark_id: STANDARD-FEATURE-001
 requirements: [D-LIVE-02, D-PLAN-01, E-LIVE-02]
 app: { template: operon-eval-library, seed_ref: "sha256:d4407fb716181cc799fc1f205821573ff3b1fc62a7aa9fba9fafeaaec71d1cf6" }
 episode: { kind: build_ticket, task_ref: tasks/standard-slug-options.md }

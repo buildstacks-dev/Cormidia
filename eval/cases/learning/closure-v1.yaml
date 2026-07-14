@@ -1,11 +1,12 @@
 schema_version: 1
 case_id: learning/closure/v1
+benchmark_id: LEARNING-CLOSURE-001
 requirements: [H-CAP-01, H-CLU-01, H-EVAL-01, H-EVAL-02]
-app: { template: operon-eval-service, seed_ref: "sha256:f53e262d8174ea03446fac0e284caecce7305d5c148e2dded0ed5c8488c2ce83" }
+app: { template: operon-eval-service, seed_ref: "sha256:5d4c7881e02f254e706d1a34c2d613499069a51935d59986c9e600faf6acf6ba" }
 episode: { kind: learning_campaign, task_ref: tasks/learning-closure.md }
 route: { expected: standard, factors: { governed_learning: true, recurrence_events: 2 } }
 oracle: { visible_commands: ["npm test"], hidden_grader: graders/learning-closure.ts, required_artifacts: [events, cluster, candidate, review, experiment, eval_result] }
 side_effect_policy: { github: local_bare_only, network: forbidden, publishing: forbidden, deployment: forbidden }
 faults: [environment_retry, stale_finalization, repeated_work, false_approval, long_review]
 budgets_ref: efficiency/v1#standard
-repetitions: 3
+repetitions: 6

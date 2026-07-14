@@ -1,0 +1,14 @@
+schema_version: 1
+families:
+  - { id: LIFE-LEGACY-001, case_id: lifecycle/legacy/v1, layers: [L1, L2, L3, L4], real_model_repetitions: 0, oracle: exact_transaction_provider_tripwire_idempotency }
+  - { id: ROUTE-CORPUS-001, case_id: routing/corpus/v1, layers: [L1], real_model_repetitions: 0, oracle: reviewed_risk_table_and_metamorphic_properties }
+  - { id: PLAN-QUALITY-001, case_id: planning/quality/v1, layers: [L2, L3, L5], real_model_repetitions: 3, oracle: schema_hidden_coverage_dependency_criteria }
+  - { id: CTX-DELTA-001, case_id: context/delta/v1, layers: [L2, L3, L5], real_model_repetitions: 6, oracle: two_manifest_hash_bytes_protected_content_provider_usage_probes_per_claimed_adapter }
+  - { id: QUICK-CONFIG-001, case_id: quick/ignore-config/v1, layers: [L2, L3, L4, L5], real_model_repetitions: 5, oracle: hidden_functional_diff_review_route_budget }
+  - { id: STANDARD-FEATURE-001, case_id: standard/slug-options/v1, layers: [L2, L3, L4, L5], real_model_repetitions: 3, oracle: hidden_integration_independent_review_release }
+  - { id: DEEP-AUTH-MIGRATION-001, case_id: deep/auth-migration/v1, layers: [L2, L3, L4, L5], real_model_repetitions: 2, oracle: security_migration_rollback_genuine_approval }
+  - { id: CONTINUATION-MATRIX-001, case_id: continuation/matrix/v1, layers: [L2, L3, L5], real_model_repetitions: 2, oracle: artifact_hash_non_repetition_terminal_settlement }
+  - { id: APPROVAL-SEMANTICS-001, case_id: approval/semantics/v1, layers: [L1, L2, L3, L5], real_model_repetitions: 1, oracle: typed_actions_queue_grant_denial_precision }
+  - { id: LEARNING-CLOSURE-001, case_id: learning/closure/v1, layers: [L1, L2, L3, L5], real_model_repetitions: 6, oracle: event_lineage_hidden_guardrails_experiment_verdict }
+  - { id: STANDING-ROLES-001, case_id: roles/standing/v1, layers: [L2, L3, L5], real_model_repetitions: 3, oracle: hidden_fact_artifact_planner_feed_zero_outward_effect }
+  - { id: SCHEDULER-SOAK-001, case_ids: [soak/virtual-seven-day/v1, soak/realtime-48h/v1], layers: [L2, L3, L4, L6], real_model_repetitions: 12, oracle: due_tick_ledger_no_duplicates_orphans_budget_terminal_restart }

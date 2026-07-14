@@ -58,6 +58,16 @@ const overBudgetResult: SDKMessage = {
   session_id: "budget-sess",
 } as unknown as SDKMessage;
 
+const overBudgetWithoutTokenBreakdown: SDKMessage = {
+  ...overBudgetResult,
+  usage: {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  },
+} as unknown as SDKMessage;
+
 function makeReq(): TurnRequest {
   return {
     role: ROLE,
@@ -109,6 +119,39 @@ describe("ClaudeRuntime per-turn budget (SDK mocked)", () => {
     // Cost is the real mocked total even on the failure path — the spend
     // happened and must be attributed, not zeroed.
     expect(result.usage.costUsd).toBe(5.1234);
+  });
+
+  it("retains a terminal budget result when the SDK iterator then exits non-zero", async () => {
+    const queryFn: QueryFn = () =>
+      (async function* () {
+        yield initMsg;
+        yield overBudgetResult;
+        throw new Error("Claude Code returned an error result: Reached maximum budget ($5)");
+      })();
+
+    const result = await new ClaudeRuntime({ queryFn }).runTurn(makeReq(), {
+      gate: defaultGate,
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      errorCode: "error_max_budget_usd",
+      usage: { costUsd: 5.1234, tokensIn: 3000, tokensOut: 900, quality: "complete" },
+    });
+    expect(result.artifacts).toHaveLength(1);
+  });
+
+  it("marks positive-cost budget evidence partial when the SDK omits token detail", async () => {
+    const { queryFn } = scriptedQuery([initMsg, overBudgetWithoutTokenBreakdown]);
+    const result = await new ClaudeRuntime({ queryFn }).runTurn(makeReq(), {
+      gate: defaultGate,
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      errorCode: "error_max_budget_usd",
+      usage: { costUsd: 5.1234, tokensIn: 0, tokensOut: 0, quality: "partial" },
+    });
   });
 
   it("under-budget turn → completed, costUsd is the mocked total, no incident note", async () => {

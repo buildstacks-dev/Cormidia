@@ -1,0 +1,17 @@
+schema_version: 1
+capability_id: claude/v1
+runtime: claude
+task_transport: native_stream
+large_payload: true
+gate_top_level: all_tool_calls
+gate_delegated: all_tool_calls
+tool_events: adapter_pre_execution
+cancellation: native_abort
+partial_usage_checkpoint: true
+session_continuation: native
+budget_enforcement: native_running
+cost_quality: reported
+cache_visibility: split_reported
+role_shaping: native_deny_rules
+intra_turn_fanout: native
+known_gaps: []

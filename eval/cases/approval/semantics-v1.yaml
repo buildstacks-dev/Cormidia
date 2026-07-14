@@ -1,0 +1,12 @@
+schema_version: 1
+case_id: approval/semantics/v1
+benchmark_id: APPROVAL-SEMANTICS-001
+requirements: [G-ACT-01, G-ACT-02, G-ACT-03, G-SHAPE-01, G-GRANT-01, G-DEDUPE-01, G-DENY-01, G-MET-01]
+app: { template: operon-eval-service, seed_ref: "sha256:5d4c7881e02f254e706d1a34c2d613499069a51935d59986c9e600faf6acf6ba" }
+episode: { kind: action_semantics, task_ref: tasks/approval-semantics.md }
+route: { expected: deep, factors: { corpus: eval/corpora/actions.yaml, sensitive_domains: [auth, deployment] } }
+oracle: { visible_commands: ["npm test"], hidden_grader: graders/approval-semantics.ts, required_artifacts: [typed_actions, approval_items, grants, denial_lessons, precision_metric] }
+side_effect_policy: { github: disposable_repo_only, network: loopback_only, publishing: forbidden, deployment: eval_effect_recorder_only }
+faults: [approval_wait, repeated_denial]
+budgets_ref: efficiency/v1#deep
+repetitions: 1

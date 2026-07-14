@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "tables": {
+    "api_keys": ["id", "key_hash", "created_at"],
+    "audit_events": ["id", "api_key_id", "event", "created_at"]
+  },
+  "migration_policy": "forward_and_rollback_required"
+}

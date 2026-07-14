@@ -86,9 +86,25 @@ provider behavior, and L6 bounded soak/confirmation. `pnpm eval:validate`,
 Missing auth, usage, evidence, or a required attempt is incomplete/invalid—not
 a passing skip.
 
+Provider qualification is deliberately two-stage. The adapter calibration
+case checks task and large-payload transport, tool/gate events, cancellation
+with partial usage, continuation identity, budget enforcement, cache evidence,
+and honest role-shaping capability for Claude, Codex, and pi. Product cases
+then run through Operon's ordinary pass executor so every provider call has a
+run envelope and exactly one ledger settlement. The separate L6 runner spreads
+only its declared useful turns across 48–72 hours, records all other due ticks
+mechanically, and requires a distinct-process receipt at the predeclared
+restart hour.
+
 The 2026-07-12 provider baseline is recorded in
 `research/evals/2026-07-12-pre-transformation-baseline.md`. Its misses and
-safety stop are retained as the pre-feature comparison point.
+safety stop are retained as the pre-feature comparison point. The later T0–T5
+audit deliberately invalidated that v1 bundle under the hardened result schema
+rather than inventing missing measurements. The replacement adapter calibration
+qualified on 2026-07-13; the replacement provider baseline remains a separate,
+explicitly authorized T4 operation. Product misses are expected baseline
+evidence when the harness, graders, run records, settlements, and accounting
+remain complete and reconcilable.
 
 ## The journey, stage by stage
 

@@ -1,0 +1,12 @@
+schema_version: 1
+case_id: routing/corpus/v1
+benchmark_id: ROUTE-CORPUS-001
+requirements: [D-ROUTE-01, D-ROUTE-02, D-ROUTE-03, D-ROUTE-04, D-ROUTE-05, D-ROUTE-06, D-ROUTE-07]
+app: { template: metadata-only, seed_ref: "sha256:0000000000000000000000000000000000000000000000000000000000000000" }
+episode: { kind: route_policy, task_ref: tasks/route-corpus.md }
+route: { expected: mechanical, factors: { reviewed_corpus: eval/corpora/routing.yaml } }
+oracle: { visible_commands: [], hidden_grader: graders/route-corpus.ts, required_artifacts: [route_observations, metamorphic_results] }
+side_effect_policy: { github: forbidden, network: forbidden, publishing: forbidden, deployment: forbidden }
+faults: []
+budgets_ref: efficiency/v1#deterministic-lifecycle
+repetitions: 1

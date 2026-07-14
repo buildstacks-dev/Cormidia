@@ -9,8 +9,20 @@ describe("J-STAT deterministic campaign statistics", () => {
     expect([pairedArmOrder(0, "fixed"), pairedArmOrder(1, "fixed")]).toEqual([pairedArmOrder(0, "fixed"), pairedArmOrder(1, "fixed")]);
     expect(pairedDeltas([{ pair_id: "p1", arm: "candidate", value: 7 }, { pair_id: "p1", arm: "baseline", value: 10 }])).toEqual({ pairs: [{ pair_id: "p1", baseline: 10, candidate: 7, delta: -3 }], missing_pairs: [] });
   });
+  it("J-STAT-01 near-miss preserves finite zero while excluding unknown values", () => {
+    expect(distribution([0, undefined, Number.NaN])).toMatchObject({ count: 1, missing: 2, median: 0, p90: 0 });
+  });
+  it("J-STAT-01 honest failure rejects an impossible percentile", () => {
+    expect(() => percentile([1, 2], 1.1)).toThrow("quantile_out_of_range");
+  });
   it("J-STAT-02 retains missing pairs and rejects duplicate arm retries", () => {
     expect(pairedDeltas([{ pair_id: "p1", arm: "baseline", value: 10 }]).missing_pairs).toEqual(["p1"]);
     expect(() => pairedDeltas([{ pair_id: "p1", arm: "baseline", value: 10 }, { pair_id: "p1", arm: "baseline", value: 9 }])).toThrow("duplicate_pair_arm");
+  });
+  it("J-STAT-02 near-miss accepts the same value in opposite predeclared arms", () => {
+    expect(pairedDeltas([{ pair_id: "p", arm: "baseline", value: 1 }, { pair_id: "p", arm: "candidate", value: 1 }]).pairs[0]?.delta).toBe(0);
+  });
+  it("J-STAT-02 honest failure never lets a replacement erase a duplicate arm", () => {
+    expect(() => pairedDeltas([{ pair_id: "p", arm: "candidate", value: 2 }, { pair_id: "p", arm: "candidate", value: 1 }])).toThrow("duplicate_pair_arm");
   });
 });

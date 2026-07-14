@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "kind": "adoption",
+  "period": "2026-07-05/2026-07-12",
+  "synthetic_active_accounts": 12,
+  "synthetic_slug_previews": 47,
+  "claim_policy": "synthetic_fixture_only"
+}

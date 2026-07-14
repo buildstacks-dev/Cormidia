@@ -135,8 +135,11 @@ real deploy/publication/message/DNS/cloud/destructive-data effect is forbidden.
 App gates treat provider-modifiable code as untrusted: npm script definitions
 must still match the pinned seed, the subprocess receives an isolated HOME and
 TMP plus a credential-free environment, and live macOS runs deny network for
-the full gate process tree. A live platform without that network sandbox fails
-closed instead of executing actor-authored checks with ambient access.
+the full gate process tree. The default is fully network-dark; a case whose
+reviewed side-effect policy declares loopback receives only local inbound and
+outbound socket access while external networking remains denied. A live
+platform without that network sandbox fails closed instead of executing
+actor-authored checks with ambient access.
 
 Run adapter calibration before product episodes. Infrastructure retries are
 limited to one campaign-wide declared retry; the original attempt and any

@@ -2,7 +2,15 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export interface EvalAppGateOptions { cwd: string; seedDir: string; commands: string[]; timeoutMs?: number }
+export type EvalAppGateNetworkPolicy = "forbidden" | "loopback_only";
+
+export interface EvalAppGateOptions {
+  cwd: string;
+  seedDir: string;
+  commands: string[];
+  timeoutMs?: number;
+  network?: EvalAppGateNetworkPolicy;
+}
 
 /** Run actor-modifiable app code as an untrusted verifier subprocess. Package
  * script definitions are pinned to the committed seed, credentials are not
@@ -12,15 +20,33 @@ export function runEvalAppGates(options: EvalAppGateOptions): void {
   assertPinnedScripts(options.cwd, options.seedDir, options.commands);
   const env = evalCommandEnv(options.cwd);
   const timeout = options.timeoutMs ?? 120_000;
+  const profile = evalAppSandboxProfile(options.network ?? "forbidden");
   for (const command of options.commands) {
     if (process.platform === "darwin" && existsSync("/usr/bin/sandbox-exec") && process.env.VITEST === undefined) {
-      execFileSync("/usr/bin/sandbox-exec", ["-p", "(version 1) (allow default) (deny network*)", "/bin/sh", "-lc", command], { cwd: options.cwd, env, stdio: "ignore", timeout });
+      execFileSync("/usr/bin/sandbox-exec", ["-p", profile, "/bin/sh", "-lc", command], { cwd: options.cwd, env, stdio: "ignore", timeout });
     } else if (process.env.VITEST !== undefined) {
       execFileSync("/bin/sh", ["-lc", command], { cwd: options.cwd, env, stdio: "ignore", timeout });
     } else {
       throw new Error("eval_app_network_sandbox_unavailable");
     }
   }
+}
+
+export function evalAppSandboxProfile(network: EvalAppGateNetworkPolicy): string {
+  const rules = ["(version 1)", "(allow default)", "(deny network*)"];
+  if (network === "loopback_only") {
+    rules.push(
+      '(allow network-inbound (local ip "localhost:*"))',
+      '(allow network-outbound (remote ip "localhost:*"))',
+    );
+  }
+  return rules.join(" ");
+}
+
+export function evalAppNetworkPolicy(declared: string | undefined): EvalAppGateNetworkPolicy {
+  return declared === "loopback_only" || declared === "provider_and_loopback_only"
+    ? "loopback_only"
+    : "forbidden";
 }
 
 export function evalCommandEnv(cwd: string): NodeJS.ProcessEnv {

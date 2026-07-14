@@ -34,7 +34,7 @@ import {
 } from "./adapter-calibration.js";
 import { probeAdapterBoundary } from "./adapter-boundary-probe.js";
 import { simulateVirtualSoak } from "./virtual-soak.js";
-import { runEvalAppGates } from "./app-gates.js";
+import { evalAppNetworkPolicy, runEvalAppGates } from "./app-gates.js";
 import { scrubSecrets, truncatePreview } from "../../src/runtime/runlog/redact.js";
 import { withEvalProviderEnvironment } from "./provider-scratch.js";
 
@@ -566,7 +566,8 @@ function initializeGit(cwd: string): void {
 function visibleCommands(manifest: EvalCaseManifest, cwd: string, root: string): boolean {
   try {
     const app = manifest.app.template.replace(/^operon-eval-/, "");
-    runEvalAppGates({ cwd, seedDir: join(root, "eval/apps", app, "seed"), commands: manifest.oracle.visible_commands });
+    const network = evalAppNetworkPolicy(manifest.side_effect_policy.network);
+    runEvalAppGates({ cwd, seedDir: join(root, "eval/apps", app, "seed"), commands: manifest.oracle.visible_commands, network });
     return true;
   } catch {
     return false;

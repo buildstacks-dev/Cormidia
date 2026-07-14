@@ -14,13 +14,13 @@
 // `.operon/policy.yaml` when the M4.2 policy template is present in this
 // package.
 
-import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, rm, rmdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { stringify } from "yaml";
+import { parse, stringify } from "yaml";
 import type { AuthorityContext, Trigger } from "../runtime/types.js";
-import { joinExistingOrg, type AppRegistration } from "./apps.js";
+import { joinExistingOrg, loadApps, removeExistingApp, type AppRegistration } from "./apps.js";
 import { loadRoles } from "./roles.js";
 import {
   applyAppAuthority,
@@ -31,6 +31,11 @@ import {
   resolveAuthority,
   type AppAuthoritySelection,
 } from "./authority.js";
+import {
+  assertNonSecretOnboardingAnswers,
+  onboardingAnswersPath,
+  storeOnboardingAnswers,
+} from "./onboarding-answers.js";
 
 // ---------------------------------------------------------------------------
 // Step 1 — scanRepo()
@@ -780,6 +785,11 @@ export async function emitAppArtifacts(
 
   const created: string[] = [];
   const updated: string[] = [];
+  const previousInstructions = new Map(
+    await Promise.all(instructionPlans
+      .filter((plan) => plan.existed)
+      .map(async (plan) => [plan.rel, await readFile(join(targetRoot, plan.rel), "utf8")] as const)),
+  );
   const emit = async (rel: string, content: string) => {
     const abs = join(targetRoot, rel);
     await mkdir(dirname(abs), { recursive: true });
@@ -787,30 +797,66 @@ export async function emitAppArtifacts(
     created.push(rel);
   };
 
-  await emit(".operon/TASTE.md", charterMd(appName, answers));
-  await emit(".operon/AUTHORITY.md", appAuthority);
-  await emit(
-    ".operon/config.yaml",
-    configYaml(appName, repoSlug, options.repoSlug === undefined, answers, allRoles),
-  );
-  await emit(".operon/policy.yaml", policyTemplate);
-  await emit(
-    ".operon/onboarding-report.md",
-    onboardingReportMd(appName, onboardingReport, effectiveAuthority, answers.authority),
-  );
-  for (const role of allRoles) {
-    if (answers.roles.includes(role)) {
-      await emit(`.operon/memory/${role}/INDEX.md`, memoryIndexMd(role, appName));
+  try {
+    await emit(".operon/TASTE.md", charterMd(appName, answers));
+    await emit(".operon/AUTHORITY.md", appAuthority);
+    await emit(
+      ".operon/config.yaml",
+      configYaml(appName, repoSlug, options.repoSlug === undefined, answers, allRoles),
+    );
+    await emit(".operon/policy.yaml", policyTemplate);
+    await emit(
+      ".operon/onboarding-report.md",
+      onboardingReportMd(appName, onboardingReport, effectiveAuthority, answers.authority),
+    );
+    for (const role of allRoles) {
+      if (answers.roles.includes(role)) {
+        await emit(`.operon/memory/${role}/INDEX.md`, memoryIndexMd(role, appName));
+      }
     }
-  }
 
-  for (const plan of instructionPlans) {
-    await writeFile(join(targetRoot, plan.rel), plan.content, "utf8");
-    if (plan.existed) updated.push(plan.rel);
-    else created.push(plan.rel);
+    for (const plan of instructionPlans) {
+      await writeFile(join(targetRoot, plan.rel), plan.content, "utf8");
+      if (plan.existed) updated.push(plan.rel);
+      else created.push(plan.rel);
+    }
+    await validateEmittedArtifacts(targetRoot, appName, repoSlug, created, updated);
+  } catch (error) {
+    for (const rel of created) await rm(join(targetRoot, rel), { recursive: true, force: true });
+    for (const [rel, content] of previousInstructions) await writeFile(join(targetRoot, rel), content, "utf8");
+    throw error;
   }
 
   return { created, updated };
+}
+
+export async function validateEmittedArtifacts(
+  root: string,
+  appName: string,
+  repoSlug: string,
+  created: readonly string[],
+  updated: readonly string[],
+): Promise<void> {
+  const config = await loadApps(join(root, ".operon", "config.yaml"));
+  const app = config.apps.find((entry) => entry.name === appName);
+  if (config.schemaVersion !== 1 || app?.repo !== repoSlug || app.status !== "onboarding") {
+    throw new Error("bootstrap: generated config failed schema validation");
+  }
+  const policy = parse(await readFile(join(root, ".operon", "policy.yaml"), "utf8"));
+  if (!policy || typeof policy !== "object") throw new Error("bootstrap: generated policy is not a YAML mapping");
+  const authorityText = await readFile(join(root, ".operon", "AUTHORITY.md"), "utf8");
+  const authorityFrontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(authorityText)?.[1];
+  const authorityMeta = authorityFrontmatter === undefined ? undefined : parse(authorityFrontmatter) as Record<string, unknown>;
+  if (authorityMeta?.["schema_version"] !== 1 || authorityMeta["kind"] !== "operon-app-authority") {
+    throw new Error("bootstrap: generated authority failed schema validation");
+  }
+  for (const rel of [...created, ...updated]) {
+    const text = await readFile(join(root, rel), "utf8");
+    if (!text.endsWith("\n")) throw new Error(`bootstrap: generated artifact lacks final newline: ${rel}`);
+    if (text.split("\n").some((line) => /[ \t]+$/.test(line))) {
+      throw new Error(`bootstrap: generated artifact has trailing whitespace: ${rel}`);
+    }
+  }
 }
 
 interface ProjectInstructionPlan {
@@ -1061,6 +1107,9 @@ export interface BootstrapRunOptions {
   /** Required existing org home. Bootstrap emits app artifacts in the target
    * repo and appends the app to `${orgHome}/apps.yaml`. */
   orgHome: string;
+  /** Resolved runtime state. When supplied, the normalized non-secret answer
+   * record is persisted for reset/recovery. */
+  stateHome?: string;
 }
 
 export interface BootstrapRunResult {
@@ -1088,6 +1137,7 @@ export async function bootstrapRun(
 
   const allRoles = (await loadRoles(join(orgHome, "roles.yaml"))).roles.map((role) => role.name);
   const answers = parseAnswers(answersRaw, allRoles);
+  assertNonSecretOnboardingAnswers(answers);
 
   const scan = await scanRepo(targetRoot);
   const repoSlug = options.repoSlug ?? scan.repoSlug;
@@ -1103,23 +1153,43 @@ export async function bootstrapRun(
     applyAppAuthority(orgAuthority, answers.authority),
   );
 
-  const joined = await joinExistingOrg(
-    orgHome,
-    registrationFromAnswers(appName, registrationRepoSlug, answers, allRoles),
-  );
+  if (options.stateHome !== undefined) {
+    if (existsSync(onboardingAnswersPath(options.stateHome, appName))) {
+      throw new Error(`bootstrap: onboarding answer state already exists for ${appName}`);
+    }
+    await storeOnboardingAnswers(options.stateHome, appName, answers);
+  }
 
-  const appOptions: EmitAppArtifactsOptions = { appName, answers, scan, allRoles, templateRoot };
-  appOptions.orgAuthority = orgAuthority;
-  if (repoSlug) appOptions.repoSlug = repoSlug;
-  const app = await emitAppArtifacts(targetRoot, appOptions);
+  let joined: Awaited<ReturnType<typeof joinExistingOrg>> | undefined;
+  try {
+    joined = await joinExistingOrg(
+      orgHome,
+      registrationFromAnswers(appName, registrationRepoSlug, answers, allRoles),
+    );
 
-  return {
-    scan,
-    answers,
-    created: app.created,
-    updated: app.updated,
-    joinedOrgHome: joined.orgHome,
-  };
+    const appOptions: EmitAppArtifactsOptions = { appName, answers, scan, allRoles, templateRoot };
+    appOptions.orgAuthority = orgAuthority;
+    if (repoSlug) appOptions.repoSlug = repoSlug;
+    const app = await emitAppArtifacts(targetRoot, appOptions);
+
+    return {
+      scan,
+      answers,
+      created: app.created,
+      updated: app.updated,
+      joinedOrgHome: joined.orgHome,
+    };
+  } catch (error) {
+    if (joined !== undefined) await removeExistingApp(orgHome, appName).catch(() => undefined);
+    if (options.stateHome !== undefined) {
+      const answersPath = onboardingAnswersPath(options.stateHome, appName);
+      await rm(answersPath, { force: true });
+      await rmdir(dirname(answersPath)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "ENOENT" && error.code !== "ENOTEMPTY") throw error;
+      });
+    }
+    throw error;
+  }
 }
 
 function registrationFromAnswers(

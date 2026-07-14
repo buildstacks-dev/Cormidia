@@ -156,8 +156,8 @@ describe("app reset", () => {
     const plan = await planAppReset(input);
 
     expect(plan.staleRuns).toEqual(["live"]);
-    expect(plan.blockers.join("\n")).toContain("stale run(s): live (use --force to override)");
-    await expect(executeAppReset(input)).rejects.toThrow(/cannot reset "alpha" while stale run/);
+    expect(plan.blockers).toContainEqual(expect.objectContaining({ code: "stale_run", ids: ["live"], forceEligible: true }));
+    await expect(executeAppReset(input)).rejects.toThrow(/cannot reset "alpha" while stale_run/);
     expect(existsSync(join(f.stateHome, "repos", "alpha"))).toBe(true);
     expect((await f.gh.readIssue(7)).state).toBe("OPEN");
 
@@ -174,8 +174,8 @@ describe("app reset", () => {
     const plan = await planAppReset(input);
 
     expect(plan.staleRuns).toEqual([]);
-    expect(plan.blockers.join("\n")).toContain("active run(s): live");
-    await expect(executeAppReset(input)).rejects.toThrow(/cannot reset "alpha" while active run/);
+    expect(plan.blockers).toContainEqual(expect.objectContaining({ code: "active_run", ids: ["live"], forceEligible: false }));
+    await expect(executeAppReset(input)).rejects.toThrow(/cannot reset "alpha" while active_run/);
     expect(existsSync(join(f.stateHome, "repos", "alpha"))).toBe(true);
   });
 

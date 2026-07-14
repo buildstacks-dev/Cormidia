@@ -1,0 +1,939 @@
+// Deterministic application lifecycle: recovered-answer onboarding into an
+// Operon-owned clone, remote/default-branch verification, clone convergence,
+// and journaled promotion. A human checkout is an immutable input.
+
+import { createRequire } from "node:module";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
+import { parse, parseDocument } from "yaml";
+import { loadGateCommands } from "../loop/driver.js";
+import type { RuntimeKind } from "../runtime/types.js";
+import { loadApps, removeExistingApp, updateAppStatus, type AppEntry } from "./apps.js";
+import {
+  appArtifactFiles,
+  buildOnboardingGapReport,
+  emitAppArtifacts,
+  parseAnswers,
+  scanRepo,
+  type BootstrapAnswers,
+  type BootstrapRunResult,
+} from "./bootstrap.js";
+import { resolveAuthority } from "./authority.js";
+import { loadRoles } from "./roles.js";
+import { joinExistingOrg } from "./apps.js";
+import {
+  LIFECYCLE_SCHEMA_VERSION,
+  type LifecycleCheck,
+  type LifecycleFaultHook,
+  assertDirectoryNoSymlink,
+  assertRegularFile,
+  assertSafeSegment,
+  acquireLifecycleOperationLock,
+  emitLifecycleStep,
+  sha256,
+  stableJson,
+  writeLifecycleFileAtomic,
+} from "./lifecycle.js";
+import { assertNonSecretOnboardingAnswers, storeOnboardingAnswers } from "./onboarding-answers.js";
+
+const require = createRequire(import.meta.url);
+const GIT_ENV = {
+  ...process.env,
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_CONFIG_NOSYSTEM: "1",
+};
+
+export interface AppLifecycleRecord {
+  schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
+  kind: "app-lifecycle";
+  app: string;
+  repo: string;
+  remote_url: string;
+  default_branch: string;
+  default_base: string;
+  source: {
+    path: string;
+    branch: string;
+    head: string;
+    status_sha256: string;
+  };
+  onboarding_commit: string;
+  managed_clone: string;
+  authority_sha256: string;
+  config_sha256: string;
+  answers_sha256: string;
+}
+
+export interface RecoveredBootstrapResult extends BootstrapRunResult {
+  immutableSource: true;
+  appName: string;
+  onboardingCommit: string;
+  defaultBranch: string;
+  managedClone: string;
+}
+
+export type RuntimeReadinessInspector = (
+  runtimes: Array<{ runtime: RuntimeKind; models: string[] }>,
+) => Promise<Array<LifecycleCheck>>;
+
+export interface VerifyAppOptions {
+  orgHome: string;
+  stateHome: string;
+  appName: string;
+  /** Public verify converges a reachable managed clone. Promotion preview uses
+   * false so its dry-run is non-mutating. */
+  synchronize?: boolean;
+  writeReadiness?: boolean;
+  runChecks?: boolean;
+  recordEvidence?: boolean;
+  runtimeReadiness?: RuntimeReadinessInspector;
+  fault?: LifecycleFaultHook;
+}
+
+export interface AppVerification {
+  schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
+  kind: "app-verification";
+  app: string;
+  status: "ready" | "blocked" | "invalid";
+  evidence_state: "registered" | "runtime-ready" | "live";
+  registry_status: AppEntry["status"];
+  default_branch: string;
+  remote_head: string | null;
+  onboarding_commit: string;
+  managed_head: string | null;
+  authority_sha256: string;
+  config_sha256: string | null;
+  checks: LifecycleCheck[];
+  provider: { factories: 0; processes: 0; turns: 0; settlements: 0 };
+  readiness_path: string;
+}
+
+export interface PromoteAppOptions extends VerifyAppOptions {
+  to: "live";
+  execute?: boolean;
+}
+
+export interface AppPromotionPlan {
+  schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
+  kind: "app-promotion-plan";
+  app: string;
+  from: AppEntry["status"];
+  to: "live";
+  executable: boolean;
+  idempotent: boolean;
+  verification: AppVerification;
+  changes: string[];
+  transaction_id: string;
+}
+
+export interface AppPromotionResult {
+  schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
+  kind: "app-promotion-result";
+  status: "promoted" | "already_live";
+  plan: AppPromotionPlan;
+  verification: AppVerification;
+}
+
+interface PromotionJournal {
+  schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
+  kind: "app-promotion";
+  transaction_id: string;
+  app: string;
+  target: "live";
+  phase: "intent" | "config_committed" | "pushed" | "registry_updated" | "complete";
+  promotion_commit: string | null;
+}
+
+export function lifecycleRecordPath(stateHome: string, app: string): string {
+  assertSafeSegment(app, "app lifecycle");
+  return join(resolve(stateHome), "lifecycle", "apps", app, "record.json");
+}
+
+export async function bootstrapFromRecoveredAnswers(
+  sourceIn: string,
+  answersRaw: unknown,
+  options: { orgHome: string; stateHome: string; templateRoot?: string; appName?: string; fault?: LifecycleFaultHook },
+): Promise<RecoveredBootstrapResult> {
+  const lockApp = sanitizeAppName(options.appName ?? basename(resolve(sourceIn)));
+  const release = await acquireLifecycleOperationLock(resolve(options.stateHome), lockApp, "bootstrap recovered answers");
+  try {
+    return await bootstrapFromRecoveredAnswersLocked(sourceIn, answersRaw, options);
+  } finally {
+    await release();
+  }
+}
+
+async function bootstrapFromRecoveredAnswersLocked(
+  sourceIn: string,
+  answersRaw: unknown,
+  options: { orgHome: string; stateHome: string; templateRoot?: string; appName?: string; fault?: LifecycleFaultHook },
+): Promise<RecoveredBootstrapResult> {
+  const source = await assertDirectoryNoSymlink(resolve(sourceIn), "bootstrap source checkout");
+  if (!existsSync(join(source, ".git"))) throw new Error(`bootstrap: recovered-answer source is not a git checkout: ${source}`);
+  const appName = sanitizeAppName(options.appName ?? basename(source));
+  assertSafeSegment(appName, "bootstrap app");
+  const orgHome = resolve(options.orgHome);
+  const stateHome = resolve(options.stateHome);
+  const recordPath = lifecycleRecordPath(stateHome, appName);
+  const roles = await loadRoles(join(orgHome, "roles.yaml"));
+  const allRoles = roles.roles.map((role) => role.name);
+  const answers = parseAnswers(answersRaw, allRoles);
+  assertNonSecretOnboardingAnswers(answers);
+  const answersHash = `sha256:${sha256(stableJson(answers))}`;
+  const sourceSnapshot = gitSnapshot(source);
+
+  if (existsSync(recordPath)) {
+    const record = await readLifecycleRecord(stateHome, appName);
+    const registry = (await loadApps(join(orgHome, "apps.yaml"))).apps.find((app) => app.name === appName);
+    if (
+      registry !== undefined &&
+      record.source.path === source &&
+      record.source.head === sourceSnapshot.head &&
+      record.answers_sha256 === answersHash
+    ) {
+      const scan = await scanRepo(source);
+      await emitLifecycleStep({
+        stateHome,
+        app: appName,
+        operation: "bootstrap recovered answers",
+        inputFingerprint: sha256(stableJson({ source: sourceSnapshot, answersHash, repoSlug: record.repo })),
+        status: "completed",
+        reason: `onboarding commit ${record.onboarding_commit} created in managed clone; source checkout unchanged`,
+      });
+      return {
+        scan,
+        answers,
+        created: appArtifactFiles(answers, allRoles),
+        updated: [],
+        joinedOrgHome: orgHome,
+        immutableSource: true,
+        appName,
+        onboardingCommit: record.onboarding_commit,
+        defaultBranch: record.default_branch,
+        managedClone: record.managed_clone,
+      };
+    }
+    throw new Error(`bootstrap: existing lifecycle state for ${appName} conflicts with this recovered-answer input`);
+  }
+  const lifecycleAppDir = dirname(recordPath);
+  if (existsSync(lifecycleAppDir) && (await readdir(lifecycleAppDir)).length > 0) {
+    throw new Error(`bootstrap: partial lifecycle state exists without a valid record for ${appName}`);
+  }
+
+  const remoteUrl = git(source, "remote", "get-url", "origin");
+  const defaultBranch = remoteDefaultBranch(remoteUrl);
+  const defaultBase = remoteBranchHead(remoteUrl, defaultBranch);
+  const scan = await scanRepo(source);
+  const repoSlug = scan.repoSlug ?? localRepoIdentity(remoteUrl, appName);
+  const managedClone = join(stateHome, "repos", appName);
+  if (existsSync(managedClone)) throw new Error(`bootstrap: managed clone already exists without lifecycle record: ${managedClone}`);
+  const stagingRoot = join(stateHome, "lifecycle", "staging");
+  await mkdir(stagingRoot, { recursive: true });
+  const stage = join(stagingRoot, `${appName}.partial`);
+  await rm(stage, { recursive: true, force: true });
+  let registered = false;
+  let moved = false;
+  try {
+    await options.fault?.("before_worktree_creation");
+    git(dirname(stage), "clone", "--quiet", "--no-hardlinks", source, stage);
+    git(stage, "remote", "set-url", "origin", remoteUrl);
+    await options.fault?.("after_worktree_creation");
+
+    const orgAuthority = await resolveAuthority({ orgHome });
+    const emit = await emitAppArtifacts(stage, {
+      appName,
+      repoSlug,
+      answers,
+      scan,
+      allRoles,
+      orgAuthority,
+      ...(options.templateRoot !== undefined ? { templateRoot: options.templateRoot } : {}),
+    });
+    await validateGeneratedArtifacts(stage, appName, repoSlug, emit.created, emit.updated);
+    git(stage, "add", "--all");
+    git(stage, "diff", "--cached", "--check");
+    const commitDate = nextCommitDate(stage);
+    await options.fault?.("before_commit");
+    gitWithCommitIdentity(stage, commitDate, "commit", "--quiet", "-m", "chore: onboard app with Operon");
+    await options.fault?.("after_commit");
+    const onboardingCommit = git(stage, "rev-parse", "HEAD");
+    const authority = await resolveAuthority({ orgHome, appWorkdir: stage });
+    const configBytes = await readFile(join(stage, ".operon", "config.yaml"));
+
+    await options.fault?.("before_registry_write");
+    await joinExistingOrg(orgHome, {
+      name: appName,
+      repo: repoSlug,
+      status: "onboarding",
+      budgetUsdMonth: answers.budgetUsdMonth,
+      cadence: cadenceForAnswers(answers, allRoles),
+      ...(Object.keys(answers.channels).length > 0 ? { channels: answers.channels } : {}),
+    });
+    registered = true;
+    await options.fault?.("after_registry_write");
+    await mkdir(dirname(managedClone), { recursive: true });
+    await rename(stage, managedClone);
+    moved = true;
+    await storeOnboardingAnswers(stateHome, appName, answers);
+    const record: AppLifecycleRecord = {
+      schema_version: LIFECYCLE_SCHEMA_VERSION,
+      kind: "app-lifecycle",
+      app: appName,
+      repo: repoSlug,
+      remote_url: remoteUrl,
+      default_branch: defaultBranch,
+      default_base: defaultBase,
+      source: {
+        path: source,
+        branch: sourceSnapshot.branch,
+        head: sourceSnapshot.head,
+        status_sha256: `sha256:${sha256(sourceSnapshot.status)}`,
+      },
+      onboarding_commit: onboardingCommit,
+      managed_clone: managedClone,
+      authority_sha256: `sha256:${authority.sha256}`,
+      config_sha256: `sha256:${sha256(configBytes)}`,
+      answers_sha256: answersHash,
+    };
+    await writeLifecycleFileAtomic(recordPath, stableJson(record));
+    await emitLifecycleStep({
+      stateHome,
+      app: appName,
+      operation: "bootstrap recovered answers",
+      inputFingerprint: sha256(stableJson({ source: sourceSnapshot, answersHash, repoSlug })),
+      status: "completed",
+      reason: `onboarding commit ${onboardingCommit} created in managed clone; source checkout unchanged`,
+    });
+    return {
+      scan,
+      answers,
+      created: emit.created,
+      updated: emit.updated,
+      joinedOrgHome: orgHome,
+      immutableSource: true,
+      appName,
+      onboardingCommit,
+      defaultBranch,
+      managedClone,
+    };
+  } catch (error) {
+    if (registered) await removeExistingApp(orgHome, appName).catch(() => undefined);
+    await rm(moved ? managedClone : stage, { recursive: true, force: true });
+    await rm(join(stateHome, "lifecycle", "apps", appName), { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export async function verifyApp(options: VerifyAppOptions): Promise<AppVerification> {
+  const orgHome = resolve(options.orgHome);
+  const stateHome = resolve(options.stateHome);
+  const apps = await loadApps(join(orgHome, "apps.yaml"));
+  const app = apps.apps.find((entry) => entry.name === options.appName);
+  if (app === undefined) throw new Error(`app verify: unknown app "${options.appName}"`);
+  const record = await readLifecycleRecord(stateHome, app.name);
+  const checks: LifecycleCheck[] = [];
+  let remoteHead: string | null = null;
+  let managedHead: string | null = null;
+  let configHash: string | null = null;
+
+  checks.push(record.repo === app.repo
+    ? pass("registry-record", "registry and lifecycle record identify the same repository")
+    : fail("registry-record", `registry repo ${app.repo} differs from lifecycle record ${record.repo}`));
+
+  try {
+    await options.fault?.("before_git_fetch");
+    const advertised = remoteBranchHead(record.remote_url, record.default_branch);
+    remoteHead = advertised;
+    await options.fault?.("after_git_fetch");
+    checks.push(pass("remote-reachable", `${record.default_branch} is reachable at ${advertised}`));
+  } catch (error) {
+    checks.push(blocked("remote-reachable", message(error), "restore remote access and rerun app verify"));
+  }
+
+  const cloneState = await inspectManagedClone(record.managed_clone);
+  if (cloneState === "symlink") {
+    checks.push(fail("managed-clone", `managed clone path is a symlink: ${record.managed_clone}`));
+  } else if (remoteHead !== null) {
+    try {
+      if (cloneState !== "git") {
+        if (options.synchronize === false) throw new Error("managed clone missing or corrupt");
+        await recreateManagedClone(record, stateHome);
+      }
+      if (options.synchronize !== false) {
+        await options.fault?.("before_git_fetch");
+        git(record.managed_clone, "fetch", "--quiet", "origin", record.default_branch);
+        await options.fault?.("after_git_fetch");
+      }
+      await options.fault?.("before_ref_validation");
+      const remoteRef = `origin/${record.default_branch}`;
+      const fetchedHead = git(record.managed_clone, "rev-parse", remoteRef);
+      if (fetchedHead !== remoteHead) throw new Error(`fetched ${fetchedHead}, advertised ${remoteHead}`);
+      const defaultIsBase = gitIsAncestor(record.managed_clone, record.default_base, record.onboarding_commit);
+      const onboardingReachable = gitIsAncestor(record.managed_clone, record.onboarding_commit, fetchedHead);
+      const currentDefaultIsBase = gitIsAncestor(record.managed_clone, fetchedHead, record.onboarding_commit);
+      if (!defaultIsBase || (!onboardingReachable && !currentDefaultIsBase)) {
+        checks.push(blocked("branch-ancestry", "onboarding commit does not descend from the current default branch", "rebase/recreate onboarding from the current default branch"));
+      } else checks.push(pass("branch-ancestry", "onboarding commit descends from the remote default branch"));
+      if (!onboardingReachable) {
+        checks.push(blocked("onboarding-reachable", `onboarding commit ${record.onboarding_commit} is not reachable from ${remoteRef}`, `push the onboarding commit to ${record.default_branch} without rewriting unrelated history`));
+      } else {
+        checks.push(pass("onboarding-reachable", `onboarding commit is reachable from ${remoteRef}`));
+        if (options.synchronize !== false) synchronizeClone(record.managed_clone, record.default_branch);
+      }
+      await options.fault?.("after_ref_validation");
+    } catch (error) {
+      if (!checks.some((check) => check.id === "managed-clone")) {
+        checks.push(blocked("managed-clone", message(error), "repair remote/ref state and rerun app verify; a reachable corrupt clone is recreated automatically"));
+      }
+    }
+  } else {
+    checks.push(blocked("managed-clone", "remote head unavailable; clone was not changed", "restore remote reachability"));
+  }
+
+  if (existsSync(join(record.managed_clone, ".git"))) {
+    managedHead = safeGit(record.managed_clone, "rev-parse", "HEAD");
+    if (remoteHead !== null && managedHead === remoteHead) checks.push(pass("managed-head", `managed HEAD equals ${record.default_branch} at ${managedHead}`));
+    else checks.push(blocked("managed-head", `managed HEAD ${managedHead ?? "missing"} does not equal remote ${remoteHead ?? "unavailable"}`, "make onboarding reachable and rerun app verify to synchronize"));
+
+    const configPath = join(record.managed_clone, ".operon", "config.yaml");
+    try {
+      await assertRegularFile(configPath, "app config");
+      const configBytes = await readFile(configPath);
+      configHash = `sha256:${sha256(configBytes)}`;
+      if (configHash !== record.config_sha256) {
+        throw new Error(`config hash ${configHash} differs from lifecycle record ${record.config_sha256}`);
+      }
+      const config = await loadApps(configPath);
+      const configApp = config.apps.find((entry) => entry.name === app.name);
+      if (configApp === undefined) throw new Error(`config has no app ${app.name}`);
+      if (stableJson(comparableApp(configApp)) !== stableJson(comparableApp(app))) {
+        throw new Error("registry and app config differ");
+      }
+      checks.push(pass("registry-config", "registry and app-owned config agree"));
+      const authority = await resolveAuthority({ orgHome, appWorkdir: record.managed_clone });
+      const effectiveHash = `sha256:${authority.sha256}`;
+      if (effectiveHash !== record.authority_sha256) throw new Error(`authority hash ${effectiveHash} differs from onboarding ${record.authority_sha256}`);
+      checks.push(pass("authority-hash", `effective authority ${effectiveHash}`));
+      await validateFormatting(record.managed_clone);
+      checks.push(pass("artifact-format", "generated YAML/Markdown parse and formatting checks pass"));
+    } catch (error) {
+      checks.push(fail("registry-config", message(error)));
+    }
+  }
+
+  const activity = await appActivityChecks(stateHome, app.name);
+  checks.push(...activity);
+  if (options.runChecks !== false && existsSync(join(record.managed_clone, ".git")) && remoteHead === managedHead) {
+    checks.push(...runDeclaredChecks(record.managed_clone));
+  } else if (options.runChecks !== false) {
+    checks.push(blocked("app-checks", "app checks require a synchronized managed clone", "resolve ref/clone blockers and rerun"));
+  } else {
+    const priorPath = join(stateHome, "lifecycle", "readiness", `${app.name}.json`);
+    try {
+      const prior = JSON.parse(await readFile(priorPath, "utf8")) as AppVerification;
+      const priorChecksPassed = prior.status === "ready" && prior.checks
+        .filter((check) => check.id.startsWith("app-check-"))
+        .every((check) => check.status === "pass");
+      checks.push(priorChecksPassed
+        ? pass("app-checks-evidence", "prior synchronized verification contains passing app checks")
+        : blocked("app-checks-evidence", "no passing prior app verification", "run operon app verify before promotion"));
+    } catch {
+      checks.push(blocked("app-checks-evidence", "no prior app verification", "run operon app verify before promotion"));
+    }
+  }
+  const runtimeInspector = options.runtimeReadiness ?? staticRuntimeReadiness;
+  checks.push(...await runtimeInspector(groupRuntimes(rolesForApp(await loadRoles(join(orgHome, "roles.yaml")), app))));
+
+  const invalid = checks.some((check) => check.status === "fail");
+  const ready = !invalid && checks.every((check) => check.status === "pass");
+  const status: AppVerification["status"] = invalid ? "invalid" : ready ? "ready" : "blocked";
+  const readinessPath = join(stateHome, "lifecycle", "readiness", `${app.name}.json`);
+  const report: AppVerification = {
+    schema_version: LIFECYCLE_SCHEMA_VERSION,
+    kind: "app-verification",
+    app: app.name,
+    status,
+    evidence_state: ready ? (app.status === "live" ? "live" : "runtime-ready") : "registered",
+    registry_status: app.status,
+    default_branch: record.default_branch,
+    remote_head: remoteHead,
+    onboarding_commit: record.onboarding_commit,
+    managed_head: managedHead,
+    authority_sha256: record.authority_sha256,
+    config_sha256: configHash,
+    checks,
+    provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
+    readiness_path: readinessPath,
+  };
+  if (options.writeReadiness !== false) await writeLifecycleFileAtomic(readinessPath, stableJson(report));
+  if (options.recordEvidence !== false) {
+    await emitLifecycleStep({
+      stateHome,
+      app: app.name,
+      operation: "app verify",
+      inputFingerprint: sha256(stableJson({ record, remoteHead, managedHead, checks })),
+      status: status === "ready" ? "completed" : status === "blocked" ? "blocked" : "failed",
+      reason: status === "ready" ? "all lifecycle readiness checks passed" : `${status}: ${checks.filter((check) => check.status !== "pass").map((check) => check.id).join(", ")}`,
+      ...(status === "ready" ? {} : { nextStep: "apply the typed remediation and rerun app verify" }),
+    });
+  }
+  return report;
+}
+
+export async function planAppPromotion(options: PromoteAppOptions): Promise<AppPromotionPlan> {
+  if (options.to !== "live") throw new Error("app promote: only --to live is supported");
+  const verification = await verifyApp({ ...options, synchronize: false, writeReadiness: false, runChecks: false, recordEvidence: false });
+  const app = (await loadApps(join(resolve(options.orgHome), "apps.yaml"))).apps.find((entry) => entry.name === options.appName)!;
+  const journalPath = join(resolve(options.stateHome), "lifecycle", "apps", options.appName, "promotion.json");
+  if (existsSync(journalPath)) {
+    const journal = parsePromotionJournal(await readFile(journalPath, "utf8"), app.name);
+    if (journal.phase !== "complete") {
+      return {
+        schema_version: LIFECYCLE_SCHEMA_VERSION,
+        kind: "app-promotion-plan",
+        app: app.name,
+        from: app.status,
+        to: "live",
+        executable: true,
+        idempotent: false,
+        verification,
+        changes: ["resume the durable promotion transaction", "converge app config, remote default, registry, and managed clone"],
+        transaction_id: journal.transaction_id,
+      };
+    }
+  }
+  const completeJournal = existsSync(journalPath)
+    ? parsePromotionJournal(await readFile(journalPath, "utf8"), app.name)
+    : undefined;
+  const idempotent = app.status === "live" && verification.status === "ready";
+  const changes = idempotent ? [] : ["app .operon/config.yaml status -> live", "org apps.yaml status -> live", "managed clone -> remote default HEAD"];
+  return {
+    schema_version: LIFECYCLE_SCHEMA_VERSION,
+    kind: "app-promotion-plan",
+    app: app.name,
+    from: app.status,
+    to: "live",
+    executable: verification.status === "ready" && (app.status === "onboarding" || idempotent),
+    idempotent,
+    verification,
+    changes,
+    transaction_id: completeJournal?.phase === "complete"
+      ? completeJournal.transaction_id
+      : `promote-${app.name}-${sha256(stableJson({ app: comparableApp(app), head: verification.remote_head, config: verification.config_sha256 })).slice(0, 16)}`,
+  };
+}
+
+export async function executeAppPromotion(
+  options: PromoteAppOptions,
+  reviewedPlan?: AppPromotionPlan,
+): Promise<AppPromotionResult> {
+  const stateHome = resolve(options.stateHome);
+  const release = await acquireLifecycleOperationLock(stateHome, options.appName, "app promote");
+  try {
+    const plan = reviewedPlan ?? (await planAppPromotion(options));
+    const fresh = await planAppPromotion(options);
+    if (fresh.transaction_id !== plan.transaction_id && !plan.idempotent) throw new Error("app promote: reviewed plan is stale; preview again");
+    if (!fresh.executable) throw new Error(`app promote: verification is ${fresh.verification.status}; promotion refused`);
+    if (fresh.idempotent) {
+      await emitLifecycleStep({
+        stateHome,
+        app: options.appName,
+        operation: "app promote",
+        inputFingerprint: fresh.transaction_id,
+        status: "completed",
+        reason: `app promoted transactionally to live at ${fresh.verification.remote_head}`,
+      });
+      return { schema_version: LIFECYCLE_SCHEMA_VERSION, kind: "app-promotion-result", status: "already_live", plan: fresh, verification: fresh.verification };
+    }
+    const record = await readLifecycleRecord(stateHome, options.appName);
+    const journalPath = join(stateHome, "lifecycle", "apps", options.appName, "promotion.json");
+    let journal = await readOrCreatePromotionJournal(journalPath, fresh);
+
+    const configPath = join(record.managed_clone, ".operon", "config.yaml");
+    const headConfigStatus = appConfigStatusText(
+      git(record.managed_clone, "show", `HEAD:.operon/config.yaml`),
+      options.appName,
+      "committed app config",
+    );
+    if (headConfigStatus === "live") {
+      if (git(record.managed_clone, "status", "--porcelain", "--", ".operon/config.yaml") !== "") {
+        throw new Error("app promote: committed live config has uncommitted changes");
+      }
+      journal = await patchPromotionJournal(journalPath, journal, {
+        phase: journal.phase === "intent" ? "config_committed" : journal.phase,
+        promotion_commit: git(record.managed_clone, "rev-parse", "HEAD"),
+      });
+    } else {
+      if (await appConfigStatus(configPath, options.appName) !== "live") {
+        await options.fault?.("before_config_write");
+        const before = await readFile(configPath, "utf8");
+        const document = parseDocument(before);
+        if (document.errors.length > 0 || !document.hasIn(["apps", options.appName])) throw new Error("app promote: invalid app config");
+        document.setIn(["apps", options.appName, "status"], "live");
+        await writeLifecycleFileAtomic(configPath, document.toString());
+        await options.fault?.("after_config_write");
+      }
+      await validateFormatting(record.managed_clone);
+      git(record.managed_clone, "add", ".operon/config.yaml");
+      git(record.managed_clone, "diff", "--cached", "--check");
+      const commitDate = nextCommitDate(record.managed_clone);
+      await options.fault?.("before_commit");
+      gitWithCommitIdentity(record.managed_clone, commitDate, "commit", "--quiet", "-m", "chore: promote app to live");
+      await options.fault?.("after_commit");
+      journal = await patchPromotionJournal(journalPath, journal, { phase: "config_committed", promotion_commit: git(record.managed_clone, "rev-parse", "HEAD") });
+    }
+
+    const remote = remoteBranchHead(record.remote_url, record.default_branch);
+    if (journal.promotion_commit === null) throw new Error("app promote: missing promotion commit");
+    if (remote !== journal.promotion_commit) {
+      if (!gitIsAncestor(record.managed_clone, remote, journal.promotion_commit)) throw new Error("app promote: remote default diverged during promotion");
+      await options.fault?.("before_push");
+      git(record.managed_clone, "push", "--quiet", "origin", `HEAD:${record.default_branch}`);
+      await options.fault?.("after_push");
+    }
+    journal = await patchPromotionJournal(journalPath, journal, { phase: "pushed" });
+
+    const registry = (await loadApps(join(resolve(options.orgHome), "apps.yaml"))).apps.find((entry) => entry.name === options.appName)!;
+    if (registry.status !== "live") {
+      await options.fault?.("before_registry_write");
+      await updateAppStatus(options.orgHome, options.appName, "live");
+      await options.fault?.("after_registry_write");
+      journal = await patchPromotionJournal(journalPath, journal, { phase: "registry_updated" });
+    }
+    const configBytes = await readFile(configPath);
+    await writeLifecycleFileAtomic(lifecycleRecordPath(stateHome, options.appName), stableJson({
+      ...record,
+      config_sha256: `sha256:${sha256(configBytes)}`,
+    } satisfies AppLifecycleRecord));
+    const finalVerification = await verifyApp({ ...options, synchronize: true, writeReadiness: true });
+    if (finalVerification.status !== "ready" || finalVerification.registry_status !== "live") {
+      throw new Error(
+        `app promote: post-transaction verification ${finalVerification.status}: ` +
+          finalVerification.checks.filter((check) => check.status !== "pass").map((check) => `${check.id}=${check.detail}`).join("; "),
+      );
+    }
+    await patchPromotionJournal(journalPath, journal, { phase: "complete" });
+    await emitLifecycleStep({
+      stateHome,
+      app: options.appName,
+      operation: "app promote",
+      inputFingerprint: fresh.transaction_id,
+      status: "completed",
+      reason: `app promoted transactionally to live at ${finalVerification.remote_head}`,
+    });
+    return { schema_version: LIFECYCLE_SCHEMA_VERSION, kind: "app-promotion-result", status: "promoted", plan: fresh, verification: finalVerification };
+  } finally {
+    await release();
+  }
+}
+
+export async function readLifecycleRecord(stateHome: string, app: string): Promise<AppLifecycleRecord> {
+  const path = lifecycleRecordPath(stateHome, app);
+  await assertRegularFile(path, "app lifecycle record");
+  const value = JSON.parse(await readFile(path, "utf8")) as Partial<AppLifecycleRecord>;
+  if (
+    value.schema_version !== LIFECYCLE_SCHEMA_VERSION ||
+    value.kind !== "app-lifecycle" ||
+    value.app !== app ||
+    typeof value.remote_url !== "string" ||
+    typeof value.default_branch !== "string" ||
+    typeof value.default_base !== "string" ||
+    typeof value.onboarding_commit !== "string" ||
+    typeof value.managed_clone !== "string"
+  ) throw new Error(`app verify: invalid lifecycle record ${path}`);
+  if (resolve(value.managed_clone) !== join(resolve(stateHome), "repos", app)) throw new Error("app verify: managed clone path escapes app state");
+  return value as AppLifecycleRecord;
+}
+
+async function validateGeneratedArtifacts(root: string, app: string, repo: string, created: string[], updated: string[]): Promise<void> {
+  const config = await loadApps(join(root, ".operon", "config.yaml"));
+  const entry = config.apps.find((candidate) => candidate.name === app);
+  if (config.schemaVersion !== LIFECYCLE_SCHEMA_VERSION || entry?.repo !== repo || entry.status !== "onboarding") {
+    throw new Error("bootstrap: generated app config failed schema validation");
+  }
+  parse(await readFile(join(root, ".operon", "policy.yaml"), "utf8"));
+  await assertRegularFile(join(root, ".operon", "AUTHORITY.md"), "generated authority");
+  for (const rel of [...created, ...updated]) {
+    const path = join(root, rel);
+    await assertRegularFile(path, "generated artifact");
+    const text = await readFile(path, "utf8");
+    if (!text.endsWith("\n")) throw new Error(`bootstrap: generated artifact lacks final newline: ${rel}`);
+    if (text.split("\n").some((line) => /[ \t]+$/.test(line))) throw new Error(`bootstrap: generated artifact has trailing whitespace: ${rel}`);
+  }
+}
+
+async function validateFormatting(root: string): Promise<void> {
+  const configPath = join(root, ".operon", "config.yaml");
+  await loadApps(configPath);
+  parse(await readFile(join(root, ".operon", "policy.yaml"), "utf8"));
+  git(root, "diff", "--check");
+}
+
+function gitSnapshot(root: string): { branch: string; head: string; status: string } {
+  return {
+    branch: git(root, "branch", "--show-current"),
+    head: git(root, "rev-parse", "HEAD"),
+    status: execFileSync("git", ["status", "--porcelain=v2", "--untracked-files=all"], { cwd: root, env: GIT_ENV, encoding: "utf8" }),
+  };
+}
+
+function remoteDefaultBranch(remoteUrl: string): string {
+  const output = execFileSync("git", ["ls-remote", "--symref", remoteUrl, "HEAD"], { env: GIT_ENV, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const match = /^ref:\s+refs\/heads\/([^\s]+)\s+HEAD$/m.exec(output);
+  if (!match?.[1]) throw new Error(`bootstrap: remote has no advertised default branch: ${remoteUrl}`);
+  return match[1];
+}
+
+function remoteBranchHead(remoteUrl: string, branch: string): string {
+  const output = execFileSync("git", ["ls-remote", remoteUrl, `refs/heads/${branch}`], { env: GIT_ENV, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  const oid = output.split(/\s+/)[0];
+  if (!oid || !/^[0-9a-f]{40,64}$/.test(oid)) throw new Error(`remote default branch not reachable: ${branch}`);
+  return oid;
+}
+
+async function inspectManagedClone(path: string): Promise<"missing" | "symlink" | "corrupt" | "git"> {
+  if (!existsSync(path)) return "missing";
+  const info = await lstat(path);
+  if (info.isSymbolicLink()) return "symlink";
+  if (!info.isDirectory() || !existsSync(join(path, ".git"))) return "corrupt";
+  return safeGit(path, "rev-parse", "--is-inside-work-tree") === "true" ? "git" : "corrupt";
+}
+
+async function recreateManagedClone(record: AppLifecycleRecord, stateHome: string): Promise<void> {
+  const parent = join(resolve(stateHome), "repos");
+  await mkdir(parent, { recursive: true });
+  const staged = join(parent, `.${record.app}-recreate.partial`);
+  await rm(staged, { recursive: true, force: true });
+  try {
+    git(dirname(staged), "clone", "--quiet", record.remote_url, staged);
+    await rm(record.managed_clone, { recursive: true, force: true });
+    await rename(staged, record.managed_clone);
+  } catch (error) {
+    await rm(staged, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function synchronizeClone(root: string, defaultBranch: string): void {
+  git(root, "checkout", "--quiet", "-B", defaultBranch, `origin/${defaultBranch}`);
+  git(root, "reset", "--hard", `origin/${defaultBranch}`);
+  git(root, "clean", "-fd");
+}
+
+async function appActivityChecks(stateHome: string, app: string): Promise<LifecycleCheck[]> {
+  const checks: LifecycleCheck[] = [];
+  const locksDir = join(stateHome, "locks");
+  const locks = existsSync(locksDir)
+    ? (await readdir(locksDir)).filter((name) => name.startsWith(`${app}--`) && name.endsWith(".lock")).sort()
+    : [];
+  checks.push(locks.length === 0 ? pass("locks", "no active app role locks") : blocked("locks", `active locks: ${locks.join(", ")}`, "allow active turns to finish"));
+  const pendingDir = join(stateHome, "approvals", "pending");
+  const pending: string[] = [];
+  if (existsSync(pendingDir)) {
+    for (const file of (await readdir(pendingDir)).filter((name) => name.endsWith(".json")).sort()) {
+      try {
+        const record = JSON.parse(await readFile(join(pendingDir, file), "utf8")) as { app?: unknown };
+        if (record.app === app) pending.push(file.slice(0, -5));
+      } catch {
+        checks.push(fail("approvals", `corrupt pending approval file: ${file}`));
+      }
+    }
+  }
+  if (!checks.some((check) => check.id === "approvals")) {
+    checks.push(pending.length === 0 ? pass("approvals", "no pending app approvals") : blocked("approvals", `pending approvals: ${pending.join(", ")}`, "decide or withdraw approvals before promotion"));
+  }
+  return checks;
+}
+
+function runDeclaredChecks(root: string): LifecycleCheck[] {
+  const commands = loadGateCommands(root);
+  const declared = [
+    ["tests", commands.testCommand],
+    ["lint", commands.lintCommand],
+  ] as const;
+  const checks: LifecycleCheck[] = [];
+  for (const [id, command] of declared) {
+    if (command === undefined) continue;
+    const result = spawnSync("/bin/sh", ["-lc", command], {
+      cwd: root,
+      env: { ...process.env, CI: "1", GIT_TERMINAL_PROMPT: "0" },
+      encoding: "utf8",
+      timeout: 120_000,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    checks.push(result.status === 0
+      ? pass(`app-check-${id}`, `${command} passed`)
+      : fail(`app-check-${id}`, `${command} failed with exit ${String(result.status)}`));
+  }
+  if (checks.length === 0) checks.push(fail("app-checks", "no test or lint command declared"));
+  return checks;
+}
+
+async function staticRuntimeReadiness(
+  runtimes: Array<{ runtime: RuntimeKind; models: string[] }>,
+): Promise<LifecycleCheck[]> {
+  const packages: Record<RuntimeKind, string> = {
+    claude: "@anthropic-ai/claude-agent-sdk",
+    codex: "@openai/codex",
+    pi: "@earendil-works/pi-coding-agent",
+  };
+  return runtimes.map(({ runtime, models }) => {
+    try {
+      require.resolve(packages[runtime]);
+      if (models.length === 0) throw new Error("no configured model");
+      return pass(`runtime-${runtime}`, `${packages[runtime]} installed; ${models.join(", ")} configured; static token-free readiness only`);
+    } catch (error) {
+      return fail(`runtime-${runtime}`, message(error));
+    }
+  });
+}
+
+function rolesForApp(roles: Awaited<ReturnType<typeof loadRoles>>, app: AppEntry) {
+  return roles.roles.filter((role) => !(role.name in app.cadence) || app.cadence[role.name]!.length > 0);
+}
+
+function groupRuntimes(roles: Array<{ runtime: RuntimeKind; model: string }>): Array<{ runtime: RuntimeKind; models: string[] }> {
+  const grouped = new Map<RuntimeKind, Set<string>>();
+  for (const role of roles) {
+    const models = grouped.get(role.runtime) ?? new Set<string>();
+    models.add(role.model);
+    grouped.set(role.runtime, models);
+  }
+  return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([runtime, models]) => ({ runtime, models: [...models].sort() }));
+}
+
+function comparableApp(app: AppEntry): unknown {
+  return {
+    name: app.name,
+    repo: app.repo,
+    status: app.status,
+    budgetUsdMonth: app.budgetUsdMonth,
+    cadence: app.cadence,
+    channels: app.channels ?? {},
+    release: app.release ?? null,
+  };
+}
+
+function cadenceForAnswers(answers: BootstrapAnswers, allRoles: string[]) {
+  return Object.fromEntries(allRoles.flatMap((role) => {
+    if (!answers.roles.includes(role)) return [[role, []]];
+    return answers.cadence[role] !== undefined ? [[role, answers.cadence[role]]] : [];
+  }));
+}
+
+function sanitizeAppName(value: string): string {
+  const cleaned = value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (cleaned.length === 0) throw new Error("bootstrap: app name must contain a safe character");
+  return cleaned;
+}
+
+function localRepoIdentity(remoteUrl: string, app: string): string {
+  const match = /github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?$/.exec(remoteUrl);
+  return match?.[1] && match[2] ? `${match[1]}/${match[2]}` : `local/${app}`;
+}
+
+function nextCommitDate(root: string): string {
+  const epoch = Number(git(root, "show", "-s", "--format=%ct", "HEAD"));
+  return new Date((Number.isFinite(epoch) ? epoch + 1 : 1) * 1000).toISOString();
+}
+
+function gitWithCommitIdentity(root: string, date: string, ...args: string[]): string {
+  return execFileSync("git", [
+    "-c", "user.name=Operon Lifecycle",
+    "-c", "user.email=lifecycle@operon.invalid",
+    "-c", "commit.gpgsign=false",
+    "-c", "core.hooksPath=/dev/null",
+    ...args,
+  ], { cwd: root, env: { ...GIT_ENV, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
+
+function git(root: string, ...args: string[]): string {
+  return execFileSync("git", args, { cwd: root, env: GIT_ENV, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
+
+function safeGit(root: string, ...args: string[]): string | null {
+  try { return git(root, ...args); } catch { return null; }
+}
+
+function gitIsAncestor(root: string, ancestor: string, descendant: string): boolean {
+  const result = spawnSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], { cwd: root, env: GIT_ENV, stdio: "ignore" });
+  if (result.status === 0) return true;
+  if (result.status === 1) return false;
+  throw new Error(`git ancestry check failed for ${ancestor}..${descendant}`);
+}
+
+function pass(id: string, detail: string): LifecycleCheck { return { id, status: "pass", detail }; }
+function fail(id: string, detail: string): LifecycleCheck { return { id, status: "fail", detail }; }
+function blocked(id: string, detail: string, remediation: string): LifecycleCheck { return { id, status: "blocked", detail, remediation }; }
+function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+
+async function appConfigStatus(path: string, app: string): Promise<AppEntry["status"]> {
+  const file = await loadApps(path);
+  const entry = file.apps.find((candidate) => candidate.name === app);
+  if (entry === undefined) throw new Error(`app promote: app config has no ${app}`);
+  return entry.status;
+}
+
+function appConfigStatusText(text: string, app: string, label: string): AppEntry["status"] {
+  const raw = parse(text) as Record<string, unknown>;
+  const apps = raw?.["apps"];
+  const spec = apps && typeof apps === "object" && !Array.isArray(apps)
+    ? (apps as Record<string, unknown>)[app]
+    : undefined;
+  const status = spec && typeof spec === "object" && !Array.isArray(spec)
+    ? (spec as Record<string, unknown>)["status"]
+    : undefined;
+  if (status !== "onboarding" && status !== "live" && status !== "paused") {
+    throw new Error(`app promote: ${label} has no valid ${app} status`);
+  }
+  return status;
+}
+
+function parsePromotionJournal(text: string, app: string): PromotionJournal {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`app promote: corrupt promotion journal: ${message(error)}`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("app promote: corrupt promotion journal");
+  const journal = value as Partial<PromotionJournal>;
+  const validPhases = new Set<PromotionJournal["phase"]>(["intent", "config_committed", "pushed", "registry_updated", "complete"]);
+  if (
+    journal.schema_version !== LIFECYCLE_SCHEMA_VERSION ||
+    journal.kind !== "app-promotion" ||
+    journal.app !== app ||
+    journal.target !== "live" ||
+    typeof journal.transaction_id !== "string" ||
+    !journal.transaction_id.startsWith(`promote-${app}-`) ||
+    journal.phase === undefined ||
+    !validPhases.has(journal.phase) ||
+    (journal.promotion_commit !== null && (typeof journal.promotion_commit !== "string" || !/^[0-9a-f]{40,64}$/.test(journal.promotion_commit)))
+  ) throw new Error("app promote: corrupt promotion journal");
+  return journal as PromotionJournal;
+}
+
+async function readOrCreatePromotionJournal(path: string, plan: AppPromotionPlan): Promise<PromotionJournal> {
+  if (existsSync(path)) {
+    return parsePromotionJournal(await readFile(path, "utf8"), plan.app);
+  }
+  const journal: PromotionJournal = {
+    schema_version: LIFECYCLE_SCHEMA_VERSION,
+    kind: "app-promotion",
+    transaction_id: plan.transaction_id,
+    app: plan.app,
+    target: "live",
+    phase: "intent",
+    promotion_commit: null,
+  };
+  await writeLifecycleFileAtomic(path, stableJson(journal));
+  return journal;
+}
+
+async function patchPromotionJournal(path: string, journal: PromotionJournal, patch: Partial<PromotionJournal>): Promise<PromotionJournal> {
+  const next = { ...journal, ...patch };
+  await writeLifecycleFileAtomic(path, stableJson(next));
+  return next;
+}

@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 test/eval readiness complete; the current provider baseline is valid evidence and honestly `not_qualified` for product behavior |
-| Evidence date | 2026-07-13 |
+| Status | T0–T5 readiness and production Phases 1–2 complete; the provider baseline remains valid historical evidence and honestly `not_qualified` |
+| Evidence date | 2026-07-14 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Production evidence only | `/Users/bikram/Build/Bikram-Org`, `/Users/bikram/Build/buildstacks.dev` |
@@ -49,6 +49,8 @@ implementation, not a product qualification result.
 | T4 adapter admission | Complete | Campaign `adapter-harness-calibration-v1-20260714-e52bf4335e81` (SHA-256 `e10fdc628aedf937949f28451fc0ca7d91f38af66cfdbcc3a060cb3873f9f0b1`) qualified Claude, Codex, and pi with 20/20 exactly-once settlements, three mechanical permission-boundary proofs, and $2.158391 equivalent cost. |
 | T4 provider baseline | Complete | Campaign `pre-transformation-baseline-v2-20260714-e52bf4335e81` (SHA-256 `5bddc84c58683e69167c0afbbf1b93de893d0d4032432da52991678f1579458f`) retained all six attempts, returned one pass and five honest `product_miss` outcomes, reconciled 9/9 provider settlements, and produced zero harness, infrastructure, safety, budget, or missing-attempt failures. |
 | T5 implementation and gate | Complete | Package scripts, PR/nightly/manual-release wiring, reporting, L6 preview/execute boundary, archive/cleanup, runbooks, Agent Skill, and `AGENTS.md` expectations execute. A fresh operator can run the token-free suite, preview external boundaries without spend, and reproduce the final baseline qualifier/report from its stored prepared manifest. |
+| Production Phase 1 | Complete | Durable route admission, terminal provider/mechanical execution-step evidence, exactly-once settlement/reconciliation, efficiency reporting, context-manifest foundations, and settlement properties promote B, E-CTX-01/02, and F-SET-01/02/03. |
+| Production Phase 2 | Complete | Additive archived org upgrade, normalized answer recovery, typed reset remediation, immutable-checkout onboarding, deterministic clone convergence, token-free verification, and journaled promotion pass `LIFE-LEGACY-001` plus every lifecycle fault/security/isolation contract. C-LIFE-01–04 are required. |
 
 The L6 real-time soak path is implemented and tested as an explicitly
 authorized 48–72 hour boundary. It has not been executed and is not authorized
@@ -56,31 +58,31 @@ by the work recorded here. Candidate qualification is also not authorized.
 
 ### Latest deterministic verification
 
-The complete post-auth-context-repair local pass in this session produced:
+The complete Phase 2 local pass on 2026-07-14 produced:
 
 - `pnpm eval:validate`: valid; 84 requirements, 84 executable evidence paths,
   14 cases, 12 benchmark families, 60 fault boundaries, 13 graders, three
   capability declarations, and zero orphaned records;
-- `pnpm test:transformation`: 29 files and 396 tests passed; the non-strict
+- `pnpm test:transformation`: 28 files and 347 tests passed; the non-strict
   contract runner reported no unexpected failures;
-- `pnpm eval:deterministic`: 38 files and 468 tests passed;
-- `pnpm test`: 159 files and 1,583 tests passed;
+- `pnpm eval:deterministic`: 43 files and 480 tests passed, including the
+  production lifecycle replay and all 43 restart-boundary cases;
+- `pnpm test`: 167 files and 1,606 tests passed;
 - `pnpm typecheck`: passed;
-- `pnpm build`: passed and emitted the compiled Codex gate-hook helper;
-- `pnpm test:transformation:strict`: all 396 test cases passed, then the command
-  exited non-zero only because the exact 72 production contracts below remain
-  deliberately known-red.
+- `pnpm build`, `pnpm smoke:onboarding`, and `npm pack --dry-run`: passed;
+- the isolated alpha, beta, gamma, and delta app suites passed (including all
+  available lint and gamma role smokes), and isolated Delta scan/bootstrap,
+  plan dry-run, and loop dry-run completed without a provider turn;
+- `pnpm test:transformation:strict`: all 347 test cases passed, then the command
+  exited non-zero only because the exact 52 post-Phase-2 production contracts
+  below remain deliberately known-red.
 
-The exact known-red set is:
+After production Phases 1–2, the exact known-red set is 52 contracts:
 
-- B (11): `B-ADM-01`–`B-ADM-05`, `B-MET-01`–`B-MET-04`,
-  `B-RPT-01`–`B-RPT-02`;
-- C (4): `C-LIFE-01`–`C-LIFE-04`;
 - D (11): `D-ROUTE-01`–`D-ROUTE-07`, `D-PLAN-01`,
   `D-LIVE-01`–`D-LIVE-03`;
-- E (10): `E-CTX-01`–`E-CTX-08`, `E-LIVE-01`–`E-LIVE-02`;
-- F (9): `F-CONT-01`–`F-CONT-04`, `F-SET-01`–`F-SET-04`,
-  `F-BOUND-01`;
+- E (8): `E-CTX-03`–`E-CTX-08`, `E-LIVE-01`–`E-LIVE-02`;
+- F (6): `F-CONT-01`–`F-CONT-04`, `F-SET-04`, `F-BOUND-01`;
 - G (8): `G-ACT-01`–`G-ACT-03`, `G-SHAPE-01`, `G-GRANT-01`,
   `G-DEDUPE-01`, `G-DENY-01`, `G-MET-01`;
 - H (10): `H-CAP-01`–`H-CAP-03`, `H-CLU-01`–`H-CLU-02`,
@@ -89,8 +91,9 @@ The exact known-red set is:
   `I-ROLE-01`–`I-ROLE-03`, `I-LIVE-01`.
 
 These are red because their transformation production behavior is absent, not
-because tests, evidence paths, cases, graders, or harnesses are missing. All
-five A contracts and all seven J contracts are required and green.
+because tests, evidence paths, cases, graders, or harnesses are missing. The
+32 required contracts in A, B, C, E, F, and J are green; historical provider
+baseline results remain the pre-transformation comparison and are not relabeled.
 
 ### Retained external evidence and findings
 
@@ -284,8 +287,9 @@ Exact Claude SDK sessions were deleted after grader evidence, retaining only
 ID hashes. See `research/evals/2026-07-13-adapter-calibration-repair.md`.
 
 This proves the content-hashed adapter/eval admission snapshot, not that the
-future Git commit or the broader Operon product is qualified. The 72 declared
-transformation contracts remain known-red. A new adapter campaign is required
+future Git commit or the broader Operon product is qualified. At that historical
+checkpoint all 72 declared transformation contracts remained known-red; the
+current Phase 1–2 inventory is recorded above. A new adapter campaign is required
 only if adapter, harness, fixture, grader, schema, or declared campaign-profile
 bytes change before relying on this admission result.
 
@@ -913,6 +917,17 @@ Hard assertions:
 archive tampering, secret-like answers, missing remote, divergent ancestry,
 symlink/traversal, and concurrent promotion. `C-LIFE-04` proves a second app
 is unaffected by reset/upgrade/promotion of the first.
+
+**Production evidence (2026-07-14):**
+`test/lifecycle/transaction.test.ts` and `cli.test.ts` execute the exact replay
+through production APIs and public commands with stable JSON and zero provider
+artifacts. `faults.test.ts` injects archive, registry, config, Git
+fetch/ref/worktree, commit, push, PR, issue, and branch boundaries and proves
+rollback or one-time resume. `security.test.ts` covers archive/answer
+corruption, secrets, missing/divergent refs, clone/path symlinks and traversal,
+dead/live locks, and concurrent promotion; `isolation.test.ts` hashes every
+second-app surface. These files replace the former synthetic Workstream-C
+stand-in and are the required evidence for `C-LIFE-01`–`C-LIFE-04`.
 
 ### 8.4 Workstream D — proportional planning and review
 
@@ -1554,8 +1569,9 @@ This test/eval campaign is complete when:
 2. Read project `AGENTS.md`, `docs/PURPOSE.md`, the source transformation
    charter, and this document completely before editing.
 3. Treat **Current implementation and handoff status** as the source of truth;
-   do not rebuild completed T0–T3/T5 infrastructure or promote known-red
-   contracts by implementing transformation production features.
+   do not rebuild completed T0–T5 or production Phase 1–2 infrastructure, and
+   promote known-red contracts only after their production behavior and exact
+   evidence genuinely pass.
 4. Preserve all unrelated work, specifically the user's existing
    `docs/architecture/conceptual-overview.md` change, and do not reset or clean
    the dirty worktree.

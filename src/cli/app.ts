@@ -3,28 +3,44 @@
 // repeats the app name in --confirm alongside --execute.
 
 import { GhCliOps } from "../loop/github.js";
-import { executeAppReset, planAppReset, type AppResetPlan } from "../org/app-reset.js";
+import { executeAppReset, finalizeInterruptedAppReset, planAppReset, type AppResetPlan } from "../org/app-reset.js";
 import { resolveOperonHomes } from "../org/home.js";
+import { executeAppPromotion, planAppPromotion, verifyApp } from "../org/app-lifecycle.js";
+import { latestResetArchiveForApp } from "../org/onboarding-answers.js";
+import { stableJson } from "../org/lifecycle.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { dirname, join, resolve } from "node:path";
+import type { GhOps } from "../loop/github.js";
 
-export async function cmdApp(args: string[]): Promise<number> {
+export interface AppCommandOptions {
+  ghFactory?: (repo: string) => GhOps;
+}
+
+export async function cmdApp(args: string[], options: AppCommandOptions = {}): Promise<number> {
   const common = extractHomeFlags(args, "app");
   const [verb, appName, ...rest] = common.rest;
-  if (verb !== "reset") throw new Error(`app: unknown subcommand "${verb ?? ""}" (expected reset)`);
-  if (appName === undefined || appName.startsWith("--")) {
-    throw new Error("app reset: <app-name> is required");
+  if (verb !== "reset" && verb !== "verify" && verb !== "promote") {
+    throw new Error(`app: unknown subcommand "${verb ?? ""}" (expected reset, verify, or promote)`);
   }
+  if (appName === undefined || appName.startsWith("--")) {
+    throw new Error(`app ${verb}: <app-name> is required`);
+  }
+
+  if (verb === "verify") return verify(appName, rest, common);
+  if (verb === "promote") return promote(appName, rest, common);
 
   let execute = false;
   let force = false;
   let dryRun = false;
   let confirm: string | undefined;
   let archiveRoot: string | undefined;
+  let json = false;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i]!;
     if (arg === "--execute") execute = true;
     else if (arg === "--force") force = true;
     else if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--json") json = true;
     else if (arg === "--confirm") {
       confirm = needValue(rest, ++i, "--confirm");
     } else if (arg === "--archive-root") {
@@ -40,27 +56,104 @@ export async function cmdApp(args: string[]): Promise<number> {
 
   const homes = await resolveOperonHomes(common);
   const app = homes.appsFile.apps.find((entry) => entry.name === appName);
-  if (app === undefined) throw new Error(`app reset: unknown app "${appName}" in apps.yaml`);
+  if (app === undefined) {
+    const root = resolve(archiveRoot ?? join(dirname(homes.stateHome), "archives", safeSegment(homes.appsFile.org.name)));
+    const archive = await latestResetArchiveForApp(root, appName);
+    if (archive !== undefined) {
+      await finalizeInterruptedAppReset(homes.stateHome, appName, archive);
+      const result = { schema_version: 1, kind: "app-reset-result", status: "already_reset", app: appName, archive_path: archive };
+      if (json) console.log(stableJson(result).trimEnd());
+      else console.log(`App already reset: ${appName}\nArchive: ${archive}`);
+      return 0;
+    }
+    throw new Error(`app reset: unknown app "${appName}" in apps.yaml`);
+  }
   const input = {
     orgHome: homes.orgHome,
     stateHome: homes.stateHome,
     appsFile: homes.appsFile,
     appName,
-    gh: new GhCliOps(app.repo),
+    gh: options.ghFactory?.(app.repo) ?? new GhCliOps(app.repo),
     ...(force ? { force: true } : {}),
     ...(archiveRoot !== undefined ? { archiveRoot } : {}),
   };
   const plan = await planAppReset(input);
-  printPlan(plan, execute, force);
+  if (json && !execute) console.log(stableJson(plan).trimEnd());
+  else if (!json) printPlan(plan, execute, force);
   if (!execute) return 0;
   if (plan.blockers.length > 0) {
-    throw new Error(`app reset: execution blocked — ${plan.blockers.join("; ")}`);
+    if (json) console.log(stableJson({ schema_version: 1, kind: "app-reset-refusal", app: appName, blockers: plan.blockers }).trimEnd());
+    throw new Error(`app reset: execution blocked — ${plan.blockers.map((blocker) => blocker.code).join("; ")}`);
   }
 
   const result = await executeAppReset(input, plan);
-  console.log(`app reset complete: ${appName}`);
-  console.log(`archive: ${result.archivePath}`);
+  if (json) console.log(stableJson({ schema_version: 1, kind: "app-reset-result", status: "reset", app: appName, archive_path: result.archivePath, plan: result.plan }).trimEnd());
+  else {
+    console.log(`app reset complete: ${appName}`);
+    console.log(`archive: ${result.archivePath}`);
+  }
   return 0;
+}
+
+async function verify(
+  appName: string,
+  args: string[],
+  homesFlags: { orgHome?: string; stateHome?: string },
+): Promise<number> {
+  let json = false;
+  for (const arg of args) {
+    if (arg === "--json") json = true;
+    else throw new Error(`app verify: unknown flag "${arg}"`);
+  }
+  const homes = await resolveOperonHomes(homesFlags);
+  const report = await verifyApp({ orgHome: homes.orgHome, stateHome: homes.stateHome, appName, synchronize: true, writeReadiness: true });
+  if (json) console.log(stableJson(report).trimEnd());
+  else printVerification(report);
+  return report.status === "ready" ? 0 : 2;
+}
+
+async function promote(
+  appName: string,
+  args: string[],
+  homesFlags: { orgHome?: string; stateHome?: string },
+): Promise<number> {
+  let execute = false;
+  let json = false;
+  let to: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--to") to = needValue(args, ++i, "--to");
+    else if (arg === "--execute") execute = true;
+    else if (arg === "--dry-run") execute = false;
+    else if (arg === "--json") json = true;
+    else throw new Error(`app promote: unknown flag "${arg}"`);
+  }
+  if (to !== "live") throw new Error("app promote: --to live is required");
+  const homes = await resolveOperonHomes(homesFlags);
+  const input = { orgHome: homes.orgHome, stateHome: homes.stateHome, appName, to: "live" as const };
+  const plan = await planAppPromotion(input);
+  if (!execute) {
+    if (json) console.log(stableJson(plan).trimEnd());
+    else {
+      console.log(`App promotion plan: ${appName} ${plan.from} -> live`);
+      console.log(`Verification: ${plan.verification.status}`);
+      for (const change of plan.changes) console.log(`  - ${change}`);
+      console.log("No changes made. Add --execute after reviewing this plan.");
+    }
+    return plan.executable ? 0 : 2;
+  }
+  const result = await executeAppPromotion(input, plan);
+  if (json) console.log(stableJson(result).trimEnd());
+  else console.log(`App promotion ${result.status}: ${appName} -> live`);
+  return 0;
+}
+
+function printVerification(report: Awaited<ReturnType<typeof verifyApp>>): void {
+  console.log(`App verification: ${report.app} — ${report.status} (${report.evidence_state})`);
+  for (const check of report.checks) {
+    console.log(`  ${check.status.padEnd(7)} ${check.id}: ${check.detail}`);
+    if (check.remediation) console.log(`           remediation: ${check.remediation}`);
+  }
 }
 
 function printPlan(plan: AppResetPlan, execute: boolean, force: boolean): void {
@@ -80,7 +173,10 @@ function printPlan(plan: AppResetPlan, execute: boolean, force: boolean): void {
   }
   if (plan.blockers.length > 0) {
     console.log("Blocked:");
-    for (const blocker of plan.blockers) console.log(`  - ${blocker}`);
+    for (const blocker of plan.blockers) {
+      console.log(`  - ${blocker.code}: ${blocker.ids.join(", ")}`);
+      console.log(`    remediation: ${blocker.remediation}`);
+    }
   }
   if (!execute) {
     console.log(
@@ -90,8 +186,12 @@ function printPlan(plan: AppResetPlan, execute: boolean, force: boolean): void {
   }
 }
 
+function safeSegment(value: string): string {
+  return value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "org";
+}
+
 function needValue(args: string[], index: number, flag: string): string {
   const value = args[index];
-  if (!value || value.startsWith("--")) throw new Error(`app reset: ${flag} requires a value`);
+  if (!value || value.startsWith("--")) throw new Error(`app: ${flag} requires a value`);
   return value;
 }

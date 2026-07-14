@@ -168,6 +168,16 @@ fails closed to the built-in legacy-conservative profile; it never silently
 inherits the newer delegated default. `operon org use <path>` selects an existing complete tree.
 `OPERON_ORG_HOME` is the explicit non-persistent override.
 
+`operon org upgrade` is the token-free legacy migration boundary. Its default
+is a byte-stable, non-mutating schema/change plan. Execution requires an
+explicit authority choice when a legacy org has no charter, copies only
+missing packaged surfaces, adds the registry schema marker without rewriting
+app entries, writes a checksummed archive outside state, and validates the
+complete org plus effective authority afterward. Existing ratified surfaces
+are never replaced. A deterministic stage and dead-process-aware org lock make
+an interrupted migration safely rerunnable; thrown failures restore the exact
+archived bytes.
+
 ### App reset archives
 
 `operon app reset <app>` is the lifecycle command for repeatable onboarding
@@ -175,7 +185,7 @@ and build-loop testing. Planning is the default and reads the selected app's
 managed state plus GitHub surface. Execution requires both `--execute` and an
 exact `--confirm <app>` value. Before every local or remote change it writes a
 checksummed archive outside the state home, by default at
-`~/.operon/archives/<org>/<timestamp>-<app>-<id>/`; a reset can therefore
+`~/.operon/archives/<org>/<app>-reset-<fingerprint>/`; a reset can therefore
 never delete its own recovery material.
 
 The command takes every configured role lock for the app, and refuses if it
@@ -189,6 +199,36 @@ an `op:*` label plus open PRs whose body closes one of those issues (or whose
 branch starts `op/`), then deletes their head branches. It never deletes a
 GitHub repository, rewrites its default branch, or touches a human checkout.
 GitHub's retained closed issue/PR history is intentional.
+
+Reset also archives the normalized questionnaire record, after checking it
+against the canonical secret patterns. Blockers are typed and carry specific
+remediation; `--force` suppresses only the stale-run blocker. A durable reset
+intent retains the originally reviewed remote plan across process death, and
+dead reset-owned role locks are reclaimable without crossing a live lock.
+Remote closes/deletes and local cleanup are idempotent; registry writes are
+atomic and last. `operon bootstrap <checkout> --answers-from <archive|app>`
+recovers the archived identity and answers, so the checkout directory name is
+not used as a substitute app identity.
+
+### Token-free app verification and promotion
+
+`operon app verify <app>` performs bounded Git/ref reads, deterministically
+recreates or synchronizes the managed clone only after the onboarding commit
+is reachable, validates registry/config and authority/config hashes, parses
+generated artifacts, runs declared app tests/lint, checks approvals and role
+locks, and proves the configured adapter packages/models without constructing
+a runtime or provider process. It writes a stable readiness projection and a
+terminal mechanical execution step; provider factories, processes, turns,
+and settlements remain zero.
+
+`operon app promote <app> --to live` is a non-mutating plan unless
+`--execute` is present. Execution is admitted only from passing verification,
+then uses a crash-resumable journal to commit and push the app-owned status,
+atomically update the one registry entry, refresh the lifecycle hash record,
+and verify the final live state. Commit, push, config, and registry boundaries
+are individually rerunnable; a dead process lock is reclaimed while a live
+one fails closed. Repetition returns `already_live` without a duplicate
+commit or side effect.
 
 ### App repo (target product repo)
 
@@ -1002,6 +1042,15 @@ authoritative product, architecture, or roadmap truth from source code. App
 owners bring those source-of-truth docs. The onboarding report may suggest
 missing categories, but gaps are guidance, not blockers unless app config or
 policy makes them so.
+
+Before normal bootstrap reports success it parses the emitted registry,
+policy, and authority metadata and checks every generated text artifact for a
+final newline, trailing whitespace, and Git formatter errors. With a resolved
+state home it also stores the normalized non-secret questionnaire record for
+future reset recovery. Recovered bootstrap writes only to an Operon-managed
+clone, creates a deterministic onboarding commit, records the remote default
+base and source checkout fingerprint, and leaves the human checkout branch,
+HEAD, index, tracked changes, and untracked files untouched.
 
 ## 10. GitHub substrate conventions
 

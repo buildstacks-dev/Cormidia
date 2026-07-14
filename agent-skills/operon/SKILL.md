@@ -1,6 +1,6 @@
 ---
 name: operon
-description: Operate the Operon org runtime through its installed CLI. Use when Codex needs to create or select an Operon org, onboard an existing repository, create a greenfield app, inspect roles/apps/pipelines, run dry-run planning or loop diagnostics, start live Operon work, review approvals, or diagnose Operon configuration and runtime state.
+description: Operate the Operon org runtime through its installed CLI. Use when Codex needs to create, select, or upgrade an Operon org; onboard, reset, verify, or promote an app; inspect roles/apps/pipelines; run dry-run planning or loop diagnostics; start live Operon work; review approvals; or diagnose Operon configuration and runtime state.
 ---
 
 # Operon
@@ -63,6 +63,17 @@ The answers may select `authority.mode` as `inherit`, `conservative`, or
 and `CLAUDE.md` content while composing one marked pointer to
 `.operon/AUTHORITY.md` for top-level sessions.
 
+For reset recovery, reuse the normalized non-secret record rather than
+reconstructing answers:
+
+```bash
+operon bootstrap <local-repo-path> --answers-from <reset-archive-or-app> --json
+```
+
+This creates the onboarding commit only in the managed clone and preserves the
+human checkout exactly. Make that commit reachable from the remote default
+branch before verification.
+
 ## Create a greenfield app
 
 Preview first:
@@ -99,6 +110,23 @@ its default branch, closed-history records, or a human checkout. Re-onboard
 with `operon bootstrap <local-repo> --answers <answers.json>` after a reset.
 `--force` is limited to stale running envelopes (no heartbeat for ten minutes)
 and never overrides a fresh run, journal, lock, or pending approval.
+
+## Upgrade, verify, and promote without providers
+
+Preview every lifecycle mutation first:
+
+```bash
+operon org upgrade --authority delegated-operator --json
+operon app verify <app-name> --json
+operon app promote <app-name> --to live --json
+```
+
+Upgrade execution requires the reviewed authority choice and `--execute`.
+Promotion execution requires `--execute` and is refused until verification is
+ready. These commands may write archives, managed-clone/ref convergence,
+readiness, and mechanical evidence, but they never construct a runtime, start
+a provider process, make a model turn, or settle usage. Their journals and
+locks are crash-resumable; rerun the same command after an interruption.
 
 ## Operate safely
 

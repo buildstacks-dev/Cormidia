@@ -4,19 +4,33 @@
 // It never touches a human checkout, a repository's default branch, or the
 // GitHub repository itself.
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { AppEntry, AppsFile } from "./apps.js";
-import { removeExistingApp } from "./apps.js";
+import { loadApps, removeExistingApp } from "./apps.js";
 import { acquireLock, releaseLock } from "./locks.js";
 import { listJournals, type TurnJournal } from "./journal.js";
 import { loadRoles } from "./roles.js";
 import { readStatusRows } from "../runtime/runlog/status.js";
 import type { GhIssue, GhOps, GhPullRequest } from "../loop/github.js";
+import { onboardingAnswersPath } from "./onboarding-answers.js";
+import {
+  LIFECYCLE_SCHEMA_VERSION,
+  type LifecycleBlocker,
+  type LifecycleFaultHook,
+  assertDirectoryNoSymlink,
+  assertRegularFile,
+  assertSafeRelativePath,
+  emitLifecycleStep,
+  processIsAlive,
+  sha256,
+  stableJson,
+  writeLifecycleFileAtomic,
+} from "./lifecycle.js";
 
-const RESET_SCHEMA_VERSION = 1;
+const RESET_SCHEMA_VERSION = LIFECYCLE_SCHEMA_VERSION;
 const OPERATIONAL_LABEL_PREFIX = "op:";
 const ACTIVE_JOURNAL_PHASES = new Set(["assembling", "running", "collecting", "blocked_on_gate"]);
 /** A pass executor beats its envelope about every 30 seconds. Ten minutes is
@@ -38,6 +52,8 @@ export interface AppResetOptions {
    * approval, or a fresh heartbeat. */
   force?: boolean;
   now?: Date;
+  /** In-memory test injection only; never exposed by the CLI. */
+  fault?: LifecycleFaultHook;
 }
 
 export interface ResetGitHubPlan {
@@ -60,12 +76,118 @@ export interface AppResetPlan {
   activeLocks: string[];
   pendingApprovalIds: string[];
   github: ResetGitHubPlan;
-  blockers: string[];
+  blockers: LifecycleBlocker[];
+  /** Durable normalized answer record copied to archive-root/answers.json. */
+  answersPath: string | null;
 }
 
 export interface AppResetResult {
   plan: AppResetPlan;
   archivePath: string;
+}
+
+interface ResetIntent {
+  schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
+  kind: "app-reset-intent";
+  app: string;
+  org_home: string;
+  state_home: string;
+  archive_root: string;
+  archive_id: string;
+  github: ResetGitHubPlan;
+}
+
+interface ResetRoleLock {
+  path: string;
+  role: string;
+  turnId: string;
+  pid: number;
+}
+
+function resetIntentPath(stateHome: string, app: string): string {
+  assertSafeAppSegment(app);
+  return join(resolve(stateHome), "lifecycle", "transactions", `reset-${app}.json`);
+}
+
+async function readResetIntent(stateHome: string, app: string): Promise<ResetIntent | undefined> {
+  const path = resetIntentPath(stateHome, app);
+  if (!existsSync(path)) return undefined;
+  await assertRegularFile(path, "app reset intent");
+  let value: unknown;
+  try {
+    value = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(`app reset: corrupt recovery intent ${path}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`app reset: corrupt recovery intent ${path}`);
+  const intent = value as Partial<ResetIntent>;
+  if (
+    intent.schema_version !== LIFECYCLE_SCHEMA_VERSION ||
+    intent.kind !== "app-reset-intent" ||
+    intent.app !== app ||
+    typeof intent.org_home !== "string" ||
+    typeof intent.state_home !== "string" ||
+    typeof intent.archive_root !== "string" ||
+    typeof intent.archive_id !== "string" ||
+    !intent.github || typeof intent.github !== "object"
+  ) throw new Error(`app reset: corrupt recovery intent ${path}`);
+  return intent as ResetIntent;
+}
+
+function validateResetIntent(
+  intent: ResetIntent | undefined,
+  expected: { app: string; orgHome: string; stateHome: string; archiveRoot: string },
+): ResetIntent | undefined {
+  if (intent === undefined) return undefined;
+  if (
+    intent.app !== expected.app ||
+    resolve(intent.org_home) !== expected.orgHome ||
+    resolve(intent.state_home) !== expected.stateHome ||
+    resolve(intent.archive_root) !== expected.archiveRoot ||
+    !intent.archive_id.startsWith(`${safeSegment(expected.app)}-reset-`)
+  ) throw new Error("app reset: an interrupted reset intent conflicts with the selected app or homes");
+  return intent;
+}
+
+async function writeResetIntent(plan: AppResetPlan): Promise<void> {
+  const path = resetIntentPath(plan.stateHome, plan.app.name);
+  const intent: ResetIntent = {
+    schema_version: LIFECYCLE_SCHEMA_VERSION,
+    kind: "app-reset-intent",
+    app: plan.app.name,
+    org_home: plan.orgHome,
+    state_home: plan.stateHome,
+    archive_root: plan.archiveRoot,
+    archive_id: plan.archiveId,
+    github: plan.github,
+  };
+  if (existsSync(path)) {
+    const existing = await readResetIntent(plan.stateHome, plan.app.name);
+    if (stableJson(existing) !== stableJson(intent)) throw new Error("app reset: reviewed plan conflicts with interrupted reset intent");
+    return;
+  }
+  await writeLifecycleFileAtomic(path, stableJson(intent));
+}
+
+/** Completes the terminal evidence/intent cleanup when a process died after
+ * the atomic registry removal. At that point remote and local cleanup already
+ * precede the registry boundary, so this is an idempotent finalization. */
+export async function finalizeInterruptedAppReset(
+  stateHome: string,
+  app: string,
+  archivePath: string,
+): Promise<void> {
+  const manifest = await verifyResetArchive(archivePath, app);
+  const archiveId = String(manifest["archive_id"]);
+  await emitLifecycleStep({
+    stateHome,
+    app,
+    operation: "app reset",
+    inputFingerprint: archiveId,
+    status: "completed",
+    reason: `reset archived at ${resolve(archivePath)}`,
+  });
+  await rm(resetIntentPath(stateHome, app), { force: true });
 }
 
 /** Build the complete, non-mutating reset plan. It intentionally performs
@@ -86,13 +208,14 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
   }
 
   const managedPaths = managedStatePaths(stateHome, app.name);
-  const [status, journals, locks, approvals, issues, pullRequests] = await Promise.all([
+  const [status, journals, locks, approvals, issues, pullRequests, existingIntent] = await Promise.all([
     readStatusRows(stateHome, { app: app.name }),
     listJournals(stateHome),
-    listAppLockPaths(stateHome, app.name),
+    listAppLocks(stateHome, app.name),
     listAppApprovalFiles(stateHome, app.name),
     options.gh.listIssues({ state: "open", limit: 100 }),
     options.gh.listPullRequests({ state: "open", limit: 100 }),
+    readResetIntent(stateHome, app.name),
   ]);
 
   const managedIssues = issues.filter((issue) => isOperonManagedIssue(issue));
@@ -112,42 +235,70 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
     .map(({ turnId, role, phase }) => ({ turnId, role, phase }));
   const pendingApprovalIds = approvals.filter((item) => item.kind === "pending").map((item) => item.id);
 
-  const blockers = [
-    ...(activeRuns.length > 0 ? [`active run(s): ${activeRuns.join(", ")}`] : []),
+  const currentGithub: ResetGitHubPlan = {
+    issues: managedIssues.map(({ number, title, url }) => ({ number, title, ...(url ? { url } : {}) })),
+    pullRequests: managedPullRequests.map(({ number, title, headRefName, url }) => ({
+      number,
+      title,
+      headRefName,
+      ...(url ? { url } : {}),
+    })),
+    branches,
+  };
+  const archiveIdentity = sha256(stableJson({
+    app: { name: app.name, repo: app.repo },
+    activeRuns,
+    staleRuns,
+    activeJournals,
+    approvals: approvals.map((item) => `${item.kind}:${item.id}`),
+    github: {
+      issues: currentGithub.issues.map((issue) => issue.number),
+      pullRequests: currentGithub.pullRequests.map((pr) => pr.number),
+      branches: currentGithub.branches,
+    },
+  }));
+  const predictedArchiveId = `${safeSegment(app.name)}-reset-${archiveIdentity.slice(0, 16)}`;
+  const intent = validateResetIntent(existingIntent, { app: app.name, orgHome, stateHome, archiveRoot });
+  const archiveId = intent?.archive_id ?? predictedArchiveId;
+  const github = intent?.github ?? currentGithub;
+  const resetTurnId = `reset-${archiveId}`;
+  const activeLocks = locks.filter((lock) => !(lock.turnId === resetTurnId && !processIsAlive(lock.pid)));
+
+  const blockers: LifecycleBlocker[] = [
+    ...(activeRuns.length > 0
+      ? [{ code: "active_run" as const, ids: activeRuns, forceEligible: false, remediation: "wait for the run to terminate or cancel it through its owning workflow" }]
+      : []),
     ...(!options.force && staleRuns.length > 0
-      ? [`stale run(s): ${staleRuns.join(", ")} (use --force to override)`]
+      ? [{ code: "stale_run" as const, ids: staleRuns, forceEligible: true, remediation: `rerun with --force after confirming the heartbeat is abandoned; --force crosses only these stale runs` }]
       : []),
     ...(activeJournals.length > 0
-      ? [`active journal(s): ${activeJournals.map((journal) => journal.turnId).join(", ")}`]
+      ? [{ code: "active_journal" as const, ids: activeJournals.map((journal) => journal.turnId), forceEligible: false, remediation: "resume or terminalize each journal before reset" }]
       : []),
-    ...(locks.length > 0 ? [`active lock(s): ${locks.map((path) => basename(path)).join(", ")}`] : []),
-    ...(pendingApprovalIds.length > 0 ? [`pending approval(s): ${pendingApprovalIds.join(", ")}`] : []),
+    ...(activeLocks.length > 0
+      ? [{ code: "active_lock" as const, ids: activeLocks.map((lock) => basename(lock.path)), forceEligible: false, remediation: "allow the lock holder to finish; --force never crosses locks" }]
+      : []),
+    ...(pendingApprovalIds.length > 0
+      ? [{ code: "pending_approval" as const, ids: pendingApprovalIds, forceEligible: false, remediation: "decide or withdraw each pending approval through the operator boundary" }]
+      : []),
   ];
 
+  const answersPath = onboardingAnswersPath(stateHome, app.name);
   return {
     app,
     orgHome,
     stateHome,
     archiveRoot,
-    archiveId: archiveId(app.name, options.now ?? new Date()),
+    archiveId,
     managedPaths,
     approvalFiles: approvals.map((item) => item.path),
     activeRuns,
     staleRuns,
     activeJournals,
-    activeLocks: locks,
+    activeLocks: activeLocks.map((lock) => lock.path),
     pendingApprovalIds,
-    github: {
-      issues: managedIssues.map(({ number, title, url }) => ({ number, title, ...(url ? { url } : {}) })),
-      pullRequests: managedPullRequests.map(({ number, title, headRefName, url }) => ({
-        number,
-        title,
-        headRefName,
-        ...(url ? { url } : {}),
-      })),
-      branches,
-    },
+    github,
     blockers,
+    answersPath: existsSync(answersPath) ? answersPath : null,
   };
 }
 
@@ -167,7 +318,10 @@ export async function executeAppReset(
     throw new Error("app reset: reviewed plan does not match the requested app and homes");
   }
   if (plan.blockers.length > 0) {
-    throw new Error(`app reset: cannot reset "${plan.app.name}" while ${plan.blockers.join("; ")}`);
+    throw new Error(
+      `app reset: cannot reset "${plan.app.name}" while ` +
+        plan.blockers.map((blocker) => `${blocker.code}: ${blocker.ids.join(", ")}`).join("; "),
+    );
   }
 
   const roles = (await loadRoles(join(plan.orgHome, "roles.yaml"))).roles.map((role) => role.name);
@@ -175,11 +329,19 @@ export async function executeAppReset(
   const acquired: string[] = [];
   try {
     for (const role of roles) {
-      const result = await acquireLock(plan.stateHome, {
+      let result = await acquireLock(plan.stateHome, {
         app: plan.app.name,
         role,
         turnId: lockTurnId,
       });
+      if (!result.acquired && result.lock.turnId === lockTurnId && !processIsAlive(result.lock.pid)) {
+        await releaseLock(plan.stateHome, plan.app.name, role);
+        result = await acquireLock(plan.stateHome, {
+          app: plan.app.name,
+          role,
+          turnId: lockTurnId,
+        });
+      }
       if (!result.acquired) {
         throw new Error(
           `app reset: cannot reserve ${plan.app.name}/${role}; active turn ${result.lock.turnId} holds the lock`,
@@ -188,43 +350,97 @@ export async function executeAppReset(
       acquired.push(role);
     }
 
-    const archivePath = await createArchive(plan);
-    await closeManagedGitHubWork(options.gh, plan.github);
-    await removeLocalAppState(plan);
-    await removeExistingApp(plan.orgHome, plan.app.name);
+    const startedAt = options.now ?? new Date();
+    await writeResetIntent(plan);
+    const archivePath = await createArchive(plan, options.fault);
+    try {
+      await closeManagedGitHubWork(options.gh, plan.github, options.fault);
+      await removeLocalAppState(plan);
+      await options.fault?.("before_registry_write");
+      const current = await loadApps(join(plan.orgHome, "apps.yaml"));
+      if (current.apps.some((app) => app.name === plan.app.name)) {
+        await removeExistingApp(plan.orgHome, plan.app.name);
+      }
+      await options.fault?.("after_registry_write");
+    } catch (error) {
+      await restoreResetArchive(plan, archivePath);
+      throw error;
+    }
+    await emitLifecycleStep({
+      stateHome: plan.stateHome,
+      app: plan.app.name,
+      operation: "app reset",
+      inputFingerprint: plan.archiveId,
+      status: "completed",
+      reason: `reset archived at ${archivePath}`,
+      startedAt,
+      finishedAt: options.now ?? new Date(),
+    });
+    await rm(resetIntentPath(plan.stateHome, plan.app.name), { force: true });
     return { plan, archivePath };
   } finally {
     await Promise.all(acquired.map((role) => releaseLock(plan.stateHome, plan.app.name, role)));
   }
 }
 
-async function closeManagedGitHubWork(gh: GhOps, github: ResetGitHubPlan): Promise<void> {
+async function closeManagedGitHubWork(
+  gh: GhOps,
+  github: ResetGitHubPlan,
+  fault?: LifecycleFaultHook,
+): Promise<void> {
   // A PR must close before its head branch is removed. GitHub preserves the
   // historical PR/issue record; reset promises a clean *open* work surface,
   // not impossible history deletion.
-  for (const pr of github.pullRequests) await gh.closePullRequest(pr.number);
-  for (const issue of github.issues) await gh.closeIssue(issue.number);
-  for (const branch of github.branches) await gh.deleteBranch(branch);
+  const openPrs = new Set((await gh.listPullRequests({ state: "open", limit: 100 })).map((pr) => pr.number));
+  for (const pr of github.pullRequests) {
+    if (!openPrs.has(pr.number)) continue;
+    await fault?.("before_pull_request_update");
+    await gh.closePullRequest(pr.number);
+    await fault?.("after_pull_request_update");
+  }
+  const openIssues = new Set((await gh.listIssues({ state: "open", limit: 100 })).map((issue) => issue.number));
+  for (const issue of github.issues) {
+    if (!openIssues.has(issue.number)) continue;
+    await fault?.("before_issue_update");
+    await gh.closeIssue(issue.number);
+    await fault?.("after_issue_update");
+  }
+  for (const branch of github.branches) {
+    await fault?.("before_branch_update");
+    try {
+      await gh.deleteBranch(branch);
+    } catch (error) {
+      if (!isMissingBranchError(error)) throw error;
+    }
+    await fault?.("after_branch_update");
+  }
 }
 
 async function removeLocalAppState(plan: AppResetPlan): Promise<void> {
   for (const target of plan.managedPaths) await rm(target, { recursive: true, force: true });
   for (const path of plan.approvalFiles) await rm(path, { force: true });
+  if (plan.answersPath !== null) await rm(plan.answersPath, { force: true });
   await filterSharedJsonl(join(plan.stateHome, "telemetry"), plan.app.name);
   await filterSharedJsonl(join(plan.stateHome, "invocations"), plan.app.name);
   await clearAppSchedule(plan.stateHome, plan.app.name);
   await clearAppBudgetOverlay(plan.stateHome, plan.app.name);
 }
 
-async function createArchive(plan: AppResetPlan): Promise<string> {
+async function createArchive(plan: AppResetPlan, fault?: LifecycleFaultHook): Promise<string> {
   const target = join(plan.archiveRoot, plan.archiveId);
   const staged = `${target}.partial`;
-  if (existsSync(target)) throw new Error(`app reset: archive already exists at ${target}`);
+  if (existsSync(target)) {
+    await verifyExistingArchive(target, plan);
+    await writeArchivePointer(plan, target);
+    return target;
+  }
+  await fault?.("before_archive_creation");
   await mkdir(plan.archiveRoot, { recursive: true });
   await rm(staged, { recursive: true, force: true });
   await mkdir(staged, { recursive: true });
   try {
     await copyIfPresent(join(plan.orgHome, "apps.yaml"), join(staged, "org", "apps.yaml"));
+    if (plan.answersPath !== null) await copyIfPresent(plan.answersPath, join(staged, "answers.json"));
     for (const source of plan.managedPaths) {
       await copyIfPresent(source, join(staged, "state", relative(plan.stateHome, source)));
     }
@@ -234,33 +450,114 @@ async function createArchive(plan: AppResetPlan): Promise<string> {
     for (const rel of ["telemetry", "invocations", "state/schedule.json", "state/budget-overlay.json"]) {
       await copyIfPresent(join(plan.stateHome, rel), join(staged, "state", rel));
     }
-    await writeFile(join(staged, "github.json"), `${JSON.stringify(plan.github, null, 2)}\n`, "utf8");
+    await fault?.("after_archive_creation");
+    await fault?.("before_archive_checksum");
+    await writeFile(join(staged, "github.json"), stableJson(plan.github), "utf8");
     const files = await archiveFiles(staged);
     await writeFile(
       join(staged, "manifest.json"),
-      `${JSON.stringify(
-        {
-          schema_version: RESET_SCHEMA_VERSION,
-          kind: "app-reset",
-          created_at: new Date().toISOString(),
-          app: { name: plan.app.name, repo: plan.app.repo },
-          org_home: plan.orgHome,
-          state_home: plan.stateHome,
-          managed_paths: plan.managedPaths,
-          github: plan.github,
-          files,
-        },
-        null,
-        2,
-      )}\n`,
+      stableJson({
+        schema_version: RESET_SCHEMA_VERSION,
+        kind: "app-reset",
+        archive_id: plan.archiveId,
+        app: { name: plan.app.name, repo: plan.app.repo },
+        org_home: plan.orgHome,
+        state_home: plan.stateHome,
+        managed_paths: plan.managedPaths,
+        github: plan.github,
+        files,
+      }),
       "utf8",
     );
+    await fault?.("after_archive_checksum");
+    await fault?.("before_archive_rename");
     await rename(staged, target);
+    await fault?.("after_archive_rename");
+    await writeArchivePointer(plan, target);
     return target;
   } catch (error) {
     await rm(staged, { recursive: true, force: true });
     throw error;
   }
+}
+
+async function writeArchivePointer(plan: AppResetPlan, archivePath: string): Promise<void> {
+  const manifest = await readFile(join(archivePath, "manifest.json"));
+  await writeLifecycleFileAtomic(
+    join(plan.archiveRoot, `${safeSegment(plan.app.name)}-latest.json`),
+    stableJson({
+      schema_version: RESET_SCHEMA_VERSION,
+      kind: "app-reset-latest",
+      app: plan.app.name,
+      archive_id: plan.archiveId,
+      manifest_sha256: sha256(manifest),
+    }),
+  );
+}
+
+async function restoreResetArchive(plan: AppResetPlan, archivePath: string): Promise<void> {
+  const registry = join(archivePath, "org", "apps.yaml");
+  if (existsSync(registry)) {
+    await writeLifecycleFileAtomic(join(plan.orgHome, "apps.yaml"), await readFile(registry, "utf8"));
+  }
+  const state = join(archivePath, "state");
+  if (existsSync(state)) await cp(state, plan.stateHome, { recursive: true, force: true });
+  const answers = join(archivePath, "answers.json");
+  if (plan.answersPath !== null && existsSync(answers)) {
+    await mkdir(dirname(plan.answersPath), { recursive: true });
+    await cp(answers, plan.answersPath, { force: true });
+  }
+}
+
+async function verifyExistingArchive(target: string, plan: AppResetPlan): Promise<void> {
+  const manifest = await verifyResetArchive(target, plan.app.name);
+  if (manifest["kind"] !== "app-reset" || manifest["archive_id"] !== plan.archiveId) {
+    throw new Error(`app reset: conflicting archive already exists at ${target}`);
+  }
+  const app = manifest["app"] as Record<string, unknown> | undefined;
+  if (app?.["name"] !== plan.app.name || app?.["repo"] !== plan.app.repo) {
+    throw new Error(`app reset: archive identity mismatch at ${target}`);
+  }
+}
+
+async function verifyResetArchive(targetIn: string, appName: string): Promise<Record<string, unknown>> {
+  const target = await assertDirectoryNoSymlink(resolve(targetIn), "app reset archive");
+  const manifestPath = join(target, "manifest.json");
+  await assertRegularFile(manifestPath, "app reset archive manifest");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+  const app = manifest["app"] as Record<string, unknown> | undefined;
+  if (
+    manifest["schema_version"] !== RESET_SCHEMA_VERSION ||
+    manifest["kind"] !== "app-reset" ||
+    typeof manifest["archive_id"] !== "string" ||
+    app?.["name"] !== appName
+  ) throw new Error(`app reset: invalid archive identity at ${target}`);
+  const files = manifest["files"];
+  if (!Array.isArray(files)) throw new Error(`app reset: archive manifest has no files list at ${target}`);
+  const declaredPaths: string[] = [];
+  for (const item of files) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`app reset: invalid archive file record`);
+    const spec = item as Record<string, unknown>;
+    if (typeof spec["path"] !== "string" || typeof spec["sha256"] !== "string" || typeof spec["bytes"] !== "number") {
+      throw new Error(`app reset: invalid archive file record`);
+    }
+    assertSafeRelativePath(spec["path"], "app reset archive");
+    declaredPaths.push(spec["path"]);
+    const file = join(target, spec["path"]);
+    await assertRegularFile(file, "app reset archive file");
+    const content = await readFile(file);
+    if (content.byteLength !== spec["bytes"] || createHash("sha256").update(content).digest("hex") !== spec["sha256"]) {
+      throw new Error(`app reset: archive checksum mismatch for ${spec["path"]}`);
+    }
+  }
+  const actualPaths = (await archiveFiles(target))
+    .map((entry) => entry.path)
+    .filter((path) => path !== "manifest.json")
+    .sort();
+  if (stableJson(actualPaths) !== stableJson([...declaredPaths].sort())) {
+    throw new Error(`app reset: archive contains unchecksummed or missing paths at ${target}`);
+  }
+  return manifest;
 }
 
 async function copyIfPresent(source: string, target: string): Promise<void> {
@@ -274,6 +571,7 @@ async function archiveFiles(root: string): Promise<Array<{ path: string; bytes: 
   async function visit(dir: string): Promise<void> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
+      if (entry.isSymbolicLink()) throw new Error(`app reset: symlink archive entry forbidden: ${path}`);
       if (entry.isDirectory()) await visit(path);
       else if (entry.isFile()) {
         const content = await readFile(path);
@@ -295,6 +593,8 @@ function managedStatePaths(stateHome: string, app: string): string[] {
     join(stateHome, "worktrees", app),
     join(stateHome, "runs", app),
     join(stateHome, "tickets", app),
+    join(stateHome, "lifecycle", "apps", app),
+    join(stateHome, "lifecycle", "readiness", `${app}.json`),
   ];
 }
 
@@ -306,6 +606,11 @@ function linkedIssueNumbers(body: string): number[] {
   return [...body.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi)].map((match) => Number(match[1]));
 }
 
+function isMissingBranchError(error: unknown): boolean {
+  const detail = error instanceof Error ? error.message : String(error);
+  return /(?:404|422|not found|does not exist|remote ref does not exist|reference does not exist)/i.test(detail);
+}
+
 function isStaleRun(
   row: { startedAt: string; lastSeenAt?: string },
   now: Date,
@@ -314,13 +619,23 @@ function isStaleRun(
   return Number.isFinite(heartbeat) && now.getTime() - heartbeat > RESET_STALE_RUN_MS;
 }
 
-async function listAppLockPaths(stateHome: string, app: string): Promise<string[]> {
+async function listAppLocks(stateHome: string, app: string): Promise<ResetRoleLock[]> {
   const dir = join(stateHome, "locks");
   if (!existsSync(dir)) return [];
-  return (await readdir(dir))
+  const paths = (await readdir(dir))
     .filter((name) => name.startsWith(`${app}--`) && name.endsWith(".lock"))
     .sort()
     .map((name) => join(dir, name));
+  const locks: ResetRoleLock[] = [];
+  for (const path of paths) {
+    await assertRegularFile(path, "app reset role lock");
+    const value = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+    if (typeof value["role"] !== "string" || typeof value["turnId"] !== "string" || typeof value["pid"] !== "number") {
+      throw new Error(`app reset: corrupt role lock ${path}`);
+    }
+    locks.push({ path, role: value["role"], turnId: value["turnId"], pid: value["pid"] });
+  }
+  return locks;
 }
 
 interface ApprovalArtifact {
@@ -377,7 +692,7 @@ async function filterSharedJsonl(dir: string, app: string): Promise<void> {
       }
       keep.push(line);
     }
-    if (removed) await writeFile(path, keep.join("\n"), "utf8");
+    if (removed) await writeLifecycleFileAtomic(path, keep.join("\n"));
   }
 }
 
@@ -392,7 +707,7 @@ async function clearAppSchedule(stateHome: string, app: string): Promise<void> {
       changed = true;
     }
   }
-  if (changed) await writeFile(path, `${JSON.stringify(schedule, null, 2)}\n`, "utf8");
+  if (changed) await writeLifecycleFileAtomic(path, stableJson(schedule));
 }
 
 async function clearAppBudgetOverlay(stateHome: string, app: string): Promise<void> {
@@ -402,12 +717,7 @@ async function clearAppBudgetOverlay(stateHome: string, app: string): Promise<vo
   if (!Array.isArray(overlay.pausedApps)) return;
   const next = overlay.pausedApps.filter((name) => name !== app);
   if (next.length === overlay.pausedApps.length) return;
-  await writeFile(path, `${JSON.stringify({ ...overlay, pausedApps: next }, null, 2)}\n`, "utf8");
-}
-
-function archiveId(app: string, now: Date): string {
-  const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-  return `${stamp}-${safeSegment(app)}-${randomBytes(4).toString("hex")}`;
+  await writeLifecycleFileAtomic(path, stableJson({ ...overlay, pausedApps: next }));
 }
 
 function safeSegment(value: string): string {

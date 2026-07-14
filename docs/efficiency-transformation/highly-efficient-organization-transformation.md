@@ -412,6 +412,14 @@ and managed-clone readiness required manual reconstruction and model judgment.
 **Acceptance:** the complete lifecycle benchmark in section 8.1 uses zero model
 turns, leaves no partial state, and can be safely rerun.
 
+**Delivered 2026-07-14 (Phase 2):** the production `src/org` lifecycle plane
+implements the eight changes above. `LIFE-LEGACY-001` runs both production APIs
+and public CLI commands from isolated old-schema/reset state through recovered
+bootstrap, ref refusal/convergence, verification, and journaled promotion in
+well under five active minutes. The exhaustive named-boundary, corruption,
+concurrency, path, ancestry, and second-app suites promote `C-LIFE-01` through
+`C-LIFE-04` to required without invoking a runtime factory or provider.
+
 ### Workstream D — Enforce proportional planning and review
 
 **Problem:** route selection can still invoke heavyweight roles and effort for
@@ -614,6 +622,10 @@ synchronization, and lifecycle idempotency.
 
 **Gate:** lifecycle benchmark uses zero model turns and reaches a clean live
 app from the reset fixture.
+
+**Status:** complete on 2026-07-14. The gate is carried by
+`test/lifecycle/{transaction,cli,faults,security,isolation}.test.ts`; the next
+sequential implementation phase is Phase 3.
 
 ### Phase 3 — Execution economy
 
@@ -841,18 +853,16 @@ measurably better with experience.
 > T0–T5 test/eval readiness is complete. The admitted adapter campaign is
 > `adapter-harness-calibration-v1-20260714-e52bf4335e81`; the valid current
 > baseline is `pre-transformation-baseline-v2-20260714-e52bf4335e81`, with one
-> pass, five honest `product_miss` outcomes, zero eval-system failures, and 72
-> known-red product contracts. Rerun external campaigns only after covered
+> pass, five honest `product_miss` outcomes, and zero eval-system failures.
+> Production Phases 1–2 are complete and 52 product contracts remain
+> known-red. Rerun external campaigns only after covered
 > bytes change and exact authorization. Never
 > weaken graders, targets, safety gates, or evidence to make results green.
 >
-> Execute the charter sequentially: Phase 0 doctrine; Phase 1 measurement and
-> invariants; Phase 2 token-free lifecycle; Phase 3 execution economy; Phase 4
-> closed learning; Phase 5 autonomous operation; Phase 6 qualification. Do not
-> parallelize work whose contracts depend on an unfinished phase. Begin with
-> Phase 0 only: inspect current doctrine, prepare a docs-only PURPOSE/VISION/
-> efficiency-contract alignment proposal with rationale, and stop for
-> human ratification before production code. `TASTE.md`, `roles.yaml`,
+> Execute the charter sequentially. Phases 0–2 are complete; begin with Phase 3
+> execution economy only, then Phase 4 closed learning, Phase 5 autonomous
+> operation, and Phase 6 qualification. Do not parallelize work whose
+> contracts depend on an unfinished phase. `TASTE.md`, `roles.yaml`,
 > `pipelines.yaml`, `prompts/**`, and `docs/PURPOSE.md` are human-ratified;
 > never silently rewrite them.
 >

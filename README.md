@@ -124,6 +124,10 @@ Offline onboarding and inspection do not require provider credentials:
 operon bootstrap <local-repo> --scan-only
 operon bootstrap <local-repo>                    # interactive terminal questionnaire
 operon bootstrap <local-repo> --answers answers.json
+operon bootstrap <local-repo> --answers-from <archive-or-app> --json
+operon org upgrade --authority delegated-operator --json
+operon app verify <app> --json
+operon app promote <app> --to live --json         # non-mutating plan
 operon new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
 operon plan <app> --dry-run
 operon loop --app <app> --once --dry-run
@@ -143,7 +147,11 @@ the active org and writes app-owned files under `.operon/`, plus one marked,
 idempotent authority pointer composed into root `AGENTS.md` and `CLAUDE.md`.
 Existing instruction content is preserved. Its opening output explains the app repo, org home, and
 state home before anything is written. A non-interactive run requires
-`--answers` and otherwise writes nothing. `new-app` creates a separate product
+`--answers` or `--answers-from` and otherwise writes nothing. Normalized
+non-secret answers are retained in isolated state and reset archives;
+`--answers-from <app>` resolves the app's latest default reset archive.
+Generated YAML/authority metadata and text formatting are validated before
+success. `new-app` creates a separate product
 repo skeleton and then follows the same bootstrap/register path. Neither
 command creates or publishes a GitHub repo.
 
@@ -190,17 +198,38 @@ operon app reset buildstacks.dev --execute --confirm buildstacks.dev --force
 ```
 
 Execution first writes a checksummed archive to
-`~/.operon/archives/<org>/<timestamp>-<app>-<id>/` (or `--archive-root`), then
+`~/.operon/archives/<org>/<app>-reset-<fingerprint>/` (or `--archive-root`), then
 closes the planned PRs/issues, deletes their head branches, removes the app
 from `apps.yaml`, and clears its managed clone, worktrees, runs, ticket state,
 approval records, schedules, and ledger rows. It never deletes the GitHub
 repository, its default branch, a human checkout, or the GitHub history of
 closed work. Re-onboard the checkout with `operon bootstrap <local-repo>
---answers <answers.json>` when ready.
+--answers-from <archive-or-app>` when ready. Reset JSON includes typed blocker
+codes, ids, force eligibility, and remediation. Its durable intent and
+checksummed archive make a killed execution safely resumable without losing
+the originally reviewed GitHub plan.
 
 `--force` is intentionally narrow: it permits cleanup past a `running` record
 whose heartbeat is more than ten minutes old. It never overrides a fresh run,
 active journal/lock, or pending approval.
+
+Legacy org migration and the registered-to-live lifecycle are also plan-first
+and token-free:
+
+```bash
+operon org upgrade --authority delegated-operator --json
+operon org upgrade --authority delegated-operator --execute --json
+operon app verify <app> --json
+operon app promote <app> --to live --json
+operon app promote <app> --to live --execute --json
+```
+
+Upgrade is additive, archive-backed, and followed by org/authority validation.
+Verification proves remote/default ancestry, managed HEAD, registry/config and
+authority hashes, app checks, approvals/locks, and static adapter/model
+readiness without starting a runtime. Promotion mutates app/registry status
+only after verification and resumes exactly once across config, commit, push,
+and registry boundaries. All lifecycle JSON is canonically key-sorted.
 
 Contributors can still use `pnpm dev <command>` inside the Operon source repo,
 but product and org workflows should exercise the installed `operon` command

@@ -216,7 +216,7 @@ export async function writeActiveOrgPointer(
   await rename(temp, pointerPath);
 }
 
-async function readActiveOrgPointer(pointerPath: string): Promise<{
+export async function readActiveOrgPointer(pointerPath: string): Promise<{
   orgHome?: string;
   stateHome?: string;
 }> {

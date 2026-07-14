@@ -109,7 +109,7 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 | `test/fixtures/orgHome.ts`, `test/fixtures/fakeClock.ts` | Composable temp-dir fixtures for `~/.operon/<org>/` and app-repo `.operon/` trees, plus a deterministic clock — reuse instead of a new ad-hoc mkdtemp scaffold |
 | `test/conformance/` | The adapter-generic conformance suite (`harness.ts` + `cases.ts`): every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)` before its role goes live — proven against `src/runtime/testing/fakeRuntime.ts` in `conformance.test.ts`; a live adapter gets its own file reusing the same suite |
 | `research/` | Decision records (runtime adapter integration facts, prompt-caching economics) |
-| `eval/` | Highly-efficient-organization qualification assets: exact contract inventory, schemas, content-addressed app seeds, hidden graders/references/mutants, corpora, cases, campaign templates, and price catalogs. Raw attempts live under ignored `.eval-artifacts/`. |
+| `eval/` | Highly-efficient-organization qualification assets: exact contract inventory, schemas, content-addressed app seeds, content-hashed hidden graders/references/mutants, adapter capability and content-bound operator declarations, corpora, cases, campaign templates, and price catalogs. Raw attempts live under ignored `.eval-artifacts/`. |
 
 ## Commands (verified 2026-07-11)
 - Node: >= 26 (`engines`, `.nvmrc`; `nvm use`). Node >= 25 no longer bundles
@@ -133,7 +133,10 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
 - Efficiency eval, explicit external boundary: `pnpm eval:prepare -- --campaign
   <template> --github-owner <owner>` · preview/execute `pnpm eval:github` and
   `pnpm eval:live` only with their environment switches, exact campaign
-  confirmation, and human-authorized cap · `pnpm eval:qualify` is read-only.
+  confirmation, and human-authorized cap · `pnpm eval:soak -- --campaign
+  <prepared-file>` previews the separate 48–72 hour L6 runner (execution also
+  requires `OPERON_EVAL_SOAK=1`, an exact confirmation, and an explicit cap) ·
+  `pnpm eval:qualify` is read-only.
 - Live UI browser tests: `pnpm test:observe-browser` (Playwright Chromium;
   offline loopback fixtures, responsive/keyboard/reduced-motion/reconnect and
   injection coverage; install the browser once with `pnpm exec playwright
@@ -229,6 +232,9 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
   `test:transformation:strict` must fail only for the exact declared known-red
   set until production work promotes those contracts. Never run `eval:github`
   or `eval:live` merely because these files changed.
+  Do not execute `eval:soak` merely because soak files changed; preview and
+  deterministic scheduler tests are token-free, but L6 execution is a
+  separately authorized 48–72 hour provider campaign.
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
 - `src/observe/**` or `src/cli/observe.ts` changes: also run `pnpm
   test:observe-browser`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack

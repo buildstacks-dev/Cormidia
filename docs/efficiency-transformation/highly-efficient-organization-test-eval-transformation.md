@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed test/eval implementation mandate |
-| Evidence date | 2026-07-12 |
+| Status | T0–T3 implemented; T4 adapter admission qualified and replacement provider baseline pending; T5 wiring implemented but its gate remains blocked on that baseline |
+| Evidence date | 2026-07-13 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Production evidence only | `/Users/bikram/Build/Bikram-Org`, `/Users/bikram/Build/buildstacks.dev` |
@@ -26,6 +26,261 @@ in Phase T0, then keep one canonical definition.
 The test suite may spend real model tokens only in explicitly enabled eval
 campaigns. It must never use the active production org, its state home, a
 production app checkout, or production GitHub work as an eval target.
+
+## Current implementation and handoff status
+
+This section is the authoritative continuation point for a new session. It
+supersedes the original start-from-T0 instructions in §17–§18 wherever they
+describe work that is now complete. The overall test-suite readiness gate is
+**not complete**: the hardened adapter calibration is qualified, while T4
+still needs a replacement pre-transformation provider baseline under the
+current evidence schema.
+
+### Completed locally
+
+| Phase | Status | Evidence |
+| --- | --- | --- |
+| T0 | Complete | TE-01 through TE-08 are ratified in `docs/PURPOSE.md`, `docs/efficiency.md`, and `docs/efficiency-transformation/t0-eval-ratification-proposal.md`; all five A contracts are required and green. |
+| T1 | Complete | `EvalWorld`, schemas, immutable campaign/result writes, candidate drift guards, production/provider tripwires, qualification, archive, and cleanup paths are executable. |
+| T2 | Complete | Sparse/library/service fixtures, content-addressed seeds, 13 hidden graders, references/mutants, corpora, operator fixtures, and three adapter capability declarations validate. |
+| T3 | Complete | All 84 A–J requirements have real executable evidence; 14 cases cover all 12 §9.1 benchmark families; all 60 §7.5 fault boundaries execute; deterministic lifecycle, continuation, standing-role, learning, and seven-day virtual-soak harnesses are operational. |
+| T4 adapter admission | Complete | Campaign `adapter-harness-calibration-v1-20260713-9c3b336d6842` qualified Claude, Codex, and pi with 20/20 exactly-once settlements and all three mechanical permission-boundary proofs. |
+| T4 provider baseline | Pending | The hardened schema intentionally invalidates the historical baseline. A fresh baseline must prove the eval system while honestly retaining expected product misses. |
+| T5 implementation | Complete | Package scripts, PR/nightly/manual-release wiring, reporting, L6 preview/execute boundary, archive/cleanup, runbooks, Agent Skill, and `AGENTS.md` expectations exist and execute. The T5 **gate** remains incomplete until T4 produces a reproducible current-schema baseline report. |
+
+The L6 real-time soak path is implemented and tested as an explicitly
+authorized 48–72 hour boundary. It has not been executed and is not authorized
+by the work recorded here. Candidate qualification is also not authorized.
+
+### Latest deterministic verification
+
+The complete post-auth-context-repair local pass in this session produced:
+
+- `pnpm eval:validate`: valid; 84 requirements, 84 executable evidence paths,
+  14 cases, 12 benchmark families, 60 fault boundaries, 13 graders, three
+  capability declarations, and zero orphaned records;
+- `pnpm test:transformation`: 29 files and 395 tests passed; the non-strict
+  contract runner reported no unexpected failures;
+- `pnpm eval:deterministic`: 38 files and 467 tests passed;
+- `pnpm test`: 159 files and 1,582 tests passed;
+- `pnpm typecheck`: passed;
+- `pnpm build`: passed and emitted the compiled Codex gate-hook helper;
+- `pnpm test:transformation:strict`: all 395 test cases passed, then the command
+  exited non-zero only because the exact 72 production contracts below remain
+  deliberately known-red.
+
+The exact known-red set is:
+
+- B (11): `B-ADM-01`–`B-ADM-05`, `B-MET-01`–`B-MET-04`,
+  `B-RPT-01`–`B-RPT-02`;
+- C (4): `C-LIFE-01`–`C-LIFE-04`;
+- D (11): `D-ROUTE-01`–`D-ROUTE-07`, `D-PLAN-01`,
+  `D-LIVE-01`–`D-LIVE-03`;
+- E (10): `E-CTX-01`–`E-CTX-08`, `E-LIVE-01`–`E-LIVE-02`;
+- F (9): `F-CONT-01`–`F-CONT-04`, `F-SET-01`–`F-SET-04`,
+  `F-BOUND-01`;
+- G (8): `G-ACT-01`–`G-ACT-03`, `G-SHAPE-01`, `G-GRANT-01`,
+  `G-DEDUPE-01`, `G-DENY-01`, `G-MET-01`;
+- H (10): `H-CAP-01`–`H-CAP-03`, `H-CLU-01`–`H-CLU-02`,
+  `H-GOV-01`, `H-EVAL-01`–`H-EVAL-03`, `H-RPT-01`;
+- I (9): `I-INSTALL-01`–`I-INSTALL-02`, `I-SOAK-01`–`I-SOAK-03`,
+  `I-ROLE-01`–`I-ROLE-03`, `I-LIVE-01`.
+
+These are red because their transformation production behavior is absent, not
+because tests, evidence paths, cases, graders, or harnesses are missing. All
+five A contracts and all seven J contracts are required and green.
+
+### Retained external evidence and findings
+
+The earlier provider baseline
+`pre-transformation-baseline-v2-20260712-72cadfa9` remains documented in
+`research/evals/2026-07-12-pre-transformation-baseline.md`. It recorded one
+pass, four product misses, one safety stop, and $8.729971 equivalent cost, but
+the hardened reader correctly invalidates that old result schema. It is
+historical evidence, not the T4 replacement baseline.
+
+The latest hardened adapter campaign
+`adapter-harness-calibration-v1-20260713-524ab18c52d8` (SHA-256
+`dcb29ea4fb9691bc3e77289083f35e7bfd5190f3bfb69aafd1e641ffac764d83`;
+candidate package
+`f36be1749c3c4f6156c2bbc19a24d5f37d575bd0f18ca7dea04396fd45ec9434`,
+suite `8bf7527a64a6edb834518a6b9cd100aabc6ac9cd3624d26ed14f72cad25d855f`)
+successfully proved the full L4
+lifecycle in the retained private repository
+`buildstacks-dev/operon-eval-adapter-calibration`: issue #3, PR #4, commit
+`21286ad97fc9f4db4d6c7cc0e5b7893c0f5e513c`, a non-approving review,
+squash-merge, issue closure, branch deletion, and an exact idempotent rerun.
+The earlier `453aaa4f` campaign and both `54862199` prepared manifests remain
+historical; none may be reused after the repairs below.
+
+The `524ab18c52d8` provider calibration did **not** pass:
+
+- Claude yielded an explicit terminal max-budget result with usage, then the
+  Agent SDK iterator rejected when its owned CLI exited non-zero. The adapter
+  discarded the terminal result, so the attempt became a zero-turn
+  `harness_error` instead of an attributed provider stop;
+- Codex retained a primary and linked retry with seven observed scenarios each,
+  but cancellation occurred before the first usage checkpoint. That made the
+  aggregate usage unavailable, and the later result-schema failure replaced
+  the attempt summaries with zeros even though grader evidence and ledger rows
+  existed. The gate probes also exposed that approval callbacks alone do not
+  observe the App Server's auto-approved command path;
+- pi's provider returned terminal authentication errors in all six scenarios,
+  but the adapter treated assistant `stopReason: "error"` messages as
+  completed zero-token turns. Readiness had also loaded an in-memory auth copy,
+  so a rotating OAuth refresh could not be persisted safely;
+- the ledger nevertheless contains 20 unique provider settlements (14 Codex,
+  six pi), 1,011,173 input tokens, 2,086 output tokens, and $5.118445
+  equivalent cost. The immutable summaries do not reconcile with that ledger;
+  this is disqualifying evidence and must not be backfilled or described as
+  valid calibration.
+
+Repairs now retain Claude terminal error results, map pi terminal provider/auth
+errors to honest failures, use file-backed pi readiness, isolate provider
+auth/environment in campaign scratch, wait for a usage checkpoint before the
+cancellation probe, preserve all observed turns across downstream failures,
+and execute every calibration scenario through the ordinary pass executor so
+it gets a six-file run record plus exactly one ledger settlement. Codex now
+routes supported simple Bash, `apply_patch`, and MCP `PreToolUse` calls through
+a fail-closed per-turn bridge into the real Operon gate while disabling tool
+paths the official hook does not completely intercept. OpenAI explicitly calls
+that hook a guardrail rather than a complete enforcement boundary, so the
+claim remains limited to the constrained App Server surface and requires a new
+live calibration. The focused and complete offline gate sets pass; fresh live
+proof remains outstanding. See
+`research/evals/2026-07-13-adapter-calibration-repair.md`.
+
+The exactly authorized post-repair campaign
+`adapter-harness-calibration-v1-20260713-dd84b826242c` then passed its complete
+L4 lifecycle twice but remained invalid at L5. It retained one unauthenticated
+Claude settlement, four Codex settlements ending in a continuation budget
+stop, and one unauthenticated pi settlement: 303,838 input tokens, 1,069 output
+tokens, and $1.55126 estimated equivalent cost. Its stale readiness artifact
+had incorrectly accepted Claude account metadata and an expired pi OAuth
+record, while Codex CLI 0.142.5's App Server path had dropped the global hook
+trust-bypass flag. Those defects and the scenario allocations are repaired and
+the focused plus complete offline gates pass; the immutable campaign remains
+invalid, baseline stayed stopped, and another fresh content hash is required.
+
+The next prepared and authorized campaign
+`adapter-harness-calibration-v1-20260713-0fdc5399d224` was stopped before any
+GitHub mutation or provider turn. An intermediate readiness hardening rejected
+blank and `"none"` token/API-key source sentinels. That source edit made the
+manifest stale; it spent zero and is not calibration evidence.
+
+The subsequently prepared and authorized campaign
+`adapter-harness-calibration-v1-20260713-d11efc466a7f` (SHA-256
+`20bae9ae7c88375116d6e16e9e5161459e9ddaed83d2a554918b48295065c7ca`)
+also stopped before any GitHub mutation or provider turn and spent zero. The
+operator correctly challenged the claim that Claude was logged out. The same
+Claude binary reported a valid Claude.ai Max login outside the command sandbox
+but logged out when the eval harness replaced `HOME` and set
+`CLAUDE_CONFIG_DIR`. On macOS, Claude Code stores credentials in Keychain; the
+harness's copied `.credentials.json` model could not preserve that session.
+The repair now gives only the Claude child the authenticated host `HOME` with
+`CLAUDE_CONFIG_DIR` unset, while retaining a sanitized environment, disabling
+settings/skills/plugins/session persistence, denying source-home reads and
+confining writes to the worktree in Claude's sandbox, and independently denying
+outside-worktree paths in the Operon actor gate. Exact-environment token-free
+readiness now reports Claude, Codex, and pi ready. The `d11efc466a7f` manifest
+is stale after this repair and must not be reused.
+
+The auth-correct campaign
+`adapter-harness-calibration-v1-20260713-473eb4f39381` (SHA-256
+`f3355c92a9538f366aa2398ece90ab391ebb18826424af1180e98bf30b989a93`)
+passed L4 twice with an idempotent replay (issue #7, PR #8), then remained
+invalid at L5. Claude successfully authenticated and exercised a read tool but
+the token-dense 300 KB repeated-`x` transport prompt crossed its scenario cap;
+Codex completed three scenarios before the same large retained context crossed
+its continuation cap. Pi's authenticated provider returned HTTP 400 twice
+because third-party apps now require Claude extra usage rather than plan-limit
+usage. The seven settlements reconcile at 422,591 input tokens, 1,103 output
+tokens, and $5.47642 equivalent cost. The baseline stayed stopped. The harness
+now preserves the 300 KB + 1 byte transport proof with whitespace-only padding,
+removing semantic filler cost; the terminal campaign is immutable and stale
+after that edit. The operator selected pi's authenticated
+`openai-codex/gpt-5.5` OAuth route for the fresh run instead of adding Claude
+extra usage. The provider-qualified id prevents pi's multi-provider registry
+from resolving the same bare model id to another provider.
+
+The resulting campaign
+`adapter-harness-calibration-v1-20260713-d5992688efa1` (SHA-256
+`dfb6761ce10e700e7022076eb3424aeb50add95518e5fe398f7433abcc1e1f8c`)
+passed L4 twice with idempotent evidence reuse (issue #9, PR #10), but remained
+invalid at L5. Pi-over-Codex passed all six applicable calibration scenarios.
+Claude failed only when the harness attempted to resume a session after having
+set `persistSession: false`; Codex's primary and retry each completed seven
+settled turns, but the 1.5-second cancellation fallback preceded the first
+usage checkpoint and made aggregate usage quality unavailable. The ledger has
+24 unique settlements, 693,112 input tokens, 3,677 output tokens, and
+$3.06913525 equivalent cost. The executor's initial $5.21361525 summary
+double-counted both invalid Codex attempts; the immutable attempts and ledger
+did not. The accounting increment and cancellation fallback are repaired and
+covered offline. Baseline remained stopped. The next repair enabled bounded
+session persistence only for the declared Claude calibration profile, retained
+exact SDK session cleanup, and did not extract a Keychain credential.
+
+Campaign `adapter-harness-calibration-v1-20260713-72690b61e12b` then proved
+those storage and mechanical boundaries: Codex and pi passed, and Claude passed
+transport, both gate scenarios, continuation, and cancellation. Its final
+role-shaping turn correctly stopped at an undersized per-scenario budget, so
+the immutable qualifier returned `not_qualified`. That terminal campaign
+retained 19/19 exactly-once settlements and $2.20937175 equivalent cost. The
+scenario allocation and durable L4 idempotence receipt were repaired offline;
+the campaign was not rewritten or reused.
+
+The final content-hashed campaign
+`adapter-harness-calibration-v1-20260713-9c3b336d6842` (canonical SHA-256
+`f63518ae0c47c527cff165e9793036ebad2909b9aade5ebb7fc9ce6b2cef8e16`)
+qualified the adapter admission gate. L4 passed twice against the retained
+private repository (issue #15, PR #16) with a persisted idempotence receipt.
+L5 passed Claude, Codex, and pi without retry: 20 provider turns, 20
+exactly-once settlements, three mechanical permission-boundary proofs, 567,599
+input tokens, 3,836 output tokens, and $2.26656275 total equivalent cost. The
+qualifier recorded three passes and zero missing attempts, product misses,
+safety stops, budget stops, infrastructure invalidations, or harness errors.
+Exact Claude SDK sessions were deleted after grader evidence, retaining only
+ID hashes. See `research/evals/2026-07-13-adapter-calibration-repair.md`.
+
+This proves the content-hashed adapter/eval admission snapshot, not that the
+future Git commit or the broader Operon product is qualified. The 72 declared
+transformation contracts remain known-red. A new adapter campaign is required
+only if adapter, harness, fixture, grader, schema, or declared campaign-profile
+bytes change before relying on this admission result.
+
+### Remaining work and exact order
+
+1. Start from the merged `main` tree without discarding unrelated local work,
+   especially `docs/architecture/conceptual-overview.md`.
+2. Treat the qualified adapter result as current only while adapter, harness,
+   fixture, grader, schema, and declared profile bytes remain unchanged. Run
+   the applicable deterministic gates after any edit. Do not rerun adapter
+   calibration merely because the product remains known-red.
+3. Prepare and preview a fresh `pre-transformation-baseline`; obtain one exact
+   confirmation for its campaign id, SHA, private repository
+   `buildstacks-dev/operon-eval-pre-transformation-baseline`, provider
+   assignments, expected turns, and $250 equivalent-cost cap. Never reuse the
+   historical baseline manifest or evidence.
+4. Execute L4 twice to prove lifecycle idempotency, then run the provider
+   baseline. Judge the eval system separately from the product: expected
+   `product_miss` outcomes are valid baseline evidence when all declared
+   attempts, graders, run records, settlements, accounting, and GitHub effects
+   are complete and reconcile. Missing/corrupt evidence, a harness error, or
+   irreconcilable accounting invalidates the eval run and must be repaired; a
+   product miss must be retained, not fixed in the suite or rewritten as a
+   pass.
+5. Run the read-only qualifier, reproduce the portable report from retained
+   evidence, create a checksum-verified sanitized archive, and update the dated
+   research/status documentation. Then audit the T5 readiness gate and verify
+   strict mode differs from green only by the exact declared known-red set.
+6. Keep full candidate qualification, the 48–72 hour L6 soak, and the separate
+   `pnpm test:live` command pending until each has its own preview and explicit
+   authorization. Their product-level failures may be honest eval outcomes;
+   their harness and evidence paths must still work.
+
+Provider execution uses the human's existing subscriptions. Dollar figures in
+this work are equivalent-cost accounting caps and measurements, not
+incremental charges. Do not reopen or repeatedly ask about credential mode.
 
 ## 1. Review verdict
 
@@ -1252,52 +1507,84 @@ This test/eval campaign is complete when:
 - no transformation production feature was implemented merely to make this
   suite appear complete.
 
-## 17. Instructions for the implementing session
+## 17. Instructions for the continuation session
 
 1. Work in `/Users/bikram/Build/Operon` on the host cautiously.
 2. Read project `AGENTS.md`, `docs/PURPOSE.md`, the source transformation
    charter, and this document completely before editing.
-3. Preserve
-   `docs/efficiency-transformation/highly-efficient-organization-transformation.md`
-   as input;
-   propose ratification changes rather than silently rewriting human-ratified
-   surfaces.
-4. Begin at T0. Do not implement `org upgrade`, app verify/promote, route
-   admission, context manifests, scheduler management, or other transformation
-   behavior during T0-T5.
-5. Reuse `makeOrgHome`, `makeAppRepo`, `makeBareWithClone`, `FakeClock`,
-   `FakeRuntime`, `FakeGhOps`, the runtime conformance harness, and learning
-   replay substrate.
-6. Implement black-box future contracts at public CLI/artifact boundaries and
-   record absent behavior as exact known-red results.
-7. Never point a test at the active Bikram org/state or mutate buildstacks.dev,
-   alpha, beta, gamma, or delta for qualification.
-8. Run deterministic layers before GitHub or provider layers. Preview live
-   campaign identity, repos, models, expected turns, and maximum spend before
-   requesting the human confirmation.
-9. Record every attempt, including harness/provider failures, and keep raw L3
-   evidence local.
-10. Stop the suite-building session only at a phase gate or a material human
-    decision. Do not begin actual transformation implementation in the same
-    unratified phase.
+3. Treat **Current implementation and handoff status** as the source of truth;
+   do not rebuild completed T0–T3/T5 infrastructure or promote known-red
+   contracts by implementing transformation production features.
+4. Preserve all unrelated work, specifically the user's existing
+   `docs/architecture/conceptual-overview.md` change, and do not reset or clean
+   the dirty worktree.
+5. Never point an eval at the active Bikram org/state or mutate buildstacks.dev,
+   alpha, beta, gamma, or delta. Only the two allowlisted retained private
+   `buildstacks-dev/operon-eval-*` repositories in the handoff are in scope.
+6. Run deterministic layers before GitHub or provider layers. Prepare an
+   immutable campaign only after the tree is stable, then preview the exact id,
+   SHA, repo, assignments, expected turns, and equivalent-cost cap before
+   requesting exact confirmation.
+7. Calibrate adapters before baseline product episodes. An invalid calibration
+   stops progression; it is evidence to diagnose, not permission to skip an
+   adapter or weaken a grader.
+8. Record every attempt, error artifact, retry, GitHub effect, provider turn,
+   settlement, missing measurement, and equivalent cost. Reconcile result
+   summaries with the ledger before calling a campaign valid.
+9. Provider runs use existing subscriptions; dollar figures are
+   equivalent-cost accounting. Do not ask again about credential mode.
+10. Do not execute candidate qualification or L6 soak without their own exact
+    previews and explicit authorization. Do not begin transformation production
+    implementation until the T4/T5 gates and overall readiness gate are truly
+    satisfied.
 
-## 18. Copy/paste kickoff prompt for a new session
+## 18. Copy/paste continuation goal for a new session
 
-> Work in `/Users/bikram/Build/Operon`. Read `AGENTS.md`,
-> `docs/PURPOSE.md`,
+> `/goal` Continue and finish the Operon highly-efficient-organization
+> test/eval readiness gate in `/Users/bikram/Build/Operon`. First read
+> `AGENTS.md`, `docs/PURPOSE.md`,
 > `docs/efficiency-transformation/highly-efficient-organization-transformation.md`,
 > and
 > `docs/efficiency-transformation/highly-efficient-organization-test-eval-transformation.md`
-> completely.
-> Implement the test/eval transformation document through Phases T0-T5 before
-> implementing any highly-efficient-organization production feature. Start
-> with T0's docs-only ratification of TE-01 through TE-08. Preserve unrelated
-> work and the source charter. Build the hermetic EvalWorld, one disposable
-> eval org, three pinned app fixtures, calibrated hidden graders, immutable
-> campaign/result schemas, exact known-red contract inventory, deterministic
-> lifecycle/fault/soak suites, disposable GitHub harness, and capped
-> provider-backed baseline. Reuse existing fixtures and learning replay. Never
-> touch the active production org/state/apps, never hide a miss or skip, and do
-> not begin transformation implementation until the test-suite readiness gate
-> is satisfied. Run and report each phase's exact commands, results, known-red
-> ids, GitHub effects, provider turns, and spend.
+> completely. Treat that document's **Current implementation and handoff
+> status** section as authoritative. Preserve all unrelated work, especially
+> the existing uncommitted `docs/architecture/conceptual-overview.md` change;
+> do not reset or clean the worktree.
+>
+> T0–T3 are complete and T5's code/docs wiring is implemented. Do not redo
+> them, do not implement transformation production features, and do not call
+> the readiness gate complete. The adapter admission gate is already qualified
+> by content-hashed campaign
+> `adapter-harness-calibration-v1-20260713-9c3b336d6842`; do not rerun it unless
+> the covered adapter/eval bytes change. The remaining T4 blocker is a
+> replacement retained provider baseline, followed by the read-only
+> qualifier/report/archive and final T5 gate audit. Re-run
+> `pnpm eval:validate`, `pnpm test:transformation`,
+> `pnpm eval:deterministic`, `pnpm test`, `pnpm typecheck`, and the strict gate;
+> strict may fail only for the exact 72 documented known-red production
+> contracts.
+>
+> Prepare and preview a fresh `pre-transformation-baseline`; ask me once to
+> confirm its exact id, SHA,
+> private repo `buildstacks-dev/operon-eval-pre-transformation-baseline`, and
+> $250 equivalent-cost cap. Run L4 twice, execute the baseline, qualify it
+> read-only, reproduce the portable report, archive the evidence, and update
+> the dated research/status documentation. Retain every miss, retry, missing
+> measurement, provider turn, settlement, and GitHub effect. Reconcile result
+> metrics with the ledger.
+>
+> Operon is not product-ready, so product failures and known-red contract misses
+> are expected and may be the correct eval result. The objective is to prove
+> that the eval system executes, classifies, accounts for, qualifies, reports,
+> and archives those outcomes correctly. Never weaken a grader, change an
+> expectation, or implement product behavior merely to make an eval green.
+> Distinguish `product_miss` from harness/evidence failure explicitly. Candidate
+> qualification, L6 execution, and `pnpm test:live` remain separate and require
+> their own preview and authorization.
+>
+> Provider execution uses my existing subscriptions. All dollar values are
+> equivalent-cost accounting caps/measurements, not incremental charges. Do
+> not ask me again about credential mode. Never touch the active production
+> org/state/apps or any non-eval repository. Finish with exact verification
+> results, the full known-red set, benchmark/fault coverage, GitHub/provider
+> effects, equivalent cost, and any remaining readiness gap.

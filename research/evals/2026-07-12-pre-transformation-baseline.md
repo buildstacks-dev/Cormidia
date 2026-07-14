@@ -59,3 +59,14 @@ hash in GitHub evidence. The manifest/result hashes agree and the file was not
 mutated; the missing pre-start lock is retained as a baseline harness finding,
 not silently backfilled. Future live execution refuses to start without both
 hash-bound GitHub evidence and the campaign lock.
+
+## Post-audit status
+
+The T0–T5 completion audit later tightened result evidence references,
+terminal/settlement metrics, grader hashes, capability declarations, and the
+full GitHub lifecycle. Requalifying these retained v1 attempt files under that
+hardened reader now yields `invalid`, not because their recorded product
+outcomes changed, but because the old files lack the newly mandatory evidence
+and measurement fields. They remain immutable historical evidence and are not
+backfilled. A new content-hashed adapter calibration and baseline campaign must
+run under explicit authorization before T4 can be called complete.

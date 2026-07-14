@@ -63,6 +63,10 @@ export function createSessionLogSink(
 ): (e: TurnEvent) => void {
   const path = runPaths(root, app, runId).sessionLog;
   mkdirSync(dirname(path), { recursive: true });
+  // The activity log is part of every executed pass's L3 record even when a
+  // provider fails before emitting its first event. Keep it empty in that
+  // case; absence would falsely imply the executor never opened the sink.
+  appendFileSync(path, "", { encoding: "utf8", mode: 0o600 });
   return (e: TurnEvent): void => {
     appendFileSync(path, `[${e.type}] ${e.detail}\n`, "utf8");
   };

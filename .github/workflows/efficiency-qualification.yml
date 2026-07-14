@@ -32,7 +32,11 @@ jobs:
       - run: pnpm eval:validate
       - run: pnpm test:transformation
       - run: pnpm eval:deterministic
+      - run: pnpm test
       - run: pnpm typecheck
+      - name: Nightly deterministic flake tripwire
+        if: github.event_name == 'schedule'
+        run: pnpm eval:deterministic:nightly
       - name: Strict final-phase gate
         if: github.event_name == 'workflow_dispatch' && inputs.strict
         run: pnpm test:transformation:strict

@@ -2,7 +2,82 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "operon.eval.campaign.v1",
   "type": "object",
-  "required": ["schema_version", "campaign_id", "candidate", "cases", "assignments", "price_catalog_id", "github", "spend", "stop_rules"],
-  "properties": { "schema_version": { "const": 1 }, "campaign_id": { "type": "string", "minLength": 1 }, "intent": { "enum": ["qualification", "non_qualification"] } },
-  "additionalProperties": true
+  "required": ["schema_version", "campaign_id", "purpose", "owner", "created_at", "intent", "candidate", "org_fingerprint", "system_fingerprint", "cases", "assignments", "price_catalog_id", "randomization_seed", "github", "spend", "infrastructure_retries", "exclusions", "stop_rules", "operator_fixture", "evidence_dir"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "campaign_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+    "purpose": { "type": "string", "minLength": 1 },
+    "owner": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "intent": { "enum": ["qualification", "non_qualification"] },
+    "profile": { "enum": ["production-parity", "adapter-conformance", "fault-injection"] },
+    "candidate": {
+      "type": "object",
+      "required": ["commit", "package_sha256", "suite_sha256"],
+      "properties": { "commit": { "type": "string", "minLength": 1 }, "package_sha256": { "$ref": "#/$defs/digest" }, "suite_sha256": { "$ref": "#/$defs/digest" } },
+      "additionalProperties": false
+    },
+    "org_fingerprint": { "$ref": "#/$defs/digest" },
+    "system_fingerprint": { "$ref": "#/$defs/digest" },
+    "cases": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/caseSelection" } },
+    "assignments": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/assignment" } },
+    "blocks": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["name", "immutable_order", "cases"],
+        "properties": {
+          "name": { "enum": ["clean", "mixed", "learning", "autonomy"] },
+          "immutable_order": { "const": true },
+          "randomized_by": { "type": "string", "minLength": 1 },
+          "population": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "paired_order": { "type": "array", "items": { "enum": ["AB", "BA"] } },
+          "cases": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/caseSelection" } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "soak": {
+      "type": "object",
+      "required": ["duration_hours", "tick_interval_minutes", "useful_turn_cap", "deliberate_restart_hour", "requires_external_restart_receipt"],
+      "properties": {
+        "duration_hours": { "type": "number", "minimum": 48, "maximum": 72 },
+        "tick_interval_minutes": { "type": "number", "exclusiveMinimum": 0 },
+        "useful_turn_cap": { "type": "integer", "minimum": 1 },
+        "deliberate_restart_hour": { "type": "number", "exclusiveMinimum": 0 },
+        "requires_external_restart_receipt": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "price_catalog_id": { "type": "string", "pattern": "^prices/[0-9]{4}-[0-9]{2}-[0-9]{2}-v[0-9]+$" },
+    "randomization_seed": { "type": "string", "minLength": 1 },
+    "github": {
+      "type": "object", "required": ["owner", "repo_pattern"],
+      "properties": { "owner": { "type": "string", "minLength": 1 }, "repo_pattern": { "type": "string", "pattern": "^operon-eval-[a-zA-Z0-9*-]+$" } },
+      "additionalProperties": false
+    },
+    "spend": {
+      "type": "object", "required": ["campaign_max_usd", "case_max_usd"],
+      "properties": { "campaign_max_usd": { "type": "number", "exclusiveMinimum": 0 }, "case_max_usd": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "number", "exclusiveMinimum": 0 } } },
+      "additionalProperties": false
+    },
+    "infrastructure_retries": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "exclusions": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "stop_rules": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "operator_fixture": { "type": "string", "pattern": "^operator-fixtures/[a-z0-9-]+-v[0-9]+\\.yaml$" },
+    "evidence_dir": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "caseSelection": {
+      "type": "object", "required": ["case_id", "repetition_ids"],
+      "properties": { "case_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9/-]*/v[0-9]+$" }, "repetition_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } } },
+      "additionalProperties": false
+    },
+    "assignment": {
+      "type": "object", "required": ["role", "runtime", "model", "effort", "capability_ref"],
+      "properties": { "role": { "type": "string", "minLength": 1 }, "runtime": { "enum": ["claude", "codex", "pi"] }, "model": { "type": "string", "minLength": 1 }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] }, "capability_ref": { "type": "string", "pattern": "^(claude|codex|pi)/v[0-9]+$" } },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
 }

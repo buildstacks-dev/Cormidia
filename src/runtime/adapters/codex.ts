@@ -22,6 +22,7 @@ import type {
 } from "../types.js";
 import { renderContextBundle } from "../worktree-context.js";
 import { toolUseEvent } from "../tool-events.js";
+import { codexAppServerArgs, startCodexGateBridge } from "./codex-gate-bridge.js";
 
 export type JsonRpcId = number | string;
 
@@ -38,7 +39,14 @@ export interface CodexAppServerClient extends AsyncIterable<CodexServerMessage> 
   close(): Promise<void>;
 }
 
-export type CodexAppServerClientFactory = () => CodexAppServerClient;
+export interface CodexAppServerLaunchOptions {
+  args?: string[];
+  env?: NodeJS.ProcessEnv;
+}
+
+export type CodexAppServerClientFactory = (
+  options?: CodexAppServerLaunchOptions,
+) => CodexAppServerClient;
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -55,11 +63,12 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
   private closed = false;
   private closing?: Promise<void>;
 
-  constructor() {
+  constructor(options: CodexAppServerLaunchOptions = {}) {
     const require = createRequire(import.meta.url);
     const codexBin = require.resolve("@openai/codex/bin/codex.js");
-    this.child = spawn(process.execPath, [codexBin, "app-server", "--listen", "stdio://"], {
+    this.child = spawn(process.execPath, [codexBin, ...(options.args ?? ["app-server", "--listen", "stdio://"])], {
       stdio: ["pipe", "pipe", "pipe"],
+      ...(options.env !== undefined ? { env: options.env } : {}),
       // Own a process group so closing the adapter reaches App Server children,
       // not only the immediate Node wrapper.
       detached: process.platform !== "win32",
@@ -214,6 +223,9 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
 
 export interface CodexRuntimeOptions {
   clientFactory?: CodexAppServerClientFactory;
+  /** Explicit environment for App Server and its hook subprocesses. Eval
+   *  campaigns use this to pin provider scratch under the campaign root. */
+  appServerEnv?: NodeJS.ProcessEnv;
 }
 
 interface CodexTurnState {
@@ -235,9 +247,11 @@ interface CodexTurnState {
 export class CodexRuntime implements Runtime {
   readonly kind = "codex" as const;
   private readonly clientFactory: CodexAppServerClientFactory;
+  private readonly appServerEnv: NodeJS.ProcessEnv | undefined;
 
   constructor(opts: CodexRuntimeOptions = {}) {
-    this.clientFactory = opts.clientFactory ?? (() => new StdioCodexAppServerClient());
+    this.clientFactory = opts.clientFactory ?? ((launch) => new StdioCodexAppServerClient(launch));
+    this.appServerEnv = opts.appServerEnv;
   }
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
@@ -249,8 +263,12 @@ export class CodexRuntime implements Runtime {
     }
 
     const startTime = Date.now();
-    const client = this.clientFactory();
     const escalations: GateEscalation[] = [];
+    const gateBridge = await startCodexGateBridge(req.workdir, hooks, escalations);
+    const client = this.clientFactory({
+      args: codexAppServerArgs(),
+      env: { ...(this.appServerEnv ?? process.env), ...gateBridge.env },
+    });
     const state: CodexTurnState = {
       threadId: req.session?.id ?? `pending-${startTime}`,
       subagentTurns: 0,
@@ -321,6 +339,7 @@ export class CodexRuntime implements Runtime {
     } finally {
       req.signal?.removeEventListener("abort", abortClient);
       await client.close();
+      await gateBridge.close();
     }
   }
 

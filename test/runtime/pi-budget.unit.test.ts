@@ -35,6 +35,7 @@ const FAKE_REGISTRY = {
 interface FakeTurn {
   cost: number;
   tokens?: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  message?: Record<string, unknown>;
 }
 
 /** Scripted pi session: emits one `eventType` event per turn, exposing a
@@ -65,7 +66,9 @@ class FakePiSession {
       if (this.aborted) break;
       this.cost = turn.cost;
       if (turn.tokens) this.tokens = { ...turn.tokens, total: turn.tokens.input + turn.tokens.output };
-      for (const listener of [...this.listeners]) listener({ type: this.eventType, message: {}, toolResults: [] });
+      for (const listener of [...this.listeners]) {
+        listener({ type: this.eventType, message: turn.message ?? {}, toolResults: [] });
+      }
     }
   }
 
@@ -188,6 +191,33 @@ describe("PiRuntime per-turn budget (SDK mocked)", () => {
     // Never aborted (the guard did not fire mid-turn) — this is the pure
     // final-check path.
     expect(session.aborted).toBe(false);
+  });
+
+  it("maps a terminal assistant auth error to a failed turn with honest zero usage", async () => {
+    const session = new FakePiSession(
+      [{
+        cost: 0,
+        message: {
+          role: "assistant",
+          stopReason: "error",
+          errorMessage: "No API key for provider: anthropic",
+        },
+      }],
+      "message_end",
+      "",
+    );
+
+    const result = await makeRuntime(session).runTurn(makeReq(), {
+      gate: () => ({ allow: true }),
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      errorCode: "error_auth",
+      summary: "No API key for provider: anthropic",
+      usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, quality: "complete" },
+    });
+    expect(result.artifacts).toEqual([]);
   });
 
   it("aborts the SDK session and returns checkpointed partial usage on cancellation", async () => {

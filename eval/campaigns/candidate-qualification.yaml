@@ -1,0 +1,69 @@
+schema_version: 1
+campaign_id: candidate-qualification-v1
+purpose: Predeclared five-clean ten-mixed learning and autonomy qualification sequence
+owner: Bikram
+created_at: 2026-07-12T00:00:00.000Z
+intent: qualification
+candidate: { commit: TEMPLATE, package_sha256: "sha256:0000000000000000000000000000000000000000000000000000000000000000", suite_sha256: "sha256:0000000000000000000000000000000000000000000000000000000000000000" }
+org_fingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+system_fingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+profile: production-parity
+blocks:
+  - name: clean
+    immutable_order: true
+    cases:
+      - { case_id: quick/ignore-config/v1, repetition_ids: [clean-q1, clean-q2, clean-q3, clean-q4, clean-q5] }
+  - name: mixed
+    immutable_order: true
+    randomized_by: operon-qualification-20260712
+    population: [approval/semantics/v1::mixed-da, continuation/matrix/v1::mixed-iq, continuation/matrix/v1::mixed-is, deep/auth-migration/v1::mixed-d1, deep/auth-migration/v1::mixed-d2, quick/ignore-config/v1::mixed-q1, quick/ignore-config/v1::mixed-q2, standard/slug-options/v1::mixed-s1, standard/slug-options/v1::mixed-s2, standard/slug-options/v1::mixed-s3]
+    cases:
+      - { case_id: standard/slug-options/v1, repetition_ids: [mixed-s3] }
+      - { case_id: deep/auth-migration/v1, repetition_ids: [mixed-d2] }
+      - { case_id: quick/ignore-config/v1, repetition_ids: [mixed-q1] }
+      - { case_id: continuation/matrix/v1, repetition_ids: [mixed-iq] }
+      - { case_id: quick/ignore-config/v1, repetition_ids: [mixed-q2] }
+      - { case_id: continuation/matrix/v1, repetition_ids: [mixed-is] }
+      - { case_id: approval/semantics/v1, repetition_ids: [mixed-da] }
+      - { case_id: standard/slug-options/v1, repetition_ids: [mixed-s2] }
+      - { case_id: deep/auth-migration/v1, repetition_ids: [mixed-d1] }
+      - { case_id: standard/slug-options/v1, repetition_ids: [mixed-s1] }
+  - name: learning
+    immutable_order: true
+    paired_order: [AB, BA, AB]
+    cases:
+      - { case_id: learning/closure/v1, repetition_ids: [pair-1-control, pair-1-treatment, pair-2-treatment, pair-2-control, pair-3-control, pair-3-treatment] }
+  - name: autonomy
+    immutable_order: true
+    cases:
+      - { case_id: soak/virtual-seven-day/v1, repetition_ids: [virtual-1] }
+      - { case_id: roles/standing/v1, repetition_ids: [sre-1, support-1, marketing-1] }
+cases:
+  - { case_id: planning/quality/v1, repetition_ids: [goal-quick, goal-standard, goal-deep] }
+  - { case_id: context/delta/v1, repetition_ids: [claude-context-1, claude-context-2, codex-context-1, codex-context-2, pi-context-1, pi-context-2] }
+  - { case_id: quick/ignore-config/v1, repetition_ids: [clean-q1, clean-q2, clean-q3, clean-q4, clean-q5, mixed-q1, mixed-q2] }
+  - { case_id: standard/slug-options/v1, repetition_ids: [mixed-s2, mixed-s1, mixed-s3] }
+  - { case_id: deep/auth-migration/v1, repetition_ids: [mixed-d1, mixed-d2] }
+  - { case_id: continuation/matrix/v1, repetition_ids: [mixed-iq, mixed-is] }
+  - { case_id: approval/semantics/v1, repetition_ids: [mixed-da] }
+  - { case_id: learning/closure/v1, repetition_ids: [pair-1-control, pair-1-treatment, pair-2-treatment, pair-2-control, pair-3-control, pair-3-treatment] }
+  - { case_id: soak/virtual-seven-day/v1, repetition_ids: [virtual-1] }
+  - { case_id: roles/standing/v1, repetition_ids: [sre-1, support-1, marketing-1] }
+assignments:
+  - { role: planner, runtime: claude, model: claude-opus-4-8, effort: high, capability_ref: claude/v1 }
+  - { role: builder, runtime: codex, model: gpt-5.5, effort: high, capability_ref: codex/v1 }
+  - { role: reviewer, runtime: claude, model: claude-opus-4-8, effort: high, capability_ref: claude/v1 }
+  - { role: sre, runtime: codex, model: gpt-5.5, effort: medium, capability_ref: codex/v1 }
+  - { role: support, runtime: pi, model: claude-sonnet-4-6, effort: medium, capability_ref: pi/v1 }
+  - { role: marketing, runtime: pi, model: claude-sonnet-4-6, effort: medium, capability_ref: pi/v1 }
+price_catalog_id: prices/2026-07-12-v1
+randomization_seed: operon-qualification-20260712
+github: { owner: REPLACE_ME, repo_pattern: operon-eval-* }
+spend:
+  campaign_max_usd: 375
+  case_max_usd: { planning/quality/v1: 40, context/delta/v1: 30, quick/ignore-config/v1: 8, standard/slug-options/v1: 15, deep/auth-migration/v1: 40, continuation/matrix/v1: 40, approval/semantics/v1: 40, learning/closure/v1: 24, soak/virtual-seven-day/v1: 1, roles/standing/v1: 30 }
+infrastructure_retries: 1
+exclusions: [typed_transient_provider_failure, typed_transient_github_failure]
+stop_rules: [hard_safety_violation, campaign_cap_cannot_cover_remaining_case, hidden_answer_leakage, production_path_overlap]
+operator_fixture: operator-fixtures/eval-only-content-bound-approvals-v1.yaml
+evidence_dir: .eval-artifacts/candidate-qualification

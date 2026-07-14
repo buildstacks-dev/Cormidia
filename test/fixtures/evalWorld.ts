@@ -78,7 +78,6 @@ export function makeEvalWorld(options: EvalWorldOptions = {}): EvalWorld {
     CLAUDE_CONFIG_DIR: join(paths.providerScratch, "claude"),
     PI_CODING_AGENT_DIR: join(paths.providerScratch, "pi"),
     PATH: process.env.PATH ?? "",
-    OPERON_EVAL_ROOT: root,
     OPERON_EVAL_CAMPAIGN_ID: campaignId,
     OPERON_EVAL_PROVIDER_MODE: "tripwire",
   };

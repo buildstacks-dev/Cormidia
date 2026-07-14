@@ -139,6 +139,7 @@ export class PiRuntime implements Runtime {
     if (req.signal?.aborted) abortSession();
     else req.signal?.addEventListener("abort", abortSession, { once: true });
     let streamedText = "";
+    let assistantFailure: string | undefined;
     const unsubscribe = session.subscribe((event) => {
       if (
         event.type === "message_update" &&
@@ -146,6 +147,7 @@ export class PiRuntime implements Runtime {
       ) {
         streamedText += event.assistantMessageEvent.delta;
       }
+      assistantFailure ??= piAssistantFailure(event);
       // Cost accrues at turn boundaries; check the running total there (cheap,
       // and avoids polling stats on every streamed text delta).
       if (!budgetOverrun && event.type === "turn_end" && session.getSessionStats().cost >= cap) {
@@ -188,19 +190,31 @@ export class PiRuntime implements Runtime {
     // after which no further boundary fires — treat the final total as an
     // overrun too so the incident note is never silently skipped.
     const overBudget = budgetOverrun || stats.cost >= cap;
-    if (promptError !== undefined && !req.signal?.aborted) throw promptError;
+    if (promptError !== undefined && !req.signal?.aborted && assistantFailure === undefined) {
+      throw promptError;
+    }
     const stop = req.signal?.aborted ? piStopDescriptor(req.signal.reason) : undefined;
     const summary = overBudget
       ? `Budget overrun: turn stopped at the per-turn cap — spent $${stats.cost.toFixed(4)} ` +
         `against maxTurnBudgetUsd $${cap} (role ${req.role.name}).`
+      : assistantFailure !== undefined
+        ? assistantFailure
       : session.getLastAssistantText()?.trim() || streamedText.trim() || "completed";
     // A budget overrun is a hard stop: it fails the turn and emits exactly one
     // incident note, taking precedence over gate escalations that also occurred.
     const artifacts = overBudget
       ? [budgetOverrunNote(session.sessionFile ?? session.sessionId, stats.cost, req)]
-      : piArtifacts(req);
+      : assistantFailure !== undefined
+        ? []
+        : piArtifacts(req);
     return {
-      status: stop?.status ?? (overBudget ? "failed" : escalations.length > 0 ? "blocked_on_gate" : "completed"),
+      status:
+        stop?.status ??
+        (overBudget || assistantFailure !== undefined
+          ? "failed"
+          : escalations.length > 0
+            ? "blocked_on_gate"
+            : "completed"),
       summary: stop?.reason ?? summary,
       artifacts,
       session: { runtime: "pi", id: session.sessionFile ?? session.sessionId },
@@ -216,9 +230,36 @@ export class PiRuntime implements Runtime {
         quality: stop === undefined ? "complete" : "partial",
       },
       escalations,
-      ...(stop !== undefined ? { errorCode: stop.errorCode } : {}),
+      ...(stop !== undefined
+        ? { errorCode: stop.errorCode }
+        : overBudget
+          ? { errorCode: "error_max_budget_usd" }
+          : assistantFailure !== undefined
+            ? { errorCode: classifyPiFailure(assistantFailure) }
+            : {}),
     };
   }
+}
+
+function piAssistantFailure(event: unknown): string | undefined {
+  if (event === null || typeof event !== "object") return undefined;
+  const record = event as Record<string, unknown>;
+  if (record["type"] !== "message_end" && record["type"] !== "turn_end") return undefined;
+  const message = record["message"];
+  if (message === null || typeof message !== "object") return undefined;
+  const assistant = message as Record<string, unknown>;
+  if (assistant["role"] !== "assistant" || assistant["stopReason"] !== "error") return undefined;
+  const detail = assistant["errorMessage"];
+  return typeof detail === "string" && detail.trim().length > 0
+    ? detail.trim()
+    : "pi provider returned a terminal assistant error";
+}
+
+function classifyPiFailure(detail: string): string {
+  if (/no api key|auth|credential|unauthoriz|not logged in|login|token/i.test(detail)) {
+    return "error_auth";
+  }
+  return "error_provider";
 }
 
 function piStopDescriptor(reason: unknown): {

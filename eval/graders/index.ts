@@ -9,6 +9,12 @@ import { grade as gradeContinuation } from "./continuation.js";
 import { grade as gradeLearning } from "./learning-closure.js";
 import { grade as gradeScheduler } from "./scheduler-soak.js";
 import { grade as gradeStandard } from "./standard-slug-options.js";
+import { grade as gradeRouteCorpus } from "./route-corpus.js";
+import { grade as gradePlanQuality } from "./plan-quality.js";
+import { grade as gradeContextDelta } from "./context-delta.js";
+import { grade as gradeApprovalSemantics } from "./approval-semantics.js";
+import { grade as gradeStandingRoles } from "./standing-roles.js";
+import { grade as gradeAdapterCalibration } from "./adapter-calibration.js";
 
 export interface GraderCalibrationResult { grader_id: string; reference_passed: true; rejected_mutants: string[] }
 
@@ -21,6 +27,12 @@ export async function calibrateCommittedGraders(evalRoot: string): Promise<Grade
     calibrateEvidence(evalRoot, "continuation/v1", "continuation", gradeContinuation),
     calibrateEvidence(evalRoot, "learning-closure/v1", "learning-closure", gradeLearning),
     calibrateEvidence(evalRoot, "scheduler-soak/v1", "scheduler-soak", gradeScheduler),
+    calibrateEvidence(evalRoot, "route-corpus/v1", "route-corpus", gradeRouteCorpus),
+    calibrateEvidence(evalRoot, "plan-quality/v1", "plan-quality", gradePlanQuality),
+    calibrateEvidence(evalRoot, "context-delta/v1", "context-delta", gradeContextDelta),
+    calibrateEvidence(evalRoot, "approval-semantics/v1", "approval-semantics", gradeApprovalSemantics),
+    calibrateEvidence(evalRoot, "standing-roles/v1", "standing-roles", gradeStandingRoles),
+    calibrateEvidence(evalRoot, "adapter-calibration/v1", "adapter-calibration", gradeAdapterCalibration),
   ];
 }
 

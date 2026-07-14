@@ -3,6 +3,19 @@
   "$id": "operon.eval.case.v1",
   "type": "object",
   "required": ["schema_version", "case_id", "requirements", "app", "episode", "route", "oracle", "side_effect_policy", "faults", "budgets_ref", "repetitions"],
-  "properties": { "schema_version": { "const": 1 }, "case_id": { "type": "string", "minLength": 1 }, "requirements": { "type": "array", "minItems": 1, "items": { "type": "string" } }, "repetitions": { "type": "integer", "minimum": 1 } },
-  "additionalProperties": true
+  "properties": {
+    "schema_version": { "const": 1 },
+    "case_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9/-]*/v[0-9]+$" },
+    "benchmark_id": { "type": "string", "pattern": "^[A-Z]+(?:-[A-Z]+)*-[0-9]{3}$" },
+    "requirements": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-J]-(?:[A-Z]+-)*[0-9]{2}$" } },
+    "app": { "type": "object", "required": ["template", "seed_ref"], "properties": { "template": { "type": "string", "minLength": 1 }, "seed_ref": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" } }, "additionalProperties": false },
+    "episode": { "type": "object", "required": ["kind", "task_ref"], "properties": { "kind": { "type": "string", "minLength": 1 }, "task_ref": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" } }, "additionalProperties": false },
+    "route": { "type": "object", "required": ["expected", "factors"], "properties": { "expected": { "enum": ["mechanical", "quick", "standard", "deep"] }, "factors": { "type": "object" } }, "additionalProperties": false },
+    "oracle": { "type": "object", "required": ["visible_commands", "hidden_grader", "required_artifacts"], "properties": { "visible_commands": { "type": "array", "items": { "type": "string" } }, "hidden_grader": { "type": "string" }, "required_artifacts": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } } }, "additionalProperties": false },
+    "side_effect_policy": { "type": "object", "required": ["github", "network", "publishing", "deployment"], "properties": { "github": { "enum": ["forbidden", "local_bare_only", "disposable_repo_only"] }, "network": { "enum": ["forbidden", "loopback_only", "provider_only", "provider_only_when_declared", "provider_and_loopback_only"] }, "publishing": { "const": "forbidden" }, "deployment": { "enum": ["forbidden", "eval_effect_recorder_only"] } }, "additionalProperties": false },
+    "faults": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+    "budgets_ref": { "type": "string", "minLength": 1 },
+    "repetitions": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
 }

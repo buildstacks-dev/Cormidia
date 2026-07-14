@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "kind": "feedback",
+  "id": "feedback-eval-001",
+  "received_at": "2026-07-12T10:00:00.000Z",
+  "channel": "synthetic-inbox",
+  "text": "The slug preview is useful; please preserve underscores when previewing legacy names.",
+  "reply_policy": "draft_only"
+}

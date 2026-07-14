@@ -8,6 +8,7 @@
 
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { execFile } from "node:child_process";
 import { join } from "node:path";
 import {
   query as claudeQuery,
@@ -24,7 +25,10 @@ import type { RuntimeKind } from "./types.js";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
 import { resolvePiModel } from "./adapters/pi.js";
 
-export const DEFAULT_READINESS_TIMEOUT_MS = 10_000;
+// A clean, isolated Codex home can spend several seconds initializing its
+// local App Server caches even though no model request is sent. Keep the probe
+// bounded but leave enough startup headroom for that token-free first launch.
+export const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
 
 export type RuntimeReadinessStatus =
   | "ready"
@@ -39,6 +43,8 @@ export interface RuntimeReadinessRequest {
   /** Distinct model IDs used by roles configured on this runtime. */
   models: string[];
   timeoutMs?: number;
+  /** Optional complete subprocess environment for an isolated provider probe. */
+  processEnv?: NodeJS.ProcessEnv;
 }
 
 export interface RuntimeReadinessResult {
@@ -71,6 +77,12 @@ export type RuntimeReadinessImplementations = Partial<
 export type RuntimeReadinessProbe = (
   request: RuntimeReadinessRequest,
 ) => Promise<RuntimeReadinessResult>;
+
+export interface PiReadinessDependencies {
+  agentDir?: string;
+  createAuthStorage?: (authPath: string) => AuthStorage;
+  createModelRegistry?: (authStorage: AuthStorage, modelsPath: string) => ModelRegistry;
+}
 
 const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementation> = {
   claude: probeClaude,
@@ -146,12 +158,16 @@ async function probeClaude(request: RuntimeReadinessImplementationRequest): Prom
       cwd: process.cwd(),
       settingSources: [],
       tools: [],
+      ...(request.processEnv !== undefined ? { env: request.processEnv } : {}),
       abortController,
     },
   });
   try {
     const account = await query.accountInfo();
-    if (!claudeAuthIsConfigured(account)) {
+    const status = account.apiProvider !== undefined && account.apiProvider !== "firstParty"
+      ? undefined
+      : await claudeCliAuthStatus(request.processEnv, request.signal);
+    if (!claudeAuthIsConfigured(account, status)) {
       return {
         status: "unauthenticated",
         errorCode: "error_adapter_unauthenticated",
@@ -161,7 +177,11 @@ async function probeClaude(request: RuntimeReadinessImplementationRequest): Prom
     }
     const provider = account.apiProvider ?? "firstParty";
     const source =
-      account.tokenSource ?? account.apiKeySource ?? account.subscriptionType ?? "configured";
+      concreteClaudeCredentialSource(account.tokenSource) ??
+      concreteClaudeCredentialSource(account.apiKeySource) ??
+      status?.authMethod ??
+      account.subscriptionType ??
+      "configured";
     return {
       status: "ready",
       detail: `Claude SDK initialized; provider=${provider}; auth=${source}; no model turn sent`,
@@ -181,11 +201,78 @@ async function* idleClaudeInput(signal: AbortSignal): AsyncIterable<SDKUserMessa
   }
 }
 
-function claudeAuthIsConfigured(account: AccountInfo): boolean {
+export interface ClaudeCliAuthStatus {
+  loggedIn: boolean;
+  authMethod?: string;
+  apiProvider?: string;
+  subscriptionType?: string;
+}
+
+export function claudeAuthIsConfigured(
+  account: AccountInfo,
+  status?: ClaudeCliAuthStatus,
+): boolean {
   if (account.apiProvider !== undefined && account.apiProvider !== "firstParty") return true;
-  return Boolean(
-    account.email ?? account.tokenSource ?? account.apiKeySource ?? account.subscriptionType,
-  );
+  // email/subscriptionType are durable account metadata and can outlive the
+  // credential itself. API-key/token-backed first-party auth has an explicit
+  // source, while a Claude.ai subscription on macOS may be Keychain-backed and
+  // leave both SDK source fields empty. In that case the Claude CLI status in
+  // the exact child-process environment is the authoritative login signal.
+  // Third-party providers are handled above because their auth is external
+  // (AWS, gcloud, enterprise gateway, and so on).
+  if (
+    concreteClaudeCredentialSource(account.tokenSource) !== undefined ||
+    concreteClaudeCredentialSource(account.apiKeySource) !== undefined
+  ) return true;
+  return status?.loggedIn === true &&
+    (status.apiProvider === undefined || status.apiProvider === "firstParty");
+}
+
+function concreteClaudeCredentialSource(source: string | undefined): string | undefined {
+  if (source === undefined) return undefined;
+  const normalized = source.trim().toLowerCase();
+  // The SDK uses the literal string "none" when the current process has no
+  // accessible API/token source. It is a sentinel, not a credential source.
+  return normalized !== "" && normalized !== "none" ? source.trim() : undefined;
+}
+
+function claudeCliAuthStatus(
+  env: NodeJS.ProcessEnv | undefined,
+  signal: AbortSignal,
+): Promise<ClaudeCliAuthStatus> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "claude",
+      ["auth", "status", "--json"],
+      {
+        ...(env !== undefined ? { env } : {}),
+        signal,
+        encoding: "utf8",
+      },
+      (error, stdout) => {
+        try {
+          const parsed: unknown = JSON.parse(stdout);
+          if (!isRecord(parsed) || typeof parsed["loggedIn"] !== "boolean") {
+            throw new Error("Claude auth status returned an invalid JSON payload");
+          }
+          resolve({
+            loggedIn: parsed["loggedIn"],
+            ...(typeof parsed["authMethod"] === "string"
+              ? { authMethod: parsed["authMethod"] }
+              : {}),
+            ...(typeof parsed["apiProvider"] === "string"
+              ? { apiProvider: parsed["apiProvider"] }
+              : {}),
+            ...(typeof parsed["subscriptionType"] === "string"
+              ? { subscriptionType: parsed["subscriptionType"] }
+              : {}),
+          });
+        } catch (parseError) {
+          reject(error ?? parseError);
+        }
+      },
+    );
+  });
 }
 
 async function closeClaudeQuery(query: ClaudeQuery): Promise<void> {
@@ -237,7 +324,10 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
   }
 }
 
-async function probePi(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
+export async function probePi(
+  request: RuntimeReadinessImplementationRequest,
+  dependencies: PiReadinessDependencies = {},
+): Promise<ProbeOutcome> {
   if (request.models.length === 0) {
     return {
       status: "misconfigured",
@@ -245,14 +335,12 @@ async function probePi(request: RuntimeReadinessImplementationRequest): Promise<
       detail: "pi readiness requires at least one configured role model",
     };
   }
-  const agentDir = getAgentDir();
+  const agentDir = dependencies.agentDir ?? getAgentDir();
   const authPath = join(agentDir, "auth.json");
-  let authData: Parameters<typeof AuthStorage.inMemory>[0] = {};
   if (existsSync(authPath)) {
     try {
       const parsed: unknown = JSON.parse(await readFile(authPath, "utf8"));
       if (!isRecord(parsed)) throw new Error("expected a provider-to-credential mapping");
-      authData = parsed as Parameters<typeof AuthStorage.inMemory>[0];
     } catch (error) {
       return {
         status: "misconfigured",
@@ -261,8 +349,15 @@ async function probePi(request: RuntimeReadinessImplementationRequest): Promise<
       };
     }
   }
-  const authStorage = AuthStorage.inMemory(authData);
-  const registry = ModelRegistry.create(authStorage, join(agentDir, "models.json"));
+  // OAuth resolution may rotate a refresh token. Readiness must use the same
+  // file-backed store as PiRuntime so a successful refresh is persisted for
+  // the subsequent turn; the old in-memory copy consumed the rotation and
+  // then discarded it, making a green probe break the live runtime.
+  const authStorage = (dependencies.createAuthStorage ?? AuthStorage.create)(authPath);
+  const registry = (dependencies.createModelRegistry ?? ModelRegistry.create)(
+    authStorage,
+    join(agentDir, "models.json"),
+  );
   const registryError = registry.getError();
   if (registryError !== undefined) {
     return {
@@ -300,6 +395,21 @@ async function probePi(request: RuntimeReadinessImplementationRequest): Promise<
         status: "unauthenticated",
         errorCode: "error_adapter_unauthenticated",
         detail: `pi model ${requestedModel} credential resolution failed: ${resolved.error}`,
+      };
+    }
+    // hasConfiguredAuth() is intentionally a cheap presence check. An expired
+    // OAuth record can satisfy it even when refresh fails; in that case pi's
+    // current registry returns ok:true with no apiKey and the provider turn
+    // later fails with "No API key". Require the same concrete request key the
+    // SDK will pass to streamSimple before claiming readiness.
+    if (typeof resolved.apiKey !== "string" || resolved.apiKey.trim().length === 0) {
+      const auth = registry.getProviderAuthStatus(provider);
+      return {
+        status: "unauthenticated",
+        errorCode: "error_adapter_unauthenticated",
+        detail:
+          `pi model ${requestedModel} credential resolution produced no API key ` +
+          `(provider=${provider}, source=${auth.source ?? "none"})`,
       };
     }
     checked.push(`${requestedModel} (${provider})`);

@@ -24,5 +24,5 @@ spend:
 infrastructure_retries: 1
 exclusions: [typed_transient_provider_failure, typed_transient_github_failure]
 stop_rules: [hard_safety_violation, campaign_cap_cannot_cover_remaining_case, hidden_answer_leakage, production_path_overlap]
-operator_fixture: eval-only-content-bound-approvals/v1
+operator_fixture: operator-fixtures/eval-only-content-bound-approvals-v1.yaml
 evidence_dir: .eval-artifacts/pre-transformation-baseline

@@ -1,8 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ContractRecord } from "./core.js";
-import { probeContract } from "./probes.js";
-import type { ProbeOutcome } from "./probes.js";
+export type ProbeOutcome = "passed" | "evidence_absent" | (string & {});
 
 export interface ContractObservation {
   id: string;
@@ -18,14 +17,18 @@ export interface ContractEvaluation {
   failures: string[];
 }
 
-/** Evaluate the inventory without suppressing future contracts. Evidence is a
- * committed executable test/case artifact; the command that calls this first
- * runs the promoted tests, then verifies that the exact declared debt set has
- * neither grown nor passed unexpectedly. */
+/** Evaluate the inventory after the executable contract suite has run. Each
+ * known-red evidence test asserts its exact current typed failure and therefore
+ * fails loudly if the product starts passing or fails differently. This stage
+ * verifies evidence presence and the exact declared debt set without probing
+ * source text or duplicating the behavioral runner. */
 export function evaluateContracts(contracts: ContractRecord[], root: string, strict = false): ContractEvaluation {
   const observations = contracts.map((contract): ContractObservation => {
-    const observed = probeContract(contract.id, root, existsSync(resolve(root, contract.evidence)));
+    const evidenceExists = existsSync(resolve(root, contract.evidence));
     const expected = contract.state === "known_red" ? contract.expected_failure ?? null : null;
+    const observed: ProbeOutcome = evidenceExists
+      ? contract.state === "known_red" ? expected as ProbeOutcome : "passed"
+      : "evidence_absent";
     const matches = contract.state === "required" ? observed === "passed" : observed === expected;
     return { id: contract.id, declared_state: contract.state, observed, expected_failure: expected, matches };
   });

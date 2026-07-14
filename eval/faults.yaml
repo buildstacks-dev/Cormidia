@@ -18,8 +18,11 @@ faults:
   - after_worktree_creation
   - before_provider_start
   - after_provider_start
+  - before_provider_first_event
   - after_provider_first_event
+  - before_usage_checkpoint
   - after_usage_checkpoint
+  - before_provider_final_result
   - after_provider_final_result
   - before_commit
   - after_commit

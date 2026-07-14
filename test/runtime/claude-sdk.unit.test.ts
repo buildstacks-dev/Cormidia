@@ -123,6 +123,43 @@ describe("ClaudeRuntime (SDK mocked)", () => {
     expect(captured.options?.maxTurns).toBe(7);
   });
 
+  it("protects a macOS auth HOME from model tools while re-allowing the worktree", async () => {
+    const { captured, queryFn } = scriptedQuery([initMsg("s1"), successMsg("s1")]);
+    const rt = new ClaudeRuntime({
+      queryFn,
+      protectedHome: "/Users/example",
+      baseOptions: {
+        env: { HOME: "/Users/example", PATH: "/usr/bin" },
+        persistSession: false,
+        skills: [],
+        plugins: [],
+      },
+    });
+
+    await rt.runTurn(makeReq(), { gate: defaultGate });
+
+    expect(captured.options?.env?.HOME).toBe("/Users/example");
+    expect(captured.options?.persistSession).toBe(false);
+    expect(captured.options?.skills).toEqual([]);
+    expect(captured.options?.plugins).toEqual([]);
+    expect(captured.options?.settings).toMatchObject({
+      sandbox: {
+        enabled: true,
+        failIfUnavailable: true,
+        allowUnsandboxedCommands: false,
+        filesystem: {
+          denyRead: ["/Users/example"],
+          allowRead: ["/wd"],
+          allowWrite: ["/wd"],
+        },
+      },
+    });
+    expect(
+      (captured.options?.settings as { sandbox?: { filesystem?: { denyWrite?: string[] } } })
+        .sandbox?.filesystem?.denyWrite,
+    ).toBeUndefined();
+  });
+
   it("PreToolUse hook is the primary gate channel: deny carries the rule, escalation recorded", async () => {
     const gateCalls: ToolAction[] = [];
     const queryFn: QueryFn = ({ options }) =>

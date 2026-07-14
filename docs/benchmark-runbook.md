@@ -15,6 +15,14 @@ separate product/evaluator usage, explicit GitHub allowlists, and a read-only
 qualifier. A Stage 7 replay remains useful evidence but cannot replace the
 distribution or make a missing live case green.
 
+Before any new comparable provider run, execute the token-free funnel
+(`pnpm eval:validate`, `pnpm test:transformation`, and
+`pnpm eval:deterministic`), prepare the exact campaign, and inspect the
+`eval:github` and `eval:live` previews. Adapter calibration precedes product
+episodes. L6 is not folded into an ordinary benchmark invocation:
+`pnpm eval:soak -- --campaign <prepared-file>` previews the separately
+authorized 48–72 hour runner, its useful-turn cap, and restart protocol.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

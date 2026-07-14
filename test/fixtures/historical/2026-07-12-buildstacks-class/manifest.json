@@ -16,8 +16,9 @@
     "removed action input bodies and paths",
     "retained provider/model ids and accounting values needed for projection"
   ],
-  "selection": "minimal representative records for stale/cancelled finalization, long review, repeated work, route overrun, false approvals, telemetry/capture disagreement, and reset-abandoned learning",
+  "selection": "minimal representative records for stale/cancelled finalization, environment retries, shell-heavy exploration, long review, repeated work, route overrun, false approvals, telemetry/capture disagreement, and reset-abandoned learning",
   "files": {
+    "actions.json": "sha256:8f3aabb9926b667bb6923de9a52ec31ad6696d8508ebb645b74cef654f92c928",
     "approvals.json": "sha256:8d9d1a16d6a4c32e89f360f90e10a377bd5841a8021af8e2740e353b943b8140",
     "expected.json": "sha256:4c7e1f93e7a5fc0210637e89897284faec89b5f287d2cda67f2e5cce3f2cf835",
     "learning-episode.json": "sha256:86a95dfab74cd0da580877066a8e7de25d76bd7ac9e7162fda9a017629943e75",

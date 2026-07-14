@@ -25,6 +25,7 @@ export type CampaignOutcome = (typeof CAMPAIGN_OUTCOMES)[number];
 export interface EvalCaseManifest {
   schema_version: 1;
   case_id: string;
+  benchmark_id?: string;
   requirements: string[];
   app: { template: string; seed_ref: string };
   episode: { kind: string; task_ref: string };
@@ -43,6 +44,22 @@ export interface CampaignManifest {
   owner: string;
   created_at: string;
   intent: "qualification" | "non_qualification";
+  profile?: "production-parity" | "adapter-conformance" | "fault-injection";
+  blocks?: Array<{
+    name: "clean" | "mixed" | "learning" | "autonomy";
+    immutable_order: true;
+    randomized_by?: string;
+    population?: string[];
+    paired_order?: Array<"AB" | "BA">;
+    cases: Array<{ case_id: string; repetition_ids: string[] }>;
+  }>;
+  soak?: {
+    duration_hours: number;
+    tick_interval_minutes: number;
+    useful_turn_cap: number;
+    deliberate_restart_hour: number;
+    requires_external_restart_receipt: boolean;
+  };
   candidate: { commit: string; package_sha256: string; suite_sha256: string };
   org_fingerprint: string;
   system_fingerprint: string;
@@ -128,8 +145,10 @@ export function validateCase(value: unknown): string[] {
   const errors = objectErrors(value, "case");
   if (errors.length > 0) return errors;
   const v = value as Record<string, unknown>;
+  exactKeys(v, ["schema_version", "case_id", "benchmark_id", "requirements", "app", "episode", "route", "oracle", "side_effect_policy", "faults", "budgets_ref", "repetitions"], errors, "case");
   exactVersion(v, errors);
   stringField(v, "case_id", errors);
+  if (v.benchmark_id !== undefined) stringField(v, "benchmark_id", errors);
   stringArray(v, "requirements", errors, true);
   positiveInteger(v, "repetitions", errors);
   objectField(v, "app", errors);
@@ -160,6 +179,12 @@ export function validateCase(value: unknown): string[] {
     safeRelativeField(oracle, "hidden_grader", errors, "oracle");
     stringArray(oracle, "required_artifacts", errors, true, "oracle");
   }
+  const effects = record(v.side_effect_policy);
+  if (effects) {
+    const allowed: Record<string, string[]> = { github: ["forbidden", "local_bare_only", "disposable_repo_only"], network: ["forbidden", "loopback_only", "provider_only", "provider_only_when_declared", "provider_and_loopback_only"], publishing: ["forbidden"], deployment: ["forbidden", "eval_effect_recorder_only"] };
+    for (const [key, values] of Object.entries(allowed)) if (typeof effects[key] !== "string" || !values.includes(effects[key] as string)) errors.push(`side_effect_policy.${key} must be one of ${values.join(", ")}`);
+    exactKeys(effects, Object.keys(allowed), errors, "side_effect_policy");
+  }
   return errors;
 }
 
@@ -167,21 +192,25 @@ export function validateCampaign(value: unknown): string[] {
   const errors = objectErrors(value, "campaign");
   if (errors.length > 0) return errors;
   const v = value as Record<string, unknown>;
+  exactKeys(v, ["schema_version", "campaign_id", "purpose", "owner", "created_at", "intent", "profile", "blocks", "soak", "candidate", "org_fingerprint", "system_fingerprint", "cases", "assignments", "price_catalog_id", "randomization_seed", "github", "spend", "infrastructure_retries", "exclusions", "stop_rules", "operator_fixture", "evidence_dir"], errors, "campaign");
   exactVersion(v, errors);
   for (const field of ["campaign_id", "purpose", "owner", "price_catalog_id", "randomization_seed", "operator_fixture"]) {
     stringField(v, field, errors);
   }
+  if (typeof v.operator_fixture === "string" && !/^operator-fixtures\/[a-z0-9-]+-v\d+\.yaml$/.test(v.operator_fixture)) errors.push("operator_fixture must reference operator-fixtures/<name>-vN.yaml");
   digestField(v, "org_fingerprint", errors);
   digestField(v, "system_fingerprint", errors);
   safeRelativeField(v, "evidence_dir", errors);
   isoDateField(v, "created_at", errors);
   enumField(v, "intent", ["qualification", "non_qualification"], errors);
+  if (v.profile !== undefined) enumField(v, "profile", ["production-parity", "adapter-conformance", "fault-injection"], errors);
   objectField(v, "candidate", errors);
   arrayField(v, "cases", errors, true);
   arrayField(v, "assignments", errors, true);
   objectField(v, "github", errors);
   objectField(v, "spend", errors);
   nonNegativeInteger(v, "infrastructure_retries", errors);
+  if (typeof v.infrastructure_retries === "number" && v.infrastructure_retries > 1) errors.push("infrastructure_retries must be at most 1");
   stringArray(v, "exclusions", errors, false);
   stringArray(v, "stop_rules", errors, true);
   const candidate = record(v.candidate);
@@ -217,11 +246,87 @@ export function validateCampaign(value: unknown): string[] {
   for (const [index, raw] of assignments.entries()) {
     const item = record(raw); if (!item) { errors.push(`assignments[${index}] must be an object`); continue; }
     for (const field of ["role", "runtime", "model", "effort", "capability_ref"]) stringField(item, field, errors, `assignments[${index}]`);
+    if (typeof item.runtime === "string" && !["claude", "codex", "pi"].includes(item.runtime)) errors.push(`assignments[${index}].runtime must be one of claude, codex, pi`);
+    if (typeof item.effort === "string" && !["low", "medium", "high", "xhigh", "max"].includes(item.effort)) errors.push(`assignments[${index}].effort must be one of low, medium, high, xhigh, max`);
+    if (typeof item.capability_ref === "string" && !/^(claude|codex|pi)\/v\d+$/.test(item.capability_ref)) errors.push(`assignments[${index}].capability_ref must be <runtime>/vN`);
+    if (typeof item.runtime === "string" && typeof item.capability_ref === "string" && !item.capability_ref.startsWith(`${item.runtime}/`)) errors.push(`assignments[${index}].capability_ref runtime must match assignment runtime`);
     if (typeof item.role === "string") { if (assignedRoles.has(item.role)) errors.push(`duplicate assignment role ${item.role}`); assignedRoles.add(item.role); }
   }
   if (spend) {
     const caseCaps = record(spend.case_max_usd);
     if (caseCaps) for (const raw of cases) { const item = record(raw); if (item && typeof item.case_id === "string" && (typeof caseCaps[item.case_id] !== "number" || (caseCaps[item.case_id] as number) <= 0)) errors.push(`spend.case_max_usd missing positive cap for ${item.case_id}`); }
+  }
+  if (v.blocks !== undefined) {
+    if (!Array.isArray(v.blocks) || v.blocks.length === 0) errors.push("blocks must be a non-empty array when present");
+    else {
+      const blockNames = new Set<string>();
+      const blockEntries = new Map<string, string[]>();
+      const declared = new Set(cases.flatMap((raw) => {
+        const item = record(raw);
+        return item && typeof item.case_id === "string" && Array.isArray(item.repetition_ids)
+          ? item.repetition_ids.map((rep) => `${item.case_id}::${String(rep)}`)
+          : [];
+      }));
+      const blocked = new Set<string>();
+      for (const [index, raw] of v.blocks.entries()) {
+        const block = record(raw);
+        if (!block) { errors.push(`blocks[${index}] must be an object`); continue; }
+        enumField(block, "name", ["clean", "mixed", "learning", "autonomy"], errors, `blocks[${index}]`);
+        if (block.immutable_order !== true) errors.push(`blocks[${index}].immutable_order must be true`);
+        if (typeof block.name === "string") { if (blockNames.has(block.name)) errors.push(`duplicate block ${block.name}`); blockNames.add(block.name); }
+        if (block.randomized_by !== undefined && typeof block.randomized_by !== "string") errors.push(`blocks[${index}].randomized_by must be a string`);
+        if (block.population !== undefined && (!Array.isArray(block.population) || block.population.some((item) => typeof item !== "string"))) errors.push(`blocks[${index}].population must be a string array`);
+        if (block.paired_order !== undefined && (!Array.isArray(block.paired_order) || block.paired_order.some((arm) => arm !== "AB" && arm !== "BA"))) errors.push(`blocks[${index}].paired_order must contain AB/BA`);
+        if (!Array.isArray(block.cases) || block.cases.length === 0) { errors.push(`blocks[${index}].cases must be non-empty`); continue; }
+        const entryKeys: string[] = [];
+        for (const [caseIndex, caseRaw] of block.cases.entries()) {
+          const item = record(caseRaw);
+          if (!item) { errors.push(`blocks[${index}].cases[${caseIndex}] must be an object`); continue; }
+          stringField(item, "case_id", errors, `blocks[${index}].cases[${caseIndex}]`);
+          stringArray(item, "repetition_ids", errors, true, `blocks[${index}].cases[${caseIndex}]`);
+          if (typeof item.case_id === "string" && Array.isArray(item.repetition_ids)) for (const repetition of item.repetition_ids) {
+            const key = `${item.case_id}::${String(repetition)}`;
+            entryKeys.push(key);
+            if (blocked.has(key)) errors.push(`duplicate block repetition ${key}`);
+            blocked.add(key);
+            if (!declared.has(key)) errors.push(`block repetition not declared in cases ${key}`);
+          }
+        }
+        if (typeof block.name === "string") blockEntries.set(block.name, entryKeys);
+        if (typeof block.randomized_by === "string") {
+          if (!Array.isArray(block.population) || block.population.length === 0) errors.push(`blocks[${index}] randomized block requires population`);
+          else {
+            const actual = (block.cases as Array<{ case_id: string; repetition_ids: string[] }>).flatMap((item) => item.repetition_ids.map((rep) => `${item.case_id}::${rep}`));
+            const expectedOrder = deterministicOrder(block.population as string[], block.randomized_by);
+            if (JSON.stringify(actual) !== JSON.stringify(expectedOrder)) errors.push(`blocks[${index}] order does not match committed randomization seed`);
+          }
+        }
+      }
+      if (v.intent === "qualification") {
+        for (const required of ["clean", "mixed", "learning", "autonomy"]) if (!blockNames.has(required)) errors.push(`qualification campaign missing ${required} block`);
+        const clean = blockEntries.get("clean") ?? []; if (clean.length !== 5 || clean.some((key) => !key.startsWith("quick/"))) errors.push("qualification clean block must contain exactly five quick repetitions");
+        const mixed = blockEntries.get("mixed") ?? []; const mixedCounts = { quick: countPrefix(mixed, "quick/"), standard: countPrefix(mixed, "standard/"), deep: countPrefix(mixed, "deep/"), continuation: countPrefix(mixed, "continuation/"), approval: countPrefix(mixed, "approval/") };
+        if (mixed.length !== 10 || mixedCounts.quick !== 2 || mixedCounts.standard !== 3 || mixedCounts.deep !== 2 || mixedCounts.continuation !== 2 || mixedCounts.approval !== 1) errors.push("qualification mixed block must be 2 quick, 3 standard, 2 deep, 2 continuation, and 1 approval repetition");
+        const learning = blockEntries.get("learning") ?? []; const learningBlock = (v.blocks as Array<Record<string, unknown>>).find((block) => block.name === "learning"); if (learning.length !== 6 || !Array.isArray(learningBlock?.paired_order) || learningBlock.paired_order.length !== 3) errors.push("qualification learning block must contain three declared control/treatment pairs");
+        else for (const [pairIndex, order] of learningBlock.paired_order.entries()) { const pair = learning.slice(pairIndex * 2, pairIndex * 2 + 2); const suffixes = pair.map((key) => key.includes("-control") ? "A" : key.includes("-treatment") ? "B" : "?").join(""); if (suffixes !== order) errors.push(`qualification learning pair ${pairIndex + 1} order must match declared ${String(order)}`); }
+        const autonomy = blockEntries.get("autonomy") ?? []; if (autonomy.length !== 4 || countPrefix(autonomy, "soak/virtual-seven-day/") !== 1 || countPrefix(autonomy, "roles/standing/") !== 3) errors.push("qualification autonomy block must contain virtual soak plus SRE, Support, and Marketing repetitions");
+        const declaredKeys = [...declared]; if (declaredKeys.filter((key) => key.startsWith("planning/quality/")).length !== 3 || declaredKeys.filter((key) => key.startsWith("context/delta/")).length !== 6) errors.push("qualification campaign must declare three goal-to-plan routes and two context-delta probes per claimed adapter");
+      }
+    }
+  }
+  if (v.intent === "qualification" && v.blocks === undefined && v.soak === undefined) errors.push("qualification campaign requires immutable blocks or a declared real-time soak");
+  if (v.soak !== undefined) {
+    const soak = record(v.soak);
+    if (!soak) errors.push("soak must be an object");
+    else {
+      positiveNumber(soak, "duration_hours", errors, "soak");
+      positiveNumber(soak, "tick_interval_minutes", errors, "soak");
+      positiveIntegerAt(soak, "useful_turn_cap", errors, "soak");
+      positiveNumber(soak, "deliberate_restart_hour", errors, "soak");
+      if ((soak.duration_hours as number) < 48 || (soak.duration_hours as number) > 72) errors.push("soak.duration_hours must be between 48 and 72");
+      if ((soak.deliberate_restart_hour as number) >= (soak.duration_hours as number)) errors.push("soak.deliberate_restart_hour must precede duration_hours");
+      if (soak.requires_external_restart_receipt !== true) errors.push("soak.requires_external_restart_receipt must be true");
+    }
   }
   return errors;
 }
@@ -230,6 +335,7 @@ export function validateResult(value: unknown): string[] {
   const errors = objectErrors(value, "result");
   if (errors.length > 0) return errors;
   const v = value as Record<string, unknown>;
+  exactKeys(v, ["schema_version", "campaign_id", "campaign_sha256", "attempt_id", "case_id", "repetition_id", "outcome", "admitted_at", "terminal_at", "evidence", "metrics", "exclusions", "missing", "retry_of"], errors, "result");
   exactVersion(v, errors);
   for (const field of ["campaign_id", "attempt_id", "case_id", "repetition_id"]) stringField(v, field, errors);
   digestField(v, "campaign_sha256", errors);
@@ -244,7 +350,14 @@ export function validateResult(value: unknown): string[] {
   if (v.outcome === "passed" && Array.isArray(v.missing) && v.missing.length > 0) {
     errors.push("passed result cannot contain missing measurements");
   }
+  if (v.outcome !== "not_run" && Array.isArray(v.evidence) && v.evidence.length === 0) errors.push("admitted attempt requires at least one evidence reference");
+  if (Array.isArray(v.evidence)) for (const ref of v.evidence) if (typeof ref === "string" && !/^(episode|run|github|artifact|grader|approval|git|provider|harness|fixture):[^\s]+$/.test(ref)) errors.push(`invalid evidence reference ${ref}`);
   if (v.outcome !== "not_run" && v.admitted_at === null) errors.push("admitted attempt requires admitted_at");
+  if (v.outcome !== "not_run" && v.terminal_at === null) errors.push("terminal attempt requires terminal_at");
+  if (typeof v.admitted_at === "string" && typeof v.terminal_at === "string" && Date.parse(v.terminal_at) < Date.parse(v.admitted_at)) errors.push("terminal_at must not precede admitted_at");
+  if (Array.isArray(v.evidence) && new Set(v.evidence).size !== v.evidence.length) errors.push("evidence references must be unique");
+  const metrics = record(v.metrics); if (metrics) { exactKeys(metrics, ["route", "context", "cost", "tokens", "latency", "human_load", "productivity", "continuation", "approvals", "scheduler", "learning", "execution", "capabilities", "soak"], errors, "metrics"); for (const group of ["route", "context", "cost", "tokens", "latency", "human_load", "productivity", "continuation", "approvals", "scheduler", "learning", "execution"]) objectField(metrics, group, errors, "metrics"); }
+  if (record(v.metrics) && typeof v.case_id === "string" && ATTEMPT_OUTCOMES.includes(v.outcome as AttemptOutcome)) for (const error of metricFormulaErrors(v as unknown as AttemptResult)) errors.push(`metrics ${error}`);
   return errors;
 }
 
@@ -252,6 +365,7 @@ export function validateContracts(value: unknown): string[] {
   const root = record(value);
   if (!root) return ["contracts must be an object"];
   const errors: string[] = [];
+  exactKeys(root, ["schema_version", "contracts"], errors, "contracts");
   exactVersion(root, errors);
   const contracts = root.contracts;
   if (!Array.isArray(contracts) || contracts.length === 0) return [...errors, "contracts must be a non-empty array"];
@@ -323,7 +437,41 @@ export interface Qualification {
   attempt_ids: string[];
   counts: Record<AttemptOutcome, number>;
   reasons: string[];
+  metrics: QualificationMetrics;
+  attempt_details: Array<{
+    attempt_id: string;
+    case_id: string;
+    outcome: AttemptOutcome;
+    planned_route: string | null;
+    final_route: string | null;
+    model_turns: number | null;
+    mechanical_steps: number | null;
+    context_bytes: number | null;
+    equivalent_cost_usd: number | null;
+    active_ms: number | null;
+    human_decisions: number | null;
+    learning_effect: number | null;
+    missing: string[];
+    exclusions: string[];
+  }>;
 }
+
+export interface QualificationPopulation {
+  numerator: number;
+  denominator: number;
+  excluded: string[];
+  missing: string[];
+  quality: "valid" | "invalid_measurement";
+  values: number[];
+  median: number | null;
+  p90: number | null;
+}
+export interface QualificationMetrics {
+  populations: Record<QualificationMetricName, QualificationPopulation>;
+  accounting: { provider_turns: number; mechanical_steps: number; product_cost_usd: number; evaluator_cost_usd: number; provider_settlements: number; mechanical_settlements: number };
+  routes: Record<string, { attempts: number; passed: number; escalated: number }>;
+}
+export type QualificationMetricName = "route" | "context" | "cost" | "elapsed" | "active" | "human_wait" | "human_load" | "input_tokens" | "output_tokens" | "productive_ratio" | "repeated_work_cost" | "continuation" | "approval_precision" | "approval_recurrence" | "scheduler_reliability" | "learning_capture" | "learning_effect" | "settlement";
 
 export function qualify(campaign: CampaignManifest, campaignSha256: string, results: AttemptResult[]): Qualification {
   const counts = Object.fromEntries(ATTEMPT_OUTCOMES.map((outcome) => [outcome, 0])) as Record<AttemptOutcome, number>;
@@ -345,6 +493,7 @@ export function qualify(campaign: CampaignManifest, campaignSha256: string, resu
     if (result.outcome === "harness_error") reasons.push(`${result.attempt_id}: ${result.outcome}`);
     if (result.outcome === "not_run") reasons.push(`${result.attempt_id}: required attempt not_run`);
     if (result.outcome === "product_miss" || result.outcome === "safety_stop" || result.outcome === "budget_stop") reasons.push(`${result.attempt_id}: ${result.outcome}`);
+    if (result.missing.length > 0) reasons.push(`${result.attempt_id}: missing ${result.missing.join(",")}`);
   }
   for (const result of results) if (result.retry_of !== undefined) {
     if (!attemptIds.has(result.retry_of) || result.retry_of === result.attempt_id) reasons.push(`undeclared retry linkage ${result.attempt_id}`);
@@ -356,9 +505,35 @@ export function qualify(campaign: CampaignManifest, campaignSha256: string, resu
     if (!replacement) reasons.push(`${result.attempt_id}: unrecovered infrastructure attempt`);
   }
   for (const key of expected) if (!primaryObserved.has(key)) reasons.push(`missing attempt ${key}`);
-  const invalid = reasons.some((reason) => reason.includes("invalid result") || reason.includes("foreign") || reason.includes("duplicate") || reason.includes("unrecovered infrastructure") || reason.includes("harness_error") || reason.includes("retry linkage") || reason.includes("retries "));
+  const metrics = qualificationMetrics(results);
+  for (const result of results) {
+    const execution = nestedRecord(result.metrics, "execution");
+    const providerTurns = finite(execution?.provider_turns);
+    const providerSettlements = finite(execution?.provider_settlements);
+    const mechanicalSettlements = finite(execution?.mechanical_settlements);
+    if (providerTurns !== null && providerSettlements !== null && providerTurns !== providerSettlements) reasons.push(`${result.attempt_id}: provider settlement mismatch ${providerTurns}/${providerSettlements}`);
+    if (mechanicalSettlements !== null && mechanicalSettlements !== 0) reasons.push(`${result.attempt_id}: mechanical step has provider settlement`);
+    if (finite(execution?.terminal_integrity) !== 1) reasons.push(`${result.attempt_id}: terminal integrity failed`);
+    const cost = nestedRecord(result.metrics, "cost");
+    if (cost?.quality === "unavailable") reasons.push(`${result.attempt_id}: usage quality unavailable`);
+    for (const error of metricFormulaErrors(result)) reasons.push(`${result.attempt_id}: invalid metric ${error}`);
+  }
+  if (campaign.intent === "qualification") for (const [name, population] of Object.entries(metrics.populations)) if (population.quality !== "valid") reasons.push(`invalid measurement population ${name}: ${population.missing.join(",")}`);
+  let qualificationMiss = false;
+  if (campaign.intent === "qualification" && campaign.blocks) {
+    const terminalFor = (key: string): AttemptResult | undefined => { const [caseId, repetitionId] = key.split("::"); return results.filter((result) => result.case_id === caseId && result.repetition_id === repetitionId).at(-1); };
+    const entries = (name: string): string[] => campaign.blocks!.find((block) => block.name === name)?.cases.flatMap((item) => item.repetition_ids.map((repetition) => `${item.case_id}::${repetition}`)) ?? [];
+    const delivery = [...entries("clean"), ...entries("mixed")];
+    if (delivery.length !== 15 || delivery.some((key) => terminalFor(key)?.outcome !== "passed")) { reasons.push("qualification delivery oracle requires 15/15 passed episodes"); qualificationMiss = true; }
+    for (const key of entries("clean")) { const result = terminalFor(key); const route = nestedRecord(result?.metrics, "route"); const cost = nestedRecord(result?.metrics, "cost"); const latency = nestedRecord(result?.metrics, "latency"); const human = nestedRecord(result?.metrics, "human_load"); if (!result || route?.planned !== "quick" || route?.final !== "quick" || (finite(route.model_turns) ?? Infinity) > 3 || (finite(cost?.equivalent_usd) ?? Infinity) > 8 || (finite(latency?.active_ms) ?? Infinity) > 20 * 60_000 || (finite(human?.decisions) ?? Infinity) > 1) { reasons.push(`qualification clean route bound miss ${key}`); qualificationMiss = true; } }
+    let originalRoute = 0;
+    for (const key of entries("mixed")) { const result = terminalFor(key); if (!result) continue; const route = nestedRecord(result.metrics, "route"); const cost = nestedRecord(result.metrics, "cost"); if (route?.planned === route?.final) originalRoute += 1; const cap = campaign.spend.case_max_usd[result.case_id]; if (cap === undefined || (finite(cost?.equivalent_usd) ?? Infinity) > cap) { reasons.push(`qualification mixed route budget miss ${key}`); qualificationMiss = true; } }
+    if (originalRoute < 9) { reasons.push(`qualification mixed original-route count ${originalRoute}/10`); qualificationMiss = true; }
+    for (const name of ["learning", "autonomy"] as const) for (const key of entries(name)) if (terminalFor(key)?.outcome !== "passed") { reasons.push(`qualification ${name} block miss ${key}`); qualificationMiss = true; }
+  }
+  const invalid = reasons.some((reason) => reason.includes("invalid result") || reason.includes("foreign") || reason.includes("duplicate") || reason.includes("unrecovered infrastructure") || reason.includes("harness_error") || reason.includes("retry linkage") || reason.includes("retries ") || reason.includes("invalid measurement population") || reason.includes("invalid metric") || reason.includes(": missing ") || reason.includes("settlement mismatch") || reason.includes("mechanical step has provider settlement") || reason.includes("terminal integrity failed") || reason.includes("usage quality unavailable"));
   const incomplete = !invalid && reasons.some((reason) => reason.includes("missing attempt") || reason.includes("not_run"));
-  const miss = counts.product_miss + counts.safety_stop + counts.budget_stop > 0;
+  const miss = qualificationMiss || counts.product_miss + counts.safety_stop + counts.budget_stop > 0;
   return {
     schema_version: 1,
     campaign_id: campaign.campaign_id,
@@ -368,8 +543,97 @@ export function qualify(campaign: CampaignManifest, campaignSha256: string, resu
     attempt_ids: results.map((result) => result.attempt_id).sort(),
     counts,
     reasons: reasons.sort(),
+    metrics,
+    attempt_details: results.map(attemptDetail).sort((a, b) => a.attempt_id.localeCompare(b.attempt_id)),
   };
 }
+
+export function emptyQualificationMetrics(): QualificationMetrics {
+  const empty = (): QualificationPopulation => ({ numerator: 0, denominator: 0, excluded: [], missing: [], quality: "valid", values: [], median: null, p90: null });
+  return { populations: { route: empty(), context: empty(), cost: empty(), elapsed: empty(), active: empty(), human_wait: empty(), human_load: empty(), input_tokens: empty(), output_tokens: empty(), productive_ratio: empty(), repeated_work_cost: empty(), continuation: empty(), approval_precision: empty(), approval_recurrence: empty(), scheduler_reliability: empty(), learning_capture: empty(), learning_effect: empty(), settlement: empty() }, accounting: { provider_turns: 0, mechanical_steps: 0, product_cost_usd: 0, evaluator_cost_usd: 0, provider_settlements: 0, mechanical_settlements: 0 }, routes: {} };
+}
+
+function qualificationMetrics(results: AttemptResult[]): QualificationMetrics {
+  const specs = {
+    route: { path: ["route", "model_turns"], applies: () => true },
+    context: { path: ["context", "rendered_bytes"], applies: () => true },
+    cost: { path: ["cost", "equivalent_usd"], applies: () => true },
+    elapsed: { path: ["latency", "elapsed_ms"], applies: () => true },
+    active: { path: ["latency", "active_ms"], applies: () => true },
+    human_wait: { path: ["latency", "human_wait_ms"], applies: () => true },
+    human_load: { path: ["human_load", "decisions"], applies: () => true },
+    input_tokens: { path: ["tokens", "input"], applies: providerAttempt },
+    output_tokens: { path: ["tokens", "output"], applies: providerAttempt },
+    productive_ratio: { path: ["productivity", "ratio"], applies: productProviderAttempt },
+    repeated_work_cost: { path: ["productivity", "repeated_work_cost_usd"], applies: productProviderAttempt },
+    continuation: { path: ["continuation", "ratio"], applies: (result: AttemptResult) => result.case_id.startsWith("continuation/") },
+    approval_precision: { path: ["approvals", "precision"], applies: (result: AttemptResult) => result.case_id.startsWith("approval/") },
+    approval_recurrence: { path: ["approvals", "recurrence"], applies: (result: AttemptResult) => result.case_id.startsWith("approval/") },
+    scheduler_reliability: { path: ["scheduler", "reliability"], applies: (result: AttemptResult) => result.case_id.startsWith("soak/") },
+    learning_capture: { path: ["learning", "capture_ratio"], applies: (result: AttemptResult) => result.case_id.startsWith("learning/") },
+    learning_effect: { path: ["learning", "effect_delta"], applies: (result: AttemptResult) => result.case_id.startsWith("learning/") },
+    settlement: { path: ["execution", "terminal_integrity"], applies: () => true },
+  } satisfies Record<QualificationMetricName, { path: readonly [string, string]; applies: (result: AttemptResult) => boolean }>;
+  const populations = Object.fromEntries(Object.entries(specs).map(([name, spec]) => [name, metricPopulation(results, spec.path, spec.applies)])) as QualificationMetrics["populations"];
+  const accounting = { provider_turns: 0, mechanical_steps: 0, product_cost_usd: 0, evaluator_cost_usd: 0, provider_settlements: 0, mechanical_settlements: 0 };
+  const routes: QualificationMetrics["routes"] = {};
+  for (const result of results) {
+    const execution = nestedRecord(result.metrics, "execution");
+    const cost = nestedRecord(result.metrics, "cost");
+    accounting.provider_turns += finite(execution?.provider_turns) ?? 0;
+    accounting.mechanical_steps += finite(execution?.mechanical_steps) ?? 0;
+    accounting.provider_settlements += finite(execution?.provider_settlements) ?? 0;
+    accounting.mechanical_settlements += finite(execution?.mechanical_settlements) ?? 0;
+    accounting.product_cost_usd += finite(cost?.product_usd) ?? finite(cost?.equivalent_usd) ?? 0;
+    accounting.evaluator_cost_usd += finite(cost?.evaluator_usd) ?? 0;
+    const route = nestedRecord(result.metrics, "route");
+    const planned = typeof route?.planned === "string" ? route.planned : "unknown";
+    const final = typeof route?.final === "string" ? route.final : planned;
+    const item = routes[planned] ?? { attempts: 0, passed: 0, escalated: 0 };
+    item.attempts += 1; if (result.outcome === "passed") item.passed += 1; if (final !== planned) item.escalated += 1; routes[planned] = item;
+  }
+  return { populations, accounting, routes };
+}
+function metricPopulation(results: AttemptResult[], path: readonly [string, string], applies: (result: AttemptResult) => boolean): QualificationPopulation {
+  const values: number[] = []; const missing: string[] = []; const excluded: string[] = [];
+  for (const result of results) {
+    const category = nestedRecord(result.metrics, path[0]);
+    if (!applies(result)) { excluded.push(result.attempt_id); continue; }
+    if (category && Array.isArray(category.excluded) && category.excluded.length > 0) { if (["budget_stop", "not_run", "infra_invalid", "harness_error"].includes(result.outcome)) excluded.push(result.attempt_id); else missing.push(result.attempt_id); continue; }
+    const value = finite(category?.[path[1]]);
+    if (value === null) missing.push(result.attempt_id); else values.push(value);
+  }
+  values.sort((a, b) => a - b);
+  const denominator = results.length - excluded.length;
+  return { numerator: values.length, denominator, excluded: excluded.sort(), missing: missing.sort(), quality: missing.length === 0 && values.length === denominator ? "valid" : "invalid_measurement", values, median: percentile(values, 0.5), p90: percentile(values, 0.9) };
+}
+function providerAttempt(result: AttemptResult): boolean { return (finite(nestedRecord(result.metrics, "execution")?.provider_turns) ?? 0) > 0; }
+function productProviderAttempt(result: AttemptResult): boolean { return providerAttempt(result) && !result.case_id.startsWith("adapter/"); }
+function metricFormulaErrors(result: AttemptResult): string[] {
+  if (result.outcome === "budget_stop" || result.outcome === "not_run") return [];
+  const errors: string[] = [];
+  const execution = nestedRecord(result.metrics, "execution"); const providerTurns = finite(execution?.provider_turns) ?? 0;
+  const latency = nestedRecord(result.metrics, "latency"); const elapsed = finite(latency?.elapsed_ms); const active = finite(latency?.active_ms); const wait = finite(latency?.human_wait_ms);
+  if (elapsed === null || active === null || wait === null || elapsed < 0 || active < 0 || wait < 0 || elapsed < Math.max(active, wait)) errors.push("latency requires non-negative elapsed/active/human_wait with elapsed >= each component");
+  const context = nestedRecord(result.metrics, "context"); if (finite(context?.rendered_bytes) === null || typeof context?.sources !== "object" || context.sources === null || Array.isArray(context.sources)) errors.push("context requires rendered_bytes and source byte map"); else { const sourceValues = Object.values(context.sources as Record<string, unknown>); if (sourceValues.some((value) => finite(value) === null || (value as number) < 0) || sourceValues.reduce((sum, value) => sum + (value as number), 0) !== context.rendered_bytes) errors.push("context source bytes must be non-negative and sum to rendered_bytes"); }
+  if (providerTurns > 0) {
+    const tokens = nestedRecord(result.metrics, "tokens"); const qualityAllowed = ["complete", "partial", "estimated"].includes(String(tokens?.quality)) || (["infra_invalid", "harness_error"].includes(result.outcome) && tokens?.quality === "unavailable"); if (finite(tokens?.input) === null || finite(tokens?.output) === null || !qualityAllowed) errors.push("provider attempts require input/output token totals and usable quality");
+    if (!result.case_id.startsWith("adapter/")) { const productivity = nestedRecord(result.metrics, "productivity"); checkRatio(productivity, "productive_passes", "total_passes", "ratio", errors, "productivity"); if (finite(productivity?.repeated_work_cost_usd) === null) errors.push("productivity requires repeated_work_cost_usd"); }
+  }
+  if (result.case_id.startsWith("continuation/")) checkRatio(nestedRecord(result.metrics, "continuation"), "resumed_without_repeat", "eligible", "ratio", errors, "continuation");
+  if (result.case_id.startsWith("approval/")) { const approvals = nestedRecord(result.metrics, "approvals"); checkRatio(approvals, "valid_requests", "total_requests", "precision", errors, "approvals"); if (finite(approvals?.recurrence) === null) errors.push("approvals requires recurrence"); }
+  if (result.case_id.startsWith("soak/")) checkRatio(nestedRecord(result.metrics, "scheduler"), "reasoned_ticks", "due_ticks", "reliability", errors, "scheduler");
+  if (result.case_id.startsWith("learning/")) checkRatio(nestedRecord(result.metrics, "learning"), "captured", "eligible_capture", "capture_ratio", errors, "learning");
+  return errors;
+}
+function checkRatio(group: Record<string, unknown> | undefined, numeratorKey: string, denominatorKey: string, ratioKey: string, errors: string[], label: string): void { const numerator = finite(group?.[numeratorKey]); const denominator = finite(group?.[denominatorKey]); const ratio = finite(group?.[ratioKey]); const zero = numerator === 0 && denominator === 0 && ratio === 0; if (!zero && (numerator === null || denominator === null || ratio === null || denominator <= 0 || numerator < 0 || numerator > denominator || Math.abs(ratio - numerator / denominator) > 1e-9)) errors.push(`${label} requires a consistent numerator/denominator ratio`); }
+function attemptDetail(result: AttemptResult): Qualification["attempt_details"][number] {
+  const route = nestedRecord(result.metrics, "route"); const context = nestedRecord(result.metrics, "context"); const cost = nestedRecord(result.metrics, "cost"); const latency = nestedRecord(result.metrics, "latency"); const human = nestedRecord(result.metrics, "human_load"); const learning = nestedRecord(result.metrics, "learning"); const execution = nestedRecord(result.metrics, "execution");
+  return { attempt_id: result.attempt_id, case_id: result.case_id, outcome: result.outcome, planned_route: typeof route?.planned === "string" ? route.planned : null, final_route: typeof route?.final === "string" ? route.final : null, model_turns: finite(route?.model_turns), mechanical_steps: finite(execution?.mechanical_steps), context_bytes: finite(context?.rendered_bytes), equivalent_cost_usd: finite(cost?.equivalent_usd), active_ms: finite(latency?.active_ms), human_decisions: finite(human?.decisions), learning_effect: finite(learning?.effect_delta), missing: [...result.missing].sort(), exclusions: [...result.exclusions].sort() };
+}
+function nestedRecord(value: unknown, key: string): Record<string, unknown> | undefined { const parent = typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined; const child = parent?.[key]; return typeof child === "object" && child !== null && !Array.isArray(child) ? child as Record<string, unknown> : undefined; }
+function finite(value: unknown): number | null { return typeof value === "number" && Number.isFinite(value) ? value : null; }
+function percentile(values: number[], quantile: number): number | null { if (values.length === 0) return null; const rank = (values.length - 1) * quantile; const low = Math.floor(rank); const high = Math.ceil(rank); return values[low]! + (values[high]! - values[low]!) * (rank - low); }
 
 export interface GraderCalibration<T> {
   graderId: string;
@@ -423,9 +687,13 @@ function objectField(v: Record<string, unknown>, f: string, e: string[], p = "")
 function arrayField(v: Record<string, unknown>, f: string, e: string[], nonEmpty: boolean): void { if (!Array.isArray(v[f]) || (nonEmpty && (v[f] as unknown[]).length === 0)) e.push(`${f} must be ${nonEmpty ? "a non-empty" : "an"} array`); }
 function stringArray(v: Record<string, unknown>, f: string, e: string[], nonEmpty: boolean, p = ""): void { const x = v[f]; if (!Array.isArray(x) || (nonEmpty && x.length === 0) || x.some((i) => typeof i !== "string" || i === "")) e.push(`${p ? `${p}.` : ""}${f} must be ${nonEmpty ? "a non-empty" : "an"} string array`); }
 function positiveInteger(v: Record<string, unknown>, f: string, e: string[]): void { if (!Number.isInteger(v[f]) || (v[f] as number) <= 0) e.push(`${f} must be a positive integer`); }
+function positiveIntegerAt(v: Record<string, unknown>, f: string, e: string[], p = ""): void { if (!Number.isInteger(v[f]) || (v[f] as number) <= 0) e.push(`${p ? `${p}.` : ""}${f} must be a positive integer`); }
 function nonNegativeInteger(v: Record<string, unknown>, f: string, e: string[]): void { if (!Number.isInteger(v[f]) || (v[f] as number) < 0) e.push(`${f} must be a non-negative integer`); }
 function positiveNumber(v: Record<string, unknown>, f: string, e: string[], p = ""): void { if (typeof v[f] !== "number" || !Number.isFinite(v[f]) || (v[f] as number) <= 0) e.push(`${p ? `${p}.` : ""}${f} must be a positive number`); }
 function enumField(v: Record<string, unknown>, f: string, values: string[], e: string[], p = ""): void { if (typeof v[f] !== "string" || !values.includes(v[f] as string)) e.push(`${p ? `${p}.` : ""}${f} must be one of ${values.join(", ")}`); }
 function isoDateField(v: Record<string, unknown>, f: string, e: string[]): void { if (typeof v[f] !== "string" || !Number.isFinite(Date.parse(v[f] as string))) e.push(`${f} must be an ISO date`); }
 function nullableIsoDateField(v: Record<string, unknown>, f: string, e: string[]): void { if (v[f] !== null && (typeof v[f] !== "string" || !Number.isFinite(Date.parse(v[f] as string)))) e.push(`${f} must be null or an ISO date`); }
 function safeRelativeField(v: Record<string, unknown>, f: string, e: string[], p = ""): void { stringField(v, f, e, p); const x = v[f]; if (typeof x === "string" && (isAbsolute(x) || x.split(/[\\/]/).includes(".."))) e.push(`${p ? `${p}.` : ""}${f} must be a safe relative path`); }
+function exactKeys(v: Record<string, unknown>, allowed: string[], e: string[], p: string): void { const set = new Set(allowed); for (const key of Object.keys(v)) if (!set.has(key)) e.push(`${p} has unknown key ${key}`); }
+function deterministicOrder(items: string[], seed: string): string[] { return items.map((value, index) => ({ value, key: createHash("sha256").update(`${seed}\0${index}`).digest("hex") })).sort((a, b) => a.key.localeCompare(b.key)).map((item) => item.value); }
+function countPrefix(items: string[], prefix: string): number { return items.filter((item) => item.startsWith(prefix)).length; }

@@ -1,0 +1,7 @@
+schema_version: 1
+fixture_id: human-declared-soak-approvals/v1
+actor_kind: human_operator
+scripted_layers: []
+live_decision_mode: human_required
+decisions: []
+forbidden_effects: [real_deploy, publication, message_send, email_send, dns_mutation, cloud_mutation, irreversible_data_operation]

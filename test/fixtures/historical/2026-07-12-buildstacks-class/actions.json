@@ -1,0 +1,5 @@
+[
+  {"run_id":"run-build-repeated-1","shell_commands":22,"unique_shell_commands":9,"repeated_shell_commands":13,"environment_retries":3,"tool_calls":50},
+  {"run_id":"run-fix-repeated-2","shell_commands":18,"unique_shell_commands":7,"repeated_shell_commands":11,"environment_retries":2,"tool_calls":44},
+  {"run_id":"run-review-long","shell_commands":6,"unique_shell_commands":6,"repeated_shell_commands":0,"environment_retries":0,"tool_calls":21}
+]

@@ -52,8 +52,9 @@ README.md → Observability is the authoritative inventory):
 is the org ledger every provider turn settles into exactly once, keyed on
 `(app, providerTurnId)` with `(app, runId)` fallback for legacy rows (`operon
 budget --reconcile` back-fills); `efficiency/episodes/<hash>/` holds the
-episode route, terminal provider/mechanical execution steps, and context
-manifest projection; `invocations/<date>.jsonl`
+episode route, route-bounded execution journal, terminal provider/mechanical
+execution steps, and component-hashed context manifest/delta projections;
+`invocations/<date>.jsonl`
 records each loop/dispatch invocation; `tasks/<taskId>/` holds the broader
 delegated-task record plus exact outer prompt (child envelopes and ledger
 rows carry `parent_task_id`); `learning/` holds the capture
@@ -167,9 +168,11 @@ report-only compaction run through the ordinary dispatch/pipeline/ledger path.
   `pnpm dev bootstrap --scan-only <repo>` ·
   `pnpm dev bootstrap <repo> --answers-from <archive|app> [--json]` · `pnpm dev plan <app> --dry-run` ·
   `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]
-  [--depth quick|standard|deep] [--no-publish]` (adaptive runtime-backed
+  [--depth quick|standard|deep] [--no-publish] [--explain-route]` (adaptive runtime-backed
   plan: schema-validated, orchestrator-published) ·
-  `pnpm dev loop --app <app> --once --dry-run` ·
+  `pnpm dev loop --app <app> --once --dry-run` · `pnpm dev loop
+  --explain-context <episode-id>` · `pnpm dev loop --resume-episode
+  <episode-id>` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
   `pnpm dev observe [--app <app>] [--port 0] [--open]` ·
   `pnpm dev report [--app <app>] [--period 7d|30d|90d|1y|all] [--json] [--html out.html]` ·

@@ -30,6 +30,7 @@ import type {
   TurnProgress,
   TurnUsage,
 } from "../runtime/types.js";
+import type { RuntimeCapability, RuntimeCapabilityProfile } from "../runtime/capabilities.js";
 import {
   recordTurnOnce,
   toRecord,
@@ -58,11 +59,13 @@ import {
   finalizeProviderStep,
   fingerprint,
   ProviderBudgetRefusalError,
+  remainingExecutionAllowance,
   worktreeFingerprint,
   type AdmissionFactor,
   type AuthorizedPass,
   type RouteBudget,
 } from "./efficiency.js";
+import { runPipelinePreflight, type PipelineArtifactExpectation } from "./preflight.js";
 import {
   parallelStages,
   selectPasses,
@@ -126,7 +129,17 @@ export interface ExecutePipelineOptions {
     budgetOverrides?: Partial<RouteBudget>;
     finalize?: boolean;
     nextTurnEstimate?: { inputTokens?: number; costUsd?: number; activeTimeMs?: number };
+    artifactExpectations?: PipelineArtifactExpectation[];
   };
+  /** Token-free static adapter capability contract. Tests/isolated hosts may
+   * inject narrower profiles; no runtime is constructed to answer it. */
+  requiredCapabilities?: RuntimeCapability[];
+  capabilityProfiles?: Partial<Record<RoleConfig["runtime"], RuntimeCapabilityProfile>>;
+  /** Explicit, caller-owned context allowance. This is reserved for bounded
+   * protocol probes whose payload size is itself the tested contract; normal
+   * product episodes use the route cap. The chosen value remains visible in
+   * the durable context manifest. */
+  contextBudgetBytes?: number;
   /** Injected clock (FakeClock-compatible); defaults to the wall clock. */
   clock?: () => Date;
   /** Optional native structured-output schema per pass. */
@@ -220,7 +233,36 @@ export async function executePipeline(
     );
   }
   const clock = options.clock ?? ((): Date => new Date());
-  const stages = parallelStages(selectPasses(options.pipeline, options.selection));
+  const selected = selectPasses(options.pipeline, options.selection);
+  const preflight = runPipelinePreflight({
+    workdir: options.workdir,
+    route: options.episode?.route ?? options.selection.tier,
+    selectedPasses: selected,
+    roles: options.roles,
+    ...(options.pipeline.mechanical ? { allowNoProviderTurns: true } : {}),
+    ...(options.episode?.authorizedPasses !== undefined
+      ? {
+          authorizedPasses: options.episode.authorizedPasses.filter(
+            (pass) => pass.pipeline === options.pipeline.name,
+          ),
+        }
+      : {}),
+    ...(options.episode?.budgetOverrides !== undefined ? { budgetOverrides: options.episode.budgetOverrides } : {}),
+    requiredCapabilities: options.requiredCapabilities ?? ["tool_gate", "cancellation"],
+    ...(options.capabilityProfiles !== undefined ? { capabilityProfiles: options.capabilityProfiles } : {}),
+    ...(options.episode?.artifactExpectations !== undefined ? { artifacts: options.episode.artifactExpectations } : {}),
+  });
+  if (
+    options.contextBudgetBytes !== undefined &&
+    (!Number.isFinite(options.contextBudgetBytes) || options.contextBudgetBytes <= 0)
+  ) {
+    preflight.problems.push("explicit context budget is invalid");
+    preflight.ok = false;
+  }
+  if (!preflight.ok) {
+    throw new Error(`pipeline preflight failed before runtime construction: ${preflight.problems.join("; ")}`);
+  }
+  const stages = parallelStages(selected);
   const admission = await admitPipelineEpisode(options, clock(), stages.flat());
   const admittedOptions: ExecutePipelineOptions = {
     ...options,
@@ -428,11 +470,22 @@ async function runPass(
         `defines: ${Object.keys(options.roles).join(", ")}`,
     );
   }
+  const authorized = options.episode?.authorizedPasses?.find(
+    (candidate) => candidate.pipeline === options.pipeline.name && candidate.pass === pass.id,
+  );
+  if (options.episode?.authorizedPasses !== undefined && authorized === undefined) {
+    throw new Error(`executePipeline: ${options.pipeline.name}/${pass.id} is not route-authorized`);
+  }
+  if (authorized !== undefined && (authorized.role !== base.name || authorized.runtime !== base.runtime)) {
+    throw new Error(`executePipeline: route authorization for ${options.pipeline.name}/${pass.id} changes role/runtime`);
+  }
   // Copy, never mutate; `runtime` is deliberately not overridable (§2 rule 3).
+  // Route authorization is the pre-execution model/effort authority when it
+  // exists; otherwise the configured pass/role remains the explicit choice.
   const role: RoleConfig = {
     ...base,
-    ...(pass.model !== undefined ? { model: pass.model } : {}),
-    ...(pass.effort !== undefined ? { effort: pass.effort } : {}),
+    model: authorized?.model ?? pass.model ?? base.model,
+    effort: authorized?.effort ?? pass.effort ?? base.effort,
   };
   const selectedPasses = selectPasses(options.pipeline, options.selection);
   const selectedIds = new Set(selectedPasses.map((candidate) => candidate.id));
@@ -450,7 +503,6 @@ async function runPass(
   // (runRole's plain turn) — the loader rejects empty templates in config.
   const template =
     pass.template === "" ? undefined : await readFile(join(options.promptsDir, pass.template), "utf8");
-  const task = template === undefined ? brief : `${brief}\n\n---\n\n${template}`;
 
   // Replay seed (learning design §9.4): captured while the episode runs,
   // never reconstructed from logs afterward. Absent for non-git workdirs.
@@ -499,10 +551,6 @@ async function runPass(
   );
   let runFinalized = false;
   try {
-  await Promise.all([
-    writeBrief(root, app, runId, brief),
-    writePrompt(root, app, runId, task),
-  ]);
   const contextManifest = await writeContextManifest({
     root,
     episodeId,
@@ -511,7 +559,20 @@ async function runPass(
     context: options.context,
     brief,
     ...(template !== undefined ? { template } : {}),
+    route: options.episode?.route ?? options.selection.tier,
+    runtime: role.runtime,
+    ...(options.contextBudgetBytes !== undefined ? { capBytes: options.contextBudgetBytes } : {}),
   });
+  const executableContext = contextManifest.context;
+  const executableBrief = contextManifest.brief;
+  const executableTemplate = contextManifest.template;
+  const task = executableTemplate === undefined
+    ? executableBrief
+    : `${executableBrief}\n\n---\n\n${executableTemplate}`;
+  await Promise.all([
+    writeBrief(root, app, runId, executableBrief),
+    writePrompt(root, app, runId, task),
+  ]);
   await updateEnvelope(root, app, runId, {
     contextManifestRef: contextManifest.relativeRef,
   });
@@ -550,12 +611,29 @@ async function runPass(
     if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
     adapterStartTimer = undefined;
   };
+  const passController = new AbortController();
+  let providerToolCalls = 0;
+  let toolCallAllowance: number | null = null;
   const passHooks: TurnHooks = {
     gate: options.gateForRole?.(role) ?? options.hooks.gate,
     onEvent: (e) => {
       markAdapterStarted();
       sessionLog(e);
       if (e.type === "tool_use" || e.type === "subagent") bridged.push(e);
+      if (e.type === "tool_use") {
+        providerToolCalls += 1;
+        if (
+          toolCallAllowance !== null &&
+          providerToolCalls > toolCallAllowance &&
+          !passController.signal.aborted
+        ) {
+          passController.abort({
+            status: "failed",
+            errorCode: "error_tool_call_cap_exceeded",
+            reason: `episode tool-call cap exceeded (${toolCallAllowance})`,
+          } satisfies AbortDescriptor);
+        }
+      }
       options.hooks.onEvent?.(e);
     },
     onProgress: (progress) => {
@@ -605,8 +683,10 @@ async function runPass(
   // Wall-clock watchdog now aborts the owned provider session instead of
   // abandoning it. The adapter receives the same signal and has a bounded
   // grace period to return partial usage before finalization.
-  const capMs = (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000;
-  const passController = new AbortController();
+  const allowance = await remainingExecutionAllowance(root, episodeId);
+  toolCallAllowance = allowance.toolCalls;
+  const configuredCapMs = (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000;
+  const capMs = Math.max(1, Math.min(configuredCapMs, allowance.activeTimeMs));
   const unlinkParent = forwardAbort(options.signal, passController);
   const timeout = setTimeout(() => {
     passController.abort({
@@ -625,6 +705,7 @@ async function runPass(
     verdictSchema?: Record<string, unknown>;
   }): Promise<TurnResult> => {
     const ordinal = (providerOrdinal += 1);
+    const toolCallStart = providerToolCalls;
     const inputFingerprint = fingerprint({
       operation: request.operation,
       role: { name: role.name, runtime: role.runtime, model: role.model, effort: role.effort },
@@ -671,7 +752,7 @@ async function runPass(
           role,
           workdir: options.workdir,
           task: request.task,
-          context: options.context,
+          context: executableContext,
           signal: passController.signal,
           ...(request.session !== undefined ? { session: request.session } : {}),
           ...(request.verdictSchema !== undefined ? { verdictSchema: request.verdictSchema } : {}),
@@ -708,6 +789,7 @@ async function runPass(
       ...(before !== undefined ? { workFingerprintBefore: before } : {}),
       ...(after !== undefined ? { workFingerprintAfter: after } : {}),
       ...(artifactFingerprint !== undefined ? { artifactFingerprint } : {}),
+      toolCallCount: providerToolCalls - toolCallStart,
     });
     const settlement = toRecord(role, turnResult, clock(), {
       app,
@@ -803,7 +885,7 @@ async function runPass(
         role,
         hooks: passHooks,
         workdir: options.workdir,
-        context: options.context,
+        context: executableContext,
         events,
         clock,
         runProviderTurn,

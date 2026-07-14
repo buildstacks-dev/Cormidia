@@ -22,6 +22,8 @@ import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation, waitForDelay } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
+import { explainContext } from "../loop/context-manifest.js";
+import { resumeExecutionJournal } from "../loop/execution-journal.js";
 
 /**
  * Persist the scorecard events one loop tick produced into the org scorecard
@@ -88,6 +90,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
   let worktreeRoot: string | undefined;
   let allowNetwork = false;
   let parentTaskInput: string | undefined;
+  let explainEpisode: string | undefined;
+  let resumeEpisode: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -107,16 +111,38 @@ export async function cmdLoop(args: string[]): Promise<number> {
       allowNetwork = true;
     } else if (arg === "--parent-task") {
       parentTaskInput = needValue(args, ++i, "--parent-task");
+    } else if (arg === "--explain-context") {
+      explainEpisode = needValue(args, ++i, "--explain-context");
+    } else if (arg === "--resume-episode") {
+      resumeEpisode = needValue(args, ++i, "--resume-episode");
     } else {
       throw new Error(`loop: unknown flag "${arg}"`);
     }
   }
 
+  const homes = await resolveOperonHomes(common);
+  if (explainEpisode !== undefined) {
+    if (resumeEpisode !== undefined || appName !== undefined || once || follow || dryRun || repoDir !== undefined || worktreeRoot !== undefined || allowNetwork) {
+      throw new Error("loop: --explain-context is a token-free standalone read");
+    }
+    console.log(JSON.stringify(await explainContext(homes.stateHome, explainEpisode), null, 2));
+    return 0;
+  }
+  if (resumeEpisode !== undefined) {
+    if (appName !== undefined || once || follow || dryRun || repoDir !== undefined || worktreeRoot !== undefined || allowNetwork) {
+      throw new Error("loop: --resume-episode is a standalone durable-boundary read");
+    }
+    console.log(JSON.stringify(await resumeExecutionJournal({
+      root: homes.stateHome,
+      episodeId: resumeEpisode,
+      now: new Date(),
+    }), null, 2));
+    return 0;
+  }
   if (appName === undefined) throw new Error("loop: --app <app> is required");
   if (!once && !follow) once = true;
   if (once && follow) throw new Error("loop: choose either --once or --follow, not both");
 
-  const homes = await resolveOperonHomes(common);
   const parentTaskId = await resolveParentTaskId(homes.stateHome, parentTaskInput);
   const appsPath = join(homes.orgHome, "apps.yaml");
   const rolesPath = join(homes.orgHome, "roles.yaml");

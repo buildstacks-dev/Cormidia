@@ -40,6 +40,9 @@ export interface RunRoleRequest {
   /** Optional full context assembled by src/org callers. */
   context?: ContextBundle;
   briefBudgetTokens?: number;
+  /** Explicit allowance for bounded protocol probes whose transported payload
+   * is itself under test. Ordinary role turns inherit the route context cap. */
+  contextBudgetBytes?: number;
   clock?: () => Date;
   /** Per-pass ledger settlement target — see ExecutePipelineOptions.telemetry. */
   telemetry?: { orgDir: string; trigger?: TriggerKind };
@@ -124,6 +127,7 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
     ...(request.telemetry !== undefined ? { telemetry: request.telemetry } : {}),
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
     ...(request.parentTaskId !== undefined ? { parentTaskId: request.parentTaskId } : {}),
+    ...(request.contextBudgetBytes !== undefined ? { contextBudgetBytes: request.contextBudgetBytes } : {}),
   });
 
   const record = result.passes[0];

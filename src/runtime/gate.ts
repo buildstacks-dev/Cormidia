@@ -13,15 +13,78 @@ interface CriticalRule {
   matches: (a: ToolAction) => boolean;
 }
 
-const asText = (a: ToolAction): string =>
-  `${a.tool} ${JSON.stringify(a.input ?? "")} ${a.description ?? ""}`.toLowerCase();
+export interface SemanticAction {
+  tool: string;
+  operation: "read" | "write" | "execute" | "return_data" | "unknown";
+  command: string | null;
+  paths: string[];
+  destination: string | null;
+  effect: string | null;
+}
+
+/** Normalize only the semantics a tool can actually enact. In particular,
+ * write/edit payload prose is data, not an executable command: documentation
+ * that says `kubectl apply` cannot become a production deploy approval. */
+export function normalizeSemanticAction(action: ToolAction): SemanticAction {
+  const tool = action.tool.trim().toLowerCase();
+  if (VERDICT_TOOLS.has(tool)) {
+    return { tool, operation: "return_data", command: null, paths: [], destination: "orchestrator", effect: "typed_data" };
+  }
+  const input = asRecord(action.input);
+  const explicitCommand =
+    typeof input?.["command"] === "string"
+      ? input["command"]
+      : typeof input?.["cmd"] === "string"
+        ? input["cmd"]
+        : typeof action.input === "string" && !isDataMutationTool(tool)
+          ? action.input
+          : undefined;
+  const command = explicitCommand === undefined ? null : unwrapCommand(explicitCommand);
+  const paths = [
+    input?.["path"],
+    input?.["file_path"],
+    input?.["target"],
+    input?.["destination"],
+    input?.["resolved_path"],
+    input?.["real_path"],
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .map(normalizePath)
+    .filter((value, index, all) => value !== "" && all.indexOf(value) === index)
+    .sort();
+  const operation = VERDICT_TOOLS.has(tool)
+    ? "return_data" as const
+    : isDataMutationTool(tool) || (command !== null && shellWrites(command))
+      ? "write" as const
+      : /(?:^|[_-])(read|view|get)(?:$|[_-])/.test(tool)
+        ? "read" as const
+        : command !== null || isShellTool(tool)
+          ? "execute" as const
+          : "unknown" as const;
+  const destination = typeof input?.["destination"] === "string" ? input["destination"].trim().toLowerCase() : null;
+  const effect = typeof input?.["effect"] === "string" ? input["effect"].trim().toLowerCase() : null;
+  return { tool, operation, command, paths, destination, effect };
+}
+
+export function semanticActionText(action: ToolAction): string {
+  const semantic = normalizeSemanticAction(action);
+  return [semantic.tool, semantic.operation, semantic.command ?? "", ...semantic.paths]
+    .join(" ")
+    .toLowerCase();
+}
+
+const asText = (a: ToolAction): string => semanticActionText(a);
+const effectText = (a: ToolAction): string => {
+  const semantic = normalizeSemanticAction(a);
+  return `${semantic.tool} ${semantic.command ?? ""}`.toLowerCase();
+};
 
 /** v0 heuristics. Deliberately over-broad: false positives cost a human tap,
  *  false negatives cost an incident. Tighten with calibration data. */
 export const CRITICAL_RULES: CriticalRule[] = [
   {
     name: "production-deploy",
-    matches: (a) => /\b(deploy|rollout|release to prod|kubectl apply|doctl apps)\b/.test(asText(a)),
+    matches: (a) => /\b(deploy|rollout|release to prod|kubectl apply|doctl apps)\b/.test(effectText(a)),
   },
   {
     // Calibrated (Stage 6, approval-and-release-amendment): irreversible
@@ -50,11 +113,11 @@ export const CRITICAL_RULES: CriticalRule[] = [
   },
   {
     name: "dns-or-domain",
-    matches: (a) => /\b(dns record|nameserver|domain transfer)\b/.test(asText(a)),
+    matches: (a) => /\b(dns record|nameserver|domain transfer)\b/.test(effectText(a)),
   },
   {
     name: "external-publishing",
-    matches: (a) => /\b(publish|post publicly|send email|tweet|npm publish)\b/.test(asText(a)),
+    matches: (a) => /\b(publish|post publicly|send email|tweet|npm publish)\b/.test(effectText(a)),
   },
   {
     name: "secrets-or-auth",
@@ -104,7 +167,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // raw egress tools as critical costs at most a human tap on a legitimate
     // fetch while closing the leak path (docs/loop.md gate philosophy).
     name: "outbound-network",
-    matches: (a) => /\b(curl|wget|ncat|nc|scp|sftp|telnet)\b/.test(asText(a)),
+    matches: (a) => /\b(curl|wget|ncat|nc|scp|sftp|telnet)\b/.test(effectText(a)),
   },
   {
     // Self-merge / self-approve bypasses the review boundary the whole org
@@ -163,6 +226,8 @@ export const CRITICAL_RULES: CriticalRule[] = [
 ];
 
 function isWrite(a: ToolAction): boolean {
+  const semantic = normalizeSemanticAction(a);
+  if (semantic.operation === "write") return true;
   const t = asText(a);
   // Verbs are prefix-matched (append → appends); cp/tee are whole-word to
   // avoid cpu/teed false hits. Shell redirects get their own test: the old
@@ -227,3 +292,59 @@ export const defaultGate: GateFn = (action: ToolAction): GateDecision => {
   }
   return { allow: true };
 };
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function isShellTool(tool: string): boolean {
+  return ["bash", "shell", "sh", "zsh", "terminal", "exec", "exec_command"].includes(tool);
+}
+
+function isDataMutationTool(tool: string): boolean {
+  return /^(?:write|edit|create|replace|append|delete|remove|move|copy)(?:$|[_-])/.test(tool);
+}
+
+function shellWrites(command: string): boolean {
+  return />>?(?!&)|\b(?:rm|mv|cp|tee|sed\s+-i)\b/.test(command.toLowerCase());
+}
+
+function normalizePath(value: string): string {
+  return value.trim().replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/{2,}/g, "/");
+}
+
+/** Decode common execution wrappers without executing anything. This makes
+ * semantically identical shell actions classify identically across adapters. */
+function unwrapCommand(value: string): string {
+  let command = value.trim();
+  try {
+    command = decodeURIComponent(command);
+  } catch {
+    // Invalid percent escapes remain literal and still pass ordinary rules.
+  }
+  for (let depth = 0; depth < 4; depth++) {
+    const wrapper = /^(?:(?:sudo|command)\s+|(?:\/usr\/bin\/)?env(?:\s+[A-Za-z_][A-Za-z0-9_]*=[^\s]+)*\s+)*(?:bash|sh|zsh)\s+-c\s+(["'])([\s\S]*)\1$/.exec(command);
+    if (wrapper?.[2] !== undefined) {
+      command = wrapper[2].trim();
+      continue;
+    }
+    const evaluated = /^eval\s+(["'])([\s\S]*)\1$/.exec(command);
+    if (evaluated?.[2] !== undefined) {
+      command = evaluated[2].trim();
+      continue;
+    }
+    break;
+  }
+  const encoded = /(?:echo|printf)\s+['"]?([A-Za-z0-9+/]{12,}={0,2})['"]?\s*\|\s*base64\s+(?:--decode|-d)\b/.exec(command);
+  if (encoded?.[1] !== undefined) {
+    try {
+      const decoded = Buffer.from(encoded[1], "base64").toString("utf8");
+      if (/^[\x09\x0a\x0d\x20-\x7e]+$/.test(decoded)) command = `${command} ${decoded}`;
+    } catch {
+      // Malformed base64 remains literal.
+    }
+  }
+  return command.replace(/\s+/g, " ").trim();
+}

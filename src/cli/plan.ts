@@ -25,6 +25,16 @@ export async function cmdPlan(args: string[]): Promise<number> {
   const homes = await resolveOperonHomes(common);
   const parentTaskId = await resolveParentTaskId(homes.stateHome, parsed.parentTaskId);
 
+  if (parsed.explainRoute) {
+    const appsFile = await loadApps(join(homes.orgHome, "apps.yaml"));
+    const app = appsFile.apps.find((entry) => entry.name === parsed.app);
+    if (app === undefined) throw new Error(`plan: unknown app "${parsed.app}" in apps.yaml`);
+    const stage = parsed.stage ?? (app.status === "onboarding" ? "bootstrap" : "mature");
+    const decision = decidePlanningDepth({ goal: parsed.goal ?? "", stage, ...planningOptions(parsed) });
+    console.log(JSON.stringify({ schema_version: 1, kind: "route-explanation", app: app.name, stage, ...decision }, null, 2));
+    return 0;
+  }
+
   if (parsed.auto) {
     if (parsed.goal === undefined) {
       throw new Error("plan: --auto requires --goal <text> — planning without a goal is how a website becomes 19 tickets");
@@ -143,6 +153,7 @@ interface ParsedPlanArgs {
   externalConsequence?: ExternalConsequence;
   expectedTickets?: ExpectedTicketBand;
   sensitiveDomains?: string[];
+  explainRoute: boolean;
 }
 
 function parseArgs(args: string[]): ParsedPlanArgs {
@@ -170,10 +181,13 @@ function parseArgs(args: string[]): ParsedPlanArgs {
   let externalConsequence: ExternalConsequence | undefined;
   let expectedTickets: ExpectedTicketBand | undefined;
   let sensitiveDomains: string[] | undefined;
+  let explainRoute = false;
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--dry-run") {
       dryRun = true;
+    } else if (arg === "--explain-route") {
+      explainRoute = true;
     } else if (arg === "--auto") {
       auto = true;
     } else if (arg === "--no-publish") {
@@ -234,6 +248,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
     dryRun,
     auto,
     noPublish,
+    explainRoute,
     ...(goal !== undefined ? { goal } : {}),
     ...(stage !== undefined ? { stage } : {}),
     ...(topic !== undefined ? { topic } : {}),

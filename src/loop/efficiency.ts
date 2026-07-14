@@ -7,6 +7,11 @@ import type { Effort, RoleConfig, RuntimeKind, TurnResult, TurnUsage } from "../
 import type { TurnRecord } from "../runtime/telemetry.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import type { TicketTier } from "./pipelines.js";
+import {
+  assertMonotonicRoute,
+  executionBoundsFor,
+  type RouteExecutionBounds,
+} from "./route-policy.js";
 
 export const EFFICIENCY_SCHEMA_VERSION = 1 as const;
 export type EfficiencyRoute = "deterministic" | TicketTier;
@@ -120,6 +125,7 @@ export interface RouteRecord {
   factors: AdmissionFactor[];
   authorized_passes: AuthorizedPass[];
   budget: RouteBudget;
+  execution_bounds: RouteExecutionBounds | null;
   reassessments: RouteReassessment[];
   terminal: EpisodeTerminal | null;
 }
@@ -158,6 +164,7 @@ export interface ExecutionStepRecord {
   artifact_fingerprint: string | null;
   productive: boolean | null;
   repeated_from_step_id: string | null;
+  tool_call_count: number;
   usage: TurnUsage | null;
 }
 
@@ -249,10 +256,10 @@ export async function admitEpisode(input: RouteAdmissionInput): Promise<RouteRec
   const path = routeRecordPath(input.root, input.episodeId);
   const validateExisting = async (): Promise<RouteRecord> => {
     const existing = await readRouteRecord(input.root, input.episodeId);
-    if (existing.app !== input.app || existing.planned_route !== input.route) {
+    if (existing.app !== input.app || existing.current_route !== input.route) {
       throw new Error(
-        `efficiency admission conflict for ${input.episodeId}: planned route is ` +
-          `${existing.planned_route}, requested ${input.route}`,
+        `efficiency admission conflict for ${input.episodeId}: current route is ` +
+          `${existing.current_route}, requested ${input.route}`,
       );
     }
     const authorized = new Set(existing.authorized_passes.map(passIdentity));
@@ -294,6 +301,7 @@ export async function admitEpisode(input: RouteAdmissionInput): Promise<RouteRec
     factors: sortedFactors(input.factors),
     authorized_passes: [...input.passes].sort((a, b) => passIdentity(a).localeCompare(passIdentity(b))),
     budget,
+    execution_bounds: input.route === "deterministic" ? null : executionBoundsFor(input.route),
     reassessments: [],
     terminal: null,
   };
@@ -316,9 +324,11 @@ export async function reassessEpisode(input: {
   factor: AdmissionFactor;
   now: Date;
   budgetOverrides?: Partial<RouteBudget>;
+  authorizedPasses?: AuthorizedPass[];
 }): Promise<RouteRecord> {
   const record = await readRouteRecord(input.root, input.episodeId);
   if (record.terminal !== null) throw new Error(`episode ${input.episodeId} is terminal`);
+  assertMonotonicRoute(record.current_route, input.toRoute);
   const counters = await deriveEpisodeCounters(input.root, input.episodeId);
   const budget = { ...ROUTE_BUDGETS[input.toRoute], ...input.budgetOverrides };
   if (input.toRoute === "deep" && budget.input_tokens === null) {
@@ -339,6 +349,9 @@ export async function reassessEpisode(input: {
     ...record,
     current_route: input.toRoute,
     budget,
+    execution_bounds: input.toRoute === "deterministic" ? null : executionBoundsFor(input.toRoute),
+    factors: sortedFactors([...record.factors, input.factor]),
+    authorized_passes: mergeAuthorizedPasses(record.authorized_passes, input.authorizedPasses ?? []),
     reassessments: [...record.reassessments, reassessment],
   };
   await writeLoopFileAtomic(routeRecordPath(input.root, input.episodeId), `${JSON.stringify(updated, null, 2)}\n`);
@@ -407,6 +420,26 @@ export async function checkProviderBudget(input: {
         allowed: false,
         reason: "corrupt provider reservation prevents safe admission",
       };
+}
+
+export async function remainingExecutionAllowance(
+  root: string,
+  episodeId: string,
+): Promise<{ activeTimeMs: number; providerTurns: number; toolCalls: number | null }> {
+  const [budget, route, steps] = await Promise.all([
+    checkProviderBudget({ root, episodeId }),
+    readRouteRecord(root, episodeId),
+    readExecutionSteps(root, episodeId),
+  ]);
+  const usedToolCalls = steps.reduce((sum, step) => sum + (step.tool_call_count ?? 0), 0);
+  return {
+    activeTimeMs: Math.max(0, budget.remaining.active_time_ms),
+    providerTurns: Math.max(0, budget.remaining.provider_turns),
+    toolCalls:
+      route.execution_bounds === null || route.execution_bounds === undefined
+        ? null
+        : Math.max(0, route.execution_bounds.toolCalls - usedToolCalls),
+  };
 }
 
 function budgetCheck(
@@ -525,6 +558,7 @@ export async function finalizeProviderStep(input: {
   workFingerprintBefore?: string;
   workFingerprintAfter?: string;
   artifactFingerprint?: string;
+  toolCallCount?: number;
 }): Promise<ExecutionStepRecord> {
   const prior = await readExecutionSteps(input.root, input.episodeId);
   const repeated = prior.find(
@@ -566,6 +600,7 @@ export async function finalizeProviderStep(input: {
     artifact_fingerprint: input.artifactFingerprint ?? null,
     productive,
     repeated_from_step_id: repeated?.execution_step_id ?? null,
+    tool_call_count: input.toolCallCount ?? 0,
     usage: input.result.usage,
   };
   const path = executionStepPath(input.root, input.episodeId, input.started.executionStepId);
@@ -621,6 +656,7 @@ export async function recordMechanicalStep(input: {
     artifact_fingerprint: null,
     productive: null,
     repeated_from_step_id: null,
+    tool_call_count: 0,
     usage: null,
   };
   await writeLoopFileAtomic(path, `${JSON.stringify(record, null, 2)}\n`);
@@ -751,6 +787,7 @@ export async function reconcileStaleProviderSteps(
           reason: "provider execution lost its owner heartbeat before finalization",
           next_step: "resume from the last valid artifact boundary",
           context_manifest_ref: receipt.context_manifest_ref,
+          tool_call_count: 0,
           input_fingerprint: receipt.input_fingerprint,
           work_fingerprint_before: null,
           work_fingerprint_after: null,
@@ -914,6 +951,20 @@ function stableJson(value: unknown): string {
 
 function passIdentity(pass: AuthorizedPass): string {
   return `${pass.pipeline}\0${pass.pass}\0${pass.role}\0${pass.runtime}\0${pass.model}\0${pass.effort}`;
+}
+
+function mergeAuthorizedPasses(
+  existing: AuthorizedPass[],
+  added: AuthorizedPass[],
+): AuthorizedPass[] {
+  const merged = new Map(existing.map((pass) => [passIdentity(pass), pass]));
+  for (const pass of added) {
+    if (pass.factor_rules.length === 0) {
+      throw new Error(`reassessment pass ${pass.pipeline}/${pass.pass} requires a factor rule`);
+    }
+    merged.set(passIdentity(pass), pass);
+  }
+  return [...merged.values()].sort((a, b) => passIdentity(a).localeCompare(passIdentity(b)));
 }
 
 function sortedFactors(factors: AdmissionFactor[]): AdmissionFactor[] {

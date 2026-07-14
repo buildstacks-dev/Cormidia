@@ -132,6 +132,8 @@ export interface EpisodeOutcome {
   /** Terminal/stalled runs with measured usage but no ledger row — the
    *  reconcile target (`operon budget --reconcile`); spec §5 delta. */
   unsettled_runs: string[];
+  /** Explicit lifecycle terminal when ordinary completion never happened. */
+  terminal_reason?: "reset_abandoned";
 }
 
 export interface LateOutcome {
@@ -939,4 +941,57 @@ export async function readEpisodeRecords(stateHome: string): Promise<EpisodeReco
     }
   }
   return records;
+}
+
+/** App reset is a terminal lifecycle disposition, not disappearance. Close
+ * every still-open projected episode after reset commits so future reports
+ * cannot silently strand it forever. Idempotent event ids make recovery safe. */
+export async function markAppEpisodesResetAbandoned(
+  stateHome: string,
+  app: string,
+  now: Date,
+): Promise<string[]> {
+  const records = (await readEpisodeRecords(stateHome)).filter(
+    (record) => record.app === app && record.status === "open",
+  );
+  const events: LearningEvent[] = [];
+  for (const record of records) {
+    const closed: EpisodeRecord = {
+      ...record,
+      status: "closed",
+      closed: now.toISOString(),
+      outcome: {
+        completed: false,
+        ...(record.kind === "build_ticket" ? { merged: false } : {}),
+        release_disposition: "reset_abandoned",
+        review_cycles: new Set(
+          record.turns.filter((turn) => turn.pipeline === "review").map((turn) => turn.turn_id),
+        ).size,
+        gate_failures: record.gates.filter((gate) => gate.status === "fail").length,
+        human_interventions: record.approvals.length,
+        cost_usd: record.outcome?.cost_usd ?? 0,
+        cost_estimated: record.outcome?.cost_estimated ?? false,
+        unsettled_runs: record.outcome?.unsettled_runs ?? [],
+        terminal_reason: "reset_abandoned",
+      },
+    };
+    await writeRecordIfChanged(stateHome, closed);
+    const digest = createHash("sha256").update(`${record.episode_id}\0reset_abandoned`).digest("hex").slice(0, 16);
+    events.push({
+      event_id: `evt_reset_abandoned_${digest}`,
+      episode_id: record.episode_id,
+      ts: now.toISOString(),
+      app,
+      stage: record.stage,
+      risk_tier: record.risk_tier,
+      release_disposition: "reset_abandoned",
+      type: "episode_closed",
+      emitter: "orchestrator",
+      source_channel: "internal",
+      trust: "trusted",
+      payload: { disposition: "reset_abandoned", completed: false },
+    });
+  }
+  await appendLearningEventsDeduped(stateHome, events);
+  return records.map((record) => record.episode_id).sort();
 }

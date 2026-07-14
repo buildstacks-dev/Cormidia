@@ -71,6 +71,11 @@ function makeRoot(): string {
     "test/lifecycle",
     "test/report/efficiency.test.ts",
     "test/context-manifest.test.ts",
+    "test/loop/context-delta.test.ts",
+    "test/continuation",
+    "test/learning/reset-abandoned.test.ts",
+    "test/approval-semantics.test.ts",
+    "test/plan-auto.test.ts",
     "test/settlement/property.test.ts",
     "docs/efficiency-transformation",
   ]) { const target = join(root, path); mkdirSync(dirname(target), { recursive: true }); cpSync(join(repo, path), target, { recursive: true }); }

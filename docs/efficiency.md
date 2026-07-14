@@ -62,10 +62,39 @@ records its factor, remaining budget, and newly authorized budget. A cap never
 authorizes false completion: insufficient remaining budget parks or reassesses
 before the next provider turn.
 
+`route-policy/v1` is the executable classifier. It consumes structured risk
+facts only, selects the smallest safe quick/standard/deep route, binds every
+extra pass to a named factor, and records model/effort before runtime
+construction. Mechanical-only completion is limited to the ratified allowlist;
+prose, prompt length, and keyword repetition cannot select it or deepen a
+route. Unexpected findings can only preserve or escalate the current route.
+
 The route belongs to the episode. A planning-depth or selected-pass-set value
 is evidence derived from admission, not a second route authority. Pipeline
 shape, role availability, prompt length, and prose keywords cannot deepen an
 episode by themselves.
+
+## Context and continuation budgets
+
+Context is admitted under the episode route just like turns and cost. Each
+pass records source and rendered bytes, component hashes, cache identity,
+prior-pass change state, duplicate relationships, category caps, transport,
+and deterministic eviction. Unchanged material may travel as a stable
+reference and changed material as a delta. Authority, safety, acceptance
+criteria, contracts, and unresolved findings are required and never evicted;
+if that required set exceeds the route cap, admission stops before runtime
+construction and the route must be reassessed. Cache visibility reports the
+adapter's actual capability—never a fabricated zero.
+
+The episode execution journal advances through route, contract,
+implementation, push, gates, PR, findings, approvals, merge, and release.
+Restart selects the next legal boundary. Repeating accepted work requires a
+durable invalidation reason and invalidates only the affected suffix. Route
+bounds cover environment retries, tool calls, active wall time, claim
+attempts, repair attempts, review cycles, provider turns, and cost. Cap stop,
+cancellation, crash, and timeout are terminal execution outcomes with an
+executable resume decision; they do not erase artifact, episode, or settlement
+evidence.
 
 ## Lifecycle evidence vocabulary
 

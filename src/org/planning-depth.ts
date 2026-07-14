@@ -4,6 +4,7 @@
 // prompts and safety gates remain unchanged.
 
 import type { PassConfig } from "../loop/pipelines.js";
+import { decideExecutionRoute } from "../loop/route-policy.js";
 import type { RoleConfig } from "../runtime/types.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
 
@@ -58,57 +59,33 @@ export interface PlanningCostEstimate {
 }
 
 const DEPTH_RANK: Record<PlanningDepth, number> = { quick: 0, standard: 1, deep: 2 };
-const SENSITIVE_PATTERNS: Array<{ domain: string; pattern: RegExp }> = [
-  { domain: "security/auth/secrets", pattern: /\b(auth(?:entication|orization)?|oauth|secret|credential|token|security|encrypt|key rotation)\b/i },
-  { domain: "migration/schema", pattern: /\b(migrat(?:e|ion)|schema|backfill|database conversion)\b/i },
-  { domain: "release/deploy", pattern: /\b(release|deploy|rollout|production cutover|publish)\b/i },
-  { domain: "payments", pattern: /\b(payment|billing|invoice|checkout|stripe|money)\b/i },
-  { domain: "infrastructure/dns", pattern: /\b(infrastructure|terraform|kubernetes|dns|domain|cloud|iam)\b/i },
-  { domain: "destructive-data", pattern: /\b(delete|drop|purge|erase|irreversible|data loss)\b/i },
-];
-
 export function decidePlanningDepth(input: PlanningDepthInput): PlanningDepthDecision {
-  const derivedDomains = SENSITIVE_PATTERNS.filter(({ pattern }) => pattern.test(input.goal)).map(({ domain }) => domain);
-  const sensitiveDomains = [...new Set([...(input.sensitiveDomains ?? []), ...derivedDomains])].sort();
-  const riskTier = input.riskTier ?? (sensitiveDomains.length > 0 ? "high" : input.stage === "bootstrap" ? "low" : "medium");
+  // `goal` is deliberately excluded from classification. It is product data,
+  // not an action/risk declaration: “write an auth guide” and “execute a
+  // credential migration” may share every keyword and still require opposite
+  // routes. Callers provide structured factors; stage-aware defaults fill only
+  // omitted factors.
+  const sensitiveDomains = [...new Set(input.sensitiveDomains ?? [])].sort();
+  const riskTier = input.riskTier ?? (input.stage === "bootstrap" ? "low" : "medium");
   const ambiguity = input.ambiguity ?? (input.stage === "bootstrap" ? "low" : "medium");
   const coupling = input.coupling ?? (input.stage === "bootstrap" ? "low" : "medium");
-  const reversibility = input.reversibility ?? (sensitiveDomains.includes("destructive-data") ? "irreversible" : "reversible");
-  const externalConsequence =
-    input.externalConsequence ??
-    (/\b(customer-facing|public launch|production|external users?)\b/i.test(input.goal)
-      ? "customer-public-production"
-      : "none");
+  const reversibility = input.reversibility ?? "reversible";
+  const externalConsequence = input.externalConsequence ?? "none";
   const expectedTickets = input.expectedTickets ?? (input.stage === "bootstrap" ? "1-2" : "3-6");
-  const decisionFactors: string[] = [];
-
-  const deepFloors: string[] = [];
-  if (riskTier === "high") deepFloors.push("high risk tier");
-  if (ambiguity === "high") deepFloors.push("high planning ambiguity");
-  if (coupling === "high") deepFloors.push("high cross-system coupling");
-  if (reversibility !== "reversible") deepFloors.push(`${reversibility} change`);
-  if (externalConsequence === "customer-public-production") deepFloors.push("customer/public/production consequence");
-  if (expectedTickets === "7+") deepFloors.push("expected decomposition is seven or more tickets");
-  if (sensitiveDomains.length > 0) deepFloors.push(`sensitive domain: ${sensitiveDomains.join(", ")}`);
-
-  let depth: PlanningDepth;
-  if (deepFloors.length > 0) {
-    depth = "deep";
-    decisionFactors.push(...deepFloors);
-  } else if (
-    riskTier === "low" &&
-    ambiguity === "low" &&
-    coupling === "low" &&
-    reversibility === "reversible" &&
-    externalConsequence === "none" &&
-    expectedTickets === "1-2"
-  ) {
-    depth = "quick";
-    decisionFactors.push("bounded low-risk reversible work with one or two expected tickets");
-  } else {
-    depth = "standard";
-    decisionFactors.push("moderate ambiguity, coupling, risk, or three-to-six-ticket decomposition");
-  }
+  const route = decideExecutionRoute({
+    blastRadius: riskTier,
+    reversibility: reversibility === "costly-to-reverse" ? "difficult" : reversibility,
+    sensitiveDomains,
+    uncertainty: ambiguity,
+    componentCount: coupling === "high" || expectedTickets === "7+" ? 7 : coupling === "medium" || expectedTickets === "3-6" ? 3 : 1,
+    externalSystemCount: coupling === "high" ? 3 : 0,
+    releaseConsequence:
+      externalConsequence === "customer-public-production" ? "production" : externalConsequence,
+    novelty: "familiar",
+    evidenceQuality: "high",
+  });
+  let depth: PlanningDepth = route.route;
+  const decisionFactors = [...route.decisionRules];
 
   if (input.minimumDepth !== undefined && DEPTH_RANK[input.minimumDepth] > DEPTH_RANK[depth]) {
     depth = input.minimumDepth;

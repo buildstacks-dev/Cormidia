@@ -23,6 +23,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { ToolAction } from "../runtime/types.js";
+import { normalizeSemanticAction } from "../runtime/gate.js";
 
 export type ApprovalDecision = "approved" | "denied";
 export type ApprovalStatus = "pending" | ApprovalDecision;
@@ -138,7 +139,8 @@ export type ApprovalLogEvent =
     }
   | { type: "grant-minted"; id: string; grantId: string; at: string }
   | { type: "grant-consumed"; id: string; grantId: string; at: string }
-  | { type: "grant-revoked"; id: string; grantId: string; at: string };
+  | { type: "grant-revoked"; id: string; grantId: string; at: string }
+  | { type: "deduplicated"; id: string; at: string; actionHash: string; priorStatus: "pending" | "denied" };
 
 export interface RaiseApprovalInput {
   app: string;
@@ -181,6 +183,17 @@ export class ApprovalStore {
   async raise(input: RaiseApprovalInput): Promise<ApprovalItem> {
     const now = input.now ?? new Date();
     await this.ensureDirs();
+    const existing = this.findPendingEquivalentSync(input);
+    if (existing !== undefined) {
+      await appendJsonLine(this.logPath(), {
+        type: "deduplicated",
+        id: existing.id,
+        at: now.toISOString(),
+        actionHash: actionHash(input.action),
+        priorStatus: "pending",
+      } satisfies ApprovalLogEvent);
+      return existing;
+    }
     const item = this.itemFromInput(input, now);
     await writeJson(this.pendingPath(item.id), item);
     await appendJsonLine(this.logPath(), raisedEvent(item));
@@ -190,6 +203,17 @@ export class ApprovalStore {
   raiseSync(input: RaiseApprovalInput): ApprovalItem {
     const now = input.now ?? new Date();
     this.ensureDirsSync();
+    const existing = this.findPendingEquivalentSync(input);
+    if (existing !== undefined) {
+      appendJsonLineSync(this.logPath(), {
+        type: "deduplicated",
+        id: existing.id,
+        at: now.toISOString(),
+        actionHash: actionHash(input.action),
+        priorStatus: "pending",
+      } satisfies ApprovalLogEvent);
+      return existing;
+    }
     const item = this.itemFromInput(input, now);
     writeJsonSync(this.pendingPath(item.id), item);
     appendJsonLineSync(this.logPath(), raisedEvent(item));
@@ -425,6 +449,47 @@ export class ApprovalStore {
     );
   }
 
+  findDeniedEquivalentSync(input: RaiseApprovalInput): ApprovalItem | undefined {
+    this.ensureDirsSync();
+    const hash = actionHash(input.action);
+    return readdirSync(this.decidedDir())
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => readJsonSync<ApprovalItem>(join(this.decidedDir(), file)))
+      .find((item) =>
+        item.status === "denied" &&
+        item.app === input.app &&
+        item.role === input.role &&
+        item.rule === input.rule &&
+        item.ticketRef === input.ticketRef &&
+        actionHash(item.action) === hash,
+      );
+  }
+
+  recordDeniedRecurrenceSync(item: ApprovalItem, action: ToolAction, now: Date): void {
+    this.ensureDirsSync();
+    appendJsonLineSync(this.logPath(), {
+      type: "deduplicated",
+      id: item.id,
+      at: now.toISOString(),
+      actionHash: actionHash(action),
+      priorStatus: "denied",
+    } satisfies ApprovalLogEvent);
+  }
+
+  private findPendingEquivalentSync(input: RaiseApprovalInput): ApprovalItem | undefined {
+    const hash = actionHash(input.action);
+    return readdirSync(this.pendingDir())
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => readJsonSync<ApprovalItem>(join(this.pendingDir(), file)))
+      .find((item) =>
+        item.app === input.app &&
+        item.role === input.role &&
+        item.rule === input.rule &&
+        item.ticketRef === input.ticketRef &&
+        actionHash(item.action) === hash,
+      );
+  }
+
   private itemFromInput(input: RaiseApprovalInput, now: Date): ApprovalItem {
     const item: ApprovalItem = {
       id: this.idSource(now),
@@ -512,8 +577,41 @@ export function normalizeAction(action: ToolAction | ApprovalAction): ApprovalAc
 
 export function actionHash(action: ToolAction | ApprovalAction): string {
   return createHash("sha256")
-    .update(stableStringify(normalizeAction(action)))
+    .update(stableStringify(normalizeSemanticAction(action)))
     .digest("hex");
+}
+
+export interface ApprovalMetrics {
+  decided: number;
+  approved: number;
+  denied: number;
+  precision: number | null;
+  recurrence: number;
+  meanDecisionMs: number | null;
+}
+
+export function computeApprovalMetrics(
+  items: readonly ApprovalItem[],
+  log: readonly ApprovalLogEvent[] = [],
+  isGenuine?: (item: ApprovalItem) => boolean,
+): ApprovalMetrics {
+  const decided = items.filter((item) => item.decidedAt !== undefined);
+  const approved = decided.filter((item) => item.decision === "approved").length;
+  const denied = decided.filter((item) => item.decision === "denied").length;
+  const times = decided.map((item) =>
+    Math.max(0, new Date(item.decidedAt!).getTime() - new Date(item.raisedAt).getTime()),
+  );
+  return {
+    decided: decided.length,
+    approved,
+    denied,
+    precision:
+      items.length === 0 || isGenuine === undefined
+        ? null
+        : items.filter((item) => isGenuine(item)).length / items.length,
+    recurrence: log.filter((event) => event.type === "deduplicated" && event.priorStatus === "denied").length,
+    meanDecisionMs: times.length === 0 ? null : times.reduce((sum, value) => sum + value, 0) / times.length,
+  };
 }
 
 function mintGrant(

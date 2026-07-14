@@ -9,7 +9,23 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  hasRuntimeCapability,
+  runtimeCapabilityProfile,
+  type RuntimeCapability,
+  type RuntimeCapabilityProfile,
+} from "../runtime/capabilities.js";
+import type { RoleConfig, RuntimeKind } from "../runtime/types.js";
+import {
+  ROUTE_BUDGETS,
+  type AuthorizedPass,
+  type EfficiencyRoute,
+  type RouteBudget,
+} from "./efficiency.js";
+import type { PassConfig } from "./pipelines.js";
 import type { GateCommands } from "./qgates.js";
 
 export interface PreflightOptions {
@@ -22,6 +38,32 @@ export interface PreflightOptions {
 export interface PreflightResult {
   ok: boolean;
   problems: string[];
+}
+
+export interface PipelineArtifactExpectation {
+  path: string;
+  sha256: string;
+  reason: string;
+}
+
+export interface PipelinePreflightInput {
+  workdir: string;
+  route: EfficiencyRoute;
+  selectedPasses: PassConfig[];
+  roles: Record<string, RoleConfig>;
+  budgetOverrides?: Partial<RouteBudget>;
+  requiredCapabilities?: RuntimeCapability[];
+  capabilityProfiles?: Partial<Record<RuntimeKind, RuntimeCapabilityProfile>>;
+  artifacts?: PipelineArtifactExpectation[];
+  /** A ratified mechanical pipeline may legitimately select no provider
+   * passes; its orchestrator-owned work still proceeds through gates. */
+  allowNoProviderTurns?: boolean;
+  authorizedPasses?: AuthorizedPass[];
+}
+
+export interface PipelinePreflightResult extends PreflightResult {
+  checkedPasses: string[];
+  checkedArtifacts: string[];
 }
 
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
@@ -81,6 +123,83 @@ export async function runEnvPreflight(
   }
 
   return { ok: problems.length === 0, problems };
+}
+
+/** Provider-free admission validation shared by every pipeline caller. It
+ * rejects malformed pass/role configuration, missing declared adapter
+ * capabilities, impossible route budgets, and stale continuation artifacts
+ * before runtimeFor can be invoked. */
+export function runPipelinePreflight(input: PipelinePreflightInput): PipelinePreflightResult {
+  const problems: string[] = [];
+  const checkedPasses: string[] = [];
+  const checkedArtifacts: string[] = [];
+  if (input.selectedPasses.length === 0 && input.allowNoProviderTurns !== true) {
+    problems.push("selected pass set is empty");
+  }
+
+  const budget = { ...ROUTE_BUDGETS[input.route], ...(input.budgetOverrides ?? {}) };
+  if (input.route === "deep" && budget.input_tokens === null) {
+    problems.push("deep route has no declared input-token budget");
+  }
+  for (const [name, value] of [
+    ["provider_turns", budget.provider_turns],
+    ["equivalent_cost_usd", budget.equivalent_cost_usd],
+    ["active_time_ms", budget.active_time_ms],
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0) problems.push(`route budget ${name} is invalid`);
+  }
+  if (budget.provider_turns < input.selectedPasses.length) {
+    problems.push(
+      `route budget allows ${budget.provider_turns} provider turn(s), but ${input.selectedPasses.length} selected passes require at least one each`,
+    );
+  }
+
+  for (const pass of input.selectedPasses) {
+    checkedPasses.push(pass.id);
+    const role = input.roles[pass.role];
+    if (role === undefined) {
+      problems.push(`pass ${pass.id} references missing role ${pass.role}`);
+      continue;
+    }
+    if (role.model.trim() === "") problems.push(`role ${role.name} has no model`);
+    if (!Number.isFinite(role.maxTurnBudgetUsd) || role.maxTurnBudgetUsd <= 0) {
+      problems.push(`role ${role.name} has an invalid maxTurnBudgetUsd`);
+    }
+    const profile = input.capabilityProfiles?.[role.runtime] ?? runtimeCapabilityProfile(role.runtime);
+    if (input.authorizedPasses !== undefined) {
+      const authorized = input.authorizedPasses.find((candidate) => candidate.pass === pass.id);
+      if (authorized === undefined) {
+        problems.push(`pass ${pass.id} lacks pre-execution route authorization`);
+      } else if (
+        authorized.role !== role.name ||
+        authorized.runtime !== role.runtime ||
+        authorized.model.trim() === "" ||
+        authorized.factor_rules.length === 0
+      ) {
+        problems.push(`pass ${pass.id} has invalid route-selected role/model/effort evidence`);
+      }
+    }
+    for (const capability of input.requiredCapabilities ?? []) {
+      if (!hasRuntimeCapability(profile, capability)) {
+        problems.push(`${role.runtime}/${role.name} lacks required capability ${capability}`);
+      }
+    }
+  }
+
+  for (const artifact of [...(input.artifacts ?? [])].sort((a, b) => a.path.localeCompare(b.path))) {
+    checkedArtifacts.push(artifact.path);
+    const path = join(input.workdir, artifact.path);
+    if (!existsSync(path)) {
+      problems.push(`stale artifact ${artifact.path}: missing (${artifact.reason})`);
+      continue;
+    }
+    const observed = createHash("sha256").update(readFileSync(path)).digest("hex");
+    if (observed !== artifact.sha256.replace(/^sha256:/, "")) {
+      problems.push(`stale artifact ${artifact.path}: content hash changed (${artifact.reason})`);
+    }
+  }
+
+  return { ok: problems.length === 0, problems, checkedPasses, checkedArtifacts };
 }
 
 /** First real token of a shell command, skipping VAR=value prefixes. */

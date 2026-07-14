@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and production Phases 1–2 complete; the provider baseline remains valid historical evidence and honestly `not_qualified` |
+| Status | T0–T5 readiness and deterministic production Phases 1–3 complete; the provider baseline remains valid historical evidence and honestly `not_qualified` |
 | Evidence date | 2026-07-14 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
@@ -77,23 +77,43 @@ The complete Phase 2 local pass on 2026-07-14 produced:
   exited non-zero only because the exact 52 post-Phase-2 production contracts
   below remain deliberately known-red.
 
-After production Phases 1–2, the exact known-red set is 52 contracts:
+After the deterministic production Phase 3 slice, the exact known-red set is
+25 contracts. The D/E live contracts and G-MET-01 remain red because their
+provider campaigns were not authorized, not because their deterministic
+production paths are absent:
 
-- D (11): `D-ROUTE-01`–`D-ROUTE-07`, `D-PLAN-01`,
-  `D-LIVE-01`–`D-LIVE-03`;
-- E (8): `E-CTX-03`–`E-CTX-08`, `E-LIVE-01`–`E-LIVE-02`;
-- F (6): `F-CONT-01`–`F-CONT-04`, `F-SET-04`, `F-BOUND-01`;
-- G (8): `G-ACT-01`–`G-ACT-03`, `G-SHAPE-01`, `G-GRANT-01`,
-  `G-DEDUPE-01`, `G-DENY-01`, `G-MET-01`;
+- D (3): `D-LIVE-01`–`D-LIVE-03`;
+- E (2): `E-LIVE-01`–`E-LIVE-02`;
+- G (1): `G-MET-01`;
 - H (10): `H-CAP-01`–`H-CAP-03`, `H-CLU-01`–`H-CLU-02`,
   `H-GOV-01`, `H-EVAL-01`–`H-EVAL-03`, `H-RPT-01`;
 - I (9): `I-INSTALL-01`–`I-INSTALL-02`, `I-SOAK-01`–`I-SOAK-03`,
   `I-ROLE-01`–`I-ROLE-03`, `I-LIVE-01`.
 
-These are red because their transformation production behavior is absent, not
-because tests, evidence paths, cases, graders, or harnesses are missing. The
-32 required contracts in A, B, C, E, F, and J are green; historical provider
-baseline results remain the pre-transformation comparison and are not relabeled.
+The 59 required contracts in A–G and J are green. Historical provider baseline
+results remain the pre-transformation comparison and are not relabeled, and no
+live result is inferred from deterministic evidence.
+
+The Phase 3 offline gate on 2026-07-14 produced:
+
+- `pnpm eval:validate`: valid, with 84/84 executable evidence paths and no
+  orphaned records;
+- `pnpm test:transformation`: 28 files and 267 tests passed; the non-strict
+  runner reported the exact 25 known-red contracts and no unexpected failure;
+- `pnpm eval:deterministic`: 45 files and 398 tests passed;
+- `pnpm test`: 172 files and 1,540 tests passed;
+- `pnpm typecheck`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack
+  --dry-run`: passed;
+- alpha, beta, gamma, and delta app suites passed, including every available
+  lint check and gamma SRE/Support/Marketing role smoke; an isolated Delta
+  HOME/org/state/app completed scan, bootstrap, quick plan dry-run, and loop
+  dry-run with zero provider turns;
+- `pnpm test:transformation:strict`: all 267 tests passed, then exited non-zero
+  only for the exact 25 contracts above; the disposable GitHub merge e2e was
+  not run because `GH_SANDBOX_REPO` was unset.
+
+No calibration, baseline, qualification, soak, or other provider campaign was
+run for Phase 3.
 
 ### Retained external evidence and findings
 

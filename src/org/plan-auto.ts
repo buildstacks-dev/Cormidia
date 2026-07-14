@@ -154,9 +154,32 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   const brief = await stageAwareBrief(options, snapshot, clock(), stage, planningDecision, route, planningCostEstimate);
   const priorOutputs = new Map<string, string>();
   const finalPassId = route.selectedPasses[route.selectedPasses.length - 1];
+  const planningFactor = {
+    kind: "uncertainty" as const,
+    evidence: `planning depth ${planningDecision.depth}: ${planningDecision.decisionFactors.join(", ")}`,
+    policy_rule: "planning_depth",
+  };
+  const authorizedPasses = selectedPasses.map((pass) => {
+    const role = roles[pass.role];
+    if (role === undefined) throw new Error(`adaptive planning pass ${pass.id} references missing role ${pass.role}`);
+    return {
+      pipeline: pipeline.name,
+      pass: pass.id,
+      role: role.name,
+      runtime: role.runtime,
+      model: pass.model ?? role.model,
+      effort:
+        planningDecision.depth === "quick"
+          ? "low" as const
+          : planningDecision.depth === "standard" && ["high", "xhigh", "max"].includes(pass.effort ?? role.effort)
+            ? "medium" as const
+            : pass.effort ?? role.effort,
+      factor_rules: [planningFactor.policy_rule],
+    };
+  });
   const run = await executePipeline({
     pipeline,
-    selection: { tier: "standard", includePasses: route.selectedPasses },
+    selection: { tier: planningDecision.depth, includePasses: route.selectedPasses },
     roles,
     runtimeFor: options.runtimeFor ?? ((role) => getRuntime(role.runtime)),
     briefFor: (pass) => planningBriefForPass(brief, pass.id, priorOutputs, route),
@@ -168,6 +191,14 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     clock,
     verdictSchemaFor: (pass) => (pass.id === finalPassId ? PLAN_SCHEMA : undefined),
     telemetry: { orgDir: options.stateHome, trigger: "manual" },
+    episode: {
+      id: `trace:${options.app.name}:${turnId}`,
+      route: planningDecision.depth,
+      policyVersion: planningDecision.policyVersion,
+      factors: [planningFactor],
+      authorizedPasses,
+      ...(planningDecision.depth === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
+    },
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     planningRoute: {

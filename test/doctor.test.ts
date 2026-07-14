@@ -17,9 +17,18 @@ const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 describe("doctor scheduler status", () => {
   it("launchd template is valid plist", () => {
-    execFileSync("plutil", ["-lint", "config/launchd/operon-dispatch.plist.template"], {
-      encoding: "utf8",
-    });
+    const template = join(REPO_ROOT, "config/launchd/operon-dispatch.plist.template");
+    if (process.platform === "darwin") {
+      execFileSync("plutil", ["-lint", template], { encoding: "utf8" });
+      return;
+    }
+
+    const python = process.platform === "win32" ? "python" : "python3";
+    execFileSync(
+      python,
+      ["-c", "import plistlib, sys; plistlib.load(open(sys.argv[1], 'rb'))", template],
+      { encoding: "utf8" },
+    );
   });
 
   it("prints not-installed with install and load commands", async () => {

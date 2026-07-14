@@ -56,6 +56,9 @@ import { acquireLock, heartbeatLock, lockExists, readLock, releaseLock } from ".
 import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
 import { appendScorecardEvent } from "./scorecards.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
+import { SchedulerEvidenceStore } from "./scheduler/evidence.js";
+import { schedulerIdentity } from "./scheduler/model.js";
+import { persistStandingRoleOutcome, readPlannerFeeds } from "./standing-roles.js";
 
 export interface RunDispatchedTurnOptions {
   role: RoleConfig;
@@ -238,6 +241,16 @@ export async function runDispatchedTurn(
         ? { message: result.summary }
         : {}),
     });
+    try {
+      await recordSchedulerReceipt(runtimeHome, orgRoot, options.appsFile.org.name, options.turnId, result.summary, clock());
+    } catch (error) {
+      await writeJournalPatch(runtimeHome, options.turnId, {
+        role: options.role.name,
+        app: options.app.name,
+        phase: journalPhaseForStatus(result.status),
+        message: `scheduler terminal receipt failed: ${error instanceof Error ? error.message : String(error)}`,
+      }, clock());
+    }
     return { status: result.status, summary: result.summary };
   } catch (error) {
     const pending = await new ApprovalStore(runtimeHome).listPending();
@@ -256,6 +269,7 @@ export async function runDispatchedTurn(
       stop?.reason ?? (error instanceof Error ? error.message : String(error)),
       options.role,
     );
+    await recordSchedulerReceipt(runtimeHome, orgRoot, options.appsFile.org.name, options.turnId, result.summary, clock()).catch(() => {});
     // Provider failures are already terminalized and settled by the pass
     // executor. Failures before provider construction are journal/invocation
     // facts, not zero-cost provider turns; do not synthesize a ledger row.
@@ -319,6 +333,9 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   const budgetRows = (await rollupBudgets(options.runtimeHome, options.appsFile, now)).filter(
     (row) => row.status !== "ok",
   );
+  const plannerFeeds = options.role.name === "planner"
+    ? await readPlannerFeeds(options.runtimeHome, options.app.name)
+    : [];
 
   const result = await executePipeline({
     pipeline,
@@ -341,6 +358,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
           ageMs: now.getTime() - new Date(item.raisedAt).getTime(),
         })),
         budgetRows,
+        plannerFeeds: plannerFeeds.map((feed) => ({ id: feed.feed_id, summary: feed.summary })),
       }),
     promptsDir: join(options.orgRoot, "prompts"),
     context: options.context,
@@ -359,6 +377,17 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
       priorOutputs.set(record.pass.id, record.result.summary);
     },
   });
+
+  if (options.journal.event !== undefined) {
+    await persistStandingRoleOutcome({
+      stateHome: options.runtimeHome,
+      app: options.app.name,
+      role: options.role.name,
+      event: options.journal.event,
+      providerSummary: result.passes.map((record) => record.result.summary).join("\n"),
+      now,
+    });
+  }
 
   return resultFromPipeline(options.role, options.pipelineName, result, options.signal);
 }
@@ -819,6 +848,7 @@ function protocolBrief(input: {
   priorOutputs: Map<string, string>;
   approvalRows: { id: string; app: string; role: string; rule: string; ageMs: number }[];
   budgetRows: { app: string; spentUsd: number; budgetUsd: number; percent: number; status: string }[];
+  plannerFeeds: { id: string; summary: string }[];
 }): string {
   const prior =
     input.priorOutputs.size === 0
@@ -841,6 +871,9 @@ function protocolBrief(input: {
               `- ${row.app}: ${row.status} ${row.spentUsd.toFixed(2)} / ${row.budgetUsd.toFixed(2)} (${row.percent.toFixed(1)}%)`,
           )
           .join("\n");
+  const plannerFeeds = input.plannerFeeds.length === 0
+    ? "No standing-role feeds."
+    : input.plannerFeeds.map((item) => `- ${item.id}: ${item.summary}`).join("\n");
 
   // The original event payload, verbatim, with a provenance stamp — a
   // dispatched Support/Marketing/SRE/Planner turn must be able to quote what
@@ -886,6 +919,9 @@ function protocolBrief(input: {
     "",
     "### Budget warnings",
     budgets,
+    "",
+    "### Standing-role Planner feeds",
+    plannerFeeds,
     "",
     "## Prior pass outputs",
     "",
@@ -1212,4 +1248,21 @@ function git(cwd: string, ...args: string[]): string {
     },
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
+}
+
+async function recordSchedulerReceipt(
+  runtimeHome: string,
+  orgRoot: string,
+  orgName: string,
+  turnId: string,
+  summary: string,
+  at: Date,
+): Promise<void> {
+  const store = new SchedulerEvidenceStore({
+    stateHome: runtimeHome,
+    orgName,
+    orgHome: orgRoot,
+    schedulerId: schedulerIdentity(orgName, orgRoot),
+  });
+  await store.recordTurnReceipt(turnId, at, summary);
 }

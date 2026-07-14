@@ -8,6 +8,15 @@ adapter invocation is a provider turn with exactly one settlement, missing or
 estimated usage stays labeled by quality, and adapter readiness cannot be
 inferred from configuration presence alone.
 
+Host scheduling is provider-independent. Phase 5 supports org-scoped launchd
+installation and bounded status inspection on macOS; systemd user-timer output
+shares the definition/manager boundary but is representation-only until it is
+exercised on a supported host. Scheduler lifecycle, empty windows, missed-tick
+reconciliation, and status aggregation construct no adapter. Scheduled
+provider work enters the ordinary adapter path and must retain one settlement
+per provider turn. The canonical platform contract is
+[`docs/scheduler.md`](scheduler.md).
+
 | Capability | ClaudeRuntime | CodexRuntime | PiRuntime |
 | --- | --- | --- | --- |
 | Gate enforcement | **Native + adapter-built.** Claude SDK `PreToolUse` is the primary gate, with `canUseTool` as a fail-closed backstop (`src/runtime/adapters/claude.ts`); fires for every tool call, including auto-allowed read-only bash. | **Native + adapter-built on a constrained tool surface.** Every real turn installs an automation-vetted `PreToolUse` hook that carries supported simple Bash, `apply_patch`, and MCP calls over a fail-closed per-turn Unix socket into Operon's in-process `hooks.gate`; a multi-file patch gates **every** file. App Server approval requests remain a backstop (`src/runtime/adapters/codex-gate-bridge.ts`, `src/runtime/adapters/codex-gate-hook.ts`, `src/runtime/adapters/codex.ts`). Operon supplies both the public trust-bypass flag and its explicit session-config equivalent because Codex CLI 0.142.5's `app-server` dispatch drops the global flag; a token-free `config/read` check pins the effective override to `sessionFlags`. Because OpenAI documents `PreToolUse` as a guardrail rather than a complete enforcement boundary, Operon disables the incompletely intercepted `unified_exec` path plus apps, plugins, in-app browser, web search, and image viewing for these turns. The claim is deliberately limited to that constrained surface and remains live-calibration-gated. | **Adapter-built.** pi has no first-class approval flow, so Operon installs a `tool_call` extension that blocks on gate denial (`src/runtime/adapters/pi.ts`, `src/runtime/adapters/pi-gate.ts`). |

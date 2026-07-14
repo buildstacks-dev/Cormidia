@@ -29,6 +29,7 @@ import { cmdTask } from "./cli/task.js";
 import { cmdOrg } from "./cli/org.js";
 import { cmdObserve } from "./cli/observe.js";
 import { cmdReport } from "./cli/report.js";
+import { cmdScheduler } from "./cli/scheduler.js";
 import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.js";
 
 const USAGE = `operon — org runtime for a team of AI agents
@@ -70,6 +71,9 @@ Usage:
   operon doctor [--json] [--config-only]
                            validate installation, active org, state, adapters,
                            and scheduler status
+  operon scheduler <install|status|uninstall> [--backend launchd|systemd] [--json]
+                           preview org-scoped scheduler lifecycle by default;
+                           mutation requires --execute --confirm <exact-id>
   operon approvals [review|show <id>] [--state-home <path>]
                            inspect or decide the critical-op approval queue
   operon budget [--state-home <path>] [--apps <path>]
@@ -126,6 +130,7 @@ const HELP = {
   plan: `Usage:\n  operon plan <app-name> [--topic <text>] [--workdir <local-path>] [--dry-run] [--parent-task <id>]\n  operon plan <app-name> --auto --goal <text> [--stage bootstrap|growth|mature] [--no-publish] [--parent-task <id>] [--depth quick|standard|deep] [--risk low|medium|high] [--ambiguity low|medium|high] [--coupling low|medium|high] [--reversibility reversible|costly-to-reverse|irreversible] [--external-consequence none|internal|customer-public-production] [--expected-tickets 1-2|3-6|7+] [--sensitive-domains <csv>]\n  operon plan <app-name> --explain-route [structured route flags]${HOME_HELP}\n\n--auto applies planning-depth/v1 before constructing a runtime: quick runs one combined pass, standard runs visionary + one PM + decomposer, and deep runs competing PMs + arbitration + decomposition. --explain-route is a token-free structured decision read. Security, migration, release, destructive, high-risk, high-ambiguity, high-coupling, irreversible, externally consequential, and 7+ ticket work has a deep floor. The final plan is schema-validated and orchestrator-published; no agent-authored gh calls.`,
   loop: `Usage:\n  operon loop --app <app-name> [--once|--follow] [--dry-run] [--allow-network] [--repo-dir <local-path>] [--parent-task <id>]\n  operon loop --explain-context <episode-id>\n  operon loop --resume-episode <episode-id>${HOME_HELP}`,
   doctor: `Usage: operon doctor [--json] [--config-only]${HOME_HELP}`,
+  scheduler: `Usage:\n  operon scheduler install [--backend launchd|systemd] [--cadence-minutes N] [--json]\n  operon scheduler install [--backend launchd|systemd] --execute --confirm <exact-org-or-scheduler-id> [--json]\n  operon scheduler status [--backend launchd|systemd] [--json]\n  operon scheduler uninstall [--backend launchd|systemd] [--json]\n  operon scheduler uninstall [--backend launchd|systemd] --execute --confirm <exact-org-or-scheduler-id> [--json]${HOME_HELP}\n\nInstall and uninstall preview without writes. Definitions use absolute executable, org, and state paths and are scoped to the exact org. systemd rendering is future-compatible but host execution remains unsupported until exercised.`,
   approvals: `Usage: operon approvals [list|review [--batch]|show <id>|revoke <grant-id>] [--state-home <path>] [--now <ISO-time>]${HOME_HELP}\n\nreview decisions: "a" approves single-use (default); "a ticket [path]" / "a app [path]" mint a rule+path-scoped multi-use grant (TTL 24h, 20 uses; never for self-merge/deploy/protocol/scorecard/approval-store rules); approving a ticketed item offers op:blocked -> op:ready re-arm. --batch groups same-rule/app items into one decision with per-item audit.`,
   budget: `Usage: operon budget [--apps <apps.yaml-path>] [--reconcile]${HOME_HELP}\n\n--reconcile terminalizes stale provider receipts, settles missing terminal provider steps, and back-fills legacy runs/**/envelope.json evidence. Current rows are idempotent by app+provider_turn_id; legacy rows fall back to app+run_id.`,
   status: `Usage: operon status [--app <app-name>] [--limit N]${HOME_HELP}`,
@@ -166,6 +171,7 @@ const COMMANDS: Record<string, CliCommand> = {
   plan: { run: (args) => cmdPlan(args), help: HELP.plan },
   pipelines: { run: (args) => cmdPipelines(args), help: HELP.pipelines },
   doctor: { run: (args) => cmdDoctorArgs(args), help: HELP.doctor },
+  scheduler: { run: (args) => cmdScheduler(args), help: HELP.scheduler },
   "prune-runs": { run: (args) => cmdPruneRuns(args), help: HELP["prune-runs"] },
   learn: { run: (args) => cmdLearn(args), help: LEARN_HELP },
   retro: { run: (args) => cmdRetro(args), help: HELP.retro },

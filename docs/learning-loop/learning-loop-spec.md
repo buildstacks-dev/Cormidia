@@ -283,7 +283,10 @@ by replaying immutable evidence and atomically rebinding the same ids.
 `approval.false_positive`, `execution.repeated_work`,
 `review.long_duration`, `tooling.bash_heavy`,
 `tooling.shell_heavy_repetition`, and `scheduler.missed_tick`. Scheduler-miss
-evidence is a future-compatible class; this phase does not install a scheduler.
+evidence is now projected from the Phase 5 scheduler's orchestrator-owned
+`missed_window_reconciled` decision through the same `efficiency-evidence/v1`
+capture path. The scheduler creates no competing learning record or provider
+turn; its canonical source schema is `docs/scheduler.md`.
 Trusted recurrence is keyed by app, role, class, and normalized cause, with
 distinct source identities and the policy's `min_cluster_events` threshold.
 

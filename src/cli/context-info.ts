@@ -58,6 +58,7 @@ const CAPABILITIES = [
   { command: "plan", writes: true, spendsTokens: true, summary: "run a Planner co-planning session; --dry-run is token-free" },
   { command: "loop", writes: true, spendsTokens: true, summary: "advance ready GitHub tickets; --dry-run is token-free" },
   { command: "dispatch", writes: true, spendsTokens: true, summary: "run one scheduler tick; --dry-run is token-free" },
+  { command: "scheduler", writes: true, spendsTokens: false, summary: "preview/install/status/uninstall the exact org-scoped host scheduler; status is read-only" },
   { command: "run-role", writes: true, spendsTokens: true, summary: "run one role turn; --dry-run is token-free" },
   { command: "approvals", writes: true, spendsTokens: false, summary: "inspect or decide durable critical-operation requests" },
   { command: "budget", writes: false, spendsTokens: false, summary: "summarize monthly spend and budget pauses" },

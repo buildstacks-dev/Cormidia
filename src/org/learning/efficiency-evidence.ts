@@ -244,6 +244,7 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
       ts: miss.observed_at,
       errorClass: "scheduler.missed_tick",
       cause: "a due schedule tick had no reasoned terminal invocation record",
+      evidenceKind: "mechanical",
       detail: {
         due_at: miss.due_at,
         observed_at: miss.observed_at,
@@ -412,6 +413,7 @@ function supplementalEvent(input: {
   errorClass: EfficiencyErrorClass;
   cause: string;
   detail: Record<string, unknown>;
+  evidenceKind?: "provider" | "mechanical";
 }): LearningEvent {
   const sourceIdentity = `${input.app}\0${input.identity}\0${input.errorClass}`;
   return {
@@ -428,7 +430,7 @@ function supplementalEvent(input: {
     trust: "trusted",
     payload: {
       classification_version: EFFICIENCY_EVIDENCE_VERSION,
-      evidence_kind: "provider",
+      evidence_kind: input.evidenceKind ?? "provider",
       source_identity: sourceIdentity,
       ...input.detail,
     },

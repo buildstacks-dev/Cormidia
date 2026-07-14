@@ -42,6 +42,7 @@ import {
   type LearningEvent,
 } from "./events.js";
 import { projectEfficiencyEvidence } from "./efficiency-evidence.js";
+import { readSchedulerMissEvidence } from "../scheduler/evidence.js";
 
 export interface CaptureCursor {
   schema_version: 1;
@@ -256,6 +257,28 @@ async function captureEvents(
     } else {
       result.runsRepaired += 1;
       result.eventFilesRecovered += missingBefore.length;
+    }
+  }
+
+  const schedulerEvents = projectEfficiencyEvidence({
+    runs: [],
+    schedulerMisses: await readSchedulerMissEvidence(stateHome),
+    ...(options.appStages !== undefined ? { appStages: options.appStages } : {}),
+  });
+  const schedulerFresh: LearningEvent[] = [];
+  for (const event of schedulerEvents) {
+    const path = learningEventPath(stateHome, event);
+    const existing = existsSync(path)
+      ? new Set((await readLearningEventFile(path)).map((item) => item.event_id))
+      : new Set<string>();
+    if (!existing.has(event.event_id)) schedulerFresh.push(event);
+  }
+  if (schedulerFresh.length > 0) {
+    result.refreshRequired ||= !write;
+    if (write) {
+      const { emitted, deduped } = await appendLearningEventsDeduped(stateHome, schedulerFresh);
+      result.eventsEmitted += emitted;
+      result.eventsDeduped += deduped;
     }
   }
 

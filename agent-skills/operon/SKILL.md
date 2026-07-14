@@ -137,7 +137,26 @@ operon plan <app> --dry-run
 operon loop --app <app> --once --dry-run
 operon dispatch --dry-run
 operon run-role <role> --app <app> --dry-run
+operon scheduler install --json
+operon scheduler status --json
+operon scheduler uninstall --json
 ```
+
+Scheduler install/uninstall are preview-only without `--execute`; preview and
+status are token-free. Execute only when the user explicitly authorizes the
+exact org-scoped identity printed by preview:
+
+```bash
+operon scheduler install --execute --confirm <scheduler-id-or-exact-org-name>
+operon scheduler uninstall --execute --confirm <scheduler-id-or-exact-org-name>
+```
+
+Never infer scheduler health from a definition file. `scheduler status` joins
+ownership/hash/cadence, loaded/active host-manager state, recent tick evidence,
+duplicates/orphans, and provider-settlement agreement. `doctor --config-only`
+cannot claim execution health. A real launchd/systemd mutation or 48–72 hour
+soak always needs separate explicit authorization; L6 preview is not execution
+evidence.
 
 Interactive `operon plan <app>` hands the terminal to a live session and will
 hang a non-interactive run; headless planning must use

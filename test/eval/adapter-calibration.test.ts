@@ -41,6 +41,17 @@ it("pins calibration and qualification to the exact ratified model snapshots", (
   expect(candidate.price_catalog_id).toBe(adapter.price_catalog_id);
 });
 
+it("pins the Codex runtime release required by the exact GPT-5.6 Sol assignment", () => {
+  const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+    dependencies: Record<string, string>;
+  };
+  const lockfile = readFileSync(join(process.cwd(), "pnpm-lock.yaml"), "utf8");
+
+  expect(packageJson.dependencies["@openai/codex"]).toBe("0.144.4");
+  expect(lockfile).toContain("'@openai/codex@0.144.4'");
+  expect(lockfile).not.toContain("'@openai/codex@0.142.5'");
+});
+
 it("allows slow provider usage checkpoints before the cancellation fallback", () => {
   expect(CANCELLATION_FALLBACK_MS).toBeGreaterThanOrEqual(20_000);
 });

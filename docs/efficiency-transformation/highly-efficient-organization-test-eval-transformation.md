@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and production Phases 1–5 complete; one prior-candidate adapter campaign qualified and was safely archived, while its candidate campaign is permanently invalid and corrected adapter/candidate/L6 evidence remains pending |
+| Status | T0–T5 readiness and production Phases 1–5 complete; the prior candidate and latest-model adapter campaigns are permanently invalid, while corrected adapter/candidate/L6 evidence remains pending |
 | Evidence date | 2026-07-15 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
@@ -107,6 +107,21 @@ from the invalid campaign, strict mode remains red only for the exact ten
 post-Phase-5 contracts, and the separate 48-hour real-time soak remains
 pending.
 
+The next exact latest-model adapter campaign,
+`adapter-harness-calibration-v1-20260715-7d36fc5f3d3f` (SHA-256
+`7184ed7001fc9cb7adbc678b72a945821a0e7b7d3891e4b9adec67c5916edf7a`),
+is also permanently `invalid`. Claude passed; Codex's original attempt and
+its one linked infrastructure retry were rejected because the pinned 0.142.5
+Codex runtime was too old for `gpt-5.6-sol`; and pi's Sonnet 5 attempt proved
+that the external account still lacks funded third-party “extra usage.” All
+ten provider turns reconcile to ten settlements, four mechanical steps have
+zero mechanical settlements, and the verified 67-file archive is retained.
+The repository now pins `@openai/codex` 0.144.4, which invalidates the
+unexecuted matching candidate manifest. Pi remains an external account
+blocker and no substitute model is permitted. See
+`research/evals/2026-07-15-phase6-latest-model-adapter-invalid.md` for exact
+GitHub, qualifier, report, archive, cost, attempt, and settlement evidence.
+
 ### Latest deterministic verification
 
 The corrected Phase 6 pre-external gate on 2026-07-15, in the isolated candidate
@@ -115,12 +130,12 @@ worktree, produced:
 - `pnpm eval:validate`: valid, with 84 requirements, 84 executable evidence
   paths, 14 cases, 12 benchmark families, 60 fault boundaries, 13 graders,
   three capability declarations, and zero orphaned records;
-- `pnpm test:transformation`: 32 files and 257 tests passed, then the
+- `pnpm test:transformation`: 32 files and 258 tests passed, then the
   non-strict runner reported exactly the ten post-Phase-5 known-red contracts;
-- `pnpm eval:deterministic`: 53 files and 400 tests passed;
+- `pnpm eval:deterministic`: 53 files and 401 tests passed;
 - `pnpm eval:deterministic:nightly`: both declared shuffled seeds passed 53
-  files and 400 tests, including the production seven-day virtual soak;
-- `pnpm test`: 181 files and 1,548 tests passed after retaining and correcting
+  files and 401 tests, including the production seven-day virtual soak;
+- `pnpm test`: 181 files and 1,551 tests passed after retaining and correcting
   the invalid-calibration integration-timeout miss described below;
 - `pnpm typecheck`, `pnpm build`, neutral-cwd `pnpm smoke:onboarding`, and
   `npm pack --dry-run` passed; the dry-run package contains 208 files;
@@ -128,11 +143,10 @@ worktree, produced:
   passed 31 files and 182 tests after retaining and correcting a zsh wrapper
   variable error; production-path, hidden-answer, provider-construction,
   accounting, archive, promotion, and scheduler tripwires were green;
-- sandbox suites were not repeated because the correction changes no
-  production source, packaged runtime behavior, onboarding, or CLI surface;
-  the prior isolated alpha/beta/gamma/delta result remains the applicable
-  production-behavior check;
-- `pnpm test:transformation:strict` passed all 257 executable tests and exited
+- the isolated alpha, beta, gamma, and delta app suites passed; alpha, gamma,
+  and delta lint passed, and gamma's token-free SRE, Support, and Marketing
+  artifact smokes passed with no GitHub target;
+- `pnpm test:transformation:strict` passed all 258 executable tests and exited
   non-zero only for `D-LIVE-01..03`, `E-LIVE-01..02`, `G-MET-01`,
   `I-ROLE-01..03`, and `I-LIVE-01`.
 

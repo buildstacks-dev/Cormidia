@@ -63,6 +63,15 @@ invalid and the larger candidate campaign is not started. No standalone test
 turn is manufactured outside the campaign, and unavailable usage remains an
 invalid measurement rather than zero cost.
 
+That gate was exercised by
+`adapter-harness-calibration-v1-20260715-7d36fc5f3d3f`. It confirmed that the
+Claude extra-usage blocker remains active for pi. It also proved that the
+repository-local `@openai/codex` 0.142.5 runtime was too old to admit
+`gpt-5.6-sol`; the repository now pins stable 0.144.4. The campaign and its one
+Codex retry remain invalid and archived, while the unexecuted matching
+candidate manifest is stale. Full evidence is recorded in
+`research/evals/2026-07-15-phase6-latest-model-adapter-invalid.md`.
+
 The previously prepared `20260715-d18a3579b4a9` campaign identities and their
 authorizations became stale before execution when these covered model,
 price-catalog, runtime-accounting, and documentation bytes changed. Fresh

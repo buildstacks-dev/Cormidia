@@ -121,6 +121,16 @@ without revealing hidden answers. The exact retained evidence and correction
 handoff live in
 `research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`.
 
+The next pi-on-Codex adapter evidence qualified, while the dependent candidate
+is retained as a second `invalid` negative proof: 24 passes, two deep product
+misses, two continuation invalid measurements, and six learning pristine-gate
+harness errors. The corrected harness waits for usage-bearing progress before
+injecting continuation cancellation and keeps the learning case network-dark
+with a focused non-loopback seed test. The deep actor contract now preserves
+pinned package scripts. Exact hashes, costs, archives, and the fresh-identity
+handoff live in
+`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`.
+
 The paired learning proof likewise cannot be a fixture verdict. A predeclared
 T1 procedure is injected only into the three treatment arms. Operon hashes the
 six actual provider candidates, independent reviewer observations, and hidden

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phases 0–5 complete; Phase 6 retained one invalid candidate campaign and corrected external evidence remains pending exact authorization |
+| Status | Phases 0–5 complete; Phase 6 has a qualified pi-on-Codex adapter and a retained invalid candidate; corrected external evidence and L6 remain pending exact authorization |
 | Evidence date | 2026-07-15 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |

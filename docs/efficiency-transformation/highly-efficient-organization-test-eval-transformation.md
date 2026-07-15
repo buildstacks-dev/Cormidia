@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and production Phases 1–5 complete; the prior candidate and latest-model adapter campaigns are permanently invalid, while corrected adapter/candidate/L6 evidence remains pending |
+| Status | T0–T5 readiness and production Phases 1–5 complete; the pi-on-Codex adapter campaign qualified, its dependent candidate is permanently invalid, and corrected adapter/candidate/L6 evidence remains pending |
 | Evidence date | 2026-07-15 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
@@ -125,6 +125,27 @@ available to the embedded adapter. This covered-byte change makes the later
 `20260715-0794dd5378ed` previews and authorizations stale before execution. See
 `research/evals/2026-07-15-phase6-latest-model-adapter-invalid.md` for exact
 GitHub, qualifier, report, archive, cost, attempt, and settlement evidence.
+
+The subsequent pi-on-Codex adapter campaign,
+`adapter-harness-calibration-v1-20260715-6ed3b4ac8b87` (SHA-256
+`74e1260fa224b165b10a9c4a26e016de2efcdb9af86fc7d311fef00775ccda9b`),
+qualified Claude, Codex, and pi without a retry: 20 provider turns equal 20
+settlements, three mechanical steps produced zero mechanical settlements, and
+equivalent cost was $2.5776245. Its dependent candidate campaign,
+`candidate-qualification-v1-20260715-6ed3b4ac8b87` (SHA-256
+`f871bb3bdc4530ff5c44e0cba094160c91be5a8890cbfd880a980bd676a6968d`),
+is permanently `invalid`: 24 attempts passed, both deep episodes were genuine
+product misses, both continuation episodes were infrastructure-invalid, and
+all six learning arms stopped at a pristine-gate harness error. All 59
+provider turns reconcile to 59 settlements, 2,022 mechanical steps created
+zero settlements, and product/evaluator costs were $63.216598/$4.1084805.
+The corrected deep task preserves pinned package scripts, continuation waits
+for usage-bearing progress before cancellation, and the fully network-dark
+learning case uses a focused non-loopback seed test. Those covered-byte
+corrections require fresh adapter and candidate identities. Both terminal
+campaigns and their byte-stable reports are retained in verified
+`sanitized-evidence/v3` archives; cleanup was not executed. See
+`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`.
 
 ### Latest deterministic verification
 

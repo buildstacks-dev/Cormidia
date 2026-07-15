@@ -62,6 +62,17 @@ qualifier and archive are recorded in
 campaign must use a fresh content identity; the old results cannot be retried,
 relabelled, or copied into promotion evidence.
 
+The later pi-on-Codex adapter campaign qualified, but its dependent candidate
+is also permanently `invalid`: 24 passes, two deep product misses, two
+continuation infrastructure-invalid attempts, and six learning harness
+errors. The deep actors changed pinned package scripts, continuation cancelled
+before Codex emitted usage, and the fully network-dark learning case selected
+a loopback-bearing broad test. The retained evidence, exact accounting,
+archives, and fail-closed corrections are recorded in
+`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`. Those
+corrections change covered bytes and therefore require fresh adapter and
+candidate identities; the old campaign is never resumed.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

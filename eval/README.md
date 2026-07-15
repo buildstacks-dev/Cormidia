@@ -198,7 +198,13 @@ the full gate process tree. The default is fully network-dark; a case whose
 reviewed side-effect policy declares loopback receives only local inbound and
 outbound socket access while external networking remains denied. A live
 platform without that network sandbox fails closed instead of executing
-actor-authored checks with ambient access.
+actor-authored checks with ambient access. A fully network-dark case must use
+a focused visible command that does not transitively start a loopback fixture;
+the learning case therefore runs the seed's non-network auth test rather than
+its broad loopback-bearing package script. Live continuation injects
+cancellation only after a usage-bearing provider progress event. Session-only
+progress is not treated as usage; absence of a usage-bearing event fails the
+continuation closed, and unavailable usage remains an invalid denominator.
 
 Run adapter calibration before product episodes. Infrastructure retries are
 limited to one campaign-wide declared retry; the original attempt and any

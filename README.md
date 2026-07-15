@@ -366,9 +366,11 @@ hashes for a separately approved, isolated single activation and rollback.
 
 Unavailable provider token or cost totals are never coerced to zero. The
 attempt remains invalid with explicit missing denominators and its original
-typed account or transport cause. The retained first Phase 6 candidate
-campaign and its correction handoff are documented in
-[`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`](research/evals/2026-07-15-phase6-candidate-qualification-invalid.md).
+typed account or transport cause. The retained Phase 6 candidate campaigns
+and their correction handoffs are documented in
+[`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`](research/evals/2026-07-15-phase6-candidate-qualification-invalid.md)
+and
+[`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`](research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md).
 
 The Live UI browser suite uses a dev-only Playwright dependency and local
 Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real

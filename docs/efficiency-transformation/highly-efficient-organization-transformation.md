@@ -720,10 +720,12 @@ candidate, but its separately authorized candidate campaign is permanently
 `invalid`: 11 passed attempts, eight genuine product misses, three
 infrastructure-invalid attempts, and an incomplete remainder. The product
 misses and the unavailable-provider-usage harness failure have been corrected
-without changing thresholds, graders, assignments, denominators, or safety
-rules. The pi context probes remain blocked on the external Claude account's
-“extra usage” requirement and no substitute model is permitted. Covered bytes
-therefore require fresh adapter and candidate identities. The ten contracts
+without changing thresholds, graders, denominators, or safety rules. The
+operator then explicitly reassigned every Phase 6 pi evaluation role to pi's
+exact `openai-codex/gpt-5.6-sol` model while leaving production `roles.yaml`
+untouched. This removes the third-party Claude extra-usage dependency but is a
+covered-byte assignment change, so the earlier prepared previews and
+authorizations are stale. The ten contracts
 remain known-red pending separately authorized fresh adapter admission,
 candidate qualification, and L6 evidence. The immutable retained record is
 `research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`.

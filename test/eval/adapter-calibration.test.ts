@@ -26,7 +26,7 @@ it("pins calibration and qualification to the exact ratified model snapshots", (
   expect(adapter.assignments).toEqual([
     { role: "claude-probe", runtime: "claude", model: "claude-opus-4-8", effort: "low", capability_ref: "claude/v1" },
     { role: "codex-probe", runtime: "codex", model: "gpt-5.6-sol", effort: "low", capability_ref: "codex/v1" },
-    { role: "pi-probe", runtime: "pi", model: "claude-sonnet-5", effort: "low", capability_ref: "pi/v1" },
+    { role: "pi-probe", runtime: "pi", model: "openai-codex/gpt-5.6-sol", effort: "low", capability_ref: "pi/v1" },
   ]);
   const candidate = campaign("candidate-qualification");
   expect(candidate.assignments.map(({ role, runtime, model, effort }) => ({ role, runtime, model, effort }))).toEqual([
@@ -34,8 +34,8 @@ it("pins calibration and qualification to the exact ratified model snapshots", (
     { role: "builder", runtime: "codex", model: "gpt-5.6-sol", effort: "high" },
     { role: "reviewer", runtime: "claude", model: "claude-opus-4-8", effort: "high" },
     { role: "sre", runtime: "codex", model: "gpt-5.6-sol", effort: "medium" },
-    { role: "support", runtime: "pi", model: "claude-sonnet-5", effort: "medium" },
-    { role: "marketing", runtime: "pi", model: "claude-sonnet-5", effort: "medium" },
+    { role: "support", runtime: "pi", model: "openai-codex/gpt-5.6-sol", effort: "medium" },
+    { role: "marketing", runtime: "pi", model: "openai-codex/gpt-5.6-sol", effort: "medium" },
   ]);
   expect(adapter.price_catalog_id).toBe("prices/2026-07-15-v1");
   expect(candidate.price_catalog_id).toBe(adapter.price_catalog_id);
@@ -50,6 +50,26 @@ it("pins the Codex runtime release required by the exact GPT-5.6 Sol assignment"
   expect(packageJson.dependencies["@openai/codex"]).toBe("0.144.4");
   expect(lockfile).toContain("'@openai/codex@0.144.4'");
   expect(lockfile).not.toContain("'@openai/codex@0.142.5'");
+});
+
+it("pins pi evaluation roles to the exact Codex provider and supported SDK release", () => {
+  const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+    dependencies: Record<string, string>;
+  };
+  const lockfile = readFileSync(join(process.cwd(), "pnpm-lock.yaml"), "utf8");
+
+  for (const campaignName of ["adapter-harness-calibration", "candidate-qualification"]) {
+    const campaign = parse(
+      readFileSync(join(process.cwd(), `eval/campaigns/${campaignName}.yaml`), "utf8"),
+    ) as { assignments: Array<{ runtime: string; model: string }> };
+    const piAssignments = campaign.assignments.filter(({ runtime }) => runtime === "pi");
+    expect(piAssignments.length).toBeGreaterThan(0);
+    expect(piAssignments.every(({ model }) => model === "openai-codex/gpt-5.6-sol")).toBe(true);
+  }
+
+  expect(packageJson.dependencies["@earendil-works/pi-coding-agent"]).toBe("0.80.7");
+  expect(lockfile).toContain("'@earendil-works/pi-coding-agent@0.80.7'");
+  expect(lockfile).not.toContain("'@earendil-works/pi-coding-agent@0.80.3'");
 });
 
 it("allows slow provider usage checkpoints before the cancellation fallback", () => {

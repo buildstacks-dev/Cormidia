@@ -117,8 +117,12 @@ that the external account still lacks funded third-party “extra usage.” All
 ten provider turns reconcile to ten settlements, four mechanical steps have
 zero mechanical settlements, and the verified 67-file archive is retained.
 The repository now pins `@openai/codex` 0.144.4, which invalidates the
-unexecuted matching candidate manifest. Pi remains an external account
-blocker and no substitute model is permitted. See
+unexecuted matching candidate manifest. The operator subsequently ratified an
+eval-only reassignment of every pi probe, Support case, and Marketing case to
+pi's exact `openai-codex/gpt-5.6-sol` model; production `roles.yaml` remains
+unchanged. The local pi SDK is pinned to 0.80.7 so that exact provider/model is
+available to the embedded adapter. This covered-byte change makes the later
+`20260715-0794dd5378ed` previews and authorizations stale before execution. See
 `research/evals/2026-07-15-phase6-latest-model-adapter-invalid.md` for exact
 GitHub, qualifier, report, archive, cost, attempt, and settlement evidence.
 
@@ -130,12 +134,12 @@ worktree, produced:
 - `pnpm eval:validate`: valid, with 84 requirements, 84 executable evidence
   paths, 14 cases, 12 benchmark families, 60 fault boundaries, 13 graders,
   three capability declarations, and zero orphaned records;
-- `pnpm test:transformation`: 32 files and 258 tests passed, then the
+- `pnpm test:transformation`: 32 files and 259 tests passed, then the
   non-strict runner reported exactly the ten post-Phase-5 known-red contracts;
-- `pnpm eval:deterministic`: 53 files and 401 tests passed;
+- `pnpm eval:deterministic`: 53 files and 402 tests passed;
 - `pnpm eval:deterministic:nightly`: both declared shuffled seeds passed 53
-  files and 401 tests, including the production seven-day virtual soak;
-- `pnpm test`: 181 files and 1,551 tests passed after retaining and correcting
+  files and 402 tests, including the production seven-day virtual soak;
+- `pnpm test`: 181 files and 1,552 tests passed after retaining and correcting
   the invalid-calibration integration-timeout miss described below;
 - `pnpm typecheck`, `pnpm build`, neutral-cwd `pnpm smoke:onboarding`, and
   `npm pack --dry-run` passed; the dry-run package contains 208 files;
@@ -146,7 +150,7 @@ worktree, produced:
 - the isolated alpha, beta, gamma, and delta app suites passed; alpha, gamma,
   and delta lint passed, and gamma's token-free SRE, Support, and Marketing
   artifact smokes passed with no GitHub target;
-- `pnpm test:transformation:strict` passed all 258 executable tests and exited
+- `pnpm test:transformation:strict` passed all 259 executable tests and exited
   non-zero only for `D-LIVE-01..03`, `E-LIVE-01..02`, `G-MET-01`,
   `I-ROLE-01..03`, and `I-LIVE-01`.
 

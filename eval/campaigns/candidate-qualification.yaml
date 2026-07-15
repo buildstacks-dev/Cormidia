@@ -70,8 +70,8 @@ assignments:
   - { role: builder, runtime: codex, model: gpt-5.6-sol, effort: high, capability_ref: codex/v1 }
   - { role: reviewer, runtime: claude, model: claude-opus-4-8, effort: high, capability_ref: claude/v1 }
   - { role: sre, runtime: codex, model: gpt-5.6-sol, effort: medium, capability_ref: codex/v1 }
-  - { role: support, runtime: pi, model: claude-sonnet-5, effort: medium, capability_ref: pi/v1 }
-  - { role: marketing, runtime: pi, model: claude-sonnet-5, effort: medium, capability_ref: pi/v1 }
+  - { role: support, runtime: pi, model: openai-codex/gpt-5.6-sol, effort: medium, capability_ref: pi/v1 }
+  - { role: marketing, runtime: pi, model: openai-codex/gpt-5.6-sol, effort: medium, capability_ref: pi/v1 }
 price_catalog_id: prices/2026-07-15-v1
 randomization_seed: operon-qualification-20260712
 github: { owner: REPLACE_ME, repo_pattern: operon-eval-* }

@@ -170,6 +170,12 @@ a refresh is persisted before the usable credential is copied into isolated
 campaign scratch. All staged auth remains ephemeral provider scratch and is
 never copied into the sanitized archive.
 
+Phase 6 eval declarations use pi only with the exact
+`openai-codex/gpt-5.6-sol` model. This preserves pi's adapter-specific
+transport, gate, continuation, usage, and settlement qualification while
+avoiding any dependency on third-party Claude extra usage. Production
+`roles.yaml` assignments are outside this eval-only declaration.
+
 Readiness is request-auth readiness, not account-metadata presence. A
 first-party Claude account needs either a concrete token/API-key source or an
 authoritative `claude auth status --json` result from the exact subprocess

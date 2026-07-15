@@ -13,7 +13,7 @@ cases:
 assignments:
   - { role: claude-probe, runtime: claude, model: claude-opus-4-8, effort: low, capability_ref: claude/v1 }
   - { role: codex-probe, runtime: codex, model: gpt-5.6-sol, effort: low, capability_ref: codex/v1 }
-  - { role: pi-probe, runtime: pi, model: claude-sonnet-5, effort: low, capability_ref: pi/v1 }
+  - { role: pi-probe, runtime: pi, model: openai-codex/gpt-5.6-sol, effort: low, capability_ref: pi/v1 }
 price_catalog_id: prices/2026-07-15-v1
 randomization_seed: operon-adapter-calibration-20260712
 github: { owner: REPLACE_ME, repo_pattern: operon-eval-* }

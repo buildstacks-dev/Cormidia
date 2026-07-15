@@ -127,6 +127,14 @@ invalidates preparation.
    full-suite contention against Vitest's inherited five-second default. The
    test now declares a bounded 15-second integration timeout; no campaign
    threshold, oracle, attempt, or assertion changed.
+5. The first clean post-commit suite after the archive correction passed 1,542
+   of 1,543 offline tests but retained a learning-publisher crash-resume fixture
+   refusal. Stress execution reproduced it on iteration 13. Approval IDs use a
+   random URL-safe suffix; when that suffix ended in `-`, production's shared
+   path sanitizer trimmed it while the fixture's ad hoc replacement did not,
+   so the fixture wrote its simulated journal under a different filename. The
+   fixture now uses the production sanitizer and forces a trailing-hyphen ID,
+   making the boundary deterministic without changing publisher semantics.
 
 ## Current contract boundary
 

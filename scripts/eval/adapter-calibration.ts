@@ -127,7 +127,8 @@ export async function calibrateAdapter(options: {
   const scenarioRole = (fraction: number): RoleConfig => ({ ...options.role, maxTurnBudgetUsd: Math.max(Number.EPSILON, options.role.maxTurnBudgetUsd * fraction) });
   // Keep the six ordinary scenarios within 94% of one adapter allowance and
   // reserve 6% for the intentionally over-budget final probe. These fractions
-  // are calibrated against retained Claude Opus and gpt-5.5 evidence. The
+  // are calibrated against retained Claude Opus evidence and the refreshed
+  // GPT-5.6 Sol / Claude Sonnet 5 assignments. The
   // large transport turn remains amply bounded while role shaping has enough
   // headroom for Claude's first builder-shaped usage checkpoint.
   const transport = await invoke("transport", { role: scenarioRole(ADAPTER_SCENARIO_BUDGET_FRACTIONS.transport), workdir: options.workdir, task: largeTask, context, maxTurns: 3, networkAccess: false });

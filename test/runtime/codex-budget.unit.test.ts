@@ -84,6 +84,7 @@ class FakeCodexClient implements CodexAppServerClient {
 
 describe("codex estimated-cost pricing (documented list prices)", () => {
   it("prices the roster models from the cited OpenAI table", () => {
+    expect(codexModelPrice("gpt-5.6-sol")).toEqual({ inputPerMTok: 5, outputPerMTok: 30 });
     expect(codexModelPrice("gpt-5.5")).toEqual({ inputPerMTok: 5, outputPerMTok: 30 });
     expect(codexModelPrice("gpt-5.5-2026-04-23")).toEqual({ inputPerMTok: 5, outputPerMTok: 30 });
     expect(codexModelPrice("gpt-5.4")).toEqual({ inputPerMTok: 2.5, outputPerMTok: 15 });
@@ -98,6 +99,11 @@ describe("codex estimated-cost pricing (documented list prices)", () => {
     // 1M input @ $5 + 0.5M output @ $30 = $5 + $15 = $20 on gpt-5.5.
     expect(estimateCodexCostUsd(1_000_000, 500_000, "gpt-5.5")).toBeCloseTo(20, 10);
     expect(estimateCodexCostUsd(0, 0, "gpt-5.5")).toBe(0);
+  });
+
+  it("applies GPT-5.6 long-context pricing above 272K input tokens", () => {
+    expect(estimateCodexCostUsd(272_000, 100_000, "gpt-5.6-sol")).toBeCloseTo(4.36, 10);
+    expect(estimateCodexCostUsd(300_000, 100_000, "gpt-5.6-sol")).toBeCloseTo(7.5, 10);
   });
 });
 

@@ -43,6 +43,19 @@ describe("roles.yaml", () => {
     expect(builder?.runtime).not.toBe(reviewer?.runtime);
   });
 
+  it("pins the ratified current model snapshots", async () => {
+    const { roles } = await loadRoles(ROLES_PATH);
+    const byName = new Map(roles.map((role) => [role.name, role]));
+    expect(byName.get("planner")?.model).toBe("claude-opus-4-8");
+    expect(byName.get("builder")?.model).toBe("gpt-5.6-sol");
+    expect(byName.get("reviewer")?.model).toBe("claude-opus-4-8");
+    expect(byName.get("sre")?.model).toBe("gpt-5.6-sol");
+    expect(byName.get("support")?.model).toBe("claude-sonnet-5");
+    expect(byName.get("marketing")?.model).toBe("claude-sonnet-5");
+    expect(byName.get("distiller")?.model).toBe("claude-sonnet-5");
+    expect(byName.get("learning-reviewer")?.model).toBe("gpt-5.6-sol");
+  });
+
   it("distiller and learning reviewer stay cross-provider on the ratified schedules", async () => {
     const { roles } = await loadRoles(ROLES_PATH);
     const distiller = roles.find((role) => role.name === "distiller")!;

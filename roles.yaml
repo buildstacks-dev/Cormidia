@@ -7,8 +7,8 @@
 # INSIDE a turn. Cross-provider mixing never happens intra-turn; it is an
 # org-level flow between roles (see docs/PURPOSE.md).
 #
-# Model IDs: all verified against live catalogs 2026-07-05 — see
-# research/2026-07-05_model-id-verification.md for sources and alternatives.
+# Model IDs: verified against live catalogs on 2026-07-05 and refreshed on
+# 2026-07-15 — see research/2026-07-15_model-assignment-refresh.md.
 
 defaults:
   max_turn_budget_usd: 5        # hard stop per turn; overrun = incident note, not silent spend
@@ -31,7 +31,7 @@ roles:
 
   builder:
     runtime: codex              # DELIBERATELY a different provider than reviewer —
-    model: gpt-5.5              # restored in M10 after CodexRuntime landed
+    model: gpt-5.6-sol          # current exact flagship snapshot; no moving alias
     effort: high                # build quality over token cost — the Reviewer gate
     max_turn_budget_usd: 15     # a frontier builder implementing a real ticket in
                                 # one turn (contract-sized context + tool loop)
@@ -57,7 +57,7 @@ roles:
 
   sre:
     runtime: codex
-    model: gpt-5.5              # ratified 2026-07-05; gpt-5.4-mini remains the economy fallback if hourly sweeps dominate spend
+    model: gpt-5.6-sol          # ratified 2026-07-15; lower tiers require separate measured evidence
     effort: medium
     delegation:
       allow: [explore]
@@ -109,7 +109,7 @@ roles:
 
   learning-reviewer:
     runtime: codex              # DELIBERATELY cross-provider from distiller —
-    model: gpt-5.5              # independent injection/scope/destination screening
+    model: gpt-5.6-sol          # independent injection/scope/destination screening
     effort: high
     delegation:
       allow: []

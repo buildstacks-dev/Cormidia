@@ -275,10 +275,12 @@ efficacy health independently. The mechanics construct no provider runtime.
   `yaml`, `@anthropic-ai/claude-agent-sdk`, `@openai/codex`, and
   `@earendil-works/pi-coding-agent`. Adding another dependency is a
   decision, not a convenience.
-- **Model IDs:** all roles.yaml IDs verified against live catalogs and
-  human-ratified 2026-07-05 (PR #1; sources in
-  `research/2026-07-05_model-id-verification.md`). One live caveat: `gpt-5.5`
-  in Codex currently requires ChatGPT-account auth, not an API key.
+- **Model IDs:** all roles.yaml IDs were refreshed against live catalogs and
+  human-ratified 2026-07-15 (sources in
+  `research/2026-07-15_model-assignment-refresh.md`). One live caveat:
+  `gpt-5.6-sol` in Codex uses the installed ChatGPT-account-authenticated App
+  Server path; exact availability is proved by adapter calibration before a
+  candidate campaign.
 - Single package, deliberately **not** a pnpm workspace (docs/PURPOSE.md → Repo shape).
 
 ## Testing expectations

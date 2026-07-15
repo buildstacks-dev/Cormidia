@@ -310,8 +310,9 @@ The offline commands above need nothing. The live commands need:
   subscription-first (any usable Claude Agent SDK auth counts); `ANTHROPIC_API_KEY`
   is a fallback. `pnpm test:live` skips cleanly when no usable auth is present.
 - **Opt-in provider smokes** for the Codex and pi adapters inside `pnpm test:live`:
-  set `OPERON_CODEX_LIVE=1` and/or `OPERON_PI_LIVE=1`. (`gpt-5.5` in Codex
-  currently requires ChatGPT-account auth, not an API key.)
+  set `OPERON_CODEX_LIVE=1` and/or `OPERON_PI_LIVE=1`. (`gpt-5.6-sol` in
+  Codex uses the installed ChatGPT-account-authenticated App Server path;
+  adapter calibration verifies exact availability before qualification.)
 - **`gh` auth + `GH_SANDBOX_REPO=<owner/repo>`** for the `e2e:sandbox` scripts,
   which create and merge one disposable issue/PR against a private repo.
 - **`OPERON_SELF_APPROVAL_SECRET`** so the loop can authorize its own merge in a

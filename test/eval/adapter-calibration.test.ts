@@ -17,12 +17,28 @@ import {
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
-it("pins pi calibration to the provider-qualified Codex model", () => {
-  const campaign = parse(readFileSync(join(process.cwd(), "eval/campaigns/adapter-harness-calibration.yaml"), "utf8")) as {
-    assignments: Array<{ runtime: string; model: string }>;
+it("pins calibration and qualification to the exact ratified model snapshots", () => {
+  const campaign = (name: string) => parse(readFileSync(join(process.cwd(), `eval/campaigns/${name}.yaml`), "utf8")) as {
+    assignments: Array<{ role: string; runtime: string; model: string; effort: string }>;
+    price_catalog_id: string;
   };
-  expect(campaign.assignments.find((assignment) => assignment.runtime === "pi")?.model)
-    .toBe("openai-codex/gpt-5.5");
+  const adapter = campaign("adapter-harness-calibration");
+  expect(adapter.assignments).toEqual([
+    { role: "claude-probe", runtime: "claude", model: "claude-opus-4-8", effort: "low", capability_ref: "claude/v1" },
+    { role: "codex-probe", runtime: "codex", model: "gpt-5.6-sol", effort: "low", capability_ref: "codex/v1" },
+    { role: "pi-probe", runtime: "pi", model: "claude-sonnet-5", effort: "low", capability_ref: "pi/v1" },
+  ]);
+  const candidate = campaign("candidate-qualification");
+  expect(candidate.assignments.map(({ role, runtime, model, effort }) => ({ role, runtime, model, effort }))).toEqual([
+    { role: "planner", runtime: "claude", model: "claude-opus-4-8", effort: "high" },
+    { role: "builder", runtime: "codex", model: "gpt-5.6-sol", effort: "high" },
+    { role: "reviewer", runtime: "claude", model: "claude-opus-4-8", effort: "high" },
+    { role: "sre", runtime: "codex", model: "gpt-5.6-sol", effort: "medium" },
+    { role: "support", runtime: "pi", model: "claude-sonnet-5", effort: "medium" },
+    { role: "marketing", runtime: "pi", model: "claude-sonnet-5", effort: "medium" },
+  ]);
+  expect(adapter.price_catalog_id).toBe("prices/2026-07-15-v1");
+  expect(candidate.price_catalog_id).toBe(adapter.price_catalog_id);
 });
 
 it("allows slow provider usage checkpoints before the cancellation fallback", () => {

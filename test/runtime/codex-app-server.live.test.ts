@@ -13,7 +13,7 @@ import { CodexRuntime } from "../../src/runtime/adapters/codex.js";
 import type { RoleConfig } from "../../src/runtime/types.js";
 
 const enabled = process.env.OPERON_CODEX_LIVE === "1";
-const model = process.env.OPERON_CODEX_LIVE_MODEL ?? "gpt-5.5";
+const model = process.env.OPERON_CODEX_LIVE_MODEL ?? "gpt-5.6-sol";
 
 const role: RoleConfig = {
   name: "codex-live-smoke",

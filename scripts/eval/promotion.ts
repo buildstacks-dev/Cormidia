@@ -23,7 +23,7 @@ interface FileRef { path: string; sha256: string }
 interface ArchiveManifest {
   schema_version: 2;
   archive_kind: "sanitized-evidence";
-  policy_version: "sanitized-evidence/v2";
+  policy_version: "sanitized-evidence/v3";
   campaign_id: string;
   campaign_sha256: string;
   files: Record<string, string>;
@@ -34,7 +34,7 @@ interface ArchiveManifest {
 interface ArchiveReceipt {
   schema_version: 2;
   archive_kind: "sanitized-evidence";
-  policy_version: "sanitized-evidence/v2";
+  policy_version: "sanitized-evidence/v3";
   campaign_id: string;
   campaign_sha256: string;
   destination: string;
@@ -201,8 +201,8 @@ function verifyQualificationArchive(archiveRoot: string, campaign: CampaignManif
 }
 
 function validateArchiveBinding(archiveRoot: string, manifestPath: string, manifest: ArchiveManifest, receipt: ArchiveReceipt): void {
-  if (manifest.schema_version !== 2 || manifest.archive_kind !== "sanitized-evidence" || manifest.policy_version !== "sanitized-evidence/v2" || !manifest.files || !manifest.source_files || !Array.isArray(manifest.excluded_roots) || !manifest.excluded_roots.includes("provider-scratch/**")) throw new Error("promotion_invalid_archive_manifest");
-  if (receipt.schema_version !== 2 || receipt.archive_kind !== "sanitized-evidence" || receipt.policy_version !== "sanitized-evidence/v2" || receipt.campaign_id !== manifest.campaign_id || receipt.campaign_sha256 !== manifest.campaign_sha256 || resolve(receipt.destination) !== archiveRoot || receipt.archive_manifest_sha256 !== digest(hashFile(manifestPath))) throw new Error("promotion_archive_receipt_mismatch");
+  if (manifest.schema_version !== 2 || manifest.archive_kind !== "sanitized-evidence" || manifest.policy_version !== "sanitized-evidence/v3" || !manifest.files || !manifest.source_files || !Array.isArray(manifest.excluded_roots) || !manifest.excluded_roots.includes("provider-scratch/**") || !manifest.excluded_roots.includes("state/runs/**")) throw new Error("promotion_invalid_archive_manifest");
+  if (receipt.schema_version !== 2 || receipt.archive_kind !== "sanitized-evidence" || receipt.policy_version !== "sanitized-evidence/v3" || receipt.campaign_id !== manifest.campaign_id || receipt.campaign_sha256 !== manifest.campaign_sha256 || resolve(receipt.destination) !== archiveRoot || receipt.archive_manifest_sha256 !== digest(hashFile(manifestPath))) throw new Error("promotion_archive_receipt_mismatch");
 }
 
 function selectedPromotionFile(path: string): boolean {

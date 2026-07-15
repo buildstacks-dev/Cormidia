@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and production Phases 1–5 complete; Phase 6 local hardening is ready, while external candidate/L6 evidence remains unauthorized |
-| Evidence date | 2026-07-14 |
+| Status | T0–T5 readiness and production Phases 1–5 complete; the first fresh Phase 6 adapter campaign qualified but its unsafe archive was retained as invalid, so corrected adapter admission and candidate/L6 evidence remain pending |
+| Evidence date | 2026-07-15 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Production evidence only | `/Users/bikram/Build/Bikram-Org`, `/Users/bikram/Build/buildstacks.dev` |
@@ -62,11 +62,19 @@ by the work recorded here. Candidate qualification is also not authorized.
 
 The historical adapter admission remains retained evidence, but Phase 6
 changes covered harness, grader, evaluator, candidate-hash, and package bytes.
-It therefore cannot be reused for the new exact candidate; fresh calibration
-must be prepared and separately authorized. The same applies independently to
-candidate L4/L5 and the L6 GitHub/soak boundaries. Until those terminal
-campaigns qualify and their schema-v2 archives are imported and verified, the
-exact ten post-Phase-5 contracts remain known-red.
+The first authorized fresh campaign,
+`adapter-harness-calibration-v1-20260715-00530744c9ae`, qualified all three
+adapters with 20/20 settlements and $2.378309 equivalent cost. Archive
+verification then found that the claimed sanitized archive contained raw L3
+`state/runs/**` prompts, outputs, and session logs. The campaign and invalid
+archive remain retained and cleanup was not executed. The corrected
+`sanitized-evidence/v3` policy structurally excludes both `provider-scratch/**`
+and `state/runs/**`; because this correction changes covered suite bytes, final
+adapter admission requires a fresh prepared identity and authorization. The
+same applies independently to candidate GitHub/provider execution and the L6
+GitHub/soak boundaries. Until those terminal campaigns qualify and their
+schema-v2 archives are imported and verified, the exact ten post-Phase-5
+contracts remain known-red.
 
 ### Latest deterministic verification
 
@@ -76,21 +84,21 @@ worktree, produced:
 - `pnpm eval:validate`: valid, with 84 requirements, 84 executable evidence
   paths, 14 cases, 12 benchmark families, 60 fault boundaries, 13 graders,
   three capability declarations, and zero orphaned records;
-- `pnpm test:transformation`: 31 files and 250 tests passed, then the
+- `pnpm test:transformation`: 31 files and 252 tests passed, then the
   non-strict runner reported exactly the ten post-Phase-5 known-red contracts;
-- `pnpm eval:deterministic`: 52 files and 393 tests passed;
+- `pnpm eval:deterministic`: 52 files and 395 tests passed;
 - `pnpm eval:deterministic:nightly`: both declared shuffled seeds passed 52
-  files and 393 tests, including the production seven-day virtual soak;
-- `pnpm test`: 180 files and 1,541 tests passed after retaining and correcting
+  files and 395 tests, including the production seven-day virtual soak;
+- `pnpm test`: 180 files and 1,543 tests passed after retaining and correcting
   the integration-timeout miss described below;
 - `pnpm typecheck`, `pnpm build`, neutral-cwd `pnpm smoke:onboarding`, and
   `npm pack --dry-run` passed; the dry-run package contains 208 files;
 - the fresh-HOME/TMPDIR/org/state/app/eval/provider-scratch Phase 6 subset
-  passed 19 files and 87 tests;
+  passed 18 files and 117 tests;
 - isolated alpha (55 tests + lint), beta (4 tests), gamma (45 tests + lint +
   SRE/Support/Marketing smokes), and delta (53 tests + lint) passed and each
   checkout remained clean;
-- `pnpm test:transformation:strict` passed all 250 executable tests and exited
+- `pnpm test:transformation:strict` passed all 252 executable tests and exited
   non-zero only for `D-LIVE-01..03`, `E-LIVE-01..02`, `G-MET-01`,
   `I-ROLE-01..03`, and `I-LIVE-01`.
 

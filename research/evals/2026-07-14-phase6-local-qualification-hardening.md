@@ -2,14 +2,54 @@
 
 ## Scope and external boundary
 
-This record covers token-free Phase 6 implementation and qualification
+This record began with token-free Phase 6 implementation and qualification
 hardening in the isolated `codex/phase6-efficiency-qualification` worktree.
-No eval GitHub repository was created or mutated; no provider campaign, L6
-soak, scheduler installation, production canary, publication, deployment,
-production-state mutation, or other outward effect was executed.
+The final pre-external gate below created no eval GitHub repository and spent
+no provider tokens. The subsequently authorized first adapter campaign is
+recorded separately below. No L6 soak, scheduler installation, production
+canary, publication, deployment, production-state mutation, or other outward
+effect was executed.
 
 Fresh exact-candidate adapter admission, candidate L4/L5, the separate
 post-L5 learning activation, and L6 remain distinct authorization boundaries.
+
+## First fresh adapter campaign: qualified result, invalid archive
+
+The human separately authorized the exact private GitHub exercise and provider
+calibration for campaign
+`adapter-harness-calibration-v1-20260715-00530744c9ae`, campaign SHA-256
+`ae94c97561cd0474899b6096705dc5c0e5692466db32265c211e8a893a9c04c0`,
+and candidate commit `f6d281b7c3d57fd11cdc4a0b7ee78c236d507911`.
+The immutable manifest retained its lower $15 cap even though the human allowed
+a $25 ceiling.
+
+The private repository
+`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260715-00530744c9ae`
+used issue 1 and pull request 2. Its first lifecycle passed; the identical
+rerun reused the exact evidence, left the issue closed, pull request merged,
+and branch deleted, and recorded source-evidence SHA-256
+`5a22cc6cc43c84998d70e7efa03f69e1ccdc9b4448de919faa6101908f1657fc`.
+
+The provider campaign qualified all three adapters without a retry: Claude
+passed 7 turns, Codex passed 7, and pi passed 6. All 20 provider turns have 20
+ordinary settlements, three mechanical steps have zero settlements, terminal
+integrity is exact, missing measurements are empty, and equivalent cost is
+$2.378309. The qualifier returned `qualified`; the portable report is
+byte-stable at SHA-256
+`a48e89215ccf308a100390ca589be4f5668fb497327669442c03ca8c4b6d798e`.
+
+The first external archive attempt is deliberately retained at
+`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260715-00530744c9ae/adapter-harness-calibration-v1-20260715-00530744c9ae-ae94c975-evidence-v2`.
+It contains 230 files and archive-manifest SHA-256
+`eb9982b20d1791ecab9059f8e251db18ac09af71acf89fd51cfc7bc855b4f208`.
+Verification found raw L3 `state/runs/**` prompts, outputs, and session logs in
+the archive even though it claimed to be sanitized. The archive is invalid,
+cleanup was not executed, and neither the archive nor the qualified campaign
+is used as final adapter admission. The corrected `sanitized-evidence/v3`
+policy structurally excludes raw L3 `state/runs/**` as well as provider
+scratch, rejects either class in a manifest, and has positive and adversarial
+tests. Because the correction changes covered eval-suite bytes, a fresh
+candidate commit, campaign identity, and authorization are required.
 
 ## Ratified paired-learning rule
 
@@ -100,11 +140,11 @@ provider/L6 contracts remain known-red pending matching authorized evidence:
 - Eval validation: 84/84 requirements have executable evidence; 14 cases, 12
   benchmark families, 60 fault boundaries, 13 graders, and three adapter
   declarations validate with no orphan.
-- Transformation: 31 files and 251 tests passed; non-strict contract execution
+- Transformation: 31 files and 252 tests passed; non-strict contract execution
   reported exactly the ten known-red contracts above.
-- Deterministic: 52 files and 394 tests passed. Both declared nightly shuffle
-  seeds independently passed the same 52/394 matrix.
-- Offline package suite: 180 files and 1,542 tests passed after the retained
+- Deterministic: 52 files and 395 tests passed. Both declared nightly shuffle
+  seeds independently passed the same 52/395 matrix.
+- Offline package suite: 180 files and 1,543 tests passed after the retained
   timeout correction above.
 - Typecheck, build, neutral-cwd onboarding smoke, and 208-file package dry-run
   passed.
@@ -115,5 +155,5 @@ provider/L6 contracts remain known-red pending matching authorized evidence:
 - Alpha passed 55 tests plus lint; beta passed four tests; gamma passed 45
   tests, lint, and the SRE/Support/Marketing draft-only smokes; delta passed 53
   tests plus lint. All four sandboxes remained clean.
-- Strict transformation execution passed all 251 tests and exited non-zero
+- Strict transformation execution passed all 252 tests and exited non-zero
   only for the exact ten provider/L6 evidence debts.

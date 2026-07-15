@@ -121,7 +121,7 @@ function verifyContractEvidenceInternal(root: string, projectionPath: string, ex
 
   const archiveManifest = readJsonRef(repositoryRoot, projection.archive_manifest) as Record<string, unknown>;
   const archiveReceipt = readJsonRef(repositoryRoot, projection.archive_receipt) as Record<string, unknown>;
-  if (archiveManifest.schema_version !== 2 || archiveManifest.archive_kind !== "sanitized-evidence" || archiveManifest.policy_version !== "sanitized-evidence/v2" || archiveManifest.campaign_id !== manifest.campaign_id || archiveManifest.campaign_sha256 !== campaignSha256) throw new Error("contract_evidence_archive_manifest_mismatch");
+  if (archiveManifest.schema_version !== 2 || archiveManifest.archive_kind !== "sanitized-evidence" || archiveManifest.policy_version !== "sanitized-evidence/v3" || !Array.isArray(archiveManifest.excluded_roots) || !archiveManifest.excluded_roots.includes("provider-scratch/**") || !archiveManifest.excluded_roots.includes("state/runs/**") || archiveManifest.campaign_id !== manifest.campaign_id || archiveManifest.campaign_sha256 !== campaignSha256) throw new Error("contract_evidence_archive_manifest_mismatch");
   if (archiveReceipt.schema_version !== 2 || archiveReceipt.campaign_id !== manifest.campaign_id || archiveReceipt.campaign_sha256 !== campaignSha256 || archiveReceipt.archive_manifest_sha256 !== projection.archive_manifest.sha256) throw new Error("contract_evidence_archive_receipt_mismatch");
   const archivedFiles = archiveManifest.files;
   if (!archivedFiles || typeof archivedFiles !== "object" || Array.isArray(archivedFiles)) throw new Error("contract_evidence_archive_files_invalid");

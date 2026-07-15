@@ -22,10 +22,13 @@ import {
   type CampaignManifest,
 } from "./core.js";
 
-const ARCHIVE_POLICY = "sanitized-evidence/v2" as const;
-const LEGACY_ARCHIVE_POLICY = "sanitized-evidence/v1" as const;
+const ARCHIVE_POLICY = "sanitized-evidence/v3" as const;
+const LEGACY_ARCHIVE_POLICIES = [
+  "sanitized-evidence/v2",
+  "sanitized-evidence/v1",
+] as const;
 const ARCHIVE_KIND = "sanitized-evidence" as const;
-const EXCLUDED_ROOTS = ["provider-scratch/**"] as const;
+const EXCLUDED_ROOTS = ["provider-scratch/**", "state/runs/**"] as const;
 const RETAINED_DIRECTORIES = new Set([
   "accounting",
   "artifact",
@@ -58,7 +61,7 @@ export interface ArchiveManifest {
 interface ArchiveReceipt {
   schema_version: 2;
   archive_kind: typeof ARCHIVE_KIND;
-  policy_version: typeof ARCHIVE_POLICY | typeof LEGACY_ARCHIVE_POLICY;
+  policy_version: typeof ARCHIVE_POLICY | (typeof LEGACY_ARCHIVE_POLICIES)[number];
   campaign_id: string;
   campaign_sha256: string;
   destination: string;
@@ -240,10 +243,8 @@ function selectedEvidenceSnapshot(root: string): SelectedEvidence[] {
 function visitSelected(directory: string, relDirectory: string, selected: string[]): void {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const rel = join(relDirectory, entry.name);
-    if (
-      relDirectory === "world" ||
-      relDirectory.startsWith(`world${sep}`)
-    ) {
+    if (structurallyExcluded(rel)) continue;
+    if (relDirectory === "world" || relDirectory.startsWith(`world${sep}`)) {
       const segments = rel.split(sep);
       if (segments.some((segment) => WORLD_EXCLUDED_SEGMENTS.has(segment))) continue;
     }
@@ -319,7 +320,7 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
     if (
       receipt.schema_version !== 2 ||
       receipt.archive_kind !== ARCHIVE_KIND ||
-      ![ARCHIVE_POLICY, LEGACY_ARCHIVE_POLICY].includes(receipt.policy_version as typeof ARCHIVE_POLICY) ||
+      ![ARCHIVE_POLICY, ...LEGACY_ARCHIVE_POLICIES].includes(receipt.policy_version as typeof ARCHIVE_POLICY) ||
       receipt.campaign_id !== campaignId ||
       typeof receipt.campaign_sha256 !== "string" ||
       typeof receipt.destination !== "string" ||
@@ -340,6 +341,7 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
       manifest.campaign_sha256 !== receipt.campaign_sha256 ||
       !Array.isArray(manifest.excluded_roots) ||
       !manifest.excluded_roots.includes("provider-scratch/**") ||
+      !manifest.excluded_roots.includes("state/runs/**") ||
       manifest.files === null ||
       typeof manifest.files !== "object" ||
       Array.isArray(manifest.files)
@@ -353,7 +355,7 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
     if (!sameInventory(manifestFiles, archiveFiles)) return false;
     const selected = selectedEvidenceSnapshot(campaignRoot);
     const sourceFiles = selected.map((entry) => [entry.rel, entry.source_sha256] as [string, string]);
-    if (receipt.policy_version === LEGACY_ARCHIVE_POLICY) {
+    if (receipt.policy_version === "sanitized-evidence/v1") {
       return selected.every((entry) => entry.redactions.length === 0) && sameInventory(sourceFiles, manifestFiles);
     }
     if (
@@ -389,7 +391,14 @@ function sameSelectedEvidence(left: SelectedEvidence[], right: SelectedEvidence[
 function unsafeManifestPath(path: string): boolean {
   if (path === "" || isAbsolute(path)) return true;
   const normalized = path.split(/[\\/]+/);
-  return normalized.includes("..") || normalized[0] === "provider-scratch";
+  return normalized.includes("..") ||
+    normalized[0] === "provider-scratch" ||
+    (normalized[0] === "state" && normalized[1] === "runs");
+}
+
+function structurallyExcluded(path: string): boolean {
+  const normalized = path.split(sep);
+  return normalized[0] === "state" && normalized[1] === "runs";
 }
 
 function sameInventory(

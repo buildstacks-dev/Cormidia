@@ -67,10 +67,11 @@ campaign.
   It constructs no runtime, mutates only campaign-local synthetic org/state
   roots, and records exactly one governed activation plus rollback.
 - `pnpm eval:archive -- --campaign <prepared-file> --out <archive-root>` writes
-  a schema-v2 sanitized evidence archive with a per-file checksum manifest.
-  Durable evidence and a cache-free worktree snapshot are retained;
-  `provider-scratch/**`, provider credentials, dependency caches, Git metadata,
-  and prior receipts are structurally excluded. Secret-like spans in isolated
+  a schema-v2, `sanitized-evidence/v3` archive with a per-file checksum
+  manifest. Durable verifier evidence and a cache-free worktree snapshot are
+  retained; `provider-scratch/**`, raw L3 `state/runs/**`, provider credentials,
+  dependency caches, Git metadata, and prior receipts are structurally
+  excluded. Secret-like spans in isolated
   actor-worktree files are replaced with canonical redaction markers in the
   archive while the manifest retains both exact source hashes and archived-byte
   hashes. A secret match in durable results, state, reports, or control evidence

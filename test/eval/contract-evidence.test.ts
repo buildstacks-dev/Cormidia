@@ -48,6 +48,10 @@ for (const [name, mutate] of [
   ["mismatched case/repetition ids", (f: Fixture) => patchJson(f.projection, (value) => { value.repetition_ids = ["other"]; })],
   ["malformed results", (f: Fixture) => writeFileSync(f.result, "{not-json\n")],
   ["missing archive receipts", (f: Fixture) => unlinkSync(f.receipt)],
+  ["legacy archive policy without the raw-L3 exclusion", (f: Fixture) => {
+    patchJson(f.archiveManifest, (value) => { value.policy_version = "sanitized-evidence/v2"; value.excluded_roots = ["provider-scratch/**"]; });
+    patchJson(f.projection, (value) => { (value.archive_manifest as Record<string, unknown>).sha256 = fileDigest(f.archiveManifest); });
+  }],
   ["invalid measurements", (f: Fixture) => patchJson(f.result, (value) => { ((value.metrics as Record<string, unknown>).context as Record<string, unknown>).rendered_bytes = null; })],
   ["duplicate evidence", (f: Fixture) => patchJson(f.projection, (value) => { value.repetition_ids = ["r1", "r1"]; })],
   ["failed hidden graders", (f: Fixture) => patchJson(f.grader, (value) => { value.hidden_grader_passed = false; value.result = "failed"; })],
@@ -71,6 +75,7 @@ interface Fixture {
   grader: string;
   accounting: string;
   receipt: string;
+  archiveManifest: string;
   bundle: string;
   attestation: string;
 }
@@ -163,9 +168,9 @@ function makeFixture(options: { writeProjection?: boolean } = {}): Fixture {
   writeJson(idempotencePath, { schema_version: 1, evidence_kind: "github-idempotence", campaign_id: campaign.campaign_id, campaign_sha256: campaignHash, repo: "fixture/operon-eval-candidate-fixture", repository_id: "R_fixture", source_evidence: "github-evidence-deadbeef.json", source_evidence_sha256: fileDigest(githubPath), reused_evidence: true, idempotent_rerun: true, result: "passed", issue_closed: true, pr_merged: true, review_count: 1, comment_count: 1, branch_deleted: true });
   const archived = [campaignPath, ...evidenceFiles, qualificationPath, reportPath, githubPath, idempotencePath];
   const archiveManifestPath = join(bundle, "archive-manifest.json");
-  writeJson(archiveManifestPath, { schema_version: 2, archive_kind: "sanitized-evidence", policy_version: "sanitized-evidence/v2", campaign_id: campaign.campaign_id, campaign_sha256: campaignHash, archived_at: "2026-07-14T00:02:00.000Z", excluded_roots: ["provider-scratch/**"], files: Object.fromEntries(archived.map((path) => [relativePath(bundle, path), fileDigest(path)])), source_files: Object.fromEntries(archived.map((path) => [relativePath(bundle, path), fileDigest(path)])), redacted_files: {} });
+  writeJson(archiveManifestPath, { schema_version: 2, archive_kind: "sanitized-evidence", policy_version: "sanitized-evidence/v3", campaign_id: campaign.campaign_id, campaign_sha256: campaignHash, archived_at: "2026-07-14T00:02:00.000Z", excluded_roots: ["provider-scratch/**", "state/runs/**"], files: Object.fromEntries(archived.map((path) => [relativePath(bundle, path), fileDigest(path)])), source_files: Object.fromEntries(archived.map((path) => [relativePath(bundle, path), fileDigest(path)])), redacted_files: {} });
   const receiptPath = join(bundle, "archive-receipt.json");
-  writeJson(receiptPath, { schema_version: 2, archive_kind: "sanitized-evidence", policy_version: "sanitized-evidence/v2", campaign_id: campaign.campaign_id, campaign_sha256: campaignHash, destination: bundle, archive_manifest_sha256: fileDigest(archiveManifestPath), archived_at: "2026-07-14T00:02:00.000Z" });
+  writeJson(receiptPath, { schema_version: 2, archive_kind: "sanitized-evidence", policy_version: "sanitized-evidence/v3", campaign_id: campaign.campaign_id, campaign_sha256: campaignHash, destination: bundle, archive_manifest_sha256: fileDigest(archiveManifestPath), archived_at: "2026-07-14T00:02:00.000Z" });
   const attestationPath = join(root, "research/evals/phase6-release-attestation.json");
   writeReleaseAttestation({ root, campaignPaths: [campaignPath] });
   const projectionPath = join(root, "research/evals/contracts/D-LIVE-01.json");
@@ -173,7 +178,7 @@ function makeFixture(options: { writeProjection?: boolean } = {}): Fixture {
     schema_version: 1, contract_id: "D-LIVE-01", campaign_id: campaign.campaign_id, campaign_sha256: campaignHash, candidate: campaign.candidate, org_fingerprint: campaign.org_fingerprint, system_fingerprint: campaign.system_fingerprint, case_id: attempt.case_id, repetition_ids: [attempt.repetition_id], prepared_manifest: ref(root, campaignPath), qualification: ref(root, qualificationPath), report: ref(root, reportPath), archive_receipt: ref(root, receiptPath), archive_manifest: ref(root, archiveManifestPath), github_evidence: ref(root, githubPath), github_idempotence: ref(root, idempotencePath), release_attestation: ref(root, attestationPath),
   };
   if (options.writeProjection !== false) writeJson(projectionPath, projection);
-  return { root, projection: projectionPath, result: resultPath, grader: graderPath, accounting: accountingPath, receipt: receiptPath, bundle, attestation: attestationPath };
+  return { root, projection: projectionPath, result: resultPath, grader: graderPath, accounting: accountingPath, receipt: receiptPath, archiveManifest: archiveManifestPath, bundle, attestation: attestationPath };
 }
 
 function verify(fixture: Fixture): void {

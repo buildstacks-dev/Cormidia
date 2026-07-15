@@ -163,6 +163,16 @@ review evidence is `invalid`. Do not create a synthetic verdict or invoke learni
 activation under the spend approval. Preview the separate action and obtain
 exact authorization for its campaign, candidate hash, and action hash.
 
+The actor-visible learning schema requires every `error_classes` element to
+copy one recurring input-event class identifier exactly; descriptions belong
+in the causal or intervention fields, and annotated identifiers fail the
+grounding guardrail. A delivery contract's explicit ban on product changes
+during its already-completed contract-authoring pass expires before
+implementation, while every durable acceptance, scope, safety, package, and
+approval constraint remains binding. Context-delta actors use file read/write
+tools for authority or safety prose and never repeat that prose in executable
+shell arguments; the ordinary critical-ops gate remains unchanged.
+
 L5 stages an allowlisted copy of provider authentication and model-cache files
 under the content-hashed campaign root, then replaces the provider process
 environment for the duration of the run. Personal histories, instructions,

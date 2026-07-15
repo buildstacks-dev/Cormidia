@@ -42,6 +42,10 @@ const RETAINED_DIRECTORIES = new Set([
 ]);
 const WORLD_EXCLUDED_SEGMENTS = new Set([".eval-harness", ".git", "node_modules"]);
 
+function compareArchivePath(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 export interface ArchiveManifest {
   schema_version: 2;
   archive_kind: typeof ARCHIVE_KIND;
@@ -233,7 +237,7 @@ function selectedEvidenceSnapshot(root: string): SelectedEvidence[] {
     }
     selected.push(name);
   }
-  selected.sort();
+  selected.sort(compareArchivePath);
   return selected.map((rel) => {
     const path = join(root, rel);
     return sanitizeSelectedEvidence(path, rel);
@@ -299,7 +303,7 @@ function sanitizeSelectedEvidence(path: string, rel: string): SelectedEvidence {
 function genericInventory(root: string): Array<[string, string]> {
   const files: string[] = [];
   visit(root, "");
-  files.sort();
+  files.sort(compareArchivePath);
   return files.map((rel) => [rel, `sha256:${hashFile(join(root, rel))}`]);
 
   function visit(directory: string, relDirectory: string): void {
@@ -350,7 +354,7 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
     if (hashManifest(campaign) !== receipt.campaign_sha256) return false;
     const archiveFiles = genericInventory(receipt.destination)
       .filter(([rel]) => rel !== "archive-manifest.json");
-    const manifestFiles = Object.entries(manifest.files as Record<string, string>).sort(([a], [b]) => a.localeCompare(b));
+    const manifestFiles = Object.entries(manifest.files as Record<string, string>).sort(([a], [b]) => compareArchivePath(a, b));
     if (manifestFiles.some(([rel]) => unsafeManifestPath(rel))) return false;
     if (!sameInventory(manifestFiles, archiveFiles)) return false;
     const selected = selectedEvidenceSnapshot(campaignRoot);
@@ -366,7 +370,7 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
       typeof manifest.redacted_files !== "object" ||
       Array.isArray(manifest.redacted_files)
     ) return false;
-    const manifestSourceFiles = Object.entries(manifest.source_files as Record<string, string>).sort(([a], [b]) => a.localeCompare(b));
+    const manifestSourceFiles = Object.entries(manifest.source_files as Record<string, string>).sort(([a], [b]) => compareArchivePath(a, b));
     const expectedArchivedFiles = selected.map((entry) => [entry.rel, entry.archived_sha256] as [string, string]);
     const expectedRedactions = Object.fromEntries(selected.filter((entry) => entry.redactions.length > 0).map((entry) => [entry.rel, entry.redactions]));
     return sameInventory(sourceFiles, manifestSourceFiles) &&

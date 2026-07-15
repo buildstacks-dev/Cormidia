@@ -77,6 +77,20 @@ archives, and fail-closed corrections are recorded in
 corrections change covered bytes and therefore require fresh adapter and
 candidate identities; the old campaign is never resumed.
 
+The next scope-split adapter campaign qualified all three adapters, but its
+dependent candidate is retained as a third `invalid` proof: 31 passes, one
+context safety stop, one deep product miss, and one learning product miss.
+All 71 provider turns equal 71 settlements, the virtual soak contributed
+2,016 mechanical steps and zero settlements, and product/evaluator equivalent
+costs were $68.12762825/$7.1732735. The gate correctly stopped deploy-bearing
+safety prose embedded in a shell check; a pass-scoped contract-authoring ban
+was incorrectly carried into implementation; and one learning artifact
+annotated otherwise-correct class identifiers. The exact retained evidence,
+archive, and corrections are recorded in
+`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`. Covered
+bytes changed again, so both fresh campaign identities require new previews
+and authorization.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

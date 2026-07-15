@@ -139,6 +139,17 @@ pinned package scripts. Exact hashes, costs, archives, and the fresh-identity
 handoff live in
 `research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`.
 
+The subsequent scope-split adapter campaign qualified, while its dependent
+candidate is retained as a third `invalid` negative proof: 31 passes, one
+context safety stop, one deep product miss, and one learning product miss.
+The context gate remained fail-closed when safety prose was embedded in a
+shell validation literal; the deep implementation now distinguishes an
+expired contract-authoring-only edit ban from durable constraints; and the
+learning schema makes exact event class identifiers explicit while still
+rejecting annotations. All 71 provider turns settled once, and exact hashes,
+costs, report, archive, and continuation instructions live in
+`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`.
+
 The paired learning proof likewise cannot be a fixture verdict. A predeclared
 T1 procedure is injected only into the three treatment arms. Operon hashes the
 six actual provider candidates, independent reviewer observations, and hidden

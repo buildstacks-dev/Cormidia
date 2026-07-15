@@ -164,6 +164,25 @@ campaigns and their byte-stable reports are retained in verified
 `sanitized-evidence/v3` archives; cleanup was not executed. See
 `research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`.
 
+The next scope-split adapter campaign,
+`adapter-harness-calibration-v1-20260715-c6b9b4885527` (SHA-256
+`d48af84381dbfa7ab7ad270552a06b6dd501dd1f0a6f516cec06691187e0e9`),
+qualified all three adapters without retry: 20 provider turns equal 20
+settlements, three mechanical steps produced zero settlements, and equivalent
+cost was $2.503884. Its dependent candidate,
+`candidate-qualification-v1-20260715-c6b9b4885527` (SHA-256
+`d32dd98932364bb07ee6a40aad78d3454f1267c065db28a170e80ddaabc9ed70`),
+is permanently `invalid`: 31 of 34 attempts passed, with one context safety
+stop, one deep product miss, and one learning product miss. All 71 provider
+turns reconcile to 71 settlements; the virtual soak contributed 2,016
+mechanical steps and zero settlements; product/evaluator equivalent costs
+were $68.12762825/$7.1732735. The exact retained failures and fail-closed
+corrections are recorded in
+`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`. No
+learning activation, contract promotion, production confirmation, or
+real-time soak occurred. The covered-byte corrections require fresh adapter
+and candidate identities.
+
 ### Latest retained pre-scope-split deterministic verification
 
 The corrected Phase 6 pre-external gate on 2026-07-15, in the isolated candidate

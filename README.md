@@ -380,7 +380,9 @@ typed account or transport cause. The retained Phase 6 candidate campaigns
 and their correction handoffs are documented in
 [`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`](research/evals/2026-07-15-phase6-candidate-qualification-invalid.md)
 and
-[`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`](research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md).
+[`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`](research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md),
+then the scope-split candidate and its valid adapter admission are recorded in
+[`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`](research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md).
 
 The Live UI browser suite uses a dev-only Playwright dependency and local
 Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real

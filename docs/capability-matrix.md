@@ -150,6 +150,13 @@ turn ceiling, retry rule, stop rules, and private GitHub target; missing
 readiness or an unavailable required model remains incomplete/invalid rather
 than a skip.
 
+The scope-split exact-candidate adapter run later qualified Claude, Codex, and
+pi with 20 turns equal to 20 settlements, but its dependent candidate was
+invalid and therefore changes to covered executor bytes require another fresh
+admission. It remains historical evidence only; exact identity, accounting,
+and archive hashes are in
+`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`.
+
 The fresh candidate's adapter admission is part of the current Phase 6 scope;
 the real-time scheduler contract is not. `I-LIVE-01` remains the sole pending
 `future_soak` contract and cannot be inferred from adapter admission, virtual

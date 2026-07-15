@@ -291,6 +291,9 @@ efficacy health independently. The mechanics construct no provider runtime.
   Do not execute `eval:soak` merely because soak files changed; preview and
   deterministic scheduler tests are token-free, but L6 execution is a
   separately authorized 48–72 hour provider campaign.
+  Provider usage quality marked unavailable must remain an invalid missing
+  denominator with its original typed infrastructure/account cause; never
+  coerce it to zero, retry it as a merit miss, or substitute a model.
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
 - `src/observe/**` or `src/cli/observe.ts` changes: also run `pnpm
   test:observe-browser`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack

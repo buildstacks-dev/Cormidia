@@ -18,6 +18,10 @@ campaign.
 - No eval publishes, sends, deploys to production, mutates DNS/cloud resources,
   or performs irreversible data operations.
 - Every admitted attempt is retained. A retry links to rather than replaces it.
+- Provider token or cost quality marked `unavailable` is a missing measurement,
+  never a numeric zero. The attempt remains invalid with its original typed
+  account/transport cause and exact missing fields; missing usage is not a
+  merit pass and does not authorize a model substitution.
 
 ## Commands
 
@@ -104,6 +108,12 @@ artifacts and ignored by git. Committed summaries are redacted and hashed.
 Archive a terminal campaign before cleanup. Cleanup removes only generated
 worktrees and provider scratch; the manifest, lock, attempts, reports, GitHub
 evidence, and disposable repository remain available for audit.
+
+Actor-visible delivery tasks state compatibility constraints that are part of
+the public contract (for example exact ignore syntax, repeated-underscore
+behavior, and existing export preservation). Hidden graders still own the
+answer and outcome: tasks do not include reference patches or fixed verdicts,
+and adversarial mutants pin plausible near misses independently.
 
 ## External campaign sequence
 

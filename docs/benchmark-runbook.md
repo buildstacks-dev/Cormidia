@@ -53,6 +53,15 @@ separate human authorization for both hashes and uses
 touches no production path, and performs exactly one isolated governed
 activation followed by rollback. Never infer this authorization from L5.
 
+The first Phase 6 candidate campaign is retained as `invalid`, not as a trial
+run to erase: 11 attempts passed, eight were product misses, three were
+infrastructure-invalid, and the remainder was incomplete after unavailable
+provider token totals exposed a fail-closed harness defect. Its immutable
+qualifier and archive are recorded in
+`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`. A fresh
+campaign must use a fresh content identity; the old results cannot be retried,
+relabelled, or copied into promotion evidence.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

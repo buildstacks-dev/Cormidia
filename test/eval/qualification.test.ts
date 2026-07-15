@@ -32,6 +32,20 @@ it("J-MAN-02 missing required usage or a skipped case is invalid/incomplete, nev
   expect(incomplete.reasons).toContain("missing attempt quick/ignore-config/v1::q2");
 });
 
+it("J-MAN-02 unavailable provider usage remains an invalid measurement denominator", () => {
+  const campaign = fixtureCampaign("qualification");
+  const unavailable = attempt(campaign, "q1", 10, 1, 2);
+  unavailable.outcome = "infra_invalid";
+  unavailable.metrics.cost = { equivalent_usd: 0, product_usd: 0, evaluator_usd: 0, quality: "unavailable" };
+  unavailable.metrics.tokens = { input: 0, output: 0, quality: "unavailable" };
+  unavailable.missing = ["metrics.cost.quality", "metrics.tokens.input", "metrics.tokens.output", "metrics.tokens.quality"];
+  const result = qualify(campaign, hashManifest(campaign), [unavailable, attempt(campaign, "q2", 20, 3, 4)]);
+  expect(result.outcome).toBe("invalid");
+  expect(result.metrics.populations.cost).toMatchObject({ numerator: 1, denominator: 2, missing: ["attempt-q1"], quality: "invalid_measurement" });
+  expect(result.metrics.populations.input_tokens).toMatchObject({ numerator: 1, denominator: 2, missing: ["attempt-q1"], quality: "invalid_measurement" });
+  expect(result.metrics.populations.output_tokens).toMatchObject({ numerator: 1, denominator: 2, missing: ["attempt-q1"], quality: "invalid_measurement" });
+});
+
 it("B-MET-01 settlement integrity rejects duplicate mechanical settlement and missing provider settlement", () => {
   const campaign = fixtureCampaign("non_qualification");
   const broken = attempt(campaign, "q1", 10, 1, 2);

@@ -820,6 +820,7 @@ function metricPopulation(results: AttemptResult[], path: readonly [string, stri
     const category = nestedRecord(result.metrics, path[0]);
     if (!applies(result)) { excluded.push(result.attempt_id); continue; }
     if (category && Array.isArray(category.excluded) && category.excluded.length > 0) { if (["budget_stop", "not_run", "infra_invalid", "harness_error"].includes(result.outcome)) excluded.push(result.attempt_id); else missing.push(result.attempt_id); continue; }
+    if (category?.quality === "unavailable") { missing.push(result.attempt_id); continue; }
     const value = finite(category?.[path[1]]);
     if (value === null) missing.push(result.attempt_id); else values.push(value);
   }

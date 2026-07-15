@@ -281,6 +281,17 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
         const metrics = turnMetrics(item.case_id, attemptRoute, task, builder, reviewer, extraTurns, phaseObservations);
         applySpecialMetrics(metrics, item.case_id, repetitionId, campaignRoot, runAttemptId);
         applyObservedContextMetrics(metrics, campaignRoot, template, evidence);
+        const tokens = metrics.tokens;
+        const unavailableUsage = typeof tokens === "object" && tokens !== null && !Array.isArray(tokens) && (tokens as Record<string, unknown>).quality === "unavailable";
+        if (unavailableUsage) {
+          evidence.push("harness:missing_usage");
+          verifierMissing.push("metrics.cost.quality", "metrics.tokens.input", "metrics.tokens.output", "metrics.tokens.quality");
+          if (outcome !== "infra_invalid" && outcome !== "harness_error") {
+            failureCode = "missing_usage";
+            outcome = "infra_invalid";
+            evidence.push(persistError(runAttemptId, new Error("required provider token and cost usage is unavailable")));
+          }
+        }
         const accounting = await reconcileAttemptAccounting({ campaignRoot, campaignSha256, attemptId: runAttemptId, app: template, caseId: item.case_id, repetitionId, expectedRoute: attemptRoute, evidence });
         evidence.push(`accounting:${accounting.rel}`);
         metrics.execution = { terminal_integrity: accounting.receipt.terminal_integrity, provider_turns: accounting.receipt.provider_turns, mechanical_steps: 0, provider_settlements: accounting.receipt.provider_settlements, mechanical_settlements: accounting.receipt.mechanical_settlements };

@@ -112,6 +112,15 @@ malformed, duplicated, missing, grader-failed, or settlement-mismatched
 evidence. L6 is reconciled independently from all 576 ticks, the 12 useful
 runs, ledgers, envelopes, and the distinct-process restart receipt.
 
+The first Phase 6 candidate campaign remains a useful negative proof rather
+than a disposable rehearsal. It is archived with 11 passes, eight product
+misses, three infrastructure-invalid attempts, and an incomplete tail. The
+corrected harness turns unavailable provider usage into explicit missing
+denominators, and corrected actor-visible contracts pin compatibility details
+without revealing hidden answers. The exact retained evidence and correction
+handoff live in
+`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`.
+
 The paired learning proof likewise cannot be a fixture verdict. A predeclared
 T1 procedure is injected only into the three treatment arms. Operon hashes the
 six actual provider candidates, independent reviewer observations, and hidden

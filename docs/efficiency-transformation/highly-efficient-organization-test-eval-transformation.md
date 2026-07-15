@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and production Phases 1–5 complete; the first fresh Phase 6 adapter campaign qualified but its unsafe archive was retained as invalid, so corrected adapter admission and candidate/L6 evidence remain pending |
+| Status | T0–T5 readiness and production Phases 1–5 complete; one prior-candidate adapter campaign qualified and was safely archived, while its candidate campaign is permanently invalid and corrected adapter/candidate/L6 evidence remains pending |
 | Evidence date | 2026-07-15 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
@@ -58,7 +58,7 @@ implementation, not a product qualification result.
 
 The L6 real-time soak path is implemented and tested as an explicitly
 authorized 48–72 hour boundary. It has not been executed and is not authorized
-by the work recorded here. Candidate qualification is also not authorized.
+by the work recorded here.
 
 The historical adapter admission remains retained evidence, but Phase 6
 changes covered harness, grader, evaluator, candidate-hash, and package bytes.
@@ -76,29 +76,63 @@ GitHub/soak boundaries. Until those terminal campaigns qualify and their
 schema-v2 archives are imported and verified, the exact ten post-Phase-5
 contracts remain known-red.
 
+A subsequent safely archived adapter campaign,
+`adapter-harness-calibration-v1-20260715-ac31a40c7d61` (SHA-256
+`b72ef578cd98bda30acc6e84923a3f36fcab563d85038ac9c10a51831efbe7df`),
+qualified Claude, Codex, and pi with 20/20 settlements, zero mechanical
+settlements, $2.36184225 equivalent cost, and a verified
+`sanitized-evidence/v3` archive. The separately authorized candidate campaign
+`candidate-qualification-v1-20260715-ac31a40c7d61` (SHA-256
+`b4e18a288a897cab16292bdb92618d3c2af538944c8655ef37554c08d316a098`)
+is permanently `invalid`: 11 attempts passed, eight were genuine product
+misses, three were infrastructure-invalid, and the remaining cases are
+incomplete. Its 42 provider turns reconcile to 42 settlements; product and
+evaluator costs are $35.684715 and $1.711014. It is qualified read-only and
+retained in a verified 370-file archive; cleanup was not executed.
+
+The product misses expose three public compatibility gaps: exact
+repository-local `.pnpm-store/` syntax, collapsing repeated underscores under
+`preserveUnderscores`, and preservation of the existing `normalizeApiKey`
+export. The halted continuation attempt also exposed a harness failure on
+unavailable provider token totals. Corrected task contracts and adversarial
+tests pin the product behavior, while the harness now records unavailable
+usage as missing invalid evidence rather than zero or an exception. The two pi
+context attempts remain blocked by the external Claude account's “extra
+usage” requirement; no model is substituted. See
+`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md` for the
+immutable report, archive, GitHub, attempt, cost, and settlement hashes.
+Because these are covered-byte changes, a fresh adapter identity and fresh
+candidate identity require new exact authorizations. No contract is promoted
+from the invalid campaign, strict mode remains red only for the exact ten
+post-Phase-5 contracts, and the separate 48-hour real-time soak remains
+pending.
+
 ### Latest deterministic verification
 
-The Phase 6 pre-external gate on 2026-07-14, in the isolated candidate
+The corrected Phase 6 pre-external gate on 2026-07-15, in the isolated candidate
 worktree, produced:
 
 - `pnpm eval:validate`: valid, with 84 requirements, 84 executable evidence
   paths, 14 cases, 12 benchmark families, 60 fault boundaries, 13 graders,
   three capability declarations, and zero orphaned records;
-- `pnpm test:transformation`: 31 files and 252 tests passed, then the
+- `pnpm test:transformation`: 32 files and 257 tests passed, then the
   non-strict runner reported exactly the ten post-Phase-5 known-red contracts;
-- `pnpm eval:deterministic`: 52 files and 395 tests passed;
-- `pnpm eval:deterministic:nightly`: both declared shuffled seeds passed 52
-  files and 395 tests, including the production seven-day virtual soak;
-- `pnpm test`: 180 files and 1,543 tests passed after retaining and correcting
-  the integration-timeout miss described below;
+- `pnpm eval:deterministic`: 53 files and 400 tests passed;
+- `pnpm eval:deterministic:nightly`: both declared shuffled seeds passed 53
+  files and 400 tests, including the production seven-day virtual soak;
+- `pnpm test`: 181 files and 1,548 tests passed after retaining and correcting
+  the invalid-calibration integration-timeout miss described below;
 - `pnpm typecheck`, `pnpm build`, neutral-cwd `pnpm smoke:onboarding`, and
   `npm pack --dry-run` passed; the dry-run package contains 208 files;
 - the fresh-HOME/TMPDIR/org/state/app/eval/provider-scratch Phase 6 subset
-  passed 18 files and 117 tests;
-- isolated alpha (55 tests + lint), beta (4 tests), gamma (45 tests + lint +
-  SRE/Support/Marketing smokes), and delta (53 tests + lint) passed and each
-  checkout remained clean;
-- `pnpm test:transformation:strict` passed all 252 executable tests and exited
+  passed 31 files and 182 tests after retaining and correcting a zsh wrapper
+  variable error; production-path, hidden-answer, provider-construction,
+  accounting, archive, promotion, and scheduler tripwires were green;
+- sandbox suites were not repeated because the correction changes no
+  production source, packaged runtime behavior, onboarding, or CLI surface;
+  the prior isolated alpha/beta/gamma/delta result remains the applicable
+  production-behavior check;
+- `pnpm test:transformation:strict` passed all 257 executable tests and exited
   non-zero only for `D-LIVE-01..03`, `E-LIVE-01..02`, `G-MET-01`,
   `I-ROLE-01..03`, and `I-LIVE-01`.
 
@@ -117,6 +151,17 @@ provider-path integration case completed in 5.2 seconds under full-suite
 contention. It now declares a 15-second integration-test timeout; the next full
 run passed all 1,541 tests with unchanged cases, assertions, campaign rules,
 graders, and denominators.
+
+The first complete offline-suite run for the corrected invalid-campaign
+harness retained one further five-second timeout. The filesystem-backed
+invalid-calibration accounting case completed in 5.219 seconds under full
+suite contention. It now has the same explicit 15-second integration timeout
+as the larger provider-workflow case; all unavailable-usage, retained-cost,
+attempt, settlement, and equality assertions are unchanged. The corrected
+full run passed all 1,548 tests. The first fresh-root focused wrapper also
+retained a post-test zsh error from assigning the reserved `status` variable;
+the same 182 tests had already passed. Changing only that wrapper variable to
+`rc` produced an exit-zero run on a new fresh root.
 
 This gate spent no provider tokens and performed no external GitHub,
 scheduler, production-org/state, canary, publication, deployment, or outward

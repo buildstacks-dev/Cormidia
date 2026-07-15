@@ -363,6 +363,12 @@ hidden guardrails. Even an improved result does not authorize activation:
 `pnpm eval:learning-activation` first previews the exact candidate/action
 hashes for a separately approved, isolated single activation and rollback.
 
+Unavailable provider token or cost totals are never coerced to zero. The
+attempt remains invalid with explicit missing denominators and its original
+typed account or transport cause. The retained first Phase 6 candidate
+campaign and its correction handoff are documented in
+[`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`](research/evals/2026-07-15-phase6-candidate-qualification-invalid.md).
+
 The Live UI browser suite uses a dev-only Playwright dependency and local
 Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real
 ephemeral loopback HTTP/SSE boundaries but no provider tokens, GitHub writes,

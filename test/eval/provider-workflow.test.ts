@@ -116,6 +116,40 @@ it("F-CONT-04 sampled live continuation performs a real cancellation checkpoint 
   expect(result.attempts[0]).toMatchObject({ outcome: "passed", metrics: { execution: { provider_turns: 2, provider_settlements: 2 } } }); expect(result.attempts[0]?.evidence.filter((ref) => ref.startsWith("run:"))).toHaveLength(2); expect(calls).toBe(2);
 });
 
+it("F-CONT-04 persists unavailable interrupted-turn usage as invalid missing evidence instead of crashing or retrying", async () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-continuation-usage-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
+  const base = fixtureCampaign("continuation-usage-fixture"); const campaign = { ...base, cases: [{ case_id: "continuation/matrix/v1", repetition_ids: ["mixed-iq"] }], spend: { campaign_max_usd: 10, case_max_usd: { "continuation/matrix/v1": 10 } } };
+  const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let calls = 0;
+  const unavailable = { ...usage(), tokensIn: 0, tokensOut: 0, costUsd: 0, quality: "unavailable" as const };
+  const result = await executeLiveCampaign({ root, manifestPath, maxUsd: 10, evalRoot: join(root, ".eval-artifacts/continuation-usage-fixture/world"), visibleGate: () => true, hiddenGrader: () => true, runtimeFactory: (role) => ({ kind: role.runtime, runTurn: async (request, hooks) => { calls += 1; if (calls === 1) { hooks.onProgress?.({ session: { runtime: role.runtime, id: "interrupted-unavailable" }, usage: unavailable }); return { status: request.signal?.aborted ? "cancelled" : "completed", summary: "interrupted without usage", artifacts: [], session: { runtime: role.runtime, id: "interrupted-unavailable" }, usage: unavailable, escalations: [] }; } return { status: "completed", summary: "recovered", artifacts: [], session: { runtime: role.runtime, id: "recovery" }, usage: usage(), escalations: [] }; } }) });
+  expect(result.attempts).toHaveLength(1);
+  expect(result.attempts[0]).toMatchObject({
+    outcome: "infra_invalid",
+    missing: ["metrics.cost.quality", "metrics.tokens.input", "metrics.tokens.output", "metrics.tokens.quality"],
+    metrics: { tokens: { quality: "unavailable" }, execution: { provider_turns: 2, provider_settlements: 2, mechanical_settlements: 0 } },
+  });
+  expect(result.attempts[0]?.evidence).toEqual(expect.arrayContaining(["harness:missing_usage", "artifact:errors/continuation-matrix-v1-mixed-iq.json"]));
+  expect(result.attempts[0]?.retry_of).toBeUndefined();
+  expect(calls).toBe(2);
+});
+
+it("J-STAT-02 preserves unavailable usage denominators on an existing provider account failure without substituting or retrying", async () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-account-usage-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
+  const campaign = fixtureCampaign("account-usage-fixture"); const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let calls = 0;
+  const unavailable = { ...usage(), tokensIn: 0, tokensOut: 0, costUsd: 0, quality: "unavailable" as const };
+  const result = await executeLiveCampaign({ root, manifestPath, maxUsd: 10, evalRoot: join(root, ".eval-artifacts/account-usage-fixture/world"), hiddenGrader: () => true, runtimeFactory: (role) => ({ kind: role.runtime, runTurn: async () => { calls += 1; return { status: "failed", errorCode: "auth_required", summary: "provider account requires extra usage", artifacts: [], session: { runtime: role.runtime, id: "account-blocked" }, usage: unavailable, escalations: [] }; } }) });
+  expect(result.attempts).toHaveLength(1);
+  expect(result.attempts[0]).toMatchObject({
+    outcome: "infra_invalid",
+    missing: ["metrics.cost.quality", "metrics.tokens.input", "metrics.tokens.output", "metrics.tokens.quality"],
+    metrics: { tokens: { quality: "unavailable" }, execution: { provider_turns: 1, provider_settlements: 1 } },
+  });
+  expect(result.attempts[0]?.evidence).toEqual(expect.arrayContaining(["harness:provider_unauthenticated", "harness:missing_usage"]));
+  expect(result.attempts[0]?.evidence.filter((ref) => ref.startsWith("artifact:errors/"))).toHaveLength(1);
+  expect(result.attempts[0]?.retry_of).toBeUndefined();
+  expect(calls).toBe(1);
+});
+
 it("J-GRADE-01 dispatches every evidence-backed live benchmark to its calibrated hidden grader", async () => {
   const root = mkdtempSync(join(tmpdir(), "operon-eval-live-grader-dispatch-")); roots.push(root);
   for (const [caseId, grader] of [

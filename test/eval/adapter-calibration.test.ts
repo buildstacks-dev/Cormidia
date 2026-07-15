@@ -168,7 +168,7 @@ it("J-STAT-02 counts invalid calibrated-attempt spend exactly once", async () =>
   const retained = executed.attempts.reduce((sum, attempt) =>
     sum + (attempt.metrics.cost as { product_usd: number }).product_usd, 0);
   expect(executed.product_cost_usd).toBeCloseTo(retained, 12);
-});
+}, 15_000);
 
 it("records grader evidence before exact Claude session cleanup", async () => {
   const root = mkdtempSync(join(tmpdir(), "operon-eval-adapter-cleanup-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });

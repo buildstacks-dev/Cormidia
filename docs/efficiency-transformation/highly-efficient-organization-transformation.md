@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phases 0–5 complete; Phase 6 local qualification machinery is ready and external evidence is pending exact authorization |
-| Evidence date | 2026-07-14 |
+| Status | Phases 0–5 complete; Phase 6 retained one invalid candidate campaign and corrected external evidence remains pending exact authorization |
+| Evidence date | 2026-07-15 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
 | Benchmark app | `/Users/bikram/Build/buildstacks.dev` |
@@ -713,10 +713,20 @@ explicit deep input ceiling; grader and attempt accounting are independently
 content-bound; L6 reconciles the exact schedule, exit/restart processes,
 context denominators, runs, envelopes, and provider/mechanical settlements;
 and contract promotion fails closed on stale, foreign, malformed,
-missing, duplicate, grader-failed, or accounting-mismatched evidence. No Phase
-6 GitHub mutation, provider run, L6 soak, promotion, or production confirmation
-has occurred. The ten contracts therefore remain known-red pending separately
-authorized fresh adapter admission, candidate qualification, and L6 evidence.
+missing, duplicate, grader-failed, or accounting-mismatched evidence. No L6
+soak, promotion, or production confirmation has occurred. One safely archived
+adapter campaign qualified the then-current
+candidate, but its separately authorized candidate campaign is permanently
+`invalid`: 11 passed attempts, eight genuine product misses, three
+infrastructure-invalid attempts, and an incomplete remainder. The product
+misses and the unavailable-provider-usage harness failure have been corrected
+without changing thresholds, graders, assignments, denominators, or safety
+rules. The pi context probes remain blocked on the external Claude account's
+“extra usage” requirement and no substitute model is permitted. Covered bytes
+therefore require fresh adapter and candidate identities. The ten contracts
+remain known-red pending separately authorized fresh adapter admission,
+candidate qualification, and L6 evidence. The immutable retained record is
+`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`.
 The learning block now follows the separately ratified boundary: a predeclared
 content-hashed T1 procedure is present only on treatment arms, pair outcomes
 come from provider artifacts and hidden guardrails, and a measured improvement

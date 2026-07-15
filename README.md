@@ -343,8 +343,18 @@ evidence-preserving:
 pnpm eval:validate                 # schemas, hashes, graders, isolation
 pnpm test:transformation           # required + exact known-red baseline
 pnpm eval:deterministic            # L0-L3, token-free
-pnpm test:transformation:strict    # final gate; red while declared debt remains
+pnpm test:transformation:strict    # current Phase 6 scope only
+pnpm test:transformation:future-soak-strict # red only for I-LIVE-01 until the future soak
 ```
+
+The ratified Phase 6 boundary is defined only in
+[`docs/efficiency.md`](docs/efficiency.md#phase-6-qualification-scope). Its
+current strict scope contains 83 contracts and can finish after valid candidate
+qualification, nine evidence promotions, read-only production confirmation,
+and shipping. `I-LIVE-01` is the sole future-soak contract: it remains pending,
+cannot be promoted by virtual-soak or production-confirmation evidence, and is
+not current Phase 6 debt. The broader “highly efficient organization” claim
+remains reserved until the genuine future 48-hour campaign passes.
 
 Provider and disposable-GitHub campaigns are never implicit. Prepare a
 content-hashed manifest with `pnpm eval:prepare`; preview `eval:github` and

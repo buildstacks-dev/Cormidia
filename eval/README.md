@@ -27,7 +27,12 @@ campaign.
 
 - `pnpm test:transformation` checks required contracts and the exact known-red
   set without tokens.
-- `pnpm test:transformation:strict` requires no known-red contracts.
+- `pnpm test:transformation:strict` requires no known-red contract in the
+  83-contract current Phase 6 scope.
+- `pnpm test:transformation:future-soak-strict` evaluates the separate
+  `future_soak` scope and remains non-zero for exactly `I-LIVE-01` until a
+  genuine future campaign promotes it. Both strict commands validate the full
+  84-contract inventory before selecting a scope.
 - `pnpm eval:validate` validates manifests, fixtures, graders, hashes, and
   hidden-answer separation, and emits the complete requirement → case →
   executable-evidence map.
@@ -102,6 +107,13 @@ campaign.
   immediately verifies them. The contract harness recomputes qualification
   and rejects file-only, foreign, stale, malformed, duplicate, grader-failed,
   archive-incomplete, route-mismatched, or settlement-mismatched evidence.
+
+The authoritative current-versus-future boundary is
+[`docs/efficiency.md`](../docs/efficiency.md#phase-6-qualification-scope).
+Phase 6 candidate evidence may promote only the nine current provider
+contracts. `I-LIVE-01` is still required but is neither passed nor current
+Phase 6 debt; preview, virtual-soak, manufactured, and production-confirmation
+evidence cannot promote it.
 
 Raw attempts, prompts, provider sessions, remotes, and worktrees are local
 artifacts and ignored by git. Committed summaries are redacted and hashed.
@@ -230,11 +242,14 @@ pnpm eval:archive -- --campaign <prepared-file> --out <archive-root>
 pnpm eval:cleanup -- --campaign <exact-campaign-id>        # preview
 # Cleanup execution remains separately authorized. Before any promotion:
 pnpm eval:import-evidence -- --archive <schema-v2-archive> --receipt <campaign-receipt>
-# Update only the mapped contract states and final status documents, then bind
-# that complete evidence-only descendant before projections are generated.
-pnpm eval:attest-release -- --campaign <sanitized-candidate> --campaign <sanitized-soak>
+# Update only the nine current mapped contract states and final status
+# documents, then bind that complete evidence-only descendant before projections.
+pnpm eval:attest-release -- --campaign <sanitized-candidate>
 pnpm eval:promote -- --campaign <sanitized-candidate> --attestation research/evals/phase6-release-attestation.json
-pnpm eval:promote -- --campaign <sanitized-soak> --attestation research/evals/phase6-release-attestation.json
+# In a future separately authorized session, genuine soak evidence uses its own
+# exact attestation and may promote only I-LIVE-01.
+pnpm eval:attest-release -- --campaign <sanitized-candidate> --campaign <sanitized-soak> --out research/evals/future-soak-release-attestation.json
+pnpm eval:promote -- --campaign <sanitized-soak> --attestation research/evals/future-soak-release-attestation.json
 ```
 
 Qualification reports preserve all canonical measurement populations:
@@ -255,7 +270,8 @@ automatic spending job:
 | --- | --- | --- |
 | GitHub nightly or scheduled | Prepare the current L4 campaign, retain both previews, then run `eval:github` twice against the exact allowlisted private repository | A human must authorize the campaign hash, repository, operations, and GitHub mutation before execution |
 | Weekly/manual calibration | Prepare and preview adapter calibration, then run L4 followed by the capped L5 calibration sample | A human must authorize the exact campaign identity, models, repository, and equivalent-cost cap; missing auth is incomplete evidence |
-| Release candidate | Build and pack the exact candidate, run the complete L0-L5 sequence, qualify/archive it, then prepare and start the separate L6 campaign | Candidate and soak require separate exact authorizations; neither may borrow a prior campaign's confirmation |
+| Release candidate | Build and pack the exact candidate, run the complete current-scope L0-L5 sequence, qualify/archive/promote its nine contracts, and ship after read-only production confirmation | Candidate and future soak require separate exact authorizations; Phase 6 can finish while `I-LIVE-01` remains pending |
+| Future real-time soak | Prepare the exact frozen candidate's L6 preview; execute its unchanged 48–72 hour schedule only in a separately authorized future campaign | Preview is not evidence; virtual or production evidence cannot substitute; only this campaign may promote `I-LIVE-01` |
 | Post-release | Run read-only production confirmation and compare the rolling report to the archived sandbox qualification | Production never supplies calibration data or rewrites qualification thresholds |
 
 For each cadence event, create a fresh prepared manifest after the exact

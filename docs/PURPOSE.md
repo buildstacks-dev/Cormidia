@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v2.1 — 2026-07-13. Human-ratified decision log. Keep this file high-level;
+*v2.2 — 2026-07-15. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -106,6 +106,22 @@ config file, not a fork.
     event or plausible candidate alone is not improvement.
 
 ## Decided
+
+- **Phase 6 qualification scope and deferred real-time soak** (ratified
+  2026-07-15). Phase 6 completion now covers exact-candidate adapter admission;
+  the unchanged planning, context, delivery, continuation, approval, paired-
+  learning, deterministic seven-day virtual-soak, and standing-role candidate
+  matrix; provider accounting; the nine non-soak evidence promotions;
+  read-only production confirmation; documentation; CI; release-equivalence;
+  and shipping. The 84-contract inventory remains intact: 83 contracts are in
+  the current scope, while only `I-LIVE-01` is `future_soak`. That contract is
+  still required and known-red pending its genuine separately authorized
+  48–72 hour campaign; preview, virtual-soak, manufactured, or production-
+  confirmation evidence cannot promote it. Phase 6 completion may be reported
+  while the future soak is pending, but the broader claim that Operon is a
+  fully proven “highly efficient organization” remains reserved until
+  `I-LIVE-01` passes. `docs/efficiency.md` → Phase 6 qualification scope is the
+  canonical boundary.
 
 - **Phase 6 deep-route input-token ceiling** (ratified 2026-07-14). Every
   Phase 6 episode whose final authorized route is `deep` has a hard

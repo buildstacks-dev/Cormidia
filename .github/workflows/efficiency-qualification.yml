@@ -31,5 +31,5 @@ jobs:
       - name: Nightly deterministic flake tripwire
         if: github.event_name == 'schedule'
         run: pnpm eval:deterministic:nightly
-      - name: Strict final-phase gate
+      - name: Strict current Phase 6 gate
         run: pnpm test:transformation:strict

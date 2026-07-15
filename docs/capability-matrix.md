@@ -149,3 +149,9 @@ the candidate, package/suite identities, org/system fingerprints, assignments,
 turn ceiling, retry rule, stop rules, and private GitHub target; missing
 readiness or an unavailable required model remains incomplete/invalid rather
 than a skip.
+
+The fresh candidate's adapter admission is part of the current Phase 6 scope;
+the real-time scheduler contract is not. `I-LIVE-01` remains the sole pending
+`future_soak` contract and cannot be inferred from adapter admission, virtual
+soak, or read-only production evidence. The canonical distinction is
+[`efficiency.md`](efficiency.md#phase-6-qualification-scope).

@@ -156,8 +156,9 @@ efficacy health independently. The mechanics construct no provider runtime.
   `roles.yaml` change; `*.live.test.ts` files are excluded here)
 - Efficiency eval, token-free: `pnpm eval:validate` · `pnpm
   test:transformation` (required + exact known-red) · `pnpm
-  eval:deterministic` · `pnpm test:transformation:strict` (final gate; expected
-  non-zero while declared transformation debt remains).
+  eval:deterministic` · `pnpm test:transformation:strict` (current Phase 6
+  scope) · `pnpm test:transformation:future-soak-strict` (separate future gate;
+  expected non-zero only for `I-LIVE-01` until the genuine campaign passes).
 - Efficiency eval, explicit external boundary: `pnpm eval:prepare -- --campaign
   <template> --github-owner <owner>` · preview/execute `pnpm eval:github` and
   `pnpm eval:live` only with their environment switches, exact campaign
@@ -287,8 +288,11 @@ efficacy health independently. The mechanics construct no provider runtime.
 - Changes under `eval/**`, `scripts/eval/**`, or transformation eval fixtures:
   run `pnpm eval:validate`, `pnpm test:transformation`, `pnpm
   eval:deterministic`, the complete `pnpm test`, and `pnpm typecheck`.
-  `test:transformation:strict` must fail only for the exact declared known-red
-  set until production work promotes those contracts. Never run `eval:github`
+  `test:transformation:strict` must fail only for the exact current-scope
+  known-red set until valid candidate evidence promotes those contracts;
+  `test:transformation:future-soak-strict` must independently fail only for
+  `I-LIVE-01`. The canonical boundary is `docs/efficiency.md` → Phase 6
+  qualification scope. Never run `eval:github`
   or `eval:live` merely because these files changed.
   Do not execute `eval:soak` merely because soak files changed; preview and
   deterministic scheduler tests are token-free, but L6 execution is a

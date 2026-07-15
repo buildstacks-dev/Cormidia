@@ -23,14 +23,18 @@ it("J-REL-01 near-miss keeps live/provider work out of ordinary pull-request CI"
 
 it("J-REL-01 Phase 6 keeps strict token-free enforcement on every CI invocation", () => {
   const raw = readFileSync(fileURLToPath(new URL("../../.github/workflows/efficiency-qualification.yml", import.meta.url)), "utf8");
+  const packageRaw = readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8");
   expect(raw).not.toContain("inputs.strict");
   expect(raw).toMatch(/^\s*run: pnpm test:transformation:strict\s*$/m);
+  expect(packageRaw).toContain('"test:transformation:future-soak-strict"');
+  expect(raw).not.toContain("test:transformation:future-soak-strict");
 });
 
 it("J-REL-01 operating cadence keeps credentialed GitHub, provider, and soak work under fresh exact human authorization", () => {
   const raw = readFileSync(fileURLToPath(new URL("../../eval/README.md", import.meta.url)), "utf8");
   for (const cadence of ["GitHub nightly or scheduled", "Weekly/manual calibration", "Release candidate", "Post-release"]) expect(raw).toContain(cadence);
   expect(raw).toContain("A human must authorize the campaign hash, repository, operations, and GitHub mutation before execution");
-  expect(raw).toContain("Candidate and soak require separate exact authorizations");
+  expect(raw).toContain("Candidate and future soak require separate exact authorizations");
+  expect(raw).toContain("only this campaign may promote `I-LIVE-01`");
   expect(raw).toMatch(/Any source, fixture, grader, price-catalog, or\s+campaign change invalidates the prepared identity/);
 });

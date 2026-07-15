@@ -112,6 +112,14 @@ malformed, duplicated, missing, grader-failed, or settlement-mismatched
 evidence. L6 is reconciled independently from all 576 ticks, the 12 useful
 runs, ledgers, envelopes, and the distinct-process restart receipt.
 
+The ratified Phase 6 boundary now separates that future real-time proof from
+the current qualification without weakening either. The current 83-contract
+scope can finish after the complete candidate matrix, nine bound evidence
+promotions, read-only production confirmation, and shipping. `I-LIVE-01`
+alone remains `future_soak`: it is pending, not passed, and neither the virtual
+soak nor production confirmation can promote it. The canonical definition is
+[`efficiency.md`](efficiency.md#phase-6-qualification-scope).
+
 The first Phase 6 candidate campaign remains a useful negative proof rather
 than a disposable rehearsal. It is archived with 11 passes, eight product
 misses, three infrastructure-invalid attempts, and an incomplete tail. The
@@ -192,9 +200,10 @@ Planner feed each; deploy-shaped SRE work remains parked. No real scheduler,
 provider, repository, or outward integration is touched.
 
 The five deterministic Workstream I contracts (`I-INSTALL-01..02` and
-`I-SOAK-01..03`) are production-backed. `I-ROLE-01..03` remain provider-result
-contracts and `I-LIVE-01` remains the authorized 48–72 hour campaign, so their
-deterministic paths do not promote those four contracts.
+`I-SOAK-01..03`) are production-backed. `I-ROLE-01..03` remain current-scope
+provider-result contracts and `I-LIVE-01` remains the future authorized 48–72
+hour campaign, so their deterministic paths do not promote those four
+contracts.
 
 The public read is `operon learn report --efficiency-health [--json]`.
 `--refresh` is the sole explicit projection-write switch; capture, governance,

@@ -160,10 +160,27 @@ The separately retained local archive-receipt SHA-256 is
 The manifest excludes `provider-scratch/**` and raw L3 `state/runs/**`.
 Cleanup was previewed only and was not executed.
 
-No contract is promoted from this invalid campaign. The exact ten
-post-Phase-5 contracts remain known-red, strict mode must remain non-zero,
-and `I-LIVE-01` still requires the separate authorized 48-hour real-time
-soak. No production confirmation, scheduler installation, production
-mutation, deployment, publication, message, learning activation, or real-time
-soak occurred. Production evidence cannot repair or rewrite this sandbox
-outcome.
+No contract is promoted from this invalid campaign. At the time of this
+retained run, the exact ten post-Phase-5 contracts remained known-red under one
+strict view. The later 2026-07-15 ratified scope decision does not rewrite that
+evidence: the nine non-soak provider contracts are now the current Phase 6
+known-red set, while `I-LIVE-01` alone remains known-red in `future_soak` and
+still requires the separate authorized 48-hour real-time campaign. No
+production confirmation, scheduler installation, production mutation,
+deployment, publication, message, learning activation, or real-time soak
+occurred. Production evidence cannot repair or rewrite this sandbox outcome.
+
+## Ratified continuation boundary
+
+The corrected descendant must first qualify fresh exact-candidate adapter and
+candidate campaigns. A qualified candidate may promote only `D-LIVE-01..03`,
+`E-LIVE-01..02`, `G-MET-01`, and `I-ROLE-01..03`; current strict must then be
+green. `I-LIVE-01` is neither passed nor current Phase 6 debt, and future-soak
+strict must remain red for exactly that contract. The genuine future campaign
+keeps every original 48-hour cadence, restart, safety, accounting, and evidence
+requirement. Preview, deterministic virtual-soak evidence, manufactured
+evidence, or bounded read-only production confirmation cannot promote it.
+Phase 6 may ship with the future soak pending, but Operon may not claim to be a
+fully proven “highly efficient organization” until that campaign passes. The
+canonical boundary is
+[`docs/efficiency.md`](../../docs/efficiency.md#phase-6-qualification-scope).

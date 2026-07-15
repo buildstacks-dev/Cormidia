@@ -38,8 +38,12 @@ attest that package and executable-suite bytes still match the exact candidate,
 and generate contract-specific projections. The harness rejects foreign or
 stale campaigns, missing/duplicate repetitions, malformed or missing
 measurements, failed graders, archive/GitHub receipt drift, and settlement or
-route-admission mismatch. The separately authorized L6 archive is required for
-`I-LIVE-01`; candidate qualification alone cannot promote it.
+route-admission mismatch. Candidate qualification may promote only the nine
+current Phase 6 provider contracts. The separately authorized future L6
+archive remains the only route to `I-LIVE-01`; candidate qualification,
+virtual-soak evidence, and production confirmation cannot promote it. It is
+outside the current Phase 6 strict gate, not passed. See the canonical scope
+boundary in [`efficiency.md`](efficiency.md#phase-6-qualification-scope).
 
 Candidate qualification has a third, independent boundary after L5. The
 learning block applies its content-hashed T1 procedure only to treatment arms

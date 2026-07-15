@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phases 0–5 complete; Phase 6 has a qualified pi-on-Codex adapter and a retained invalid candidate; corrected external evidence and L6 remain pending exact authorization |
+| Status | Phases 0–5 complete; the ratified Phase 6 current scope awaits fresh exact-candidate evidence, while `I-LIVE-01` remains a separate future campaign |
 | Evidence date | 2026-07-15 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
@@ -702,8 +702,19 @@ real-time evidence. Phase 6 is next.
 Run the full benchmark matrix and production confirmation.
 
 **Gate:** five consecutive clean target-meeting episodes, followed by ten mixed
-episodes without a critical invariant violation. Only then describe Operon as a
-highly efficient organization.
+episodes without a critical invariant violation, the remaining candidate
+matrix, exact settlement reconciliation, nine current-scope promotions,
+read-only production confirmation, documentation, CI, release equivalence, and
+shipping.
+
+**Ratified boundary (2026-07-15):** Phase 6 completion and the broader “fully
+proven highly efficient organization” claim are distinct. The 84-contract
+inventory has 83 `current` contracts and exactly one `future_soak` contract,
+`I-LIVE-01`. The future real-time campaign is unchanged and still required for
+the broader claim, but it is no longer a Phase 6 completion, strict, release,
+or merge gate. Preview, virtual-soak, manufactured, and read-only production
+evidence cannot promote it. The single canonical definition is
+[`docs/efficiency.md`](../efficiency.md#phase-6-qualification-scope).
 
 **Current status:** the exact-candidate/evidence-promotion audit and token-free
 qualification hardening are implemented in an isolated worktree. Prepared
@@ -725,9 +736,10 @@ operator then explicitly reassigned every Phase 6 pi evaluation role to pi's
 exact `openai-codex/gpt-5.6-sol` model while leaving production `roles.yaml`
 untouched. This removes the third-party Claude extra-usage dependency but is a
 covered-byte assignment change, so the earlier prepared previews and
-authorizations are stale. The ten contracts
-remain known-red pending separately authorized fresh adapter admission,
-candidate qualification, and L6 evidence. The immutable retained record is
+authorizations are stale. Nine current-scope contracts remain known-red
+pending separately authorized fresh adapter admission and candidate
+qualification; `I-LIVE-01` separately remains future-required and known-red.
+The immutable retained record is
 `research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`.
 The learning block now follows the separately ratified boundary: a predeclared
 content-hashed T1 procedure is present only on treatment arms, pair outcomes
@@ -882,6 +894,8 @@ This campaign is complete only when all of the following are true:
 - Five consecutive clean episodes and ten mixed-route qualification episodes
   meet the required invariants.
 - The production confirmation is reported separately and honestly.
+- Phase 6 may complete with `I-LIVE-01` future-pending; the charter's broader
+  “highly efficient organization” claim still requires that genuine campaign.
 
 ## 12. Instructions for the implementing session
 

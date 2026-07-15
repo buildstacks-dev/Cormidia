@@ -278,6 +278,46 @@ ratified `docs/efficiency-transformation/t4-baseline-cap-amendment.md`. Its
 Claude Max and ChatGPT Pro dollar values are equivalent-cost indicators rather
 than incremental API billing; per-case route bounds did not change.
 
+## Phase 6 qualification scope
+
+This section is the canonical Phase 6 boundary (ratified 2026-07-15). The
+scope change does not alter a threshold, grader, retry rule, measurement,
+denominator, model assignment, safety boundary, learning-efficacy rule, or
+provider-accounting requirement.
+
+The contract inventory remains exactly 84 records. Every record declares one
+`qualification_scope`:
+
+- `current` contains exactly 83 contracts. Before fresh candidate evidence,
+  its only known-red contracts are `D-LIVE-01..03`, `E-LIVE-01..02`,
+  `G-MET-01`, and `I-ROLE-01..03`. A qualified exact candidate may promote
+  only those nine provider-evidence contracts. Phase 6 may finish after exact-
+  candidate adapter admission, the complete candidate qualification matrix,
+  provider/settlement reconciliation, all nine promotions, bounded read-only
+  production confirmation, documentation, token-free CI, release-equivalence
+  proof, and shipping.
+- `future_soak` contains exactly `I-LIVE-01`. It remains required and known-red
+  until a genuine separately authorized 48–72 hour real-time scheduler
+  campaign satisfies its unchanged cadence, restart, safety, accounting, and
+  evidence contract. It is neither passed nor current Phase 6 debt. The
+  token-free future-soak strict result must therefore remain non-zero for
+  exactly `I-LIVE-01` until that campaign is validly promoted.
+
+The current strict command may exclude only the declared `future_soak`
+contract; inventory validation fails for any missing, duplicate, unscoped,
+foreign-scoped, or additionally future-scoped record. A preview, local passing
+marker, deterministic seven-day virtual soak, or manufactured evidence cannot
+promote `I-LIVE-01`. Read-only production confirmation reports production
+facts but cannot replace the future soak or repair sandbox qualification.
+The token-free views are `pnpm test:transformation:strict` for `current` and
+`pnpm test:transformation:future-soak-strict` for `future_soak`.
+
+Completing the current scope may be reported as **“Phase 6 efficiency
+qualification complete; future real-time soak pending.”** Operon must not be
+described as a fully proven “highly efficient organization” until
+`I-LIVE-01` passes the genuine future campaign. Phase 6 completion and that
+broader organizational claim are deliberately distinct.
+
 ## Isolation and qualification
 
 Eval actors run in fresh synthetic homes, an `Operon-Eval-<campaign-id>` org,

@@ -32,6 +32,7 @@
     "test": "vitest run",
     "test:transformation": "vitest run test/transformation test/eval && tsx scripts/eval/run-contracts.ts",
     "test:transformation:strict": "vitest run test/transformation test/eval && tsx scripts/eval/run-contracts.ts --strict",
+    "test:transformation:future-soak-strict": "vitest run test/transformation test/eval && tsx scripts/eval/run-contracts.ts --strict --scope future_soak",
     "eval:validate": "tsx scripts/eval/validate.ts",
     "eval:deterministic": "vitest run test/transformation test/eval test/efficiency test/lifecycle test/continuation test/scheduler",
     "eval:deterministic:nightly": "vitest run test/transformation test/eval test/efficiency test/lifecycle test/continuation test/scheduler --sequence.shuffle --sequence.seed=20260712 --maxWorkers=2 && vitest run test/transformation test/eval test/efficiency test/lifecycle test/continuation test/scheduler --sequence.shuffle --sequence.seed=12072026 --maxWorkers=1",

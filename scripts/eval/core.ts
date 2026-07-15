@@ -124,10 +124,16 @@ export interface AttemptResult {
   retry_of?: string;
 }
 
+export const CONTRACT_QUALIFICATION_SCOPES = ["current", "future_soak"] as const;
+export type ContractQualificationScope = (typeof CONTRACT_QUALIFICATION_SCOPES)[number];
+export const CONTRACT_INVENTORY_SIZE = 84;
+export const FUTURE_SOAK_CONTRACT_IDS = ["I-LIVE-01"] as const;
+
 export interface ContractRecord {
   id: string;
   requirement: string;
   state: "required" | "known_red";
+  qualification_scope: ContractQualificationScope;
   expected_failure?: string;
   workstream: string;
   phase: string;
@@ -462,16 +468,21 @@ export function validateContracts(value: unknown): string[] {
   exactVersion(root, errors);
   const contracts = root.contracts;
   if (!Array.isArray(contracts) || contracts.length === 0) return [...errors, "contracts must be a non-empty array"];
+  if (contracts.length !== CONTRACT_INVENTORY_SIZE) errors.push(`contracts must contain exactly ${CONTRACT_INVENTORY_SIZE} records`);
   const ids = new Set<string>();
+  const futureSoakIds: string[] = [];
   for (const [index, raw] of contracts.entries()) {
     const item = record(raw);
     if (!item) { errors.push(`contracts[${index}] must be an object`); continue; }
+    exactKeys(item, ["id", "requirement", "state", "qualification_scope", "expected_failure", "workstream", "phase", "evidence", "promotion"], errors, `contracts[${index}]`);
     for (const field of ["id", "requirement", "workstream", "phase", "evidence", "promotion"]) stringField(item, field, errors, `contracts[${index}]`);
     enumField(item, "state", ["required", "known_red"], errors, `contracts[${index}]`);
+    enumField(item, "qualification_scope", CONTRACT_QUALIFICATION_SCOPES, errors, `contracts[${index}]`);
     const id = item.id;
     if (typeof id === "string") {
       if (ids.has(id)) errors.push(`duplicate contract id ${id}`);
       ids.add(id);
+      if (item.qualification_scope === "future_soak") futureSoakIds.push(id);
     }
     if (item.state === "known_red" && typeof item.expected_failure !== "string") {
       errors.push(`contracts[${index}].expected_failure is required for known_red`);
@@ -480,6 +491,12 @@ export function validateContracts(value: unknown): string[] {
       errors.push(`contracts[${index}].expected_failure is forbidden for required`);
     }
   }
+  const declaredFutureSoakIds = [...futureSoakIds].sort();
+  const expectedFutureSoakIds = [...FUTURE_SOAK_CONTRACT_IDS].sort();
+  if (canonicalJson(declaredFutureSoakIds) !== canonicalJson(expectedFutureSoakIds)) {
+    errors.push(`future_soak scope must contain exactly ${expectedFutureSoakIds.join(", ")}`);
+  }
+  for (const id of expectedFutureSoakIds) if (!ids.has(id)) errors.push(`future_soak contract missing from inventory ${id}`);
   return errors;
 }
 
@@ -950,7 +967,7 @@ function positiveInteger(v: Record<string, unknown>, f: string, e: string[]): vo
 function positiveIntegerAt(v: Record<string, unknown>, f: string, e: string[], p = ""): void { if (!Number.isInteger(v[f]) || (v[f] as number) <= 0) e.push(`${p ? `${p}.` : ""}${f} must be a positive integer`); }
 function nonNegativeInteger(v: Record<string, unknown>, f: string, e: string[]): void { if (!Number.isInteger(v[f]) || (v[f] as number) < 0) e.push(`${f} must be a non-negative integer`); }
 function positiveNumber(v: Record<string, unknown>, f: string, e: string[], p = ""): void { if (typeof v[f] !== "number" || !Number.isFinite(v[f]) || (v[f] as number) <= 0) e.push(`${p ? `${p}.` : ""}${f} must be a positive number`); }
-function enumField(v: Record<string, unknown>, f: string, values: string[], e: string[], p = ""): void { if (typeof v[f] !== "string" || !values.includes(v[f] as string)) e.push(`${p ? `${p}.` : ""}${f} must be one of ${values.join(", ")}`); }
+function enumField(v: Record<string, unknown>, f: string, values: readonly string[], e: string[], p = ""): void { if (typeof v[f] !== "string" || !values.includes(v[f] as string)) e.push(`${p ? `${p}.` : ""}${f} must be one of ${values.join(", ")}`); }
 function isoDateField(v: Record<string, unknown>, f: string, e: string[]): void { if (typeof v[f] !== "string" || !Number.isFinite(Date.parse(v[f] as string))) e.push(`${f} must be an ISO date`); }
 function nullableIsoDateField(v: Record<string, unknown>, f: string, e: string[]): void { if (v[f] !== null && (typeof v[f] !== "string" || !Number.isFinite(Date.parse(v[f] as string)))) e.push(`${f} must be null or an ISO date`); }
 function safeRelativeField(v: Record<string, unknown>, f: string, e: string[], p = ""): void { stringField(v, f, e, p); const x = v[f]; if (typeof x === "string" && (isAbsolute(x) || x.split(/[\\/]/).includes(".."))) e.push(`${p ? `${p}.` : ""}${f} must be a safe relative path`); }

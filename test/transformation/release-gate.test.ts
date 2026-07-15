@@ -21,10 +21,10 @@ it("J-REL-01 near-miss keeps live/provider work out of ordinary pull-request CI"
   expect(raw).not.toContain("OPERON_EVAL_GITHUB=1");
 });
 
-it("J-REL-01 honest failure treats strict as an explicit manual gate rather than silently enabling it", () => {
+it("J-REL-01 Phase 6 keeps strict token-free enforcement on every CI invocation", () => {
   const raw = readFileSync(fileURLToPath(new URL("../../.github/workflows/efficiency-qualification.yml", import.meta.url)), "utf8");
-  expect(raw).toContain("inputs.strict");
-  expect(raw).toContain("default: false");
+  expect(raw).not.toContain("inputs.strict");
+  expect(raw).toMatch(/^\s*run: pnpm test:transformation:strict\s*$/m);
 });
 
 it("J-REL-01 operating cadence keeps credentialed GitHub, provider, and soak work under fresh exact human authorization", () => {

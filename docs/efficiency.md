@@ -198,6 +198,28 @@ authoritative; agent prose is not.
   coverage are `invalid_measurement`; event and candidate counts are not an
   efficacy numerator.
 
+For Phase 6, the paired-learning intervention is the predeclared T1 procedure
+at `eval/treatments/learning-t1-v1.md`, pinned by the candidate campaign's
+`learning_treatment.content_sha256`. Only treatment-arm builder context receives
+those bytes. The six provider artifacts and their independent hidden-grader
+records supply the three AB/BA/AB measurements. The primary metric is an
+integer artifact-quality score from zero through eight: grounded error classes,
+a causal hypothesis, a bounded/reversible intervention, and measurable
+guardrails each contribute zero through two points. The outcome is `improved`
+only when all three treatment scores strictly exceed their paired controls and
+all hidden guardrails pass. Each arm's independent provider review must end in
+exactly one `VERDICT: APPROVE` or `VERDICT: REJECT` marker, which is retained
+with the reviewer artifact hash; a rejection is a valid guardrail failure and
+cannot be normalized into an approval. Any negative delta or hidden-guardrail failure is
+`regressed`; nonnegative pairs with any zero delta are `inconclusive`; and
+missing, mismatched, or infrastructure-corrupt evidence is `invalid`. A
+declared or copied verdict is not a measurement. Only `improved` may proceed.
+After all pairs terminate, a separate token-free preview binds the exact
+candidate, pair-evidence hash, reviewer-artifact hashes, and one isolated
+publish/activate/rollback action. Executing that action requires its own exact
+candidate and action-hash authorization; L5 provider-spend authorization does
+not authorize it.
+
 `operon learn report --efficiency-health` is the canonical projection of these
 three independent dimensions. It is read-only unless `--refresh` is supplied;
 the refresh writes only rebuildable evidence/health projections and cannot
@@ -228,6 +250,10 @@ fingerprints, ordered cases/repetitions, runtime/model/effort assignments,
 capability claims, price catalog, randomization seed, side-effect allowlists,
 retry/exclusion rules, evidence paths, spend caps, and stop rules before its
 first provider turn. Manifest mutation after start invalidates the campaign.
+Provider-backed deep and approval qualification cases additionally pin a
+positive input-token admission ceiling; the Phase 6 candidate template uses
+4,000,000 tokens. This supplies authority where the ordinary deep route is
+deliberately unset, and is a ceiling rather than a target or spend grant.
 
 Attempt outcomes are `passed`, `product_miss`, `safety_stop`, `budget_stop`,
 `infra_invalid`, `harness_error`, and `not_run`. Campaign outcomes are
@@ -267,5 +293,18 @@ fixture/grader calibration, disposable GitHub behavior, required provider
 conformance, five fresh quick episodes, and ten predeclared mixed-route
 episodes satisfy all hard invariants and distribution thresholds. Production
 is separately reported read-only confirmation and cannot rewrite qualification.
+
+Qualification remains attached to the prepared candidate commit. A later
+evidence-only release descendant is admissible only through a deterministic
+attestation that preserves the candidate's installable-package hash,
+executable-eval-suite hash, org fingerprint, and every prepared campaign hash;
+rejects deletes and every unallowlisted path; and content-binds each sanitized
+promotion file. Contract projections then independently recompute the
+qualifier and portable report and verify the schema-v2 archive receipt,
+GitHub/idempotence evidence, exact case/repetitions, hidden-grader evidence,
+route admission, terminal integrity, and provider/settlement agreement. The
+descendant does not become a new qualified candidate and cannot change source,
+eval executable bytes, fixtures, graders, campaigns, package inputs,
+lockfiles, roles, pipelines, or prompts.
 
 <!-- efficiency-contract:end -->

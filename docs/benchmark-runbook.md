@@ -32,6 +32,27 @@ restart, and byte-stable replay. This evidence promotes only deterministic
 `I-INSTALL`/`I-SOAK` contracts. It cannot promote provider standing-role or
 real-time-soak contracts. See [`scheduler.md`](scheduler.md).
 
+Phase 6 promotion is also a separate token-free gate after execution. Archive
+the immutable campaign externally, import only its sanitized promotion slice,
+attest that package and executable-suite bytes still match the exact candidate,
+and generate contract-specific projections. The harness rejects foreign or
+stale campaigns, missing/duplicate repetitions, malformed or missing
+measurements, failed graders, archive/GitHub receipt drift, and settlement or
+route-admission mismatch. The separately authorized L6 archive is required for
+`I-LIVE-01`; candidate qualification alone cannot promote it.
+
+Candidate qualification has a third, independent boundary after L5. The
+learning block applies its content-hashed T1 procedure only to treatment arms
+and computes the AB/BA/AB outcome from retained provider artifacts plus hidden
+guardrails. If and only if the measured outcome is improved, preview
+`pnpm eval:learning-activation -- --campaign <prepared-file>`. The preview
+reports the exact learning-candidate and action hashes. Execution requires a
+separate human authorization for both hashes and uses
+`OPERON_EVAL_LEARNING_ACTIVATION=1` with `--execute`, `--confirm-campaign`,
+`--confirm-candidate`, and `--confirm-action`. It spends no provider tokens,
+touches no production path, and performs exactly one isolated governed
+activation followed by rollback. Never infer this authorization from L5.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

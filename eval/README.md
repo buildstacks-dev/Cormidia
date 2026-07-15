@@ -52,8 +52,20 @@ campaign.
   hour, and resumes after a distinct process records `--record-restart` with
   the same confirmation. `--once` supports an external scheduler; omitting it
   follows the campaign until restart or terminal state.
-- `pnpm eval:qualify -- --campaign <id>` is immutable-evidence-only and cannot
-  invoke a provider, reconcile state, or mutate GitHub.
+- `pnpm eval:qualify -- --campaign <prepared-file>` is immutable-evidence-only and cannot
+  invoke a provider, reconcile state, or mutate GitHub. `--json-out <path>`
+  writes the deterministic machine-readable qualification beside the portable
+  HTML report without repairing any attempt.
+- `pnpm eval:learning-activation -- --campaign <prepared-file>` is the
+  post-L5, token-free preview for the paired-learning governance boundary. It
+  first recomputes and content-binds all three AB/BA/AB pairs from the exact
+  result, provider-artifact, independent-reviewer, hidden-grader, and
+  treatment hashes. Only a measured `improved` outcome can produce a preview.
+  Execution is independent of L5 authorization and requires
+  `OPERON_EVAL_LEARNING_ACTIVATION=1`, `--execute`, and exact
+  `--confirm-campaign`, `--confirm-candidate`, and `--confirm-action` values.
+  It constructs no runtime, mutates only campaign-local synthetic org/state
+  roots, and records exactly one governed activation plus rollback.
 - `pnpm eval:archive -- --campaign <prepared-file> --out <archive-root>` writes
   a schema-v2 sanitized evidence archive with a per-file checksum manifest.
   Durable evidence and a cache-free worktree snapshot are retained;
@@ -70,6 +82,21 @@ campaign.
   extra/missing files, forbidden paths, and current retained-source parity;
   legacy v1 receipts are deliberately not accepted. Manifests, locks, GitHub
   evidence, attempts, reports, and the GitHub repo are always preserved.
+- `pnpm eval:import-evidence -- --archive <schema-v2-archive> --receipt
+  <campaign-receipt>` verifies the external archive and copies only committed-
+  safe campaign, qualification/report, GitHub, result, grader, verifier, and
+  accounting evidence into a fresh `research/evals/campaigns/<id>/` bundle.
+  Raw worlds, prompts, outputs, sessions, state, and provider scratch stay
+  external.
+- `pnpm eval:attest-release -- --campaign <sanitized-campaign> [--campaign
+  <sanitized-soak>]` proves the evidence descendant preserves the exact
+  qualified installable-package, executable-suite, and org bytes and rejects
+  every unallowlisted or deleted path.
+- `pnpm eval:promote -- --campaign <sanitized-campaign> --attestation
+  <release-attestation>` emits only the exact mapped contract projections and
+  immediately verifies them. The contract harness recomputes qualification
+  and rejects file-only, foreign, stale, malformed, duplicate, grader-failed,
+  archive-incomplete, route-mismatched, or settlement-mismatched evidence.
 
 Raw attempts, prompts, provider sessions, remotes, and worktrees are local
 artifacts and ignored by git. Committed summaries are redacted and hashed.
@@ -101,6 +128,17 @@ re-verifying the retained remote state. L5 first reruns the complete determinist
 validator and non-billable adapter readiness probes. A failed readiness,
 pristine app gate, GitHub proof, campaign lock, separation check, or remaining
 budget prevents the next provider turn.
+
+The candidate campaign pins `eval/treatments/learning-t1-v1.md` by content
+hash. Control arms receive no treatment bytes; treatment arms receive only
+that procedure through the ordinary context boundary. After L5, the immutable
+pair evidence is written from the six real provider candidates and hidden
+grader records. Each independent provider review must retain exactly one final
+`VERDICT: APPROVE` or `VERDICT: REJECT` marker. A rejection is a valid
+guardrail failure and produces `regressed`; missing, ambiguous, or mismatched
+review evidence is `invalid`. Do not create a synthetic verdict or invoke learning
+activation under the spend approval. Preview the separate action and obtain
+exact authorization for its campaign, candidate hash, and action hash.
 
 L5 stages an allowlisted copy of provider authentication and model-cache files
 under the content-hashed campaign root, then replaces the provider process
@@ -164,10 +202,16 @@ session-ID hashes. A terminal calibration failure performs the same exact
 deletion and writes a failure-path cleanup receipt. When execution finishes:
 
 ```bash
-pnpm eval:qualify -- --campaign <prepared-file> --html <campaign-root>/report-final.html
+pnpm eval:qualify -- --campaign <prepared-file> --html <campaign-root>/report-final.html --json-out <campaign-root>/qualification-final.json
 pnpm eval:archive -- --campaign <prepared-file> --out <archive-root>
 pnpm eval:cleanup -- --campaign <exact-campaign-id>        # preview
-pnpm eval:cleanup -- --campaign <exact-campaign-id> --execute --confirm <exact-campaign-id>
+# Cleanup execution remains separately authorized. Before any promotion:
+pnpm eval:import-evidence -- --archive <schema-v2-archive> --receipt <campaign-receipt>
+# Update only the mapped contract states and final status documents, then bind
+# that complete evidence-only descendant before projections are generated.
+pnpm eval:attest-release -- --campaign <sanitized-candidate> --campaign <sanitized-soak>
+pnpm eval:promote -- --campaign <sanitized-candidate> --attestation research/evals/phase6-release-attestation.json
+pnpm eval:promote -- --campaign <sanitized-soak> --attestation research/evals/phase6-release-attestation.json
 ```
 
 Qualification reports preserve all canonical measurement populations:

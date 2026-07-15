@@ -14,11 +14,39 @@
     "candidate": {
       "type": "object",
       "required": ["commit", "package_sha256", "suite_sha256"],
-      "properties": { "commit": { "type": "string", "minLength": 1 }, "package_sha256": { "$ref": "#/$defs/digest" }, "suite_sha256": { "$ref": "#/$defs/digest" } },
+      "properties": { "commit": { "type": "string", "minLength": 1 }, "package_sha256": { "$ref": "#/$defs/digest" }, "suite_sha256": { "$ref": "#/$defs/digest" }, "release_package_sha256": { "$ref": "#/$defs/digest" }, "executable_suite_sha256": { "$ref": "#/$defs/digest" } },
       "additionalProperties": false
     },
     "org_fingerprint": { "$ref": "#/$defs/digest" },
     "system_fingerprint": { "$ref": "#/$defs/digest" },
+    "learning_treatment": {
+      "type": "object",
+      "required": ["id", "source", "content_sha256", "tier", "scope"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*-v[0-9]+$" },
+        "source": { "type": "string", "pattern": "^treatments/[a-z0-9-]+-v[0-9]+\\.md$" },
+        "content_sha256": { "$ref": "#/$defs/digest" },
+        "tier": { "const": "T1" },
+        "scope": { "const": "roles/builder" }
+      },
+      "additionalProperties": false
+    },
+    "learning_efficacy": {
+      "type": "object",
+      "required": ["primary_metric", "score_range", "components", "component_range", "improved_rule", "regressed_rule", "inconclusive_rule", "invalid_rule", "activation_requires"],
+      "properties": {
+        "primary_metric": { "const": "hidden_grader_artifact_quality" },
+        "score_range": { "const": [0, 8] },
+        "components": { "const": ["grounded_error_classes", "causal_hypothesis", "bounded_reversible_intervention", "measurable_guardrails"] },
+        "component_range": { "const": [0, 2] },
+        "improved_rule": { "const": "all_three_treatment_scores_strictly_exceed_paired_controls_and_all_hidden_guardrails_pass" },
+        "regressed_rule": { "const": "any_negative_delta_or_hidden_guardrail_failure" },
+        "inconclusive_rule": { "const": "nonnegative_pairs_with_any_zero_delta" },
+        "invalid_rule": { "const": "missing_mismatched_or_infrastructure_corrupt_evidence" },
+        "activation_requires": { "const": "improved" }
+      },
+      "additionalProperties": false
+    },
     "cases": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/caseSelection" } },
     "assignments": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/assignment" } },
     "blocks": {
@@ -55,6 +83,18 @@
       "properties": { "owner": { "type": "string", "minLength": 1 }, "repo_pattern": { "type": "string", "pattern": "^operon-eval-[a-zA-Z0-9*-]+$" } },
       "additionalProperties": false
     },
+    "route_budget_overrides": {
+      "type": "object",
+      "properties": {
+        "deep": {
+          "type": "object",
+          "required": ["input_tokens"],
+          "properties": { "input_tokens": { "type": "integer", "minimum": 1 } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "spend": {
       "type": "object", "required": ["campaign_max_usd", "case_max_usd"],
       "properties": { "campaign_max_usd": { "type": "number", "exclusiveMinimum": 0 }, "case_max_usd": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "number", "exclusiveMinimum": 0 } } },
@@ -79,5 +119,35 @@
       "additionalProperties": false
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "intent": { "const": "qualification" }, "blocks": { "type": "array" } },
+        "required": ["intent", "blocks"]
+      },
+      "then": { "required": ["learning_treatment", "learning_efficacy"] }
+    },
+    {
+      "if": {
+        "properties": {
+          "cases": {
+            "contains": {
+              "properties": { "case_id": { "enum": ["deep/auth-migration/v1", "approval/semantics/v1", "planning/quality/v1"] } },
+              "required": ["case_id"]
+            }
+          }
+        }
+      },
+      "then": {
+        "required": ["route_budget_overrides"],
+        "properties": {
+          "route_budget_overrides": {
+            "required": ["deep"],
+            "properties": { "deep": { "required": ["input_tokens"] } }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

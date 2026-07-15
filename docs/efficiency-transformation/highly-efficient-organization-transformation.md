@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phases 0–5 complete; Phase 6 efficiency qualification is next |
+| Status | Phases 0–5 complete; Phase 6 local qualification machinery is ready and external evidence is pending exact authorization |
 | Evidence date | 2026-07-14 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
@@ -704,6 +704,25 @@ Run the full benchmark matrix and production confirmation.
 **Gate:** five consecutive clean target-meeting episodes, followed by ten mixed
 episodes without a critical invariant violation. Only then describe Operon as a
 highly efficient organization.
+
+**Current status:** the exact-candidate/evidence-promotion audit and token-free
+qualification hardening are implemented in an isolated worktree. Prepared
+campaigns now distinguish whole-checkout, installable-package, and executable-
+suite identity; provider cases run through production route admission with an
+explicit deep input ceiling; grader and attempt accounting are independently
+content-bound; L6 reconciles the exact schedule, exit/restart processes,
+context denominators, runs, envelopes, and provider/mechanical settlements;
+and contract promotion fails closed on stale, foreign, malformed,
+missing, duplicate, grader-failed, or accounting-mismatched evidence. No Phase
+6 GitHub mutation, provider run, L6 soak, promotion, or production confirmation
+has occurred. The ten contracts therefore remain known-red pending separately
+authorized fresh adapter admission, candidate qualification, and L6 evidence.
+The learning block now follows the separately ratified boundary: a predeclared
+content-hashed T1 procedure is present only on treatment arms, pair outcomes
+come from provider artifacts and hidden guardrails, and a measured improvement
+still needs a separate exact candidate/action-hash authorization for one
+isolated governed activation and rollback. L5 authorization alone cannot cross
+that boundary.
 
 ## 8. Required benchmark matrix
 

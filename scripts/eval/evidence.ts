@@ -27,6 +27,7 @@ const LEGACY_ARCHIVE_POLICY = "sanitized-evidence/v1" as const;
 const ARCHIVE_KIND = "sanitized-evidence" as const;
 const EXCLUDED_ROOTS = ["provider-scratch/**"] as const;
 const RETAINED_DIRECTORIES = new Set([
+  "accounting",
   "artifact",
   "cleanup",
   "errors",
@@ -177,6 +178,7 @@ export function cleanupCampaignPlan(
       "readiness-*.json",
       "results/",
       "grader/",
+      "accounting/",
       "artifact/",
       "errors/",
       "cleanup/",
@@ -259,6 +261,7 @@ function retainedTopLevelFile(name: string): boolean {
     /^github-evidence-[a-f0-9]{8}\.json$/.test(name) ||
     /^github-idempotence-[a-f0-9]{8}\.json$/.test(name) ||
     /^readiness-[a-f0-9]{8}-(?:passed|failed)\.json$/.test(name) ||
+    /^qualification[^/]*\.json$/.test(name) ||
     /^report[^/]*\.html$/.test(name);
 }
 

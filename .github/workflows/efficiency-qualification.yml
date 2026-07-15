@@ -5,12 +5,6 @@ on:
   schedule:
     - cron: "17 8 * * *"
   workflow_dispatch:
-    inputs:
-      strict:
-        description: Require zero known-red transformation contracts
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -38,5 +32,4 @@ jobs:
         if: github.event_name == 'schedule'
         run: pnpm eval:deterministic:nightly
       - name: Strict final-phase gate
-        if: github.event_name == 'workflow_dispatch' && inputs.strict
         run: pnpm test:transformation:strict

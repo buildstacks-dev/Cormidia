@@ -3,7 +3,7 @@ import { renderQualificationHtml } from "../../scripts/eval/report.js";
 import { emptyQualificationMetrics, type Qualification } from "../../scripts/eval/core.js";
 
 function qualification(overrides: Partial<Qualification>): Qualification {
-  return { schema_version: 1, campaign_id: "fixture", campaign_sha256: `sha256:${"a".repeat(64)}`, outcome: "not_qualified", attempts: 0, attempt_ids: [], counts: { passed: 0, product_miss: 0, safety_stop: 0, budget_stop: 0, infra_invalid: 0, harness_error: 0, not_run: 0 }, reasons: [], metrics: emptyQualificationMetrics(), attempt_details: [], ...overrides };
+  return { schema_version: 1, campaign_id: "fixture", campaign_sha256: `sha256:${"a".repeat(64)}`, outcome: "not_qualified", attempts: 0, attempt_ids: [], counts: { passed: 0, product_miss: 0, safety_stop: 0, budget_stop: 0, infra_invalid: 0, harness_error: 0, not_run: 0 }, reasons: [], metrics: emptyQualificationMetrics(), learning: { declared_pairs: 0, completed_pairs: 0, pair_deltas: [], outcome: "not_applicable", pair_evidence_sha256: null, governance_evidence_sha256: null, action_sha256: null, human_decisions: 0 }, attempt_details: [], ...overrides };
 }
 
 it("J-RPT-01 positive: renders portable CSP-safe qualification evidence without executable L3", () => {

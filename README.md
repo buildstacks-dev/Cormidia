@@ -349,8 +349,19 @@ Provider and disposable-GitHub campaigns are never implicit. Prepare a
 content-hashed manifest with `pnpm eval:prepare`; preview `eval:github` and
 `eval:live`; execute only with their environment switches, exact campaign
 confirmation, and human-authorized cap. `pnpm eval:qualify` is read-only over
-immutable attempt results. See [`eval/README.md`](eval/README.md) and the
+immutable attempt results. A passed campaign is archived before its sanitized
+promotion slice is imported with `eval:import-evidence`; `eval:attest-release`
+then proves installable-package and executable-suite bytes are unchanged, and
+`eval:promote` creates the contract-specific projections. File presence or an
+unbound local `passed` JSON cannot promote a contract. See
+[`eval/README.md`](eval/README.md) and the
 canonical [`docs/efficiency.md`](docs/efficiency.md).
+
+The Phase 6 learning block uses a predeclared content-hashed T1 treatment only
+on treatment arms and derives all paired outcomes from provider artifacts and
+hidden guardrails. Even an improved result does not authorize activation:
+`pnpm eval:learning-activation` first previews the exact candidate/action
+hashes for a separately approved, isolated single activation and rollback.
 
 The Live UI browser suite uses a dev-only Playwright dependency and local
 Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real

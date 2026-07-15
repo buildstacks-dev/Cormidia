@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { stringify } from "yaml";
-import { calibrateGrader, canonicalJson, hashManifest, qualify, startCampaign, validateCampaign, verifyCampaignLock, writeAttemptResult, type AttemptResult, type CampaignManifest } from "../../scripts/eval/core.js";
+import { calibrateGrader, canonicalJson, hashManifest, loadYamlFile, qualify, startCampaign, validateCampaign, verifyCampaignLock, writeAttemptResult, type AttemptResult, type CampaignManifest } from "../../scripts/eval/core.js";
 
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
@@ -47,6 +47,27 @@ describe("eval campaign and evidence core", () => {
     expect(validateCampaign({ ...c, assignments: [{ ...c.assignments[0], model: "" }] })).toContain("assignments[0].model must be a non-empty string");
     const retry = { ...result(c, "infra_invalid"), attempt_id: "retry", retry_of: "missing" };
     expect(qualify(c, hashManifest(c), [result(c), retry]).outcome).toBe("invalid");
+  });
+  it("J-MAN-01 deep admission: requires an explicit bounded input-token ceiling", () => {
+    const c = campaign();
+    const deep = {
+      ...c,
+      cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["d1"] }],
+      spend: { ...c.spend, case_max_usd: { "deep/auth-migration/v1": 1 } },
+    };
+    expect(validateCampaign(deep)).toContain("deep and approval cases require route_budget_overrides.deep.input_tokens");
+    expect(validateCampaign({ ...deep, route_budget_overrides: { deep: { input_tokens: 4_000_000 } } })).toEqual([]);
+    expect(validateCampaign({ ...deep, route_budget_overrides: { deep: { input_tokens: 0 } } })).toContain("route_budget_overrides.deep.input_tokens must be a positive integer");
+    expect(validateCampaign({ ...c, cases: [{ case_id: "planning/quality/v1", repetition_ids: ["goal-deep"] }], spend: { ...c.spend, case_max_usd: { "planning/quality/v1": 1 } } })).toContain("deep and approval cases require route_budget_overrides.deep.input_tokens");
+  });
+  it("H-EVAL-01 qualification learning blocks require an exact predeclared T1 treatment binding", () => {
+    const template = loadYamlFile("eval/campaigns/candidate-qualification.yaml") as CampaignManifest;
+    const { learning_treatment: _removed, ...missing } = template;
+    expect(validateCampaign(missing)).toContain("qualification learning block requires a content-bound learning_treatment");
+    const { learning_efficacy: _efficacy, ...missingEfficacy } = template;
+    expect(validateCampaign(missingEfficacy)).toContain("qualification learning block requires the ratified learning_efficacy declaration");
+    expect(validateCampaign({ ...template, learning_efficacy: { ...template.learning_efficacy!, activation_requires: "inconclusive" } })).toContain("learning_efficacy.activation_requires must match the ratified Phase 6 declaration");
+    expect(validateCampaign({ ...template, learning_treatment: { ...template.learning_treatment!, tier: "T2" } })).toContain("learning_treatment.tier must be T1");
   });
   it("J-GRADE-01 positive: passes a calibrated reference and rejects its mutant", () => {
     expect(() => calibrateGrader({ graderId: "broken", reference: "good", mutants: [{ id: "bad", subject: "bad" }], grade: () => true })).toThrow("broken_grader");

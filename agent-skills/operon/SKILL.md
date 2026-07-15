@@ -213,6 +213,28 @@ for that exact 48–72 hour campaign, GitHub target, provider assignments, and
 cap; execution additionally requires `OPERON_EVAL_SOAK=1` and the exact
 confirmation. Preserve and archive terminal evidence before cleanup.
 
+Candidate L5 authorization never includes the paired-learning activation.
+After all three AB/BA/AB pairs have terminal provider artifacts and hidden
+guardrails, preview `pnpm eval:learning-activation -- --campaign
+<prepared-file>`. Proceed only after the human authorizes the exact reported
+candidate and action hashes. Execution requires
+`OPERON_EVAL_LEARNING_ACTIVATION=1`, `--execute`, `--confirm-campaign`,
+`--confirm-candidate`, and `--confirm-action`. It must record exactly one
+campaign-local governed activation and rollback, construct no provider, and
+touch no production path.
+
+After a terminal authorized campaign, keep raw evidence external. Run
+`eval:qualify` with both `--html` and `--json-out`, create and verify the
+schema-v2 archive, preview cleanup, then use `eval:import-evidence` to copy only
+the sanitized promotion slice. Update only the exact mapped contract states
+and final status documents, then run `eval:attest-release`; it must prove the
+complete evidence descendant's release package, executable eval suite, and org
+bytes still match the exact qualified candidate before `eval:promote` creates
+any contract projection. Never hand-
+create or copy a `passed` JSON, never promote from preview/partial evidence,
+and never use candidate qualification to promote the separately authorized
+L6 contract.
+
 ## Diagnose
 
 Run `operon doctor --json`, `operon org show --json`, and `operon context

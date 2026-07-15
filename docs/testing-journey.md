@@ -101,6 +101,26 @@ only its declared useful turns across 48–72 hours, records all other due ticks
 mechanically, and requires a distinct-process receipt at the predeclared
 restart hour.
 
+Phase 6 promotion does not trust a copied pass marker. The qualifier emits a
+deterministic JSON result beside the portable HTML report; a schema-v2 archive
+retains every selected result, hidden-grader/verifier record, and independent
+attempt-accounting receipt. A content-bound release attestation permits only
+sanitized evidence/status documentation after the exact candidate commit and
+proves the installable package, executable eval suite, and org bytes are
+unchanged. Contract tests recompute the outcome and reject stale, foreign,
+malformed, duplicated, missing, grader-failed, or settlement-mismatched
+evidence. L6 is reconciled independently from all 576 ticks, the 12 useful
+runs, ledgers, envelopes, and the distinct-process restart receipt.
+
+The paired learning proof likewise cannot be a fixture verdict. A predeclared
+T1 procedure is injected only into the three treatment arms. Operon hashes the
+six actual provider candidates, independent reviewer observations, and hidden
+grader records; computes all three treatment-minus-control deltas; and retains
+inconclusive, regressed, or invalid outcomes unchanged. A measured improvement
+still does not activate anything: a separate preview produces the exact
+candidate/action hashes for one isolated governed activation and rollback,
+which needs its own human authorization beyond the L5 spend decision.
+
 The 2026-07-12 provider baseline is recorded in
 `research/evals/2026-07-12-pre-transformation-baseline.md`. Its misses and
 safety stop are retained as the pre-feature comparison point. The later T0–T5

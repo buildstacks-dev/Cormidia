@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and deterministic production Phases 1–4 complete; the provider baseline remains valid historical evidence and honestly `not_qualified` |
+| Status | T0–T5 readiness and production Phases 1–5 complete; Phase 6 local hardening is ready, while external candidate/L6 evidence remains unauthorized |
 | Evidence date | 2026-07-14 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
@@ -53,12 +53,68 @@ implementation, not a product qualification result.
 | Production Phase 2 | Complete | Additive archived org upgrade, normalized answer recovery, typed reset remediation, immutable-checkout onboarding, deterministic clone convergence, token-free verification, and journaled promotion pass `LIFE-LEGACY-001` plus every lifecycle fault/security/isolation contract. C-LIFE-01–04 are required. |
 | Production Phase 3 | Complete | Factor-backed routes, context budgets/deltas, token-free preflight, durable execution journals, bounded repair, semantic approvals, denial recurrence, and reset-abandonment closure are executable. |
 | Production Phase 4 | Complete | Typed trusted efficiency evidence, exactly-once repairable capture, app/role recurrence, explainable dispositions, declared efficacy, governed sandbox activation/rollback, and independent learning-health dimensions promote all ten H contracts without a provider campaign. |
+| Production Phase 5 | Complete | Scheduler lifecycle/status, exact-once dispatch evidence, deterministic standing-role paths, and the seven-day production virtual soak promote the five deterministic I contracts without host scheduler mutation or provider work. |
+| Phase 6 local hardening | Complete before external execution | Exact package/suite identity and evidence-only release attestation, immutable qualification JSON, sanitized archive import, adversarial contract promotion, provider-path grader/accounting evidence, production route admission, content-hashed treatment-only paired learning with a separately authorized candidate/action-bound activation, independent standing-role verification, L6 reconciliation, and unconditional strict release CI are implemented and token-free tested. No contract is promoted without matching authorized evidence. |
 
 The L6 real-time soak path is implemented and tested as an explicitly
 authorized 48–72 hour boundary. It has not been executed and is not authorized
 by the work recorded here. Candidate qualification is also not authorized.
 
+The historical adapter admission remains retained evidence, but Phase 6
+changes covered harness, grader, evaluator, candidate-hash, and package bytes.
+It therefore cannot be reused for the new exact candidate; fresh calibration
+must be prepared and separately authorized. The same applies independently to
+candidate L4/L5 and the L6 GitHub/soak boundaries. Until those terminal
+campaigns qualify and their schema-v2 archives are imported and verified, the
+exact ten post-Phase-5 contracts remain known-red.
+
 ### Latest deterministic verification
+
+The Phase 6 pre-external gate on 2026-07-14, in the isolated candidate
+worktree, produced:
+
+- `pnpm eval:validate`: valid, with 84 requirements, 84 executable evidence
+  paths, 14 cases, 12 benchmark families, 60 fault boundaries, 13 graders,
+  three capability declarations, and zero orphaned records;
+- `pnpm test:transformation`: 31 files and 250 tests passed, then the
+  non-strict runner reported exactly the ten post-Phase-5 known-red contracts;
+- `pnpm eval:deterministic`: 52 files and 393 tests passed;
+- `pnpm eval:deterministic:nightly`: both declared shuffled seeds passed 52
+  files and 393 tests, including the production seven-day virtual soak;
+- `pnpm test`: 180 files and 1,541 tests passed after retaining and correcting
+  the integration-timeout miss described below;
+- `pnpm typecheck`, `pnpm build`, neutral-cwd `pnpm smoke:onboarding`, and
+  `npm pack --dry-run` passed; the dry-run package contains 208 files;
+- the fresh-HOME/TMPDIR/org/state/app/eval/provider-scratch Phase 6 subset
+  passed 19 files and 87 tests;
+- isolated alpha (55 tests + lint), beta (4 tests), gamma (45 tests + lint +
+  SRE/Support/Marketing smokes), and delta (53 tests + lint) passed and each
+  checkout remained clean;
+- `pnpm test:transformation:strict` passed all 250 executable tests and exited
+  non-zero only for `D-LIVE-01..03`, `E-LIVE-01..02`, `G-MET-01`,
+  `I-ROLE-01..03`, and `I-LIVE-01`.
+
+The first full deterministic attempt after adding the final L6 denominator
+checks retained one local failure: the nine-projection self-verification case
+exceeded Vitest's five-second timeout under full-suite load. The cause was
+repacking the identical release candidate once per projection. Batch
+verification now computes that exact packed identity once while every
+projection still independently recomputes its qualification, archive, result,
+grader, accounting, and mapping evidence. The formerly timing-sensitive case
+runs in about one second, and the complete deterministic and shuffled-seed
+runs above passed without changing a threshold or retrying campaign evidence.
+The first complete offline-suite run after the ratified learning-score binding
+also retained a single five-second test timeout: the eight-attempt specialized
+provider-path integration case completed in 5.2 seconds under full-suite
+contention. It now declares a 15-second integration-test timeout; the next full
+run passed all 1,541 tests with unchanged cases, assertions, campaign rules,
+graders, and denominators.
+
+This gate spent no provider tokens and performed no external GitHub,
+scheduler, production-org/state, canary, publication, deployment, or outward
+operation. Fresh adapter calibration, candidate qualification, and L6 remain
+separately authorized work; the strict gate is not green and no Phase 6
+contract is promoted.
 
 The complete Phase 2 local pass on 2026-07-14 produced:
 
@@ -1301,8 +1357,14 @@ the candidate qualification campaign declares this order before execution:
    approval-semantics episode. Case order inside this block is randomized by
    the committed campaign seed and then frozen.
 3. **Learning block:** three paired control/treatment replays after targeted
-   eval passes; these costs and turns are learning overhead, not silently
-   added to product-route metrics.
+   eval passes. The campaign pins one T1 treatment by content hash and injects
+   it only into treatment-arm builder context. The actual provider candidates,
+   independent reviewer artifacts, and hidden guardrails supply the measured
+   scores; no fixed synthetic verdict is accepted. These costs and turns are
+   learning overhead, not silently added to product-route metrics. After all
+   three pairs terminate, a distinct exact candidate/action-hash authorization
+   is required before the evaluator performs one isolated governed activation
+   and rollback. L5 spend authorization is not that approval.
 4. **Autonomy block:** deterministic seven-day virtual soak, followed by the
    separately scheduled 48-72 hour L6 soak. The bounded SRE, Support, and
    Marketing cases run as declared soak inputs, not ad-hoc extra work.
@@ -1324,7 +1386,9 @@ Qualification requires:
   side effect, or unapproved outward action;
 - deterministic lifecycle has zero provider construction/turn/settlement;
 - paired learning reports the genuine intervention honestly as improved,
-  inconclusive, or regressed, keeps all guardrails, and proves rollback;
+  inconclusive, regressed, or invalid from all three retained artifact pairs,
+  keeps all guardrails, and proves the separately authorized single activation
+  and rollback;
 - required context, usage, cost, and human-decision fields are complete;
 - virtual and real-time soak meet scheduler invariants.
 

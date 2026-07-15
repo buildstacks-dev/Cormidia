@@ -165,6 +165,23 @@ efficacy health independently. The mechanics construct no provider runtime.
   <prepared-file>` previews the separate 48–72 hour L6 runner (execution also
   requires `OPERON_EVAL_SOAK=1`, an exact confirmation, and an explicit cap) ·
   `pnpm eval:qualify` is read-only.
+- Phase 6 paired learning has a separate post-L5 boundary: `pnpm
+  eval:learning-activation -- --campaign <prepared-file>` previews the exact
+  candidate and action hashes. Execution requires its own human authorization,
+  `OPERON_EVAL_LEARNING_ACTIVATION=1`, `--execute`, and exact
+  `--confirm-campaign`, `--confirm-candidate`, and `--confirm-action`; L5 spend
+  authorization does not authorize activation. The command is token-free and
+  may mutate only the campaign-local synthetic learning roots.
+- Phase 6 evidence promotion, token-free after an authorized terminal run:
+  `pnpm eval:archive -- --campaign <prepared-file> --out <fresh-external-root>` ·
+  `pnpm eval:import-evidence -- --archive <schema-v2-archive> --receipt
+  <campaign-receipt>` · `pnpm eval:attest-release -- --campaign
+  <sanitized-campaign> [--campaign <sanitized-soak>]` · `pnpm eval:promote --
+  --campaign <sanitized-campaign> --attestation
+  research/evals/phase6-release-attestation.json`. These commands never repair
+  results; promotion requires exact campaign/candidate/case/repetition,
+  qualifier/report/archive/GitHub/grader/accounting, and package/suite
+  equivalence evidence.
 - Live UI browser tests: `pnpm test:observe-browser` (Playwright Chromium;
   offline loopback fixtures, responsive/keyboard/reduced-motion/reconnect and
   injection coverage; install the browser once with `pnpm exec playwright

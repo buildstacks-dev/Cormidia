@@ -27,6 +27,9 @@ const preview = {
   mode: execute ? "execute" : "preview",
   campaign_id: manifest.campaign_id,
   campaign_sha256: campaignSha256,
+  candidate: manifest.candidate,
+  org_fingerprint: manifest.org_fingerprint,
+  system_fingerprint: manifest.system_fingerprint,
   repo: repoSlug,
   branch,
   operations: [
@@ -43,6 +46,9 @@ const preview = {
     "verify cleanup and idempotent rerun",
     "retain evidence without deleting the repository",
   ],
+  assignments: manifest.assignments,
+  infrastructure_retries: manifest.infrastructure_retries,
+  stop_rules: manifest.stop_rules,
 };
 if (!execute) { console.log(JSON.stringify(preview, null, 2)); process.exit(0); }
 if (process.env.OPERON_EVAL_GITHUB !== "1") throw new Error("github_eval_env_not_enabled");

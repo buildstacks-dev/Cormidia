@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { hashTree, sha256, type CampaignManifest } from "./core.js";
+import { hashFile, hashTree, sha256, type CampaignManifest } from "./core.js";
 
 export interface CandidateSnapshot {
   commit: string;
@@ -9,6 +10,8 @@ export interface CandidateSnapshot {
   suite_sha256: string;
   org_fingerprint: string;
   system_fingerprint: string;
+  release_package_sha256?: string;
+  executable_suite_sha256?: string;
 }
 
 /** Stable short identity for every execution-pinned candidate dimension. */
@@ -18,7 +21,32 @@ export function candidateIdentity(snapshot: CandidateSnapshot): string {
 
 /** Hash the exact tracked/untracked candidate view, including tracked deletes. */
 export function hashWorkingFiles(cwd: string, prefixes: string[] = []): string {
-  const names = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd, encoding: "buffer", maxBuffer: 20 * 1024 * 1024 }).toString("utf8").split("\0").filter(Boolean).filter((name) => prefixes.length === 0 || prefixes.some((prefix) => prefix.endsWith("/") ? name.startsWith(prefix) : name === prefix)).sort();
+  return hashSelectedWorkingFiles(cwd, (name) => prefixes.length === 0 || prefixes.some((prefix) => prefix.endsWith("/") ? name.startsWith(prefix) : name === prefix));
+}
+
+export function releasePackageHash(cwd: string): string {
+  const destination = mkdtempSync(join(tmpdir(), "operon-release-pack-"));
+  try {
+    const output = execFileSync("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", destination], { cwd, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
+    const records = JSON.parse(output) as Array<{ filename?: unknown }>;
+    const archives = readdirSync(destination).filter((name) => name.endsWith(".tgz"));
+    if (records.length !== 1 || typeof records[0]?.filename !== "string" || archives.length !== 1 || archives[0] !== records[0].filename || archives[0]!.includes("/") || archives[0]!.includes("\\")) throw new Error("release_package_inventory_invalid");
+    return hashFile(join(destination, archives[0]!));
+  } finally {
+    rmSync(destination, { recursive: true, force: true });
+  }
+}
+
+export function executableSuiteHash(cwd: string): string {
+  return hashSelectedWorkingFiles(cwd, (name) =>
+    name === ".github/workflows/efficiency-qualification.yml" ||
+    name.startsWith("scripts/eval/") ||
+    name.startsWith("test/") ||
+    (name.startsWith("eval/") && name !== "eval/contracts.yaml"));
+}
+
+function hashSelectedWorkingFiles(cwd: string, include: (name: string) => boolean): string {
+  const names = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd, encoding: "buffer", maxBuffer: 20 * 1024 * 1024 }).toString("utf8").split("\0").filter(Boolean).filter(include).sort();
   const chunks = names.map((name) => {
     const path = join(cwd, name);
     if (!existsSync(path)) return `${name}\0deleted`;
@@ -39,6 +67,8 @@ export function currentCandidateSnapshot(cwd: string): CandidateSnapshot {
     suite_sha256: `sha256:${sha256([hashTree(join(cwd, "eval")), hashTree(join(cwd, "scripts/eval")), hashTree(join(cwd, "test"))].join("\n"))}`,
     org_fingerprint: `sha256:${hashWorkingFiles(cwd, ["roles.yaml", "pipelines.yaml", "prompts/", "TASTE.md", "taste/"])}`,
     system_fingerprint: `sha256:${sha256(systemFingerprint(cwd))}`,
+    release_package_sha256: `sha256:${releasePackageHash(cwd)}`,
+    executable_suite_sha256: `sha256:${executableSuiteHash(cwd)}`,
   };
 }
 
@@ -56,5 +86,6 @@ function systemFingerprint(cwd: string): string {
   const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8")) as { packageManager?: unknown; dependencies?: Record<string, string> };
   const dependencies = Object.entries(pkg.dependencies ?? {}).sort(([a], [b]) => a.localeCompare(b));
   const git = execFileSync("git", ["--version"], { cwd, encoding: "utf8" }).trim();
-  return JSON.stringify({ node: process.version, platform: process.platform, arch: process.arch, git, packageManager: pkg.packageManager, dependencies });
+  const npm = execFileSync("npm", ["--version"], { cwd, encoding: "utf8" }).trim();
+  return JSON.stringify({ node: process.version, platform: process.platform, arch: process.arch, git, npm, packageManager: pkg.packageManager, dependencies });
 }

@@ -107,6 +107,33 @@ config file, not a fork.
 
 ## Decided
 
+- **Phase 6 deep-route input-token ceiling** (ratified 2026-07-14). Every
+  Phase 6 episode whose final authorized route is `deep` has a hard
+  4,000,000-input-token admission ceiling, including deep delivery,
+  planning-deep, and approval-semantics episodes. The ceiling is not standing
+  spend authority and does not change the ratified model-turn, equivalent-cost,
+  active-time, or human-decision caps.
+
+- **Phase 6 paired-learning qualification and activation boundary** (ratified
+  2026-07-14). Phase 6 uses a predeclared, content-hashed T1 treatment only on
+  treatment arms. Paired outcomes come from the retained provider artifacts
+  and hidden guardrails; a fixed synthetic verdict is not evidence and cannot
+  qualify the learning block. The primary metric is the hidden-grader
+  artifact-quality score, an integer from zero through eight: grounded error
+  classes, a causal hypothesis, a bounded/reversible intervention, and
+  guardrails each contribute zero through two points. The result is `improved`
+  only when all three treatment scores exceed their paired controls and every
+  hidden guardrail passes. Each arm also retains an independent provider
+  review ending in exactly one `VERDICT: APPROVE` or `VERDICT: REJECT` marker;
+  a rejection is a retained guardrail failure, never a synthesized approval or
+  corrupt measurement. Any negative delta or guardrail failure is
+  `regressed`; nonnegative deltas with any zero delta are `inconclusive`; and
+  missing, mismatched, or infrastructure-corrupt evidence is `invalid`. Only
+  `improved` may proceed to governed activation and rollback. That action
+  occurs once, only after all three pairs have terminal evidence, and requires
+  a separate exact candidate/action-hash approval. Candidate-qualification
+  provider-spend authorization does not authorize the activation action.
+
 - **Efficiency doctrine and evaluation semantics** (evaluation semantics
   ratified 2026-07-12; organization-wide operating doctrine ratified
   2026-07-13; operator outcome in `docs/VISION.md`, canonical contract in

@@ -140,3 +140,12 @@ shaping passed, and all six exact SDK sessions were deleted after grading. This
 qualifies adapter admission for the content-hashed snapshot. It does not
 qualify the broader product, the replacement baseline, candidate evaluation,
 or L6 soak.
+
+Phase 6 changes covered harness, grader, candidate-hash, safety, and package
+bytes, so every retained historical calibration remains evidence but cannot
+admit the new candidate by resemblance. A fresh adapter campaign must be
+prepared and separately authorized for the exact candidate. Its preview pins
+the candidate, package/suite identities, org/system fingerprints, assignments,
+turn ceiling, retry rule, stop rules, and private GitHub target; missing
+readiness or an unavailable required model remains incomplete/invalid rather
+than a skip.

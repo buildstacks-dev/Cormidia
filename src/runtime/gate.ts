@@ -234,7 +234,7 @@ function isWrite(a: ToolAction): boolean {
   // `\b>\s` alternative was unsatisfiable after whitespace (no word
   // boundary exists between a space and `>`), so `echo x > roles.yaml`
   // classified routine. `>&` fd-duplication (2>&1) is not a file write.
-  return /\b(write|edit|create|replace|append|mv|cp\b|tee\b|rm|sed -i)/.test(t) || />>?(?!&)/.test(t);
+  return /\b(write|edit|create|replace|append|mv|cp\b|tee\b|rm|sed -i)/.test(t) || hasMaterialRedirect(t);
 }
 
 /** Exact protocol filenames, matched anywhere in the repo tree (e.g. root
@@ -308,7 +308,22 @@ function isDataMutationTool(tool: string): boolean {
 }
 
 function shellWrites(command: string): boolean {
-  return />>?(?!&)|\b(?:rm|mv|cp|tee|sed\s+-i)\b/.test(command.toLowerCase());
+  const normalized = command.toLowerCase();
+  return hasMaterialRedirect(normalized) || /\b(?:rm|mv|cp|tee|sed\s+-i)\b/.test(normalized);
+}
+
+/** A literal `/dev/null` sink cannot mutate the protocol path merely named
+ * elsewhere in a compound read command. Keep every other redirect material:
+ * real targets, variables, substitutions, and malformed/ambiguous syntax all
+ * remain fail-closed. Removing the null redirect before the ordinary scan also
+ * preserves a real write in commands such as
+ * `echo x > AGENTS.md 2>/dev/null`. */
+function hasMaterialRedirect(command: string): boolean {
+  const withoutLiteralNullSinks = command.replace(
+    /\d*>>?\s*(?:"\/dev\/null"|'\/dev\/null'|\/dev\/null)(?=$|[\s;|&])/g,
+    "",
+  );
+  return />>?(?!&)/.test(withoutLiteralNullSinks);
 }
 
 function normalizePath(value: string): string {

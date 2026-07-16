@@ -142,6 +142,11 @@ identity in normative text instead of ambiguous bare “turn.”
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
 effective gate for a turn (default rules + grant lookup, §4) and passes it
 down through `TurnHooks`. The runtime layer never imports approval storage.
+Shell normalization treats only a literal `/dev/null` redirect as a
+non-mutating sink. This lets a compound command read a protocol surface while
+discarding diagnostics without manufacturing a `protocol-self-edit` request.
+Every other redirect remains material and fail-closed, and a real protocol
+write in the same compound command still triggers the rule.
 
 ## 1. On-disk layout
 

@@ -9,6 +9,12 @@ import {
 } from "./adapter-boundary-probe.js";
 
 export const CANCELLATION_FALLBACK_MS = 20_000;
+export const CANCELLATION_TASK = [
+  "Begin a bounded provider-backed cancellation sample.",
+  "First use one routine read tool to inspect package.json so the adapter can emit a usage-bearing progress checkpoint.",
+  "After the read, begin a short response; the orchestrator will interrupt it.",
+  "Never invoke a wait, sleep, polling, background, delegated, subagent, or other long-running facility.",
+].join(" ");
 export const ADAPTER_SCENARIO_BUDGET_FRACTIONS = {
   transport: 0.25,
   gate: 0.17,
@@ -154,7 +160,7 @@ export async function calibrateAdapter(options: {
   cancellationFallback.unref?.();
   let cancelled: TurnResult;
   try {
-    cancelled = await invoke("cancellation", { role: scenarioRole(ADAPTER_SCENARIO_BUDGET_FRACTIONS.cancellation), workdir: options.workdir, task: "Begin a bounded calibration response and wait for orchestrator cancellation.", context, maxTurns: 3, networkAccess: false, signal: controller.signal }, {
+    cancelled = await invoke("cancellation", { role: scenarioRole(ADAPTER_SCENARIO_BUDGET_FRACTIONS.cancellation), workdir: options.workdir, task: CANCELLATION_TASK, context, maxTurns: 3, networkAccess: false, signal: controller.signal }, {
       gate: options.gate,
       onEvent: hooks.onEvent,
       onProgress: (item) => {

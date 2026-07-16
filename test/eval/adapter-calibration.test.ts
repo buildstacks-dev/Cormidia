@@ -5,7 +5,7 @@ import { afterEach, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 import { defaultGate } from "../../src/runtime/gate.js";
 import type { Runtime, TurnHooks, TurnRequest, TurnResult } from "../../src/runtime/types.js";
-import { ADAPTER_SCENARIO_BUDGET_FRACTIONS, CANCELLATION_FALLBACK_MS, calibrateAdapter, calibrationPassed } from "../../scripts/eval/adapter-calibration.js";
+import { ADAPTER_SCENARIO_BUDGET_FRACTIONS, CANCELLATION_FALLBACK_MS, CANCELLATION_TASK, calibrateAdapter, calibrationPassed } from "../../scripts/eval/adapter-calibration.js";
 import { hashManifest, writeAttemptResult, type AttemptResult } from "../../scripts/eval/core.js";
 import {
   claudeSessionPolicy,
@@ -72,8 +72,12 @@ it("pins pi evaluation roles to the exact Codex provider and supported SDK relea
   expect(lockfile).not.toContain("'@earendil-works/pi-coding-agent@0.80.3'");
 });
 
-it("allows slow provider usage checkpoints before the cancellation fallback", () => {
-  expect(CANCELLATION_FALLBACK_MS).toBeGreaterThanOrEqual(20_000);
+it("elicits a usage checkpoint without weakening the bounded cancellation fallback", () => {
+  expect(CANCELLATION_FALLBACK_MS).toBe(20_000);
+  expect(CANCELLATION_TASK).toContain("inspect package.json");
+  expect(CANCELLATION_TASK).toContain("usage-bearing progress checkpoint");
+  expect(CANCELLATION_TASK).toContain("Never invoke a wait, sleep, polling");
+  expect(CANCELLATION_TASK).not.toContain("wait for orchestrator cancellation");
 });
 
 it("persists SDK sessions only for adapter conformance", () => {

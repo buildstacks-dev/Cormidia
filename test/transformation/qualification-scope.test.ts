@@ -91,12 +91,13 @@ it("rejects a locally-authored passing marker even if I-LIVE-01 is marked requir
 
 it("keeps current and future strict results separate and preserves the runnable soak preview", () => {
   const current = runContracts("--strict");
-  expect(current.status).not.toBe(0);
+  expect(current.status).toBe(0);
   expect(JSON.parse(current.stdout)).toMatchObject({
     qualification_scope: "current",
     inventory_total: 84,
     evaluated_total: 83,
-    known_red: currentProviderContracts,
+    known_red: [],
+    failures: [],
   });
 
   const future = runContracts("--strict", "--scope", "future_soak");

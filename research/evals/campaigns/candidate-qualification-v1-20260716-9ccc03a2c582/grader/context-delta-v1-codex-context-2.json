@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "case_id": "context/delta/v1",
+  "repetition_id": "codex-context-2",
+  "attempt_id": "context-delta-v1-codex-context-2",
+  "grader_ref": "graders/context-delta.ts",
+  "grader_sha256": "sha256:2a8c1625728cb2acc6ac3c5a6e4211633fe393f962e4c128799f12b52d06f641",
+  "visible_gate_passed": true,
+  "hidden_grader_passed": true,
+  "verifier_evidence": "artifact:artifact/verifier/context-delta-v1-codex-context-2/grader-evidence.json",
+  "verifier_evidence_sha256": "sha256:8b636597e7680a8c8be3690a31dcdc6b5abada5f6de9b182b40f7d8e16432413",
+  "result": "passed",
+  "missing": []
+}

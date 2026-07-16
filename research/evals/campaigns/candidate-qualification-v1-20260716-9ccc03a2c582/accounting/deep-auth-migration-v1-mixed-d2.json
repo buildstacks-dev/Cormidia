@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "attempt-accounting",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "attempt_id": "deep-auth-migration-v1-mixed-d2",
+  "case_id": "deep/auth-migration/v1",
+  "repetition_id": "mixed-d2",
+  "app": "service",
+  "run_ids": [
+    "20260716-195923-run-role-builder",
+    "20260716-200312-run-role-builder",
+    "20260716-200940-run-role-reviewer"
+  ],
+  "provider_turn_ids": [
+    "011241791ae0fa44f17b4ec13423dd82642af24d39378e2badcd7c2982c90527",
+    "c791bd6441648e86b1444be12577e04b9b67326e54b7acfca8e85b3fc7d8892c",
+    "ec56c5fa8e422f32eb66cb22160d69d21134e950b1f18ba680b9780eaa01b978"
+  ],
+  "settlement_ids": [
+    "011241791ae0fa44f17b4ec13423dd82642af24d39378e2badcd7c2982c90527",
+    "c791bd6441648e86b1444be12577e04b9b67326e54b7acfca8e85b3fc7d8892c",
+    "ec56c5fa8e422f32eb66cb22160d69d21134e950b1f18ba680b9780eaa01b978"
+  ],
+  "envelope_sha256": {
+    "20260716-195923-run-role-builder": "sha256:4e0497adf372d85035384d6d25ebaebcc092e4adbca73b66f7d6e6f24b9cf99c",
+    "20260716-200312-run-role-builder": "sha256:18a469848e301a7a7241dbc4376dffe7eba35c6e4520b4c086e5b4d7602bdc3b",
+    "20260716-200940-run-role-reviewer": "sha256:8c1aed4c1bdec5df89840bc16e9b98246d5e2164c014058b5dbacb1ba2f810fb"
+  },
+  "terminal_statuses": {
+    "20260716-195923-run-role-builder": "completed",
+    "20260716-200312-run-role-builder": "completed",
+    "20260716-200940-run-role-reviewer": "completed"
+  },
+  "admitted_routes": {
+    "20260716-195923-run-role-builder": "deep",
+    "20260716-200312-run-role-builder": "deep",
+    "20260716-200940-run-role-reviewer": "deep"
+  },
+  "provider_turns": 3,
+  "provider_settlements": 3,
+  "mechanical_settlements": 0,
+  "terminal_integrity": 1,
+  "passed": true,
+  "missing": []
+}

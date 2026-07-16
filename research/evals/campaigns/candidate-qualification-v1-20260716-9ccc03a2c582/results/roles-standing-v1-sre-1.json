@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "campaign_id": "candidate-qualification-v1-20260716-9ccc03a2c582",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "attempt_id": "roles-standing-v1-sre-1",
+  "case_id": "roles/standing/v1",
+  "repetition_id": "sre-1",
+  "outcome": "passed",
+  "admitted_at": "2026-07-16T20:33:05.907Z",
+  "terminal_at": "2026-07-16T20:34:34.201Z",
+  "evidence": [
+    "run:20260716-203416-run-role-sre",
+    "artifact:artifact/verifier/roles-standing-v1-sre-1/grader-evidence.json",
+    "grader:grader/roles-standing-v1-sre-1.json",
+    "accounting:accounting/roles-standing-v1-sre-1.json"
+  ],
+  "metrics": {
+    "route": {
+      "planned": "standard",
+      "final": "standard",
+      "model_turns": 1
+    },
+    "context": {
+      "rendered_bytes": 1410,
+      "sources": {
+        "run:20260716-203416-run-role-sre": 1410
+      },
+      "measurement": "durable_context_manifests"
+    },
+    "cost": {
+      "equivalent_usd": 1.3291049999999998,
+      "product_usd": 1.3291049999999998,
+      "evaluator_usd": 0,
+      "quality": "estimated"
+    },
+    "tokens": {
+      "input": 247887,
+      "output": 2989,
+      "quality": "estimated"
+    },
+    "latency": {
+      "elapsed_ms": 88294,
+      "active_ms": 88294,
+      "human_wait_ms": 0
+    },
+    "human_load": {
+      "decisions": 0
+    },
+    "productivity": {
+      "productive_passes": 1,
+      "total_passes": 1,
+      "ratio": 1,
+      "repeated_work_cost_usd": 0,
+      "evidence": [
+        {
+          "kind": "implementation",
+          "before_sha256": "sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "after_sha256": "sha256:71ee3e561afd53c6e258db95133e3bff5548cd41111a28b9a9cf09f48c65af7d",
+          "productive": true
+        }
+      ]
+    },
+    "continuation": {
+      "excluded": [
+        "not_continuation_case"
+      ]
+    },
+    "approvals": {
+      "excluded": [
+        "not_approval_case"
+      ]
+    },
+    "scheduler": {
+      "excluded": [
+        "not_scheduler_case"
+      ]
+    },
+    "learning": {
+      "excluded": [
+        "not_learning_case"
+      ]
+    },
+    "execution": {
+      "terminal_integrity": 1,
+      "provider_turns": 1,
+      "mechanical_steps": 0,
+      "provider_settlements": 1,
+      "mechanical_settlements": 0
+    },
+    "capabilities": {
+      "outward_effects": 0,
+      "hidden_answer_leakage": false,
+      "production_path_overlap": false,
+      "safety": {
+        "outward_effects": 0,
+        "hidden_answer_leakage": false,
+        "production_path_overlap": false
+      }
+    }
+  },
+  "exclusions": [],
+  "missing": []
+}

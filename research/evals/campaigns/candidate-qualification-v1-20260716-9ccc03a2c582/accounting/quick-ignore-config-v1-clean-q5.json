@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "attempt-accounting",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "attempt_id": "quick-ignore-config-v1-clean-q5",
+  "case_id": "quick/ignore-config/v1",
+  "repetition_id": "clean-q5",
+  "app": "library",
+  "run_ids": [
+    "20260716-192758-run-role-builder",
+    "20260716-192843-run-role-builder",
+    "20260716-193004-run-role-reviewer"
+  ],
+  "provider_turn_ids": [
+    "6b3ee67e65ba1e49162e431d89802df75b17d75e4f1668cf55e79f7ab9507cc4",
+    "790078f1012dc6973fcaecea3079b142f884f6aebb7d5888e3e8829c5c4cb19d",
+    "f3ddfcb841c817e9cdab6f100620641a0629483f8c6f6524e0b12da9f03588e2"
+  ],
+  "settlement_ids": [
+    "6b3ee67e65ba1e49162e431d89802df75b17d75e4f1668cf55e79f7ab9507cc4",
+    "790078f1012dc6973fcaecea3079b142f884f6aebb7d5888e3e8829c5c4cb19d",
+    "f3ddfcb841c817e9cdab6f100620641a0629483f8c6f6524e0b12da9f03588e2"
+  ],
+  "envelope_sha256": {
+    "20260716-192758-run-role-builder": "sha256:7b74eda72a0a94a288acfb2ba773c4f77dc1d42c299c36839d8d10aaff903f08",
+    "20260716-192843-run-role-builder": "sha256:71a079126b251845e12c479cfe0d8f437e7392738b278c29f0f20d63af8a9c63",
+    "20260716-193004-run-role-reviewer": "sha256:33daba90308bfd45db8ee3cf77b891ac97beb16ef63ce919c886074f738ec335"
+  },
+  "terminal_statuses": {
+    "20260716-192758-run-role-builder": "completed",
+    "20260716-192843-run-role-builder": "completed",
+    "20260716-193004-run-role-reviewer": "completed"
+  },
+  "admitted_routes": {
+    "20260716-192758-run-role-builder": "quick",
+    "20260716-192843-run-role-builder": "quick",
+    "20260716-193004-run-role-reviewer": "quick"
+  },
+  "provider_turns": 3,
+  "provider_settlements": 3,
+  "mechanical_settlements": 0,
+  "terminal_integrity": 1,
+  "passed": true,
+  "missing": []
+}

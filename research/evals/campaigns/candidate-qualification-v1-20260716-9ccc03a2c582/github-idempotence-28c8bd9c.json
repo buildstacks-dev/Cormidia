@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "github-idempotence",
+  "campaign_id": "candidate-qualification-v1-20260716-9ccc03a2c582",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "repo": "buildstacks-dev/operon-eval-candidate-qualification-v1-20260716-9ccc03a2c582",
+  "repository_id": "R_kgDOTawp_g",
+  "source_evidence": "github-evidence-28c8bd9c.json",
+  "source_evidence_sha256": "sha256:b4aa4876521408f69a8a1e73891f4f35acc54f45d9802b17050f281c469f6510",
+  "issue_closed": true,
+  "pr_merged": true,
+  "review_count": 1,
+  "comment_count": 1,
+  "branch_deleted": true,
+  "reused_evidence": true,
+  "idempotent_rerun": true,
+  "result": "passed"
+}

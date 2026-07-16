@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "campaign_id": "candidate-qualification-v1-20260716-9ccc03a2c582",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "attempt_id": "planning-quality-v1-goal-quick",
+  "case_id": "planning/quality/v1",
+  "repetition_id": "goal-quick",
+  "outcome": "passed",
+  "admitted_at": "2026-07-16T18:40:20.713Z",
+  "terminal_at": "2026-07-16T18:46:36.311Z",
+  "evidence": [
+    "run:20260716-184021-run-role-planner",
+    "artifact:artifact/verifier/planning-quality-v1-goal-quick/grader-evidence.json",
+    "grader:grader/planning-quality-v1-goal-quick.json",
+    "accounting:accounting/planning-quality-v1-goal-quick.json"
+  ],
+  "metrics": {
+    "route": {
+      "planned": "quick",
+      "final": "quick",
+      "model_turns": 1
+    },
+    "context": {
+      "rendered_bytes": 1675,
+      "sources": {
+        "run:20260716-184021-run-role-planner": 1675
+      },
+      "measurement": "durable_context_manifests"
+    },
+    "cost": {
+      "equivalent_usd": 2.2544324999999996,
+      "product_usd": 2.2544324999999996,
+      "evaluator_usd": 0,
+      "quality": "complete"
+    },
+    "tokens": {
+      "input": 1499358,
+      "output": 26597,
+      "quality": "complete"
+    },
+    "latency": {
+      "elapsed_ms": 375598,
+      "active_ms": 375598,
+      "human_wait_ms": 0
+    },
+    "human_load": {
+      "decisions": 0
+    },
+    "productivity": {
+      "productive_passes": 1,
+      "total_passes": 1,
+      "ratio": 1,
+      "repeated_work_cost_usd": 0,
+      "evidence": [
+        {
+          "kind": "implementation",
+          "before_sha256": "sha256:01348b3450f78a660fbda3647ad0f02002426b2407b9c569725a096538114d7f",
+          "after_sha256": "sha256:be82cf7a55319dd0f7d09e5d72a438a6af0c62a0bd86d815b2057416c35a937a",
+          "productive": true
+        }
+      ]
+    },
+    "continuation": {
+      "excluded": [
+        "not_continuation_case"
+      ]
+    },
+    "approvals": {
+      "excluded": [
+        "not_approval_case"
+      ]
+    },
+    "scheduler": {
+      "excluded": [
+        "not_scheduler_case"
+      ]
+    },
+    "learning": {
+      "excluded": [
+        "not_learning_case"
+      ]
+    },
+    "execution": {
+      "terminal_integrity": 1,
+      "provider_turns": 1,
+      "mechanical_steps": 0,
+      "provider_settlements": 1,
+      "mechanical_settlements": 0
+    },
+    "capabilities": {
+      "outward_effects": 0,
+      "hidden_answer_leakage": false,
+      "production_path_overlap": false,
+      "safety": {
+        "outward_effects": 0,
+        "hidden_answer_leakage": false,
+        "production_path_overlap": false
+      }
+    }
+  },
+  "exclusions": [],
+  "missing": []
+}

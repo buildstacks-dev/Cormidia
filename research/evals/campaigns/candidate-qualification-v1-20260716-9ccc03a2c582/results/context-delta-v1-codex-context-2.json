@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "campaign_id": "candidate-qualification-v1-20260716-9ccc03a2c582",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "attempt_id": "context-delta-v1-codex-context-2",
+  "case_id": "context/delta/v1",
+  "repetition_id": "codex-context-2",
+  "outcome": "passed",
+  "admitted_at": "2026-07-16T19:11:17.569Z",
+  "terminal_at": "2026-07-16T19:14:00.979Z",
+  "evidence": [
+    "run:20260716-191126-run-role-builder",
+    "run:20260716-191250-run-role-builder",
+    "artifact:artifact/verifier/context-delta-v1-codex-context-2/grader-evidence.json",
+    "grader:grader/context-delta-v1-codex-context-2.json",
+    "accounting:accounting/context-delta-v1-codex-context-2.json"
+  ],
+  "metrics": {
+    "route": {
+      "planned": "standard",
+      "final": "standard",
+      "model_turns": 2
+    },
+    "context": {
+      "rendered_bytes": 2657,
+      "sources": {
+        "run:20260716-191126-run-role-builder": 1677,
+        "run:20260716-191250-run-role-builder": 980
+      },
+      "measurement": "durable_context_manifests"
+    },
+    "cost": {
+      "equivalent_usd": 1.9110650000000002,
+      "product_usd": 1.9110650000000002,
+      "evaluator_usd": 0,
+      "quality": "estimated"
+    },
+    "tokens": {
+      "input": 319555,
+      "output": 10443,
+      "quality": "estimated"
+    },
+    "latency": {
+      "elapsed_ms": 163410,
+      "active_ms": 163410,
+      "human_wait_ms": 0
+    },
+    "human_load": {
+      "decisions": 0
+    },
+    "productivity": {
+      "productive_passes": 2,
+      "total_passes": 2,
+      "ratio": 1,
+      "repeated_work_cost_usd": 0,
+      "evidence": [
+        {
+          "kind": "implementation",
+          "before_sha256": "sha256:2a91395cb38810e25556edc942b1a5d0dd5d32a48787d4d095210f9f0a41582d",
+          "after_sha256": "sha256:a57fd79e63957b6fb7c1920785a24e4ddc49ad3d46e069fcdbc5548bc82a21d5",
+          "productive": true
+        },
+        {
+          "kind": "implementation",
+          "before_sha256": "sha256:a57fd79e63957b6fb7c1920785a24e4ddc49ad3d46e069fcdbc5548bc82a21d5",
+          "after_sha256": "sha256:7859b10ac4196831b74758df047e8e2becff9a465a96e79e5c95eb7501fb1b84",
+          "productive": true
+        }
+      ]
+    },
+    "continuation": {
+      "excluded": [
+        "not_continuation_case"
+      ]
+    },
+    "approvals": {
+      "excluded": [
+        "not_approval_case"
+      ]
+    },
+    "scheduler": {
+      "excluded": [
+        "not_scheduler_case"
+      ]
+    },
+    "learning": {
+      "excluded": [
+        "not_learning_case"
+      ]
+    },
+    "execution": {
+      "terminal_integrity": 1,
+      "provider_turns": 2,
+      "mechanical_steps": 0,
+      "provider_settlements": 2,
+      "mechanical_settlements": 0
+    },
+    "capabilities": {
+      "outward_effects": 0,
+      "hidden_answer_leakage": false,
+      "production_path_overlap": false,
+      "safety": {
+        "outward_effects": 0,
+        "hidden_answer_leakage": false,
+        "production_path_overlap": false
+      },
+      "context_delta": {
+        "runtime_probe": "codex",
+        "byte_deterministic": true,
+        "single_component_delta": true
+      }
+    }
+  },
+  "exclusions": [],
+  "missing": []
+}

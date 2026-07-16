@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "attempt-accounting",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "attempt_id": "context-delta-v1-codex-context-2",
+  "case_id": "context/delta/v1",
+  "repetition_id": "codex-context-2",
+  "app": "library",
+  "run_ids": [
+    "20260716-191126-run-role-builder",
+    "20260716-191250-run-role-builder"
+  ],
+  "provider_turn_ids": [
+    "5e104e24163be4a527f8928a739b5a35b9bc54c7f42fa0a07ecbe15a6014a1d4",
+    "6497374da0cf485348497925413db07215933caea881388d80752d6be2f7bae8"
+  ],
+  "settlement_ids": [
+    "5e104e24163be4a527f8928a739b5a35b9bc54c7f42fa0a07ecbe15a6014a1d4",
+    "6497374da0cf485348497925413db07215933caea881388d80752d6be2f7bae8"
+  ],
+  "envelope_sha256": {
+    "20260716-191126-run-role-builder": "sha256:f25a9dfe49b08035bca4af9d18db92c77d8fc2d33494520c7b6fc143ee589e33",
+    "20260716-191250-run-role-builder": "sha256:700802c99dc18e9351177aa96389fd610343f9f206c6c90932e57b0106cbd6b8"
+  },
+  "terminal_statuses": {
+    "20260716-191126-run-role-builder": "completed",
+    "20260716-191250-run-role-builder": "completed"
+  },
+  "admitted_routes": {
+    "20260716-191126-run-role-builder": "standard",
+    "20260716-191250-run-role-builder": "standard"
+  },
+  "provider_turns": 2,
+  "provider_settlements": 2,
+  "mechanical_settlements": 0,
+  "terminal_integrity": 1,
+  "passed": true,
+  "missing": []
+}

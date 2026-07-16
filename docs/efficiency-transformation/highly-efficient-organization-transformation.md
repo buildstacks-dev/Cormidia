@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phases 0–5 complete; the ratified Phase 6 current scope awaits incremental exact-candidate admission, while `I-LIVE-01` remains a separate future campaign |
+| Status | Phase 6 current-scope efficiency qualification complete; `I-LIVE-01` remains a separate future real-time campaign |
 | Evidence date | 2026-07-16 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
@@ -747,6 +747,18 @@ come from provider artifacts and hidden guardrails, and a measured improvement
 still needs a separate exact candidate/action-hash authorization for one
 isolated governed activation and rollback. L5 authorization alone cannot cross
 that boundary.
+
+**Completion update (2026-07-16):** frozen candidate `c6834cf` completed the
+single decisive full campaign
+`candidate-qualification-v1-20260716-9ccc03a2c582`: 34/34 attempts passed,
+73 provider turns matched 73 settlements, the virtual seven-day proof ran
+2,016 mechanical steps with zero provider construction, and all safety and
+outward-effect guardrails passed. Learning deltas were `+1,+2,+1`; the exact
+T1 action was published to one isolated canary and rolled back once with zero
+provider, GitHub, production, or outward effects. The nine current-scope live
+contracts have content-bound promotion evidence. Earlier invalid and
+not-qualified campaigns remain retained. The only unqualified contract is the
+separate `future_soak` contract `I-LIVE-01`.
 
 The 2026-07-16 development-process ratification now separates building Operon
 from operating an Operon org and replaces repeated full-campaign discovery

@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "case_id": "roles/standing/v1",
+  "repetition_id": "sre-1",
+  "attempt_id": "roles-standing-v1-sre-1",
+  "grader_ref": "graders/standing-roles.ts",
+  "grader_sha256": "sha256:e213d7628ed29faa61abcf5965b87f4c5db91614c6f2538f2ec81949fb2776ce",
+  "visible_gate_passed": true,
+  "hidden_grader_passed": true,
+  "verifier_evidence": "artifact:artifact/verifier/roles-standing-v1-sre-1/grader-evidence.json",
+  "verifier_evidence_sha256": "sha256:60fd49cd41b424d2da64a8472bb2296ae5c76b18342e383a85c6cf57265f5344",
+  "result": "passed",
+  "missing": []
+}

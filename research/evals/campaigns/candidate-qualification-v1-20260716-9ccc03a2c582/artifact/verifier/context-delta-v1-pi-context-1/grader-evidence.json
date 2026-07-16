@@ -1,0 +1,20 @@
+{
+  "evidence_version": 2,
+  "byte_deterministic": true,
+  "single_component_delta": true,
+  "changed_component_ids": [
+    "bc659df6d212b53619e28d1a"
+  ],
+  "protected_content_complete": true,
+  "hidden_marker_present": false,
+  "fabricated_token_attribution": false,
+  "runtime": "pi",
+  "context_manifest_sha256": [
+    "sha256:b1e9cd6a75883ae07d5638f873ce0c2e481ed561bf56b40f6fc24fce8591bb50",
+    "sha256:58bad7a72603b2c05cbb933b9522474fff9ddbbb677e07b3a0b474b870bcbcb8"
+  ],
+  "render_sha256": [
+    "e1c804ad3321ba2495f8e42f23aae760fbc3a201aa88fa7163cfebda4e073e2a",
+    "d2cf95548b7e1cf302f0629650bfff5d71f842bf357d408909c081eaf0ced0a5"
+  ]
+}

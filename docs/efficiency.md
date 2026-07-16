@@ -318,14 +318,12 @@ provider-accounting requirement.
 The contract inventory remains exactly 84 records. Every record declares one
 `qualification_scope`:
 
-- `current` contains exactly 83 contracts. Before fresh candidate evidence,
-  its only known-red contracts are `D-LIVE-01..03`, `E-LIVE-01..02`,
-  `G-MET-01`, and `I-ROLE-01..03`. A qualified exact candidate may promote
-  only those nine provider-evidence contracts. Phase 6 may finish after exact-
-  candidate adapter admission, the complete candidate qualification matrix,
-  provider/settlement reconciliation, all nine promotions, bounded read-only
-  production confirmation, documentation, token-free CI, release-equivalence
-  proof, and shipping.
+- `current` contains exactly 83 contracts. Candidate campaign
+  `candidate-qualification-v1-20260716-9ccc03a2c582` qualified all 34 declared
+  attempts with exact 73/73 provider settlement agreement and supported the
+  nine provider-evidence promotions: `D-LIVE-01..03`, `E-LIVE-01..02`,
+  `G-MET-01`, and `I-ROLE-01..03`. The current scope therefore has no
+  known-red contract after those content-bound projections land.
 - `future_soak` contains exactly `I-LIVE-01`. It remains required and known-red
   until a genuine separately authorized 48–72 hour real-time scheduler
   campaign satisfies its unchanged cadence, restart, safety, accounting, and

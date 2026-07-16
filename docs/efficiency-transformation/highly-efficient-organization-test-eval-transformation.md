@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and production Phases 1–5 complete; incremental exact-candidate Phase 6 admission is pending, and `I-LIVE-01` is a separately deferred future campaign |
+| Status | T0–T5 and Phase 6 current-scope qualification complete; `I-LIVE-01` is the separately deferred future campaign |
 | Evidence date | 2026-07-16 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
@@ -77,6 +77,18 @@ authorized 48–72 hour boundary. It has not been executed and is not authorized
 by the work recorded here.
 
 ### 2026-07-16 incremental qualification handoff
+
+The terminal candidate is `c6834cf`, with campaign
+`candidate-qualification-v1-20260716-9ccc03a2c582` (campaign SHA-256
+`28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a`).
+All 34 attempts passed; 73 provider turns equal 73 settlements; product and
+evaluator equivalent costs are `$62.295667` and `$8.0654455`. The paired
+learning result is improved at `+1,+2,+1`, and its separately hash-bound
+isolated publish/canary/rollback completed exactly once with zero provider,
+GitHub, production, or outward effects. Sanitized evidence is archived and
+the nine current-scope live contracts have content-bound promotion evidence.
+The retained earlier failures remain historical evidence, not rescored
+attempts. `I-LIVE-01` alone remains future-pending.
 
 The prior exact candidate (`46617f1`) retained a qualified adapter
 campaign and an invalid 34-attempt candidate campaign: 32 passed; migration

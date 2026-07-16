@@ -17,6 +17,11 @@ import {
 } from "./candidate-hash.js";
 
 const ATTESTATION_PATH = "research/evals/phase6-release-attestation.json";
+const EVALUATOR_REPAIR_AUTHORIZATION_PATH = "research/evals/phase6-evaluator-repair-authorization.json";
+const ALLOWED_PROPORTIONATE_REPAIR_PATHS = new Set([
+  "scripts/eval/release-attestation.ts",
+  "test/transformation/qualification-scope.test.ts",
+]);
 const ALLOWED_PROMOTION_PATHS = new Set([
   "AGENTS.md",
   "eval/contracts.yaml",
@@ -26,6 +31,7 @@ const ALLOWED_PROMOTION_PATHS = new Set([
   "docs/capability-matrix.md",
   "docs/efficiency-transformation/highly-efficient-organization-transformation.md",
   "docs/efficiency-transformation/highly-efficient-organization-test-eval-transformation.md",
+  EVALUATOR_REPAIR_AUTHORIZATION_PATH,
 ]);
 const PHASE6_CONTRACT_IDS = new Set([
   "D-LIVE-01",
@@ -49,14 +55,37 @@ export interface ReleaseAttestation {
   campaigns: Array<{ campaign_id: string; campaign_sha256: string }>;
   release_package_sha256: string;
   executable_suite_sha256: string;
+  proportionate_evaluator_repairs?: ProportionateEvaluatorRepairs;
   promotion_files: Record<string, string>;
   promotion_paths_sha256: string;
 }
 
+interface EvaluatorRepairAuthorization {
+  schema_version: 1;
+  evidence_kind: "phase6-proportionate-evaluator-repair-authorization";
+  authorization_id: string;
+  campaign_id: string;
+  campaign_sha256: string;
+  candidate_commit: string;
+  qualified_executable_suite_sha256: string;
+  release_executable_suite_sha256: string;
+  release_package_sha256: string;
+  material_impact: "evaluator_only";
+  repair_files: Record<string, string>;
+  rationale: string;
+}
+
+interface ProportionateEvaluatorRepairs {
+  authorization: { path: string; sha256: string };
+  qualified_executable_suite_sha256: string;
+  release_executable_suite_sha256: string;
+  files: Record<string, string>;
+}
+
 /** Build a content-bound receipt while evidence promotion files are present in
- * the working tree. The candidate commit stays exact; this receipt proves the
- * later release changes only governed evidence/status metadata and preserves
- * installable-package and executable-eval bytes. */
+ * the working tree. Product/package bytes stay exact. A post-qualification
+ * evaluator-only repair is accepted only through the separately hashed,
+ * exact-path authorization and is represented explicitly in the receipt. */
 export function createReleaseAttestation(options: {
   root: string;
   campaignPaths: string[];
@@ -75,12 +104,13 @@ export function createReleaseAttestation(options: {
   const releaseHash = digest(releasePackageHash(root));
   const suiteHash = digest(executableSuiteHash(root));
   if (first.candidate.release_package_sha256 !== releaseHash) throw new Error("release_package_bytes_changed_after_qualification");
-  if (first.candidate.executable_suite_sha256 !== suiteHash) throw new Error("executable_suite_bytes_changed_after_qualification");
+  const evaluatorRepairs = resolveEvaluatorRepairs(root, first, releaseHash, suiteHash);
   if (first.org_fingerprint !== digest(hashWorkingFiles(root, ["roles.yaml", "pipelines.yaml", "prompts/", "TASTE.md", "taste/"]))) throw new Error("org_bytes_changed_after_qualification");
 
   const outRel = repositoryRelative(root, outPath);
   const changed = changedPaths(root, first.candidate.commit).filter((path) => path !== outRel && !contractProjectionPath(path));
-  for (const path of changed) if (!allowedPromotionPath(path)) throw new Error(`release_attestation_unallowlisted_path:${path}`);
+  const evaluatorRepairPaths = new Set(Object.keys(evaluatorRepairs?.files ?? {}));
+  for (const path of changed) if (!allowedPromotionPath(path) && !evaluatorRepairPaths.has(path)) throw new Error(`release_attestation_unallowlisted_path:${path}`);
   const promotionFiles = Object.fromEntries(changed.map((path) => {
     const absolute = resolve(root, path);
     if (!existsSync(absolute)) throw new Error(`release_attestation_deletion_forbidden:${path}`);
@@ -96,7 +126,8 @@ export function createReleaseAttestation(options: {
     system_fingerprint: first.system_fingerprint,
     campaigns: campaigns.map((campaign) => ({ campaign_id: campaign.campaign_id, campaign_sha256: hashManifest(campaign) })).sort((a, b) => a.campaign_id.localeCompare(b.campaign_id)),
     release_package_sha256: releaseHash,
-    executable_suite_sha256: suiteHash,
+    executable_suite_sha256: first.candidate.executable_suite_sha256!,
+    ...(evaluatorRepairs ? { proportionate_evaluator_repairs: evaluatorRepairs } : {}),
     promotion_files: promotionFiles,
     promotion_paths_sha256: digest(sha256(canonicalJson(promotionFiles))),
   };
@@ -123,18 +154,21 @@ export function verifyReleaseAttestation(options: {
   const root = resolve(options.root);
   const path = resolve(root, options.path);
   const value = JSON.parse(readFileSync(path, "utf8")) as ReleaseAttestation;
-  const exactKeys = ["schema_version", "evidence_kind", "candidate", "org_fingerprint", "system_fingerprint", "campaigns", "release_package_sha256", "executable_suite_sha256", "promotion_files", "promotion_paths_sha256"].sort();
+  const exactKeys = ["schema_version", "evidence_kind", "candidate", "org_fingerprint", "system_fingerprint", "campaigns", "release_package_sha256", "executable_suite_sha256", ...(value.proportionate_evaluator_repairs ? ["proportionate_evaluator_repairs"] : []), "promotion_files", "promotion_paths_sha256"].sort();
   if (Object.keys(value).sort().join("\0") !== exactKeys.join("\0")) throw new Error("release_attestation_invalid_keys");
   if (value.schema_version !== 1 || value.evidence_kind !== "phase6-evidence-only-release-equivalence") throw new Error("release_attestation_invalid_root");
   if (!Array.isArray(value.campaigns) || value.campaigns.length === 0 || new Set(value.campaigns.map((item) => item.campaign_id)).size !== value.campaigns.length) throw new Error("release_attestation_invalid_campaigns");
   if (canonicalJson(value.candidate) !== canonicalJson(options.campaign.candidate) || value.org_fingerprint !== options.campaign.org_fingerprint || value.system_fingerprint !== options.campaign.system_fingerprint) throw new Error("release_attestation_candidate_mismatch");
   if (!value.campaigns.some((item) => item.campaign_id === options.campaign.campaign_id && item.campaign_sha256 === hashManifest(options.campaign))) throw new Error("release_attestation_campaign_missing");
   if (value.release_package_sha256 !== digest(releasePackageHash(root)) || value.release_package_sha256 !== options.campaign.candidate.release_package_sha256) throw new Error("release_attestation_package_mismatch");
-  if (value.executable_suite_sha256 !== digest(executableSuiteHash(root)) || value.executable_suite_sha256 !== options.campaign.candidate.executable_suite_sha256) throw new Error("release_attestation_suite_mismatch");
+  if (value.executable_suite_sha256 !== options.campaign.candidate.executable_suite_sha256) throw new Error("release_attestation_suite_mismatch");
+  const releaseSuiteHash = digest(executableSuiteHash(root));
+  const evaluatorRepairs = verifyEvaluatorRepairs(root, options.campaign, value, releaseSuiteHash);
   if (value.org_fingerprint !== digest(hashWorkingFiles(root, ["roles.yaml", "pipelines.yaml", "prompts/", "TASTE.md", "taste/"]))) throw new Error("release_attestation_org_mismatch");
   if (value.promotion_paths_sha256 !== digest(sha256(canonicalJson(value.promotion_files)))) throw new Error("release_attestation_promotion_hash_mismatch");
+  const evaluatorRepairPaths = new Set(Object.keys(evaluatorRepairs?.files ?? {}));
   for (const [rel, expected] of Object.entries(value.promotion_files)) {
-    if (!allowedPromotionPath(rel)) throw new Error(`release_attestation_unallowlisted_path:${rel}`);
+    if (!allowedPromotionPath(rel) && !evaluatorRepairPaths.has(rel)) throw new Error(`release_attestation_unallowlisted_path:${rel}`);
     const absolute = resolve(root, rel);
     if (!existsSync(absolute) || repositoryRelative(root, absolute) !== rel || digest(hashFile(absolute)) !== expected) throw new Error(`release_attestation_promotion_file_mismatch:${rel}`);
   }
@@ -145,6 +179,81 @@ export function verifyReleaseAttestation(options: {
     if (canonicalJson(actual) !== canonicalJson(Object.keys(value.promotion_files).sort())) throw new Error("release_attestation_changed_path_mismatch");
   }
   return value;
+}
+
+function resolveEvaluatorRepairs(
+  root: string,
+  campaign: CampaignManifest,
+  releasePackageSha256: string,
+  releaseSuiteSha256: string,
+): ProportionateEvaluatorRepairs | undefined {
+  if (campaign.candidate.executable_suite_sha256 === releaseSuiteSha256) return undefined;
+  const authorizationPath = resolve(root, EVALUATOR_REPAIR_AUTHORIZATION_PATH);
+  if (!existsSync(authorizationPath)) throw new Error("executable_suite_bytes_changed_after_qualification");
+  const authorization = JSON.parse(readFileSync(authorizationPath, "utf8")) as EvaluatorRepairAuthorization;
+  validateEvaluatorRepairAuthorization(root, campaign, authorization, releasePackageSha256, releaseSuiteSha256);
+  return {
+    authorization: {
+      path: EVALUATOR_REPAIR_AUTHORIZATION_PATH,
+      sha256: digest(hashFile(authorizationPath)),
+    },
+    qualified_executable_suite_sha256: campaign.candidate.executable_suite_sha256!,
+    release_executable_suite_sha256: releaseSuiteSha256,
+    files: authorization.repair_files,
+  };
+}
+
+function verifyEvaluatorRepairs(
+  root: string,
+  campaign: CampaignManifest,
+  attestation: ReleaseAttestation,
+  releaseSuiteSha256: string,
+): ProportionateEvaluatorRepairs | undefined {
+  if (campaign.candidate.executable_suite_sha256 === releaseSuiteSha256) {
+    if (attestation.proportionate_evaluator_repairs !== undefined) throw new Error("release_attestation_unnecessary_evaluator_repairs");
+    return undefined;
+  }
+  const repairs = attestation.proportionate_evaluator_repairs;
+  if (!repairs) throw new Error("release_attestation_suite_mismatch");
+  const authorizationPath = resolve(root, repairs.authorization.path);
+  if (repairs.authorization.path !== EVALUATOR_REPAIR_AUTHORIZATION_PATH || !existsSync(authorizationPath) || repositoryRelative(root, authorizationPath) !== repairs.authorization.path || digest(hashFile(authorizationPath)) !== repairs.authorization.sha256) throw new Error("release_attestation_evaluator_authorization_mismatch");
+  const authorization = JSON.parse(readFileSync(authorizationPath, "utf8")) as EvaluatorRepairAuthorization;
+  validateEvaluatorRepairAuthorization(root, campaign, authorization, attestation.release_package_sha256, releaseSuiteSha256);
+  const expected: ProportionateEvaluatorRepairs = {
+    authorization: repairs.authorization,
+    qualified_executable_suite_sha256: campaign.candidate.executable_suite_sha256!,
+    release_executable_suite_sha256: releaseSuiteSha256,
+    files: authorization.repair_files,
+  };
+  if (canonicalJson(repairs) !== canonicalJson(expected) || attestation.promotion_files[repairs.authorization.path] !== repairs.authorization.sha256) throw new Error("release_attestation_evaluator_repairs_mismatch");
+  return repairs;
+}
+
+function validateEvaluatorRepairAuthorization(
+  root: string,
+  campaign: CampaignManifest,
+  value: EvaluatorRepairAuthorization,
+  releasePackageSha256: string,
+  releaseSuiteSha256: string,
+): void {
+  const exactKeys = ["schema_version", "evidence_kind", "authorization_id", "campaign_id", "campaign_sha256", "candidate_commit", "qualified_executable_suite_sha256", "release_executable_suite_sha256", "release_package_sha256", "material_impact", "repair_files", "rationale"].sort();
+  if (!value || typeof value !== "object" || Object.keys(value).sort().join("\0") !== exactKeys.join("\0") || value.schema_version !== 1 || value.evidence_kind !== "phase6-proportionate-evaluator-repair-authorization" || value.material_impact !== "evaluator_only") throw new Error("release_attestation_evaluator_authorization_invalid");
+  if (campaign.development_authorization?.authorization_id !== "phase6-efficiency-qualification-20260716-proportionate-release" || value.authorization_id !== campaign.development_authorization.authorization_id) throw new Error("release_attestation_evaluator_authorization_scope_mismatch");
+  if (value.campaign_id !== campaign.campaign_id || value.campaign_sha256 !== hashManifest(campaign) || value.candidate_commit !== campaign.candidate.commit || value.qualified_executable_suite_sha256 !== campaign.candidate.executable_suite_sha256 || value.release_executable_suite_sha256 !== releaseSuiteSha256 || value.release_package_sha256 !== releasePackageSha256 || value.release_package_sha256 !== campaign.candidate.release_package_sha256 || typeof value.rationale !== "string" || value.rationale.trim() === "") throw new Error("release_attestation_evaluator_authorization_binding_mismatch");
+  const repairPaths = Object.keys(value.repair_files ?? {}).sort();
+  const changedSuitePaths = changedPaths(root, campaign.candidate.commit).filter(executableSuitePath).sort();
+  if (repairPaths.length === 0 || canonicalJson(repairPaths) !== canonicalJson(changedSuitePaths) || repairPaths.some((path) => !ALLOWED_PROPORTIONATE_REPAIR_PATHS.has(path))) throw new Error("release_attestation_evaluator_repair_paths_mismatch");
+  for (const [path, expected] of Object.entries(value.repair_files)) {
+    const absolute = resolve(root, path);
+    if (!existsSync(absolute) || repositoryRelative(root, absolute) !== path || digest(hashFile(absolute)) !== expected) throw new Error(`release_attestation_evaluator_repair_file_mismatch:${path}`);
+  }
+}
+
+function executableSuitePath(path: string): boolean {
+  return path === ".github/workflows/efficiency-qualification.yml" ||
+    path.startsWith("scripts/eval/") ||
+    path.startsWith("test/") ||
+    (path.startsWith("eval/") && path !== "eval/contracts.yaml");
 }
 
 function loadCampaign(path: string): CampaignManifest {

@@ -157,8 +157,12 @@ admission. It remains historical evidence only; exact identity, accounting,
 and archive hashes are in
 `research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`.
 
-The fresh candidate's adapter admission is part of the current Phase 6 scope;
-the real-time scheduler contract is not. `I-LIVE-01` remains the sole pending
-`future_soak` contract and cannot be inferred from adapter admission, virtual
-soak, or read-only production evidence. The canonical distinction is
+The final candidate campaign
+`candidate-qualification-v1-20260716-9ccc03a2c582` qualified Claude, Codex,
+and pi execution, including pi on `openai-codex/gpt-5.6-sol`, with 73 provider
+turns equal to 73 settlements. Its bound standing-role results promote
+`I-ROLE-01..03`; the five D/E provider contracts and `G-MET-01` are promoted
+from their own mapped cases. `I-LIVE-01` remains the sole pending
+`future_soak` contract and cannot be inferred from this campaign, virtual soak,
+or read-only production evidence. The canonical distinction is
 [`efficiency.md`](efficiency.md#phase-6-qualification-scope).

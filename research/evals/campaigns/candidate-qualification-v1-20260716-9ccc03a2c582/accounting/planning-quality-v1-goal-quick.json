@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "attempt-accounting",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "attempt_id": "planning-quality-v1-goal-quick",
+  "case_id": "planning/quality/v1",
+  "repetition_id": "goal-quick",
+  "app": "library",
+  "run_ids": [
+    "20260716-184021-run-role-planner"
+  ],
+  "provider_turn_ids": [
+    "91a6965fc1c6f2ab8e229a3b6cce05790a5f967be59f81a45d48c433cd194bcf"
+  ],
+  "settlement_ids": [
+    "91a6965fc1c6f2ab8e229a3b6cce05790a5f967be59f81a45d48c433cd194bcf"
+  ],
+  "envelope_sha256": {
+    "20260716-184021-run-role-planner": "sha256:5e78f924fd98cab370b82c51db5e0a53aa5dc9d20eacfe2fcf6b368187f6f52c"
+  },
+  "terminal_statuses": {
+    "20260716-184021-run-role-planner": "completed"
+  },
+  "admitted_routes": {
+    "20260716-184021-run-role-planner": "quick"
+  },
+  "provider_turns": 1,
+  "provider_settlements": 1,
+  "mechanical_settlements": 0,
+  "terminal_integrity": 1,
+  "passed": true,
+  "missing": []
+}

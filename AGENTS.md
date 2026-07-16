@@ -166,7 +166,7 @@ efficacy health independently. The mechanics construct no provider runtime.
 - Efficiency eval, token-free: `pnpm eval:validate` · `pnpm
   test:transformation` (required + exact known-red) · `pnpm
   eval:deterministic` (subprocess/disk-heavy umbrella, capped at two workers) ·
-  `pnpm test:transformation:strict` (current Phase 6
+  `pnpm test:transformation:strict` (green current Phase 6
   scope) · `pnpm test:transformation:future-soak-strict` (separate future gate;
   expected non-zero only for `I-LIVE-01` until the genuine campaign passes).
 - Efficiency eval, explicit external boundary: `pnpm eval:prepare -- --campaign
@@ -179,13 +179,13 @@ efficacy health independently. The mechanics construct no provider runtime.
   <prepared-file>` previews the separate 48–72 hour L6 runner (execution also
   requires `OPERON_EVAL_SOAK=1`, an exact confirmation, and an explicit cap) ·
   `pnpm eval:qualify` is read-only.
-- Incremental Phase 6 provider sequence: exact-candidate adapter admission,
-  then non-promotable `focused-provider-admission` for quick `mixed-q1`,
-  migration `mixed-d1`, and approval `mixed-da`,
-  then one full candidate qualification. Candidate GitHub/provider entrypoints
-  fail closed unless both same-candidate admissions passed. Focused and final
-  campaigns stop on the first terminal non-pass; a third failed full campaign
-  is forbidden by the repair-lineage loop breaker. See `docs/development.md`.
+- Phase 6 provider qualification uses at most one decisive full campaign per
+  repaired candidate. Exact-candidate adapter and non-promotable focused
+  admission remain the default for material provider uncertainty, while the
+  ratified proportionate-release path may retain prior content-bound admission
+  evidence for evaluator-only repairs. Such debt is disclosed and never turns
+  a failed campaign into promotion evidence. See `docs/development.md` and
+  `docs/benchmark-runbook.md`.
 - Phase 6 paired learning has a separate post-L5 boundary: `pnpm
   eval:learning-activation -- --campaign <prepared-file>` previews the exact
   candidate and action hashes. Execution requires its own human authorization,
@@ -308,8 +308,8 @@ efficacy health independently. The mechanics construct no provider runtime.
 - Changes under `eval/**`, `scripts/eval/**`, or transformation eval fixtures:
   run `pnpm eval:validate`, `pnpm test:transformation`, `pnpm
   eval:deterministic`, the complete `pnpm test`, and `pnpm typecheck`.
-  `test:transformation:strict` must fail only for the exact current-scope
-  known-red set until valid candidate evidence promotes those contracts;
+  `test:transformation:strict` must pass the current scope after the nine
+  Phase 6 provider-evidence promotions;
   `test:transformation:future-soak-strict` must independently fail only for
   `I-LIVE-01`. The canonical boundary is `docs/efficiency.md` → Phase 6
   qualification scope. Never run `eval:github`
@@ -320,11 +320,12 @@ efficacy health independently. The mechanics construct no provider runtime.
   Provider usage quality marked unavailable must remain an invalid missing
   denominator with its original typed infrastructure/account cause; never
   coerce it to zero, retry it as a merit miss, or substitute a model.
-  For a repaired provider behavior, run the smallest focused admission before
-  a full campaign, including downstream provider cases skipped by fail-fast.
-  Preserve the first failure and its cause; do not use a full qualification as
-  the discovery loop. Do not resample an aggregate learning experiment to seek
-  a favorable draw—replay deterministic verifier defects token-free instead.
+  For a genuine repaired provider behavior, use the smallest evidence sequence
+  that resolves material risk and run at most one decisive full campaign for
+  that candidate. Preserve every first failure and its cause; evaluator-only
+  defects do not recursively restart adapter, focused, and full campaigns. Do
+  not resample an aggregate learning experiment to seek a favorable draw—replay
+  deterministic verifier defects token-free instead.
   Standing development authorization, cumulative equivalent-cost accounting,
   and new-decision boundaries are defined only in `docs/development.md` and
   never apply to an operated org.

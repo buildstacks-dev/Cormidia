@@ -75,9 +75,10 @@ Use the cheapest evidence that can disprove the change, in this order:
 3. Run the relevant focused token-free suites. Do not start a broad provider
    campaign to discover a failure a local test can expose.
 4. If model behavior is the remaining uncertainty, run a non-promotable
-   focused provider-admission campaign for only the repaired cases. It must use
-   the same exact candidate, assignments, thresholds, graders, and safety
-   boundaries as final qualification.
+   focused provider-admission campaign for only the repaired cases and any
+   downstream provider cases a prior fail-fast run deliberately did not reach.
+   It must use the same exact candidate, assignments, thresholds, graders, and
+   safety boundaries as final qualification.
 5. Admit adapters for that exact candidate where the release contract requires
    it.
 6. Run one final full qualification only after focused and adapter admission
@@ -94,11 +95,12 @@ both attempts remain evidence.
 
 Do not create a favorable-sample loop for an aggregate statistical gate. Phase
 6 paired learning is one predeclared six-arm experiment inside final
-qualification; its arms may be locally tested mechanically, but an additional
-provider experiment would change the declared sampling procedure. If its
-aggregate result is inconclusive, regressed, or invalid, stop after that block
-and seek a genuine treatment or experiment decision rather than rerunning for
-a better draw.
+qualification. Its deterministic verifier and retained provider artifacts may
+be replayed locally as regression fixtures, but an additional provider
+experiment would change the declared sampling procedure. If its aggregate
+result is inconclusive, regressed, or invalid, retain it and distinguish a
+genuine treatment miss from a deterministic verifier defect before seeking a
+new treatment or experiment decision. Never rerun for a better draw.
 
 ## Phase 6 implementation of this policy
 
@@ -120,7 +122,7 @@ pnpm eval:prepare -- --campaign adapter-harness-calibration --github-owner build
 
 pnpm eval:prepare -- --campaign focused-provider-admission --github-owner buildstacks-dev --authorization "$AUTH"
 # focused admission has no GitHub mutation and cannot promote a contract
-# preview and execute its two exact deep-route provider cases
+# preview and execute its repaired delivery plus downstream standing-role cases
 
 pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstacks-dev --authorization "$AUTH"
 # candidate GitHub and provider entrypoints refuse execution unless the same
@@ -128,11 +130,13 @@ pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstac
 ```
 
 Pass `--authorization "$AUTH"` to the GitHub and live entrypoints as well.
-Focused admission is fixed to quick `mixed-q1`, migration `mixed-d1`, and
-approval `mixed-da`, the Phase 6 builder and reviewer assignments, the
-four-million-token deep ceiling, one typed infrastructure retry, and the
-original `$8`, `$40`, and `$40` per-case thresholds. Promotion rejects all
-non-qualification campaigns even if local files claim success.
+Focused admission is fixed to quick `mixed-q1`, migration `mixed-d1`, approval
+`mixed-da`, and standing-role `sre-1`, `support-1`, and `marketing-1`. It uses
+the exact Phase 6 Builder, Reviewer, SRE, Support, and Marketing assignments,
+the four-million-token deep ceiling, one typed infrastructure retry, the
+unchanged `$8`, `$40`, `$40`, and `$30` per-case thresholds, and a `$118`
+campaign ceiling. Promotion rejects all non-qualification campaigns even if
+local files claim success.
 
 The final candidate stops and writes `campaign-stop.json` on its first
 terminal non-pass. Two failed full qualification descendants trip the lineage

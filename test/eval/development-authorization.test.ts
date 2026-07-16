@@ -97,13 +97,13 @@ it("J-MAN-02 Phase 6 objective rejects a campaign-type/profile mismatch and a th
   expect(() => assertDevelopmentAdmission(root, target, grant)).toThrow("repeated_full_qualification_failure");
 });
 
-it("J-MAN-02 focused admission cannot shrink its repaired cases, assignments, thresholds, or retry boundary", () => {
+it("J-MAN-02 focused admission cannot shrink its repaired or downstream cases, assignments, thresholds, or retry boundary", () => {
   const grant = fixtureGrant();
   const focused = preparedCampaign("focused-provider-admission-v1", "focused-provider-admission-v1-20260716-fixture", grant);
   expect(validateCampaign(focused)).toEqual([]);
-  expect(validateCampaign({ ...focused, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d1"] }] })).toContain("focused-admission profile must contain exactly quick mixed-q1, deep mixed-d1, and approval mixed-da in order");
-  expect(validateCampaign({ ...focused, assignments: focused.assignments.slice(0, 1) })).toContain("focused-admission profile must use the exact Phase 6 builder and reviewer assignments");
-  expect(validateCampaign({ ...focused, spend: { ...focused.spend, campaign_max_usd: 89 } })).toContain("focused-admission profile must retain the $88 campaign and exact $8/$40/$40 case ceilings");
+  expect(validateCampaign({ ...focused, cases: focused.cases.slice(0, 3) })).toContain("focused-admission profile must contain exactly quick mixed-q1, deep mixed-d1, approval mixed-da, and the three standing-role repetitions in order");
+  expect(validateCampaign({ ...focused, assignments: focused.assignments.slice(0, 2) })).toContain("focused-admission profile must use the exact Phase 6 builder, reviewer, SRE, Support, and Marketing assignments");
+  expect(validateCampaign({ ...focused, spend: { ...focused.spend, campaign_max_usd: 119 } })).toContain("focused-admission profile must retain the $118 campaign and exact $8/$40/$40/$30 case ceilings");
   expect(validateCampaign({ ...focused, infrastructure_retries: 0 })).toContain("focused-admission profile must retain one typed infrastructure retry");
 });
 

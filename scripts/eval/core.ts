@@ -441,16 +441,20 @@ export function validateCampaign(value: unknown): string[] {
       { case_id: "quick/ignore-config/v1", repetition_ids: ["mixed-q1"] },
       { case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d1"] },
       { case_id: "approval/semantics/v1", repetition_ids: ["mixed-da"] },
+      { case_id: "roles/standing/v1", repetition_ids: ["sre-1", "support-1", "marketing-1"] },
     ];
-    if (canonicalJson(v.cases) !== canonicalJson(expectedCases)) errors.push("focused-admission profile must contain exactly quick mixed-q1, deep mixed-d1, and approval mixed-da in order");
+    if (canonicalJson(v.cases) !== canonicalJson(expectedCases)) errors.push("focused-admission profile must contain exactly quick mixed-q1, deep mixed-d1, approval mixed-da, and the three standing-role repetitions in order");
     if (v.blocks !== undefined || v.soak !== undefined || v.learning_treatment !== undefined || v.learning_efficacy !== undefined) errors.push("focused-admission profile cannot declare qualification blocks, soak, or learning activation inputs");
     const expectedAssignments = [
       { role: "builder", runtime: "codex", model: "gpt-5.6-sol", effort: "high", capability_ref: "codex/v1" },
       { role: "reviewer", runtime: "claude", model: "claude-opus-4-8", effort: "high", capability_ref: "claude/v1" },
+      { role: "sre", runtime: "codex", model: "gpt-5.6-sol", effort: "medium", capability_ref: "codex/v1" },
+      { role: "support", runtime: "pi", model: "openai-codex/gpt-5.6-sol", effort: "medium", capability_ref: "pi/v1" },
+      { role: "marketing", runtime: "pi", model: "openai-codex/gpt-5.6-sol", effort: "medium", capability_ref: "pi/v1" },
     ];
-    if (canonicalJson(v.assignments) !== canonicalJson(expectedAssignments)) errors.push("focused-admission profile must use the exact Phase 6 builder and reviewer assignments");
+    if (canonicalJson(v.assignments) !== canonicalJson(expectedAssignments)) errors.push("focused-admission profile must use the exact Phase 6 builder, reviewer, SRE, Support, and Marketing assignments");
     if (record(routeBudgetOverrides?.deep)?.input_tokens !== 4_000_000) errors.push("focused-admission profile must retain the four-million-token deep-route ceiling");
-    if (spend?.campaign_max_usd !== 88 || canonicalJson(record(spend?.case_max_usd)) !== canonicalJson({ "quick/ignore-config/v1": 8, "deep/auth-migration/v1": 40, "approval/semantics/v1": 40 })) errors.push("focused-admission profile must retain the $88 campaign and exact $8/$40/$40 case ceilings");
+    if (spend?.campaign_max_usd !== 118 || canonicalJson(record(spend?.case_max_usd)) !== canonicalJson({ "quick/ignore-config/v1": 8, "deep/auth-migration/v1": 40, "approval/semantics/v1": 40, "roles/standing/v1": 30 })) errors.push("focused-admission profile must retain the $118 campaign and exact $8/$40/$40/$30 case ceilings");
     if (v.infrastructure_retries !== 1) errors.push("focused-admission profile must retain one typed infrastructure retry");
   }
   if (v.soak !== undefined) {

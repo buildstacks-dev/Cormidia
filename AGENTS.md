@@ -321,10 +321,13 @@ efficacy health independently. The mechanics construct no provider runtime.
   denominator with its original typed infrastructure/account cause; never
   coerce it to zero, retry it as a merit miss, or substitute a model.
   For a repaired provider behavior, run the smallest focused admission before
-  a full campaign. Preserve the first failure and its cause; do not use a full
-  qualification as the discovery loop. Standing development authorization,
-  cumulative equivalent-cost accounting, and new-decision boundaries are
-  defined only in `docs/development.md` and never apply to an operated org.
+  a full campaign, including downstream provider cases skipped by fail-fast.
+  Preserve the first failure and its cause; do not use a full qualification as
+  the discovery loop. Do not resample an aggregate learning experiment to seek
+  a favorable draw—replay deterministic verifier defects token-free instead.
+  Standing development authorization, cumulative equivalent-cost accounting,
+  and new-decision boundaries are defined only in `docs/development.md` and
+  never apply to an operated org.
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
 - `src/observe/**` or `src/cli/observe.ts` changes: also run `pnpm
   test:observe-browser`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack

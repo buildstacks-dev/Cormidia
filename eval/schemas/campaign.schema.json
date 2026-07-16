@@ -175,17 +175,21 @@
             "const": [
               { "case_id": "quick/ignore-config/v1", "repetition_ids": ["mixed-q1"] },
               { "case_id": "deep/auth-migration/v1", "repetition_ids": ["mixed-d1"] },
-              { "case_id": "approval/semantics/v1", "repetition_ids": ["mixed-da"] }
+              { "case_id": "approval/semantics/v1", "repetition_ids": ["mixed-da"] },
+              { "case_id": "roles/standing/v1", "repetition_ids": ["sre-1", "support-1", "marketing-1"] }
             ]
           },
           "assignments": {
             "const": [
               { "role": "builder", "runtime": "codex", "model": "gpt-5.6-sol", "effort": "high", "capability_ref": "codex/v1" },
-              { "role": "reviewer", "runtime": "claude", "model": "claude-opus-4-8", "effort": "high", "capability_ref": "claude/v1" }
+              { "role": "reviewer", "runtime": "claude", "model": "claude-opus-4-8", "effort": "high", "capability_ref": "claude/v1" },
+              { "role": "sre", "runtime": "codex", "model": "gpt-5.6-sol", "effort": "medium", "capability_ref": "codex/v1" },
+              { "role": "support", "runtime": "pi", "model": "openai-codex/gpt-5.6-sol", "effort": "medium", "capability_ref": "pi/v1" },
+              { "role": "marketing", "runtime": "pi", "model": "openai-codex/gpt-5.6-sol", "effort": "medium", "capability_ref": "pi/v1" }
             ]
           },
           "route_budget_overrides": { "const": { "deep": { "input_tokens": 4000000 } } },
-          "spend": { "const": { "campaign_max_usd": 88, "case_max_usd": { "quick/ignore-config/v1": 8, "deep/auth-migration/v1": 40, "approval/semantics/v1": 40 } } },
+          "spend": { "const": { "campaign_max_usd": 118, "case_max_usd": { "quick/ignore-config/v1": 8, "deep/auth-migration/v1": 40, "approval/semantics/v1": 40, "roles/standing/v1": 30 } } },
           "infrastructure_retries": { "const": 1 },
           "stop_rules": { "contains": { "const": "qualification_impossible_stops_campaign" } }
         },

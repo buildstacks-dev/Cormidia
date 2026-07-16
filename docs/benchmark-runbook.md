@@ -117,6 +117,17 @@ adds quick `mixed-q1` to focused admission ahead of the two review-boundary
 cases. Exact accounting and archive identity are in
 `research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`.
 
+The next candidate passed every one of its 30 executed attempts and stopped
+after the paired-learning block, before the virtual soak and standing roles,
+because the third treatment was reported as a tie. The artifact was explicitly
+causal and independently approved, but the deterministic lexical verifier
+recognized `cause` and not the ordinary inflection `causing`, assigning 1/2 to
+that component. The original campaign remains invalid. The repair recognizes
+ordinary causal morphology, pins the exact artifact as a token-free regression,
+and adds the three previously unrun standing roles to focused provider
+admission without adding another six-arm learning sample. Exact evidence is in
+`research/evals/2026-07-16-phase6-learning-scorer-candidate-invalid.md`.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

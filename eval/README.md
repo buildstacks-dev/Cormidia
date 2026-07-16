@@ -56,13 +56,18 @@ campaign.
   pi's tool-call extension). Provider prompts remain behavioral observations;
   a model declining to attempt a forbidden action cannot create a false miss.
 - `focused-provider-admission` is a non-qualification profile for the smallest
-  remaining provider uncertainty. Phase 6 currently fixes it to quick
-  `mixed-q1`, migration `mixed-d1`, and approval `mixed-da`: the latest
-  budget-carry failure plus the two repaired deep-review boundaries. It keeps
-  the unchanged builder/reviewer models, `$8`/`$40`/`$40` case thresholds,
-  hidden graders, four-million-token ceiling, and retry/safety/accounting rules. It skips L4
-  because it has no GitHub behavior to prove, stops after the first terminal
-  non-pass, and is structurally forbidden from contract promotion.
+  remaining provider uncertainty. Phase 6 fixes it to quick `mixed-q1`,
+  migration `mixed-d1`, approval `mixed-da`, and standing-role `sre-1`,
+  `support-1`, and `marketing-1`: the repaired delivery boundaries plus the
+  downstream provider cases the latest fail-fast candidate did not reach. It
+  keeps the unchanged Builder, Reviewer, SRE, Support, and Marketing models,
+  `$8`/`$40`/`$40`/`$30` case thresholds, hidden graders, four-million-token
+  ceiling, and retry/safety/accounting rules under a `$118` campaign ceiling.
+  It skips L4 because it has no GitHub behavior to prove, stops after the first
+  terminal non-pass, and is structurally forbidden from contract promotion.
+  Paired learning is not sampled again here: its one predeclared six-arm
+  experiment remains in final qualification, while deterministic verifier
+  defects are reproduced with retained artifacts in token-free tests.
 - `pnpm eval:soak -- --campaign <file>` previews L6 without mutation. Execution
   additionally requires `OPERON_EVAL_SOAK=1`, `--execute`, `--max-usd`, and an
   exact `--confirm`. The runner persists every five-minute tick, spreads only
@@ -149,7 +154,7 @@ pnpm eval:prepare -- --campaign adapter-harness-calibration --github-owner build
 pnpm eval:github -- --campaign <adapter-file> --repo buildstacks-dev/operon-eval-<adapter-id> --authorization "$AUTH"
 pnpm eval:live -- --campaign <adapter-file> --max-usd 15 --confirm <adapter-id> --authorization "$AUTH"
 pnpm eval:prepare -- --campaign focused-provider-admission --github-owner buildstacks-dev --authorization "$AUTH"
-pnpm eval:live -- --campaign <focused-file> --max-usd 88 --confirm <focused-id> --authorization "$AUTH"
+pnpm eval:live -- --campaign <focused-file> --max-usd 118 --confirm <focused-id> --authorization "$AUTH"
 # Only after exact-candidate adapter and focused admission pass:
 pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstacks-dev --authorization "$AUTH"
 pnpm eval:github -- --campaign <candidate-file> --repo buildstacks-dev/operon-eval-<candidate-id> --authorization "$AUTH"

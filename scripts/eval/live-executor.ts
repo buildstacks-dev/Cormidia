@@ -862,9 +862,12 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "").map((item) => item.trim()) : [];
 }
 
-function causalHypothesisScore(value: string): number {
+export function causalHypothesisScore(value: string): number {
   if (value === "") return 0;
-  const causal = /because|cause|driv|lead|result|hypothes|due to|therefore/i.test(value);
+  // Match ordinary grammatical forms of the causal terms. In particular,
+  // `causing` drops the trailing `e` from `cause`; treating it as non-causal
+  // made a semantically explicit, independently approved hypothesis score 1/2.
+  const causal = /because|\bcaus(?:e(?:s|d)?|ing|al(?:ly|ity)?|ation)\b|driv|lead|result|hypothes|due to|therefore/i.test(value);
   const falsifiable = /if|then|predict|measur|reduc|increas|decreas|fewer|more|rate|cycle|cost|latency|decision/i.test(value);
   return causal && falsifiable ? 2 : 1;
 }

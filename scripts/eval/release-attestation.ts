@@ -218,7 +218,14 @@ function verifyEvaluatorRepairs(
   const authorizationPath = resolve(root, repairs.authorization.path);
   if (repairs.authorization.path !== EVALUATOR_REPAIR_AUTHORIZATION_PATH || !existsSync(authorizationPath) || repositoryRelative(root, authorizationPath) !== repairs.authorization.path || digest(hashFile(authorizationPath)) !== repairs.authorization.sha256) throw new Error("release_attestation_evaluator_authorization_mismatch");
   const authorization = JSON.parse(readFileSync(authorizationPath, "utf8")) as EvaluatorRepairAuthorization;
-  validateEvaluatorRepairAuthorization(root, campaign, authorization, attestation.release_package_sha256, releaseSuiteSha256);
+  validateEvaluatorRepairAuthorization(
+    root,
+    campaign,
+    authorization,
+    attestation.release_package_sha256,
+    releaseSuiteSha256,
+    Object.keys(attestation.promotion_files).filter(executableSuitePath),
+  );
   const expected: ProportionateEvaluatorRepairs = {
     authorization: repairs.authorization,
     qualified_executable_suite_sha256: campaign.candidate.executable_suite_sha256!,
@@ -235,13 +242,18 @@ function validateEvaluatorRepairAuthorization(
   value: EvaluatorRepairAuthorization,
   releasePackageSha256: string,
   releaseSuiteSha256: string,
+  observedSuitePaths?: string[],
 ): void {
   const exactKeys = ["schema_version", "evidence_kind", "authorization_id", "campaign_id", "campaign_sha256", "candidate_commit", "qualified_executable_suite_sha256", "release_executable_suite_sha256", "release_package_sha256", "material_impact", "repair_files", "rationale"].sort();
   if (!value || typeof value !== "object" || Object.keys(value).sort().join("\0") !== exactKeys.join("\0") || value.schema_version !== 1 || value.evidence_kind !== "phase6-proportionate-evaluator-repair-authorization" || value.material_impact !== "evaluator_only") throw new Error("release_attestation_evaluator_authorization_invalid");
   if (campaign.development_authorization?.authorization_id !== "phase6-efficiency-qualification-20260716-proportionate-release" || value.authorization_id !== campaign.development_authorization.authorization_id) throw new Error("release_attestation_evaluator_authorization_scope_mismatch");
   if (value.campaign_id !== campaign.campaign_id || value.campaign_sha256 !== hashManifest(campaign) || value.candidate_commit !== campaign.candidate.commit || value.qualified_executable_suite_sha256 !== campaign.candidate.executable_suite_sha256 || value.release_executable_suite_sha256 !== releaseSuiteSha256 || value.release_package_sha256 !== releasePackageSha256 || value.release_package_sha256 !== campaign.candidate.release_package_sha256 || typeof value.rationale !== "string" || value.rationale.trim() === "") throw new Error("release_attestation_evaluator_authorization_binding_mismatch");
   const repairPaths = Object.keys(value.repair_files ?? {}).sort();
-  const changedSuitePaths = changedPaths(root, campaign.candidate.commit).filter(executableSuitePath).sort();
+  // Creation has the candidate commit and derives this set from git. A shallow
+  // CI verifier may not have that ancestor; its attestation promotion_files
+  // are already content-bound, so use their executable-suite subset while the
+  // complete release-suite hash and every repair-file hash remain mandatory.
+  const changedSuitePaths = (observedSuitePaths ?? changedPaths(root, campaign.candidate.commit).filter(executableSuitePath)).sort();
   if (repairPaths.length === 0 || canonicalJson(repairPaths) !== canonicalJson(changedSuitePaths) || repairPaths.some((path) => !ALLOWED_PROPORTIONATE_REPAIR_PATHS.has(path))) throw new Error("release_attestation_evaluator_repair_paths_mismatch");
   for (const [path, expected] of Object.entries(value.repair_files)) {
     const absolute = resolve(root, path);

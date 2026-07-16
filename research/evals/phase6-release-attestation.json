@@ -21,12 +21,12 @@
   "proportionate_evaluator_repairs": {
     "authorization": {
       "path": "research/evals/phase6-evaluator-repair-authorization.json",
-      "sha256": "sha256:9209c994d1752369ef2f647df66544caf23823efca9c59162fcbeddaf0334d85"
+      "sha256": "sha256:b61ee15d7e72008936828fb9f4e9f4dd40d51240c526b41db9e02e64295da95b"
     },
     "qualified_executable_suite_sha256": "sha256:6a057dd4aca41a74e3071b212faf2e0f7136a25c853d43feb3382dd02d417857",
-    "release_executable_suite_sha256": "sha256:98b50255f900a45cb6b8b8ce6cb4a7cbcc955c97354bab04782eb479f868b72a",
+    "release_executable_suite_sha256": "sha256:87b4b6503ea2fb2af11a6a4214bdac902942129f1a66add2e7c5f86f72a46889",
     "files": {
-      "scripts/eval/release-attestation.ts": "sha256:c4e2e433903d528cd55c415a8e4d42e0f5a32533592ca2db0f05897edd19fabe",
+      "scripts/eval/release-attestation.ts": "sha256:758b51c1fc74a6149710d11689403597fb18c6c1e4b1aa68c647c546968d9e0d",
       "test/transformation/qualification-scope.test.ts": "sha256:6d796e2d7ec3e4da2810a3e8e630e068e71f0ded7df965110e2d8b976c6219c7"
     }
   },
@@ -171,9 +171,9 @@
     "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/results/standard-slug-options-v1-mixed-s1.json": "sha256:be751406d016a7ef171bf4842119321e3b225550e8521220a359093fda8d87a4",
     "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/results/standard-slug-options-v1-mixed-s2.json": "sha256:5b5faa270d63c9348d7024f38d7f7c3d1cb7541fe73cff8fc64a9e8f21c87b02",
     "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/results/standard-slug-options-v1-mixed-s3.json": "sha256:61b7361db6b13d4b8fd2a4467aff35069a6eee4c146bb12157dac4ca2bfe334d",
-    "research/evals/phase6-evaluator-repair-authorization.json": "sha256:9209c994d1752369ef2f647df66544caf23823efca9c59162fcbeddaf0334d85",
-    "scripts/eval/release-attestation.ts": "sha256:c4e2e433903d528cd55c415a8e4d42e0f5a32533592ca2db0f05897edd19fabe",
+    "research/evals/phase6-evaluator-repair-authorization.json": "sha256:b61ee15d7e72008936828fb9f4e9f4dd40d51240c526b41db9e02e64295da95b",
+    "scripts/eval/release-attestation.ts": "sha256:758b51c1fc74a6149710d11689403597fb18c6c1e4b1aa68c647c546968d9e0d",
     "test/transformation/qualification-scope.test.ts": "sha256:6d796e2d7ec3e4da2810a3e8e630e068e71f0ded7df965110e2d8b976c6219c7"
   },
-  "promotion_paths_sha256": "sha256:765a12c56c5ba34b6d70bff0bd4931696089ff671db3fbc982a90abc1f45a9c8"
+  "promotion_paths_sha256": "sha256:670e9805b1284a542763ca194c176f2dee0e29f7b1c798a671ba2a3010fd0b67"
 }

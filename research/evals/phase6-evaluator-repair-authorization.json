@@ -6,11 +6,11 @@
   "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
   "candidate_commit": "c6834cf0c545e2610cbaf1de52a928ddc6c58c68",
   "qualified_executable_suite_sha256": "sha256:6a057dd4aca41a74e3071b212faf2e0f7136a25c853d43feb3382dd02d417857",
-  "release_executable_suite_sha256": "sha256:98b50255f900a45cb6b8b8ce6cb4a7cbcc955c97354bab04782eb479f868b72a",
+  "release_executable_suite_sha256": "sha256:87b4b6503ea2fb2af11a6a4214bdac902942129f1a66add2e7c5f86f72a46889",
   "release_package_sha256": "sha256:6e45e2be665af2158e0b99736f36812feed473386513a9de9a120ad168545e9d",
   "material_impact": "evaluator_only",
   "repair_files": {
-    "scripts/eval/release-attestation.ts": "sha256:c4e2e433903d528cd55c415a8e4d42e0f5a32533592ca2db0f05897edd19fabe",
+    "scripts/eval/release-attestation.ts": "sha256:758b51c1fc74a6149710d11689403597fb18c6c1e4b1aa68c647c546968d9e0d",
     "test/transformation/qualification-scope.test.ts": "sha256:6d796e2d7ec3e4da2810a3e8e630e068e71f0ded7df965110e2d8b976c6219c7"
   },
   "rationale": "Content-bind the post-qualification attestation path and the stale pre-promotion strict-state assertion without changing product, graders, cases, thresholds, safety, accounting, learning rules, provider assignments, or release-package bytes."

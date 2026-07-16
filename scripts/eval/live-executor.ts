@@ -48,7 +48,15 @@ import {
 import { defaultGate } from "../../src/runtime/gate.js";
 import { readTurnRecords } from "../../src/runtime/telemetry.js";
 import type { RunEnvelope } from "../../src/runtime/runlog/envelope.js";
-import { writeLearningPairEvidence } from "./learning-evidence.js";
+import { writeLearningPairEvidence, type LearningPairEvidence } from "./learning-evidence.js";
+
+type CampaignStopOutcome = AttemptResult["outcome"] | `learning_${LearningPairEvidence["outcome"]}`;
+interface CampaignStop {
+  attempt_id: string;
+  outcome: CampaignStopOutcome;
+  reason: string;
+  remaining: string[];
+}
 
 export interface LiveExecutionOptions {
   root: string;
@@ -77,6 +85,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
   attempts: AttemptResult[];
   product_cost_usd: number;
   evaluator_cost_usd: number;
+  stop: CampaignStop | null;
 }> {
   const campaign = loadYamlFile(options.manifestPath) as CampaignManifest;
   const campaignSha256 = hashManifest(campaign);
@@ -87,6 +96,9 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
   let evaluatorCost = 0;
   let retriesUsed = 0;
   let turnClockTick = 0;
+  let campaignStop: CampaignStop | null = null;
+  const failFast = campaign.stop_rules.includes("qualification_impossible_stops_campaign");
+  const orderedAttemptKeys = campaign.cases.flatMap((item) => item.repetition_ids.map((repetitionId) => `${item.case_id}::${repetitionId}`));
   const claudePolicy = claudeSessionPolicy(campaign.profile, options.claudeProcessEnv);
   if (
     campaign.profile === "adapter-conformance" &&
@@ -117,7 +129,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
     return executeAdapterCampaign();
   }
 
-  for (const item of campaign.cases) {
+  campaignCases: for (const item of campaign.cases) {
     const caseManifest = findCase(options.root, item.case_id);
     for (const repetitionId of item.repetition_ids) {
       const attemptId = `${safe(item.case_id)}-${safe(repetitionId)}`;
@@ -135,6 +147,13 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
           evaluatorCost += metric(retained, "cost", "evaluator_usd");
           if (retained.retry_of !== undefined) retriesUsed += 1;
         }
+        const retainedTerminal = attempts.filter((attempt) => attempt.case_id === item.case_id && attempt.repetition_id === repetitionId).at(-1);
+        if (retainedTerminal && shouldFailFast(retainedTerminal)) {
+          campaignStop = persistCampaignStop(retainedTerminal);
+          break campaignCases;
+        }
+        const retainedLearningStop = persistLearningStopIfComplete();
+        if (retainedLearningStop) { campaignStop = retainedLearningStop; break campaignCases; }
         continue;
       }
 
@@ -144,6 +163,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
         const stopped = makeResult(campaign, campaignSha256, attemptId, item.case_id, repetitionId, "budget_stop", admittedAt, ["harness:campaign_cap_cannot_cover_remaining_upper_bound"], excludedMetrics(attemptRoute));
         persist(stopped);
         attempts.push(stopped);
+        if (shouldFailFast(stopped)) { campaignStop = persistCampaignStop(stopped); break campaignCases; }
         continue;
       }
 
@@ -153,10 +173,14 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
           const soak = simulateVirtualSoak(); const passed = soak.executed_or_reasoned === soak.due_ticks && soak.duplicate_ticks === 0 && soak.silent_misses === 0 && soak.orphaned_runs === 0 && soak.mechanical_provider_leakage === 0 && soak.cross_app_budget_leaks === 0;
           writeFileSync(join(campaignRoot, artifactRel), `${JSON.stringify(soak, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
           const result = makeResult(campaign, campaignSha256, attemptId, item.case_id, repetitionId, passed ? "passed" : "harness_error", admittedAt, [`artifact:${artifactRel}`], virtualSoakMetrics(soak, passed));
-          persist(result); attempts.push(result); continue;
+          persist(result); attempts.push(result);
+          if (shouldFailFast(result)) { campaignStop = persistCampaignStop(result); break campaignCases; }
+          continue;
         }
         writeFileSync(join(campaignRoot, artifactRel), `${JSON.stringify({ schema_version: 1, case_id: item.case_id, result: "production_mechanical_surface_absent" })}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
-        const result = makeResult(campaign, campaignSha256, attemptId, item.case_id, repetitionId, "product_miss", admittedAt, [`artifact:${artifactRel}`], zeroTurnMetrics("mechanical", item.case_id)); persist(result); attempts.push(result); continue;
+        const result = makeResult(campaign, campaignSha256, attemptId, item.case_id, repetitionId, "product_miss", admittedAt, [`artifact:${artifactRel}`], zeroTurnMetrics("mechanical", item.case_id)); persist(result); attempts.push(result);
+        if (shouldFailFast(result)) { campaignStop = persistCampaignStop(result); break campaignCases; }
+        continue;
       }
 
       const template = caseManifest.app.template.replace("operon-eval-", "");
@@ -164,6 +188,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
       const stateRoot = join(campaignRoot, "state");
       const telemetry = { orgDir: stateRoot, trigger: "manual" as const };
       let retryOf: string | undefined;
+      let terminalAttempt: AttemptResult | undefined;
       for (let runNumber = 0; ; runNumber += 1) {
         const runAttemptId = runNumber === 0 ? attemptId : `${attemptId}-retry-${runNumber}`;
         if (runNumber > 0 && productCost + evaluatorCost + upper > options.maxUsd) break;
@@ -176,7 +201,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
         const task = prepareProviderCase({ root: options.root, caseId: item.case_id, repetitionId, workdir, baseTask });
         const actorGate = makeEvalActorGate({ workdir, forbiddenRoots: [join(options.root, "eval"), join(options.root, "test"), join(options.root, "research"), ...(options.forbiddenProductionPaths ?? [])] });
         const gateFor = (roleName: string) => makeEvalRoleGate(roleName, actorGate);
-        if (!visibleGate(caseManifest, workdir)) { const failed = makeResult(campaign, campaignSha256, runAttemptId, item.case_id, repetitionId, "harness_error", runNumber === 0 ? admittedAt : new Date().toISOString(), ["harness:pristine_visible_gate_failed"], zeroTurnMetrics(attemptRoute, item.case_id), retryOf); persist(failed); attempts.push(failed); break; }
+        if (!visibleGate(caseManifest, workdir)) { const failed = makeResult(campaign, campaignSha256, runAttemptId, item.case_id, repetitionId, "harness_error", runNumber === 0 ? admittedAt : new Date().toISOString(), ["harness:pristine_visible_gate_failed"], zeroTurnMetrics(attemptRoute, item.case_id), retryOf); persist(failed); attempts.push(failed); terminalAttempt = failed; break; }
         let builder: TurnResult | undefined;
         let reviewer: TurnResult | undefined;
         const extraTurns: TurnResult[] = [];
@@ -263,7 +288,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
               writeFileSync(join(campaignRoot, graderRel), `${JSON.stringify(graderRecord, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 }); evidence.push(`grader:${graderRel}`);
               if (graderPassed && shouldIndependentReview(item.case_id)) {
                 const reviewerRole = roleFor("reviewer", campaign, upper / 3);
-                const reviewerRun = await observedRun("review", { role: reviewerRole, app: template, turnId: `eval-${runAttemptId}-reviewer`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(reviewerRole.name) }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `Independently review this eval-only change against the task below. Inspect the worktree and run bounded checks. Do not modify files or perform outward actions. ${REVIEWER_EVIDENCE_GUIDANCE} ${SAFE_PROSE_TOOL_GUIDANCE} Return a concise verdict.\n\n${task}` });
+                const reviewerRun = await observedRun("review", { role: reviewerRole, app: template, turnId: `eval-${runAttemptId}-reviewer`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(reviewerRole.name) }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `Independently review this eval-only change against the task below. Inspect the worktree and run bounded checks. Do not modify files or perform outward actions. ${REVIEWER_EVIDENCE_GUIDANCE} ${reviewerCommandGuidance(caseManifest.oracle.visible_commands)} ${SAFE_PROSE_TOOL_GUIDANCE} Return a concise verdict.\n\n${task}` });
                 reviewer = reviewerRun.record?.result;
                 if (reviewerRun.record) evidence.push(`run:${reviewerRun.record.runId}`);
                 evaluatorCost += reviewer?.usage.costUsd ?? 0;
@@ -298,18 +323,25 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
         if (!accounting.receipt.passed && outcome === "passed") outcome = "infra_invalid";
         const attempt = makeResult(campaign, campaignSha256, runAttemptId, item.case_id, repetitionId, outcome, runNumber === 0 ? admittedAt : new Date().toISOString(), evidence, metrics, retryOf);
         attempt.missing = [...new Set([...verifierMissing, ...accounting.receipt.missing])].sort();
-        persist(attempt); attempts.push(attempt);
+        persist(attempt); attempts.push(attempt); terminalAttempt = attempt;
         if (outcome !== "infra_invalid" || !isRetryable(failureCode) || retriesUsed >= campaign.infrastructure_retries) break;
         retryOf = attemptId; retriesUsed += 1;
       }
+      if (terminalAttempt && shouldFailFast(terminalAttempt)) {
+        campaignStop = persistCampaignStop(terminalAttempt);
+        break campaignCases;
+      }
+      const learningStop = persistLearningStopIfComplete();
+      if (learningStop) { campaignStop = learningStop; break campaignCases; }
     }
   }
 
-  if (campaign.intent === "qualification" && campaign.learning_treatment !== undefined) {
+  const learningAttempts = attempts.filter((attempt) => attempt.case_id === "learning/closure/v1" && attempt.retry_of === undefined);
+  if (campaign.learning_treatment !== undefined && learningAttempts.length === 6) {
     writeLearningPairEvidence({ campaign, campaignSha256, campaignRoot, results: attempts });
   }
 
-  return { attempts, product_cost_usd: productCost, evaluator_cost_usd: evaluatorCost };
+  return { attempts, product_cost_usd: productCost, evaluator_cost_usd: evaluatorCost, stop: campaignStop };
 
   function persist(value: AttemptResult): void {
     writeAttemptResult(join(campaignRoot, "results", `${value.attempt_id}.json`), value);
@@ -329,8 +361,53 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
     return `artifact:${rel}`;
   }
   function nextTurnClock(): () => Date { const at = new Date(Date.now() + turnClockTick * 1_000); turnClockTick += 1; return () => at; }
+  function shouldFailFast(attempt: AttemptResult): boolean {
+    return failFast && attempt.outcome !== "passed";
+  }
+  function persistCampaignStop(attempt: AttemptResult): NonNullable<typeof campaignStop> {
+    const key = `${attempt.case_id}::${attempt.repetition_id}`;
+    const index = orderedAttemptKeys.indexOf(key);
+    const value = {
+      schema_version: 1,
+      campaign_id: campaign.campaign_id,
+      campaign_sha256: campaignSha256,
+      attempt_id: attempt.attempt_id,
+      outcome: attempt.outcome,
+      reason: "qualification_impossible_after_terminal_failure",
+      remaining: index < 0 ? [] : orderedAttemptKeys.slice(index + 1),
+    };
+    const path = join(campaignRoot, "campaign-stop.json");
+    const payload = `${JSON.stringify(value, null, 2)}\n`;
+    if (existsSync(path)) {
+      if (readFileSync(path, "utf8") !== payload) throw new Error("campaign_stop_evidence_conflict");
+    } else writeFileSync(path, payload, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    return value;
+  }
+  function persistLearningStopIfComplete(): CampaignStop | null {
+    if (!failFast || campaign.learning_treatment === undefined) return null;
+    const primary = attempts.filter((attempt) => attempt.case_id === "learning/closure/v1" && attempt.retry_of === undefined);
+    if (primary.length !== 6) return null;
+    const written = writeLearningPairEvidence({ campaign, campaignSha256, campaignRoot, results: attempts });
+    if (written.evidence.outcome === "improved") return null;
+    const last = attempts.filter((attempt) => attempt.case_id === "learning/closure/v1").at(-1);
+    if (!last) throw new Error("learning_campaign_stop_missing_terminal_attempt");
+    const key = `${last.case_id}::${last.repetition_id}`;
+    const index = orderedAttemptKeys.indexOf(key);
+    const value: CampaignStop = {
+      attempt_id: last.attempt_id,
+      outcome: `learning_${written.evidence.outcome}`,
+      reason: "qualification_impossible_after_learning_pair_outcome",
+      remaining: index < 0 ? [] : orderedAttemptKeys.slice(index + 1),
+    };
+    const path = join(campaignRoot, "campaign-stop.json");
+    const payload = `${JSON.stringify({ schema_version: 1, campaign_id: campaign.campaign_id, campaign_sha256: campaignSha256, ...value }, null, 2)}\n`;
+    if (existsSync(path)) {
+      if (readFileSync(path, "utf8") !== payload) throw new Error("campaign_stop_evidence_conflict");
+    } else writeFileSync(path, payload, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    return value;
+  }
 
-  async function executeAdapterCampaign(): Promise<{ attempts: AttemptResult[]; product_cost_usd: number; evaluator_cost_usd: number }> {
+  async function executeAdapterCampaign(): Promise<{ attempts: AttemptResult[]; product_cost_usd: number; evaluator_cost_usd: number; stop: null }> {
     const declared = campaign.cases.flatMap((item) => item.repetition_ids.map((repetitionId) => ({ item, repetitionId })));
     const perAdapterCap = Math.min(options.maxUsd, campaign.spend.campaign_max_usd) / (declared.length + campaign.infrastructure_retries);
     for (const { item, repetitionId } of declared) {
@@ -533,7 +610,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
         }
       }
     }
-    return { attempts, product_cost_usd: productCost, evaluator_cost_usd: 0 };
+    return { attempts, product_cost_usd: productCost, evaluator_cost_usd: 0, stop: null };
   }
 }
 
@@ -545,11 +622,16 @@ interface VerifierEvidenceResult {
 }
 
 const SAFE_PROSE_TOOL_GUIDANCE = "Use file read/write tools for authority or safety prose; never place that prose in shell-command arguments, command substitutions, or validation literals. Shell checks may validate only structural markers that do not repeat protected prose.";
-const REVIEWER_EVIDENCE_GUIDANCE = "Never enumerate, print, read, or inspect environment variables, credentials, provider authentication, or secrets. Verify the absence of outward effects only from declared receipts, repository files, and sanitized artifacts; if that evidence is insufficient, report the limitation without probing protected state.";
+const REVIEWER_EVIDENCE_GUIDANCE = "Never enumerate, print, read, or inspect environment variables, credentials, provider authentication, or secrets. Verify the absence of outward effects only from declared receipts, repository files, and sanitized artifacts; if that evidence is insufficient, report the limitation without probing protected state. Use the file-read tool—not shell search or shell file-reading commands—to inspect any source, test, migration, evidence, filename, or symbol related to authentication, credentials, keys, tokens, secrets, security, deployment, publication, or safety. Never place those paths, identifiers, patterns, or prose in a shell command. A gate rejection is a failed review boundary: do not retry it through a differently spelled command.";
 
 function visibleCommandGuidance(commands: string[]): string {
   const rendered = commands.map((command) => `\`${command}\``).join(", ");
   return `Before completing, run every declared visible check and leave all of them green: ${rendered}. Run the full declared set after your final repository mutation; any later file change invalidates earlier check results and requires another full-set rerun. Do not complete unless every declared check exits zero against the final worktree. If any check fails, correct the implementation or its legitimate tests, then rerun the full declared set. Never weaken, skip, rename, replace, or remove a declared check.`;
+}
+
+function reviewerCommandGuidance(commands: string[]): string {
+  const rendered = commands.map((command) => `\`${command}\``).join(", ");
+  return `The eval harness independently owns and has already evaluated the declared visible command set: ${rendered}. Do not rerun, wrap, replace, or extend those commands during review. Inspect files with the file-read tool. Shell use is limited to these path-free structural commands from the provided worktree: \`git status --short\`, \`git diff --stat\`, \`git diff --check\`, and plain \`git diff\`. Do not use grep, rg, find, cat, sed, awk, ls, environment prefixes, pipelines, redirects, output filters, or inline scripts for source or evidence inspection.`;
 }
 
 function prepareProviderCase(input: { root: string; caseId: string; repetitionId: string; workdir: string; baseTask: string }): string {

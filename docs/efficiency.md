@@ -268,15 +268,41 @@ original attempt; merit failures are never retried under one attempt identity.
 | Full candidate qualification | $375 |
 | Real-time soak | Separately declared and ratified |
 
-Caps are not standing spend authority. Live execution additionally requires
-`OPERON_EVAL_LIVE=1`, validated immutable campaign identity, explicit
-`--max-usd`, exact `--confirm <campaign-id>`, non-billable readiness, disposable
-GitHub allowlist success, and production-path separation.
+A campaign template's cap is not authority by itself. Live execution requires
+either an exact campaign authorization or a content-bound standing development
+grant, plus `OPERON_EVAL_LIVE=1`, validated immutable campaign identity,
+explicit `--max-usd`, exact `--confirm <campaign-id>`, non-billable readiness,
+the applicable disposable-GitHub proof, and production-path separation. Under
+a standing grant, the environment switch and exact confirmation are accident
+guards supplied by the developer; the grant's cumulative lineage ceiling is
+the human authority.
 
 The baseline cap was amended from the initial $125 recommendation by the
 ratified `docs/efficiency-transformation/t4-baseline-cap-amendment.md`. Its
 Claude Max and ChatGPT Pro dollar values are equivalent-cost indicators rather
 than incremental API billing; per-case route bounds did not change.
+
+## Development qualification execution
+
+The platform-development lifecycle is separate from the org runtime and is
+defined canonically in [`docs/development.md`](development.md). A standing
+objective grant may cover repaired candidate descendants without repeated
+human approval, but it cannot cross into an operated org, production, outward
+effects, governed learning activation, or the future real-time soak.
+
+Long provider runs are release evidence, not the ordinary debugging loop. A
+failure is preserved and reproduced deterministically; remaining model
+uncertainty is admitted in the smallest non-promotable focused campaign. The
+same exact candidate must then pass adapter and focused admission before final
+qualification can begin. Focused and final campaigns retain thresholds,
+graders, assignments, retry rules, measurements, safety, and accounting, and
+stop at the first terminal non-pass. Promotion rejects focused evidence.
+
+Equivalent-cost accounting includes historical lineage cost and every
+immutable descendant attempt. It is a circuit breaker even when providers are
+subscription-backed. The current Phase 6 grant and its exact cumulative
+ceiling live under `eval/development-authorizations/`; this execution policy
+does not alter the qualification thresholds below.
 
 ## Phase 6 qualification scope
 

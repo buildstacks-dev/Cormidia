@@ -11,6 +11,7 @@ if (!manifestPath) throw new Error("usage: pnpm eval:learning-activation -- --ca
 const campaign = loadYamlFile(resolve(manifestPath)) as CampaignManifest;
 const errors = validateCampaign(campaign);
 if (errors.length > 0) throw new Error(`invalid_campaign:${errors.join(";")}`);
+if (campaign.intent !== "qualification" || campaign.profile === "focused-admission") throw new Error("learning_activation_qualification_campaign_required");
 const campaignSha256 = hashManifest(campaign);
 const campaignRoot = join(root, ".eval-artifacts", campaign.campaign_id);
 const preview = learningActivationPreview({ repositoryRoot: root, campaign, campaignSha256, campaignRoot });

@@ -19,7 +19,13 @@ Before any new comparable provider run, execute the token-free funnel
 (`pnpm eval:validate`, `pnpm test:transformation`, and
 `pnpm eval:deterministic`), prepare the exact campaign, and inspect the
 `eval:github` and `eval:live` previews. Adapter calibration precedes product
-episodes. L6 is not folded into an ordinary benchmark invocation:
+episodes. Platform-development authority is defined separately in
+[`development.md`](development.md): a matching standing objective grant may
+cover repaired campaign descendants, but each manifest, attempt, cumulative
+equivalent-cost ceiling, and zero-effect sandbox remains content-bound. A
+repaired provider boundary must pass its smallest non-promotable focused
+admission before one fail-fast full qualification. This policy never becomes
+authority for an operated org. L6 is not folded into an ordinary benchmark invocation:
 `pnpm eval:soak -- --campaign <prepared-file>` previews the separately
 authorized 48–72 hour runner, its useful-turn cap, and restart protocol.
 
@@ -90,6 +96,17 @@ archive, and corrections are recorded in
 `research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`. Covered
 bytes changed again, so both fresh campaign identities require new previews
 and authorization.
+
+The latest retained candidate is the 2026-07-16 review-boundary campaign: 32
+of 34 attempts passed. Migration `mixed-d1` and approval `mixed-da` each passed
+the visible and hidden product checks, but independent reviewer shell probes
+correctly crossed unchanged auth/protocol gates. Paired learning was complete
+but inconclusive at `+1,+2,0`. The correction restricts reviewers to file-read
+inspection plus path-free structural Git commands, focuses live admission on
+the two failed cases, and stops final execution immediately after any terminal
+miss or non-improved learning aggregate. Its exact accounting and archive
+hashes are in
+`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`.
 
 ## Targets (vs the 2026-07-10 episode)
 

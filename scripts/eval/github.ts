@@ -7,16 +7,24 @@ import { hashManifest, loadYamlFile, startCampaign, validateCampaign, verifyCamp
 import { assertPreparedCandidate } from "./candidate-hash.js";
 import { assertGitHubTarget } from "./safety.js";
 import { persistGitHubIdempotenceEvidence } from "./github-evidence.js";
+import { assertDevelopmentAdmission, assertDevelopmentAuthorization, loadDevelopmentAuthorization } from "./development-authorization.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const manifestPath = option("--campaign");
 const repoSlug = option("--repo");
 const execute = process.argv.includes("--execute");
 const confirm = option("--confirm");
-if (!manifestPath || !repoSlug || !repoSlug.includes("/")) throw new Error("usage: pnpm eval:github -- --campaign <prepared-file> --repo <owner/operon-eval-name> [--execute --confirm <campaign-id>]");
+const authorizationPath = option("--authorization");
+if (!manifestPath || !repoSlug || !repoSlug.includes("/")) throw new Error("usage: pnpm eval:github -- --campaign <prepared-file> --repo <owner/operon-eval-name> [--authorization <grant-file>] [--execute --confirm <campaign-id>]");
 const manifest = loadYamlFile(resolve(manifestPath)) as CampaignManifest;
 const errors = validateCampaign(manifest);
 if (errors.length > 0) throw new Error(`invalid_campaign: ${errors.join("; ")}`);
+if (manifest.profile === "focused-admission") throw new Error("focused_admission_github_forbidden");
+const authorization = authorizationPath === undefined ? undefined : loadDevelopmentAuthorization(resolve(authorizationPath));
+if (authorization !== undefined) assertDevelopmentAuthorization(manifest, authorization);
+if (manifest.development_authorization !== undefined && authorizationPath === undefined && execute) throw new Error("development_authorization_file_required");
+if (manifest.development_authorization === undefined && authorizationPath !== undefined) throw new Error("campaign_development_authorization_missing");
+const developmentAdmission = authorization === undefined ? null : assertDevelopmentAdmission(root, manifest, authorization);
 const [owner, repo] = repoSlug.split("/") as [string, string];
 assertGitHubTarget({ owner, repo, isPrivate: true }, manifest.github);
 const campaignSha256 = hashManifest(manifest);
@@ -30,6 +38,9 @@ const preview = {
   candidate: manifest.candidate,
   org_fingerprint: manifest.org_fingerprint,
   system_fingerprint: manifest.system_fingerprint,
+  development_authorization: manifest.development_authorization ?? null,
+  development_admission: developmentAdmission,
+  authorization_mode: manifest.development_authorization ? "standing-objective" : "exact-campaign",
   repo: repoSlug,
   branch,
   operations: [

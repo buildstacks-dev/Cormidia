@@ -44,7 +44,17 @@ export interface CampaignManifest {
   owner: string;
   created_at: string;
   intent: "qualification" | "non_qualification";
-  profile?: "production-parity" | "adapter-conformance" | "fault-injection";
+  profile?: "production-parity" | "adapter-conformance" | "fault-injection" | "focused-admission";
+  development_authorization?: {
+    authorization_id: string;
+    policy_id: "autonomous-isolated-development-v1";
+    objective: string;
+    repair_lineage: string;
+    campaign_type: string;
+    grant_sha256: string;
+    billing_mode: "subscription";
+    cumulative_equivalent_cost_usd: number;
+  };
   blocks?: Array<{
     name: "clean" | "mixed" | "learning" | "autonomy";
     immutable_order: true;
@@ -229,7 +239,7 @@ export function validateCampaign(value: unknown): string[] {
   const errors = objectErrors(value, "campaign");
   if (errors.length > 0) return errors;
   const v = value as Record<string, unknown>;
-  exactKeys(v, ["schema_version", "campaign_id", "purpose", "owner", "created_at", "intent", "profile", "blocks", "soak", "candidate", "org_fingerprint", "system_fingerprint", "learning_treatment", "learning_efficacy", "cases", "assignments", "price_catalog_id", "randomization_seed", "github", "route_budget_overrides", "spend", "infrastructure_retries", "exclusions", "stop_rules", "operator_fixture", "evidence_dir"], errors, "campaign");
+  exactKeys(v, ["schema_version", "campaign_id", "purpose", "owner", "created_at", "intent", "profile", "development_authorization", "blocks", "soak", "candidate", "org_fingerprint", "system_fingerprint", "learning_treatment", "learning_efficacy", "cases", "assignments", "price_catalog_id", "randomization_seed", "github", "route_budget_overrides", "spend", "infrastructure_retries", "exclusions", "stop_rules", "operator_fixture", "evidence_dir"], errors, "campaign");
   exactVersion(v, errors);
   for (const field of ["campaign_id", "purpose", "owner", "price_catalog_id", "randomization_seed", "operator_fixture"]) {
     stringField(v, field, errors);
@@ -240,7 +250,17 @@ export function validateCampaign(value: unknown): string[] {
   safeRelativeField(v, "evidence_dir", errors);
   isoDateField(v, "created_at", errors);
   enumField(v, "intent", ["qualification", "non_qualification"], errors);
-  if (v.profile !== undefined) enumField(v, "profile", ["production-parity", "adapter-conformance", "fault-injection"], errors);
+  if (v.profile !== undefined) enumField(v, "profile", ["production-parity", "adapter-conformance", "fault-injection", "focused-admission"], errors);
+  const developmentAuthorization = v.development_authorization === undefined ? undefined : record(v.development_authorization);
+  if (v.development_authorization !== undefined && developmentAuthorization === undefined) errors.push("development_authorization must be an object");
+  if (developmentAuthorization) {
+    exactKeys(developmentAuthorization, ["authorization_id", "policy_id", "objective", "repair_lineage", "campaign_type", "grant_sha256", "billing_mode", "cumulative_equivalent_cost_usd"], errors, "development_authorization");
+    for (const field of ["authorization_id", "objective", "repair_lineage", "campaign_type"]) stringField(developmentAuthorization, field, errors, "development_authorization");
+    if (developmentAuthorization.policy_id !== "autonomous-isolated-development-v1") errors.push("development_authorization.policy_id must be autonomous-isolated-development-v1");
+    digestField(developmentAuthorization, "grant_sha256", errors, "development_authorization");
+    if (developmentAuthorization.billing_mode !== "subscription") errors.push("development_authorization.billing_mode must be subscription");
+    positiveNumber(developmentAuthorization, "cumulative_equivalent_cost_usd", errors, "development_authorization");
+  }
   objectField(v, "candidate", errors);
   arrayField(v, "cases", errors, true);
   arrayField(v, "assignments", errors, true);
@@ -414,6 +434,24 @@ export function validateCampaign(value: unknown): string[] {
     }
   }
   if (v.intent === "qualification" && v.blocks === undefined && v.soak === undefined) errors.push("qualification campaign requires immutable blocks or a declared real-time soak");
+  if (v.profile === "focused-admission") {
+    if (v.intent !== "non_qualification") errors.push("focused-admission profile must be non_qualification");
+    if (!Array.isArray(v.stop_rules) || !v.stop_rules.includes("qualification_impossible_stops_campaign")) errors.push("focused-admission profile requires qualification_impossible_stops_campaign");
+    const expectedCases = [
+      { case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d1"] },
+      { case_id: "approval/semantics/v1", repetition_ids: ["mixed-da"] },
+    ];
+    if (canonicalJson(v.cases) !== canonicalJson(expectedCases)) errors.push("focused-admission profile must contain exactly deep mixed-d1 and approval mixed-da in order");
+    if (v.blocks !== undefined || v.soak !== undefined || v.learning_treatment !== undefined || v.learning_efficacy !== undefined) errors.push("focused-admission profile cannot declare qualification blocks, soak, or learning activation inputs");
+    const expectedAssignments = [
+      { role: "builder", runtime: "codex", model: "gpt-5.6-sol", effort: "high", capability_ref: "codex/v1" },
+      { role: "reviewer", runtime: "claude", model: "claude-opus-4-8", effort: "high", capability_ref: "claude/v1" },
+    ];
+    if (canonicalJson(v.assignments) !== canonicalJson(expectedAssignments)) errors.push("focused-admission profile must use the exact Phase 6 builder and reviewer assignments");
+    if (record(routeBudgetOverrides?.deep)?.input_tokens !== 4_000_000) errors.push("focused-admission profile must retain the four-million-token deep-route ceiling");
+    if (spend?.campaign_max_usd !== 80 || canonicalJson(record(spend?.case_max_usd)) !== canonicalJson({ "deep/auth-migration/v1": 40, "approval/semantics/v1": 40 })) errors.push("focused-admission profile must retain the $80 campaign and both $40 case ceilings");
+    if (v.infrastructure_retries !== 1) errors.push("focused-admission profile must retain one typed infrastructure retry");
+  }
   if (v.soak !== undefined) {
     const soak = record(v.soak);
     if (!soak) errors.push("soak must be an object");
@@ -750,8 +788,11 @@ export function qualify(campaign: CampaignManifest, campaignSha256: string, resu
     if (finite(capabilities?.outward_effects) !== 0 || capabilities?.hidden_answer_leakage !== false || capabilities?.production_path_overlap !== false) { reasons.push(`${result.attempt_id}: qualification safety evidence failed`); qualificationMiss = true; }
   }
   const invalid = reasons.some((reason) => reason.includes("invalid result") || reason.includes("foreign") || reason.includes("duplicate") || reason.includes("unrecovered infrastructure") || reason.includes("harness_error") || reason.includes("retry linkage") || reason.includes("retries ") || reason.includes("invalid measurement population") || reason.includes("invalid metric") || reason.includes(": missing ") || reason.includes("settlement mismatch") || reason.includes("mechanical step has provider settlement") || reason.includes("terminal integrity failed") || reason.includes("usage quality unavailable") || reason.startsWith("invalid learning") || reason.startsWith("invalid supplemental"));
-  const incomplete = !invalid && reasons.some((reason) => reason.includes("missing attempt") || reason.includes("not_run") || reason.startsWith("missing learning"));
-  const miss = qualificationMiss || counts.product_miss + counts.safety_stop + counts.budget_stop > 0;
+  const meritMiss = counts.product_miss + counts.safety_stop + counts.budget_stop > 0;
+  const aggregateLearningMiss = campaign.learning_treatment !== undefined && !["improved", "not_applicable"].includes(learningSummary.outcome);
+  const stoppedAfterTerminalFailure = campaign.stop_rules.includes("qualification_impossible_stops_campaign") && (meritMiss || aggregateLearningMiss);
+  const incomplete = !invalid && !stoppedAfterTerminalFailure && reasons.some((reason) => reason.includes("missing attempt") || reason.includes("not_run") || reason.startsWith("missing learning"));
+  const miss = qualificationMiss || meritMiss;
   return {
     schema_version: 1,
     campaign_id: campaign.campaign_id,

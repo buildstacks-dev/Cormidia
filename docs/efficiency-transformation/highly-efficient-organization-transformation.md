@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phases 0–5 complete; the ratified Phase 6 current scope awaits fresh exact-candidate evidence, while `I-LIVE-01` remains a separate future campaign |
-| Evidence date | 2026-07-15 |
+| Status | Phases 0–5 complete; the ratified Phase 6 current scope awaits incremental exact-candidate admission, while `I-LIVE-01` remains a separate future campaign |
+| Evidence date | 2026-07-16 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
 | Benchmark app | `/Users/bikram/Build/buildstacks.dev` |
@@ -735,18 +735,33 @@ without changing thresholds, graders, denominators, or safety rules. The
 operator then explicitly reassigned every Phase 6 pi evaluation role to pi's
 exact `openai-codex/gpt-5.6-sol` model while leaving production `roles.yaml`
 untouched. This removes the third-party Claude extra-usage dependency but is a
-covered-byte assignment change, so the earlier prepared previews and
-authorizations are stale. Nine current-scope contracts remain known-red
-pending separately authorized fresh adapter admission and candidate
-qualification; `I-LIVE-01` separately remains future-required and known-red.
-The immutable retained record is
-`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`.
+covered-byte assignment change, so the earlier prepared previews and evidence
+identities are stale. Nine current-scope contracts remain known-red pending
+fresh adapter, focused, and final candidate admission under the bound
+development objective; `I-LIVE-01` separately remains future-required and
+known-red. The latest immutable retained record is
+`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`.
 The learning block now follows the separately ratified boundary: a predeclared
 content-hashed T1 procedure is present only on treatment arms, pair outcomes
 come from provider artifacts and hidden guardrails, and a measured improvement
 still needs a separate exact candidate/action-hash authorization for one
 isolated governed activation and rollback. L5 authorization alone cannot cross
 that boundary.
+
+The 2026-07-16 development-process ratification now separates building Operon
+from operating an Operon org and replaces repeated full-campaign discovery
+with exact-candidate adapter admission, focused non-promotable repair
+admission, and one fail-fast final qualification. The latest retained
+candidate had 32/34 passes; its two deep-routed misses were reviewer shell
+probes crossing the unchanged safety gate after the visible and hidden product
+checks had passed. The corrected reviewer boundary and focused cases are
+recorded in
+`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`.
+Standing objective authority survives repaired candidate identities inside its
+isolated zero-effect sandbox and cumulative circuit breaker; learning
+activation, production/outward effects, threshold changes, and the future soak
+remain new decisions. `docs/development.md` is the canonical developer policy
+and does not ship into the org runtime.
 
 ## 8. Required benchmark matrix
 

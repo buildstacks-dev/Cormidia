@@ -73,6 +73,7 @@ export function importSanitizedPromotionEvidence(options: {
   const campaign = parseYaml(readFileSync(campaignPath, "utf8")) as CampaignManifest;
   const campaignErrors = validateCampaign(campaign);
   if (campaignErrors.length > 0 || campaign.campaign_id !== archive.campaign_id || hashManifest(campaign) !== archive.campaign_sha256) throw new Error(`promotion_invalid_campaign:${campaignErrors.join(";")}`);
+  if (campaign.intent !== "qualification" || campaign.profile === "focused-admission") throw new Error("promotion_non_qualification_campaign_forbidden");
   const destination = resolve(options.destinationRoot ?? join(root, "research/evals/campaigns", campaign.campaign_id));
   if (existsSync(destination)) throw new Error("promotion_destination_exists");
   assertInside(root, destination);
@@ -128,6 +129,7 @@ export function writeContractEvidenceProjections(options: {
   const campaign = parseYaml(readFileSync(campaignPath, "utf8")) as CampaignManifest;
   const errors = validateCampaign(campaign);
   if (errors.length > 0) throw new Error(`promotion_invalid_campaign:${errors.join(";")}`);
+  if (campaign.intent !== "qualification" || campaign.profile === "focused-admission") throw new Error("promotion_non_qualification_campaign_forbidden");
   const campaignSha256 = hashManifest(campaign);
   const qualificationPath = exactlyOnePath(bundleRoot, /^qualification[^/]*\.json$/, "qualification");
   const reportPath = exactlyOnePath(bundleRoot, /^report[^/]*\.html$/, "report");

@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and production Phases 1–5 complete; corrected exact-candidate Phase 6 evidence is pending, and `I-LIVE-01` is a separately deferred future campaign |
-| Evidence date | 2026-07-15 |
+| Status | T0–T5 readiness and production Phases 1–5 complete; incremental exact-candidate Phase 6 admission is pending, and `I-LIVE-01` is a separately deferred future campaign |
+| Evidence date | 2026-07-16 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Production evidence only | `/Users/bikram/Build/Bikram-Org`, `/Users/bikram/Build/buildstacks.dev` |
@@ -75,6 +75,31 @@ Phase 6 gate.
 The L6 real-time soak path is implemented and tested as an explicitly
 authorized 48–72 hour boundary. It has not been executed and is not authorized
 by the work recorded here.
+
+### 2026-07-16 incremental qualification handoff
+
+The most recent exact candidate (`46617f1`) retained a qualified adapter
+campaign and an invalid 34-attempt candidate campaign: 32 passed; migration
+`mixed-d1` and approval `mixed-da` were red because independent reviewers used
+unnecessary shell probes that correctly crossed the unchanged auth/protocol
+safety gates. Both product artifacts, visible gates, and hidden graders passed.
+The complete accounting is 73 provider turns = 73 settlements, 2,016
+mechanical steps, zero mechanical settlements, $87.652728 product equivalent
+cost, and $8.360302 evaluator equivalent cost. Paired learning was complete
+but inconclusive at `+1,+2,0`. The immutable record is
+[`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`](../../research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md).
+
+The corrected developer lifecycle no longer uses full qualification as its
+debugging loop. Review command boundaries are adversarially pinned; the exact
+candidate must pass adapter admission and a non-promotable two-case focused
+provider admission before the one final full campaign. Final execution stops
+on the first terminal miss and immediately after a non-improved paired-learning
+aggregate, before later autonomy spend. A content-bound standing objective
+grant replaces repeated campaign-by-campaign approval while preserving exact
+identity, immutable attempts, a cumulative equivalent-cost circuit breaker,
+and all separately authorized learning/production/soak boundaries. The
+canonical platform policy is [`docs/development.md`](../development.md); it is
+excluded from and never grants authority to an operated Operon org.
 
 The historical adapter admission remains retained evidence, but Phase 6
 changes covered harness, grader, evaluator, candidate-hash, and package bytes.

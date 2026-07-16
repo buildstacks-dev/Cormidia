@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v2.2 — 2026-07-15. Human-ratified decision log. Keep this file high-level;
+*v2.3 — 2026-07-16. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -106,6 +106,24 @@ config file, not a fork.
     event or plausible candidate alone is not improvement.
 
 ## Decided
+
+- **Operon platform development is an independent control plane** (ratified
+  2026-07-16). Operon does not operate an org whose job is to build or maintain
+  Operon. Repository developer instructions, objective grants, eval artifacts,
+  CI/release authority, and learning remain outside every operated org; org
+  prompts, state, approvals, memory, budgets, scheduler, and learning never
+  authorize platform work. A human may authorize one bounded development
+  objective whose isolated repair descendants remain authorized across fresh
+  candidate identities. Subscription-backed equivalent USD is a cumulative
+  accounting and loop-detection ceiling, not incremental billing. Development
+  proceeds through deterministic reproduction and focused non-promotable
+  provider admission before one fail-fast full qualification. Fresh authority
+  is still required for scope/effect expansion, metered or unknown billing,
+  threshold or safety weakening, a raised ceiling, governed learning actions,
+  production/outward effects, reserved future campaigns, or the declared
+  repeated-full-run stop. `docs/development.md` is the canonical detailed
+  policy; developer-only files are excluded from the installable org-runtime
+  package.
 
 - **Phase 6 qualification scope and deferred real-time soak** (ratified
   2026-07-15). Phase 6 completion now covers exact-candidate adapter admission;

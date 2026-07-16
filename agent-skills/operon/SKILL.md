@@ -154,9 +154,8 @@ operon scheduler uninstall --execute --confirm <scheduler-id-or-exact-org-name>
 Never infer scheduler health from a definition file. `scheduler status` joins
 ownership/hash/cadence, loaded/active host-manager state, recent tick evidence,
 duplicates/orphans, and provider-settlement agreement. `doctor --config-only`
-cannot claim execution health. A real launchd/systemd mutation or 48–72 hour
-soak always needs separate explicit authorization; L6 preview is not execution
-evidence.
+cannot claim execution health. A real launchd/systemd mutation always needs
+separate explicit authorization.
 
 Interactive `operon plan <app>` hands the terminal to a live session and will
 hang a non-interactive run; headless planning must use
@@ -184,56 +183,20 @@ cluster survives policy caps; do not invoke the live form unless the human
 explicitly asks for a distillation run. Scheduled distiller/reviewer turns use
 the same ordinary ledger and learning-budget overlay as every provider turn.
 
-## Efficiency evaluation
+## Platform-development boundary
 
-The qualification suite under an Operon package checkout is a separate safety
-boundary from operating the active org. Token-free validation is safe:
+This packaged skill operates an org; it must not build or maintain Operon
+itself. Do not turn the Operon repository into an app managed by an Operon org,
+and do not use org authority, approvals, state, memory, learning, scheduler, or
+budgets as platform-development authority. Conversely, developer campaigns and
+CI evidence never authorize an org operation.
 
-```bash
-pnpm eval:validate
-pnpm test:transformation
-pnpm eval:deterministic
-```
-
-Never point an eval at the active org/state, a production app, or a mutable
-sandbox. External campaigns require a prepared content-hashed manifest, an
-allowlisted private `operon-eval-*` repo, the relevant environment switch,
-exact `--confirm <campaign-id>`, and an explicit human-authorized cap.
-`eval:live` must remain a preview unless the human authorized that exact
-campaign/repo/cap. Subscription-backed dollar values are equivalent-cost
-indicators, but token/turn/budget evidence is still retained. Qualify existing
-results with `pnpm eval:qualify`; it performs no provider turn or repair.
-Execution reruns the complete validator, production-path separation, pristine
-app gates, and non-billable readiness probes before any provider turn. Do not
-bypass a failed precheck or treat an old result bundle as compatible with a
-newer schema; retain it and prepare a new content-hashed campaign.
-The L6 runner is a separate boundary: preview with `pnpm eval:soak --
---campaign <prepared-file>`. Never execute it without explicit authorization
-for that exact 48–72 hour campaign, GitHub target, provider assignments, and
-cap; execution additionally requires `OPERON_EVAL_SOAK=1` and the exact
-confirmation. Preserve and archive terminal evidence before cleanup.
-
-Candidate L5 authorization never includes the paired-learning activation.
-After all three AB/BA/AB pairs have terminal provider artifacts and hidden
-guardrails, preview `pnpm eval:learning-activation -- --campaign
-<prepared-file>`. Proceed only after the human authorizes the exact reported
-candidate and action hashes. Execution requires
-`OPERON_EVAL_LEARNING_ACTIVATION=1`, `--execute`, `--confirm-campaign`,
-`--confirm-candidate`, and `--confirm-action`. It must record exactly one
-campaign-local governed activation and rollback, construct no provider, and
-touch no production path.
-
-After a terminal authorized campaign, keep raw evidence external. Run
-`eval:qualify` with both `--html` and `--json-out`, create and verify the
-schema-v2 archive, preview cleanup, then use `eval:import-evidence` to copy only
-the sanitized promotion slice. Update only the exact mapped contract states
-and final status documents, then run `eval:attest-release`; it must prove the
-complete evidence descendant's release package, executable eval suite, and org
-bytes still match the exact qualified candidate before `eval:promote` creates
-any contract projection. Never hand-
-create or copy a `passed` JSON, never promote from preview/partial evidence,
-and never use candidate qualification to promote the separately authorized
-L6 contract.
+If the user asks to change the Operon platform from its source repository,
+leave this operating workflow and follow that repository's root developer
+instructions and human-ratified development policy. Those developer-only
+instructions, eval tools, grants, raw evidence, and release workflow are
+intentionally not packaged with this skill. Never copy them into an org home
+or target app.
 
 ## Diagnose
 

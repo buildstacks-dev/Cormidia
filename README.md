@@ -356,10 +356,13 @@ cannot be promoted by virtual-soak or production-confirmation evidence, and is
 not current Phase 6 debt. The broader “highly efficient organization” claim
 remains reserved until the genuine future 48-hour campaign passes.
 
-Provider and disposable-GitHub campaigns are never implicit. Prepare a
-content-hashed manifest with `pnpm eval:prepare`; preview `eval:github` and
-`eval:live`; execute only with their environment switches, exact campaign
-confirmation, and human-authorized cap. `pnpm eval:qualify` is read-only over
+Provider and disposable-GitHub campaigns are never implicit. This is a source-
+repository developer workflow, not an Operon-org operation. A prepared
+content-hashed manifest binds either exact campaign authority or a standing
+developer-objective grant; environment switches and exact confirmations remain
+accident guards, while the grant enforces its cumulative equivalent-cost
+ceiling. Repaired candidates pass exact-candidate adapter and non-promotable
+focused admission before one fail-fast full qualification. `pnpm eval:qualify` is read-only over
 immutable attempt results. A passed campaign is archived before its sanitized
 promotion slice is imported with `eval:import-evidence`; `eval:attest-release`
 then proves installable-package and executable-suite bytes are unchanged, and
@@ -367,6 +370,9 @@ then proves installable-package and executable-suite bytes are unchanged, and
 unbound local `passed` JSON cannot promote a contract. See
 [`eval/README.md`](eval/README.md) and the
 canonical [`docs/efficiency.md`](docs/efficiency.md).
+The independent control-plane boundary and incremental workflow are canonical
+in the repository-only [`docs/development.md`](docs/development.md); those
+developer instructions and grants never become authority for an operated org.
 
 The Phase 6 learning block uses a predeclared content-hashed T1 treatment only
 on treatment arms and derives all paired outcomes from provider artifacts and
@@ -383,6 +389,9 @@ and
 [`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`](research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md),
 then the scope-split candidate and its valid adapter admission are recorded in
 [`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`](research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md).
+The latest 32/34 review-boundary failure and the focused-admission correction
+are recorded in
+[`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`](research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md).
 
 The Live UI browser suite uses a dev-only Playwright dependency and local
 Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real

@@ -38,8 +38,9 @@ campaign.
   executable-evidence map.
 - `pnpm eval:deterministic` runs L0–L3 without providers or external GitHub.
 - `pnpm eval:github` is the explicit L4 disposable-GitHub harness.
-- `pnpm eval:live -- --campaign <file> --max-usd <n> --confirm <id>` is the
-  provider campaign entrypoint. Adapter-conformance campaigns exercise all
+- `pnpm eval:live -- --campaign <file> --max-usd <n> --confirm <id>
+  [--authorization <standing-grant>]` is the provider campaign entrypoint.
+  Adapter-conformance campaigns exercise all
   configured runtimes before product episodes. Both calibration scenarios and
   product attempts use Operon's ordinary pass executor, six-file run records,
   gate, progress checkpoints, and exactly-once ledger. Every calibration
@@ -54,6 +55,13 @@ campaign.
   interception point (Claude PreToolUse, the Codex hook subprocess/socket, and
   pi's tool-call extension). Provider prompts remain behavioral observations;
   a model declining to attempt a forbidden action cannot create a false miss.
+- `focused-provider-admission` is a non-qualification profile for the smallest
+  remaining provider uncertainty. Phase 6 fixes it to migration `mixed-d1`
+  and approval `mixed-da`, the two latest deep-routed review failures,
+  with the unchanged builder/reviewer models, thresholds, hidden graders,
+  four-million-token ceiling, and retry/safety/accounting rules. It skips L4
+  because it has no GitHub behavior to prove, stops after the first terminal
+  non-pass, and is structurally forbidden from contract promotion.
 - `pnpm eval:soak -- --campaign <file>` previews L6 without mutation. Execution
   additionally requires `OPERON_EVAL_SOAK=1`, `--execute`, `--max-usd`, and an
   exact `--confirm`. The runner persists every five-minute tick, spreads only
@@ -132,17 +140,30 @@ and adversarial mutants pin plausible near misses independently.
 Preparation and every preview are non-billable and do not mutate GitHub:
 
 ```bash
+AUTH=eval/development-authorizations/phase6-efficiency-qualification-20260716.yaml
 pnpm eval:validate
 pnpm test:transformation
 pnpm eval:deterministic
-pnpm eval:prepare -- --campaign <template> --github-owner <exact-owner>
-pnpm eval:github -- --campaign <prepared-file> --repo <exact-owner>/operon-eval-<name>
-pnpm eval:live -- --campaign <prepared-file> --max-usd <cap> --confirm <exact-campaign-id>
+pnpm eval:prepare -- --campaign adapter-harness-calibration --github-owner buildstacks-dev --authorization "$AUTH"
+pnpm eval:github -- --campaign <adapter-file> --repo buildstacks-dev/operon-eval-<adapter-id> --authorization "$AUTH"
+pnpm eval:live -- --campaign <adapter-file> --max-usd 15 --confirm <adapter-id> --authorization "$AUTH"
+pnpm eval:prepare -- --campaign focused-provider-admission --github-owner buildstacks-dev --authorization "$AUTH"
+pnpm eval:live -- --campaign <focused-file> --max-usd 80 --confirm <focused-id> --authorization "$AUTH"
+# Only after exact-candidate adapter and focused admission pass:
+pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstacks-dev --authorization "$AUTH"
+pnpm eval:github -- --campaign <candidate-file> --repo buildstacks-dev/operon-eval-<candidate-id> --authorization "$AUTH"
+pnpm eval:live -- --campaign <candidate-file> --max-usd 375 --confirm <candidate-id> --authorization "$AUTH"
 ```
 
-After a human authorizes that exact identity, private repository, operations,
-models, and cap, L4 uses `OPERON_EVAL_GITHUB=1` plus `--execute --confirm`; L5
-uses `OPERON_EVAL_LIVE=1` plus `--execute --max-usd --confirm`. L4 creates an
+An external campaign uses either an exact campaign authorization or a
+content-bound standing developer-objective grant. The current Phase 6 grant is
+subscription-backed, cumulative across historical and descendant attempts,
+and limited to its declared repair lineage, campaign types, private namespace,
+and zero-effect sandbox. A fresh candidate identity invalidates evidence, not
+that standing authority. L4 still uses `OPERON_EVAL_GITHUB=1` plus `--execute
+--confirm`; L5 still uses `OPERON_EVAL_LIVE=1` plus `--execute --max-usd
+--confirm`. Those keys prevent accidental invocation; they do not request the
+same human decision again. L4 creates an
 absent allowlisted private repo or initializes an empty one, retains it, and
 proves the complete issue/branch/commit/push/PR/comment/review/squash-merge/
 branch-cleanup lifecycle twice. The first run writes immutable lifecycle
@@ -150,7 +171,15 @@ evidence; the second writes a separate content-bound idempotence receipt after
 re-verifying the retained remote state. L5 first reruns the complete deterministic
 validator and non-billable adapter readiness probes. A failed readiness,
 pristine app gate, GitHub proof, campaign lock, separation check, or remaining
-budget prevents the next provider turn.
+budget prevents the next provider turn. Candidate L4 and L5 additionally
+require same-candidate adapter and focused admission. A terminal non-pass
+writes an immutable campaign stop and leaves every later repetition unrun;
+two failed full descendants trip the repair-lineage loop breaker.
+
+The standing objective does not authorize learning activation, production or
+outward effects, the future real-time soak, metered/unknown billing, a raised
+ceiling, or weakened contracts. Those remain new human decisions. The
+canonical developer policy is [`docs/development.md`](../docs/development.md).
 
 The candidate campaign pins `eval/treatments/learning-t1-v1.md` by content
 hash. Control arms receive no treatment bytes; treatment arms receive only
@@ -278,15 +307,16 @@ automatic spending job:
 
 | Cadence | Exact operator action | Admission rule |
 | --- | --- | --- |
-| GitHub nightly or scheduled | Prepare the current L4 campaign, retain both previews, then run `eval:github` twice against the exact allowlisted private repository | A human must authorize the campaign hash, repository, operations, and GitHub mutation before execution |
-| Weekly/manual calibration | Prepare and preview adapter calibration, then run L4 followed by the capped L5 calibration sample | A human must authorize the exact campaign identity, models, repository, and equivalent-cost cap; missing auth is incomplete evidence |
-| Release candidate | Build and pack the exact candidate, run the complete current-scope L0-L5 sequence, qualify/archive/promote its nine contracts, and ship after read-only production confirmation | Candidate and future soak require separate exact authorizations; Phase 6 can finish while `I-LIVE-01` remains pending |
+| GitHub nightly or scheduled | Prepare the current L4 campaign, retain both previews, then run `eval:github` twice against the exact allowlisted private repository | Requires either exact campaign authority or a matching standing developer-objective grant; ordinary CI remains token-free and mutation-free |
+| Weekly/manual calibration | Prepare and preview adapter calibration, then run L4 followed by the capped L5 calibration sample | Same-objective descendants reuse their bound grant; exact identity, models, repository, immutable attempts, and cumulative ceiling are still enforced |
+| Release candidate | Build and pack the exact candidate, require same-candidate adapter and focused admission, then run one fail-fast full current-scope L0-L5 qualification, archive/promote its nine contracts, and ship after read-only production confirmation | A failed candidate is preserved and repaired through focused admission before another full run; learning activation remains separate |
 | Future real-time soak | Prepare the exact frozen candidate's L6 preview; execute its unchanged 48–72 hour schedule only in a separately authorized future campaign | Preview is not evidence; virtual or production evidence cannot substitute; only this campaign may promote `I-LIVE-01` |
 | Post-release | Run read-only production confirmation and compare the rolling report to the archived sandbox qualification | Production never supplies calibration data or rewrites qualification thresholds |
 
 For each cadence event, create a fresh prepared manifest after the exact
 candidate commit is fixed. Any source, fixture, grader, price-catalog, or
-campaign change invalidates the prepared identity and requires new previews
-and authorization. Record the dated command results, provider usage quality,
+campaign change invalidates the prepared identity and requires new previews.
+A matching standing objective grant remains valid; an exact campaign grant
+does not. Record the dated command results, provider usage quality,
 equivalent-cost spend, GitHub effects, report hashes, archive receipt, and any
 incomplete readiness item in `research/evals/`.

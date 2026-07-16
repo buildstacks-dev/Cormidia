@@ -165,6 +165,11 @@ it("A-SPEC-03 expires only a contract-authoring change ban before the delivery i
       expect(request.task).toContain("Never enumerate, print, read, or inspect environment variables, credentials, provider authentication, or secrets");
       expect(request.task).toContain("Verify the absence of outward effects only from declared receipts, repository files, and sanitized artifacts");
       expect(request.task).toContain("report the limitation without probing protected state");
+      expect(request.task).toContain("Use the file-read tool—not shell search or shell file-reading commands");
+      expect(request.task).toContain("Never place those paths, identifiers, patterns, or prose in a shell command");
+      expect(request.task).toContain("A gate rejection is a failed review boundary: do not retry it through a differently spelled command");
+      expect(request.task).toContain("Do not rerun, wrap, replace, or extend those commands during review");
+      expect(request.task).toContain("Do not use grep, rg, find, cat, sed, awk, ls, environment prefixes, pipelines, redirects, output filters, or inline scripts for source or evidence inspection");
       expect(makeEvalRoleGate("reviewer", defaultGate)({ tool: "bash", input: { command: "printenv | grep -Ei 'API_KEY|TOKEN|CREDENTIAL|SECRET|AUTH'" } })).toMatchObject({ allow: false, reason: expect.stringContaining("secrets-or-auth") });
     }
     return { status: "completed", summary: "fixture", artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${calls}` }, usage: usage(), escalations: [] };
@@ -201,6 +206,71 @@ it("D-LIVE-03 keeps a completed implementation red when a declared visible comma
   expect(calls).toBe(2);
   expect(visibleCalls).toBe(2);
 });
+
+it("J-STAT-02 focused admission and final qualification stop after the first terminal failure and never resume later cases", async () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-fail-fast-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
+  const base = fixtureCampaign("fail-fast-fixture");
+  const campaign = {
+    ...base,
+    profile: "focused-admission",
+    cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d1"] }, { case_id: "approval/semantics/v1", repetition_ids: ["mixed-da"] }],
+    route_budget_overrides: { deep: { input_tokens: 4_000_000 } },
+    spend: { campaign_max_usd: 80, case_max_usd: { "deep/auth-migration/v1": 40, "approval/semantics/v1": 40 } },
+    infrastructure_retries: 0,
+    stop_rules: [...base.stop_rules, "qualification_impossible_stops_campaign"],
+  } as const;
+  const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let calls = 0;
+  const options = { root, manifestPath, maxUsd: 80, evalRoot: join(root, ".eval-artifacts/fail-fast-fixture/world"), visibleGate: () => true, hiddenGrader: () => false, runtimeFactory: (role: RoleConfig): Runtime => ({ kind: role.runtime, runTurn: async () => { calls += 1; return { status: "completed", summary: "fixture", artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${calls}` }, usage: usage(), escalations: [] }; } }) };
+  const first = await executeLiveCampaign(options);
+  expect(first.attempts).toHaveLength(1);
+  expect(first.attempts[0]).toMatchObject({ repetition_id: "mixed-d1", outcome: "product_miss" });
+  expect(first.stop).toMatchObject({ attempt_id: "deep-auth-migration-v1-mixed-d1", outcome: "product_miss", remaining: ["approval/semantics/v1::mixed-da"] });
+  expect(readdirSync(join(root, ".eval-artifacts/fail-fast-fixture/results"))).toEqual(["deep-auth-migration-v1-mixed-d1.json"]);
+  const priorCalls = calls;
+  const resumed = await executeLiveCampaign(options);
+  expect(resumed.stop).toEqual(first.stop);
+  expect(calls).toBe(priorCalls);
+});
+
+it("J-STAT-02 fail-fast also stops on a pristine harness failure before constructing a provider", async () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-harness-fail-fast-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
+  const base = fixtureCampaign("harness-fail-fast-fixture");
+  const campaign = { ...base, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d1"] }, { case_id: "approval/semantics/v1", repetition_ids: ["mixed-da"] }], route_budget_overrides: { deep: { input_tokens: 4_000_000 } }, spend: { campaign_max_usd: 80, case_max_usd: { "deep/auth-migration/v1": 40, "approval/semantics/v1": 40 } }, stop_rules: [...base.stop_rules, "qualification_impossible_stops_campaign"] } as const;
+  const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let constructions = 0;
+  const result = await executeLiveCampaign({ root, manifestPath, maxUsd: 80, evalRoot: join(root, ".eval-artifacts/harness-fail-fast-fixture/world"), visibleGate: () => false, runtimeFactory: () => { constructions += 1; throw new Error("provider_must_not_construct"); } });
+  expect(result.attempts).toHaveLength(1);
+  expect(result.attempts[0]).toMatchObject({ outcome: "harness_error", repetition_id: "mixed-d1" });
+  expect(result.stop).toMatchObject({ outcome: "harness_error", remaining: ["approval/semantics/v1::mixed-da"] });
+  expect(constructions).toBe(0);
+});
+
+it("H-EVAL-01 final qualification stops before later cases when the complete paired-learning block is not improved", async () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-eval-learning-fail-fast-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
+  const template = loadYamlFile(join(process.cwd(), "eval/campaigns/candidate-qualification.yaml")) as CampaignManifest;
+  const repetitions = ["pair-1-control", "pair-1-treatment", "pair-2-treatment", "pair-2-control", "pair-3-control", "pair-3-treatment"];
+  const campaign = {
+    ...fixtureCampaign("learning-fail-fast-fixture"),
+    cases: [{ case_id: "learning/closure/v1", repetition_ids: repetitions }, { case_id: "roles/standing/v1", repetition_ids: ["support-1"] }],
+    blocks: [{ name: "learning", immutable_order: true, paired_order: ["AB", "BA", "AB"], cases: [{ case_id: "learning/closure/v1", repetition_ids: repetitions }] }],
+    learning_treatment: template.learning_treatment,
+    learning_efficacy: template.learning_efficacy,
+    assignments: [...fixtureCampaign("x").assignments, { role: "support", runtime: "pi", model: "fixture", effort: "low", capability_ref: "pi/v1" }],
+    spend: { campaign_max_usd: 100, case_max_usd: { "learning/closure/v1": 24, "roles/standing/v1": 30 } },
+    stop_rules: [...fixtureCampaign("x").stop_rules, "qualification_impossible_stops_campaign"],
+  } as const;
+  const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let supportTurns = 0;
+  const result = await executeLiveCampaign({ root, manifestPath, maxUsd: 100, evalRoot: join(root, ".eval-artifacts/learning-fail-fast-fixture/world"), visibleGate: () => true, runtimeFactory: (role): Runtime => ({ kind: role.runtime, runTurn: async (request): Promise<TurnResult> => {
+    if (role.name === "support") supportTurns += 1;
+    if (request.task.includes("learning-candidate.json") && !request.task.includes("Independently review")) writeFileSync(join(request.workdir, "learning-candidate.json"), JSON.stringify({ schema_version: 1, error_classes: ["environment.retry_cluster", "review.long_cycle"], cause_hypothesis: "recurring typed evidence", proposed_intervention: "bounded review checklist", guardrails: ["no outward effects", "rollback on regression"], activation_requested: false }));
+    const verdict = request.task.includes("Independently review the proposed learning candidate") ? "\nVERDICT: APPROVE" : "";
+    return { status: "completed", summary: `${role.name} fixture${verdict}`, artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${request.turnId}` }, usage: usage(), escalations: [] };
+  } }) });
+  expect(result.attempts).toHaveLength(6);
+  expect(result.attempts.every((attempt) => attempt.outcome === "passed")).toBe(true);
+  expect(result.stop).toMatchObject({ outcome: "learning_inconclusive", reason: "qualification_impossible_after_learning_pair_outcome", remaining: ["roles/standing/v1::support-1"] });
+  expect(supportTurns).toBe(0);
+  expect(JSON.parse(readFileSync(join(root, ".eval-artifacts/learning-fail-fast-fixture/artifact/learning-pairs.json"), "utf8"))).toMatchObject({ outcome: "inconclusive", complete_pairs: 3, terminal_attempts: 6 });
+}, 15_000);
 
 it("J-STAT-02 preserves unavailable usage denominators on an existing provider account failure without substituting or retrying", async () => {
   const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-account-usage-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });

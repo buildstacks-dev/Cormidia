@@ -5,6 +5,13 @@ Applies to the whole repo. There are no nested AGENTS.md files — this is a
 single TypeScript package and one file covers it. `docs/PURPOSE.md` is the decision
 log; on conflict, its Decided section wins and this file is stale — fix this file.
 
+This file governs **building and maintaining the Operon platform**, not
+operating an org with Operon. Read `docs/development.md` before development
+campaigns. Operon does not self-host its own development: root instructions,
+developer grants, eval state, and CI/release authority must never enter an
+Operon org's prompts, state, learning, or approvals. The packaged
+`agent-skills/operon/` skill is the separate org-operation guide.
+
 ## What this repo is
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,
 Reviewer, SRE, Support, Marketing) that develops and operates a software
@@ -108,6 +115,7 @@ efficacy health independently. The mechanics construct no provider runtime.
 | Path | What it is |
 | --- | --- |
 | `docs/PURPOSE.md` | Decision log — **read first**; every decision to date |
+| `docs/development.md` | Canonical platform-development lifecycle: independent control plane, standing objective grants, incremental admission, circuit breakers, and shipping |
 | `docs/wiki.html` | Standalone code wiki — the three layers, build loop, adapters, gates, and curated reading paths, for an engineer coming up to speed (open in a browser) |
 | `TASTE.md` | Packaged org-constitution template, copied by `operon org init` (human-ratified) |
 | `roles.yaml` | Packaged executable org-chart template: role → runtime/model/effort/triggers |
@@ -152,20 +160,32 @@ efficacy health independently. The mechanics construct no provider runtime.
   skill into the Codex, Claude, and pi skill homes (respecting `CODEX_HOME`,
   `CLAUDE_CONFIG_DIR`, and `PI_CODING_AGENT_DIR`); later source edits need no
   update, rebuild, or relink.
-- Test: `pnpm test` (vitest — fast, offline; run for any `src/` or
-  `roles.yaml` change; `*.live.test.ts` files are excluded here)
+- Test: `pnpm test` (vitest — offline and capped at two workers to prevent
+  subprocess/disk contention; run for any `src/` or `roles.yaml` change;
+  `*.live.test.ts` files are excluded here)
 - Efficiency eval, token-free: `pnpm eval:validate` · `pnpm
   test:transformation` (required + exact known-red) · `pnpm
-  eval:deterministic` · `pnpm test:transformation:strict` (current Phase 6
+  eval:deterministic` (subprocess/disk-heavy umbrella, capped at two workers) ·
+  `pnpm test:transformation:strict` (current Phase 6
   scope) · `pnpm test:transformation:future-soak-strict` (separate future gate;
   expected non-zero only for `I-LIVE-01` until the genuine campaign passes).
 - Efficiency eval, explicit external boundary: `pnpm eval:prepare -- --campaign
-  <template> --github-owner <owner>` · preview/execute `pnpm eval:github` and
-  `pnpm eval:live` only with their environment switches, exact campaign
-  confirmation, and human-authorized cap · `pnpm eval:soak -- --campaign
+  <template> --github-owner <owner> [--authorization <standing-grant>]` ·
+  preview/execute `pnpm eval:github` and `pnpm eval:live` with the same grant,
+  their environment switches, and exact campaign confirmation. Under a bound
+  developer objective, the switch and confirmation are agent-supplied accident
+  guards rather than a repeated human approval; the grant's cumulative
+  equivalent-cost ceiling remains the authority. `pnpm eval:soak -- --campaign
   <prepared-file>` previews the separate 48–72 hour L6 runner (execution also
   requires `OPERON_EVAL_SOAK=1`, an exact confirmation, and an explicit cap) ·
   `pnpm eval:qualify` is read-only.
+- Incremental Phase 6 provider sequence: exact-candidate adapter admission,
+  then non-promotable `focused-provider-admission` for migration `mixed-d1`
+  and approval `mixed-da`,
+  then one full candidate qualification. Candidate GitHub/provider entrypoints
+  fail closed unless both same-candidate admissions passed. Focused and final
+  campaigns stop on the first terminal non-pass; a third failed full campaign
+  is forbidden by the repair-lineage loop breaker. See `docs/development.md`.
 - Phase 6 paired learning has a separate post-L5 boundary: `pnpm
   eval:learning-activation -- --campaign <prepared-file>` previews the exact
   candidate and action hashes. Execution requires its own human authorization,
@@ -300,6 +320,11 @@ efficacy health independently. The mechanics construct no provider runtime.
   Provider usage quality marked unavailable must remain an invalid missing
   denominator with its original typed infrastructure/account cause; never
   coerce it to zero, retry it as a merit miss, or substitute a model.
+  For a repaired provider behavior, run the smallest focused admission before
+  a full campaign. Preserve the first failure and its cause; do not use a full
+  qualification as the discovery loop. Standing development authorization,
+  cumulative equivalent-cost accounting, and new-decision boundaries are
+  defined only in `docs/development.md` and never apply to an operated org.
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
 - `src/observe/**` or `src/cli/observe.ts` changes: also run `pnpm
   test:observe-browser`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack

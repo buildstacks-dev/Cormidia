@@ -35,6 +35,14 @@ it("Phase 6 projection generation writes the exact nine candidate mappings and s
   expect(result.contracts).toEqual(["D-LIVE-01", "D-LIVE-02", "D-LIVE-03", "E-LIVE-01", "E-LIVE-02", "G-MET-01", "I-ROLE-01", "I-ROLE-02", "I-ROLE-03"]);
 });
 
+it("Phase 6 promotion rejects focused admission even if arbitrary local files claim it qualified", () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-focused-non-promotion-")); roots.push(root);
+  const bundle = join(root, "research/evals/campaigns/focused-fixture");
+  const campaign = loadYamlFile(join(process.cwd(), "eval/campaigns/focused-provider-admission.yaml")) as CampaignManifest;
+  write(root, relativePath(root, join(bundle, "campaign.yaml")), stringify(campaign));
+  expect(() => writeContractEvidenceProjections({ root, campaignPath: join(bundle, "campaign.yaml"), attestationPath: join(bundle, "attestation.json") })).toThrow("promotion_non_qualification_campaign_forbidden");
+});
+
 it("Phase 6 release attestation rejects raw evidence even beneath research/evals", () => {
   const fixture = makeFixture();
   unlinkSync(fixture.attestation);

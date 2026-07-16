@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "contract_id": "I-ROLE-01",
+  "campaign_id": "candidate-qualification-v1-20260716-9ccc03a2c582",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "candidate": {
+    "commit": "c6834cf0c545e2610cbaf1de52a928ddc6c58c68",
+    "package_sha256": "sha256:a5a3c9a2e6ab554895a76cea3c52d213c07cd654dfdba169e19e4fc26df90c55",
+    "suite_sha256": "sha256:365d8a338b101c02731400d80e16ccdccf9e9cbb0d46ba002f65dd303a8d2745",
+    "release_package_sha256": "sha256:6e45e2be665af2158e0b99736f36812feed473386513a9de9a120ad168545e9d",
+    "executable_suite_sha256": "sha256:6a057dd4aca41a74e3071b212faf2e0f7136a25c853d43feb3382dd02d417857"
+  },
+  "org_fingerprint": "sha256:062b1374b8bb878f8dec1b13decfb2019ce1ef2cfae66f9191dd4de59160e3d3",
+  "system_fingerprint": "sha256:8ad7aee67129d4647302f7cdda143958f1070548142c513ef5daf5d950362afc",
+  "case_id": "roles/standing/v1",
+  "repetition_ids": [
+    "sre-1"
+  ],
+  "prepared_manifest": {
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/campaign.yaml",
+    "sha256": "sha256:1384cc92e3adbdc993dac4cb4f950933a6c22dc8d61228da0c252eaa8d58421f"
+  },
+  "qualification": {
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/qualification-final.json",
+    "sha256": "sha256:9b6671d1601a3efd9653b60b1d3e830eb813b1dd78868b14e8c2db7260176fe4"
+  },
+  "report": {
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/report-final.html",
+    "sha256": "sha256:24e6234c4c2943d9db551b71098bfe86fd78a6fa48c0a694dd19dc1a375b5deb"
+  },
+  "archive_receipt": {
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/archive-receipt.json",
+    "sha256": "sha256:800d0dabeeb7f5fd2fedadfa91cf4d73876997f86485bd8ec2b5c3bece367390"
+  },
+  "archive_manifest": {
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/archive-manifest.json",
+    "sha256": "sha256:8da90a99181533e2bbee61f83ecdd112283b8461ade57cf457c0691a095754b4"
+  },
+  "github_evidence": {
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/github-evidence-28c8bd9c.json",
+    "sha256": "sha256:b4aa4876521408f69a8a1e73891f4f35acc54f45d9802b17050f281c469f6510"
+  },
+  "github_idempotence": {
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/github-idempotence-28c8bd9c.json",
+    "sha256": "sha256:50891aea0871a4be5015722c67da13adb1e04046aa11cf3ce16a4c957f2e9f4a"
+  },
+  "release_attestation": {
+    "path": "research/evals/phase6-release-attestation.json",
+    "sha256": "sha256:2f4f44638ae7c65c33ba574415d03a8e8cbfe16260b8cecf9e0a64238a102e7b"
+  }
+}

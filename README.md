@@ -310,8 +310,9 @@ The offline commands above need nothing. The live commands need:
   subscription-first (any usable Claude Agent SDK auth counts); `ANTHROPIC_API_KEY`
   is a fallback. `pnpm test:live` skips cleanly when no usable auth is present.
 - **Opt-in provider smokes** for the Codex and pi adapters inside `pnpm test:live`:
-  set `OPERON_CODEX_LIVE=1` and/or `OPERON_PI_LIVE=1`. (`gpt-5.5` in Codex
-  currently requires ChatGPT-account auth, not an API key.)
+  set `OPERON_CODEX_LIVE=1` and/or `OPERON_PI_LIVE=1`. (`gpt-5.6-sol` in
+  Codex uses the installed ChatGPT-account-authenticated App Server path;
+  adapter calibration verifies exact availability before qualification.)
 - **`gh` auth + `GH_SANDBOX_REPO=<owner/repo>`** for the `e2e:sandbox` scripts,
   which create and merge one disposable issue/PR against a private repo.
 - **`OPERON_SELF_APPROVAL_SECRET`** so the loop can authorize its own merge in a
@@ -342,15 +343,58 @@ evidence-preserving:
 pnpm eval:validate                 # schemas, hashes, graders, isolation
 pnpm test:transformation           # required + exact known-red baseline
 pnpm eval:deterministic            # L0-L3, token-free
-pnpm test:transformation:strict    # final gate; red while declared debt remains
+pnpm test:transformation:strict    # current Phase 6 scope only
+pnpm test:transformation:future-soak-strict # red only for I-LIVE-01 until the future soak
 ```
 
-Provider and disposable-GitHub campaigns are never implicit. Prepare a
-content-hashed manifest with `pnpm eval:prepare`; preview `eval:github` and
-`eval:live`; execute only with their environment switches, exact campaign
-confirmation, and human-authorized cap. `pnpm eval:qualify` is read-only over
-immutable attempt results. See [`eval/README.md`](eval/README.md) and the
+The ratified Phase 6 boundary is defined only in
+[`docs/efficiency.md`](docs/efficiency.md#phase-6-qualification-scope). Its
+current strict scope contains 83 contracts and can finish after valid candidate
+qualification, nine evidence promotions, read-only production confirmation,
+and shipping. `I-LIVE-01` is the sole future-soak contract: it remains pending,
+cannot be promoted by virtual-soak or production-confirmation evidence, and is
+not current Phase 6 debt. The broader “highly efficient organization” claim
+remains reserved until the genuine future 48-hour campaign passes.
+
+Provider and disposable-GitHub campaigns are never implicit. This is a source-
+repository developer workflow, not an Operon-org operation. A prepared
+content-hashed manifest binds either exact campaign authority or a standing
+developer-objective grant; environment switches and exact confirmations remain
+accident guards, while the grant enforces its cumulative equivalent-cost
+ceiling. Repaired candidates pass exact-candidate adapter and non-promotable
+focused admission before one fail-fast full qualification. `pnpm eval:qualify` is read-only over
+immutable attempt results. A passed campaign is archived before its sanitized
+promotion slice is imported with `eval:import-evidence`; `eval:attest-release`
+then proves installable-package and executable-suite bytes are unchanged, and
+`eval:promote` creates the contract-specific projections. File presence or an
+unbound local `passed` JSON cannot promote a contract. See
+[`eval/README.md`](eval/README.md) and the
 canonical [`docs/efficiency.md`](docs/efficiency.md).
+The independent control-plane boundary and incremental workflow are canonical
+in the repository-only [`docs/development.md`](docs/development.md); those
+developer instructions and grants never become authority for an operated org.
+
+The Phase 6 learning block uses a predeclared content-hashed T1 treatment only
+on treatment arms and derives all paired outcomes from provider artifacts and
+hidden guardrails. Even an improved result does not authorize activation:
+`pnpm eval:learning-activation` first previews the exact candidate/action
+hashes for a separately approved, isolated single activation and rollback.
+
+Unavailable provider token or cost totals are never coerced to zero. The
+attempt remains invalid with explicit missing denominators and its original
+typed account or transport cause. The retained Phase 6 candidate campaigns
+and their correction handoffs are documented in
+[`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`](research/evals/2026-07-15-phase6-candidate-qualification-invalid.md)
+and
+[`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`](research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md),
+then the scope-split candidate and its valid adapter admission are recorded in
+[`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`](research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md).
+The latest 32/34 review-boundary failure and the focused-admission correction
+are recorded in
+[`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`](research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md).
+The subsequent fail-fast budget-carry failure—14 passes followed by one
+premature per-turn budget stop—is retained in
+[`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`](research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md).
 
 The Live UI browser suite uses a dev-only Playwright dependency and local
 Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real

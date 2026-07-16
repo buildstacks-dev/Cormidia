@@ -1,0 +1,28 @@
+schema_version: 1
+authorization_id: phase6-efficiency-qualification-20260716
+policy_id: autonomous-isolated-development-v1
+objective: phase-6-efficiency-qualification
+repair_lineage: phase6-efficiency-qualification-20260716
+authorized_at: 2026-07-16T07:23:29.000Z
+billing_mode: subscription
+cumulative_equivalent_cost_usd: 1000
+historical_equivalent_cost_usd: 577.89418925
+allowed_campaign_types:
+  - adapter-harness-calibration-v1
+  - focused-provider-admission-v1
+  - candidate-qualification-v1
+github:
+  owner: buildstacks-dev
+  repo_pattern: operon-eval-*
+effects:
+  production_mutation: false
+  outward_effects: false
+  deployment: false
+  publication: false
+learning_activation: separately_authorized
+future_realtime_soak: separately_authorized
+stop_conditions:
+  - cumulative_equivalent_cost_ceiling
+  - metered_or_unknown_billing
+  - scope_or_effect_expansion
+  - repeated_full_qualification_failure

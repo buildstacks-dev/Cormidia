@@ -106,6 +106,18 @@ Ownership follows the import direction:
 | `src/report` / `src/observe` | Read-only projections. They perform no admission, reconciliation, workflow mutation, or provider call. |
 | `eval/**` | Qualify an exact candidate. Eval evidence never becomes production workflow authority. |
 
+Phase 6 keeps qualification identity and release evidence separate. Prepared
+campaigns pin both the historical whole-checkout hashes and two independently
+recomputable identities: the exact prebuilt installable-package tarball and the executable eval
+suite. After a terminal campaign is qualified and externally archived, only a
+sanitized evidence slice may enter `research/evals/**`. A release attestation
+compares the descendant with the exact candidate commit, rejects any
+unallowlisted change, and proves package, suite, and org bytes are identical.
+Per-contract projections are read by the token-free contract harness and must
+recompute the qualifier/report and reconcile archive, grader, GitHub, route,
+terminal, and settlement evidence. These files have no import path into
+`src/org`, `src/loop`, or `src/runtime` and grant no workflow authority.
+
 Phase 4 learning closure stays in `src/org/learning`: `capture.ts` inventories
 eligible finalized provider envelopes and repairs receipts exactly once;
 `efficiency-evidence.ts` derives versioned events and comparable recurrence
@@ -126,10 +138,19 @@ calls the adapter again for recovery or verdict reformatting, that is another
 provider turn even when the pass retains one parent summary. Use the specific
 identity in normative text instead of ambiguous bare “turn.”
 
+When a provider owner disappears after checkpointing partial usage, stale-step
+reconciliation carries that measured partial usage into the terminal step and
+ledger settlement. It records usage as unavailable only when no measured
+checkpoint exists; unknown usage is never silently treated as measured zero.
 
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
 effective gate for a turn (default rules + grant lookup, §4) and passes it
 down through `TurnHooks`. The runtime layer never imports approval storage.
+Shell normalization treats only a literal `/dev/null` redirect as a
+non-mutating sink. This lets a compound command read a protocol surface while
+discarding diagnostics without manufacturing a `protocol-self-edit` request.
+Every other redirect remains material and fail-closed, and a real protocol
+write in the same compound command still triggers the rule.
 
 ## 1. On-disk layout
 

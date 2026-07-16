@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "archive_kind": "sanitized-evidence",
+  "policy_version": "sanitized-evidence/v3",
+  "campaign_id": "candidate-qualification-v1-20260716-9ccc03a2c582",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "destination": "/Users/bikram/Build/operon-eval-archives/qualified/candidate-qualification-v1-20260716-9ccc03a2c582-28c8bd9c-evidence-v2",
+  "archive_manifest_sha256": "sha256:8da90a99181533e2bbee61f83ecdd112283b8461ade57cf457c0691a095754b4",
+  "archived_at": "2026-07-16T20:42:08.687Z"
+}

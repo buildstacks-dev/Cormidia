@@ -162,4 +162,9 @@ quality or the real-time L6 contract.
 The 48–72 hour L6 soak remains a separately authorized immutable campaign with
 an exact commit, repository, duration, restart/useful-turn limits, provider
 assignments, cost cap, environment switch, and confirmation. Preview output is
-not execution evidence.
+not execution evidence. Under the ratified Phase 6 boundary, `I-LIVE-01` is the
+sole `future_soak` contract: neither this preview, the virtual soak, nor
+read-only production confirmation can promote it. Phase 6 may finish with that
+future campaign pending, but the broader fully proven “highly efficient
+organization” claim may not. See
+[`efficiency.md`](efficiency.md#phase-6-qualification-scope).

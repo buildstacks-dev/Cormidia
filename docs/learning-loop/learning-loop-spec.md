@@ -466,7 +466,7 @@ configurations share one fingerprint.
   "bundle_lineage": "stable",
   "models": {
     "builder": { "runtime": "claude", "model": "claude-fable-5", "effort": "high" },
-    "reviewer": { "runtime": "codex", "model": "gpt-5.5", "effort": "high" }
+    "reviewer": { "runtime": "codex", "model": "gpt-5.6-sol", "effort": "high" }
   },
   "gates_hash": "sha256:...",
   "budget_caps": { "per_turn_usd": 15, "daily_usd": 120 },

@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Phases 0–5 complete; Phase 6 efficiency qualification is next |
-| Evidence date | 2026-07-14 |
+| Status | Phase 6 current-scope efficiency qualification complete; `I-LIVE-01` remains a separate future real-time campaign |
+| Evidence date | 2026-07-16 |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Benchmark org | `/Users/bikram/Build/Bikram-Org` |
 | Benchmark app | `/Users/bikram/Build/buildstacks.dev` |
@@ -702,8 +702,80 @@ real-time evidence. Phase 6 is next.
 Run the full benchmark matrix and production confirmation.
 
 **Gate:** five consecutive clean target-meeting episodes, followed by ten mixed
-episodes without a critical invariant violation. Only then describe Operon as a
-highly efficient organization.
+episodes without a critical invariant violation, the remaining candidate
+matrix, exact settlement reconciliation, nine current-scope promotions,
+read-only production confirmation, documentation, CI, release equivalence, and
+shipping.
+
+**Ratified boundary (2026-07-15):** Phase 6 completion and the broader “fully
+proven highly efficient organization” claim are distinct. The 84-contract
+inventory has 83 `current` contracts and exactly one `future_soak` contract,
+`I-LIVE-01`. The future real-time campaign is unchanged and still required for
+the broader claim, but it is no longer a Phase 6 completion, strict, release,
+or merge gate. Preview, virtual-soak, manufactured, and read-only production
+evidence cannot promote it. The single canonical definition is
+[`docs/efficiency.md`](../efficiency.md#phase-6-qualification-scope).
+
+**Current status:** the exact-candidate/evidence-promotion audit and token-free
+qualification hardening are implemented in an isolated worktree. Prepared
+campaigns now distinguish whole-checkout, installable-package, and executable-
+suite identity; provider cases run through production route admission with an
+explicit deep input ceiling; grader and attempt accounting are independently
+content-bound; L6 reconciles the exact schedule, exit/restart processes,
+context denominators, runs, envelopes, and provider/mechanical settlements;
+and contract promotion fails closed on stale, foreign, malformed,
+missing, duplicate, grader-failed, or accounting-mismatched evidence. No L6
+soak, promotion, or production confirmation has occurred. One safely archived
+adapter campaign qualified the then-current
+candidate, but its separately authorized candidate campaign is permanently
+`invalid`: 11 passed attempts, eight genuine product misses, three
+infrastructure-invalid attempts, and an incomplete remainder. The product
+misses and the unavailable-provider-usage harness failure have been corrected
+without changing thresholds, graders, denominators, or safety rules. The
+operator then explicitly reassigned every Phase 6 pi evaluation role to pi's
+exact `openai-codex/gpt-5.6-sol` model while leaving production `roles.yaml`
+untouched. This removes the third-party Claude extra-usage dependency but is a
+covered-byte assignment change, so the earlier prepared previews and evidence
+identities are stale. Nine current-scope contracts remain known-red pending
+fresh adapter, focused, and final candidate admission under the bound
+development objective; `I-LIVE-01` separately remains future-required and
+known-red. The latest immutable retained record is
+`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`.
+The learning block now follows the separately ratified boundary: a predeclared
+content-hashed T1 procedure is present only on treatment arms, pair outcomes
+come from provider artifacts and hidden guardrails, and a measured improvement
+still needs a separate exact candidate/action-hash authorization for one
+isolated governed activation and rollback. L5 authorization alone cannot cross
+that boundary.
+
+**Completion update (2026-07-16):** frozen candidate `c6834cf` completed the
+single decisive full campaign
+`candidate-qualification-v1-20260716-9ccc03a2c582`: 34/34 attempts passed,
+73 provider turns matched 73 settlements, the virtual seven-day proof ran
+2,016 mechanical steps with zero provider construction, and all safety and
+outward-effect guardrails passed. Learning deltas were `+1,+2,+1`; the exact
+T1 action was published to one isolated canary and rolled back once with zero
+provider, GitHub, production, or outward effects. The nine current-scope live
+contracts have content-bound promotion evidence. Earlier invalid and
+not-qualified campaigns remain retained. The only unqualified contract is the
+separate `future_soak` contract `I-LIVE-01`.
+
+The 2026-07-16 development-process ratification now separates building Operon
+from operating an Operon org and replaces repeated full-campaign discovery
+with exact-candidate adapter admission, focused non-promotable repair
+admission, and one fail-fast final qualification. The latest retained
+candidate passed 14/15 executed attempts and stopped before 19 later cases. Its
+single budget stop exposed fixed per-turn slices that did not carry unused
+capacity forward under the unchanged case ceiling. The corrected harness uses
+only remaining case capacity for each next declared turn; focused admission now
+covers quick `mixed-q1` plus the two repaired deep-review boundaries. The
+retained evidence is recorded in
+`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`.
+Standing objective authority survives repaired candidate identities inside its
+isolated zero-effect sandbox and cumulative circuit breaker; learning
+activation, production/outward effects, threshold changes, and the future soak
+remain new decisions. `docs/development.md` is the canonical developer policy
+and does not ship into the org runtime.
 
 ## 8. Required benchmark matrix
 
@@ -851,6 +923,8 @@ This campaign is complete only when all of the following are true:
 - Five consecutive clean episodes and ten mixed-route qualification episodes
   meet the required invariants.
 - The production confirmation is reported separately and honestly.
+- Phase 6 may complete with `I-LIVE-01` future-pending; the charter's broader
+  “highly efficient organization” claim still requires that genuine campaign.
 
 ## 12. Instructions for the implementing session
 

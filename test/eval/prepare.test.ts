@@ -22,9 +22,10 @@ it("J-MAN-01 candidate hashing includes tracked deletions deterministically inst
 
 it("J-MAN-02 prepared execution fails closed when package or suite bytes drift", () => {
   const root = mkdtempSync(join(tmpdir(), "operon-eval-candidate-drift-")); roots.push(root);
-  for (const dir of ["eval", "scripts/eval", "test", "prompts", "taste"]) mkdirSync(join(root, dir), { recursive: true });
+  for (const dir of ["dist", "eval", "scripts/eval", "test", "prompts", "taste"]) mkdirSync(join(root, dir), { recursive: true });
   for (const [path, content] of [
-    ["package.json", '{"packageManager":"pnpm@11.10.0","dependencies":{}}\n'],
+    ["package.json", '{"name":"candidate-fixture","version":"1.0.0","files":["dist/**/*.js"],"packageManager":"pnpm@11.10.0","dependencies":{}}\n'],
+    ["dist/cli.js", "export {};\n"],
     ["roles.yaml", "roles: []\n"],
     ["pipelines.yaml", "pipelines: []\n"],
     ["TASTE.md", "# Test\n"],
@@ -38,10 +39,13 @@ it("J-MAN-02 prepared execution fails closed when package or suite bytes drift",
   execFileSync("git", ["add", "-A"], { cwd: root });
   execFileSync("git", ["-c", "user.name=Eval", "-c", "user.email=eval@invalid", "commit", "-m", "seed"], { cwd: root });
   const expected = currentCandidateSnapshot(root);
-  const campaign = { candidate: { commit: expected.commit, package_sha256: expected.package_sha256, suite_sha256: expected.suite_sha256 }, org_fingerprint: expected.org_fingerprint, system_fingerprint: expected.system_fingerprint };
+  const campaign = { candidate: { commit: expected.commit, package_sha256: expected.package_sha256, suite_sha256: expected.suite_sha256, release_package_sha256: expected.release_package_sha256, executable_suite_sha256: expected.executable_suite_sha256 }, org_fingerprint: expected.org_fingerprint, system_fingerprint: expected.system_fingerprint };
   expect(assertPreparedCandidate(root, campaign)).toEqual(expected);
   writeFileSync(join(root, "test/run.test.ts"), "export const drift = true;\n");
-  expect(() => assertPreparedCandidate(root, campaign)).toThrow(/prepared_candidate_drift:.*package_sha256.*suite_sha256/);
+  expect(() => assertPreparedCandidate(root, campaign)).toThrow(/prepared_candidate_drift:.*package_sha256.*suite_sha256.*executable_suite_sha256/);
+  writeFileSync(join(root, "test/run.test.ts"), "export {};\n");
+  writeFileSync(join(root, "dist/cli.js"), "export const shippedDrift = true;\n");
+  expect(() => assertPreparedCandidate(root, campaign)).toThrow(/prepared_candidate_drift:.*package_sha256.*release_package_sha256/);
 });
 
 it("J-MAN-02 preparation identity changes when any execution-pinned candidate dimension changes", () => {
@@ -52,6 +56,8 @@ it("J-MAN-02 preparation identity changes when any execution-pinned candidate di
     suite_sha256: digest("b"),
     org_fingerprint: digest("c"),
     system_fingerprint: digest("d"),
+    release_package_sha256: digest("e"),
+    executable_suite_sha256: digest("f"),
   };
   const identity = candidateIdentity(snapshot);
 
@@ -63,6 +69,8 @@ it("J-MAN-02 preparation identity changes when any execution-pinned candidate di
     ["suite_sha256", digest("f")],
     ["org_fingerprint", digest("0")],
     ["system_fingerprint", digest("1")],
+    ["release_package_sha256", digest("2")],
+    ["executable_suite_sha256", digest("3")],
   ] as const) {
     expect(candidateIdentity({ ...snapshot, [field]: value })).not.toBe(identity);
   }

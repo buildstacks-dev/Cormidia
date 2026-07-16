@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ContractRecord } from "./core.js";
+import type { ContractQualificationScope, ContractRecord } from "./core.js";
 export type ProbeOutcome = "passed" | "evidence_absent" | (string & {});
+export type ContractEvaluationScope = ContractQualificationScope | "all";
 
 export interface ContractObservation {
   id: string;
@@ -12,6 +13,9 @@ export interface ContractObservation {
 }
 
 export interface ContractEvaluation {
+  qualificationScope: ContractEvaluationScope;
+  inventoryTotal: number;
+  evaluatedTotal: number;
   observations: ContractObservation[];
   knownRed: string[];
   failures: string[];
@@ -22,8 +26,17 @@ export interface ContractEvaluation {
  * fails loudly if the product starts passing or fails differently. This stage
  * verifies evidence presence and the exact declared debt set without probing
  * source text or duplicating the behavioral runner. */
-export function evaluateContracts(contracts: ContractRecord[], root: string, strict = false): ContractEvaluation {
-  const observations = contracts.map((contract): ContractObservation => {
+export function evaluateContracts(
+  contracts: ContractRecord[],
+  root: string,
+  options: { strict?: boolean; qualificationScope?: ContractEvaluationScope } = {},
+): ContractEvaluation {
+  const strict = options.strict ?? false;
+  const qualificationScope = options.qualificationScope ?? "all";
+  const selected = qualificationScope === "all"
+    ? contracts
+    : contracts.filter((contract) => contract.qualification_scope === qualificationScope);
+  const observations = selected.map((contract): ContractObservation => {
     const evidenceExists = existsSync(resolve(root, contract.evidence));
     const expected = contract.state === "known_red" ? contract.expected_failure ?? null : null;
     const observed: ProbeOutcome = evidenceExists
@@ -34,6 +47,6 @@ export function evaluateContracts(contracts: ContractRecord[], root: string, str
   });
   const knownRed = observations.filter((item) => item.declared_state === "known_red").map((item) => item.id).sort();
   const failures = observations.filter((item) => !item.matches).map((item) => `${item.id}: declared ${item.declared_state}${item.expected_failure ? `/${item.expected_failure}` : ""}, observed ${item.observed}`);
-  if (strict && knownRed.length > 0) failures.push(`strict mode: ${knownRed.length} known-red contract(s) remain`);
-  return { observations, knownRed, failures };
+  if (strict && knownRed.length > 0) failures.push(`${qualificationScope} strict mode: ${knownRed.length} known-red contract(s) remain`);
+  return { qualificationScope, inventoryTotal: contracts.length, evaluatedTotal: selected.length, observations, knownRed, failures };
 }

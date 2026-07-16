@@ -22,7 +22,7 @@ import {
   readManifest,
   startCanaryOnManifest,
 } from "../../src/org/learning/concepts.js";
-import { readLearningEvents } from "../../src/org/learning/events.js";
+import { readLearningEvents, sanitizeIdSegment } from "../../src/org/learning/events.js";
 import { defaultLearningPolicy } from "../../src/org/learning/policy.js";
 import {
   LEARNING_TICKET_LABEL,
@@ -411,6 +411,11 @@ describe("human-gated lane: okf_concept activation (Done #2)", () => {
 
   it("resumes a crashed okf publish from the journal after the draft moved (Done #3)", async () => {
     const rig = makeRig();
+    // Force the filename edge that exposed the old fixture-only sanitizer:
+    // production trims trailing punctuation from derived journal segments.
+    rig.deps.approvals = new ApprovalStore(rig.stateHome.root, {
+      idSource: () => "approval-crash-",
+    });
     const id = await seedCandidate(rig, {
       destination: "okf_concept",
       candidate_id: "cand_20260711_CRASH",
@@ -438,7 +443,7 @@ describe("human-gated lane: okf_concept activation (Done #2)", () => {
     const journalDir = join(rig.stateHome.root, "learning", "publish-journal");
     mkdirSync(journalDir, { recursive: true });
     writeFileSync(
-      join(journalDir, `${approvalId.replace(/[^A-Za-z0-9._-]+/g, "-")}.json`),
+      join(journalDir, `${sanitizeIdSegment(approvalId)}.json`),
       JSON.stringify({
         schema_version: 1,
         journal_id: approvalId,

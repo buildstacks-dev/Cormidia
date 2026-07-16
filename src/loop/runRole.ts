@@ -17,6 +17,7 @@ import { mintRunId } from "../runtime/runlog/paths.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
 import { assembleBrief, withAuthorityBrief } from "./brief.js";
+import type { RouteBudget } from "./efficiency.js";
 import { executePipeline, type PassRunRecord } from "./pipeline.js";
 import type { PipelineConfig } from "./pipelines.js";
 
@@ -52,6 +53,12 @@ export interface RunRoleRequest {
   /** Org-owned task brief for a specialized manual turn (for example an
    * approved SRE release). Callers, never agents, supply these bytes. */
   briefOverride?: string;
+  /** Explicit route admission for bounded evaluator/manual probes. Ordinary
+   * callers omit it and retain the historical standard route. */
+  route?: "quick" | "standard" | "deep";
+  /** Caller-owned ceiling needed to admit routes with deliberately unset
+   * standing authority (currently deep input tokens). */
+  routeBudgetOverrides?: Partial<RouteBudget>;
 }
 
 export interface RunRoleResult {
@@ -110,7 +117,7 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
 
   const result = await executePipeline({
     pipeline,
-    selection: { tier: "standard" },
+    selection: { tier: request.route ?? "standard" },
     roles: { [request.role.name]: request.role },
     runtimeFor: request.runtimeFor,
     briefFor: () => brief,
@@ -128,6 +135,14 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
     ...(request.parentTaskId !== undefined ? { parentTaskId: request.parentTaskId } : {}),
     ...(request.contextBudgetBytes !== undefined ? { contextBudgetBytes: request.contextBudgetBytes } : {}),
+    ...(request.route !== undefined || request.routeBudgetOverrides !== undefined
+      ? {
+          episode: {
+            ...(request.route !== undefined ? { route: request.route } : {}),
+            ...(request.routeBudgetOverrides !== undefined ? { budgetOverrides: request.routeBudgetOverrides } : {}),
+          },
+        }
+      : {}),
   });
 
   const record = result.passes[0];

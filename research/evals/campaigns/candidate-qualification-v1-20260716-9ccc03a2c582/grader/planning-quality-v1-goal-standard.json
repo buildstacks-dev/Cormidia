@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "case_id": "planning/quality/v1",
+  "repetition_id": "goal-standard",
+  "attempt_id": "planning-quality-v1-goal-standard",
+  "grader_ref": "graders/plan-quality.ts",
+  "grader_sha256": "sha256:6fbcfee69af8169476111ca6d37732a960a1ebed1bae3310e2a1e7b15ae0e649",
+  "visible_gate_passed": true,
+  "hidden_grader_passed": true,
+  "verifier_evidence": "artifact:artifact/verifier/planning-quality-v1-goal-standard/grader-evidence.json",
+  "verifier_evidence_sha256": "sha256:627aaa5586c2b4008cb4ac3025912c58df8bb147e5f8b65ef6b2a9e438cd26c3",
+  "result": "passed",
+  "missing": []
+}

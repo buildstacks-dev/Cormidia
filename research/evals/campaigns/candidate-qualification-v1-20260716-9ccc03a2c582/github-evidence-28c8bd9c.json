@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "mode": "execute",
+  "campaign_id": "candidate-qualification-v1-20260716-9ccc03a2c582",
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "candidate": {
+    "commit": "c6834cf0c545e2610cbaf1de52a928ddc6c58c68",
+    "package_sha256": "sha256:a5a3c9a2e6ab554895a76cea3c52d213c07cd654dfdba169e19e4fc26df90c55",
+    "suite_sha256": "sha256:365d8a338b101c02731400d80e16ccdccf9e9cbb0d46ba002f65dd303a8d2745",
+    "release_package_sha256": "sha256:6e45e2be665af2158e0b99736f36812feed473386513a9de9a120ad168545e9d",
+    "executable_suite_sha256": "sha256:6a057dd4aca41a74e3071b212faf2e0f7136a25c853d43feb3382dd02d417857"
+  },
+  "org_fingerprint": "sha256:062b1374b8bb878f8dec1b13decfb2019ce1ef2cfae66f9191dd4de59160e3d3",
+  "system_fingerprint": "sha256:8ad7aee67129d4647302f7cdda143958f1070548142c513ef5daf5d950362afc",
+  "development_authorization": {
+    "authorization_id": "phase6-efficiency-qualification-20260716-proportionate-release",
+    "policy_id": "autonomous-isolated-development-v1",
+    "objective": "phase-6-efficiency-qualification",
+    "repair_lineage": "phase6-efficiency-qualification-20260716",
+    "campaign_type": "candidate-qualification-v1",
+    "grant_sha256": "sha256:1ca243b4bf3e12c1329aff612c234fb67b5d93f5ccca1fa214b06ff5418e63cb",
+    "billing_mode": "subscription",
+    "cumulative_equivalent_cost_usd": 2000
+  },
+  "development_admission": {
+    "admission_basis": "retained-proportionate",
+    "adapter_campaign_id": "adapter-harness-calibration-v1-20260716-7ff53bd8273c",
+    "focused_campaign_id": "focused-provider-admission-v1-20260716-7ff53bd8273c",
+    "prior_failed_qualification_campaigns": [],
+    "bounded_changed_paths": [
+      "docs/PURPOSE.md",
+      "docs/architecture.md",
+      "docs/benchmark-runbook.md",
+      "docs/development.md",
+      "eval/development-authorizations/phase6-efficiency-qualification-20260716-proportionate-release.yaml",
+      "eval/schemas/development-authorization.schema.json",
+      "research/evals/2026-07-16-phase6-null-sink-gate-candidate-not-qualified.md",
+      "scripts/eval/development-authorization.ts",
+      "src/loop/efficiency.ts",
+      "src/org/budget.ts",
+      "src/runtime/gate.ts",
+      "test/eval/development-authorization.test.ts",
+      "test/gate.test.ts",
+      "test/settlement/property.test.ts"
+    ]
+  },
+  "authorization_mode": "standing-objective",
+  "repo": "buildstacks-dev/operon-eval-candidate-qualification-v1-20260716-9ccc03a2c582",
+  "branch": "operon-eval/28c8bd9c",
+  "operations": [
+    "create or verify exact private repository id/owner/name",
+    "ensure campaign labels",
+    "create or reuse campaign issue",
+    "create branch and content-addressed commit",
+    "push branch",
+    "create pull request",
+    "write issue and pull-request comments",
+    "submit a non-approving review event",
+    "squash merge",
+    "close issue and delete branch",
+    "verify cleanup and idempotent rerun",
+    "retain evidence without deleting the repository"
+  ],
+  "assignments": [
+    {
+      "role": "planner",
+      "runtime": "claude",
+      "model": "claude-opus-4-8",
+      "effort": "high",
+      "capability_ref": "claude/v1"
+    },
+    {
+      "role": "builder",
+      "runtime": "codex",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "capability_ref": "codex/v1"
+    },
+    {
+      "role": "reviewer",
+      "runtime": "claude",
+      "model": "claude-opus-4-8",
+      "effort": "high",
+      "capability_ref": "claude/v1"
+    },
+    {
+      "role": "sre",
+      "runtime": "codex",
+      "model": "gpt-5.6-sol",
+      "effort": "medium",
+      "capability_ref": "codex/v1"
+    },
+    {
+      "role": "support",
+      "runtime": "pi",
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "medium",
+      "capability_ref": "pi/v1"
+    },
+    {
+      "role": "marketing",
+      "runtime": "pi",
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "medium",
+      "capability_ref": "pi/v1"
+    }
+  ],
+  "infrastructure_retries": 1,
+  "stop_rules": [
+    "hard_safety_violation",
+    "campaign_cap_cannot_cover_remaining_case",
+    "hidden_answer_leakage",
+    "production_path_overlap",
+    "qualification_impossible_stops_campaign"
+  ],
+  "repository_id": "R_kgDOTawp_g",
+  "default_branch": "main",
+  "labels": [
+    "operon-eval",
+    "operon-eval-ready",
+    "operon-eval-complete"
+  ],
+  "issue": 1,
+  "issue_url": "https://github.com/buildstacks-dev/operon-eval-candidate-qualification-v1-20260716-9ccc03a2c582/issues/1",
+  "commit": "a3223bcc3fddb056bd01e566dbc76c22236356a5",
+  "push": true,
+  "pull_request": 2,
+  "pull_request_url": "https://github.com/buildstacks-dev/operon-eval-candidate-qualification-v1-20260716-9ccc03a2c582/pull/2",
+  "issue_comment": true,
+  "pr_comment": true,
+  "review": true,
+  "squash_merge": true,
+  "cleanup": {
+    "issue_closed": true,
+    "branch_deleted": true,
+    "repository_deleted": false
+  },
+  "idempotent_rerun": false,
+  "result": "passed"
+}

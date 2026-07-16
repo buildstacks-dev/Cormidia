@@ -18,3 +18,4 @@ reference_patch: ../../graders/quick-ignore-config/reference.patch
 mutants:
   - ../../graders/quick-ignore-config/mutants/wrong-cache.patch
   - ../../graders/quick-ignore-config/mutants/overbroad.patch
+  - ../../graders/quick-ignore-config/mutants/root-anchored.patch

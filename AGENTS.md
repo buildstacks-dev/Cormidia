@@ -5,6 +5,13 @@ Applies to the whole repo. There are no nested AGENTS.md files — this is a
 single TypeScript package and one file covers it. `docs/PURPOSE.md` is the decision
 log; on conflict, its Decided section wins and this file is stale — fix this file.
 
+This file governs **building and maintaining the Operon platform**, not
+operating an org with Operon. Read `docs/development.md` before development
+campaigns. Operon does not self-host its own development: root instructions,
+developer grants, eval state, and CI/release authority must never enter an
+Operon org's prompts, state, learning, or approvals. The packaged
+`agent-skills/operon/` skill is the separate org-operation guide.
+
 ## What this repo is
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,
 Reviewer, SRE, Support, Marketing) that develops and operates a software
@@ -108,6 +115,7 @@ efficacy health independently. The mechanics construct no provider runtime.
 | Path | What it is |
 | --- | --- |
 | `docs/PURPOSE.md` | Decision log — **read first**; every decision to date |
+| `docs/development.md` | Canonical platform-development lifecycle: independent control plane, standing objective grants, incremental admission, circuit breakers, and shipping |
 | `docs/wiki.html` | Standalone code wiki — the three layers, build loop, adapters, gates, and curated reading paths, for an engineer coming up to speed (open in a browser) |
 | `TASTE.md` | Packaged org-constitution template, copied by `operon org init` (human-ratified) |
 | `roles.yaml` | Packaged executable org-chart template: role → runtime/model/effort/triggers |
@@ -152,19 +160,49 @@ efficacy health independently. The mechanics construct no provider runtime.
   skill into the Codex, Claude, and pi skill homes (respecting `CODEX_HOME`,
   `CLAUDE_CONFIG_DIR`, and `PI_CODING_AGENT_DIR`); later source edits need no
   update, rebuild, or relink.
-- Test: `pnpm test` (vitest — fast, offline; run for any `src/` or
-  `roles.yaml` change; `*.live.test.ts` files are excluded here)
+- Test: `pnpm test` (vitest — offline and capped at two workers to prevent
+  subprocess/disk contention; run for any `src/` or `roles.yaml` change;
+  `*.live.test.ts` files are excluded here)
 - Efficiency eval, token-free: `pnpm eval:validate` · `pnpm
   test:transformation` (required + exact known-red) · `pnpm
-  eval:deterministic` · `pnpm test:transformation:strict` (final gate; expected
-  non-zero while declared transformation debt remains).
+  eval:deterministic` (subprocess/disk-heavy umbrella, capped at two workers) ·
+  `pnpm test:transformation:strict` (green current Phase 6
+  scope) · `pnpm test:transformation:future-soak-strict` (separate future gate;
+  expected non-zero only for `I-LIVE-01` until the genuine campaign passes).
 - Efficiency eval, explicit external boundary: `pnpm eval:prepare -- --campaign
-  <template> --github-owner <owner>` · preview/execute `pnpm eval:github` and
-  `pnpm eval:live` only with their environment switches, exact campaign
-  confirmation, and human-authorized cap · `pnpm eval:soak -- --campaign
+  <template> --github-owner <owner> [--authorization <standing-grant>]` ·
+  preview/execute `pnpm eval:github` and `pnpm eval:live` with the same grant,
+  their environment switches, and exact campaign confirmation. Under a bound
+  developer objective, the switch and confirmation are agent-supplied accident
+  guards rather than a repeated human approval; the grant's cumulative
+  equivalent-cost ceiling remains the authority. `pnpm eval:soak -- --campaign
   <prepared-file>` previews the separate 48–72 hour L6 runner (execution also
   requires `OPERON_EVAL_SOAK=1`, an exact confirmation, and an explicit cap) ·
   `pnpm eval:qualify` is read-only.
+- Phase 6 provider qualification uses at most one decisive full campaign per
+  repaired candidate. Exact-candidate adapter and non-promotable focused
+  admission remain the default for material provider uncertainty, while the
+  ratified proportionate-release path may retain prior content-bound admission
+  evidence for evaluator-only repairs. Such debt is disclosed and never turns
+  a failed campaign into promotion evidence. See `docs/development.md` and
+  `docs/benchmark-runbook.md`.
+- Phase 6 paired learning has a separate post-L5 boundary: `pnpm
+  eval:learning-activation -- --campaign <prepared-file>` previews the exact
+  candidate and action hashes. Execution requires its own human authorization,
+  `OPERON_EVAL_LEARNING_ACTIVATION=1`, `--execute`, and exact
+  `--confirm-campaign`, `--confirm-candidate`, and `--confirm-action`; L5 spend
+  authorization does not authorize activation. The command is token-free and
+  may mutate only the campaign-local synthetic learning roots.
+- Phase 6 evidence promotion, token-free after an authorized terminal run:
+  `pnpm eval:archive -- --campaign <prepared-file> --out <fresh-external-root>` ·
+  `pnpm eval:import-evidence -- --archive <schema-v2-archive> --receipt
+  <campaign-receipt>` · `pnpm eval:attest-release -- --campaign
+  <sanitized-campaign> [--campaign <sanitized-soak>]` · `pnpm eval:promote --
+  --campaign <sanitized-campaign> --attestation
+  research/evals/phase6-release-attestation.json`. These commands never repair
+  results; promotion requires exact campaign/candidate/case/repetition,
+  qualifier/report/archive/GitHub/grader/accounting, and package/suite
+  equivalence evidence.
 - Live UI browser tests: `pnpm test:observe-browser` (Playwright Chromium;
   offline loopback fixtures, responsive/keyboard/reduced-motion/reconnect and
   injection coverage; install the browser once with `pnpm exec playwright
@@ -258,22 +296,39 @@ efficacy health independently. The mechanics construct no provider runtime.
   `yaml`, `@anthropic-ai/claude-agent-sdk`, `@openai/codex`, and
   `@earendil-works/pi-coding-agent`. Adding another dependency is a
   decision, not a convenience.
-- **Model IDs:** all roles.yaml IDs verified against live catalogs and
-  human-ratified 2026-07-05 (PR #1; sources in
-  `research/2026-07-05_model-id-verification.md`). One live caveat: `gpt-5.5`
-  in Codex currently requires ChatGPT-account auth, not an API key.
+- **Model IDs:** all roles.yaml IDs were refreshed against live catalogs and
+  human-ratified 2026-07-15 (sources in
+  `research/2026-07-15_model-assignment-refresh.md`). One live caveat:
+  `gpt-5.6-sol` in Codex uses the installed ChatGPT-account-authenticated App
+  Server path; exact availability is proved by adapter calibration before a
+  candidate campaign.
 - Single package, deliberately **not** a pnpm workspace (docs/PURPOSE.md → Repo shape).
 
 ## Testing expectations
 - Changes under `eval/**`, `scripts/eval/**`, or transformation eval fixtures:
   run `pnpm eval:validate`, `pnpm test:transformation`, `pnpm
   eval:deterministic`, the complete `pnpm test`, and `pnpm typecheck`.
-  `test:transformation:strict` must fail only for the exact declared known-red
-  set until production work promotes those contracts. Never run `eval:github`
+  `test:transformation:strict` must pass the current scope after the nine
+  Phase 6 provider-evidence promotions;
+  `test:transformation:future-soak-strict` must independently fail only for
+  `I-LIVE-01`. The canonical boundary is `docs/efficiency.md` → Phase 6
+  qualification scope. Never run `eval:github`
   or `eval:live` merely because these files changed.
   Do not execute `eval:soak` merely because soak files changed; preview and
   deterministic scheduler tests are token-free, but L6 execution is a
   separately authorized 48–72 hour provider campaign.
+  Provider usage quality marked unavailable must remain an invalid missing
+  denominator with its original typed infrastructure/account cause; never
+  coerce it to zero, retry it as a merit miss, or substitute a model.
+  For a genuine repaired provider behavior, use the smallest evidence sequence
+  that resolves material risk and run at most one decisive full campaign for
+  that candidate. Preserve every first failure and its cause; evaluator-only
+  defects do not recursively restart adapter, focused, and full campaigns. Do
+  not resample an aggregate learning experiment to seek a favorable draw—replay
+  deterministic verifier defects token-free instead.
+  Standing development authorization, cumulative equivalent-cost accounting,
+  and new-decision boundaries are defined only in `docs/development.md` and
+  never apply to an operated org.
 - Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
 - `src/observe/**` or `src/cli/observe.ts` changes: also run `pnpm
   test:observe-browser`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack

@@ -3,6 +3,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path
 import { fileURLToPath } from "node:url";
 import { calibrateCommittedGraders } from "../../eval/graders/index.js";
 import { hashFile, hashTree, loadYamlFile, sha256, validateCampaign, validateCase, validateContracts } from "./core.js";
+import { validateDevelopmentAuthorization } from "./development-authorization.js";
 
 const root = resolve(option("--root") ?? resolve(dirname(fileURLToPath(import.meta.url)), "../.."));
 const failures: string[] = [];
@@ -22,6 +23,9 @@ const contractsRaw = loadYamlFile(contractsPath);
 for (const error of validateContracts(contractsRaw)) failures.push(`contracts.yaml: ${error}`);
 const contracts = (contractsRaw as { contracts?: Array<{ id: string; evidence: string }> }).contracts ?? [];
 const requirementIds = new Set(contracts.map((item) => item.id));
+scanYaml(join(root, "eval/development-authorizations"), (path, value) => {
+  for (const error of validateDevelopmentAuthorization(value)) failures.push(`${path}: ${error}`);
+});
 const sourceContract = readFileSync(join(root, "docs/efficiency-transformation/highly-efficient-organization-test-eval-transformation.md"), "utf8");
 const sourceRequirementIds = new Set([...sourceContract.matchAll(/`([A-J]-(?:[A-Z]+-)*\d{2})`/g)].map((match) => match[1]!));
 for (const id of sourceRequirementIds) if (!requirementIds.has(id)) failures.push(`contracts.yaml: source requirement missing from inventory ${id}`);
@@ -52,8 +56,18 @@ scanYaml(join(root, "eval/cases"), (path, value) => {
 const capabilities = validateCapabilities();
 scanYaml(join(root, "eval/campaigns"), (path, value) => {
   for (const error of validateCampaign(value)) failures.push(`${path}: ${error}`);
-  const campaign = value as { price_catalog_id?: unknown; cases?: Array<{ case_id?: unknown; repetition_ids?: unknown }>; assignments?: Array<{ runtime?: unknown; model?: unknown; capability_ref?: unknown }>; stop_rules?: unknown; operator_fixture?: unknown };
+  const campaign = value as { price_catalog_id?: unknown; cases?: Array<{ case_id?: unknown; repetition_ids?: unknown }>; assignments?: Array<{ runtime?: unknown; model?: unknown; capability_ref?: unknown }>; stop_rules?: unknown; operator_fixture?: unknown; learning_treatment?: { source?: unknown; content_sha256?: unknown } };
   validateOperatorFixture(path, campaign.operator_fixture);
+  if (campaign.learning_treatment !== undefined) {
+    const source = campaign.learning_treatment.source;
+    const expected = campaign.learning_treatment.content_sha256;
+    const treatmentPath = typeof source === "string" ? join(root, "eval", source) : "";
+    if (treatmentPath === "" || !existsSync(treatmentPath)) failures.push(`${path}: missing learning treatment ${String(source)}`);
+    else {
+      const observed = `sha256:${hashFile(treatmentPath)}`;
+      if (expected !== observed) failures.push(`${path}: learning treatment content_sha256 expected ${observed}, got ${String(expected)}`);
+    }
+  }
   if (typeof campaign.price_catalog_id === "string") {
     const catalogId = campaign.price_catalog_id.replace(/^prices\//, "");
     const catalogPath = join(root, "eval/price-catalogs", `${catalogId}.yaml`);

@@ -19,10 +19,12 @@ material or irreversible actions. Operon owns routine coordination and reaches
 one truthful terminal outcome: verified completion, a precise governed wait,
 or an evidence-backed stop with an executable next step.
 
-Operon may call itself highly efficient only after the exact candidate package
-passes the predeclared qualification in `docs/efficiency.md`. A cheap but
-incorrect episode, an unsafe shortcut, a hidden retry, missing usage, or an
-unreported human intervention is not efficiency.
+Operon may report current Phase 6 complete after the exact candidate package
+passes the predeclared current qualification in `docs/efficiency.md` and its
+evidence ships. It may call itself a fully proven highly efficient organization
+only after the separate future real-time-soak contract, `I-LIVE-01`, also
+passes. A cheap but incorrect episode, an unsafe shortcut, a hidden retry,
+missing usage, or an unreported human intervention is not efficiency.
 
 Installation and onboarding claims also follow evidence. Generated artifacts,
 a registered app, deterministic runtime readiness, a human-selected live state,

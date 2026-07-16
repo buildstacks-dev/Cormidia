@@ -245,6 +245,74 @@ describe("provider settlement and terminal reconciliation", () => {
     });
     expect(existsSync(`${home.root}/telemetry/2026-07-12.jsonl`)).toBe(true);
   });
+
+  it("F-SET-03 preserves partial envelope usage when a started provider receipt loses its owner", async () => {
+    home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const episodeId = "episode:stale-partial";
+    const runId = "run-stale-partial";
+    const startedAt = new Date("2026-07-10T00:00:00.000Z");
+    await admission(home.root, episodeId);
+    await startRun(home.root, {
+      runId,
+      traceId: "trace-stale-partial",
+      episodeId,
+      app: "fixture",
+      pipeline: "build",
+      pass: "implement",
+      role: ROLE.name,
+      runtime: ROLE.runtime,
+      model: ROLE.model,
+      effort: ROLE.effort,
+      providerTurnIds: [],
+      executionStepIds: [],
+    }, startedAt);
+    const started = await beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId,
+      ordinal: 1,
+      operation: "build/implement",
+      role: ROLE,
+      inputFingerprint: "input-stale-partial",
+      now: startedAt,
+    });
+    await updateEnvelope(home.root, "fixture", runId, {
+      providerTurnIds: [started.providerTurnId],
+      executionStepIds: [started.executionStepId],
+      usage: {
+        tokens_in: 82_967,
+        tokens_out: 1_146,
+        cost_usd: 0.449215,
+        subagent_turns: 0,
+        cache_read_tokens: 28_928,
+        cost_estimated: true,
+        quality: "partial",
+      },
+      lastSeenAt: "2026-07-10T00:00:30.000Z",
+    });
+
+    const outcome = await reconcileLedger(home.root, {}, new Date("2026-07-12T00:00:00.000Z"));
+    expect(outcome).toMatchObject({ settled: 1, recoveredUsd: 0.449215, corrupt: 0 });
+    expect((await readEfficiencyEvidence(home.root))[0]?.steps[0]).toMatchObject({
+      status: "interrupted",
+      usage: {
+        tokensIn: 82_967,
+        tokensOut: 1_146,
+        costUsd: 0.449215,
+        cacheReadTokens: 28_928,
+        costEstimated: true,
+        quality: "partial",
+      },
+    });
+    expect((await readTurnRecords(home.root))[0]).toMatchObject({
+      providerTurnId: started.providerTurnId,
+      costUsd: 0.449215,
+      costEstimated: true,
+      usageQuality: "partial",
+    });
+    expect((await readTurnRecords(home.root))[0]?.unmeasured).not.toBe(true);
+  });
 });
 
 async function admission(root: string, episodeId: string): Promise<void> {

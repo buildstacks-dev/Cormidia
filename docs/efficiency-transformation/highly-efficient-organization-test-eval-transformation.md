@@ -2,8 +2,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | T0–T5 readiness and deterministic production Phases 1–4 complete; the provider baseline remains valid historical evidence and honestly `not_qualified` |
-| Evidence date | 2026-07-14 |
+| Status | T0–T5 and Phase 6 current-scope qualification complete; `I-LIVE-01` is the separately deferred future campaign |
+| Evidence date | 2026-07-16 |
 | Source charter | `docs/efficiency-transformation/highly-efficient-organization-transformation.md` |
 | Primary implementation repo | `/Users/bikram/Build/Operon` |
 | Production evidence only | `/Users/bikram/Build/Bikram-Org`, `/Users/bikram/Build/buildstacks.dev` |
@@ -38,6 +38,22 @@ lifecycle while honestly returning a product verdict of `not_qualified`.
 This is permission to begin the separately reviewed transformation
 implementation, not a product qualification result.
 
+### Ratified Phase 6 scope
+
+The 2026-07-15 decision separates current Phase 6 qualification from the
+future real-time soak without weakening either. The complete 84-contract
+inventory has 83 `current` contracts and exactly one `future_soak` contract,
+`I-LIVE-01`. Current Phase 6 may finish after the unchanged candidate matrix,
+nine valid promotions, read-only production confirmation, CI, release
+equivalence, and shipping. `I-LIVE-01` remains required and known-red until a
+genuine separately authorized 48–72 hour campaign passes; preview, virtual
+soak, manufactured evidence, and production confirmation cannot promote it.
+The broader fully proven “highly efficient organization” claim remains
+reserved until then. The sole normative boundary is
+[`docs/efficiency.md`](../efficiency.md#phase-6-qualification-scope); older
+handoff text below is historical where it grouped all ten contracts into one
+Phase 6 gate.
+
 ### Completed locally
 
 | Phase | Status | Evidence |
@@ -53,12 +69,229 @@ implementation, not a product qualification result.
 | Production Phase 2 | Complete | Additive archived org upgrade, normalized answer recovery, typed reset remediation, immutable-checkout onboarding, deterministic clone convergence, token-free verification, and journaled promotion pass `LIFE-LEGACY-001` plus every lifecycle fault/security/isolation contract. C-LIFE-01–04 are required. |
 | Production Phase 3 | Complete | Factor-backed routes, context budgets/deltas, token-free preflight, durable execution journals, bounded repair, semantic approvals, denial recurrence, and reset-abandonment closure are executable. |
 | Production Phase 4 | Complete | Typed trusted efficiency evidence, exactly-once repairable capture, app/role recurrence, explainable dispositions, declared efficacy, governed sandbox activation/rollback, and independent learning-health dimensions promote all ten H contracts without a provider campaign. |
+| Production Phase 5 | Complete | Scheduler lifecycle/status, exact-once dispatch evidence, deterministic standing-role paths, and the seven-day production virtual soak promote the five deterministic I contracts without host scheduler mutation or provider work. |
+| Phase 6 local hardening | Complete before external execution | Exact package/suite identity and evidence-only release attestation, immutable qualification JSON, sanitized archive import, adversarial contract promotion, provider-path grader/accounting evidence, production route admission, content-hashed treatment-only paired learning with a separately authorized candidate/action-bound activation, independent standing-role verification, L6 reconciliation, and unconditional strict release CI are implemented and token-free tested. No contract is promoted without matching authorized evidence. |
 
 The L6 real-time soak path is implemented and tested as an explicitly
 authorized 48–72 hour boundary. It has not been executed and is not authorized
-by the work recorded here. Candidate qualification is also not authorized.
+by the work recorded here.
 
-### Latest deterministic verification
+### 2026-07-16 incremental qualification handoff
+
+The terminal candidate is `c6834cf`, with campaign
+`candidate-qualification-v1-20260716-9ccc03a2c582` (campaign SHA-256
+`28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a`).
+All 34 attempts passed; 73 provider turns equal 73 settlements; product and
+evaluator equivalent costs are `$62.295667` and `$8.0654455`. The paired
+learning result is improved at `+1,+2,+1`, and its separately hash-bound
+isolated publish/canary/rollback completed exactly once with zero provider,
+GitHub, production, or outward effects. Sanitized evidence is archived and
+the nine current-scope live contracts have content-bound promotion evidence.
+The retained earlier failures remain historical evidence, not rescored
+attempts. `I-LIVE-01` alone remains future-pending.
+
+The prior exact candidate (`46617f1`) retained a qualified adapter
+campaign and an invalid 34-attempt candidate campaign: 32 passed; migration
+`mixed-d1` and approval `mixed-da` were red because independent reviewers used
+unnecessary shell probes that correctly crossed the unchanged auth/protocol
+safety gates. Both product artifacts, visible gates, and hidden graders passed.
+The complete accounting is 73 provider turns = 73 settlements, 2,016
+mechanical steps, zero mechanical settlements, $87.652728 product equivalent
+cost, and $8.360302 evaluator equivalent cost. Paired learning was complete
+but inconclusive at `+1,+2,0`. The immutable record is
+[`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`](../../research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md).
+
+The next exact candidate (`d92f7e6`) passed fresh adapter admission and the two
+repaired review cases in focused admission. Its final campaign passed planning,
+all six context probes, and all five clean deliveries, then stopped immediately
+at quick `mixed-q1`: a fixed equal per-turn budget slice stopped a $2.80136
+implementation even though the unchanged $8 case ceiling had $7.417165 left.
+The retained campaign has 14 passes and one budget stop, 32 provider turns = 32
+settlements, $33.0329 product equivalent cost, and $1.6384895 evaluator
+equivalent cost. The immutable record is
+[`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`](../../research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md).
+
+The corrected developer lifecycle no longer uses full qualification as its
+debugging loop. Review command boundaries and remaining-case budget
+carry-forward are adversarially pinned; the exact candidate must pass adapter
+admission and a non-promotable three-case focused provider admission before the
+one final full campaign. Final execution stops
+on the first terminal miss and immediately after a non-improved paired-learning
+aggregate, before later autonomy spend. A content-bound standing objective
+grant replaces repeated campaign-by-campaign approval while preserving exact
+identity, immutable attempts, a cumulative equivalent-cost circuit breaker,
+and all separately authorized learning/production/soak boundaries. The
+canonical platform policy is [`docs/development.md`](../development.md); it is
+excluded from and never grants authority to an operated Operon org.
+
+The historical adapter admission remains retained evidence, but Phase 6
+changes covered harness, grader, evaluator, candidate-hash, and package bytes.
+The first authorized fresh campaign,
+`adapter-harness-calibration-v1-20260715-00530744c9ae`, qualified all three
+adapters with 20/20 settlements and $2.378309 equivalent cost. Archive
+verification then found that the claimed sanitized archive contained raw L3
+`state/runs/**` prompts, outputs, and session logs. The campaign and invalid
+archive remain retained and cleanup was not executed. The corrected
+`sanitized-evidence/v3` policy structurally excludes both `provider-scratch/**`
+and `state/runs/**`; because this correction changes covered suite bytes, final
+adapter admission requires a fresh prepared identity and authorization. The
+same applies independently to candidate GitHub/provider execution and the
+future L6 GitHub/soak boundaries. Until fresh candidate evidence qualifies and
+its schema-v2 archive is imported and verified, the exact nine current-scope
+provider contracts remain known-red. `I-LIVE-01` separately remains known-red
+in `future_soak` until its own genuine terminal campaign qualifies.
+
+A subsequent safely archived adapter campaign,
+`adapter-harness-calibration-v1-20260715-ac31a40c7d61` (SHA-256
+`b72ef578cd98bda30acc6e84923a3f36fcab563d85038ac9c10a51831efbe7df`),
+qualified Claude, Codex, and pi with 20/20 settlements, zero mechanical
+settlements, $2.36184225 equivalent cost, and a verified
+`sanitized-evidence/v3` archive. The separately authorized candidate campaign
+`candidate-qualification-v1-20260715-ac31a40c7d61` (SHA-256
+`b4e18a288a897cab16292bdb92618d3c2af538944c8655ef37554c08d316a098`)
+is permanently `invalid`: 11 attempts passed, eight were genuine product
+misses, three were infrastructure-invalid, and the remaining cases are
+incomplete. Its 42 provider turns reconcile to 42 settlements; product and
+evaluator costs are $35.684715 and $1.711014. It is qualified read-only and
+retained in a verified 370-file archive; cleanup was not executed.
+
+The product misses expose three public compatibility gaps: exact
+repository-local `.pnpm-store/` syntax, collapsing repeated underscores under
+`preserveUnderscores`, and preservation of the existing `normalizeApiKey`
+export. The halted continuation attempt also exposed a harness failure on
+unavailable provider token totals. Corrected task contracts and adversarial
+tests pin the product behavior, while the harness now records unavailable
+usage as missing invalid evidence rather than zero or an exception. The two pi
+context attempts remain blocked by the external Claude account's “extra
+usage” requirement; no model is substituted. See
+`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md` for the
+immutable report, archive, GitHub, attempt, cost, and settlement hashes.
+Because these are covered-byte changes, a fresh adapter identity and fresh
+candidate identity require new exact authorizations. No contract is promoted
+from the invalid campaign. Under the later ratified scope, current strict mode
+is red for the exact nine non-soak provider contracts, while future-soak
+strict is independently red only for `I-LIVE-01`.
+
+The next exact latest-model adapter campaign,
+`adapter-harness-calibration-v1-20260715-7d36fc5f3d3f` (SHA-256
+`7184ed7001fc9cb7adbc678b72a945821a0e7b7d3891e4b9adec67c5916edf7a`),
+is also permanently `invalid`. Claude passed; Codex's original attempt and
+its one linked infrastructure retry were rejected because the pinned 0.142.5
+Codex runtime was too old for `gpt-5.6-sol`; and pi's Sonnet 5 attempt proved
+that the external account still lacks funded third-party “extra usage.” All
+ten provider turns reconcile to ten settlements, four mechanical steps have
+zero mechanical settlements, and the verified 67-file archive is retained.
+The repository now pins `@openai/codex` 0.144.4, which invalidates the
+unexecuted matching candidate manifest. The operator subsequently ratified an
+eval-only reassignment of every pi probe, Support case, and Marketing case to
+pi's exact `openai-codex/gpt-5.6-sol` model; production `roles.yaml` remains
+unchanged. The local pi SDK is pinned to 0.80.7 so that exact provider/model is
+available to the embedded adapter. This covered-byte change makes the later
+`20260715-0794dd5378ed` previews and authorizations stale before execution. See
+`research/evals/2026-07-15-phase6-latest-model-adapter-invalid.md` for exact
+GitHub, qualifier, report, archive, cost, attempt, and settlement evidence.
+
+The subsequent pi-on-Codex adapter campaign,
+`adapter-harness-calibration-v1-20260715-6ed3b4ac8b87` (SHA-256
+`74e1260fa224b165b10a9c4a26e016de2efcdb9af86fc7d311fef00775ccda9b`),
+qualified Claude, Codex, and pi without a retry: 20 provider turns equal 20
+settlements, three mechanical steps produced zero mechanical settlements, and
+equivalent cost was $2.5776245. Its dependent candidate campaign,
+`candidate-qualification-v1-20260715-6ed3b4ac8b87` (SHA-256
+`f871bb3bdc4530ff5c44e0cba094160c91be5a8890cbfd880a980bd676a6968d`),
+is permanently `invalid`: 24 attempts passed, both deep episodes were genuine
+product misses, both continuation episodes were infrastructure-invalid, and
+all six learning arms stopped at a pristine-gate harness error. All 59
+provider turns reconcile to 59 settlements, 2,022 mechanical steps created
+zero settlements, and product/evaluator costs were $63.216598/$4.1084805.
+The corrected deep task preserves pinned package scripts, continuation waits
+for usage-bearing progress before cancellation, and the fully network-dark
+learning case uses a focused non-loopback seed test. Those covered-byte
+corrections require fresh adapter and candidate identities. Both terminal
+campaigns and their byte-stable reports are retained in verified
+`sanitized-evidence/v3` archives; cleanup was not executed. See
+`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`.
+
+The next scope-split adapter campaign,
+`adapter-harness-calibration-v1-20260715-c6b9b4885527` (SHA-256
+`d48af84381dbfa7ab7ad270552a06b6dd501dd1f0a6f516cec06691187e0e9`),
+qualified all three adapters without retry: 20 provider turns equal 20
+settlements, three mechanical steps produced zero settlements, and equivalent
+cost was $2.503884. Its dependent candidate,
+`candidate-qualification-v1-20260715-c6b9b4885527` (SHA-256
+`d32dd98932364bb07ee6a40aad78d3454f1267c065db28a170e80ddaabc9ed70`),
+is permanently `invalid`: 31 of 34 attempts passed, with one context safety
+stop, one deep product miss, and one learning product miss. All 71 provider
+turns reconcile to 71 settlements; the virtual soak contributed 2,016
+mechanical steps and zero settlements; product/evaluator equivalent costs
+were $68.12762825/$7.1732735. The exact retained failures and fail-closed
+corrections are recorded in
+`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`. No
+learning activation, contract promotion, production confirmation, or
+real-time soak occurred. The covered-byte corrections require fresh adapter
+and candidate identities.
+
+### Latest retained pre-scope-split deterministic verification
+
+The corrected Phase 6 pre-external gate on 2026-07-15, in the isolated candidate
+worktree, produced:
+
+- `pnpm eval:validate`: valid, with 84 requirements, 84 executable evidence
+  paths, 14 cases, 12 benchmark families, 60 fault boundaries, 13 graders,
+  three capability declarations, and zero orphaned records;
+- `pnpm test:transformation`: 32 files and 259 tests passed, then the
+  non-strict runner reported exactly the ten post-Phase-5 known-red contracts;
+- `pnpm eval:deterministic`: 53 files and 402 tests passed;
+- `pnpm eval:deterministic:nightly`: both declared shuffled seeds passed 53
+  files and 402 tests, including the production seven-day virtual soak;
+- `pnpm test`: 181 files and 1,552 tests passed after retaining and correcting
+  the invalid-calibration integration-timeout miss described below;
+- `pnpm typecheck`, `pnpm build`, neutral-cwd `pnpm smoke:onboarding`, and
+  `npm pack --dry-run` passed; the dry-run package contains 208 files;
+- the fresh-HOME/TMPDIR/org/state/app/eval/provider-scratch Phase 6 subset
+  passed 31 files and 182 tests after retaining and correcting a zsh wrapper
+  variable error; production-path, hidden-answer, provider-construction,
+  accounting, archive, promotion, and scheduler tripwires were green;
+- the isolated alpha, beta, gamma, and delta app suites passed; alpha, gamma,
+  and delta lint passed, and gamma's token-free SRE, Support, and Marketing
+  artifact smokes passed with no GitHub target;
+- the then-unscoped `pnpm test:transformation:strict` passed all 259 executable
+  tests and exited non-zero for the ten post-Phase-5 contracts. The later
+  ratified split replaces that result with separate current and future-soak
+  strict views; it does not relabel the retained run.
+
+The first full deterministic attempt after adding the final L6 denominator
+checks retained one local failure: the nine-projection self-verification case
+exceeded Vitest's five-second timeout under full-suite load. The cause was
+repacking the identical release candidate once per projection. Batch
+verification now computes that exact packed identity once while every
+projection still independently recomputes its qualification, archive, result,
+grader, accounting, and mapping evidence. The formerly timing-sensitive case
+runs in about one second, and the complete deterministic and shuffled-seed
+runs above passed without changing a threshold or retrying campaign evidence.
+The first complete offline-suite run after the ratified learning-score binding
+also retained a single five-second test timeout: the eight-attempt specialized
+provider-path integration case completed in 5.2 seconds under full-suite
+contention. It now declares a 15-second integration-test timeout; the next full
+run passed all 1,541 tests with unchanged cases, assertions, campaign rules,
+graders, and denominators.
+
+The first complete offline-suite run for the corrected invalid-campaign
+harness retained one further five-second timeout. The filesystem-backed
+invalid-calibration accounting case completed in 5.219 seconds under full
+suite contention. It now has the same explicit 15-second integration timeout
+as the larger provider-workflow case; all unavailable-usage, retained-cost,
+attempt, settlement, and equality assertions are unchanged. The corrected
+full run passed all 1,548 tests. The first fresh-root focused wrapper also
+retained a post-test zsh error from assigning the reserved `status` variable;
+the same 182 tests had already passed. Changing only that wrapper variable to
+`rc` produced an exit-zero run on a new fresh root.
+
+This gate spent no provider tokens and performed no external GitHub,
+scheduler, production-org/state, canary, publication, deployment, or outward
+operation. Fresh adapter calibration, candidate qualification, and L6 remain
+separately authorized work; the strict gate is not green and no Phase 6
+contract is promoted.
 
 The complete Phase 2 local pass on 2026-07-14 produced:
 
@@ -564,8 +797,12 @@ Create a versioned `eval/contracts.yaml` inventory. Each future contract has:
 observed known-red set exactly matches the inventory and all required cases
 pass. A known-red case that unexpectedly passes is a loud result requiring
 review and promotion; a new or differently failing case fails the command.
-`pnpm test:transformation:strict` requires zero known-red contracts and remains
-non-zero until the transformation is complete.
+`pnpm test:transformation:strict` requires zero known-red contracts in the
+declared `current` scope. `pnpm test:transformation:future-soak-strict`
+independently evaluates `future_soak` and remains non-zero for exactly
+`I-LIVE-01` until its genuine campaign passes. Both validate all 84 inventory
+records before filtering; the canonical scope definition is
+[`docs/efficiency.md`](../efficiency.md#phase-6-qualification-scope).
 
 This is an explicit executable debt ledger, not a waiver. The known-red count
 may only decrease. The transformation implementation PR that satisfies a
@@ -675,7 +912,8 @@ prove behavioral quality.
 | --- | --- |
 | `pnpm test` | Existing required offline suite plus promoted transformation unit/component tests; always token-free |
 | `pnpm test:transformation` | Executes required and exact known-red transformation contracts; token-free |
-| `pnpm test:transformation:strict` | Requires every transformation contract green; final phase gate |
+| `pnpm test:transformation:strict` | Requires every current Phase 6 contract green; final current-scope gate |
+| `pnpm test:transformation:future-soak-strict` | Requires the future real-time-soak contract green; deliberately non-zero for `I-LIVE-01` until genuine evidence exists |
 | `pnpm eval:validate` | Validates fixtures, graders, fingerprints, manifests, checksums, hidden-answer separation, and result schemas |
 | `pnpm eval:deterministic` | Runs L0-L3 transformation benchmarks, including virtual-time soak; token-free |
 | `pnpm eval:github` | Runs L4 against an explicitly allowlisted disposable private-repo namespace |
@@ -1227,8 +1465,9 @@ Suggested suites: `test/scheduler/lifecycle.test.ts`,
   declared approval decisions.
 
 The virtual soak is an ordinary deterministic release gate. The real-time
-soak is required for high-efficiency qualification but must not block normal
-PR feedback for several days.
+soak remains required for the broader fully proven high-efficiency claim but,
+under the ratified scope boundary, is outside current Phase 6 qualification
+and must not block normal PR feedback or Phase 6 shipping for several days.
 
 **Phase 5 evidence (2026-07-14):** lifecycle assertions import
 `src/org/scheduler/{definition,manager,lifecycle,status}.ts`; the primary soak
@@ -1239,7 +1478,7 @@ The eval scripts remain independent oracles and `src/**` imports none of them.
 `I-INSTALL-01..02` and `I-SOAK-01..03` are `required` in
 `eval/contracts.yaml`. `I-ROLE-01..03` retain
 `provider_standing_role_evidence_not_run`; `I-LIVE-01` retains
-`realtime_soak_not_run`.
+`realtime_soak_not_run` in the separate `future_soak` scope.
 
 ### 8.10 Workstream J — durable qualification
 
@@ -1301,11 +1540,18 @@ the candidate qualification campaign declares this order before execution:
    approval-semantics episode. Case order inside this block is randomized by
    the committed campaign seed and then frozen.
 3. **Learning block:** three paired control/treatment replays after targeted
-   eval passes; these costs and turns are learning overhead, not silently
-   added to product-route metrics.
-4. **Autonomy block:** deterministic seven-day virtual soak, followed by the
-   separately scheduled 48-72 hour L6 soak. The bounded SRE, Support, and
-   Marketing cases run as declared soak inputs, not ad-hoc extra work.
+   eval passes. The campaign pins one T1 treatment by content hash and injects
+   it only into treatment-arm builder context. The actual provider candidates,
+   independent reviewer artifacts, and hidden guardrails supply the measured
+   scores; no fixed synthetic verdict is accepted. These costs and turns are
+   learning overhead, not silently added to product-route metrics. After all
+   three pairs terminate, a distinct exact candidate/action-hash authorization
+   is required before the evaluator performs one isolated governed activation
+   and rollback. L5 spend authorization is not that approval.
+4. **Current autonomy block:** deterministic seven-day virtual soak plus the
+   bounded SRE, Support, and Marketing cases as declared inputs, not ad-hoc
+   extra work. The unchanged 48–72 hour L6 soak is a separately scheduled
+   future campaign for `I-LIVE-01`, not part of this current block.
 
 At least one quick, one standard, and one deep delivery variant starts from an
 approved goal and includes its admitted planning path. Other variants begin
@@ -1324,9 +1570,12 @@ Qualification requires:
   side effect, or unapproved outward action;
 - deterministic lifecycle has zero provider construction/turn/settlement;
 - paired learning reports the genuine intervention honestly as improved,
-  inconclusive, or regressed, keeps all guardrails, and proves rollback;
+  inconclusive, regressed, or invalid from all three retained artifact pairs,
+  keeps all guardrails, and proves the separately authorized single activation
+  and rollback;
 - required context, usage, cost, and human-decision fields are complete;
-- virtual and real-time soak meet scheduler invariants.
+- the virtual soak meets its scheduler invariants; the future real-time soak
+  retains its own unchanged invariants and cannot be inferred from this result.
 
 The five clean and ten mixed blocks are qualification rules, not statistical
 proof of universal performance. After qualification, rolling per-route
@@ -1488,7 +1737,8 @@ Neither mechanism exists in production runtime configuration.
 | Nightly | L3 lifecycle, exhaustive fault matrices, virtual soak, repeated deterministic flake run | Determinism/recovery regression; blocks release branch until resolved |
 | GitHub nightly or scheduled | L4 disposable-repo e2e and setup idempotency | GitHub substrate regression; not replaced by fake success |
 | Weekly/manual calibration | Small predeclared provider sample and all configured adapter conformance | Provider/model drift evidence; missing auth is incomplete, not product green |
-| Release candidate | Full L0-L5 qualification on exact package commit; start L6 soak | Release cannot claim high efficiency until qualified |
+| Release candidate | Full current-scope L0-L5 qualification on the exact package commit, nine promotions, release equivalence, and shipping | Phase 6 can finish while `I-LIVE-01` remains future-pending |
+| Future real-time soak | Separately authorize and run the frozen candidate's exact L6 campaign | The broader fully proven high-efficiency claim remains unavailable until it passes |
 | Post-release | Read-only production confirmation and rolling report comparison | Confirmation is reported separately; never rewrites sandbox qualification |
 
 Ordinary PR CI never requires provider credentials or spends tokens. Release
@@ -1663,7 +1913,8 @@ This test/eval campaign is complete when:
   and calibrated;
 - the historical regression fixture is sanitized, checksummed, immutable, and
   independently validated;
-- all A-J future contracts execute with exact required/known-red state;
+- all 84 A-J contracts execute with exact required/known-red state and exactly
+  one declared qualification scope; only `I-LIVE-01` may be `future_soak`;
 - deterministic lifecycle proves zero provider construction and zero provider
   settlement;
 - exhaustive interruption/fault matrices produce only complete or safely
@@ -1677,6 +1928,8 @@ This test/eval campaign is complete when:
   misses;
 - CI, nightly, release, soak, evidence-retention, and cleanup contracts are
   documented and runnable;
+- current Phase 6 strict and future-soak strict remain independent, with the
+  latter red only for genuine missing `I-LIVE-01` evidence;
 - no transformation production feature was implemented merely to make this
   suite appear complete.
 

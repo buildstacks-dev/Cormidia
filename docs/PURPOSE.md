@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v2.1 — 2026-07-13. Human-ratified decision log. Keep this file high-level;
+*v2.4 — 2026-07-16. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -106,6 +106,84 @@ config file, not a fork.
     event or plausible candidate alone is not improvement.
 
 ## Decided
+
+- **Qualification is proportionate to material release risk** (ratified
+  2026-07-16). Evaluation exists to reduce material product risk, not to create
+  an infinite proof loop. Genuine product, safety-boundary, provider-accounting,
+  learning-integrity, build, typecheck, core-test, required-CI, or budget-ceiling
+  failures block release. An evaluator-only defect does not trigger a recursive
+  adapter, focused-admission, and full-candidate cascade when deterministic
+  coverage and retained live evidence already bound the affected risk; preserve
+  the failure and track it as disclosed release debt instead. One repaired
+  candidate receives at most one decisive full qualification campaign unless a
+  genuine product defect materially changes the candidate. Releases report
+  residual evidence debt honestly and never rescore, overwrite, relabel,
+  conceal, or promote unsupported evidence. A real pre-V1 product may ship with
+  bounded, disclosed eval debt while every product, safety, accounting,
+  learning, budget, and CI boundary remains intact. `docs/development.md` and
+  `docs/benchmark-runbook.md` carry the detailed shipping policy.
+
+- **Operon platform development is an independent control plane** (ratified
+  2026-07-16). Operon does not operate an org whose job is to build or maintain
+  Operon. Repository developer instructions, objective grants, eval artifacts,
+  CI/release authority, and learning remain outside every operated org; org
+  prompts, state, approvals, memory, budgets, scheduler, and learning never
+  authorize platform work. A human may authorize one bounded development
+  objective whose isolated repair descendants remain authorized across fresh
+  candidate identities. Subscription-backed equivalent USD is a cumulative
+  accounting and loop-detection ceiling, not incremental billing. Development
+  proceeds through deterministic reproduction and proportionate retained or
+  fresh live evidence before at most one fail-fast full qualification. Fresh
+  authority is still required for scope/effect expansion, metered or unknown
+  billing, threshold or safety weakening, a raised ceiling, governed learning
+  actions, production/outward effects, reserved future campaigns, or a second
+  full campaign without a material product repair. `docs/development.md` is the
+  canonical detailed policy; developer-only files are excluded from the
+  installable org-runtime package.
+
+- **Phase 6 qualification scope and deferred real-time soak** (ratified
+  2026-07-15). Phase 6 completion now covers applicable retained or
+  exact-candidate adapter admission,
+  the unchanged planning, context, delivery, continuation, approval, paired-
+  learning, deterministic seven-day virtual-soak, and standing-role candidate
+  matrix; provider accounting; the nine non-soak evidence promotions;
+  read-only production confirmation; documentation; CI; release-equivalence;
+  and shipping. The 84-contract inventory remains intact: 83 contracts are in
+  the current scope, while only `I-LIVE-01` is `future_soak`. That contract is
+  still required and known-red pending its genuine separately authorized
+  48–72 hour campaign; preview, virtual-soak, manufactured, or production-
+  confirmation evidence cannot promote it. Phase 6 completion may be reported
+  while the future soak is pending, but the broader claim that Operon is a
+  fully proven “highly efficient organization” remains reserved until
+  `I-LIVE-01` passes. `docs/efficiency.md` → Phase 6 qualification scope is the
+  canonical boundary.
+
+- **Phase 6 deep-route input-token ceiling** (ratified 2026-07-14). Every
+  Phase 6 episode whose final authorized route is `deep` has a hard
+  4,000,000-input-token admission ceiling, including deep delivery,
+  planning-deep, and approval-semantics episodes. The ceiling is not standing
+  spend authority and does not change the ratified model-turn, equivalent-cost,
+  active-time, or human-decision caps.
+
+- **Phase 6 paired-learning qualification and activation boundary** (ratified
+  2026-07-14). Phase 6 uses a predeclared, content-hashed T1 treatment only on
+  treatment arms. Paired outcomes come from the retained provider artifacts
+  and hidden guardrails; a fixed synthetic verdict is not evidence and cannot
+  qualify the learning block. The primary metric is the hidden-grader
+  artifact-quality score, an integer from zero through eight: grounded error
+  classes, a causal hypothesis, a bounded/reversible intervention, and
+  guardrails each contribute zero through two points. The result is `improved`
+  only when all three treatment scores exceed their paired controls and every
+  hidden guardrail passes. Each arm also retains an independent provider
+  review ending in exactly one `VERDICT: APPROVE` or `VERDICT: REJECT` marker;
+  a rejection is a retained guardrail failure, never a synthesized approval or
+  corrupt measurement. Any negative delta or guardrail failure is
+  `regressed`; nonnegative deltas with any zero delta are `inconclusive`; and
+  missing, mismatched, or infrastructure-corrupt evidence is `invalid`. Only
+  `improved` may proceed to governed activation and rollback. That action
+  occurs once, only after all three pairs have terminal evidence, and requires
+  a separate exact candidate/action-hash approval. Candidate-qualification
+  provider-spend authorization does not authorize the activation action.
 
 - **Efficiency doctrine and evaluation semantics** (evaluation semantics
   ratified 2026-07-12; organization-wide operating doctrine ratified
@@ -552,3 +630,7 @@ will resolve them.
   deep/60-minute defaults are non-normative; durable progress and lifecycle
   evidence claims are part of the product contract. Numeric budgets remain
   solely in `docs/efficiency.md` (`efficiency/v1`).
+- 2026-07-16 — v2.4: proportionate release evidence ratified. Material
+  product, safety, accounting, learning-integrity, budget, and CI failures
+  remain blockers; bounded evaluator-only defects are retained and disclosed
+  without recursively restarting provider qualification.

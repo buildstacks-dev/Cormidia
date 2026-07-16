@@ -56,6 +56,10 @@ describe("PiRuntime (SDK mocked)", () => {
       provider: "amazon-bedrock",
       id: "amazon.nova-lite-v1:0",
     });
+    expect(resolvePiModel(registry, "openai-codex/gpt-5.6-sol")).toMatchObject({
+      provider: "openai-codex",
+      id: "gpt-5.6-sol",
+    });
     expect(mapPiThinkingLevel("max")).toBe("xhigh");
     expect(mapPiThinkingLevel("medium")).toBe("medium");
   });

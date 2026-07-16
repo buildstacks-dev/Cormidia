@@ -101,6 +101,64 @@ only its declared useful turns across 48–72 hours, records all other due ticks
 mechanically, and requires a distinct-process receipt at the predeclared
 restart hour.
 
+Phase 6 promotion does not trust a copied pass marker. The qualifier emits a
+deterministic JSON result beside the portable HTML report; a schema-v2 archive
+retains every selected result, hidden-grader/verifier record, and independent
+attempt-accounting receipt. A content-bound release attestation permits only
+sanitized evidence/status documentation after the exact candidate commit and
+proves the installable package, executable eval suite, and org bytes are
+unchanged. Contract tests recompute the outcome and reject stale, foreign,
+malformed, duplicated, missing, grader-failed, or settlement-mismatched
+evidence. L6 is reconciled independently from all 576 ticks, the 12 useful
+runs, ledgers, envelopes, and the distinct-process restart receipt.
+
+The ratified Phase 6 boundary separates that future real-time proof from the
+completed current qualification without weakening either. The current
+83-contract scope is green after the qualified 34-attempt candidate matrix and
+nine bound evidence promotions. `I-LIVE-01` alone remains `future_soak`: it is
+pending, not passed, and neither the virtual soak nor production confirmation
+can promote it. The canonical definition is
+[`efficiency.md`](efficiency.md#phase-6-qualification-scope).
+
+The first Phase 6 candidate campaign remains a useful negative proof rather
+than a disposable rehearsal. It is archived with 11 passes, eight product
+misses, three infrastructure-invalid attempts, and an incomplete tail. The
+corrected harness turns unavailable provider usage into explicit missing
+denominators, and corrected actor-visible contracts pin compatibility details
+without revealing hidden answers. The exact retained evidence and correction
+handoff live in
+`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`.
+
+The next pi-on-Codex adapter evidence qualified, while the dependent candidate
+is retained as a second `invalid` negative proof: 24 passes, two deep product
+misses, two continuation invalid measurements, and six learning pristine-gate
+harness errors. The corrected harness waits for usage-bearing progress before
+injecting continuation cancellation and keeps the learning case network-dark
+with a focused non-loopback seed test. The deep actor contract now preserves
+pinned package scripts. Exact hashes, costs, archives, and the fresh-identity
+handoff live in
+`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`.
+
+The subsequent scope-split adapter campaign qualified, while its dependent
+candidate is retained as a third `invalid` negative proof: 31 passes, one
+context safety stop, one deep product miss, and one learning product miss.
+The context gate remained fail-closed when safety prose was embedded in a
+shell validation literal; the deep implementation now distinguishes an
+expired contract-authoring-only edit ban from durable constraints; and the
+learning schema makes exact event class identifiers explicit while still
+rejecting annotations. All 71 provider turns settled once, and exact hashes,
+costs, report, archive, and continuation instructions live in
+`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`.
+
+The paired learning proof likewise cannot be a fixture verdict. A predeclared
+T1 procedure is injected only into the three treatment arms. Operon hashes the
+six actual provider candidates, independent reviewer observations, and hidden
+grader records; computes all three treatment-minus-control deltas; and retains
+inconclusive, regressed, or invalid outcomes unchanged. A measured improvement
+still does not activate anything: a separate preview produces the exact
+candidate/action hashes for one isolated governed activation and rollback,
+which needs its own human authorization beyond the L5 spend decision.
+
 The 2026-07-12 provider baseline is recorded in
 `research/evals/2026-07-12-pre-transformation-baseline.md`. Its misses and
 safety stop are retained as the pre-feature comparison point. The later T0–T5
@@ -153,9 +211,10 @@ Planner feed each; deploy-shaped SRE work remains parked. No real scheduler,
 provider, repository, or outward integration is touched.
 
 The five deterministic Workstream I contracts (`I-INSTALL-01..02` and
-`I-SOAK-01..03`) are production-backed. `I-ROLE-01..03` remain provider-result
-contracts and `I-LIVE-01` remains the authorized 48–72 hour campaign, so their
-deterministic paths do not promote those four contracts.
+`I-SOAK-01..03`) are production-backed. `I-ROLE-01..03` additionally have
+qualified provider-result projections from the final candidate campaign.
+`I-LIVE-01` remains the future authorized 48–72 hour campaign; deterministic
+or standing-role evidence cannot promote it.
 
 The public read is `operon learn report --efficiency-health [--json]`.
 `--refresh` is the sole explicit projection-write switch; capture, governance,

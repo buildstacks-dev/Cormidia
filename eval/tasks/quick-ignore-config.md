@@ -1,2 +1,3 @@
-Add the project-local pnpm store directory to `.gitignore`. Preserve existing
-entries and do not broaden the pattern beyond that directory.
+Add the exact `.pnpm-store/` directory entry to the project-root `.gitignore`.
+Preserve existing entries, keep the trailing slash, and do not root-anchor or
+broaden the pattern beyond that directory.

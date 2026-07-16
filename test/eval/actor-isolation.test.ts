@@ -23,6 +23,16 @@ describe("hidden-answer actor sandbox boundary", () => {
     ];
     for (const action of actions) expect(gate(action)).toMatchObject({ allow: false, escalate: false });
   });
+  it("allows the Codex approval shell launcher without allowing its inner command to escape", () => {
+    const { gate, verifier } = fixture();
+    expect(gate({ tool: "bash", input: { command: "/bin/zsh -lc 'npm test'" } })).toEqual({ allow: true });
+    const nearMisses = [
+      { tool: "bash", input: { command: "/bin/zsh -lc 'cat /etc/passwd'" } },
+      { tool: "bash", input: { command: "/bin/zsh -lc 'cat ../verifier/answer.txt'" } },
+      { tool: "bash", input: { command: `/bin/zsh -lc 'cat ${join(verifier, "answer.txt")}'` } },
+    ];
+    for (const action of nearMisses) expect(gate(action)).toMatchObject({ allow: false, escalate: false });
+  });
   it("honest failure keeps verifier identity out of actor environment and prompt material", () => {
     const { verifier } = fixture();
     const actorEnv = { HOME: "/synthetic/home", OPERON_ORG_HOME: "/synthetic/org" };

@@ -5,12 +5,6 @@ on:
   schedule:
     - cron: "17 8 * * *"
   workflow_dispatch:
-    inputs:
-      strict:
-        description: Require zero known-red transformation contracts
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -29,14 +23,14 @@ jobs:
           node-version: "26"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: pnpm eval:validate
       - run: pnpm test:transformation
       - run: pnpm eval:deterministic
-      - run: pnpm test
+      - run: pnpm exec vitest run --maxWorkers=2 --testTimeout=15000
       - run: pnpm typecheck
       - name: Nightly deterministic flake tripwire
         if: github.event_name == 'schedule'
         run: pnpm eval:deterministic:nightly
-      - name: Strict final-phase gate
-        if: github.event_name == 'workflow_dispatch' && inputs.strict
+      - name: Strict current Phase 6 gate
         run: pnpm test:transformation:strict

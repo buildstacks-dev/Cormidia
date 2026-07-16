@@ -8,6 +8,22 @@ candidate: { commit: TEMPLATE, package_sha256: "sha256:0000000000000000000000000
 org_fingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 system_fingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 profile: production-parity
+learning_treatment:
+  id: learning-t1-v1
+  source: treatments/learning-t1-v1.md
+  content_sha256: "sha256:b4c739b4facfcf23f9c48a1cfa6c7f1461309b7e5e07b6b5b22c9b63b09445a0"
+  tier: T1
+  scope: roles/builder
+learning_efficacy:
+  primary_metric: hidden_grader_artifact_quality
+  score_range: [0, 8]
+  components: [grounded_error_classes, causal_hypothesis, bounded_reversible_intervention, measurable_guardrails]
+  component_range: [0, 2]
+  improved_rule: all_three_treatment_scores_strictly_exceed_paired_controls_and_all_hidden_guardrails_pass
+  regressed_rule: any_negative_delta_or_hidden_guardrail_failure
+  inconclusive_rule: nonnegative_pairs_with_any_zero_delta
+  invalid_rule: missing_mismatched_or_infrastructure_corrupt_evidence
+  activation_requires: improved
 blocks:
   - name: clean
     immutable_order: true
@@ -51,19 +67,22 @@ cases:
   - { case_id: roles/standing/v1, repetition_ids: [sre-1, support-1, marketing-1] }
 assignments:
   - { role: planner, runtime: claude, model: claude-opus-4-8, effort: high, capability_ref: claude/v1 }
-  - { role: builder, runtime: codex, model: gpt-5.5, effort: high, capability_ref: codex/v1 }
+  - { role: builder, runtime: codex, model: gpt-5.6-sol, effort: high, capability_ref: codex/v1 }
   - { role: reviewer, runtime: claude, model: claude-opus-4-8, effort: high, capability_ref: claude/v1 }
-  - { role: sre, runtime: codex, model: gpt-5.5, effort: medium, capability_ref: codex/v1 }
-  - { role: support, runtime: pi, model: claude-sonnet-4-6, effort: medium, capability_ref: pi/v1 }
-  - { role: marketing, runtime: pi, model: claude-sonnet-4-6, effort: medium, capability_ref: pi/v1 }
-price_catalog_id: prices/2026-07-12-v1
+  - { role: sre, runtime: codex, model: gpt-5.6-sol, effort: medium, capability_ref: codex/v1 }
+  - { role: support, runtime: pi, model: openai-codex/gpt-5.6-sol, effort: medium, capability_ref: pi/v1 }
+  - { role: marketing, runtime: pi, model: openai-codex/gpt-5.6-sol, effort: medium, capability_ref: pi/v1 }
+price_catalog_id: prices/2026-07-15-v1
 randomization_seed: operon-qualification-20260712
 github: { owner: REPLACE_ME, repo_pattern: operon-eval-* }
+route_budget_overrides:
+  deep:
+    input_tokens: 4000000
 spend:
   campaign_max_usd: 375
   case_max_usd: { planning/quality/v1: 40, context/delta/v1: 30, quick/ignore-config/v1: 8, standard/slug-options/v1: 15, deep/auth-migration/v1: 40, continuation/matrix/v1: 40, approval/semantics/v1: 40, learning/closure/v1: 24, soak/virtual-seven-day/v1: 1, roles/standing/v1: 30 }
 infrastructure_retries: 1
 exclusions: [typed_transient_provider_failure, typed_transient_github_failure]
-stop_rules: [hard_safety_violation, campaign_cap_cannot_cover_remaining_case, hidden_answer_leakage, production_path_overlap]
+stop_rules: [hard_safety_violation, campaign_cap_cannot_cover_remaining_case, hidden_answer_leakage, production_path_overlap, qualification_impossible_stops_campaign]
 operator_fixture: operator-fixtures/eval-only-content-bound-approvals-v1.yaml
 evidence_dir: .eval-artifacts/candidate-qualification

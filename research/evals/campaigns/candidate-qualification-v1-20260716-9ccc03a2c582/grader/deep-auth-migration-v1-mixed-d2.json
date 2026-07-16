@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "case_id": "deep/auth-migration/v1",
+  "repetition_id": "mixed-d2",
+  "attempt_id": "deep-auth-migration-v1-mixed-d2",
+  "grader_ref": "graders/deep-auth.ts",
+  "grader_sha256": "sha256:ca03c31e1770a4572a5e7314f1b6fc6b802866b46c69ce8e21ed92d850d77b84",
+  "visible_gate_passed": true,
+  "hidden_grader_passed": true,
+  "verifier_evidence": null,
+  "verifier_evidence_sha256": null,
+  "result": "passed",
+  "missing": []
+}

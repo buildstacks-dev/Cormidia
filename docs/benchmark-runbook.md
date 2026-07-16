@@ -18,16 +18,47 @@ distribution or make a missing live case green.
 Before any new comparable provider run, execute the token-free funnel
 (`pnpm eval:validate`, `pnpm test:transformation`, and
 `pnpm eval:deterministic`), prepare the exact campaign, and inspect the
-`eval:github` and `eval:live` previews. Adapter calibration precedes product
-episodes. Platform-development authority is defined separately in
+`eval:github` and `eval:live` previews. When material adapter uncertainty
+remains, calibration precedes product episodes. Platform-development authority
+is defined separately in
 [`development.md`](development.md): a matching standing objective grant may
 cover repaired campaign descendants, but each manifest, attempt, cumulative
 equivalent-cost ceiling, and zero-effect sandbox remains content-bound. A
-repaired provider boundary must pass its smallest non-promotable focused
-admission before one fail-fast full qualification. This policy never becomes
-authority for an operated org. L6 is not folded into an ordinary benchmark invocation:
+repaired candidate receives at most one decisive fail-fast full qualification
+campaign unless a genuine product defect materially changes it. Retained
+adapter and focused-admission evidence may bound an evaluator-only repair
+without exact-candidate repetition; such debt is disclosed, never converted
+into a pass or promotion. This policy never becomes authority for an operated
+org. L6 is not folded into an ordinary benchmark invocation:
 `pnpm eval:soak -- --campaign <prepared-file>` previews the separately
 authorized 48–72 hour runner, its useful-turn cap, and restart protocol.
+
+## Proportionate release evidence
+
+Evaluation reduces material release risk; it is not an obligation to generate
+an infinite proof cascade. A genuine product defect, safety-boundary failure,
+provider-settlement or accounting mismatch, learning-integrity failure, build,
+typecheck, core-test or required-CI failure, or campaign budget-ceiling breach
+blocks release. Do not weaken a product contract, grader, hidden threshold,
+provider assignment, safety rule, accounting invariant, or CI check to pass.
+
+Evaluator-only false positives, redundant exact-candidate admission demands,
+report or metadata defects, transient eval infrastructure failures with
+preserved evidence, and missing repetition whose risk is already bounded by
+deterministic tests and retained live evidence are non-blocking release debt.
+Retain the original result exactly, add a focused deterministic regression when
+inexpensive, and disclose the debt. Do not rescore, overwrite, relabel, conceal,
+or promote from unsupported evidence, and do not recursively restart adapter,
+focused-admission, and full-candidate campaigns for evaluator-only defects.
+Real pre-V1 products may ship with bounded, disclosed eval debt.
+
+Each repaired candidate gets at most one decisive full qualification campaign.
+If it qualifies, use that evidence. If it exposes a genuine material defect,
+repair the product and treat the materially changed candidate as a new release
+decision. If it stops only on an evaluator defect, preserve the non-qualified
+campaign, record the bounded debt, and continue release validation without a
+merit retry or another provider campaign. Every release report and PR names the
+residual debt explicitly.
 
 Phase 5 adds a separate token-free release gate before any L6 authorization:
 the production-backed seven-day virtual soak under temporary homes and an

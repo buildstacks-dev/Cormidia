@@ -252,7 +252,31 @@ export async function reconcileLedger(
   // New-schema execution receipts are authoritative at provider-turn
   // granularity. Repair stale started receipts first, then settle every
   // terminal provider step. Legacy envelopes are handled below.
-  const stale = await reconcileStaleProviderSteps(stateHome, now, IN_FLIGHT_WINDOW_MS);
+  const stale = await reconcileStaleProviderSteps(
+    stateHome,
+    now,
+    IN_FLIGHT_WINDOW_MS,
+    async (receipt) => {
+      try {
+        const envelope = await readEnvelope(stateHome, receipt.app, receipt.run_id);
+        if (!envelope.provider_turn_ids?.includes(receipt.provider_turn_id) || envelope.usage === undefined) return undefined;
+        const observedAt = envelope.last_seen_at ?? envelope.finished_at ?? now.toISOString();
+        return {
+          tokensIn: envelope.usage.tokens_in,
+          tokensOut: envelope.usage.tokens_out,
+          costUsd: envelope.usage.cost_usd,
+          subagentTurns: envelope.usage.subagent_turns ?? 0,
+          wallClockMs: Math.max(0, new Date(observedAt).getTime() - new Date(receipt.started_at).getTime()),
+          quality: envelope.usage.quality ?? (envelope.usage.cost_estimated ? "estimated" : "partial"),
+          ...(envelope.usage.cost_estimated === true ? { costEstimated: true } : {}),
+          ...(envelope.usage.cache_read_tokens !== undefined ? { cacheReadTokens: envelope.usage.cache_read_tokens } : {}),
+          ...(envelope.usage.cache_write_tokens !== undefined ? { cacheCreationTokens: envelope.usage.cache_write_tokens } : {}),
+        };
+      } catch {
+        return undefined;
+      }
+    },
+  );
   result.inFlight += stale.inFlight.length;
   result.corrupt += stale.corrupt.length;
   for (const step of stale.finalized) {

@@ -50,6 +50,26 @@ circuit breaker counts historical spend plus every immutable descendant
 attempt, including failed attempts and typed retries, and stops before the
 cumulative ceiling. Never overwrite or omit an attempt to recover capacity.
 
+## Proportionate release evidence
+
+Evaluation exists to reduce material product risk, not to create an infinite
+proof loop. Product behavior, safety boundaries, provider settlements and
+accounting, learning integrity, builds, typechecks, core tests, required CI,
+and campaign budget ceilings are release blockers. Evaluator-only false
+positives, redundant exact-candidate admission demands already bounded by
+retained evidence, report or metadata defects, preserved transient
+infrastructure failures, and unnecessary repetition are release debt rather
+than product failures.
+
+Keep that debt immutable and explicit. Never rescore, overwrite, relabel,
+conceal, or promote a failed campaign, and never weaken product behavior,
+graders, thresholds, assignments, accounting, safety, learning rules, or CI.
+When deterministic regressions and prior live evidence bound the material risk,
+an evaluator-only failure does not restart an adapter/focused/full cascade. One
+repaired candidate receives at most one decisive full qualification campaign
+unless a genuine product defect materially changes the candidate. A pre-V1
+release may ship with bounded, disclosed evaluator debt.
+
 Fresh human direction is required only for a genuinely new decision:
 
 - expanding the objective, repository namespace, production path, or outward
@@ -62,7 +82,8 @@ Fresh human direction is required only for a genuinely new decision:
 - production mutation, deployment, publication, messages, or destructive data
   work;
 - a real-time soak or other campaign explicitly reserved for later; or
-- the repair lineage's declared repeated-full-qualification stop condition.
+- a second full campaign for the same repaired candidate without a genuine
+  product defect that materially changes it.
 
 ## Incremental development ladder
 
@@ -74,16 +95,20 @@ Use the cheapest evidence that can disprove the change, in this order:
    near-miss so the boundary cannot regress.
 3. Run the relevant focused token-free suites. Do not start a broad provider
    campaign to discover a failure a local test can expose.
-4. If model behavior is the remaining uncertainty, run a non-promotable
-   focused provider-admission campaign for only the repaired cases and any
+4. If model behavior is the remaining uncertainty and retained evidence does
+   not already bound it, run a non-promotable focused provider-admission
+   campaign for only the repaired cases and any
    downstream provider cases a prior fail-fast run deliberately did not reach.
    It must use the same exact candidate, assignments, thresholds, graders, and
    safety boundaries as final qualification.
-5. Admit adapters for that exact candidate where the release contract requires
-   it.
-6. Run one final full qualification only after focused and adapter admission
-   are green. Stop immediately after the first terminal failure because the
-   campaign can no longer qualify; retain later cases as deliberately unrun.
+5. Admit adapters for that exact candidate only where a material adapter risk
+   remains. An evaluator-only repair does not invalidate otherwise applicable
+   retained adapter evidence merely because the commit identity changed.
+6. Run at most one decisive full qualification for the repaired candidate.
+   Stop immediately after the first terminal failure because the campaign can
+   no longer qualify; retain later cases as deliberately unrun. A terminal
+   evaluator-only defect becomes disclosed release debt, not authority for a
+   recursive admission/full rerun cascade.
 7. Qualify and reconcile read-only, archive before cleanup, import only the
    sanitized projection, prove release equivalence, and then run the complete
    final suite and CI.
@@ -104,53 +129,44 @@ new treatment or experiment decision. Never rerun for a better draw.
 
 ## Phase 6 implementation of this policy
 
-The current scorer-repair grant is
-`eval/development-authorizations/phase6-efficiency-qualification-20260716-scorer-repair.yaml`.
-It supersedes the prior repeated-full-qualification stop only for a repaired
-descendant that completes the incremental ladder. It binds the same Phase 6
-repair lineage to subscription billing, a cumulative `$2000` equivalent-cost
-circuit breaker, `buildstacks-dev/operon-eval-*`, and zero production or
-outward effects. Its `$875.017976` historical amount is the verified unique
-archived cost: the ratified `$849.9023615` baseline plus `$25.1156145` from an
-old-candidate focused campaign that was already running when the repair grant
-was frozen and was allowed to settle without overlap. A separate `$40`
-reservation charges the complete case ceiling for the retained usage-
-unavailable campaign rather than coercing its unknown usage to zero. Thus
-`$915.017976` is committed before a new provider turn. The previous grant
-remains in version history and its campaigns remain immutable; the fresh
-grant hash requires new exact-candidate admissions.
+The current proportionate-release grant is
+`eval/development-authorizations/phase6-efficiency-qualification-20260716-proportionate-release.yaml`.
+It binds the same Phase 6 repair lineage to subscription billing, a cumulative
+`$2000` equivalent-cost circuit breaker, `buildstacks-dev/operon-eval-*`, and
+zero production or outward effects. Its `$1017.54113775` measured historical
+amount plus `$79.550785` of separately preserved unavailable-usage reservations
+makes `$1097.09192275` committed before the one fresh campaign; unavailable
+usage is not coerced to zero.
 
-The sequence is:
+The grant authorizes only candidate qualification. It content-binds the
+qualified adapter and focused campaigns for candidate `523bb998...`, the exact
+bounded descendant path set, and a one-fresh-full-campaign stop. Those retained
+admissions remain non-promotable; they merely bound the evaluator-only repair
+risk. The prior scorer-repair grant and every dependent campaign remain
+immutable.
+
+The current sequence is therefore:
 
 ```bash
-AUTH=eval/development-authorizations/phase6-efficiency-qualification-20260716-scorer-repair.yaml
-
-pnpm eval:prepare -- --campaign adapter-harness-calibration --github-owner buildstacks-dev --authorization "$AUTH"
-# preview, execute, and identically rerun its disposable GitHub exercise
-# preview and execute its provider calibration
-
-pnpm eval:prepare -- --campaign focused-provider-admission --github-owner buildstacks-dev --authorization "$AUTH"
-# focused admission has no GitHub mutation and cannot promote a contract
-# preview and execute its repaired delivery plus downstream standing-role cases
+AUTH=eval/development-authorizations/phase6-efficiency-qualification-20260716-proportionate-release.yaml
 
 pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstacks-dev --authorization "$AUTH"
-# candidate GitHub and provider entrypoints refuse execution unless the same
-# exact candidate has passed both admissions above
+# preview and execute the disposable GitHub exercise, then preview and execute
+# at most one full provider campaign
 ```
 
-Pass `--authorization "$AUTH"` to the GitHub and live entrypoints as well.
-Focused admission is fixed to quick `mixed-q1`, migration `mixed-d1`, approval
-`mixed-da`, and standing-role `sre-1`, `support-1`, and `marketing-1`. It uses
-the exact Phase 6 Builder, Reviewer, SRE, Support, and Marketing assignments,
-the four-million-token deep ceiling, one typed infrastructure retry, the
-unchanged `$8`, `$40`, `$40`, and `$30` per-case thresholds, and a `$118`
-campaign ceiling. Promotion rejects all non-qualification campaigns even if
-local files claim success.
+Pass `--authorization "$AUTH"` to the GitHub and live entrypoints as well. The
+candidate retains every Phase 6 assignment, case, threshold, deep-token ceiling,
+AB/BA/AB learning order, safety rule, accounting requirement, and the one typed
+infrastructure retry. Promotion still requires contract-specific evidence from
+a qualified candidate; retained admission evidence cannot promote anything.
 
 The final candidate stops and writes `campaign-stop.json` on its first
-terminal non-pass. Two failed full qualification descendants trip the lineage
-loop breaker; do not begin a third without a new human decision. Learning
-activation and the future 48-hour real-time soak remain separately authorized.
+terminal non-pass. A repaired candidate gets at most one decisive full
+qualification campaign unless a genuine product defect materially changes it.
+An evaluator-only stop is retained as debt and does not authorize another
+provider campaign. Learning activation and the future 48-hour real-time soak
+remain separately authorized.
 
 ## Shipping discipline
 

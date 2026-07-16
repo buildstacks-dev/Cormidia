@@ -114,9 +114,14 @@ classification rule, approval behavior, provider assignments, efforts, case
 ceilings, graders, thresholds, retry rules, accounting, and fail-fast policy
 are unchanged.
 
-The failed candidate remains immutable. Any new full qualification must first
-pass the complete token-free sequence and fresh exact-candidate adapter and
-focused admissions under a newly committed candidate identity.
+The failed candidate remains immutable. Under the policy in force when this
+record was first committed, any new full qualification would have required
+fresh exact-candidate adapter and focused admissions. The human-ratified
+proportionate-release decision later on 2026-07-16 supersedes that repetition
+requirement for this bounded evaluator-only repair: the named retained
+admissions remain non-promotable risk evidence, and the repaired candidate gets
+one decisive full campaign. This does not change, rerun, or qualify the failed
+campaign recorded here.
 
 ## Corrected-descendant token-free admission
 
@@ -141,6 +146,26 @@ and this permanent handoff passed the complete pre-provider sequence in order:
 
 No code, fixture, threshold, grader, or evidence changed between these gates.
 No provider campaign ran during corrected-descendant admission.
+
+## Inherited post-snapshot campaigns
+
+At takeover, a prior session had already completed and archived adapter
+campaign `adapter-harness-calibration-v1-20260716-4dc0b227b3a6` for corrected
+commit `200a6d7` and was still running focused campaign
+`focused-provider-admission-v1-20260716-4dc0b227b3a6`. No new campaign was
+started alongside it. The adapter campaign qualified all three adapters with
+20 turns and 20 settlements at `$2.724233`; it is redundant retained evidence,
+not promotion evidence for the final candidate.
+
+The inherited focused campaign was stopped at the next terminal boundary. Its
+quick and deep cases passed with six turns and six settlements at
+`$10.5533375`. A seventh Codex turn had then started; deterministic stale-step
+reconciliation preserved its partial 82,967-input/1,146-output-token checkpoint
+and `$0.449215` estimate in exactly one failed settlement. The incomplete
+campaign is not qualified, is not resumed, and is not used for promotion. Its
+unmeasured remainder reserves `$39.550785`, bringing the pre-campaign
+cumulative lineage total to `$1097.09192275` against the unchanged `$2000`
+ceiling. No unavailable usage was coerced to zero.
 
 ## Retained operational evidence-capture issue
 

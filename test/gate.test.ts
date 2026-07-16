@@ -75,10 +75,12 @@ const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
   // never mask a genuine protocol write in the same compound command.
   { action: bash("echo 'rewritten' > AGENTS.md 2>/dev/null"), rule: "protocol-self-edit" },
   { action: bash("cat AGENTS.md 2>/dev/null; cp /tmp/new-rules AGENTS.md"), rule: "protocol-self-edit" },
-  // Only the exact literal sink is known harmless. Variable and lookalike
-  // destinations remain conservative because the classifier cannot prove
-  // where they resolve.
+  // Only the exact literal sink is known harmless. Variable, substitution,
+  // malformed, and lookalike destinations remain conservative because the
+  // classifier cannot prove where they resolve.
   { action: bash("cat AGENTS.md 2>$ERROR_LOG"), rule: "protocol-self-edit" },
+  { action: bash("cat AGENTS.md 2>$(printf /dev/null)"), rule: "protocol-self-edit" },
+  { action: bash("cat AGENTS.md 2>\"/dev/null"), rule: "protocol-self-edit" },
   { action: bash("cat AGENTS.md 2>/dev/nullish"), rule: "protocol-self-edit" },
   { action: bash("echo '{}' > scorecards/civic/builder.jsonl"), rule: "scorecard-tamper" },
   // Approval-store forgery (grant-store is the gate's own root of trust): a

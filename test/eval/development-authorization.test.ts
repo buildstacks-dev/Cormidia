@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -48,6 +49,28 @@ it("J-MAN-02 pins the scorer-repair ceiling, verified history, and unavailable-u
   });
 });
 
+it("J-MAN-02 pins the proportionate-release history, retained admissions, bounded repair, and one-campaign stop", () => {
+  expect(loadDevelopmentAuthorization("eval/development-authorizations/phase6-efficiency-qualification-20260716-proportionate-release.yaml")).toMatchObject({
+    authorization_id: "phase6-efficiency-qualification-20260716-proportionate-release",
+    objective: "phase-6-efficiency-qualification",
+    billing_mode: "subscription",
+    cumulative_equivalent_cost_usd: 2000,
+    historical_equivalent_cost_usd: 1017.54113775,
+    usage_reservations: [
+      { campaign_id: "candidate-qualification-v1-20260716-7c99f3314b2c", equivalent_cost_usd: 40 },
+      { campaign_id: "focused-provider-admission-v1-20260716-4dc0b227b3a6", equivalent_cost_usd: 39.550785 },
+    ],
+    allowed_campaign_types: ["candidate-qualification-v1"],
+    proportionate_release: {
+      policy: "proportionate-release-v1",
+      base_candidate_commit: "523bb9984a6a3a066743fdc92f74b47799dd50c4",
+      max_fresh_full_campaigns: 1,
+      adapter: { campaign_id: "adapter-harness-calibration-v1-20260716-7ff53bd8273c" },
+      focused: { campaign_id: "focused-provider-admission-v1-20260716-7ff53bd8273c" },
+    },
+  });
+});
+
 it("J-MAN-02 standing development authorization binds objective, subscription billing, lineage, campaign type, and zero-effect scope", () => {
   const grant = fixtureGrant();
   expect(validateDevelopmentAuthorization(grant)).toEqual([]);
@@ -95,6 +118,7 @@ it("J-MAN-02 final qualification requires same-candidate adapter and focused adm
   const focused = preparedCampaign("focused-provider-admission-v1", "focused-provider-admission-v1-20260716-fixture", grant);
   writePassedCampaign(root, focused, false);
   expect(assertDevelopmentAdmission(root, target, grant)).toEqual({
+    admission_basis: "exact-candidate",
     adapter_campaign_id: adapter.campaign_id,
     focused_campaign_id: focused.campaign_id,
     prior_failed_qualification_campaigns: [],
@@ -116,6 +140,74 @@ it("J-MAN-02 Phase 6 objective rejects a campaign-type/profile mismatch and a th
     writeFileSync(join(dir, "campaign.yaml"), stringify(failed)); writeFileSync(join(dir, "campaign-stop.json"), "{}\n");
   }
   expect(() => assertDevelopmentAdmission(root, target, grant)).toThrow("repeated_full_qualification_failure");
+});
+
+it("J-MAN-02 proportionate release content-binds retained admissions and the exact repaired path set", () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-proportionate-release-")); roots.push(root);
+  git(root, ["init", "--initial-branch=main"]);
+  git(root, ["config", "user.name", "Operon Eval Test"]);
+  git(root, ["config", "user.email", "eval-test@operon.invalid"]);
+  mkdirSync(join(root, "src/runtime"), { recursive: true });
+  writeFileSync(join(root, "src/runtime/gate.ts"), "export const gate = 'before';\n");
+  git(root, ["add", "src/runtime/gate.ts"]); git(root, ["commit", "-m", "base"]);
+  const base = git(root, ["rev-parse", "HEAD"]);
+
+  const admissionGrant = fixtureGrant();
+  const adapter = preparedCampaign("adapter-harness-calibration-v1", "adapter-harness-calibration-v1-20260716-retained", admissionGrant);
+  const focused = preparedCampaign("focused-provider-admission-v1", "focused-provider-admission-v1-20260716-retained", admissionGrant);
+  adapter.candidate.commit = base; focused.candidate.commit = base;
+  writePassedCampaign(root, adapter, true); writePassedCampaign(root, focused, false);
+
+  writeFileSync(join(root, "src/runtime/gate.ts"), "export const gate = 'after';\n");
+  git(root, ["add", "src/runtime/gate.ts"]); git(root, ["commit", "-m", "repair"]);
+  const repaired = git(root, ["rev-parse", "HEAD"]);
+  const grant: DevelopmentAuthorizationGrant = {
+    ...fixtureGrant(),
+    authorization_id: "phase6-proportionate-fixture",
+    allowed_campaign_types: ["candidate-qualification-v1"],
+    proportionate_release: {
+      policy: "proportionate-release-v1",
+      base_candidate_commit: base,
+      bounded_changed_paths: ["src/runtime/gate.ts"],
+      max_fresh_full_campaigns: 1,
+      adapter: { campaign_id: adapter.campaign_id, campaign_sha256: hashManifest(adapter) },
+      focused: { campaign_id: focused.campaign_id, campaign_sha256: hashManifest(focused) },
+    },
+  };
+  expect(validateDevelopmentAuthorization(grant)).toEqual([]);
+  const target = preparedCampaign("candidate-qualification-v1", "candidate-qualification-v1-20260716-proportionate", grant);
+  target.candidate.commit = repaired;
+  expect(assertDevelopmentAdmission(root, target, grant)).toEqual({
+    admission_basis: "retained-proportionate",
+    adapter_campaign_id: adapter.campaign_id,
+    focused_campaign_id: focused.campaign_id,
+    prior_failed_qualification_campaigns: [],
+    bounded_changed_paths: ["src/runtime/gate.ts"],
+  });
+
+  const tamperedGrant: DevelopmentAuthorizationGrant = {
+    ...grant,
+    authorization_id: "phase6-proportionate-tampered",
+    proportionate_release: {
+      ...grant.proportionate_release!,
+      adapter: { ...grant.proportionate_release!.adapter, campaign_sha256: `sha256:${"0".repeat(64)}` },
+    },
+  };
+  const tamperedTarget = preparedCampaign("candidate-qualification-v1", "candidate-qualification-v1-20260716-tampered", tamperedGrant);
+  tamperedTarget.candidate.commit = repaired;
+  expect(() => assertDevelopmentAdmission(root, tamperedTarget, tamperedGrant)).toThrow("identity_mismatch");
+
+  writeFileSync(join(root, "unbounded.txt"), "not authorized\n");
+  git(root, ["add", "unbounded.txt"]); git(root, ["commit", "-m", "unbounded"]);
+  const unbounded = structuredClone(target); unbounded.candidate.commit = git(root, ["rev-parse", "HEAD"]);
+  expect(() => assertDevelopmentAdmission(root, unbounded, grant)).toThrow("proportionate_candidate_scope_mismatch");
+
+  const prior = preparedCampaign("candidate-qualification-v1", "candidate-qualification-v1-20260716-prior", grant);
+  prior.candidate.commit = repaired;
+  const priorRoot = join(root, ".eval-artifacts", prior.campaign_id); mkdirSync(priorRoot, { recursive: true });
+  writeFileSync(join(priorRoot, "campaign.yaml"), stringify(prior));
+  writeFileSync(join(priorRoot, "github-evidence-started.json"), "{}\n");
+  expect(() => assertDevelopmentAdmission(root, target, grant)).toThrow("one_decisive_full_campaign");
 });
 
 it("J-MAN-02 focused admission cannot shrink its repaired or downstream cases, assignments, thresholds, or retry boundary", () => {
@@ -219,4 +311,8 @@ function passingAttempt(campaign: CampaignManifest, campaignSha256: string, case
       execution: { terminal_integrity: 1, provider_turns: 1, mechanical_steps: 0, provider_settlements: 1, mechanical_settlements: 0 }, capabilities: { outward_effects: 0, hidden_answer_leakage: false, production_path_overlap: false },
     }, exclusions: [], missing: [],
   };
+}
+
+function git(root: string, args: string[]): string {
+  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }

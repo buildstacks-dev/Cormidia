@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v2.3 — 2026-07-16. Human-ratified decision log. Keep this file high-level;
+*v2.4 — 2026-07-16. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -107,6 +107,22 @@ config file, not a fork.
 
 ## Decided
 
+- **Qualification is proportionate to material release risk** (ratified
+  2026-07-16). Evaluation exists to reduce material product risk, not to create
+  an infinite proof loop. Genuine product, safety-boundary, provider-accounting,
+  learning-integrity, build, typecheck, core-test, required-CI, or budget-ceiling
+  failures block release. An evaluator-only defect does not trigger a recursive
+  adapter, focused-admission, and full-candidate cascade when deterministic
+  coverage and retained live evidence already bound the affected risk; preserve
+  the failure and track it as disclosed release debt instead. One repaired
+  candidate receives at most one decisive full qualification campaign unless a
+  genuine product defect materially changes the candidate. Releases report
+  residual evidence debt honestly and never rescore, overwrite, relabel,
+  conceal, or promote unsupported evidence. A real pre-V1 product may ship with
+  bounded, disclosed eval debt while every product, safety, accounting,
+  learning, budget, and CI boundary remains intact. `docs/development.md` and
+  `docs/benchmark-runbook.md` carry the detailed shipping policy.
+
 - **Operon platform development is an independent control plane** (ratified
   2026-07-16). Operon does not operate an org whose job is to build or maintain
   Operon. Repository developer instructions, objective grants, eval artifacts,
@@ -116,17 +132,18 @@ config file, not a fork.
   objective whose isolated repair descendants remain authorized across fresh
   candidate identities. Subscription-backed equivalent USD is a cumulative
   accounting and loop-detection ceiling, not incremental billing. Development
-  proceeds through deterministic reproduction and focused non-promotable
-  provider admission before one fail-fast full qualification. Fresh authority
-  is still required for scope/effect expansion, metered or unknown billing,
-  threshold or safety weakening, a raised ceiling, governed learning actions,
-  production/outward effects, reserved future campaigns, or the declared
-  repeated-full-run stop. `docs/development.md` is the canonical detailed
-  policy; developer-only files are excluded from the installable org-runtime
-  package.
+  proceeds through deterministic reproduction and proportionate retained or
+  fresh live evidence before at most one fail-fast full qualification. Fresh
+  authority is still required for scope/effect expansion, metered or unknown
+  billing, threshold or safety weakening, a raised ceiling, governed learning
+  actions, production/outward effects, reserved future campaigns, or a second
+  full campaign without a material product repair. `docs/development.md` is the
+  canonical detailed policy; developer-only files are excluded from the
+  installable org-runtime package.
 
 - **Phase 6 qualification scope and deferred real-time soak** (ratified
-  2026-07-15). Phase 6 completion now covers exact-candidate adapter admission;
+  2026-07-15). Phase 6 completion now covers applicable retained or
+  exact-candidate adapter admission,
   the unchanged planning, context, delivery, continuation, approval, paired-
   learning, deterministic seven-day virtual-soak, and standing-role candidate
   matrix; provider accounting; the nine non-soak evidence promotions;
@@ -613,3 +630,7 @@ will resolve them.
   deep/60-minute defaults are non-normative; durable progress and lifecycle
   evidence claims are part of the product contract. Numeric budgets remain
   solely in `docs/efficiency.md` (`efficiency/v1`).
+- 2026-07-16 — v2.4: proportionate release evidence ratified. Material
+  product, safety, accounting, learning-integrity, budget, and CI failures
+  remain blockers; bounded evaluator-only defects are retained and disclosed
+  without recursively restarting provider qualification.

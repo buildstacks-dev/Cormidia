@@ -138,6 +138,10 @@ calls the adapter again for recovery or verdict reformatting, that is another
 provider turn even when the pass retains one parent summary. Use the specific
 identity in normative text instead of ambiguous bare “turn.”
 
+When a provider owner disappears after checkpointing partial usage, stale-step
+reconciliation carries that measured partial usage into the terminal step and
+ledger settlement. It records usage as unavailable only when no measured
+checkpoint exists; unknown usage is never silently treated as measured zero.
 
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
 effective gate for a turn (default rules + grant lookup, §4) and passes it

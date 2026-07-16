@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
@@ -14,6 +15,20 @@ import {
 
 export const DEVELOPMENT_POLICY_ID = "autonomous-isolated-development-v1" as const;
 
+interface RetainedAdmissionReference {
+  campaign_id: string;
+  campaign_sha256: string;
+}
+
+interface ProportionateReleasePolicy {
+  policy: "proportionate-release-v1";
+  base_candidate_commit: string;
+  bounded_changed_paths: string[];
+  max_fresh_full_campaigns: 1;
+  adapter: RetainedAdmissionReference;
+  focused: RetainedAdmissionReference;
+}
+
 export interface DevelopmentAuthorizationGrant {
   schema_version: 1;
   authorization_id: string;
@@ -29,6 +44,7 @@ export interface DevelopmentAuthorizationGrant {
     reason: "usage_unavailable_case_ceiling";
     equivalent_cost_usd: number;
   }>;
+  proportionate_release?: ProportionateReleasePolicy;
   allowed_campaign_types: string[];
   github: { owner: string; repo_pattern: "operon-eval-*" };
   effects: {
@@ -58,7 +74,7 @@ export function validateDevelopmentAuthorization(value: unknown): string[] {
     "historical_equivalent_cost_usd", "allowed_campaign_types", "github", "effects",
     "learning_activation", "future_realtime_soak", "stop_conditions",
   ];
-  const optional = ["usage_reservations"];
+  const optional = ["usage_reservations", "proportionate_release"];
   for (const key of Object.keys(value)) if (!required.includes(key) && !optional.includes(key)) errors.push(`unknown development authorization key ${key}`);
   for (const key of required) if (!(key in value)) errors.push(`development authorization missing ${key}`);
   if (value.schema_version !== 1) errors.push("schema_version must be 1");
@@ -87,6 +103,7 @@ export function validateDevelopmentAuthorization(value: unknown): string[] {
       }
     }
   }
+  validateProportionateRelease(value.proportionate_release, value.allowed_campaign_types, errors);
   if (!Array.isArray(value.allowed_campaign_types) || value.allowed_campaign_types.length === 0 || value.allowed_campaign_types.some((item) => typeof item !== "string" || !/^[a-z0-9][a-z0-9-]*-v\d+$/.test(item)) || new Set(value.allowed_campaign_types).size !== value.allowed_campaign_types.length) errors.push("allowed_campaign_types must be a unique non-empty versioned campaign array");
   const github = isRecord(value.github) ? value.github : undefined;
   if (!github || github.owner === undefined || typeof github.owner !== "string" || github.owner === "" || github.repo_pattern !== "operon-eval-*" || Object.keys(github).some((key) => !["owner", "repo_pattern"].includes(key))) errors.push("github must bind one owner and operon-eval-*");
@@ -133,17 +150,37 @@ export function assertDevelopmentAuthorization(campaign: CampaignManifest, grant
   return binding;
 }
 
-/** Final Phase 6 provider qualification is admitted only after the same exact
- * candidate has passed fresh adapter and focused provider admission. The
- * admission campaigns remain non-qualification evidence and cannot promote a
- * release contract. */
+/** Final Phase 6 provider qualification normally follows exact-candidate
+ * adapter and focused admission. A content-bound, human-ratified
+ * proportionate-release grant may instead retain already-qualified admission
+ * evidence across one explicitly bounded repair. Admission evidence remains
+ * non-qualification evidence and cannot promote a release contract. */
 export function assertDevelopmentAdmission(root: string, campaign: CampaignManifest, grant: DevelopmentAuthorizationGrant): {
+  admission_basis: "exact-candidate" | "retained-proportionate";
   adapter_campaign_id: string;
   focused_campaign_id: string;
   prior_failed_qualification_campaigns: string[];
+  bounded_changed_paths?: string[];
 } | null {
   const binding = assertDevelopmentAuthorization(campaign, grant);
   if (binding.campaign_type !== "candidate-qualification-v1") return null;
+  if (grant.proportionate_release !== undefined) {
+    const priorCampaigns = priorStartedQualifications(root, campaign.campaign_id, grant);
+    if (priorCampaigns.length >= grant.proportionate_release.max_fresh_full_campaigns) {
+      throw new Error(`development_authorization_one_decisive_full_campaign:${priorCampaigns.join(",")}`);
+    }
+    const changedPaths = assertBoundedCandidateRepair(root, campaign, grant.proportionate_release);
+    const adapter = retainedAdmissionCampaign(root, grant.proportionate_release.adapter, grant.proportionate_release.base_candidate_commit, "adapter-harness-calibration-v1", true);
+    const focused = retainedAdmissionCampaign(root, grant.proportionate_release.focused, grant.proportionate_release.base_candidate_commit, "focused-provider-admission-v1", false);
+    if (!sameExactCandidate(adapter, focused)) throw new Error("development_authorization_retained_admission_candidate_mismatch");
+    return {
+      admission_basis: "retained-proportionate",
+      adapter_campaign_id: adapter.campaign_id,
+      focused_campaign_id: focused.campaign_id,
+      prior_failed_qualification_campaigns: [],
+      bounded_changed_paths: changedPaths,
+    };
+  }
   const priorFailed = priorFailedQualifications(root, campaign.campaign_id, grant);
   if (priorFailed.length >= 2) throw new Error(`development_authorization_repeated_full_qualification_failure:${priorFailed.join(",")}`);
   const adapter = passedAdmissionCampaign(root, campaign, grant, "adapter-harness-calibration-v1", true);
@@ -151,6 +188,7 @@ export function assertDevelopmentAdmission(root: string, campaign: CampaignManif
   if (!adapter) throw new Error("development_authorization_adapter_admission_missing");
   if (!focused) throw new Error("development_authorization_focused_admission_missing");
   return {
+    admission_basis: "exact-candidate",
     adapter_campaign_id: adapter.campaign_id,
     focused_campaign_id: focused.campaign_id,
     prior_failed_qualification_campaigns: priorFailed,
@@ -211,6 +249,40 @@ function usageReservationTotal(value: unknown): number {
   return value.reduce((total, reservation) => total + (isRecord(reservation) && positive(reservation.equivalent_cost_usd) ? reservation.equivalent_cost_usd : 0), 0);
 }
 
+function validateProportionateRelease(value: unknown, campaignTypes: unknown, errors: string[]): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    errors.push("proportionate_release must be an object");
+    return;
+  }
+  const keys = ["adapter", "base_candidate_commit", "bounded_changed_paths", "focused", "max_fresh_full_campaigns", "policy"];
+  if (canonicalJson(Object.keys(value).sort()) !== canonicalJson(keys)) errors.push("proportionate_release must contain exactly the bounded release-policy fields");
+  if (value.policy !== "proportionate-release-v1") errors.push("proportionate_release policy must be proportionate-release-v1");
+  if (typeof value.base_candidate_commit !== "string" || !/^[a-f0-9]{40}$/.test(value.base_candidate_commit)) errors.push("proportionate_release base candidate must be a full commit sha");
+  if (value.max_fresh_full_campaigns !== 1) errors.push("proportionate_release permits exactly one fresh full campaign");
+  if (!Array.isArray(value.bounded_changed_paths) || value.bounded_changed_paths.length === 0 ||
+      value.bounded_changed_paths.some((path) => typeof path !== "string" || !isCanonicalRepoPath(path)) ||
+      canonicalJson(value.bounded_changed_paths) !== canonicalJson([...new Set(value.bounded_changed_paths)].sort())) {
+    errors.push("proportionate_release bounded paths must be a sorted unique canonical repo-path array");
+  }
+  validateRetainedAdmissionReference(value.adapter, "adapter-harness-calibration-v1", "adapter", errors);
+  validateRetainedAdmissionReference(value.focused, "focused-provider-admission-v1", "focused", errors);
+  if (canonicalJson(campaignTypes) !== canonicalJson(["candidate-qualification-v1"])) errors.push("proportionate_release may authorize only candidate-qualification-v1");
+}
+
+function validateRetainedAdmissionReference(value: unknown, prefix: string, label: string, errors: string[]): void {
+  if (!isRecord(value) || canonicalJson(Object.keys(value).sort()) !== canonicalJson(["campaign_id", "campaign_sha256"])) {
+    errors.push(`proportionate_release ${label} reference must contain exactly campaign_id and campaign_sha256`);
+    return;
+  }
+  if (typeof value.campaign_id !== "string" || !value.campaign_id.startsWith(`${prefix}-`)) errors.push(`proportionate_release ${label} campaign id mismatch`);
+  if (typeof value.campaign_sha256 !== "string" || !/^sha256:[a-f0-9]{64}$/.test(value.campaign_sha256)) errors.push(`proportionate_release ${label} campaign sha256 is invalid`);
+}
+
+function isCanonicalRepoPath(value: string): boolean {
+  return value !== "" && value !== "." && value !== ".." && !value.startsWith("/") && !value.startsWith("../") && !value.endsWith("/..") && !value.includes("/../") && !value.includes("\\") && !value.includes("\0");
+}
+
 function assertPhase6CampaignType(campaign: CampaignManifest, campaignType: string, objective: string): void {
   if (objective !== "phase-6-efficiency-qualification") return;
   const expected = {
@@ -245,6 +317,46 @@ function passedAdmissionCampaign(
     matches.push(candidate);
   }
   return matches.at(-1);
+}
+
+function retainedAdmissionCampaign(
+  root: string,
+  reference: RetainedAdmissionReference,
+  baseCandidateCommit: string,
+  campaignType: "adapter-harness-calibration-v1" | "focused-provider-admission-v1",
+  githubRequired: boolean,
+): CampaignManifest {
+  const campaignRoot = join(root, ".eval-artifacts", reference.campaign_id);
+  const manifestPath = join(campaignRoot, "campaign.yaml");
+  if (!existsSync(manifestPath)) throw new Error(`development_authorization_retained_${campaignType}_missing`);
+  let campaign: CampaignManifest;
+  try { campaign = loadYamlFile(manifestPath) as CampaignManifest; }
+  catch { throw new Error(`development_authorization_retained_${campaignType}_invalid`); }
+  if (hashManifest(campaign) !== reference.campaign_sha256 || campaign.campaign_id !== reference.campaign_id) throw new Error(`development_authorization_retained_${campaignType}_identity_mismatch`);
+  if (campaign.development_authorization?.campaign_type !== campaignType || campaign.candidate.commit !== baseCandidateCommit) throw new Error(`development_authorization_retained_${campaignType}_candidate_mismatch`);
+  if (validateCampaign(campaign).length > 0 || !admissionResultsPassed(campaignRoot, campaign)) throw new Error(`development_authorization_retained_${campaignType}_not_qualified`);
+  if (githubRequired && !githubAdmissionPassed(campaignRoot, campaign)) throw new Error(`development_authorization_retained_${campaignType}_github_missing`);
+  return campaign;
+}
+
+function assertBoundedCandidateRepair(root: string, campaign: CampaignManifest, policy: ProportionateReleasePolicy): string[] {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", policy.base_candidate_commit, campaign.candidate.commit], { cwd: root, stdio: "ignore" });
+  } catch {
+    throw new Error("development_authorization_proportionate_candidate_not_descendant");
+  }
+  let changedPaths: string[];
+  try {
+    changedPaths = execFileSync(
+      "git",
+      ["diff", "--name-only", "--no-renames", `${policy.base_candidate_commit}..${campaign.candidate.commit}`],
+      { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ).split("\n").map((path) => path.trim()).filter(Boolean).sort();
+  } catch {
+    throw new Error("development_authorization_proportionate_candidate_diff_failed");
+  }
+  if (canonicalJson(changedPaths) !== canonicalJson(policy.bounded_changed_paths)) throw new Error(`development_authorization_proportionate_candidate_scope_mismatch:${changedPaths.join(",")}`);
+  return changedPaths;
 }
 
 function admissionResultsPassed(campaignRoot: string, campaign: CampaignManifest): boolean {
@@ -300,6 +412,24 @@ function priorFailedQualifications(root: string, excludingCampaignId: string, gr
         const outcome = (JSON.parse(readFileSync(join(artifacts, name, entry), "utf8")) as { outcome?: unknown }).outcome;
         return outcome === "not_qualified" || outcome === "invalid";
       });
+    } catch { return false; }
+  });
+}
+
+function priorStartedQualifications(root: string, excludingCampaignId: string, grant: DevelopmentAuthorizationGrant): string[] {
+  const artifacts = join(root, ".eval-artifacts");
+  if (!existsSync(artifacts)) return [];
+  const grantSha256 = hashManifest(grant);
+  return readdirSync(artifacts).sort().filter((name) => {
+    if (name === excludingCampaignId) return false;
+    const campaignRoot = join(artifacts, name);
+    const manifestPath = join(campaignRoot, "campaign.yaml");
+    if (!existsSync(manifestPath)) return false;
+    try {
+      const candidate = loadYamlFile(manifestPath) as CampaignManifest;
+      if (candidate.development_authorization?.grant_sha256 !== grantSha256 || candidate.development_authorization.campaign_type !== "candidate-qualification-v1") return false;
+      return readdirSync(campaignRoot).some((entry) => entry === "campaign.lock.json" || entry === "campaign-stop.json" || entry.startsWith("github-evidence-") || entry.startsWith("readiness-") || entry.startsWith("qualification")) ||
+        (existsSync(join(campaignRoot, "results")) && readdirSync(join(campaignRoot, "results")).some((entry) => entry.endsWith(".json")));
     } catch { return false; }
   });
 }

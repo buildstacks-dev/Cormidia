@@ -747,6 +747,7 @@ export async function reconcileStaleProviderSteps(
   root: string,
   now: Date,
   staleAfterMs: number,
+  recoverUsage?: (receipt: StartedProviderReceipt) => Promise<TurnUsage | undefined>,
 ): Promise<{ finalized: ExecutionStepRecord[]; inFlight: string[]; corrupt: string[] }> {
   const finalized: ExecutionStepRecord[] = [];
   const inFlight: string[] = [];
@@ -767,6 +768,7 @@ export async function reconcileStaleProviderSteps(
           inFlight.push(receipt.execution_step_id);
           continue;
         }
+        const recoveredUsage = await recoverUsage?.(receipt);
         const record: ExecutionStepRecord = {
           schema_version: EFFICIENCY_SCHEMA_VERSION,
           execution_step_id: receipt.execution_step_id,
@@ -794,7 +796,7 @@ export async function reconcileStaleProviderSteps(
           artifact_fingerprint: null,
           productive: false,
           repeated_from_step_id: null,
-          usage: {
+          usage: recoveredUsage ?? {
             tokensIn: 0,
             tokensOut: 0,
             costUsd: 0,

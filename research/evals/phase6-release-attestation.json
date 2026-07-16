@@ -21,18 +21,19 @@
   "proportionate_evaluator_repairs": {
     "authorization": {
       "path": "research/evals/phase6-evaluator-repair-authorization.json",
-      "sha256": "sha256:ec0c827524ff52797b2d30632330e794a68d291190780843144c5d59611846a5"
+      "sha256": "sha256:b0dd365eed9db2002d896a0a41d78a47dbb4614a50ed80b0591652eea61b347d"
     },
     "qualified_executable_suite_sha256": "sha256:6a057dd4aca41a74e3071b212faf2e0f7136a25c853d43feb3382dd02d417857",
-    "release_executable_suite_sha256": "sha256:53012f08d24a7179a7a6dedfe8f0615946d16f1135b6405563fc4fd1d73b55a1",
+    "release_executable_suite_sha256": "sha256:1074cd07b28d398a4dea1c636470fbb0f218ac6bd10c8850499114689704361d",
     "files": {
-      ".github/workflows/efficiency-qualification.yml": "sha256:86d1c4a347d9cc882991314c377cfc0bac93ac030d89c24e85fc2762fa4869c2",
-      "scripts/eval/release-attestation.ts": "sha256:65513cf4dffba2fd98af814725c9409d2404476444715f2c1e3fa7290827ce4d",
+      ".github/workflows/efficiency-qualification.yml": "sha256:b22c0d094e57775ef1e95a6fc02ebcc8856bd07243a8997f6400a079c3aa88fb",
+      "scripts/eval/release-attestation.ts": "sha256:9bc2b83ac4424414be9e2f78df622cf70a0f20a455f3dd35da5a10ba102e4047",
+      "test/transformation/release-gate.test.ts": "sha256:9c1edd76c3786acb678ea9d85094d30b5b97c69fea1e7c8129e7df219c13fbeb",
       "test/transformation/qualification-scope.test.ts": "sha256:6d796e2d7ec3e4da2810a3e8e630e068e71f0ded7df965110e2d8b976c6219c7"
     }
   },
   "promotion_files": {
-    ".github/workflows/efficiency-qualification.yml": "sha256:86d1c4a347d9cc882991314c377cfc0bac93ac030d89c24e85fc2762fa4869c2",
+    ".github/workflows/efficiency-qualification.yml": "sha256:b22c0d094e57775ef1e95a6fc02ebcc8856bd07243a8997f6400a079c3aa88fb",
     "AGENTS.md": "sha256:680694955b8030f0c3c4d33678384037e6f40170d6ce2e4c7a0031bc8781418d",
     "docs/capability-matrix.md": "sha256:8c91afd1694f23c90e3c4cd137d8662d7b217f6da07d02262373855cb531be4c",
     "docs/efficiency-transformation/highly-efficient-organization-test-eval-transformation.md": "sha256:d2e90d6f613df7da146fb4072f83996cae386732f7b41c430feaf419756cfa4e",
@@ -173,9 +174,10 @@
     "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/results/standard-slug-options-v1-mixed-s1.json": "sha256:be751406d016a7ef171bf4842119321e3b225550e8521220a359093fda8d87a4",
     "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/results/standard-slug-options-v1-mixed-s2.json": "sha256:5b5faa270d63c9348d7024f38d7f7c3d1cb7541fe73cff8fc64a9e8f21c87b02",
     "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/results/standard-slug-options-v1-mixed-s3.json": "sha256:61b7361db6b13d4b8fd2a4467aff35069a6eee4c146bb12157dac4ca2bfe334d",
-    "research/evals/phase6-evaluator-repair-authorization.json": "sha256:ec0c827524ff52797b2d30632330e794a68d291190780843144c5d59611846a5",
-    "scripts/eval/release-attestation.ts": "sha256:65513cf4dffba2fd98af814725c9409d2404476444715f2c1e3fa7290827ce4d",
-    "test/transformation/qualification-scope.test.ts": "sha256:6d796e2d7ec3e4da2810a3e8e630e068e71f0ded7df965110e2d8b976c6219c7"
+    "research/evals/phase6-evaluator-repair-authorization.json": "sha256:b0dd365eed9db2002d896a0a41d78a47dbb4614a50ed80b0591652eea61b347d",
+    "scripts/eval/release-attestation.ts": "sha256:9bc2b83ac4424414be9e2f78df622cf70a0f20a455f3dd35da5a10ba102e4047",
+    "test/transformation/qualification-scope.test.ts": "sha256:6d796e2d7ec3e4da2810a3e8e630e068e71f0ded7df965110e2d8b976c6219c7",
+    "test/transformation/release-gate.test.ts": "sha256:9c1edd76c3786acb678ea9d85094d30b5b97c69fea1e7c8129e7df219c13fbeb"
   },
-  "promotion_paths_sha256": "sha256:a3172f9d85544ca58439fbb14e2e76125e4201fa3f8d0683d21cc3d4a239b9ec"
+  "promotion_paths_sha256": "sha256:50d1a1475e84205b37ff4a2a8337b000d5a50590c9c7b817aaef4885e3c004b2"
 }

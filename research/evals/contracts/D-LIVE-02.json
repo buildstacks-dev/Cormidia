@@ -48,6 +48,6 @@
   },
   "release_attestation": {
     "path": "research/evals/phase6-release-attestation.json",
-    "sha256": "sha256:dfbd4b8bc529336ceb75ed928663f54e2f56d78cfac00b73b53ad9c643b659de"
+    "sha256": "sha256:2f4f44638ae7c65c33ba574415d03a8e8cbfe16260b8cecf9e0a64238a102e7b"
   }
 }

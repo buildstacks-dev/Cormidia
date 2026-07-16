@@ -27,7 +27,7 @@ jobs:
       - run: pnpm eval:validate
       - run: pnpm test:transformation
       - run: pnpm eval:deterministic
-      - run: pnpm test
+      - run: pnpm exec vitest run --maxWorkers=2 --testTimeout=15000
       - run: pnpm typecheck
       - name: Nightly deterministic flake tripwire
         if: github.event_name == 'schedule'

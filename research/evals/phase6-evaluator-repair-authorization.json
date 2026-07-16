@@ -6,13 +6,14 @@
   "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
   "candidate_commit": "c6834cf0c545e2610cbaf1de52a928ddc6c58c68",
   "qualified_executable_suite_sha256": "sha256:6a057dd4aca41a74e3071b212faf2e0f7136a25c853d43feb3382dd02d417857",
-  "release_executable_suite_sha256": "sha256:53012f08d24a7179a7a6dedfe8f0615946d16f1135b6405563fc4fd1d73b55a1",
+  "release_executable_suite_sha256": "sha256:1074cd07b28d398a4dea1c636470fbb0f218ac6bd10c8850499114689704361d",
   "release_package_sha256": "sha256:6e45e2be665af2158e0b99736f36812feed473386513a9de9a120ad168545e9d",
   "material_impact": "evaluator_only",
   "repair_files": {
-    ".github/workflows/efficiency-qualification.yml": "sha256:86d1c4a347d9cc882991314c377cfc0bac93ac030d89c24e85fc2762fa4869c2",
-    "scripts/eval/release-attestation.ts": "sha256:65513cf4dffba2fd98af814725c9409d2404476444715f2c1e3fa7290827ce4d",
+    ".github/workflows/efficiency-qualification.yml": "sha256:b22c0d094e57775ef1e95a6fc02ebcc8856bd07243a8997f6400a079c3aa88fb",
+    "scripts/eval/release-attestation.ts": "sha256:9bc2b83ac4424414be9e2f78df622cf70a0f20a455f3dd35da5a10ba102e4047",
+    "test/transformation/release-gate.test.ts": "sha256:9c1edd76c3786acb678ea9d85094d30b5b97c69fea1e7c8129e7df219c13fbeb",
     "test/transformation/qualification-scope.test.ts": "sha256:6d796e2d7ec3e4da2810a3e8e630e068e71f0ded7df965110e2d8b976c6219c7"
   },
-  "rationale": "Content-bind the post-qualification attestation path, the stale pre-promotion strict-state assertion, and the CI build prerequisite needed to reconstruct the qualified release tarball without changing product, graders, cases, thresholds, safety, accounting, learning rules, provider assignments, or release-package bytes."
+  "rationale": "Content-bind the post-qualification attestation path, the stale pre-promotion strict-state assertion, the CI build prerequisite needed to reconstruct the qualified release tarball, and the exact release-gate assertion for a bounded shared-runner timeout allowance without changing product, assertion inventory, graders, cases, thresholds, safety, accounting, learning rules, provider assignments, or release-package bytes."
 }

@@ -8,7 +8,7 @@ it("J-REL-01 positive: wires token-free PR/nightly checks and a deliberate stric
   const raw = readFileSync(path, "utf8"); const workflow = parse(raw) as Record<string, unknown>;
   expect(workflow).toBeTruthy();
   for (const command of ["pnpm eval:validate", "pnpm test:transformation", "pnpm eval:deterministic", "pnpm typecheck", "pnpm test:transformation:strict"]) expect(raw).toContain(command);
-  expect(raw).toMatch(/^\s*- run: pnpm test\s*$/m);
+  expect(raw).toMatch(/^\s*- run: pnpm exec vitest run --maxWorkers=2 --testTimeout=15000\s*$/m);
   expect(raw).toContain("pnpm eval:deterministic:nightly");
   expect(raw).not.toContain("eval:live");
   expect(raw).not.toContain("test:live");

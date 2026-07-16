@@ -21,6 +21,7 @@ const EVALUATOR_REPAIR_AUTHORIZATION_PATH = "research/evals/phase6-evaluator-rep
 const ALLOWED_PROPORTIONATE_REPAIR_PATHS = new Set([
   ".github/workflows/efficiency-qualification.yml",
   "scripts/eval/release-attestation.ts",
+  "test/transformation/release-gate.test.ts",
   "test/transformation/qualification-scope.test.ts",
 ]);
 const ALLOWED_PROMOTION_PATHS = new Set([

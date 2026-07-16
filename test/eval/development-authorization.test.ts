@@ -36,7 +36,7 @@ it("J-MAN-02 pins the scorer-repair ceiling, verified history, and unavailable-u
     repair_lineage: "phase6-efficiency-qualification-20260716",
     billing_mode: "subscription",
     cumulative_equivalent_cost_usd: 2000,
-    historical_equivalent_cost_usd: 849.9023615,
+    historical_equivalent_cost_usd: 875.017976,
     usage_reservations: [{
       campaign_id: "candidate-qualification-v1-20260716-7c99f3314b2c",
       reason: "usage_unavailable_case_ceiling",

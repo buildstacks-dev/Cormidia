@@ -110,12 +110,15 @@ It supersedes the prior repeated-full-qualification stop only for a repaired
 descendant that completes the incremental ladder. It binds the same Phase 6
 repair lineage to subscription billing, a cumulative `$2000` equivalent-cost
 circuit breaker, `buildstacks-dev/operon-eval-*`, and zero production or
-outward effects. Its `$849.9023615` historical amount is the verified unique
-archived cost. A separate `$40` reservation charges the complete case ceiling
-for the retained usage-unavailable campaign rather than coercing its unknown
-usage to zero. Thus `$889.9023615` is committed before a new provider turn.
-The previous grant remains in version history and its campaigns remain
-immutable; the fresh grant hash requires new exact-candidate admissions.
+outward effects. Its `$875.017976` historical amount is the verified unique
+archived cost: the ratified `$849.9023615` baseline plus `$25.1156145` from an
+old-candidate focused campaign that was already running when the repair grant
+was frozen and was allowed to settle without overlap. A separate `$40`
+reservation charges the complete case ceiling for the retained usage-
+unavailable campaign rather than coercing its unknown usage to zero. Thus
+`$915.017976` is committed before a new provider turn. The previous grant
+remains in version history and its campaigns remain immutable; the fresh
+grant hash requires new exact-candidate admissions.
 
 The sequence is:
 

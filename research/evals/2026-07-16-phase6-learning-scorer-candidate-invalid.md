@@ -140,3 +140,34 @@ complete pre-provider sequence in order on 2026-07-16:
 There was no unexpected first failure and therefore no rerun-to-green. No
 provider campaign, learning activation, production confirmation, scheduler
 mutation, or real-time soak ran during this admission.
+
+## Concurrent pre-freeze focused completion
+
+Before any repaired-candidate campaign started, the host-wide process check
+found `focused-provider-admission-v1-20260716-b2f89a352cae` already running on
+the prior candidate `701d4db5dbd4d8b933defb80a00ccf8dbbd484b8`. No second
+provider campaign was started. The existing process was allowed to terminate
+and was not reused as admission for a later candidate.
+
+The campaign qualified all six focused cases with 12 provider turns and 12
+settlements, zero mechanical settlements, `$23.552291` product equivalent
+cost, `$1.5633235` evaluator equivalent cost, and `$25.1156145` total
+equivalent cost. Campaign SHA-256 is
+`7d9a6372448995c19ea2977565c22ff50ac75b2869ab1da1b2f53d74253f28b1`;
+qualification SHA-256 is
+`3654d23616994f27b3a63300d906da672a32523d925ae073328078b3055db5e6`;
+report SHA-256 is
+`fbe97fd25c4deb0caaee713fde463592c048563d7944044e9afbcc25d70abbab`.
+Its verified archive-manifest SHA-256 is
+`3fadb8ddedb27d77b0d0be490cc8b0c8a3f987b9bc9c53d27d4d151e63cc3482`;
+the first local archive invocation exited before writing because the exact
+terminal postprocessor archive already existed, so that archive and its
+receipt were verified rather than overwritten. Cleanup was preview-only. The
+scorer-repair grant therefore advances verified
+historical cost from `$849.9023615` to `$875.017976`, keeps the separate `$40`
+usage reservation, and begins fresh work at `$915.017976` used.
+
+Because that accounting update changed the candidate bytes, the complete
+token-free sequence above was repeated from validation through both strict
+views. It produced the same passing test counts and the same exact nine/current
+and one/future known-red sets, with no unexpected failure.

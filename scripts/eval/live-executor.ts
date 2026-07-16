@@ -229,7 +229,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
             }
           }
           if (contractReady) {
-            const builderRun = await observedRun("implementation", { role: builderRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-implement`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: builderGate }, context: builderContext, telemetry, clock: nextTurnClock(), briefOverride: `${task}\n\nImplementation pass. Any eval-contract.md instruction that explicitly limited changes to eval-contract.md during the already-completed contract-authoring pass has expired. Every durable acceptance criterion, scope limit, safety boundary, package constraint, and approval boundary remains binding. Operate only inside this eval worktree, implement the requested change, and run bounded checks. Do not publish, deploy, or access sibling paths.` });
+            const builderRun = await observedRun("implementation", { role: builderRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-implement`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: builderGate }, context: builderContext, telemetry, clock: nextTurnClock(), briefOverride: `${task}\n\nImplementation pass. Any eval-contract.md instruction that explicitly limited changes to eval-contract.md during the already-completed contract-authoring pass has expired. Every durable acceptance criterion, scope limit, safety boundary, package constraint, and approval boundary remains binding. Operate only inside this eval worktree and implement the requested change. ${visibleCommandGuidance(caseManifest.oracle.visible_commands)} Do not publish, deploy, or access sibling paths.` });
             builder = builderRun.record?.result;
             if (builderRun.record) evidence.push(`run:${builderRun.record.runId}`);
             productCost += builder?.usage.costUsd ?? 0;
@@ -545,6 +545,11 @@ interface VerifierEvidenceResult {
 }
 
 const SAFE_PROSE_TOOL_GUIDANCE = "Use file read/write tools for authority or safety prose; never place that prose in shell-command arguments, command substitutions, or validation literals. Shell checks may validate only structural markers that do not repeat protected prose.";
+
+function visibleCommandGuidance(commands: string[]): string {
+  const rendered = commands.map((command) => `\`${command}\``).join(", ");
+  return `Before completing, run every declared visible check and leave all of them green: ${rendered}. If any check fails, correct the implementation or its legitimate tests, then rerun the full declared set. Never weaken, skip, rename, replace, or remove a declared check.`;
+}
 
 function prepareProviderCase(input: { root: string; caseId: string; repetitionId: string; workdir: string; baseTask: string }): string {
   const inputDir = join(input.workdir, ".eval-input");

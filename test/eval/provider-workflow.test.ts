@@ -154,12 +154,43 @@ it("A-SPEC-03 expires only a contract-authoring change ban before the delivery i
     if (calls === 2) {
       expect(request.task).toContain("during the already-completed contract-authoring pass has expired");
       expect(request.task).toContain("Every durable acceptance criterion, scope limit, safety boundary, package constraint, and approval boundary remains binding");
+      expect(request.task).toContain("run every declared visible check and leave all of them green: `npm test`, `npm run lint`, `npm run e2e`");
+      expect(request.task).toContain("Never weaken, skip, rename, replace, or remove a declared check");
       writeFileSync(join(request.workdir, "implementation.txt"), "product implementation completed\n");
     }
     return { status: "completed", summary: "fixture", artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${calls}` }, usage: usage(), escalations: [] };
   } }) });
   expect(result.attempts[0]).toMatchObject({ outcome: "passed", metrics: { execution: { provider_turns: 3, provider_settlements: 3 } } });
   expect(calls).toBe(3);
+});
+
+it("D-LIVE-03 keeps a completed implementation red when a declared visible command fails and never retries the merit miss", async () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-visible-command-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
+  const base = fixtureCampaign("visible-command-fixture");
+  const campaign = { ...base, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d2"] }], route_budget_overrides: { deep: { input_tokens: 4_000_000 } }, spend: { campaign_max_usd: 10, case_max_usd: { "deep/auth-migration/v1": 10 } } };
+  const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let calls = 0; let visibleCalls = 0;
+  const result = await executeLiveCampaign({
+    root,
+    manifestPath,
+    maxUsd: 10,
+    evalRoot: join(root, ".eval-artifacts/visible-command-fixture/world"),
+    visibleGate: () => { visibleCalls += 1; return visibleCalls === 1; },
+    hiddenGrader: () => { throw new Error("hidden grader must not run after a visible failure"); },
+    runtimeFactory: (role) => ({ kind: role.runtime, runTurn: async (request) => {
+      calls += 1;
+      if (calls === 1) writeFileSync(join(request.workdir, "eval-contract.md"), "Run every declared visible command and keep it green.\n");
+      if (calls === 2) {
+        expect(request.task).toContain("`npm test`, `npm run lint`, `npm run e2e`");
+        writeFileSync(join(request.workdir, "implementation.txt"), "implementation completed but a declared check remains red\n");
+      }
+      return { status: "completed", summary: "fixture", artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${calls}` }, usage: usage(), escalations: [] };
+    } }),
+  });
+  expect(result.attempts).toHaveLength(1);
+  expect(result.attempts[0]).toMatchObject({ outcome: "product_miss", metrics: { execution: { provider_turns: 2, provider_settlements: 2 } } });
+  expect(result.attempts[0]?.retry_of).toBeUndefined();
+  expect(calls).toBe(2);
+  expect(visibleCalls).toBe(2);
 });
 
 it("J-STAT-02 preserves unavailable usage denominators on an existing provider account failure without substituting or retrying", async () => {

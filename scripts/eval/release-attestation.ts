@@ -19,6 +19,7 @@ import {
 const ATTESTATION_PATH = "research/evals/phase6-release-attestation.json";
 const EVALUATOR_REPAIR_AUTHORIZATION_PATH = "research/evals/phase6-evaluator-repair-authorization.json";
 const ALLOWED_PROPORTIONATE_REPAIR_PATHS = new Set([
+  ".github/workflows/efficiency-qualification.yml",
   "scripts/eval/release-attestation.ts",
   "test/transformation/qualification-scope.test.ts",
 ]);

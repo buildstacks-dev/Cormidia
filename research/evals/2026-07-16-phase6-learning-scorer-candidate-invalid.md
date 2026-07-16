@@ -104,3 +104,39 @@ No contract was promoted, no production or outward effect was performed, and
 declared repeated-full-qualification stop; a future full campaign requires a
 new human decision after the corrected exact candidate passes token-free,
 adapter, and focused admission.
+
+## Subsequent repair authority
+
+The later scorer-repair decision is recorded in
+`eval/development-authorizations/phase6-efficiency-qualification-20260716-scorer-repair.yaml`.
+It preserves this invalid disposition, supersedes the prior repeated-run stop
+only after a new exact candidate passes token-free, adapter, and focused
+admission, and raises the cumulative ceiling to `$2000`. The grant records the
+verified unique archived cost of `$849.9023615` separately from a conservative
+`$40` reservation for the interrupted usage-unavailable campaign
+`candidate-qualification-v1-20260716-7c99f3314b2c`; neither value rewrites an
+attempt or treats unavailable usage as zero.
+
+## Corrected-descendant token-free admission
+
+The scorer repair, explicit morphology regression, adversarial near-misses,
+standing-role focused profile, and conservative cost reservation passed the
+complete pre-provider sequence in order on 2026-07-16:
+
+- `pnpm eval:validate`: 84 requirements and 84 executable evidence links;
+- `pnpm test:transformation`: 35 files and 285 tests passed, with the ten
+  pre-provider known-red contracts unchanged;
+- `pnpm eval:deterministic`: 56 files and 428 tests passed;
+- `pnpm eval:deterministic:nightly`: both declared shuffle seeds passed 56
+  files and 428 tests independently;
+- `pnpm test`: 185 files and 1,579 tests passed;
+- `pnpm typecheck`, `pnpm build`, `pnpm smoke:onboarding`, and
+  `npm pack --dry-run`: passed;
+- current strict: all 285 tests passed and the command exited one only for
+  `D-LIVE-01..03`, `E-LIVE-01..02`, `G-MET-01`, and `I-ROLE-01..03`;
+- future-soak strict: all 285 tests passed and the command exited one only for
+  `I-LIVE-01`.
+
+There was no unexpected first failure and therefore no rerun-to-green. No
+provider campaign, learning activation, production confirmation, scheduler
+mutation, or real-time soak ran during this admission.

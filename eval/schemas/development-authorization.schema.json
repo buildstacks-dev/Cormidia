@@ -29,6 +29,20 @@
     "billing_mode": { "const": "subscription" },
     "cumulative_equivalent_cost_usd": { "type": "number", "exclusiveMinimum": 0 },
     "historical_equivalent_cost_usd": { "type": "number", "minimum": 0 },
+    "usage_reservations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["campaign_id", "reason", "equivalent_cost_usd"],
+        "properties": {
+          "campaign_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "reason": { "const": "usage_unavailable_case_ceiling" },
+          "equivalent_cost_usd": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    },
     "allowed_campaign_types": {
       "type": "array",
       "minItems": 1,

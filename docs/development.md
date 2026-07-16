@@ -104,17 +104,23 @@ new treatment or experiment decision. Never rerun for a better draw.
 
 ## Phase 6 implementation of this policy
 
-The current human-ratified grant is
-`eval/development-authorizations/phase6-efficiency-qualification-20260716.yaml`.
-It binds the Phase 6 repair lineage to subscription billing, a cumulative
-`$1000` equivalent-cost circuit breaker, `buildstacks-dev/operon-eval-*`, and
-zero production or outward effects. Its historical amount includes every
-retained Phase 6 adapter and candidate attempt before this policy was adopted.
+The current scorer-repair grant is
+`eval/development-authorizations/phase6-efficiency-qualification-20260716-scorer-repair.yaml`.
+It supersedes the prior repeated-full-qualification stop only for a repaired
+descendant that completes the incremental ladder. It binds the same Phase 6
+repair lineage to subscription billing, a cumulative `$2000` equivalent-cost
+circuit breaker, `buildstacks-dev/operon-eval-*`, and zero production or
+outward effects. Its `$849.9023615` historical amount is the verified unique
+archived cost. A separate `$40` reservation charges the complete case ceiling
+for the retained usage-unavailable campaign rather than coercing its unknown
+usage to zero. Thus `$889.9023615` is committed before a new provider turn.
+The previous grant remains in version history and its campaigns remain
+immutable; the fresh grant hash requires new exact-candidate admissions.
 
 The sequence is:
 
 ```bash
-AUTH=eval/development-authorizations/phase6-efficiency-qualification-20260716.yaml
+AUTH=eval/development-authorizations/phase6-efficiency-qualification-20260716-scorer-repair.yaml
 
 pnpm eval:prepare -- --campaign adapter-harness-calibration --github-owner buildstacks-dev --authorization "$AUTH"
 # preview, execute, and identically rerun its disposable GitHub exercise

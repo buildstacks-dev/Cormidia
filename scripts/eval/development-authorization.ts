@@ -24,6 +24,11 @@ export interface DevelopmentAuthorizationGrant {
   billing_mode: "subscription";
   cumulative_equivalent_cost_usd: number;
   historical_equivalent_cost_usd: number;
+  usage_reservations?: Array<{
+    campaign_id: string;
+    reason: "usage_unavailable_case_ceiling";
+    equivalent_cost_usd: number;
+  }>;
   allowed_campaign_types: string[];
   github: { owner: string; repo_pattern: "operon-eval-*" };
   effects: {
@@ -53,7 +58,8 @@ export function validateDevelopmentAuthorization(value: unknown): string[] {
     "historical_equivalent_cost_usd", "allowed_campaign_types", "github", "effects",
     "learning_activation", "future_realtime_soak", "stop_conditions",
   ];
-  for (const key of Object.keys(value)) if (!required.includes(key)) errors.push(`unknown development authorization key ${key}`);
+  const optional = ["usage_reservations"];
+  for (const key of Object.keys(value)) if (!required.includes(key) && !optional.includes(key)) errors.push(`unknown development authorization key ${key}`);
   for (const key of required) if (!(key in value)) errors.push(`development authorization missing ${key}`);
   if (value.schema_version !== 1) errors.push("schema_version must be 1");
   for (const key of ["authorization_id", "objective", "repair_lineage"] as const) if (typeof value[key] !== "string" || value[key].trim() === "") errors.push(`${key} must be a non-empty string`);
@@ -62,6 +68,25 @@ export function validateDevelopmentAuthorization(value: unknown): string[] {
   if (value.billing_mode !== "subscription") errors.push("billing_mode must be subscription");
   if (!positive(value.cumulative_equivalent_cost_usd)) errors.push("cumulative_equivalent_cost_usd must be positive");
   if (!nonNegative(value.historical_equivalent_cost_usd)) errors.push("historical_equivalent_cost_usd must be non-negative");
+  const reservations = value.usage_reservations;
+  if (reservations !== undefined) {
+    if (!Array.isArray(reservations) || reservations.length === 0) {
+      errors.push("usage_reservations must be a non-empty array when present");
+    } else {
+      const campaignIds = new Set<string>();
+      for (const reservation of reservations) {
+        if (!isRecord(reservation) || Object.keys(reservation).sort().join("\0") !== ["campaign_id", "equivalent_cost_usd", "reason"].join("\0")) {
+          errors.push("each usage reservation must contain exactly campaign_id, reason, and equivalent_cost_usd");
+          continue;
+        }
+        if (typeof reservation.campaign_id !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(reservation.campaign_id)) errors.push("usage reservation campaign_id must be a canonical campaign id");
+        else if (campaignIds.has(reservation.campaign_id)) errors.push("usage reservation campaign ids must be unique");
+        else campaignIds.add(reservation.campaign_id);
+        if (reservation.reason !== "usage_unavailable_case_ceiling") errors.push("usage reservation reason must be usage_unavailable_case_ceiling");
+        if (!positive(reservation.equivalent_cost_usd)) errors.push("usage reservation equivalent cost must be positive");
+      }
+    }
+  }
   if (!Array.isArray(value.allowed_campaign_types) || value.allowed_campaign_types.length === 0 || value.allowed_campaign_types.some((item) => typeof item !== "string" || !/^[a-z0-9][a-z0-9-]*-v\d+$/.test(item)) || new Set(value.allowed_campaign_types).size !== value.allowed_campaign_types.length) errors.push("allowed_campaign_types must be a unique non-empty versioned campaign array");
   const github = isRecord(value.github) ? value.github : undefined;
   if (!github || github.owner === undefined || typeof github.owner !== "string" || github.owner === "" || github.repo_pattern !== "operon-eval-*" || Object.keys(github).some((key) => !["owner", "repo_pattern"].includes(key))) errors.push("github must bind one owner and operon-eval-*");
@@ -71,7 +96,8 @@ export function validateDevelopmentAuthorization(value: unknown): string[] {
   if (value.future_realtime_soak !== "separately_authorized") errors.push("future_realtime_soak must be separately_authorized");
   const stops = ["cumulative_equivalent_cost_ceiling", "metered_or_unknown_billing", "scope_or_effect_expansion", "repeated_full_qualification_failure"];
   if (!Array.isArray(value.stop_conditions) || canonicalJson([...value.stop_conditions].sort()) !== canonicalJson([...stops].sort())) errors.push("stop_conditions must contain every standing-grant circuit breaker exactly once");
-  if (positive(value.cumulative_equivalent_cost_usd) && nonNegative(value.historical_equivalent_cost_usd) && value.historical_equivalent_cost_usd >= value.cumulative_equivalent_cost_usd) errors.push("historical equivalent cost must leave positive lineage capacity");
+  const reserved = usageReservationTotal(reservations);
+  if (positive(value.cumulative_equivalent_cost_usd) && nonNegative(value.historical_equivalent_cost_usd) && value.historical_equivalent_cost_usd + reserved >= value.cumulative_equivalent_cost_usd) errors.push("historical plus reserved equivalent cost must leave positive lineage capacity");
   return errors;
 }
 
@@ -133,6 +159,8 @@ export function assertDevelopmentAdmission(root: string, campaign: CampaignManif
 
 export function lineageEquivalentCost(root: string, grant: DevelopmentAuthorizationGrant, excludingCampaignId?: string): {
   historical_equivalent_cost_usd: number;
+  reserved_equivalent_cost_usd: number;
+  usage_reservations: NonNullable<DevelopmentAuthorizationGrant["usage_reservations"]>;
   descendant_equivalent_cost_usd: number;
   used_equivalent_cost_usd: number;
   remaining_equivalent_cost_usd: number;
@@ -161,9 +189,13 @@ export function lineageEquivalentCost(root: string, grant: DevelopmentAuthorizat
     descendant += campaignCost;
     campaigns.push(name);
   }
-  const used = grant.historical_equivalent_cost_usd + descendant;
+  const usageReservations = grant.usage_reservations ?? [];
+  const reserved = usageReservationTotal(usageReservations);
+  const used = grant.historical_equivalent_cost_usd + reserved + descendant;
   return {
     historical_equivalent_cost_usd: grant.historical_equivalent_cost_usd,
+    reserved_equivalent_cost_usd: reserved,
+    usage_reservations: usageReservations.map((reservation) => ({ ...reservation })),
     descendant_equivalent_cost_usd: descendant,
     used_equivalent_cost_usd: used,
     remaining_equivalent_cost_usd: Math.max(0, grant.cumulative_equivalent_cost_usd - used),
@@ -174,6 +206,10 @@ export function lineageEquivalentCost(root: string, grant: DevelopmentAuthorizat
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function positive(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value) && value > 0; }
 function nonNegative(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value) && value >= 0; }
+function usageReservationTotal(value: unknown): number {
+  if (!Array.isArray(value)) return 0;
+  return value.reduce((total, reservation) => total + (isRecord(reservation) && positive(reservation.equivalent_cost_usd) ? reservation.equivalent_cost_usd : 0), 0);
+}
 
 function assertPhase6CampaignType(campaign: CampaignManifest, campaignType: string, objective: string): void {
   if (objective !== "phase-6-efficiency-qualification") return;

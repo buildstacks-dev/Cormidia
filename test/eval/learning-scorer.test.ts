@@ -4,6 +4,7 @@ import { causalHypothesisScore } from "../../scripts/eval/live-executor.js";
 it("H-EVAL-01 recognizes ordinary causal morphology without changing the falsifiability threshold", () => {
   const falsifiable = "if the bounded policy is applied, median review cycles decrease";
   for (const causal of [
+    "the missing policy may cause repeated work",
     "the missing policy causes repeated work",
     "the missing policy caused repeated work",
     "the missing policy is causing repeated work",

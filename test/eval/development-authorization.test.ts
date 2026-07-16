@@ -17,12 +17,31 @@ import { hashFile, hashManifest, loadYamlFile, validateCampaign, type AttemptRes
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
-it("J-MAN-02 pins the ratified Phase 6 objective, subscription mode, historical cost, and cumulative ceiling", () => {
+it("J-MAN-02 retains the prior Phase 6 objective grant", () => {
   expect(loadDevelopmentAuthorization("eval/development-authorizations/phase6-efficiency-qualification-20260716.yaml")).toMatchObject({
     objective: "phase-6-efficiency-qualification",
     billing_mode: "subscription",
     cumulative_equivalent_cost_usd: 1000,
     historical_equivalent_cost_usd: 577.89418925,
+    allowed_campaign_types: ["adapter-harness-calibration-v1", "focused-provider-admission-v1", "candidate-qualification-v1"],
+    learning_activation: "separately_authorized",
+    future_realtime_soak: "separately_authorized",
+  });
+});
+
+it("J-MAN-02 pins the scorer-repair ceiling, verified history, and unavailable-usage reservation", () => {
+  expect(loadDevelopmentAuthorization("eval/development-authorizations/phase6-efficiency-qualification-20260716-scorer-repair.yaml")).toMatchObject({
+    authorization_id: "phase6-efficiency-qualification-20260716-scorer-repair",
+    objective: "phase-6-efficiency-qualification",
+    repair_lineage: "phase6-efficiency-qualification-20260716",
+    billing_mode: "subscription",
+    cumulative_equivalent_cost_usd: 2000,
+    historical_equivalent_cost_usd: 849.9023615,
+    usage_reservations: [{
+      campaign_id: "candidate-qualification-v1-20260716-7c99f3314b2c",
+      reason: "usage_unavailable_case_ceiling",
+      equivalent_cost_usd: 40,
+    }],
     allowed_campaign_types: ["adapter-harness-calibration-v1", "focused-provider-admission-v1", "candidate-qualification-v1"],
     learning_activation: "separately_authorized",
     future_realtime_soak: "separately_authorized",
@@ -45,12 +64,14 @@ it("J-MAN-02 development authorization fails closed for metered billing, outward
   expect(validateDevelopmentAuthorization({ ...grant, effects: { ...grant.effects, outward_effects: true } })).toContain("effects must forbid production mutation, outward effects, deployment, and publication");
   expect(validateDevelopmentAuthorization({ ...grant, allowed_campaign_types: ["candidate-qualification-v1", "candidate-qualification-v1"] })).toContain("allowed_campaign_types must be a unique non-empty versioned campaign array");
   expect(validateDevelopmentAuthorization({ ...grant, stop_conditions: ["cumulative_equivalent_cost_ceiling"] })).toContain("stop_conditions must contain every standing-grant circuit breaker exactly once");
-  expect(validateDevelopmentAuthorization({ ...grant, historical_equivalent_cost_usd: 1000 })).toContain("historical equivalent cost must leave positive lineage capacity");
+  expect(validateDevelopmentAuthorization({ ...grant, historical_equivalent_cost_usd: 1000 })).toContain("historical plus reserved equivalent cost must leave positive lineage capacity");
+  expect(validateDevelopmentAuthorization({ ...grant, usage_reservations: [{ campaign_id: "usage-gap", reason: "usage_unavailable_case_ceiling", equivalent_cost_usd: 900 }] })).toContain("historical plus reserved equivalent cost must leave positive lineage capacity");
+  expect(validateDevelopmentAuthorization({ ...grant, usage_reservations: [{ campaign_id: "usage-gap", reason: "usage_unavailable_case_ceiling", equivalent_cost_usd: 0 }] })).toContain("usage reservation equivalent cost must be positive");
 });
 
 it("J-MAN-02 cumulative equivalent cost counts immutable descendant attempts once and excludes the active campaign", () => {
   const root = mkdtempSync(join(tmpdir(), "operon-development-authorization-")); roots.push(root);
-  const grant = fixtureGrant();
+  const grant = { ...fixtureGrant(), usage_reservations: [{ campaign_id: "interrupted", reason: "usage_unavailable_case_ceiling" as const, equivalent_cost_usd: 40 }] };
   const binding = bindDevelopmentAuthorization(grant, "focused-provider-admission-v1");
   for (const [campaignId, costs] of [["focused-a", [3, 4]], ["active", [9]]] as const) {
     const dir = join(root, ".eval-artifacts", campaignId); mkdirSync(join(dir, "results"), { recursive: true });
@@ -58,7 +79,7 @@ it("J-MAN-02 cumulative equivalent cost counts immutable descendant attempts onc
     for (const [index, cost] of costs.entries()) writeFileSync(join(dir, "results", `${index}.json`), `${JSON.stringify({ metrics: { cost: { equivalent_usd: cost } } })}\n`);
   }
   const usage = lineageEquivalentCost(root, grant, "active");
-  expect(usage).toMatchObject({ historical_equivalent_cost_usd: 100, descendant_equivalent_cost_usd: 7, used_equivalent_cost_usd: 107, remaining_equivalent_cost_usd: 893, campaigns: ["focused-a"] });
+  expect(usage).toMatchObject({ historical_equivalent_cost_usd: 100, reserved_equivalent_cost_usd: 40, usage_reservations: grant.usage_reservations, descendant_equivalent_cost_usd: 7, used_equivalent_cost_usd: 147, remaining_equivalent_cost_usd: 853, campaigns: ["focused-a"] });
 });
 
 it("J-MAN-02 final qualification requires same-candidate adapter and focused admission and binds the durable GitHub rerun", () => {

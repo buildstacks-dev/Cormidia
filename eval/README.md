@@ -146,7 +146,7 @@ and adversarial mutants pin plausible near misses independently.
 Preparation and every preview are non-billable and do not mutate GitHub:
 
 ```bash
-AUTH=eval/development-authorizations/phase6-efficiency-qualification-20260716.yaml
+AUTH=eval/development-authorizations/phase6-efficiency-qualification-20260716-scorer-repair.yaml
 pnpm eval:validate
 pnpm test:transformation
 pnpm eval:deterministic

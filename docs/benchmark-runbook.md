@@ -128,6 +128,17 @@ and adds the three previously unrun standing roles to focused provider
 admission without adding another six-arm learning sample. Exact evidence is in
 `research/evals/2026-07-16-phase6-learning-scorer-candidate-invalid.md`.
 
+The corrected-scorer candidate then passed 19 cases before deep migration
+`mixed-d1` stopped fail-fast. Codex attempted every declared executable check,
+but App Server's approval callback wrapped each one as `/bin/zsh -lc ...` and
+eval actor isolation mistook the transport launcher for an actor-selected
+outside-worktree path. The harness-owned visible command later exposed one
+provider-authored failing test; the merit miss remains immutable. The repair
+normalizes only the exact shell launcher while retaining and adversarially
+checking the full inner command. Exact accounting, archive identity, and the
+retained rejection text are in
+`research/evals/2026-07-16-phase6-codex-shell-wrapper-candidate-not-qualified.md`.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

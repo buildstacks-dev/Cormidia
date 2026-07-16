@@ -14,6 +14,11 @@ campaign.
   managed actor worktree, and verifier tree outside actor-readable paths.
 - Hidden graders, answers, reference patches, and mutants never enter prompts,
   context, actor worktrees, environment, or visible Git history.
+- Codex approval callbacks may wrap a declared command in an absolute
+  `/bin/*sh` transport launcher. Actor-path isolation normalizes only that
+  exact leading launcher, then evaluates the complete inner command; absolute
+  targets, parent traversal, forbidden roots, and symlink escapes inside it
+  remain flat-denied and are pinned by adversarial tests.
 - GitHub writes require a predeclared private owner and `operon-eval-*` repo.
 - No eval publishes, sends, deploys to production, mutates DNS/cloud resources,
   or performs irreversible data operations.

@@ -32,7 +32,7 @@ export function makeEvalActorGate(options: { workdir: string; forbiddenRoots: st
 }
 
 function actorPathViolation(action: ToolAction, workdir: string, forbidden: string[]): string | null {
-  const raw = `${action.tool}\n${JSON.stringify(action.input ?? "")}`;
+  const raw = `${action.tool}\n${JSON.stringify(normalizeActorActionInput(action.input))}`;
   const decoded = decodeRepeated(raw).replaceAll("\\\\", "/");
   for (const root of forbidden) if (decoded.includes(root) || decoded.includes(root.replaceAll("\\\\", "/"))) return "forbidden_root";
   if (/(^|[\s"'=;(])\.\.(?:\/|\\)/.test(decoded)) return "parent_traversal";
@@ -50,6 +50,26 @@ function actorPathViolation(action: ToolAction, workdir: string, forbidden: stri
     }
   }
   return null;
+}
+
+/** Codex App Server's approval callback wraps untrusted commands in an
+ * absolute host-shell launcher (for example `/bin/zsh -lc 'npm test'`). The
+ * launcher is transport, not an actor-selected file target: treating it as a
+ * path escape denies every executable check before startup. Normalize only
+ * that exact launcher path while retaining the complete inner command, so an
+ * absolute path, parent traversal, symlink escape, or forbidden root inside
+ * the command still fails closed below. */
+function normalizeActorActionInput(input: ToolAction["input"]): unknown {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) return input ?? "";
+  const record = input as Record<string, unknown>;
+  if (typeof record["command"] !== "string") return input;
+  return {
+    ...record,
+    command: record["command"].replace(
+      /^\/bin\/(bash|dash|ksh|sh|zsh)(?=\s|$)/,
+      "$1",
+    ),
+  };
 }
 function pathCandidates(action: ToolAction, text: string): string[] {
   const values: string[] = [];

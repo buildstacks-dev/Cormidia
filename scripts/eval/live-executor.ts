@@ -263,7 +263,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
               writeFileSync(join(campaignRoot, graderRel), `${JSON.stringify(graderRecord, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 }); evidence.push(`grader:${graderRel}`);
               if (graderPassed && shouldIndependentReview(item.case_id)) {
                 const reviewerRole = roleFor("reviewer", campaign, upper / 3);
-                const reviewerRun = await observedRun("review", { role: reviewerRole, app: template, turnId: `eval-${runAttemptId}-reviewer`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(reviewerRole.name) }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `Independently review this eval-only change against the task below. Inspect the worktree and run bounded checks. Do not modify files or perform outward actions. ${SAFE_PROSE_TOOL_GUIDANCE} Return a concise verdict.\n\n${task}` });
+                const reviewerRun = await observedRun("review", { role: reviewerRole, app: template, turnId: `eval-${runAttemptId}-reviewer`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(reviewerRole.name) }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `Independently review this eval-only change against the task below. Inspect the worktree and run bounded checks. Do not modify files or perform outward actions. ${REVIEWER_EVIDENCE_GUIDANCE} ${SAFE_PROSE_TOOL_GUIDANCE} Return a concise verdict.\n\n${task}` });
                 reviewer = reviewerRun.record?.result;
                 if (reviewerRun.record) evidence.push(`run:${reviewerRun.record.runId}`);
                 evaluatorCost += reviewer?.usage.costUsd ?? 0;
@@ -545,10 +545,11 @@ interface VerifierEvidenceResult {
 }
 
 const SAFE_PROSE_TOOL_GUIDANCE = "Use file read/write tools for authority or safety prose; never place that prose in shell-command arguments, command substitutions, or validation literals. Shell checks may validate only structural markers that do not repeat protected prose.";
+const REVIEWER_EVIDENCE_GUIDANCE = "Never enumerate, print, read, or inspect environment variables, credentials, provider authentication, or secrets. Verify the absence of outward effects only from declared receipts, repository files, and sanitized artifacts; if that evidence is insufficient, report the limitation without probing protected state.";
 
 function visibleCommandGuidance(commands: string[]): string {
   const rendered = commands.map((command) => `\`${command}\``).join(", ");
-  return `Before completing, run every declared visible check and leave all of them green: ${rendered}. If any check fails, correct the implementation or its legitimate tests, then rerun the full declared set. Never weaken, skip, rename, replace, or remove a declared check.`;
+  return `Before completing, run every declared visible check and leave all of them green: ${rendered}. Run the full declared set after your final repository mutation; any later file change invalidates earlier check results and requires another full-set rerun. Do not complete unless every declared check exits zero against the final worktree. If any check fails, correct the implementation or its legitimate tests, then rerun the full declared set. Never weaken, skip, rename, replace, or remove a declared check.`;
 }
 
 function prepareProviderCase(input: { root: string; caseId: string; repetitionId: string; workdir: string; baseTask: string }): string {

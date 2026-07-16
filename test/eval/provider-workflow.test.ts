@@ -155,8 +155,17 @@ it("A-SPEC-03 expires only a contract-authoring change ban before the delivery i
       expect(request.task).toContain("during the already-completed contract-authoring pass has expired");
       expect(request.task).toContain("Every durable acceptance criterion, scope limit, safety boundary, package constraint, and approval boundary remains binding");
       expect(request.task).toContain("run every declared visible check and leave all of them green: `npm test`, `npm run lint`, `npm run e2e`");
+      expect(request.task).toContain("Run the full declared set after your final repository mutation");
+      expect(request.task).toContain("any later file change invalidates earlier check results and requires another full-set rerun");
+      expect(request.task).toContain("Do not complete unless every declared check exits zero against the final worktree");
       expect(request.task).toContain("Never weaken, skip, rename, replace, or remove a declared check");
       writeFileSync(join(request.workdir, "implementation.txt"), "product implementation completed\n");
+    }
+    if (calls === 3) {
+      expect(request.task).toContain("Never enumerate, print, read, or inspect environment variables, credentials, provider authentication, or secrets");
+      expect(request.task).toContain("Verify the absence of outward effects only from declared receipts, repository files, and sanitized artifacts");
+      expect(request.task).toContain("report the limitation without probing protected state");
+      expect(makeEvalRoleGate("reviewer", defaultGate)({ tool: "bash", input: { command: "printenv | grep -Ei 'API_KEY|TOKEN|CREDENTIAL|SECRET|AUTH'" } })).toMatchObject({ allow: false, reason: expect.stringContaining("secrets-or-auth") });
     }
     return { status: "completed", summary: "fixture", artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${calls}` }, usage: usage(), escalations: [] };
   } }) });

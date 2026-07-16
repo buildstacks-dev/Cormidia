@@ -56,10 +56,11 @@ campaign.
   pi's tool-call extension). Provider prompts remain behavioral observations;
   a model declining to attempt a forbidden action cannot create a false miss.
 - `focused-provider-admission` is a non-qualification profile for the smallest
-  remaining provider uncertainty. Phase 6 fixes it to migration `mixed-d1`
-  and approval `mixed-da`, the two latest deep-routed review failures,
-  with the unchanged builder/reviewer models, thresholds, hidden graders,
-  four-million-token ceiling, and retry/safety/accounting rules. It skips L4
+  remaining provider uncertainty. Phase 6 currently fixes it to quick
+  `mixed-q1`, migration `mixed-d1`, and approval `mixed-da`: the latest
+  budget-carry failure plus the two repaired deep-review boundaries. It keeps
+  the unchanged builder/reviewer models, `$8`/`$40`/`$40` case thresholds,
+  hidden graders, four-million-token ceiling, and retry/safety/accounting rules. It skips L4
   because it has no GitHub behavior to prove, stops after the first terminal
   non-pass, and is structurally forbidden from contract promotion.
 - `pnpm eval:soak -- --campaign <file>` previews L6 without mutation. Execution
@@ -148,7 +149,7 @@ pnpm eval:prepare -- --campaign adapter-harness-calibration --github-owner build
 pnpm eval:github -- --campaign <adapter-file> --repo buildstacks-dev/operon-eval-<adapter-id> --authorization "$AUTH"
 pnpm eval:live -- --campaign <adapter-file> --max-usd 15 --confirm <adapter-id> --authorization "$AUTH"
 pnpm eval:prepare -- --campaign focused-provider-admission --github-owner buildstacks-dev --authorization "$AUTH"
-pnpm eval:live -- --campaign <focused-file> --max-usd 80 --confirm <focused-id> --authorization "$AUTH"
+pnpm eval:live -- --campaign <focused-file> --max-usd 88 --confirm <focused-id> --authorization "$AUTH"
 # Only after exact-candidate adapter and focused admission pass:
 pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstacks-dev --authorization "$AUTH"
 pnpm eval:github -- --campaign <candidate-file> --repo buildstacks-dev/operon-eval-<candidate-id> --authorization "$AUTH"

@@ -1,6 +1,6 @@
 schema_version: 1
 campaign_id: focused-provider-admission-v1
-purpose: Non-promotable exact-candidate provider admission for the two latest deep-routed review failures
+purpose: Non-promotable exact-candidate provider admission for the latest budget-carry failure and repaired deep-review boundaries
 owner: Bikram
 created_at: 2026-07-16T00:00:00.000Z
 intent: non_qualification
@@ -9,6 +9,7 @@ candidate: { commit: TEMPLATE, package_sha256: "sha256:0000000000000000000000000
 org_fingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 system_fingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 cases:
+  - { case_id: quick/ignore-config/v1, repetition_ids: [mixed-q1] }
   - { case_id: deep/auth-migration/v1, repetition_ids: [mixed-d1] }
   - { case_id: approval/semantics/v1, repetition_ids: [mixed-da] }
 assignments:
@@ -21,8 +22,8 @@ route_budget_overrides:
   deep:
     input_tokens: 4000000
 spend:
-  campaign_max_usd: 80
-  case_max_usd: { deep/auth-migration/v1: 40, approval/semantics/v1: 40 }
+  campaign_max_usd: 88
+  case_max_usd: { quick/ignore-config/v1: 8, deep/auth-migration/v1: 40, approval/semantics/v1: 40 }
 infrastructure_retries: 1
 exclusions: [typed_transient_provider_failure, typed_transient_github_failure]
 stop_rules: [hard_safety_violation, campaign_cap_cannot_cover_remaining_case, hidden_answer_leakage, production_path_overlap, qualification_impossible_stops_campaign]

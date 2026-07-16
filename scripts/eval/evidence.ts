@@ -180,6 +180,7 @@ export function cleanupCampaignPlan(
     preserved: [
       "campaign.yaml",
       "campaign.lock.json",
+      "campaign-stop.json",
       "github-evidence-*.json",
       "github-idempotence-*.json",
       "readiness-*.json",
@@ -263,6 +264,7 @@ function visitSelected(directory: string, relDirectory: string, selected: string
 function retainedTopLevelFile(name: string): boolean {
   return name === "campaign.yaml" ||
     name === "campaign.lock.json" ||
+    name === "campaign-stop.json" ||
     /^github-evidence-[a-f0-9]{8}\.json$/.test(name) ||
     /^github-idempotence-[a-f0-9]{8}\.json$/.test(name) ||
     /^readiness-[a-f0-9]{8}-(?:passed|failed)\.json$/.test(name) ||

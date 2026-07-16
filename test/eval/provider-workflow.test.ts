@@ -5,7 +5,7 @@ import { stringify } from "yaml";
 import { afterEach, expect, it } from "vitest";
 import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../../src/runtime/types.js";
 import { defaultGate } from "../../src/runtime/gate.js";
-import { executeLiveCampaign, gradeLiveCase } from "../../scripts/eval/live-executor.js";
+import { carryForwardTurnBudget, executeLiveCampaign, gradeLiveCase } from "../../scripts/eval/live-executor.js";
 import { makeEvalRoleGate } from "../../scripts/eval/safety.js";
 import { loadYamlFile, type CampaignManifest } from "../../scripts/eval/core.js";
 
@@ -46,6 +46,37 @@ it("D-LIVE-01 provider product episodes use Operon's durable executor, settle ev
   expect(resumed.attempts).toEqual(first.attempts);
   expect(calls).toBe(3);
   expect(ledgerRows(join(root, ".eval-artifacts/workflow-fixture/state/telemetry"))).toHaveLength(3);
+});
+
+it("J-STAT-02 carries unused case budget forward without weakening the total case ceiling", async () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-budget-carry-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
+  const base = fixtureCampaign("budget-carry-fixture");
+  const campaign = { ...base, spend: { campaign_max_usd: 8, case_max_usd: { "quick/ignore-config/v1": 8 } }, infrastructure_retries: 0 };
+  const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign));
+  const costs = [0.5, 2.8, 0.4]; const budgets: number[] = []; let calls = 0;
+  const result = await executeLiveCampaign({
+    root,
+    manifestPath,
+    maxUsd: 8,
+    evalRoot: join(root, ".eval-artifacts/budget-carry-fixture/world"),
+    visibleGate: () => true,
+    hiddenGrader: () => true,
+    runtimeFactory: (role) => ({ kind: role.runtime, runTurn: async (request): Promise<TurnResult> => {
+      const cost = costs[calls]!; budgets.push(role.maxTurnBudgetUsd); calls += 1;
+      if (calls === 1) writeFileSync(join(request.workdir, "eval-contract.md"), "- [ ] bounded fixture\n");
+      if (calls === 2) writeFileSync(join(request.workdir, "implementation.txt"), "implemented\n");
+      const measured = { ...usage(), costUsd: cost };
+      if (cost > role.maxTurnBudgetUsd) return { status: "failed", summary: "Budget overrun", errorCode: "error_max_budget_usd", artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${calls}` }, usage: measured, escalations: [] };
+      return { status: "completed", summary: "fixture", artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${calls}` }, usage: measured, escalations: [] };
+    } }),
+  });
+  expect(result.attempts[0]).toMatchObject({ outcome: "passed", metrics: { execution: { provider_turns: 3, provider_settlements: 3 } } });
+  expect(((result.attempts[0]!.metrics.cost as Record<string, unknown>).equivalent_usd as number)).toBeCloseTo(3.7, 12);
+  expect(budgets).toEqual([8, 7.5, 4.7]);
+  expect(budgets[1]).toBeGreaterThan(8 / 3);
+  expect(costs.reduce((sum, cost) => sum + cost, 0)).toBeLessThan(8);
+  expect(carryForwardTurnBudget(8, 3.7, 1)).toBe(4.3);
+  expect(() => carryForwardTurnBudget(8, 8, 1)).toThrow("case ceiling exhausted");
 });
 
 it("B-MET-02 uses verifier-owned worktree fingerprints and charges unchanged completed work as repeated", async () => {

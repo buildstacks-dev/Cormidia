@@ -297,6 +297,10 @@ same exact candidate must then pass adapter and focused admission before final
 qualification can begin. Focused and final campaigns retain thresholds,
 graders, assignments, retry rules, measurements, safety, and accounting, and
 stop at the first terminal non-pass. Promotion rejects focused evidence.
+Within an unchanged case ceiling, unused capacity from an earlier declared
+turn carries forward across the remaining declared turns; fixed equal slices
+must not manufacture a premature budget stop. Total case and campaign ceilings
+remain fail-closed.
 
 Equivalent-cost accounting includes historical lineage cost and every
 immutable descendant attempt. It is a circuit breaker even when providers are

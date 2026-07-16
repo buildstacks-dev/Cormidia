@@ -740,7 +740,7 @@ identities are stale. Nine current-scope contracts remain known-red pending
 fresh adapter, focused, and final candidate admission under the bound
 development objective; `I-LIVE-01` separately remains future-required and
 known-red. The latest immutable retained record is
-`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`.
+`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`.
 The learning block now follows the separately ratified boundary: a predeclared
 content-hashed T1 procedure is present only on treatment arms, pair outcomes
 come from provider artifacts and hidden guardrails, and a measured improvement
@@ -752,11 +752,13 @@ The 2026-07-16 development-process ratification now separates building Operon
 from operating an Operon org and replaces repeated full-campaign discovery
 with exact-candidate adapter admission, focused non-promotable repair
 admission, and one fail-fast final qualification. The latest retained
-candidate had 32/34 passes; its two deep-routed misses were reviewer shell
-probes crossing the unchanged safety gate after the visible and hidden product
-checks had passed. The corrected reviewer boundary and focused cases are
-recorded in
-`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`.
+candidate passed 14/15 executed attempts and stopped before 19 later cases. Its
+single budget stop exposed fixed per-turn slices that did not carry unused
+capacity forward under the unchanged case ceiling. The corrected harness uses
+only remaining case capacity for each next declared turn; focused admission now
+covers quick `mixed-q1` plus the two repaired deep-review boundaries. The
+retained evidence is recorded in
+`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`.
 Standing objective authority survives repaired candidate identities inside its
 isolated zero-effect sandbox and cumulative circuit breaker; learning
 activation, production/outward effects, threshold changes, and the future soak

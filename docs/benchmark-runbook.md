@@ -108,6 +108,15 @@ miss or non-improved learning aggregate. Its exact accounting and archive
 hashes are in
 `research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`.
 
+The next fail-fast candidate passed 14 attempts—planning, context delta, and
+all five clean deliveries—before quick `mixed-q1` exposed fixed per-turn budget
+slices that did not carry unused capacity forward under the unchanged $8 case
+ceiling. Only that episode was terminal; 19 later repetitions did not run. The
+repair allocates remaining case capacity across remaining declared turns and
+adds quick `mixed-q1` to focused admission ahead of the two review-boundary
+cases. Exact accounting and archive identity are in
+`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`.
+
 ## Targets (vs the 2026-07-10 episode)
 
 | Metric | Episode | Target | Measured by |

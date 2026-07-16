@@ -128,10 +128,11 @@ pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstac
 ```
 
 Pass `--authorization "$AUTH"` to the GitHub and live entrypoints as well.
-Focused admission is fixed to migration `mixed-d1` and approval `mixed-da`, the Phase 6 builder
-and reviewer assignments, the four-million-token deep ceiling, one typed
-infrastructure retry, and its original per-case threshold. Promotion rejects
-all non-qualification campaigns even if local files claim success.
+Focused admission is fixed to quick `mixed-q1`, migration `mixed-d1`, and
+approval `mixed-da`, the Phase 6 builder and reviewer assignments, the
+four-million-token deep ceiling, one typed infrastructure retry, and the
+original `$8`, `$40`, and `$40` per-case thresholds. Promotion rejects all
+non-qualification campaigns even if local files claim success.
 
 The final candidate stops and writes `campaign-stop.json` on its first
 terminal non-pass. Two failed full qualification descendants trip the lineage

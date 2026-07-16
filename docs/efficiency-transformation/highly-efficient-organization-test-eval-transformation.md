@@ -78,7 +78,7 @@ by the work recorded here.
 
 ### 2026-07-16 incremental qualification handoff
 
-The most recent exact candidate (`46617f1`) retained a qualified adapter
+The prior exact candidate (`46617f1`) retained a qualified adapter
 campaign and an invalid 34-attempt candidate campaign: 32 passed; migration
 `mixed-d1` and approval `mixed-da` were red because independent reviewers used
 unnecessary shell probes that correctly crossed the unchanged auth/protocol
@@ -89,10 +89,21 @@ cost, and $8.360302 evaluator equivalent cost. Paired learning was complete
 but inconclusive at `+1,+2,0`. The immutable record is
 [`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`](../../research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md).
 
+The next exact candidate (`d92f7e6`) passed fresh adapter admission and the two
+repaired review cases in focused admission. Its final campaign passed planning,
+all six context probes, and all five clean deliveries, then stopped immediately
+at quick `mixed-q1`: a fixed equal per-turn budget slice stopped a $2.80136
+implementation even though the unchanged $8 case ceiling had $7.417165 left.
+The retained campaign has 14 passes and one budget stop, 32 provider turns = 32
+settlements, $33.0329 product equivalent cost, and $1.6384895 evaluator
+equivalent cost. The immutable record is
+[`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`](../../research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md).
+
 The corrected developer lifecycle no longer uses full qualification as its
-debugging loop. Review command boundaries are adversarially pinned; the exact
-candidate must pass adapter admission and a non-promotable two-case focused
-provider admission before the one final full campaign. Final execution stops
+debugging loop. Review command boundaries and remaining-case budget
+carry-forward are adversarially pinned; the exact candidate must pass adapter
+admission and a non-promotable three-case focused provider admission before the
+one final full campaign. Final execution stops
 on the first terminal miss and immediately after a non-improved paired-learning
 aggregate, before later autonomy spend. A content-bound standing objective
 grant replaces repeated campaign-by-campaign approval while preserving exact

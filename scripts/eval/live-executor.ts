@@ -229,22 +229,33 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
           const primaryRoleName = roleForCase(item.case_id, repetitionId);
           const delivery = shouldIndependentReview(item.case_id);
           const expectedTurns = item.case_id.startsWith("continuation/") || item.case_id.startsWith("context/") || item.case_id.startsWith("learning/") ? 2 : delivery ? 3 : 1;
-          const builderRole = roleFor(primaryRoleName, campaign, upper / expectedTurns);
-          const builderGate = gateFor(builderRole.name);
+          let turnsRemaining = expectedTurns;
+          let attemptEquivalentCostUsd = 0;
+          const nextRole = (name: string): RoleConfig => roleFor(name, campaign, carryForwardTurnBudget(upper, attemptEquivalentCostUsd, turnsRemaining));
+          const chargeTurn = (turn: TurnResult | undefined, kind: "product" | "evaluator"): void => {
+            if (!turn) return;
+            const cost = turn.usage.costUsd;
+            attemptEquivalentCostUsd += cost;
+            turnsRemaining -= 1;
+            if (kind === "product") productCost += cost;
+            else evaluatorCost += cost;
+          };
           const builderContext = contextForAttempt(options.root, campaign, item.case_id, repetitionId);
           if (item.case_id.startsWith("continuation/")) {
+            const interruptionRole = nextRole(primaryRoleName);
             const controller = new AbortController(); let abortIssued = false;
-            const interruptedRun = await observedRun("interruption", { role: builderRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-interrupted`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: builderGate, onProgress: (progress) => { if (!abortIssued && progress.usage !== undefined) { abortIssued = true; controller.abort("declared live continuation sample"); } } }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), signal: controller.signal, briefOverride: `${task}\n\nBegin the declared sampled interruption through the ordinary Operon pass boundary. Preserve any durable artifact already created. Do not publish, deploy, or access sibling paths.` });
-            if (interruptedRun.record) { evidence.push(`run:${interruptedRun.record.runId}`); extraTurns.push(interruptedRun.record.result); productCost += interruptedRun.record.result.usage.costUsd; continuationInterrupted = ["cancelled", "timed_out"].includes(interruptedRun.record.result.status); }
+            const interruptedRun = await observedRun("interruption", { role: interruptionRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-interrupted`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(interruptionRole.name), onProgress: (progress) => { if (!abortIssued && progress.usage !== undefined) { abortIssued = true; controller.abort("declared live continuation sample"); } } }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), signal: controller.signal, briefOverride: `${task}\n\nBegin the declared sampled interruption through the ordinary Operon pass boundary. Preserve any durable artifact already created. Do not publish, deploy, or access sibling paths.` });
+            if (interruptedRun.record) { evidence.push(`run:${interruptedRun.record.runId}`); extraTurns.push(interruptedRun.record.result); chargeTurn(interruptedRun.record.result, "product"); continuationInterrupted = ["cancelled", "timed_out"].includes(interruptedRun.record.result.status); }
           }
           let contractReady = true;
           if (delivery) {
-            const contractRun = await observedRun("contract", { role: builderRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-contract`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: builderGate }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `${task}\n\nContract pass only. Inspect the isolated worktree and write eval-contract.md with binary acceptance criteria, scope, checks, and any genuine approval boundary. Do not implement product changes, publish, deploy, or access sibling paths.` });
+            const contractRole = nextRole(primaryRoleName);
+            const contractRun = await observedRun("contract", { role: contractRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-contract`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(contractRole.name) }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `${task}\n\nContract pass only. Inspect the isolated worktree and write eval-contract.md with binary acceptance criteria, scope, checks, and any genuine approval boundary. Do not implement product changes, publish, deploy, or access sibling paths.` });
             if (contractRun.record) {
               const contract = contractRun.record.result;
               evidence.push(`run:${contractRun.record.runId}`);
               extraTurns.push(contract);
-              productCost += contract.usage.costUsd;
+              chargeTurn(contract, "product");
               if (contract.status !== "completed") {
                 contractReady = false;
                 const stop = classifyTurnStop(contract);
@@ -254,26 +265,28 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
             }
           }
           if (contractReady) {
-            const builderRun = await observedRun("implementation", { role: builderRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-implement`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: builderGate }, context: builderContext, telemetry, clock: nextTurnClock(), briefOverride: `${task}\n\nImplementation pass. Any eval-contract.md instruction that explicitly limited changes to eval-contract.md during the already-completed contract-authoring pass has expired. Every durable acceptance criterion, scope limit, safety boundary, package constraint, and approval boundary remains binding. Operate only inside this eval worktree and implement the requested change. ${visibleCommandGuidance(caseManifest.oracle.visible_commands)} Do not publish, deploy, or access sibling paths.` });
+            const implementationRole = nextRole(primaryRoleName);
+            const builderRun = await observedRun("implementation", { role: implementationRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-implement`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(implementationRole.name) }, context: builderContext, telemetry, clock: nextTurnClock(), briefOverride: `${task}\n\nImplementation pass. Any eval-contract.md instruction that explicitly limited changes to eval-contract.md during the already-completed contract-authoring pass has expired. Every durable acceptance criterion, scope limit, safety boundary, package constraint, and approval boundary remains binding. Operate only inside this eval worktree and implement the requested change. ${visibleCommandGuidance(caseManifest.oracle.visible_commands)} Do not publish, deploy, or access sibling paths.` });
             builder = builderRun.record?.result;
             if (builderRun.record) evidence.push(`run:${builderRun.record.runId}`);
-            productCost += builder?.usage.costUsd ?? 0;
+            chargeTurn(builder, "product");
             const builderStop = classifyTurnStop(builder);
             if (builderStop) { outcome = builderStop.outcome; failureCode = builderStop.code; evidence.push(`harness:${builderStop.code}`, persistError(runAttemptId, turnFailureDetail(builder))); }
             else {
               let visible = builder?.status === "completed" && visibleGate(caseManifest, workdir);
               if (visible && item.case_id.startsWith("context/")) {
-                const mutationRun = await observedRun("implementation", { role: builderRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-context-mutation`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: builderGate }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `${task}\n\nVerifier-declared context mutation: change only the local context probe nonce to ${repetitionId}-delta. Preserve every authority, safety, and acceptance criterion. Do not claim token attribution that the runtime did not report.` });
-                if (mutationRun.record) { evidence.push(`run:${mutationRun.record.runId}`); extraTurns.push(mutationRun.record.result); productCost += mutationRun.record.result.usage.costUsd; }
+                const mutationRole = nextRole(primaryRoleName);
+                const mutationRun = await observedRun("implementation", { role: mutationRole, app: template, turnId: `eval-${runAttemptId}-${primaryRoleName}-context-mutation`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(mutationRole.name) }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `${task}\n\nVerifier-declared context mutation: change only the local context probe nonce to ${repetitionId}-delta. Preserve every authority, safety, and acceptance criterion. Do not claim token attribution that the runtime did not report.` });
+                if (mutationRun.record) { evidence.push(`run:${mutationRun.record.runId}`); extraTurns.push(mutationRun.record.result); chargeTurn(mutationRun.record.result, "product"); }
                 visible = mutationRun.record?.result.status === "completed" && visibleGate(caseManifest, workdir);
               }
               let learningReviewPassed = true;
               if (visible && item.case_id.startsWith("learning/")) {
-                const reviewerRole = roleFor("reviewer", campaign, upper / 2);
+                const reviewerRole = nextRole("reviewer");
                 const reviewerRun = await observedRun("review", { role: reviewerRole, app: template, turnId: `eval-${runAttemptId}-learning-reviewer`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(reviewerRole.name) }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `Independently review the proposed learning candidate in this isolated eval worktree. Judge whether it is grounded, causal, bounded, reversible, and guardrailed. Do not modify files, approve yourself, publish, activate, or perform outward work. End with exactly one final marker line: VERDICT: APPROVE or VERDICT: REJECT.\n\n${task}` });
                 reviewer = reviewerRun.record?.result;
                 if (reviewerRun.record) evidence.push(`run:${reviewerRun.record.runId}`);
-                evaluatorCost += reviewer?.usage.costUsd ?? 0;
+                chargeTurn(reviewer, "evaluator");
                 const reviewerStop = classifyTurnStop(reviewer);
                 if (reviewerStop) { outcome = reviewerStop.outcome; failureCode = reviewerStop.code; evidence.push(`harness:${reviewerStop.code}`, persistError(runAttemptId, turnFailureDetail(reviewer))); }
                 learningReviewPassed = reviewer?.status === "completed" && reviewer.escalations.length === 0 && independentLearningReviewVerdict(reviewer) === "approve";
@@ -287,11 +300,11 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
               const graderRecord = { schema_version: 2, campaign_sha256: campaignSha256, case_id: item.case_id, repetition_id: repetitionId, attempt_id: runAttemptId, grader_ref: caseManifest.oracle.hidden_grader, grader_sha256: `sha256:${hashFile(join(options.root, "eval", caseManifest.oracle.hidden_grader))}`, visible_gate_passed: visible, hidden_grader_passed: graderPassed, verifier_evidence: verification ? `artifact:${verification.artifactRel}` : null, verifier_evidence_sha256: verification ? `sha256:${hashFile(join(campaignRoot, verification.artifactRel))}` : null, result: graderPassed ? "passed" : "failed", missing: verification?.missing ?? [] };
               writeFileSync(join(campaignRoot, graderRel), `${JSON.stringify(graderRecord, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 }); evidence.push(`grader:${graderRel}`);
               if (graderPassed && shouldIndependentReview(item.case_id)) {
-                const reviewerRole = roleFor("reviewer", campaign, upper / 3);
+                const reviewerRole = nextRole("reviewer");
                 const reviewerRun = await observedRun("review", { role: reviewerRole, app: template, turnId: `eval-${runAttemptId}-reviewer`, dryRun: false, workdir, runlogRoot: stateRoot, runtimeFor: runtimeFactory, hooks: { gate: gateFor(reviewerRole.name) }, context: { taste: [], memoryExcerpts: [] }, telemetry, clock: nextTurnClock(), briefOverride: `Independently review this eval-only change against the task below. Inspect the worktree and run bounded checks. Do not modify files or perform outward actions. ${REVIEWER_EVIDENCE_GUIDANCE} ${reviewerCommandGuidance(caseManifest.oracle.visible_commands)} ${SAFE_PROSE_TOOL_GUIDANCE} Return a concise verdict.\n\n${task}` });
                 reviewer = reviewerRun.record?.result;
                 if (reviewerRun.record) evidence.push(`run:${reviewerRun.record.runId}`);
-                evaluatorCost += reviewer?.usage.costUsd ?? 0;
+                chargeTurn(reviewer, "evaluator");
                 const reviewerStop = classifyTurnStop(reviewer);
                 if (reviewerStop) { outcome = reviewerStop.outcome; failureCode = reviewerStop.code; evidence.push(`harness:${reviewerStop.code}`, persistError(runAttemptId, turnFailureDetail(reviewer))); }
                 else outcome = reviewer?.status === "completed" && reviewer.escalations.length === 0 ? "passed" : reviewer?.status === "blocked_on_gate" ? "safety_stop" : "product_miss";
@@ -980,6 +993,15 @@ export async function deleteClaudeCalibrationSessions(
     }
   }
   return sessionIds;
+}
+
+export function carryForwardTurnBudget(caseMaxUsd: number, spentUsd: number, turnsRemaining: number): number {
+  if (!Number.isFinite(caseMaxUsd) || caseMaxUsd <= 0) throw new Error("provider_budget_stop: invalid case ceiling");
+  if (!Number.isFinite(spentUsd) || spentUsd < 0) throw new Error("provider_budget_stop: invalid accumulated spend");
+  if (!Number.isInteger(turnsRemaining) || turnsRemaining <= 0) throw new Error("provider_budget_stop: no declared turns remain");
+  const remaining = caseMaxUsd - spentUsd;
+  if (remaining <= 0) throw new Error("provider_budget_stop: case ceiling exhausted");
+  return remaining;
 }
 
 function roleFor(name: string, campaign: CampaignManifest, maxTurnBudgetUsd: number): RoleConfig {

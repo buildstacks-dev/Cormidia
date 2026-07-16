@@ -14,13 +14,13 @@ it("J-RPT-01 archives sanitized evidence with hashes and never copies provider c
   const root = mkdtempSync(join(tmpdir(), "operon-eval-evidence-")); roots.push(root); const campaignRoot = join(root, "campaign"); const archiveRoot = join(root, "archives");
   for (const dir of ["results", "grader", "state/runs/app/run-1", "world/node_modules", "world/.git", "provider-scratch/codex", "provider-scratch/claude", "provider-scratch/pi"]) mkdirSync(join(campaignRoot, dir), { recursive: true });
   writeFileSync(join(campaignRoot, "campaign.yaml"), stringify(campaign()));
-  for (const file of ["campaign.lock.json", "github-idempotence-deadbeef.json", "results/a.json", "grader/a.json", "state/ledger.jsonl", "world/generated", "world/README.md", "world/eval-contract.md", "world/package.json", "world/node_modules/cache", "world/.git/config"]) writeFileSync(join(campaignRoot, file), `${file}\n`);
+  for (const file of ["campaign.lock.json", "campaign-stop.json", "github-idempotence-deadbeef.json", "results/a.json", "grader/a.json", "state/ledger.jsonl", "world/generated", "world/README.md", "world/eval-contract.md", "world/package.json", "world/node_modules/cache", "world/.git/config"]) writeFileSync(join(campaignRoot, file), `${file}\n`);
   writeFileSync(join(campaignRoot, "world/secretish.js"), "const secret = process.env.AUTH_KEY;\n");
   for (const file of ["brief.md", "prompt.md", "output.md", "session.log", "events.jsonl", "envelope.json", "context-manifest.json"]) writeFileSync(join(campaignRoot, "state/runs/app/run-1", file), `raw-l3:${file}\n`);
   for (const file of ["provider-scratch/codex/auth.json", "provider-scratch/claude/.credentials.json", "provider-scratch/pi/auth.json"]) writeFileSync(join(campaignRoot, file), '{"token":"credential-canary-value"}\n');
   const archived = archiveCampaignEvidence({ campaign: campaign(), campaignRoot, outRoot: archiveRoot, now: new Date("2026-07-12T00:00:00Z") });
   expect(archived.manifest).toMatchObject({ schema_version: 2, archive_kind: "sanitized-evidence", policy_version: "sanitized-evidence/v3", excluded_roots: ["provider-scratch/**", "state/runs/**"], redacted_files: { "world/secretish.js": ["generic-assignment"] } });
-  expect(Object.keys(archived.manifest.files)).toEqual(expect.arrayContaining(["github-idempotence-deadbeef.json", "results/a.json", "grader/a.json", "state/ledger.jsonl", "world/generated"]));
+  expect(Object.keys(archived.manifest.files)).toEqual(expect.arrayContaining(["campaign-stop.json", "github-idempotence-deadbeef.json", "results/a.json", "grader/a.json", "state/ledger.jsonl", "world/generated"]));
   expect(Object.keys(archived.manifest.files).some((path) => path.startsWith("provider-scratch/"))).toBe(false);
   expect(Object.keys(archived.manifest.files).some((path) => path.startsWith("state/runs/"))).toBe(false);
   expect(Object.keys(archived.manifest.files).some((path) => path.includes("node_modules") || path.includes(".git"))).toBe(false);

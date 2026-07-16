@@ -180,8 +180,8 @@ efficacy health independently. The mechanics construct no provider runtime.
   requires `OPERON_EVAL_SOAK=1`, an exact confirmation, and an explicit cap) ·
   `pnpm eval:qualify` is read-only.
 - Incremental Phase 6 provider sequence: exact-candidate adapter admission,
-  then non-promotable `focused-provider-admission` for migration `mixed-d1`
-  and approval `mixed-da`,
+  then non-promotable `focused-provider-admission` for quick `mixed-q1`,
+  migration `mixed-d1`, and approval `mixed-da`,
   then one full candidate qualification. Candidate GitHub/provider entrypoints
   fail closed unless both same-candidate admissions passed. Focused and final
   campaigns stop on the first terminal non-pass; a third failed full campaign

@@ -392,6 +392,9 @@ then the scope-split candidate and its valid adapter admission are recorded in
 The latest 32/34 review-boundary failure and the focused-admission correction
 are recorded in
 [`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`](research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md).
+The subsequent fail-fast budget-carry failure—14 passes followed by one
+premature per-turn budget stop—is retained in
+[`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`](research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md).
 
 The Live UI browser suite uses a dev-only Playwright dependency and local
 Chromium (`pnpm exec playwright install chromium` once). Its fixtures use real

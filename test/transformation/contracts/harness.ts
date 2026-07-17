@@ -89,13 +89,25 @@ function classifySurface(output: string, token: string, expectedFailure: string)
   return output.includes(token) ? "passed" : expectedFailure;
 }
 
-function classifyResultEvidence(path: string, spec: ResultDebtSpec, expectedFailure: string): string {
+export function classifyResultEvidence(path: string, spec: ResultDebtSpec, expectedFailure: string): string {
   if (!existsSync(path)) return expectedFailure;
   try {
     verifyContractEvidence(root, path, { contractId: spec.id, caseId: spec.caseId, repetitionIds: spec.repetitionIds });
     return "passed";
   }
-  catch { return "invalid_contract_observation"; }
+  catch (error) {
+    // Propagate the verifier's real cause. contract-evidence.ts throws ~30
+    // distinct code-bearing messages (contract_evidence_*/release_attestation_*),
+    // per the repo error protocol: a machine-readable code, optionally suffixed
+    // ":<detail>". Collapsing all of them into one "invalid_contract_observation"
+    // sentinel is exactly what hid ROOT-001's release_attestation_package_mismatch
+    // behind a meaningless diagnostic for a week. Only a non-Error throw or an
+    // empty message carries no code to surface, so it alone falls back to the
+    // labeled sentinel (the swallow-with-rationale convention modeled at
+    // src/org/scheduler/evidence.ts:621 — swallow only where nothing better exists).
+    const message = error instanceof Error ? error.message.trim() : "";
+    return message === "" ? "invalid_contract_observation" : message;
+  }
 }
 
 function classifyResultValue(value: unknown, caseId: string, expectedFailure: string): string {

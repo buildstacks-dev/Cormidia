@@ -63,7 +63,7 @@ import {
   recordExecutionBoundary,
   resumeExecutionJournal,
 } from "./execution-journal.js";
-import { parseDependsOn, parseScope, selectReadyTickets } from "./scheduling.js";
+import { parseDependsOn, parseScope, selectReadyTickets, type SchedulableTicket } from "./scheduling.js";
 import type { LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
 
 export interface LoopPlanItem {
@@ -160,18 +160,28 @@ export function planLoopTick(
   issues: readonly GhIssue[],
   repo: string,
   maxConcurrent: number,
+  /** Dependency issue numbers already resolved as MERGED (see
+   *  resolveMergedDependencyIds). The live loop fetches only OPEN op:ready
+   *  issues, so a merged dependency — CLOSED and unlabeled — is never in
+   *  `issues`; without it, selectReadyTickets keeps a dependent whose deps have
+   *  all merged permanently blocked (B-LIVE-03 / L-007). Each id not already in
+   *  the fetched set is injected as a synthetic `phase: "merged"` ticket so the
+   *  pure selection function can clear the dependent's Depends-on. */
+  mergedDependencyIds: ReadonlySet<number> = new Set(),
 ): LoopPlanItem[] {
   const items = issues.map((issue) => itemFromIssue(issue, repo));
-  const selected = selectReadyTickets(
-    items.map((item) => ({
-      id: item.issueNumber,
-      phase: item.phase,
-      dependsOn: parseDependsOn(item.body),
-      scope: parseScope(item.body),
-      priority: priority(item.labels),
-    })),
-    maxConcurrent,
-  );
+  const fetchedIds = new Set(items.map((item) => item.issueNumber));
+  const tickets: SchedulableTicket[] = items.map((item) => ({
+    id: item.issueNumber,
+    phase: item.phase,
+    dependsOn: parseDependsOn(item.body),
+    scope: parseScope(item.body),
+    priority: priority(item.labels),
+  }));
+  for (const id of mergedDependencyIds) {
+    if (!fetchedIds.has(id)) tickets.push({ id, phase: "merged" });
+  }
+  const selected = selectReadyTickets(tickets, maxConcurrent);
   const selectedIds = new Set(selected.map((ticket) => ticket.id));
   return items
     .filter((item) => selectedIds.has(item.issueNumber))
@@ -181,6 +191,45 @@ export function planLoopTick(
       phase: item.phase,
       tier: item.tier,
     }));
+}
+
+/** Resolve which of the given dependency issue numbers are MERGED — not merely
+ *  closed. The live loop feeds selection only OPEN op:ready issues, so a merged
+ *  dependency (CLOSED, no op:ready label) is never in that set and
+ *  selectReadyTickets would keep the dependent blocked forever (B-LIVE-03 /
+ *  L-007). Only the specific dependency ids referenced by the fetched
+ *  candidates are looked up here — the resolution stays bounded.
+ *
+ *  Merged, not merely closed (W4-ADJ-05): a dependency closed WITHOUT a merge
+ *  must not satisfy a dependent. `rearmDependents` promotes a dependent on the
+ *  looser "no longer open" signal; selection is the stricter, authoritative
+ *  gate and requires an actual MERGED pull request on the dependency's branch.
+ *  The two never contradict — selection only ever admits a subset of what
+ *  re-arm would promote — so a closed-without-merge dependency may be re-armed
+ *  to op:ready yet is deliberately never run here. */
+async function resolveMergedDependencyIds(
+  gh: GhOps,
+  depIds: Iterable<number>,
+): Promise<Set<number>> {
+  const merged = new Set<number>();
+  for (const id of depIds) {
+    let issue: GhIssue;
+    try {
+      issue = await gh.readIssue(id);
+    } catch {
+      // Unknown dependency id — fail safe and leave the dependent blocked.
+      continue;
+    }
+    // Still open ⇒ it cannot have merged; a merge closes the issue.
+    if (issue.state.toUpperCase() !== "CLOSED") continue;
+    // Closed — but only a MERGED PR on its branch proves it merged rather than
+    // closed-without-merge. This is the same branch the loop opened the PR on
+    // (branchNameForIssue), and the exact signal that distinguishes a delivered
+    // dependency from a manually-abandoned one.
+    const prs = await gh.listPRsForBranch(branchNameForIssue(issue), { state: "merged" });
+    if (prs.some((pr) => pr.state.toUpperCase() === "MERGED")) merged.add(id);
+  }
+  return merged;
 }
 
 export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDriverResult> {
@@ -205,7 +254,21 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     state: "open",
     limit: maxConcurrent * 3,
   });
-  const plan = planLoopTick(readyIssues, options.repo, maxConcurrent);
+  // A merged dependency lives OUTSIDE this open op:ready set: a merge CLOSES the
+  // issue and strips its op:ready label, so it is never fetched here. Resolve
+  // the exact dependency ids the fetched candidates reference but that are
+  // absent from the set, so selection can see their merged truth — otherwise a
+  // dependent whose dependencies have all merged is permanently unschedulable
+  // (B-LIVE-03 / L-007).
+  const fetchedIds = new Set(readyIssues.map((issue) => issue.number));
+  const unresolvedDepIds = new Set<number>();
+  for (const issue of readyIssues) {
+    for (const dep of parseDependsOn(issue.body)) {
+      if (!fetchedIds.has(dep)) unresolvedDepIds.add(dep);
+    }
+  }
+  const mergedDependencyIds = await resolveMergedDependencyIds(options.gh, unresolvedDepIds);
+  const plan = planLoopTick(readyIssues, options.repo, maxConcurrent, mergedDependencyIds);
   const lines = plan.map((item) => `#${item.issueNumber} ${item.title}: ready -> claim`);
   if (options.planOnly) return { lines, items: [], scorecardEvents: [] };
 

@@ -17,7 +17,7 @@ import {
   planLoopTick,
   runLoopOnce,
 } from "../src/loop/driver.js";
-import { dependencyRelevantPackageJson } from "../src/loop/loop.js";
+import { branchNameForIssue, dependencyRelevantPackageJson } from "../src/loop/loop.js";
 import { writeTicketClaimState } from "../src/loop/rehydrate.js";
 import { makeBareWithClone, makeWorkingRepo } from "./fixtures/gitRepo.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
@@ -188,6 +188,117 @@ describe("loop driver", () => {
     expect(result.lines).toEqual(["#1 Seeded ready ticket: ready -> claim"]);
     expect(result.items).toEqual([]);
     expect((await gh.readIssue(1)).labels).toEqual(["op:ready"]);
+  });
+
+  // B-LIVE-03 / L-007: drive the LIVE fetch semantics. The dependency issues
+  // are CLOSED-by-merge and carry no op:ready label, so the open-only op:ready
+  // fetch never returns them — exactly like real GitHub. A dependent is
+  // selectable only if the driver resolves its merged dependencies separately
+  // and feeds them into selection.
+  async function mergeDependency(gh: FakeGhOps, number: number): Promise<void> {
+    const issue = await gh.readIssue(number);
+    const pr = await gh.createPR({
+      head: branchNameForIssue(issue),
+      base: "main",
+      title: `build: ${issue.title} (#${number})`,
+      body: `## What\nDelivered.\n\nCloses #${number}\n`,
+    });
+    await gh.squashMerge(pr.number, { subject: `build: ${issue.title} (#${number})` });
+  }
+
+  const dependentBody = (deps: number[]): string =>
+    [
+      "## Goal",
+      "Depend on merged predecessors.",
+      ...deps.map((dep) => `Depends-on: #${dep}`),
+      "",
+      "## Acceptance criteria",
+      "- [x] dependent is testable",
+      "",
+    ].join("\n");
+
+  it("selects a dependent once its dependencies are merged-and-closed (B-LIVE-03/L-007)", async () => {
+    const gh = new FakeGhOps({
+      issues: [
+        { number: 1, title: "Dep one", body: issueBody, labels: ["op:tier-deep", "p1", "domain:data"] },
+        { number: 2, title: "Dep two", body: issueBody, labels: ["op:tier-deep", "p1", "domain:data"] },
+        { number: 3, title: "Dependent", body: dependentBody([1, 2]), labels: ["op:ready"] },
+      ],
+    });
+    // #1 and #2 merge and close: gone from the open op:ready set, discoverable
+    // only by their number + a MERGED PR on their branch.
+    await mergeDependency(gh, 1);
+    await mergeDependency(gh, 2);
+    expect((await gh.readIssue(1)).state).toBe("CLOSED");
+    expect(
+      await gh.listIssues({ labels: ["op:ready"], state: "open", limit: 10 }),
+    ).toHaveLength(1);
+
+    const result = await runLoopOnce({
+      app: "fixture",
+      repo: "fixture/repo",
+      gh,
+      localRepo: "/tmp/not-used",
+      worktreeRoot: "/tmp/not-used-worktrees",
+      policy: DEFAULT_LOOP_POLICY,
+      commands: {},
+      maxConcurrent: 2,
+      planOnly: true,
+    });
+
+    expect(result.lines).toEqual(["#3 Dependent: ready -> claim"]);
+  });
+
+  it("does NOT select a dependent whose dependency was closed WITHOUT merging (W4-ADJ-05)", async () => {
+    const gh = new FakeGhOps({
+      issues: [
+        { number: 5, title: "Abandoned dep", body: issueBody, labels: ["op:tier-standard", "p1"] },
+        { number: 4, title: "Dependent", body: dependentBody([5]), labels: ["op:ready"] },
+      ],
+    });
+    // #5 is closed, but never merged — no MERGED PR exists on its branch.
+    await gh.closeIssue(5);
+    expect((await gh.readIssue(5)).state).toBe("CLOSED");
+
+    const result = await runLoopOnce({
+      app: "fixture",
+      repo: "fixture/repo",
+      gh,
+      localRepo: "/tmp/not-used",
+      worktreeRoot: "/tmp/not-used-worktrees",
+      policy: DEFAULT_LOOP_POLICY,
+      commands: {},
+      maxConcurrent: 2,
+      planOnly: true,
+    });
+
+    // A closed-without-merge dependency must not satisfy the dependent.
+    expect(result.lines).toEqual([]);
+  });
+
+  it("keeps intra-batch order: B depends on co-fetched unmerged A, so only A runs", async () => {
+    const gh = new FakeGhOps({
+      issues: [
+        { number: 6, title: "Predecessor", body: issueBody, labels: ["op:ready"] },
+        { number: 7, title: "Successor", body: dependentBody([6]), labels: ["op:ready"] },
+      ],
+    });
+    // #6 is still open op:ready (unmerged) and co-fetched with its dependent #7.
+
+    const result = await runLoopOnce({
+      app: "fixture",
+      repo: "fixture/repo",
+      gh,
+      localRepo: "/tmp/not-used",
+      worktreeRoot: "/tmp/not-used-worktrees",
+      policy: DEFAULT_LOOP_POLICY,
+      commands: {},
+      maxConcurrent: 3,
+      planOnly: true,
+    });
+
+    // #7 must not run in the same batch as its unmerged predecessor #6.
+    expect(result.lines).toEqual(["#6 Predecessor: ready -> claim"]);
   });
 
   it("loadGateCommands falls back to package scripts when app config omits commands", () => {

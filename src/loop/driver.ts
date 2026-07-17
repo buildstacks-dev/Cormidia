@@ -101,8 +101,9 @@ export interface LoopDriverOptions {
    *  not declare, and a merged deploy/package milestone returns a
    *  releaseTrigger for the org layer to queue as a critical op. */
   release?: ReleaseConfig;
-  /** Immutable commit/ref captured from a supplied checkout. Ticket branches
-   * start here instead of assuming `main`. */
+  /** Base rev ticket branches start from instead of an assumed `main`: the
+   * immutable commit captured from a supplied checkout, or the managed
+   * clone's resolved default branch (L-010). */
   baseRef?: string;
 }
 
@@ -517,7 +518,9 @@ export async function defaultLoopInputs(
     localRepo = prepared.path;
     baseRef = prepared.head;
   } else {
-    ensureClone(repoSlug, repoDir);
+    // The managed clone's resolved default branch (not an assumed `main`)
+    // becomes the base every ticket branch and gate diff starts from.
+    baseRef = ensureClone(repoSlug, repoDir);
   }
   return {
     gh: new GhCliOps(repoSlug, undefined, process.env["OPERON_SELF_APPROVAL_SECRET"]),
@@ -951,15 +954,49 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
-function ensureClone(repoSlug: string, repoDir: string): void {
+/** Prepare the Operon-managed clone and report the branch ticket work starts
+ * from. The remote's advertised default branch is resolved instead of being
+ * assumed to be `main`: a stock `git init` repo (no init.defaultBranch) is
+ * `master`, and the first tick used to die inside `git fetch origin main`
+ * with a raw git error (review L-010). */
+function ensureClone(repoSlug: string, repoDir: string): string {
   if (existsSync(join(repoDir, ".git"))) {
-    git(repoDir, "fetch", "origin", "main");
-    git(repoDir, "checkout", "main");
-    git(repoDir, "reset", "--hard", "origin/main");
-    return;
+    const branch = remoteDefaultBranch(repoDir);
+    git(repoDir, "fetch", "origin", branch);
+    git(repoDir, "checkout", branch);
+    git(repoDir, "reset", "--hard", `origin/${branch}`);
+    return branch;
   }
   mkdirSync(dirname(repoDir), { recursive: true });
   git(dirname(repoDir), "clone", `https://github.com/${repoSlug}.git`, repoDir);
+  // A fresh clone already sits on the remote's default branch — git resolved
+  // the remote HEAD itself; read the answer instead of assuming one.
+  return git(repoDir, "symbolic-ref", "--short", "HEAD");
+}
+
+/** The default branch origin advertises (`git ls-remote --symref origin
+ * HEAD`) — the same resolution bootstrap uses in src/org/app-lifecycle.ts.
+ * "Could not ask" and "the remote advertises nothing" (an empty repository)
+ * are both loud, actionable errors: guessing `main` here is how a
+ * master-default repo crashed the first tick with a raw git stack trace. */
+function remoteDefaultBranch(repoDir: string): string {
+  let output: string;
+  try {
+    output = git(repoDir, "ls-remote", "--symref", "origin", "HEAD");
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `loop: cannot resolve the default branch of origin for ${repoDir} — ${detail.trim()}`,
+    );
+  }
+  const match = /^ref:\s+refs\/heads\/(\S+)\s+HEAD$/m.exec(output);
+  if (!match?.[1]) {
+    throw new Error(
+      `loop: origin of ${repoDir} advertises no default branch (empty repository?) — ` +
+        "push an initial commit or set the remote HEAD before running the loop",
+    );
+  }
+  return match[1];
 }
 
 function snapshotSuppliedCheckout(sourceDir: string, snapshotDir: string): { path: string; head: string } {

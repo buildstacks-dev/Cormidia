@@ -5,6 +5,7 @@
 // GitHub state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,6 +21,20 @@ import { dependencyRelevantPackageJson } from "../src/loop/loop.js";
 import { writeTicketClaimState } from "../src/loop/rehydrate.js";
 import { makeBareWithClone, makeWorkingRepo } from "./fixtures/gitRepo.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
+
+function policyYaml(): string {
+  return [
+    "risk_tiers:",
+    "  high: ['auth/**']",
+    "  medium: ['src/**']",
+    "  low: ['**']",
+    "gates:",
+    "  high: [tests]",
+    "  medium: [tests]",
+    "  low: [tests]",
+    "",
+  ].join("\n");
+}
 
 const issueBody = [
   "## Goal",
@@ -72,6 +87,65 @@ describe("loop driver", () => {
       );
     } finally {
       pair.cleanup();
+    }
+  });
+
+  it("ensureClone follows a master-default remote instead of hardcoding main (L-010)", async () => {
+    // A stock `git init` environment (no init.defaultBranch) produces
+    // `master`; the managed-clone path used to run `git fetch origin main`
+    // and crash the first tick with a raw git error.
+    const pair = makeBareWithClone("master");
+    try {
+      pair.clone.commit("seed app policy", {
+        ".operon/policy.yaml": policyYaml(),
+        "README.md": "seed\n",
+      });
+      pair.clone.git("push", "origin", "master");
+      // Local drift the tick must discard, exactly as it always did for main.
+      pair.clone.commit("unpushed local drift", { "README.md": "drift\n" });
+
+      const inputs = await defaultLoopInputs("owner/fixture", pair.clone.root);
+
+      expect(inputs.baseRef).toBe("master");
+      expect(pair.clone.git("branch", "--show-current")).toBe("master");
+      expect(pair.clone.git("rev-parse", "HEAD")).toBe(
+        pair.clone.git("rev-parse", "origin/master"),
+      );
+    } finally {
+      pair.cleanup();
+    }
+  });
+
+  it("ensureClone still resolves a main-default remote and threads baseRef main", async () => {
+    const pair = makeBareWithClone();
+    try {
+      pair.clone.commit("seed app policy", { ".operon/policy.yaml": policyYaml() });
+      pair.clone.git("push", "origin", "main");
+
+      const inputs = await defaultLoopInputs("owner/fixture", pair.clone.root);
+
+      expect(inputs.baseRef).toBe("main");
+      expect(pair.clone.git("branch", "--show-current")).toBe("main");
+    } finally {
+      pair.cleanup();
+    }
+  });
+
+  it("a remote advertising no default branch fails loudly and actionably, not with a raw git error (L-010)", async () => {
+    // An empty origin advertises no HEAD symref: "cannot determine" must be
+    // a clear refusal naming the situation, never a guessed `main`.
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-empty-origin-"));
+    try {
+      const bare = join(root, "origin.git");
+      execFileSync("git", ["init", "--bare", "--initial-branch=master", bare], { cwd: root });
+      const clone = join(root, "clone");
+      execFileSync("git", ["clone", bare, clone], { cwd: root, stdio: "ignore" });
+
+      await expect(defaultLoopInputs("owner/fixture", clone)).rejects.toThrow(
+        /advertises no default branch/,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 

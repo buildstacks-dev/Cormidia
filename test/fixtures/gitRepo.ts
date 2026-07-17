@@ -165,25 +165,27 @@ export interface BareCloneFixture {
   cleanup(): void;
 }
 
-/** A bare origin plus a working clone, seeded so `origin/main` exists: real
- * push, squash-merge, and branch-delete semantics with zero network. */
-export function makeBareWithClone(): BareCloneFixture {
+/** A bare origin plus a working clone, seeded so the default branch exists on
+ * origin: real push, squash-merge, and branch-delete semantics with zero
+ * network. `defaultBranch` defaults to `main`; pass `master` to model a stock
+ * `git init` environment with no `init.defaultBranch` (review L-010). */
+export function makeBareWithClone(defaultBranch = "main"): BareCloneFixture {
   const root = mkdtempSync(join(tmpdir(), "operon-gitpair-"));
-  return makeBareWithCloneAt(root);
+  return makeBareWithCloneAt(root, defaultBranch);
 }
 
 /** Build the canonical local bare+clone pair below a caller-owned root. */
-export function makeBareWithCloneAt(root: string): BareCloneFixture {
+export function makeBareWithCloneAt(root: string, defaultBranch = "main"): BareCloneFixture {
   mkdirSync(root, { recursive: true });
   const bareRoot = join(root, "origin.git");
-  runGit(root, ["init", "--bare", "--initial-branch=main", bareRoot]);
+  runGit(root, ["init", "--bare", `--initial-branch=${defaultBranch}`, bareRoot]);
 
   const cloneRoot = join(root, "clone");
   runGit(root, ["clone", bareRoot, cloneRoot]);
   const clone = repoHandle(cloneRoot);
-  // Seed main and push it so origin has a main branch to merge into.
-  clone.commit("chore: init origin main", { "README.md": "# fixture origin\n" });
-  clone.git("push", "-u", "origin", "main");
+  // Seed the default branch and push it so origin has a branch to merge into.
+  clone.commit(`chore: init origin ${defaultBranch}`, { "README.md": "# fixture origin\n" });
+  clone.git("push", "-u", "origin", defaultBranch);
 
   const bareGit = (...args: string[]) => runGit(bareRoot, args);
   return {

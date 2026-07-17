@@ -1,0 +1,300 @@
+# Remediation log
+
+Per-item record required by the remediation protocol. One entry per finding id: branch, diff
+summary, acceptance criteria restated, verification (command + actual output), doc updates,
+adjacent items filed. Baseline for every entry: `main` @ `f19fb6f`, `pnpm test` RED with exactly
+9 failures (D-LIVE-01/02/03, E-LIVE-01/02, G-MET-01, I-ROLE-01/02/03 — ROOT-001, expected until
+P0-07). Every item below was verified by an independent agent (not the implementer) and passed an
+adversarial scope check. No branch is merged or pushed.
+
+---
+
+## Wave 0 — reachability/observability (2026-07-17)
+
+Orchestration: one Workflow invocation (`wf_e963a442-f55`), 9 agents (3 implement / 3 verify /
+3 scope-check), disjoint file scopes, isolated worktrees, one branch per finding.
+
+---
+
+### L0-01 (L-001, P0) — apps created via `new-app` can never reach `status: live`
+
+**Branch:** `fix/l0-01-app-lifecycle-live` @ `793f384` (1 commit, off `f19fb6f`)
+
+**Acceptance criteria (restated):**
+1. `operon app verify <name> --json` returns a typed result (`ready`/`blocked`/`invalid` with
+   named check IDs) — never a raw ENOENT/unhandled exception, including when the record is missing.
+2. `new-app` writes the lifecycle record OR `verify` synthesizes/repairs it — one path owns it.
+3. `operon app promote <name> --to live --execute` reaches `live` with no manual `apps.yaml` edit.
+4. A documented recovery exists for an app already in the broken state.
+
+**Design decision:** VERIFY owns record synthesis/repair. `new-app` runs before `git init`/push, so
+at scaffold time no commit/remote/managed-clone exists — it *cannot* write a valid record. `verify`
+already has the machinery (remote reads, clone recreation, hashing). `new-app` now writes an
+`onboarding-source.json` pointer (same pattern as its `answers.json`); `verify` synthesizes
+`record.json` from it after push, with a GitHub-slug fallback for pre-existing broken apps.
+
+**Diff:** 6 files, +537/−2. `src/org/app-lifecycle.ts` (verify-time synthesis + typed
+`unverifiableReport`; corrupt record → typed `lifecycle-record` fail), `src/org/onboarding-answers.ts`
+(pointer schema/read/write), `src/org/new-app.ts` (write pointer), new
+`test/lifecycle/greenfield-record.test.ts` (4 tests), `docs/architecture.md`,
+`agent-skills/operon/SKILL.md`. (Note: commit message understates the diffstat as +366/−2; file set
+is accurate.)
+
+**Evidence reproduced first (baseline `f19fb6f`, temp trees, local remotes only):**
+`pnpm dev new-app repro-app …` wrote `answers.json` but no `record.json`; then
+`pnpm dev app verify repro-app --json` →
+`ENOENT: no such file or directory, lstat '…/state/lifecycle/apps/repro-app/record.json'`, EXIT=1.
+
+**Verification (independent agent, behavioral per sonnet-org/ISSUES.md Issue 1, token-free):**
+- Gates: build clean; typecheck clean; `pnpm test` → `9 failed | 1586 passed (1595)`, exactly the
+  ROOT-001 nine. `pnpm smoke:onboarding` PASS; `npm pack --dry-run` unchanged (208 files).
+- Unpushed scaffold: `app verify --json` → `status: "blocked"`, check `lifecycle-record` with
+  remediation text; EXIT=2. No exception.
+- After push to a **local bare** origin: `verify` synthesized `record.json`, all 13 checks pass,
+  `status: "ready"` (app test/lint scripts no-op'd and codex→claude in the *scratch org copy only*,
+  to neutralize two pre-existing confounds unrelated to this diff — filed as W0-ADJ-05/-06).
+- `app promote testapp --to live --execute` → `status: "promoted"`; `apps.yaml` onboarding→live with
+  no hand edit; promotion committed/pushed the app-owned `.operon/config.yaml` status flip.
+- Broken state (`record.json` deleted on a live app): the documented recovery in
+  `agent-skills/operon/SKILL.md`, followed literally, works.
+- Scope check: **approve** — mechanism resolved, minimal, in scope, no tests weakened.
+
+**Docs updated:** `docs/architecture.md` (token-free verification/promotion + greenfield path +
+recovery), `agent-skills/operon/SKILL.md` (greenfield flow + recovery; "do not hand-edit apps.yaml").
+
+**Adjacent items filed:** W0-ADJ-04, W0-ADJ-05, W0-ADJ-06, W0-ADJ-07, W0-ADJ-08 (see fix-backlog.md).
+
+---
+
+### L1-01 (L-002, P1) — `dispatch` silently skips non-live apps
+
+**Branch:** `fix/l1-01-dispatch-skip-visibility` @ `3a05d63` (1 commit, off `f19fb6f`)
+
+**Acceptance criteria (restated):** `operon dispatch` output **or** the `state/invocations/*.jsonl`
+row names the app and the reason (e.g. `buildstacks-site: skipped, app not live`). Baseline: 7 real
+events including a critical health-alert → `spawned=0 skipped=0 errors=0`, identical under
+`--dry-run`.
+
+**Diff:** 3 files, +84/−2. `src/org/dispatch.ts` (the former line-371 bare `continue` becomes a
+braced guard pushing `"<app>: skipped, app not live (status: <actual>)"` into `result.skipped` —
+still **before** the event-store poll, so non-live apps still never trigger GitHub polling);
+additive regression test in `test/dispatch.test.ts`; one sentence in `docs/architecture.md`.
+No CLI change needed — `src/cli/dispatch.ts` already prints every `result.skipped` line.
+
+**Evidence reproduced first (baseline, temp trees):** app at `status: onboarding`, valid
+`support-feedback` event in the inbox → `dispatch: spawned=0 skipped=0 errors=0` (dry-run and real),
+event left unpolled, ledger row `outcome:"no-due-triggers"` with zero per-app detail.
+
+**Verification (independent agent, behavioral per ISSUES.md Issue 2):**
+- Gates: build/typecheck clean; `pnpm test` → `9 failed | 1583 passed (1592)`, exactly the nine.
+- Compiled CLI in scratch trees: `dispatch --dry-run` and real tick both print
+  `dispatch: spawned=0 skipped=2 errors=0` + `skip onboarding-app: skipped, app not live (status:
+  onboarding)` + `skip paused-app: skipped, app not live (status: paused)`. Event stays unconsumed;
+  no network reached (guard still precedes `eventStore.poll`).
+- Scope check: **approve** — one-line mechanism fix, minimal, in scope.
+
+**Docs updated:** `docs/architecture.md` §2 trigger resolution (non-live app = named skip, never a
+silent no-op).
+
+**Adjacent items filed:** W0-ADJ-01 (ledger-side skip visibility), W0-ADJ-09 (tooling note),
+plus a backlog-text nit recorded in W0-ADJ-09.
+
+---
+
+### L1-02 (L-003, P1) — setup gate unreachable before the builder's baseline check
+
+**Branch:** `fix/l1-02-setup-gate-provision` @ `949bcc8` (1 commit, off `f19fb6f`)
+
+**Acceptance criteria (restated):**
+1. With `setup_command` configured and no pre-vendored `node_modules`, the first ticket's implement
+   pass does not fail a missing-dependency baseline.
+2. Run evidence shows a setup gate PASS before the implement pass begins.
+3. `runSetupGate` becomes reachable at worktree provision; the post-implement re-run stays.
+4. A provision-time setup failure surfaces loudly, never a silent proceed.
+(The buildstacks-site vendored-`node_modules` revert is deliberately NOT here — sonnet-org is the
+read-only baseline; that revert is the paid E2E replication's acceptance test.)
+
+**Diff:** 4 files, +414/−1. `src/loop/loop.ts`: new exported `advanceProvisionSetup` (peer
+state-machine step; own `provision-setup` phase run emitting `gate.started/gate.passed|failed` +
+envelope `gate_results`; on failure posts a blocked-with-evidence comment, swaps
+`op:building`→`op:returned`, returns `phase="returned"`). `src/loop/driver.ts`: `runLoopOnce` calls
+it once at provision (engine path), right after `admitTicketEpisode`, before the pass loop.
+`qgates.ts` untouched — the post-implement re-run at `:435` is intact. New
+`test/loop/setup-gate-provision.test.ts`; `docs/loop.md` updated.
+
+**Evidence reproduced first:** the new regression run against unfixed `f19fb6f` code fails both
+ways the finding predicts: (1) `markerAtImplement === false` — setup had not run when the implement
+pass executed; (2) the failure-path test crashes via
+`runLoopOnce → advanceGates → runBuilderPipeline` — an implement turn was spent before the setup
+failure was even discovered.
+
+**Verification (independent agent, behavioral per ISSUES.md Issue 3):**
+- Gates: build/typecheck clean; `pnpm test` → `9 failed | 1584 passed (1593)`, exactly the nine.
+- Anti-D-003 check: the regression drives `runLoopOnce` + real driver state machine + real git
+  worktrees + a real subprocess setup command (fake runtime supplies only model text). Reverting
+  only the src/docs files to `main` while keeping the test makes both tests fail for
+  defect-specific reasons; restoring the fix makes them pass.
+- Event-order proof (millisecond timestamps): `provision-setup gate.passed 07:37:42.434Z` →
+  `build-contract run.started 07:37:42.484Z` → `build-implement run.started 07:37:42.567Z`;
+  `markerAtImplement === true`; provision-setup envelope carries
+  `gate_results: [{"gate":"setup","status":"passed",…}]`.
+- Post-implement re-run confirmed still present and executing (gates run shows setup→tests→lint→…).
+- Loud failure: `setup_command: exit 1` → `phase="returned"`, zero implement calls, label
+  `op:returned`, full evidence comment ("Blocked with evidence — setup failed at worktree
+  provision", verbatim command + output tail).
+- Scope check: **approve**, with two non-blocking concerns filed (W0-ADJ-02 resume-path behavior;
+  live-repo closure deferred to the E2E replication) and one noted acceptance nuance (setup evidence
+  lives in its own run record, chronologically before the implement run's — satisfied across
+  records, not within one file).
+
+**Docs updated:** `docs/loop.md` §5 (setup row + "Where gates run" item 0: provision-time run,
+rationale, loud-failure path). AGENTS.md needed no edit — its existing claim "a setup gate installs
+app deps in the fresh worktree first" is now *true*.
+
+**Adjacent items filed:** W0-ADJ-02, W0-ADJ-03, W0-ADJ-04 (shared with L0-01).
+
+---
+
+### Wave 0 status
+
+| Item | Branch | Implement | Verify (independent) | Scope check |
+| --- | --- | --- | --- | --- |
+| L0-01 | `fix/l0-01-app-lifecycle-live` @ 793f384 | completed | **pass** | **approve** |
+| L1-01 | `fix/l1-01-dispatch-skip-visibility` @ 3a05d63 | completed | **pass** | **approve** |
+| L1-02 | `fix/l1-02-setup-gate-provision` @ 949bcc8 | completed | **pass** | **approve** |
+
+All three branches are independent, based on `f19fb6f`, unmerged, unpushed. Test-failure set on
+every branch: exactly the ROOT-001 nine. Full behavioral closure of L-001/L-002/L-003 against a
+real provider campaign belongs to the Wave 0–2 exit-criterion E2E replication (requires human
+budget approval).
+
+**Merged to `main` 2026-07-17 on Bikram's instruction** (cherry-picked to keep history linear):
+L1-01 → `aab6fa1`, L0-01 → `22cc4dd`, L1-02 → `4ffb9dc` (checkpoint). Combined-tree gate on
+`4ffb9dc`: build clean, typecheck clean, `pnpm test` → `9 failed | 1589 passed (1598)` — exactly
+the ROOT-001 nine; `pnpm smoke:onboarding` PASS; `npm pack --dry-run` 208 files (unchanged).
+Not pushed. Original branches retained as the verified audit trail.
+
+**Human decisions recorded 2026-07-17 (plain-language Q&A):**
+- **P0-05/A-002 migration:** cancel in-flight grants immediately when the fix lands — old-format
+  grants stop matching (identity version bump); agents re-raise approvals; the failure mode must be
+  a fresh approval item, never a crash.
+- **L-006 / L1-05 `dimension_globs`:** make the `package.json` security trigger smarter — escalate
+  only when the diff touches dependencies / install-run scripts, not on any touch of the file
+  (implements in Wave 2).
+
+**Known residual risk for the E2E goal (W0-ADJ-04):** `loadGateCommands` (`src/loop/driver.ts:863`)
+reads gate commands from the sole app entry (`soleApp ?? raw`), while `new-app`'s
+`appendGateCommands` writes TOP-LEVEL keys — so a fresh greenfield app's `setup_command` may never
+reach the loop even with L1-02 fixed. This is P1-12's territory (config schema), but it likely
+gates the L-003 pass condition of the E2E run. Decision needed on whether to pull that slice of
+P1-12 forward.
+
+---
+
+## Wave 1 — the approval boundary as one piece (2026-07-17)
+
+Orchestration: three workflows (base cluster+P0-03+P0-05, then a scope-concern fix-up round, then
+two targeted A-005-completion rounds P0-04b/P0-04c), each implement → independent verify →
+adversarial scope check. Every finding reproduced before fixing; every adversarial probe landed as a
+permanent offline test. **Merged to `main` 2026-07-17**, 16 commits, `f19fb6f`(=Wave 0 base `4ffb9dc`)
+→ `f03ac95`. Combined-tree gate: build clean, typecheck clean, `pnpm test` → exactly the ROOT-001
+nine (1621 passing), observe-browser 5/5, smoke PASS, pack 208 files.
+
+**Human decisions honored:** P0-05 cancels in-flight grants immediately via an `identityVersion` bump
+(old-format grants stop matching → clean re-raise, no crash); the `package.json` "smarter trigger"
+decision is Wave 2, not touched here.
+
+### P0-01 (A-001) — forgeable self-approval HMAC · `855cd76` + `6027264`
+Signs `operon-self-approval:<pr>:<headRefOid>` and verifies against the PR head at merge time;
+`isMarkedSelfApproval` now checks `review.author`; the `self-merge-or-approve` gate rule matches all
+`gh pr review`/`gh pr merge` regardless of flag (so the marker-bearing `--comment` classifies
+critical). Probe reproduced first (marker replayable, `--comment` routine); after: replay at a new
+commit rejected, `--comment` critical. Verify **pass**, scope **approve** (one non-blocking TOCTOU
+note, documented in code by the fix-up).
+
+### L1-05 (campaign #8, classifier half) — approvals classified prose, not action · `7004743` + `a49a120`
+`classify()` no longer escalates on security words appearing in message/body flag *values*
+(`withoutMessageArgs`), collapsing the campaign's prose false positives; genuinely dangerous actions
+(writes to secret files, protocol-surface edits, the A-001 marker) still classify critical. The 9/9
+FP reduction mechanism: a reviewer's `--approve` falls through to `self-merge-or-approve`, which is
+forbidden-by-role → flat-denied → leaves the human queue entirely. **One sub-claim did not
+reproduce** and is recorded as such: `cat .operon/config.yaml` does *not* escalate on filename
+mention (reads never hit `protocol-self-edit`); the real mechanism was security words in `--body`
+values, which is fixed. Fix-up closed a self-introduced false negative (`git commit -m "$(cat .env)"`
+was being stripped to routine) by keeping message values that contain executable constructs
+(`$(`, backtick, `${`) in the classification text. Verify **pass**, scope **approve**.
+
+### P0-04 / P0-04b / P0-04c (A-005) — scoped-grant path bound matched attacker free text · `9710df6`, `accf03c`, `249435d`, `da6ed42`
+`pathContains` is evaluated via `grantScopeText` (normalized paths + command with shell comments
+**and** message-flag values stripped) instead of raw input JSON — across **all three**
+`findMatchingGrantSync` callers (`gate-compose.ts` + both `release.ts` sites, the latter found
+mid-wave and fixed in P0-04b). P0-04c closed the residual message-value vector on the general
+`composeGate` path where scoped grants are actually minted, keeping grant-scope stripping
+(unconditional) deliberately divergent from L1-05 classification (keeps executable values) — pinned
+by a test in both directions. **Known residual, deliberately deferred:** the bash command *string*
+is itself agent free text (`cat ~/.aws/credentials || : .npmrc`, heredoc bodies), which is the
+A-006/P1-02 structural inversion (classify by resolved target path, not text) — an M-effort tuning
+item, out of scope for the A-005 hotfix; the `grantScopeText` docstring overclaim was corrected to
+say so (`da6ed42`). Verify **pass** ×3, scope **approve** ×2 + one **concerns** resolved by the
+docstring/deferral.
+
+### P0-02 (A-004) — one bad ledger row disabled the budget cap and un-paused a paused app · `23694b6` + `7d78d74`
+A non-finite/absent `costUsd` now yields a distinct `status: "unknown"` treated as over-cap (fail
+closed); `enforceBudgetOverlay` never transitions paused→ok on an unverified total; the report
+projection coerces `unknown`→exceeded for schema stability while `operon budget` shows the honest
+UNKNOWN; the guard reason names `operon budget --reconcile`. Probe reproduced ($150/$100 + bad row →
+`ok` + un-pause) then fixed. Verify **pass**, scope **approve**.
+
+### P0-03 (A-003) + P2-01 (A-007) — snake_case credentials leaked past redaction and commit gate · `22c7332`, `4ebdbf6`, `64ca8ea`
+`\b` replaced with a zero-width lookbehind so `GITHUB_TOKEN=`, `DB_PASSWORD=`,
+`aws_secret_access_key = …` are redacted; seven missing credential families added (Stripe/Slack/
+Google/npm/etc.); both consumers (log scrubber + commit gate) stay on the one list. Fix-up bounded
+the identifier segment loops to kill an O(n²) ReDoS the new pattern introduced (80KB base64url line:
+~1.7s → <50ms), pinned by a perf-ceiling test. Verify **pass**, scope **approve**.
+
+### P0-05 (A-002) — content-blind approval grants · `062094b` + `9e087c1`
+`actionHash` now binds a payload-content digest (denylist of non-semantic input fields) for
+payload-bearing tools, mirroring `publisher.ts`'s `final_diff_hash`; `findMatchingGrantSync` dedupes
+on the enriched identity (a different-content raise creates a new pending item); classification stays
+payload-blind. Migration per the human decision: an `ACTION_IDENTITY_VERSION` bump both inside the
+hash and as a match-time field invalidates all in-flight grants → clean re-raise, no crash. Probe
+reproduced (byte-identical hashes for benign vs malicious `roles.yaml`) then fixed. Fix-up corrected
+an inverted maintenance comment and added a behavioral pin (each denylisted key must change the hash).
+Verify **pass**, scope **approve**.
+
+### Merge-integration fix · `f03ac95`
+Merging P0-05 (grant `identityVersion`) with P0-04b's release fixture surfaced a 10th/11th failure:
+`seededHome` hand-wrote a grant without `identityVersion`, which P0-05 correctly rejects. Reconciled
+the fixture to mint under `ACTION_IDENTITY_VERSION` — the A-005 assertions are unchanged and now
+exercise a valid, matchable grant. Suite back to exactly the ROOT-001 nine. (Test-fixture
+reconciliation, not a product change or a weakened test.)
+
+### Wave 1 adjacent findings filed (not fixed)
+- **W1-ADJ-01 (→ A-006/P1-02):** the bash command string is agent free text; `|| : .npmrc` and
+  heredoc bodies still widen a scoped grant. The structural fix is resolved-target-path classification.
+- **W1-ADJ-02 (→ A-006/P1-02):** L1-05 and P0-04 both key on command *text*; a secret/protocol
+  keyword inside a quoted command argument (`echo '.npmrc' && cat ~/.aws/credentials`) still reaches
+  the classifier/grant text. Same inversion.
+- **W1-ADJ-03 (secret patterns, → follow-up):** camelCase compound identifiers (`githubToken=…`),
+  value-side `\b` anchoring on token prefixes (`FOO_sk_live_…`), and plural `secrets:` still miss.
+- **W1-ADJ-04:** `AUTHORITY.md`/`.operon/AUTHORITY.md` edits classify routine (protocol-self-edit
+  gap), pre-existing and out of L1-05 scope.
+- **W1-ADJ-05:** budget `unknown` surfaces as generic `exceeded` in the public report schema (honest
+  only via `operon budget`); a distinct report status would be clearer.
+- **W1-ADJ-06:** `normalizeSemanticAction.effect` is computed but consumed by no classification rule,
+  yet is now part of the actionHash identity surface (harmless dead input).
+- **W1-ADJ-07:** no mechanical drift guard between `SEMANTIC_INPUT_KEYS` (approvals) and gate.ts's
+  consumed-key set beyond the new behavioral pin; a future gate.ts change could re-open a gap.
+
+### Wave 1 status
+
+| Item | Commits | Verify | Scope |
+| --- | --- | --- | --- |
+| P0-01 (A-001) | 855cd76, 6027264 | pass | approve |
+| L1-05 (#8) | 7004743, a49a120 | pass | approve |
+| P0-04/b/c (A-005) | 9710df6, accf03c, 249435d, da6ed42 | pass ×3 | approve |
+| P0-02 (A-004) | 23694b6, 7d78d74 | pass | approve |
+| P0-03 + A-007 | 22c7332, 4ebdbf6, 64ca8ea | pass | approve |
+| P0-05 (A-002) | 062094b, 9e087c1 | pass | approve |
+
+All merged to `main` (`f03ac95`), unpushed.

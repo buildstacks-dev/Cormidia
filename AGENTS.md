@@ -213,6 +213,17 @@ efficacy health independently. The mechanics construct no provider runtime.
   results; promotion requires exact campaign/candidate/case/repetition,
   qualifier/report/archive/GitHub/grader/accounting, and package/suite
   equivalence evidence.
+- Release product-currency gate, token-free and fail-closed: `pnpm
+  eval:release-verify [--attestation <path>] [--campaign <path> ...]` runs the
+  full `verifyReleaseAttestation` (live `npm pack`, executable suite, org
+  surfaces, on-disk bytes, git changed-path) against the committed attestation +
+  its committed campaign(s) and exits non-zero when the live product no longer
+  matches the qualified pin. The offline suite asserts evidence **integrity**
+  only (deterministic, green on intact evidence); this command and the
+  `release-currency` CI job (gated to release tags / `workflow_dispatch`, off
+  ordinary push/PR) enforce product **currency** at release. A release from
+  post-Wave-5 `main` is expected to fail this until a fresh qualification
+  campaign re-attests (docs/PURPOSE.md 2026-07-17).
 - Live UI browser tests: `pnpm test:observe-browser` (Playwright Chromium;
   offline loopback fixtures, responsive/keyboard/reduced-motion/reconnect and
   injection coverage; install the browser once with `pnpm exec playwright

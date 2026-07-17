@@ -499,7 +499,15 @@ config file, not a fork.
   deleting git history made the integrity check pass. CI now uses `fetch-depth:
   0`, a `phase6-candidate-<date>` annotated tag keeps the squash-orphaned
   candidate reachable, and the workflow gains a `push:` trigger on `main` so
-  merges are verified, not only nightly-cron shallow runs. (2) *Scope.* The
+  merges are verified, not only nightly-cron shallow runs. **(Amended by the
+  integrity/currency-separation entry below, PROPOSED 2026-07-17.)** The
+  original reading — that the full attestation, including the live-product
+  recompute, runs on every `main` push, so the dev suite stays red until a fresh
+  qualification campaign re-attests — is superseded: per-push/PR CI now runs
+  evidence **integrity** only (deterministic, green on intact evidence), and the
+  live product-**currency** recompute moves to a release-gated job. `fetch-depth:
+  0` is retained (the release job's changed-path check still needs history). (2)
+  *Scope.* The
   changed-path rule binds only to files that affect the **packaged artifact** —
   what `npm pack` ships per package.json `files` (the compiled `dist` output,
   `agent-skills/operon/`, `config/launchd/`, `docs/policy.yaml.template`,
@@ -533,6 +541,40 @@ config file, not a fork.
   all-paths rule contradicted that promise — a single docs commit (`#80`, adding
   `docs/architecture/conceptual-overview.md`) silently invalidated the evidence
   while CI still reported green.
+- **The offline suite asserts evidence integrity; product-currency is enforced
+  only at the release gate** (PROPOSED 2026-07-17 — ratified when this PR merges;
+  P0-07 / ROOT-001 follow-up). The Phase 6 contract verifier had one entry point
+  that mixed two separable questions: *is the committed qualification evidence
+  genuine and internally coherent* (integrity — deterministic, a function of the
+  committed attestation and its committed campaign) and *does the live product
+  still match the qualified pin* (currency — recomputed from the working tree by
+  live `npm pack`, executable-suite, org-surface, on-disk-byte, and git
+  changed-path hashing). Because the two were fused, the nine required contract
+  tests went red the instant a legitimate src change moved the package hash away
+  from `release_package_sha256` — an accurate release check, but mis-scoped into
+  the dev suite, which made `pnpm test` structurally un-green-able after any src
+  change and contradicted AGENTS.md's "Any src change: pnpm test". *Decision:* the
+  offline suite (`pnpm test`, `test:transformation`) asserts **integrity only** —
+  `verifyAttestationIntegrity` / `verifyContractEvidence(..., "integrity")` run
+  the well-formedness, campaign-binding, qualified-pin, self-consistency, and
+  allowlist checks and are green whenever the committed evidence is intact.
+  **Product-currency is enforced fail-closed only at the release gate:**
+  `eval:attest-release` refuses to *mint* an attestation for a moved product
+  (`release_package_bytes_changed_after_qualification`); `eval:promote` and the
+  new `eval:release-verify` *verify* it in full `"release"` scope
+  (`release_attestation_package_mismatch`); and a dedicated `release-currency` CI
+  job — gated to release tags and manual `workflow_dispatch`, deliberately off
+  ordinary push/PR — runs `eval:release-verify` so releases are gated while
+  per-commit CI stays honest-green. `verifyReleaseAttestation`'s external
+  behavior is unchanged (same codes, same order, same ROOT-001 fail-closed on an
+  absent candidate commit); integrity is a strict prefix of it. *Rationale:* this
+  restores the "Any src change: pnpm test" contract without weakening the release
+  gate — a moved or fabricated product still cannot be minted, promoted, or
+  released without a new qualification campaign. **This supersedes the reading of
+  the P0-07 entry above that the dev suite stays red until re-qualified.** A
+  release from post-Wave-5 `main` therefore still requires a fresh qualification
+  campaign (Option 1); that requirement is now enforced by the release-currency
+  gate rather than by red dev tests.
 
 ## Prior art (ours)
 

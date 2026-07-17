@@ -149,41 +149,102 @@ export function writeReleaseAttestation(options: { root: string; campaignPaths: 
   return attestation;
 }
 
+/**
+ * Two enforcement scopes over one implementation (P0-07 / ROOT-001 integrity /
+ * currency separation, docs/PURPOSE.md 2026-07-17):
+ *
+ * - `"integrity"` runs ONLY the deterministic evidence-integrity checks: the
+ *   committed attestation is well-formed, bound to the committed campaign, pinned
+ *   to that campaign's qualified package/suite hashes, self-consistent
+ *   (promotion_paths_sha256), and lists only allowlisted / declared-evaluator-repair
+ *   promotion paths. It never recomputes a hash from the live working tree and
+ *   never touches git, so it is green whenever the evidence bundle is intact — the
+ *   scope the offline dev suite (`pnpm test`) asserts, restoring "any src change:
+ *   pnpm test" without re-opening ROOT-001.
+ * - `"release"` runs integrity THEN every product-CURRENCY check: the live
+ *   `npm pack` still hashes to the qualified `release_package_sha256`, the live
+ *   executable suite (and any proportionate evaluator repair), the live org
+ *   surfaces, the on-disk promotion-file bytes, and the git changed-path scope.
+ *   This is the fail-closed release gate — a moved/fabricated product cannot pass
+ *   it. External behavior of `verifyReleaseAttestation` is unchanged: same error
+ *   codes, same order (the two package_mismatch clauses throw the same code either
+ *   way), still fail-closed on an absent candidate commit.
+ */
+type AttestationScope = "integrity" | "release";
+
+export function verifyAttestationIntegrity(options: {
+  root: string;
+  path: string;
+  campaign: CampaignManifest;
+}): ReleaseAttestation {
+  return verifyAttestation(options, "integrity");
+}
+
 export function verifyReleaseAttestation(options: {
   root: string;
   path: string;
   campaign: CampaignManifest;
 }): ReleaseAttestation {
+  return verifyAttestation(options, "release");
+}
+
+function verifyAttestation(options: { root: string; path: string; campaign: CampaignManifest }, scope: AttestationScope): ReleaseAttestation {
   const root = resolve(options.root);
   const path = resolve(root, options.path);
   const value = JSON.parse(readFileSync(path, "utf8")) as ReleaseAttestation;
+
+  // INTEGRITY — well-formedness and campaign binding (deterministic).
   const exactKeys = ["schema_version", "evidence_kind", "candidate", "org_fingerprint", "system_fingerprint", "campaigns", "release_package_sha256", "executable_suite_sha256", ...(value.proportionate_evaluator_repairs ? ["proportionate_evaluator_repairs"] : []), "promotion_files", "promotion_paths_sha256"].sort();
   if (Object.keys(value).sort().join("\0") !== exactKeys.join("\0")) throw new Error("release_attestation_invalid_keys");
   if (value.schema_version !== 1 || value.evidence_kind !== "phase6-evidence-only-release-equivalence") throw new Error("release_attestation_invalid_root");
   if (!Array.isArray(value.campaigns) || value.campaigns.length === 0 || new Set(value.campaigns.map((item) => item.campaign_id)).size !== value.campaigns.length) throw new Error("release_attestation_invalid_campaigns");
   if (canonicalJson(value.candidate) !== canonicalJson(options.campaign.candidate) || value.org_fingerprint !== options.campaign.org_fingerprint || value.system_fingerprint !== options.campaign.system_fingerprint) throw new Error("release_attestation_candidate_mismatch");
   if (!value.campaigns.some((item) => item.campaign_id === options.campaign.campaign_id && item.campaign_sha256 === hashManifest(options.campaign))) throw new Error("release_attestation_campaign_missing");
-  if (value.release_package_sha256 !== digest(releasePackageHash(root)) || value.release_package_sha256 !== options.campaign.candidate.release_package_sha256) throw new Error("release_attestation_package_mismatch");
+  // The attestation must pin its campaign's qualified package hash (integrity).
+  // In release scope the live `npm pack` must ALSO match (currency); both clauses
+  // throw the identical release_attestation_package_mismatch code.
+  if (value.release_package_sha256 !== options.campaign.candidate.release_package_sha256) throw new Error("release_attestation_package_mismatch");
+  if (scope === "release" && value.release_package_sha256 !== digest(releasePackageHash(root))) throw new Error("release_attestation_package_mismatch");
   if (value.executable_suite_sha256 !== options.campaign.candidate.executable_suite_sha256) throw new Error("release_attestation_suite_mismatch");
-  const releaseSuiteHash = digest(executableSuiteHash(root));
-  const evaluatorRepairs = verifyEvaluatorRepairs(root, options.campaign, value, releaseSuiteHash);
-  if (value.org_fingerprint !== digest(hashWorkingFiles(root, ["roles.yaml", "pipelines.yaml", "prompts/", "TASTE.md", "taste/"]))) throw new Error("release_attestation_org_mismatch");
-  if (value.promotion_paths_sha256 !== digest(sha256(canonicalJson(value.promotion_files)))) throw new Error("release_attestation_promotion_hash_mismatch");
-  const evaluatorRepairPaths = new Set(Object.keys(evaluatorRepairs?.files ?? {}));
-  for (const [rel, expected] of Object.entries(value.promotion_files)) {
-    if (!allowedPromotionPath(rel) && !evaluatorRepairPaths.has(rel)) throw new Error(`release_attestation_unallowlisted_path:${rel}`);
-    const absolute = resolve(root, rel);
-    if (!existsSync(absolute) || repositoryRelative(root, absolute) !== rel || digest(hashFile(absolute)) !== expected) throw new Error(`release_attestation_promotion_file_mismatch:${rel}`);
+
+  // The set of promotion paths the allowlist accepts as declared evaluator
+  // repairs. In release scope it is the live-verified authorization's file set;
+  // in integrity scope the attestation's own declared repair set (a
+  // self-consistency check — the live authorization/bytes are the currency
+  // layer's job).
+  let evaluatorRepairPaths: Set<string>;
+  if (scope === "release") {
+    // CURRENCY — live executable suite, proportionate evaluator repair, org surfaces.
+    const releaseSuiteHash = digest(executableSuiteHash(root));
+    const evaluatorRepairs = verifyEvaluatorRepairs(root, options.campaign, value, releaseSuiteHash);
+    if (value.org_fingerprint !== digest(hashWorkingFiles(root, ["roles.yaml", "pipelines.yaml", "prompts/", "TASTE.md", "taste/"]))) throw new Error("release_attestation_org_mismatch");
+    evaluatorRepairPaths = new Set(Object.keys(evaluatorRepairs?.files ?? {}));
+  } else {
+    evaluatorRepairPaths = new Set(Object.keys(value.proportionate_evaluator_repairs?.files ?? {}));
   }
 
-  // Fail closed: the candidate commit is mandatory. changedPaths throws
-  // release_attestation_candidate_commit_unavailable when the object is absent
-  // (e.g. a shallow CI checkout without fetch-depth: 0). The previous
-  // commitExists guard skipped this — the strongest integrity check — precisely
-  // when it mattered most, so deleting git history made the check pass (ROOT-001).
-  const attestationRel = repositoryRelative(root, path);
-  const governed = changedPaths(root, value.candidate.commit).filter((rel) => rel !== attestationRel && !contractProjectionPath(rel) && !outsideQualificationScope(rel));
-  if (canonicalJson(governed) !== canonicalJson(Object.keys(value.promotion_files).sort())) throw new Error("release_attestation_changed_path_mismatch");
+  // INTEGRITY — promotion_files self-consistency and allowlist membership.
+  if (value.promotion_paths_sha256 !== digest(sha256(canonicalJson(value.promotion_files)))) throw new Error("release_attestation_promotion_hash_mismatch");
+  for (const [rel, expected] of Object.entries(value.promotion_files)) {
+    if (!allowedPromotionPath(rel) && !evaluatorRepairPaths.has(rel)) throw new Error(`release_attestation_unallowlisted_path:${rel}`);
+    if (scope === "release") {
+      // CURRENCY — the on-disk bytes still hash to the attested digest.
+      const absolute = resolve(root, rel);
+      if (!existsSync(absolute) || repositoryRelative(root, absolute) !== rel || digest(hashFile(absolute)) !== expected) throw new Error(`release_attestation_promotion_file_mismatch:${rel}`);
+    }
+  }
+
+  if (scope === "release") {
+    // CURRENCY — the git changed-path scope. Fail closed: the candidate commit is
+    // mandatory. changedPaths throws release_attestation_candidate_commit_unavailable
+    // when the object is absent (e.g. a shallow CI checkout without fetch-depth: 0).
+    // The previous commitExists guard skipped this — the strongest integrity check —
+    // precisely when it mattered most, so deleting git history made the check pass
+    // (ROOT-001).
+    const attestationRel = repositoryRelative(root, path);
+    const governed = changedPaths(root, value.candidate.commit).filter((rel) => rel !== attestationRel && !contractProjectionPath(rel) && !outsideQualificationScope(rel));
+    if (canonicalJson(governed) !== canonicalJson(Object.keys(value.promotion_files).sort())) throw new Error("release_attestation_changed_path_mismatch");
+  }
   return value;
 }
 

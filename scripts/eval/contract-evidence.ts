@@ -15,9 +15,25 @@ import {
 import { renderQualificationHtml } from "./report.js";
 import { validateLearningPairEvidence, type LearningPairEvidence } from "./learning-evidence.js";
 import { verifyLearningPairFiles } from "./learning-activation-core.js";
-import { verifyReleaseAttestation } from "./release-attestation.js";
+import { verifyAttestationIntegrity, verifyReleaseAttestation } from "./release-attestation.js";
 
 interface FileRef { path: string; sha256: string }
+
+/**
+ * Which release-attestation scope the contract-evidence verifier applies to the
+ * projection's bound release attestation (P0-07 / ROOT-001 integrity/currency
+ * separation, docs/PURPOSE.md 2026-07-17):
+ *
+ * - `"integrity"` (the offline default): the attestation is well-formed, bound to
+ *   its committed campaign, and internally consistent. Deterministic — green
+ *   whenever the committed evidence is intact — so the dev suite (`pnpm test`)
+ *   verifies the required contracts without a live-product recompute that a
+ *   legitimate src change necessarily invalidates.
+ * - `"release"`: integrity PLUS live product-currency (npm pack, executable suite,
+ *   org surfaces, on-disk bytes, git changed-path). The `eval:promote` writer
+ *   passes this so promotion still fails closed on a moved product.
+ */
+export type ContractEvidenceScope = "integrity" | "release";
 
 export interface ContractEvidenceProjection {
   schema_version: 1;
@@ -45,18 +61,20 @@ export interface ContractEvidenceExpectation {
   repetitionIds: string[];
 }
 
-export function verifyContractEvidence(root: string, projectionPath: string, expected: ContractEvidenceExpectation): ContractEvidenceProjection {
-  return verifyContractEvidenceInternal(root, projectionPath, expected).projection;
+export function verifyContractEvidence(root: string, projectionPath: string, expected: ContractEvidenceExpectation, scope: ContractEvidenceScope = "integrity"): ContractEvidenceProjection {
+  return verifyContractEvidenceInternal(root, projectionPath, expected, scope).projection;
 }
 
 /** Verify a same-campaign projection set while computing the exact packed
  * release identity once. Every projection still recomputes qualification,
- * archive, grader, accounting, result, and mapping evidence independently. */
-export function verifyContractEvidenceSet(root: string, entries: Array<{ projectionPath: string; expected: ContractEvidenceExpectation }>): ContractEvidenceProjection[] {
+ * archive, grader, accounting, result, and mapping evidence independently.
+ * The promotion writer is the only caller, so this defaults to full `"release"`
+ * currency enforcement — a moved product fails closed here. */
+export function verifyContractEvidenceSet(root: string, entries: Array<{ projectionPath: string; expected: ContractEvidenceExpectation }>, scope: ContractEvidenceScope = "release"): ContractEvidenceProjection[] {
   if (entries.length === 0) throw new Error("contract_evidence_set_empty");
   let binding: VerifiedReleaseBinding | undefined;
   return entries.map((entry) => {
-    const verified = verifyContractEvidenceInternal(root, entry.projectionPath, entry.expected, binding);
+    const verified = verifyContractEvidenceInternal(root, entry.projectionPath, entry.expected, scope, binding);
     binding = verified.binding;
     return verified.projection;
   });
@@ -72,7 +90,7 @@ interface VerifiedReleaseBinding {
   attestation_sha256: string;
 }
 
-function verifyContractEvidenceInternal(root: string, projectionPath: string, expected: ContractEvidenceExpectation, verifiedRelease?: VerifiedReleaseBinding): { projection: ContractEvidenceProjection; binding: VerifiedReleaseBinding } {
+function verifyContractEvidenceInternal(root: string, projectionPath: string, expected: ContractEvidenceExpectation, scope: ContractEvidenceScope, verifiedRelease?: VerifiedReleaseBinding): { projection: ContractEvidenceProjection; binding: VerifiedReleaseBinding } {
   const repositoryRoot = resolve(root);
   const projection = readJsonRef(repositoryRoot, { path: repositoryRelative(repositoryRoot, resolve(projectionPath)), sha256: digest(hashFile(resolve(projectionPath))) }) as ContractEvidenceProjection;
   const exactKeys = ["schema_version", "contract_id", "campaign_id", "campaign_sha256", "candidate", "org_fingerprint", "system_fingerprint", "case_id", "repetition_ids", "prepared_manifest", "qualification", "report", "archive_receipt", "archive_manifest", "github_evidence", "github_idempotence", "release_attestation"].sort();
@@ -160,7 +178,8 @@ function verifyContractEvidenceInternal(root: string, projectionPath: string, ex
   readFileRef(repositoryRoot, projection.release_attestation);
   const binding: VerifiedReleaseBinding = { campaign_id: manifest.campaign_id, campaign_sha256: campaignSha256, candidate: canonicalJson(manifest.candidate), org_fingerprint: manifest.org_fingerprint, system_fingerprint: manifest.system_fingerprint, attestation_path: projection.release_attestation.path, attestation_sha256: projection.release_attestation.sha256 };
   if (verifiedRelease === undefined) {
-    verifyReleaseAttestation({ root: repositoryRoot, path: projection.release_attestation.path, campaign: manifest });
+    const verifyAttestation = scope === "release" ? verifyReleaseAttestation : verifyAttestationIntegrity;
+    verifyAttestation({ root: repositoryRoot, path: projection.release_attestation.path, campaign: manifest });
   } else if (canonicalJson(binding) !== canonicalJson(verifiedRelease)) {
     throw new Error("contract_evidence_set_release_binding_mismatch");
   }

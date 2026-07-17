@@ -387,4 +387,20 @@ descendant does not become a new qualified candidate and cannot change source,
 eval executable bytes, fixtures, graders, campaigns, package inputs,
 lockfiles, roles, pipelines, or prompts.
 
+The attestation separates two concerns (P0-07 / ROOT-001 follow-up, ratified
+2026-07-17). Evidence **integrity** — the attestation is well-formed, bound to
+its committed campaign, pinned to that campaign's qualified package/suite hashes,
+self-consistent, and lists only allowlisted promotion paths — is deterministic
+and is what the offline suite (`pnpm test`, `test:transformation`) asserts, so it
+is green whenever the committed evidence is intact and a legitimate source change
+cannot redden it. Product **currency** — the live `npm pack`, executable suite,
+org surfaces, on-disk promotion bytes, and git changed-path scope still match the
+qualified pin — is recomputed from the working tree and enforced fail-closed only
+at the release gate: `eval:attest-release` refuses to mint for a moved product,
+and `eval:promote` and `eval:release-verify` refuse to verify one. A dedicated
+`release-currency` CI job (gated to release tags and manual dispatch, off
+ordinary push/PR) runs `eval:release-verify`. A moved product therefore cannot be
+minted, promoted, or released without a new qualification campaign, while
+per-commit CI stays honest-green.
+
 <!-- efficiency-contract:end -->

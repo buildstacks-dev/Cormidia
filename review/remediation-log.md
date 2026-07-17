@@ -725,3 +725,75 @@ requires a decision from the human, not a mechanical fix an item-agent may land:
 
 The campaign's own instruction stands: the `executable_suite_sha256` drift Waves 0–4 caused is expected
 and reconciled once, at a real re-qualification — Wave 5 does not, and must not, chase suite-green.
+
+### Wave 5 addendum — integrity/currency separation
+
+**Mis-scoping finding.** The nine required Phase 6 contract tests
+(`test/transformation/contracts/workstream-{d,e,g,i}.test.ts` →
+`harness.classifyResultEvidence` → `verifyContractEvidence` →
+`verifyReleaseAttestation`) were red for one reason only: `verifyReleaseAttestation`
+recomputes the live `npm pack` hash and compares it to the qualified
+`release_package_sha256`. Waves 0–4 legitimately changed 28 src files, so the live
+pack hash moved and the check threw `release_attestation_package_mismatch`. A
+control-flow probe against the committed `D-LIVE-01` projection + campaign confirmed
+every evidence-**integrity** check passes (keys, root, campaign binding, campaign
+present, attestation-pins-campaign package/suite hashes, `promotion_paths_sha256`
+self-consistency) and ONLY the live-product **currency** clause fails:
+
+```
+[INTEGRITY] att.release_pkg === campaign pin: true
+[INTEGRITY] att.suite === campaign pin: true
+[INTEGRITY] promotion_paths self-consistent: true
+[CURRENCY] att.release_pkg === LIVE npm pack: false
+   att = sha256:6e45e2be665af2158e0b99736f36812feed473386513a9de9a120ad168545e9d
+  live = sha256:25500f10d77f59f327c783a1dea6fc411b3145bd12f4d94784e00eac2da001d7
+```
+
+So the evidence bundle is intact; an accurate but MIS-SCOPED release check was
+embedded in the dev suite, which made `pnpm test` structurally un-green-able after
+any src change — contradicting AGENTS.md's "Any src change: pnpm test". This is a
+disciplined form of Option 3 (amend verifier semantics) that does NOT weaken the
+release gate; it is not Option 2 (the nine stay `required`, genuinely green).
+
+**The split.** `scripts/eval/release-attestation.ts` now exposes two entry points
+over one implementation:
+- `verifyAttestationIntegrity` — deterministic INTEGRITY only: well-formedness,
+  campaign binding, qualified-pin match, `promotion_paths_sha256` self-consistency,
+  and promotion-path allowlist. No live-product recompute, no git.
+- `verifyReleaseAttestation` — integrity THEN all CURRENCY checks (live `npm pack`,
+  live executable suite + proportionate evaluator repair, live org fingerprint,
+  on-disk promotion bytes, git changed-path), fail-closed, external behavior
+  unchanged (same codes, same order, same ROOT-001 fail-closed on an absent
+  candidate commit). Integrity is a strict prefix of release.
+
+`contract-evidence.ts` threads a `ContractEvidenceScope` (`"integrity"` default for
+the offline `verifyContractEvidence`; `"release"` for the promote-path
+`verifyContractEvidenceSet`). `test/eval/contract-evidence.test.ts`'s self-contained
+fixture (a clean checkout AT the candidate commit, where currency is meaningful)
+verifies in `"release"` scope so its currency rejection cases still bind.
+
+**No fail-open argument.** A moved or fabricated product still cannot be minted,
+promoted, or released:
+- `eval:attest-release` refuses to mint (`release_package_bytes_changed_after_qualification`).
+- `eval:promote` runs `verifyContractEvidenceSet(..., "release")` → full currency.
+- new `eval:release-verify` runs `verifyReleaseAttestation` and exits non-zero.
+- the `release-currency` CI job (gated to release tags / `workflow_dispatch`, off
+  ordinary push/PR) runs `eval:release-verify`.
+All four were exercised against the current moved tree and fail closed; a permanent
+regression test (`test/transformation/integrity-currency-split.test.ts`) pins both
+directions — integrity green on the committed evidence, currency red on the moved
+product.
+
+**Before/after suite state.** Before: `pnpm test` red (9 contract failures,
+`release_attestation_package_mismatch`); `test:transformation:strict` green (its
+`evaluateContracts` only checks evidence-file presence). After: `pnpm test` fully
+green; `test:transformation:strict` still green; `test:transformation:future-soak-strict`
+still non-zero for `I-LIVE-01` only.
+
+**Standing release prerequisite (unchanged).** A release from post-Wave-5 `main`
+still requires a new qualification campaign — Option 1 — because the live product
+no longer matches the qualified pin. That requirement is now enforced by the
+release-currency gate (`eval:attest-release`/`eval:promote`/`eval:release-verify` +
+the `release-currency` CI job) rather than by permanently-red dev tests. Ratified
+in `docs/PURPOSE.md` (PROPOSED 2026-07-17), which supersedes the earlier reading
+that the dev suite stays red until re-qualified.

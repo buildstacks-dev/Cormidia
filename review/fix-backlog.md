@@ -675,3 +675,32 @@ with `release_package_bytes_changed_after_qualification` (captured verbatim in
 - **W0-ADJ-04 (fixed by E2E-01, recorded here for the chain):** `loadGateCommands` read gate commands
   only from the sole app entry, so the top-level `setup_command`/`test_command`/`lint_command` that
   `new-app` writes were dead config that never reached `verify` or the loop. Fixed in `088301b`.
+
+### Filed during Phase B live validation (2026-07-17; fresh org + app `bs-e2e`, real loop)
+
+Structural findings validated live this session: **L-003** (setup gate `gate.passed` at 18:19:27.456Z
+precedes `build-contract` 18:19:28.059Z and `build-implement` 18:21:41.227Z on a real npm app with no
+vendored `node_modules`); **L-007** (issue #3 auto-promoted to `op:ready` after #1 merged, no manual
+label edit); **ledger** (`operon report --json` → `terminal_unsettled_usage_passes: 0`); the loop built,
+reviewed (verify + security-deep), and squash-merged issues #1 and #2 autonomously via the HMAC
+self-approval path.
+
+- **B-LIVE-01 (Wave 1 false-positive resurfaces via the reviewer's heredoc body — NEW):** both of the
+  first tick's approval-queue items were the reviewer's `gh pr review <n> --approve --body "$(cat
+  <<'EOF' … EOF)"` classified **CRITICAL / `secrets-or-auth`** (2 of 2). The bodies are ordinary review
+  prose whose "**Security:**" section merely *rules out* concerns ("no secret handling", "no injection
+  surface", "no ReDoS"). The Wave 1 L1-05 fix strips `--body` *values* from the classification text, but
+  its fix-up deliberately **keeps** message values containing executable constructs (`$(`, backtick,
+  `${`) to avoid the `git commit -m "$(cat .env)"` false-negative — and the reviewer role passes its
+  multi-line body via exactly that construct (`$(cat <<'EOF')`), so the whole substitution (including
+  the security prose) is retained and the keyword match re-fires. Net: the campaign's 9/9 false-positive
+  class is **not fully closed** for the reviewer's default body-passing pattern. Same root family as
+  W1-ADJ-01/02 (command string is agent free text) → the structural fix is A-006/P1-02 (classify by
+  resolved target path, not text). Effort M. Both items were routine, already-merged, correct reviews;
+  approved-and-cleared this session (denying would have written a wrong denial-lesson).
+- **B-LIVE-02 (stale moot critical-op items linger after self-approval merge — NEW):** the reviewer's
+  `gh pr review --approve` was queued as a critical op, but the loop merged the PR via the separate HMAC
+  self-approval path and completed the turn, orphaning the queued item. The approval store then shows
+  "2 pending secrets-or-auth" for PRs that are already merged/closed — the operator sees scary moot
+  entries. Consider auto-resolving (or marking moot) a queued approval whose underlying PR has already
+  reached a terminal state, so the queue reflects only actionable items. Effort S–M.

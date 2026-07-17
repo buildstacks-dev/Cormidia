@@ -31,6 +31,7 @@ import {
 import { getPipeline, type PassConfig, type PassSelection, type PipelinesFile } from "./pipelines.js";
 import {
   runGates,
+  runSetupGate,
   type AcceptanceCriterion,
   type CompletenessFinding,
   type CriterionTestMap,
@@ -305,6 +306,107 @@ export async function advanceGates(
       gateResults,
     };
   }
+}
+
+export interface ProvisionSetupOptions {
+  gh: GhOps;
+  commands: GateCommands;
+  process?: ProcessGateOpts;
+  /** When present, the provision-setup step gets its own run record so its
+   *  `gate.started/passed/failed` events and `envelope.gate_results` land in
+   *  events.jsonl BEFORE the first implement pass (docs/loop.md §5, §9). Absent
+   *  → no run record, identical behavior. */
+  runlog?: LoopRunlog;
+}
+
+/** Run the app's `setup` gate in the freshly provisioned worktree, BEFORE the
+ *  first implement pass (L1-02 / L-003, docs/loop.md §5). `createWorktree`
+ *  provisions an empty tree with no installed dependencies, and the builder's
+ *  mandatory "baseline before changes — if red, stop" check runs at the very
+ *  start of the implement pass. Without deps that baseline fails for every
+ *  greenfield ticket regardless of ticket quality, so the dependency install
+ *  has to happen here, at provision, not only in the post-implement gates
+ *  runner (`runGates` keeps its own setup re-run — this is the earlier run a
+ *  fresh worktree needs).
+ *
+ *  An unconfigured `setup_command` is a clean absence (`runSetupGate` returns
+ *  undefined): no dependency step, no run record, nothing reported — identical
+ *  to today. A setup FAILURE is surfaced loudly, mirroring `advanceGates`: a
+ *  blocked-with-evidence comment plus an `op:returned` transition, and no
+ *  implement pass runs. It is never a silent proceed into a doomed baseline. */
+export async function advanceProvisionSetup(
+  item: LoopItem,
+  options: ProvisionSetupOptions,
+): Promise<LoopItem> {
+  const worktree = requireField(item, "worktree");
+  const setupResult = await runSetupGate(worktree, options.commands, options.process);
+  if (setupResult === undefined) return item;
+
+  const rec =
+    options.runlog !== undefined ? await openPhaseRun(options.runlog, "provision", "setup") : undefined;
+  if (rec !== undefined) {
+    await rec.events.append({ type: "gate.started", detail: { gate: "setup", provision: true } });
+    if (setupResult.status === "fail") {
+      await rec.events.append({
+        type: "gate.failed",
+        severity: "error",
+        detail: {
+          gate: setupResult.gate,
+          detail: setupResult.detail,
+          ...(setupResult.command !== undefined ? { command: setupResult.command } : {}),
+          ...(setupResult.outputTail !== undefined ? { outputTail: boundTail(setupResult.outputTail) } : {}),
+        },
+      });
+    } else {
+      await rec.events.append({
+        type: "gate.passed",
+        detail: { gate: setupResult.gate, detail: setupResult.detail },
+      });
+    }
+    await rec.setGateResults([toGateResultEntry(setupResult)]);
+  }
+
+  if (setupResult.status !== "fail") {
+    await rec?.finalize("completed");
+    return item;
+  }
+
+  const fromLabel = stateLabelForPhase(item.phase);
+  await options.gh.commentIssue(item.issueNumber, provisionSetupFailedComment(setupResult));
+  await options.gh.swapLabel(item.issueNumber, fromLabel, "op:returned");
+  await rec?.transition(fromLabel, "op:returned");
+  await rec?.finalize("blocked");
+  return {
+    ...item,
+    labels: replaceLabel(item.labels, fromLabel, "op:returned"),
+    phase: "returned",
+  };
+}
+
+/** Provision-time setup failure evidence for the returned ticket — the same
+ *  "loud, verbatim, no rediscovery" discipline as the gate-failure comment
+ *  (Stage 3): the operator sees the exact command and its output tail. */
+function provisionSetupFailedComment(result: GateResult): string {
+  const tail = result.outputTail ?? result.failures?.join("\n") ?? "";
+  return [
+    "## Blocked with evidence — setup failed at worktree provision",
+    "",
+    "**Error:**",
+    `### ${result.gate}`,
+    result.detail,
+    ...(result.command !== undefined ? ["", `$ ${result.command}`] : []),
+    ...(tail !== "" ? ["", tail] : []),
+    "",
+    "**Result:**",
+    "The app's `setup_command` (dependency install) failed in the fresh worktree",
+    "before any implementation pass ran — no build turn was spent. The builder's",
+    "baseline check could only fail for lack of dependencies.",
+    "",
+    "**Assessment:**",
+    "Fix `setup_command` in `.operon/config.yaml` (or the environment it needs)",
+    "and re-arm the ticket.",
+    "",
+  ].join("\n");
 }
 
 /** Emit per-gate `gate.passed`/`gate.failed` events and set the run record's

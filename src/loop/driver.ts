@@ -12,6 +12,7 @@ import type { GhIssue, GhOps } from "./github.js";
 import { GhCliOps } from "./github.js";
 import {
   advanceGates,
+  advanceProvisionSetup,
   advanceReviewing,
   advanceShipping,
   branchNameForIssue,
@@ -275,6 +276,18 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     }
     if (options.engine !== undefined) {
       item = await admitTicketEpisode(options, item);
+      // Provision the worktree's dependencies BEFORE the first implement pass.
+      // createWorktree provisions an empty tree, and the builder's mandatory
+      // "baseline before changes" check runs at the start of the implement
+      // pass — without deps it fails every greenfield ticket regardless of
+      // ticket quality (L1-02 / L-003). runGates keeps its own post-implement
+      // setup re-run; this is the earlier run a fresh worktree needs. A setup
+      // failure returns the ticket loudly here, so no doomed build turn runs.
+      item = await advanceProvisionSetup(item, {
+        gh: options.gh,
+        commands: gateCommandsForWorktree(options.commands, item.worktree),
+        runlog: gateRunlog(options, item),
+      });
     }
     if (options.engine === undefined) {
       item = await (options.afterClaim?.(item) ?? item);

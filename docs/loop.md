@@ -415,7 +415,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 
 | Gate             | Mechanics (ported)                                                                                                                                             |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| setup            | run app's `setup_command` (e.g. `npm ci`) **first**, in the fresh worktree, before any scheduled gate — a cold clone has no `node_modules`, so a `test`/`lint` that shells out to an installed tool would otherwise fail for lack of deps; unconfigured = absent (no gate, never a failure); a setup **failure short-circuits** the whole set so the tests/lint gates don't produce misleading failures (`src/loop/qgates.ts` `runSetupGate` / `runGates`) |
+| setup            | run app's `setup_command` (e.g. `npm ci`) in the worktree to install dependencies. It runs **at worktree provision, before the first implement pass** (`advanceProvisionSetup`, `src/loop/loop.ts`), and again **first within each post-implement gate set**, before any scheduled gate (`runGates`, `src/loop/qgates.ts`). The provision run is load-bearing: `createWorktree` provisions an empty tree, and the builder's mandatory "baseline before changes — if red, stop" check runs at the very start of the implement pass, so without deps that baseline fails for **every** greenfield ticket regardless of ticket quality (the L1-02 defect; the live operator's workaround was committing 26 MB of `node_modules`). Unconfigured = absent (no gate, never a failure). A provision-time setup failure returns the ticket loudly (blocked-with-evidence comment + `op:returned`) with no build turn spent; within a gate set a setup **failure short-circuits** the rest so the tests/lint gates don't produce misleading failures (`runSetupGate`) |
 | tests            | run app's `test_command`, exit code 0, timeout; last output lines on fail                                                                                      |
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
@@ -432,6 +432,12 @@ scan; low: tests+completeness).
 
 **Where gates run:**
 
+0. **At worktree provision, before the first implement pass** — only the
+   `setup` gate (`advanceProvisionSetup`). A fresh worktree has no
+   dependencies, so this must precede the builder's baseline check; a failure
+   returns the ticket with evidence before any build turn is spent. The
+   post-implement gate set re-runs `setup` (idempotent), so this adds an
+   install at provision, it does not replace the later run.
 1. **After implement/fix, before the PR advances** — the reviewer is the
   org's most expensive seat (Opus, xhigh); never spend those tokens on
    code that fails `pnpm test` mechanically. Gate failure → **remediate**:

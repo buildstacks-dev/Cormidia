@@ -88,7 +88,12 @@ reserved replay namespace (reconciled for spend, excluded from capture).
 `scheduler/installation.json` and `scheduler/evidence/{invocations,decisions,alerts}/`
 hold scheduler ownership, exact-once ticks, route decisions, and local alerts;
 `standing-roles/<app>/{artifacts,planner-feeds}/` holds source-bound draft-only
-SRE/Support/Marketing results and deterministic Planner feeds.
+SRE/Support/Marketing results and deterministic Planner feeds. Every state
+subtree has a retention window, swept fail-safe once per UTC day from the
+dispatch tick (`src/org/retention.ts`; docs/scheduler.md → State retention;
+manual form `operon prune-runs --sweep`) — the ledger sweep never deletes
+rows still re-settleable by `budget --reconcile`, and `learning/` is swept
+only under `events/<date>/`.
 The M3–M5 experiment + activation substrate lives in the **committed org
 home** `learning/**`: experiments (declared-before-results), interventions
 (lineage), evals (trusted only after independent validation), candidates
@@ -276,7 +281,7 @@ efficacy health independently. The mechanics construct no provider runtime.
   `pnpm dev learn canary stop --root org|app --reason "<why>"` ·
   `pnpm dev learn distill [--app <name>] [--dry-run]` ·
   `pnpm dev run-role <role> --app <app> --dry-run` ·
-  `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs` ·
+  `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs [--sweep]` ·
   `pnpm dev doctor [--config-only]` (default probes configured adapter readiness
   without a model turn; config-only never claims readiness)
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`

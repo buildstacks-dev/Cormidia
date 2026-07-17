@@ -283,8 +283,11 @@ const SETTLEMENT_LOCK_TIMEOUT_MS = 5_000;
 const SETTLEMENT_LOCK_STALE_MS = 30_000;
 
 /** Serialize the read+append settlement transaction across Operon processes.
- * O_EXCL makes acquisition atomic; a dead/stale owner is reclaimable. */
-async function acquireSettlementLock(orgDir: string): Promise<() => Promise<void>> {
+ * O_EXCL makes acquisition atomic; a dead/stale owner is reclaimable.
+ * Exported for the retention sweep (src/org/retention.ts), which must not
+ * delete ledger day-files in the middle of another process's read+append
+ * settlement transaction. */
+export async function acquireSettlementLock(orgDir: string): Promise<() => Promise<void>> {
   const path = join(orgDir, "telemetry", ".settlement.lock");
   await mkdir(dirname(path), { recursive: true });
   const started = Date.now();

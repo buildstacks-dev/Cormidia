@@ -10,7 +10,7 @@ import { executeAppReset, planAppReset } from "../../src/org/app-reset.js";
 import { parseAnswers } from "../../src/org/bootstrap.js";
 import { storeOnboardingAnswers } from "../../src/org/onboarding-answers.js";
 import { FakeGhOps } from "../support/fakeGhOps.js";
-import { LIFECYCLE_ANSWERS, bootstrapReachable, makeLegacy, makeLifecycleTestWorld, sourceSnapshot, type LifecycleTestWorld } from "./helpers.js";
+import { LIFECYCLE_ANSWERS, READY_RUNTIME_PROBE, bootstrapReachable, makeLegacy, makeLifecycleTestWorld, sourceSnapshot, type LifecycleTestWorld } from "./helpers.js";
 
 const worlds: LifecycleTestWorld[] = [];
 afterEach(() => { for (const world of worlds.splice(0)) world.cleanup(); });
@@ -134,9 +134,9 @@ describe("C-LIFE-02 lifecycle transaction restart boundaries", () => {
     it(`verification reports and recovers ${point}`, async () => {
       const world = await makeLifecycleTestWorld(); worlds.push(world);
       await bootstrapReachable(world);
-      const interrupted = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", fault: failAt(point) });
+      const interrupted = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", fault: failAt(point), readinessProbe: READY_RUNTIME_PROBE });
       expect(interrupted.status).not.toBe("ready");
-      const recovered = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse" });
+      const recovered = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
       expect(recovered.status).toBe("ready");
     });
   }
@@ -145,7 +145,7 @@ describe("C-LIFE-02 lifecycle transaction restart boundaries", () => {
     it(`promotion journal resumes ${point} exactly once`, async () => {
       const world = await makeLifecycleTestWorld(); worlds.push(world);
       await bootstrapReachable(world);
-      const input = { orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", to: "live" as const };
+      const input = { orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", to: "live" as const, readinessProbe: READY_RUNTIME_PROBE };
       const plan = await planAppPromotion(input);
       await expect(executeAppPromotion({ ...input, fault: failAt(point) }, plan)).rejects.toThrow(`injected:${point}`);
       const resumedPlan = await planAppPromotion(input);

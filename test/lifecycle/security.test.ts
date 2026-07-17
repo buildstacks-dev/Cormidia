@@ -9,7 +9,7 @@ import { stableJson } from "../../src/org/lifecycle.js";
 import { executeAppReset, planAppReset } from "../../src/org/app-reset.js";
 import { parseAnswers } from "../../src/org/bootstrap.js";
 import { FakeGhOps } from "../support/fakeGhOps.js";
-import { LIFECYCLE_ANSWERS, bootstrapReachable, git, makeLifecycleTestWorld, sourceSnapshot, type LifecycleTestWorld } from "./helpers.js";
+import { LIFECYCLE_ANSWERS, READY_RUNTIME_PROBE, bootstrapReachable, git, makeLifecycleTestWorld, sourceSnapshot, type LifecycleTestWorld } from "./helpers.js";
 
 const worlds: LifecycleTestWorld[] = [];
 afterEach(() => { for (const world of worlds.splice(0)) world.cleanup(); });
@@ -38,7 +38,7 @@ describe("C-LIFE-03 lifecycle refusal and corruption safety", () => {
     const missing = await makeLifecycleTestWorld(); worlds.push(missing);
     const missingBootstrap = await bootstrapFromRecoveredAnswers(missing.git.clone.root, LIFECYCLE_ANSWERS, { orgHome: missing.orgHome, stateHome: missing.stateHome, appName: "sparse" });
     renameSync(missing.git.bare.root, `${missing.git.bare.root}.offline`);
-    const missingReport = await verifyApp({ orgHome: missing.orgHome, stateHome: missing.stateHome, appName: "sparse" });
+    const missingReport = await verifyApp({ orgHome: missing.orgHome, stateHome: missing.stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
     expect(missingReport.status).toBe("blocked");
     expect(missingReport.checks.find((check) => check.id === "remote-reachable")?.status).toBe("blocked");
     expect(existsSync(missingBootstrap.managedClone)).toBe(true);
@@ -51,7 +51,7 @@ describe("C-LIFE-03 lifecycle refusal and corruption safety", () => {
     git(writer, "add", "remote.txt");
     execFileSync("git", ["-c", "user.name=Remote Writer", "-c", "user.email=remote@operon.invalid", "-c", "commit.gpgsign=false", "commit", "-m", "remote advance"], { cwd: writer, stdio: "ignore" });
     git(writer, "push", "origin", "main");
-    const report = await verifyApp({ orgHome: divergent.orgHome, stateHome: divergent.stateHome, appName: "sparse" });
+    const report = await verifyApp({ orgHome: divergent.orgHome, stateHome: divergent.stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
     expect(report.checks.find((check) => check.id === "branch-ancestry")?.status).toBe("blocked");
   });
 
@@ -61,7 +61,7 @@ describe("C-LIFE-03 lifecycle refusal and corruption safety", () => {
     const outside = join(world.root, "outside"); mkdirSync(outside); writeFileSync(join(outside, "sentinel"), "safe\n");
     rmSync(bootstrap.managedClone, { recursive: true, force: true });
     symlinkSync(outside, bootstrap.managedClone);
-    const report = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse" });
+    const report = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
     expect(report.status).toBe("invalid");
     expect(readFileSync(join(outside, "sentinel"), "utf8")).toBe("safe\n");
 
@@ -79,11 +79,11 @@ describe("C-LIFE-03 lifecycle refusal and corruption safety", () => {
     rmSync(bootstrap.managedClone, { recursive: true, force: true });
     mkdirSync(bootstrap.managedClone, { recursive: true });
     writeFileSync(join(bootstrap.managedClone, "corrupt"), "x\n");
-    const repaired = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse" });
+    const repaired = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
     expect(repaired.status).toBe("ready");
     expect(repaired.managed_head).toBe(repaired.remote_head);
 
-    const input = { orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", to: "live" as const };
+    const input = { orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", to: "live" as const, readinessProbe: READY_RUNTIME_PROBE };
     const plan = await planAppPromotion(input);
     const lockPath = join(world.stateHome, "lifecycle", "locks", "sparse.lock");
     mkdirSync(join(world.stateHome, "lifecycle", "locks"), { recursive: true });
@@ -96,10 +96,10 @@ describe("C-LIFE-03 lifecycle refusal and corruption safety", () => {
   it("returns byte-stable JSON projections for repeated verification and promotion plans", async () => {
     const world = await makeLifecycleTestWorld(); worlds.push(world);
     await bootstrapReachable(world);
-    const a = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse" });
-    const b = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse" });
+    const a = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
+    const b = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
     expect(stableJson(a)).toBe(stableJson(b));
-    const input = { orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", to: "live" as const };
+    const input = { orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", to: "live" as const, readinessProbe: READY_RUNTIME_PROBE };
     expect(stableJson(await planAppPromotion(input))).toBe(stableJson(await planAppPromotion(input)));
   });
 });

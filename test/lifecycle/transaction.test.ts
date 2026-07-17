@@ -19,6 +19,7 @@ import { executeOrgUpgrade, planOrgUpgrade } from "../../src/org/org-upgrade.js"
 import { readEfficiencyEvidence } from "../../src/loop/efficiency.js";
 import { makeBareWithCloneAt } from "../fixtures/gitRepo.js";
 import { FakeGhOps } from "../support/fakeGhOps.js";
+import { READY_RUNTIME_PROBE } from "./helpers.js";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -101,26 +102,26 @@ describe("C-LIFE-01 LIFE-LEGACY-001 production lifecycle plane", () => {
     expect(bootstrapRerun.onboardingCommit).toBe(bootstrap.onboardingCommit);
     expect(sourceSnapshot(appGit.clone.root)).toEqual(sourceBefore);
 
-    const unreachable = await verifyApp({ orgHome, stateHome, appName: "sparse" });
+    const unreachable = await verifyApp({ orgHome, stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
     expect(unreachable.status).toBe("blocked");
     expect(unreachable.checks.find((check) => check.id === "onboarding-reachable")?.status).toBe("blocked");
     expect(unreachable.provider).toEqual({ factories: 0, processes: 0, turns: 0, settlements: 0 });
 
     execGit(bootstrap.managedClone, "push", "origin", "HEAD:main");
-    const ready = await verifyApp({ orgHome, stateHome, appName: "sparse" });
+    const ready = await verifyApp({ orgHome, stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
     expect(ready).toMatchObject({ status: "ready", evidence_state: "runtime-ready", registry_status: "onboarding" });
     expect(ready.managed_head).toBe(ready.remote_head);
 
     const registryBeforePromotionPlan = readFileSync(join(orgHome, "apps.yaml"), "utf8");
     const remoteBeforePromotionPlan = appGit.bare.git("rev-parse", "main");
-    const promotionPlan = await planAppPromotion({ orgHome, stateHome, appName: "sparse", to: "live" });
+    const promotionPlan = await planAppPromotion({ orgHome, stateHome, appName: "sparse", to: "live", readinessProbe: READY_RUNTIME_PROBE });
     expect(readFileSync(join(orgHome, "apps.yaml"), "utf8")).toBe(registryBeforePromotionPlan);
     expect(appGit.bare.git("rev-parse", "main")).toBe(remoteBeforePromotionPlan);
     expect(promotionPlan).toMatchObject({ executable: true, idempotent: false, from: "onboarding", to: "live" });
-    const promotion = await executeAppPromotion({ orgHome, stateHome, appName: "sparse", to: "live" }, promotionPlan);
+    const promotion = await executeAppPromotion({ orgHome, stateHome, appName: "sparse", to: "live", readinessProbe: READY_RUNTIME_PROBE }, promotionPlan);
     expect(promotion).toMatchObject({ status: "promoted", verification: { status: "ready", registry_status: "live", evidence_state: "live" } });
-    const rerunPlan = await planAppPromotion({ orgHome, stateHome, appName: "sparse", to: "live" });
-    const rerun = await executeAppPromotion({ orgHome, stateHome, appName: "sparse", to: "live" }, rerunPlan);
+    const rerunPlan = await planAppPromotion({ orgHome, stateHome, appName: "sparse", to: "live", readinessProbe: READY_RUNTIME_PROBE });
+    const rerun = await executeAppPromotion({ orgHome, stateHome, appName: "sparse", to: "live", readinessProbe: READY_RUNTIME_PROBE }, rerunPlan);
     expect(rerun.status).toBe("already_live");
     expect(sourceSnapshot(appGit.clone.root)).toEqual(sourceBefore);
     expect((await loadApps(join(orgHome, "apps.yaml"))).apps.find((app) => app.name === "second")?.status).toBe("live");

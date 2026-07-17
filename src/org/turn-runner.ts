@@ -53,7 +53,7 @@ import { appLearningRoot, orgLearningRoot } from "./learning/concepts.js";
 import { journalEpisodeAnchor } from "./learning/episodes.js";
 import { readLearningEvents } from "./learning/events.js";
 import { loadLearningPolicy } from "./learning/policy.js";
-import { acquireLock, heartbeatLock, lockExists, readLock, releaseLock } from "./locks.js";
+import { acquireLock, heartbeatLock, readLockOrUndefined, releaseLock } from "./locks.js";
 import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
 import { appendScorecardEvent } from "./scorecards.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
@@ -1056,10 +1056,12 @@ async function ensureTurnLock(
   turnId: string,
   now: Date,
 ): Promise<void> {
-  if (lockExists(runtimeHome, app, role)) {
-    const lock = await readLock(runtimeHome, app, role);
-    if (lock.turnId === turnId) return;
-  }
+  // A single tolerant read replaces the lockExists-then-readLock gap: if the
+  // lock is already ours (a resumed/re-entrant turn) keep it, and a
+  // vanished/torn lock just reads as "not ours" instead of throwing ENOENT
+  // (F-007). acquireLock below (re)acquires atomically via O_EXCL.
+  const existing = await readLockOrUndefined(runtimeHome, app, role);
+  if (existing?.turnId === turnId) return;
   const acquired = await acquireLock(runtimeHome, { app, role, turnId, now });
   if (!acquired.acquired) throw new Error(`turn lock busy for ${app}/${role}`);
 }

@@ -704,3 +704,22 @@ self-approval path.
   "2 pending secrets-or-auth" for PRs that are already merged/closed — the operator sees scary moot
   entries. Consider auto-resolving (or marking moot) a queued approval whose underlying PR has already
   reached a terminal state, so the queue reflects only actionable items. Effort S–M.
+
+- **B-LIVE-03 (L-007 is only HALF-fixed — selection can't see merged deps; BLOCKS milestone completion — NEW, HIGH):**
+  The Wave 4 re-arm correctly promotes a dependent to `op:ready` when its predecessor merges (validated
+  live: #3 → `op:ready` after #1 merged). But the ticket can then never be **selected**. `selectReadyTickets`
+  (`src/loop/scheduling.ts:19,25`) derives the `merged` set only from tickets present in its input with
+  `phase === "merged"`, and the live loop feeds it `listIssues({labels: ["op:ready"], state: "open"})`
+  (`src/loop/driver.ts:203`). A merged ticket is **closed** and carries **no `op:ready` label** (confirmed:
+  #1/#2 = `CLOSED [op:tier-deep,p1,domain:data]`), so merged dependencies are never in the fetched set →
+  `merged` is always empty → `dependsOn.every((dep) => merged.has(dep))` is false for ANY dependent →
+  `loop: no ready tickets`. Net: **no multi-ticket dependency chain can complete via the live loop.** This
+  is the exact Theme-6 symptom the original campaign documented (10/17 tickets never claimed, ~25% of goal),
+  and it means the L-007 acceptance ("a multi-ticket milestone completes unattended") is NOT met end-to-end
+  despite the re-arm working. Offline tests miss it because `test/scheduling.test.ts:51` hand-injects the
+  merged dependency (`{id:1, phase:"merged"}`) into the input — coverage the live fetch never exercises.
+  **Fix sketch:** supply merged-dependency truth to selection — e.g. also fetch recently-closed/merged
+  issues (or the specific `dependsOn` targets) and mark them `phase: "merged"`, or resolve each dep's merged
+  state via GitHub the way `rearmDependents` already does; add a test that drives the LIVE fetch semantics
+  (open-only input + a closed merged dep) rather than a hand-built merged ticket. Effort M. **Blocks the
+  Phase B paid ladder past #3.**

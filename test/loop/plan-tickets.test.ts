@@ -274,6 +274,89 @@ describe("sensitiveDomainsForTicket", () => {
   });
 });
 
+// L0-02 anti-under-escalation regression matrix. The first L0-02 fixup fixed
+// over-escalation (compounds no longer floor) but over-corrected: too-strict
+// `\bword\b` stems (`\bauth\b`, `\bsecret\b`, `\bpayment\b`, `\bsecurity\b`)
+// then MISSED the dominant sensitive phrasings, so genuine auth/secret/payment
+// work SILENTLY SKIPPED the deep safety floor — "tiering makes the loop
+// cheaper, never LESS safe" broken in the dangerous direction. This matrix
+// pins BOTH directions permanently: every phrasing that must reach the floor,
+// and every near-miss compound that must not. Each phrase is single-signal and
+// carried in a single prose field (the `ticket()` defaults name no domain), so
+// the returned domain set is exactly the row's expectation.
+const MUST_FIRE: ReadonlyArray<[string, string]> = [
+  // auth — the inflections a bare `\bauth\b` used to miss.
+  ["authentication", "auth"],
+  ["authorization", "auth"],
+  ["authorize the user", "auth"],
+  ["OAuth login", "auth"],
+  ["auth token", "auth"],
+  // security — `secure`/`secured` a bare `\bsecurity\b` used to miss.
+  ["security review", "security"],
+  ["secure the endpoint", "security"],
+  // secret — the plural `secrets` a bare `\bsecret\b` used to miss.
+  ["rotate the secret", "secret"],
+  ["manage API secrets", "secret"],
+  // privacy.
+  ["privacy policy", "privacy"],
+  // payment — the plural `payments` a bare `\bpayment\b` used to miss.
+  ["process a payment", "payment"],
+  ["process payments", "payment"],
+  // data — including the hyphenated form.
+  ["how we handle your user data", "data"],
+  ["personal data", "data"],
+  ["user-data", "data"],
+];
+const MUST_NOT_FIRE: ReadonlyArray<string> = [
+  "database",
+  "databases",
+  "metadata",
+  "dataset",
+  "data model",
+  "data models",
+  "data model migration",
+  "author",
+  "authored",
+  "authoritative source",
+  "secretary",
+];
+
+describe("sensitive-domain match matrix (L0-02 anti-under-escalation regression)", () => {
+  it.each(MUST_FIRE)(
+    "fires the sensitive-domain floor for %j → domain:%s",
+    (phrase, expectedDomain) => {
+      // The phrase alone determines the domain set (defaults are benign).
+      expect(sensitiveDomainsForTicket(ticket({ goal: phrase }))).toEqual([expectedDomain]);
+      // …and at publication the ticket is floored to op:tier-deep and labeled,
+      // so route-policy's `sensitiveDomains.length > 0` deep floor can fire.
+      const [published] = applySensitiveDomainFloor(
+        plan({ stage: "growth", tickets: [ticket({ tier: "op:tier-standard", goal: phrase })] }),
+      );
+      expect(published!.ticket.tier).toBe("op:tier-deep");
+      expect(published!.domainLabels).toContain(`domain:${expectedDomain}`);
+    },
+  );
+
+  it.each(MUST_NOT_FIRE)("does NOT fire on the near-miss compound %j", (phrase) => {
+    expect(sensitiveDomainsForTicket(ticket({ goal: phrase }))).toEqual([]);
+    // The tier the Planner chose is preserved — no spurious escalation.
+    const [published] = applySensitiveDomainFloor(
+      plan({ stage: "growth", tickets: [ticket({ tier: "op:tier-quick", priority: "p2", goal: phrase })] }),
+    );
+    expect(published!.ticket.tier).toBe("op:tier-quick");
+    expect(published!.domainLabels).toEqual([]);
+  });
+
+  it("does NOT fire when the only `data` signal is a fileScope path", () => {
+    // Paths are never scanned; a `src/data/**` scope alone must not floor.
+    const t = ticket({ tier: "op:tier-quick", priority: "p2", goal: "Split the model file", fileScope: ["src/data/models.ts"] });
+    expect(sensitiveDomainsForTicket(t)).toEqual([]);
+    const [published] = applySensitiveDomainFloor(plan({ stage: "growth", tickets: [t] }));
+    expect(published!.ticket.tier).toBe("op:tier-quick");
+    expect(published!.domainLabels).toEqual([]);
+  });
+});
+
 describe("applySensitiveDomainFloor", () => {
   it("floors a genuinely sensitive growth ticket to op:tier-deep and labels it; leaves a plain near-miss page alone", () => {
     const publications = applySensitiveDomainFloor(storagePlan());

@@ -379,10 +379,16 @@ forces the deep route) is **orchestrator-owned**, so it cannot depend on the
 Planner remembering to set the label. At plan publication
 (`plan-tickets.ts` → `applySensitiveDomainFloor`) the orchestrator reads each
 ticket's own **prose** — title, goal, context, out-of-scope, notes, acceptance
-— against the shared `auth|security|secret|privacy|payment|data` keyword set,
-matched at **word boundaries** so a compound term does not over-fire
-(`database`/`metadata`/`dataset` are not `data`, `data model` is a schema not
-user-data handling, `author` is not `auth`). `fileScope` **paths are not
+— against the shared `auth|security|secret|privacy|payment|data` keyword set.
+Each domain is a curated **whole-word** alternation covering its real
+inflections (`auth` also matches `authentication`/`authorization`/`OAuth`,
+`secret` matches plural `secrets`, `payment` matches `payments`, `security`
+matches `secure`), so genuine sensitive work cannot slip under the floor — a
+too-narrow `\bauth\b` stem that skipped `authentication` would make tiering
+*less* safe, which the floor must never do. The whole-word boundaries still
+keep compounds from over-firing (`database`/`metadata`/`dataset` are not
+`data`, `data model` is a schema not user-data handling, `author`/`authored`/
+`authoritative` are not `auth`, `secretary` is not `secret`). `fileScope` **paths are not
 scanned** — a `src/data/**` path is too noisy to floor a whole ticket on, and
 genuine auth/crypto file surfaces are already caught by the review dimension's
 path match at diff/route time (L1-05), so no signal is lost overall. A match

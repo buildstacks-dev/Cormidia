@@ -282,24 +282,38 @@ export function parseReleaseKind(body: string): ReleaseKind | undefined {
 // Sensitive-domain deep floor — orchestrator-owned (L0-02 / Theme 6)
 // ---------------------------------------------------------------------------
 
-/** Per-domain match: the keyword as a whole WORD, so a generic term does not
- *  match inside a compound. A raw substring floored ordinary work: `data`
- *  matched `database`, `metadata`, `dataset`, and every `data model` /
- *  `src/data/**` path (L0-02 over-escalation — the mirror of over-service).
- *  Word boundaries drop `database`/`metadata`/`dataset`; the `data` pattern
- *  additionally excludes the technical compound `data model(s)` (a schema, not
- *  user-data handling), while still matching `user data`, `payment data`, etc.
- *  `auth` likewise no longer matches `author`/`authenticate`. Auth/crypto file
- *  surfaces stay covered independently by the review dimension's path match
- *  (`dimension_globs.security`) at diff/route time (L1-05), so scanning prose
- *  rather than paths loses no overall signal. */
+/** Per-domain match: the domain's real inflections as whole WORDS, so a
+ *  generic term does not match inside an unrelated compound. Two failure modes
+ *  are guarded against at once (L0-02, both directions):
+ *
+ *  Over-escalation (a raw substring floored ordinary work): `data` matched
+ *  `database`, `metadata`, `dataset`, and every `data model` / `src/data/**`
+ *  path. Word boundaries drop `database`/`metadata`/`dataset`, and the `data`
+ *  pattern additionally excludes the technical compound `data model(s)` (a
+ *  schema, not user-data handling) while still matching `user data`,
+ *  `personal data`, `user-data`, etc.
+ *
+ *  Under-escalation (a too-strict `\bword\b` stem MISSED the dominant sensitive
+ *  phrasings): a bare `\bauth\b` matched only the rare token "auth" and skipped
+ *  `authentication`/`authorization`/`OAuth`; `\bsecret\b` skipped plural
+ *  `secrets`; `\bpayment\b` skipped `payments`; `\bsecurity\b` skipped
+ *  `secure`. Silently skipping the deep safety floor on genuine auth/secret/
+ *  payment work violates "tiering makes the loop cheaper, never LESS safe", so
+ *  each stem is a curated per-domain alternation covering the real inflections.
+ *  The alternations still exclude the near-miss compounds: `author`/`authored`/
+ *  `authoritative` are not `auth`, and `secretary` is not `secret`.
+ *
+ *  Auth/crypto FILE surfaces stay covered independently by the review
+ *  dimension's path match (`dimension_globs.security`) at diff/route time
+ *  (L1-05), so scanning prose rather than paths loses no overall signal. Every
+ *  MUST-FIRE/MUST-NOT-FIRE row is pinned in `test/loop/plan-tickets.test.ts`. */
 const DOMAIN_PATTERNS: Record<SensitiveDomain, RegExp> = {
-  auth: /\bauth\b/,
-  security: /\bsecurity\b/,
-  secret: /\bsecret\b/,
-  privacy: /\bprivacy\b/,
-  payment: /\bpayment\b/,
-  data: /\bdata\b(?!\s+models?\b)/,
+  auth: /\b(auth|authn|authz|authentication|authenticate|authenticated|authorization|authorize|authorized|oauth)\b/i,
+  security: /\b(security|secure|secured|securing)\b/i,
+  secret: /\bsecrets?\b/i,
+  privacy: /\bprivacy\b/i,
+  payment: /\bpayments?\b/i,
+  data: /\bdata\b(?!\s+models?\b)/i,
 };
 
 /** The sensitive domains a ticket touches, derived from the ticket's OWN

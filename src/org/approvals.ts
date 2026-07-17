@@ -609,9 +609,23 @@ export const ACTION_IDENTITY_VERSION = 2;
  *  into the semantic identity. Everything ELSE in the input is agent-authored
  *  PAYLOAD — a Write `content`, an Edit `old_string`/`new_string`, an
  *  apply_patch `unified_diff`, a structured `body` — which the authorization
- *  identity must bind. Keep in sync with the keys read there; over-listing here
- *  only double-counts a field harmlessly, under-listing re-opens A-002. */
-const SEMANTIC_INPUT_KEYS: ReadonlySet<string> = new Set([
+ *  identity must bind: `payloadIdentity` below treats every key listed here as
+ *  "already bound by `semantic`" and excludes it from the residual it hashes.
+ *
+ *  Keep this EXACTLY in sync with the keys `normalizeSemanticAction` reads.
+ *  The dangerous direction is OVER-listing: a key present here that
+ *  `normalizeSemanticAction` does NOT actually consume is excluded from the
+ *  residual (assumed already in `semantic`) while also being absent from
+ *  `semantic` itself (never read there) — bound in NEITHER projection, so two
+ *  actions differing only in that key hash identically. That is a live A-002
+ *  regression: a human's grant for one silently covers the other.
+ *  Under-listing a key `normalizeSemanticAction` DOES consume is harmless: the
+ *  key lands in `semantic` (the real binding) and, because it's missing from
+ *  this set, ALSO in the residual — a double-count, not a collision. The
+ *  behavioral regression test in test/approval-semantics.test.ts
+ *  ("SEMANTIC_INPUT_KEYS binds every denylisted key") fails the instant a
+ *  listed key stops being consumed here. */
+export const SEMANTIC_INPUT_KEYS: ReadonlySet<string> = new Set([
   "command",
   "cmd",
   "path",

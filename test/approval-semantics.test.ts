@@ -11,6 +11,7 @@ import type { ToolAction } from "../src/runtime/types.js";
 import {
   ACTION_IDENTITY_VERSION,
   ApprovalStore,
+  SEMANTIC_INPUT_KEYS,
   actionHash,
   computeApprovalMetrics,
 } from "../src/org/approvals.js";
@@ -249,5 +250,25 @@ describe("A-002 content-bound approval identity", () => {
     expect(() => { decision = gate(benign); }).not.toThrow();
     expect(decision).toMatchObject({ allow: false, escalate: true });
     expect(await store.listPending()).toHaveLength(1);
+  });
+
+  // Regression pin for the SEMANTIC_INPUT_KEYS maintenance comment
+  // (src/org/approvals.ts): a denylisted key is excluded from the residual
+  // payload on the assumption normalizeSemanticAction (src/runtime/gate.ts)
+  // already binds it into `semantic`. If that assumption ever goes stale —
+  // a key is listed here but gate.ts stops reading it (OVER-listing) — the
+  // key is bound in NEITHER projection and two actions differing only in it
+  // hash identically: a silent A-002 regression. This asserts the invariant
+  // ITSELF (behaviorally, via actionHash) rather than pinning the key list
+  // as a string-equality snapshot, so it fails the moment the binding
+  // actually breaks, for exactly the reason it broke.
+  it("SEMANTIC_INPUT_KEYS binds every denylisted key (behavioral, not string-list, pin)", () => {
+    expect(SEMANTIC_INPUT_KEYS.size).toBeGreaterThan(0);
+    for (const key of SEMANTIC_INPUT_KEYS) {
+      const base = { file_path: "base.txt", content: "unchanged payload" };
+      const withA: ToolAction = { tool: "Write", input: { ...base, [key]: "value-a" } };
+      const withB: ToolAction = { tool: "Write", input: { ...base, [key]: "value-b" } };
+      expect(actionHash(withA), `key "${key}" must be bound (semantic or residual)`).not.toBe(actionHash(withB));
+    }
   });
 });

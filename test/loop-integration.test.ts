@@ -697,6 +697,76 @@ describe("M6 loop engine integration", () => {
       atCap.cleanup();
     }
   });
+
+  // L-005 / L1-03: a route-budget cap firing mid-review must NOT crash
+  // `operon loop --once` and strand the ticket at op:in-review with an open,
+  // mergeable PR. The pipeline must terminalize cleanly to op:returned with a
+  // budget-exhaustion evidence comment, and the PR must be left untouched.
+  it("route-budget cap during review terminalizes op:returned, does not throw, and leaves the PR open (L-005)", async () => {
+    const h = await reviewingHarness("Budget Cap Review", { "src/plain.ts": "export const x = 1;\n" });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([budgetBlockedTurn("review/verify")]);
+    try {
+      const prState = (await h.gh.readPR(h.item.prNumber as number)).state;
+      const next = await runReviewPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+      });
+
+      expect(next.phase).toBe("returned");
+      expect(next.labels).toContain("op:returned");
+      expect(next.labels).not.toContain("op:in-review");
+      expect((await h.gh.readIssue(1)).labels).toContain("op:returned");
+      const comment = h.gh.issueComments.get(1)?.join("\n") ?? "";
+      expect(comment).toContain("error_route_budget_exhausted");
+      expect(comment).toContain("op:returned");
+      // The PR must not be orphaned: never merged, still open, untouched.
+      expect(h.gh.calls.some((call) => call.op === "squashMerge")).toBe(false);
+      expect((await h.gh.readPR(h.item.prNumber as number)).state).toBe(prState);
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  it("route-budget cap during ship-check terminalizes op:returned and does not throw (L-005)", async () => {
+    const h = await reviewingHarness("Budget Cap Ship", { "auth/change.ts": "export const y = 1;\n" });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([budgetBlockedTurn("ship/ship-check")]);
+    try {
+      const returned = await runShipCheckPipeline(
+        { ...h.item, phase: "shipping" },
+        { ...engineOptions(h, home.root, fake), pipelines: await rootPipelines() },
+      );
+      expect(returned.phase).toBe("returned");
+      expect(returned.labels).toContain("op:returned");
+      expect(h.gh.calls.some((call) => call.op === "squashMerge")).toBe(false);
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  // A genuine internal error (not a cap) must still throw loudly — the loop
+  // must not swallow a real defect as a clean terminal (L-005 "distinguish
+  // the two").
+  it("a non-cap pipeline abort still throws loudly (L-005 distinguishes cap from crash)", async () => {
+    const h = await reviewingHarness("Crash Review", { "src/plain.ts": "export const x = 1;\n" });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([crashedTurn()]);
+    try {
+      await expect(
+        runReviewPipeline(h.item, {
+          ...engineOptions(h, home.root, fake),
+          pipelines: await rootPipelines(),
+        }),
+      ).rejects.toThrow("review pipeline aborted before completion");
+      expect((await h.gh.readIssue(1)).labels).toContain("op:in-review");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
 });
 
 describe("GAP D — verdict reformat retry (docs/loop.md §6, §13 row 11)", () => {
@@ -1034,6 +1104,41 @@ function failedGate(output: string): GateRunResult {
 
 function scripted(summary: string): ScriptedTurn {
   return { result: turnResultOf(summary, "completed") };
+}
+
+/** A pass stopped by a legitimately-fired route/provider budget cap (the exact
+ *  shape pipeline.ts mints from a ProviderBudgetRefusalError). Its presence in
+ *  a pipeline abort must terminalize the ticket cleanly, never crash the loop
+ *  (L-005). */
+function budgetBlockedTurn(operation: string): ScriptedTurn {
+  return {
+    result: {
+      status: "blocked_on_gate",
+      errorCode: "error_route_budget_exhausted",
+      summary: `episode cannot start ${operation}: route budget exhausted`,
+      artifacts: [],
+      session: { runtime: "claude", id: `route-budget-${operation}` },
+      usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0, quality: "unavailable" },
+      escalations: [],
+    },
+  };
+}
+
+/** A pass that failed for an unrecognized internal reason (not a cap). Its
+ *  abort must still surface loudly — the loop must not swallow a genuine
+ *  defect as a clean terminal (L-005 "distinguish the two"). */
+function crashedTurn(): ScriptedTurn {
+  return {
+    result: {
+      status: "failed",
+      errorCode: "error_turn_failed",
+      summary: "the reviewer runtime failed for an unexpected reason",
+      artifacts: [],
+      session: { runtime: "claude", id: "session-crash" },
+      usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0, quality: "unavailable" },
+      escalations: [],
+    },
+  };
 }
 
 function turnResultOf(summary: string, status: TurnResult["status"]): TurnResult {

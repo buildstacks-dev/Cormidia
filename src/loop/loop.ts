@@ -765,11 +765,14 @@ export async function runReviewPipeline(
 
   if (result.aborted) {
     const last = result.passes[result.passes.length - 1]?.result;
-    await journalStop(
-      journal,
-      journalStopKind(last?.errorCode, last?.status),
-      last?.summary ?? "review pipeline aborted",
-    );
+    const kind = journalStopKind(last?.errorCode, last?.status);
+    await journalStop(journal, kind, last?.summary ?? "review pipeline aborted");
+    // L-005: a legitimately-fired cap terminalizes cleanly (op:returned +
+    // evidence comment) instead of crashing the loop and stranding the PR.
+    // A genuine internal error still throws.
+    if (isCapDrivenStop(kind)) {
+      return returnedOnCapStop(item, options, "review", last);
+    }
     throw new Error("review pipeline aborted before completion");
   }
 
@@ -867,11 +870,13 @@ export async function runShipCheckPipeline(
 
   if (result.aborted) {
     const last = result.passes[result.passes.length - 1]?.result;
-    await journalStop(
-      journal,
-      journalStopKind(last?.errorCode, last?.status),
-      last?.summary ?? "ship-check pipeline aborted",
-    );
+    const kind = journalStopKind(last?.errorCode, last?.status);
+    await journalStop(journal, kind, last?.summary ?? "ship-check pipeline aborted");
+    // L-005: as in runReviewPipeline, a cap terminalizes cleanly to op:returned
+    // rather than crashing the loop; a genuine internal error still throws.
+    if (isCapDrivenStop(kind)) {
+      return returnedOnCapStop(item, options, "ship", last);
+    }
     throw new Error("ship pipeline aborted before completion");
   }
   if (result.passes.length === 0) return item;
@@ -1856,6 +1861,68 @@ function journalStopKind(
   }
   if (errorCode?.includes("budget") || errorCode?.includes("cap")) return "cap_stop";
   return "crash";
+}
+
+/** A pipeline abort caused by a legitimately-fired resource limit — a
+ *  budget/route cap (`cap_stop`) or a wall-clock/adapter timeout
+ *  (`provider_timeout`) — rather than a genuine internal defect (`crash`).
+ *  L-005: the former must terminalize the ticket cleanly (a paid cap firing is
+ *  correct behaviour, not a crash); the latter must still throw loudly so a
+ *  real defect is never swallowed as a clean terminal. `cancelled` keeps
+ *  throwing too — an operator-cancelled run has no clean-terminal story here. */
+function isCapDrivenStop(kind: JournalStopKind): boolean {
+  return kind === "cap_stop" || kind === "provider_timeout";
+}
+
+interface AbortPassResult {
+  errorCode?: string;
+  status?: string;
+  summary?: string;
+}
+
+/** L-005: terminalize a review/ship pipeline that a cap stopped mid-flight.
+ *  Route `op:in-review -> op:returned` with a budget/limit-exhaustion evidence
+ *  comment so the ticket does not sit forever at `op:in-review` (a label that
+ *  falsely reads "review in progress") with an open, mergeable PR the loop
+ *  will never touch again. The PR is left open and untouched — a human decides
+ *  whether to merge it as-is or raise the budget and re-run. */
+async function returnedOnCapStop(
+  item: LoopItem,
+  options: LoopPipelineOptions,
+  pipelineName: string,
+  last: AbortPassResult | undefined,
+): Promise<LoopItem> {
+  await options.gh.commentIssue(item.issueNumber, capExhaustionComment(pipelineName, last, item.prNumber));
+  await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+  return {
+    ...item,
+    labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
+    phase: "returned",
+  };
+}
+
+function capExhaustionComment(
+  pipelineName: string,
+  last: AbortPassResult | undefined,
+  prNumber: number | undefined,
+): string {
+  const label = pipelineName === "ship" ? "Ship-check" : "Review";
+  const detail = last?.summary ?? "a provider budget or wall-clock cap was reached";
+  return [
+    `## ${label} stopped: budget/limit exhausted`,
+    "",
+    `The ${pipelineName} pipeline stopped before completion because a cap fired: ${detail}` +
+      `${last?.errorCode !== undefined ? ` (\`${last.errorCode}\`)` : ""}.`,
+    "",
+    prNumber !== undefined
+      ? `**PR #${prNumber} is left open and was not orphaned.** The code work is durable; a human decides whether to:`
+      : "**The ticket is returned for a human decision:**",
+    "- merge the open PR as-is if the review so far is sufficient, or",
+    "- raise the app/route budget (or the wall-clock cap) and re-run `operon loop` to finish the review.",
+    "",
+    "Routed to `op:returned` rather than left at `op:in-review` (which would falsely read " +
+      '"PR open, review in progress" for a ticket the loop will never touch again).',
+  ].join("\n");
 }
 
 function stateLabelForPhase(phase: LoopPhase): string {

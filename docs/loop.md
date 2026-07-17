@@ -633,6 +633,16 @@ is reserved for the **safety/approval escalation path** (a critical-op the
 human must clear); the build loop never writes it. Blocked-with-evidence,
 never silent retry-forever.
 
+A **legitimately-fired cap during review or ship-check** — a route/provider
+budget cap or a wall-clock/adapter timeout that aborts the pipeline — is
+terminalized the same way (L-005): `runReviewPipeline`/`runShipCheckPipeline`
+route `op:in-review -> op:returned` with a budget/limit-exhaustion evidence
+comment and leave the open PR untouched, instead of throwing and crashing
+`operon loop --once` (which stranded the ticket at `op:in-review` with a
+mergeable-but-orphaned PR). The distinction is `journalStopKind`: a
+`cap_stop`/`provider_timeout` terminalizes cleanly; a genuine internal error
+(`crash`) still throws loudly so a real defect is never swallowed.
+
 Completion detection is **state-based, never string-based**: the tick reads
 labels, PR/review state, and gate results — the predecessor's
 completion-detection philosophy with GitHub as the state store.
@@ -648,8 +658,10 @@ legal boundary across route, contract, implementation, push, gates, PR,
 findings, approvals, merge, and release. Accepted boundary fingerprints are
 reused. Ticket, commit, or reopened-finding drift records why the affected
 suffix was invalidated; no still-valid productive prefix repeats. `operon loop
---resume-episode <episode>` exposes that decision without constructing an
-adapter.
+--resume-episode <episode>` is a **read-only preview** of that decision — it
+prints the resume plan (`{ "preview": true, "resume": … }`) and states plainly
+that it does not execute; actual continuation is `operon loop --app <app>`,
+which claims the ticket and resumes from these durable artifacts (L-005).
 
 Every still-valid decision and accepted artifact survives cancellation,
 timeout, approval wait, cap, retry, and process restart. A productive pass may

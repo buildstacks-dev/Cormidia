@@ -425,3 +425,98 @@ Verify **pass**, scope **approve**.
 | L1-06 (L-008/L-009/L-010) | faf4644, 2b84aae, 59c64c8 | pass | approve |
 
 Merged to `main`, unpushed. Combined tree green-to-baseline. **Deferred to Wave 5:** P1-06 harness half.
+
+---
+
+## Wave 4 — durability & concurrency (2026-07-17)
+
+The highest-risk wave (git-clone lock, turn lock, provider-settlement hot path). Orchestration: one
+base workflow (three isolated branches) — **two agents hit transient `529 Overloaded`** (lock-trio
+scope, settlement-rearm impl), recovered via a targeted verify+scope workflow (the settlement branch's
+commits were intact; only the result capture was lost) — plus one blocking fix-up round. Every race
+finding was required to ship a **genuine concurrency test** (Promise.all + fake clock, modeled on
+`test/settlement/property.test.ts`); verifiers confirmed each new test is red on unpatched main.
+**Merged to `main`** by cherry-picking the three branches (`267a6de`…`c2f665a`); all three
+`telemetry.ts`/`AGENTS.md`/`docs/loop.md` overlaps auto-merged. Combined Wave 0–4 gate: build clean,
+typecheck clean, `pnpm test` → exactly the ROOT-001 nine.
+
+### Lock trio — P0-06 (F-001) + P1-18 (F-007) + P2-20 (F-008) · `267a6de` + `5fef444` + `96b4fa2`
+- **P0-06 (F-001, the review's only durable-corruption finding):** `withAppGitLock` no longer
+  force-breaks a live holder (max-wait raised above the staleness window and gated on the liveness
+  check actually failing; a live PID is never broken → typed `AppGitLockBusyError`, caller retries)
+  and no longer releases by path (a pid+nonce ownership token is verified before unlink). Both bugs
+  reproduced red first (a successor's lock was deleted; a live lock was force-broken).
+- **P1-18 (F-007):** `acquireLock` loops on the `O_EXCL` create; a concurrent-release ENOENT is now
+  ordinary contention (tolerant read → retry), never an unhandled throw that aborts the dispatch tick.
+  A 32-worker Promise.all race test was confirmed red against main's check-then-act.
+- **P2-20 (F-008), partially delivered:** the git-clone lock is re-expressed onto a new shared
+  `src/runtime/file-lock.ts` primitive (atomic O_EXCL, pid+nonce+timestamp, never-break-live,
+  token-verified release). The **turn lock** and **settlement lock** were *not* re-expressed — see
+  W4-ADJ-01.
+Verify **pass** (genuine concurrency), scope **approve** (with the P2-20 residual noted).
+
+### Retention — P1-14 (F-003) · `c2f665a`
+Each of the six unbounded state subtrees (`telemetry/`, `efficiency/episodes/`, `invocations/`,
+`tasks/`, `learning/`, `scheduler/evidence/`) now has a retention policy, swept daily from the dispatch
+tick (not just the manual CLI). Hard guards: the ledger pruner never deletes within the reconciliation
+window; committed `learning/**` governance state is never pruned; scheduler-evidence keeps enough for
+status/doctor health. Verify **pass**, scope **approve**.
+
+### Settlement + re-arm — L1-03 (L-005) + P1-13 (F-002) + L1-04 (L-007) · `393a299` + `fe5093d` + `b85fce1` + `d711726`
+- **L1-03 (L-005):** a budget/route-cap abort now terminalizes cleanly (`op:returned` + evidence
+  comment, PR left open, loop exits 0) instead of `throw "pipeline aborted"`. `isCapDrivenStop` gates
+  only `cap_stop`/`provider_timeout`; a genuine `crash`/`cancelled` still throws loudly — the two are
+  distinguished, not all-swallowed.
+- **P1-13 (F-002):** the settlement call site is `try`-wrapped so a settlement failure emits a durable
+  `telemetry.settle_failed` event (with `provider_turn_ids` for `--reconcile`) instead of discarding a
+  paid-for turn — the live `terminal_unsettled_usage_passes: 1` bug. The load-bearing
+  durable-before-throw ordering is intact (execution step finalized before settlement; ledger row
+  written before the settled-key index). A keys-only sidecar index replaces the full-history
+  multi-file JSON rescan. **F-SET-01 exactly-once race test is green and strengthened** (added a
+  sidecar-consistency assertion + three F-SET-04 concurrent-distinct stress tests), never weakened.
+  A blocking fix-up (`d711726`) relocated the sidecar out of `telemetry/` (it had broken three
+  bare-`readdir` ledger enumerations, +5 failures) to `telemetry-index/` — production readers already
+  filter `.jsonl`, so no production path was affected.
+- **L1-04 (L-007):** dependency re-arm is now orchestrator-owned — `rearmDependents` runs
+  deterministically from the merge transition (`driver.ts`, `item.phase === "merged"`), promoting a
+  dependent to `op:ready` only when every predecessor is merged; no over-promotion, idempotent.
+Verify **pass** (after the sidecar fix-up), scope **approve** (non-blocking concerns filed).
+
+### Wave 4 adjacent findings filed (not fixed)
+- **W4-ADJ-01 (P2-20 residual):** the **turn lock** (`src/org/locks.ts` `releaseLock`) still releases
+  by bare `rm` with no token and no liveness probe — the same release-by-path class as F-001, still
+  live on the turn lock (a hung-but-alive holder past the 120s heartbeat can be reclaimed by a
+  successor, then the original's release deletes the successor's lock). Re-expressing it onto the new
+  `FileLock` changes five call-site contracts (`dispatch.ts:258/555/688`, `app-reset.ts`,
+  `recovery.ts`) — a P2 follow-up now that the shared primitive exists. The settlement lock is likewise
+  un-unified (three lock styles mid-migration).
+- **W4-ADJ-02 (lock minor):** after 8 vanished-lock retries `acquireLock` returns a synthetic stale
+  holder (could route a live-but-churning lock into stale-recovery — extreme window); `reclaimIfStale`'s
+  torn-write age fallback uses real `Date.now()` not the injected clock.
+- **W4-ADJ-03 (P1-13 perf):** the sidecar index is a large constant-factor win (keys-only, no
+  JSON.parse — stays under the 5s lock budget at 365k rows) but still reads the full index per
+  settlement, so it is **not asymptotically O(1)**; the F-002 O(N²) tail is reduced, not eliminated.
+- **W4-ADJ-04 (P1-13 durability):** neither the ledger append nor the index append is fsync'd and they
+  are two files, so under power loss the index could flush before the ledger → index-leads-ledger →
+  false-positive skip → a lost settlement. Pre-existing best-effort posture; not worsened.
+- **W4-ADJ-05 (L1-04 edge):** `rearmDependents` treats a dependency as satisfied when it is "no longer
+  open", which includes an issue **closed without merging** — could arm a dependent whose prerequisite
+  never shipped. Deliberate, low-risk (PR merge closes via `Closes #N`); `selectReadyTickets` uses the
+  stricter `phase === "merged"`.
+- **W4-ADJ-06 (retention/sidecar merge interaction):** the retention pruner clears `telemetry/`
+  day-files but not the sibling `telemetry-index/settled.keys`, so keys for pruned days persist —
+  harmless (rebuildable, ledger-first, per-turn-unique), but a full O(N) reset or a periodic rebuild
+  would keep it bounded.
+- **W4-ADJ-07 (retention perf):** the daily sweep does a full-ledger `readSettledKeys` + full-efficiency
+  scan once per winning UTC-day tick (the F-002 cost, synchronous before dispatch); a crashed sweep
+  after the O_EXCL marker but before the completion record skips that day (fail-safe: keeps more).
+
+### Wave 4 status
+
+| Item | Commits | Verify | Scope |
+| --- | --- | --- | --- |
+| Lock trio (P0-06/P1-18/P2-20) | 267a6de, 5fef444, 96b4fa2 | pass | approve (P2-20 partial) |
+| Retention (P1-14) | c2f665a | pass | approve |
+| Settlement+re-arm (L1-03/P1-13/L1-04) | 393a299, fe5093d, b85fce1, d711726 | pass | approve |
+
+Merged to `main`, unpushed.

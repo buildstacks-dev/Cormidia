@@ -202,7 +202,11 @@ export async function recordTurnOnce(orgDir: string, record: TurnRecord): Promis
 
 /** Compact keys-only sidecar accelerating recordTurnOnce's exactly-once check
  *  (F-002). One settlement key per line, appended ledger-FIRST under the
- *  settlement lock. Consequences of that ordering, which the safety argument
+ *  settlement lock. Kept in a sibling `telemetry-index/` directory, NOT inside
+ *  `telemetry/` next to the day-keyed `<date>.jsonl` ledger files: bare
+ *  `readdir(telemetry/)` enumerators (the ledger-directory convention) would
+ *  otherwise `JSON.parse` the settlement keys or double-count ledger rows.
+ *  Consequences of the ledger-first ordering, which the safety argument
  *  rests on:
  *   - The index can only ever LAG the ledger. A crash strictly between the
  *     ledger append and the index append leaves a key in the ledger but not the
@@ -217,7 +221,7 @@ export async function recordTurnOnce(orgDir: string, record: TurnRecord): Promis
  *     ledger, not this index, so a lag never mis-counts spend (invariant #6).
  *  The full ledger scan is retained only as the rebuild path. */
 function settledIndexPath(orgDir: string): string {
-  return join(orgDir, "telemetry", ".settled-index");
+  return join(orgDir, "telemetry-index", "settled.keys");
 }
 
 /** Every settled key according to the sidecar. Rebuilt from the authoritative

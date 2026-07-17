@@ -64,7 +64,7 @@ describe("provider settlement and terminal reconciliation", () => {
     const b = ledgerRow("turn-b", "step-b");
     expect(await recordTurnOnce(home.root, a)).toBe(true);
     expect(await recordTurnOnce(home.root, b)).toBe(true);
-    expect(existsSync(`${home.root}/telemetry/.settled-index`)).toBe(true);
+    expect(existsSync(`${home.root}/telemetry-index/settled.keys`)).toBe(true);
     expect(await readIndexKeys(home.root)).toEqual([
       settlementKey("fixture", "turn-a"),
       settlementKey("fixture", "turn-b"),
@@ -84,7 +84,7 @@ describe("provider settlement and terminal reconciliation", () => {
     const seen = ledgerRow("turn-seen", "step-seen");
     expect(await recordTurnOnce(home.root, seen)).toBe(true);
     // Legacy org / operator deletion: drop the sidecar, keep the authoritative ledger.
-    await rm(`${home.root}/telemetry/.settled-index`);
+    await rm(`${home.root}/telemetry-index/settled.keys`);
     // The already-settled key is still recognized — the index rebuild reads the ledger.
     expect(await recordTurnOnce(home.root, seen)).toBe(false);
     // ...and a genuinely new key still settles exactly once through the rebuilt index.
@@ -373,7 +373,7 @@ describe("provider settlement and terminal reconciliation", () => {
 });
 
 async function readIndexKeys(root: string): Promise<string[]> {
-  const text = await readFile(`${root}/telemetry/.settled-index`, "utf8");
+  const text = await readFile(`${root}/telemetry-index/settled.keys`, "utf8");
   return text.split("\n").filter((line) => line.length > 0);
 }
 

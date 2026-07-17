@@ -67,10 +67,12 @@ README.md → Observability is the authoritative inventory):
 `session.log`); `telemetry/<date>.jsonl`
 is the org ledger every provider turn settles into exactly once, keyed on
 `(app, providerTurnId)` with `(app, runId)` fallback for legacy rows (`operon
-budget --reconcile` back-fills), with a derived keys-only sidecar
-`telemetry/.settled-index` that keeps the exactly-once check off the full
-ledger rescan (F-002, ledger-first so it can only lag, never lead — rebuilt
-from the ledger when absent); `efficiency/episodes/<hash>/` holds the
+budget --reconcile` back-fills), with a derived keys-only sidecar in the
+sibling `telemetry-index/settled.keys` (deliberately outside `telemetry/` so
+bare ledger-directory enumerators never parse or double-count it) that keeps
+the exactly-once check off the full ledger rescan (F-002, ledger-first so it
+can only lag, never lead — rebuilt from the ledger when absent);
+`efficiency/episodes/<hash>/` holds the
 episode route, route-bounded execution journal, terminal provider/mechanical
 execution steps, and component-hashed context manifest/delta projections;
 `invocations/<date>.jsonl`

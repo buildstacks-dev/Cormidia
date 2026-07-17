@@ -839,7 +839,9 @@ weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
 recorded lower bounds instead of presenting unknown spend as free.
   - **Exactly-once is indexed, not rescanned (F-002).** `recordTurnOnce`
   answers its idempotency check from a compact keys-only sidecar,
-  `telemetry/.settled-index`, one settlement key per line — not by re-parsing
+  `telemetry-index/settled.keys` (a sibling of `telemetry/`, kept out of the
+  ledger directory so bare enumerators never parse or double-count it), one
+  settlement key per line — not by re-parsing
   every `<day>.jsonl` on every write (which made settling N turns over a
   system's life O(N²)). The sidecar is appended **ledger-first** under the same
   cross-process settlement lock, so it can only ever lag the ledger, never lead

@@ -132,8 +132,18 @@ function ruleFromReason(reason: string): string {
  *
  *  This is the ONE builder of a `findMatchingGrantSync` `actionText` (A-005 /
  *  P0-04b/P0-04c): every caller must route through it — never
- *  `JSON.stringify(input)` — so no free-text field can ever reach a
- *  `pathContains` bound. See `src/org/release.ts`. */
+ *  `JSON.stringify(input)` — so non-command free-text fields (`content`,
+ *  `description`, message values, `# comments`) cannot reach a `pathContains`
+ *  bound. See `src/org/release.ts`.
+ *
+ *  KNOWN RESIDUAL (A-006 / P1-02, NOT closed here): the bash command STRING
+ *  itself is agent-authored, and its real arguments are deliberately kept, so
+ *  an action can still name a scoped path in genuine command text —
+ *  `cat ~/.aws/credentials || : .npmrc`, or a heredoc body naming `.npmrc` —
+ *  and ride a `.npmrc`-scoped grant. Closing that requires the structural
+ *  inversion to resolved-target-paths only (classify what a command *does*,
+ *  not what its text *says*), which is A-006/P1-02's tuning pass — out of
+ *  scope for the A-005 hotfix. */
 export function grantScopeText(action: ToolAction): string {
   const semantic = normalizeSemanticAction(action);
   const command =

@@ -282,25 +282,50 @@ export function parseReleaseKind(body: string): ReleaseKind | undefined {
 // Sensitive-domain deep floor — orchestrator-owned (L0-02 / Theme 6)
 // ---------------------------------------------------------------------------
 
+/** Per-domain match: the keyword as a whole WORD, so a generic term does not
+ *  match inside a compound. A raw substring floored ordinary work: `data`
+ *  matched `database`, `metadata`, `dataset`, and every `data model` /
+ *  `src/data/**` path (L0-02 over-escalation — the mirror of over-service).
+ *  Word boundaries drop `database`/`metadata`/`dataset`; the `data` pattern
+ *  additionally excludes the technical compound `data model(s)` (a schema, not
+ *  user-data handling), while still matching `user data`, `payment data`, etc.
+ *  `auth` likewise no longer matches `author`/`authenticate`. Auth/crypto file
+ *  surfaces stay covered independently by the review dimension's path match
+ *  (`dimension_globs.security`) at diff/route time (L1-05), so scanning prose
+ *  rather than paths loses no overall signal. */
+const DOMAIN_PATTERNS: Record<SensitiveDomain, RegExp> = {
+  auth: /\bauth\b/,
+  security: /\bsecurity\b/,
+  secret: /\bsecret\b/,
+  privacy: /\bprivacy\b/,
+  payment: /\bpayment\b/,
+  data: /\bdata\b(?!\s+models?\b)/,
+};
+
 /** The sensitive domains a ticket touches, derived from the ticket's OWN
- *  content (title, goal, context, acceptance, scope, notes) using the same
- *  keyword set the route policy's floor keys on. A match means the work
- *  itself is about auth/security/secrets/privacy/payments/user-data — the
- *  Planner already writes this in prose; this reads it back deterministically
- *  so the orchestrator, not the prose, owns the escalation. */
+ *  PROSE (title, goal, context, out-of-scope, notes, acceptance) using the
+ *  same keyword set the route policy's floor keys on, matched at WORD
+ *  boundaries. A match means the work itself is about
+ *  auth/security/secrets/privacy/payments/user-data — the Planner already
+ *  writes this in prose; this reads it back deterministically so the
+ *  orchestrator, not the prose, owns the escalation.
+ *
+ *  `fileScope` PATHS are deliberately NOT scanned: a path segment like
+ *  `src/data/**` is too noisy to floor a whole ticket on, and genuine
+ *  auth/crypto file surfaces are already caught by the review dimension's
+ *  path match at diff/route time (L1-05). */
 export function sensitiveDomainsForTicket(ticket: PlanTicket): SensitiveDomain[] {
-  const haystack = [
+  const prose = [
     ticket.title,
     ticket.goal,
     ticket.context,
     ticket.outOfScope,
     ticket.notesForBuilder,
     ...ticket.acceptanceCriteria,
-    ...ticket.fileScope,
   ]
     .join("\n")
     .toLowerCase();
-  return SENSITIVE_DOMAINS.filter((domain) => haystack.includes(domain));
+  return SENSITIVE_DOMAINS.filter((domain) => DOMAIN_PATTERNS[domain].test(prose));
 }
 
 /** One ticket's publication shape: its (possibly tier-escalated) ticket plus

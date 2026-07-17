@@ -378,16 +378,23 @@ sensitive-domain deep floor (`route-policy.ts`: `sensitiveDomains.length > 0`
 forces the deep route) is **orchestrator-owned**, so it cannot depend on the
 Planner remembering to set the label. At plan publication
 (`plan-tickets.ts` → `applySensitiveDomainFloor`) the orchestrator reads each
-ticket's own content — title, goal, context, acceptance, scope, notes —
-against the shared `auth|security|secret|privacy|payment|data` keyword set;
-a match attaches the descriptive `domain:<d>` label(s) **and** floors the
-ticket to `op:tier-deep`. `routeDecisionForItem` (`driver.ts`) reads
-`sensitiveDomains` back from those labels, so a goal explicitly about storing
-user data receives the deep route and the `security-deep` pass — "never less
-safe" holds in the escalating direction too, not only for gates. (Bootstrap
-is the deliberate exception: a greenfield scaffold "with no users" stays at
-its Planner tier — `validatePlan` forbids a bootstrap deep ticket — so it
-takes neither the deep floor nor a domain label.)
+ticket's own **prose** — title, goal, context, out-of-scope, notes, acceptance
+— against the shared `auth|security|secret|privacy|payment|data` keyword set,
+matched at **word boundaries** so a compound term does not over-fire
+(`database`/`metadata`/`dataset` are not `data`, `data model` is a schema not
+user-data handling, `author` is not `auth`). `fileScope` **paths are not
+scanned** — a `src/data/**` path is too noisy to floor a whole ticket on, and
+genuine auth/crypto file surfaces are already caught by the review dimension's
+path match at diff/route time (L1-05), so no signal is lost overall. A match
+attaches the descriptive `domain:<d>` label(s) **and** floors the ticket to
+`op:tier-deep`. `routeDecisionForItem` (`driver.ts`) reads `sensitiveDomains`
+back from those labels, so a goal explicitly about storing user data receives
+the deep route and the `security-deep` pass — "never less safe" holds in the
+escalating direction too, not only for gates, while ordinary work (a plain
+docs page that merely names a `data model`) is not spuriously over-scrutinized.
+(Bootstrap is the deliberate exception: a greenfield scaffold "with no users"
+stays at its Planner tier — `validatePlan` forbids a bootstrap deep ticket —
+so it takes neither the deep floor nor a domain label.)
 
 
 

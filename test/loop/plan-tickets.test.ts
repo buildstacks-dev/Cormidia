@@ -179,15 +179,23 @@ describe("publishTickets", () => {
 // route-policy.ts but was dead because nothing attached the domain labels
 // routeDecisionForItem reads sensitiveDomains from. The orchestrator now
 // attaches them (and floors the ticket to op:tier-deep) at publication from the
-// ticket's own content — the mirror image of over-service.
+// ticket's own content — the mirror image of over-service. The match is at
+// WORD boundaries over PROSE only, so it fires on genuine sensitive work and
+// NOT on compound words (`database`/`metadata`/`data model`) or noisy scope
+// paths (`src/data/**`) — those are the over-escalation the L0-02 fixup removes.
 const DOMAIN_RE = /auth|security|secret|privacy|payment|data/;
 
-/** A growth-stage plan whose first ticket touches the HTTP/storage surface for
- *  user data, mirroring ISSUES.md Issue 4's goal. */
+/** A growth-stage plan pairing a genuinely sensitive ticket with a plain
+ *  near-miss control. Ticket 0 touches the HTTP/storage surface for user data
+ *  (mirroring ISSUES.md Issue 4's goal) and must floor to deep. Ticket 1 is an
+ *  ordinary reference docs page whose prose names only the compound terms that
+ *  a raw substring match used to trip on (`metadata`, `data model`,
+ *  `database`) and whose scope includes a `src/data/**` path — under
+ *  word-boundary + prose-only matching it must NOT floor. */
 function storagePlan(overrides: Partial<TicketPlan> = {}): TicketPlan {
   return plan({
     stage: "growth",
-    ticketCountRationale: "Contact form plus a data-handling docs page: two coherent slices.",
+    ticketCountRationale: "Contact form plus a plain reference docs page: two coherent slices.",
     tickets: [
       ticket({
         title: "Add a contact form that stores submissions",
@@ -199,12 +207,14 @@ function storagePlan(overrides: Partial<TicketPlan> = {}): TicketPlan {
         notesForBuilder: "Validate the email before storing user data.",
       }),
       ticket({
-        title: "Add a docs page explaining our retention",
+        title: "Add a reference docs page for the contact form",
         tier: "op:tier-quick",
         priority: "p2",
-        fileScope: ["docs/handling.md"],
-        goal: "Explain in docs how submitted user data is retained.",
-        context: "A plain docs page describing data handling.",
+        // A `src/data/**` path in scope used to floor the ticket by itself; the
+        // fixup no longer scans fileScope paths.
+        fileScope: ["docs/handling.md", "src/data/models.ts"],
+        goal: "Document the retention window and the metadata the form records.",
+        context: "A plain docs page describing the data model and the database columns.",
         acceptanceCriteria: ["the docs page renders", "it names the retention window"],
         notesForBuilder: "Keep it short.",
       }),
@@ -235,14 +245,48 @@ describe("sensitiveDomainsForTicket", () => {
       ),
     ).toEqual([]);
   });
+
+  it("matches keywords at WORD boundaries over prose, not raw substrings (L0-02 over-escalation fix)", () => {
+    // Genuine sensitive phrasing still fires — the floor stays "never less safe".
+    expect(sensitiveDomainsForTicket(ticket({ goal: "explaining how we handle that user data" }))).toEqual(["data"]);
+    expect(sensitiveDomainsForTicket(ticket({ goal: "store the user's payment details" }))).toEqual(["payment"]);
+    expect(sensitiveDomainsForTicket(ticket({ notesForBuilder: "mint and rotate the auth token" }))).toEqual(["auth"]);
+    expect(sensitiveDomainsForTicket(ticket({ context: "publish a privacy policy" }))).toEqual(["privacy"]);
+
+    // Compound words / technical terms that merely CONTAIN a keyword must NOT
+    // fire: `database`/`metadata`/`dataset` lack a word boundary after `data`,
+    // `data model` is a schema (not user-data handling), and `author` is not
+    // `auth`. These were the exact spurious floors the substring match caused.
+    for (const benign of [
+      "Add a database index for faster lookups",
+      "Store request metadata for the audit log",
+      "Run the data model migration",
+      "Refactor the dataset loader",
+      "Refresh the author bio page",
+    ]) {
+      expect(sensitiveDomainsForTicket(ticket({ goal: benign }))).toEqual([]);
+    }
+
+    // fileScope PATHS are not scanned — a `src/data/**` path alone must not floor.
+    expect(
+      sensitiveDomainsForTicket(ticket({ goal: "Split the model file", fileScope: ["src/data/models.ts"] })),
+    ).toEqual([]);
+  });
 });
 
 describe("applySensitiveDomainFloor", () => {
-  it("floors a sensitive growth ticket to op:tier-deep and labels it; leaves vanilla tickets alone", () => {
+  it("floors a genuinely sensitive growth ticket to op:tier-deep and labels it; leaves a plain near-miss page alone", () => {
     const publications = applySensitiveDomainFloor(storagePlan());
+    // Ticket 0 genuinely stores user data ("storing user data") → floored + labeled.
     expect(publications[0]!.ticket.tier).toBe("op:tier-deep");
     expect(publications[0]!.domainLabels).toContain("domain:data");
-    expect(publications[1]!.ticket.tier).toBe("op:tier-deep"); // docs page still names "data"
+    // Ticket 1 is a plain reference docs page: its prose only names the
+    // compounds `metadata`, `data model`, and `database`, and its scope holds a
+    // `src/data/**` path. Under the L0-02 fixup (word-boundary + prose-only) it
+    // is NOT floored — the earlier assertion that this docs page reached deep
+    // encoded the over-escalation bug.
+    expect(publications[1]!.ticket.tier).toBe("op:tier-quick");
+    expect(publications[1]!.domainLabels).toEqual([]);
     const vanilla = applySensitiveDomainFloor(
       plan({
         stage: "growth",

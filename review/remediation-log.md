@@ -360,3 +360,68 @@ from a legitimately-absent ref). Verify **pass**, scope **approve**.
 | L1-05 dimension_globs | 1590da1, 8df7b13 | pass | approve |
 
 Merged to `main`, unpushed. Combined tree green-to-baseline (ROOT-001 nine only).
+
+---
+
+## Wave 3 — the fail-open / cannot-determine sweep (2026-07-17)
+
+Orchestration: one workflow, three independent branches (disjoint files), each implement → independent
+verify → adversarial scope. All three: **verify pass, scope approve, no fix-up needed.** **Merged to
+`main`** by cherry-picking six commits (`52e72b0`…`59c64c8`). Combined Wave 0–3 tree: build clean,
+typecheck clean, `pnpm test` → exactly the ROOT-001 nine.
+
+**Scoping decision:** P1-06's `harness.ts:98` sentinel half was deferred to Wave 5 (with P0-07/P1-09) —
+it lives in Phase-6-hashed `test/transformation/**` and is the exact code producing the 9-failure
+baseline; bundling that churn into the re-attestation wave avoids double re-attesting and baseline
+destabilization. Wave 3 took only the real-money spend-guard half.
+
+### P1-06 (C-001, Theme 1) — the eval spend guard admitted a third real-money campaign on a corrupt file · `52e72b0`
+`priorFailedQualifications`/`priorStartedQualifications` in `development-authorization.ts` ended in
+`catch { return false }`, folding "could not read this artifact" into "no prior failure/start" — a
+torn `qualification*.json` in `.eval-artifacts/` silently admitted an extra full campaign. Now they
+return `{matched, undeterminable}`: genuine ENOENT absence stays "none", a parse/read error on an
+existing artifact becomes undeterminable → the guard **refuses** (`prior_qualification_undeterminable`).
+The legitimately fail-closed sibling sites (`admissionResultsPassed`/`githubAdmissionPassed`) are kept
+and annotated so the opposite safety directions are visible. Regression tests confirmed red against the
+pre-fix `catch { return false }`. Verify **pass**, scope **approve**.
+
+### P1-07 (D-001, Theme 1) — the Claude conformance suite exited 0 with zero assertions · `a3b3cb0` + `0118b36`
+Claude — the primary provider running 5 of 8 roles incl. reviewer — had *no* offline conformance, and
+its only (live) suite failed open: `probeAuth()` caught everything → skip → exit 0. Now a skipped live
+suite exits **non-zero** unless `OPERON_ALLOW_SKIP_LIVE=1` is explicit, and a new **mocked Claude
+conformance** (`test/adapters/claude.test.ts`) runs in `pnpm test`, pinning the contract without auth
+(mirroring pi-mocked/codex). Verified token-free (probeAuth checks auth availability, spends nothing).
+Verify **pass**, scope **approve**.
+
+### L1-06 — three live papercuts · `faf4644` + `2b84aae` + `59c64c8`
+- **L-008:** `plan --auto … --explain-route` no longer silently no-ops — the incompatible combo now
+  errors loudly before any side effect (AGENTS.md command listing corrected to match).
+- **L-009:** denial lessons are fixed at the **writer** (`src/org/denial-lessons.ts`) — it now
+  serializes through the loader's own `validateFrontmatter`, so the doc can no longer be rejected by
+  `memory.ts` (loader/validator unchanged — not weakened). A writer→loader round-trip test was added;
+  its absence is why this shipped.
+- **L-010:** `ensureClone` resolves the remote's advertised default branch (`ls-remote --symref` /
+  `symbolic-ref`, as `app-lifecycle.ts` does) instead of hardcoding `git fetch origin main`, handling
+  both `master` and `main`, or failing with a clear error.
+Verify **pass**, scope **approve**.
+
+### Wave 3 adjacent findings filed (not fixed)
+- **W3-ADJ-01 (more hardcoded `main`, Theme 6):** `loop.ts:1464` `ensurePr` PR base, `loop.ts:1795`
+  `durableWorkSummary` `origin/main`, `github.ts:699` `baseRefName` fallback — same family as L-010,
+  out of its minimal scope (PR base can't be naively threaded — `baseRef` is a SHA for supplied checkouts).
+- **W3-ADJ-02 (P1-07):** `probeAuth()` has no timeout and runs at top-level await, so a hung auth call
+  stalls the entire live-suite collection (bounded only by the 180s hook timeout).
+- **W3-ADJ-03 (P1-06):** `lineageEquivalentCost:216` `catch { continue }` skips a corrupt `campaign.yaml`
+  during cost accounting and could undercount descendant spend — a separate Theme-1 site.
+- **W3-ADJ-04 (P1-06):** the new `prior_qualification_undeterminable` error code is undocumented; a
+  corrupt manifest of an *unrelated* grant also forces refusal (safe direction, operator-recoverable).
+
+### Wave 3 status
+
+| Item | Commits | Verify | Scope |
+| --- | --- | --- | --- |
+| P1-06 (spend-guard half) | 52e72b0 | pass | approve |
+| P1-07 (Claude conformance) | a3b3cb0, 0118b36 | pass | approve |
+| L1-06 (L-008/L-009/L-010) | faf4644, 2b84aae, 59c64c8 | pass | approve |
+
+Merged to `main`, unpushed. Combined tree green-to-baseline. **Deferred to Wave 5:** P1-06 harness half.

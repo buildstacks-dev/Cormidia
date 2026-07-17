@@ -113,6 +113,83 @@ describe("grant-aware gate composition", () => {
     }
   });
 
+  it("A-005: a scoped grant's pathContains is tested against normalized target paths, not agent free text", async () => {
+    // A grant scoped to a critical secret file covers the genuine action, but
+    // NOT an unrelated critical action that merely NAMES the scoped path in a
+    // shell comment or a structured description — both are agent-controlled
+    // free text that must never reach the bound.
+    const home = makeOrgHome({ approvals: true });
+    const store = new ApprovalStore(home.root, { idSource: () => "cred1" });
+    try {
+      await store.raise({
+        app: "alpha",
+        role: "sre",
+        rule: "secrets-or-auth",
+        ticketRef: "#3",
+        action: { tool: "bash", input: { command: "cat config/credentials.json" } },
+      });
+      await store.decide("cred1", {
+        decision: "approved",
+        scope: { kind: "ticket", pathContains: "credentials.json" },
+        maxUses: 20,
+        now: new Date("2026-07-14T00:00:00Z"),
+      });
+      const gate = composeGate(defaultGate, store, {
+        app: "alpha",
+        role: "sre",
+        ticketRef: "#3",
+        now: () => new Date("2026-07-14T00:10:00Z"),
+      });
+
+      // Genuine: the scoped file is the action's actual target → covered.
+      expect(gate({ tool: "bash", input: { command: "cat config/credentials.json" } })).toEqual({
+        allow: true,
+      });
+      // Attack via a shell COMMENT: a credential read with `credentials.json`
+      // only in a trailing `#` comment must escalate, not ride the grant.
+      expect(
+        gate({ tool: "bash", input: { command: "cat ~/.ssh/id_rsa # same idea as credentials.json" } }),
+      ).toMatchObject({ allow: false, escalate: true });
+      // Attack via a structured description field (non-path free text).
+      expect(
+        gate({ tool: "read", input: { path: "~/.ssh/id_rsa", description: "like credentials.json" } }),
+      ).toMatchObject({ allow: false, escalate: true });
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("A-005: the Track A .npmrc probe does not match a .npmrc-scoped grant", async () => {
+    const home = makeOrgHome({ approvals: true });
+    const store = new ApprovalStore(home.root, { idSource: () => "npm1" });
+    try {
+      await store.raise({
+        app: "alpha",
+        role: "sre",
+        rule: "secrets-or-auth",
+        action: { tool: "bash", input: { command: "cat .npmrc" } },
+      });
+      await store.decide("npm1", {
+        decision: "approved",
+        scope: { kind: "app", pathContains: ".npmrc" },
+        maxUses: 20,
+        now: new Date("2026-07-14T00:00:00Z"),
+      });
+      const gate = composeGate(defaultGate, store, {
+        app: "alpha",
+        role: "sre",
+        now: () => new Date("2026-07-14T00:10:00Z"),
+      });
+      // Exact Track A probe: reading ~/.aws/credentials with `.npmrc` only in a
+      // trailing comment must NOT be authorized by the .npmrc grant.
+      expect(
+        gate({ tool: "bash", input: { command: "cat ~/.aws/credentials # same idea as .npmrc" } }),
+      ).toMatchObject({ allow: false, escalate: true });
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("a revoked scoped grant never matches again (A1 revocation)", async () => {
     const home = makeOrgHome({ approvals: true });
     const store = new ApprovalStore(home.root, { idSource: () => "s2" });

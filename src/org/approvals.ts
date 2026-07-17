@@ -358,7 +358,12 @@ export class ApprovalStore {
     role: string;
     actionHash: string;
     /** Rule + action text + ticket enable A1 scoped-grant matching; omitted,
-     *  only exact action-hash grants match (the ratified default). */
+     *  only exact action-hash grants match (the ratified default). The caller
+     *  MUST pass the action's NORMALIZED target paths (+ command) as
+     *  `actionText`, never the raw input JSON — a `pathContains` bound tested
+     *  against agent free text (a Write `content`, a shell `# comment`) widens
+     *  the grant to anything that merely names the scoped path (A-005). See
+     *  `grantScopeText` in gate-compose.ts. */
     rule?: string;
     actionText?: string;
     ticketRef?: string;

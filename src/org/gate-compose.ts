@@ -6,7 +6,7 @@
 // with guidance and a durable lesson instead of burning a human decision —
 // the episode spent 20 decisions on attempts the protocol already forbade.
 
-import { classify } from "../runtime/gate.js";
+import { classify, normalizeSemanticAction } from "../runtime/gate.js";
 import { FORBIDDEN_BY_ROLE } from "../runtime/role-shaping.js";
 import type { GateDecision, GateFn, ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore } from "./approvals.js";
@@ -36,7 +36,7 @@ export function composeGate(
       role: context.role,
       actionHash: hash,
       ...(rule !== undefined ? { rule } : {}),
-      actionText: `${action.tool} ${JSON.stringify(action.input ?? "")}`,
+      actionText: grantScopeText(action),
       ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
       now,
     });
@@ -110,4 +110,46 @@ export function composeGate(
 function ruleFromReason(reason: string): string {
   const match = /\(([^)]+)\)/.exec(reason);
   return match?.[1] ?? "critical-op";
+}
+
+/** The text a scoped grant's `pathContains` bound is evaluated against — the
+ *  action's NORMALIZED target paths plus its command with shell comments
+ *  stripped, NEVER the raw input JSON (A-005). Free-text fields the agent
+ *  controls — a Write `content`, a `description`, a shell `# comment` — must
+ *  never reach the bound: with the old `${tool} ${JSON.stringify(input)}` text,
+ *  a grant scoped to `.npmrc` matched `cat ~/.aws/credentials # same idea as
+ *  .npmrc`, silently widening a repo-file grant to arbitrary credential reads.
+ *  The command's actual file ARGUMENTS stay, so a genuine scoped bash action
+ *  (`wc -l secrets.json`) still matches — that A1 behaviour is preserved. */
+function grantScopeText(action: ToolAction): string {
+  const semantic = normalizeSemanticAction(action);
+  const command = semantic.command === null ? "" : stripShellComments(semantic.command);
+  return [command, ...semantic.paths].join(" ");
+}
+
+/** Drop `# …` shell comments (a `#` at the start of a token, outside quotes,
+ *  running to end of line) so agent-authored comment text cannot appear at a
+ *  path boundary the bound would match. Quoted `#` is preserved. */
+function stripShellComments(command: string): string {
+  let out = "";
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (quote !== null) {
+      out += ch;
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      out += ch;
+      continue;
+    }
+    if (ch === "#" && (i === 0 || /\s/.test(command[i - 1]!))) {
+      while (i + 1 < command.length && command[i + 1] !== "\n") i++;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
 }

@@ -364,10 +364,22 @@ is separately reported read-only confirmation and cannot rewrite qualification.
 
 Qualification remains attached to the prepared candidate commit. A later
 evidence-only release descendant is admissible only through a deterministic
-attestation that preserves the candidate's installable-package hash,
-executable-eval-suite hash, org fingerprint, and every prepared campaign hash;
-rejects deletes and every unallowlisted path; and content-binds each sanitized
-promotion file. Contract projections then independently recompute the
+attestation that requires the qualified candidate commit to be present — failing
+closed when it is absent, as in a shallow CI checkout — and preserves the
+candidate's installable-package hash, executable-eval-suite hash, org
+fingerprint, and every prepared campaign hash; rejects deletes and any
+unallowlisted change to the packaged artifact or the sanitized-evidence
+namespace, while non-packaged, non-evidence files (docs other than the two
+packed docs, review notes, `.github/` other than the qualification workflow, and
+install/build-environment config such as `pnpm-workspace.yaml`,
+`pnpm-lock.yaml`, and `tsconfig.json`) are outside qualification scope and do not
+invalidate it. The executable-eval-suite hash governs not only the
+`scripts/eval`, `test`, and `eval` trees and the workflow but also the
+test-runner/grading configs (`vitest.config.ts`, `vitest.live.config.ts`,
+`playwright.observe.config.ts`) that decide which tests run, so a
+post-qualification edit cannot silently skip the red contract tests. The
+attestation content-binds each sanitized promotion file.
+Contract projections then independently recompute the
 qualifier and portable report and verify the schema-v2 archive receipt,
 GitHub/idempotence evidence, exact case/repetitions, hidden-grader evidence,
 route admission, terminal integrity, and provider/settlement agreement. The

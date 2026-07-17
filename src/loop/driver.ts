@@ -21,6 +21,7 @@ import {
   itemFromIssue,
   parseAcceptanceCriteria,
   dependencyRelevantPackageJson,
+  rearmDependents,
   runBuilderPipeline,
   runReviewPipeline,
   runShipCheckPipeline,
@@ -464,6 +465,20 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       });
     }
     items.push(item);
+    // L-007: when a ticket merges, the merge transition owns promoting any
+    // now-unblocked dependents to op:ready. Best-effort — the merge is already
+    // durable, so a re-arm failure logs a line but never fails the tick.
+    if (item.phase === "merged") {
+      try {
+        for (const dependent of await rearmDependents(options.gh, item.issueNumber)) {
+          lines.push(`#${dependent}: dependencies satisfied by #${item.issueNumber} merge -> op:ready`);
+        }
+      } catch (error) {
+        lines.push(
+          `#${item.issueNumber}: merged, but re-arming dependents failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
     if (options.engine !== undefined) {
       // Append this claim's outcome to the cross-claim record — it is the
       // evidence the park digest shows the human after the claim cap.

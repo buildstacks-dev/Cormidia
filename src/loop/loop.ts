@@ -56,7 +56,8 @@ import {
 } from "./verdicts.js";
 import type { LoopItem, LoopPhase, ReleaseConfig, ScorecardEvent, TicketTier } from "./types.js";
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
-import { parseReleaseKind } from "./plan-tickets.js";
+import { parseReleaseKind, STATE_LABELS } from "./plan-tickets.js";
+import { parseDependsOn } from "./scheduling.js";
 import {
   recordExecutionBoundary,
   stopExecutionJournal,
@@ -1049,6 +1050,48 @@ export async function advanceShipping(
     scorecardEvents,
     ...(releaseTrigger !== undefined ? { releaseTrigger } : {}),
   };
+}
+
+/** L-007 / L1-04: orchestrator-owned dependency re-arm. When a predecessor
+ *  ticket merges, promote every dependency-locked backlog ticket whose
+ *  dependencies are now all satisfied to `op:ready` — with no manual label edit
+ *  and no reliance on the prompt-advisory Planner "groom" pass (which the live
+ *  campaign confirmed unenforced, leaving 10/17 tickets never claimed).
+ *
+ *  A *dependent* is a still-open issue that carries a `Depends-on: #<merged>`
+ *  reference and no op-state label yet — published stateless precisely because
+ *  it had unmet dependencies (`publishTickets`: `op:ready` only on
+ *  dependency-free tickets). A dependency is *satisfied* when it is the ticket
+ *  we just merged (named explicitly, so a not-yet-propagated GitHub auto-close
+ *  cannot hide it) or is no longer open (a merge closes the issue via
+ *  `Closes #N`); a still-open dependency keeps the dependent blocked. This
+ *  mirrors `selectReadyTickets`, which admits a ready ticket only once every
+ *  dependency has merged. Returns the issue numbers armed, for the tick log. */
+export async function rearmDependents(gh: GhOps, mergedIssueNumber: number): Promise<number[]> {
+  const open = await gh.listIssues({ state: "open" });
+  const openNumbers = new Set(open.map((issue) => issue.number));
+  const stateLabels = STATE_LABELS as readonly string[];
+  const armed: number[] = [];
+  for (const issue of open) {
+    if (issue.number === mergedIssueNumber) continue;
+    // Only arm the stateless backlog: a ticket already claimed, in review,
+    // returned, or blocked has an owner and must not be relabeled.
+    if (issue.labels.some((label) => stateLabels.includes(label))) continue;
+    const deps = parseDependsOn(issue.body);
+    if (!deps.includes(mergedIssueNumber)) continue;
+    const unblocked = deps.every((dep) => dep === mergedIssueNumber || !openNumbers.has(dep));
+    if (!unblocked) continue;
+    await gh.addLabel(issue.number, "op:ready");
+    await gh.commentIssue(
+      issue.number,
+      `## Dependencies satisfied — armed \`op:ready\`\n\n` +
+        `Predecessor #${mergedIssueNumber} merged and every \`Depends-on:\` reference is now ` +
+        `resolved, so this ticket is armed for the build loop to claim. No manual label edit was ` +
+        `needed — the merge transition owns this re-arm (L-007).`,
+    );
+    armed.push(issue.number);
+  }
+  return armed;
 }
 
 export function parseAcceptanceCriteria(body: string): AcceptanceCriterion[] {

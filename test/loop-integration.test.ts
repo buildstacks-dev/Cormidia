@@ -767,6 +767,64 @@ describe("M6 loop engine integration", () => {
       h.cleanup();
     }
   });
+
+  // L-007 / L1-04: dependency re-arm is orchestrator-owned. A dependency-locked
+  // backlog ticket (created stateless, no op:ready) must auto-promote to
+  // op:ready when its predecessor merges — with no manual label edit — while a
+  // ticket whose dependency has NOT merged stays blocked.
+  it("a dependent ticket auto-promotes to op:ready after its predecessor merges (L-007)", async () => {
+    const pair = makeBareWithClone();
+    const gh = new FakeGhOps({
+      cloneRoot: pair.clone.root,
+      issues: [
+        { number: 1, title: "Root", body: ISSUE_BODY, labels: ["op:ready"] },
+        { number: 2, title: "Dependent on #1", body: `${ISSUE_BODY}\nDepends-on: #1\n`, labels: [] },
+        { number: 3, title: "Dependent on #4", body: `${ISSUE_BODY}\nDepends-on: #4\n`, labels: [] },
+        { number: 4, title: "Other, unmerged", body: ISSUE_BODY, labels: [] },
+      ],
+    });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([
+      scripted(CONTRACT),
+      scripted(DONE),
+      scripted(APPROVE),
+      scripted(APPROVE),
+      scripted(APPROVE),
+    ]);
+    const runtime = committingRuntime(fake, {
+      "# Pass: implement": { "auth/change.ts": "export const changed = true;\n" },
+    });
+    try {
+      const result = await runLoopOnce({
+        app: "fixture",
+        repo: "fixture/repo",
+        gh,
+        localRepo: pair.clone.root,
+        worktreeRoot: join(pair.root, "worktrees"),
+        policy: policy(),
+        commands: { testCommand: "true", lintCommand: "true" },
+        engine: {
+          pipelines: await rootPipelines(),
+          roles: ROLES,
+          runtimeFor: () => runtime,
+          promptsDir: PROMPTS_DIR,
+          runlogRoot: home.root,
+          hooks: allowAllHooks(),
+        },
+      });
+
+      expect(result.items[0]?.phase).toBe("merged");
+      // #2 depended on #1; #1 merged this tick -> #2 carries op:ready, no hand edit.
+      expect((await gh.readIssue(2)).labels).toContain("op:ready");
+      // #3 depends on the still-open, unmerged #4 -> stays blocked (stateless).
+      expect((await gh.readIssue(3)).labels).not.toContain("op:ready");
+      // #4 is not a dependent of #1 and must be left untouched.
+      expect((await gh.readIssue(4)).labels).not.toContain("op:ready");
+    } finally {
+      home.cleanup();
+      pair.cleanup();
+    }
+  });
 });
 
 describe("GAP D — verdict reformat retry (docs/loop.md §6, §13 row 11)", () => {

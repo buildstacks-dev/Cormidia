@@ -391,7 +391,8 @@ export interface PublishResult {
 
 /** Publish a validated plan: ensure the canonical labels exist, create every
  *  issue (labels: tier + priority; `op:ready` only on dependency-free tickets
- *  — dependency-locked backlog stays stateless until groom arms it), then
+ *  — dependency-locked backlog stays stateless until its predecessors merge,
+ *  when the merge transition arms it via `rearmDependents`, L-007), then
  *  back-fill real issue numbers into `Depends-on:` references. Throws on the
  *  first GitHub failure — by then all-local validation has already passed, so
  *  a failure is environmental, and everything created so far is reported in

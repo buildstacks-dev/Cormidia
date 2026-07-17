@@ -707,6 +707,16 @@ annotation across a milestone's tickets.
 - The dispatcher treats a ticket as ready only when its dependencies are
 **merged**; independent tickets may run in parallel worktrees on separate
 branches, bounded by `org.max_concurrent_turns`.
+- **Re-arm is orchestrator-owned, not prompt-advisory (L-007).**
+`publishTickets` creates a dependency-locked ticket **stateless** (no
+`op:ready`), so `selectReadyTickets` never claims it until it is armed. The
+merge transition owns that arming: when a predecessor merges, `rearmDependents`
+(`src/loop/loop.ts`, called from the driver's merge path) promotes every
+now-unblocked stateless dependent to `op:ready` with an evidence comment — no
+manual label edit, and no reliance on the Planner "groom" pass, which the live
+campaign confirmed was unenforced (10/17 tickets never claimed; a human did all
+re-arms by hand). A dependent with any op-state label already has an owner and
+is left untouched.
 - **Scope-overlap conservatism:** tickets whose declared file scopes
 intersect are never scheduled concurrently. The predecessor's own rule,
 promoted to scheduler policy: "when in doubt, use sequential — incorrect

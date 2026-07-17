@@ -66,7 +66,7 @@ for (const [name, mutate] of [
   ["provider/settlement mismatch", (f: Fixture) => patchJson(f.result, (value) => { ((value.metrics as Record<string, unknown>).execution as Record<string, unknown>).provider_settlements = 0; })],
   ["route-admission accounting mismatch", (f: Fixture) => patchJson(f.accounting, (value) => { value.admitted_routes = { foreign: "standard" }; })],
   ["changed executable eval bytes", (f: Fixture) => writeFileSync(join(f.root, "scripts/eval/run.ts"), "export const changedAfterQualification = true;\n")],
-  ["an unallowlisted evidence-descendant path", (f: Fixture) => write(f.root, "docs/architecture.md", "unallowlisted descendant\n")],
+  ["an unallowlisted evidence-descendant path", (f: Fixture) => write(f.root, "research/evals/leaked-raw-session.log", "unsanitized descendant beneath the evidence tree\n")],
   ["evidence from an earlier candidate", (f: Fixture) => writeFileSync(join(f.root, "src/index.ts"), "export const changedAfterQualification = true;\n")],
 ] as const) {
   it(`Phase 6 contract promotion rejects ${name}`, () => {
@@ -75,6 +75,15 @@ for (const [name, mutate] of [
     expect(() => verify(fixture)).toThrow();
   });
 }
+
+it("Phase 6 contract promotion ignores a non-packaged docs change outside the packaged artifact (ROOT-001)", () => {
+  // The changed-path attestation rule binds only to files affecting the packaged
+  // artifact (docs/PURPOSE.md 2026-07-17). This is the exact docs-only file whose
+  // addition silently invalidated the evidence on main under the old rule.
+  const fixture = makeFixture();
+  write(fixture.root, "docs/architecture/conceptual-overview.md", "docs-only change; not shipped in the package\n");
+  expect(() => verify(fixture)).not.toThrow();
+});
 
 interface Fixture {
   root: string;

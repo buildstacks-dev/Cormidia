@@ -37,12 +37,38 @@ export function releasePackageHash(cwd: string): string {
   }
 }
 
-export function executableSuiteHash(cwd: string): string {
-  return hashSelectedWorkingFiles(cwd, (name) =>
-    name === ".github/workflows/efficiency-qualification.yml" ||
+/** The runner/grading configuration files that select which tests execute and
+ * how they are graded. They ship in no package (`release_package_sha256` never
+ * sees them), so if they were also outside the executable suite a
+ * post-qualification edit could silently flip the graded outcome — e.g. adding
+ * `test/transformation/contracts/**` to `vitest.config.ts`'s `exclude` skips the
+ * red contract tests and the suite reports green. They are therefore part of the
+ * executable suite (ROOT-001 follow-up, 2026-07-17). Install/build-environment
+ * config (`pnpm-workspace.yaml`, `pnpm-lock.yaml`, `tsconfig.json`) is
+ * deliberately NOT here: it cannot silently favour a graded outcome (a bad value
+ * fails the install/build/test loudly), and any effect on shipped bytes is caught
+ * by `release_package_sha256` while resolved runtime deps are pinned by
+ * `system_fingerprint`. */
+const SUITE_RUNNER_CONFIG_FILES = new Set([
+  "vitest.config.ts",
+  "vitest.live.config.ts",
+  "playwright.observe.config.ts",
+]);
+
+/** The single definition of the executable eval suite. `executableSuiteHash`
+ * hashes exactly these files and `release-attestation.ts` governs exactly these
+ * paths through this same predicate, so the two can never drift out of
+ * agreement. */
+export function isExecutableSuitePath(name: string): boolean {
+  return name === ".github/workflows/efficiency-qualification.yml" ||
+    SUITE_RUNNER_CONFIG_FILES.has(name) ||
     name.startsWith("scripts/eval/") ||
     name.startsWith("test/") ||
-    (name.startsWith("eval/") && name !== "eval/contracts.yaml"));
+    (name.startsWith("eval/") && name !== "eval/contracts.yaml");
+}
+
+export function executableSuiteHash(cwd: string): string {
+  return hashSelectedWorkingFiles(cwd, isExecutableSuitePath);
 }
 
 function hashSelectedWorkingFiles(cwd: string, include: (name: string) => boolean): string {

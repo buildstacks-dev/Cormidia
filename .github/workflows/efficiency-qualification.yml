@@ -1,6 +1,8 @@
 name: Efficiency qualification
 
 on:
+  push:
+    branches: [main]
   pull_request:
   schedule:
     - cron: "17 8 * * *"
@@ -15,6 +17,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the release attestation can resolve the qualified
+          # candidate commit (see scripts/eval/release-attestation.ts). Without
+          # it the default shallow checkout (depth 1) leaves the candidate commit
+          # absent and the verifier now fails closed (ROOT-001).
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 11.10.0

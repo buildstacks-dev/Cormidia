@@ -1,5 +1,4 @@
-import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -7,34 +6,6 @@ import { loadYamlFile, validateResult } from "../../../scripts/eval/core.js";
 import { verifyContractEvidence } from "../../../scripts/eval/contract-evidence.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const cli = join(root, "src/cli.ts");
-const helpCache = new Map<string, string>();
-
-export interface SurfaceDebtSpec {
-  id: string;
-  expectedFailure: string;
-  help: string[];
-  missingToken: string;
-  nearMissToken: string;
-}
-
-export function definePublicSurfaceDebt(specs: SurfaceDebtSpec[]): void {
-  for (const spec of specs) {
-    describe(spec.id, () => {
-      it("positive case executes the public CLI boundary and observes the exact known-red failure", () => {
-        const output = runCli([...spec.help, "--help"]);
-        expect(classifySurface(output, spec.missingToken, spec.expectedFailure)).toBe(spec.expectedFailure);
-      });
-      it("near-miss case proves an adjacent existing surface is not classified red", () => {
-        const output = runCli([...spec.help, "--help"]);
-        expect(classifySurface(output, spec.nearMissToken, spec.expectedFailure)).toBe("passed");
-      });
-      it("honest failure case keeps malformed observations distinct from product debt", () => {
-        expect(classifySurface("", spec.missingToken, spec.expectedFailure)).toBe("invalid_contract_observation");
-      });
-    });
-  }
-}
 
 export interface ResultDebtSpec {
   id: string;
@@ -44,6 +15,13 @@ export interface ResultDebtSpec {
   repetitionIds: string[];
 }
 
+// The contract case per workstream. It asserts on the REAL product boundary
+// (verifyContractEvidence, via classifyResultEvidence) — never on a harness
+// classifier. D-003: the previous near-miss/honest-failure cases here asserted
+// what the harness's own classifyResultValue returned, so they passed even when
+// the classifier ignored the product entirely. Those genuine intents now live
+// once in product-boundary.test.ts (real thrown codes) and classifier.test.ts
+// (the classifier's own contract), instead of 20 classifier-only repetitions.
 export function defineProviderEvidenceDebt(specs: ResultDebtSpec[]): void {
   for (const spec of specs) {
     describe(spec.id, () => {
@@ -53,40 +31,16 @@ export function defineProviderEvidenceDebt(specs: ResultDebtSpec[]): void {
         const committed = join(root, "research/evals/contracts", `${spec.id}.json`);
         const inventory = loadYamlFile(join(root, "eval/contracts.yaml")) as { contracts: Array<{ id: string; state: string }> };
         const state = inventory.contracts.find((item) => item.id === spec.id)?.state;
+        // classifyResultEvidence runs the real product verifier and, per P1-06,
+        // surfaces its exact thrown code. A `required` contract must verify clean
+        // ("passed"); a not-yet-required contract must observe its declared
+        // expectedFailure. When a required contract regresses, the real verifier
+        // code (e.g. release_attestation_package_mismatch) appears verbatim in the
+        // assertion diff — never a meaningless harness sentinel.
         expect(classifyResultEvidence(committed, spec, spec.expectedFailure)).toBe(state === "required" ? "passed" : spec.expectedFailure);
-      });
-      it("near-miss case refuses a complete but unbound locally-authored result", () => {
-        const result = fixtureResult(spec.caseId);
-        expect(validateResult(result)).toEqual([]);
-        expect(classifyResultValue(result, spec.caseId, spec.expectedFailure)).toBe("invalid_contract_observation");
-      });
-      it("honest failure case rejects corrupt or foreign result evidence", () => {
-        expect(classifyResultValue({ case_id: "foreign" }, spec.caseId, spec.expectedFailure)).toBe("invalid_contract_observation");
       });
     });
   }
-}
-
-function runCli(args: string[]): string {
-  const key = args.join("\0");
-  const cached = helpCache.get(key);
-  if (cached !== undefined) return cached;
-  const result = spawnSync(process.execPath, ["--import", "tsx", cli, ...args], {
-    cwd: root,
-    env: { ...process.env, NO_COLOR: "1" },
-    encoding: "utf8",
-    timeout: 20_000,
-  });
-  const output = `${result.stdout}${result.stderr}`;
-  if (result.error) throw result.error;
-  if (output.trim() === "") throw new Error(`empty_cli_observation: ${args.join(" ")}`);
-  helpCache.set(key, output);
-  return output;
-}
-
-function classifySurface(output: string, token: string, expectedFailure: string): string {
-  if (output.trim() === "") return "invalid_contract_observation";
-  return output.includes(token) ? "passed" : expectedFailure;
 }
 
 export function classifyResultEvidence(path: string, spec: ResultDebtSpec, expectedFailure: string): string {
@@ -110,18 +64,27 @@ export function classifyResultEvidence(path: string, spec: ResultDebtSpec, expec
   }
 }
 
-function classifyResultValue(value: unknown, caseId: string, expectedFailure: string): string {
+/** The harness's own refusal classifier, exercised directly by classifier.test.ts.
+ * It encodes one genuine invariant: a raw result value — even structurally
+ * complete, individually valid, and case-matched — is NEVER sufficient promotion
+ * evidence, because it carries none of the campaign/qualifier/report/archive/
+ * grader/GitHub-idempotence/settlement/release bindings the product verifier
+ * demands. This is a harness classifier, not a product boundary; the product
+ * boundary that enforces the same refusal on real projections is
+ * verifyContractEvidence (see product-boundary.test.ts). */
+export function classifyResultValue(value: unknown, caseId: string, expectedFailure: string): string {
   const errors = validateResult(value);
   if (errors.length > 0) return "invalid_contract_observation";
   const result = value as { case_id: string; outcome: string; missing: string[] };
   if (result.case_id !== caseId) return "invalid_contract_observation";
-  // A raw result is never sufficient promotion evidence. It lacks the
-  // prepared campaign, qualifier, report, archive, grader, GitHub idempotence,
-  // settlement reconciliation, and release-equivalence bindings.
   return result.outcome === "passed" && result.missing.length === 0 ? "invalid_contract_observation" : expectedFailure;
 }
 
-function fixtureResult(caseId: string): Record<string, unknown> {
+/** A structurally complete, individually valid AttemptResult authored locally
+ * (validateResult accepts it). It is deliberately unbound to any qualified
+ * campaign, so it stands for the "complete but locally-authored" near-miss the
+ * product boundary must still refuse. */
+export function fixtureResult(caseId: string): Record<string, unknown> {
   const excluded = (reason: string) => ({ excluded: [reason] });
   return {
     schema_version: 1,

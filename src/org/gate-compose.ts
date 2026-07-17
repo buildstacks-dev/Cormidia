@@ -120,8 +120,13 @@ function ruleFromReason(reason: string): string {
  *  a grant scoped to `.npmrc` matched `cat ~/.aws/credentials # same idea as
  *  .npmrc`, silently widening a repo-file grant to arbitrary credential reads.
  *  The command's actual file ARGUMENTS stay, so a genuine scoped bash action
- *  (`wc -l secrets.json`) still matches — that A1 behaviour is preserved. */
-function grantScopeText(action: ToolAction): string {
+ *  (`wc -l secrets.json`) still matches — that A1 behaviour is preserved.
+ *
+ *  This is the ONE builder of a `findMatchingGrantSync` `actionText` (A-005 /
+ *  P0-04b): every caller must route through it — never `JSON.stringify(input)`
+ *  — so no free-text field can ever reach a `pathContains` bound. See
+ *  `src/org/release.ts`. */
+export function grantScopeText(action: ToolAction): string {
   const semantic = normalizeSemanticAction(action);
   const command = semantic.command === null ? "" : stripShellComments(semantic.command);
   return [command, ...semantic.paths].join(" ");

@@ -229,8 +229,10 @@ efficacy health independently. The mechanics construct no provider runtime.
   `pnpm dev bootstrap --scan-only <repo>` ·
   `pnpm dev bootstrap <repo> --answers-from <archive|app> [--json]` · `pnpm dev plan <app> --dry-run` ·
   `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]
-  [--depth quick|standard|deep] [--no-publish] [--explain-route]` (adaptive runtime-backed
+  [--depth quick|standard|deep] [--no-publish]` (adaptive runtime-backed
   plan: schema-validated, orchestrator-published) ·
+  `pnpm dev plan <app> --explain-route --goal "<text>" [--stage …]` (token-free
+  route preview; rejects `--auto` — the two forms are mutually exclusive) ·
   `pnpm dev loop --app <app> --once --dry-run` · `pnpm dev loop
   --explain-context <episode-id>` · `pnpm dev loop --resume-episode
   <episode-id>` ·

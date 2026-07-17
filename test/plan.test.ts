@@ -317,6 +317,54 @@ describe("cmdPlan", () => {
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
   });
 
+  it("rejects --auto combined with --explain-route loudly instead of silently dropping the plan (L-008)", async () => {
+    // The live campaign ran the documented `--auto --goal … --explain-route`
+    // combination: exit 0, route JSON, zero tickets, zero spend, no warning.
+    // A guard that cannot honor both instructions must not silently pick one.
+    const orgHome = makeOrgHome();
+    const stateHome = makeDir("operon-plan-explain-auto-state-");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await expect(
+      cmdPlan([
+        "operon-sandbox-alpha",
+        "--auto",
+        "--goal",
+        "ship the deliverable",
+        "--explain-route",
+        "--org-home",
+        orgHome,
+        "--state-home",
+        stateHome,
+      ]),
+    ).rejects.toThrow(/--explain-route.*--auto|--auto.*--explain-route/);
+    // Nothing was printed as if planning (or a preview) had happened.
+    expect(log).not.toHaveBeenCalled();
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+  });
+
+  it("--explain-route without --auto still prints the token-free route preview", async () => {
+    const orgHome = makeOrgHome();
+    const stateHome = makeDir("operon-plan-explain-state-");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--explain-route",
+      "--goal",
+      "ship the deliverable",
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain('"kind": "route-explanation"');
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+  });
+
   it("dry-run prints app, branch, topic, and context byte size without spawning", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp();

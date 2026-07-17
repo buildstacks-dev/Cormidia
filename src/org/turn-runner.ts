@@ -2,9 +2,17 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
-import { mkdir, open, readFile, rm } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
+import {
+  acquireFileLock,
+  releaseFileLock,
+  withFileLock,
+  type FileLockClock,
+  type FileLockOptions,
+  type FileLockToken,
+} from "../runtime/file-lock.js";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
@@ -31,7 +39,7 @@ import {
 } from "../loop/verdicts.js";
 import { ApprovalStore } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
-import { rollupBudgets } from "./budget.js";
+import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
 import { composeGate } from "./gate-compose.js";
 import {
@@ -52,7 +60,7 @@ import { appLearningRoot, orgLearningRoot } from "./learning/concepts.js";
 import { journalEpisodeAnchor } from "./learning/episodes.js";
 import { readLearningEvents } from "./learning/events.js";
 import { loadLearningPolicy } from "./learning/policy.js";
-import { acquireLock, heartbeatLock, lockExists, readLock, releaseLock } from "./locks.js";
+import { acquireLock, heartbeatLock, readLockOrUndefined, releaseLock } from "./locks.js";
 import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
 import { appendScorecardEvent } from "./scorecards.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
@@ -792,11 +800,12 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       budgetGuard: async () => {
         const rows = await rollupBudgets(options.runtimeHome, options.appsFile, options.now?.() ?? new Date());
         const row = rows.find((r) => r.app === options.app.name);
-        if (row !== undefined && row.status === "exceeded") {
-          return {
-            allowed: false,
-            reason: `${row.app} spent $${row.spentUsd.toFixed(2)} of $${row.budgetUsd.toFixed(2)} this month`,
-          };
+        if (row !== undefined && isBudgetBlocking(row.status)) {
+          const reason =
+            row.status === "unknown"
+              ? `${row.app} budget total could not be computed this month (malformed ledger row) — refusing to spend; run \`operon budget --reconcile\` to repair the ledger`
+              : `${row.app} spent $${row.spentUsd.toFixed(2)} of $${row.budgetUsd.toFixed(2)} this month`;
+          return { allowed: false, reason };
         }
         return { allowed: true };
       },
@@ -1054,102 +1063,67 @@ async function ensureTurnLock(
   turnId: string,
   now: Date,
 ): Promise<void> {
-  if (lockExists(runtimeHome, app, role)) {
-    const lock = await readLock(runtimeHome, app, role);
-    if (lock.turnId === turnId) return;
-  }
+  // A single tolerant read replaces the lockExists-then-readLock gap: if the
+  // lock is already ours (a resumed/re-entrant turn) keep it, and a
+  // vanished/torn lock just reads as "not ours" instead of throwing ENOENT
+  // (F-007). acquireLock below (re)acquires atomically via O_EXCL.
+  const existing = await readLockOrUndefined(runtimeHome, app, role);
+  if (existing?.turnId === turnId) return;
   const acquired = await acquireLock(runtimeHome, { app, role, turnId, now });
   if (!acquired.acquired) throw new Error(`turn lock busy for ${app}/${role}`);
 }
 
-interface GitCloneLock {
-  pid: number;
-  at: string;
-}
-
 const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;
-const GIT_CLONE_LOCK_MAX_WAIT_MS = 60 * 1000;
+/** The waiter's max-wait sits ABOVE the staleness window (F-001): a genuinely
+ *  stale holder — dead pid, or aged past the window — is reclaimed by the
+ *  liveness/stale predicate first, and a proven-LIVE holder is never
+ *  force-broken. Past this deadline with the holder still alive, the waiter
+ *  gives up (typed busy) rather than running a second `git reset --hard` on the
+ *  same checkout; the next dispatch tick retries. */
+const GIT_CLONE_LOCK_MAX_WAIT_MS = GIT_CLONE_LOCK_STALE_MS + 60 * 1000;
+
+/** The git-clone lock is a configuration of the shared FileLock primitive
+ *  (F-008 — the ledger lock's liveness + token + stale-reclamation model). The
+ *  git-named aliases keep a stable, discoverable API for callers and tests. */
+export { FileLockBusyError as AppGitLockBusyError } from "../runtime/file-lock.js";
+export type { FileLockClock as GitCloneLockClock, FileLockToken as GitCloneLockToken } from "../runtime/file-lock.js";
+
+function gitCloneLockOptions(clock?: FileLockClock): FileLockOptions {
+  return {
+    staleMs: GIT_CLONE_LOCK_STALE_MS,
+    maxWaitMs: GIT_CLONE_LOCK_MAX_WAIT_MS,
+    ...(clock !== undefined ? { clock } : {}),
+  };
+}
 
 /** Serialize mutating git operations on the shared managed clone repos/<app>.
  *  Two roles on one app can be due in the same tick (locks are per (app, role)),
  *  and each turn runs `git fetch/checkout/reset --hard` on the SAME checkout —
  *  concurrent runs contend on .git/index.lock and fail the turn (or corrupt the
  *  tree). An app-scoped advisory lock makes those operations mutually exclusive.
- *  A crashed holder cannot wedge the app forever: the lock is broken once its
- *  holder pid is dead or it has aged past the stale window. */
+ *  A crashed holder cannot wedge the app forever: the lock is reclaimed once its
+ *  holder pid is proven dead or it has aged past the stale window — but a
+ *  proven-live holder is NEVER broken, and release verifies our ownership token
+ *  so we only ever unlink our own lock (F-001). */
 export async function withAppGitLock<T>(
   runtimeHome: string,
   app: string,
   fn: () => Promise<T>,
+  clock?: FileLockClock,
 ): Promise<T> {
-  const lockPath = join(runtimeHome, "repos", `${app}.gitlock`);
-  await mkdir(dirname(lockPath), { recursive: true });
-  await acquireGitCloneLock(lockPath);
-  try {
-    return await fn();
-  } finally {
-    await rm(lockPath, { force: true });
-  }
+  return withFileLock(gitCloneLockPath(runtimeHome, app), gitCloneLockOptions(clock), fn);
 }
 
-async function acquireGitCloneLock(lockPath: string): Promise<void> {
-  const deadline = Date.now() + GIT_CLONE_LOCK_MAX_WAIT_MS;
-  for (;;) {
-    try {
-      const fh = await open(lockPath, "wx");
-      try {
-        await fh.writeFile(
-          `${JSON.stringify({ pid: process.pid, at: new Date().toISOString() } satisfies GitCloneLock)}\n`,
-          "utf8",
-        );
-      } finally {
-        await fh.close();
-      }
-      return;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      if (await breakStaleGitCloneLock(lockPath)) continue;
-      if (Date.now() > deadline) {
-        // A live holder has exceeded the max wait — force-break so a single
-        // pathological turn can never block an app's clone indefinitely.
-        await rm(lockPath, { force: true });
-        continue;
-      }
-      await gitLockDelay(40 + Math.floor(Math.random() * 60));
-    }
-  }
+export async function acquireGitCloneLock(lockPath: string, clock?: FileLockClock): Promise<FileLockToken> {
+  return acquireFileLock(lockPath, gitCloneLockOptions(clock));
 }
 
-async function breakStaleGitCloneLock(lockPath: string): Promise<boolean> {
-  try {
-    const lock = JSON.parse(await readFile(lockPath, "utf8")) as GitCloneLock;
-    const ageMs = Date.now() - new Date(lock.at).getTime();
-    const holderDead = typeof lock.pid === "number" && !gitLockHolderAlive(lock.pid);
-    if (holderDead || !Number.isFinite(ageMs) || ageMs > GIT_CLONE_LOCK_STALE_MS) {
-      await rm(lockPath, { force: true });
-      return true;
-    }
-    return false;
-  } catch {
-    // Torn lock, or the holder released between EEXIST and this read — treat as
-    // breakable and retry the exclusive create.
-    await rm(lockPath, { force: true });
-    return true;
-  }
+export async function releaseGitCloneLock(lockPath: string, token: FileLockToken): Promise<void> {
+  return releaseFileLock(lockPath, token);
 }
 
-function gitLockHolderAlive(pid: number): boolean {
-  if (pid === process.pid) return true;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
-function gitLockDelay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function gitCloneLockPath(runtimeHome: string, app: string): string {
+  return join(runtimeHome, "repos", `${app}.gitlock`);
 }
 
 export async function ensureManagedClone(app: AppEntry, runtimeHome: string): Promise<string> {

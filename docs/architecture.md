@@ -255,6 +255,20 @@ a runtime or provider process. It writes a stable readiness projection and a
 terminal mechanical execution step; provider factories, processes, turns,
 and settlements remain zero.
 
+`verify` **owns lifecycle-record synthesis and repair.** A greenfield
+`operon new-app` app has no lifecycle record until its scaffold is pushed —
+`new-app` runs before `git init`/push, so it cannot write one, and instead
+records an onboarding-source pointer (`<state>/lifecycle/apps/<app>/onboarding-source.json`)
+naming the scaffolded checkout. The first real `operon app verify` (not a
+non-mutating promotion preview) clones the pushed remote into the managed clone,
+adopts the first commit that introduced `.operon/config.yaml` as the onboarding
+commit and default base, and writes the record. A missing or unreadable record
+is always a **typed** verification result — a `lifecycle-record` check with
+status `blocked`/`invalid` and remediation — never a raw `ENOENT` or unhandled
+exception. When no onboarding pointer exists (an app onboarded before this
+path), verify falls back to the registered GitHub slug so re-running
+`operon app verify` recovers an app already stuck in the broken state.
+
 `operon app promote <app> --to live` is a non-mutating plan unless
 `--execute` is present. Execution is admitted only from passing verification,
 then uses a crash-resumable journal to commit and push the app-owned status,
@@ -398,7 +412,10 @@ still collapse to one firing with explicit missed/reconciled counts.
 ### Trigger resolution
 
 For each app with `status: live`, for each role, merge `roles.yaml` triggers
-with the app's cadence overrides (§7), then evaluate:
+with the app's cadence overrides (§7), then evaluate. An app that is not
+`status: live` is a **named skip** in the tick result (app + actual status,
+printed by `operon dispatch` as a `skip` line), never a silent no-op — its
+pending inbox events stay unpolled, and the operator can see why:
 
 **Schedule triggers.** Grammar (already in roles.yaml): `hourly`,
 `every <N>h|m`, `daily HH:MM`, `weekly <dow> [HH:MM]` (default 09:00). Local
@@ -475,7 +492,10 @@ The v0 payload contract for file-drop company events is documented in
 
 - **One turn per (role, app).** Lock file `locks/<app>--<role>.lock` created
 with `O_EXCL`, containing `{pid, turnId, startedAt, heartbeatAt}`. The turn
-runner heartbeats it every 30 s.
+runner heartbeats it every 30 s. Acquisition is atomic on the `O_EXCL` create;
+ordinary contention — including a holder releasing exactly as the tick reads it
+— resolves to a holder snapshot or a retry, never an unhandled `ENOENT` that
+aborts the tick.
 - Tick finds a lock with heartbeat < 2 min old → turn still running → skip
 (this is how overlapping firings don't collide). Heartbeat stale → crash
 recovery (§3), which decides resume vs restart and re-owns the lock.
@@ -526,7 +546,14 @@ of the same repos — GitHub is the only sync point between human and org.
 Mutating git operations on that shared clone (fetch, worktree add/remove) are
 serialized by a per-app clone lock (`withAppGitLock` in
 `src/org/turn-runner.ts`), so two concurrent turns for the same app never
-contend on `.git/index.lock` and corrupt the tree.
+contend on `.git/index.lock` and corrupt the tree. That lock is a configuration
+of the shared `FileLock` primitive (`src/runtime/file-lock.ts`): the lock file
+carries a `pid`+`nonce` ownership token, release verifies the token before
+unlinking (a late holder never deletes a successor's lock), and a proven-live
+holder is never force-broken — a stale holder is reclaimed only when its pid is
+dead or it has aged past the window, and a live holder held past the max wait
+fails the waiter (typed busy, next tick retries) rather than running a second
+`git reset --hard` on the same checkout.
 - Loop items get branch `op/<issue>-<slug>` and keep the same worktree across
 build → review → fix cycles; it is removed after merge/return. Non-loop
 turns (Planner digest, SRE sweep) get a throwaway worktree on a detached
@@ -672,11 +699,25 @@ Item schema:
    `blocked_on_gate`. Either way the item is persisted to `pending/` at
    collection time, tagged with app and turnId.
 3. Human reviews via CLI (below). **Approve ≠ auto-execute.** Approval mints
-  a grant: `{app, role, actionHash, scope, expiresAt, uses, maxUses,
-   revokedAt?}` where `actionHash` = SHA-256 of the normalized
-   `{tool, input, description?}` (`normalizeAction`/`actionHash` in
-   `src/org/approvals.ts`). The default scope is `once` — a single-use
-   action hash, exactly the pre-amendment behavior. At decision time the
+  a grant: `{app, role, actionHash, identityVersion, scope, expiresAt, uses,
+   maxUses, revokedAt?}`. `actionHash` = SHA-256 of the *authorization
+   identity* (`actionHash` in `src/org/approvals.ts`): the payload-free
+   semantic projection (`normalizeSemanticAction` — the same shape `classify`
+   uses) **plus** a content digest of the agent-authored payload that
+   projection discards (a Write `content`, an Edit `new_string`/`old_string`,
+   an apply_patch body) **plus** a format version. Binding the payload is what
+   makes a human's approval cover the exact bytes they saw and nothing else —
+   approving Write X never authorizes Write Y on the same path (finding A-002),
+   and a different-content raise is a distinct pending item, not a silent
+   collapse into the one the human is reading. Classification itself stays
+   payload-blind (`normalizeSemanticAction` discards the payload, so a doc that
+   merely names a protocol surface is not a self-edit). Bumping the identity
+   format (`ACTION_IDENTITY_VERSION`) cancels every in-flight grant: a persisted
+   grant carries its mint-time `identityVersion`, and `findMatchingGrantSync`
+   refuses any grant whose version is not current — so on a format change agents
+   re-raise and the miss path yields a fresh approval item, never a crash. The
+   default scope is `once` — a single-use action hash, exactly the
+   pre-amendment behavior. At decision time the
    human (never the agent) may widen to `ticket` or `app` scope: every
    action matching (rule, path prefix) for that app±ticket until TTL,
    use-count cap (default 20), or `operon approvals revoke <grant-id>`.
@@ -1064,6 +1105,15 @@ generated `.operon/bootstrap/next-commands.md`: create the private repo, push
 the scaffold, create the initial `op:ready` issue, optionally run
 `operon plan <app> --topic ...`, then run the normal loop.
 
+Once the scaffold is pushed, `operon app verify <app>` synthesizes the app's
+lifecycle record from the pushed remote (see "Token-free app verification and
+promotion"), and `operon app promote <app> --to live --execute` transitions the
+app to `status: live` with no manual `apps.yaml` edit — the path SRE, Support,
+and Marketing dispatch depends on. If an app is stuck without a record because
+it was onboarded before record synthesis existed, re-run `operon app verify`:
+it recovers the record from the registered GitHub slug, and its typed
+`lifecycle-record` remediation names the next step when it cannot.
+
 ```
 operon bootstrap        # run inside the product repo
 ```
@@ -1161,8 +1211,10 @@ explicitly rebutted before merge (TASTE §8). Findings ride to the fix turn
 as context. Single-account pilot caveat: GitHub forbids approving your own
 PR, so a same-account approval lands as a marked COMMENTED review — trusted
 only when its `operon:self-approval-fallback` marker carries a verifying
-HMAC signed with an orchestrator-only secret, plus a structured
-`Verdict: approve` and commit freshness. No secret configured = fail
+HMAC — signed with an orchestrator-only secret over the PR number **and the
+reviewed commit**, so a marker copied onto a later push no longer verifies
+(A-001) — plus an author-independence check, a structured `Verdict: approve`,
+and commit freshness. No secret (or an unresolved reviewed commit) = fail
 closed; a bare marker is never trusted (`docs/loop.md` §6).
 - Merge: squash-merge only, performed by the loop after APPROVE; branch
 deleted; PR description survives as the commit body (state-in-markdown, a

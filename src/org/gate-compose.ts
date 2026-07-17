@@ -6,7 +6,7 @@
 // with guidance and a durable lesson instead of burning a human decision —
 // the episode spent 20 decisions on attempts the protocol already forbade.
 
-import { classify } from "../runtime/gate.js";
+import { classify, normalizeSemanticAction, stripMessageArgs } from "../runtime/gate.js";
 import { FORBIDDEN_BY_ROLE } from "../runtime/role-shaping.js";
 import type { GateDecision, GateFn, ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore } from "./approvals.js";
@@ -36,7 +36,7 @@ export function composeGate(
       role: context.role,
       actionHash: hash,
       ...(rule !== undefined ? { rule } : {}),
-      actionText: `${action.tool} ${JSON.stringify(action.input ?? "")}`,
+      actionText: grantScopeText(action),
       ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
       now,
     });
@@ -110,4 +110,72 @@ export function composeGate(
 function ruleFromReason(reason: string): string {
   const match = /\(([^)]+)\)/.exec(reason);
   return match?.[1] ?? "critical-op";
+}
+
+/** The text a scoped grant's `pathContains` bound is evaluated against — the
+ *  action's NORMALIZED target paths plus its command with message-flag argument
+ *  VALUES and shell comments stripped, NEVER the raw input JSON (A-005).
+ *  Free-text fields the agent controls — a Write `content`, a `description`, a
+ *  shell `# comment`, and a `-m`/`--body`/`--notes` message value — must never
+ *  reach the bound: with the old `${tool} ${JSON.stringify(input)}` text, a
+ *  grant scoped to `.npmrc` matched `cat ~/.aws/credentials # same idea as
+ *  .npmrc`, silently widening a repo-file grant to arbitrary credential reads.
+ *  Comment stripping closed the trailing-`#` channel; message-value stripping
+ *  (P0-04c) closes the remaining one — an agent naming `.npmrc` inside
+ *  `--body "…"` or smuggling `$(cat ~/.aws/credentials) # .npmrc` inside a
+ *  quoted `-m` value. Message values are stripped UNCONDITIONALLY here (unlike
+ *  classification, which keeps executable values so exfil still classifies
+ *  critical — L1-05): for authorization scope, narrower is the fail-closed
+ *  direction, and a stripped legitimate value only costs a human re-approval.
+ *  The command's actual file ARGUMENTS stay, so a genuine scoped bash action
+ *  (`wc -l secrets.json`) still matches — that A1 behaviour is preserved.
+ *
+ *  This is the ONE builder of a `findMatchingGrantSync` `actionText` (A-005 /
+ *  P0-04b/P0-04c): every caller must route through it — never
+ *  `JSON.stringify(input)` — so non-command free-text fields (`content`,
+ *  `description`, message values, `# comments`) cannot reach a `pathContains`
+ *  bound. See `src/org/release.ts`.
+ *
+ *  KNOWN RESIDUAL (A-006 / P1-02, NOT closed here): the bash command STRING
+ *  itself is agent-authored, and its real arguments are deliberately kept, so
+ *  an action can still name a scoped path in genuine command text —
+ *  `cat ~/.aws/credentials || : .npmrc`, or a heredoc body naming `.npmrc` —
+ *  and ride a `.npmrc`-scoped grant. Closing that requires the structural
+ *  inversion to resolved-target-paths only (classify what a command *does*,
+ *  not what its text *says*), which is A-006/P1-02's tuning pass — out of
+ *  scope for the A-005 hotfix. */
+export function grantScopeText(action: ToolAction): string {
+  const semantic = normalizeSemanticAction(action);
+  const command =
+    semantic.command === null
+      ? ""
+      : stripShellComments(stripMessageArgs(semantic.command, { keepExecutable: false }));
+  return [command, ...semantic.paths].join(" ");
+}
+
+/** Drop `# …` shell comments (a `#` at the start of a token, outside quotes,
+ *  running to end of line) so agent-authored comment text cannot appear at a
+ *  path boundary the bound would match. Quoted `#` is preserved. */
+function stripShellComments(command: string): string {
+  let out = "";
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (quote !== null) {
+      out += ch;
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      out += ch;
+      continue;
+    }
+    if (ch === "#" && (i === 0 || /\s/.test(command[i - 1]!))) {
+      while (i + 1 < command.length && command[i + 1] !== "\n") i++;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
 }

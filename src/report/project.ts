@@ -247,7 +247,10 @@ function buildAppRows(appsFile: AppsFile, budgets: Awaited<ReturnType<typeof rol
       current_month_spend_usd: budget.spentUsd,
       monthly_budget_usd: budget.budgetUsd,
       budget_percent: budget.percent,
-      budget_status: budget.status,
+      // An unverifiable total (`unknown`, a malformed ledger row — A-004) is an
+      // over-cap, fail-closed state; the report projects it as `exceeded` so its
+      // public schema stays stable while never reading as `ok`.
+      budget_status: budget.status === "unknown" ? "exceeded" : budget.status,
       usage_coverage: share(observable.length, appTurns.length),
       completion_coverage: share(appSessions.filter((session) => session.summary.completion_integrity !== "unknown").length, appSessions.length),
       most_recent_activity: appTurns.map((turn) => turn.settled_at).filter((value): value is string => value !== null).sort().at(-1) ?? null,

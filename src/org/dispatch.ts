@@ -20,6 +20,7 @@ import {
 import { listJournals, readJournal, writeJournalPatch, type TurnEvent, type TurnJournal } from "./journal.js";
 import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./locks.js";
 import { recoverStaleTurn } from "./recovery.js";
+import { runScheduledRetentionSweep, type StateSweepResult } from "./retention.js";
 import { loadRoles, type RolesFile } from "./roles.js";
 import { isDue, ScheduleStore } from "./schedule.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
@@ -66,6 +67,9 @@ export interface DispatchTickResult {
   skipped: string[];
   errors: string[];
   scheduler?: { invocationId: string; cadenceWindow: string };
+  /** Present only on the tick that won today's retention-sweep claim
+   *  (review P1-14 / F-003; docs/scheduler.md → State retention). */
+  retention?: StateSweepResult;
 }
 
 export interface DueTurn {
@@ -334,6 +338,21 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     await evidence.finishInvocation(invocation.invocation_id, terminal, reason, tickAt);
     await options.schedulerFault?.("after_terminal_receipt");
   }
+  // Retention sweep (review P1-14 / F-003): the dispatch tick is the
+  // scheduler's boundary, so it owns state-home retention — at most once per
+  // UTC day via the sweep's exact-once claim, after the invocation receipt is
+  // terminal so a sweep problem is reported but never fails the tick itself.
+  if (options.dryRun !== true) {
+    try {
+      const sweep = await runScheduledRetentionSweep(runtimeHome, tickAt);
+      if (sweep !== undefined) {
+        result.retention = sweep;
+        for (const error of sweep.errors) result.errors.push(`retention sweep: ${error}`);
+      }
+    } catch (error) {
+      result.errors.push(`retention sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   return result;
 }
 
@@ -368,7 +387,13 @@ async function computeDueTurns(input: {
   }
 
   for (const app of input.appsFile.apps) {
-    if (app.status !== "live") continue;
+    if (app.status !== "live") {
+      // Named skip, not a silent continue: a non-live app's pending events
+      // stay in the inbox unpolled, and the operator must be able to see why
+      // from `operon dispatch` output alone (review finding L-002).
+      input.result.skipped.push(`${app.name}: skipped, app not live (status: ${app.status})`);
+      continue;
+    }
     if (await isOverlayPaused(input.runtimeHome, app.name)) {
       input.result.skipped.push(`${app.name}: budget overlay paused`);
       blocked.push({ app: app.name, role: "*", triggerKind: "mechanical", trigger: "budget-overlay", outcome: "blocked", reason: "budget_paused", detail: "app budget overlay paused" });

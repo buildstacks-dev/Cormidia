@@ -52,6 +52,14 @@ gates:
 # policy.yaml + pipelines.yaml edit, never loop code. (The `verify` pass —
 # functionality plus a baked-in security lens — runs on every PR and needs
 # no entry here.)
+#
+# `package.json` is CONTENT-GATED, not path-gated (src/loop/policy.ts,
+# matchedDimensions): it only trips the security dimension when the diff
+# actually changes a dependency or run-script key (dependencies,
+# devDependencies, optionalDependencies, peerDependencies, scripts). A
+# metadata or test-glob edit does not escalate standard → deep (L1-05).
+# `pnpm-lock.yaml` stays path-gated — a lock file only changes as a
+# consequence of a dependency change.
 dimension_globs:
   security:
     - "*/auth/**"

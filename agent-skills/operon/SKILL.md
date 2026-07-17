@@ -86,6 +86,17 @@ Remove `--dry-run` only after the target, repository slug, and goal are correct.
 Follow the generated `.operon/bootstrap/next-commands.md` for GitHub creation
 and the first ticket.
 
+`new-app` cannot write the app's lifecycle record — at scaffold time there is
+no commit or remote yet. Once you have pushed the scaffold, run
+`operon app verify <name>`: it synthesizes the lifecycle record from the pushed
+remote, and `operon app promote <name> --to live --execute` then transitions the
+app to `status: live` (required for SRE/Support/Marketing dispatch). If
+`operon app verify` reports a `blocked` `lifecycle-record` check, its
+remediation names the missing step (usually: push the scaffold to the remote
+default branch). An app onboarded before record synthesis existed recovers the
+same way — just re-run `operon app verify <name>`; do not hand-edit
+`apps.yaml`.
+
 ## Reset one app for another test iteration
 
 Use the plan first; it reads the app's managed state and GitHub work surface

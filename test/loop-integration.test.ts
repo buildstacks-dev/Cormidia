@@ -561,6 +561,57 @@ describe("M6 loop engine integration", () => {
     }
   });
 
+  // L1-05: package.json is content-gated for the security dimension. A bare
+  // metadata edit must NOT select the security-deep review pass; a dependency
+  // change must — the same predicate the route reassessment uses.
+  it("content-gates package.json: a metadata edit skips security-deep, a dependency change selects it (L1-05)", async () => {
+    const pipelines = await rootPipelines();
+    const securityPkgPolicy: Policy = {
+      ...policy(),
+      dimensionGlobs: { security: ["auth/**", "package.json"], perf: ["perf/**"] },
+    };
+    const pkg = (extra: Record<string, unknown>): string =>
+      JSON.stringify(
+        { name: "app", version: "1.0.0", scripts: { test: "true" }, dependencies: { react: "^18.0.0" }, ...extra },
+        null,
+        2,
+      ) + "\n";
+    const base = pkg({});
+    const metadataEdit = pkg({ version: "1.0.1", files: ["dist"] });
+    const dependencyEdit = pkg({ dependencies: { react: "^18.3.0" } });
+
+    const meta = await packageJsonReviewHarness("Pkg Metadata Review", base, metadataEdit);
+    const dep = await packageJsonReviewHarness("Pkg Dependency Review", base, dependencyEdit);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const metaFake = new FakeRuntime([scripted(APPROVE)]);
+    const depFake = new FakeRuntime([scripted(APPROVE), scripted(APPROVE)]);
+    try {
+      await runReviewPipeline(meta.item, {
+        ...engineOptions(meta, home.root, metaFake),
+        pipelines,
+        policy: securityPkgPolicy,
+      });
+      await runReviewPipeline(dep.item, {
+        ...engineOptions(dep, home.root, depFake),
+        pipelines,
+        policy: securityPkgPolicy,
+      });
+
+      // Metadata-only edit: verify only — the security-deep pass is not selected.
+      expect(metaFake.calls.map((call) => call.req.task)).toHaveLength(1);
+      expect(metaFake.calls[0]?.req.task).toContain("# Pass: verify");
+      expect(metaFake.calls.some((call) => call.req.task.includes("# Pass: security-deep"))).toBe(false);
+
+      // Dependency change: verify + security-deep.
+      expect(depFake.calls.map((call) => call.req.task)).toHaveLength(2);
+      expect(depFake.calls[1]?.req.task).toContain("# Pass: security-deep");
+    } finally {
+      home.cleanup();
+      meta.cleanup();
+      dep.cleanup();
+    }
+  });
+
   it("high-risk ship-check runs before squash merge", async () => {
     const pair = makeBareWithClone();
     const gh = new FakeGhOps({
@@ -644,6 +695,134 @@ describe("M6 loop engine integration", () => {
       homeB.cleanup();
       under.cleanup();
       atCap.cleanup();
+    }
+  });
+
+  // L-005 / L1-03: a route-budget cap firing mid-review must NOT crash
+  // `operon loop --once` and strand the ticket at op:in-review with an open,
+  // mergeable PR. The pipeline must terminalize cleanly to op:returned with a
+  // budget-exhaustion evidence comment, and the PR must be left untouched.
+  it("route-budget cap during review terminalizes op:returned, does not throw, and leaves the PR open (L-005)", async () => {
+    const h = await reviewingHarness("Budget Cap Review", { "src/plain.ts": "export const x = 1;\n" });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([budgetBlockedTurn("review/verify")]);
+    try {
+      const prState = (await h.gh.readPR(h.item.prNumber as number)).state;
+      const next = await runReviewPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+      });
+
+      expect(next.phase).toBe("returned");
+      expect(next.labels).toContain("op:returned");
+      expect(next.labels).not.toContain("op:in-review");
+      expect((await h.gh.readIssue(1)).labels).toContain("op:returned");
+      const comment = h.gh.issueComments.get(1)?.join("\n") ?? "";
+      expect(comment).toContain("error_route_budget_exhausted");
+      expect(comment).toContain("op:returned");
+      // The PR must not be orphaned: never merged, still open, untouched.
+      expect(h.gh.calls.some((call) => call.op === "squashMerge")).toBe(false);
+      expect((await h.gh.readPR(h.item.prNumber as number)).state).toBe(prState);
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  it("route-budget cap during ship-check terminalizes op:returned and does not throw (L-005)", async () => {
+    const h = await reviewingHarness("Budget Cap Ship", { "auth/change.ts": "export const y = 1;\n" });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([budgetBlockedTurn("ship/ship-check")]);
+    try {
+      const returned = await runShipCheckPipeline(
+        { ...h.item, phase: "shipping" },
+        { ...engineOptions(h, home.root, fake), pipelines: await rootPipelines() },
+      );
+      expect(returned.phase).toBe("returned");
+      expect(returned.labels).toContain("op:returned");
+      expect(h.gh.calls.some((call) => call.op === "squashMerge")).toBe(false);
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  // A genuine internal error (not a cap) must still throw loudly — the loop
+  // must not swallow a real defect as a clean terminal (L-005 "distinguish
+  // the two").
+  it("a non-cap pipeline abort still throws loudly (L-005 distinguishes cap from crash)", async () => {
+    const h = await reviewingHarness("Crash Review", { "src/plain.ts": "export const x = 1;\n" });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([crashedTurn()]);
+    try {
+      await expect(
+        runReviewPipeline(h.item, {
+          ...engineOptions(h, home.root, fake),
+          pipelines: await rootPipelines(),
+        }),
+      ).rejects.toThrow("review pipeline aborted before completion");
+      expect((await h.gh.readIssue(1)).labels).toContain("op:in-review");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
+  // L-007 / L1-04: dependency re-arm is orchestrator-owned. A dependency-locked
+  // backlog ticket (created stateless, no op:ready) must auto-promote to
+  // op:ready when its predecessor merges — with no manual label edit — while a
+  // ticket whose dependency has NOT merged stays blocked.
+  it("a dependent ticket auto-promotes to op:ready after its predecessor merges (L-007)", async () => {
+    const pair = makeBareWithClone();
+    const gh = new FakeGhOps({
+      cloneRoot: pair.clone.root,
+      issues: [
+        { number: 1, title: "Root", body: ISSUE_BODY, labels: ["op:ready"] },
+        { number: 2, title: "Dependent on #1", body: `${ISSUE_BODY}\nDepends-on: #1\n`, labels: [] },
+        { number: 3, title: "Dependent on #4", body: `${ISSUE_BODY}\nDepends-on: #4\n`, labels: [] },
+        { number: 4, title: "Other, unmerged", body: ISSUE_BODY, labels: [] },
+      ],
+    });
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([
+      scripted(CONTRACT),
+      scripted(DONE),
+      scripted(APPROVE),
+      scripted(APPROVE),
+      scripted(APPROVE),
+    ]);
+    const runtime = committingRuntime(fake, {
+      "# Pass: implement": { "auth/change.ts": "export const changed = true;\n" },
+    });
+    try {
+      const result = await runLoopOnce({
+        app: "fixture",
+        repo: "fixture/repo",
+        gh,
+        localRepo: pair.clone.root,
+        worktreeRoot: join(pair.root, "worktrees"),
+        policy: policy(),
+        commands: { testCommand: "true", lintCommand: "true" },
+        engine: {
+          pipelines: await rootPipelines(),
+          roles: ROLES,
+          runtimeFor: () => runtime,
+          promptsDir: PROMPTS_DIR,
+          runlogRoot: home.root,
+          hooks: allowAllHooks(),
+        },
+      });
+
+      expect(result.items[0]?.phase).toBe("merged");
+      // #2 depended on #1; #1 merged this tick -> #2 carries op:ready, no hand edit.
+      expect((await gh.readIssue(2)).labels).toContain("op:ready");
+      // #3 depends on the still-open, unmerged #4 -> stays blocked (stateless).
+      expect((await gh.readIssue(3)).labels).not.toContain("op:ready");
+      // #4 is not a dependent of #1 and must be left untouched.
+      expect((await gh.readIssue(4)).labels).not.toContain("op:ready");
+    } finally {
+      home.cleanup();
+      pair.cleanup();
     }
   });
 });
@@ -876,6 +1055,38 @@ async function reviewingHarness(
   };
 }
 
+/** A reviewing harness seeded with a base package.json on main and a
+ *  single-file package.json edit on the review branch (L1-05). */
+async function packageJsonReviewHarness(
+  title: string,
+  baseline: string,
+  edit: string,
+): Promise<{ pair: BareCloneFixture; gh: FakeGhOps; item: LoopItem; cleanup(): void }> {
+  const pair = makeBareWithClone();
+  pair.clone.commit("chore: base package.json", { "package.json": baseline });
+  pair.clone.git("push", "origin", "main");
+  const gh = new FakeGhOps({
+    cloneRoot: pair.clone.root,
+    issues: [{ number: 1, title, body: ISSUE_BODY, labels: ["op:ready"] }],
+  });
+  const item = await claimTicket(await gh.readIssue(1), {
+    gh,
+    targetRepo: "fixture/repo",
+    localRepo: pair.clone.root,
+    worktreeRoot: join(pair.root, "worktrees"),
+  });
+  commit(item.worktree as string, "feat: edit package.json", { "package.json": edit });
+  git(item.worktree as string, "push", "-u", "origin", item.branch as string);
+  const pr = await gh.createPR({ head: item.branch as string, base: "main", title, body: "Closes #1" });
+  await gh.swapLabel(1, "op:building", "op:in-review");
+  return {
+    pair,
+    gh,
+    item: { ...item, phase: "reviewing", prNumber: pr.number, labels: ["op:in-review"] },
+    cleanup: () => pair.cleanup(),
+  };
+}
+
 function engineOptions(
   h: { gh: FakeGhOps },
   runlogRoot: string,
@@ -951,6 +1162,41 @@ function failedGate(output: string): GateRunResult {
 
 function scripted(summary: string): ScriptedTurn {
   return { result: turnResultOf(summary, "completed") };
+}
+
+/** A pass stopped by a legitimately-fired route/provider budget cap (the exact
+ *  shape pipeline.ts mints from a ProviderBudgetRefusalError). Its presence in
+ *  a pipeline abort must terminalize the ticket cleanly, never crash the loop
+ *  (L-005). */
+function budgetBlockedTurn(operation: string): ScriptedTurn {
+  return {
+    result: {
+      status: "blocked_on_gate",
+      errorCode: "error_route_budget_exhausted",
+      summary: `episode cannot start ${operation}: route budget exhausted`,
+      artifacts: [],
+      session: { runtime: "claude", id: `route-budget-${operation}` },
+      usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0, quality: "unavailable" },
+      escalations: [],
+    },
+  };
+}
+
+/** A pass that failed for an unrecognized internal reason (not a cap). Its
+ *  abort must still surface loudly — the loop must not swallow a genuine
+ *  defect as a clean terminal (L-005 "distinguish the two"). */
+function crashedTurn(): ScriptedTurn {
+  return {
+    result: {
+      status: "failed",
+      errorCode: "error_turn_failed",
+      summary: "the reviewer runtime failed for an unexpected reason",
+      artifacts: [],
+      session: { runtime: "claude", id: "session-crash" },
+      usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0, quality: "unavailable" },
+      escalations: [],
+    },
+  };
 }
 
 function turnResultOf(summary: string, status: TurnResult["status"]): TurnResult {

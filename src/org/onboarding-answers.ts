@@ -36,6 +36,66 @@ export function onboardingAnswersPath(stateHome: string, app: string): string {
   return join(resolve(stateHome), "lifecycle", "apps", app, "answers.json");
 }
 
+/** Where a greenfield app was scaffolded, recorded so `operon app verify` can
+ * synthesize a lifecycle record from the checkout's pushed remote. `new-app`
+ * cannot write the full lifecycle record itself: at scaffold time there is no
+ * commit, remote, or managed clone yet. This pointer captures the inputs verify
+ * needs to build the record once the operator has pushed. */
+export interface OnboardingSourceRecord {
+  schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
+  kind: "onboarding-source";
+  app: string;
+  repo: string;
+  checkout_path: string;
+}
+
+export function onboardingSourcePath(stateHome: string, app: string): string {
+  assertSafeSegment(app, "onboarding source app");
+  return join(resolve(stateHome), "lifecycle", "apps", app, "onboarding-source.json");
+}
+
+export async function storeOnboardingSource(
+  stateHome: string,
+  app: string,
+  input: { repo: string; checkoutPath: string },
+): Promise<OnboardingSourceRecord> {
+  const record: OnboardingSourceRecord = {
+    schema_version: LIFECYCLE_SCHEMA_VERSION,
+    kind: "onboarding-source",
+    app,
+    repo: input.repo,
+    checkout_path: resolve(input.checkoutPath),
+  };
+  await writeLifecycleFileAtomic(onboardingSourcePath(stateHome, app), stableJson(record));
+  return record;
+}
+
+export async function readOnboardingSource(
+  stateHome: string,
+  app: string,
+): Promise<OnboardingSourceRecord | undefined> {
+  const path = onboardingSourcePath(stateHome, app);
+  if (!existsSync(path)) return undefined;
+  await assertRegularFile(path, "onboarding source");
+  let value: unknown;
+  try {
+    value = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(`onboarding source: invalid JSON ${path}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const record = value as Partial<OnboardingSourceRecord>;
+  if (
+    record.schema_version !== LIFECYCLE_SCHEMA_VERSION ||
+    record.kind !== "onboarding-source" ||
+    record.app !== app ||
+    typeof record.repo !== "string" ||
+    typeof record.checkout_path !== "string"
+  ) {
+    throw new Error(`onboarding source: invalid record ${path}`);
+  }
+  return record as OnboardingSourceRecord;
+}
+
 export function assertNonSecretOnboardingAnswers(answers: BootstrapAnswers): void {
   const rendered = stableJson(answers);
   const matched = SECRET_PATTERNS.find((candidate) => candidate.pattern.test(rendered));

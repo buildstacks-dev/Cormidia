@@ -9,7 +9,9 @@ import {
 } from "../src/runtime/gate.js";
 import type { ToolAction } from "../src/runtime/types.js";
 import {
+  ACTION_IDENTITY_VERSION,
   ApprovalStore,
+  SEMANTIC_INPUT_KEYS,
   actionHash,
   computeApprovalMetrics,
 } from "../src/org/approvals.js";
@@ -149,5 +151,124 @@ describe("Phase 3 semantic approval boundary", () => {
     await store.decide(item.id, { decision: "approved", now: new Date("2026-07-14T00:00:05Z") });
     const metrics = computeApprovalMetrics(await store.listDecided(), await store.readLog(), (approval) => classify(approval.action).cls === "critical");
     expect(metrics).toMatchObject({ precision: 1, recurrence: 0, meanDecisionMs: 5_000 });
+  });
+});
+
+// A-002: the authorization identity must bind the payload the human saw, so a
+// grant for Write X does not authorize Write Y on the same (tool, path) pair.
+// The CLASSIFICATION projection stays payload-blind (docs that mention a
+// protocol surface are not a self-edit); only the actionHash used for grants
+// and dedupe is content-bound. Mirrors publisher.ts final_diff_hash.
+describe("A-002 content-bound approval identity", () => {
+  let home: OrgHomeFixture;
+  afterEach(() => home?.cleanup());
+
+  const rolesWrite = (content: string): ToolAction => ({
+    tool: "Write",
+    input: { file_path: "roles.yaml", content },
+  });
+  const benign = rolesWrite("# harmless tweak");
+  const evil = rolesWrite("# ATTACKER PAYLOAD: exfiltrate everything");
+
+  it("G-BIND-01 a grant for the approved payload does not cover a different-content write", async () => {
+    // (a) The malicious write hashes differently from the benign one the human
+    // approved (they were BYTE-IDENTICAL — 61f09557… — before this fix).
+    expect(actionHash(benign)).not.toBe(actionHash(evil));
+
+    home = makeOrgHome();
+    let n = 0;
+    const store = new ApprovalStore(home.root, { idSource: () => `b${++n}` });
+    const raised = await store.raise({ app: "app", role: "builder", rule: "protocol-self-edit", action: benign, ticketRef: "#1" });
+    await store.decide(raised.id, { decision: "approved" });
+
+    const gate = composeGate(defaultGate, store, { app: "app", role: "builder", ticketRef: "#1", orgHome: home.root });
+    // The evil write is NOT covered by the benign grant: it escalates a fresh
+    // critical op rather than riding the human's approval (grant untouched).
+    expect(gate(evil)).toMatchObject({ allow: false, escalate: true });
+    expect((await store.listPending()).map((item) => item.action.input)).toContainEqual(evil.input);
+    // The exact payload the human approved still passes on its own.
+    expect(gate(benign)).toEqual({ allow: true });
+  });
+
+  it("G-BIND-02 a different-content raise creates a NEW pending item; identical content still dedupes", async () => {
+    home = makeOrgHome();
+    let n = 0;
+    const store = new ApprovalStore(home.root, { idSource: () => `d${++n}` });
+    const raise = (action: ToolAction) => store.raise({ app: "app", role: "builder", rule: "protocol-self-edit", action, ticketRef: "#1" });
+    const first = await raise(benign);
+    const second = await raise(evil);
+    // (b) The malicious raise no longer collapses into the item the human is
+    // reading — it stands as its own pending decision.
+    expect(second.id).not.toBe(first.id);
+    expect((await store.listPending())).toHaveLength(2);
+    // A genuine identical re-raise still dedupes (no churn on retries).
+    expect((await raise(benign)).id).toBe(first.id);
+    expect((await store.listPending())).toHaveLength(2);
+  });
+
+  it("G-BIND-03 classification stays payload-blind while the identity binds content", () => {
+    // (c) The semantic projection and classification are IDENTICAL for two
+    // writes that differ only in payload — the payload is bound ONLY in the
+    // authorization identity (actionHash), never in classification.
+    expect(normalizeSemanticAction(benign)).toEqual(normalizeSemanticAction(evil));
+    expect(classify(benign)).toEqual({ cls: "critical", rule: "protocol-self-edit" });
+    expect(classify(evil)).toEqual(classify(benign));
+    // A doc that merely NAMES a protocol surface in its body is still routine.
+    expect(classify({ tool: "write", input: { path: "docs/guide.md", content: "edit roles.yaml to add a role" } })).toEqual({ cls: "routine" });
+    expect(actionHash(benign)).not.toBe(actionHash(evil));
+  });
+
+  it("G-BIND-04 a pre-v2 grant never matches and the miss path re-raises cleanly, no exception", async () => {
+    // A grant persisted before the identity bump: NO identityVersion, and its
+    // actionHash is the CURRENT hash of the action — so ONLY the version gate
+    // can reject it, proving the migration mechanism rather than an incidental
+    // hash mismatch. (Human decision, 2026-07-17: old-format grants stop
+    // matching; agents re-raise; the failure mode is a fresh item, never a crash.)
+    const legacyGrant = {
+      grantId: "grant-legacy",
+      approvalId: "legacy",
+      app: "app",
+      role: "builder",
+      actionHash: actionHash(benign),
+      expiresAt: "2999-01-01T00:00:00.000Z",
+      uses: 1,
+      createdAt: "2026-07-01T00:00:00.000Z",
+    };
+    home = makeOrgHome({ approvals: { grants: { "grant-legacy": legacyGrant } } });
+    const store = new ApprovalStore(home.root, { idSource: () => "mig1" });
+
+    // Sanity: the bump is a real version change, and the legacy grant predates it.
+    expect(legacyGrant).not.toHaveProperty("identityVersion");
+    expect(ACTION_IDENTITY_VERSION).toBeGreaterThanOrEqual(2);
+
+    // Direct: despite an equal actionHash, the legacy grant is refused.
+    expect(store.findMatchingGrantSync({ app: "app", role: "builder", actionHash: actionHash(benign), now: new Date() })).toBeUndefined();
+
+    // Behavioral: the miss path raises a fresh approval item — it must not throw.
+    const gate = composeGate(defaultGate, store, { app: "app", role: "builder", ticketRef: "#1", orgHome: home.root });
+    let decision: ReturnType<typeof gate> | undefined;
+    expect(() => { decision = gate(benign); }).not.toThrow();
+    expect(decision).toMatchObject({ allow: false, escalate: true });
+    expect(await store.listPending()).toHaveLength(1);
+  });
+
+  // Regression pin for the SEMANTIC_INPUT_KEYS maintenance comment
+  // (src/org/approvals.ts): a denylisted key is excluded from the residual
+  // payload on the assumption normalizeSemanticAction (src/runtime/gate.ts)
+  // already binds it into `semantic`. If that assumption ever goes stale —
+  // a key is listed here but gate.ts stops reading it (OVER-listing) — the
+  // key is bound in NEITHER projection and two actions differing only in it
+  // hash identically: a silent A-002 regression. This asserts the invariant
+  // ITSELF (behaviorally, via actionHash) rather than pinning the key list
+  // as a string-equality snapshot, so it fails the moment the binding
+  // actually breaks, for exactly the reason it broke.
+  it("SEMANTIC_INPUT_KEYS binds every denylisted key (behavioral, not string-list, pin)", () => {
+    expect(SEMANTIC_INPUT_KEYS.size).toBeGreaterThan(0);
+    for (const key of SEMANTIC_INPUT_KEYS) {
+      const base = { file_path: "base.txt", content: "unchanged payload" };
+      const withA: ToolAction = { tool: "Write", input: { ...base, [key]: "value-a" } };
+      const withB: ToolAction = { tool: "Write", input: { ...base, [key]: "value-b" } };
+      expect(actionHash(withA), `key "${key}" must be bound (semantic or residual)`).not.toBe(actionHash(withB));
+    }
   });
 });

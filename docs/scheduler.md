@@ -108,6 +108,66 @@ invocation records the number of missed windows and one reconciled firing. The
 same record projects through Phase 4's `scheduler.missed_tick` trusted
 efficiency-evidence class; it does not create a second learning model.
 
+## State retention
+
+The dispatch tick owns org-wide state-home retention (`src/org/retention.ts`;
+review P1-14 / F-003): under an autonomous scheduler no operator is in the
+loop, so no state subtree may grow forever waiting on a manual prune. Every
+non-dry-run tick attempts `runScheduledRetentionSweep`; an O_EXCL marker claim
+at `state/retention/sweeps/<utc-date>.json` makes the sweep exactly-once per
+UTC day per state home (concurrent ticks race the claim safely; the marker is
+overwritten with the completed sweep record). A sweep failure is reported in
+the tick output but never fails the tick, and each subtree fails
+independently — an error keeps that subtree's files for a later sweep. The
+manual surface is `operon prune-runs --sweep` (same windows, immediate run);
+`operon prune-runs` without `--sweep` remains the runs-only manual prune.
+
+Default windows (days) and fail-safe prune rules:
+
+| Subtree | Window | Deletes only when |
+| --- | --- | --- |
+| `runs/<app>/<runId>/` | 30 | the existing `pruneRuns` rule: envelope proves a terminal status and `finished_at` past the window; running/unprovable dirs are kept |
+| `telemetry/<date>.jsonl` | 365 | the whole UTC day is past the window, the file is not in the current UTC month (monthly budget caps read it), every line parses, and **no row is still re-settleable** (below); deletions hold the settlement lock |
+| `efficiency/episodes/<hash>/` | 180 | the route is terminal, no started provider receipt is pending, nothing is corrupt, every timestamp is past the window, and every provider step is already settled in the ledger |
+| `invocations/<date>.jsonl` | 90 | the whole UTC day is past the window |
+| `tasks/<taskId>/` | 180 | `task.json` proves a non-`running` status with `endedAt` past the window |
+| `learning/events/<date>/` | 180 | the whole UTC day is past the window — the ONLY `learning/` child ever swept |
+| `scheduler/evidence/**` | 365 | see the health-truthfulness rules below |
+| `state/retention/sweeps/` | 90 | the sweep's own day records |
+
+**Ledger retention respects the reconciliation window.** `operon budget
+--reconcile` can back-fill the ledger from surviving run envelopes and
+efficiency provider steps, so deleting a ledger row while its source evidence
+survives would let a later reconcile re-append that spend as a duplicate,
+re-dated row. Two guards enforce this: the effective ledger window (and the
+`learning/events/` window) is clamped to at least the largest evidence window
+plus a 2-day reconcile margin, and — exactly, not by age arithmetic — a
+day-file is kept while any of its rows' settlement identities still appear in
+surviving evidence on disk. Symmetrically, an efficiency episode is kept until
+its provider spend is provably in the ledger, so spend evidence is never
+deleted from both sides at once.
+
+**Scheduler evidence never falsifies health.** A decision record is deleted
+only when terminal, past the window, with agreeing provider turn/settlement
+counts (an executed decision with missing denominators is a health signal and
+is kept), and only when its episode id is no longer referenced by any
+surviving lock, turn journal, run envelope, or ledger row — the exact sources
+of the orphan cross-check — so pruning can never mint orphaned locks,
+journals, runs, or settlements. An invocation is deleted only when terminal,
+past the window, and only after all of its decisions are gone; the newest
+invocation and the newest completed invocation survive regardless of age, so
+an idle org keeps its last-tick evidence for `status`/`doctor`. Non-terminal
+invocations (crashed ticks) are never deleted. Alerts age out on the same
+window. The scheduler-evidence window is clamped to the effective ledger
+window plus the margin.
+
+`learning/` is otherwise untouched: the durable archives (`episodes/`,
+`capsules/`, `fingerprints/`, `resolved/`, `canary/`, `publish-journal/`,
+`metrics/`) persist, and the committed org-home `learning/**` governance
+substrate lives outside the state home entirely — the sweep only ever names
+the state home's `learning/events` child, so it is structurally unable to
+reach either.
+
 ## Outcomes and reason codes
 
 Every due decision terminates as `executed`, `skipped`, `blocked`, `missed`,

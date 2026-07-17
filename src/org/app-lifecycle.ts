@@ -36,7 +36,12 @@ import {
   stableJson,
   writeLifecycleFileAtomic,
 } from "./lifecycle.js";
-import { assertNonSecretOnboardingAnswers, storeOnboardingAnswers } from "./onboarding-answers.js";
+import {
+  assertNonSecretOnboardingAnswers,
+  readOnboardingSource,
+  readStoredOnboardingAnswers,
+  storeOnboardingAnswers,
+} from "./onboarding-answers.js";
 
 const require = createRequire(import.meta.url);
 const GIT_ENV = {
@@ -332,7 +337,14 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
   const apps = await loadApps(join(orgHome, "apps.yaml"));
   const app = apps.apps.find((entry) => entry.name === options.appName);
   if (app === undefined) throw new Error(`app verify: unknown app "${options.appName}"`);
-  const record = await readLifecycleRecord(stateHome, app.name);
+  // A missing or unreadable lifecycle record must be a typed verification
+  // result, never a raw ENOENT (L0-01). A real `app verify` (synchronize !==
+  // false) synthesizes the record for a greenfield/`new-app` app from its
+  // pushed remote; a promotion preview (synchronize === false) does not mutate,
+  // so it reports "run app verify first" instead.
+  const resolved = await resolveLifecycleRecordForVerify(orgHome, stateHome, app, options.synchronize !== false);
+  if (!resolved.ok) return unverifiableReport(stateHome, app, resolved.check, options);
+  const record = resolved.record;
   const checks: LifecycleCheck[] = [];
   let remoteHead: string | null = null;
   let managedHead: string | null = null;
@@ -645,6 +657,253 @@ export async function readLifecycleRecord(stateHome: string, app: string): Promi
   ) throw new Error(`app verify: invalid lifecycle record ${path}`);
   if (resolve(value.managed_clone) !== join(resolve(stateHome), "repos", app)) throw new Error("app verify: managed clone path escapes app state");
   return value as AppLifecycleRecord;
+}
+
+type RecordResolution = { ok: true; record: AppLifecycleRecord } | { ok: false; check: LifecycleCheck };
+
+/** Read the lifecycle record, or (for a real verify) synthesize one for a
+ * registered app that has none. A `operon new-app` app is left in exactly this
+ * state until its scaffold is pushed: the record writer only ran on the
+ * recovered-answer bootstrap path, so `verify` used to surface a raw ENOENT
+ * (L0-01). Verify now owns record synthesis/repair; every miss is typed. */
+async function resolveLifecycleRecordForVerify(
+  orgHome: string,
+  stateHome: string,
+  app: AppEntry,
+  synthesize: boolean,
+): Promise<RecordResolution> {
+  const path = lifecycleRecordPath(stateHome, app.name);
+  if (existsSync(path)) {
+    try {
+      return { ok: true, record: await readLifecycleRecord(stateHome, app.name) };
+    } catch (error) {
+      return { ok: false, check: fail("lifecycle-record", message(error)) };
+    }
+  }
+  if (!synthesize) {
+    return {
+      ok: false,
+      check: blocked(
+        "lifecycle-record",
+        `no lifecycle record for ${app.name}`,
+        "run `operon app verify` to synthesize the lifecycle record, then retry promotion",
+      ),
+    };
+  }
+  return synthesizeLifecycleRecord(orgHome, stateHome, app);
+}
+
+/** Build a lifecycle record for a registered app that has none. The remote is
+ * learned from the recorded onboarding checkout's `origin`, falling back to the
+ * registered GitHub slug for an app onboarded before this path existed. Every
+ * failure mode returns a typed blocked/invalid check, never a raw exception. */
+async function synthesizeLifecycleRecord(
+  orgHome: string,
+  stateHome: string,
+  app: AppEntry,
+): Promise<RecordResolution> {
+  const remote = await resolveOnboardingRemote(stateHome, app);
+  if ("check" in remote) return { ok: false, check: remote.check };
+  const remoteUrl = remote.url;
+
+  let defaultBranch: string;
+  try {
+    defaultBranch = remoteDefaultBranch(remoteUrl);
+    remoteBranchHead(remoteUrl, defaultBranch);
+  } catch (error) {
+    return {
+      ok: false,
+      check: blocked(
+        "lifecycle-record",
+        `app remote is unreachable or has no default branch: ${message(error)}`,
+        "push the app repo to its remote default branch, then rerun `operon app verify`",
+      ),
+    };
+  }
+
+  const managedClone = join(resolve(stateHome), "repos", app.name);
+  try {
+    await cloneRemoteInto(remoteUrl, managedClone);
+  } catch (error) {
+    return {
+      ok: false,
+      check: blocked(
+        "lifecycle-record",
+        `could not clone the app remote into a managed clone: ${message(error)}`,
+        "ensure the app repo is reachable, then rerun `operon app verify`",
+      ),
+    };
+  }
+
+  const configPath = join(managedClone, ".operon", "config.yaml");
+  if (!existsSync(configPath)) {
+    return {
+      ok: false,
+      check: blocked(
+        "lifecycle-record",
+        `the onboarding artifacts (.operon/config.yaml) are not on ${defaultBranch} of the app remote`,
+        "commit and push the generated .operon scaffold to the default branch, then rerun `operon app verify`",
+      ),
+    };
+  }
+
+  const onboardingCommit = firstCommitAdding(managedClone, ".operon/config.yaml") ?? git(managedClone, "rev-parse", "HEAD");
+  const configBytes = await readFile(configPath);
+  const authority = await resolveAuthority({ orgHome, appWorkdir: managedClone });
+  const record: AppLifecycleRecord = {
+    schema_version: LIFECYCLE_SCHEMA_VERSION,
+    kind: "app-lifecycle",
+    app: app.name,
+    repo: app.repo,
+    remote_url: remoteUrl,
+    default_branch: defaultBranch,
+    // A greenfield app's first pushed onboarding commit is both its default
+    // base and its onboarding commit; the ancestry checks then hold against any
+    // later default-branch head.
+    default_base: onboardingCommit,
+    source: onboardingSourceSnapshot(remote.checkout),
+    onboarding_commit: onboardingCommit,
+    managed_clone: managedClone,
+    authority_sha256: `sha256:${authority.sha256}`,
+    config_sha256: `sha256:${sha256(configBytes)}`,
+    answers_sha256: await onboardingAnswersHash(stateHome, app.name),
+  };
+  await writeLifecycleFileAtomic(lifecycleRecordPath(stateHome, app.name), stableJson(record));
+  await emitLifecycleStep({
+    stateHome,
+    app: app.name,
+    operation: "app verify",
+    inputFingerprint: sha256(stableJson({ synthesized: true, remoteUrl, onboardingCommit })),
+    status: "completed",
+    reason: `synthesized lifecycle record for ${app.name} at ${onboardingCommit}`,
+  });
+  return { ok: true, record };
+}
+
+async function resolveOnboardingRemote(
+  stateHome: string,
+  app: AppEntry,
+): Promise<{ url: string; checkout: string | null } | { check: LifecycleCheck }> {
+  const source = await readOnboardingSource(stateHome, app.name);
+  if (source !== undefined) {
+    const checkout = source.checkout_path;
+    if (existsSync(checkout) && existsSync(join(checkout, ".git"))) {
+      const url = safeGit(checkout, "remote", "get-url", "origin");
+      if (url !== null && url !== "") return { url, checkout };
+      return {
+        check: blocked(
+          "lifecycle-record",
+          `onboarding checkout for ${app.name} has no pushed 'origin' remote yet: ${checkout}`,
+          "add and push the remote (create/push the app repo), then rerun `operon app verify`",
+        ),
+      };
+    }
+    // The pointer exists but the scaffold has not been initialized/pushed yet —
+    // the expected state right after `operon new-app`. Report it precisely
+    // rather than blindly probing the network.
+    return {
+      check: blocked(
+        "lifecycle-record",
+        `onboarding checkout for ${app.name} is not an initialized git repository yet: ${checkout}`,
+        "initialize and push the app repo (git init && commit && create/push the remote), then rerun `operon app verify`",
+      ),
+    };
+  }
+  // No onboarding pointer: an app onboarded before this path existed (e.g. the
+  // live-campaign state). Recover it from the registered GitHub slug.
+  if (isGithubSlug(app.repo)) return { url: githubRemoteForSlug(app.repo), checkout: null };
+  return {
+    check: blocked(
+      "lifecycle-record",
+      `no lifecycle record, no onboarding checkout, and ${app.repo} is not a resolvable GitHub slug`,
+      "clone the app repo to a local path and re-onboard, or restore the managed state before verifying",
+    ),
+  };
+}
+
+function onboardingSourceSnapshot(checkout: string | null): AppLifecycleRecord["source"] {
+  if (checkout === null) return { path: "", branch: "", head: "", status_sha256: `sha256:${sha256("")}` };
+  const snap = gitSnapshot(checkout);
+  return { path: checkout, branch: snap.branch, head: snap.head, status_sha256: `sha256:${sha256(snap.status)}` };
+}
+
+async function onboardingAnswersHash(stateHome: string, app: string): Promise<string> {
+  try {
+    const answers = await readStoredOnboardingAnswers(stateHome, app);
+    return `sha256:${sha256(stableJson(answers))}`;
+  } catch {
+    return `sha256:${sha256("")}`;
+  }
+}
+
+function firstCommitAdding(root: string, relPath: string): string | null {
+  const out = safeGit(root, "log", "--diff-filter=A", "--format=%H", "--", relPath);
+  if (out === null || out === "") return null;
+  const commits = out.split("\n").filter((line) => line.length > 0);
+  return commits.at(-1) ?? null;
+}
+
+async function cloneRemoteInto(remoteUrl: string, managedClone: string): Promise<void> {
+  const parent = dirname(resolve(managedClone));
+  await mkdir(parent, { recursive: true });
+  const staged = join(parent, `.${basename(managedClone)}-synth.partial`);
+  await rm(staged, { recursive: true, force: true });
+  try {
+    git(dirname(staged), "clone", "--quiet", remoteUrl, staged);
+    await rm(managedClone, { recursive: true, force: true });
+    await rename(staged, managedClone);
+  } catch (error) {
+    await rm(staged, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function isGithubSlug(value: string): boolean {
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
+}
+
+function githubRemoteForSlug(slug: string): string {
+  return `https://github.com/${slug}.git`;
+}
+
+async function unverifiableReport(
+  stateHome: string,
+  app: AppEntry,
+  check: LifecycleCheck,
+  options: VerifyAppOptions,
+): Promise<AppVerification> {
+  const status: AppVerification["status"] = check.status === "fail" ? "invalid" : "blocked";
+  const readinessPath = join(resolve(stateHome), "lifecycle", "readiness", `${app.name}.json`);
+  const report: AppVerification = {
+    schema_version: LIFECYCLE_SCHEMA_VERSION,
+    kind: "app-verification",
+    app: app.name,
+    status,
+    evidence_state: "registered",
+    registry_status: app.status,
+    default_branch: "",
+    remote_head: null,
+    onboarding_commit: "",
+    managed_head: null,
+    authority_sha256: "",
+    config_sha256: null,
+    checks: [check],
+    provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
+    readiness_path: readinessPath,
+  };
+  if (options.writeReadiness !== false) await writeLifecycleFileAtomic(readinessPath, stableJson(report));
+  if (options.recordEvidence !== false) {
+    await emitLifecycleStep({
+      stateHome,
+      app: app.name,
+      operation: "app verify",
+      inputFingerprint: sha256(stableJson({ app: app.name, check })),
+      status: status === "blocked" ? "blocked" : "failed",
+      reason: `${status}: ${check.id}`,
+      nextStep: check.remediation ?? "apply the typed remediation and rerun app verify",
+    });
+  }
+  return report;
 }
 
 async function validateGeneratedArtifacts(root: string, app: string, repo: string, created: string[], updated: string[]): Promise<void> {

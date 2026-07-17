@@ -12,6 +12,7 @@ import {
   validateEmittedArtifacts,
   type BootstrapAnswers,
 } from "./bootstrap.js";
+import { storeOnboardingSource } from "./onboarding-answers.js";
 import { loadRoles } from "./roles.js";
 
 export interface NewAppOptions {
@@ -107,6 +108,16 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     orgHome,
     ...(options.stateHome !== undefined ? { stateHome: options.stateHome } : {}),
   });
+
+  // Record where this greenfield app was scaffolded so `operon app verify` can
+  // synthesize a lifecycle record from the pushed remote (L0-01). new-app runs
+  // before `git init`/push, so it cannot write the record itself.
+  if (options.stateHome !== undefined) {
+    await storeOnboardingSource(options.stateHome, appName, {
+      repo: options.repoSlug,
+      checkoutPath: targetDir,
+    });
+  }
 
   await appendGateCommands(targetDir);
   const operonSeeds = generatedOperonSeedFiles(appName, options.repoSlug, goal, targetDir);

@@ -373,6 +373,35 @@ highest tier wins, unmatched → medium) selects *gates* (§5). A quick
 ticket that touches `auth/**` still gets high-tier gates — tiering makes
 the loop cheaper, **never** less safe.
 
+The ticket tier is a Planner *floor*, not the last word. The
+sensitive-domain deep floor (`route-policy.ts`: `sensitiveDomains.length > 0`
+forces the deep route) is **orchestrator-owned**, so it cannot depend on the
+Planner remembering to set the label. At plan publication
+(`plan-tickets.ts` → `applySensitiveDomainFloor`) the orchestrator reads each
+ticket's own **prose** — title, goal, context, out-of-scope, notes, acceptance
+— against the shared `auth|security|secret|privacy|payment|data` keyword set.
+Each domain is a curated **whole-word** alternation covering its real
+inflections (`auth` also matches `authentication`/`authorization`/`OAuth`,
+`secret` matches plural `secrets`, `payment` matches `payments`, `security`
+matches `secure`), so genuine sensitive work cannot slip under the floor — a
+too-narrow `\bauth\b` stem that skipped `authentication` would make tiering
+*less* safe, which the floor must never do. The whole-word boundaries still
+keep compounds from over-firing (`database`/`metadata`/`dataset` are not
+`data`, `data model` is a schema not user-data handling, `author`/`authored`/
+`authoritative` are not `auth`, `secretary` is not `secret`). `fileScope` **paths are not
+scanned** — a `src/data/**` path is too noisy to floor a whole ticket on, and
+genuine auth/crypto file surfaces are already caught by the review dimension's
+path match at diff/route time (L1-05), so no signal is lost overall. A match
+attaches the descriptive `domain:<d>` label(s) **and** floors the ticket to
+`op:tier-deep`. `routeDecisionForItem` (`driver.ts`) reads `sensitiveDomains`
+back from those labels, so a goal explicitly about storing user data receives
+the deep route and the `security-deep` pass — "never less safe" holds in the
+escalating direction too, not only for gates, while ordinary work (a plain
+docs page that merely names a `data model`) is not spuriously over-scrutinized.
+(Bootstrap is the deliberate exception: a greenfield scaffold "with no users"
+stays at its Planner tier — `validatePlan` forbids a bootstrap deep ticket —
+so it takes neither the deep floor nor a domain label.)
+
 
 
 ### Issue intake — everything enters through the Planner
@@ -415,11 +444,11 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 
 | Gate             | Mechanics (ported)                                                                                                                                             |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| setup            | run app's `setup_command` (e.g. `npm ci`) **first**, in the fresh worktree, before any scheduled gate — a cold clone has no `node_modules`, so a `test`/`lint` that shells out to an installed tool would otherwise fail for lack of deps; unconfigured = absent (no gate, never a failure); a setup **failure short-circuits** the whole set so the tests/lint gates don't produce misleading failures (`src/loop/qgates.ts` `runSetupGate` / `runGates`) |
+| setup            | run app's `setup_command` (e.g. `npm ci`) in the worktree to install dependencies. It runs **at worktree provision, before the first implement pass** (`advanceProvisionSetup`, `src/loop/loop.ts`), and again **first within each post-implement gate set**, before any scheduled gate (`runGates`, `src/loop/qgates.ts`). The provision run is load-bearing: `createWorktree` provisions an empty tree, and the builder's mandatory "baseline before changes — if red, stop" check runs at the very start of the implement pass, so without deps that baseline fails for **every** greenfield ticket regardless of ticket quality (the L1-02 defect; the live operator's workaround was committing 26 MB of `node_modules`). Unconfigured = absent (no gate, never a failure). A provision-time setup failure returns the ticket loudly (blocked-with-evidence comment + `op:returned`) with no build turn spent; within a gate set a setup **failure short-circuits** the rest so the tests/lint gates don't produce misleading failures (`runSetupGate`) |
 | tests            | run app's `test_command`, exit code 0, timeout; last output lines on fail                                                                                      |
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
-| security         | regex scan of changed files: `sk-[A-Za-z0-9]{32,}`, `ghp_…`, AWS keys, `-----BEGIN PRIVATE KEY-----`, generic key/token/password assignments; binaries skipped |
+| security         | regex scan of changed files against the canonical list in `src/runtime/secret-patterns.ts`: `sk-…`/`ghp_…`/`github_pat_…` keys, AWS key ids, Stripe/Slack/Google/npm tokens, Slack webhook URLs, JWTs, URL userinfo credentials, `-----BEGIN PRIVATE KEY-----`, and generic key/token/password assignments incl. snake_case forms (`GITHUB_TOKEN=…`, `aws_secret_access_key = …`); binaries skipped |
 | completeness     | criteria present and parseable; every criterion has a covering test in the contract mapping; no unresolved findings on the PR. Checkbox state is gate *output*, not input: the orchestrator renders all boxes checked at merge (no process participant may write them earlier — see docs/proportionality-review.md §7) |
 | review-freshness | branch HEAD == the APPROVE review's `commit_id` (GitHub-native); always runs regardless of tier                                                                |
 
@@ -432,6 +461,12 @@ scan; low: tests+completeness).
 
 **Where gates run:**
 
+0. **At worktree provision, before the first implement pass** — only the
+   `setup` gate (`advanceProvisionSetup`). A fresh worktree has no
+   dependencies, so this must precede the builder's baseline check; a failure
+   returns the ticket with evidence before any build turn is spent. The
+   post-implement gate set re-runs `setup` (idempotent), so this adds an
+   install at provision, it does not replace the later run.
 1. **After implement/fix, before the PR advances** — the reviewer is the
   org's most expensive seat (Opus, xhigh); never spend those tokens on
    code that fails `pnpm test` mechanically. Gate failure → **remediate**:
@@ -522,15 +557,23 @@ single-account pilot caveat: GitHub rejects approving your own PR, so until
 Operon has a separate bot/app identity, `GhCliOps` falls back only for that
 exact error to a real COMMENTED PR review carrying the
 `<!-- operon:self-approval-fallback sig=… -->` marker. That marker is **not**
-a static string anyone can post: it carries an HMAC over the PR number signed
-with an operator secret (`OPERON_SELF_APPROVAL_SECRET`,
-`authorization.selfApprovalSecret`) that the sandboxed agent cannot read. The
-loop upgrades a COMMENTED review to an approval only when the HMAC verifies
-(`verifiedSelfApprovalMarker` in src/loop/github.ts, a `timingSafeEqual` check)
-*and* the body is a structured `Verdict: approve`, and still enforces commit
-freshness. With no secret configured the loop fails closed — a bare marker is
-never trusted. (Threading the secret to the agent's own environment would
-re-open the forgery, so it must stay orchestrator-only.)
+a static string anyone can post: it carries an HMAC over the PR number **and
+the reviewed commit** (`headRefOid`) signed with an operator secret
+(`OPERON_SELF_APPROVAL_SECRET`, `authorization.selfApprovalSecret`) that the
+sandboxed agent cannot read. Binding the commit is what defeats replay (A-001):
+the marker is published into a world-readable review, so a prompt-injected
+builder can copy it, push arbitrary code, and post it again — but the loop
+recomputes the HMAC against the review's own `commit_id`, which GitHub stamps to
+the *new* head, so the replayed tag no longer verifies. The loop upgrades a
+COMMENTED review to an approval only when the HMAC verifies for that reviewed
+commit (`verifiedSelfApprovalMarker` in src/loop/github.ts, a `timingSafeEqual`
+check), the review clears the same author-independence gate as a real APPROVE
+(`isMarkedSelfApproval` mirrors `isIndependentApproval`), *and* the body is a
+structured `Verdict: approve`, and still enforces commit freshness against the
+branch head. With no secret configured, or an unresolved reviewed commit, the
+loop fails closed — a bare marker is never trusted. (Threading the secret to the
+agent's own environment would re-open the forgery, so it must stay
+orchestrator-only.)
 
 
 
@@ -590,6 +633,16 @@ is reserved for the **safety/approval escalation path** (a critical-op the
 human must clear); the build loop never writes it. Blocked-with-evidence,
 never silent retry-forever.
 
+A **legitimately-fired cap during review or ship-check** — a route/provider
+budget cap or a wall-clock/adapter timeout that aborts the pipeline — is
+terminalized the same way (L-005): `runReviewPipeline`/`runShipCheckPipeline`
+route `op:in-review -> op:returned` with a budget/limit-exhaustion evidence
+comment and leave the open PR untouched, instead of throwing and crashing
+`operon loop --once` (which stranded the ticket at `op:in-review` with a
+mergeable-but-orphaned PR). The distinction is `journalStopKind`: a
+`cap_stop`/`provider_timeout` terminalizes cleanly; a genuine internal error
+(`crash`) still throws loudly so a real defect is never swallowed.
+
 Completion detection is **state-based, never string-based**: the tick reads
 labels, PR/review state, and gate results — the predecessor's
 completion-detection philosophy with GitHub as the state store.
@@ -605,8 +658,10 @@ legal boundary across route, contract, implementation, push, gates, PR,
 findings, approvals, merge, and release. Accepted boundary fingerprints are
 reused. Ticket, commit, or reopened-finding drift records why the affected
 suffix was invalidated; no still-valid productive prefix repeats. `operon loop
---resume-episode <episode>` exposes that decision without constructing an
-adapter.
+--resume-episode <episode>` is a **read-only preview** of that decision — it
+prints the resume plan (`{ "preview": true, "resume": … }`) and states plainly
+that it does not execute; actual continuation is `operon loop --app <app>`,
+which claims the ticket and resumes from these durable artifacts (L-005).
 
 Every still-valid decision and accepted artifact survives cancellation,
 timeout, approval wait, cap, retry, and process restart. A productive pass may
@@ -652,6 +707,16 @@ annotation across a milestone's tickets.
 - The dispatcher treats a ticket as ready only when its dependencies are
 **merged**; independent tickets may run in parallel worktrees on separate
 branches, bounded by `org.max_concurrent_turns`.
+- **Re-arm is orchestrator-owned, not prompt-advisory (L-007).**
+`publishTickets` creates a dependency-locked ticket **stateless** (no
+`op:ready`), so `selectReadyTickets` never claims it until it is armed. The
+merge transition owns that arming: when a predecessor merges, `rearmDependents`
+(`src/loop/loop.ts`, called from the driver's merge path) promotes every
+now-unblocked stateless dependent to `op:ready` with an evidence comment — no
+manual label edit, and no reliance on the Planner "groom" pass, which the live
+campaign confirmed was unenforced (10/17 tickets never claimed; a human did all
+re-arms by hand). A dependent with any op-state label already has an owner and
+is left untouched.
 - **Scope-overlap conservatism:** tickets whose declared file scopes
 intersect are never scheduled concurrently. The predecessor's own rule,
 promoted to scheduler policy: "when in doubt, use sequential — incorrect
@@ -754,7 +819,10 @@ parse transcripts; previews are truncated (~120 chars), args hashed.
 - **Redaction is a precondition for export** and applies to L1/L2 always:
 no full prompts, no tool args, no secrets — the quality-gate secret
 regexes double as a log scrubber. L3 stays local, retention =
-`session_retention_days`; run dirs pruned on the same schedule.
+`session_retention_days`; run dirs pruned on the same schedule. Run-dir
+pruning (and retention for every other state subtree) runs daily from the
+dispatch tick's org-wide retention sweep — docs/scheduler.md → State
+retention; `operon prune-runs` remains the manual surface.
 - **Attribution is exact** — runs are ticket-scoped by construction; costs
 roll up run → ticket → (role, app) → monthly budget with no
 weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
@@ -772,6 +840,26 @@ weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
 `unmeasured: true` (cost unknown, not zero). New ledger rows also carry
 `usageQuality: complete|partial|estimated|unavailable`; dashboards label
 recorded lower bounds instead of presenting unknown spend as free.
+  - **Exactly-once is indexed, not rescanned (F-002).** `recordTurnOnce`
+  answers its idempotency check from a compact keys-only sidecar,
+  `telemetry-index/settled.keys` (a sibling of `telemetry/`, kept out of the
+  ledger directory so bare enumerators never parse or double-count it), one
+  settlement key per line — not by re-parsing
+  every `<day>.jsonl` on every write (which made settling N turns over a
+  system's life O(N²)). The sidecar is appended **ledger-first** under the same
+  cross-process settlement lock, so it can only ever lag the ledger, never lead
+  it: an index-hit always implies a ledger row (no lost turn), and the two
+  re-settle paths — the one-shot pass executor and `reconcileLedger`, which
+  reads the authoritative ledger first — never re-present a settled key (no
+  duplicate). The full ledger scan survives only as the rebuild path when the
+  sidecar is absent (legacy org, operator deletion). Budget accounting still
+  sums the `<day>.jsonl` rows, never the index.
+  - **A settlement failure never discards a paid turn (L-005).** The pass
+  executor writes the durable execution step *before* it settles, and wraps the
+  settlement call so a throw (e.g. a lock timeout under contention) records a
+  `telemetry.settle_failed` event and leaves the completed turn intact rather
+  than unwinding the pipeline past money already spent. `operon budget
+  --reconcile` back-fills the ledger row from the durable execution step.
 - **Cache visibility.** Input tokens come in three price classes (uncached
 ~1×, cache-write 1.25–2×, cache-read ~0.1×); both SDKs report the split
 per response. L1 rollups and telemetry carry it (`TurnUsage` delta, §10),
@@ -956,7 +1044,7 @@ distinct codes end to end (§9).
 | 4                           | Host asleep / offline                                | nothing runs                                         | missed schedules collapse to one firing; distributed item state resumes on any later tick                                                    |
 | 5                           | GitHub API down / rate-limited                       | API errors on tick                                   | loud L2 event; retry next tick (polling is idempotent); repeated → anomaly flag + incident note                                              |
 | 6                           | Session resume fails                                 | adapter error                                        | restart clean, `attempt++`                                                                                                                   |
-| 7                           | Run-dir / session growth                             | retention job                                        | pruned on `session_retention_days`; L1/L2 kept longer than L3                                                                                |
+| 7                           | Run-dir / session growth                             | retention job                                        | pruned on `session_retention_days`; L1/L2 kept longer than L3; the dispatch tick runs the daily org-wide sweep (docs/scheduler.md → State retention)                                                                |
 | **Model behavior**          |                                                      |                                                      |                                                                                                                                              |
 | 8                           | Tests fail during implement                          | in-pass verification loop                            | 3 mechanical attempts → blocked-with-evidence (error verbatim / attempted fix / assessment)                                                  |
 | 9                           | Gate failure after a pass                            | quality-gate engine                                  | remediation fix passes ≤ `max_attempts` (3) → blocked                                                                                        |

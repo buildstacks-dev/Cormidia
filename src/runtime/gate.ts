@@ -66,9 +66,82 @@ export function normalizeSemanticAction(action: ToolAction): SemanticAction {
   return { tool, operation, command, paths, destination, effect };
 }
 
+/** Strip agent-authored free-text argument VALUES — a commit message
+ *  (`-m`/`--message`), a PR/review body (`--body`), a release note
+ *  (`--notes`), etc. — from a command before it feeds the classification
+ *  rules. Those values are metadata the agent writes, not an effect the
+ *  command enacts, so matching rules against them is the L1-05 prose defect:
+ *  a review body that merely *discusses and rules out* "auth"/"secret"
+ *  concerns tripped `secrets-or-auth`, and one that named a protocol file
+ *  while using a write verb ("edits roles.yaml") tripped `protocol-self-edit`
+ *  — 9/9 false positives in the live campaign — while the action's real
+ *  effect (the `gh pr review` verb) reached the right rule only by accident.
+ *  This mirrors the VERDICT_TOOLS exemption (payload prose is data, not an
+ *  action) and deliberately does NOT touch normalizeSemanticAction, so the
+ *  authorization identity (actionHash) is unchanged. The command's actual
+ *  file arguments and verbs are untouched, so a real secret-file read or
+ *  protocol-surface write still classifies critical.
+ *
+ *  EXCEPTION (the prompt-injected-builder threat model): a value is only
+ *  stripped when it is inert prose. A value carrying a shell command
+ *  substitution or expansion — `$(...)`, a backtick, or `${...}` — is NOT
+ *  prose: the shell executes/expands it, so `git commit -m "$(cat .env)"`
+ *  reads .env and `gh pr create --body "$(cat ~/.ssh/id_rsa)"` reads a private
+ *  key at commit/PR time. Stripping those blinded the classifier and turned a
+ *  CRITICAL exfil into a ROUTINE op. Such a value is left in place so the
+ *  embedded command text still reaches the rules — the `.env`/`id_rsa` read
+ *  trips secrets-or-auth, an `rm -rf ~` trips destructive-or-irreversible, a
+ *  `curl` trips outbound-network. */
+function withoutMessageArgs(command: string): string {
+  return stripMessageArgs(command, { keepExecutable: true });
+}
+
+/** The message/free-text flag names whose VALUES are agent-authored metadata
+ *  rather than an effect the command enacts — a commit message (`-m`/
+ *  `--message`), a PR/review body (`--body`), a release note (`--notes`), and
+ *  the title/subject/description variants. One list, two consumers with a
+ *  deliberate behavioral fork (see stripMessageArgs). */
+const MESSAGE_FLAG_ARG =
+  /(?:^|\s)(?:--body|--message|--subject|--description|--notes|--title|-m)(?:=|\s+)("(?:[^"\\]|\\.)*"|'[^']*'|\S+)/gi;
+
+/** Strip message-flag argument VALUES from a command. The `keepExecutable`
+ *  fork is the whole point of sharing one flag list between two callers with
+ *  OPPOSITE fail-safe directions:
+ *   - CLASSIFICATION (`keepExecutable: true`, via withoutMessageArgs): a value
+ *     carrying a shell construct (`$(...)`, backtick, `${...}`) is KEPT so the
+ *     embedded effect still reaches the rules — `git commit -m "$(cat .env)"`
+ *     must stay CRITICAL (L1-05). Inert prose is dropped.
+ *   - GRANT-SCOPE (`keepExecutable: false`, from grantScopeText in
+ *     gate-compose.ts): EVERY message value is dropped, with no executable
+ *     carve-out, so no agent free text can reach a `pathContains` bound and
+ *     widen a scoped grant (P0-04c/A-005). Narrower is the fail-closed
+ *     direction for authorization scope — a stripped legitimate value merely
+ *     costs one human re-approval, whereas keeping `$(cat .npmrc)` (or a
+ *     `# .npmrc` smuggled inside a quoted value) would let it widen a
+ *     .npmrc-scoped grant to arbitrary reads. */
+export function stripMessageArgs(command: string, options: { keepExecutable: boolean }): string {
+  return command.replace(MESSAGE_FLAG_ARG, (match: string, value: string) =>
+    options.keepExecutable && hasExecutableEffect(value) ? match : " ",
+  );
+}
+
+/** True when a message VALUE contains a shell construct the shell would run or
+ *  expand rather than treat as literal text: command substitution `$(...)`, a
+ *  backtick, or parameter/`${IFS}`-style expansion `${...}`. Checked on the raw
+ *  value regardless of the surrounding quote style — an inert single-quoted
+ *  `$(...)` costs at most one human tap if kept, whereas reasoning about shell
+ *  quoting to save that tap would risk a false negative (fail closed). */
+function hasExecutableEffect(value: string): boolean {
+  return value.includes("$(") || value.includes("`") || value.includes("${");
+}
+
+function classificationCommand(semantic: SemanticAction): string {
+  return semantic.command === null ? "" : withoutMessageArgs(semantic.command);
+}
+
 export function semanticActionText(action: ToolAction): string {
   const semantic = normalizeSemanticAction(action);
-  return [semantic.tool, semantic.operation, semantic.command ?? "", ...semantic.paths]
+  return [semantic.tool, semantic.operation, classificationCommand(semantic), ...semantic.paths]
     .join(" ")
     .toLowerCase();
 }
@@ -76,7 +149,7 @@ export function semanticActionText(action: ToolAction): string {
 const asText = (a: ToolAction): string => semanticActionText(a);
 const effectText = (a: ToolAction): string => {
   const semantic = normalizeSemanticAction(a);
-  return `${semantic.tool} ${semantic.command ?? ""}`.toLowerCase();
+  return `${semantic.tool} ${classificationCommand(semantic)}`.toLowerCase();
 };
 
 /** v0 heuristics. Deliberately over-broad: false positives cost a human tap,
@@ -171,17 +244,18 @@ export const CRITICAL_RULES: CriticalRule[] = [
   },
   {
     // Self-merge / self-approve bypasses the review boundary the whole org
-    // depends on: an agent must never merge its own PR, approve a review, or
-    // use an --admin override. The orchestrator's own merges do not pass
-    // through this gate (they are GhOps, not agent tool calls).
+    // depends on: an agent must never merge its own PR or post a review of
+    // one — reviews travel as typed verdicts; the orchestrator turns them into
+    // GhOps that do NOT pass through this gate. The rule therefore matches
+    // EVERY `gh pr merge`/`gh pr review` regardless of flag (not just
+    // `--approve`): `gh pr review --comment` is the self-approval marker's
+    // publish channel (A-001) and must classify critical too, matching the
+    // Claude deny pattern `Bash(gh pr review:*)` in role-shaping.ts. Read-only
+    // `gh pr view/list/checkout` stay routine.
     name: "self-merge-or-approve",
     matches: (a) => {
       const t = asText(a);
-      return (
-        /\bgh\s+pr\s+merge\b/.test(t) ||
-        (/\bgh\s+pr\s+review\b/.test(t) && /--approve\b/.test(t)) ||
-        (/\bgh\b/.test(t) && /--admin\b/.test(t))
-      );
+      return /\bgh\s+pr\s+(?:merge|review)\b/.test(t) || (/\bgh\b/.test(t) && /--admin\b/.test(t));
     },
   },
   {

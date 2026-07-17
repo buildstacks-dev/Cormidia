@@ -488,6 +488,14 @@ estimates, flagged as such on every row. `operon telemetry --app <app>
 [--html out.html]` renders the run view and copies linked artifacts into an
 adjacent evidence bundle.
 
+None of these stores grows forever: every state subtree has a documented
+retention window, swept fail-safe once per UTC day from the dispatch tick
+(docs/scheduler.md → State retention; manual form `operon prune-runs
+--sweep`). Ledger day-files are never deleted while `budget --reconcile`
+could still re-settle their rows from surviving evidence, and the committed
+org-home `learning/**` substrate plus the state home's durable learning
+archives are never swept.
+
 `operon report [--app <app>] [--period 90d] [--json|--html out.html]`
 instead reads the ledger first, keeps duplicate rows as recorded, separates
 provider-reported, estimated, partial, and unknown cost, and groups explicit

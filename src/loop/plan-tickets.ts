@@ -23,6 +23,23 @@ export const PRIORITY_LABELS = ["p1", "p2", "p3"] as const;
 export type TierLabel = (typeof TIER_LABELS)[number];
 export type PriorityLabel = (typeof PRIORITY_LABELS)[number];
 
+/** The sensitive risk domains — the ONE keyword set shared with the route
+ *  policy's deep floor. `routeDecisionForItem` (src/loop/driver.ts) derives
+ *  `sensitiveDomains` from `item.labels` with exactly this alternation
+ *  (`/auth|security|secret|privacy|payment|data/`); a ticket carrying a
+ *  `domain:<d>` label is what makes `route-policy.ts`'s always-implemented
+ *  sensitive-domain floor able to fire. Attaching these labels at publication
+ *  is the orchestrator ENCODING the Planner's own risk identification as a
+ *  durable label instead of relying on prose that no owner reads (Theme 6). */
+export const SENSITIVE_DOMAINS = ["auth", "security", "secret", "privacy", "payment", "data"] as const;
+export type SensitiveDomain = (typeof SENSITIVE_DOMAINS)[number];
+
+/** The published label for a sensitive domain. The name deliberately contains
+ *  the bare keyword so the route policy's `/auth|.../` regex matches it. */
+export function domainLabelName(domain: SensitiveDomain): string {
+  return `domain:${domain}`;
+}
+
 /** Labels publication guarantees exist on the target repo before any issue
  *  is created — the episode's first claim failed because `op:building` did
  *  not exist. */
@@ -38,6 +55,15 @@ export const CANONICAL_LABELS: readonly { name: string; color: string; descripti
   { name: "p1", color: "e11d21", description: "Priority 1" },
   { name: "p2", color: "eb6420", description: "Priority 2" },
   { name: "p3", color: "fef2c0", description: "Priority 3" },
+  // Sensitive-domain labels — attached by the orchestrator when a ticket's own
+  // content names a risk domain, so the route policy's sensitive-domain deep
+  // floor can fire (see SENSITIVE_DOMAINS / applySensitiveDomainFloor).
+  { name: "domain:auth", color: "5319e7", description: "Touches authn/authz surfaces" },
+  { name: "domain:security", color: "5319e7", description: "Touches security-sensitive surfaces" },
+  { name: "domain:secret", color: "5319e7", description: "Touches secret/credential handling" },
+  { name: "domain:privacy", color: "5319e7", description: "Touches privacy-sensitive handling" },
+  { name: "domain:payment", color: "5319e7", description: "Touches payment surfaces" },
+  { name: "domain:data", color: "5319e7", description: "Touches user-data storage/handling" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -253,6 +279,102 @@ export function parseReleaseKind(body: string): ReleaseKind | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Sensitive-domain deep floor — orchestrator-owned (L0-02 / Theme 6)
+// ---------------------------------------------------------------------------
+
+/** Per-domain match: the domain's real inflections as whole WORDS, so a
+ *  generic term does not match inside an unrelated compound. Two failure modes
+ *  are guarded against at once (L0-02, both directions):
+ *
+ *  Over-escalation (a raw substring floored ordinary work): `data` matched
+ *  `database`, `metadata`, `dataset`, and every `data model` / `src/data/**`
+ *  path. Word boundaries drop `database`/`metadata`/`dataset`, and the `data`
+ *  pattern additionally excludes the technical compound `data model(s)` (a
+ *  schema, not user-data handling) while still matching `user data`,
+ *  `personal data`, `user-data`, etc.
+ *
+ *  Under-escalation (a too-strict `\bword\b` stem MISSED the dominant sensitive
+ *  phrasings): a bare `\bauth\b` matched only the rare token "auth" and skipped
+ *  `authentication`/`authorization`/`OAuth`; `\bsecret\b` skipped plural
+ *  `secrets`; `\bpayment\b` skipped `payments`; `\bsecurity\b` skipped
+ *  `secure`. Silently skipping the deep safety floor on genuine auth/secret/
+ *  payment work violates "tiering makes the loop cheaper, never LESS safe", so
+ *  each stem is a curated per-domain alternation covering the real inflections.
+ *  The alternations still exclude the near-miss compounds: `author`/`authored`/
+ *  `authoritative` are not `auth`, and `secretary` is not `secret`.
+ *
+ *  Auth/crypto FILE surfaces stay covered independently by the review
+ *  dimension's path match (`dimension_globs.security`) at diff/route time
+ *  (L1-05), so scanning prose rather than paths loses no overall signal. Every
+ *  MUST-FIRE/MUST-NOT-FIRE row is pinned in `test/loop/plan-tickets.test.ts`. */
+const DOMAIN_PATTERNS: Record<SensitiveDomain, RegExp> = {
+  auth: /\b(auth|authn|authz|authentication|authenticate|authenticated|authorization|authorize|authorized|oauth)\b/i,
+  security: /\b(security|secure|secured|securing)\b/i,
+  secret: /\bsecrets?\b/i,
+  privacy: /\bprivacy\b/i,
+  payment: /\bpayments?\b/i,
+  data: /\bdata\b(?!\s+models?\b)/i,
+};
+
+/** The sensitive domains a ticket touches, derived from the ticket's OWN
+ *  PROSE (title, goal, context, out-of-scope, notes, acceptance) using the
+ *  same keyword set the route policy's floor keys on, matched at WORD
+ *  boundaries. A match means the work itself is about
+ *  auth/security/secrets/privacy/payments/user-data — the Planner already
+ *  writes this in prose; this reads it back deterministically so the
+ *  orchestrator, not the prose, owns the escalation.
+ *
+ *  `fileScope` PATHS are deliberately NOT scanned: a path segment like
+ *  `src/data/**` is too noisy to floor a whole ticket on, and genuine
+ *  auth/crypto file surfaces are already caught by the review dimension's
+ *  path match at diff/route time (L1-05). */
+export function sensitiveDomainsForTicket(ticket: PlanTicket): SensitiveDomain[] {
+  const prose = [
+    ticket.title,
+    ticket.goal,
+    ticket.context,
+    ticket.outOfScope,
+    ticket.notesForBuilder,
+    ...ticket.acceptanceCriteria,
+  ]
+    .join("\n")
+    .toLowerCase();
+  return SENSITIVE_DOMAINS.filter((domain) => DOMAIN_PATTERNS[domain].test(prose));
+}
+
+/** One ticket's publication shape: its (possibly tier-escalated) ticket plus
+ *  the sensitive-domain labels to attach. */
+export interface TicketPublication {
+  ticket: PlanTicket;
+  domainLabels: string[];
+}
+
+/** Apply the orchestrator-owned sensitive-domain deep floor to a plan.
+ *
+ *  A ticket whose own content names a sensitive domain gets descriptive
+ *  `domain:<d>` labels AND is floored to `op:tier-deep`, so the route
+ *  policy's sensitive-domain floor (`route-policy.ts`) fires: at loop time
+ *  `routeDecisionForItem` reads `sensitiveDomains` from these labels and a
+ *  deep tier keeps the structured decision consistent (a domain label on a
+ *  still-`standard` ticket would make that consistency check throw — the
+ *  label and the deep tier are one escalation, applied together).
+ *
+ *  Bootstrap is the deliberate exception: a greenfield scaffold "with no
+ *  users" must not be deep (validatePlan enforces this, P2), so a bootstrap
+ *  ticket keeps its tier and takes no domain label — attaching one without
+ *  the matching deep tier would break the loop's route consistency check. */
+export function applySensitiveDomainFloor(plan: TicketPlan): TicketPublication[] {
+  return plan.tickets.map((ticket) => {
+    const domains = plan.stage === "bootstrap" ? [] : sensitiveDomainsForTicket(ticket);
+    if (domains.length === 0) return { ticket, domainLabels: [] };
+    return {
+      ticket: ticket.tier === "op:tier-deep" ? ticket : { ...ticket, tier: "op:tier-deep" },
+      domainLabels: domains.map(domainLabelName),
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Publication — orchestrator-owned, validate-all-then-create
 // ---------------------------------------------------------------------------
 
@@ -269,7 +391,8 @@ export interface PublishResult {
 
 /** Publish a validated plan: ensure the canonical labels exist, create every
  *  issue (labels: tier + priority; `op:ready` only on dependency-free tickets
- *  — dependency-locked backlog stays stateless until groom arms it), then
+ *  — dependency-locked backlog stays stateless until its predecessors merge,
+ *  when the merge transition arms it via `rearmDependents`, L-007), then
  *  back-fill real issue numbers into `Depends-on:` references. Throws on the
  *  first GitHub failure — by then all-local validation has already passed, so
  *  a failure is environmental, and everything created so far is reported in
@@ -281,15 +404,20 @@ export async function publishTickets(gh: GhOps, plan: TicketPlan): Promise<Publi
   }
   for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
 
+  // Orchestrator-owned sensitive-domain floor: derive domain labels and floor
+  // risky tickets to op:tier-deep from the tickets' own content (L0-02). The
+  // ticket bodies still render from the original ticket text; only the tier
+  // label and the extra domain labels change.
+  const publications = applySensitiveDomainFloor(plan);
   const issueNumbers: (number | undefined)[] = plan.tickets.map(() => undefined);
   const published: PublishedTicket[] = [];
   try {
-    for (const [index, ticket] of plan.tickets.entries()) {
+    for (const [index, { ticket, domainLabels }] of publications.entries()) {
       const ready = ticket.dependsOn.length === 0;
       const issue = await gh.createIssue({
         title: ticket.title,
         body: renderTicketBody(ticket, issueNumbers, plan.releaseKind),
-        labels: [ticket.tier, ticket.priority, ...(ready ? ["op:ready"] : [])],
+        labels: [ticket.tier, ticket.priority, ...domainLabels, ...(ready ? ["op:ready"] : [])],
       });
       issueNumbers[index] = issue.number;
       published.push({ index, issueNumber: issue.number, title: ticket.title, ready });

@@ -5,6 +5,7 @@
 // GitHub state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,9 +17,24 @@ import {
   planLoopTick,
   runLoopOnce,
 } from "../src/loop/driver.js";
+import { dependencyRelevantPackageJson } from "../src/loop/loop.js";
 import { writeTicketClaimState } from "../src/loop/rehydrate.js";
-import { makeBareWithClone } from "./fixtures/gitRepo.js";
+import { makeBareWithClone, makeWorkingRepo } from "./fixtures/gitRepo.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
+
+function policyYaml(): string {
+  return [
+    "risk_tiers:",
+    "  high: ['auth/**']",
+    "  medium: ['src/**']",
+    "  low: ['**']",
+    "gates:",
+    "  high: [tests]",
+    "  medium: [tests]",
+    "  low: [tests]",
+    "",
+  ].join("\n");
+}
 
 const issueBody = [
   "## Goal",
@@ -71,6 +87,65 @@ describe("loop driver", () => {
       );
     } finally {
       pair.cleanup();
+    }
+  });
+
+  it("ensureClone follows a master-default remote instead of hardcoding main (L-010)", async () => {
+    // A stock `git init` environment (no init.defaultBranch) produces
+    // `master`; the managed-clone path used to run `git fetch origin main`
+    // and crash the first tick with a raw git error.
+    const pair = makeBareWithClone("master");
+    try {
+      pair.clone.commit("seed app policy", {
+        ".operon/policy.yaml": policyYaml(),
+        "README.md": "seed\n",
+      });
+      pair.clone.git("push", "origin", "master");
+      // Local drift the tick must discard, exactly as it always did for main.
+      pair.clone.commit("unpushed local drift", { "README.md": "drift\n" });
+
+      const inputs = await defaultLoopInputs("owner/fixture", pair.clone.root);
+
+      expect(inputs.baseRef).toBe("master");
+      expect(pair.clone.git("branch", "--show-current")).toBe("master");
+      expect(pair.clone.git("rev-parse", "HEAD")).toBe(
+        pair.clone.git("rev-parse", "origin/master"),
+      );
+    } finally {
+      pair.cleanup();
+    }
+  });
+
+  it("ensureClone still resolves a main-default remote and threads baseRef main", async () => {
+    const pair = makeBareWithClone();
+    try {
+      pair.clone.commit("seed app policy", { ".operon/policy.yaml": policyYaml() });
+      pair.clone.git("push", "origin", "main");
+
+      const inputs = await defaultLoopInputs("owner/fixture", pair.clone.root);
+
+      expect(inputs.baseRef).toBe("main");
+      expect(pair.clone.git("branch", "--show-current")).toBe("main");
+    } finally {
+      pair.cleanup();
+    }
+  });
+
+  it("a remote advertising no default branch fails loudly and actionably, not with a raw git error (L-010)", async () => {
+    // An empty origin advertises no HEAD symref: "cannot determine" must be
+    // a clear refusal naming the situation, never a guessed `main`.
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-empty-origin-"));
+    try {
+      const bare = join(root, "origin.git");
+      execFileSync("git", ["init", "--bare", "--initial-branch=master", bare], { cwd: root });
+      const clone = join(root, "clone");
+      execFileSync("git", ["clone", bare, clone], { cwd: root, stdio: "ignore" });
+
+      await expect(defaultLoopInputs("owner/fixture", clone)).rejects.toThrow(
+        /advertises no default branch/,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
@@ -296,6 +371,120 @@ describe("loop driver", () => {
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// L1-05 (behavioral, real git): the security dimension's package.json trigger
+// reads the actual diff. A trivial metadata edit must not mark package.json
+// dependency-relevant (so it will not escalate standard → deep); a
+// dependency/script change must.
+describe("dependencyRelevantPackageJson (L1-05, real git diff)", () => {
+  function pkg(extra: Record<string, unknown>): string {
+    return (
+      JSON.stringify(
+        {
+          name: "fixture-app",
+          version: "1.0.0",
+          private: true,
+          scripts: { test: "vitest" },
+          dependencies: { react: "^18.0.0" },
+          ...extra,
+        },
+        null,
+        2,
+      ) + "\n"
+    );
+  }
+
+  it("ignores a metadata-only package.json edit but catches a dependency/script change", () => {
+    const repo = makeWorkingRepo();
+    try {
+      const base = repo.commit("chore: baseline package.json", { "package.json": pkg({}) });
+
+      // Metadata-only: add a `files` field / touch source — no dep/script key.
+      repo.commit("chore: add files field", {
+        "package.json": pkg({ files: ["dist", "src"] }),
+        "src/app.ts": "export const x = 1;\n",
+      });
+      let changed = repo.changedFiles(base);
+      expect(changed).toContain("package.json");
+      expect([...dependencyRelevantPackageJson(repo.root, base, "HEAD", changed)]).toEqual([]);
+
+      // Dependency bump on a fresh baseline.
+      const base2 = repo.head();
+      repo.commit("build: bump react", {
+        "package.json": pkg({ files: ["dist", "src"], dependencies: { react: "^18.3.0" } }),
+      });
+      changed = repo.changedFiles(base2);
+      expect([...dependencyRelevantPackageJson(repo.root, base2, "HEAD", changed)]).toEqual(["package.json"]);
+
+      // Script change on a fresh baseline.
+      const base3 = repo.head();
+      repo.commit("build: add postinstall", {
+        "package.json": pkg({
+          files: ["dist", "src"],
+          dependencies: { react: "^18.3.0" },
+          scripts: { test: "vitest", postinstall: "node setup.js" },
+        }),
+      });
+      changed = repo.changedFiles(base3);
+      expect([...dependencyRelevantPackageJson(repo.root, base3, "HEAD", changed)]).toEqual(["package.json"]);
+    } finally {
+      repo.cleanup();
+    }
+  });
+
+  it("marks a newly added package.json with dependencies as relevant", () => {
+    const repo = makeWorkingRepo();
+    try {
+      // makeWorkingRepo already committed a package.json; add a nested one.
+      const base = repo.head();
+      repo.commit("feat: add a sub-package", { "packages/api/package.json": pkg({}) });
+      const changed = repo.changedFiles(base);
+      expect(changed).toContain("packages/api/package.json");
+      expect([...dependencyRelevantPackageJson(repo.root, base, "HEAD", changed)]).toEqual([
+        "packages/api/package.json",
+      ]);
+    } finally {
+      repo.cleanup();
+    }
+  });
+
+  // L1-05 fixup: a genuine git FAILURE must fail SAFE (escalate), not fail open.
+  it("escalates when git show fails — a transient 'cannot check' is treated as risky, not 'no change'", () => {
+    const repo = makeWorkingRepo();
+    try {
+      // A bogus base ref makes `git show <ref>:package.json` fail with
+      // "invalid object name" — a genuine failure, NOT a legitimately-absent
+      // path. We cannot compare, so package.json must be treated as a security
+      // signal (escalate). The old helper collapsed this into undefined → {},
+      // which — when the present side also had no dependency keys — read as
+      // "no change" and silently dropped the escalation (fail-open).
+      expect([...dependencyRelevantPackageJson(repo.root, "does-not-exist-ref", "HEAD", ["package.json"])]).toEqual([
+        "package.json",
+      ]);
+    } finally {
+      repo.cleanup();
+    }
+  });
+
+  it("treats a legitimately-absent side as empty, not a failure: an added metadata-only package.json does not escalate", () => {
+    const repo = makeWorkingRepo();
+    try {
+      // A newly-added package.json with NO dependency/script keys: the base
+      // side legitimately does not exist at `base` (an absence, not an error),
+      // so the present side's (empty) deps drive the comparison → not relevant.
+      // This is the case that must NOT be conflated with a git failure.
+      const base = repo.head();
+      repo.commit("feat: add a metadata-only sub-package", {
+        "packages/meta/package.json": JSON.stringify({ name: "meta", version: "1.0.0" }, null, 2) + "\n",
+      });
+      const changed = repo.changedFiles(base);
+      expect(changed).toContain("packages/meta/package.json");
+      expect([...dependencyRelevantPackageJson(repo.root, base, "HEAD", changed)]).toEqual([]);
+    } finally {
+      repo.cleanup();
     }
   });
 });

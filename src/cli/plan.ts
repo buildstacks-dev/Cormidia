@@ -26,6 +26,19 @@ export async function cmdPlan(args: string[]): Promise<number> {
   const parentTaskId = await resolveParentTaskId(homes.stateHome, parsed.parentTaskId);
 
   if (parsed.explainRoute) {
+    // --explain-route is the token-free route preview (a standalone usage form
+    // in the CLI help). Combined with --auto it used to win silently: exit 0,
+    // route JSON, and the requested planning run dropped without a word — the
+    // live campaign followed exactly that combination and believed planning
+    // had happened (review L-008). Contradictory instructions are rejected
+    // loudly instead of one being silently discarded.
+    if (parsed.auto) {
+      throw new Error(
+        "plan: --explain-route (token-free route preview) cannot be combined with --auto (a real planning run) — " +
+          "drop --explain-route to plan (the plan output includes its routing decision), " +
+          "or drop --auto to preview the route without planning",
+      );
+    }
     const appsFile = await loadApps(join(homes.orgHome, "apps.yaml"));
     const app = appsFile.apps.find((entry) => entry.name === parsed.app);
     if (app === undefined) throw new Error(`plan: unknown app "${parsed.app}" in apps.yaml`);

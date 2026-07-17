@@ -12,6 +12,7 @@ import type { GhIssue, GhOps } from "./github.js";
 import { GhCliOps } from "./github.js";
 import {
   advanceGates,
+  advanceProvisionSetup,
   advanceReviewing,
   advanceShipping,
   branchNameForIssue,
@@ -19,6 +20,8 @@ import {
   criterionTestMapFromContractText,
   itemFromIssue,
   parseAcceptanceCriteria,
+  dependencyRelevantPackageJson,
+  rearmDependents,
   runBuilderPipeline,
   runReviewPipeline,
   runShipCheckPipeline,
@@ -99,8 +102,9 @@ export interface LoopDriverOptions {
    *  not declare, and a merged deploy/package milestone returns a
    *  releaseTrigger for the org layer to queue as a critical op. */
   release?: ReleaseConfig;
-  /** Immutable commit/ref captured from a supplied checkout. Ticket branches
-   * start here instead of assuming `main`. */
+  /** Base rev ticket branches start from instead of an assumed `main`: the
+   * immutable commit captured from a supplied checkout, or the managed
+   * clone's resolved default branch (L-010). */
   baseRef?: string;
 }
 
@@ -275,6 +279,18 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     }
     if (options.engine !== undefined) {
       item = await admitTicketEpisode(options, item);
+      // Provision the worktree's dependencies BEFORE the first implement pass.
+      // createWorktree provisions an empty tree, and the builder's mandatory
+      // "baseline before changes" check runs at the start of the implement
+      // pass — without deps it fails every greenfield ticket regardless of
+      // ticket quality (L1-02 / L-003). runGates keeps its own post-implement
+      // setup re-run; this is the earlier run a fresh worktree needs. A setup
+      // failure returns the ticket loudly here, so no doomed build turn runs.
+      item = await advanceProvisionSetup(item, {
+        gh: options.gh,
+        commands: gateCommandsForWorktree(options.commands, item.worktree),
+        runlog: gateRunlog(options, item),
+      });
     }
     if (options.engine === undefined) {
       item = await (options.afterClaim?.(item) ?? item);
@@ -449,6 +465,20 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       });
     }
     items.push(item);
+    // L-007: when a ticket merges, the merge transition owns promoting any
+    // now-unblocked dependents to op:ready. Best-effort — the merge is already
+    // durable, so a re-arm failure logs a line but never fails the tick.
+    if (item.phase === "merged") {
+      try {
+        for (const dependent of await rearmDependents(options.gh, item.issueNumber)) {
+          lines.push(`#${dependent}: dependencies satisfied by #${item.issueNumber} merge -> op:ready`);
+        }
+      } catch (error) {
+        lines.push(
+          `#${item.issueNumber}: merged, but re-arming dependents failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
     if (options.engine !== undefined) {
       // Append this claim's outcome to the cross-claim record — it is the
       // evidence the park digest shows the human after the claim cap.
@@ -503,7 +533,9 @@ export async function defaultLoopInputs(
     localRepo = prepared.path;
     baseRef = prepared.head;
   } else {
-    ensureClone(repoSlug, repoDir);
+    // The managed clone's resolved default branch (not an assumed `main`)
+    // becomes the base every ticket branch and gate diff starts from.
+    baseRef = ensureClone(repoSlug, repoDir);
   }
   return {
     gh: new GhCliOps(repoSlug, undefined, process.env["OPERON_SELF_APPROVAL_SECRET"]),
@@ -744,12 +776,18 @@ async function reassessForObservedWorktreeRisk(
 ): Promise<LoopItem> {
   const engine = options.engine;
   if (engine === undefined || item.worktree === undefined) return item;
-  const changedFiles = git(item.worktree, "diff", "--name-only", options.baseRef ?? "origin/main", "HEAD")
+  const baseRef = options.baseRef ?? "origin/main";
+  const changedFiles = git(item.worktree, "diff", "--name-only", baseRef, "HEAD")
     .split("\n")
     .map((value) => value.trim())
     .filter(Boolean);
   const risk = resolveTier(options.policy, changedFiles);
-  const dimensions = matchedDimensions(options.policy, changedFiles);
+  // Content-gate package.json for the security dimension: a bare
+  // metadata/test-glob edit must not escalate standard → deep; a
+  // dependency/run-script change must (L1-05).
+  const dimensions = matchedDimensions(options.policy, changedFiles, {
+    dependencyRelevantPackageJson: dependencyRelevantPackageJson(item.worktree, baseRef, "HEAD", changedFiles),
+  });
   if (risk !== "high" && !dimensions.includes("security")) return item;
   const target = journalTarget(options, item);
   const record = await readRouteRecord(target.root, target.episodeId);
@@ -776,7 +814,14 @@ async function reassessForObservedWorktreeRisk(
   return reassessed;
 }
 
-function routeDecisionForItem(item: LoopItem): RouteDecision {
+/** Reconstruct the structured route decision for a claimed ticket. The
+ *  `sensitiveDomains` are read back from the ticket's labels (the orchestrator
+ *  attaches `domain:<d>` labels at plan publication — see
+ *  `applySensitiveDomainFloor`), which is what lets the route policy's
+ *  sensitive-domain deep floor fire. Throws if the tier label and the
+ *  structured decision disagree — a domain label therefore requires the
+ *  ticket to already be `op:tier-deep`. */
+export function routeDecisionForItem(item: LoopItem): RouteDecision {
   const sensitiveDomains = item.labels
     .filter((label) => /auth|security|secret|privacy|payment|data/.test(label))
     .sort();
@@ -924,15 +969,49 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
-function ensureClone(repoSlug: string, repoDir: string): void {
+/** Prepare the Operon-managed clone and report the branch ticket work starts
+ * from. The remote's advertised default branch is resolved instead of being
+ * assumed to be `main`: a stock `git init` repo (no init.defaultBranch) is
+ * `master`, and the first tick used to die inside `git fetch origin main`
+ * with a raw git error (review L-010). */
+function ensureClone(repoSlug: string, repoDir: string): string {
   if (existsSync(join(repoDir, ".git"))) {
-    git(repoDir, "fetch", "origin", "main");
-    git(repoDir, "checkout", "main");
-    git(repoDir, "reset", "--hard", "origin/main");
-    return;
+    const branch = remoteDefaultBranch(repoDir);
+    git(repoDir, "fetch", "origin", branch);
+    git(repoDir, "checkout", branch);
+    git(repoDir, "reset", "--hard", `origin/${branch}`);
+    return branch;
   }
   mkdirSync(dirname(repoDir), { recursive: true });
   git(dirname(repoDir), "clone", `https://github.com/${repoSlug}.git`, repoDir);
+  // A fresh clone already sits on the remote's default branch — git resolved
+  // the remote HEAD itself; read the answer instead of assuming one.
+  return git(repoDir, "symbolic-ref", "--short", "HEAD");
+}
+
+/** The default branch origin advertises (`git ls-remote --symref origin
+ * HEAD`) — the same resolution bootstrap uses in src/org/app-lifecycle.ts.
+ * "Could not ask" and "the remote advertises nothing" (an empty repository)
+ * are both loud, actionable errors: guessing `main` here is how a
+ * master-default repo crashed the first tick with a raw git stack trace. */
+function remoteDefaultBranch(repoDir: string): string {
+  let output: string;
+  try {
+    output = git(repoDir, "ls-remote", "--symref", "origin", "HEAD");
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `loop: cannot resolve the default branch of origin for ${repoDir} — ${detail.trim()}`,
+    );
+  }
+  const match = /^ref:\s+refs\/heads\/(\S+)\s+HEAD$/m.exec(output);
+  if (!match?.[1]) {
+    throw new Error(
+      `loop: origin of ${repoDir} advertises no default branch (empty repository?) — ` +
+        "push an initial commit or set the remote HEAD before running the loop",
+    );
+  }
+  return match[1];
 }
 
 function snapshotSuppliedCheckout(sourceDir: string, snapshotDir: string): { path: string; head: string } {

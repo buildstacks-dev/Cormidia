@@ -5,7 +5,7 @@
 // the pipeline executor in M6; M5 proves the GitHub/gate/state-machine shell
 // that those turns plug into.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -20,7 +20,7 @@ import { isMergeConflict } from "./github.js";
 import { verifiedSelfApprovalMarker } from "./github.js";
 import { openPhaseRun, type LoopRunlog, type PhaseRun } from "./loop-runlog.js";
 import type { Policy, RiskTier } from "./policy.js";
-import { matchedDimensions, resolveTier } from "./policy.js";
+import { matchedDimensions, packageJsonTouchesSecurityKeys, resolveTier } from "./policy.js";
 import {
   executePipeline,
   type ExecutePipelineOptions,
@@ -31,6 +31,7 @@ import {
 import { getPipeline, type PassConfig, type PassSelection, type PipelinesFile } from "./pipelines.js";
 import {
   runGates,
+  runSetupGate,
   type AcceptanceCriterion,
   type CompletenessFinding,
   type CriterionTestMap,
@@ -55,7 +56,8 @@ import {
 } from "./verdicts.js";
 import type { LoopItem, LoopPhase, ReleaseConfig, ScorecardEvent, TicketTier } from "./types.js";
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
-import { parseReleaseKind } from "./plan-tickets.js";
+import { parseReleaseKind, STATE_LABELS } from "./plan-tickets.js";
+import { parseDependsOn } from "./scheduling.js";
 import {
   recordExecutionBoundary,
   stopExecutionJournal,
@@ -305,6 +307,107 @@ export async function advanceGates(
       gateResults,
     };
   }
+}
+
+export interface ProvisionSetupOptions {
+  gh: GhOps;
+  commands: GateCommands;
+  process?: ProcessGateOpts;
+  /** When present, the provision-setup step gets its own run record so its
+   *  `gate.started/passed/failed` events and `envelope.gate_results` land in
+   *  events.jsonl BEFORE the first implement pass (docs/loop.md §5, §9). Absent
+   *  → no run record, identical behavior. */
+  runlog?: LoopRunlog;
+}
+
+/** Run the app's `setup` gate in the freshly provisioned worktree, BEFORE the
+ *  first implement pass (L1-02 / L-003, docs/loop.md §5). `createWorktree`
+ *  provisions an empty tree with no installed dependencies, and the builder's
+ *  mandatory "baseline before changes — if red, stop" check runs at the very
+ *  start of the implement pass. Without deps that baseline fails for every
+ *  greenfield ticket regardless of ticket quality, so the dependency install
+ *  has to happen here, at provision, not only in the post-implement gates
+ *  runner (`runGates` keeps its own setup re-run — this is the earlier run a
+ *  fresh worktree needs).
+ *
+ *  An unconfigured `setup_command` is a clean absence (`runSetupGate` returns
+ *  undefined): no dependency step, no run record, nothing reported — identical
+ *  to today. A setup FAILURE is surfaced loudly, mirroring `advanceGates`: a
+ *  blocked-with-evidence comment plus an `op:returned` transition, and no
+ *  implement pass runs. It is never a silent proceed into a doomed baseline. */
+export async function advanceProvisionSetup(
+  item: LoopItem,
+  options: ProvisionSetupOptions,
+): Promise<LoopItem> {
+  const worktree = requireField(item, "worktree");
+  const setupResult = await runSetupGate(worktree, options.commands, options.process);
+  if (setupResult === undefined) return item;
+
+  const rec =
+    options.runlog !== undefined ? await openPhaseRun(options.runlog, "provision", "setup") : undefined;
+  if (rec !== undefined) {
+    await rec.events.append({ type: "gate.started", detail: { gate: "setup", provision: true } });
+    if (setupResult.status === "fail") {
+      await rec.events.append({
+        type: "gate.failed",
+        severity: "error",
+        detail: {
+          gate: setupResult.gate,
+          detail: setupResult.detail,
+          ...(setupResult.command !== undefined ? { command: setupResult.command } : {}),
+          ...(setupResult.outputTail !== undefined ? { outputTail: boundTail(setupResult.outputTail) } : {}),
+        },
+      });
+    } else {
+      await rec.events.append({
+        type: "gate.passed",
+        detail: { gate: setupResult.gate, detail: setupResult.detail },
+      });
+    }
+    await rec.setGateResults([toGateResultEntry(setupResult)]);
+  }
+
+  if (setupResult.status !== "fail") {
+    await rec?.finalize("completed");
+    return item;
+  }
+
+  const fromLabel = stateLabelForPhase(item.phase);
+  await options.gh.commentIssue(item.issueNumber, provisionSetupFailedComment(setupResult));
+  await options.gh.swapLabel(item.issueNumber, fromLabel, "op:returned");
+  await rec?.transition(fromLabel, "op:returned");
+  await rec?.finalize("blocked");
+  return {
+    ...item,
+    labels: replaceLabel(item.labels, fromLabel, "op:returned"),
+    phase: "returned",
+  };
+}
+
+/** Provision-time setup failure evidence for the returned ticket — the same
+ *  "loud, verbatim, no rediscovery" discipline as the gate-failure comment
+ *  (Stage 3): the operator sees the exact command and its output tail. */
+function provisionSetupFailedComment(result: GateResult): string {
+  const tail = result.outputTail ?? result.failures?.join("\n") ?? "";
+  return [
+    "## Blocked with evidence — setup failed at worktree provision",
+    "",
+    "**Error:**",
+    `### ${result.gate}`,
+    result.detail,
+    ...(result.command !== undefined ? ["", `$ ${result.command}`] : []),
+    ...(tail !== "" ? ["", tail] : []),
+    "",
+    "**Result:**",
+    "The app's `setup_command` (dependency install) failed in the fresh worktree",
+    "before any implementation pass ran — no build turn was spent. The builder's",
+    "baseline check could only fail for lack of dependencies.",
+    "",
+    "**Assessment:**",
+    "Fix `setup_command` in `.operon/config.yaml` (or the environment it needs)",
+    "and re-arm the ticket.",
+    "",
+  ].join("\n");
 }
 
 /** Emit per-gate `gate.passed`/`gate.failed` events and set the run record's
@@ -663,11 +766,14 @@ export async function runReviewPipeline(
 
   if (result.aborted) {
     const last = result.passes[result.passes.length - 1]?.result;
-    await journalStop(
-      journal,
-      journalStopKind(last?.errorCode, last?.status),
-      last?.summary ?? "review pipeline aborted",
-    );
+    const kind = journalStopKind(last?.errorCode, last?.status);
+    await journalStop(journal, kind, last?.summary ?? "review pipeline aborted");
+    // L-005: a legitimately-fired cap terminalizes cleanly (op:returned +
+    // evidence comment) instead of crashing the loop and stranding the PR.
+    // A genuine internal error still throws.
+    if (isCapDrivenStop(kind)) {
+      return returnedOnCapStop(item, options, "review", last);
+    }
     throw new Error("review pipeline aborted before completion");
   }
 
@@ -765,11 +871,13 @@ export async function runShipCheckPipeline(
 
   if (result.aborted) {
     const last = result.passes[result.passes.length - 1]?.result;
-    await journalStop(
-      journal,
-      journalStopKind(last?.errorCode, last?.status),
-      last?.summary ?? "ship-check pipeline aborted",
-    );
+    const kind = journalStopKind(last?.errorCode, last?.status);
+    await journalStop(journal, kind, last?.summary ?? "ship-check pipeline aborted");
+    // L-005: as in runReviewPipeline, a cap terminalizes cleanly to op:returned
+    // rather than crashing the loop; a genuine internal error still throws.
+    if (isCapDrivenStop(kind)) {
+      return returnedOnCapStop(item, options, "ship", last);
+    }
     throw new Error("ship pipeline aborted before completion");
   }
   if (result.passes.length === 0) return item;
@@ -944,6 +1052,48 @@ export async function advanceShipping(
   };
 }
 
+/** L-007 / L1-04: orchestrator-owned dependency re-arm. When a predecessor
+ *  ticket merges, promote every dependency-locked backlog ticket whose
+ *  dependencies are now all satisfied to `op:ready` — with no manual label edit
+ *  and no reliance on the prompt-advisory Planner "groom" pass (which the live
+ *  campaign confirmed unenforced, leaving 10/17 tickets never claimed).
+ *
+ *  A *dependent* is a still-open issue that carries a `Depends-on: #<merged>`
+ *  reference and no op-state label yet — published stateless precisely because
+ *  it had unmet dependencies (`publishTickets`: `op:ready` only on
+ *  dependency-free tickets). A dependency is *satisfied* when it is the ticket
+ *  we just merged (named explicitly, so a not-yet-propagated GitHub auto-close
+ *  cannot hide it) or is no longer open (a merge closes the issue via
+ *  `Closes #N`); a still-open dependency keeps the dependent blocked. This
+ *  mirrors `selectReadyTickets`, which admits a ready ticket only once every
+ *  dependency has merged. Returns the issue numbers armed, for the tick log. */
+export async function rearmDependents(gh: GhOps, mergedIssueNumber: number): Promise<number[]> {
+  const open = await gh.listIssues({ state: "open" });
+  const openNumbers = new Set(open.map((issue) => issue.number));
+  const stateLabels = STATE_LABELS as readonly string[];
+  const armed: number[] = [];
+  for (const issue of open) {
+    if (issue.number === mergedIssueNumber) continue;
+    // Only arm the stateless backlog: a ticket already claimed, in review,
+    // returned, or blocked has an owner and must not be relabeled.
+    if (issue.labels.some((label) => stateLabels.includes(label))) continue;
+    const deps = parseDependsOn(issue.body);
+    if (!deps.includes(mergedIssueNumber)) continue;
+    const unblocked = deps.every((dep) => dep === mergedIssueNumber || !openNumbers.has(dep));
+    if (!unblocked) continue;
+    await gh.addLabel(issue.number, "op:ready");
+    await gh.commentIssue(
+      issue.number,
+      `## Dependencies satisfied — armed \`op:ready\`\n\n` +
+        `Predecessor #${mergedIssueNumber} merged and every \`Depends-on:\` reference is now ` +
+        `resolved, so this ticket is armed for the build loop to claim. No manual label edit was ` +
+        `needed — the merge transition owns this re-arm (L-007).`,
+    );
+    armed.push(issue.number);
+  }
+  return armed;
+}
+
 export function parseAcceptanceCriteria(body: string): AcceptanceCriterion[] {
   const section = headingSection(body, "Acceptance criteria");
   if (section === undefined) return [];
@@ -992,18 +1142,19 @@ const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
 
 function passSelectionForItem(item: LoopItem, options: LoopPipelineOptions): PassSelection {
   const worktree = requireField(item, "worktree");
-  const changedFiles = gitLines(
-    worktree,
-    "diff",
-    "--name-only",
-    options.baseRef ?? "origin/main",
-    options.headRef ?? "HEAD",
-  );
+  const baseRef = options.baseRef ?? "origin/main";
+  const headRef = options.headRef ?? "HEAD";
+  const changedFiles = gitLines(worktree, "diff", "--name-only", baseRef, headRef);
   return {
     tier: item.tier,
     riskTier: resolveTier(options.policy, changedFiles),
     labels: item.labels,
-    dimensions: matchedDimensions(options.policy, changedFiles),
+    // Content-gate package.json so a bare metadata/test-glob edit does not
+    // select the security-deep review pass — same predicate the route
+    // reassessment uses (L1-05).
+    dimensions: matchedDimensions(options.policy, changedFiles, {
+      dependencyRelevantPackageJson: dependencyRelevantPackageJson(worktree, baseRef, headRef, changedFiles),
+    }),
     // A rehydrated, still-applicable contract makes the contract pass
     // redundant: 21 claims must never again produce 20 contract passes.
     // The implement brief carries the reused contract verbatim.
@@ -1490,9 +1641,22 @@ function isMarkedSelfApproval(
   prNumber: number,
   auth?: ReviewAuthorization,
 ): boolean {
-  // Only a marker carrying a valid HMAC tag for this PR is trusted — a bare or
-  // forged marker (e.g. posted by a prompt-injected builder) is rejected.
-  if (!verifiedSelfApprovalMarker(review.body, auth?.selfApprovalSecret, prNumber)) return false;
+  // The marker path must clear the SAME author-independence gate as a real
+  // APPROVE (mirroring isIndependentApproval): a marker authored by the builder
+  // identity, or by an identity outside a configured reviewer allowlist, is not
+  // a sanctioned review. In the single-account pilot neither identity is
+  // configured and this is a no-op — the commit binding below is what stops a
+  // replay there.
+  if (!isIndependentApproval(review, auth)) return false;
+  // The marker's HMAC must bind the exact reviewed commit (A-001): a marker
+  // replayed on a later push carries a commit_id GitHub stamped to the NEW
+  // head, which no longer matches what the tag was signed for. An absent
+  // commit_id fails closed (undefined → not verifiable).
+  if (
+    !verifiedSelfApprovalMarker(review.body, auth?.selfApprovalSecret, prNumber, review.commitId)
+  ) {
+    return false;
+  }
   const parsed = parseVerdict("review", review.body);
   return parsed.ok && parsed.verdict.verdict === "approve";
 }
@@ -1564,6 +1728,75 @@ function headSha(worktree: string): string {
 function gitLines(cwd: string, ...args: string[]): string[] {
   const output = git(cwd, ...args);
   return output === "" ? [] : output.split("\n");
+}
+
+/** The repo-relative `package.json` paths in this diff whose dependency or
+ *  run-script keys actually changed — the security dimension's content gate
+ *  (L1-05). Shared by the review pass selector (`passSelectionForItem`) and
+ *  the loop driver's route reassessment (`reassessForObservedWorktreeRisk`),
+ *  so both treat a bare metadata/test-glob `package.json` edit identically:
+ *  not a security signal.
+ *
+ *  Each side is read with a THREE-way result: content, a legitimate ABSENCE
+ *  (the path does not exist at that ref — a newly-added or newly-deleted file),
+ *  or a genuine git FAILURE ("cannot check"). A failure is fail-SAFE: it means
+ *  we cannot compare, so package.json is treated as security-relevant and the
+ *  route escalates (the commit's "cannot compare → escalate" claim; Theme 1 —
+ *  cannot-determine must fail safe). A legitimate absence maps to an empty
+ *  side, so the present side's own deps still drive the comparison (an added
+ *  package.json with dependencies escalates; a deleted one does not). Exported
+ *  for the behavioral regression test. */
+export function dependencyRelevantPackageJson(
+  worktree: string,
+  baseRef: string,
+  headRef: string,
+  changedFiles: string[],
+): Set<string> {
+  const relevant = new Set<string>();
+  for (const file of changedFiles) {
+    if (file !== "package.json" && !file.endsWith("/package.json")) continue;
+    const before = packageJsonAtRef(worktree, `${baseRef}:${file}`);
+    const after = packageJsonAtRef(worktree, `${headRef}:${file}`);
+    // A genuine git failure on either side is fail-safe: cannot compare →
+    // escalate. Do NOT collapse it into "empty" the way a legitimate absence
+    // is (that would fail open on a transient error).
+    if (before.kind === "error" || after.kind === "error") {
+      relevant.add(file);
+      continue;
+    }
+    const beforeText = before.kind === "content" ? before.text : undefined;
+    const afterText = after.kind === "content" ? after.text : undefined;
+    if (packageJsonTouchesSecurityKeys(beforeText, afterText)) relevant.add(file);
+  }
+  return relevant;
+}
+
+type PackageJsonAtRef =
+  | { kind: "content"; text: string }
+  | { kind: "absent" } // the path legitimately does not exist at this ref
+  | { kind: "error" }; // git could not answer — treat as risky (fail-safe)
+
+/** Read a file's content at a git ref, distinguishing a legitimate absence
+ *  (added/deleted file) from a genuine git failure. `git show <ref>:<path>`
+ *  for a path that simply is not present at that ref exits non-zero with a
+ *  recognizable "does not exist" / "exists on disk, but not in" message; any
+ *  other non-zero exit (bad ref, not a repo, object-store error) is a failure
+ *  we must not mistake for "no change". */
+function packageJsonAtRef(cwd: string, spec: string): PackageJsonAtRef {
+  const result = spawnSync("git", ["show", spec], {
+    cwd: resolve(cwd),
+    encoding: "utf8",
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error === undefined && result.status === 0) {
+    return { kind: "content", text: result.stdout };
+  }
+  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  if (/does not exist in|exists on disk, but not in/.test(stderr)) {
+    return { kind: "absent" };
+  }
+  return { kind: "error" };
 }
 
 function git(cwd: string, ...args: string[]): string {
@@ -1671,6 +1904,68 @@ function journalStopKind(
   }
   if (errorCode?.includes("budget") || errorCode?.includes("cap")) return "cap_stop";
   return "crash";
+}
+
+/** A pipeline abort caused by a legitimately-fired resource limit — a
+ *  budget/route cap (`cap_stop`) or a wall-clock/adapter timeout
+ *  (`provider_timeout`) — rather than a genuine internal defect (`crash`).
+ *  L-005: the former must terminalize the ticket cleanly (a paid cap firing is
+ *  correct behaviour, not a crash); the latter must still throw loudly so a
+ *  real defect is never swallowed as a clean terminal. `cancelled` keeps
+ *  throwing too — an operator-cancelled run has no clean-terminal story here. */
+function isCapDrivenStop(kind: JournalStopKind): boolean {
+  return kind === "cap_stop" || kind === "provider_timeout";
+}
+
+interface AbortPassResult {
+  errorCode?: string;
+  status?: string;
+  summary?: string;
+}
+
+/** L-005: terminalize a review/ship pipeline that a cap stopped mid-flight.
+ *  Route `op:in-review -> op:returned` with a budget/limit-exhaustion evidence
+ *  comment so the ticket does not sit forever at `op:in-review` (a label that
+ *  falsely reads "review in progress") with an open, mergeable PR the loop
+ *  will never touch again. The PR is left open and untouched — a human decides
+ *  whether to merge it as-is or raise the budget and re-run. */
+async function returnedOnCapStop(
+  item: LoopItem,
+  options: LoopPipelineOptions,
+  pipelineName: string,
+  last: AbortPassResult | undefined,
+): Promise<LoopItem> {
+  await options.gh.commentIssue(item.issueNumber, capExhaustionComment(pipelineName, last, item.prNumber));
+  await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+  return {
+    ...item,
+    labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
+    phase: "returned",
+  };
+}
+
+function capExhaustionComment(
+  pipelineName: string,
+  last: AbortPassResult | undefined,
+  prNumber: number | undefined,
+): string {
+  const label = pipelineName === "ship" ? "Ship-check" : "Review";
+  const detail = last?.summary ?? "a provider budget or wall-clock cap was reached";
+  return [
+    `## ${label} stopped: budget/limit exhausted`,
+    "",
+    `The ${pipelineName} pipeline stopped before completion because a cap fired: ${detail}` +
+      `${last?.errorCode !== undefined ? ` (\`${last.errorCode}\`)` : ""}.`,
+    "",
+    prNumber !== undefined
+      ? `**PR #${prNumber} is left open and was not orphaned.** The code work is durable; a human decides whether to:`
+      : "**The ticket is returned for a human decision:**",
+    "- merge the open PR as-is if the review so far is sufficient, or",
+    "- raise the app/route budget (or the wall-clock cap) and re-run `operon loop` to finish the review.",
+    "",
+    "Routed to `op:returned` rather than left at `op:in-review` (which would falsely read " +
+      '"PR open, review in progress" for a ticket the loop will never touch again).',
+  ].join("\n");
 }
 
 function stateLabelForPhase(phase: LoopPhase): string {

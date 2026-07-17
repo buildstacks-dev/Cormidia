@@ -5,6 +5,15 @@
 // Excluded from pnpm test; pnpm test:live runs it only with usable Claude auth.
 // It uses temp sandboxes but depends on real auth, network/model service, local
 // Claude tooling, and spends real tokens.
+//
+// P1-07 / D-001 (Theme 1 — "cannot determine" must not read as "fine"): a
+// SKIPPED live suite is NOT a pass. `probeAuth()` fails safe for the *skip*
+// decision (any error → treat auth as absent), but an absent-auth run must
+// then FAIL unless skipping is made explicit with OPERON_ALLOW_SKIP_LIVE=1, so
+// neither CI nor a developer can mistake "no auth, nothing ran" for "adapter
+// conformance proven". Auth-free contract coverage lives in the offline mocked
+// conformance (test/adapters/claude.test.ts, "claude-mocked"), which runs in
+// `pnpm test` and pins the same runConformanceSuite cases without tokens.
 
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -291,11 +300,38 @@ async function shapingProbe(role: RoleConfig): Promise<{
 }
 
 const auth = await probeAuth();
+// Explicit opt-in for a no-auth skip. Any value other than "1" (including
+// unset) means a skip is NOT allowed and an absent-auth run must fail.
+const allowSkipLive = process.env.OPERON_ALLOW_SKIP_LIVE === "1";
 if (!auth.ok) {
-  console.warn(`[claude-sdk.live] SKIPPING — no usable auth. ${auth.detail}`);
+  console.warn(
+    `[claude-sdk.live] no usable auth. ${auth.detail}. ` +
+      (allowSkipLive
+        ? "OPERON_ALLOW_SKIP_LIVE=1 — skipping is allowed."
+        : "A skipped live suite is NOT a pass — the auth gate below will FAIL. " +
+          "Set OPERON_ALLOW_SKIP_LIVE=1 to allow skipping."),
+  );
 } else {
   console.log(`[claude-sdk.live] auth OK — ${auth.detail}`);
 }
+
+// The auth gate runs UNCONDITIONALLY (outside the skipIf), so a no-auth run
+// exits non-zero unless skipping is explicitly allowed — a skipped live suite
+// can no longer be silently read as verified conformance (P1-07 / D-001).
+describe("ClaudeRuntime live conformance auth gate", () => {
+  it("live auth must be usable, or the skip must be explicitly allowed", () => {
+    if (auth.ok) return; // real conformance runs below
+    expect(
+      allowSkipLive,
+      `[claude-sdk.live] no usable Claude auth (${auth.detail}). A skipped live ` +
+        `suite is NOT a pass: the Claude adapter — the primary provider running 5 ` +
+        `of 8 roles including reviewer — went unverified. Run with usable auth, or ` +
+        `set OPERON_ALLOW_SKIP_LIVE=1 to allow skipping (e.g. locally without auth); ` +
+        `leave it unset in CI so an unverified adapter fails loudly. Offline contract ` +
+        `coverage runs in pnpm test as "claude-mocked".`,
+    ).toBe(true);
+  });
+});
 
 const workdir = auth.ok ? tmpWorkdir("operon-live-conformance-") : "";
 

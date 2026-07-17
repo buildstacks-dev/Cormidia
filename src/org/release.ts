@@ -19,7 +19,7 @@ import { ApprovalStore, actionHash, type ApprovalItem } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { writeFileAtomic } from "./atomic.js";
 import { assembleContext } from "./context.js";
-import { composeGate } from "./gate-compose.js";
+import { composeGate, grantScopeText } from "./gate-compose.js";
 import { loadRoles } from "./roles.js";
 
 export interface QueuedRelease {
@@ -223,7 +223,12 @@ async function executeOrchestratorRelease(
     role: item.role,
     actionHash: actionHash(item.action),
     rule: item.rule,
-    actionText: `${item.action.tool} ${JSON.stringify(item.action.input)}`,
+    // A-005/P0-04b: the `pathContains` bound must see NORMALIZED target paths
+    // (via grantScopeText), never `JSON.stringify(input)` — the release command
+    // is agent-influenceable (`.operon/config.yaml` `release:` block), so a raw
+    // actionText would let a `# comment` naming the scoped path widen a scoped
+    // grant, the exact A-005 mechanism on the release path.
+    actionText: grantScopeText(item.action),
     ...(item.ticketRef !== undefined ? { ticketRef: item.ticketRef } : {}),
     now: options.now?.() ?? new Date(),
   });
@@ -267,6 +272,11 @@ async function executeSreRelease(
         app: item.app,
         role: item.role,
         actionHash: actionHash(item.action),
+        // A-005/P0-04b: this matches only the exact unscoped production-deploy
+        // grant (no `rule` passed, so `pathContains` is never consulted here),
+        // but build the scope text through the same helper — never raw JSON —
+        // so this call site can never widen a scoped grant on agent free text.
+        actionText: grantScopeText(item.action),
         now: options.now?.() ?? new Date(),
       });
       if (shown === undefined) return { allow: false, reason: "approved release grant is unavailable", escalate: false };

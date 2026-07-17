@@ -67,7 +67,12 @@ README.md → Observability is the authoritative inventory):
 `session.log`); `telemetry/<date>.jsonl`
 is the org ledger every provider turn settles into exactly once, keyed on
 `(app, providerTurnId)` with `(app, runId)` fallback for legacy rows (`operon
-budget --reconcile` back-fills); `efficiency/episodes/<hash>/` holds the
+budget --reconcile` back-fills), with a derived keys-only sidecar in the
+sibling `telemetry-index/settled.keys` (deliberately outside `telemetry/` so
+bare ledger-directory enumerators never parse or double-count it) that keeps
+the exactly-once check off the full ledger rescan (F-002, ledger-first so it
+can only lag, never lead — rebuilt from the ledger when absent);
+`efficiency/episodes/<hash>/` holds the
 episode route, route-bounded execution journal, terminal provider/mechanical
 execution steps, and component-hashed context manifest/delta projections;
 `invocations/<date>.jsonl`
@@ -83,7 +88,12 @@ reserved replay namespace (reconciled for spend, excluded from capture).
 `scheduler/installation.json` and `scheduler/evidence/{invocations,decisions,alerts}/`
 hold scheduler ownership, exact-once ticks, route decisions, and local alerts;
 `standing-roles/<app>/{artifacts,planner-feeds}/` holds source-bound draft-only
-SRE/Support/Marketing results and deterministic Planner feeds.
+SRE/Support/Marketing results and deterministic Planner feeds. Every state
+subtree has a retention window, swept fail-safe once per UTC day from the
+dispatch tick (`src/org/retention.ts`; docs/scheduler.md → State retention;
+manual form `operon prune-runs --sweep`) — the ledger sweep never deletes
+rows still re-settleable by `budget --reconcile`, and `learning/` is swept
+only under `events/<date>/`.
 The M3–M5 experiment + activation substrate lives in the **committed org
 home** `learning/**`: experiments (declared-before-results), interventions
 (lineage), evals (trusted only after independent validation), candidates
@@ -131,7 +141,7 @@ efficacy health independently. The mechanics construct no provider runtime.
 | `docs/proportionality-review.md` | The 2026-07-10 systemic review + staged plan (landed); §7 records benchmark rounds 1–2 |
 | `docs/approval-and-release-amendment.md` | A1–A5 approval & release boundary design (ratified 2026-07-10, implemented; cited by code) |
 | `docs/learning-loop/` | Learning-loop design suite (v0.8, 2026-07-11): governed self-improvement — design, spec, milestones, control/data-flow diagrams; superseded review feedback under `archive/` |
-| `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
+| `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), `file-lock.ts` (the shared O_EXCL + pid/nonce ownership-token + liveness/stale-reclamation lock primitive — the app git-clone lock is a configuration of it; the settlement and turn locks are the model but not yet re-expressed onto it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
 | `src/org/` | Standing-org layer: roles/apps loaders, token-free upgrade/reset/recovery/verify/promote lifecycle, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/observe/` | Presentation-only Live UI: versioned projection, URL-stable live/historical session selection, source health, bounded read-only GitHub polling, loopback HTTP/SSE, allowlisted local evidence, and embedded framework-free assets |
@@ -229,8 +239,10 @@ efficacy health independently. The mechanics construct no provider runtime.
   `pnpm dev bootstrap --scan-only <repo>` ·
   `pnpm dev bootstrap <repo> --answers-from <archive|app> [--json]` · `pnpm dev plan <app> --dry-run` ·
   `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]
-  [--depth quick|standard|deep] [--no-publish] [--explain-route]` (adaptive runtime-backed
+  [--depth quick|standard|deep] [--no-publish]` (adaptive runtime-backed
   plan: schema-validated, orchestrator-published) ·
+  `pnpm dev plan <app> --explain-route --goal "<text>" [--stage …]` (token-free
+  route preview; rejects `--auto` — the two forms are mutually exclusive) ·
   `pnpm dev loop --app <app> --once --dry-run` · `pnpm dev loop
   --explain-context <episode-id>` · `pnpm dev loop --resume-episode
   <episode-id>` ·
@@ -269,7 +281,7 @@ efficacy health independently. The mechanics construct no provider runtime.
   `pnpm dev learn canary stop --root org|app --reason "<why>"` ·
   `pnpm dev learn distill [--app <name>] [--dry-run]` ·
   `pnpm dev run-role <role> --app <app> --dry-run` ·
-  `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs` ·
+  `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs [--sweep]` ·
   `pnpm dev doctor [--config-only]` (default probes configured adapter readiness
   without a model turn; config-only never claims readiness)
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`

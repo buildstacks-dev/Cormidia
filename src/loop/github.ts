@@ -139,37 +139,53 @@ export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER =
 // The self-approval fallback (single-account pilot: GitHub rejects approving
 // your own PR) must not be authorizable by a static, repo-visible string —
 // anyone who can post a review (including a prompt-injected builder) could then
-// forge a merge. The trusted marker carries an HMAC over the PR number computed
-// with an operator secret the sandboxed agent cannot read. Freshness
-// (approved commit == HEAD) is enforced separately, so binding the tag to the
-// PR number is sufficient: a replayed stale marker fails freshness, and a new
-// marker cannot be signed without the secret.
+// forge a merge. The trusted marker carries an HMAC, computed with an operator
+// secret the sandboxed agent cannot read, over BOTH the PR number AND the
+// reviewed commit (headRefOid).
+//
+// Binding the commit is what defeats replay (A-001): the marker line is
+// published into a world-readable PR review, so a prompt-injected builder can
+// copy it, push arbitrary code, and post it again on a new --comment review.
+// GitHub stamps that replayed review's commit_id to the NEW head, so
+// verification (loop.ts, against review.commitId) recomputes the HMAC over the
+// new commit and rejects a marker minted for the old one. A bare marker, a
+// mis-signed tag, an unset secret, or an unresolved reviewed commit is never
+// trusted.
 
-export function signSelfApproval(secret: string, prNumber: number): string {
-  return createHmac("sha256", secret).update(`operon-self-approval:${prNumber}`).digest("hex");
+export function signSelfApproval(secret: string, prNumber: number, commit: string): string {
+  return createHmac("sha256", secret)
+    .update(`operon-self-approval:${prNumber}:${commit}`)
+    .digest("hex");
 }
 
-/** Build the self-approval marker line. With a secret, it carries the HMAC tag;
- *  without one it is the bare (untrusted) marker — the loop fails closed. */
-export function selfApprovalMarker(secret: string | undefined, prNumber: number): string {
-  if (secret === undefined) return SELF_APPROVAL_FALLBACK_MARKER;
-  return `${SELF_APPROVAL_FALLBACK_PREFIX} sig=${signSelfApproval(secret, prNumber)} -->`;
+/** Build the self-approval marker line. With a secret AND the resolved reviewed
+ *  commit it carries the commit-bound HMAC tag; without either it is the bare
+ *  (untrusted) marker — the loop fails closed. */
+export function selfApprovalMarker(
+  secret: string | undefined,
+  prNumber: number,
+  commit: string | undefined,
+): string {
+  if (secret === undefined || commit === undefined) return SELF_APPROVAL_FALLBACK_MARKER;
+  return `${SELF_APPROVAL_FALLBACK_PREFIX} sig=${signSelfApproval(secret, prNumber, commit)} -->`;
 }
 
-/** True only for a marker carrying a valid HMAC tag for this PR. A bare marker,
- *  a mis-signed tag, or an unset secret is never trusted. */
+/** True only for a marker carrying a valid HMAC tag for THIS PR and THIS
+ *  reviewed commit. A bare marker, a mis-signed tag, an unset secret, or an
+ *  unknown reviewed commit is never trusted. */
 export function verifiedSelfApprovalMarker(
   body: string,
   secret: string | undefined,
   prNumber: number,
+  commit: string | undefined,
 ): boolean {
-  if (secret === undefined) return false;
+  if (secret === undefined || commit === undefined) return false;
   const match = new RegExp(`${escapeRegExp(SELF_APPROVAL_FALLBACK_PREFIX)}\\s+sig=([0-9a-f]+)\\s+-->`).exec(
     body,
   );
   const candidate = match?.[1];
   if (candidate === undefined) return false;
-  const expected = signSelfApproval(secret, prNumber);
+  const expected = signSelfApproval(secret, prNumber, commit);
   if (candidate.length !== expected.length) return false;
   return timingSafeEqual(Buffer.from(candidate, "hex"), Buffer.from(expected, "hex"));
 }
@@ -468,7 +484,30 @@ export class GhCliOps implements GhOps {
         return { state: "COMMENTED", body };
       }
       if (input.state !== "approve" || !isSelfApprovalError(error)) throw error;
-      const marker = selfApprovalMarker(this.selfApprovalSecret, prNumber);
+      // Bind the marker to the exact commit under review so it cannot be
+      // replayed on a later push (A-001). GitHub stamps the fallback comment
+      // review's commit_id to the current PR head, which is what verification
+      // checks against — so sign that same head. If the head cannot be
+      // resolved (or no secret is configured), fall back to the bare
+      // (untrusted) marker and let the loop fail closed.
+      //
+      // Benign TOCTOU (availability, not security): there is an unavoidable gap
+      // between reading headRefOid here and GitHub stamping commit_id when the
+      // --comment review posts below. If the PR head advances in that window
+      // (a concurrent push), GitHub stamps the review at the NEW head while the
+      // marker is signed over the OLD head, so verification mismatches and this
+      // legitimate self-approval fails. That is fail-closed by design: a stale
+      // signature is rejected, never accepted — the worst case is that a
+      // legitimate merge waits for a human tap; an attacker gains nothing (they
+      // cannot make us sign a head we did not read). Do NOT "fix" this by
+      // re-reading the head after posting: the
+      // marker must commit to a head BEFORE the review exists, or the binding
+      // is meaningless.
+      const headOid =
+        this.selfApprovalSecret !== undefined
+          ? (await this.readPR(prNumber)).headRefOid
+          : undefined;
+      const marker = selfApprovalMarker(this.selfApprovalSecret, prNumber, headOid);
       const body = `${input.body.trimEnd()}\n\n${marker}\n`;
       await this.run(
         ["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"],

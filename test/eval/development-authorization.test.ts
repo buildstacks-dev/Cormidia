@@ -220,6 +220,70 @@ it("J-MAN-02 focused admission cannot shrink its repaired or downstream cases, a
   expect(validateCampaign({ ...focused, infrastructure_retries: 0 })).toContain("focused-admission profile must retain one typed infrastructure retry");
 });
 
+// P1-06 / C-001 (Theme 1): a spend guard that cannot read a prior campaign's
+// evidence must REFUSE, never fold "could not check" into "no prior campaign"
+// and admit another real-money campaign. A corrupt/torn qualification*.json or
+// campaign.yaml — exactly what a long campaign leaves behind — is "cannot
+// determine", distinct from a genuinely-absent directory.
+it("J-MAN-02 P1-06 repeated-failure guard refuses on a corrupt qualification*.json instead of admitting", () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-p1-06-failed-")); roots.push(root);
+  const grant = fixtureGrant();
+  const target = preparedCampaign("candidate-qualification-v1", "candidate-qualification-v1-20260716-fixture", grant);
+
+  // Genuine ABSENCE: no prior campaigns at all. The guard passes and admission
+  // proceeds past it, failing later on the missing admissions — i.e. ADMIT.
+  expect(() => assertDevelopmentAdmission(root, target, grant)).toThrow("adapter_admission_missing");
+
+  // A prior candidate-qualification campaign (valid manifest, so it matches the
+  // grant) whose qualification.json is a TORN write that JSON.parse cannot read.
+  const torn = preparedCampaign("candidate-qualification-v1", "candidate-qualification-v1-20260716-torn", grant);
+  const dir = join(root, ".eval-artifacts", torn.campaign_id); mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "campaign.yaml"), stringify(torn));
+  writeFileSync(join(dir, "qualification.json"), "{ torn write");
+
+  // Before P1-06 this was silently counted as "not failed" and the guard ADMITTED
+  // (fell through to adapter_admission_missing). It must now REFUSE.
+  expect(() => assertDevelopmentAdmission(root, target, grant)).toThrow("prior_qualification_undeterminable");
+
+  // A readable qualification.json whose outcome is NOT a failure is genuine
+  // information, not "cannot determine": it must not trip the refuse path.
+  writeFileSync(join(dir, "qualification.json"), `${JSON.stringify({ outcome: "qualified" })}\n`);
+  expect(() => assertDevelopmentAdmission(root, target, grant)).toThrow("adapter_admission_missing");
+});
+
+it("J-MAN-02 P1-06 one-decisive-campaign guard refuses on a corrupt started campaign.yaml instead of admitting", () => {
+  const root = mkdtempSync(join(tmpdir(), "operon-p1-06-started-")); roots.push(root);
+  const grant: DevelopmentAuthorizationGrant = {
+    ...fixtureGrant(),
+    authorization_id: "phase6-proportionate-p1-06",
+    allowed_campaign_types: ["candidate-qualification-v1"],
+    proportionate_release: {
+      policy: "proportionate-release-v1",
+      base_candidate_commit: "0".repeat(40),
+      bounded_changed_paths: ["src/runtime/gate.ts"],
+      max_fresh_full_campaigns: 1,
+      adapter: { campaign_id: "adapter-harness-calibration-v1-20260716-x", campaign_sha256: `sha256:${"1".repeat(64)}` },
+      focused: { campaign_id: "focused-provider-admission-v1-20260716-x", campaign_sha256: `sha256:${"2".repeat(64)}` },
+    },
+  };
+  const target = preparedCampaign("candidate-qualification-v1", "candidate-qualification-v1-20260716-fixture", grant);
+
+  // Genuine ABSENCE: no prior started campaign. The guard passes and admission
+  // proceeds to the bounded-repair check, which fails on the non-git root — i.e.
+  // ADMIT past the started-guard.
+  expect(() => assertDevelopmentAdmission(root, target, grant)).toThrow("proportionate_candidate_not_descendant");
+
+  // A started prior candidate-qualification campaign whose campaign.yaml is TORN
+  // (an unterminated YAML flow that the parser rejects).
+  const dir = join(root, ".eval-artifacts", "candidate-qualification-v1-20260716-started-torn"); mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "campaign.yaml"), "campaign: [unterminated\n  : : :");
+  writeFileSync(join(dir, "github-evidence-started.json"), "{}\n");
+
+  // Before P1-06 the torn campaign.yaml was silently "not started" and the guard
+  // ADMITTED (fell through to the descendant check). It must now REFUSE.
+  expect(() => assertDevelopmentAdmission(root, target, grant)).toThrow("prior_qualification_undeterminable");
+});
+
 function fixtureGrant(): DevelopmentAuthorizationGrant {
   return {
     schema_version: 1,

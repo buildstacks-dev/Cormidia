@@ -165,9 +165,15 @@ export function assertDevelopmentAdmission(root: string, campaign: CampaignManif
   const binding = assertDevelopmentAuthorization(campaign, grant);
   if (binding.campaign_type !== "candidate-qualification-v1") return null;
   if (grant.proportionate_release !== undefined) {
-    const priorCampaigns = priorStartedQualifications(root, campaign.campaign_id, grant);
-    if (priorCampaigns.length >= grant.proportionate_release.max_fresh_full_campaigns) {
-      throw new Error(`development_authorization_one_decisive_full_campaign:${priorCampaigns.join(",")}`);
+    const priorStarted = priorStartedQualifications(root, campaign.campaign_id, grant);
+    // "cannot determine" is not "no prior campaign": an unreadable campaign
+    // directory on the real-money admission path must REFUSE, never silently
+    // admit an extra fresh full campaign. (Theme 1 — fail safe on the spend guard.)
+    if (priorStarted.undeterminable.length > 0) {
+      throw new Error(`development_authorization_prior_qualification_undeterminable:${priorStarted.undeterminable.join(",")}`);
+    }
+    if (priorStarted.matched.length >= grant.proportionate_release.max_fresh_full_campaigns) {
+      throw new Error(`development_authorization_one_decisive_full_campaign:${priorStarted.matched.join(",")}`);
     }
     const changedPaths = assertBoundedCandidateRepair(root, campaign, grant.proportionate_release);
     const adapter = retainedAdmissionCampaign(root, grant.proportionate_release.adapter, grant.proportionate_release.base_candidate_commit, "adapter-harness-calibration-v1", true);
@@ -182,7 +188,13 @@ export function assertDevelopmentAdmission(root: string, campaign: CampaignManif
     };
   }
   const priorFailed = priorFailedQualifications(root, campaign.campaign_id, grant);
-  if (priorFailed.length >= 2) throw new Error(`development_authorization_repeated_full_qualification_failure:${priorFailed.join(",")}`);
+  // A corrupt/torn qualification*.json (exactly what a long campaign writes)
+  // must not be silently counted as "not failed" and admit a third full
+  // campaign. "cannot determine" → REFUSE. (Theme 1 — fail safe on the spend guard.)
+  if (priorFailed.undeterminable.length > 0) {
+    throw new Error(`development_authorization_prior_qualification_undeterminable:${priorFailed.undeterminable.join(",")}`);
+  }
+  if (priorFailed.matched.length >= 2) throw new Error(`development_authorization_repeated_full_qualification_failure:${priorFailed.matched.join(",")}`);
   const adapter = passedAdmissionCampaign(root, campaign, grant, "adapter-harness-calibration-v1", true);
   const focused = passedAdmissionCampaign(root, campaign, grant, "focused-provider-admission-v1", false);
   if (!adapter) throw new Error("development_authorization_adapter_admission_missing");
@@ -191,7 +203,7 @@ export function assertDevelopmentAdmission(root: string, campaign: CampaignManif
     admission_basis: "exact-candidate",
     adapter_campaign_id: adapter.campaign_id,
     focused_campaign_id: focused.campaign_id,
-    prior_failed_qualification_campaigns: priorFailed,
+    prior_failed_qualification_campaigns: priorFailed.matched,
   };
 }
 
@@ -366,7 +378,13 @@ function admissionResultsPassed(campaignRoot: string, campaign: CampaignManifest
   let results: AttemptResult[];
   try {
     results = readdirSync(resultDir).filter((name) => name.endsWith(".json")).sort().map((name) => JSON.parse(readFileSync(join(resultDir, name), "utf8")) as AttemptResult);
-  } catch { return false; }
+  } catch {
+    // Fail-CLOSED — the OPPOSITE safety direction from priorFailed/priorStarted
+    // above. `false` here means "this admission did NOT pass"; every caller
+    // requires a passed admission before granting anything, so an unreadable
+    // results directory correctly REFUSES. "cannot determine" == refuse here too.
+    return false;
+  }
   if (results.some((result) => validateResult(result).length > 0 || result.campaign_id !== campaign.campaign_id || result.campaign_sha256 !== campaignSha256)) return false;
   for (const item of campaign.cases) for (const repetitionId of item.repetition_ids) {
     const attempts = results.filter((result) => result.case_id === item.case_id && result.repetition_id === repetitionId);
@@ -392,46 +410,119 @@ function githubAdmissionPassed(campaignRoot: string, campaign: CampaignManifest)
       idempotence.campaign_id === campaign.campaign_id && idempotence.campaign_sha256 === campaignSha256 && idempotence.result === "passed" &&
       idempotence.idempotent_rerun === true && idempotence.reused_evidence === true && idempotence.source_evidence === evidenceNames[0] &&
       idempotence.source_evidence_sha256 === `sha256:${hashFile(evidencePath)}`;
-  } catch { return false; }
+  } catch {
+    // Fail-CLOSED — the OPPOSITE safety direction from priorFailed/priorStarted.
+    // `false` means "GitHub admission did NOT pass"; unreadable/corrupt evidence
+    // must REFUSE admission, never wave it through. "cannot determine" == refuse.
+    return false;
+  }
 }
 
-function priorFailedQualifications(root: string, excludingCampaignId: string, grant: DevelopmentAuthorizationGrant): string[] {
+/**
+ * Result of scanning `.eval-artifacts/` for prior qualification campaigns.
+ *
+ * `matched` is campaign directories that a read confirmed satisfy the predicate
+ * (prior failed / prior started). `undeterminable` is campaign directories that
+ * EXIST but could not be read or parsed — a torn/corrupt `campaign.yaml` or
+ * `qualification*.json`, exactly what a long real-money campaign writes. Their
+ * disposition is genuinely UNKNOWN, which is NOT the same as "no prior
+ * campaign". On the authorized-real-money admission path the caller must treat
+ * a non-empty `undeterminable` as "cannot determine → REFUSE", never fold it
+ * into "clean" and admit another campaign. (Theme 1 — a guard that cannot
+ * evaluate its input must fail safe, and for a spend guard safe means refuse.)
+ */
+interface PriorQualificationScan {
+  matched: string[];
+  undeterminable: string[];
+}
+
+function priorFailedQualifications(root: string, excludingCampaignId: string, grant: DevelopmentAuthorizationGrant): PriorQualificationScan {
   const artifacts = join(root, ".eval-artifacts");
-  if (!existsSync(artifacts)) return [];
+  // Genuine ABSENCE, not "cannot determine": no `.eval-artifacts/` directory
+  // means no prior campaigns exist. ENOENT on the root is the safe "none".
+  if (!existsSync(artifacts)) return { matched: [], undeterminable: [] };
   const grantSha256 = hashManifest(grant);
-  return readdirSync(artifacts).sort().filter((name) => {
-    if (name === excludingCampaignId) return false;
-    const manifestPath = join(artifacts, name, "campaign.yaml");
-    if (!existsSync(manifestPath)) return false;
+  const matched: string[] = [];
+  const undeterminable: string[] = [];
+  for (const name of readdirSync(artifacts).sort()) {
+    if (name === excludingCampaignId) continue;
+    const campaignDir = join(artifacts, name);
+    const manifestPath = join(campaignDir, "campaign.yaml");
+    // Genuine ABSENCE: a directory without a campaign.yaml is not a campaign.
+    if (!existsSync(manifestPath)) continue;
+    let candidate: CampaignManifest;
     try {
-      const candidate = loadYamlFile(manifestPath) as CampaignManifest;
-      if (candidate.development_authorization?.grant_sha256 !== grantSha256 || candidate.development_authorization.campaign_type !== "candidate-qualification-v1") return false;
-      if (existsSync(join(artifacts, name, "campaign-stop.json"))) return true;
-      const qualifications = readdirSync(join(artifacts, name)).filter((entry) => /^qualification[^/]*\.json$/.test(entry));
-      return qualifications.some((entry) => {
-        const outcome = (JSON.parse(readFileSync(join(artifacts, name, entry), "utf8")) as { outcome?: unknown }).outcome;
-        return outcome === "not_qualified" || outcome === "invalid";
-      });
-    } catch { return false; }
-  });
+      candidate = loadYamlFile(manifestPath) as CampaignManifest;
+    } catch {
+      // READ/PARSE ERROR on an EXISTING manifest: we cannot even confirm which
+      // grant/type this campaign belongs to, so we cannot rule out that it is a
+      // prior failed qualification. Cannot determine → refuse, never undercount.
+      undeterminable.push(name);
+      continue;
+    }
+    if (candidate.development_authorization?.grant_sha256 !== grantSha256 || candidate.development_authorization.campaign_type !== "candidate-qualification-v1") continue;
+    if (existsSync(join(campaignDir, "campaign-stop.json"))) { matched.push(name); continue; }
+    let qualifications: string[];
+    try {
+      qualifications = readdirSync(campaignDir).filter((entry) => /^qualification[^/]*\.json$/.test(entry));
+    } catch {
+      undeterminable.push(name);
+      continue;
+    }
+    let failed = false;
+    let unreadable = false;
+    for (const entry of qualifications) {
+      try {
+        const outcome = (JSON.parse(readFileSync(join(campaignDir, entry), "utf8")) as { outcome?: unknown }).outcome;
+        if (outcome === "not_qualified" || outcome === "invalid") { failed = true; break; }
+      } catch {
+        // READ/PARSE ERROR on a qualification*.json of a MATCHING prior campaign
+        // — the torn-write case the finding names. We cannot read this outcome;
+        // do not silently treat it as "not failed". Cannot determine → refuse.
+        unreadable = true;
+      }
+    }
+    if (failed) matched.push(name);
+    else if (unreadable) undeterminable.push(name);
+  }
+  return { matched, undeterminable };
 }
 
-function priorStartedQualifications(root: string, excludingCampaignId: string, grant: DevelopmentAuthorizationGrant): string[] {
+function priorStartedQualifications(root: string, excludingCampaignId: string, grant: DevelopmentAuthorizationGrant): PriorQualificationScan {
   const artifacts = join(root, ".eval-artifacts");
-  if (!existsSync(artifacts)) return [];
+  // Genuine ABSENCE, not "cannot determine": ENOENT on the root is the safe "none".
+  if (!existsSync(artifacts)) return { matched: [], undeterminable: [] };
   const grantSha256 = hashManifest(grant);
-  return readdirSync(artifacts).sort().filter((name) => {
-    if (name === excludingCampaignId) return false;
+  const matched: string[] = [];
+  const undeterminable: string[] = [];
+  for (const name of readdirSync(artifacts).sort()) {
+    if (name === excludingCampaignId) continue;
     const campaignRoot = join(artifacts, name);
     const manifestPath = join(campaignRoot, "campaign.yaml");
-    if (!existsSync(manifestPath)) return false;
+    // Genuine ABSENCE: a directory without a campaign.yaml is not a campaign.
+    if (!existsSync(manifestPath)) continue;
+    let candidate: CampaignManifest;
     try {
-      const candidate = loadYamlFile(manifestPath) as CampaignManifest;
-      if (candidate.development_authorization?.grant_sha256 !== grantSha256 || candidate.development_authorization.campaign_type !== "candidate-qualification-v1") return false;
-      return readdirSync(campaignRoot).some((entry) => entry === "campaign.lock.json" || entry === "campaign-stop.json" || entry.startsWith("github-evidence-") || entry.startsWith("readiness-") || entry.startsWith("qualification")) ||
+      candidate = loadYamlFile(manifestPath) as CampaignManifest;
+    } catch {
+      // READ/PARSE ERROR on an EXISTING manifest: cannot confirm grant/type, so
+      // cannot rule out that a fresh full campaign already started here. Cannot
+      // determine → refuse, never undercount an admitted real-money campaign.
+      undeterminable.push(name);
+      continue;
+    }
+    if (candidate.development_authorization?.grant_sha256 !== grantSha256 || candidate.development_authorization.campaign_type !== "candidate-qualification-v1") continue;
+    let started: boolean;
+    try {
+      started = readdirSync(campaignRoot).some((entry) => entry === "campaign.lock.json" || entry === "campaign-stop.json" || entry.startsWith("github-evidence-") || entry.startsWith("readiness-") || entry.startsWith("qualification")) ||
         (existsSync(join(campaignRoot, "results")) && readdirSync(join(campaignRoot, "results")).some((entry) => entry.endsWith(".json")));
-    } catch { return false; }
-  });
+    } catch {
+      undeterminable.push(name);
+      continue;
+    }
+    if (started) matched.push(name);
+  }
+  return { matched, undeterminable };
 }
 
 function sameExactCandidate(left: CampaignManifest, right: CampaignManifest): boolean {

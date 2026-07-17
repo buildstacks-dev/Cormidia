@@ -93,9 +93,35 @@ export function normalizeSemanticAction(action: ToolAction): SemanticAction {
  *  trips secrets-or-auth, an `rm -rf ~` trips destructive-or-irreversible, a
  *  `curl` trips outbound-network. */
 function withoutMessageArgs(command: string): string {
-  return command.replace(
-    /(?:^|\s)(?:--body|--message|--subject|--description|--notes|--title|-m)(?:=|\s+)("(?:[^"\\]|\\.)*"|'[^']*'|\S+)/gi,
-    (match: string, value: string) => (hasExecutableEffect(value) ? match : " "),
+  return stripMessageArgs(command, { keepExecutable: true });
+}
+
+/** The message/free-text flag names whose VALUES are agent-authored metadata
+ *  rather than an effect the command enacts — a commit message (`-m`/
+ *  `--message`), a PR/review body (`--body`), a release note (`--notes`), and
+ *  the title/subject/description variants. One list, two consumers with a
+ *  deliberate behavioral fork (see stripMessageArgs). */
+const MESSAGE_FLAG_ARG =
+  /(?:^|\s)(?:--body|--message|--subject|--description|--notes|--title|-m)(?:=|\s+)("(?:[^"\\]|\\.)*"|'[^']*'|\S+)/gi;
+
+/** Strip message-flag argument VALUES from a command. The `keepExecutable`
+ *  fork is the whole point of sharing one flag list between two callers with
+ *  OPPOSITE fail-safe directions:
+ *   - CLASSIFICATION (`keepExecutable: true`, via withoutMessageArgs): a value
+ *     carrying a shell construct (`$(...)`, backtick, `${...}`) is KEPT so the
+ *     embedded effect still reaches the rules — `git commit -m "$(cat .env)"`
+ *     must stay CRITICAL (L1-05). Inert prose is dropped.
+ *   - GRANT-SCOPE (`keepExecutable: false`, from grantScopeText in
+ *     gate-compose.ts): EVERY message value is dropped, with no executable
+ *     carve-out, so no agent free text can reach a `pathContains` bound and
+ *     widen a scoped grant (P0-04c/A-005). Narrower is the fail-closed
+ *     direction for authorization scope — a stripped legitimate value merely
+ *     costs one human re-approval, whereas keeping `$(cat .npmrc)` (or a
+ *     `# .npmrc` smuggled inside a quoted value) would let it widen a
+ *     .npmrc-scoped grant to arbitrary reads. */
+export function stripMessageArgs(command: string, options: { keepExecutable: boolean }): string {
+  return command.replace(MESSAGE_FLAG_ARG, (match: string, value: string) =>
+    options.keepExecutable && hasExecutableEffect(value) ? match : " ",
   );
 }
 

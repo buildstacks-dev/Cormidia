@@ -789,7 +789,14 @@ async function reassessForObservedWorktreeRisk(
   return reassessed;
 }
 
-function routeDecisionForItem(item: LoopItem): RouteDecision {
+/** Reconstruct the structured route decision for a claimed ticket. The
+ *  `sensitiveDomains` are read back from the ticket's labels (the orchestrator
+ *  attaches `domain:<d>` labels at plan publication — see
+ *  `applySensitiveDomainFloor`), which is what lets the route policy's
+ *  sensitive-domain deep floor fire. Throws if the tier label and the
+ *  structured decision disagree — a domain label therefore requires the
+ *  ticket to already be `op:tier-deep`. */
+export function routeDecisionForItem(item: LoopItem): RouteDecision {
   const sensitiveDomains = item.labels
     .filter((label) => /auth|security|secret|privacy|payment|data/.test(label))
     .sort();

@@ -373,6 +373,22 @@ highest tier wins, unmatched → medium) selects *gates* (§5). A quick
 ticket that touches `auth/**` still gets high-tier gates — tiering makes
 the loop cheaper, **never** less safe.
 
+The ticket tier is a Planner *floor*, not the last word. The
+sensitive-domain deep floor (`route-policy.ts`: `sensitiveDomains.length > 0`
+forces the deep route) is **orchestrator-owned**, so it cannot depend on the
+Planner remembering to set the label. At plan publication
+(`plan-tickets.ts` → `applySensitiveDomainFloor`) the orchestrator reads each
+ticket's own content — title, goal, context, acceptance, scope, notes —
+against the shared `auth|security|secret|privacy|payment|data` keyword set;
+a match attaches the descriptive `domain:<d>` label(s) **and** floors the
+ticket to `op:tier-deep`. `routeDecisionForItem` (`driver.ts`) reads
+`sensitiveDomains` back from those labels, so a goal explicitly about storing
+user data receives the deep route and the `security-deep` pass — "never less
+safe" holds in the escalating direction too, not only for gates. (Bootstrap
+is the deliberate exception: a greenfield scaffold "with no users" stays at
+its Planner tier — `validatePlan` forbids a bootstrap deep ticket — so it
+takes neither the deep floor nor a domain label.)
+
 
 
 ### Issue intake — everything enters through the Planner

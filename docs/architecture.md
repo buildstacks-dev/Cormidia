@@ -398,7 +398,10 @@ still collapse to one firing with explicit missed/reconciled counts.
 ### Trigger resolution
 
 For each app with `status: live`, for each role, merge `roles.yaml` triggers
-with the app's cadence overrides (§7), then evaluate:
+with the app's cadence overrides (§7), then evaluate. An app that is not
+`status: live` is a **named skip** in the tick result (app + actual status,
+printed by `operon dispatch` as a `skip` line), never a silent no-op — its
+pending inbox events stay unpolled, and the operator can see why:
 
 **Schedule triggers.** Grammar (already in roles.yaml): `hourly`,
 `every <N>h|m`, `daily HH:MM`, `weekly <dow> [HH:MM]` (default 09:00). Local

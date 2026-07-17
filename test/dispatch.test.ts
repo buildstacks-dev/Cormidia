@@ -476,6 +476,79 @@ apps:
       h.cleanup();
     }
   });
+
+  it("names every non-live app skip instead of silently ignoring it (review L-002)", async () => {
+    // Regression: dispatch used to `continue` past non-live apps with no
+    // signal, so a tick with pending inbox events printed
+    // "spawned=0 skipped=0 errors=0" and the operator could not learn why
+    // the events were ignored. The skip must name the app and its status.
+    const home = makeOrgHome({
+      state: {
+        eventsInbox: {
+          "t1.json": {
+            kind: "support-feedback",
+            id: "t1",
+            app: "onboarding-app",
+            occurred_at: "2026-07-06T12:00:00Z",
+            source: "fixture",
+            severity: "low",
+            channel: "email",
+            summary: "test",
+          },
+        },
+      },
+      approvals: true,
+    });
+    const appsPath = join(home.root, "apps.yaml");
+    const rolesPath = join(home.root, "roles.yaml");
+    writeFileSync(
+      appsPath,
+      `org:
+  name: test
+  max_concurrent_turns: 2
+defaults:
+  budget_usd_month: 1000
+apps:
+  onboarding-app:
+    repo: owner/onboarding-app
+    status: onboarding
+  paused-app:
+    repo: owner/paused-app
+    status: paused
+`,
+      "utf8",
+    );
+    writeFileSync(
+      rolesPath,
+      `roles:
+  support:
+    runtime: claude
+    model: m
+    effort: medium
+    delegation: {allow: []}
+    triggers:
+      - event: support-feedback
+    outputs: []
+`,
+      "utf8",
+    );
+    try {
+      const result = await dispatchTick({
+        runtimeHome: home.root,
+        appsPath,
+        rolesPath,
+        now: () => new Date("2026-07-06T10:00:00Z"),
+        eventSource: emptySource(),
+        spawn: async () => {},
+      });
+      expect(result.spawned).toHaveLength(0);
+      expect(result.errors).toHaveLength(0);
+      expect(result.skipped).toContain("onboarding-app: skipped, app not live (status: onboarding)");
+      expect(result.skipped).toContain("paused-app: skipped, app not live (status: paused)");
+    } finally {
+      home.cleanup();
+    }
+  });
 });
 
 function fixture(options: { roles: string; maxConcurrent?: number; cadence?: string }) {

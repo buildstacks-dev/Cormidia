@@ -368,7 +368,13 @@ async function computeDueTurns(input: {
   }
 
   for (const app of input.appsFile.apps) {
-    if (app.status !== "live") continue;
+    if (app.status !== "live") {
+      // Named skip, not a silent continue: a non-live app's pending events
+      // stay in the inbox unpolled, and the operator must be able to see why
+      // from `operon dispatch` output alone (review finding L-002).
+      input.result.skipped.push(`${app.name}: skipped, app not live (status: ${app.status})`);
+      continue;
+    }
     if (await isOverlayPaused(input.runtimeHome, app.name)) {
       input.result.skipped.push(`${app.name}: budget overlay paused`);
       blocked.push({ app: app.name, role: "*", triggerKind: "mechanical", trigger: "budget-overlay", outcome: "blocked", reason: "budget_paused", detail: "app budget overlay paused" });

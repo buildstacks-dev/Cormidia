@@ -6,7 +6,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ApprovalStore, actionHash } from "../src/org/approvals.js";
+import { ApprovalStore, actionHash, ACTION_IDENTITY_VERSION } from "../src/org/approvals.js";
 import type { ApprovalGrant, ApprovalItem } from "../src/org/approvals.js";
 import { grantScopeText } from "../src/org/gate-compose.js";
 import { executeApprovedReleases, queueReleaseApprovals } from "../src/org/release.js";
@@ -203,6 +203,9 @@ describe("release grant matching cannot be widened by agent free text (A-005 / P
       app: "site",
       role: "orchestrator",
       actionHash: actionHash(action),
+      // A grant minted under the current identity scheme (P0-05): without this
+      // field findMatchingGrantSync rejects it as a stale pre-version grant.
+      identityVersion: ACTION_IDENTITY_VERSION,
       expiresAt: "2026-07-15T00:00:00.000Z",
       uses: 20,
       createdAt: "2026-07-14T00:05:00.000Z",

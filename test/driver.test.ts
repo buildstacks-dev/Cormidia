@@ -376,4 +376,41 @@ describe("dependencyRelevantPackageJson (L1-05, real git diff)", () => {
       repo.cleanup();
     }
   });
+
+  // L1-05 fixup: a genuine git FAILURE must fail SAFE (escalate), not fail open.
+  it("escalates when git show fails — a transient 'cannot check' is treated as risky, not 'no change'", () => {
+    const repo = makeWorkingRepo();
+    try {
+      // A bogus base ref makes `git show <ref>:package.json` fail with
+      // "invalid object name" — a genuine failure, NOT a legitimately-absent
+      // path. We cannot compare, so package.json must be treated as a security
+      // signal (escalate). The old helper collapsed this into undefined → {},
+      // which — when the present side also had no dependency keys — read as
+      // "no change" and silently dropped the escalation (fail-open).
+      expect([...dependencyRelevantPackageJson(repo.root, "does-not-exist-ref", "HEAD", ["package.json"])]).toEqual([
+        "package.json",
+      ]);
+    } finally {
+      repo.cleanup();
+    }
+  });
+
+  it("treats a legitimately-absent side as empty, not a failure: an added metadata-only package.json does not escalate", () => {
+    const repo = makeWorkingRepo();
+    try {
+      // A newly-added package.json with NO dependency/script keys: the base
+      // side legitimately does not exist at `base` (an absence, not an error),
+      // so the present side's (empty) deps drive the comparison → not relevant.
+      // This is the case that must NOT be conflated with a git failure.
+      const base = repo.head();
+      repo.commit("feat: add a metadata-only sub-package", {
+        "packages/meta/package.json": JSON.stringify({ name: "meta", version: "1.0.0" }, null, 2) + "\n",
+      });
+      const changed = repo.changedFiles(base);
+      expect(changed).toContain("packages/meta/package.json");
+      expect([...dependencyRelevantPackageJson(repo.root, base, "HEAD", changed)]).toEqual([]);
+    } finally {
+      repo.cleanup();
+    }
+  });
 });

@@ -5,7 +5,7 @@
 // the pipeline executor in M6; M5 proves the GitHub/gate/state-machine shell
 // that those turns plug into.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -1687,8 +1687,17 @@ function gitLines(cwd: string, ...args: string[]): string[] {
  *  (L1-05). Shared by the review pass selector (`passSelectionForItem`) and
  *  the loop driver's route reassessment (`reassessForObservedWorktreeRisk`),
  *  so both treat a bare metadata/test-glob `package.json` edit identically:
- *  not a security signal. A `git show` of an absent side (added/deleted file)
- *  fails and is read as "no keys". Exported for the behavioral regression test. */
+ *  not a security signal.
+ *
+ *  Each side is read with a THREE-way result: content, a legitimate ABSENCE
+ *  (the path does not exist at that ref — a newly-added or newly-deleted file),
+ *  or a genuine git FAILURE ("cannot check"). A failure is fail-SAFE: it means
+ *  we cannot compare, so package.json is treated as security-relevant and the
+ *  route escalates (the commit's "cannot compare → escalate" claim; Theme 1 —
+ *  cannot-determine must fail safe). A legitimate absence maps to an empty
+ *  side, so the present side's own deps still drive the comparison (an added
+ *  package.json with dependencies escalates; a deleted one does not). Exported
+ *  for the behavioral regression test. */
 export function dependencyRelevantPackageJson(
   worktree: string,
   baseRef: string,
@@ -1698,19 +1707,48 @@ export function dependencyRelevantPackageJson(
   const relevant = new Set<string>();
   for (const file of changedFiles) {
     if (file !== "package.json" && !file.endsWith("/package.json")) continue;
-    const before = gitShowOrUndefined(worktree, `${baseRef}:${file}`);
-    const after = gitShowOrUndefined(worktree, `${headRef}:${file}`);
-    if (packageJsonTouchesSecurityKeys(before, after)) relevant.add(file);
+    const before = packageJsonAtRef(worktree, `${baseRef}:${file}`);
+    const after = packageJsonAtRef(worktree, `${headRef}:${file}`);
+    // A genuine git failure on either side is fail-safe: cannot compare →
+    // escalate. Do NOT collapse it into "empty" the way a legitimate absence
+    // is (that would fail open on a transient error).
+    if (before.kind === "error" || after.kind === "error") {
+      relevant.add(file);
+      continue;
+    }
+    const beforeText = before.kind === "content" ? before.text : undefined;
+    const afterText = after.kind === "content" ? after.text : undefined;
+    if (packageJsonTouchesSecurityKeys(beforeText, afterText)) relevant.add(file);
   }
   return relevant;
 }
 
-function gitShowOrUndefined(cwd: string, spec: string): string | undefined {
-  try {
-    return git(cwd, "show", spec);
-  } catch {
-    return undefined;
+type PackageJsonAtRef =
+  | { kind: "content"; text: string }
+  | { kind: "absent" } // the path legitimately does not exist at this ref
+  | { kind: "error" }; // git could not answer — treat as risky (fail-safe)
+
+/** Read a file's content at a git ref, distinguishing a legitimate absence
+ *  (added/deleted file) from a genuine git failure. `git show <ref>:<path>`
+ *  for a path that simply is not present at that ref exits non-zero with a
+ *  recognizable "does not exist" / "exists on disk, but not in" message; any
+ *  other non-zero exit (bad ref, not a repo, object-store error) is a failure
+ *  we must not mistake for "no change". */
+function packageJsonAtRef(cwd: string, spec: string): PackageJsonAtRef {
+  const result = spawnSync("git", ["show", spec], {
+    cwd: resolve(cwd),
+    encoding: "utf8",
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error === undefined && result.status === 0) {
+    return { kind: "content", text: result.stdout };
   }
+  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  if (/does not exist in|exists on disk, but not in/.test(stderr)) {
+    return { kind: "absent" };
+  }
+  return { kind: "error" };
 }
 
 function git(cwd: string, ...args: string[]): string {

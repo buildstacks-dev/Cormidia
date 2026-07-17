@@ -161,3 +161,38 @@ rules apply: evidence attached, wrong lessons deleted).
   deploy, or global provider-memory writes (tool/prompt surface removal),
   with conformance cases proving the attempts are unrepresentable, not
   merely denied.
+
+## Implementation note — 2026-07-17 · content-bound grant identity (A-002)
+
+> **Flagged for human review.** This note records an implementation change to
+> the A1 grant mechanism made during architecture-review remediation
+> (backlog P0-05, finding A-002). It does not alter the ratified A1–A5 design
+> above; it corrects the *identity* an A1 grant authorizes. Ratify or amend.
+
+The A1 grant's authorization identity (`actionHash`, `src/org/approvals.ts`)
+was the *classification* projection reused verbatim — `normalizeSemanticAction`,
+which deliberately discards the tool payload (a Write `content`, an Edit
+`new_string`). Correct for classification (a doc that mentions `kubectl apply`
+is not a deploy) but wrong as an authorization key: a human who approved
+Write **X** thereby authorized Write **Y** on the same `(tool, path)` pair, and
+because `findPendingEquivalentSync` deduplicated on the same identity, a
+malicious raise silently collapsed into the benign item the human was reading.
+
+The fix binds the payload into the identity only — classification stays
+payload-blind. `actionHash` now hashes `{ v, semantic, payload }`: the
+payload-free semantic projection, a content digest of the fields the projection
+does not consume, and a format version `ACTION_IDENTITY_VERSION`. This mirrors
+`src/org/learning/publisher.ts`'s `final_diff_hash` (sha256 over exact bytes),
+already the repo's standard for content-bound approval. A different-content
+raise now produces a distinct pending item, and a grant covers only the exact
+bytes the human saw.
+
+**Migration (human decision, 2026-07-17):** cancel in-flight grants the instant
+the fix lands. Grants persist an `identityVersion`; `findMatchingGrantSync`
+refuses any grant whose version is not current, so every pre-existing grant
+(including A1 scoped grants, which match by rule/path rather than hash) stops
+matching at once. The failure mode is a fresh approval item on the next gated
+turn — the agent re-raises, the human re-approves — never a crash. Regression
+coverage: `test/approval-semantics.test.ts` G-BIND-01…04 (distinct identity,
+content-aware dedupe, payload-blind classification, and clean legacy-grant
+re-raise).

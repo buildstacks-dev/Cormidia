@@ -689,11 +689,25 @@ Item schema:
    `blocked_on_gate`. Either way the item is persisted to `pending/` at
    collection time, tagged with app and turnId.
 3. Human reviews via CLI (below). **Approve ≠ auto-execute.** Approval mints
-  a grant: `{app, role, actionHash, scope, expiresAt, uses, maxUses,
-   revokedAt?}` where `actionHash` = SHA-256 of the normalized
-   `{tool, input, description?}` (`normalizeAction`/`actionHash` in
-   `src/org/approvals.ts`). The default scope is `once` — a single-use
-   action hash, exactly the pre-amendment behavior. At decision time the
+  a grant: `{app, role, actionHash, identityVersion, scope, expiresAt, uses,
+   maxUses, revokedAt?}`. `actionHash` = SHA-256 of the *authorization
+   identity* (`actionHash` in `src/org/approvals.ts`): the payload-free
+   semantic projection (`normalizeSemanticAction` — the same shape `classify`
+   uses) **plus** a content digest of the agent-authored payload that
+   projection discards (a Write `content`, an Edit `new_string`/`old_string`,
+   an apply_patch body) **plus** a format version. Binding the payload is what
+   makes a human's approval cover the exact bytes they saw and nothing else —
+   approving Write X never authorizes Write Y on the same path (finding A-002),
+   and a different-content raise is a distinct pending item, not a silent
+   collapse into the one the human is reading. Classification itself stays
+   payload-blind (`normalizeSemanticAction` discards the payload, so a doc that
+   merely names a protocol surface is not a self-edit). Bumping the identity
+   format (`ACTION_IDENTITY_VERSION`) cancels every in-flight grant: a persisted
+   grant carries its mint-time `identityVersion`, and `findMatchingGrantSync`
+   refuses any grant whose version is not current — so on a format change agents
+   re-raise and the miss path yields a fresh approval item, never a crash. The
+   default scope is `once` — a single-use action hash, exactly the
+   pre-amendment behavior. At decision time the
    human (never the agent) may widen to `ticket` or `app` scope: every
    action matching (rule, path prefix) for that app±ticket until TTL,
    use-count cap (default 20), or `operon approvals revoke <grant-id>`.

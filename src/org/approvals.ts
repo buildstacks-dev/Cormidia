@@ -23,7 +23,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { ToolAction } from "../runtime/types.js";
-import { normalizeSemanticAction } from "../runtime/gate.js";
+import { normalizeSemanticAction, type SemanticAction } from "../runtime/gate.js";
 
 export type ApprovalDecision = "approved" | "denied";
 export type ApprovalStatus = "pending" | ApprovalDecision;
@@ -78,6 +78,12 @@ export interface ApprovalGrant {
   scope?: GrantScope;
   /** Set by `operon approvals revoke` — a revoked grant never matches. */
   revokedAt?: string;
+  /** The action-identity format this grant was minted under (see
+   *  ACTION_IDENTITY_VERSION). `findMatchingGrantSync` refuses any grant whose
+   *  version is not current, so a format bump cancels every in-flight grant:
+   *  agents re-raise and the miss path yields a fresh approval item. Absent on
+   *  pre-2026-07-17 (v1, payload-blind) grants — they never match again. */
+  identityVersion?: number;
 }
 
 /** Rules the human may never widen beyond single-use (amendment A1): the
@@ -375,6 +381,12 @@ export class ApprovalStore {
       if (!file.endsWith(".json")) continue;
       const grant = readJsonSync<ApprovalGrant>(join(this.grantsDir(), file));
       if (
+        // A grant minted under a superseded identity format never matches
+        // (A-002 migration): a version bump cancels every in-flight grant so a
+        // human decision made against the old, payload-blind identity cannot
+        // authorize an action under the new content-bound one. This gate
+        // covers scoped grants too, which do not otherwise consult actionHash.
+        grant.identityVersion !== ACTION_IDENTITY_VERSION ||
         grant.app !== input.app ||
         grant.role !== input.role ||
         grant.uses <= 0 ||
@@ -580,9 +592,76 @@ export function normalizeAction(action: ToolAction | ApprovalAction): ApprovalAc
   return normalized;
 }
 
+/** Action-identity format version. The identity `actionHash` computes is the
+ *  authorization key: a grant authorizes exactly the actions whose identity it
+ *  covers. Bumping this constant invalidates every persisted grant — new hashes
+ *  no longer equal the old stored ones, and `findMatchingGrantSync` refuses any
+ *  grant whose `identityVersion` is not current (covering scoped grants, which
+ *  match by rule/path rather than hash). v1 (pre-2026-07-17) was the
+ *  payload-blind projection reused verbatim from CLASSIFICATION, so a human who
+ *  approved Write X authorized Write Y on the same (tool, path) pair (A-002).
+ *  v2 binds the payload. The migration is intentional and abrupt: the instant
+ *  the fix lands, in-flight grants stop matching, agents re-raise, and the miss
+ *  path yields a fresh approval item — never a crash. */
+export const ACTION_IDENTITY_VERSION = 2;
+
+/** Input keys `normalizeSemanticAction` (src/runtime/gate.ts) already folds
+ *  into the semantic identity. Everything ELSE in the input is agent-authored
+ *  PAYLOAD — a Write `content`, an Edit `old_string`/`new_string`, an
+ *  apply_patch `unified_diff`, a structured `body` — which the authorization
+ *  identity must bind. Keep in sync with the keys read there; over-listing here
+ *  only double-counts a field harmlessly, under-listing re-opens A-002. */
+const SEMANTIC_INPUT_KEYS: ReadonlySet<string> = new Set([
+  "command",
+  "cmd",
+  "path",
+  "file_path",
+  "target",
+  "destination",
+  "resolved_path",
+  "real_path",
+  "effect",
+]);
+
+/** The agent-authored payload the CLASSIFICATION projection deliberately
+ *  discards (gate.ts:25-27 — "docs that mention `kubectl apply` are not a
+ *  deploy") but the AUTHORIZATION identity must bind. Returns a canonical value
+ *  over every input field the semantic projection does not consume, or null
+ *  when there is none — the analogue of publisher.ts `final_diff_hash`
+ *  (sha256Ref over the exact bytes): a changed payload is a different
+ *  authorization, so it re-raises instead of riding a stale grant. A bash
+ *  `command` is the semantic identity itself, so a shell action carries no
+ *  residual payload and its identity is unchanged. */
+function payloadIdentity(action: ToolAction | ApprovalAction, semantic: SemanticAction): unknown {
+  const input = action.input;
+  if (input === null || input === undefined) return null;
+  if (typeof input !== "object" || Array.isArray(input)) {
+    // A primitive/array input is either the command (already in `semantic`) or
+    // opaque payload; bind it only when the projection did not consume it.
+    return semantic.command === null ? input : null;
+  }
+  const residual: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (!SEMANTIC_INPUT_KEYS.has(key)) residual[key] = value;
+  }
+  return Object.keys(residual).length === 0 ? null : residual;
+}
+
+/** The authorization identity of an action: the payload-free semantic
+ *  projection PLUS the agent-authored payload PLUS the format version. This is
+ *  deliberately NOT the classification projection — `classify()` stays
+ *  payload-blind (gate.ts) so prose about a deploy is not a deploy, while a
+ *  human's approval binds the exact bytes they saw (A-002). */
 export function actionHash(action: ToolAction | ApprovalAction): string {
+  const semantic = normalizeSemanticAction(action);
   return createHash("sha256")
-    .update(stableStringify(normalizeSemanticAction(action)))
+    .update(
+      stableStringify({
+        v: ACTION_IDENTITY_VERSION,
+        semantic,
+        payload: payloadIdentity(action, semantic),
+      }),
+    )
     .digest("hex");
 }
 
@@ -632,6 +711,7 @@ function mintGrant(
     app: item.app,
     role: item.role,
     actionHash: actionHash(item.action),
+    identityVersion: ACTION_IDENTITY_VERSION,
     expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
     uses: scope !== undefined ? maxUses ?? DEFAULT_SCOPED_MAX_USES : 1,
     createdAt: now.toISOString(),

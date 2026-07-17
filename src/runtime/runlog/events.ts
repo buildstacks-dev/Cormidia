@@ -34,7 +34,12 @@ export type RunlogEventType =
   | "escalation.raised"
   /** A provider settle found its (app, providerTurnId), or legacy
    *  (app, runId), already present and was skipped. */
-  | "telemetry.settle_skipped";
+  | "telemetry.settle_skipped"
+  /** A provider settle threw (e.g. a settlement-lock timeout) after the paid
+   *  turn returned. The durable execution step is preserved so
+   *  `operon budget --reconcile` back-fills the ledger row; the turn is never
+   *  discarded and the pipeline is never crashed by it (F-002 / L-005). */
+  | "telemetry.settle_failed";
 
 export type EventSeverity = "info" | "warn" | "error";
 

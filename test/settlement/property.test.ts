@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   admitEpisode,
@@ -13,7 +13,7 @@ import {
   type AuthorizedPass,
 } from "../../src/loop/efficiency.js";
 import { reconcileLedger } from "../../src/org/budget.js";
-import { readTurnRecords, recordTurnOnce, type TurnRecord } from "../../src/runtime/telemetry.js";
+import { readTurnRecords, recordTurnOnce, settlementKey, type TurnRecord } from "../../src/runtime/telemetry.js";
 import { finalizeRun, readEnvelope, startRun, updateEnvelope } from "../../src/runtime/runlog/envelope.js";
 import type { RoleConfig, TurnResult } from "../../src/runtime/types.js";
 import { makeOrgHome, type OrgHomeFixture } from "../fixtures/orgHome.js";
@@ -49,6 +49,63 @@ describe("provider settlement and terminal reconciliation", () => {
     const results = await Promise.all(Array.from({ length: 20 }, () => recordTurnOnce(home.root, record)));
     expect(results.filter(Boolean)).toHaveLength(1);
     expect(await readTurnRecords(home.root)).toHaveLength(1);
+    // F-002: the settled-key sidecar index mirrors the ledger exactly-once —
+    // the concurrent winners all consult it and only one key is recorded.
+    expect(await readIndexKeys(home.root)).toEqual([settlementKey("fixture", "turn-race")]);
+  });
+
+  // F-002 / P1-13: recordTurnOnce consults a compact settled-key sidecar index
+  // instead of re-parsing the entire ledger history on every write (which made
+  // settling N turns O(N²)). These pin the index's exactly-once invariant under
+  // concurrency, its consistency with the ledger, and its rebuild path.
+  it("F-SET-04 answers the duplicate check from the sidecar index, not a full ledger rescan", async () => {
+    home = makeOrgHome();
+    const a = ledgerRow("turn-a", "step-a");
+    const b = ledgerRow("turn-b", "step-b");
+    expect(await recordTurnOnce(home.root, a)).toBe(true);
+    expect(await recordTurnOnce(home.root, b)).toBe(true);
+    expect(existsSync(`${home.root}/telemetry/.settled-index`)).toBe(true);
+    expect(await readIndexKeys(home.root)).toEqual([
+      settlementKey("fixture", "turn-a"),
+      settlementKey("fixture", "turn-b"),
+    ]);
+    // Remove every raw ledger day-file. If the check still rescanned all history
+    // it would "forget" both keys and double-write; consulting the index, it
+    // still recognizes them.
+    for (const file of await readdir(`${home.root}/telemetry`)) {
+      if (file.endsWith(".jsonl")) await rm(`${home.root}/telemetry/${file}`);
+    }
+    expect(await recordTurnOnce(home.root, a)).toBe(false);
+    expect(await recordTurnOnce(home.root, b)).toBe(false);
+  });
+
+  it("F-SET-04 rebuilds the index from the ledger when it is absent, preserving exactly-once", async () => {
+    home = makeOrgHome();
+    const seen = ledgerRow("turn-seen", "step-seen");
+    expect(await recordTurnOnce(home.root, seen)).toBe(true);
+    // Legacy org / operator deletion: drop the sidecar, keep the authoritative ledger.
+    await rm(`${home.root}/telemetry/.settled-index`);
+    // The already-settled key is still recognized — the index rebuild reads the ledger.
+    expect(await recordTurnOnce(home.root, seen)).toBe(false);
+    // ...and a genuinely new key still settles exactly once through the rebuilt index.
+    const fresh = ledgerRow("turn-fresh", "step-fresh");
+    expect(await recordTurnOnce(home.root, fresh)).toBe(true);
+    expect(await recordTurnOnce(home.root, fresh)).toBe(false);
+    expect(await readTurnRecords(home.root)).toHaveLength(2);
+  });
+
+  it("F-SET-04 keeps many concurrent distinct settlements exactly-once with a ledger-consistent index", async () => {
+    home = makeOrgHome();
+    const rows = Array.from({ length: 40 }, (_, i) => ledgerRow(`turn-${i}`, `step-${i}`));
+    // Settle every row twice, all concurrent: 40 unique appends, 40 duplicates skipped.
+    const results = await Promise.all([...rows, ...rows].map((row) => recordTurnOnce(home.root, row)));
+    expect(results.filter(Boolean)).toHaveLength(40);
+    const ledger = await readTurnRecords(home.root);
+    expect(ledger).toHaveLength(40);
+    const indexKeys = await readIndexKeys(home.root);
+    expect(new Set(indexKeys).size).toBe(40);
+    // The index is exactly the set of ledger keys — never leads, never lags here.
+    expect(new Set(indexKeys)).toEqual(new Set(ledger.map((row) => settlementKey(row.app, row.providerTurnId!))));
   });
 
   it("F-SET-01 terminalizes and settles every provider status and usage-quality combination", async () => {
@@ -314,6 +371,11 @@ describe("provider settlement and terminal reconciliation", () => {
     expect((await readTurnRecords(home.root))[0]?.unmeasured).not.toBe(true);
   });
 });
+
+async function readIndexKeys(root: string): Promise<string[]> {
+  const text = await readFile(`${root}/telemetry/.settled-index`, "utf8");
+  return text.split("\n").filter((line) => line.length > 0);
+}
 
 async function admission(root: string, episodeId: string): Promise<void> {
   await mkdir(`${root}/runs/fixture`, { recursive: true });

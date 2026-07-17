@@ -827,6 +827,24 @@ weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
 `unmeasured: true` (cost unknown, not zero). New ledger rows also carry
 `usageQuality: complete|partial|estimated|unavailable`; dashboards label
 recorded lower bounds instead of presenting unknown spend as free.
+  - **Exactly-once is indexed, not rescanned (F-002).** `recordTurnOnce`
+  answers its idempotency check from a compact keys-only sidecar,
+  `telemetry/.settled-index`, one settlement key per line — not by re-parsing
+  every `<day>.jsonl` on every write (which made settling N turns over a
+  system's life O(N²)). The sidecar is appended **ledger-first** under the same
+  cross-process settlement lock, so it can only ever lag the ledger, never lead
+  it: an index-hit always implies a ledger row (no lost turn), and the two
+  re-settle paths — the one-shot pass executor and `reconcileLedger`, which
+  reads the authoritative ledger first — never re-present a settled key (no
+  duplicate). The full ledger scan survives only as the rebuild path when the
+  sidecar is absent (legacy org, operator deletion). Budget accounting still
+  sums the `<day>.jsonl` rows, never the index.
+  - **A settlement failure never discards a paid turn (L-005).** The pass
+  executor writes the durable execution step *before* it settles, and wraps the
+  settlement call so a throw (e.g. a lock timeout under contention) records a
+  `telemetry.settle_failed` event and leaves the completed turn intact rather
+  than unwinding the pipeline past money already spent. `operon budget
+  --reconcile` back-fills the ledger row from the durable execution step.
 - **Cache visibility.** Input tokens come in three price classes (uncached
 ~1×, cache-write 1.25–2×, cache-read ~0.1×); both SDKs report the split
 per response. L1 rollups and telemetry carry it (`TurnUsage` delta, §10),

@@ -9,7 +9,7 @@
 // executor-routed turns, or the ledger would double-count.
 
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
+import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Trigger, TurnResult, RoleConfig, UsageQuality } from "./types.js";
 
@@ -182,14 +182,74 @@ export async function recordTurnOnce(orgDir: string, record: TurnRecord): Promis
       "recordTurnOnce: providerTurnId or legacy runId is required for idempotent settlement",
     );
   }
+  const key = settlementKey(record.app, identity);
   const release = await acquireSettlementLock(orgDir);
   try {
-    if ((await readSettledKeys(orgDir)).has(settlementKey(record.app, identity))) return false;
-    await recordTurn(orgDir, record);
+    // Consult the compact settled-key sidecar index instead of re-parsing the
+    // entire ledger history on every write (F-002: that made settling N turns
+    // over a system's life O(N²)). The cross-process lock still serializes the
+    // read+append transaction, so exactly-once holds. The index is written
+    // ledger-FIRST below, so it can only ever LAG the ledger — a lag cannot
+    // lose a settlement (see loadSettledIndex).
+    if ((await loadSettledIndex(orgDir)).has(key)) return false;
+    await recordTurn(orgDir, record); // ledger row first — the durable spend
+    await appendSettledKey(orgDir, key); // then the derived index
     return true;
   } finally {
     await release();
   }
+}
+
+/** Compact keys-only sidecar accelerating recordTurnOnce's exactly-once check
+ *  (F-002). One settlement key per line, appended ledger-FIRST under the
+ *  settlement lock. Consequences of that ordering, which the safety argument
+ *  rests on:
+ *   - The index can only ever LAG the ledger. A crash strictly between the
+ *     ledger append and the index append leaves a key in the ledger but not the
+ *     index; it can never leave a key in the index that is absent from the
+ *     ledger. So `index-hit ⟹ ledger-hit` always holds — the check never
+ *     false-positives, hence never SKIPS (loses) a genuinely-new paid turn.
+ *   - A lag can at worst allow a DUPLICATE if the same key is settled again.
+ *     Neither settlement re-entry path does that: the pass executor settles a
+ *     given providerTurnId exactly once, and `reconcileLedger` reads the
+ *     authoritative ledger (readSettledKeys) before it re-settles, so it never
+ *     re-presents a ledger-present key. Budget accounting also reads the
+ *     ledger, not this index, so a lag never mis-counts spend (invariant #6).
+ *  The full ledger scan is retained only as the rebuild path. */
+function settledIndexPath(orgDir: string): string {
+  return join(orgDir, "telemetry", ".settled-index");
+}
+
+/** Every settled key according to the sidecar. Rebuilt from the authoritative
+ *  ledger (and persisted atomically) the first time it is needed, or if an
+ *  operator deletes it. Tolerates torn lines the same way readSettledKeys does:
+ *  a truncated trailing key is an entry that simply never matches a real query.
+ *  Must be called under the settlement lock. */
+async function loadSettledIndex(orgDir: string): Promise<Set<string>> {
+  const path = settledIndexPath(orgDir);
+  if (existsSync(path)) {
+    const ids = new Set<string>();
+    const text = await readFile(path, "utf8");
+    for (const line of text.split("\n")) {
+      if (line.length === 0) continue;
+      ids.add(line);
+    }
+    return ids;
+  }
+  const keys = await readSettledKeys(orgDir);
+  await mkdir(dirname(path), { recursive: true });
+  const tmp = `${path}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  await writeFile(tmp, [...keys].map((id) => `${id}\n`).join(""), "utf8");
+  await rename(tmp, path);
+  return keys;
+}
+
+/** Append one settled key to the sidecar. Called under the settlement lock,
+ *  AFTER the ledger row is durable, so the index never leads the ledger. */
+async function appendSettledKey(orgDir: string, key: string): Promise<void> {
+  const path = settledIndexPath(orgDir);
+  await mkdir(dirname(path), { recursive: true });
+  await appendFile(path, `${key}\n`, "utf8");
 }
 
 /** Every settlement key already in the ledger. Tolerates torn/corrupt lines

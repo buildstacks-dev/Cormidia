@@ -479,6 +479,38 @@ describe("executePipeline", () => {
     }
   });
 
+  // P1-13 / F-002 / L-005: a settlement failure must NOT discard a paid-for
+  // provider turn. The execution step is durable BEFORE settlement, so
+  // `operon budget --reconcile` back-fills the ledger row; the settlement call
+  // site records a durable settle-failure marker and the turn/pipeline survive.
+  it("a settlement failure preserves the paid turn instead of crashing the pipeline (P1-13)", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(build, [scripted("contract out"), scripted("implement out")]);
+    // Make the telemetry directory unwritable so recordTurnOnce throws inside
+    // the settlement lock (a lock timeout at scale reaches the same call site).
+    writeFileSync(join(h.options.runlog.root, "telemetry"), "not a directory", "utf8");
+    h.options.telemetry = { orgDir: h.options.runlog.root, trigger: "manual" };
+    try {
+      // The pipeline runs to a normal terminal — no unhandled settlement throw.
+      const run = await executePipeline(h.options);
+      expect(run.aborted).toBe(false);
+      expect(run.passes.map((p) => p.result.status)).toEqual(["completed", "completed"]);
+
+      // Each paid turn left a durable settle-failure marker instead of vanishing.
+      for (const record of run.passes) {
+        const events = await readEvents(h.options.runlog.root, "civic", record.runId);
+        const failed = events.filter((entry) => entry.event === "telemetry.settle_failed");
+        expect(failed).toHaveLength(1);
+        expect(failed[0]?.detail).toMatchObject({ providerTurnId: expect.any(String) });
+        // The execution step is durable, so reconcile can recover the spend.
+        const envelope = await readEnvelope(h.options.runlog.root, "civic", record.runId);
+        expect(envelope.provider_turn_ids?.length).toBeGreaterThan(0);
+      }
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("wall-clock watchdog cancels a hung pass: timed-out envelope, distinct code, unmeasured row", async () => {
     const build = getPipeline(await loadFixture(), "build");
     // A pass whose runtime never resolves, capped at ~30ms.

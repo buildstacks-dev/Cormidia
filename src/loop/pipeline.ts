@@ -813,8 +813,31 @@ async function runPass(
         ? { learningActivity: options.telemetry.learningActivity }
         : {}),
     });
-    const settled = await recordTurnOnce(options.telemetry?.orgDir ?? root, settlement);
-    if (!settled) {
+    // P1-13 / F-002 / L-005: a settlement failure (e.g. a lock timeout at
+    // scale, or an abort unwinding through here) must NOT discard a paid-for
+    // provider turn. The execution step above (finalizeProviderStep) is already
+    // durable — it is written BEFORE settlement precisely so this ordering
+    // holds — so `operon budget --reconcile` back-fills the ledger row. Record a
+    // durable settle-failure marker and let the completed turn survive rather
+    // than unwinding the whole pipeline past money already spent. Do NOT reorder
+    // the durable step write after this point.
+    let settled = false;
+    let settleFailed = false;
+    try {
+      settled = await recordTurnOnce(options.telemetry?.orgDir ?? root, settlement);
+    } catch (error) {
+      settleFailed = true;
+      await events.append({
+        type: "telemetry.settle_failed",
+        severity: "error",
+        detail: {
+          providerTurnId: started.providerTurnId,
+          executionStepId: started.executionStepId,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+    if (!settled && !settleFailed) {
       await events.append({
         type: "telemetry.settle_skipped",
         severity: "warn",

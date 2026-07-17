@@ -795,7 +795,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
         if (row !== undefined && isBudgetBlocking(row.status)) {
           const reason =
             row.status === "unknown"
-              ? `${row.app} budget total could not be computed this month (malformed ledger row) — refusing to spend`
+              ? `${row.app} budget total could not be computed this month (malformed ledger row) — refusing to spend; run \`operon budget --reconcile\` to repair the ledger`
               : `${row.app} spent $${row.spentUsd.toFixed(2)} of $${row.budgetUsd.toFixed(2)} this month`;
           return { allowed: false, reason };
         }

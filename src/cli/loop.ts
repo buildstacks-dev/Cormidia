@@ -278,7 +278,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
                   reason:
                     row.status === "unknown"
                       ? `${row.app} budget total could not be computed this month ` +
-                        `(malformed ledger row) — refusing to spend until it is reconciled`
+                        `(malformed ledger row) — refusing to spend; run ` +
+                        `\`operon budget --reconcile\` to repair the ledger`
                       : `${row.app} spent $${row.spentUsd.toFixed(2)} of its ` +
                         `$${row.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
                         `or wait for the month to reset`,

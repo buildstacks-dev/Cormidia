@@ -723,3 +723,35 @@ self-approval path.
   state via GitHub the way `rearmDependents` already does; add a test that drives the LIVE fetch semantics
   (open-only input + a closed merged dep) rather than a hand-built merged ticket. Effort M. **Blocks the
   Phase B paid ladder past #3.**
+
+### Filed during Phase B — live promotion capstone (2026-07-17)
+
+After the 5-ticket milestone merged, `operon app verify bs-e2e --json` was run to validate the app can
+now reach `ready`/`live` (the L-001 goal — SRE/Support/Marketing only exist once an app is live).
+**E2E-01 is validated:** `app-check-setup: pass` now runs `npm install` before `app-check-tests: pass`
+and `app-check-lint: pass` (all three passed; before the Wave 5 fix, app-check-tests failed on missing
+`node_modules`). But `status: invalid` — the app STILL cannot reach `live`, blocked by two OTHER checks.
+So L-001's remediation is **incomplete**: E2E-01 unblocked the app-check gates, but reaching `live`
+(hence waking SRE/Support/Marketing) is still blocked.
+
+- **B-LIVE-04 (E2E-02 CONFIRMED with exact mechanism — `runtime-codex` verify check false-fails; blocks
+  live promotion — the significant blocker):** `operon app verify` reports `runtime-codex: fail` with
+  `Cannot find module '@openai/codex'` (require stack: `src/org/app-lifecycle.ts`), while `operon doctor`
+  reports the SAME codex adapter `OK — ready` (`account=chatgpt plan=pro`, non-billable real App-Server
+  probe). The two readiness checks use different mechanisms: verify does a Node **module resolution**
+  (`require`/import of `@openai/codex`), which fails because the package ships **bin-only** (no
+  `main`/`exports`) under this pnpm layout; doctor does the actual adapter probe. verify's probe is the
+  wrong one — it marks a genuinely-ready runtime as failed, so an app configured for codex can never
+  reach `ready`/`live` via verify even though the runtime works. **Fix:** verify's runtime check should
+  reuse doctor's adapter-readiness probe (the App-Server/SDK init path) rather than module resolution.
+  This directly blocks the L-001 goal. Effort S–M. (Confirms E2E-02 / W0-ADJ-06.)
+- **B-LIVE-05 (`registry-config` divergence blocks readiness; no reconciliation path — minor):**
+  `app verify` fails `registry-config: "registry and app config differ"` because the org registry
+  (`apps.yaml`: `budget_usd_month: 50`, no `critical_ops`) differs from the app-owned
+  `.operon/config.yaml` (`budget_usd_month: 1000` + a `critical_ops` block). An operator who caps an
+  app's budget in the registry (a normal action) thereby breaks `verify`/`promote`, with no documented
+  reconciliation. Partly an E2E-setup artifact (the registry budget was hand-capped to 50), but it
+  reveals verify has no tolerance for — or reconciliation of — a legitimate registry/app config
+  divergence. Decide which config is authoritative for which fields (budget likely registry-authoritative)
+  and either reconcile on load or scope the equality check to fields that must match. Effort S–M.
+  (W0-ADJ-04 / P1-12 family.)

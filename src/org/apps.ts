@@ -62,7 +62,7 @@ export interface FindExistingOrgOptions {
   /** Explicit org home, e.g. CLI `--org-home`. */
   orgHome?: string;
   /** Environment source; defaults to process.env. */
-  env?: Pick<NodeJS.ProcessEnv, "OPERON_ORG_HOME" | "OPERON_HOME">;
+  env?: Partial<Pick<NodeJS.ProcessEnv, "OPERON_ORG_HOME" | "OPERON_HOME">>;
   /** Home dir for the pointer-file lookup; defaults to the current user. */
   homeDir?: string;
   /** Override for tests; defaults to `${homeDir}/.operon/config`. */

@@ -6,7 +6,7 @@
 // state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
-import type { Options as SdkOptions, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { Options as SdkOptions, SDKMessage, SyncHookJSONOutput } from "@anthropic-ai/claude-agent-sdk";
 import {
   buildSystemPromptAppend,
   ClaudeRuntime,
@@ -83,11 +83,11 @@ function makeReq(over: Partial<TurnRequest> = {}): TurnRequest {
   };
 }
 
-const CAN_USE_CTX = { signal: new AbortController().signal };
+const CAN_USE_CTX = { signal: new AbortController().signal, toolUseID: "tu-ctx", requestId: "rq-ctx" };
 
 /** QueryFn that captures {prompt, options} and yields the given messages. */
 function scriptedQuery(messages: SDKMessage[]) {
-  const captured: { prompt?: string; options?: SdkOptions } = {};
+  const captured: { prompt?: string; options?: SdkOptions | undefined } = {};
   const queryFn: QueryFn = ({ prompt, options }) => {
     captured.prompt = prompt;
     captured.options = options;
@@ -179,12 +179,12 @@ describe("ClaudeRuntime (SDK mocked)", () => {
           "tu-1",
           { signal: CAN_USE_CTX.signal },
         );
-        expect(out.hookSpecificOutput).toMatchObject({
+        expect((out as SyncHookJSONOutput).hookSpecificOutput).toMatchObject({
           hookEventName: "PreToolUse",
           permissionDecision: "deny",
         });
         expect(
-          (out.hookSpecificOutput as { permissionDecisionReason?: string })
+          ((out as SyncHookJSONOutput).hookSpecificOutput as { permissionDecisionReason?: string })
             .permissionDecisionReason,
         ).toContain("secrets-or-auth");
         yield successMsg("s1");
@@ -261,7 +261,7 @@ describe("ClaudeRuntime (SDK mocked)", () => {
           "tu-2",
           { signal: CAN_USE_CTX.signal },
         );
-        expect(out.hookSpecificOutput).toMatchObject({ permissionDecision: "allow" });
+        expect((out as SyncHookJSONOutput).hookSpecificOutput).toMatchObject({ permissionDecision: "allow" });
         yield successMsg("s1");
       })();
 
@@ -326,6 +326,7 @@ describe("ClaudeRuntime (SDK mocked)", () => {
       (async function* () {
         yield initMsg("s1");
         const decision = await options!.canUseTool!("Bash", { command: "cat .env" }, CAN_USE_CTX);
+        if (decision === null) throw new Error("expected a permission decision");
         expect(decision.behavior).toBe("deny");
         expect((decision as { message: string }).message).toContain("secrets-or-auth");
         yield successMsg("s1");

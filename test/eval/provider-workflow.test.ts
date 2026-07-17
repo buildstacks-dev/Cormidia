@@ -113,7 +113,7 @@ it("A-SPEC-03 a non-completed delivery contract settles once and prevents implem
   const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-contract-stop-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
   const campaign = { ...fixtureCampaign("contract-stop-fixture"), infrastructure_retries: 0 };
   const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); const roles: string[] = [];
-  const result = await executeLiveCampaign({ root, manifestPath, maxUsd: 10, evalRoot: join(root, ".eval-artifacts/contract-stop-fixture/world"), visibleGate: () => true, hiddenGrader: () => true, runtimeFactory: (role) => ({ kind: role.runtime, runTurn: async () => { roles.push(role.name); return { status: "blocked_on_gate", summary: "contract stopped at approval boundary", artifacts: [], session: { runtime: role.runtime, id: "contract" }, usage: usage(), escalations: [{ action: "publish", reason: "approval required" }] }; } }) });
+  const result = await executeLiveCampaign({ root, manifestPath, maxUsd: 10, evalRoot: join(root, ".eval-artifacts/contract-stop-fixture/world"), visibleGate: () => true, hiddenGrader: () => true, runtimeFactory: (role): Runtime => ({ kind: role.runtime, runTurn: async (): Promise<TurnResult> => { roles.push(role.name); return { status: "blocked_on_gate", summary: "contract stopped at approval boundary", artifacts: [], session: { runtime: role.runtime, id: "contract" }, usage: usage(), escalations: [{ action: { tool: "bash", input: { command: "gh pr merge" } }, reason: "approval required" }] }; } }) });
   expect(roles).toEqual(["builder"]);
   expect(result.attempts[0]).toMatchObject({ outcome: "safety_stop", metrics: { execution: { provider_turns: 1, provider_settlements: 1 } } });
   expect(result.attempts[0]?.evidence.filter((ref) => ref.startsWith("run:"))).toHaveLength(1);
@@ -294,7 +294,7 @@ it("H-EVAL-01 final qualification stops before later cases when the complete pai
     if (role.name === "support") supportTurns += 1;
     if (request.task.includes("learning-candidate.json") && !request.task.includes("Independently review")) writeFileSync(join(request.workdir, "learning-candidate.json"), JSON.stringify({ schema_version: 1, error_classes: ["environment.retry_cluster", "review.long_cycle"], cause_hypothesis: "recurring typed evidence", proposed_intervention: "bounded review checklist", guardrails: ["no outward effects", "rollback on regression"], activation_requested: false }));
     const verdict = request.task.includes("Independently review the proposed learning candidate") ? "\nVERDICT: APPROVE" : "";
-    return { status: "completed", summary: `${role.name} fixture${verdict}`, artifacts: [], session: { runtime: role.runtime, id: `${role.name}-${request.turnId}` }, usage: usage(), escalations: [] };
+    return { status: "completed", summary: `${role.name} fixture${verdict}`, artifacts: [], session: { runtime: role.runtime, id: role.name }, usage: usage(), escalations: [] };
   } }) });
   expect(result.attempts).toHaveLength(6);
   expect(result.attempts.every((attempt) => attempt.outcome === "passed")).toBe(true);

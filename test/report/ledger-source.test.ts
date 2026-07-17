@@ -44,4 +44,4 @@ describe("diagnostic daily ledger reader", () => {
   });
 });
 
-function row(runId: string): unknown { return { at: "2026-07-12T09:00:00Z", role: "builder", runtime: "codex", model: "m", status: "completed", tokensIn: 1, tokensOut: 1, costUsd: 0.1, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1, escalations: 0, app: "alpha", runId }; }
+function row(runId: string): Record<string, unknown> { return { at: "2026-07-12T09:00:00Z", role: "builder", runtime: "codex", model: "m", status: "completed", tokensIn: 1, tokensOut: 1, costUsd: 0.1, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1, escalations: 0, app: "alpha", runId }; }

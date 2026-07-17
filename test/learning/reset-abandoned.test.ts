@@ -24,7 +24,7 @@ describe("F-SET-04 reset and unprojected-run truth", () => {
       episode_id: "ticket:app:#7",
       kind: "build_ticket",
       app: "app",
-      source: { kind: "ticket", ref: "#7" },
+      source: { kind: "github_issue", ref: "#7" },
       stage: "onboarding",
       risk_tier: null,
       opened: "2026-07-14T00:00:00.000Z",

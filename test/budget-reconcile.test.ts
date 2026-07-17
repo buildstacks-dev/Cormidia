@@ -203,6 +203,7 @@ describe("countUnmeasured (Defect A)", () => {
       subagentTurns: 0,
       wallClockMs: 1_121_757,
       escalations: 0,
+      usageQuality: "unavailable",
       app: APP,
       trigger: "manual",
       unmeasured: true,
@@ -219,6 +220,7 @@ describe("countUnmeasured (Defect A)", () => {
       subagentTurns: 0,
       wallClockMs: 60_000,
       escalations: 0,
+      usageQuality: "complete",
       app: APP,
     });
 

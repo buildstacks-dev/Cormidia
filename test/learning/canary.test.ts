@@ -835,9 +835,11 @@ describe("resolver lineage under a running canary", () => {
   it("lineageOverride forces stable under a running trial and records nothing (replay arms)", async () => {
     const rig = await canaryRig();
     const ids = episodeIdsFor(0.5);
+    // Drop stateHome entirely so the override trial records nothing; the
+    // resolver only writes canary assignments when stateHome is present.
+    const { stateHome: _omitStateHome, ...overrideInput } = rig.input(ids.canary, "turn-override");
     const resolved = await resolveLearningContext({
-      ...rig.input(ids.canary, "turn-override"),
-      stateHome: undefined,
+      ...overrideInput,
       lineageOverride: "stable",
     });
     expect(resolved.bundle_lineage).toBe("stable");

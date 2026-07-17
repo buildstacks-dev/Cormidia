@@ -80,5 +80,5 @@ async function fixture(): Promise<{ root: string; orgHome: string; stateHome: st
 async function capture(args: string[]): Promise<string> { const log = vi.spyOn(console, "log").mockImplementation(() => {}); try { await cmdReport(args); return log.mock.calls.map((call) => call.join(" ")).join("\n"); } finally { log.mockRestore(); } }
 function write(root: string, relative: string, content: string): void { const path = join(root, relative); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, content, "utf8"); }
 function tree(root: string): string[] { const { readdirSync, statSync } = requireFs(); const out: string[] = []; const walk = (dir: string, prefix = "") => { if (!existsSync(dir)) return; for (const name of readdirSync(dir).sort()) { const path = join(dir, name); const rel = join(prefix, name); out.push(rel); if (statSync(path).isDirectory()) walk(path, rel); } }; walk(root); return out; }
-function requireFs(): Pick<typeof import("node:fs"), "readdirSync" | "statSync"> { return { readdirSync: (path) => readDir(path), statSync: (path) => statPath(path) } as never; }
+function requireFs(): Pick<typeof import("node:fs"), "readdirSync" | "statSync"> { return { readdirSync: (path: string) => readDir(path), statSync: (path: string) => statPath(path) } as never; }
 import { readdirSync as readDir, statSync as statPath } from "node:fs";

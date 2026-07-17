@@ -18,7 +18,11 @@ import type { TurnResult } from "../src/runtime/types.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
 
-function mergedItem(overrides: Partial<LoopItem> = {}): LoopItem {
+// Overrides may explicitly set a field to `undefined` (e.g. releaseTrigger for
+// the merge-only cases); `queueReleaseApprovals` treats absent and undefined
+// identically, so the trailing assertion is a type-level bridge, not a
+// behavior change.
+function mergedItem(overrides: { [K in keyof LoopItem]?: LoopItem[K] | undefined } = {}): LoopItem {
   return {
     issueNumber: 7,
     ticketRef: "#7",
@@ -34,7 +38,7 @@ function mergedItem(overrides: Partial<LoopItem> = {}): LoopItem {
     findings: [],
     releaseTrigger: { kind: "deploy", command: "gh workflow run deploy.yml", owner: "sre" },
     ...overrides,
-  };
+  } as LoopItem;
 }
 
 describe("queueReleaseApprovals", () => {

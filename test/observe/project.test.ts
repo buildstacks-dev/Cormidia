@@ -114,7 +114,9 @@ describe("observe projection", () => {
       completion_integrity: { required_stages: "incomplete" },
     });
     expect(passLiveness({ ...running, lastSeenAt: new Date(NOW.getTime() - PASS_STALE_AFTER_MS - 1).toISOString() }, NOW).state).toBe("stalled");
-    expect(passLiveness({ ...running, lastSeenAt: undefined }, NOW).state).toBe("unknown");
+    // Drop lastSeenAt entirely (absent === "no heartbeat") to exercise the unknown state.
+    const { lastSeenAt: _omitLastSeenAt, ...runningWithoutLastSeen } = running;
+    expect(passLiveness(runningWithoutLastSeen, NOW).state).toBe("unknown");
   });
 
   it("surfaces corrupt/degraded sources and scrubs previews without loading L3", () => {
@@ -237,9 +239,6 @@ function app(name: string, status: AppEntry["status"]): AppEntry {
 
 function row(overrides: Partial<StatusRow> & { app: string; runId: string; traceId: string }): StatusRow {
   return {
-    app: overrides.app,
-    runId: overrides.runId,
-    traceId: overrides.traceId,
     pipeline: overrides.pipeline ?? "build",
     pass: overrides.pass ?? "implement",
     role: overrides.role ?? "builder",

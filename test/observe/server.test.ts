@@ -185,7 +185,7 @@ describe("observer server integration", () => {
     write(rig.stateHome, "telemetry/2026-07-12.jsonl", [
       { at: "2026-07-12T10:00:00.000Z", role: "builder", runtime: "codex", model: "m", status: "completed", tokensIn: 1, tokensOut: 1, costUsd: 0.1, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1, escalations: 0, app: "alpha", runId: "orphan-a", pipeline: "build", pass: "a" },
       { at: "2026-07-12T10:01:00.000Z", role: "builder", runtime: "codex", model: "m", status: "completed", tokensIn: 1, tokensOut: 1, costUsd: 0.1, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1, escalations: 0, app: "alpha", runId: "orphan-b", pipeline: "build", pass: "b" },
-    ].map(JSON.stringify).join("\n") + "\n");
+    ].map((row) => JSON.stringify(row)).join("\n") + "\n");
     expect((await authFetch(rig, "/api/v1/reports/summary?app=beta&period=7d")).status).toBe(403);
     const first = await (await authFetch(rig, "/api/v1/reports/sessions?period=7d&limit=1&refresh=1")).json() as { next_cursor: string };
     expect(first.next_cursor).toBeTruthy();

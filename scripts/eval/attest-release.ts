@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { writeReleaseAttestation } from "./release-attestation.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const campaigns = options("--campaign").map(resolve);
+const campaigns = options("--campaign").map((p) => resolve(p));
 if (campaigns.length === 0) throw new Error("usage: pnpm eval:attest-release -- --campaign <committed-sanitized-campaign> [--campaign <soak-campaign>]");
 const outPath = option("--out");
 console.log(JSON.stringify(writeReleaseAttestation({ root, campaignPaths: campaigns, ...(outPath ? { outPath } : {}) }), null, 2));

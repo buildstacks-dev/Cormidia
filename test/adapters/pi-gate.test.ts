@@ -47,7 +47,7 @@ describe("pi gate extension", () => {
       "/repo",
       { gate: defaultGate, onEvent: (event) => events.push(event) },
       [],
-    )({ on: (_name, h) => (handler = h as typeof handler) } as never);
+    )({ on: (_name: string, h: unknown) => (handler = h as typeof handler) } as never);
 
     await handler?.({ toolName: "bash", input: { command: "pnpm install" } });
     await handler?.({ toolName: "bash", input: { command: "rm -rf /workspace/data" } });
@@ -80,7 +80,7 @@ describe("pi gate extension", () => {
         },
       },
       escalations,
-    )({ on: (_name, h) => (handler = h as typeof handler) } as never);
+    )({ on: (_name: string, h: unknown) => (handler = h as typeof handler) } as never);
 
     await handler?.({
       toolName: "bash",
@@ -97,7 +97,7 @@ describe("pi gate extension", () => {
 function installHandler(escalations: GateEscalation[]) {
   let handler: ((event: { toolName: string; input: unknown }) => Promise<unknown>) | undefined;
   createPiGateExtension("/repo", { gate: defaultGate }, escalations)({
-    on: (_name, h) => (handler = h as typeof handler),
+    on: (_name: string, h: unknown) => (handler = h as typeof handler),
   } as never);
   if (handler === undefined) throw new Error("handler was not installed");
   return handler;

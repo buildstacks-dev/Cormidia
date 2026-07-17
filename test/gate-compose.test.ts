@@ -374,6 +374,7 @@ describe("grant-aware gate composition", () => {
 
       const decision = gate({ tool: "bash", input: { command: "gh pr merge 7 --squash" } });
       expect(decision).toMatchObject({ allow: false, escalate: false });
+      if (decision.allow) throw new Error("expected the merge to be denied");
       expect(decision.reason).toContain("forbidden for the builder role");
       // No human decision burned: the queue stays empty.
       expect(await store.listPending()).toEqual([]);
@@ -415,6 +416,7 @@ describe("grant-aware gate composition", () => {
       };
       const decision = gate(action);
       expect(decision).toMatchObject({ allow: false, escalate: false });
+      if (decision.allow) throw new Error("expected the action to be denied");
       expect(decision.reason).toContain("forbidden for the reviewer role");
       expect(await store.listPending()).toHaveLength(0);
 

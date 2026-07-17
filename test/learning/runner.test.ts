@@ -123,7 +123,7 @@ function scriptedExecutor(
     requests,
     async attempt(request: ReplayAttemptRequest): Promise<ReplayAttempt> {
       requests.push(request);
-      const metrics = { ...metricsFor(request), cost_usd: costPerAttempt };
+      const metrics: Record<string, number> = { ...metricsFor(request), cost_usd: costPerAttempt };
       return {
         arm: request.arm,
         pair: request.pair,

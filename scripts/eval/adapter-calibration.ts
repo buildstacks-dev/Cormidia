@@ -1,4 +1,4 @@
-import type { GateFn, RoleConfig, Runtime, TurnEvent, TurnProgress, TurnRequest, TurnResult } from "../../src/runtime/types.js";
+import type { GateFn, RoleConfig, Runtime, TurnEvent, TurnHooks, TurnProgress, TurnRequest, TurnResult } from "../../src/runtime/types.js";
 import { classify } from "../../src/runtime/gate.js";
 import { LARGE_PAYLOAD_SIZE_BYTES } from "../../test/conformance/cases.js";
 import { makeEvalRoleGate } from "./safety.js";
@@ -105,7 +105,7 @@ export async function calibrateAdapter(options: {
   const progress: TurnProgress[] = [];
   const turns: TurnResult[] = [];
   let largePayloadBytes = 0;
-  const hooks = { gate: options.gate, onEvent: (event: TurnEvent) => events.push(event), onProgress: (item: TurnProgress) => progress.push(item) };
+  const hooks = { gate: options.gate, onEvent: (event: TurnEvent) => { events.push(event); }, onProgress: (item: TurnProgress) => { progress.push(item); } };
   const invoke = async (
     scenario: AdapterCalibrationScenario,
     request: TurnRequest,

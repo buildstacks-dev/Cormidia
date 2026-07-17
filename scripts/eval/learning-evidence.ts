@@ -83,7 +83,7 @@ export function writeLearningPairEvidence(input: {
       ? grader.hidden_grader_passed === true && grader.result === "passed" && result.outcome === "passed"
       : grader.hidden_grader_passed === false && grader.result === "failed" && result.outcome === "product_miss";
     const verifierSha = `sha256:${hashFile(verifierPath)}`;
-    if (learning?.arm !== expectedArm || score === null || !Number.isInteger(score) || score < efficacy.score_range[0] || score > efficacy.score_range[1] || !validScoreEvidence(learning, verifier, efficacy) || !["approve", "reject"].includes(String(reviewerVerdict)) || verifier.independent_reviewer_verdict !== reviewerVerdict || typeof artifactSha !== "string" || !/^sha256:[a-f0-9]{64}$/.test(artifactSha) || verifier.artifact_sha256 !== artifactSha || typeof reviewerSha !== "string" || !/^sha256:[a-f0-9]{64}$/.test(reviewerSha) || verifier.independent_reviewer_artifact_sha256 !== reviewerSha || grader.campaign_sha256 !== input.campaignSha256 || grader.case_id !== result.case_id || grader.repetition_id !== repetitionId || grader.attempt_id !== result.attempt_id || !graderOutcomeMatches || grader.verifier_evidence !== verifierRef || grader.verifier_evidence_sha256 !== verifierSha || !Array.isArray(grader.missing) || grader.missing.length !== 0) {
+    if (learning?.arm !== expectedArm || score === null || score === undefined || !Number.isInteger(score) || score < efficacy.score_range[0] || score > efficacy.score_range[1] || !validScoreEvidence(learning, verifier, efficacy) || !["approve", "reject"].includes(String(reviewerVerdict)) || verifier.independent_reviewer_verdict !== reviewerVerdict || typeof artifactSha !== "string" || !/^sha256:[a-f0-9]{64}$/.test(artifactSha) || verifier.artifact_sha256 !== artifactSha || typeof reviewerSha !== "string" || !/^sha256:[a-f0-9]{64}$/.test(reviewerSha) || verifier.independent_reviewer_artifact_sha256 !== reviewerSha || grader.campaign_sha256 !== input.campaignSha256 || grader.case_id !== result.case_id || grader.repetition_id !== repetitionId || grader.attempt_id !== result.attempt_id || !graderOutcomeMatches || grader.verifier_evidence !== verifierRef || grader.verifier_evidence_sha256 !== verifierSha || !Array.isArray(grader.missing) || grader.missing.length !== 0) {
       missing.push(`invalid_learning_measurement:${repetitionId}`);
       continue;
     }
@@ -192,7 +192,7 @@ function validScoreEvidence(learning: Record<string, unknown>, verifier: Record<
   const values = efficacy.components.map((name) => components[name]);
   return Object.keys(components).sort().join(",") === [...efficacy.components].sort().join(",") &&
     values.every((value) => Number.isInteger(value) && (value as number) >= efficacy.component_range[0] && (value as number) <= efficacy.component_range[1]) &&
-    values.reduce((sum, value) => sum + Number(value), 0) === verifier.artifact_score &&
+    values.reduce((sum: number, value) => sum + Number(value), 0) === verifier.artifact_score &&
     scale.minimum === efficacy.score_range[0] && scale.maximum === efficacy.score_range[1] &&
     scale.component_minimum === efficacy.component_range[0] && scale.component_maximum === efficacy.component_range[1] &&
     canonicalJson(scale.components) === canonicalJson(efficacy.components);

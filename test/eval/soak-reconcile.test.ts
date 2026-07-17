@@ -16,7 +16,9 @@ it("I-LIVE-01 independently reconciles all 576 ticks, 12 terminal provider turns
 });
 
 it("I-LIVE-01 retains duplicate ticks, missing settlement, orphan run, and same-process restart as invalid denominators", async () => {
-  const duplicate = makeFixture(); duplicate.state.ticks[575] = { index: 575 };
+  // Deliberately inject a malformed/duplicate tick (index 575 repeats tick 574,
+  // and lacks due_at/recorded_at/reason) to prove the reconciler flags it.
+  const duplicate = makeFixture(); duplicate.state.ticks[575] = { index: 575 } as RealtimeSoakStateEvidence["ticks"][number];
   expect((await reconcileRealtimeSoak(duplicate)).missing).toEqual(expect.arrayContaining(["soak_ticks", "soak_duplicate_ticks", "soak_silent_misses"]));
 
   const missingSettlement = makeFixture({ settlements: 11 });

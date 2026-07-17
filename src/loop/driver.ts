@@ -913,29 +913,33 @@ export function loadGateCommands(repoDir: string): GateCommands {
     const nestedApps = asRecord(raw["apps"]);
     const appEntries = nestedApps === undefined ? [] : Object.values(nestedApps);
     const soleApp = appEntries.length === 1 ? asRecord(appEntries[0]) : undefined;
-    const source = soleApp ?? raw;
-    const commandMap = asRecord(source["commands"]);
+    // A gate command may sit inside the sole app entry OR at the top level of
+    // `.operon/config.yaml`. `new-app`'s appendGateCommands writes TOP-LEVEL
+    // `setup_command`/`test_command`/`lint_command`, while a hand-written config
+    // may nest them under the single app; read the app entry first, then fall
+    // back to the top level, so neither placement is silently dead config
+    // (W0-ADJ-04). With no app entry (or several), only the top level is read —
+    // unchanged from before. Within a source, an explicit `*_command` still
+    // wins over the `commands.<x>` map, preserving the prior precedence.
+    const sources = soleApp !== undefined ? [soleApp, raw] : [raw];
+    const resolveCommand = (explicitKey: string, mapKey: string): string | undefined => {
+      for (const source of sources) {
+        const explicit = source[explicitKey];
+        if (typeof explicit === "string") return explicit;
+        const nested = asRecord(source["commands"])?.[mapKey];
+        if (typeof nested === "string") return nested;
+      }
+      return undefined;
+    };
 
-    if (typeof source["setup_command"] === "string") {
-      commands.setupCommand = source["setup_command"];
-    } else if (typeof commandMap?.["install"] === "string") {
-      commands.setupCommand = commandMap["install"];
-    }
-    if (typeof source["test_command"] === "string") {
-      commands.testCommand = source["test_command"];
-    } else if (typeof commandMap?.["test"] === "string") {
-      commands.testCommand = commandMap["test"];
-    }
-    if (typeof source["lint_command"] === "string") {
-      commands.lintCommand = source["lint_command"];
-    } else if (typeof commandMap?.["lint"] === "string") {
-      commands.lintCommand = commandMap["lint"];
-    }
-    if (typeof source["e2e_test_command"] === "string") {
-      commands.e2eTestCommand = source["e2e_test_command"];
-    } else if (typeof commandMap?.["e2e"] === "string") {
-      commands.e2eTestCommand = commandMap["e2e"];
-    }
+    const setup = resolveCommand("setup_command", "install");
+    if (setup !== undefined) commands.setupCommand = setup;
+    const test = resolveCommand("test_command", "test");
+    if (test !== undefined) commands.testCommand = test;
+    const lint = resolveCommand("lint_command", "lint");
+    if (lint !== undefined) commands.lintCommand = lint;
+    const e2e = resolveCommand("e2e_test_command", "e2e");
+    if (e2e !== undefined) commands.e2eTestCommand = e2e;
   }
   const pkgPath = join(repoDir, "package.json");
   if (!existsSync(pkgPath)) return commands;

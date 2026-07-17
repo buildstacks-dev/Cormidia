@@ -78,7 +78,7 @@ function makeReq(): TurnRequest {
 }
 
 function scriptedQuery(messages: SDKMessage[]) {
-  const captured: { options?: SdkOptions } = {};
+  const captured: { options?: SdkOptions | undefined } = {};
   const queryFn: QueryFn = ({ options }) => {
     captured.options = options;
     return (async function* () {

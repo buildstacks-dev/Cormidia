@@ -249,11 +249,23 @@ not used as a substitute app identity.
 `operon app verify <app>` performs bounded Git/ref reads, deterministically
 recreates or synchronizes the managed clone only after the onboarding commit
 is reachable, validates registry/config and authority/config hashes, parses
-generated artifacts, runs declared app tests/lint, checks approvals and role
-locks, and proves the configured adapter packages/models without constructing
-a runtime or provider process. It writes a stable readiness projection and a
-terminal mechanical execution step; provider factories, processes, turns,
-and settlements remain zero.
+generated artifacts, installs the app's dependencies via its `setup_command`
+and then runs declared app tests/lint, checks approvals and role locks, and
+proves the configured adapter packages/models without constructing a runtime
+or provider process. The setup step runs first in the managed clone, mirroring
+the build loop's provision-time setup gate: a fresh clone has no `node_modules`,
+so a real npm scaffold's test command (`npm run build && node --test …`, needing
+`tsc` from devDependencies) would otherwise fail purely for lack of dependencies
+and the app-check gates could never reach `ready` (E2E-01). An unconfigured
+`setup_command` is a clean absence (no `app-check-setup`, unchanged); a setup
+failure is a typed `app-check-setup` **blocked** check with remediation and
+short-circuits the dependent tests/lint so their would-be failures never
+masquerade as the cause. Verify resolves the setup command the same way every
+gate command is resolved (`loadGateCommands`), which now reads a `setup_command`
+written either inside the sole app entry or at the top level of
+`.operon/config.yaml` — the shape `operon new-app` emits (W0-ADJ-04). It writes
+a stable readiness projection and a terminal mechanical execution step; provider
+factories, processes, turns, and settlements remain zero.
 
 `verify` **owns lifecycle-record synthesis and repair.** A greenfield
 `operon new-app` app has no lifecycle record until its scaffold is pushed —

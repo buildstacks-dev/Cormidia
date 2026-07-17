@@ -637,3 +637,41 @@ retention sweep does a full-ledger scan per UTC-day tick.
   verifier outcomes (uses P1-06's error codes).
 - All of these touch `scripts/eval/**` or `test/transformation/**` (Phase-6-hashed) and must be
   sequenced with the P0-07 re-attestation — one re-cut, not four.
+
+**Wave 5 completed (2026-07-17):** all four deferred items above shipped (P1-09 carries the P1-06
+harness half) plus E2E-01. Integrated onto `remediation/wave-5`, unpushed. `pnpm test` → the same nine
+ROOT-001 failures, now naming the real code `release_attestation_package_mismatch`. The nine cannot be
+greened token-free — the product moved past qualified candidate `c6834cf0`, so `attest-release` refuses
+with `release_package_bytes_changed_after_qualification` (captured verbatim in
+`review/remediation-log.md`). Re-qualification is a human-authorized, token-spending decision
+(Options 1/2/3 in the log).
+
+### Filed during Wave 5 (release gate; 2026-07-17; sources: implementer/verifier/scope-check reports)
+
+- **W5-ADJ-01 (P0-07 install-config exemption rationale overbroad):** the exemption for `pnpm-lock.yaml`
+  from the executable-suite changed-path rule is justified by "resolved runtime deps are pinned by
+  `system_fingerprint`," but `system_fingerprint` reads only `package.json` `dependencies` (the 4
+  runtime deps) and is not recomputed at verify. The test-**grading** toolchain (`vitest`, `tsx`,
+  `@playwright/test`) is in `devDependencies`, pinned by `pnpm-lock.yaml` alone, which is now exempt and
+  covered by no attestation hash — a post-qualification lockfile toolchain swap sits in the exact
+  "report the suite green" plane ROOT-001 targets. Low residual risk (a committed lockfile change is
+  review-visible; primary Phase-6 evidence is content-hashed under `eval/`, which IS suite-governed).
+  Correct the stated rationale and decide whether `pnpm-lock.yaml` / `.npmrc` should join the executable
+  suite.
+- **W5-ADJ-02 (P1-01 `evidence.ts:364` v1-branch deletion is a fail-closed runtime change):** the
+  removed `sanitized-evidence/v1` branch was reachable at runtime (v1 is in `LEGACY_ARCHIVE_POLICIES`,
+  admitted at line 329); the `TS2367` existed only because `ArchiveManifest.policy_version` is declared
+  v3-only. A v1 archive now falls through to the v3-structured path and is rejected. Fail-closed and
+  AC-sanctioned, but leaves the code incoherent (v1 admitted then always rejected). Either drop v1 from
+  `LEGACY_ARCHIVE_POLICIES` too, or widen `ArchiveManifest.policy_version` to the union (fixes `TS2367`
+  AND preserves v1 back-compat).
+- **W5-ADJ-03 (P1-01 no regression test for the attest-release crash):** the `.map(resolve)` variadic
+  crash the AC foregrounds is guarded only by the config-surface test, not the command itself, so it
+  could silently regress. Minor (a clean offline pass-test is hard now that the command reaches the
+  legitimate package-mismatch domain error).
+- **W5-ADJ-04 (P1-01 docs):** AGENTS.md documents `pnpm typecheck`; typecheck now covers
+  `src`/`scripts`/`test`/`eval` via `tsconfig.check.json` — a one-line note arguably merits inclusion.
+  Minor; command name unchanged, no hard maintenance-rule violation.
+- **W0-ADJ-04 (fixed by E2E-01, recorded here for the chain):** `loadGateCommands` read gate commands
+  only from the sole app entry, so the top-level `setup_command`/`test_command`/`lint_command` that
+  `new-app` writes were dead config that never reached `verify` or the loop. Fixed in `088301b`.

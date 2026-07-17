@@ -111,7 +111,7 @@ function makeComparable(events: ReturnType<typeof historicalProjection>) {
       ...event,
       event_id: `${event.event_id}_pair2`,
       episode_id: `${event.episode_id}_pair2`,
-      run_id: event.run_id === undefined ? undefined : `${event.run_id}_pair2`,
+      ...(event.run_id !== undefined ? { run_id: `${event.run_id}_pair2` } : {}),
       payload: {
         ...event.payload,
         source_identity: `${String(event.payload?.["source_identity"])}:pair2`,

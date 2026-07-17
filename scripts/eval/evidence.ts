@@ -361,9 +361,6 @@ function validArchiveReceipt(path: string, campaignId: string, campaignRoot: str
     if (!sameInventory(manifestFiles, archiveFiles)) return false;
     const selected = selectedEvidenceSnapshot(campaignRoot);
     const sourceFiles = selected.map((entry) => [entry.rel, entry.source_sha256] as [string, string]);
-    if (receipt.policy_version === "sanitized-evidence/v1") {
-      return selected.every((entry) => entry.redactions.length === 0) && sameInventory(sourceFiles, manifestFiles);
-    }
     if (
       manifest.source_files === null ||
       typeof manifest.source_files !== "object" ||

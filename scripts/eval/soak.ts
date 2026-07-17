@@ -53,7 +53,8 @@ if (!execute) {
 }
 
 const requestedMax = Number(option("--max-usd"));
-assertLiveConfirmation({ envEnabled: process.env.OPERON_EVAL_SOAK === "1", campaignId: campaign.campaign_id, confirmedId: option("--confirm"), requestedMaxUsd: requestedMax, manifestMaxUsd: campaign.spend.campaign_max_usd });
+const soakConfirmedId = option("--confirm");
+assertLiveConfirmation({ envEnabled: process.env.OPERON_EVAL_SOAK === "1", campaignId: campaign.campaign_id, ...(soakConfirmedId !== undefined ? { confirmedId: soakConfirmedId } : {}), requestedMaxUsd: requestedMax, manifestMaxUsd: campaign.spend.campaign_max_usd });
 assertPreparedCandidate(root, campaign);
 const lockPath = join(campaignRoot, "campaign.lock.json");
 const lock = existsSync(lockPath) ? verifyCampaignLock(lockPath) : startCampaign(manifestPath, lockPath);

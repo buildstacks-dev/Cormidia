@@ -487,6 +487,52 @@ config file, not a fork.
   reporting database, workflow controls, reconciliation side effect, provider
   turn, or model-written management narrative is introduced. `operon
   telemetry` remains the backward-compatible envelope-first forensic view.
+- **The Phase 6 release attestation fails closed, and its changed-path rule
+  binds only to the packaged artifact** (PROPOSED 2026-07-17 — ratified when the
+  Wave 5 remediation PR merges; ROOT-001). Two parts. (1) *Fail closed.* The
+  verifier requires the qualified candidate commit to be present; its
+  changed-path check now calls `changedPaths` unconditionally and throws
+  `release_attestation_candidate_commit_unavailable` when the commit is absent.
+  The previous `if (commitExists(...))` guard silently skipped the check exactly
+  where it mattered most — a shallow CI checkout (`actions/checkout` default
+  depth 1) where the candidate commit is never fetched — so CI reported green and
+  deleting git history made the integrity check pass. CI now uses `fetch-depth:
+  0`, a `phase6-candidate-<date>` annotated tag keeps the squash-orphaned
+  candidate reachable, and the workflow gains a `push:` trigger on `main` so
+  merges are verified, not only nightly-cron shallow runs. (2) *Scope.* The
+  changed-path rule binds only to files that affect the **packaged artifact** —
+  what `npm pack` ships per package.json `files` (the compiled `dist` output,
+  `agent-skills/operon/`, `config/launchd/`, `docs/policy.yaml.template`,
+  `docs/scheduler.md`, the prompts and taste trees, `TASTE.md`, `roles.yaml`,
+  `pipelines.yaml`, `README.md`, and the three packaged `scripts/*.mjs`) plus the
+  `src` sources and `package.json` that produce it. A change under those paths
+  invalidates qualification. The executable suite — `scripts/eval/`, `test/`,
+  `eval/` except `eval/contracts.yaml`, the qualification workflow, and the
+  test-runner/grading configs (`vitest.config.ts`, `vitest.live.config.ts`,
+  `playwright.observe.config.ts`) that select and grade which tests run — stays
+  governed by `executable_suite_sha256` and the proportionate-repair path;
+  `isExecutableSuitePath` is the single membership predicate shared by the
+  suite-hash and the changed-path rule so the two can never drift apart. The org
+  surfaces stay governed by `org_fingerprint`; sanitized promotion evidence under
+  `research/evals/` stays governed by the `ALLOWED_PROMOTION_PATHS` allowlist,
+  which still rejects unsanitized evidence. Every other changed path — docs other
+  than the two packed docs, `review/`, `.github/` other than the workflow,
+  install/build-environment config (`pnpm-workspace.yaml`, `pnpm-lock.yaml`,
+  `tsconfig.json`), and any untracked non-shipped file — is **outside
+  qualification scope and does not invalidate it**. The test-runner configs are
+  in the suite, not out, because they ship in no package (so
+  `release_package_sha256` never sees them) yet decide which tests run: leaving
+  them ungoverned would let a post-qualification `exclude` skip the red contract
+  tests and report the suite green. Install/build-environment config is
+  deliberately outside the suite: a bad value there fails the install/build/test
+  loudly rather than silently favouring a graded outcome, any effect on shipped
+  bytes is caught by `release_package_sha256`, and resolved runtime deps are
+  pinned by `system_fingerprint`. Rationale: qualification certifies product
+  behavior; a docs-only or reviewer-notes change cannot alter graded behavior, and
+  AGENTS.md already promises "Docs-only changes: nothing to run." The prior
+  all-paths rule contradicted that promise — a single docs commit (`#80`, adding
+  `docs/architecture/conceptual-overview.md`) silently invalidated the evidence
+  while CI still reported green.
 
 ## Prior art (ours)
 

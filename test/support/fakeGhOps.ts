@@ -181,6 +181,7 @@ export class FakeGhOps implements GhOps {
   async createPR(input: CreatePrInput): Promise<GhPullRequest> {
     this.log("createPR", { head: input.head, base: input.base, title: input.title });
     const number = this.nextPrNumber++;
+    const headRefOid = this.resolveRef(input.head);
     const pr: GhPullRequest = {
       number,
       title: input.title,
@@ -188,7 +189,7 @@ export class FakeGhOps implements GhOps {
       state: "OPEN",
       headRefName: input.head,
       baseRefName: input.base,
-      headRefOid: this.resolveRef(input.head),
+      ...(headRefOid !== undefined ? { headRefOid } : {}),
       isDraft: input.draft === true,
       url: `https://github.invalid/${this.repo}/pull/${number}`,
     };

@@ -43,7 +43,10 @@ function rig() {
   };
 }
 
-function evidence(id: string, overrides: Partial<LearningEvent> = {}): LearningEvent {
+// Overrides may set an optional field to `undefined` (e.g. a conflict_resolved
+// event carries no error_class/cause_hypothesis); the trailing assertion bridges
+// the exactOptional widening and changes no runtime behavior.
+function evidence(id: string, overrides: { [K in keyof LearningEvent]?: LearningEvent[K] | undefined } = {}): LearningEvent {
   return {
     event_id: id,
     episode_id: `ep_alpha_ticket_${id.slice(-1)}`,
@@ -58,7 +61,7 @@ function evidence(id: string, overrides: Partial<LearningEvent> = {}): LearningE
     trust: "trusted",
     payload: { keywords: ["test-mapping", "workflow"] },
     ...overrides,
-  };
+  } as LearningEvent;
 }
 
 async function seed(stateHome: string, events: LearningEvent[]): Promise<void> {

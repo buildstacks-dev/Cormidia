@@ -73,6 +73,18 @@ class InjectedReviewGhOps implements GhOps {
   deleteBranch(branch: string) {
     return this.inner.deleteBranch(branch);
   }
+  createIssue(...args: Parameters<GhOps["createIssue"]>) {
+    return this.inner.createIssue(...args);
+  }
+  updateIssueBody(...args: Parameters<GhOps["updateIssueBody"]>) {
+    return this.inner.updateIssueBody(...args);
+  }
+  ensureLabel(...args: Parameters<GhOps["ensureLabel"]>) {
+    return this.inner.ensureLabel(...args);
+  }
+  listIssueComments(...args: Parameters<GhOps["listIssueComments"]>) {
+    return this.inner.listIssueComments(...args);
+  }
 
   async listReviews(prNumber: number): Promise<GhReview[]> {
     const injected = this.approvals.get(prNumber);

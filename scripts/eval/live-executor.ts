@@ -291,7 +291,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
                 if (reviewerStop) { outcome = reviewerStop.outcome; failureCode = reviewerStop.code; evidence.push(`harness:${reviewerStop.code}`, persistError(runAttemptId, turnFailureDetail(reviewer))); }
                 learningReviewPassed = reviewer?.status === "completed" && reviewer.escalations.length === 0 && independentLearningReviewVerdict(reviewer) === "approve";
               }
-              const verification = visible ? await buildVerifierEvidence({ root: options.root, campaignRoot, campaignSha256, caseManifest, caseId: item.case_id, repetitionId, attemptId: runAttemptId, workdir, task, builder, reviewer, extraTurns, continuationInterrupted, runIds: evidence.filter((ref) => ref.startsWith("run:")).map((ref) => ref.slice(4)), learningTreatment: campaign.learning_treatment, learningEfficacy: campaign.learning_efficacy }) : undefined;
+              const verification = visible ? await buildVerifierEvidence({ root: options.root, campaignRoot, campaignSha256, caseManifest, caseId: item.case_id, repetitionId, attemptId: runAttemptId, workdir, task, ...(builder ? { builder } : {}), ...(reviewer ? { reviewer } : {}), extraTurns, continuationInterrupted, runIds: evidence.filter((ref) => ref.startsWith("run:")).map((ref) => ref.slice(4)), learningTreatment: campaign.learning_treatment, learningEfficacy: campaign.learning_efficacy }) : undefined;
               verifierMissing.push(...(verification?.missing ?? []));
               if (verification) evidence.push(`artifact:${verification.artifactRel}`);
               const graderRoot = verification?.graderRoot ?? workdir;
@@ -535,7 +535,7 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
               context: request.context,
               telemetry,
               clock: nextTurnClock(),
-              signal: request.signal,
+              ...(request.signal !== undefined ? { signal: request.signal } : {}),
               briefOverride: request.task,
               // Adapter conformance deliberately transports a >300 KiB task
               // to prove the SDK boundary is not argv-sized. Admit that exact
@@ -1250,8 +1250,12 @@ function classifyTurnStop(result: TurnResult | undefined): { outcome: AttemptRes
   if (result.status === "cancelled") return { outcome: "infra_invalid", code: "provider_cancelled" };
   return { outcome: "infra_invalid", code: "provider_transport_failure" };
 }
-function turnFailureDetail(result: TurnResult): Error {
-  return new Error(`${result.errorCode ?? "provider_turn_failed"}: ${result.summary}`);
+function turnFailureDetail(result: TurnResult | undefined): Error {
+  // Callers reach this only inside a truthy classifyTurnStop branch, which
+  // returns undefined for an absent result — so `result` is defined here in
+  // practice; the optional chaining is a type-level guard, not a behavior
+  // change for any real turn.
+  return new Error(`${result?.errorCode ?? "provider_turn_failed"}: ${result?.summary}`);
 }
 function isRetryable(code: string | undefined): boolean { return code === "provider_timeout" || code === "provider_transport_failure"; }
 function typedError(error: unknown): string {

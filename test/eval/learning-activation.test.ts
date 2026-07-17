@@ -19,13 +19,13 @@ it("H-EVAL-01 derives AB/BA/AB outcomes from exact retained provider artifacts i
   const equal = makeRig([5, 5, 5, 5, 5, 5]);
   const inconclusive = writeLearningPairEvidence(equal);
   expect(inconclusive.evidence.outcome).toBe("inconclusive");
-  expect(() => learningActivationPreview({ campaign: equal.campaign, campaignSha256: equal.campaignSha256, campaignRoot: equal.campaignRoot })).toThrow(/pair_evidence_invalid:learning pair outcome inconclusive/);
+  expect(() => learningActivationPreview({ repositoryRoot: equal.repositoryRoot, campaign: equal.campaign, campaignSha256: equal.campaignSha256, campaignRoot: equal.campaignRoot })).toThrow(/pair_evidence_invalid:learning pair outcome inconclusive/);
 
   const rejected = makeRig([5, 6, 5, 6, 5, 6], "pair-2-treatment");
   const regressed = writeLearningPairEvidence(rejected);
   expect(regressed.evidence).toMatchObject({ complete_pairs: 3, terminal_attempts: 6, outcome: "regressed", hidden_guardrails_passed: false, missing: [] });
   expect(regressed.evidence.pairs[1]?.treatment).toMatchObject({ independent_reviewer_verdict: "reject", hidden_guardrails_passed: false, attempt_outcome: "product_miss" });
-  expect(() => learningActivationPreview({ campaign: rejected.campaign, campaignSha256: rejected.campaignSha256, campaignRoot: rejected.campaignRoot })).toThrow(/pair_evidence_invalid:learning pair hidden guardrails failed/);
+  expect(() => learningActivationPreview({ repositoryRoot: rejected.repositoryRoot, campaign: rejected.campaign, campaignSha256: rejected.campaignSha256, campaignRoot: rejected.campaignRoot })).toThrow(/pair_evidence_invalid:learning pair hidden guardrails failed/);
 });
 
 it("H-EVAL-02 previews one content-bound activation/rollback without mutation and rejects stale result bytes", () => {

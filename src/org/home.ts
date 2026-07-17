@@ -32,7 +32,7 @@ export const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 export interface OperonHomeOptions {
   orgHome?: string;
   stateHome?: string;
-  env?: Pick<NodeJS.ProcessEnv, "OPERON_ORG_HOME" | "OPERON_STATE_HOME" | "OPERON_HOME">;
+  env?: Partial<Pick<NodeJS.ProcessEnv, "OPERON_ORG_HOME" | "OPERON_STATE_HOME" | "OPERON_HOME">>;
   homeDir?: string;
   pointerPath?: string;
 }

@@ -7,7 +7,7 @@
 // the pushed GitHub remote.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { devNull, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -68,8 +68,11 @@ const noRuntimeChecks: RuntimeReadinessInspector = async () => [];
 function pushScaffoldToLocalBare(root: string, targetDir: string): string {
   const bare = join(root, "origin.git");
   git(root, "init", "--bare", "--initial-branch=main", bare);
-  // Make the app's own gate commands trivially pass without a dependency
-  // install (the missing-node_modules cold-start is a separate finding).
+  // Make the app's own gate commands trivially pass without a real dependency
+  // install. `verify` now runs the app's `setup_command` in the managed clone
+  // before the app-check gates (E2E-01), so neutralize `new-app`'s
+  // `npm install` to an offline no-op too — this keeps the L0-01 test hermetic
+  // and fast; the dedicated setup-gate coverage is verify-setup-gate.test.ts.
   writeFileSync(
     join(targetDir, "package.json"),
     `${JSON.stringify(
@@ -83,6 +86,11 @@ function pushScaffoldToLocalBare(root: string, targetDir: string): string {
       null,
       2,
     )}\n`,
+  );
+  const configPath = join(targetDir, ".operon", "config.yaml");
+  writeFileSync(
+    configPath,
+    readFileSync(configPath, "utf8").replace(/^setup_command: .*$/m, 'setup_command: node -e ""'),
   );
   git(targetDir, "init", "--initial-branch=main");
   git(targetDir, "add", ".");

@@ -13,6 +13,7 @@ import {
 import {
   executableSuiteHash,
   hashWorkingFiles,
+  isExecutableSuitePath,
   releasePackageHash,
 } from "./candidate-hash.js";
 
@@ -110,7 +111,7 @@ export function createReleaseAttestation(options: {
   if (first.org_fingerprint !== digest(hashWorkingFiles(root, ["roles.yaml", "pipelines.yaml", "prompts/", "TASTE.md", "taste/"]))) throw new Error("org_bytes_changed_after_qualification");
 
   const outRel = repositoryRelative(root, outPath);
-  const changed = changedPaths(root, first.candidate.commit).filter((path) => path !== outRel && !contractProjectionPath(path));
+  const changed = changedPaths(root, first.candidate.commit).filter((path) => path !== outRel && !contractProjectionPath(path) && !outsideQualificationScope(path));
   const evaluatorRepairPaths = new Set(Object.keys(evaluatorRepairs?.files ?? {}));
   for (const path of changed) if (!allowedPromotionPath(path) && !evaluatorRepairPaths.has(path)) throw new Error(`release_attestation_unallowlisted_path:${path}`);
   const promotionFiles = Object.fromEntries(changed.map((path) => {
@@ -175,11 +176,14 @@ export function verifyReleaseAttestation(options: {
     if (!existsSync(absolute) || repositoryRelative(root, absolute) !== rel || digest(hashFile(absolute)) !== expected) throw new Error(`release_attestation_promotion_file_mismatch:${rel}`);
   }
 
-  if (commitExists(root, value.candidate.commit)) {
-    const attestationRel = repositoryRelative(root, path);
-    const actual = changedPaths(root, value.candidate.commit).filter((rel) => rel !== attestationRel && !contractProjectionPath(rel));
-    if (canonicalJson(actual) !== canonicalJson(Object.keys(value.promotion_files).sort())) throw new Error("release_attestation_changed_path_mismatch");
-  }
+  // Fail closed: the candidate commit is mandatory. changedPaths throws
+  // release_attestation_candidate_commit_unavailable when the object is absent
+  // (e.g. a shallow CI checkout without fetch-depth: 0). The previous
+  // commitExists guard skipped this — the strongest integrity check — precisely
+  // when it mattered most, so deleting git history made the check pass (ROOT-001).
+  const attestationRel = repositoryRelative(root, path);
+  const governed = changedPaths(root, value.candidate.commit).filter((rel) => rel !== attestationRel && !contractProjectionPath(rel) && !outsideQualificationScope(rel));
+  if (canonicalJson(governed) !== canonicalJson(Object.keys(value.promotion_files).sort())) throw new Error("release_attestation_changed_path_mismatch");
   return value;
 }
 
@@ -226,7 +230,7 @@ function verifyEvaluatorRepairs(
     authorization,
     attestation.release_package_sha256,
     releaseSuiteSha256,
-    Object.keys(attestation.promotion_files).filter(executableSuitePath),
+    Object.keys(attestation.promotion_files).filter(isExecutableSuitePath),
   );
   const expected: ProportionateEvaluatorRepairs = {
     authorization: repairs.authorization,
@@ -251,11 +255,16 @@ function validateEvaluatorRepairAuthorization(
   if (campaign.development_authorization?.authorization_id !== "phase6-efficiency-qualification-20260716-proportionate-release" || value.authorization_id !== campaign.development_authorization.authorization_id) throw new Error("release_attestation_evaluator_authorization_scope_mismatch");
   if (value.campaign_id !== campaign.campaign_id || value.campaign_sha256 !== hashManifest(campaign) || value.candidate_commit !== campaign.candidate.commit || value.qualified_executable_suite_sha256 !== campaign.candidate.executable_suite_sha256 || value.release_executable_suite_sha256 !== releaseSuiteSha256 || value.release_package_sha256 !== releasePackageSha256 || value.release_package_sha256 !== campaign.candidate.release_package_sha256 || typeof value.rationale !== "string" || value.rationale.trim() === "") throw new Error("release_attestation_evaluator_authorization_binding_mismatch");
   const repairPaths = Object.keys(value.repair_files ?? {}).sort();
-  // Creation has the candidate commit and derives this set from git. A shallow
-  // CI verifier may not have that ancestor; its attestation promotion_files
-  // are already content-bound, so use their executable-suite subset while the
-  // complete release-suite hash and every repair-file hash remain mandatory.
-  const changedSuitePaths = (observedSuitePaths ?? changedPaths(root, campaign.candidate.commit).filter(executableSuitePath)).sort();
+  // Creation has the candidate commit and derives this set from git. The
+  // verifier now requires the candidate commit too — the changed-path check in
+  // verifyReleaseAttestation calls changedPaths unconditionally and fails closed
+  // when the object is absent (ROOT-001). This validation runs earlier and uses
+  // the attestation's content-bound promotion_files executable-suite subset; that
+  // subset is proven equal to the git-derived changed suite paths by the
+  // downstream changed-path equality (governed === promotion_files keys), so it
+  // is bound to git rather than merely asserted. The complete release-suite hash
+  // and every repair-file hash remain mandatory.
+  const changedSuitePaths = (observedSuitePaths ?? changedPaths(root, campaign.candidate.commit).filter(isExecutableSuitePath)).sort();
   if (repairPaths.length === 0 || canonicalJson(repairPaths) !== canonicalJson(changedSuitePaths) || repairPaths.some((path) => !ALLOWED_PROPORTIONATE_REPAIR_PATHS.has(path))) throw new Error("release_attestation_evaluator_repair_paths_mismatch");
   for (const [path, expected] of Object.entries(value.repair_files)) {
     const absolute = resolve(root, path);
@@ -263,11 +272,53 @@ function validateEvaluatorRepairAuthorization(
   }
 }
 
-function executableSuitePath(path: string): boolean {
-  return path === ".github/workflows/efficiency-qualification.yml" ||
-    path.startsWith("scripts/eval/") ||
-    path.startsWith("test/") ||
-    (path.startsWith("eval/") && path !== "eval/contracts.yaml");
+/** The packaged artifact: every file `npm pack` ships (per the package.json
+ * "files" list), plus the `src` sources compiled into the shipped `dist` output
+ * and the `package.json` that defines the package. This is the product whose
+ * behavior Phase 6 qualification certifies, so any change here invalidates the
+ * evidence. The org surfaces (roles.yaml, pipelines.yaml, the prompts tree,
+ * TASTE.md, the taste tree) also ship but are deliberately excluded here —
+ * org_fingerprint owns them. */
+function packagedArtifactPath(path: string): boolean {
+  return path === "package.json" ||
+    path.startsWith("src/") ||
+    path.startsWith("dist/") ||
+    path.startsWith("agent-skills/operon/") ||
+    path.startsWith("config/launchd/") ||
+    path === "docs/policy.yaml.template" ||
+    path === "docs/scheduler.md" ||
+    path === "README.md" ||
+    path === "scripts/link-local.mjs" ||
+    path === "scripts/operon-local.mjs" ||
+    path === "scripts/smoke-onboarding.mjs";
+}
+
+/** The human-ratified org surfaces, governed by org_fingerprint. */
+function orgSurfacePath(path: string): boolean {
+  return path === "roles.yaml" || path === "pipelines.yaml" || path === "TASTE.md" ||
+    path.startsWith("prompts/") || path.startsWith("taste/");
+}
+
+/** A changed path the changed-path attestation rule deliberately ignores. Such
+ * a path can alter none of the four governed planes: the packaged product
+ * (packagedArtifactPath, checked also by release_package_sha256), the executable
+ * suite (isExecutableSuitePath — the scripts/eval, test, and eval trees, the
+ * workflow, and the vitest/playwright runner configs that select and grade which
+ * tests run — governed by executable_suite_sha256 + the proportionate-repair
+ * path), the org surfaces (orgSurfacePath, governed by org_fingerprint), or the
+ * promotion evidence (research/evals/** and the allowedPromotionPath allowlist).
+ * Docs other than the two packed docs files, review/**, .github/** other than the
+ * workflow, install/build-environment config (pnpm-workspace.yaml,
+ * pnpm-lock.yaml, tsconfig.json — see SUITE_RUNNER_CONFIG_FILES), and every other
+ * non-shipped file therefore do NOT invalidate qualification — qualification
+ * certifies product behavior and such a change cannot touch it. Ratified in
+ * docs/PURPOSE.md (2026-07-17). */
+function outsideQualificationScope(path: string): boolean {
+  return !packagedArtifactPath(path) &&
+    !orgSurfacePath(path) &&
+    !isExecutableSuitePath(path) &&
+    !path.startsWith("research/evals/") &&
+    !allowedPromotionPath(path);
 }
 
 function loadCampaign(path: string): CampaignManifest {

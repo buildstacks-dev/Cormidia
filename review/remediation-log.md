@@ -520,3 +520,208 @@ Verify **pass** (after the sidecar fix-up), scope **approve** (non-blocking conc
 | Settlement+re-arm (L1-03/P1-13/L1-04) | 393a299, fe5093d, b85fce1, d711726 | pass | approve |
 
 Merged to `main`, unpushed.
+
+---
+
+## Wave 5 — the release gate (2026-07-17)
+
+The deferred wave: the Phase 6 release-attestation gate and everything the nine-failure baseline
+hung on (ROOT-001), plus the full-repo typecheck that hid the crashing `attest-release` command
+(ROOT-002), the harness classifier that collapsed every verifier code into one sentinel (C-001/D-003),
+and the `verify` setup gap (E2E-01). Five branches, each independently verified and adversarially
+scope-reviewed before integration. **Integrated onto `remediation/wave-5`** by ordinary merges (item
+commits preserved, no squash) in dependency order: `fix/w5-p1-09-contract-tests` (carries the P1-06
+harness commit `2ee1a9f` as its base), `fix/w5-p1-01-typecheck-full-repo`, `fix/w5-p0-07-attestation-fail-closed`,
+`fix/w5-e2e-01-verify-setup`. **No merge conflicts** — the one file both P1-01 and P0-07 touch
+(`test/eval/contract-evidence.test.ts`) auto-merged cleanly (disjoint regions: P1-01 rewrites the
+`makeFixture` exactOptionalPropertyTypes guards near line 111, P0-07 rewrites the negative-case table
+and adds the ROOT-001 docs-ignored positive near line 66); the merged file carries both changes
+(verified: `leaked-raw-session.log` negative, `ROOT-001` docs positive, and the
+`exactOptionalPropertyTypes` guard comment all present). P1-09's harness rewrite has no cross-branch
+overlap. Combined gate: build clean, typecheck clean (now the wide `tsconfig.check.json` surface),
+`pnpm test` → **exactly the ROOT-001 nine, now naming the real code** `release_attestation_package_mismatch`
+instead of the opaque `invalid_contract_observation`. `npm pack --dry-run` = 210 files, **byte-identical
+packed set to `main`** (the "208" figure in the plan was stale; `main` @ `3864cd5` itself packs 210).
+The nine stay red for the honest reason — the product moved past qualified candidate `c6834cf0` and no
+token-free re-qualification path exists (see re-cut outcome below).
+
+### P1-09 (D-003) + P1-06 (C-001, harness half) — the contract tests now test the product · `2f829d6` + `2ee1a9f`
+- **P1-06 (`2ee1a9f`):** `classifyResultEvidence` (`test/transformation/contracts/harness.ts`) no longer
+  `catch { return "invalid_contract_observation" }`. It propagates the thrown `Error`'s real,
+  code-bearing message; only a non-`Error`/empty-message throw falls back to the labeled sentinel.
+  Which cases pass/fail is unchanged — only what a failure reports. Probe
+  `harness-codes.test.ts` (3 passing) pins that the classifier surfaces `contract_evidence_invalid_root`
+  and `contract_evidence_malformed_json:<path>` with its detail suffix.
+- **P1-09 (`2f829d6`):** deleted the entire dead CLI-spawning half of the harness
+  (`definePublicSurfaceDebt`, `SurfaceDebtSpec`, `classifySurface`, `runCli`, `helpCache` — zero call
+  sites repo-wide); reworked `defineProviderEvidenceDebt` to emit only the per-spec positive case that
+  runs the real product verifier (`verifyContractEvidence` via `classifyResultEvidence`) and surfaces
+  its exact thrown code; moved the 20 near-miss/honest-failure classifier assertions into a shared
+  `product-boundary.test.ts` (asserts the real verifier's codes) plus `classifier.test.ts` (2 unit
+  tests pinning `classifyResultValue`'s one genuine invariant). `workstream-{d,e,g,i}.test.ts`
+  unchanged (signature-compatible). The nine required-contract positives stay red for the honest reason.
+- Effect at integration: the nine failures now read `expected 'release_attestation_package_mismatch'
+  to be 'passed'` — the real root cause is verbatim in the assertion diff, which is exactly the P1-06/P1-09
+  intent. Verify **pass**, scope **approve**.
+
+### P1-01 (ROOT-002) — typecheck the other 45% of the repo · `7244444`
+- Added `tsconfig.check.json` (extends base; includes `src`/`scripts`/`test`/`eval`; `noEmit`;
+  `rootDir "."`) and pointed `pnpm typecheck` at it; `pnpm build` stays on the emitting src-only base
+  config. The wide surface exposed **88** pre-existing type errors (not the 21 the review cited — that
+  counted scripts+eval only; `test/**` adds 67: 1 eval / 20 scripts / 67 test). Every one fixed as
+  pure type-level or dead-code change with no runtime behavior change — including the
+  `attest-release.ts:6` `.map(resolve)` variadic bug that crashed the documented release-attestation
+  command on every run (`resolve` received `(value,index,array)`; now `.map((p)=>resolve(p))`).
+- `eval/graders/manifest.yaml` `content_sha256` re-synced to the edited `learning-closure.ts` bytes
+  (not a forbidden surface). `src/org/{apps,home}.ts` env-param widening (`Pick`→`Partial<Pick>`) is
+  behavior-identical (both already read via optional access + `??`) and required by newly-typechecked
+  test callers. Guard test `test/architecture/typecheck-config.test.ts` (throws on `main` where the
+  config is absent).
+- At integration: `tsc -p tsconfig.check.json` → 0 errors; base build config unchanged and still 0.
+  The `attest-release` command now reaches its legitimate domain error (see re-cut outcome) instead of
+  a `TypeError`. Verify **pass**, scope **approve**.
+
+### P0-07 (ROOT-001) — fail closed on the Phase 6 release attestation · `2fe8f81`
+- `verifyReleaseAttestation` (`scripts/eval/release-attestation.ts`) no longer guards the changed-path
+  check with `if (commitExists(root, value.candidate.commit))` — a shallow CI checkout (candidate
+  commit absent) would skip the strongest integrity check and report green. It now calls
+  `changedPaths(root, value.candidate.commit)` unconditionally, which throws
+  `release_attestation_candidate_commit_unavailable` when the object is absent → **fails closed**. CI
+  reachability is provided by the workflow's `fetch-depth: 0` on the `push:main` trigger (plus a
+  candidate-preserving tag noted for integration).
+- The **test-runner-config governance gap** (the scope-review blocker) is closed structurally:
+  `executableSuiteHash` (`candidate-hash.ts`) and the release-attestation changed-path rule now share
+  ONE exported predicate `isExecutableSuitePath`, which includes `vitest.config.ts`,
+  `vitest.live.config.ts`, and `playwright.observe.config.ts` — so a post-qualification edit to a
+  runner config's `exclude` (skip the red contract tests, report green) can no longer slip past both
+  functions. Install/build-environment config (`pnpm-workspace.yaml`, `pnpm-lock.yaml`, `tsconfig.json`)
+  is deliberately kept OUT with a documented rationale.
+- `docs/PURPOSE.md` gains a clearly-marked **PROPOSED 2026-07-17** entry (the packaged-artifact-binding
+  decision the backlog assigned to this item); `docs/efficiency.md` (the AGENTS.md-designated Phase 6
+  boundary) updated. `test/eval/release-attestation.test.ts` (5 offline cases over temp git repos)
+  includes the orphan-commit reproduction (`expect(...).toThrow` fails on unfixed `main` for the exact
+  ROOT-001 reason). Verify **pass**, scope **approve** (one non-blocking follow-up, W5-ADJ-01).
+
+### E2E-01 (W0-ADJ-05) — `verify` installs app deps before its app-check gates · `088301b`
+- `operon app verify` now runs the app's `setup_command` in the managed clone as a typed
+  `app-check-setup` gate BEFORE the test/lint app-check gates, mirroring the build loop's provision-time
+  setup gate (`advanceProvisionSetup`). Root cause was twofold: (1) `runDeclaredChecks`
+  (`src/org/app-lifecycle.ts`) ran test/lint with no dependency install, so a real npm scaffold's
+  `npm test` (needs `tsc` from devDependencies) always failed and the app never reached ready/live;
+  (2) **W0-ADJ-04** — `loadGateCommands` (`src/loop/driver.ts`) read gate commands only from the sole
+  app entry, so the TOP-LEVEL `setup_command`/`test_command`/`lint_command` that `new-app` writes were
+  dead config that never reached verify or the loop. Both fixed.
+- A setup failure is a typed `app-check-setup` blocked check with remediation that short-circuits the
+  dependent gates; unconfigured setup = unchanged behavior; no provider turns (counters stay zero).
+  Guard `test/lifecycle/verify-setup-gate.test.ts` (199 lines). **E2E-02 investigated and deliberately
+  NOT forced** (per the item's notes). Verify **pass**, scope **approve**.
+
+### Wave 5 adjacent findings filed (not fixed)
+- **W5-ADJ-01 (P0-07 install-config exemption):** the stated rationale for exempting `pnpm-lock.yaml`
+  is overbroad. `system_fingerprint` reads only `package.json` `dependencies` (the 4 runtime deps) and
+  is not recomputed at verify; the test-**grading** toolchain (`vitest`, `tsx`, `@playwright/test`)
+  lives in `devDependencies`, is pinned by `pnpm-lock.yaml` alone, and `pnpm-lock.yaml` is now exempt
+  from the changed-path rule and covered by no attestation hash. A post-qualification lockfile edit
+  swapping the runner/grader toolchain sits in the exact "report the suite green" plane ROOT-001
+  targets. Residual risk low (a committed lockfile change is review-visible and loud, unlike the subtle
+  vitest-`exclude` edit the item fixed; primary Phase-6 evidence is content-hashed graders/references/
+  mutants under `eval/`, which IS suite-governed). Follow-up: correct the stated rationale
+  (`system_fingerprint` does not pin the devDep grading toolchain) and decide whether `pnpm-lock.yaml`
+  / `.npmrc` should join the executable suite. Non-blocking; the backlog only mandated the
+  docs-vs-packaged-artifact decision, not the lockfile.
+- **W5-ADJ-02 (P1-01 `evidence.ts:364` v1-branch deletion):** mislabeled in the item report as
+  "statically unreachable / no runtime behavior change." `sanitized-evidence/v1` is in
+  `LEGACY_ARCHIVE_POLICIES` and admitted at line 329; the `TS2367` exists only because
+  `ArchiveManifest.policy_version` is DECLARED v3-only (under-declaration of parsed JSON). At runtime a
+  v1 archive was reachable and now falls through to the v3-structured path and is **rejected** — a
+  fail-closed runtime behavior change. Acceptable (AC names line 364 and sanctions deleting it;
+  fail-closed; no test covers the v1 accept-path; current qualified evidence is v3) but leaves the code
+  mildly incoherent (v1 admitted at 329, then always rejected). Follow-up: drop v1 from
+  `LEGACY_ARCHIVE_POLICIES` too, or widen `ArchiveManifest.policy_version` to the union (fixes `TS2367`
+  AND preserves v1 back-compat).
+- **W5-ADJ-03 (P1-01 no attest-release regression test):** the `.map(resolve)` variadic crash the AC
+  foregrounds is guarded only indirectly (the new test guards the config surface, not the command), so
+  the bug could silently return. Minor — hard to make a clean offline pass-test now that the command
+  reaches the legitimate package-mismatch domain error.
+- **W5-ADJ-04 (P1-01 docs):** AGENTS.md documents `pnpm typecheck`; typecheck now covers
+  `src`/`scripts`/`test`/`eval` via `tsconfig.check.json`. A one-line note arguably merits inclusion —
+  minor; the command name is unchanged, so no hard maintenance-rule violation.
+
+### Wave 5 status
+
+| Item | Commits | Verify | Scope |
+| --- | --- | --- | --- |
+| P1-09/P1-06 contract tests (D-003/C-001) | 2f829d6, 2ee1a9f | pass | approve |
+| P1-01 full-repo typecheck (ROOT-002) | 7244444 | pass | approve |
+| P0-07 attestation fail-closed (ROOT-001) | 2fe8f81 | pass | approve |
+| E2E-01 verify setup gate (W0-ADJ-05) | 088301b | pass | approve |
+
+Integrated onto `remediation/wave-5`, unpushed. Merge commits: `7a74972` (p1-01), `656cf08` (p0-07),
+`63fdd99` (e2e-01); p1-09/p1-06 fast-forwarded onto the branch base.
+
+### Re-cut outcome — the honest end-state
+
+**Final `pnpm test`: 9 failed / 1717 passed (1726 total).** The nine are exactly the ROOT-001 set
+(D-LIVE-01/02/03, E-LIVE-01/02, G-MET-01, I-ROLE-01/02/03), every one now asserting
+`expected 'release_attestation_package_mismatch' to be 'passed'`. `pnpm eval:validate` → `failures: []`;
+`test:transformation` and `eval:deterministic` red ONLY with the same nine; `smoke:onboarding` PASS;
+`npm pack --dry-run` = 210 files, packed set byte-identical to `main`. No integration regression: the
+delta versus the plan's stated 9/1715 baseline is +2 passing tests, all from the new offline probes
+(`release-attestation.test.ts` ×5, `harness-codes.test.ts` ×3, `classifier.test.ts` ×2,
+`typecheck-config.test.ts` ×3, `verify-setup-gate.test.ts`) net of P1-09's consolidation of the
+former classifier-only cases — zero previously-green test went red.
+
+**No legitimate token-free green path exists** (feasibility scout: `green_path_exists=false`). The nine
+positives call `verifyContractEvidence` → `verifyReleaseAttestation`, which recomputes the live product
+`release_package_sha256` from the current tree (`npm pack`) and requires it to equal the value pinned in
+the qualified campaign (candidate commit `c6834cf0`, `release_package_sha256: sha256:6e45e2be…`). Waves
+0–4 changed 28 `src/` files (→ different compiled `dist/`) plus several packed docs (README.md,
+agent-skills/operon/SKILL.md, docs/policy.yaml.template, docs/scheduler.md), so the live pack no longer
+equals the pin → the gate refuses. "required/passed" MEANS "provider-qualified at THIS product," which
+is currently false; making the suite green by any token-free means would require weakening the verifier
+or fabricating evidence, both forbidden and both dishonest. The red is the correct honest signal that
+the moved product is not yet re-qualified.
+
+Per plan step 3, `pnpm eval:attest-release` was run once anyway to capture the refusal verbatim:
+
+```
+$ pnpm eval:attest-release -- --campaign research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/campaign.yaml
+/Users/bikram/Build/Operon/scripts/eval/release-attestation.ts:109
+  if (first.candidate.release_package_sha256 !== releaseHash) throw new Error("release_package_bytes_changed_after_qualification");
+                                                                    ^
+Error: release_package_bytes_changed_after_qualification
+    at createReleaseAttestation (/Users/bikram/Build/Operon/scripts/eval/release-attestation.ts:109:69)
+    at writeReleaseAttestation (/Users/bikram/Build/Operon/scripts/eval/release-attestation.ts:141:23)
+    at <anonymous> (/Users/bikram/Build/Operon/scripts/eval/attest-release.ts:9:28)
+```
+
+This is the expected `release_package_bytes_changed_after_qualification` refusal — and it also confirms
+P1-01's fix: the command now reaches its legitimate domain error at `release-attestation.ts:109`
+instead of crashing at the old `attest-release.ts:6` `.map(resolve)` `TypeError`.
+
+**Honest end-state:** the tree is at a genuine, evidence-honest mid-state. The release-attestation
+evidence bundle for `c6834cf0` is real; only the live product bytes have moved. Greening the nine
+requires a decision from the human, not a mechanical fix an item-agent may land:
+
+- **Option 1 (only path to genuine green) — a new decisive qualification campaign at the remediated
+  candidate** (`main` after Wave 5): real provider spend running the full predeclared sequence against
+  the moved product, a fresh candidate snapshot (new commit + `release_package_sha256`/
+  `executable_suite_sha256`/campaign), human authorization under `docs/development.md`'s standing grant
+  and its cumulative equivalent-cost ceiling, then `eval:archive`/`import-evidence`/`attest-release`/
+  `promote`. Token-spending; explicitly OUT of this session's scope.
+- **Option 2 — un-promote the nine to declared `known_red` debt** pending re-qualification. A SEMANTICS
+  decision the human must ratify (not a contract regression — we simply no longer hold qualification
+  evidence for the current product). Touches `eval/contracts.yaml` (state `required`→`known_red` +
+  `expected_failure`), the harness classifier (to emit the declared token for the product-moved cause),
+  `qualification-scope.test.ts` pins, the strict-gate semantics (`evaluateContracts` fails when
+  `knownRed>0`), the CI workflow, AGENTS.md, and `docs/efficiency.md` — and by itself does NOT green
+  the suite without also changing the strict-gate semantics. Also mutates attestation `promotion_files`
+  hashes (moot only because the attestation already cannot verify).
+- **Option 3 — amend verifier semantics** to represent "qualified-at-candidate, product-moved-since" as
+  a distinct honest state (attestation provenance + a provenance-only verify mode that binds candidate
+  identity/campaign/org/evidence but not live-pack equivalence). Touches `release-attestation.ts`,
+  `harness.ts`, and the contract state vocabulary; a `docs/PURPOSE.md` decision — it changes what the
+  release-equivalence gate MEANS and risks weakening it. Not advocated beyond the evidence.
+
+The campaign's own instruction stands: the `executable_suite_sha256` drift Waves 0–4 caused is expected
+and reconciled once, at a real re-qualification — Wave 5 does not, and must not, chase suite-green.

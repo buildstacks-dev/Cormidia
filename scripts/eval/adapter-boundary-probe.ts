@@ -296,7 +296,7 @@ async function invokePiBoundary(
     },
   };
   createPiGateExtension(workdir, hooks, escalations)({
-    on: (_name, callback) => {
+    on: (_name: string, callback: unknown) => {
       handler = callback as typeof handler;
     },
   } as never);

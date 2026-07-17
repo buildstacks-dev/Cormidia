@@ -66,7 +66,7 @@ for (const [name, mutate] of [
   ["provider/settlement mismatch", (f: Fixture) => patchJson(f.result, (value) => { ((value.metrics as Record<string, unknown>).execution as Record<string, unknown>).provider_settlements = 0; })],
   ["route-admission accounting mismatch", (f: Fixture) => patchJson(f.accounting, (value) => { value.admitted_routes = { foreign: "standard" }; })],
   ["changed executable eval bytes", (f: Fixture) => writeFileSync(join(f.root, "scripts/eval/run.ts"), "export const changedAfterQualification = true;\n")],
-  ["an unallowlisted evidence-descendant path", (f: Fixture) => write(f.root, "docs/architecture.md", "unallowlisted descendant\n")],
+  ["an unallowlisted evidence-descendant path", (f: Fixture) => write(f.root, "research/evals/leaked-raw-session.log", "unsanitized descendant beneath the evidence tree\n")],
   ["evidence from an earlier candidate", (f: Fixture) => writeFileSync(join(f.root, "src/index.ts"), "export const changedAfterQualification = true;\n")],
 ] as const) {
   it(`Phase 6 contract promotion rejects ${name}`, () => {
@@ -75,6 +75,15 @@ for (const [name, mutate] of [
     expect(() => verify(fixture)).toThrow();
   });
 }
+
+it("Phase 6 contract promotion ignores a non-packaged docs change outside the packaged artifact (ROOT-001)", () => {
+  // The changed-path attestation rule binds only to files affecting the packaged
+  // artifact (docs/PURPOSE.md 2026-07-17). This is the exact docs-only file whose
+  // addition silently invalidated the evidence on main under the old rule.
+  const fixture = makeFixture();
+  write(fixture.root, "docs/architecture/conceptual-overview.md", "docs-only change; not shipped in the package\n");
+  expect(() => verify(fixture)).not.toThrow();
+});
 
 interface Fixture {
   root: string;
@@ -111,18 +120,21 @@ function makeFixture(options: { writeProjection?: boolean } = {}): Fixture {
   const snapshot = currentCandidateSnapshot(root);
   const campaign: CampaignManifest = {
     schema_version: 1, campaign_id: "candidate-fixture", purpose: "fixture", owner: "test", created_at: "2026-07-14T00:00:00.000Z", intent: "qualification",
-    candidate: { commit: snapshot.commit, package_sha256: snapshot.package_sha256, suite_sha256: snapshot.suite_sha256, release_package_sha256: snapshot.release_package_sha256, executable_suite_sha256: snapshot.executable_suite_sha256 },
+    candidate: { commit: snapshot.commit, package_sha256: snapshot.package_sha256, suite_sha256: snapshot.suite_sha256, ...(snapshot.release_package_sha256 !== undefined ? { release_package_sha256: snapshot.release_package_sha256 } : {}), ...(snapshot.executable_suite_sha256 !== undefined ? { executable_suite_sha256: snapshot.executable_suite_sha256 } : {}) },
     org_fingerprint: snapshot.org_fingerprint, system_fingerprint: snapshot.system_fingerprint,
     cases: [], assignments: [], price_catalog_id: "prices/2026-07-12-v1", randomization_seed: "fixture", github: { owner: "fixture", repo_pattern: "operon-eval-*" }, spend: { campaign_max_usd: 375, case_max_usd: {} }, infrastructure_retries: 1, exclusions: ["typed_transient_provider_failure"], stop_rules: ["hard_safety_violation"], operator_fixture: "operator-fixtures/fixture-v1.yaml", evidence_dir: ".eval-artifacts/candidate-fixture",
   };
   const template = loadYamlFile(join(process.cwd(), "eval/campaigns/candidate-qualification.yaml")) as CampaignManifest;
-  campaign.profile = template.profile;
-  campaign.learning_treatment = structuredClone(template.learning_treatment);
-  campaign.learning_efficacy = structuredClone(template.learning_efficacy);
-  campaign.blocks = structuredClone(template.blocks);
+  // The template's optional fields are always populated in the real
+  // candidate-qualification.yaml; the guards satisfy exactOptionalPropertyTypes
+  // (never assign `undefined` to an optional key) without changing behavior.
+  if (template.profile !== undefined) campaign.profile = template.profile;
+  if (template.learning_treatment !== undefined) campaign.learning_treatment = structuredClone(template.learning_treatment);
+  if (template.learning_efficacy !== undefined) campaign.learning_efficacy = structuredClone(template.learning_efficacy);
+  if (template.blocks !== undefined) campaign.blocks = structuredClone(template.blocks);
   campaign.cases = structuredClone(template.cases);
   campaign.assignments = structuredClone(template.assignments);
-  campaign.route_budget_overrides = structuredClone(template.route_budget_overrides);
+  if (template.route_budget_overrides !== undefined) campaign.route_budget_overrides = structuredClone(template.route_budget_overrides);
   campaign.randomization_seed = template.randomization_seed;
   campaign.spend = structuredClone(template.spend);
   const bundle = join(root, "research/evals/campaigns/candidate-fixture");

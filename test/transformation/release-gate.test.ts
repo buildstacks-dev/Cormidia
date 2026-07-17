@@ -14,6 +14,28 @@ it("J-REL-01 positive: wires token-free PR/nightly checks and a deliberate stric
   expect(raw).not.toContain("test:live");
 });
 
+it("J-REL-01 gates the fail-closed product-currency check to releases, off ordinary push/PR CI", () => {
+  // P0-07 / ROOT-001 integrity/currency separation (docs/PURPOSE.md 2026-07-17):
+  // the offline suite proves evidence INTEGRITY on every push/PR; live
+  // product-CURRENCY is enforced only at the release gate. The workflow therefore
+  // carries a distinct release-currency job running `pnpm eval:release-verify`,
+  // guarded to release tags / manual dispatch so a legitimate src change does not
+  // leave per-commit CI permanently red.
+  const raw = readFileSync(fileURLToPath(new URL("../../.github/workflows/efficiency-qualification.yml", import.meta.url)), "utf8");
+  const workflow = parse(raw) as { jobs?: Record<string, { if?: string; steps?: Array<{ run?: string }> }> };
+  const gate = workflow.jobs?.["release-currency"];
+  expect(gate).toBeTruthy();
+  // Tag-gated (release tags) and reachable by explicit manual dispatch, never on
+  // an ordinary branch push or pull_request.
+  expect(gate!.if).toContain("refs/tags/");
+  expect(gate!.if).toContain("workflow_dispatch");
+  expect(raw).toContain("pnpm eval:release-verify");
+  // The release-currency check must NOT be a per-push step in the deterministic
+  // job, or main would be permanently red after any src change.
+  const deterministicSteps = (workflow.jobs?.deterministic?.steps ?? []).map((step) => step.run ?? "");
+  expect(deterministicSteps.some((run) => run.includes("eval:release-verify"))).toBe(false);
+});
+
 it("J-REL-01 near-miss keeps live/provider work out of ordinary pull-request CI", () => {
   const raw = readFileSync(fileURLToPath(new URL("../../.github/workflows/efficiency-qualification.yml", import.meta.url)), "utf8");
   expect(raw).toContain("workflow_dispatch");

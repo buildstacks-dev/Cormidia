@@ -45,6 +45,7 @@
     "eval:archive": "tsx scripts/eval/archive.ts",
     "eval:import-evidence": "tsx scripts/eval/import-evidence.ts",
     "eval:attest-release": "tsx scripts/eval/attest-release.ts",
+    "eval:release-verify": "tsx scripts/eval/release-verify.ts",
     "eval:promote": "tsx scripts/eval/promote.ts",
     "eval:cleanup": "tsx scripts/eval/cleanup.ts",
     "test:observe-browser": "playwright test --config playwright.observe.config.ts",

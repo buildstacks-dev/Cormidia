@@ -202,7 +202,13 @@ function makeFixture(options: { writeProjection?: boolean } = {}): Fixture {
 }
 
 function verify(fixture: Fixture): void {
-  verifyContractEvidence(fixture.root, fixture.projection, { contractId: "D-LIVE-01", caseId: "quick/ignore-config/v1", repetitionIds: ["clean-q1"] });
+  // This is a self-contained fixture whose live working tree is a clean checkout
+  // AT the qualified candidate commit, so product-currency is meaningful here and
+  // the rejection cases below (changed executable/src bytes, unallowlisted
+  // descendant) exercise the CURRENCY layer. Verify in "release" scope so the full
+  // fail-closed release boundary is proven, unlike the offline dev suite which
+  // asserts evidence integrity only (docs/PURPOSE.md 2026-07-17).
+  verifyContractEvidence(fixture.root, fixture.projection, { contractId: "D-LIVE-01", caseId: "quick/ignore-config/v1", repetitionIds: ["clean-q1"] }, "release");
 }
 
 function campaignAttempt(campaign: CampaignManifest, caseId: string, repetitionId: string): AttemptResult {

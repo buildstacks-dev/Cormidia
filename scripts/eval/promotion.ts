@@ -170,7 +170,11 @@ export function writeContractEvidenceProjections(options: {
     projectionEntries.push({ projectionPath: out, expected: { contractId: mapping.contractId, caseId: mapping.caseId, repetitionIds: [...mapping.repetitionIds] } });
     written.push(mapping.contractId);
   }
-  verifyContractEvidenceSet(root, projectionEntries);
+  // Promotion is the release path: enforce full product-currency (live npm pack,
+  // executable suite, org surfaces, on-disk bytes, git changed-path). A moved or
+  // fabricated product fails closed here, independent of the offline dev suite's
+  // integrity-only scope (docs/PURPOSE.md 2026-07-17).
+  verifyContractEvidenceSet(root, projectionEntries, "release");
   return { campaign_id: campaign.campaign_id, contracts: written };
 }
 

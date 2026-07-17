@@ -298,3 +298,65 @@ reconciliation, not a product change or a weakened test.)
 | P0-05 (A-002) | 062094b, 9e087c1 | pass | approve |
 
 All merged to `main` (`f03ac95`), unpushed.
+
+---
+
+## Wave 2 — safety proportionality (2026-07-17)
+
+Orchestration: one base workflow (L0-02 + L1-05 dimension_globs, one branch two commits) + two
+fix-up rounds, each implement → independent verify → adversarial scope. **Merged to `main`
+2026-07-17** by cherry-picking the 5-commit chain (`e1cddb6`…`7e2dec6`). The Wave 2 branch was
+built on the pre-Wave-1 base `f19fb6f` (stale-worktree checkout), so the combined Wave 0+1+2 tree was
+never tested together until merge — cherry-pick auto-merged the `loop.ts`/`driver.ts`/`docs/loop.md`
+overlaps with no manual conflicts; combined-tree gate: build clean, typecheck clean, `pnpm test` →
+exactly the ROOT-001 nine (no other failure).
+
+**Human decision honored:** the `package.json` security trigger is now "smarter" (content-gated).
+
+### L0-02 (L-004, P0 safety) — the sensitive-domain deep floor could not fire · `e1cddb6` + `5111c46` + `7e2dec6`
+The floor is implemented and correct in `route-policy.ts`, but `driver.ts` derives `sensitiveDomains`
+from ticket labels nothing attaches, so it was dead. Fix (orchestrator-owned, Theme 6):
+`plan-tickets.ts` now derives per-ticket domain labels from the ticket's own prose at publication and
+floors a sensitive ticket to `op:tier-deep` (label + tier applied together to satisfy the route
+consistency check); the existing route-time floor then fires with no hand-applied label. Verified
+end-to-end through the real `publishTickets → itemFromIssue → routeDecisionForItem` chain.
+**Two fix-up rounds were required** because the keyword matcher swung twice: the base used substring
+matching (`database`/`metadata`/`src/data/**` spuriously floored — the exact cost-inversion mirrored),
+fixed to strict word boundaries; those then *missed* `authentication`/`authorization`/`OAuth`/plural
+`secrets`/`payments` (a "never less safe" regression), fixed with curated per-domain
+term-and-inflection patterns. Both directions are now pinned by a 26-row fire/no-fire acceptance
+matrix test. Verify **pass** (all 26 rows), scope **approve**.
+
+### L1-05 dimension_globs half (L-006, P2) — `package.json` over-triggered the security dimension · `1590da1` + `8df7b13`
+Any touch of `package.json` escalated security→deep (tripled budget on a test-glob edit). Now
+`matchedDimensions` is content-gated: security fires on `package.json` only when the diff touches
+dependency/script keys (`dependencies`/`devDependencies`/`optional`/`peer`/`scripts`), path-blunt
+default preserved for other callers; `pnpm-lock.yaml` stays path-gated. A fix-up closed a Theme-1
+fail-open (a git-show *failure* now escalates rather than collapsing to "no change", distinguished
+from a legitimately-absent ref). Verify **pass**, scope **approve**.
+
+### Wave 2 adjacent findings filed (not fixed)
+- **W2-ADJ-01 (Theme 6 / under-detection):** the floor keys on the six-keyword regex over ticket
+  prose, so a ticket that stores PII but never names a domain word still won't escalate; deriving
+  `sensitiveDomains` from the diff's storage/PII file paths at route time was left out for minimality.
+- **W2-ADJ-02:** `data-driven`/`data-first` still fire `data` (generic over-escalation, safe
+  direction, unpinned by the matrix).
+- **W2-ADJ-03:** prefix-compounds miss — `reauthorize`, `unauthorized`, `insecure`, `prepayment`,
+  `repayment` don't fire the floor (mitigated by L1-05's file-path dimension giving auth/crypto
+  surfaces high-tier gates at diff time).
+- **W2-ADJ-04:** `token`/`credentials`/`password`/`PII`/`SSN` are outside the six-domain keyword set;
+  notably the `domain:secret` label description says "secret/credential handling" but the regex
+  matches neither `credential` nor `token` — a description/behavior mismatch worth aligning.
+- **W2-ADJ-05:** `driver.ts` label reader `/auth|…|data/.test(label)` is substring over the label; a
+  stray issue label like `metadata-migration` would spuriously populate `sensitiveDomains` (pre-existing).
+- **W2-ADJ-06 (bootstrap exemption):** `validatePlan` forbids `bootstrap`-tier deep, so a greenfield
+  scaffold that genuinely stores user data gets no floor — documented design decision, revisit later.
+
+### Wave 2 status
+
+| Item | Commits | Verify | Scope |
+| --- | --- | --- | --- |
+| L0-02 (deep floor) | e1cddb6, 5111c46, 7e2dec6 | pass (26/26 matrix) | approve |
+| L1-05 dimension_globs | 1590da1, 8df7b13 | pass | approve |
+
+Merged to `main`, unpushed. Combined tree green-to-baseline (ROOT-001 nine only).

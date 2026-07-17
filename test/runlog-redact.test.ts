@@ -143,6 +143,39 @@ describe("scrubSecrets", () => {
       expect(p.pattern.flags.includes("g"), p.name).toBe(false);
     }
   });
+
+  // P0-03 ReDoS regression. The generic-assignment identifier segment loops
+  // used to be unbounded (`(?:[A-Za-z0-9]+[_-])*` … `(?:[_-][A-Za-z0-9]+)*`),
+  // giving ~O(n²)/worse backtracking on a long `[A-Za-z0-9_-]` run that bears
+  // a keyword but never reaches an assignment operator (base64url / JWT /
+  // data-URI shapes). scrubSecrets runs every pattern with /g over untrusted
+  // multi-line runlogs on EVERY write, so that was a reachable scrubber stall
+  // (measured >10s at 10KB, >100s at 20KB before the bound). The bounded
+  // `{1,32}` chunks / `{0,8}` segments make it linear. Ceiling is deliberately
+  // generous (500ms for 80KB) so it cannot flake on slow CI while still being
+  // orders of magnitude below any quadratic regression (which would take
+  // minutes at this size).
+  it("scrubs 80KB adversarial keyword runs in linear time (ReDoS regression)", () => {
+    const N = 80 * 1024;
+    const adversarial: Record<string, string> = {
+      // keyword-bearing, `_`-delimited run — no `:`/`=` anywhere, so the match
+      // never completes and the segment loops backtrack at every offset.
+      "keyword-delimited": "secret_".repeat(Math.ceil(N / 7)).slice(0, N),
+      // one separator-free alnum chunk ending in a keyword — exercises the
+      // per-chunk `{1,32}` length bound (an unbounded `+` backtracks O(n) here).
+      "separator-free": `${"a".repeat(N - 6)}secret`,
+      // base64url-shaped run with an embedded keyword and no assignment.
+      "base64url": `${"aB3-_dE7f".repeat(Math.ceil(N / 9)).slice(0, N - 6)}secret`,
+    };
+    // Warm the JIT so the timed run measures steady-state, not compilation.
+    for (const text of Object.values(adversarial)) scrubSecrets(text.slice(0, 512));
+    for (const [shape, text] of Object.entries(adversarial)) {
+      const start = performance.now();
+      scrubSecrets(text);
+      const elapsedMs = performance.now() - start;
+      expect(elapsedMs, `${shape} scrub took ${elapsedMs.toFixed(0)}ms`).toBeLessThan(500);
+    }
+  });
 });
 
 describe("truncatePreview", () => {

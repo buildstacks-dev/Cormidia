@@ -108,9 +108,20 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     // prefix/suffix segments are what make the snake_case forms match.
     // Requires an assignment operator and a ≥8-char value so prose
     // ("the token is important") passes.
+    //
+    // The identifier segment loops are BOUNDED — chunks `{1,32}`, at most
+    // `{0,8}` segments each side (P0-03). Real credential identifiers are
+    // short; the previous `[A-Za-z0-9]+` chunk with a `*` segment loop was
+    // ~O(n²)/worse on a long `[A-Za-z0-9_-]` run bearing a keyword but no
+    // assignment (base64url/JWT/data-URI shapes) — an unbounded `+` backtracks
+    // O(n) per start offset over O(n) offsets, and `scrubSecrets` runs this
+    // pattern with /g over untrusted multi-line runlogs on every write, so
+    // that was a reachable scrubber stall. The bounds keep per-offset work
+    // constant (linear overall) with no loss of matched forms — every A-003
+    // snake_case/SCREAMING/hyphenated/spaced form has ≤2 short segments.
     name: "generic-assignment",
     pattern:
-      /(?<![A-Za-z0-9])(?:[A-Za-z0-9]+[_-])*(?:api[_-]?key|secret|token|password|passwd|pwd)(?:[_-][A-Za-z0-9]+)*["']?\s*[:=]\s*["']?[A-Za-z0-9_\-/+=.]{8,}["']?/i,
+      /(?<![A-Za-z0-9])(?:[A-Za-z0-9]{1,32}[_-]){0,8}(?:api[_-]?key|secret|token|password|passwd|pwd)(?:[_-][A-Za-z0-9]{1,32}){0,8}["']?\s*[:=]\s*["']?[A-Za-z0-9_\-/+=.]{8,}["']?/i,
   },
 ];
 

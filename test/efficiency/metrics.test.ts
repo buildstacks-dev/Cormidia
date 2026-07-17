@@ -93,6 +93,7 @@ function step(
     artifact_fingerprint: null,
     productive: kind === "provider",
     repeated_from_step_id: null,
+    tool_call_count: 0,
     usage: kind === "provider" ? { tokensIn: 1, tokensOut: 1, costUsd: 0.01, subagentTurns: 0, wallClockMs: 1, quality: "complete" } : null,
   };
 }

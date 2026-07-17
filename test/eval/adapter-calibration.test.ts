@@ -82,7 +82,7 @@ it("elicits a usage checkpoint without weakening the bounded cancellation fallba
 
 it("persists SDK sessions only for adapter conformance", () => {
   expect(claudeSessionPersistence("adapter-conformance")).toBe(true);
-  expect(claudeSessionPersistence("qualification")).toBe(false);
+  expect(claudeSessionPersistence("production-parity")).toBe(false);
 });
 
 it("keeps Claude continuation policy and subprocess environment aligned without mutating scratch", () => {
@@ -92,7 +92,7 @@ it("keeps Claude continuation policy and subprocess environment aligned without 
   expect(adapter.processEnv.CLAUDE_CODE_SKIP_PROMPT_HISTORY).toBeUndefined();
   expect(scratch.CLAUDE_CODE_SKIP_PROMPT_HISTORY).toBe("1");
 
-  const qualification = claudeSessionPolicy("qualification", { HOME: "/isolated" });
+  const qualification = claudeSessionPolicy("production-parity", { HOME: "/isolated" });
   expect(qualification).toMatchObject({
     persistSession: false,
     processEnv: { HOME: "/isolated", CLAUDE_CODE_SKIP_PROMPT_HISTORY: "1" },

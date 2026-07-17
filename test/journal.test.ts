@@ -102,7 +102,7 @@ describe("turn journal and recovery decisions", () => {
 function baseDecision(overrides: {
   phase?: "running" | "collecting";
   attempt?: number;
-  session?: { runtime: "claude"; id: string };
+  session?: { runtime: "claude"; id: string } | undefined;
   resumeFailed?: boolean;
 }) {
   return decideRecovery(
@@ -120,6 +120,6 @@ function baseDecision(overrides: {
           ? {}
           : { session: { runtime: "claude", id: "s" } }),
     },
-    { resumeFailed: overrides.resumeFailed },
+    { ...(overrides.resumeFailed !== undefined ? { resumeFailed: overrides.resumeFailed } : {}) },
   );
 }

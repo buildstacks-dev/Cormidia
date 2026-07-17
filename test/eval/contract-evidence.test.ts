@@ -111,18 +111,21 @@ function makeFixture(options: { writeProjection?: boolean } = {}): Fixture {
   const snapshot = currentCandidateSnapshot(root);
   const campaign: CampaignManifest = {
     schema_version: 1, campaign_id: "candidate-fixture", purpose: "fixture", owner: "test", created_at: "2026-07-14T00:00:00.000Z", intent: "qualification",
-    candidate: { commit: snapshot.commit, package_sha256: snapshot.package_sha256, suite_sha256: snapshot.suite_sha256, release_package_sha256: snapshot.release_package_sha256, executable_suite_sha256: snapshot.executable_suite_sha256 },
+    candidate: { commit: snapshot.commit, package_sha256: snapshot.package_sha256, suite_sha256: snapshot.suite_sha256, ...(snapshot.release_package_sha256 !== undefined ? { release_package_sha256: snapshot.release_package_sha256 } : {}), ...(snapshot.executable_suite_sha256 !== undefined ? { executable_suite_sha256: snapshot.executable_suite_sha256 } : {}) },
     org_fingerprint: snapshot.org_fingerprint, system_fingerprint: snapshot.system_fingerprint,
     cases: [], assignments: [], price_catalog_id: "prices/2026-07-12-v1", randomization_seed: "fixture", github: { owner: "fixture", repo_pattern: "operon-eval-*" }, spend: { campaign_max_usd: 375, case_max_usd: {} }, infrastructure_retries: 1, exclusions: ["typed_transient_provider_failure"], stop_rules: ["hard_safety_violation"], operator_fixture: "operator-fixtures/fixture-v1.yaml", evidence_dir: ".eval-artifacts/candidate-fixture",
   };
   const template = loadYamlFile(join(process.cwd(), "eval/campaigns/candidate-qualification.yaml")) as CampaignManifest;
-  campaign.profile = template.profile;
-  campaign.learning_treatment = structuredClone(template.learning_treatment);
-  campaign.learning_efficacy = structuredClone(template.learning_efficacy);
-  campaign.blocks = structuredClone(template.blocks);
+  // The template's optional fields are always populated in the real
+  // candidate-qualification.yaml; the guards satisfy exactOptionalPropertyTypes
+  // (never assign `undefined` to an optional key) without changing behavior.
+  if (template.profile !== undefined) campaign.profile = template.profile;
+  if (template.learning_treatment !== undefined) campaign.learning_treatment = structuredClone(template.learning_treatment);
+  if (template.learning_efficacy !== undefined) campaign.learning_efficacy = structuredClone(template.learning_efficacy);
+  if (template.blocks !== undefined) campaign.blocks = structuredClone(template.blocks);
   campaign.cases = structuredClone(template.cases);
   campaign.assignments = structuredClone(template.assignments);
-  campaign.route_budget_overrides = structuredClone(template.route_budget_overrides);
+  if (template.route_budget_overrides !== undefined) campaign.route_budget_overrides = structuredClone(template.route_budget_overrides);
   campaign.randomization_seed = template.randomization_seed;
   campaign.spend = structuredClone(template.spend);
   const bundle = join(root, "research/evals/campaigns/candidate-fixture");

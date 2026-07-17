@@ -112,13 +112,13 @@ function fixture(): OrgHomeFixture {
     row("retry-failed", { parentTaskId: "task-cross", traceId: "trace-a", status: "failed", tokensIn: 50, tokensOut: 5, costUsd: 0.5 }),
     row("beta-turn", { app: "beta", parentTaskId: "task-cross", traceId: "trace-b", role: "planner", tokensIn: 200, tokensOut: 20, costUsd: 2, costEstimated: true, usageQuality: "estimated" }),
     row("trace-only", { traceId: "standalone", role: "reviewer", tokensIn: 75, tokensOut: 10, costUsd: 0.2 }),
-    row("orphan", { traceId: undefined, tokensIn: 20, tokensOut: 5, costUsd: 0.4, usageQuality: "partial" }),
+    row("orphan", { tokensIn: 20, tokensOut: 5, costUsd: 0.4, usageQuality: "partial" }),
     row("unavailable", { traceId: "unavailable", tokensIn: 0, tokensOut: 0, costUsd: 0, usageQuality: "unavailable" }),
     row("unmeasured", { traceId: "unmeasured", tokensIn: 0, tokensOut: 0, costUsd: 0, usageQuality: "unavailable", unmeasured: true }),
     { ...row("legacy", { tokensIn: 7, tokensOut: 1, costUsd: 0 }), app: undefined, runId: undefined, traceId: undefined },
     row("pruned", { tokensIn: 5, tokensOut: 0, costUsd: 0 }),
   ];
-  write(home.root, "telemetry/2026-07-12.jsonl", rows.map(JSON.stringify).join("\n") + "\n");
+  write(home.root, "telemetry/2026-07-12.jsonl", rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
   return home;
 }
 

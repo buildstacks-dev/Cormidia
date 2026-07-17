@@ -23,7 +23,7 @@ export function grade(root: string): boolean {
     components !== undefined &&
     Object.keys(components).sort().join(",") === [...componentNames].sort().join(",") &&
     componentValues.every((score) => Number.isInteger(score) && (score as number) >= 0 && (score as number) <= 2) &&
-    componentValues.reduce((sum, score) => sum + Number(score), 0) === value.artifact_score &&
+    componentValues.reduce((sum: number, score) => sum + Number(score), 0) === value.artifact_score &&
     scale?.minimum === 0 &&
     scale.maximum === 8 &&
     scale.component_minimum === 0 &&

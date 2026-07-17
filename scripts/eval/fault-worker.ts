@@ -19,6 +19,9 @@ if (!rootArg || !operation || !/^(before|after)_[a-z0-9_]+$/.test(fault ?? "")) 
 if (!token || process.env.OPERON_EVAL_FAULT_TOKEN !== token || !token.startsWith("eval-fault-")) throw new Error("fault_worker_unauthorized");
 const root = resolve(rootArg);
 if (process.env.OPERON_EVAL_ROOT !== root) throw new Error("fault_worker_root_mismatch");
+// The argument guard above throws unless `operation` is present; capture the
+// narrowed value so the hoisted readState closure sees a defined string.
+const operationName: string = operation;
 const statePath = join(root, "state.json");
 const effectPath = join(root, "effect.json");
 const prior = readState();
@@ -40,7 +43,7 @@ function trip(side: "before" | "after"): void {
   if (fault === `${side}_${operation}` && process.env.OPERON_EVAL_INJECT_FAULT === fault) process.exit(86);
 }
 function readState(): State {
-  if (!existsSync(statePath)) return { schema_version: 1, operation, intent: false, effect_count: 0, receipt: false, terminal: false };
+  if (!existsSync(statePath)) return { schema_version: 1, operation: operationName, intent: false, effect_count: 0, receipt: false, terminal: false };
   return JSON.parse(readFileSync(statePath, "utf8")) as State;
 }
 function persist(state: State): void { writeAtomic(statePath, state); }

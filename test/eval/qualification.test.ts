@@ -84,7 +84,7 @@ it("H-EVAL-02 refuses a synthetic paired verdict or L5-only governance claim wit
   const campaign = loadYamlFile("eval/campaigns/candidate-qualification.yaml") as CampaignManifest;
   const results = campaign.cases.flatMap((item) => item.repetition_ids.map((repetition) => campaignAttempt(campaign, item.case_id, repetition)));
   const evidence = qualificationEvidence(campaign, results);
-  const missingGovernance = qualify(campaign, hashManifest(campaign), results, { learning_pairs: evidence.learning_pairs });
+  const missingGovernance = qualify(campaign, hashManifest(campaign), results, { ...(evidence.learning_pairs !== undefined ? { learning_pairs: evidence.learning_pairs } : {}) });
   expect(missingGovernance.outcome).toBe("incomplete");
   expect(missingGovernance.reasons).toContain("missing learning governance evidence");
 

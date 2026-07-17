@@ -39,7 +39,7 @@ it("J-MAN-02 prepared execution fails closed when package or suite bytes drift",
   execFileSync("git", ["add", "-A"], { cwd: root });
   execFileSync("git", ["-c", "user.name=Eval", "-c", "user.email=eval@invalid", "commit", "-m", "seed"], { cwd: root });
   const expected = currentCandidateSnapshot(root);
-  const campaign = { candidate: { commit: expected.commit, package_sha256: expected.package_sha256, suite_sha256: expected.suite_sha256, release_package_sha256: expected.release_package_sha256, executable_suite_sha256: expected.executable_suite_sha256 }, org_fingerprint: expected.org_fingerprint, system_fingerprint: expected.system_fingerprint };
+  const campaign = { candidate: { commit: expected.commit, package_sha256: expected.package_sha256, suite_sha256: expected.suite_sha256, ...(expected.release_package_sha256 !== undefined ? { release_package_sha256: expected.release_package_sha256 } : {}), ...(expected.executable_suite_sha256 !== undefined ? { executable_suite_sha256: expected.executable_suite_sha256 } : {}) }, org_fingerprint: expected.org_fingerprint, system_fingerprint: expected.system_fingerprint };
   expect(assertPreparedCandidate(root, campaign)).toEqual(expected);
   writeFileSync(join(root, "test/run.test.ts"), "export const drift = true;\n");
   expect(() => assertPreparedCandidate(root, campaign)).toThrow(/prepared_candidate_drift:.*package_sha256.*suite_sha256.*executable_suite_sha256/);

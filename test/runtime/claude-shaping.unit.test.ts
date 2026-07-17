@@ -49,7 +49,7 @@ function makeReq(roleName: string): TurnRequest {
 }
 
 function scriptedQuery() {
-  const captured: { options?: SdkOptions } = {};
+  const captured: { options?: SdkOptions | undefined } = {};
   const queryFn: QueryFn = ({ options }) => {
     captured.options = options;
     return (async function* () {

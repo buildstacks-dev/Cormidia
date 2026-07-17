@@ -11,7 +11,11 @@ import type { RunEnvelope } from "../src/runtime/runlog/envelope.js";
 import type { RunlogEvent } from "../src/runtime/runlog/events.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
-function envelope(overrides: Partial<RunEnvelope>): RunEnvelope {
+// Overrides may explicitly set an optional field to `undefined` (e.g. a running
+// envelope with no finished_at/wall_clock_ms/usage); the trailing assertion
+// bridges the exactOptional widening the spread introduces and changes no
+// runtime behavior.
+function envelope(overrides: { [K in keyof RunEnvelope]?: RunEnvelope[K] | undefined }): RunEnvelope {
   return {
     schema_version: 1,
     run_id: "run",
@@ -27,7 +31,7 @@ function envelope(overrides: Partial<RunEnvelope>): RunEnvelope {
     wall_clock_ms: 0,
     refs: { events: "events.jsonl", brief: "brief.md", output: "output.md", session_log: "session.log" },
     ...overrides,
-  };
+  } as RunEnvelope;
 }
 
 function event(category?: string): RunlogEvent {

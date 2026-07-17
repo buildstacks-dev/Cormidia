@@ -255,6 +255,20 @@ a runtime or provider process. It writes a stable readiness projection and a
 terminal mechanical execution step; provider factories, processes, turns,
 and settlements remain zero.
 
+`verify` **owns lifecycle-record synthesis and repair.** A greenfield
+`operon new-app` app has no lifecycle record until its scaffold is pushed —
+`new-app` runs before `git init`/push, so it cannot write one, and instead
+records an onboarding-source pointer (`<state>/lifecycle/apps/<app>/onboarding-source.json`)
+naming the scaffolded checkout. The first real `operon app verify` (not a
+non-mutating promotion preview) clones the pushed remote into the managed clone,
+adopts the first commit that introduced `.operon/config.yaml` as the onboarding
+commit and default base, and writes the record. A missing or unreadable record
+is always a **typed** verification result — a `lifecycle-record` check with
+status `blocked`/`invalid` and remediation — never a raw `ENOENT` or unhandled
+exception. When no onboarding pointer exists (an app onboarded before this
+path), verify falls back to the registered GitHub slug so re-running
+`operon app verify` recovers an app already stuck in the broken state.
+
 `operon app promote <app> --to live` is a non-mutating plan unless
 `--execute` is present. Execution is admitted only from passing verification,
 then uses a crash-resumable journal to commit and push the app-owned status,
@@ -1066,6 +1080,15 @@ or run the Planner. Those are explicit follow-up operations recorded in the
 generated `.operon/bootstrap/next-commands.md`: create the private repo, push
 the scaffold, create the initial `op:ready` issue, optionally run
 `operon plan <app> --topic ...`, then run the normal loop.
+
+Once the scaffold is pushed, `operon app verify <app>` synthesizes the app's
+lifecycle record from the pushed remote (see "Token-free app verification and
+promotion"), and `operon app promote <app> --to live --execute` transitions the
+app to `status: live` with no manual `apps.yaml` edit — the path SRE, Support,
+and Marketing dispatch depends on. If an app is stuck without a record because
+it was onboarded before record synthesis existed, re-run `operon app verify`:
+it recovers the record from the registered GitHub slug, and its typed
+`lifecycle-record` remediation names the next step when it cannot.
 
 ```
 operon bootstrap        # run inside the product repo

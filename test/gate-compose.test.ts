@@ -191,6 +191,48 @@ describe("grant-aware gate composition", () => {
     }
   });
 
+  it("L1-05 reconciliation: a reviewer's gh pr review whose body discusses security is flat-denied, not queued", async () => {
+    // The live campaign's 9/9 approval false positives were reviewer-authored
+    // `gh pr review --approve` bodies that discussed and ruled out security
+    // concerns: the prose tripped secrets-or-auth (NOT a forbidden act), so the
+    // action was escalated to the human queue instead of being flat-denied.
+    // With the prose no longer matched, it classifies self-merge-or-approve —
+    // which reviewer is forbidden from by construction — so it is denied flat
+    // with no queue item. That is what keeps the queue's false-positive rate
+    // down without re-opening A-001 (the marker --comment stays critical too).
+    const home = makeOrgHome({ approvals: true, memory: true });
+    const store = new ApprovalStore(home.root);
+    try {
+      const gate = composeGate(defaultGate, store, {
+        app: "alpha",
+        role: "reviewer",
+        orgHome: home.root,
+        now: () => new Date("2026-07-14T00:00:00Z"),
+      });
+      const action = {
+        tool: "bash",
+        input: {
+          command: "gh pr review 7 --approve --body 'No injection, auth, deserialization, or secret concerns.'",
+        },
+      };
+      const decision = gate(action);
+      expect(decision).toMatchObject({ allow: false, escalate: false });
+      expect(decision.reason).toContain("forbidden for the reviewer role");
+      expect(await store.listPending()).toHaveLength(0);
+
+      // The marker publish channel stays critical too (A-001 composed): a
+      // `gh pr review --comment` is likewise self-merge-or-approve.
+      const marker = gate({
+        tool: "bash",
+        input: { command: "gh pr review 7 --comment --body 'Verdict: approve'" },
+      });
+      expect(marker).toMatchObject({ allow: false, escalate: false });
+      expect(await store.listPending()).toHaveLength(0);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("role shaping: the SRE's deploy still escalates to the human (not forbidden)", async () => {
     const home = makeOrgHome({ approvals: true });
     const store = new ApprovalStore(home.root);

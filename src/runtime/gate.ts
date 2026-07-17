@@ -66,9 +66,35 @@ export function normalizeSemanticAction(action: ToolAction): SemanticAction {
   return { tool, operation, command, paths, destination, effect };
 }
 
+/** Strip agent-authored free-text argument VALUES — a commit message
+ *  (`-m`/`--message`), a PR/review body (`--body`), a release note
+ *  (`--notes`), etc. — from a command before it feeds the classification
+ *  rules. Those values are metadata the agent writes, not an effect the
+ *  command enacts, so matching rules against them is the L1-05 prose defect:
+ *  a review body that merely *discusses and rules out* "auth"/"secret"
+ *  concerns tripped `secrets-or-auth`, and one that named a protocol file
+ *  while using a write verb ("edits roles.yaml") tripped `protocol-self-edit`
+ *  — 9/9 false positives in the live campaign — while the action's real
+ *  effect (the `gh pr review` verb) reached the right rule only by accident.
+ *  This mirrors the VERDICT_TOOLS exemption (payload prose is data, not an
+ *  action) and deliberately does NOT touch normalizeSemanticAction, so the
+ *  authorization identity (actionHash) is unchanged. The command's actual
+ *  file arguments and verbs are untouched, so a real secret-file read or
+ *  protocol-surface write still classifies critical. */
+function withoutMessageArgs(command: string): string {
+  return command.replace(
+    /(?:^|\s)(?:--body|--message|--subject|--description|--notes|--title|-m)(?:=|\s+)("(?:[^"\\]|\\.)*"|'[^']*'|\S+)/gi,
+    " ",
+  );
+}
+
+function classificationCommand(semantic: SemanticAction): string {
+  return semantic.command === null ? "" : withoutMessageArgs(semantic.command);
+}
+
 export function semanticActionText(action: ToolAction): string {
   const semantic = normalizeSemanticAction(action);
-  return [semantic.tool, semantic.operation, semantic.command ?? "", ...semantic.paths]
+  return [semantic.tool, semantic.operation, classificationCommand(semantic), ...semantic.paths]
     .join(" ")
     .toLowerCase();
 }
@@ -76,7 +102,7 @@ export function semanticActionText(action: ToolAction): string {
 const asText = (a: ToolAction): string => semanticActionText(a);
 const effectText = (a: ToolAction): string => {
   const semantic = normalizeSemanticAction(a);
-  return `${semantic.tool} ${semantic.command ?? ""}`.toLowerCase();
+  return `${semantic.tool} ${classificationCommand(semantic)}`.toLowerCase();
 };
 
 /** v0 heuristics. Deliberately over-broad: false positives cost a human tap,

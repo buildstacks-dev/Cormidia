@@ -189,12 +189,33 @@ const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
   { action: bash("gh pr review 42 --comment --body 'Verdict: approve'"), rule: "self-merge-or-approve" },
   { action: bash("gh pr review 42 --request-changes --body 'nope'"), rule: "self-merge-or-approve" },
   { action: bash("gh pr merge 7"), rule: "self-merge-or-approve" },
+  // L1-05: a review body that DISCUSSES and rules out security/config concerns
+  // is prose, not an effect — it must not pre-empt with secrets-or-auth or
+  // protocol-self-edit (that was 9/9 of the campaign's false positives). The
+  // action is still critical, but via its true rule (self-merge-or-approve),
+  // so role shaping can flat-deny it for builder/reviewer instead of queueing.
+  {
+    action: bash("gh pr review 7 --approve --body 'No injection, auth, deserialization, or secret concerns.'"),
+    rule: "self-merge-or-approve",
+  },
+  {
+    action: bash("gh pr review 7 --approve --body 'This edits roles.yaml cleanly; looks good.'"),
+    rule: "self-merge-or-approve",
+  },
 ];
 
 const ROUTINE_CASES: ToolAction[] = [
   bash("pnpm test"),
   bash("git commit -m 'feat: add parser'"),
   bash("git push origin feature/parser"),
+  // L1-05 near-misses: a commit message is agent-authored prose, not an effect.
+  // A message that mentions a secret/auth topic, or names a protocol file with
+  // a write verb, must stay ROUTINE — the commit itself touches no secret file
+  // and rewrites no protocol surface. (Contrast the genuine `> pipelines.yaml`
+  // and `cat .env` protection cases above, which stay critical.)
+  bash("git commit -m 'fix: rule out any secret or auth concern in the parser'"),
+  bash("git commit -m 'docs: explain how we edit roles.yaml and taste.md'"),
+  bash("git commit --amend -m 'chore: rotate key handling notes'"),
   // Stage 6 calibration: a repo-local .npmrc named in reads/formatting is
   // routine — the episode burned 24 escalations and a $30 pass on a repo
   // .npmrc containing only `engine-strict=true`.

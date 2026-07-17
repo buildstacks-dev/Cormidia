@@ -492,7 +492,10 @@ The v0 payload contract for file-drop company events is documented in
 
 - **One turn per (role, app).** Lock file `locks/<app>--<role>.lock` created
 with `O_EXCL`, containing `{pid, turnId, startedAt, heartbeatAt}`. The turn
-runner heartbeats it every 30 s.
+runner heartbeats it every 30 s. Acquisition is atomic on the `O_EXCL` create;
+ordinary contention — including a holder releasing exactly as the tick reads it
+— resolves to a holder snapshot or a retry, never an unhandled `ENOENT` that
+aborts the tick.
 - Tick finds a lock with heartbeat < 2 min old → turn still running → skip
 (this is how overlapping firings don't collide). Heartbeat stale → crash
 recovery (§3), which decides resume vs restart and re-owns the lock.
@@ -543,7 +546,14 @@ of the same repos — GitHub is the only sync point between human and org.
 Mutating git operations on that shared clone (fetch, worktree add/remove) are
 serialized by a per-app clone lock (`withAppGitLock` in
 `src/org/turn-runner.ts`), so two concurrent turns for the same app never
-contend on `.git/index.lock` and corrupt the tree.
+contend on `.git/index.lock` and corrupt the tree. That lock is a configuration
+of the shared `FileLock` primitive (`src/runtime/file-lock.ts`): the lock file
+carries a `pid`+`nonce` ownership token, release verifies the token before
+unlinking (a late holder never deletes a successor's lock), and a proven-live
+holder is never force-broken — a stale holder is reclaimed only when its pid is
+dead or it has aged past the window, and a live holder held past the max wait
+fails the waiter (typed busy, next tick retries) rather than running a second
+`git reset --hard` on the same checkout.
 - Loop items get branch `op/<issue>-<slug>` and keep the same worktree across
 build → review → fix cycles; it is removed after merge/return. Non-loop
 turns (Planner digest, SRE sweep) get a throwaway worktree on a detached

@@ -1,11 +1,18 @@
 // Org-layer turn runner for dispatched turns (architecture.md §3).
 
 import { execFileSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
-import { mkdir, open, readFile, rm, stat } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
+import {
+  acquireFileLock,
+  releaseFileLock,
+  withFileLock,
+  type FileLockClock,
+  type FileLockOptions,
+  type FileLockToken,
+} from "../runtime/file-lock.js";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
@@ -1066,18 +1073,6 @@ async function ensureTurnLock(
   if (!acquired.acquired) throw new Error(`turn lock busy for ${app}/${role}`);
 }
 
-/** The ownership token every git-clone lock file carries. `pid` drives the
- *  liveness probe; `nonce` makes release verifiable so a holder that finishes
- *  late can never delete a *successor's* lock (F-001's release-by-path bug). */
-interface GitCloneLockToken {
-  pid: number;
-  nonce: string;
-}
-
-interface GitCloneLockPayload extends GitCloneLockToken {
-  at: string;
-}
-
 const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;
 /** The waiter's max-wait sits ABOVE the staleness window (F-001): a genuinely
  *  stale holder — dead pid, or aged past the window — is reclaimed by the
@@ -1087,26 +1082,18 @@ const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;
  *  same checkout; the next dispatch tick retries. */
 const GIT_CLONE_LOCK_MAX_WAIT_MS = GIT_CLONE_LOCK_STALE_MS + 60 * 1000;
 
-/** Injectable time source so the acquire loop's deadline and back-off are
- *  deterministic under test (fake clock) without touching the wall clock. */
-export interface GitCloneLockClock {
-  now(): number;
-  sleep(ms: number): Promise<void>;
-}
+/** The git-clone lock is a configuration of the shared FileLock primitive
+ *  (F-008 — the ledger lock's liveness + token + stale-reclamation model). The
+ *  git-named aliases keep a stable, discoverable API for callers and tests. */
+export { FileLockBusyError as AppGitLockBusyError } from "../runtime/file-lock.js";
+export type { FileLockClock as GitCloneLockClock, FileLockToken as GitCloneLockToken } from "../runtime/file-lock.js";
 
-const REAL_GIT_CLONE_LOCK_CLOCK: GitCloneLockClock = {
-  now: () => Date.now(),
-  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-};
-
-/** Raised when the app git lock is held by a *live* holder past the max wait.
- *  The waiter never force-breaks a live holder (that is the F-001 corruption);
- *  it surfaces this so the caller fails the turn and the next tick retries. */
-export class AppGitLockBusyError extends Error {
-  constructor(lockPath: string) {
-    super(`app git clone lock busy: ${lockPath}`);
-    this.name = "AppGitLockBusyError";
-  }
+function gitCloneLockOptions(clock?: FileLockClock): FileLockOptions {
+  return {
+    staleMs: GIT_CLONE_LOCK_STALE_MS,
+    maxWaitMs: GIT_CLONE_LOCK_MAX_WAIT_MS,
+    ...(clock !== undefined ? { clock } : {}),
+  };
 }
 
 /** Serialize mutating git operations on the shared managed clone repos/<app>.
@@ -1122,122 +1109,21 @@ export async function withAppGitLock<T>(
   runtimeHome: string,
   app: string,
   fn: () => Promise<T>,
-  clock: GitCloneLockClock = REAL_GIT_CLONE_LOCK_CLOCK,
+  clock?: FileLockClock,
 ): Promise<T> {
-  const lockPath = join(runtimeHome, "repos", `${app}.gitlock`);
-  await mkdir(dirname(lockPath), { recursive: true });
-  const token = await acquireGitCloneLock(lockPath, clock);
-  try {
-    return await fn();
-  } finally {
-    await releaseGitCloneLock(lockPath, token);
-  }
+  return withFileLock(gitCloneLockPath(runtimeHome, app), gitCloneLockOptions(clock), fn);
 }
 
-export async function acquireGitCloneLock(
-  lockPath: string,
-  clock: GitCloneLockClock = REAL_GIT_CLONE_LOCK_CLOCK,
-): Promise<GitCloneLockToken> {
-  const token: GitCloneLockToken = { pid: process.pid, nonce: randomUUID() };
-  const deadline = clock.now() + GIT_CLONE_LOCK_MAX_WAIT_MS;
-  for (;;) {
-    try {
-      const fh = await open(lockPath, "wx");
-      try {
-        const payload: GitCloneLockPayload = { ...token, at: new Date(clock.now()).toISOString() };
-        await fh.writeFile(`${JSON.stringify(payload)}\n`, "utf8");
-      } finally {
-        await fh.close();
-      }
-      return token;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      // Reclaim ONLY a holder proven dead or aged past the window — never a
-      // live one. A live holder must keep the lock so we don't run a second
-      // `git reset --hard` on the checkout it is still mutating.
-      if (await breakStaleGitCloneLock(lockPath, clock.now())) continue;
-      if (clock.now() > deadline) {
-        // Past the max wait and the holder is still live (a dead/stale holder
-        // would have been reclaimed above). Fail the waiter rather than
-        // force-break a live holder (F-001); the next dispatch tick retries.
-        throw new AppGitLockBusyError(lockPath);
-      }
-      await clock.sleep(40 + Math.floor(Math.random() * 60));
-    }
-  }
+export async function acquireGitCloneLock(lockPath: string, clock?: FileLockClock): Promise<FileLockToken> {
+  return acquireFileLock(lockPath, gitCloneLockOptions(clock));
 }
 
-export async function releaseGitCloneLock(lockPath: string, token: GitCloneLockToken): Promise<void> {
-  try {
-    const payload = JSON.parse(await readFile(lockPath, "utf8")) as Partial<GitCloneLockPayload>;
-    // Only unlink if the lock at this path is still OURS. A holder that finishes
-    // after its lock was reclaimed and re-acquired by a successor must not
-    // delete that successor's lock (F-001's release-by-path corruption).
-    if (payload.nonce !== token.nonce) return;
-  } catch {
-    // Vanished or unreadable: nothing of ours to remove, and never authority to
-    // unlink a lock another process may have just created at the same path.
-    return;
-  }
-  await rm(lockPath, { force: true });
+export async function releaseGitCloneLock(lockPath: string, token: FileLockToken): Promise<void> {
+  return releaseFileLock(lockPath, token);
 }
 
-/** True iff the lock was reclaimed (removed). Reclaims a holder proven dead, or
- *  a lock aged past the stale window when its pid is unreadable/inconclusive —
- *  and NEVER a proven-live holder. Mirrors the settlement lock's model
- *  (src/runtime/telemetry.ts): a vanished/unreadable path is "retry the create",
- *  never authority to unlink a lock another process may have just created. */
-async function breakStaleGitCloneLock(lockPath: string, nowMs: number): Promise<boolean> {
-  let contents: string;
-  let mtimeMs: number;
-  try {
-    const [text, stats] = await Promise.all([readFile(lockPath, "utf8"), stat(lockPath)]);
-    contents = text;
-    mtimeMs = stats.mtimeMs;
-  } catch {
-    return false;
-  }
-  let pid: number | undefined;
-  let atMs: number | undefined;
-  try {
-    const payload = JSON.parse(contents) as Partial<GitCloneLockPayload>;
-    if (typeof payload.pid === "number") pid = payload.pid;
-    if (typeof payload.at === "string") atMs = new Date(payload.at).getTime();
-  } catch {
-    // Torn/partial write — fall back to filesystem mtime for the age check.
-  }
-  // Age from the payload timestamp when trustworthy (fake-clock testable),
-  // else from filesystem mtime (a just-created, not-yet-written lock stays
-  // fresh, so we never reclaim a lock another process just opened).
-  const ageMs = atMs !== undefined && Number.isFinite(atMs) ? nowMs - atMs : Date.now() - mtimeMs;
-  const old = ageMs > GIT_CLONE_LOCK_STALE_MS;
-  if (pid === undefined || !Number.isInteger(pid) || pid <= 0) {
-    if (old) {
-      await rm(lockPath, { force: true });
-      return true;
-    }
-    return false;
-  }
-  if (gitCloneHolderIsStale(pid, old)) {
-    await rm(lockPath, { force: true });
-    return true;
-  }
-  return false;
-}
-
-/** Whether a lock owned by `pid` is reclaimable. A live pid (probe succeeds, or
- *  EPERM — cannot signal but exists) is NEVER stale. A proven-dead pid (ESRCH)
- *  is stale immediately; any other probe error falls back to the age window.
- *  Mirrors settlementLockIsStale in src/runtime/telemetry.ts. */
-function gitCloneHolderIsStale(pid: number, old: boolean): boolean {
-  if (pid === process.pid) return false;
-  try {
-    process.kill(pid, 0);
-    return false;
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    return code === "ESRCH" || (code !== "EPERM" && old);
-  }
+function gitCloneLockPath(runtimeHome: string, app: string): string {
+  return join(runtimeHome, "repos", `${app}.gitlock`);
 }
 
 export async function ensureManagedClone(app: AppEntry, runtimeHome: string): Promise<string> {

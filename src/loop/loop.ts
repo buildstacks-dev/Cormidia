@@ -20,7 +20,7 @@ import { isMergeConflict } from "./github.js";
 import { verifiedSelfApprovalMarker } from "./github.js";
 import { openPhaseRun, type LoopRunlog, type PhaseRun } from "./loop-runlog.js";
 import type { Policy, RiskTier } from "./policy.js";
-import { matchedDimensions, resolveTier } from "./policy.js";
+import { matchedDimensions, packageJsonTouchesSecurityKeys, resolveTier } from "./policy.js";
 import {
   executePipeline,
   type ExecutePipelineOptions,
@@ -1094,18 +1094,19 @@ const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
 
 function passSelectionForItem(item: LoopItem, options: LoopPipelineOptions): PassSelection {
   const worktree = requireField(item, "worktree");
-  const changedFiles = gitLines(
-    worktree,
-    "diff",
-    "--name-only",
-    options.baseRef ?? "origin/main",
-    options.headRef ?? "HEAD",
-  );
+  const baseRef = options.baseRef ?? "origin/main";
+  const headRef = options.headRef ?? "HEAD";
+  const changedFiles = gitLines(worktree, "diff", "--name-only", baseRef, headRef);
   return {
     tier: item.tier,
     riskTier: resolveTier(options.policy, changedFiles),
     labels: item.labels,
-    dimensions: matchedDimensions(options.policy, changedFiles),
+    // Content-gate package.json so a bare metadata/test-glob edit does not
+    // select the security-deep review pass — same predicate the route
+    // reassessment uses (L1-05).
+    dimensions: matchedDimensions(options.policy, changedFiles, {
+      dependencyRelevantPackageJson: dependencyRelevantPackageJson(worktree, baseRef, headRef, changedFiles),
+    }),
     // A rehydrated, still-applicable contract makes the contract pass
     // redundant: 21 claims must never again produce 20 contract passes.
     // The implement brief carries the reused contract verbatim.
@@ -1679,6 +1680,37 @@ function headSha(worktree: string): string {
 function gitLines(cwd: string, ...args: string[]): string[] {
   const output = git(cwd, ...args);
   return output === "" ? [] : output.split("\n");
+}
+
+/** The repo-relative `package.json` paths in this diff whose dependency or
+ *  run-script keys actually changed — the security dimension's content gate
+ *  (L1-05). Shared by the review pass selector (`passSelectionForItem`) and
+ *  the loop driver's route reassessment (`reassessForObservedWorktreeRisk`),
+ *  so both treat a bare metadata/test-glob `package.json` edit identically:
+ *  not a security signal. A `git show` of an absent side (added/deleted file)
+ *  fails and is read as "no keys". Exported for the behavioral regression test. */
+export function dependencyRelevantPackageJson(
+  worktree: string,
+  baseRef: string,
+  headRef: string,
+  changedFiles: string[],
+): Set<string> {
+  const relevant = new Set<string>();
+  for (const file of changedFiles) {
+    if (file !== "package.json" && !file.endsWith("/package.json")) continue;
+    const before = gitShowOrUndefined(worktree, `${baseRef}:${file}`);
+    const after = gitShowOrUndefined(worktree, `${headRef}:${file}`);
+    if (packageJsonTouchesSecurityKeys(before, after)) relevant.add(file);
+  }
+  return relevant;
+}
+
+function gitShowOrUndefined(cwd: string, spec: string): string | undefined {
+  try {
+    return git(cwd, "show", spec);
+  } catch {
+    return undefined;
+  }
 }
 
 function git(cwd: string, ...args: string[]): string {

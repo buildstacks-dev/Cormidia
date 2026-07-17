@@ -561,6 +561,57 @@ describe("M6 loop engine integration", () => {
     }
   });
 
+  // L1-05: package.json is content-gated for the security dimension. A bare
+  // metadata edit must NOT select the security-deep review pass; a dependency
+  // change must — the same predicate the route reassessment uses.
+  it("content-gates package.json: a metadata edit skips security-deep, a dependency change selects it (L1-05)", async () => {
+    const pipelines = await rootPipelines();
+    const securityPkgPolicy: Policy = {
+      ...policy(),
+      dimensionGlobs: { security: ["auth/**", "package.json"], perf: ["perf/**"] },
+    };
+    const pkg = (extra: Record<string, unknown>): string =>
+      JSON.stringify(
+        { name: "app", version: "1.0.0", scripts: { test: "true" }, dependencies: { react: "^18.0.0" }, ...extra },
+        null,
+        2,
+      ) + "\n";
+    const base = pkg({});
+    const metadataEdit = pkg({ version: "1.0.1", files: ["dist"] });
+    const dependencyEdit = pkg({ dependencies: { react: "^18.3.0" } });
+
+    const meta = await packageJsonReviewHarness("Pkg Metadata Review", base, metadataEdit);
+    const dep = await packageJsonReviewHarness("Pkg Dependency Review", base, dependencyEdit);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const metaFake = new FakeRuntime([scripted(APPROVE)]);
+    const depFake = new FakeRuntime([scripted(APPROVE), scripted(APPROVE)]);
+    try {
+      await runReviewPipeline(meta.item, {
+        ...engineOptions(meta, home.root, metaFake),
+        pipelines,
+        policy: securityPkgPolicy,
+      });
+      await runReviewPipeline(dep.item, {
+        ...engineOptions(dep, home.root, depFake),
+        pipelines,
+        policy: securityPkgPolicy,
+      });
+
+      // Metadata-only edit: verify only — the security-deep pass is not selected.
+      expect(metaFake.calls.map((call) => call.req.task)).toHaveLength(1);
+      expect(metaFake.calls[0]?.req.task).toContain("# Pass: verify");
+      expect(metaFake.calls.some((call) => call.req.task.includes("# Pass: security-deep"))).toBe(false);
+
+      // Dependency change: verify + security-deep.
+      expect(depFake.calls.map((call) => call.req.task)).toHaveLength(2);
+      expect(depFake.calls[1]?.req.task).toContain("# Pass: security-deep");
+    } finally {
+      home.cleanup();
+      meta.cleanup();
+      dep.cleanup();
+    }
+  });
+
   it("high-risk ship-check runs before squash merge", async () => {
     const pair = makeBareWithClone();
     const gh = new FakeGhOps({
@@ -873,6 +924,38 @@ async function reviewingHarness(
   return {
     ...h,
     item: { ...h.item, phase: "reviewing", prNumber: pr.number, labels: ["op:in-review"] },
+  };
+}
+
+/** A reviewing harness seeded with a base package.json on main and a
+ *  single-file package.json edit on the review branch (L1-05). */
+async function packageJsonReviewHarness(
+  title: string,
+  baseline: string,
+  edit: string,
+): Promise<{ pair: BareCloneFixture; gh: FakeGhOps; item: LoopItem; cleanup(): void }> {
+  const pair = makeBareWithClone();
+  pair.clone.commit("chore: base package.json", { "package.json": baseline });
+  pair.clone.git("push", "origin", "main");
+  const gh = new FakeGhOps({
+    cloneRoot: pair.clone.root,
+    issues: [{ number: 1, title, body: ISSUE_BODY, labels: ["op:ready"] }],
+  });
+  const item = await claimTicket(await gh.readIssue(1), {
+    gh,
+    targetRepo: "fixture/repo",
+    localRepo: pair.clone.root,
+    worktreeRoot: join(pair.root, "worktrees"),
+  });
+  commit(item.worktree as string, "feat: edit package.json", { "package.json": edit });
+  git(item.worktree as string, "push", "-u", "origin", item.branch as string);
+  const pr = await gh.createPR({ head: item.branch as string, base: "main", title, body: "Closes #1" });
+  await gh.swapLabel(1, "op:building", "op:in-review");
+  return {
+    pair,
+    gh,
+    item: { ...item, phase: "reviewing", prNumber: pr.number, labels: ["op:in-review"] },
+    cleanup: () => pair.cleanup(),
   };
 }
 

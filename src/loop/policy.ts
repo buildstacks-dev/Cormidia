@@ -233,13 +233,104 @@ export function gatesForTier(policy: Policy, tier: RiskTier): GateName[] {
   return [...policy.gates[tier]];
 }
 
+/** Extra, content-aware inputs for {@link matchedDimensions}. */
+export interface DimensionMatchContext {
+  /** Repo-relative `package.json` paths whose diff actually touched a
+   *  dependency or run-script key (see {@link packageJsonTouchesSecurityKeys}).
+   *  When provided, a `package.json` path counts toward a dimension only if it
+   *  is in this set — a bare metadata or test-glob edit does NOT trip a
+   *  content-blind glob like `dimension_globs.security`'s `package.json` entry
+   *  (L1-05). Omitting the field (the default) preserves the historical
+   *  path-only behavior for callers that cannot inspect content. */
+  dependencyRelevantPackageJson?: ReadonlySet<string>;
+}
+
 /** Dimension keys (policy declaration order) whose globs match any changed
  *  file — what pipelines.ts `PassSelection.dimensions` expects (§4 review
- *  dimensions; wired live in M6.2). */
-export function matchedDimensions(policy: Policy, changedFiles: string[]): string[] {
+ *  dimensions; wired live in M6.2).
+ *
+ *  `package.json` is content-gated when `context.dependencyRelevantPackageJson`
+ *  is supplied: the file is a genuine security signal only when its
+ *  dependency or run-script keys change, so widening a test glob no longer
+ *  over-escalates standard → deep (L1-05). Lock files (`pnpm-lock.yaml`) stay
+ *  path-matched — they change only as a consequence of a dependency change. */
+export function matchedDimensions(
+  policy: Policy,
+  changedFiles: string[],
+  context: DimensionMatchContext = {},
+): string[] {
+  const relevant = context.dependencyRelevantPackageJson;
+  const counts = (file: string): boolean =>
+    relevant === undefined || !isPackageJson(file) || relevant.has(file);
   return Object.entries(policy.dimensionGlobs)
-    .filter(([, globs]) => changedFiles.some((f) => globs.some((g) => globMatch(g, f))))
+    .filter(([, globs]) => changedFiles.some((f) => counts(f) && globs.some((g) => globMatch(g, f))))
     .map(([name]) => name);
+}
+
+function isPackageJson(path: string): boolean {
+  return path === "package.json" || path.endsWith("/package.json");
+}
+
+// ---------------------------------------------------------------------------
+// package.json content predicate (L1-05) — a targeted, minimal check; NOT a
+// general content-DSL. `package.json` is listed under `dimension_globs.security`
+// so that a dependency/supply-chain or build/run-script change escalates
+// review; a metadata or test-glob edit should not.
+// ---------------------------------------------------------------------------
+
+/** The package.json keys whose change signals real dependency/supply-chain or
+ *  build/run-script risk — the only edits that should trip the security
+ *  review dimension. */
+export const SECURITY_RELEVANT_PACKAGE_JSON_KEYS = [
+  "dependencies",
+  "devDependencies",
+  "optionalDependencies",
+  "peerDependencies",
+  "scripts",
+] as const;
+
+/** Whether a package.json edit changed any dependency or run-script key.
+ *  `before`/`after` are the raw file contents at the base ref and the
+ *  worktree HEAD. An absent side (a newly added or deleted file) counts as
+ *  empty; an unparseable side errs toward escalation ("tiering makes the loop
+ *  cheaper, never less safe" — when we cannot tell, we treat it as risky).
+ *  Key order is ignored, so a purely cosmetic re-sort is not a change. */
+export function packageJsonTouchesSecurityKeys(
+  before: string | undefined,
+  after: string | undefined,
+): boolean {
+  const beforeObj = parsePackageJsonObject(before);
+  const afterObj = parsePackageJsonObject(after);
+  if (beforeObj === undefined || afterObj === undefined) return true; // cannot compare → escalate
+  return SECURITY_RELEVANT_PACKAGE_JSON_KEYS.some(
+    (key) => canonicalJson(beforeObj[key]) !== canonicalJson(afterObj[key]),
+  );
+}
+
+/** Parse package.json content. An absent/blank side is an empty object (there
+ *  are simply no keys to compare). A present-but-malformed or non-object side
+ *  is `undefined`, which callers read as "cannot compare". */
+function parsePackageJsonObject(raw: string | undefined): Record<string, unknown> | undefined {
+  if (raw === undefined || raw.trim() === "") return {};
+  try {
+    const value = JSON.parse(raw) as unknown;
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Order-insensitive canonical serialization for value equality. */
+function canonicalJson(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
 }
 
 // ---------------------------------------------------------------------------

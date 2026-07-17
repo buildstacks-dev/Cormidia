@@ -16,8 +16,9 @@ import {
   planLoopTick,
   runLoopOnce,
 } from "../src/loop/driver.js";
+import { dependencyRelevantPackageJson } from "../src/loop/loop.js";
 import { writeTicketClaimState } from "../src/loop/rehydrate.js";
-import { makeBareWithClone } from "./fixtures/gitRepo.js";
+import { makeBareWithClone, makeWorkingRepo } from "./fixtures/gitRepo.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
 
 const issueBody = [
@@ -296,6 +297,83 @@ describe("loop driver", () => {
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// L1-05 (behavioral, real git): the security dimension's package.json trigger
+// reads the actual diff. A trivial metadata edit must not mark package.json
+// dependency-relevant (so it will not escalate standard → deep); a
+// dependency/script change must.
+describe("dependencyRelevantPackageJson (L1-05, real git diff)", () => {
+  function pkg(extra: Record<string, unknown>): string {
+    return (
+      JSON.stringify(
+        {
+          name: "fixture-app",
+          version: "1.0.0",
+          private: true,
+          scripts: { test: "vitest" },
+          dependencies: { react: "^18.0.0" },
+          ...extra,
+        },
+        null,
+        2,
+      ) + "\n"
+    );
+  }
+
+  it("ignores a metadata-only package.json edit but catches a dependency/script change", () => {
+    const repo = makeWorkingRepo();
+    try {
+      const base = repo.commit("chore: baseline package.json", { "package.json": pkg({}) });
+
+      // Metadata-only: add a `files` field / touch source — no dep/script key.
+      repo.commit("chore: add files field", {
+        "package.json": pkg({ files: ["dist", "src"] }),
+        "src/app.ts": "export const x = 1;\n",
+      });
+      let changed = repo.changedFiles(base);
+      expect(changed).toContain("package.json");
+      expect([...dependencyRelevantPackageJson(repo.root, base, "HEAD", changed)]).toEqual([]);
+
+      // Dependency bump on a fresh baseline.
+      const base2 = repo.head();
+      repo.commit("build: bump react", {
+        "package.json": pkg({ files: ["dist", "src"], dependencies: { react: "^18.3.0" } }),
+      });
+      changed = repo.changedFiles(base2);
+      expect([...dependencyRelevantPackageJson(repo.root, base2, "HEAD", changed)]).toEqual(["package.json"]);
+
+      // Script change on a fresh baseline.
+      const base3 = repo.head();
+      repo.commit("build: add postinstall", {
+        "package.json": pkg({
+          files: ["dist", "src"],
+          dependencies: { react: "^18.3.0" },
+          scripts: { test: "vitest", postinstall: "node setup.js" },
+        }),
+      });
+      changed = repo.changedFiles(base3);
+      expect([...dependencyRelevantPackageJson(repo.root, base3, "HEAD", changed)]).toEqual(["package.json"]);
+    } finally {
+      repo.cleanup();
+    }
+  });
+
+  it("marks a newly added package.json with dependencies as relevant", () => {
+    const repo = makeWorkingRepo();
+    try {
+      // makeWorkingRepo already committed a package.json; add a nested one.
+      const base = repo.head();
+      repo.commit("feat: add a sub-package", { "packages/api/package.json": pkg({}) });
+      const changed = repo.changedFiles(base);
+      expect(changed).toContain("packages/api/package.json");
+      expect([...dependencyRelevantPackageJson(repo.root, base, "HEAD", changed)]).toEqual([
+        "packages/api/package.json",
+      ]);
+    } finally {
+      repo.cleanup();
     }
   });
 });

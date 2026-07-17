@@ -20,6 +20,7 @@ import {
   criterionTestMapFromContractText,
   itemFromIssue,
   parseAcceptanceCriteria,
+  dependencyRelevantPackageJson,
   runBuilderPipeline,
   runReviewPipeline,
   runShipCheckPipeline,
@@ -757,12 +758,18 @@ async function reassessForObservedWorktreeRisk(
 ): Promise<LoopItem> {
   const engine = options.engine;
   if (engine === undefined || item.worktree === undefined) return item;
-  const changedFiles = git(item.worktree, "diff", "--name-only", options.baseRef ?? "origin/main", "HEAD")
+  const baseRef = options.baseRef ?? "origin/main";
+  const changedFiles = git(item.worktree, "diff", "--name-only", baseRef, "HEAD")
     .split("\n")
     .map((value) => value.trim())
     .filter(Boolean);
   const risk = resolveTier(options.policy, changedFiles);
-  const dimensions = matchedDimensions(options.policy, changedFiles);
+  // Content-gate package.json for the security dimension: a bare
+  // metadata/test-glob edit must not escalate standard → deep; a
+  // dependency/run-script change must (L1-05).
+  const dimensions = matchedDimensions(options.policy, changedFiles, {
+    dependencyRelevantPackageJson: dependencyRelevantPackageJson(item.worktree, baseRef, "HEAD", changedFiles),
+  });
   if (risk !== "high" && !dimensions.includes("security")) return item;
   const target = journalTarget(options, item);
   const record = await readRouteRecord(target.root, target.episodeId);

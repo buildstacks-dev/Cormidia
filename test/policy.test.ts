@@ -14,6 +14,7 @@ import {
   gatesForTier,
   loadPolicy,
   matchedDimensions,
+  packageJsonTouchesSecurityKeys,
   resolveTier,
   type Policy,
 } from "../src/loop/policy.js";
@@ -114,6 +115,95 @@ describe("matchedDimensions", () => {
       "perf",
     ]);
     expect(matchedDimensions(template, ["docs/guide.md"])).toEqual([]);
+  });
+
+  // L1-05: package.json is content-gated, not path-gated. Without the context
+  // arg the historical blunt behavior is preserved (backward compatible); with
+  // it, a trivial edit no longer trips security while a dependency change does.
+  it("content-gates package.json for the security dimension when told which edits are dependency-relevant", () => {
+    // No context: unchanged, path-only behavior — every caller/test still compiles and behaves.
+    expect(matchedDimensions(template, ["package.json"])).toEqual(["security"]);
+
+    // A trivial (metadata/test-glob) package.json edit does NOT escalate.
+    expect(
+      matchedDimensions(template, ["package.json"], { dependencyRelevantPackageJson: new Set() }),
+    ).toEqual([]);
+    // Even alongside another source file, the package.json alone stops driving security.
+    expect(
+      matchedDimensions(template, ["src/util.ts", "package.json"], {
+        dependencyRelevantPackageJson: new Set(),
+      }),
+    ).toEqual([]);
+
+    // A dependency/script change DOES escalate.
+    expect(
+      matchedDimensions(template, ["package.json"], {
+        dependencyRelevantPackageJson: new Set(["package.json"]),
+      }),
+    ).toEqual(["security"]);
+
+    // The gate is scoped to package.json — other security globs are unaffected.
+    expect(
+      matchedDimensions(template, ["src/auth/login.ts"], { dependencyRelevantPackageJson: new Set() }),
+    ).toEqual(["security"]);
+    // A lock-file touch stays path-gated (it only changes with dependencies).
+    expect(
+      matchedDimensions(template, ["pnpm-lock.yaml"], { dependencyRelevantPackageJson: new Set() }),
+    ).toEqual(["security"]);
+  });
+});
+
+describe("packageJsonTouchesSecurityKeys", () => {
+  const base = JSON.stringify({
+    name: "app",
+    version: "1.0.0",
+    scripts: { test: "vitest" },
+    dependencies: { react: "^18.0.0" },
+    devDependencies: { vitest: "^3.0.0" },
+  });
+
+  it("is false for a metadata-only edit (name/version/files/test-glob)", () => {
+    const after = JSON.stringify({
+      name: "app",
+      version: "1.0.1",
+      files: ["dist"],
+      scripts: { test: "vitest" },
+      dependencies: { react: "^18.0.0" },
+      devDependencies: { vitest: "^3.0.0" },
+    });
+    expect(packageJsonTouchesSecurityKeys(base, after)).toBe(false);
+  });
+
+  it("is true for a dependency bump, a new dependency, and a script change", () => {
+    const depBump = JSON.stringify({ ...JSON.parse(base), dependencies: { react: "^18.3.0" } });
+    const newDep = JSON.stringify({ ...JSON.parse(base), dependencies: { react: "^18.0.0", lodash: "^4.0.0" } });
+    const scriptChange = JSON.stringify({
+      ...JSON.parse(base),
+      scripts: { test: "vitest", postinstall: "node setup.js" },
+    });
+    expect(packageJsonTouchesSecurityKeys(base, depBump)).toBe(true);
+    expect(packageJsonTouchesSecurityKeys(base, newDep)).toBe(true);
+    expect(packageJsonTouchesSecurityKeys(base, scriptChange)).toBe(true);
+  });
+
+  it("ignores key reordering (a cosmetic re-sort is not a dependency change)", () => {
+    const resorted = JSON.stringify({
+      dependencies: { react: "^18.0.0" },
+      devDependencies: { vitest: "^3.0.0" },
+      scripts: { test: "vitest" },
+      version: "1.0.0",
+      name: "app",
+    });
+    expect(packageJsonTouchesSecurityKeys(base, resorted)).toBe(false);
+  });
+
+  it("treats an absent side as empty and errs toward escalation on unparseable content", () => {
+    // Newly added file that introduces dependencies → escalate.
+    expect(packageJsonTouchesSecurityKeys(undefined, base)).toBe(true);
+    // Added file with no dependency/script keys → not a dependency change.
+    expect(packageJsonTouchesSecurityKeys(undefined, JSON.stringify({ name: "app" }))).toBe(false);
+    // Malformed content → cannot compare → escalate (never less safe).
+    expect(packageJsonTouchesSecurityKeys(base, "{ not json")).toBe(true);
   });
 });
 

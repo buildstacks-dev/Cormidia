@@ -349,6 +349,41 @@ describe("loop driver", () => {
     }
   });
 
+  it("loadGateCommands reads TOP-LEVEL gate commands even when a sole app entry is present (W0-ADJ-04)", () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-"));
+    try {
+      mkdirSync(join(root, ".operon"));
+      // Exactly the shape `operon new-app` emits: one `apps:` entry with no
+      // command keys, and the setup/test/lint commands appended at the TOP
+      // level. Before the fix these were dead config whenever a single app
+      // existed, so a greenfield app's setup_command never reached the loop
+      // or `operon app verify`.
+      writeFileSync(
+        join(root, ".operon", "config.yaml"),
+        [
+          "schema_version: 1",
+          "apps:",
+          "  fixture:",
+          "    repo: owner/fixture",
+          "    status: onboarding",
+          "setup_command: npm install",
+          "test_command: npm test",
+          "lint_command: npm run lint",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      expect(loadGateCommands(root)).toEqual({
+        setupCommand: "npm install",
+        testCommand: "npm test",
+        lintCommand: "npm run lint",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("reloads commands from the built worktree before quality gates", () => {
     const root = mkdtempSync(join(tmpdir(), "operon-driver-"));
     try {

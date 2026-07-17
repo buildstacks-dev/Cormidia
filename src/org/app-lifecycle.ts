@@ -1008,13 +1008,45 @@ async function appActivityChecks(stateHome: string, app: string): Promise<Lifecy
 
 function runDeclaredChecks(root: string): LifecycleCheck[] {
   const commands = loadGateCommands(root);
+  const checks: LifecycleCheck[] = [];
+  // Install/setup the app's dependencies in the managed clone BEFORE the
+  // test/lint gates. A freshly cloned app has no `node_modules`, so a real
+  // npm scaffold's test command (`npm run build && node --test …`, needing
+  // `tsc` from devDependencies) fails purely for lack of dependencies — the
+  // app-check gates could never reach `ready` for an npm app (E2E-01 /
+  // W0-ADJ-05). This mirrors the build loop's provision-time setup gate
+  // (advanceProvisionSetup) one layer up. An unconfigured setup command is a
+  // clean absence (no `app-check-setup` check, unchanged behavior). A setup
+  // FAILURE is a typed `app-check-setup` blocked check with remediation, and
+  // it stops before the dependent gates run so their would-be failures never
+  // masquerade as the real cause.
+  if (commands.setupCommand !== undefined && commands.setupCommand !== "") {
+    const setup = spawnSync("/bin/sh", ["-lc", commands.setupCommand], {
+      cwd: root,
+      env: { ...process.env, CI: "1", GIT_TERMINAL_PROMPT: "0" },
+      encoding: "utf8",
+      timeout: 300_000,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (setup.status !== 0) {
+      return [
+        blocked(
+          "app-check-setup",
+          `${commands.setupCommand} failed with exit ${String(setup.status)}`,
+          "fix `setup_command` in .operon/config.yaml (or the environment it needs) and rerun operon app verify",
+        ),
+      ];
+    }
+    checks.push(pass("app-check-setup", `${commands.setupCommand} passed`));
+  }
   const declared = [
     ["tests", commands.testCommand],
     ["lint", commands.lintCommand],
   ] as const;
-  const checks: LifecycleCheck[] = [];
+  let ran = 0;
   for (const [id, command] of declared) {
     if (command === undefined) continue;
+    ran += 1;
     const result = spawnSync("/bin/sh", ["-lc", command], {
       cwd: root,
       env: { ...process.env, CI: "1", GIT_TERMINAL_PROMPT: "0" },
@@ -1026,7 +1058,7 @@ function runDeclaredChecks(root: string): LifecycleCheck[] {
       ? pass(`app-check-${id}`, `${command} passed`)
       : fail(`app-check-${id}`, `${command} failed with exit ${String(result.status)}`));
   }
-  if (checks.length === 0) checks.push(fail("app-checks", "no test or lint command declared"));
+  if (ran === 0) checks.push(fail("app-checks", "no test or lint command declared"));
   return checks;
 }
 

@@ -65,6 +65,43 @@ describe("scrubSecrets", () => {
       },
       // Hyphenated form — worked before the A-003 fix, must keep working.
       { text: "db-password = SuperSecretValue123456", marker: "[REDACTED:generic-assignment]" },
+      // A-007 regression — credential families that had no pattern at all.
+      {
+        text: "sk_live_51H8xQ2eZvKYlo2CmPfRkTn0aBcDeFgHiJkLmNoPqRs",
+        marker: "[REDACTED:stripe-api-key]",
+      },
+      {
+        text: "restricted rk_live_51H8xQ2eZvKYlo2CmPfRkTn0aBcDeFgHiJkLmNoPqRs",
+        marker: "[REDACTED:stripe-api-key]",
+      },
+      {
+        text: "xoxb-2334455667-2334455667788-AbCdEfGhIjKlMnOpQrStUvWx",
+        marker: "[REDACTED:slack-token]",
+      },
+      {
+        text: "post to https://hooks.slack.com/services/T0000000/B0000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+        marker: "[REDACTED:slack-webhook-url]",
+      },
+      {
+        // AIza + exactly 35 URL-safe chars (the real Google key length).
+        text: `maps key AIzaSyD${"1aB-_2cD".repeat(4)}` /* 3+32=35 chars after AIza */,
+        marker: "[REDACTED:google-api-key]",
+      },
+      {
+        // Bare npm token under a non-keyword neighborhood — the
+        // generic-assignment fallback cannot catch this shape, so the
+        // dedicated pattern must.
+        text: "published with npm_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789",
+        marker: "[REDACTED:npm-token]",
+      },
+      {
+        text: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+        marker: "[REDACTED:jwt]",
+      },
+      {
+        text: "postgres://admin:S3cr3tP4ssw0rd@db.example.com:5432/prod",
+        marker: "[REDACTED:url-userinfo-credentials]",
+      },
     ];
     for (const { text, marker } of cases) {
       const scrubbed = scrubSecrets(text);

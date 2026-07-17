@@ -48,6 +48,49 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/,
   },
   {
+    // Stripe API keys — secret (sk_), restricted (rk_), publishable (pk_),
+    // live and test modes. Underscore after the prefix letters: the sk-
+    // entry above requires a literal hyphen and cannot match these (A-007).
+    name: "stripe-api-key",
+    pattern: /\b[srp]k_(?:live|test)_[A-Za-z0-9]{16,}/,
+  },
+  {
+    // Slack tokens — xoxb (bot), xoxp (user), xoxa (app), xoxr (refresh),
+    // xoxs (session): digit/letter runs joined by hyphens.
+    name: "slack-token",
+    pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
+  },
+  {
+    // Slack incoming-webhook URLs — the path IS the credential.
+    name: "slack-webhook-url",
+    pattern: /\bhttps:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]+/,
+  },
+  {
+    // Google API keys — AIza + 35 URL-safe chars. No trailing \b: a longer
+    // tail means a malformed key, not a safe one — fail closed.
+    name: "google-api-key",
+    pattern: /\bAIza[0-9A-Za-z_-]{35}/,
+  },
+  {
+    // npm access tokens — npm_ + 36 base62 chars.
+    name: "npm-token",
+    pattern: /\bnpm_[A-Za-z0-9]{36}/,
+  },
+  {
+    // JWTs — dot-joined base64url segments; header and payload both start
+    // with eyJ (base64 of `{"`). Signature may be short or absent (alg=none),
+    // and a signed JWT is a bearer credential wherever it appears.
+    name: "jwt",
+    pattern: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/,
+  },
+  {
+    // URL userinfo credentials — scheme://user:password@host (database DSNs,
+    // basic-auth remotes). The password is the secret; the whole userinfo
+    // authority is swallowed.
+    name: "url-userinfo-credentials",
+    pattern: /:\/\/[^:/\s@]+:[^@/\s]+@/,
+  },
+  {
     // PEM private-key blocks. When the END marker is missing (a chunked /
     // truncated log line) everything from BEGIN to end-of-text is key
     // material until proven otherwise — swallow it, fail closed.

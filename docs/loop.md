@@ -419,7 +419,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 | tests            | run app's `test_command`, exit code 0, timeout; last output lines on fail                                                                                      |
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
-| security         | regex scan of changed files: `sk-[A-Za-z0-9]{32,}`, `ghp_…`, AWS keys, `-----BEGIN PRIVATE KEY-----`, generic key/token/password assignments; binaries skipped |
+| security         | regex scan of changed files against the canonical list in `src/runtime/secret-patterns.ts`: `sk-…`/`ghp_…`/`github_pat_…` keys, AWS key ids, Stripe/Slack/Google/npm tokens, Slack webhook URLs, JWTs, URL userinfo credentials, `-----BEGIN PRIVATE KEY-----`, and generic key/token/password assignments incl. snake_case forms (`GITHUB_TOKEN=…`, `aws_secret_access_key = …`); binaries skipped |
 | completeness     | criteria present and parseable; every criterion has a covering test in the contract mapping; no unresolved findings on the PR. Checkbox state is gate *output*, not input: the orchestrator renders all boxes checked at merge (no process participant may write them earlier — see docs/proportionality-review.md §7) |
 | review-freshness | branch HEAD == the APPROVE review's `commit_id` (GitHub-native); always runs regardless of tier                                                                |
 

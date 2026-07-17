@@ -52,7 +52,7 @@ describe("runSecurityGate", () => {
     );
   });
 
-  it("flags snake_case credential assignments (A-003)", () => {
+  it("flags snake_case credential assignments (A-003) and the added credential families (A-007)", () => {
     const r = repo();
     const base = r.head();
     r.commit("add leaked credentials", {
@@ -64,16 +64,38 @@ describe("runSecurityGate", () => {
         "export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
       ].join("\n"),
+      // A-007: families that previously had no pattern at all.
+      "config.txt": [
+        "sk_live_51H8xQ2eZvKYlo2CmPfRkTn0aBcDeFgHiJkLmNoPqRs",
+        "xoxb-2334455667-2334455667788-AbCdEfGhIjKlMnOpQrStUvWx",
+        "https://hooks.slack.com/services/T0000000/B0000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+        `AIzaSyD${"1aB-_2cD".repeat(4)}`,
+        "npm_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789",
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+        "postgres://admin:S3cr3tP4ssw0rd@db.example.com:5432/prod",
+      ].join("\n"),
     });
 
     const result = runSecurityGate(r.root, { baseRef: base, headRef: r.head() });
 
     expect(result.status).toBe("fail");
     const families = new Set(result.matches!.map((m) => m.pattern));
-    expect(families).toContain("generic-assignment");
-    // Every leaked line is caught.
+    for (const family of [
+      "generic-assignment",
+      "stripe-api-key",
+      "slack-token",
+      "slack-webhook-url",
+      "google-api-key",
+      "npm-token",
+      "jwt",
+      "url-userinfo-credentials",
+    ]) {
+      expect(families, family).toContain(family);
+    }
+    // Every leaked line is caught: 4 in .env, 7 in config.txt.
     const lines = new Set(result.matches!.map((m) => `${m.file}:${m.line}`));
     for (let i = 1; i <= 4; i++) expect(lines, `.env:${i}`).toContain(`.env:${i}`);
+    for (let i = 1; i <= 7; i++) expect(lines, `config.txt:${i}`).toContain(`config.txt:${i}`);
   });
 
   it("skips binary files even when matching bytes are present", () => {

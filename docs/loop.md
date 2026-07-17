@@ -528,15 +528,23 @@ single-account pilot caveat: GitHub rejects approving your own PR, so until
 Operon has a separate bot/app identity, `GhCliOps` falls back only for that
 exact error to a real COMMENTED PR review carrying the
 `<!-- operon:self-approval-fallback sig=… -->` marker. That marker is **not**
-a static string anyone can post: it carries an HMAC over the PR number signed
-with an operator secret (`OPERON_SELF_APPROVAL_SECRET`,
-`authorization.selfApprovalSecret`) that the sandboxed agent cannot read. The
-loop upgrades a COMMENTED review to an approval only when the HMAC verifies
-(`verifiedSelfApprovalMarker` in src/loop/github.ts, a `timingSafeEqual` check)
-*and* the body is a structured `Verdict: approve`, and still enforces commit
-freshness. With no secret configured the loop fails closed — a bare marker is
-never trusted. (Threading the secret to the agent's own environment would
-re-open the forgery, so it must stay orchestrator-only.)
+a static string anyone can post: it carries an HMAC over the PR number **and
+the reviewed commit** (`headRefOid`) signed with an operator secret
+(`OPERON_SELF_APPROVAL_SECRET`, `authorization.selfApprovalSecret`) that the
+sandboxed agent cannot read. Binding the commit is what defeats replay (A-001):
+the marker is published into a world-readable review, so a prompt-injected
+builder can copy it, push arbitrary code, and post it again — but the loop
+recomputes the HMAC against the review's own `commit_id`, which GitHub stamps to
+the *new* head, so the replayed tag no longer verifies. The loop upgrades a
+COMMENTED review to an approval only when the HMAC verifies for that reviewed
+commit (`verifiedSelfApprovalMarker` in src/loop/github.ts, a `timingSafeEqual`
+check), the review clears the same author-independence gate as a real APPROVE
+(`isMarkedSelfApproval` mirrors `isIndependentApproval`), *and* the body is a
+structured `Verdict: approve`, and still enforces commit freshness against the
+branch head. With no secret configured, or an unresolved reviewed commit, the
+loop fails closed — a bare marker is never trusted. (Threading the secret to the
+agent's own environment would re-open the forgery, so it must stay
+orchestrator-only.)
 
 
 

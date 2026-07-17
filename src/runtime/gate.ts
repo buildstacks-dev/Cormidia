@@ -171,17 +171,18 @@ export const CRITICAL_RULES: CriticalRule[] = [
   },
   {
     // Self-merge / self-approve bypasses the review boundary the whole org
-    // depends on: an agent must never merge its own PR, approve a review, or
-    // use an --admin override. The orchestrator's own merges do not pass
-    // through this gate (they are GhOps, not agent tool calls).
+    // depends on: an agent must never merge its own PR or post a review of
+    // one — reviews travel as typed verdicts; the orchestrator turns them into
+    // GhOps that do NOT pass through this gate. The rule therefore matches
+    // EVERY `gh pr merge`/`gh pr review` regardless of flag (not just
+    // `--approve`): `gh pr review --comment` is the self-approval marker's
+    // publish channel (A-001) and must classify critical too, matching the
+    // Claude deny pattern `Bash(gh pr review:*)` in role-shaping.ts. Read-only
+    // `gh pr view/list/checkout` stay routine.
     name: "self-merge-or-approve",
     matches: (a) => {
       const t = asText(a);
-      return (
-        /\bgh\s+pr\s+merge\b/.test(t) ||
-        (/\bgh\s+pr\s+review\b/.test(t) && /--approve\b/.test(t)) ||
-        (/\bgh\b/.test(t) && /--admin\b/.test(t))
-      );
+      return /\bgh\s+pr\s+(?:merge|review)\b/.test(t) || (/\bgh\b/.test(t) && /--admin\b/.test(t));
     },
   },
   {

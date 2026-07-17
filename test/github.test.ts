@@ -206,9 +206,10 @@ describe("GhCliOps", () => {
     expect(calls[1]?.args).toContain("--comment");
     expect(calls[1]?.input).toContain("Verdict: approve");
     // No operator secret configured: the marker is bare and NOT verifiable —
-    // the loop must fail closed on it rather than treating it as an approval.
-    expect(verifiedSelfApprovalMarker(review.body, undefined, 7)).toBe(false);
-    expect(verifiedSelfApprovalMarker(review.body, "any-secret", 7)).toBe(false);
+    // the loop must fail closed on it rather than treating it as an approval
+    // (regardless of which reviewed commit it is checked against).
+    expect(verifiedSelfApprovalMarker(review.body, undefined, 7, "abc123")).toBe(false);
+    expect(verifiedSelfApprovalMarker(review.body, "any-secret", 7, "abc123")).toBe(false);
   });
 
   it("falls back to a comment review when GitHub rejects same-account changes requests", async () => {
@@ -235,7 +236,7 @@ describe("GhCliOps", () => {
     expect(calls[1]?.args).toContain("--comment");
   });
 
-  it("signs the self-approval marker with the operator secret so it cannot be forged", async () => {
+  it("signs the self-approval marker with the operator secret and the reviewed commit so it cannot be forged or replayed", async () => {
     const { exec } = execFrom((args) => {
       if (args[0] === "pr" && args[1] === "review" && args.includes("--approve")) {
         return {
@@ -243,6 +244,11 @@ describe("GhCliOps", () => {
           stderr: "failed to create review: GraphQL: Review Can not approve your own pull request",
           exitCode: 1,
         };
+      }
+      // The adapter resolves the PR head so the marker binds the reviewed
+      // commit (headRefOid "abc123" per prJson).
+      if (args[0] === "pr" && args[1] === "view") {
+        return { stdout: prJson, stderr: "", exitCode: 0 };
       }
       if (args[0] === "pr" && args[1] === "review" && args.includes("--comment")) {
         return { stdout: "", stderr: "", exitCode: 0 };
@@ -253,14 +259,20 @@ describe("GhCliOps", () => {
 
     const review = await gh.createReview(7, { state: "approve", body: "Verdict: approve" });
 
-    // The signed marker verifies only for the exact (secret, prNumber) pair.
-    expect(verifiedSelfApprovalMarker(review.body, "operator-only-secret", 7)).toBe(true);
-    expect(verifiedSelfApprovalMarker(review.body, "operator-only-secret", 8)).toBe(false);
-    expect(verifiedSelfApprovalMarker(review.body, "attacker-guess", 7)).toBe(false);
+    // The signed marker verifies only for the exact (secret, prNumber, commit)
+    // triple.
+    expect(verifiedSelfApprovalMarker(review.body, "operator-only-secret", 7, "abc123")).toBe(true);
+    expect(verifiedSelfApprovalMarker(review.body, "operator-only-secret", 8, "abc123")).toBe(false);
+    expect(verifiedSelfApprovalMarker(review.body, "attacker-guess", 7, "abc123")).toBe(false);
+    // A-001: the marker copied onto a review of a DIFFERENT commit is rejected —
+    // this is what makes a replayed marker worthless once the branch advances.
+    expect(verifiedSelfApprovalMarker(review.body, "operator-only-secret", 7, "def456")).toBe(false);
+    // An unresolved reviewed commit fails closed.
+    expect(verifiedSelfApprovalMarker(review.body, "operator-only-secret", 7, undefined)).toBe(false);
     // A forger who copies just the public static marker cannot pass.
-    expect(verifiedSelfApprovalMarker(SELF_APPROVAL_FALLBACK_MARKER, "operator-only-secret", 7)).toBe(
-      false,
-    );
+    expect(
+      verifiedSelfApprovalMarker(SELF_APPROVAL_FALLBACK_MARKER, "operator-only-secret", 7, "abc123"),
+    ).toBe(false);
   });
 
   it("non-zero exits throw GhOpsError carrying stderr verbatim", async () => {

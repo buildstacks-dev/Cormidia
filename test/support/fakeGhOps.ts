@@ -60,6 +60,13 @@ export class FakeGhOps implements GhOps {
     }
   }
 
+  /** Model the PR branch advancing to a new head commit (e.g. a builder
+   *  pushing after a review was posted). Later reviews are stamped with this
+   *  commit_id, mirroring GitHub. */
+  setPrHead(prNumber: number, oid: string): void {
+    this.requirePr(prNumber).headRefOid = oid;
+  }
+
   seedIssue(issue: FakeGhIssueSeed): GhIssue {
     const seeded: GhIssue = {
       number: issue.number,

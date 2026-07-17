@@ -1187,8 +1187,10 @@ explicitly rebutted before merge (TASTE §8). Findings ride to the fix turn
 as context. Single-account pilot caveat: GitHub forbids approving your own
 PR, so a same-account approval lands as a marked COMMENTED review — trusted
 only when its `operon:self-approval-fallback` marker carries a verifying
-HMAC signed with an orchestrator-only secret, plus a structured
-`Verdict: approve` and commit freshness. No secret configured = fail
+HMAC — signed with an orchestrator-only secret over the PR number **and the
+reviewed commit**, so a marker copied onto a later push no longer verifies
+(A-001) — plus an author-independence check, a structured `Verdict: approve`,
+and commit freshness. No secret (or an unresolved reviewed commit) = fail
 closed; a bare marker is never trusted (`docs/loop.md` §6).
 - Merge: squash-merge only, performed by the loop after APPROVE; branch
 deleted; PR description survives as the commit body (state-in-markdown, a

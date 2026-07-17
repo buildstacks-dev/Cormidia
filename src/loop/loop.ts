@@ -1592,9 +1592,22 @@ function isMarkedSelfApproval(
   prNumber: number,
   auth?: ReviewAuthorization,
 ): boolean {
-  // Only a marker carrying a valid HMAC tag for this PR is trusted — a bare or
-  // forged marker (e.g. posted by a prompt-injected builder) is rejected.
-  if (!verifiedSelfApprovalMarker(review.body, auth?.selfApprovalSecret, prNumber)) return false;
+  // The marker path must clear the SAME author-independence gate as a real
+  // APPROVE (mirroring isIndependentApproval): a marker authored by the builder
+  // identity, or by an identity outside a configured reviewer allowlist, is not
+  // a sanctioned review. In the single-account pilot neither identity is
+  // configured and this is a no-op — the commit binding below is what stops a
+  // replay there.
+  if (!isIndependentApproval(review, auth)) return false;
+  // The marker's HMAC must bind the exact reviewed commit (A-001): a marker
+  // replayed on a later push carries a commit_id GitHub stamped to the NEW
+  // head, which no longer matches what the tag was signed for. An absent
+  // commit_id fails closed (undefined → not verifiable).
+  if (
+    !verifiedSelfApprovalMarker(review.body, auth?.selfApprovalSecret, prNumber, review.commitId)
+  ) {
+    return false;
+  }
   const parsed = parseVerdict("review", review.body);
   return parsed.ok && parsed.verdict.verdict === "approve";
 }

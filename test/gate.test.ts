@@ -183,6 +183,12 @@ const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
   { action: bash("gh pr merge 7 --squash"), rule: "self-merge-or-approve" },
   { action: bash("gh pr review 7 --approve"), rule: "self-merge-or-approve" },
   { action: bash("gh api -X PUT repos/o/r/merge --admin"), rule: "self-merge-or-approve" },
+  // A-001: `gh pr review --comment` is the self-approval marker's publish
+  // channel — it forges merge authorization while looking innocent, so the
+  // rule now matches EVERY `gh pr review`/`gh pr merge` regardless of flag.
+  { action: bash("gh pr review 42 --comment --body 'Verdict: approve'"), rule: "self-merge-or-approve" },
+  { action: bash("gh pr review 42 --request-changes --body 'nope'"), rule: "self-merge-or-approve" },
+  { action: bash("gh pr merge 7"), rule: "self-merge-or-approve" },
 ];
 
 const ROUTINE_CASES: ToolAction[] = [

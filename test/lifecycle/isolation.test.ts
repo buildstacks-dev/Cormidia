@@ -7,7 +7,7 @@ import { joinExistingOrg, loadApps } from "../../src/org/apps.js";
 import { executeOrgUpgrade, planOrgUpgrade } from "../../src/org/org-upgrade.js";
 import { hashTree } from "../../scripts/eval/core.js";
 import { FakeGhOps } from "../support/fakeGhOps.js";
-import { bootstrapReachable, makeLifecycleTestWorld, type LifecycleTestWorld } from "./helpers.js";
+import { READY_RUNTIME_PROBE, bootstrapReachable, makeLifecycleTestWorld, type LifecycleTestWorld } from "./helpers.js";
 
 const worlds: LifecycleTestWorld[] = [];
 afterEach(() => { for (const world of worlds.splice(0)) world.cleanup(); });
@@ -25,7 +25,7 @@ describe("C-LIFE-04 app isolation", () => {
 
     const upgradeInput = { orgHome: world.orgHome, stateHome: world.stateHome, authorityChoice: "preserve" as const, archiveRoot: world.archives };
     expect((await executeOrgUpgrade(upgradeInput, await planOrgUpgrade(upgradeInput))).status).toBe("up_to_date");
-    const promoteInput = { orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", to: "live" as const };
+    const promoteInput = { orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", to: "live" as const, readinessProbe: READY_RUNTIME_PROBE };
     expect((await executeAppPromotion(promoteInput, await planAppPromotion(promoteInput))).status).toBe("promoted");
 
     const resetInput = { orgHome: world.orgHome, stateHome: world.stateHome, appsFile: await loadApps(join(world.orgHome, "apps.yaml")), appName: "sparse", gh: new FakeGhOps({ repo: "local/sparse" }), archiveRoot: world.archives };

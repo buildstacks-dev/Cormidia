@@ -2,7 +2,6 @@
 // Operon-owned clone, remote/default-branch verification, clone convergence,
 // and journaled promotion. A human checkout is an immutable input.
 
-import { createRequire } from "node:module";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
@@ -10,6 +9,11 @@ import { basename, dirname, join, resolve } from "node:path";
 import { parse, parseDocument } from "yaml";
 import { loadGateCommands } from "../loop/driver.js";
 import type { RuntimeKind } from "../runtime/types.js";
+import {
+  probeRuntimeReadiness,
+  type RuntimeReadinessProbe,
+  type RuntimeReadinessRequest,
+} from "../runtime/readiness.js";
 import { loadApps, removeExistingApp, updateAppStatus, type AppEntry } from "./apps.js";
 import {
   appArtifactFiles,
@@ -43,7 +47,6 @@ import {
   storeOnboardingAnswers,
 } from "./onboarding-answers.js";
 
-const require = createRequire(import.meta.url);
 const GIT_ENV = {
   ...process.env,
   GIT_TERMINAL_PROMPT: "0",
@@ -93,7 +96,22 @@ export interface VerifyAppOptions {
   writeReadiness?: boolean;
   runChecks?: boolean;
   recordEvidence?: boolean;
+  /** Full override of the runtime-readiness check list. Tests that want no
+   * runtime checks at all inject `async () => []`. */
   runtimeReadiness?: RuntimeReadinessInspector;
+  /** Non-billable readiness probe seam. When `runtimeReadiness` is not
+   * supplied, verify's `runtime-<provider>` checks come from this probe — the
+   * SAME `probeRuntimeReadiness` mechanism `operon doctor` uses, so the two
+   * always agree (B-LIVE-04). Tests inject a fake so they never touch a real
+   * adapter; the CLI leaves it unset to run the real non-billable probe. */
+  readinessProbe?: RuntimeReadinessProbe;
+  /** Validate configuration without running a readiness probe, mirroring
+   * `operon doctor --config-only`. A config-only runtime check never claims
+   * readiness (it is `blocked`, not `pass`): configuration validity is not
+   * runtime readiness. Intended for isolated packaging/offline fixtures. */
+  configOnly?: boolean;
+  /** Forwarded to the readiness probe (per-runtime deadline). */
+  readinessTimeoutMs?: number;
   fault?: LifecycleFaultHook;
 }
 
@@ -455,7 +473,12 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
       checks.push(blocked("app-checks-evidence", "no prior app verification", "run operon app verify before promotion"));
     }
   }
-  const runtimeInspector = options.runtimeReadiness ?? staticRuntimeReadiness;
+  const runtimeInspector = options.runtimeReadiness ?? ((runtimes) =>
+    probeRuntimeReadinessChecks(runtimes, {
+      ...(options.readinessProbe !== undefined ? { probe: options.readinessProbe } : {}),
+      configOnly: options.configOnly === true,
+      ...(options.readinessTimeoutMs !== undefined ? { timeoutMs: options.readinessTimeoutMs } : {}),
+    }));
   checks.push(...await runtimeInspector(groupRuntimes(rolesForApp(await loadRoles(join(orgHome, "roles.yaml")), app))));
 
   const invalid = checks.some((check) => check.status === "fail");
@@ -1062,23 +1085,63 @@ function runDeclaredChecks(root: string): LifecycleCheck[] {
   return checks;
 }
 
-async function staticRuntimeReadiness(
+interface RuntimeReadinessProbeConfig {
+  probe?: RuntimeReadinessProbe;
+  configOnly?: boolean;
+  timeoutMs?: number;
+}
+
+// Verify's `runtime-<provider>` checks must AGREE with `operon doctor`, so they
+// run the SAME non-billable `probeRuntimeReadiness` mechanism (readiness.ts) —
+// never `require.resolve` of the adapter package. Codex ships bin-only (no
+// resolvable main/exports under pnpm) and pi exports no main either, so
+// module-resolution false-fails a runtime that doctor's live probe reports
+// `ready` (B-LIVE-04). The probe follows each adapter's real launch path up to
+// (but not including) a model turn, so a genuinely unconfigured/unauthenticated
+// adapter still fails — the readiness bar is unchanged, only the mechanism.
+async function probeRuntimeReadinessChecks(
   runtimes: Array<{ runtime: RuntimeKind; models: string[] }>,
+  config: RuntimeReadinessProbeConfig = {},
 ): Promise<LifecycleCheck[]> {
-  const packages: Record<RuntimeKind, string> = {
-    claude: "@anthropic-ai/claude-agent-sdk",
-    codex: "@openai/codex",
-    pi: "@earendil-works/pi-coding-agent",
-  };
-  return runtimes.map(({ runtime, models }) => {
-    try {
-      require.resolve(packages[runtime]);
-      if (models.length === 0) throw new Error("no configured model");
-      return pass(`runtime-${runtime}`, `${packages[runtime]} installed; ${models.join(", ")} configured; static token-free readiness only`);
-    } catch (error) {
-      return fail(`runtime-${runtime}`, message(error));
-    }
-  });
+  const probe = config.probe ?? probeRuntimeReadiness;
+  return Promise.all(
+    runtimes.map(async ({ runtime, models }): Promise<LifecycleCheck> => {
+      if (models.length === 0) {
+        return fail(`runtime-${runtime}`, `no model configured for ${runtime}`);
+      }
+      if (config.configOnly === true) {
+        // Config-only mirrors `doctor --config-only`: a live non-billable probe
+        // is the only readiness evidence, so without it the runtime is NOT
+        // proven ready. Report `blocked` (not `pass`) — configuration validity
+        // is not runtime readiness, and verify must not claim a runtime is
+        // ready that it never probed.
+        return blocked(
+          `runtime-${runtime}`,
+          `configured for ${models.join(", ")}; readiness probe skipped (config-only); ` +
+            "configuration validity is not runtime readiness",
+          "rerun operon app verify with the adapter available to prove runtime readiness",
+        );
+      }
+      try {
+        const request: RuntimeReadinessRequest = {
+          runtime,
+          models,
+          ...(config.timeoutMs !== undefined ? { timeoutMs: config.timeoutMs } : {}),
+        };
+        const result = await probe(request);
+        return result.status === "ready"
+          ? pass(`runtime-${runtime}`, `${result.detail} [${result.durationMs}ms, non-billable]`)
+          : fail(
+              `runtime-${runtime}`,
+              `${result.status}` +
+                (result.errorCode !== undefined ? ` (${result.errorCode})` : "") +
+                ` — ${result.detail}`,
+            );
+      } catch (error) {
+        return fail(`runtime-${runtime}`, `readiness probe crashed: ${message(error)}`);
+      }
+    }),
+  );
 }
 
 function rolesForApp(roles: Awaited<ReturnType<typeof loadRoles>>, app: AppEntry) {
@@ -1095,12 +1158,30 @@ function groupRuntimes(roles: Array<{ runtime: RuntimeKind; model: string }>): A
   return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([runtime, models]) => ({ runtime, models: [...models].sort() }));
 }
 
+// The app-vs-registry agreement check is tamper detection over the fields that
+// must be identical in both the org registry (apps.yaml) and the app-owned
+// `.operon/config.yaml`: identity (name/repo), lifecycle state (status),
+// operating cadence, event channels, and release wiring.
+//
+// `budgetUsdMonth` is DELIBERATELY excluded (B-LIVE-05). Budget is
+// operationally owned by the org registry and enforced there: every budget
+// reader/guard loads the REGISTRY apps.yaml and caps spend against
+// `app.budgetUsdMonth` from it — rollupBudgets/enforceBudgetOverlay
+// (src/org/budget.ts), the manual loop guard (src/cli/loop.ts budgetGuard →
+// enforceBudgetOverlay(stateHome, appsFile) over the registry), and the
+// dispatch tick (src/org/dispatch.ts → enforceBudgetOverlay(runtimeHome,
+// appsFile) over the registry). The managed clone's `.operon/config.yaml`
+// budget is never read for enforcement, so an app declaring a larger budget in
+// its own config cannot thereby spend more than the registry cap. That makes an
+// operator capping an app's budget in apps.yaml (registry 50 vs the config's
+// bootstrap-default 1000) a normal, safe divergence — it must not fail
+// verify/promote. Every other field here still has to agree, so tamper of
+// identity/state/behavior is still detected.
 function comparableApp(app: AppEntry): unknown {
   return {
     name: app.name,
     repo: app.repo,
     status: app.status,
-    budgetUsdMonth: app.budgetUsdMonth,
     cadence: app.cadence,
     channels: app.channels ?? {},
     release: app.release ?? null,

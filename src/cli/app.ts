@@ -11,9 +11,15 @@ import { stableJson } from "../org/lifecycle.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { dirname, join, resolve } from "node:path";
 import type { GhOps } from "../loop/github.js";
+import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
 
 export interface AppCommandOptions {
   ghFactory?: (repo: string) => GhOps;
+  /** Test seam for the non-billable runtime-readiness probe used by `verify`
+   * and `promote`. Unset in production so verify runs the real
+   * `probeRuntimeReadiness` (agreeing with `operon doctor`); tests inject a
+   * deterministic fake so they never contact a real adapter. */
+  readinessProbe?: RuntimeReadinessProbe;
 }
 
 export async function cmdApp(args: string[], options: AppCommandOptions = {}): Promise<number> {
@@ -26,8 +32,8 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
     throw new Error(`app ${verb}: <app-name> is required`);
   }
 
-  if (verb === "verify") return verify(appName, rest, common);
-  if (verb === "promote") return promote(appName, rest, common);
+  if (verb === "verify") return verify(appName, rest, common, options);
+  if (verb === "promote") return promote(appName, rest, common, options);
 
   let execute = false;
   let force = false;
@@ -99,6 +105,7 @@ async function verify(
   appName: string,
   args: string[],
   homesFlags: { orgHome?: string; stateHome?: string },
+  options: AppCommandOptions,
 ): Promise<number> {
   let json = false;
   for (const arg of args) {
@@ -106,7 +113,14 @@ async function verify(
     else throw new Error(`app verify: unknown flag "${arg}"`);
   }
   const homes = await resolveOperonHomes(homesFlags);
-  const report = await verifyApp({ orgHome: homes.orgHome, stateHome: homes.stateHome, appName, synchronize: true, writeReadiness: true });
+  const report = await verifyApp({
+    orgHome: homes.orgHome,
+    stateHome: homes.stateHome,
+    appName,
+    synchronize: true,
+    writeReadiness: true,
+    ...(options.readinessProbe !== undefined ? { readinessProbe: options.readinessProbe } : {}),
+  });
   if (json) console.log(stableJson(report).trimEnd());
   else printVerification(report);
   return report.status === "ready" ? 0 : 2;
@@ -116,6 +130,7 @@ async function promote(
   appName: string,
   args: string[],
   homesFlags: { orgHome?: string; stateHome?: string },
+  options: AppCommandOptions,
 ): Promise<number> {
   let execute = false;
   let json = false;
@@ -130,7 +145,13 @@ async function promote(
   }
   if (to !== "live") throw new Error("app promote: --to live is required");
   const homes = await resolveOperonHomes(homesFlags);
-  const input = { orgHome: homes.orgHome, stateHome: homes.stateHome, appName, to: "live" as const };
+  const input = {
+    orgHome: homes.orgHome,
+    stateHome: homes.stateHome,
+    appName,
+    to: "live" as const,
+    ...(options.readinessProbe !== undefined ? { readinessProbe: options.readinessProbe } : {}),
+  };
   const plan = await planAppPromotion(input);
   if (!execute) {
     if (json) console.log(stableJson(plan).trimEnd());

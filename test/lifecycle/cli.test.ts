@@ -10,6 +10,7 @@ import { storeOnboardingAnswers } from "../../src/org/onboarding-answers.js";
 import { FakeGhOps } from "../support/fakeGhOps.js";
 import {
   LIFECYCLE_ANSWERS,
+  READY_RUNTIME_PROBE,
   git,
   makeLegacy,
   makeLifecycleTestWorld,
@@ -80,22 +81,27 @@ describe("token-free lifecycle public CLI", () => {
       "--json",
     ]))).json).toMatchObject({ onboarding_commit: bootstrapJson.onboarding_commit });
 
-    const unreachable = await captureJson(() => cmdApp(["verify", "sparse", ...homeFlags, "--json"]));
+    // Inject a deterministic non-billable readiness probe so the CLI never
+    // contacts a real adapter and its JSON stays byte-stable. In production the
+    // seam is unset and verify runs the real `probeRuntimeReadiness` that
+    // `operon doctor` uses (B-LIVE-04).
+    const cliOptions = { readinessProbe: READY_RUNTIME_PROBE };
+    const unreachable = await captureJson(() => cmdApp(["verify", "sparse", ...homeFlags, "--json"], cliOptions));
     expect(unreachable.code).toBe(2);
     expect((unreachable.json as { status: string; provider: ProviderZeros })).toMatchObject({ status: "blocked", provider: ZERO_PROVIDER });
     git(bootstrapJson.managed_clone, "push", "origin", "HEAD:main");
-    const verified = await captureJson(() => cmdApp(["verify", "sparse", ...homeFlags, "--json"]));
+    const verified = await captureJson(() => cmdApp(["verify", "sparse", ...homeFlags, "--json"], cliOptions));
     expect(verified.code).toBe(0);
     expect(verified.json).toMatchObject({ status: "ready", evidence_state: "runtime-ready", provider: ZERO_PROVIDER });
 
     const promoteArgs = ["promote", "sparse", ...homeFlags, "--to", "live", "--json"];
-    const promotePlanA = await captureJson(() => cmdApp(promoteArgs));
-    const promotePlanB = await captureJson(() => cmdApp(promoteArgs));
+    const promotePlanA = await captureJson(() => cmdApp(promoteArgs, cliOptions));
+    const promotePlanB = await captureJson(() => cmdApp(promoteArgs, cliOptions));
     expect(promotePlanA.text).toBe(promotePlanB.text);
     expect((promotePlanA.json as { executable: boolean }).executable).toBe(true);
-    const promoted = await captureJson(() => cmdApp([...promoteArgs, "--execute"]));
+    const promoted = await captureJson(() => cmdApp([...promoteArgs, "--execute"], cliOptions));
     expect(promoted.json).toMatchObject({ status: "promoted", verification: { status: "ready", registry_status: "live", provider: ZERO_PROVIDER } });
-    const rerun = await captureJson(() => cmdApp([...promoteArgs, "--execute"]));
+    const rerun = await captureJson(() => cmdApp([...promoteArgs, "--execute"], cliOptions));
     expect(rerun.json).toMatchObject({ status: "already_live" });
     expect(sourceSnapshot(world.git.clone.root)).toEqual(sourceBefore);
     expect(Date.now() - startedAt).toBeLessThanOrEqual(5 * 60_000);

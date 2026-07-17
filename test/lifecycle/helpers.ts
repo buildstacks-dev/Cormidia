@@ -6,7 +6,22 @@ import { join } from "node:path";
 import { parse, stringify } from "yaml";
 import { bootstrapFromRecoveredAnswers, verifyApp, type RecoveredBootstrapResult } from "../../src/org/app-lifecycle.js";
 import { initOrgHome } from "../../src/org/home.js";
+import type { RuntimeReadinessProbe } from "../../src/runtime/readiness.js";
 import { makeBareWithCloneAt, type BareCloneFixture } from "../fixtures/gitRepo.js";
+
+// A fake non-billable readiness probe that reports every configured runtime
+// ready WITHOUT touching a real adapter. verify's default runtime check is now
+// the same live `probeRuntimeReadiness` doctor uses (B-LIVE-04); offline
+// lifecycle fixtures inject this so they exercise the real probe→check mapping
+// (a `runtime-<provider>` pass) while staying fully offline.
+export const READY_RUNTIME_PROBE: RuntimeReadinessProbe = async (request) => ({
+  runtime: request.runtime,
+  models: [...new Set(request.models)].sort(),
+  status: "ready",
+  detail: `fake offline probe: ${request.runtime} ready (no adapter contacted)`,
+  durationMs: 0,
+  billable: false,
+});
 
 export const LIFECYCLE_ANSWERS = {
   product: "A sparse deterministic lifecycle fixture.",
@@ -52,7 +67,7 @@ export async function bootstrapReachable(world: LifecycleTestWorld): Promise<Rec
     appName: "sparse",
   });
   git(result.managedClone, "push", "origin", "HEAD:main");
-  const verification = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse" });
+  const verification = await verifyApp({ orgHome: world.orgHome, stateHome: world.stateHome, appName: "sparse", readinessProbe: READY_RUNTIME_PROBE });
   if (verification.status !== "ready") throw new Error(`fixture verification failed: ${JSON.stringify(verification.checks)}`);
   return result;
 }

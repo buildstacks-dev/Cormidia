@@ -755,3 +755,39 @@ So L-001's remediation is **incomplete**: E2E-01 unblocked the app-check gates, 
   divergence. Decide which config is authoritative for which fields (budget likely registry-authoritative)
   and either reconcile on load or scope the equality check to fields that must match. Effort S–M.
   (W0-ADJ-04 / P1-12 family.)
+
+### Filed during Phase B — SRE/Support/Marketing first wake (2026-07-17)
+
+**Capstone validated:** with L-001 fixed (app `bs-e2e` promoted to `live`, all 15 verify checks green), the
+three previously-dead standing roles ran for the FIRST time in the platform's history (they spent zero tokens
+across the entire baseline campaign). All three produced substantive, honest, draft-only work:
+- **Support** (`support-digest`) read the Builder's merged code and found a REAL bug — the contact form shows a
+  generic error even when the submission persisted (`scripts/server.mjs` appends before responding;
+  `src/client.ts` treats a network drop as failure) — plus a safe customer reply draft and a Planner feed. No
+  fabrication.
+- **SRE** (`sre-health`) ran real build/lint/test/route/doctor checks, found no CI/release/`/health`/scheduler,
+  attempted a P2 `op:incident`, and when `gh` hit a TRANSIENT `error connecting to api.github.com` it explicitly
+  stated "No issue was falsely reported as created" — correct graceful degradation, not a bug (the Planner
+  reached GitHub fine in the same window).
+- **Marketing** (`ci-sweep`) REFUSED to invent adoption/competitive data, produced sharp positioning risks, and
+  correctly grounded its Planner feed in the real new tickets (#12–14/#16) and the app's real product name
+  (`buildstacks.dev`, from its own VISION.md) — no hallucination.
+- **Cross-role coherence (notable):** Support's bug → Planner created **#15 "Make the contact form fail safe"**;
+  SRE+Marketing's "no release mechanism / product truth undecided" → Planner created **#16 "[Escalation] Decide
+  hosting + release + product-truth."** The org behaved as a coherent team on its first live cycle.
+
+- **B-LIVE-06 (event-trigger path vs schedule triggers; `standing-roles/` artifact not written — OBSERVATION,
+  confirm intent):** On a fresh `live` app, every standing role's SCHEDULE trigger (support every-4h, sre hourly,
+  marketing weekly, planner daily/weekly) is simultaneously due and consumes the org WIP for several dispatch
+  ticks. The schedule-triggered digests READ the inbox company-events (Support cited `feedback-e2e-001`) and
+  consumed them per-role, so the three dropped events (`support-feedback`/`health-alert`/`adoption-signal`) never
+  produced a dedicated EVENT-triggered role turn. Consequence: `persistStandingRoleOutcome`
+  (`src/org/turn-runner.ts:390`, guarded by `journal.event !== undefined`) never ran, so the deterministic
+  state-home `standing-roles/<app>/{artifacts,planner-feeds}/` records (the documented contract in AGENTS.md)
+  were not written this session — the roles instead persisted to the app repo's `.operon/planning/` +
+  `.operon/learning/candidates/`. Also: the events remain in the inbox (not retired) after per-role consumption.
+  Not a confirmed defect (the events were processed and the roles produced correct work), but the interaction
+  is worth confirming: (a) is the deterministic `standing-roles/` artifact meant to be written only on the
+  event-trigger path, leaving schedule-consumed events without one? (b) should events retire once all
+  subscribers (incl. Planner groom) consume them? Effort S–M to characterize. To exercise the pure event path,
+  drain the schedule backlog first, then dispatch.

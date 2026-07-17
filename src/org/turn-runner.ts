@@ -31,7 +31,7 @@ import {
 } from "../loop/verdicts.js";
 import { ApprovalStore } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
-import { rollupBudgets } from "./budget.js";
+import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
 import { composeGate } from "./gate-compose.js";
 import {
@@ -792,11 +792,12 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       budgetGuard: async () => {
         const rows = await rollupBudgets(options.runtimeHome, options.appsFile, options.now?.() ?? new Date());
         const row = rows.find((r) => r.app === options.app.name);
-        if (row !== undefined && row.status === "exceeded") {
-          return {
-            allowed: false,
-            reason: `${row.app} spent $${row.spentUsd.toFixed(2)} of $${row.budgetUsd.toFixed(2)} this month`,
-          };
+        if (row !== undefined && isBudgetBlocking(row.status)) {
+          const reason =
+            row.status === "unknown"
+              ? `${row.app} budget total could not be computed this month (malformed ledger row) — refusing to spend`
+              : `${row.app} spent $${row.spentUsd.toFixed(2)} of $${row.budgetUsd.toFixed(2)} this month`;
+          return { allowed: false, reason };
         }
         return { allowed: true };
       },

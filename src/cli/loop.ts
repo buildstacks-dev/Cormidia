@@ -14,7 +14,7 @@ import { assembleContext, createEpisodeContextResolver } from "../org/context.js
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
-import { enforceBudgetOverlay } from "../org/budget.js";
+import { enforceBudgetOverlay, isBudgetBlocking } from "../org/budget.js";
 import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
 import { recordInvocation } from "../runtime/telemetry.js";
@@ -272,13 +272,16 @@ export async function cmdLoop(args: string[]): Promise<number> {
               // `operon budget` or a dispatch tick to refresh either.
               const rows = await enforceBudgetOverlay(homes.stateHome, appsFile);
               const row = rows.find((r) => r.app === selectedApp.name);
-              if (row !== undefined && row.status === "exceeded") {
+              if (row !== undefined && isBudgetBlocking(row.status)) {
                 return {
                   allowed: false,
                   reason:
-                    `${row.app} spent $${row.spentUsd.toFixed(2)} of its ` +
-                    `$${row.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
-                    `or wait for the month to reset`,
+                    row.status === "unknown"
+                      ? `${row.app} budget total could not be computed this month ` +
+                        `(malformed ledger row) — refusing to spend until it is reconciled`
+                      : `${row.app} spent $${row.spentUsd.toFixed(2)} of its ` +
+                        `$${row.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
+                        `or wait for the month to reset`,
                 };
               }
               return { allowed: true };

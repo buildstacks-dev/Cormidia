@@ -31,7 +31,19 @@ export interface BudgetRow {
   budgetUsd: number;
   spentUsd: number;
   percent: number;
-  status: "ok" | "warning" | "exceeded";
+  /** `unknown` = the month total could not be computed (a ledger row had a
+   *  non-finite/absent `costUsd`). It is a distinct not-ok state that fails
+   *  CLOSED: treated as OVER cap everywhere (`isBudgetBlocking`), never `ok`
+   *  (A-004). Never let "I could not compute the spend" read as "the spend is
+   *  fine". */
+  status: "ok" | "warning" | "exceeded" | "unknown";
+}
+
+/** A budget row blocks spend (pause + raise, and it must never un-pause) when
+ *  the app is over cap OR its total could not be verified. Both are fail-closed
+ *  over-cap states; only these two block. */
+export function isBudgetBlocking(status: BudgetRow["status"]): boolean {
+  return status === "exceeded" || status === "unknown";
 }
 
 export interface BudgetOverlay {
@@ -44,17 +56,23 @@ export async function rollupBudgets(
   now: Date = new Date(),
 ): Promise<BudgetRow[]> {
   const month = now.toISOString().slice(0, 7);
-  const spent = await readMonthSpend(orgHome, month);
+  const { spent, unresolved } = await readMonthSpend(orgHome, month);
   return apps.apps.map((app) => {
     const spentUsd = spent.get(app.name) ?? 0;
     const percent = app.budgetUsdMonth === 0 ? 0 : (spentUsd / app.budgetUsdMonth) * 100;
-    return {
-      app: app.name,
-      budgetUsd: app.budgetUsdMonth,
-      spentUsd,
-      percent,
-      status: percent >= 100 ? "exceeded" : percent >= 80 ? "warning" : "ok",
-    };
+    // A row with a non-finite/absent cost means the total is not trustworthy —
+    // fail closed to `unknown` (over cap) rather than reporting a partial sum
+    // as `ok`. `Number.isFinite(percent)` is belt-and-braces: with the ledger
+    // boundary now skipping bad rows, `percent` is always finite here.
+    const status: BudgetRow["status"] =
+      unresolved.has(app.name) || !Number.isFinite(percent)
+        ? "unknown"
+        : percent >= 100
+          ? "exceeded"
+          : percent >= 80
+            ? "warning"
+            : "ok";
+    return { app: app.name, budgetUsd: app.budgetUsdMonth, spentUsd, percent, status };
   });
 }
 
@@ -164,15 +182,19 @@ export async function enforceBudgetOverlay(
   const store = new ApprovalStore(orgHome);
 
   const knownApps = new Set(apps.apps.map((app) => app.name));
-  const exceeded = new Set(rows.filter((r) => r.status === "exceeded").map((r) => r.app));
+  // `unknown` (unverifiable total) blocks exactly like `exceeded`: it keeps an
+  // app paused and raises the approval item. A single malformed ledger row must
+  // never drop a paused app back to running (A-004) — the old `=== "exceeded"`
+  // filter treated a NaN total as "ok" and actively un-paused it.
+  const blocked = new Set(rows.filter((r) => isBudgetBlocking(r.status)).map((r) => r.app));
   // Recompute the paused set from the current rollup rather than only ever
   // adding to it: an app drops out of the overlay once its month-to-date spend
   // is back under 100% (e.g. after a month reset), so a single month's overage
   // no longer pauses a healthy live app forever. Entries for apps no longer in
   // apps.yaml are preserved so an unrelated overlay is never silently dropped.
-  overlay.pausedApps = overlay.pausedApps.filter((app) => !knownApps.has(app) || exceeded.has(app));
+  overlay.pausedApps = overlay.pausedApps.filter((app) => !knownApps.has(app) || blocked.has(app));
 
-  for (const row of rows.filter((r) => r.status === "exceeded")) {
+  for (const row of rows.filter((r) => isBudgetBlocking(r.status))) {
     if (!overlay.pausedApps.includes(row.app)) overlay.pausedApps.push(row.app);
     const hashKey = `budget-exceeded:${row.app}:${now.toISOString().slice(0, 7)}`;
     const existing = (await store.listPending()).some(
@@ -584,10 +606,20 @@ function recordFromEnvelope(
   return record;
 }
 
-async function readMonthSpend(orgHome: string, month: string): Promise<Map<string, number>> {
+/** Sum this month's ledger spend per app. Rows whose `costUsd` is not a finite
+ *  number (absent, a string, NaN) are NOT summed — they mark the app's total as
+ *  `unresolved`, so the caller fails closed instead of letting `+ undefined`
+ *  poison the sum into NaN and read as `ok` (A-004). A torn line that fails
+ *  JSON.parse is still skipped (one bad append must not wedge enforcement),
+ *  but a parseable-yet-malformed row can no longer silently disable the cap. */
+async function readMonthSpend(
+  orgHome: string,
+  month: string,
+): Promise<{ spent: Map<string, number>; unresolved: Set<string> }> {
   const dir = join(orgHome, "telemetry");
   const spent = new Map<string, number>();
-  if (!existsSync(dir)) return spent;
+  const unresolved = new Set<string>();
+  if (!existsSync(dir)) return { spent, unresolved };
   for (const file of await readdir(dir)) {
     if (!file.startsWith(month) || !file.endsWith(".jsonl")) continue;
     const text = await readFile(join(dir, file), "utf8");
@@ -602,10 +634,16 @@ async function readMonthSpend(orgHome: string, month: string): Promise<Map<strin
         continue;
       }
       if (record.app === undefined) continue;
-      spent.set(record.app, (spent.get(record.app) ?? 0) + record.costUsd);
+      const cost = record.costUsd;
+      if (typeof cost !== "number" || !Number.isFinite(cost)) {
+        // Cannot trust this app's total for the month — fail closed.
+        unresolved.add(record.app);
+        continue;
+      }
+      spent.set(record.app, (spent.get(record.app) ?? 0) + cost);
     }
   }
-  return spent;
+  return { spent, unresolved };
 }
 
 async function readOverlay(orgHome: string): Promise<BudgetOverlay> {

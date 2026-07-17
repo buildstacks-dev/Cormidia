@@ -41,7 +41,9 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
   {
     // AWS access key ids (AKIA permanent, ASIA temporary). Secret access
     // keys have no reliable shape of their own — the generic-assignment
-    // family below is what catches `aws_secret_access_key = …`.
+    // family below is what catches `aws_secret_access_key = …` (that exact
+    // spelling is pinned in test/runlog-redact.test.ts; A-003 proved the
+    // old \b-anchored pattern never matched it).
     name: "aws-access-key-id",
     pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/,
   },
@@ -55,11 +57,17 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
   },
   {
     // Generic key/token/password assignments: `password = "…"`,
-    // `api_key: xyz`, env-style exports. Requires an assignment operator
-    // and a ≥8-char value so prose ("the token is important") passes.
+    // `api_key: xyz`, env-style exports, and — critically — keyword-bearing
+    // snake_case/SCREAMING_SNAKE/kebab identifiers (`GITHUB_TOKEN=…`,
+    // `aws_secret_access_key = …`, `db-password: …`). `_` is a word
+    // character, so a \b-anchored keyword can never fire at the `TOKEN`/`_`
+    // seam (A-003); the explicit lookbehind boundary plus the `[_-]`-joined
+    // prefix/suffix segments are what make the snake_case forms match.
+    // Requires an assignment operator and a ≥8-char value so prose
+    // ("the token is important") passes.
     name: "generic-assignment",
     pattern:
-      /\b(?:api[_-]?key|secret|token|password|passwd|pwd)\b\s*[:=]\s*["']?[A-Za-z0-9_\-/+=.]{8,}["']?/i,
+      /(?<![A-Za-z0-9])(?:[A-Za-z0-9]+[_-])*(?:api[_-]?key|secret|token|password|passwd|pwd)(?:[_-][A-Za-z0-9]+)*["']?\s*[:=]\s*["']?[A-Za-z0-9_\-/+=.]{8,}["']?/i,
   },
 ];
 

@@ -52,6 +52,30 @@ describe("runSecurityGate", () => {
     );
   });
 
+  it("flags snake_case credential assignments (A-003)", () => {
+    const r = repo();
+    const base = r.head();
+    r.commit("add leaked credentials", {
+      // A-003: `_` is a word character, so the old \b-anchored generic
+      // assignment pattern missed every one of these — they passed this gate.
+      ".env": [
+        "GITHUB_TOKEN=ghSomeLongOpaqueValue123",
+        "DB_PASSWORD=SuperSecretValue123456",
+        "export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      ].join("\n"),
+    });
+
+    const result = runSecurityGate(r.root, { baseRef: base, headRef: r.head() });
+
+    expect(result.status).toBe("fail");
+    const families = new Set(result.matches!.map((m) => m.pattern));
+    expect(families).toContain("generic-assignment");
+    // Every leaked line is caught.
+    const lines = new Set(result.matches!.map((m) => `${m.file}:${m.line}`));
+    for (let i = 1; i <= 4; i++) expect(lines, `.env:${i}`).toContain(`.env:${i}`);
+  });
+
   it("skips binary files even when matching bytes are present", () => {
     const r = repo();
     const base = r.head();
@@ -74,6 +98,20 @@ describe("runSecurityGate", () => {
     r.commit("add clean file", {
       "src/app.ts": "export const tokenCount = 5;\n",
       "docs/notes.md": "Rotate credentials during the next drill; no material here.\n",
+      // Routine near-misses for the A-003/A-007 patterns: keyword-bearing
+      // identifiers and credential prefixes in ordinary docs/config prose
+      // must not fail the gate.
+      "docs/setup.md": [
+        "Set the GITHUB_TOKEN environment variable before running the loop.",
+        "The aws_secret_access_key field is described in docs/config.md.",
+        "The sk_live_ prefix denotes a live-mode Stripe key.",
+        "xoxb-style tokens rotate on reinstall.",
+        "See https://hooks.slack.com/services docs for the payload shape.",
+        "AIza is the fixed Google API key prefix.",
+        "eyJ appears at the start of every JWT header segment.",
+        "https://example.com:8080/path has a port but no userinfo.",
+      ].join("\n"),
+      "config/defaults.yaml": "max_tokens: 128000\nnpm_config_registry=https://registry.npmjs.org\n",
     });
 
     const result = runSecurityGate(r.root, { baseRef: base, headRef: r.head() });

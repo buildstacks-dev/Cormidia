@@ -39,12 +39,40 @@ describe("scrubSecrets", () => {
       },
       { text: 'password = "hunter2hunter2"', marker: "[REDACTED:generic-assignment]" },
       { text: "export API_KEY=abcd1234efgh", marker: "[REDACTED:generic-assignment]" },
+      // A-003 regression — snake_case/SCREAMING_SNAKE keyword-bearing
+      // identifiers. `_` is a word character, so the old \b-anchored keyword
+      // group never fired at the `TOKEN`/`_` seam and every one of these
+      // leaked through BOTH consumers of the list.
+      { text: "GITHUB_TOKEN=ghSomeLongOpaqueValue123", marker: "[REDACTED:generic-assignment]" },
+      { text: "DB_PASSWORD=SuperSecretValue123456", marker: "[REDACTED:generic-assignment]" },
+      { text: "MY_API_TOKEN=SuperSecretValue123456", marker: "[REDACTED:generic-assignment]" },
+      { text: "APP_SECRET=SuperSecretValue123456", marker: "[REDACTED:generic-assignment]" },
+      { text: "openai_api_key=SuperSecretValue123456", marker: "[REDACTED:generic-assignment]" },
+      {
+        text: "export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        marker: "[REDACTED:generic-assignment]",
+      },
+      {
+        // The exact spaced-assignment case the source comment on
+        // aws-access-key-id claims the generic-assignment family covers.
+        text: "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        marker: "[REDACTED:generic-assignment]",
+      },
+      {
+        // Quoted-JSON form of the same credential.
+        text: '  "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"',
+        marker: "[REDACTED:generic-assignment]",
+      },
+      // Hyphenated form — worked before the A-003 fix, must keep working.
+      { text: "db-password = SuperSecretValue123456", marker: "[REDACTED:generic-assignment]" },
     ];
     for (const { text, marker } of cases) {
       const scrubbed = scrubSecrets(text);
       expect(scrubbed, text).toContain(marker);
       // The secret material itself is gone.
-      expect(scrubbed).not.toMatch(/hunter2hunter2|AKIAIOSFODNN7EXAMPLE|MIIB/);
+      expect(scrubbed).not.toMatch(
+        /hunter2hunter2|AKIAIOSFODNN7EXAMPLE|MIIB|SuperSecretValue123456|wJalrXUtnFEMI|51H8xQ2eZvKYlo2Cm|2334455667|aBcDeFgHiJkLmNoPqRs|S3cr3tP4ssw0rd|dBjftJeZ/,
+      );
     }
   });
 
@@ -55,6 +83,20 @@ describe("scrubSecrets", () => {
       "tokenCount = 5 and passwordField has no value here",
       "rotate the key ceremony notes (no material present)",
       "the github_pat prefix is mentioned here without any actual token value",
+      // Near-misses for the A-003 snake_case boundary fix: keyword-bearing
+      // identifiers with no assignment, no value, or a short value.
+      "set the GITHUB_TOKEN environment variable before running the loop",
+      "DB_PASSWORD= (left empty on purpose)",
+      "the aws_secret_access_key field is described in docs/config.md",
+      "max_tokens: 128000 controls the context window", // "tokens" is not the keyword "token"
+      // Near-misses for the A-007 families: prefixes in prose, no material.
+      "the sk_live_ prefix denotes a live-mode Stripe key",
+      "xoxb-style tokens rotate on reinstall",
+      "see https://hooks.slack.com/services docs for the payload shape",
+      "AIza is the fixed Google API key prefix",
+      "npm_config_registry=https://registry.npmjs.org",
+      "eyJ appears at the start of every JWT header segment",
+      "https://example.com:8080/path has a port but no userinfo",
     ];
     for (const text of benign) expect(scrubSecrets(text), text).toBe(text);
   });

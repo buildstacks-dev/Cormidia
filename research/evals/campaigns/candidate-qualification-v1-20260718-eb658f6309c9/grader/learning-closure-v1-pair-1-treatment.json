@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
+  "case_id": "learning/closure/v1",
+  "repetition_id": "pair-1-treatment",
+  "attempt_id": "learning-closure-v1-pair-1-treatment",
+  "grader_ref": "graders/learning-closure.ts",
+  "grader_sha256": "sha256:c92869463f6b3dd7edaed4b6ead82f9de64e1dff7b68bc33c2a73022b381314e",
+  "visible_gate_passed": true,
+  "hidden_grader_passed": true,
+  "verifier_evidence": "artifact:artifact/verifier/learning-closure-v1-pair-1-treatment/grader-evidence.json",
+  "verifier_evidence_sha256": "sha256:13db69af2c9dad0a7ca728c8a63a3741e38504692fe19a6ac0e8a8e232c2d039",
+  "result": "passed",
+  "missing": []
+}

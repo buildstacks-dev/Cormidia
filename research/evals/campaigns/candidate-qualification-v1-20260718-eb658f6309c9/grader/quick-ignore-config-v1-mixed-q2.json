@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
+  "case_id": "quick/ignore-config/v1",
+  "repetition_id": "mixed-q2",
+  "attempt_id": "quick-ignore-config-v1-mixed-q2",
+  "grader_ref": "graders/quick-ignore-config.ts",
+  "grader_sha256": "sha256:5e156c5eb0067f2fc731c0f179042f70f95dfc6faedb34ea85c3ca81f1d8028c",
+  "visible_gate_passed": true,
+  "hidden_grader_passed": true,
+  "verifier_evidence": null,
+  "verifier_evidence_sha256": null,
+  "result": "passed",
+  "missing": []
+}

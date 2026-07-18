@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "campaign_id": "candidate-qualification-v1-20260718-eb658f6309c9",
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
+  "attempt_id": "deep-auth-migration-v1-mixed-d2",
+  "case_id": "deep/auth-migration/v1",
+  "repetition_id": "mixed-d2",
+  "outcome": "passed",
+  "admitted_at": "2026-07-18T07:27:40.717Z",
+  "terminal_at": "2026-07-18T07:42:24.167Z",
+  "evidence": [
+    "run:20260718-072829-run-role-builder",
+    "run:20260718-073319-run-role-builder",
+    "grader:grader/deep-auth-migration-v1-mixed-d2.json",
+    "run:20260718-073937-run-role-reviewer",
+    "accounting:accounting/deep-auth-migration-v1-mixed-d2.json"
+  ],
+  "metrics": {
+    "route": {
+      "planned": "deep",
+      "final": "deep",
+      "model_turns": 3
+    },
+    "context": {
+      "rendered_bytes": 4372,
+      "sources": {
+        "run:20260718-072829-run-role-builder": 713,
+        "run:20260718-073319-run-role-builder": 1433,
+        "run:20260718-073937-run-role-reviewer": 2226
+      },
+      "measurement": "durable_context_manifests"
+    },
+    "cost": {
+      "equivalent_usd": 7.48796525,
+      "product_usd": 6.38277,
+      "evaluator_usd": 1.10519525,
+      "quality": "estimated"
+    },
+    "tokens": {
+      "input": 1365511,
+      "output": 46843,
+      "quality": "estimated"
+    },
+    "latency": {
+      "elapsed_ms": 883450,
+      "active_ms": 883450,
+      "human_wait_ms": 0
+    },
+    "human_load": {
+      "decisions": 0
+    },
+    "productivity": {
+      "productive_passes": 3,
+      "total_passes": 3,
+      "ratio": 1,
+      "repeated_work_cost_usd": 0,
+      "evidence": [
+        {
+          "kind": "contract",
+          "before_sha256": "sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "after_sha256": "sha256:c72841397be97af2243360c4f993f226f58db83a9911469893386fa1163736d0",
+          "productive": true
+        },
+        {
+          "kind": "implementation",
+          "before_sha256": "sha256:c72841397be97af2243360c4f993f226f58db83a9911469893386fa1163736d0",
+          "after_sha256": "sha256:a7af244165a5360b3deeab36bb43e8ac14655442f9f01ed64592c2b07e8b3049",
+          "productive": true
+        },
+        {
+          "kind": "review",
+          "before_sha256": "sha256:a7af244165a5360b3deeab36bb43e8ac14655442f9f01ed64592c2b07e8b3049",
+          "after_sha256": "sha256:a7af244165a5360b3deeab36bb43e8ac14655442f9f01ed64592c2b07e8b3049",
+          "productive": true
+        }
+      ]
+    },
+    "continuation": {
+      "excluded": [
+        "not_continuation_case"
+      ]
+    },
+    "approvals": {
+      "excluded": [
+        "not_approval_case"
+      ]
+    },
+    "scheduler": {
+      "excluded": [
+        "not_scheduler_case"
+      ]
+    },
+    "learning": {
+      "excluded": [
+        "not_learning_case"
+      ]
+    },
+    "execution": {
+      "terminal_integrity": 1,
+      "provider_turns": 3,
+      "mechanical_steps": 0,
+      "provider_settlements": 3,
+      "mechanical_settlements": 0
+    },
+    "capabilities": {
+      "outward_effects": 0,
+      "hidden_answer_leakage": false,
+      "production_path_overlap": false
+    }
+  },
+  "exclusions": [],
+  "missing": []
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "attempt-accounting",
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
+  "attempt_id": "continuation-matrix-v1-mixed-iq",
+  "case_id": "continuation/matrix/v1",
+  "repetition_id": "mixed-iq",
+  "app": "library",
+  "run_ids": [
+    "20260718-074318-run-role-builder",
+    "20260718-074327-run-role-builder"
+  ],
+  "provider_turn_ids": [
+    "413baca25166e600f0f88891dd5a560194390ae173f72a4a6cb61213ef535e53",
+    "6edf478f6b917cb84c671b75e3c986521bef4f232b5b5c22ea94eb2b21b6c0b6"
+  ],
+  "settlement_ids": [
+    "413baca25166e600f0f88891dd5a560194390ae173f72a4a6cb61213ef535e53",
+    "6edf478f6b917cb84c671b75e3c986521bef4f232b5b5c22ea94eb2b21b6c0b6"
+  ],
+  "envelope_sha256": {
+    "20260718-074318-run-role-builder": "sha256:9f9cb12c92b914c860ba7f92a8d9b7b049a2be7f2617bd32fa892f95abb63359",
+    "20260718-074327-run-role-builder": "sha256:0c3edadf8e287b15553eb6f23f61e457c23a15c328effe7cb036edfee44cff07"
+  },
+  "terminal_statuses": {
+    "20260718-074318-run-role-builder": "cancelled",
+    "20260718-074327-run-role-builder": "completed"
+  },
+  "admitted_routes": {
+    "20260718-074318-run-role-builder": "standard",
+    "20260718-074327-run-role-builder": "standard"
+  },
+  "provider_turns": 2,
+  "provider_settlements": 2,
+  "mechanical_settlements": 0,
+  "terminal_integrity": 1,
+  "passed": true,
+  "missing": []
+}

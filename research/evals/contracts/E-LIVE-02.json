@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "contract_id": "E-LIVE-02",
-  "campaign_id": "candidate-qualification-v1-20260716-9ccc03a2c582",
-  "campaign_sha256": "sha256:28c8bd9cc71c8c6f260a2504fac05731ae98966a62ab3b8e5f1331599d31427a",
+  "campaign_id": "candidate-qualification-v1-20260718-eb658f6309c9",
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
   "candidate": {
-    "commit": "c6834cf0c545e2610cbaf1de52a928ddc6c58c68",
-    "package_sha256": "sha256:a5a3c9a2e6ab554895a76cea3c52d213c07cd654dfdba169e19e4fc26df90c55",
-    "suite_sha256": "sha256:365d8a338b101c02731400d80e16ccdccf9e9cbb0d46ba002f65dd303a8d2745",
-    "release_package_sha256": "sha256:6e45e2be665af2158e0b99736f36812feed473386513a9de9a120ad168545e9d",
-    "executable_suite_sha256": "sha256:6a057dd4aca41a74e3071b212faf2e0f7136a25c853d43feb3382dd02d417857"
+    "commit": "c9604c2f4f7021c6720bf2d26ce63e6f071c5c93",
+    "package_sha256": "sha256:fedfbad5d6751f11b807704386b0b5d1a9d263918853a0746ad6d83697a4a37c",
+    "suite_sha256": "sha256:deb87788e38c15c0749d29d6c2b9863ecb660938858a17892dd382627eb6c9c6",
+    "release_package_sha256": "sha256:47319552b57058f95d8978f50bab45f56c3f189558641fb3a537286fc3a2154b",
+    "executable_suite_sha256": "sha256:decc674ceab726d2d557807206caf035bb2ac8f22241e949f690439c37ee933a"
   },
   "org_fingerprint": "sha256:062b1374b8bb878f8dec1b13decfb2019ce1ef2cfae66f9191dd4de59160e3d3",
-  "system_fingerprint": "sha256:8ad7aee67129d4647302f7cdda143958f1070548142c513ef5daf5d950362afc",
+  "system_fingerprint": "sha256:2e9fb8d5162c378ba529c742dc06abc2a14a2079639d27fc490bb54e2116bcf0",
   "case_id": "context/delta/v1",
   "repetition_ids": [
     "claude-context-1",
@@ -22,35 +22,35 @@
     "pi-context-2"
   ],
   "prepared_manifest": {
-    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/campaign.yaml",
-    "sha256": "sha256:1384cc92e3adbdc993dac4cb4f950933a6c22dc8d61228da0c252eaa8d58421f"
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260718-eb658f6309c9/campaign.yaml",
+    "sha256": "sha256:7c853fa23e969bd5fbe5eda69b5d379108ab967aef5d413d202e99f2150fa54b"
   },
   "qualification": {
-    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/qualification-final.json",
-    "sha256": "sha256:9b6671d1601a3efd9653b60b1d3e830eb813b1dd78868b14e8c2db7260176fe4"
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260718-eb658f6309c9/qualification.json",
+    "sha256": "sha256:01fb22cc1cd4a513f70197a6dd3d9f192eceacf84493a107f956b904d31efbcb"
   },
   "report": {
-    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/report-final.html",
-    "sha256": "sha256:24e6234c4c2943d9db551b71098bfe86fd78a6fa48c0a694dd19dc1a375b5deb"
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260718-eb658f6309c9/report.html",
+    "sha256": "sha256:2f2751e622858fb0029b72fd4ec1d0474272768f108123f44611ebea0df23093"
   },
   "archive_receipt": {
-    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/archive-receipt.json",
-    "sha256": "sha256:800d0dabeeb7f5fd2fedadfa91cf4d73876997f86485bd8ec2b5c3bece367390"
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260718-eb658f6309c9/archive-receipt.json",
+    "sha256": "sha256:a031b84d2d6821582c02a73646d72b7fb93433c907e31a3029cca9e7a8679886"
   },
   "archive_manifest": {
-    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/archive-manifest.json",
-    "sha256": "sha256:8da90a99181533e2bbee61f83ecdd112283b8461ade57cf457c0691a095754b4"
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260718-eb658f6309c9/archive-manifest.json",
+    "sha256": "sha256:a25d7fc02807573140e0364019861834de89f41f6925f235fa72f556604f911d"
   },
   "github_evidence": {
-    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/github-evidence-28c8bd9c.json",
-    "sha256": "sha256:b4aa4876521408f69a8a1e73891f4f35acc54f45d9802b17050f281c469f6510"
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260718-eb658f6309c9/github-evidence-7f13be2f.json",
+    "sha256": "sha256:c72b5d007e86350f3d5e73bfad1badedb80f7ba36645a09eb6665012eec886f1"
   },
   "github_idempotence": {
-    "path": "research/evals/campaigns/candidate-qualification-v1-20260716-9ccc03a2c582/github-idempotence-28c8bd9c.json",
-    "sha256": "sha256:50891aea0871a4be5015722c67da13adb1e04046aa11cf3ce16a4c957f2e9f4a"
+    "path": "research/evals/campaigns/candidate-qualification-v1-20260718-eb658f6309c9/github-idempotence-7f13be2f.json",
+    "sha256": "sha256:7ab10509dc843628a571dc453e1524139242dfa9a44c1f072b193d78658ae311"
   },
   "release_attestation": {
     "path": "research/evals/phase6-release-attestation.json",
-    "sha256": "sha256:2f4f44638ae7c65c33ba574415d03a8e8cbfe16260b8cecf9e0a64238a102e7b"
+    "sha256": "sha256:8584b21e8195e422465b62c516db3db351de0a3618f6a95bec26b997a7ccac84"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "evidence_version": 2,
+  "route": "deep",
+  "route_covered": true,
+  "validated_plan_of_record": true,
+  "binary_criteria": true,
+  "product_coverage": true,
+  "intermediate_only": false
+}

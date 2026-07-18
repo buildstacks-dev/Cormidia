@@ -85,7 +85,12 @@ describe("event polling", () => {
       const store = new EventStore(home.root);
       const result = await store.poll(APP, fakeSource({}));
       expect(result.events).toEqual([]);
-      expect(result.errors.some((e) => e.message.includes("reserved for consumption marks"))).toBe(true);
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          code: "invalid_event_transport",
+          message: expect.stringContaining("reserved for consumption marks"),
+        }),
+      ]);
     } finally {
       home.cleanup();
     }
@@ -159,7 +164,7 @@ describe("event polling", () => {
       // The malformed drop is reported, never silently skipped...
       expect(result.errors).toEqual([
         {
-          code: "error_event_source",
+          code: "malformed_company_event",
           app: "alpha",
           kind: "alert-webhook",
           message: expect.stringContaining("inbox bad.json:"),
@@ -167,6 +172,27 @@ describe("event polling", () => {
       ]);
       // ...and the valid sibling still routes.
       expect(result.events.map((event) => event.key)).toEqual(["good.json"]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("keeps unknown kinds distinct from malformed supported-kind payloads", async () => {
+    const home = makeOrgHome({
+      state: {
+        eventsInbox: {
+          "near-miss.json": { ...HEALTH_ALERT, kind: "health-alert-v2" },
+          "supported-malformed.json": { ...HEALTH_ALERT, summary: "" },
+        },
+      },
+    });
+    try {
+      const result = await new EventStore(home.root).poll(APP, fakeSource({}));
+      expect(result.events).toEqual([]);
+      expect(result.errors.map((error) => [error.code, error.message])).toEqual([
+        ["unknown_company_event_kind", expect.stringContaining('unknown company event kind "health-alert-v2"')],
+        ["malformed_company_event", expect.stringContaining('missing non-empty string "summary"')],
+      ]);
     } finally {
       home.cleanup();
     }

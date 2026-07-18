@@ -4,7 +4,12 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { AppEntry } from "./apps.js";
-import { parseCompanyLifecycleEvent, type CompanyEventKind } from "./event-schemas.js";
+import {
+  CompanyEventValidationError,
+  parseCompanyLifecycleEvent,
+  type CompanyEventKind,
+  type CompanyEventValidationCode,
+} from "./event-schemas.js";
 import { writeFileAtomic } from "./atomic.js";
 
 /** Transport kinds: GitHub-polled kinds plus the file-drop `alert-webhook`
@@ -32,11 +37,16 @@ export interface DueEvent {
 }
 
 export interface EventPollError {
-  code: "error_event_source";
+  code: EventPollErrorCode;
   app: string;
   kind: EventKind;
   message: string;
 }
+
+export type EventPollErrorCode =
+  | "error_event_source"
+  | "invalid_event_transport"
+  | CompanyEventValidationCode;
 
 export interface PollEventsResult {
   events: DueEvent[];
@@ -186,21 +196,31 @@ export class EventStore {
       // marks in the shared consumed set. Reject loudly at the transport
       // boundary — filenames are our own contract.
       if (file.includes("::")) {
-        errors.push(inboxError(app, file, new Error("filename must not contain '::' (reserved for consumption marks)")));
+        errors.push(inboxError(
+          app,
+          file,
+          "invalid_event_transport",
+          new Error("filename must not contain '::' (reserved for consumption marks)"),
+        ));
         continue;
       }
       let payload: Record<string, unknown>;
       try {
         payload = JSON.parse(await readFile(join(dir, file), "utf8")) as Record<string, unknown>;
       } catch (error) {
-        errors.push(inboxError(app, file, error));
+        errors.push(inboxError(app, file, "malformed_company_event", error));
         continue;
       }
       let event: ReturnType<typeof parseCompanyLifecycleEvent>;
       try {
         event = parseCompanyLifecycleEvent(payload);
       } catch (error) {
-        errors.push(inboxError(app, file, error));
+        errors.push(inboxError(
+          app,
+          file,
+          error instanceof CompanyEventValidationError ? error.code : "malformed_company_event",
+          error,
+        ));
         continue;
       }
       if (event.app !== app) continue;
@@ -245,9 +265,14 @@ export class EventStore {
   }
 }
 
-function inboxError(app: string, file: string, error: unknown): EventPollError {
+function inboxError(
+  app: string,
+  file: string,
+  code: Exclude<EventPollErrorCode, "error_event_source">,
+  error: unknown,
+): EventPollError {
   return {
-    code: "error_event_source",
+    code,
     app,
     kind: "alert-webhook",
     message: `inbox ${file}: ${error instanceof Error ? error.message : String(error)}`,

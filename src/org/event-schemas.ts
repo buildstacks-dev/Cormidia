@@ -13,6 +13,23 @@ export const COMPANY_EVENT_KINDS = [
 
 export type CompanyEventKind = (typeof COMPANY_EVENT_KINDS)[number];
 
+export type CompanyEventValidationCode =
+  | "malformed_company_event"
+  | "unknown_company_event_kind";
+
+/** A stable machine classification for file-drop contract failures. The
+ *  dispatcher prints this code verbatim, while the message retains the field
+ *  detail an operator needs to repair the source file. */
+export class CompanyEventValidationError extends Error {
+  readonly code: CompanyEventValidationCode;
+
+  constructor(code: CompanyEventValidationCode, message: string) {
+    super(message);
+    this.name = "CompanyEventValidationError";
+    this.code = code;
+  }
+}
+
 export interface BaseCompanyEvent {
   kind: CompanyEventKind;
   id: string;
@@ -61,22 +78,30 @@ export type CompanyLifecycleEvent =
 
 export function parseCompanyLifecycleEvent(raw: unknown): CompanyLifecycleEvent {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new Error("company event must be a JSON object");
+    throw malformed("company event must be a JSON object");
   }
   const spec = raw as Record<string, unknown>;
   const kind = requireString(spec, "kind");
+  // Validate the shared envelope before classifying its kind. This gives an
+  // incomplete `{kind: "future-kind"}` payload one deterministic answer —
+  // malformed envelope — while a complete envelope with that same kind is an
+  // unknown kind. Kind-specific fields follow after registry admission.
+  const common = {
+    id: requireString(spec, "id"),
+    app: requireString(spec, "app"),
+    occurredAt: requireIsoString(spec, "occurred_at"),
+    source: requireString(spec, "source"),
+  };
   if (!isCompanyEventKind(kind)) {
-    throw new Error(
+    throw new CompanyEventValidationError(
+      "unknown_company_event_kind",
       `unknown company event kind "${kind}" (expected ${COMPANY_EVENT_KINDS.join(" | ")})`,
     );
   }
 
   const base = {
     kind,
-    id: requireString(spec, "id"),
-    app: requireString(spec, "app"),
-    occurredAt: requireIsoString(spec, "occurred_at"),
-    source: requireString(spec, "source"),
+    ...common,
   };
 
   switch (kind) {
@@ -121,28 +146,30 @@ export function parseCompanyLifecycleEvent(raw: unknown): CompanyLifecycleEvent 
   }
 }
 
-function isCompanyEventKind(value: string): value is CompanyEventKind {
+export function isCompanyEventKind(value: string): value is CompanyEventKind {
   return (COMPANY_EVENT_KINDS as readonly string[]).includes(value);
 }
 
 function requireString(spec: Record<string, unknown>, key: string): string {
   const value = spec[key];
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`company event missing non-empty string "${key}"`);
+    throw malformed(`company event missing non-empty string "${key}"`);
   }
   return value;
 }
 
 function requireIsoString(spec: Record<string, unknown>, key: string): string {
   const value = requireString(spec, key);
-  if (Number.isNaN(Date.parse(value))) throw new Error(`company event "${key}" must be an ISO timestamp`);
+  if (Number.isNaN(Date.parse(value))) {
+    throw malformed(`company event "${key}" must be an ISO timestamp`);
+  }
   return value;
 }
 
 function requireIsoDate(spec: Record<string, unknown>, key: string): string {
   const value = requireString(spec, key);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    throw new Error(`company event "${key}" must be YYYY-MM-DD`);
+    throw malformed(`company event "${key}" must be YYYY-MM-DD`);
   }
   return value;
 }
@@ -154,7 +181,11 @@ function requireEnum<T extends readonly string[]>(
 ): T[number] {
   const value = requireString(spec, key);
   if (!allowed.includes(value)) {
-    throw new Error(`company event "${key}" must be one of ${allowed.join(" | ")}`);
+    throw malformed(`company event "${key}" must be one of ${allowed.join(" | ")}`);
   }
   return value;
+}
+
+function malformed(message: string): CompanyEventValidationError {
+  return new CompanyEventValidationError("malformed_company_event", message);
 }

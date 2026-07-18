@@ -7,10 +7,30 @@ but the dispatcher **routes on the payload's `kind`**: `readInbox`
 (`src/org/event-schemas.ts`) and surfaces the typed company-lifecycle kind,
 which the dispatcher then matches against roles.yaml `event:` triggers exactly
 like a GitHub-polled kind. So the `kind` field decides both which role(s) wake
-and how they interpret the event. A payload that fails the contract (bad JSON
-or a missing/invalid field) is surfaced loudly as an `error_event_source` and
-skipped — never silently dropped; sibling files keep flowing. A kind no role
-subscribes to is recorded as unsubscribed, not an error.
+and how they interpret the event. The `COMPANY_EVENT_KINDS` registry in
+`src/org/event-schemas.ts` is closed: a string that is not listed is rejected,
+not treated as an unwatched event. Sibling inbox files keep flowing after any
+one rejection.
+
+`operon dispatch` uses these exact classifications:
+
+| Input | Dispatch code | Behavior |
+| --- | --- | --- |
+| Bad JSON, a non-object value, or a registered kind with a missing/invalid field | `malformed_company_event` | Error; file stays unconsumed for repair |
+| A syntactically valid envelope whose `kind` is not in `COMPANY_EVENT_KINDS` | `unknown_company_event_kind` | Error; file stays unconsumed for repair |
+| A valid registered kind with no current roles.yaml `event:` subscriber | `no_subscriber` | Non-error skip; file stays pending and is reported again next tick |
+| A valid registered kind with at least one current subscriber | no skip/error reason | One turn per eligible subscriber; retire after every current subscriber consumes it |
+
+The first two are source-contract errors and make the dispatch command fail.
+Classification validates the shared envelope first, then registry membership,
+then kind-specific fields: an incomplete payload that merely names an unknown
+kind is `malformed_company_event`, while a complete shared envelope with that
+kind is `unknown_company_event_kind`.
+`no_subscriber` is also the durable scheduler decision reason. The CLI prints
+the codes verbatim (`error ...: <code>:` or `skip no_subscriber: ...`), so
+operator guidance, dry-run output, and scheduler evidence use the same names.
+An invalid transport filename uses the separate `invalid_event_transport`
+code; an upstream GitHub polling failure remains `error_event_source`.
 
 All event payloads share these fields. The `app` value is a routing target:
 the inbox file is only offered to the app with the same name, so one

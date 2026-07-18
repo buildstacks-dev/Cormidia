@@ -149,9 +149,25 @@ describe("company-lifecycle event routing (GAP B)", () => {
 
   it("a malformed inbox payload surfaces loudly, never silently dropped", async () => {
     const result = await runDispatch({ inbox: { "bad.json": { kind: "health-alert" } } });
-    expect(result.errors.some((e) => e.includes("alert-webhook") && e.includes("inbox bad.json:"))).toBe(
-      true,
-    );
+    expect(result.errors).toEqual([
+      expect.stringContaining(
+        "alpha/alert-webhook: malformed_company_event: inbox bad.json:",
+      ),
+    ]);
+    expect(eventTurns(result)).toEqual([]);
+  });
+
+  it("a near-miss unknown kind is rejected, never reclassified as unsubscribed", async () => {
+    const result = await runDispatch({
+      inbox: { "near-miss.json": { ...SUPPORT_FEEDBACK, kind: "support-feedback-v2" } },
+    });
+    expect(result.errors).toEqual([
+      expect.stringContaining(
+        "alpha/alert-webhook: unknown_company_event_kind: " +
+          'inbox near-miss.json: unknown company event kind "support-feedback-v2"',
+      ),
+    ]);
+    expect(result.skipped.join("\n")).not.toContain("no_subscriber");
     expect(eventTurns(result)).toEqual([]);
   });
 
@@ -168,7 +184,17 @@ describe("company-lifecycle event routing (GAP B)", () => {
 `;
     const result = await runDispatch({ inbox: { "health.json": HEALTH_ALERT }, rolesYaml });
     expect(eventTurns(result)).toEqual([]);
-    expect(result.skipped).toContain("alpha: event health-alert (health.json) has no subscriber");
+    expect(result.errors).toEqual([]);
+    expect(result.skipped).toContain(
+      "no_subscriber: alpha event health-alert (health.json) has no current subscriber",
+    );
+  });
+
+  it("a subscribed known kind spawns without an event classification error or skip", async () => {
+    const result = await runDispatch({ inbox: { "health.json": HEALTH_ALERT } });
+    expect(eventTurns(result)).toEqual(["sre:health-alert"]);
+    expect(result.errors).toEqual([]);
+    expect(result.skipped.join("\n")).not.toContain("no_subscriber");
   });
 });
 

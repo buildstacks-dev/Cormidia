@@ -209,7 +209,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       commands: inputs.commands,
       maxConcurrent: appsFile.org.maxConcurrentTurns,
       turnId,
-      ...(inputs.baseRef !== undefined ? { baseRef: inputs.baseRef } : {}),
+      base: inputs.base,
       planOnly: dryRun,
       ...(selectedApp.release !== undefined ? { release: selectedApp.release } : {}),
       // Merge authorization: the self-approval fallback must carry an HMAC tag

@@ -27,6 +27,7 @@ import {
 import { resolveAuthority } from "./authority.js";
 import { loadRoles } from "./roles.js";
 import { joinExistingOrg } from "./apps.js";
+import { resolveRemoteDefaultBranch } from "../loop/default-branch.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
   type LifecycleCheck,
@@ -961,11 +962,11 @@ function gitSnapshot(root: string): { branch: string; head: string; status: stri
   };
 }
 
+/** Bootstrap's view of the shared resolver. One implementation across the
+ *  whole product (src/loop/default-branch.ts): two resolvers that could drift
+ *  is how the loop ended up disagreeing with bootstrap about the base (#101). */
 function remoteDefaultBranch(remoteUrl: string): string {
-  const output = execFileSync("git", ["ls-remote", "--symref", remoteUrl, "HEAD"], { env: GIT_ENV, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  const match = /^ref:\s+refs\/heads\/([^\s]+)\s+HEAD$/m.exec(output);
-  if (!match?.[1]) throw new Error(`bootstrap: remote has no advertised default branch: ${remoteUrl}`);
-  return match[1];
+  return resolveRemoteDefaultBranch(remoteUrl, { errorPrefix: "bootstrap" });
 }
 
 function remoteBranchHead(remoteUrl: string, branch: string): string {

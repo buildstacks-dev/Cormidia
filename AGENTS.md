@@ -143,8 +143,8 @@ efficacy health independently. The mechanics construct no provider runtime.
 | `docs/approval-and-release-amendment.md` | A1–A5 approval & release boundary design (ratified 2026-07-10, implemented; cited by code) |
 | `docs/learning-loop/` | Learning-loop design suite (v0.8, 2026-07-11): governed self-improvement — design, spec, milestones, control/data-flow diagrams; superseded review feedback under `archive/` |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), `file-lock.ts` (the shared O_EXCL + pid/nonce ownership-token + liveness/stale-reclamation lock primitive — the app git-clone lock is a configuration of it; the settlement and turn locks are the model but not yet re-expressed onto it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
-| `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, and M6 real pipeline integration (design in `docs/loop.md`) |
-| `src/org/` | Standing-org layer: roles/apps loaders, token-free upgrade/reset/recovery/verify/promote lifecycle, bootstrap, co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
+| `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, M6 real pipeline integration (design in `docs/loop.md`), and `default-branch.ts` (the ONE default-branch resolver — loop, turn runner, planner, and bootstrap all import it — plus the `BaseRevision` every execution path carries) |
+| `src/org/` | Standing-org layer: roles/apps loaders, token-free upgrade/reset/recovery/verify/promote lifecycle, bootstrap, `bootstrap-publish.ts` (coordinated draft-PR publication of bootstrap-owned app + org changes), co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/observe/` | Presentation-only Live UI: versioned projection, URL-stable live/historical session selection, source health, bounded read-only GitHub polling, loopback HTTP/SSE, allowlisted local evidence, and embedded framework-free assets |
 | `src/report/` | Presentation-only Reporting V1: diagnostic daily-ledger/range readers, direct run/task enrichment, deterministic sessions, usage/budget projections, portable HTML, and lazy bounded server cache |
 | `src/org/home.ts` | Package/org/state boundary: complete org initialization, validation, active pointer, and independent state-home resolution |
@@ -258,7 +258,14 @@ efficacy health independently. The mechanics construct no provider runtime.
   `pnpm dev app promote <app> --to live [--execute] [--json]` ·
   `pnpm dev new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run` ·
   `pnpm dev bootstrap --scan-only <repo>` ·
-  `pnpm dev bootstrap <repo> --answers-from <archive|app> [--json]` · `pnpm dev plan <app> --dry-run` ·
+  `pnpm dev bootstrap <repo> --answers-from <archive|app> [--json]` ·
+  `pnpm dev bootstrap publish <app> [--app-dir <path>] [--app-only] [--json]`
+  (preview; `--execute` stages ONLY bootstrap-owned paths, cuts
+  `op/bootstrap-<app>` from each remote's resolved default branch, and opens
+  DRAFT pull requests — never merges, never marks ready, idempotent on retry,
+  and refuses when unrelated staged changes / a merge in progress / a detached
+  HEAD make the scope ambiguous) ·
+  `pnpm dev plan <app> --dry-run` ·
   `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]
   [--depth quick|standard|deep] [--no-publish]` (adaptive runtime-backed
   plan: schema-validated, orchestrator-published) ·
@@ -314,6 +321,16 @@ efficacy health independently. The mechanics construct no provider runtime.
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;
   `src/runtime` imports nothing above it. Not lint-enforced yet — hold the
   line manually. This is what keeps the loop extractable.
+- **Never hardcode a default branch.** `main` is not the default branch — it
+  is *a* default branch. Resolve with `resolveRemoteDefaultBranch()` from
+  `src/loop/default-branch.ts`, then thread the resulting `BaseRevision`
+  (`ref` = what you diff/branch from, `defaultBranch` = what you merge into)
+  through instead of re-deriving or defaulting it. The option types make it
+  required, so a missed call site is a compile error, and
+  `test/loop/default-branch.test.ts` fails the build on any new hardcoded
+  `main`/`master`/`trunk` literal outside the presentation-only
+  `src/observe` and `src/report` leaves. A guessed base silently diffs a
+  ticket against the wrong tree, which is worse than not running (#101).
 - **`TASTE.md`, `roles.yaml`, `docs/PURPOSE.md`, `pipelines.yaml`, and `prompts/**`
   are human-ratified surfaces.** Propose changes with rationale; never
   silently rewrite. (The org's own gate treats agent writes to these as

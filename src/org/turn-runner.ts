@@ -18,6 +18,11 @@ import { getRuntime } from "../runtime/registry.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
 import type { ContextBundle, RoleConfig, Runtime, Trigger, TurnHooks, TurnResult, TurnUsage } from "../runtime/types.js";
 import { loadGateCommands, runLoopOnce } from "../loop/driver.js";
+import {
+  baseRevisionForBranch,
+  resolveRemoteDefaultBranch,
+  type BaseRevision,
+} from "../loop/default-branch.js";
 import { queueReleaseApprovals } from "./release.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 import {
@@ -127,9 +132,10 @@ export async function runDispatchedTurn(
       pid: process.pid,
     });
 
-    const localRepo = await withAppGitLock(runtimeHome, options.app.name, () =>
+    const clone = await withAppGitLock(runtimeHome, options.app.name, () =>
       ensureManagedClone(options.app, runtimeHome),
     );
+    const localRepo = clone.path;
     const context = await buildContext(orgRoot, localRepo, options.app.name, options.role, journal, {
       stateHome: runtimeHome,
       turnId: options.turnId,
@@ -177,6 +183,7 @@ export async function runDispatchedTurn(
         runtimeHome,
         orgRoot,
         localRepo,
+        base: clone.base,
         context,
         hooks,
         telemetry,
@@ -741,6 +748,9 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   runtimeHome: string;
   orgRoot: string;
   localRepo: string;
+  /** Resolved by ensureManagedClone under the app git lock — the same base the
+   *  clone was synchronized to, so the loop never re-derives or guesses it. */
+  base: BaseRevision;
   context: ContextBundle;
   hooks: TurnHooks;
   telemetry: { orgDir: string; trigger?: TriggerKind };
@@ -761,6 +771,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     worktreeRoot: join(options.runtimeHome, "worktrees", options.app.name),
     policy,
     commands: loadGateCommands(options.localRepo),
+    base: options.base,
     maxConcurrent: 1,
     turnId: options.turnId,
     ...(options.app.release !== undefined ? { release: options.app.release } : {}),
@@ -1126,25 +1137,48 @@ function gitCloneLockPath(runtimeHome: string, app: string): string {
   return join(runtimeHome, "repos", `${app}.gitlock`);
 }
 
-export async function ensureManagedClone(app: AppEntry, runtimeHome: string): Promise<string> {
+/** The managed clone plus the base it was synchronized to. Returning the
+ *  resolved base rather than just the path is what stops the default branch
+ *  being rediscovered — or guessed — further down (#101). */
+export interface ManagedClone {
+  path: string;
+  base: BaseRevision;
+}
+
+export async function ensureManagedClone(app: AppEntry, runtimeHome: string): Promise<ManagedClone> {
   const repoDir = join(runtimeHome, "repos", app.name);
   if (existsSync(join(repoDir, ".git"))) {
-    git(repoDir, "fetch", "origin", "main");
-    git(repoDir, "checkout", "main");
-    git(repoDir, "reset", "--hard", "origin/main");
-    return repoDir;
+    // Resolved from the remote, never assumed: `git fetch origin main` against
+    // a repo whose default branch is `master` aborted the turn before any work
+    // began, with a raw git error (#101).
+    const branch = resolveRemoteDefaultBranch("origin", { cwd: repoDir, errorPrefix: "turn" });
+    git(repoDir, "fetch", "origin", branch);
+    git(repoDir, "checkout", branch);
+    git(repoDir, "reset", "--hard", `origin/${branch}`);
+    return { path: repoDir, base: baseRevisionForBranch(branch) };
   }
   await mkdir(join(runtimeHome, "repos"), { recursive: true });
   git(join(runtimeHome, "repos"), "clone", repoUrl(app.repo), repoDir);
-  return repoDir;
+  // A fresh clone is already on the remote's default branch — read git's own
+  // answer rather than re-deriving one.
+  return {
+    path: repoDir,
+    base: baseRevisionForBranch(git(repoDir, "symbolic-ref", "--short", "HEAD")),
+  };
 }
 
-export function createTurnWorktree(localRepo: string, runtimeHome: string, app: string, turnId: string): string {
+export function createTurnWorktree(
+  localRepo: string,
+  runtimeHome: string,
+  app: string,
+  turnId: string,
+  base: BaseRevision,
+): string {
   const root = join(runtimeHome, "worktrees", app);
   mkdirSync(root, { recursive: true });
   const branch = `op/turn-${turnId}`;
   const path = join(root, branch.replace(/[^A-Za-z0-9._-]+/g, "-"));
-  if (!existsSync(path)) git(localRepo, "worktree", "add", "-b", branch, path, "main");
+  if (!existsSync(path)) git(localRepo, "worktree", "add", "-b", branch, path, base.ref);
   return path;
 }
 

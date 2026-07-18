@@ -122,13 +122,13 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   const turnId = `plan-${options.app.name}-${clock().getTime()}`;
   // Plan from an isolated, trace-scoped snapshot. A supplied checkout is an
   // immutable source: clone its current HEAD without checking out/resetting it.
-  // The default source remains Operon's explicitly managed clone, which may be
-  // refreshed to origin/main under the app git lock.
+  // The default source remains Operon's explicitly managed clone, which is
+  // refreshed to its resolved default branch under the app git lock.
   const snapshot = await withAppGitLock(options.stateHome, options.app.name, async () => {
     const source =
       options.workdir !== undefined
         ? validateSourceCheckout(options.workdir)
-        : await ensureManagedClone(options.app, options.stateHome);
+        : (await ensureManagedClone(options.app, options.stateHome)).path;
     return createPlanningSnapshot(source, join(options.stateHome, "worktrees", options.app.name, turnId));
   });
   const localRepo = snapshot.path;

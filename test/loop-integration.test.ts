@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { cmdTelemetry } from "../src/cli/telemetry.js";
+import { baseRevisionForBranch } from "../src/loop/default-branch.js";
 import { runLoopOnce } from "../src/loop/driver.js";
 import { readRouteRecord } from "../src/loop/efficiency.js";
 import {
@@ -198,6 +199,7 @@ describe("M6 loop engine integration", () => {
       let item = await claimTicket(issue, {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -210,6 +212,7 @@ describe("M6 loop engine integration", () => {
         promptsDir: PROMPTS_DIR,
         runlogRoot: home.root,
         app: "fixture",
+        base: baseRevisionForBranch("main"),
         policy: policy(),
         commands: { testCommand: "true", lintCommand: "true" },
         hooks: allowAllHooks(),
@@ -219,6 +222,7 @@ describe("M6 loop engine integration", () => {
       expect(item.phase).toBe("gates");
       item = await advanceGates(item, {
         gh,
+        base: baseRevisionForBranch("main"),
         policy: policy(),
         commands: { testCommand: "true", lintCommand: "true" },
         criteria: parseAcceptanceCriteria(item.body),
@@ -636,6 +640,7 @@ describe("M6 loop engine integration", () => {
         gh,
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
+        base: baseRevisionForBranch("main"),
         policy: policy(),
         commands: { testCommand: "true", lintCommand: "true" },
         engine: {
@@ -801,6 +806,7 @@ describe("M6 loop engine integration", () => {
         gh,
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
+        base: baseRevisionForBranch("main"),
         policy: policy(),
         commands: { testCommand: "true", lintCommand: "true" },
         engine: {
@@ -1011,6 +1017,7 @@ async function claimWithBody(
   const item = await claimTicket(await gh.readIssue(1), {
     gh,
     targetRepo: "fixture/repo",
+    base: baseRevisionForBranch("main"),
     localRepo: pair.clone.root,
     worktreeRoot: join(pair.root, "worktrees"),
   });
@@ -1029,6 +1036,7 @@ async function claimedHarness(
   const item = await claimTicket(await gh.readIssue(1), {
     gh,
     targetRepo: "fixture/repo",
+    base: baseRevisionForBranch("main"),
     localRepo: pair.clone.root,
     worktreeRoot: join(pair.root, "worktrees"),
   });
@@ -1072,6 +1080,7 @@ async function packageJsonReviewHarness(
   const item = await claimTicket(await gh.readIssue(1), {
     gh,
     targetRepo: "fixture/repo",
+    base: baseRevisionForBranch("main"),
     localRepo: pair.clone.root,
     worktreeRoot: join(pair.root, "worktrees"),
   });
@@ -1099,6 +1108,7 @@ function engineOptions(
     promptsDir: PROMPTS_DIR,
     runlogRoot,
     app: "fixture",
+    base: baseRevisionForBranch("main"),
     policy: policy(),
     commands: { testCommand: "true", lintCommand: "true" },
     hooks: allowAllHooks(),

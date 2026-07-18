@@ -111,6 +111,66 @@ describe("app reset", () => {
     expect((await f.gh.readPR(1)).state).toBe("OPEN");
   });
 
+  // #101: the branch guard used to exclude the literal `main`, so a repo whose
+  // default branch is `master` (or `trunk`, or anything else) could have its
+  // DEFAULT BRANCH proposed for deletion. The merge target is now read from
+  // the pull requests themselves, so it is protected under any name.
+  it("never proposes deleting the merge target, whatever the default branch is named", async () => {
+    for (const defaultBranch of ["master", "trunk", "release/2026"]) {
+      const f = await fixture();
+      // A stray managed PR whose head IS the default branch — the exact shape
+      // the old `!== "main"` guard failed to catch.
+      await f.gh.createPR({
+        head: defaultBranch,
+        base: defaultBranch,
+        title: "Accidental PR from the default branch",
+        body: "Closes #7",
+      });
+
+      const plan = await planAppReset(await f.input());
+
+      expect(plan.github.branches).not.toContain(defaultBranch);
+      // ...while the genuinely disposable ticket branch is still proposed, so
+      // the guard narrows nothing it should not.
+      expect(plan.github.branches).toContain("build/alpha-v1");
+    }
+  });
+
+  // Near-miss the pull-request-derived guard alone does NOT catch: a human
+  // opens `<default>` → `production` (a release-promotion PR) whose body links
+  // a managed issue. The default branch is then a managed PR's HEAD and is
+  // nobody's base, so only the recorded default branch protects it.
+  it("protects the recorded default branch even when it is a managed PR's head", async () => {
+    const f = await fixture();
+    const defaultBranch = "master";
+    write(
+      f.stateHome,
+      join("lifecycle", "apps", "alpha", "record.json"),
+      JSON.stringify({
+        schema_version: 1,
+        kind: "app-lifecycle",
+        app: "alpha",
+        repo: "owner/alpha",
+        remote_url: "https://github.com/owner/alpha.git",
+        default_branch: defaultBranch,
+        default_base: "0".repeat(40),
+        onboarding_commit: "1".repeat(40),
+        managed_clone: join(f.stateHome, "repos", "alpha"),
+      }),
+    );
+    await f.gh.createPR({
+      head: defaultBranch,
+      base: "production",
+      title: "Promote to production",
+      body: "Closes #7",
+    });
+
+    const plan = await planAppReset(await f.input());
+
+    expect(plan.github.branches).not.toContain(defaultBranch);
+    expect(plan.github.branches).toContain("build/alpha-v1");
+  });
+
   it("archives before removing only the selected app's state and tracked GitHub work", async () => {
     const f = await fixture();
     const input = await f.input();

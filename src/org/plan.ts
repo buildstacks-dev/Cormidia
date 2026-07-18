@@ -9,6 +9,11 @@ import { execFile } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { loadApps, type AppEntry } from "./apps.js";
+import {
+  baseRevisionForBranch,
+  resolveRemoteDefaultBranch,
+  type BaseRevision,
+} from "../loop/default-branch.js";
 import { resolveAppWorkdir } from "./app-workdir.js";
 import { loadRoles } from "./roles.js";
 import { recordTurn, toRecord } from "../runtime/telemetry.js";
@@ -73,6 +78,10 @@ export interface PlanningWorktree {
   sourceRepo: string;
   path: string;
   branch: string;
+  /** The resolved base the worktree was actually cut from — the fetched
+   *  remote-tracking tip, so the caller can report what the session is
+   *  planning against rather than assuming. */
+  base: BaseRevision;
   /** Only set when createPlanningWorktree created the parent temp dir. */
   tempParent?: string;
 }
@@ -80,18 +89,48 @@ export interface PlanningWorktree {
 export interface CreatePlanningWorktreeOptions {
   slug: string;
   parentDir?: string;
+  /** Skip the network fetch and cut from whatever the local clone already has.
+   *  Only for callers with no reachable remote (offline tests). Production
+   *  planning never sets this: the whole point is to not plan against a stale
+   *  tree (#60). */
+  skipFetch?: boolean;
 }
 
-/** Create a planning branch/worktree from main. The caller decides whether
- * and when to clean it up; tests and dry-runs use cleanupPlanningWorktree.
- * Issue #60 tracks fetching and resolving the remote default-branch tip before
- * this cut so an interactive session cannot launch from stale product truth. */
+/** Create a planning branch/worktree from the *fetched* remote default-branch
+ * tip. The caller decides whether and when to clean it up; tests and dry-runs
+ * use cleanupPlanningWorktree.
+ *
+ * Two things used to go wrong here, and both produced a session that looked
+ * healthy while planning against the wrong tree (#60). The base branch was
+ * hardcoded `main`, so a `master` repo failed outright; and nothing fetched
+ * first, so even a `main` repo cut from whatever the managed clone last saw —
+ * a co-planning session could therefore reason about product truth that was
+ * days stale, with nothing in the transcript saying so.
+ *
+ * Both failure modes now stop the session instead of degrading it: an
+ * unreachable remote or an unresolvable default branch throws before any
+ * worktree exists, so there is never a stale worktree to launch into. */
 export async function createPlanningWorktree(
   sourceRepoIn: string,
   options: CreatePlanningWorktreeOptions,
 ): Promise<PlanningWorktree> {
   const sourceRepo = resolve(sourceRepoIn);
   const branch = `op/plan-${slugify(options.slug)}`;
+
+  // Resolve and fetch BEFORE creating anything: a failure here must leave no
+  // worktree behind for an operator to accidentally plan in.
+  const defaultBranch = resolveRemoteDefaultBranch("origin", {
+    cwd: sourceRepo,
+    errorPrefix: "plan",
+  });
+  if (options.skipFetch !== true) {
+    await git(sourceRepo, ["fetch", "--quiet", "origin", defaultBranch]);
+  }
+  const base = baseRevisionForBranch(defaultBranch);
+  // Prove the fetched tip actually exists before cutting from it, so the
+  // failure names the missing ref instead of surfacing as a worktree error.
+  await git(sourceRepo, ["rev-parse", "--verify", "--quiet", `${base.ref}^{commit}`]);
+
   let parentDir: string;
   let tempParent: string | undefined;
   if (options.parentDir) {
@@ -103,11 +142,12 @@ export async function createPlanningWorktree(
   }
 
   const path = join(parentDir, branch.replace(/\//g, "-"));
-  await git(sourceRepo, ["worktree", "add", "-b", branch, path, "main"]);
+  await git(sourceRepo, ["worktree", "add", "-b", branch, path, base.ref]);
   return {
     sourceRepo,
     path,
     branch,
+    base,
     ...(tempParent ? { tempParent } : {}),
   };
 }

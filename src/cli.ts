@@ -12,6 +12,7 @@ import { cmdApp } from "./cli/app.js";
 import { cmdApprovals } from "./cli/approvals.js";
 import { cmdAnalyze } from "./cli/analyze.js";
 import { cmdBootstrap } from "./cli/bootstrap.js";
+import { cmdBootstrapPublish } from "./cli/bootstrap-publish.js";
 import { cmdBudget } from "./cli/budget.js";
 import { cmdDispatch } from "./cli/dispatch.js";
 import { cmdDoctorArgs } from "./cli/doctor.js";
@@ -61,6 +62,10 @@ Usage:
                            questionnaire (interactive, or --answers
                            answers.json), and emit the .operon/ tree
                            (--scan-only: report only)
+  operon bootstrap publish <app> [--app-dir <path>] [--execute] [--json]
+                           open coordinated DRAFT pull requests for the
+                           bootstrap-owned app and org changes (preview by
+                           default; never merges)
   operon new-app <name-or-goal> --target-dir <path> --repo <owner/repo>
                            [--goal <string>] [--name <app>]
                            scaffold a new product repo, emit starter product
@@ -126,9 +131,9 @@ const HELP = {
   apps: `Usage: operon apps [apps.yaml-path]${HOME_HELP}`,
   app: `Usage:\n  operon app reset <app-name> [--dry-run] [--execute --confirm <app-name>] [--force] [--archive-root <path>] [--json]\n  operon app verify <app-name> [--json]\n  operon app promote <app-name> --to live [--dry-run|--execute] [--json]${HOME_HELP}\n\nReset defaults to a typed non-mutating plan. Execution preserves normalized non-secret answers and checksums before cleanup. --force bypasses only stale running envelopes (no heartbeat for 10 minutes); it never overrides active runs, journals, locks, or pending approvals. Verify is token-free and proves registry/config, remote/default ancestry, managed HEAD, authority, checks, approvals/locks, and static runtime readiness without constructing an adapter. Promote defaults to a non-mutating plan and resumes its journal safely after every transaction boundary.`,
   pipelines: `Usage: operon pipelines [pipelines.yaml-path]${HOME_HELP}`,
-  bootstrap: `Usage: operon bootstrap [local-repo-path] [--scan-only] [--answers <answers.json>|--answers-from <archive|app>] [--org-home <path>] [--state-home <path>] [--json]\n\nThe positional value is a local directory, never a GitHub URL. The active org must already exist. Outside an interactive terminal, --answers or --answers-from is required and omission writes nothing. --answers-from verifies archived/stored normalized non-secret answers, creates the onboarding commit only in an Operon-managed clone, and leaves the human checkout branch, HEAD, index, modifications, and untracked files unchanged. Answers may include authority.mode=inherit|conservative|custom; custom requires restrictions and can only narrow the org charter.`,
+  bootstrap: `Usage:\n  operon bootstrap [local-repo-path] [--scan-only] [--answers <answers.json>|--answers-from <archive|app>] [--org-home <path>] [--state-home <path>] [--json]\n  operon bootstrap publish <app> [--app-dir <local-path>] [--app-only] [--dry-run|--execute] [--org-home <path>] [--state-home <path>] [--json]\n\npublish stages ONLY bootstrap-owned paths in the app repo and the org home, commits them on op/bootstrap-<app> cut from each remote's resolved default branch, pushes, and opens DRAFT pull requests. It previews by default and requires --execute to mutate; it refuses when unrelated staged changes, a merge/rebase in progress, a detached HEAD, or unresolved conflicts make the publication scope ambiguous. It never merges, never marks a pull request ready, and retries are idempotent (existing branch and pull request are reused).\n\nThe positional value is a local directory, never a GitHub URL. The active org must already exist. Outside an interactive terminal, --answers or --answers-from is required and omission writes nothing. --answers-from verifies archived/stored normalized non-secret answers, creates the onboarding commit only in an Operon-managed clone, and leaves the human checkout branch, HEAD, index, modifications, and untracked files unchanged. Answers may include authority.mode=inherit|conservative|custom; custom requires restrictions and can only narrow the org charter.`,
   "new-app": `Usage: operon new-app <name-or-goal> --target-dir <local-path> --repo <owner/repo> [--goal <text>] [--name <app>] [--org-home <path>] [--dry-run]`,
-  plan: `Usage:\n  operon plan <app-name> [--topic <text>] [--workdir <local-path>] [--dry-run] [--parent-task <id>]\n  operon plan <app-name> --auto --goal <text> [--stage bootstrap|growth|mature] [--no-publish] [--parent-task <id>] [--depth quick|standard|deep] [--risk low|medium|high] [--ambiguity low|medium|high] [--coupling low|medium|high] [--reversibility reversible|costly-to-reverse|irreversible] [--external-consequence none|internal|customer-public-production] [--expected-tickets 1-2|3-6|7+] [--sensitive-domains <csv>]\n  operon plan <app-name> --explain-route [structured route flags]${HOME_HELP}\n\n--auto applies planning-depth/v1 before constructing a runtime: quick runs one combined pass, standard runs visionary + one PM + decomposer, and deep runs competing PMs + arbitration + decomposition. --explain-route is a token-free structured decision read. Security, migration, release, destructive, high-risk, high-ambiguity, high-coupling, irreversible, externally consequential, and 7+ ticket work has a deep floor. The final plan is schema-validated and orchestrator-published; no agent-authored gh calls.`,
+  plan: `Usage:\n  operon plan <app-name> [--topic <text>] [--workdir <local-path>] [--dry-run] [--parent-task <id>]\n  operon plan <app-name> --auto --goal <text> [--stage bootstrap|growth|mature] [--no-publish] [--parent-task <id>] [--depth quick|standard|deep] [--risk low|medium|high] [--ambiguity low|medium|high] [--coupling low|medium|high] [--reversibility reversible|costly-to-reverse|irreversible] [--external-consequence none|internal|customer-public-production] [--expected-tickets 1-2|3-6|7+] [--sensitive-domains <csv>]\n  operon plan <app-name> --explain-route [structured route flags]${HOME_HELP}\n\nInteractive planning fetches and resolves the app remote's default branch before cutting its worktree, so a co-planning session always starts from current product truth (#60). A workdir with no reachable origin now stops with an actionable error instead of silently planning against a stale local branch.\n\n--auto applies planning-depth/v1 before constructing a runtime: quick runs one combined pass, standard runs visionary + one PM + decomposer, and deep runs competing PMs + arbitration + decomposition. --explain-route is a token-free structured decision read. Security, migration, release, destructive, high-risk, high-ambiguity, high-coupling, irreversible, externally consequential, and 7+ ticket work has a deep floor. The final plan is schema-validated and orchestrator-published; no agent-authored gh calls.`,
   loop: `Usage:\n  operon loop --app <app-name> [--once|--follow] [--dry-run] [--allow-network] [--repo-dir <local-path>] [--parent-task <id>]\n  operon loop --explain-context <episode-id>\n  operon loop --resume-episode <episode-id>${HOME_HELP}`,
   doctor: `Usage: operon doctor [--json] [--config-only]${HOME_HELP}`,
   scheduler: `Usage:\n  operon scheduler install [--backend launchd|systemd] [--cadence-minutes N] [--json]\n  operon scheduler install [--backend launchd|systemd] --execute --confirm <exact-org-or-scheduler-id> [--json]\n  operon scheduler status [--backend launchd|systemd] [--json]\n  operon scheduler uninstall [--backend launchd|systemd] [--json]\n  operon scheduler uninstall [--backend launchd|systemd] --execute --confirm <exact-org-or-scheduler-id> [--json]${HOME_HELP}\n\nInstall and uninstall preview without writes. Definitions use absolute executable, org, and state paths and are scoped to the exact org. systemd rendering is future-compatible but host execution remains unsupported until exercised.`,
@@ -164,7 +169,14 @@ const COMMANDS: Record<string, CliCommand> = {
   app: { run: (args) => cmdApp(args), help: HELP.app },
   approvals: { run: (args) => cmdApprovals(args), help: HELP.approvals },
   analyze: { run: (args) => cmdAnalyze(args), help: HELP.analyze },
-  bootstrap: { run: (args) => cmdBootstrap(args), help: HELP.bootstrap },
+  // `publish` is a subcommand rather than a flag: it is a different operation
+  // with outward-facing effects, and `operon bootstrap --publish` would read
+  // as a modifier on a scan/emit run (#61).
+  bootstrap: {
+    run: (args) =>
+      args[0] === "publish" ? cmdBootstrapPublish(args.slice(1)) : cmdBootstrap(args),
+    help: HELP.bootstrap,
+  },
   budget: { run: (args) => cmdBudget(args), help: HELP.budget },
   capabilities: { run: (args) => cmdCapabilities(args), help: HELP.capabilities },
   context: { run: (args) => cmdContext(args), help: HELP.context },

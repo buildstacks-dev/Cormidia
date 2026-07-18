@@ -696,7 +696,10 @@ function parsePullRequest(raw: unknown): GhPullRequest {
     body: stringField(record, "body", "gh pr output", ""),
     state: stringField(record, "state", "gh pr output", "OPEN"),
     headRefName: stringField(record, "headRefName", "gh pr output"),
-    baseRefName: stringField(record, "baseRefName", "gh pr output", "main"),
+    // No default: `gh` always reports the base when asked for it, and guessing
+    // `main` for a repo whose base is `master` silently records the wrong
+    // merge target. A missing field is a malformed response, so say so (#101).
+    baseRefName: stringField(record, "baseRefName", "gh pr output"),
     ...(typeof record["url"] === "string" ? { url: record["url"] } : {}),
     ...(typeof record["headRefOid"] === "string" ? { headRefOid: record["headRefOid"] } : {}),
     ...(typeof record["isDraft"] === "boolean" ? { isDraft: record["isDraft"] } : {}),

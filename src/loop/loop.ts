@@ -14,6 +14,7 @@ import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
+import type { BaseRevision } from "./default-branch.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
 import { contractMarker, hashTicketBody, renderFixResolutionsComment } from "./rehydrate.js";
 import { isMergeConflict } from "./github.js";
@@ -70,7 +71,11 @@ export interface ClaimTicketOptions {
   targetRepo: string;
   localRepo: string;
   worktreeRoot: string;
-  baseBranch?: string;
+  /** Resolved base the ticket branch is cut from. Required, and deliberately
+   *  never defaulted: cutting from a guessed `main` in a repo whose default is
+   *  `master` fails inside git with an unreadable error *after* the ticket has
+   *  already been relabelled `op:building`, stranding it (#101). */
+  base: BaseRevision;
 }
 
 export interface GatePhaseOptions {
@@ -81,7 +86,10 @@ export interface GatePhaseOptions {
   criterionTests: CriterionTestMap;
   findings?: readonly CompletenessFinding[];
   process?: ProcessGateOpts;
-  baseRef?: string;
+  /** Resolved base every gate diff compares against, and the branch a pull
+   *  request is opened into. Required so a missed call site is a compile
+   *  error rather than a silent diff against the wrong tree (#101). */
+  base: BaseRevision;
   headRef?: string;
   reviewState?: ReviewFreshnessState;
   /** Test/M5 harness hook: performs the bounded fix pass before gates retry. */
@@ -165,7 +173,9 @@ export interface LoopPipelineOptions {
    *  `context`. The org layer supplies the resolver-backed implementation;
    *  loop code never reads learning state (one-way imports). */
   contextFor?: (item: LoopItem, pipeline: string, role: string) => Promise<ContextBundle | undefined>;
-  baseRef?: string;
+  /** Resolved base for pass selection, repo briefs, and route reassessment
+   *  diffs. Required for the same reason as on GatePhaseOptions (#101). */
+  base: BaseRevision;
   headRef?: string;
   clock?: () => Date;
   briefBudgetTokens?: number;
@@ -223,7 +233,7 @@ export async function claimTicket(
     options.localRepo,
     options.worktreeRoot,
     branch,
-    options.baseBranch ?? "main",
+    options.base.ref,
   );
 
   return {
@@ -258,7 +268,7 @@ export async function advanceGates(
         head: headSha(worktree),
       });
       await journalBoundary(options.journal, "gates", result);
-      const pr = await ensurePr(current, options.gh, options.prDraft === true);
+      const pr = await ensurePr(current, options.gh, options.prDraft === true, options.base);
       await journalBoundary(options.journal, "pr", {
         number: pr.number,
         head: headSha(worktree),
@@ -645,7 +655,7 @@ export async function runBuilderPipeline(
         journalStopKind(last?.errorCode, last?.status),
         last?.summary ?? `${pipelineName} pipeline aborted`,
       );
-      const work = durableWorkSummary(worktree, item.branch);
+      const work = durableWorkSummary(worktree, item.branch, options.base);
       const stopped =
         `## Turn stopped before completion\n\n` +
         `The ${pipelineName} pipeline stopped: ${last?.summary ?? "no pass result"}` +
@@ -1142,7 +1152,7 @@ const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
 
 function passSelectionForItem(item: LoopItem, options: LoopPipelineOptions): PassSelection {
   const worktree = requireField(item, "worktree");
-  const baseRef = options.baseRef ?? "origin/main";
+  const baseRef = options.base.ref;
   const headRef = options.headRef ?? "HEAD";
   const changedFiles = gitLines(worktree, "diff", "--name-only", baseRef, headRef);
   return {
@@ -1292,7 +1302,7 @@ function repoBrief(item: LoopItem, options: LoopPipelineOptions): string {
     worktree,
     "diff",
     "--name-only",
-    options.baseRef ?? "origin/main",
+    options.base.ref,
     options.headRef ?? "HEAD",
   );
   const selection = passSelectionForItem(item, options);
@@ -1479,7 +1489,7 @@ function traceIdFor(item: LoopItem, pipeline: string, clock: (() => Date) | unde
 
 async function runGateSet(item: LoopItem, options: GatePhaseOptions): Promise<GateRunResult> {
   const worktree = requireField(item, "worktree");
-  const baseRef = options.baseRef ?? "origin/main";
+  const baseRef = options.base.ref;
   const headRef = options.headRef ?? "HEAD";
   const changedFiles = gitLines(worktree, "diff", "--name-only", baseRef, headRef);
   const riskTier: RiskTier = resolveTier(options.policy, changedFiles);
@@ -1503,13 +1513,21 @@ async function runGateSet(item: LoopItem, options: GatePhaseOptions): Promise<Ga
   );
 }
 
-async function ensurePr(item: LoopItem, gh: GhOps, draft: boolean): Promise<GhPullRequest> {
+/** Open (or recover) the ticket's pull request. The base is the *resolved*
+ *  default branch: opening against a hardcoded `main` in a `master` repo is
+ *  rejected by GitHub after the branch has already been pushed (#101). */
+async function ensurePr(
+  item: LoopItem,
+  gh: GhOps,
+  draft: boolean,
+  base: BaseRevision,
+): Promise<GhPullRequest> {
   const branch = requireField(item, "branch");
   const existing = await gh.listPRsForBranch(branch, { state: "all" });
   if (existing.length > 0) return existing[0]!;
   return gh.createPR({
     head: branch,
-    base: "main",
+    base: base.defaultBranch,
     title: prTitle(item),
     body: prBody(item),
     draft,
@@ -1837,11 +1855,19 @@ function phaseFromLabels(labels: readonly string[]): LoopPhase {
 }
 
 /** What survives a stopped turn: commits on the ticket branch and whether
- *  they reached the remote. Read-only; a broken worktree degrades to a note. */
-function durableWorkSummary(worktree: string, branch: string | undefined): string {
+ *  they reached the remote. Counted against the resolved base — against a
+ *  hardcoded `origin/main` this threw in a `master` repo and reported every
+ *  interrupted turn as "(worktree state unreadable)", hiding real pushed work
+ *  behind a swallowed error (#101). Read-only; a broken worktree still
+ *  degrades to a note. */
+function durableWorkSummary(
+  worktree: string,
+  branch: string | undefined,
+  base: BaseRevision,
+): string {
   try {
-    const ahead = git(worktree, "rev-list", "--count", "origin/main..HEAD");
-    if (ahead.trim() === "0") return "no commits beyond origin/main";
+    const ahead = git(worktree, "rev-list", "--count", `${base.ref}..HEAD`);
+    if (ahead.trim() === "0") return `no commits beyond ${base.ref}`;
     let pushed = "unpushed";
     try {
       const unpushed = git(worktree, "rev-list", "--count", "@{u}..HEAD");

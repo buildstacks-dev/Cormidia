@@ -36,6 +36,11 @@ import {
   writeTicketClaimState,
   type RehydratedState,
 } from "./rehydrate.js";
+import {
+  baseRevisionForBranch,
+  resolveRemoteDefaultBranch,
+  type BaseRevision,
+} from "./default-branch.js";
 import { runEnvPreflight } from "./preflight.js";
 import type { LoopRunlog } from "./loop-runlog.js";
 import type { PipelinesFile } from "./pipelines.js";
@@ -102,10 +107,12 @@ export interface LoopDriverOptions {
    *  not declare, and a merged deploy/package milestone returns a
    *  releaseTrigger for the org layer to queue as a critical op. */
   release?: ReleaseConfig;
-  /** Base rev ticket branches start from instead of an assumed `main`: the
-   * immutable commit captured from a supplied checkout, or the managed
-   * clone's resolved default branch (L-010). */
-  baseRef?: string;
+  /** The resolved base every phase of this tick works against, instead of an
+   *  assumed `main`: the immutable commit captured from a supplied checkout,
+   *  or the managed clone's resolved default branch (L-010, #101). Required —
+   *  `defaultLoopInputs` produces it, and the driver forwards it into claim,
+   *  build, gates, review, ship, and route reassessment. */
+  base: BaseRevision;
 }
 
 export interface LoopEngineOptions {
@@ -321,7 +328,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       targetRepo: options.repo,
       localRepo: options.localRepo,
       worktreeRoot: options.worktreeRoot,
-      ...(options.baseRef !== undefined ? { baseBranch: options.baseRef } : {}),
+      base: options.base,
     });
     if (options.turnId !== undefined) item = { ...item, turnId: options.turnId };
     if (rehydrated !== undefined) {
@@ -416,6 +423,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
           gh: options.gh,
           policy: options.policy,
           commands: gateCommandsForWorktree(options.commands, item.worktree),
+          base: options.base,
           criteria,
           criterionTests,
           ...(options.engine !== undefined
@@ -442,6 +450,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
           gh: options.gh,
           policy: options.policy,
           commands: gateCommandsForWorktree(options.commands, item.worktree),
+          base: options.base,
           criteria,
           criterionTests,
           ...(options.engine !== undefined
@@ -499,6 +508,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
           localRepo: options.localRepo,
           policy: options.policy,
           commands: gateCommandsForWorktree(options.commands, item.worktree),
+          base: options.base,
           criteria,
           criterionTests,
           ...(options.engine !== undefined ? { journal: journalTarget(options, item) } : {}),
@@ -522,6 +532,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         localRepo: options.localRepo,
         policy: options.policy,
         commands: gateCommandsForWorktree(options.commands, item.worktree),
+        base: options.base,
         criteria,
         criterionTests,
         ...(options.release !== undefined ? { release: options.release } : {}),
@@ -582,28 +593,38 @@ export async function defaultLoopInputs(
 ): Promise<{
   gh: GhOps;
   localRepo: string;
-  baseRef?: string;
+  base: BaseRevision;
   policy: Policy;
   commands: GateCommands;
 }> {
   let localRepo = repoDir;
-  let baseRef: string | undefined;
+  let base: BaseRevision;
   if (options.supplied === true) {
     if (options.snapshotDir === undefined) {
       throw new Error("loop: supplied repo input requires an Operon-owned snapshot directory");
     }
     const prepared = snapshotSuppliedCheckout(repoDir, options.snapshotDir);
     localRepo = prepared.path;
-    baseRef = prepared.head;
+    // A supplied checkout is pinned at an immutable commit, so that SHA is
+    // what ticket branches cut from and gates diff against. It has no branch
+    // identity of its own, but a pull request still needs a merge target, so
+    // the default branch is resolved from the *supplied checkout's own*
+    // origin. Deliberately not from a synthesized github.com URL: that would
+    // put a network call on a path that has none, and the operator's checkout
+    // already points at the app repo. Either way the answer comes from git.
+    base = {
+      ref: prepared.head,
+      defaultBranch: suppliedCheckoutDefaultBranch(repoDir),
+    };
   } else {
     // The managed clone's resolved default branch (not an assumed `main`)
     // becomes the base every ticket branch and gate diff starts from.
-    baseRef = ensureClone(repoSlug, repoDir);
+    base = ensureClone(repoSlug, repoDir);
   }
   return {
     gh: new GhCliOps(repoSlug, undefined, process.env["OPERON_SELF_APPROVAL_SECRET"]),
     localRepo,
-    ...(baseRef !== undefined ? { baseRef } : {}),
+    base,
     policy: await loadRequiredPolicy(join(localRepo, ".operon", "policy.yaml")),
     commands: loadGateCommands(localRepo),
   };
@@ -674,6 +695,7 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string, item?
     app: options.app,
     policy: options.policy,
     commands: gateCommandsForWorktree(options.commands, worktree),
+    base: options.base,
     hooks: engine.hooks,
     ...(engine.gateForRole !== undefined ? { gateForRole: engine.gateForRole } : {}),
     ...(engine.context !== undefined ? { context: engine.context } : {}),
@@ -839,7 +861,7 @@ async function reassessForObservedWorktreeRisk(
 ): Promise<LoopItem> {
   const engine = options.engine;
   if (engine === undefined || item.worktree === undefined) return item;
-  const baseRef = options.baseRef ?? "origin/main";
+  const baseRef = options.base.ref;
   const changedFiles = git(item.worktree, "diff", "--name-only", baseRef, "HEAD")
     .split("\n")
     .map((value) => value.trim())
@@ -1036,49 +1058,70 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
-/** Prepare the Operon-managed clone and report the branch ticket work starts
+export function githubRemoteUrl(repoSlug: string): string {
+  return `https://github.com/${repoSlug}.git`;
+}
+
+/** The merge target for work built on an operator-supplied checkout.
+ *
+ *  Normally the default branch the checkout's own `origin` advertises. The
+ *  ONLY accepted substitute is for a checkout with no `origin` configured at
+ *  all — which `snapshotSuppliedCheckout` explicitly supports — where the
+ *  branch that checkout is on is the best available answer and there is no
+ *  remote to disagree with it.
+ *
+ *  The "no origin configured" test is deliberately separate from "resolution
+ *  failed". Falling back on ANY `ls-remote` error would mean a DNS blip or an
+ *  expired credential silently retargets pull requests at whatever branch the
+ *  operator happens to have checked out — a wrong merge target that looks
+ *  like success. A reachable-but-unresolvable remote is a loud failure, per
+ *  the doctrine in src/loop/default-branch.ts. */
+function suppliedCheckoutDefaultBranch(sourceDir: string): string {
+  let hasOrigin: boolean;
+  try {
+    git(sourceDir, "remote", "get-url", "origin");
+    hasOrigin = true;
+  } catch {
+    hasOrigin = false;
+  }
+
+  if (hasOrigin) {
+    // A configured remote is authoritative. If it cannot be resolved, that is
+    // an error to surface, never a reason to guess.
+    return resolveRemoteDefaultBranch("origin", { cwd: sourceDir, errorPrefix: "loop" });
+  }
+
+  try {
+    return git(sourceDir, "symbolic-ref", "--short", "HEAD");
+  } catch (error) {
+    // Detached HEAD with no remote: there is genuinely no branch to name, and
+    // inventing one is the defect this workstream removed.
+    throw new Error(
+      `loop: --repo-dir checkout ${sourceDir} has no origin remote and is not on a branch, ` +
+        `so there is no merge target to resolve — ` +
+        `${error instanceof Error ? error.message.trim() : String(error)}`,
+    );
+  }
+}
+
+/** Prepare the Operon-managed clone and report the base ticket work starts
  * from. The remote's advertised default branch is resolved instead of being
  * assumed to be `main`: a stock `git init` repo (no init.defaultBranch) is
  * `master`, and the first tick used to die inside `git fetch origin main`
- * with a raw git error (review L-010). */
-function ensureClone(repoSlug: string, repoDir: string): string {
+ * with a raw git error (review L-010, #101). */
+function ensureClone(repoSlug: string, repoDir: string): BaseRevision {
   if (existsSync(join(repoDir, ".git"))) {
-    const branch = remoteDefaultBranch(repoDir);
+    const branch = resolveRemoteDefaultBranch("origin", { cwd: repoDir, errorPrefix: "loop" });
     git(repoDir, "fetch", "origin", branch);
     git(repoDir, "checkout", branch);
     git(repoDir, "reset", "--hard", `origin/${branch}`);
-    return branch;
+    return baseRevisionForBranch(branch);
   }
   mkdirSync(dirname(repoDir), { recursive: true });
-  git(dirname(repoDir), "clone", `https://github.com/${repoSlug}.git`, repoDir);
+  git(dirname(repoDir), "clone", githubRemoteUrl(repoSlug), repoDir);
   // A fresh clone already sits on the remote's default branch — git resolved
   // the remote HEAD itself; read the answer instead of assuming one.
-  return git(repoDir, "symbolic-ref", "--short", "HEAD");
-}
-
-/** The default branch origin advertises (`git ls-remote --symref origin
- * HEAD`) — the same resolution bootstrap uses in src/org/app-lifecycle.ts.
- * "Could not ask" and "the remote advertises nothing" (an empty repository)
- * are both loud, actionable errors: guessing `main` here is how a
- * master-default repo crashed the first tick with a raw git stack trace. */
-function remoteDefaultBranch(repoDir: string): string {
-  let output: string;
-  try {
-    output = git(repoDir, "ls-remote", "--symref", "origin", "HEAD");
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `loop: cannot resolve the default branch of origin for ${repoDir} — ${detail.trim()}`,
-    );
-  }
-  const match = /^ref:\s+refs\/heads\/(\S+)\s+HEAD$/m.exec(output);
-  if (!match?.[1]) {
-    throw new Error(
-      `loop: origin of ${repoDir} advertises no default branch (empty repository?) — ` +
-        "push an initial commit or set the remote HEAD before running the loop",
-    );
-  }
-  return match[1];
+  return baseRevisionForBranch(git(repoDir, "symbolic-ref", "--short", "HEAD"));
 }
 
 function snapshotSuppliedCheckout(sourceDir: string, snapshotDir: string): { path: string; head: string } {

@@ -89,7 +89,7 @@ it("J-REL-01 near-miss keeps live/provider work out of ordinary pull-request CI"
   expect(raw).not.toContain("OPERON_EVAL_LIVE=1");
   expect(raw).not.toContain("OPERON_EVAL_GITHUB=1");
   // No provider-spending, externally mutating or operated-org command may enter CI.
-  for (const forbidden of ["eval:soak", "eval:github", "e2e:sandbox", "OPERON_EVAL_SOAK", "OPERON_EVAL_LEARNING_ACTIVATION", "eval:prepare", "eval:promote", "operon dispatch", "operon loop"]) {
+  for (const forbidden of ["eval:soak", "eval:github", "e2e:sandbox", "OPERON_EVAL_SOAK", "OPERON_EVAL_LEARNING_ACTIVATION", "eval:learning-activation", "eval:prepare", "eval:promote", "operon dispatch", "operon loop", "operon plan"]) {
     expect(raw, forbidden).not.toContain(forbidden);
   }
 });

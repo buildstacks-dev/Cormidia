@@ -134,6 +134,7 @@ efficacy health independently. The mechanics construct no provider runtime.
 | `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 decisions ratified into docs/PURPOSE.md) |
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
 | `docs/scheduler.md` | Authoritative autonomous scheduler contract: lifecycle CLI, backend boundary, definition/evidence schemas, exact identities, reason codes, health semantics, and L6 boundary |
+| `docs/testing.md` | What runs when: the local loop, the CI lane table, a command reference, and why the content-hash integrity machinery exists — reference companion to Testing expectations below |
 | `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
 | `docs/event-schemas.md` | File-drop company-lifecycle event payload contract for Support / Marketing / SRE inputs |
 | `docs/capability-matrix.md` | Adapter capability matrix: native / adapter-built / degraded surfaces for Claude, Codex, and pi |
@@ -337,6 +338,10 @@ efficacy health independently. The mechanics construct no provider runtime.
 - Single package, deliberately **not** a pnpm workspace (docs/PURPOSE.md → Repo shape).
 
 ## Testing expectations
+This section is the **rules** — what you must run for a given change.
+[`docs/testing.md`](docs/testing.md) is the **map**: the local loop, the full CI
+lane table with timings, a per-command reference, and why the content-hash
+integrity machinery exists. On conflict this section wins; fix the other file.
 - **CI runs change-aware lanes** (`.github/workflows/efficiency-qualification.yml`).
   `classify` resolves the changed paths through `scripts/ci/classify-changes.mjs`
   and admits: `core` (offline suite **exactly once** + typecheck + the atomic

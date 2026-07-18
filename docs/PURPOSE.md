@@ -604,10 +604,25 @@ config file, not a fork.
   for the loop (`docs/efficiency.md` → Threshold semantics). This is the same
   class of mis-scoping as the integrity/currency separation above: an accurate
   check (does the treatment strictly improve artifacts *on this draw*) was
-  embedded where it structurally blocked a legitimate release. *Rationale:*
-  qualification certifies product behavior, safety, accounting, settlement, and
-  distribution SLOs; it should not turn on a three-sample experiment's luck
-  against a strong baseline. No product, safety, accounting, settlement, grader,
+  embedded where it structurally blocked a legitimate release. *Rationale
+  (first-principles):* learning is instrumental and outcome-accountable
+  (Non-negotiable #11) — it succeeds only by improving a *later comparable
+  episode that had headroom*. A qualification that forces an improvement out of
+  every episode — including ones where the untreated baseline already scores at
+  the ceiling — does not measure learning; it manufactures deltas, and every
+  manufactured delta competes for the same finite attention and risk budget the
+  org should reserve for the few lessons that actually move the needle. **The org
+  does not need to learn from everything; trying to dilutes the high-leverage
+  learnings.** So qualification certifies that the learning *loop* is healthy —
+  it captures every eligible episode, forms grounded/guardrailed candidates,
+  passes independent review, and never regresses — as an SLO alongside product
+  behavior, safety, accounting, settlement, and the distribution SLOs, and
+  reserves the strict `improved` verdict for **activation**, where the org
+  actually spends attention promoting a lesson only when a real, measured
+  improvement exists. Declining to activate where a control is already at the
+  ceiling is correct behavior, not a failure. Candidate qualification therefore
+  does not turn on a three-sample experiment's luck against a strong baseline. No
+  product, safety, accounting, settlement, grader,
   threshold, or activation contract is weakened — regressions still fail
   qualification, activation still requires strict improvement, and the executable
   suite is `validateLearningPairEvidence(…, "qualification"|"activation")` with

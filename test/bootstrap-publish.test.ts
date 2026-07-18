@@ -63,6 +63,12 @@ function makeRepo(prefix: string, defaultBranch = "main"): string {
   });
   const work = join(host, "work");
   execFileSync("git", ["clone", bare, work], { env: GIT_ENV });
+  // Repo-local identity, because `bootstrap publish` commits as the OPERATOR:
+  // its git calls inherit the ambient environment rather than forcing an
+  // Operon author. A real checkout has this configured; a CI runner does not,
+  // so the fixture must supply it the same way a real one would.
+  execFileSync("git", ["config", "user.email", "fixture@operon.invalid"], { cwd: work });
+  execFileSync("git", ["config", "user.name", "Operon Fixture"], { cwd: work });
   write(work, "README.md", "# app\n");
   git(work, ["add", "-A"]);
   git(work, ["commit", "-m", "initial"]);

@@ -8,6 +8,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cmdStatus } from "../src/cli/status.js";
+import { githubIssueCreateAction } from "../src/org/approval-delivery.js";
+import { ApprovalStore } from "../src/org/approvals.js";
 import { formatStatusRows, readStatusRows } from "../src/runtime/runlog/status.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
@@ -150,5 +152,31 @@ describe("runlog status", () => {
       log.mockRestore();
       home.cleanup();
     }
+  });
+
+  it("CLI surfaces durable approval execution attempts and next action", async () => {
+    const home = makeOrgHome({ approvals: true, runs: true });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const now = new Date("2026-07-18T12:00:00Z");
+      const store = new ApprovalStore(home.root, { idSource: () => "status-delivery-1" });
+      const pending = await store.raise({
+        app: "alpha",
+        role: "sre",
+        rule: "external-publishing",
+        action: githubIssueCreateAction({ repo: "o/a", title: "Incident", body: "source", labels: ["op:incident"], idempotency_key: "incident:status:test" }),
+        now,
+      });
+      await store.decide(pending.id, { decision: "approved", now });
+      await store.beginExecution(pending.id, "orchestrator/dispatch", now);
+      await store.finishExecution({ id: pending.id, state: "ambiguous", actor: "orchestrator/dispatch", result: "response unknown", failureCause: "ambiguous_remote_response", now });
+      expect(await cmdStatus(["--home", home.root, "--app", "alpha"])).toBe(0);
+      const text = log.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(text).toContain("APPROVAL DELIVERY");
+      expect(text).toContain("status-delivery-1 alpha ambiguous attempt=1");
+      expect(text).toContain("actor=orchestrator/dispatch");
+      expect(text).toContain("result=response unknown cause=ambiguous_remote_response next=reconcile");
+      expect(text).toContain("at=2026-07-18T12:00:00.000Z");
+    } finally { log.mockRestore(); home.cleanup(); }
   });
 });

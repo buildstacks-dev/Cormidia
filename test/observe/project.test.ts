@@ -44,6 +44,47 @@ describe("observe projection", () => {
     expect(snapshot.approvals[0]).toMatchObject({ approval_id: "approval-1", status: "pending", ticket_ref: "#3" });
   });
 
+  it("projects approval delivery acknowledgement and ambiguous next-action evidence", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live")];
+    input.approvals = [{ item: {
+      id: "approval-delivery-1",
+      app: "alpha",
+      role: "sre",
+      rule: "external-publishing",
+      action: { tool: "operon.github.issue.create", input: {} },
+      raisedAt: "2026-07-12T10:00:00Z",
+      status: "approved",
+      decision: "approved",
+      decidedAt: "2026-07-12T10:01:00Z",
+      execution: {
+        state: "ambiguous",
+        executor: "durable-github",
+        idempotencyKey: "incident:fixture:event",
+        attempts: 1,
+        actor: "orchestrator/dispatch-reconcile",
+        attemptedAt: "2026-07-12T10:02:00Z",
+        finishedAt: "2026-07-12T10:03:00Z",
+        result: "prior executor stopped before acknowledgement",
+        failureCause: "ambiguous_remote_response",
+        nextAction: "reconcile",
+      },
+    } }];
+    const snapshot = projectObserveSnapshot(input);
+    expect(snapshot.approvals[0]).toMatchObject({
+      execution_state: "ambiguous",
+      execution_attempts: 1,
+      execution_actor: "orchestrator/dispatch-reconcile",
+      execution_result: "prior executor stopped before acknowledgement",
+      execution_failure_cause: "ambiguous_remote_response",
+      execution_next_action: "reconcile",
+    });
+    expect(snapshot.attention).toContainEqual(expect.objectContaining({
+      kind: "approval_delivery",
+      detail: expect.stringContaining("actor orchestrator/dispatch-reconcile"),
+    }));
+  });
+
   it("uses (app, runId) identity and explicit parent/trace evidence only", () => {
     const input = baseInput();
     input.apps = [app("alpha", "live"), app("beta", "live")];

@@ -6,7 +6,7 @@
 // wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
-import { classify, defaultGate } from "../src/runtime/gate.js";
+import { classify, classifyWithEvidence, defaultGate } from "../src/runtime/gate.js";
 import type { ToolAction } from "../src/runtime/types.js";
 
 const bash = (command: string): ToolAction => ({ tool: "bash", input: { command } });
@@ -15,8 +15,38 @@ const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
   { action: bash("doctl apps create-deployment 1a2b"), rule: "production-deploy" },
   { action: bash("kubectl apply -f prod.yaml"), rule: "production-deploy" },
   { action: bash("rm -rf /workspace/data"), rule: "destructive-or-irreversible" },
+  { action: bash("rm -rf ${HOME}/data"), rule: "destructive-or-irreversible" },
+  { action: bash("git push --force origin main"), rule: "destructive-or-irreversible" },
   { action: bash("git push --force-push origin main"), rule: "destructive-or-irreversible" },
   { action: bash("npm publish --access public"), rule: "external-publishing" },
+  { action: bash("gh auth login --with-token < token.txt"), rule: "secrets-or-auth" },
+  { action: bash("docker login registry.example.com"), rule: "secrets-or-auth" },
+  { action: bash("printenv | grep -Ei 'API_KEY|TOKEN|CREDENTIAL|SECRET|AUTH'"), rule: "secrets-or-auth" },
+  { action: bash("/usr/bin/env KUBECONFIG=prod.yaml command kubectl apply -f prod.yaml"), rule: "production-deploy" },
+  { action: bash("alias k='kubectl apply'; k -f prod.yaml"), rule: "production-deploy" },
+  { action: bash("K='kubectl apply'; $K -f prod.yaml"), rule: "production-deploy" },
+  { action: bash("echo a3ViZWN0bCBhcHBseSAtZiBwcm9kLnlhbWw= | base64 -d"), rule: "production-deploy" },
+  {
+    action: {
+      tool: "operon.github.issue.create",
+      input: {
+        destination: "github",
+        effect: "create_issue",
+        repo: "owner/repo",
+        title: "Incident",
+        body: "No auth or secret concern; deployment was not attempted.",
+      },
+    },
+    rule: "external-publishing",
+  },
+  {
+    action: bash("gh issue create --title Incident --body 'No auth or secret concern; deployment was not attempted.'"),
+    rule: "external-publishing",
+  },
+  {
+    action: bash("gh issue create --title Incident --body-file - <<'BODY'\nNo auth or secret concern.\nDo not run kubectl apply.\nBODY"),
+    rule: "external-publishing",
+  },
   { action: bash("cat .env"), rule: "secrets-or-auth" },
   {
     action: { tool: "edit", input: { path: "TASTE.md", old: "a", new: "b" } },
@@ -235,6 +265,16 @@ const ROUTINE_CASES: ToolAction[] = [
   bash("git commit -m 'fix: rule out any secret or auth concern in the parser'"),
   bash("git commit -m 'docs: explain how we edit roles.yaml and taste.md'"),
   bash("git commit --amend -m 'chore: rotate key handling notes'"),
+  // #102: search patterns, negated prose, comments, and heredoc payloads are
+  // data. Only effect-bearing verbs/targets may select an approval rule.
+  bash("rg 'deploy|secret|auth' src test"),
+  bash("grep -R 'kubectl apply' docs"),
+  bash("git log --grep='deployment secret auth'"),
+  bash("echo 'no deployment, secret, or auth action was taken'"),
+  bash("pnpm test # do not deploy; no auth or secret action"),
+  bash("sed -n '1,80p' README.md <<'BODY'\nkubectl apply -f prod.yaml\ncat .env\nBODY"),
+  bash("alias check='rg deploy'; check docs"),
+  bash("TERM=deploy; rg \"$TERM\" docs"),
   // Stage 6 calibration: a repo-local .npmrc named in reads/formatting is
   // routine — the episode burned 24 escalations and a $30 pass on a repo
   // .npmrc containing only `engine-strict=true`.
@@ -350,5 +390,25 @@ describe("critical-ops gate (default policy)", () => {
     // And a tool whose NAME merely contains the words does not qualify.
     const lookalike = classify({ tool: "structuredoutput-exec", input: "deploy" });
     expect(lookalike.cls).toBe("critical");
+  });
+
+  it("persists a structured rule, reason, and matched action without free-text bodies", () => {
+    const action = bash("gh issue create --title Incident --body 'No auth, secret, or deploy action happened' --repo owner/repo");
+    const result = classifyWithEvidence(action);
+    expect(result).toMatchObject({
+      cls: "critical",
+      rule: "external-publishing",
+      evidence: {
+        schemaVersion: 1,
+        rule: "external-publishing",
+        matchedAction: {
+          executables: expect.arrayContaining(["gh", "gh issue create"]),
+          targets: ["owner/repo"],
+        },
+      },
+    });
+    if (result.cls === "critical") {
+      expect(JSON.stringify(result.evidence.matchedAction)).not.toContain("No auth");
+    }
   });
 });

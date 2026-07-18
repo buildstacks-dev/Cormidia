@@ -66,6 +66,10 @@ describe("queueReleaseApprovals", () => {
         tool: "bash",
         input: { command: "gh workflow run deploy.yml" },
       });
+      expect(pending[0]?.classification).toMatchObject({
+        rule: "production-deploy",
+        matchedAction: { executables: expect.arrayContaining(["gh", "gh workflow run"]) },
+      });
     } finally {
       home.cleanup();
     }
@@ -125,8 +129,16 @@ describe("queueReleaseApprovals", () => {
       expect(second).toEqual([]);
       expect(calls).toBe(1);
       expect(gh.issueComments.get(7)?.[0]).toContain("Status: **completed**");
-      const grant = (await new ApprovalStore(home.root).show(queued!.approvalId)).grant;
+      const shown = await new ApprovalStore(home.root).show(queued!.approvalId);
+      const grant = shown.grant;
       expect(grant?.uses).toBe(0);
+      expect(shown.item.execution).toMatchObject({
+        state: "executed",
+        executor: "release",
+        attempts: 1,
+        actor: "orchestrator/release",
+        nextAction: "none",
+      });
       expect(readFileSync(join(home.root, "invocations", new Date().toISOString().slice(0, 10) + ".jsonl"), "utf8"))
         .toContain('"kind":"release"');
     } finally {
@@ -169,8 +181,51 @@ describe("queueReleaseApprovals", () => {
       expect(runtime.calls).toHaveLength(1);
       expect(runtime.calls[0]?.req.task).toContain("Approved production release");
       expect(runtime.calls[0]?.gateCalls[0]?.decision.allow).toBe(true);
-      expect((await new ApprovalStore(home.root).show(queued!.approvalId)).grant?.uses).toBe(0);
+      const shown = await new ApprovalStore(home.root).show(queued!.approvalId);
+      expect(shown.grant?.uses).toBe(0);
+      expect(shown.item.execution).toMatchObject({ state: "executed", executor: "release", attempts: 1 });
       expect(gh.issueComments.get(7)?.[0]).toContain("Owner: `sre`");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("marks a claimed release with no execution record ambiguous and never retries it", async () => {
+    const home = makeOrgHome({ approvals: true });
+    const appsFile = fixtureApps("orchestrator");
+    mkdirSync(join(home.root, "repos", "site"), { recursive: true });
+    let calls = 0;
+    try {
+      const [queued] = await queueReleaseApprovals(home.root, "site", [
+        mergedItem({ releaseTrigger: { kind: "deploy", command: "./deploy.sh", owner: "orchestrator" } }),
+      ]);
+      const store = new ApprovalStore(home.root);
+      await store.decide(queued!.approvalId, { decision: "approved" });
+      await store.beginExecution(queued!.approvalId, "orchestrator/release", new Date("2026-07-18T00:00:00.000Z"));
+
+      const execute = () => executeApprovedReleases({
+        stateHome: home.root,
+        orgHome: home.root,
+        appsFile,
+        now: () => new Date("2026-07-18T00:01:00.000Z"),
+        commandRunner: async () => {
+          calls += 1;
+          return { exitCode: 0, stdout: "should not run", stderr: "" };
+        },
+      });
+      const first = await execute();
+      const second = await execute();
+
+      expect(first).toMatchObject([{ status: "skipped", approvalId: queued!.approvalId }]);
+      expect(first[0]?.summary).toContain("claim without an execution record");
+      expect(second).toMatchObject([{ status: "skipped", approvalId: queued!.approvalId }]);
+      expect(calls).toBe(0);
+      expect((await store.show(queued!.approvalId)).item.execution).toMatchObject({
+        state: "ambiguous",
+        attempts: 1,
+        failureCause: "ambiguous_release_result",
+        nextAction: "reconcile",
+      });
     } finally {
       home.cleanup();
     }

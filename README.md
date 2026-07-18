@@ -140,6 +140,7 @@ operon status
 operon budget
 operon analyze
 operon approvals
+operon approvals status
 operon report --period 90d
 operon report --app <app> --period 30d --html app-report.html
 operon observe --app <app> --open
@@ -445,6 +446,8 @@ invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch
 scheduler/installation.json # owned definition/install record
 scheduler/evidence/       # exact-once invocation, decision, and local-alert JSON
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
+approvals/                # content-bound decisions, grants, execution state,
+                          # attempt/result acknowledgement, transition audit
 learning/events/<date>/   # learning-loop capture: gate outcomes, pass verdicts,
                           # human observations, episode lifecycle, late outcomes
 learning/episodes/        # EpisodeRecord projection over runs + ledger +

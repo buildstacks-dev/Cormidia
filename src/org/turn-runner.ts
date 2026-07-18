@@ -146,6 +146,7 @@ export async function runDispatchedTurn(
         app: options.app.name,
         role: options.role.name,
         turnId: options.turnId,
+        ...(journal.event !== undefined ? { ticketRef: `event:${journal.event.key}` } : {}),
         orgHome: orgRoot,
         now: clock,
       }),
@@ -393,18 +394,36 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     },
   });
 
+  let standingRolePersistence: Awaited<ReturnType<typeof persistStandingRoleOutcome>> = undefined;
   if (options.journal.event !== undefined) {
-    await persistStandingRoleOutcome({
+    standingRolePersistence = await persistStandingRoleOutcome({
       stateHome: options.runtimeHome,
       app: options.app.name,
       role: options.role.name,
       event: options.journal.event,
       providerSummary: result.passes.map((record) => record.result.summary).join("\n"),
       now,
+      repo: options.app.repo,
+      gate: options.hooks.gate,
     });
   }
 
-  return resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+  const turnResult = resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+  const delivery = standingRolePersistence?.artifact.delivery;
+  if (delivery !== undefined && delivery.filing_state !== "filed") {
+    const status: TurnResult["status"] = ["pending_approval", "ready", "executing"].includes(delivery.filing_state)
+      ? "blocked_on_gate"
+      : "failed";
+    return {
+      ...turnResult,
+      status,
+      summary:
+        `${turnResult.summary}; incident analysis complete; filing ${delivery.filing_state}` +
+        `${delivery.approval_id !== undefined ? ` (${delivery.approval_id})` : ""}` +
+        `${delivery.failure_cause !== undefined ? `; cause ${delivery.failure_cause}` : ""}`,
+    };
+  }
+  return turnResult;
 }
 
 async function runM6PipelineTurn(

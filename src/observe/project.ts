@@ -454,6 +454,15 @@ function projectApproval(item: ApprovalItem, grant: ApprovalGrant | undefined, n
     expires_at: grant?.expiresAt ?? null,
     scope: grant?.scope === undefined ? null : `${grant.scope.kind}:${grant.scope.rule}${grant.scope.pathContains === undefined ? "" : `:${grant.scope.pathContains}`}`,
     reason: item.reason !== undefined ? truncatePreview(scrubSecrets(item.reason), 240) : null,
+    execution_state: item.execution?.state ?? null,
+    execution_attempts: item.execution?.attempts ?? 0,
+    execution_actor: item.execution?.actor ?? null,
+    execution_result: item.execution?.result === undefined ? null : truncatePreview(scrubSecrets(item.execution.result), 240),
+    execution_failure_cause: item.execution?.failureCause ?? null,
+    execution_next_action: item.execution?.nextAction ?? null,
+    execution_remote_ref: item.execution?.remoteRef ?? null,
+    execution_attempted_at: item.execution?.attemptedAt ?? null,
+    execution_finished_at: item.execution?.finishedAt ?? null,
     observed_at: now.toISOString(),
     source_refs: [{ source: "approvals", ref: `approvals/${item.status === "pending" ? "pending" : "decided"}/${item.id}.json` }],
   };
@@ -649,6 +658,18 @@ function projectAttention(
   const out: AttentionItemView[] = [];
   for (const approval of approvals.filter((item) => item.status === "pending")) {
     out.push(attention("warning", "pending_approval", approval.app, approval.id, `Approval ${approval.approval_id} is waiting`, approval.rule, observedAt));
+  }
+  for (const approval of approvals.filter((item) => item.execution_state === "failed" || item.execution_state === "ambiguous")) {
+    out.push(attention(
+      "error",
+      "approval_delivery",
+      approval.app,
+      approval.id,
+      `Approval ${approval.approval_id} delivery is ${approval.execution_state}`,
+      `attempt ${approval.execution_attempts}; actor ${approval.execution_actor ?? "unrecorded"}; ` +
+        `result ${approval.execution_result ?? "unrecorded"}; next ${approval.execution_next_action ?? "unrecorded"}`,
+      observedAt,
+    ));
   }
   for (const pass of passes) {
     if (pass.liveness === "stalled") out.push(attention("error", "stale_pass", pass.app, pass.id, `${pass.role}/${pass.pass} is stalled`, pass.liveness_reason, observedAt));

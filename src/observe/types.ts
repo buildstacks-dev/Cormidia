@@ -263,6 +263,15 @@ export interface ApprovalView {
   expires_at: string | null;
   scope: string | null;
   reason: string | null;
+  execution_state: "approved" | "executing" | "executed" | "failed" | "ambiguous" | null;
+  execution_attempts: number;
+  execution_actor: string | null;
+  execution_result: string | null;
+  execution_failure_cause: string | null;
+  execution_next_action: string | null;
+  execution_remote_ref: string | null;
+  execution_attempted_at: string | null;
+  execution_finished_at: string | null;
   observed_at: string;
   source_refs: SourceRefView[];
 }

@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v2.4 — 2026-07-16. Human-ratified decision log. Keep this file high-level;
+*v2.5 — 2026-07-18. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -106,6 +106,25 @@ config file, not a fork.
     event or plausible candidate alone is not improvement.
 
 ## Decided
+
+- **Approval decisions and delivery acknowledgements are separate durable
+  facts** (ratified 2026-07-18). Classification is action-aware: executable or
+  typed operation, targets, redirections, environment, destination, and effect
+  are evaluated before agent-authored prose; search patterns, comments,
+  messages, and heredoc bodies are data, while executable substitutions and
+  obfuscated real actions remain gated. A human approval persists the exact
+  content-bound action in `approved`; it never claims the effect happened. A
+  later dispatch may execute only an orchestrator-owned typed allowlist
+  (currently GitHub issue create/comment, plus the existing specialized release
+  handoff), recording `executing → executed|failed|ambiguous`, attempt, actor,
+  result, remote reference, and next action. Idempotency markers reconcile a
+  crash after a remote effect; ambiguity is never retried blindly and requires
+  reconciliation or explicit human disposition. External publication is never
+  broadly scopeable because every published payload needs its own execution
+  acknowledgement. Critical SRE health events use this boundary to file exactly
+  one source-linked `op:incident` issue while retaining analysis and filing as
+  distinct completion claims. `docs/approval-and-release-amendment.md` and
+  `docs/architecture.md` carry the detailed contract.
 
 - **Qualification is proportionate to material release risk** (ratified
   2026-07-16). Evaluation exists to reduce material product risk, not to create

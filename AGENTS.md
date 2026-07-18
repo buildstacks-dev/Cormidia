@@ -26,11 +26,13 @@ channel-presence gating. Planning is proportional (one-pass bootstrap plans,
 schema-validated and orchestrator-published with canonical labels); tickets
 continue from durable artifacts across interruptions; every provider turn
 settles once into the org ledger where budget caps are enforced; the approval
-boundary supports scoped grants, role toolset shaping (forbidden acts
-unrepresentable on Claude, flat-denied everywhere), durable denial lessons,
-and the A4 release handoff (`release:` block, ship-gate P7, deploy trigger
-queued as a critical op, then executed exactly once by a later dispatch after
-approval — `src/org/release.ts`). `operon-sandbox-delta`
+boundary supports action-aware classification, scoped grants, role toolset
+shaping (forbidden acts unrepresentable on Claude, flat-denied everywhere),
+durable denial lessons, and a persisted decision/execution lifecycle. A later
+dispatch executes only typed content-bound GitHub deliveries plus the A4
+release handoff, records acknowledgement, reconciles stable idempotency markers,
+and never blindly retries ambiguity (`src/org/approval-delivery.ts`,
+`src/org/release.ts`). `operon-sandbox-delta`
 ("Ledgerette") is the from-scratch onboarding + loop proof; buildstacks.dev
 is onboarded as a production app in `status: onboarding`. Run `pnpm test`
 for the current offline suite. Known limitations live in README.md → Known
@@ -88,7 +90,9 @@ reserved replay namespace (reconciled for spend, excluded from capture).
 `scheduler/installation.json` and `scheduler/evidence/{invocations,decisions,alerts}/`
 hold scheduler ownership, exact-once ticks, route decisions, and local alerts;
 `standing-roles/<app>/{artifacts,planner-feeds}/` holds source-bound draft-only
-SRE/Support/Marketing results and deterministic Planner feeds. Every state
+SRE/Support/Marketing results and deterministic Planner feeds; critical/down
+SRE events also queue a source-linked `op:incident` action through the durable
+approval-delivery boundary. Every state
 subtree has a retention window, swept fail-safe once per UTC day from the
 dispatch tick (`src/org/retention.ts`; docs/scheduler.md → State retention;
 manual form `operon prune-runs --sweep`) — the ledger sweep never deletes
@@ -274,7 +278,7 @@ efficacy health independently. The mechanics construct no provider runtime.
   `pnpm dev loop --app <app> --once --dry-run` · `pnpm dev loop
   --explain-context <episode-id>` · `pnpm dev loop --resume-episode
   <episode-id>` ·
-  `pnpm dev dispatch --dry-run` · `pnpm dev approvals` ·
+  `pnpm dev dispatch --dry-run` · `pnpm dev approvals` · `pnpm dev approvals status` ·
   `pnpm dev scheduler install [--backend launchd|systemd] [--json]` (preview) ·
   `pnpm dev scheduler install --execute --confirm <scheduler-id-or-org>` ·
   `pnpm dev scheduler status [--json]` ·

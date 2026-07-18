@@ -23,10 +23,31 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { ToolAction } from "../runtime/types.js";
-import { normalizeSemanticAction, type SemanticAction } from "../runtime/gate.js";
+import {
+  normalizeSemanticAction,
+  type CriticalActionEvidence,
+  type SemanticAction,
+} from "../runtime/gate.js";
+import { withFileLock } from "../runtime/file-lock.js";
 
 export type ApprovalDecision = "approved" | "denied";
 export type ApprovalStatus = "pending" | ApprovalDecision;
+export type ApprovalExecutionState = "approved" | "executing" | "executed" | "failed" | "ambiguous";
+export type ApprovalLifecycleState = "pending" | "denied" | ApprovalExecutionState;
+
+export interface ApprovalExecution {
+  state: ApprovalExecutionState;
+  executor: "durable-github" | "release" | "actor-retry";
+  idempotencyKey: string;
+  attempts: number;
+  actor?: string;
+  attemptedAt?: string;
+  finishedAt?: string;
+  result?: string;
+  remoteRef?: string;
+  failureCause?: string;
+  nextAction: "dispatch" | "actor_retry" | "reconcile" | "retry_with_disposition" | "none";
+}
 
 export interface ApprovalAction {
   tool: string;
@@ -42,6 +63,9 @@ export interface ApprovalItem {
   ticketRef?: string;
   rule: string;
   action: ApprovalAction;
+  /** Structured audit evidence for the rule match. It contains only
+   * effect-bearing fields, never comment/review/search/heredoc prose. */
+  classification?: CriticalActionEvidence;
   justification?: string;
   raisedAt: string;
   status: ApprovalStatus;
@@ -49,6 +73,10 @@ export interface ApprovalItem {
   decision?: ApprovalDecision;
   reason?: string;
   grantId?: string;
+  /** Decision and execution are separate facts. `status: approved` never
+   * means the side effect ran; this lifecycle advances only on acknowledged
+   * execution or an explicit ambiguous/failed disposition. */
+  execution?: ApprovalExecution;
 }
 
 /** Human-chosen widened grant scope (approval-and-release-amendment A1).
@@ -121,6 +149,10 @@ export function pathBoundaryMatch(actionText: string, pathContains: string): boo
 export const NEVER_SCOPEABLE_RULES: readonly string[] = [
   "self-merge-or-approve",
   "production-deploy",
+  // A durable publication must be represented by its own content-bound
+  // action so the later executor can acknowledge exactly what ran. A broad
+  // external-publishing grant would erase that decision/execution join.
+  "external-publishing",
   "protocol-self-edit",
   "scorecard-tamper",
   "approval-store-tamper",
@@ -146,6 +178,16 @@ export type ApprovalLogEvent =
   | { type: "grant-minted"; id: string; grantId: string; at: string }
   | { type: "grant-consumed"; id: string; grantId: string; at: string }
   | { type: "grant-revoked"; id: string; grantId: string; at: string }
+  | {
+      type: "execution-transition";
+      id: string;
+      at: string;
+      from: ApprovalExecutionState;
+      to: ApprovalExecutionState;
+      actor: string;
+      cause?: string;
+      remoteRef?: string;
+    }
   | { type: "deduplicated"; id: string; at: string; actionHash: string; priorStatus: "pending" | "denied" };
 
 export interface RaiseApprovalInput {
@@ -156,6 +198,7 @@ export interface RaiseApprovalInput {
   turnId?: string;
   ticketRef?: string;
   justification?: string;
+  classification?: CriticalActionEvidence;
   now?: Date;
 }
 
@@ -176,6 +219,7 @@ export interface ApprovalStoreOptions {
 }
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const EXECUTION_LOCK_STALE_MS = 30_000;
 
 export class ApprovalStore {
   readonly root: string;
@@ -277,6 +321,7 @@ export class ApprovalStore {
       status: input.decision,
       decision: input.decision,
       decidedAt: now.toISOString(),
+      ...(input.decision === "approved" ? { execution: initialExecution(pending) } : {}),
       ...(input.reason !== undefined ? { reason: input.reason } : {}),
     };
 
@@ -337,6 +382,7 @@ export class ApprovalStore {
           status: event.decision,
           decision: event.decision,
           decidedAt: event.at,
+          ...(event.decision === "approved" ? { execution: initialExecution(pending) } : {}),
           ...(event.reason !== undefined ? { reason: event.reason } : {}),
           ...(event.grantId !== undefined ? { grantId: event.grantId } : {}),
         };
@@ -365,7 +411,7 @@ export class ApprovalStore {
     actionHash: string;
     /** Rule + action text + ticket enable A1 scoped-grant matching; omitted,
      *  only exact action-hash grants match (the ratified default). The caller
-     *  MUST pass the action's NORMALIZED target paths (+ command) as
+     *  MUST pass only the action's parsed target paths and redirections as
      *  `actionText`, never the raw input JSON — a `pathContains` bound tested
      *  against agent free text (a Write `content`, a shell `# comment`) widens
      *  the grant to anything that merely names the scoped path (A-005). See
@@ -451,6 +497,134 @@ export class ApprovalStore {
     return next;
   }
 
+  /** Claim an approved action for a sanctioned later executor. The decided
+   * item is the source of truth and the per-item lock prevents two dispatch
+   * processes from starting the same action. A pre-existing `executing`
+   * state is never retried by this method. */
+  async beginExecution(id: string, actor: string, now: Date = new Date()): Promise<ApprovalItem | undefined> {
+    return this.withExecutionLock(id, async () => {
+      const item = await this.readItem(id);
+      if (item.execution?.state !== "approved") return undefined;
+      const {
+        finishedAt: _finishedAt,
+        result: _result,
+        remoteRef: _remoteRef,
+        failureCause: _failureCause,
+        ...executionBase
+      } = item.execution;
+      const next: ApprovalItem = {
+        ...item,
+        execution: {
+          ...executionBase,
+          state: "executing",
+          attempts: item.execution.attempts + 1,
+          actor,
+          attemptedAt: now.toISOString(),
+          nextAction: "reconcile",
+        },
+      };
+      await writeJsonAtomic(this.decidedPath(id), next);
+      await this.appendExecutionTransition(item, next, actor, now);
+      return next;
+    });
+  }
+
+  /** Terminalize one executing action. `ambiguous` is deliberately terminal
+   * for automation: dispatch may reconcile it read-only, but never blindly
+   * retries the remote mutation. */
+  async finishExecution(input: {
+    id: string;
+    state: "executed" | "failed" | "ambiguous";
+    actor: string;
+    result: string;
+    now?: Date;
+    remoteRef?: string;
+    failureCause?: string;
+  }): Promise<ApprovalItem> {
+    const now = input.now ?? new Date();
+    return this.withExecutionLock(input.id, async () => {
+      const item = await this.readItem(input.id);
+      const execution = item.execution;
+      const reconcilesAmbiguous = execution?.state === "ambiguous" && input.state !== "ambiguous";
+      if (execution?.state !== "executing" && !reconcilesAmbiguous) {
+        throw new Error(`approval ${input.id} execution is ${item.execution?.state ?? "untracked"}, not executing`);
+      }
+      const next: ApprovalItem = {
+        ...item,
+        execution: {
+          ...execution,
+          state: input.state,
+          actor: input.actor,
+          finishedAt: now.toISOString(),
+          result: input.result,
+          ...(input.remoteRef !== undefined ? { remoteRef: input.remoteRef } : {}),
+          ...(input.failureCause !== undefined ? { failureCause: input.failureCause } : {}),
+          nextAction:
+            input.state === "executed"
+              ? "none"
+              : input.state === "ambiguous"
+                ? "reconcile"
+                : "retry_with_disposition",
+        },
+      };
+      await writeJsonAtomic(this.decidedPath(input.id), next);
+      await this.appendExecutionTransition(item, next, input.actor, now);
+      return next;
+    });
+  }
+
+  /** Human disposition for an ambiguous/failed action. `retry` is explicit,
+   * content-bound re-arming; it restores one use only on the still-live grant.
+   * Expired/revoked grants require a fresh approval instead. */
+  async dispositionExecution(input: {
+    id: string;
+    disposition: "executed" | "failed" | "retry";
+    reason: string;
+    actor: string;
+    now?: Date;
+  }): Promise<ApprovalItem> {
+    const now = input.now ?? new Date();
+    if (input.reason.trim() === "") throw new Error("approval execution disposition requires a reason");
+    return this.withExecutionLock(input.id, async () => {
+      const item = await this.readItem(input.id);
+      const current = item.execution;
+      if (current === undefined || !["ambiguous", "failed"].includes(current.state)) {
+        throw new Error(`approval ${input.id} execution is not ambiguous or failed`);
+      }
+      let state: ApprovalExecutionState = input.disposition === "retry" ? "approved" : input.disposition;
+      let nextAction: ApprovalExecution["nextAction"] = "none";
+      if (input.disposition === "retry") {
+        state = "approved";
+        nextAction = current.executor === "actor-retry" ? "actor_retry" : "dispatch";
+        if (item.grantId === undefined) throw new Error(`approval ${input.id} has no grant to re-arm`);
+        const grant = readJsonSync<ApprovalGrant>(this.grantPath(item.grantId));
+        if (grant.revokedAt !== undefined || new Date(grant.expiresAt).getTime() <= now.getTime()) {
+          throw new Error(`approval ${input.id} grant is expired or revoked; raise a fresh approval`);
+        }
+        writeJsonSync(this.grantPath(item.grantId), { ...grant, uses: 1, consumedAt: undefined });
+      }
+      const next: ApprovalItem = {
+        ...item,
+        execution: {
+          ...current,
+          state,
+          actor: input.actor,
+          finishedAt: now.toISOString(),
+          result: input.reason,
+          ...(input.disposition === "failed"
+            ? { failureCause: "human_disposition" }
+            : current.failureCause !== undefined
+              ? { failureCause: current.failureCause }
+              : {}),
+          nextAction,
+        },
+      };
+      await writeJsonAtomic(this.decidedPath(input.id), next);
+      await this.appendExecutionTransition(item, next, input.actor, now);
+      return next;
+    });
+  }
+
   async readLog(): Promise<ApprovalLogEvent[]> {
     await this.ensureDirs();
     return readJsonLines<ApprovalLogEvent>(this.logPath());
@@ -464,6 +638,26 @@ export class ApprovalStore {
         item.role === input.role &&
         actionHash(item.action) === input.actionHash,
     );
+  }
+
+  /** Find the durable record for one exact action across the decision
+   * boundary. Callers use this before re-raising event-derived deliveries so
+   * a retry cannot manufacture a second approval or remote side effect. */
+  async findEquivalent(input: {
+    app: string;
+    role: string;
+    rule: string;
+    action: ToolAction;
+    ticketRef?: string;
+  }): Promise<ApprovalItem | undefined> {
+    const hash = actionHash(input.action);
+    const matches = (item: ApprovalItem) =>
+      item.app === input.app &&
+      item.role === input.role &&
+      item.rule === input.rule &&
+      item.ticketRef === input.ticketRef &&
+      actionHash(item.action) === hash;
+    return (await this.listPending()).find(matches) ?? (await this.listDecided()).find(matches);
   }
 
   findDeniedEquivalentSync(input: RaiseApprovalInput): ApprovalItem | undefined {
@@ -517,6 +711,7 @@ export class ApprovalStore {
       raisedAt: now.toISOString(),
       status: "pending",
     };
+    if (input.classification !== undefined) item.classification = input.classification;
     if (input.turnId !== undefined) item.turnId = input.turnId;
     if (input.ticketRef !== undefined) item.ticketRef = input.ticketRef;
     if (input.justification !== undefined) item.justification = input.justification;
@@ -581,6 +776,39 @@ export class ApprovalStore {
   private logPath(): string {
     return join(this.approvalsDir(), "log.jsonl");
   }
+
+  private executionLockPath(id: string): string {
+    return join(this.approvalsDir(), "execution-locks", `${id}.lock`);
+  }
+
+  private async withExecutionLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+    return withFileLock(
+      this.executionLockPath(id),
+      { staleMs: EXECUTION_LOCK_STALE_MS, maxWaitMs: EXECUTION_LOCK_STALE_MS + 5_000 },
+      fn,
+    );
+  }
+
+  private async appendExecutionTransition(
+    before: ApprovalItem,
+    after: ApprovalItem,
+    actor: string,
+    now: Date,
+  ): Promise<void> {
+    const from = before.execution?.state;
+    const to = after.execution?.state;
+    if (from === undefined || to === undefined || from === to) return;
+    await appendJsonLine(this.logPath(), {
+      type: "execution-transition",
+      id: after.id,
+      at: now.toISOString(),
+      from,
+      to,
+      actor,
+      ...(after.execution?.failureCause !== undefined ? { cause: after.execution.failureCause } : {}),
+      ...(after.execution?.remoteRef !== undefined ? { remoteRef: after.execution.remoteRef } : {}),
+    } satisfies ApprovalLogEvent);
+  }
 }
 
 export function normalizeAction(action: ToolAction | ApprovalAction): ApprovalAction {
@@ -592,6 +820,27 @@ export function normalizeAction(action: ToolAction | ApprovalAction): ApprovalAc
   return normalized;
 }
 
+export function approvalLifecycleState(item: ApprovalItem): ApprovalLifecycleState {
+  if (item.status === "pending") return "pending";
+  if (item.status === "denied") return "denied";
+  return item.execution?.state ?? "approved";
+}
+
+function initialExecution(item: ApprovalItem): ApprovalExecution {
+  const executor = item.rule === "production-deploy"
+    ? "release" as const
+    : item.action.tool === "operon.github.issue.create" || item.action.tool === "operon.github.issue.comment"
+      ? "durable-github" as const
+      : "actor-retry" as const;
+  return {
+    state: "approved",
+    executor,
+    idempotencyKey: `approval:${item.id}:${actionHash(item.action)}`,
+    attempts: 0,
+    nextAction: executor === "actor-retry" ? "actor_retry" : "dispatch",
+  };
+}
+
 /** Action-identity format version. The identity `actionHash` computes is the
  *  authorization key: a grant authorizes exactly the actions whose identity it
  *  covers. Bumping this constant invalidates every persisted grant — new hashes
@@ -600,10 +849,11 @@ export function normalizeAction(action: ToolAction | ApprovalAction): ApprovalAc
  *  match by rule/path rather than hash). v1 (pre-2026-07-17) was the
  *  payload-blind projection reused verbatim from CLASSIFICATION, so a human who
  *  approved Write X authorized Write Y on the same (tool, path) pair (A-002).
- *  v2 binds the payload. The migration is intentional and abrupt: the instant
- *  the fix lands, in-flight grants stop matching, agents re-raise, and the miss
- *  path yields a fresh approval item — never a crash. */
-export const ACTION_IDENTITY_VERSION = 2;
+ *  v2 binds the payload. v3 replaces raw shell/prose scope text with parsed,
+ *  effect-bearing targets and redirections. Each migration is intentional and
+ *  abrupt: the instant it lands, in-flight grants stop matching, agents
+ *  re-raise, and the miss path yields a fresh approval item — never a crash. */
+export const ACTION_IDENTITY_VERSION = 3;
 
 /** Input keys `normalizeSemanticAction` (src/runtime/gate.ts) already folds
  *  into the semantic identity. Everything ELSE in the input is agent-authored

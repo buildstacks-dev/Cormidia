@@ -108,6 +108,13 @@ describe("Phase 3 semantic approval boundary", () => {
     expect(store.findMatchingGrantSync({ app: "app", role: "sre", actionHash: actionHash(actionA), rule: "secrets-or-auth", actionText: "read config/credentials.json", ticketRef: "#1", now: new Date("2026-07-14T00:00:01Z") })).toBeUndefined();
     const merge = await store.raise({ app: "app", role: "sre", rule: "self-merge-or-approve", action: { tool: "bash", input: { command: "gh pr merge 1" } } });
     await expect(store.decide(merge.id, { decision: "approved", scope: { kind: "app" } })).rejects.toThrow(/never scopeable/);
+    const publication = await store.raise({
+      app: "app",
+      role: "sre",
+      rule: "external-publishing",
+      action: { tool: "operon.github.issue.create", input: { repo: "o/r", title: "Incident", body: "exact body" } },
+    });
+    await expect(store.decide(publication.id, { decision: "approved", scope: { kind: "app" } })).rejects.toThrow(/never scopeable/);
   });
 
   it("G-DEDUPE-01 reuses identical pending/denied requests but preserves effect near-misses", async () => {

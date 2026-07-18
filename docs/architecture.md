@@ -499,6 +499,12 @@ change.
 
 The v0 payload contract for file-drop company events is documented in
 `docs/event-schemas.md` and validated by `src/org/event-schemas.ts`.
+For a `critical` or `down` health alert, the SRE pipeline persists its grounded
+analysis and queues a typed GitHub issue action with `op:incident`, the source
+event key, payload hash, and stable incident identity. A later dispatch performs
+that action through the orchestrator-owned `GhOps` boundary, so SRE and Builder
+do not depend on different provider-local network/tool behavior. Analysis
+completion and filing acknowledgement remain separate facts.
 
 ### Locking & concurrency
 
@@ -679,12 +685,14 @@ pending/<id>.json     one file per open item
 decided/<id>.json     moved here on decision (decision fields merged in)
 grants/<grantId>.json grants created by approvals (single-use by default;
                       the human may widen to ticket/app scope at decision time)
-log.jsonl             append-only audit trail (every event: raised, decided)
+execution-locks/      per-item claim locks for sanctioned later executors
+log.jsonl             append-only audit trail (raised, decided, grant uses,
+                      and execution transitions)
 ```
 
-Plain files, no database: one human consumer, no concurrency pressure,
-survives the droplet migration as a directory copy, and TASTE §3 (boring
-dependencies). `id = <utc-compact-timestamp>-<rand4>`.
+Plain files, no database: one human decision consumer, with per-item locks for
+concurrent dispatch executors; survives the droplet migration as a directory
+copy, and TASTE §3 (boring dependencies). `id = <utc-compact-timestamp>-<rand4>`.
 
 Item schema:
 
@@ -694,8 +702,17 @@ Item schema:
   "app": "civic", "role": "builder", "turnId": "…", "ticketRef": "#42",
   "rule": "secrets-or-auth",              // gate rule that fired
   "action": { "tool": "Bash", "input": "…", "description": "…" },
+  "classification": {                     // effect fields only; no prose
+    "schemaVersion": 1, "rule": "secrets-or-auth", "reason": "…",
+    "matchedAction": { "executables": ["cat"], "targets": [".env"] }
+  },
   "justification": "…",                   // the model's stated intent, from turn events
-  "raisedAt": "…", "status": "pending"
+  "raisedAt": "…", "status": "approved",
+  "execution": {
+    "state": "approved",                  // not evidence the effect happened
+    "executor": "actor-retry | durable-github | release",
+    "idempotencyKey": "…", "attempts": 0, "nextAction": "dispatch"
+  }
 }
 ```
 
@@ -733,9 +750,9 @@ Item schema:
    human (never the agent) may widen to `ticket` or `app` scope: every
    action matching (rule, path prefix) for that app±ticket until TTL,
    use-count cap (default 20), or `operon approvals revoke <grant-id>`.
-   Self-merge, production deploy, protocol-surface writes, and
+   Self-merge, production deploy, external publication, protocol-surface writes, and
    out-of-boundary actions are never scopeable. Nothing replays tool calls
-   outside a session.
+   outside a session except an explicit typed, orchestrator-owned executor.
 4. Next tick re-dispatches any `blocked_on_gate` turn whose escalations are
   all decided (resume the session if fresh, else restart with a decision
    summary in context). The effective gate = grant lookup **then** default
@@ -748,7 +765,14 @@ Item schema:
    provider-global-memory) never reach the queue at all: the composed gate
    denies them flat with standing guidance, and on Claude the adapter
    removes them from the tool surface itself (`src/runtime/role-shaping.ts`).
-5. Grants expire (default TTL 24 h), count uses against their cap, and are
+5. For `durable-github` and `release` items, a later dispatch claims the exact
+   action and advances `approved → executing → executed | failed | ambiguous`.
+   The record includes attempt, actor, result, failure cause, remote reference,
+   and next action. GitHub actions reconcile by a stable remote marker; an
+   ambiguous result is never blindly retried. Only a reasoned, exact `operon
+   approvals disposition <id> ... --confirm <id>` may resolve or re-arm it.
+   Generic provider calls stay `actor-retry` and continue from artifacts.
+6. Grants expire (default TTL 24 h), count uses against their cap, and are
   revocable; grant mint, each use, exhaustion, and revocation all go to
    `log.jsonl`.
 
@@ -767,12 +791,19 @@ operon approvals review       one-by-one: full item, then [a]pprove (with
 operon approvals review --batch   group pending items with identical
                               (rule, app); one decision, per-item audit rows
 operon approvals show <id>    full detail incl. turn-event context
+operon approvals status       decision/execution state, attempts, actor,
+                              result, remote reference, and next action
+operon approvals disposition <id> (--executed|--failed|--retry)
+                              --reason <text> --confirm <id>
+                              explicit reconciliation for failed/ambiguous work
 operon approvals revoke <grant-id>   immediate revocation of a live grant
 ```
 
-Decision writes are ordered: append to `log.jsonl` first, then move the item
-file, then mint the grant — a crash between steps is detected by log-vs-file
-reconciliation at next `operon approvals` run.
+Decision writes materialize the grant before the decision log and atomic item
+move, so a logged approval cannot lack its authorization file; log-vs-file
+reconciliation repairs an interrupted move or missing grant at the next
+`operon approvals` run. Execution item rewrites are atomic and transition rows
+remain append-only evidence.
 
 Budget escalations (§7) enter this same queue as synthetic items
 (`rule: "budget-exceeded"`) — one inbox, never two.

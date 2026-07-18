@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "attempt-accounting",
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
+  "attempt_id": "context-delta-v1-claude-context-2",
+  "case_id": "context/delta/v1",
+  "repetition_id": "claude-context-2",
+  "app": "library",
+  "run_ids": [
+    "20260718-062429-run-role-reviewer",
+    "20260718-062645-run-role-reviewer"
+  ],
+  "provider_turn_ids": [
+    "8b59e16c1ab5a67091da548cd5274722c0ab9611c59f2d03404aafb5935f7acb",
+    "be222f2771c84857bbf940d7ade36be6d26bd296f57fd4e288b0b58ef4b61e99"
+  ],
+  "settlement_ids": [
+    "8b59e16c1ab5a67091da548cd5274722c0ab9611c59f2d03404aafb5935f7acb",
+    "be222f2771c84857bbf940d7ade36be6d26bd296f57fd4e288b0b58ef4b61e99"
+  ],
+  "envelope_sha256": {
+    "20260718-062429-run-role-reviewer": "sha256:01cf319ef942854e2494dc466dd29397f5e042bccb61069ce0a092d42a2b9f4c",
+    "20260718-062645-run-role-reviewer": "sha256:24bbe0bcfcac84aff2f5951eaff02920705d252130372566760dfba763e879c0"
+  },
+  "terminal_statuses": {
+    "20260718-062429-run-role-reviewer": "completed",
+    "20260718-062645-run-role-reviewer": "completed"
+  },
+  "admitted_routes": {
+    "20260718-062429-run-role-reviewer": "standard",
+    "20260718-062645-run-role-reviewer": "standard"
+  },
+  "provider_turns": 2,
+  "provider_settlements": 2,
+  "mechanical_settlements": 0,
+  "terminal_integrity": 1,
+  "passed": true,
+  "missing": []
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
+  "case_id": "approval/semantics/v1",
+  "repetition_id": "mixed-da",
+  "attempt_id": "approval-semantics-v1-mixed-da",
+  "grader_ref": "graders/approval-semantics.ts",
+  "grader_sha256": "sha256:864856f7746c84e0f0a52b740b18f01876b82ed21bdcee123b8dba49739b75f7",
+  "visible_gate_passed": true,
+  "hidden_grader_passed": true,
+  "verifier_evidence": "artifact:artifact/verifier/approval-semantics-v1-mixed-da/grader-evidence.json",
+  "verifier_evidence_sha256": "sha256:953058888e388cbcfe31d6b51768a685d854ab545b07cd32d2fb9ec0eea9149d",
+  "result": "passed",
+  "missing": []
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "attempt-accounting",
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
+  "attempt_id": "roles-standing-v1-support-1",
+  "case_id": "roles/standing/v1",
+  "repetition_id": "support-1",
+  "app": "service",
+  "run_ids": [
+    "20260718-080719-run-role-support"
+  ],
+  "provider_turn_ids": [
+    "00c1c4fdc51dfd0c778c17cc68ab91a04683b3b20bc00cbbdd1899c2575da620"
+  ],
+  "settlement_ids": [
+    "00c1c4fdc51dfd0c778c17cc68ab91a04683b3b20bc00cbbdd1899c2575da620"
+  ],
+  "envelope_sha256": {
+    "20260718-080719-run-role-support": "sha256:6cb35b9af5fa30429a7f628c844ab7c34f7d78903f9aedaece2682d074e4102a"
+  },
+  "terminal_statuses": {
+    "20260718-080719-run-role-support": "completed"
+  },
+  "admitted_routes": {
+    "20260718-080719-run-role-support": "standard"
+  },
+  "provider_turns": 1,
+  "provider_settlements": 1,
+  "mechanical_settlements": 0,
+  "terminal_integrity": 1,
+  "passed": true,
+  "missing": []
+}

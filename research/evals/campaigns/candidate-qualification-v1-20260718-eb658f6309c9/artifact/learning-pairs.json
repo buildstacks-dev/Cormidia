@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "phase6-learning-pairs",
+  "campaign_id": "candidate-qualification-v1-20260718-eb658f6309c9",
+  "campaign_sha256": "sha256:7f13be2ff64c7743bbd7be0718598582709e70e3751185d82d8f6f4fc7394c12",
+  "candidate": {
+    "commit": "c9604c2f4f7021c6720bf2d26ce63e6f071c5c93",
+    "package_sha256": "sha256:fedfbad5d6751f11b807704386b0b5d1a9d263918853a0746ad6d83697a4a37c",
+    "suite_sha256": "sha256:deb87788e38c15c0749d29d6c2b9863ecb660938858a17892dd382627eb6c9c6",
+    "release_package_sha256": "sha256:47319552b57058f95d8978f50bab45f56c3f189558641fb3a537286fc3a2154b",
+    "executable_suite_sha256": "sha256:decc674ceab726d2d557807206caf035bb2ac8f22241e949f690439c37ee933a"
+  },
+  "treatment": {
+    "id": "learning-t1-v1",
+    "source": "treatments/learning-t1-v1.md",
+    "content_sha256": "sha256:b4c739b4facfcf23f9c48a1cfa6c7f1461309b7e5e07b6b5b22c9b63b09445a0",
+    "tier": "T1",
+    "scope": "roles/builder"
+  },
+  "efficacy": {
+    "primary_metric": "hidden_grader_artifact_quality",
+    "score_range": [
+      0,
+      8
+    ],
+    "components": [
+      "grounded_error_classes",
+      "causal_hypothesis",
+      "bounded_reversible_intervention",
+      "measurable_guardrails"
+    ],
+    "component_range": [
+      0,
+      2
+    ],
+    "improved_rule": "all_three_treatment_scores_strictly_exceed_paired_controls_and_all_hidden_guardrails_pass",
+    "regressed_rule": "any_negative_delta_or_hidden_guardrail_failure",
+    "inconclusive_rule": "nonnegative_pairs_with_any_zero_delta",
+    "invalid_rule": "missing_mismatched_or_infrastructure_corrupt_evidence",
+    "activation_requires": "improved"
+  },
+  "declared_pair_order": [
+    "AB",
+    "BA",
+    "AB"
+  ],
+  "decision_rule": "all_three_treatment_scores_strictly_exceed_paired_controls_and_all_hidden_guardrails_pass",
+  "pairs": [
+    {
+      "pair_id": "pair-1",
+      "order": "AB",
+      "control": {
+        "repetition_id": "pair-1-control",
+        "attempt_id": "learning-closure-v1-pair-1-control",
+        "result_sha256": "sha256:f6e620280f1b354bbd53b13401d21be9f4fa02a613840fe302852a5e79357458",
+        "provider_artifact_sha256": "sha256:d54b2aee55a8573dedc6a53c66d957524cbc0498a7ba18e082ea57fb7373ce16",
+        "verifier_evidence_sha256": "sha256:ab4da81b33097e4e7bd607aab1f8833d8678087700b4da81c630211cbc717813",
+        "grader_evidence_sha256": "sha256:118fde77e09a00ef1fe9d6d614978201bea88962f8868b3c21dd0ee09481be89",
+        "independent_reviewer_artifact_sha256": "sha256:ec9bb20462d770cdd25827f6b62c6bac9fa4b2d8992ab56495a977f5b119a1f2",
+        "independent_reviewer_verdict": "approve",
+        "score": 7,
+        "hidden_guardrails_passed": true,
+        "attempt_outcome": "passed"
+      },
+      "treatment": {
+        "repetition_id": "pair-1-treatment",
+        "attempt_id": "learning-closure-v1-pair-1-treatment",
+        "result_sha256": "sha256:ccd7910016910c42767a44fccceed5c4f669bd92d77fe4e0bead4e12e2dabe27",
+        "provider_artifact_sha256": "sha256:14783e2f5e03a0b4369e1966b65dbfdb80f2767f9fa2038f9a8c2ab6fd73da0c",
+        "verifier_evidence_sha256": "sha256:13db69af2c9dad0a7ca728c8a63a3741e38504692fe19a6ac0e8a8e232c2d039",
+        "grader_evidence_sha256": "sha256:32e1938a2fc0781a4c903ce0a348b4b41ee057b0ebbe9b3948757c1f77c9cc76",
+        "independent_reviewer_artifact_sha256": "sha256:4f34fa8dd701cf20be81802be8b3edfb5eca235ae166b711f99c24393e22348e",
+        "independent_reviewer_verdict": "approve",
+        "score": 8,
+        "hidden_guardrails_passed": true,
+        "attempt_outcome": "passed"
+      },
+      "delta": 1
+    },
+    {
+      "pair_id": "pair-2",
+      "order": "BA",
+      "control": {
+        "repetition_id": "pair-2-control",
+        "attempt_id": "learning-closure-v1-pair-2-control",
+        "result_sha256": "sha256:95e4242042c84a81ddf329dfe92b358d90754324d3943ae0c2886fffef0923d8",
+        "provider_artifact_sha256": "sha256:357623dcddf913263a3cae14417ae17ae4dcf0aa355668bd2be15880ac4d80c4",
+        "verifier_evidence_sha256": "sha256:bacde81c7a8bf46e58491c598b2ebb3bb4af7f0fc02452668f33ea8ff8ff790a",
+        "grader_evidence_sha256": "sha256:3ae2ee149b43a34a8a300b344e3d0d23e799b03e4fca41bc49733c7d4f7bd117",
+        "independent_reviewer_artifact_sha256": "sha256:1ad7ee433ba952bd018455f2f241b902b46862e15c2d54727396fcbfad97d695",
+        "independent_reviewer_verdict": "approve",
+        "score": 6,
+        "hidden_guardrails_passed": true,
+        "attempt_outcome": "passed"
+      },
+      "treatment": {
+        "repetition_id": "pair-2-treatment",
+        "attempt_id": "learning-closure-v1-pair-2-treatment",
+        "result_sha256": "sha256:7adcc0b269686913d028d5a59f600d492d30b2b6999137dc6213b40e78c1e2a7",
+        "provider_artifact_sha256": "sha256:fb70f8bdb3ad41ec530933d466d6b68296058a41d6140aaa691ce4913e87e942",
+        "verifier_evidence_sha256": "sha256:776c4531be5a6579bb135c3e29789ddad48e6d6b5e75ad737408ef4e420e9eee",
+        "grader_evidence_sha256": "sha256:a4791d63307eaa4effd56c79244ed3699b3bafec61707d72e7d17133740d6e54",
+        "independent_reviewer_artifact_sha256": "sha256:c6e99979fe051eff09c03d5d5a17a166df73b70d40d4f3a794665140349aeea8",
+        "independent_reviewer_verdict": "approve",
+        "score": 8,
+        "hidden_guardrails_passed": true,
+        "attempt_outcome": "passed"
+      },
+      "delta": 2
+    },
+    {
+      "pair_id": "pair-3",
+      "order": "AB",
+      "control": {
+        "repetition_id": "pair-3-control",
+        "attempt_id": "learning-closure-v1-pair-3-control",
+        "result_sha256": "sha256:ea4dba2fef5d33f74a5f44b800f4374f6d2626823586dcb2af643b72a66d20da",
+        "provider_artifact_sha256": "sha256:70839b1d57d5aef6e193b0004e1d9e0d0bdd6d808d8bf648f60d9f22b1d11e02",
+        "verifier_evidence_sha256": "sha256:734719c772fe0cdc1eed21d61facade6f5db854095e519a35988dcb8a6e224b7",
+        "grader_evidence_sha256": "sha256:1f85bb9a45b5c3f4e71e0cb5966e8194b08d6928f8d1555320fcf1d5df38b5c3",
+        "independent_reviewer_artifact_sha256": "sha256:d35edfc28bc5ef0667cfe4298ab8be5846b3a240bbe6fb2c435cefef8d26ed33",
+        "independent_reviewer_verdict": "approve",
+        "score": 8,
+        "hidden_guardrails_passed": true,
+        "attempt_outcome": "passed"
+      },
+      "treatment": {
+        "repetition_id": "pair-3-treatment",
+        "attempt_id": "learning-closure-v1-pair-3-treatment",
+        "result_sha256": "sha256:85ddf25538df0ae6275dd234601b5dab00822e2220e7fbfdf0d82688d743091f",
+        "provider_artifact_sha256": "sha256:c4b508f32bcc92ba605d2d006ca345766b6d316581ce97474832e5cafa83eabe",
+        "verifier_evidence_sha256": "sha256:5ac3042b1478b7f65602851f4efc8a5c859ab91c21497d414be31db5f7ce1975",
+        "grader_evidence_sha256": "sha256:b1f65a2d7be6bd08d1563eca7a584a56fda5e6576ce19e9735c07935ec50c1c4",
+        "independent_reviewer_artifact_sha256": "sha256:fcfc04291332832c65bebaaf239dbd6739973cab2a379b27f614872cb6c1a057",
+        "independent_reviewer_verdict": "approve",
+        "score": 8,
+        "hidden_guardrails_passed": true,
+        "attempt_outcome": "passed"
+      },
+      "delta": 0
+    }
+  ],
+  "complete_pairs": 3,
+  "terminal_attempts": 6,
+  "hidden_guardrails_passed": true,
+  "outcome": "inconclusive",
+  "missing": []
+}

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,10 +7,43 @@ import { ObserveService } from "../../src/observe/live-source.js";
 import { startObserveServer, type StartedObserveServer } from "../../src/observe/server.js";
 import type { GitHubReadResult, ObserveGitHubSource } from "../../src/observe/github-source.js";
 import { ReportService } from "../../src/report/service.js";
+import { OBSERVE_JS } from "../../src/observe/assets.js";
+import { REPORT_JS } from "../../src/report/assets.js";
+import { TIME_POLICY_JS } from "../../src/report/time-policy.js";
 
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
   while (cleanups.length > 0) await cleanups.pop()!();
+});
+
+describe("shared presentation primitives", () => {
+  it("ships ONE time policy into both read-only bundles rather than duplicating it", () => {
+    expect(TIME_POLICY_JS.length).toBeGreaterThan(0);
+    expect(OBSERVE_JS).toContain(TIME_POLICY_JS);
+    expect(REPORT_JS).toContain(TIME_POLICY_JS);
+    // Both bundles are String.raw templates: a backtick or a `${` in the
+    // snippet would break them at build time in a way typecheck can miss.
+    expect(TIME_POLICY_JS).not.toContain("`");
+    expect(TIME_POLICY_JS).not.toContain("${");
+    // The formatting policy exists only inside the shared constant.
+    const observeSource = readFileSync(join(import.meta.dirname, "../../src/observe/assets.ts"), "utf8");
+    const reportSource = readFileSync(join(import.meta.dirname, "../../src/report/assets.ts"), "utf8");
+    expect(observeSource).not.toContain("Intl.DateTimeFormat");
+    expect(reportSource).not.toContain("Intl.DateTimeFormat");
+    expect(observeSource).not.toContain("shortTime");
+    expect(REPORT_JS).not.toMatch(/new Date\([^)]*\)\s*\.\s*toLocale/);
+    expect(OBSERVE_JS.match(/new Date\([^)]*\)\s*\.\s*toLocale/g) ?? []).toHaveLength(0);
+  });
+
+  it("keeps the Observer bundle free of any import of a layer above it", () => {
+    const reportDir = join(import.meta.dirname, "../../src/report");
+    for (const file of readdirSync(reportDir)) {
+      if (!file.endsWith(".ts")) continue;
+      // Invariant 9: nothing imports src/observe. The shared time policy lives
+      // under src/report/ precisely so this stays true.
+      expect(readFileSync(join(reportDir, file), "utf8")).not.toContain("../observe/");
+    }
+  });
 });
 
 describe("observer server integration", () => {
@@ -29,7 +62,9 @@ describe("observer server integration", () => {
     expect(snapshotResponse.headers.get("x-content-type-options")).toBe("nosniff");
     expect(snapshotResponse.headers.get("x-frame-options")).toBe("DENY");
     const snapshot = await snapshotResponse.json() as Record<string, unknown>;
-    expect(snapshot["schema_version"]).toBe(1);
+    // Bumped 1 -> 2 exactly once for the observer-diagnostics workstream:
+    // `intake` was removed in favour of activity_history + pending_intake.
+    expect(snapshot["schema_version"]).toBe(2);
 
     const health = await authFetch(rig, "/healthz");
     expect(await health.json()).toMatchObject({ status: "ok", read_only: true });

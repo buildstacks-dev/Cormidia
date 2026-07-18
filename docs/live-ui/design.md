@@ -259,31 +259,101 @@ The overview has four ordered sections.
 
 #### A. Attention
 
-Show only conditions requiring interpretation:
+Attention renders **one card per (cause, scope) group**, not one card per
+occurrence. A campaign with 26 identically-caused passes is one card reading
+`26 occurrences`, not 26 cards that bury everything else.
 
-- pending approval;
-- stale running pass;
-- failed/timed-out/cancelled pass;
-- `op:returned` ticket;
-- partial/unavailable usage;
-- disconnected GitHub source;
-- corrupt/torn durable record;
-- app budget exceeded or paused.
+Each group declares:
+
+- its severity as a **word**, never colour alone;
+- its `occurrence_count` — always the true total, even when delivery is capped;
+- the affected passes, traces, tickets, and role/pass labels, each rendered on
+  its own line naming its own facet, so a role/pass label is never presented as
+  a role name;
+- its ordering direction (`most severe first`, then occurrence count
+  descending);
+- expandable occurrences, each with its own entity id, real durable timestamp,
+  and evidence references. Expansion uses `<details>`/`<summary>`, so keyboard
+  operation and `aria-expanded` come from the platform.
+
+Grouping keys derive **only** from the typed, closed-vocabulary `kind` and
+`cause` fields plus org+app scope (§6.4). The conditions and their causes:
+
+| kind | cause source | groupable |
+| --- | --- | --- |
+| `pending_approval` | `approval.rule` | yes |
+| `approval_delivery` | `approval.execution_state` | yes |
+| `stale_pass` | `stalled` | yes |
+| `failed_pass` | `pass.status` | yes |
+| `usage_incomplete` | `pass.usage.quality` (`partial`/`unavailable` only) | yes |
+| `corrupt_run` | `degraded_run_evidence` / `corrupt_envelope` | yes |
+| `corrupt_intake` | `corrupt_intake` | yes |
+| `returned_ticket` | `returned` | **no** |
+| `delivery_integrity` | `delivery_integrity` | **no** |
+| `source_health` | `source.id` | **no** |
+| `corrupt_task` | `corrupt_task` | **no** |
+
+The non-groupable kinds are independently actionable — two returned tickets are
+two decisions — and always render as singleton groups whose id embeds the
+entity id.
+
+`usage.quality: "none"` is an authoritative zero (§6.6). It raises **no**
+attention item and appears in no group. The condition is `partial ||
+unavailable`, never `!== "complete"`.
+
+The flat `attention` array keeps the complete unaggregated truth; every item
+carries a `group_id` that resolves to exactly one group, so the grouping is
+mechanically verifiable rather than a client-side reinterpretation.
 
 Empty is healthy and should occupy little space.
 
-#### B. App lifecycle and intake
+#### B. App lifecycle
 
-For each selected app, show:
+For each selected app, show lifecycle (`onboarding`, `live`, `paused`),
+recently produced tickets or artifacts, and an explicit reason when
+Support/Marketing is channel-gated.
 
-- lifecycle (`onboarding`, `live`, `paused`);
-- current onboarding/planning activity;
-- pending company-lifecycle events and scheduled role work when observable;
-- recently produced tickets or artifacts;
-- explicit reason when Support/Marketing is channel-gated.
+Beneath the app cards, two **separately named collections** — never one
+concatenated list:
+
+**Recorded activity** (`activity_history`) is dated execution evidence. Its
+rows are non-nullable in `started_at`, `latest_at`, and the declared sort key
+`occurred_at`, so **a row without a recorded timestamp can never enter a
+chronological collection** — that is a type invariant, not a convention. Each
+row states its trigger and source in plain language, and offers navigation to
+its trace/parent-task session using real identity only.
+
+**Pending intake** (`pending_intake`) is undated or independently-timed work
+waiting to be picked up: `state/events/inbox/*.json` drops and apps awaiting
+promotion. It renders as a `<ul>`, not an `<ol>`, because it is explicitly not
+a sequence. It carries its own `counts` by state, and each row's
+`timestamp_basis` says whether the shown time is the recorded event time
+(`occurred`), the filesystem receipt time (`discovered`), or absent (`none`).
+`pending` is the NORMAL state of an inbox file and raises no attention item.
+
+`discovered_at` is a filesystem observation. It is display-only and is
+explicitly **not** a correlation key (§6.4).
+
+Both collections ship a `SectionScopeView`: label, pre-cap `total`, `returned`,
+`truncated`, `cap`, and an `OrderingView`. Every ordered or capped collection in
+the read model declares those four facts, and the client renders `showing N of
+M` rather than silently slicing.
+
+That rule has no exemptions. **Every** capped section — recorded activity,
+pending intake, attention occurrences, the execution graph, the live activity
+stream, its undated tail, and historical replay / completion integrity — reads
+its cap from one named limit key, renders its disclosure through the same scope
+badge, and offers a `Show more` control that raises that key. A badge printing a
+pre-cap total beside a sliced list is worse than a bare slice: a bare slice
+claims nothing, while the badge affirmatively asserts a count the section does
+not show. Each `Show more` names its own section in its accessible name, and
+because activating it re-renders the section that owns it, focus is explicitly
+restored to the replacement control — or to the section list when nothing is
+left to reveal — so keyboard paging never drops the operator at `<body>`.
 
 This prevents onboarding and non-ticket role activity from being mislabeled as
-delivery queue work.
+delivery queue work, and prevents a pending health alert from reading as a
+later lifecycle stage than a completed planning trace.
 
 #### C. Delivery work
 
@@ -312,8 +382,69 @@ Show a chronological stream of structured events across active traces:
 - verdict and escalation;
 - telemetry settlement.
 
-The stream pauses auto-scroll when the operator scrolls upward. Heartbeats are
-coalesced in the visual stream but still update freshness.
+**Ordering.** The stream is `newest_first` and the heading says so. The total
+order is a projected, opaque `EventView.order_key`; a single descending
+lexicographic sort over it IS the whole ordering contract. The tie-break chain
+is `ts_utc`, then app, then run id, then append order within the pass event log
+— read in reverse, because one descending sort covers the whole composite key,
+which `ACTIVITY_ORDER.tie_break` states explicitly. Dated events always precede
+undated ones, which render in a labelled `Undated · showing N of M` tail group
+that pages under its own limit key like every other capped collection. The order is
+computed from durable evidence only and never reads the clock or the display
+format, so switching the timestamp mode cannot reorder the list.
+
+**Completeness.** `snapshot.activity` carries metadata only — no second copy of
+the events. `total_events` is the authoritative denominator for the client's
+`showing N of M` disclosure, and `completeness: "partial"` with
+`incomplete_reasons` is set when a pass carries corrupt or expired event
+evidence, so the section declares under-reporting instead of hiding it.
+
+**Filtering** is available on event kind, tool outcome, trace, pass, role, and
+pass status, all held in URL state so a link reproduces the view. Trace and pass
+are genuine filters with their own controls, not highlights: `?trace=` and
+`?pass=` narrow the stream, and a highlight that leaves every other entry in
+place would not let an operator isolate the pass a graph node pointed them at.
+`status`, `role`, `trace` and `pass` filter the PASS; `kind` and `outcome`
+filter the EVENT — the scope badge names which facet each active filter applies
+to, in those words. Trace filtering resolves through the projection's composite
+trace identity and then matches on `(app, trace_id)`, never a bare `trace_id`.
+A selection that has left the window narrows to nothing and the badge says so,
+rather than silently widening back to every pass. Choosing a session is a SCOPE
+change rather than a filter, so it clears the trace and pass filters, whose
+identities belong to the session being left. The default is all kinds:
+narrowing by default would silently hide evidence.
+
+Paging (`?more=`) and attention-group expansion (`?open=`) are URL state too, in
+a fixed sorted order, so a link reproduces what the sender was actually looking
+at and not merely which filters they had set.
+
+**Grouping** by trace or by pass is available, and `group=none` preserves the
+raw sequence. Group keys are `(app, trace_id)` and the pass id (`app:runId`)
+only. Groups order by the maximum member `order_key`, so group order is
+deterministic rather than insertion-dependent, and grouping never drops or
+duplicates an entry.
+
+**Graph linkage** is bidirectional and keyed on real ids: activating a graph
+node opens the pass drawer and sets `?pass=<pass id>`, which filters the stream
+to that pass; each activity entry offers `Show in graph`, marked `aria-disabled`
+with a stated reason when that pass has no node in the current scope. A control
+that cannot act stays FOCUSABLE and carries no `aria-label` overriding its
+visible text, so the stated reason is reachable by keyboard and its accessible
+name matches what is on screen. There is never a fallback to a nearby node.
+
+**Following vs paused** is stated in words, not colour: the stream follows live
+while `scrollTop === 0` exactly, and any movement away pauses it, reports how
+many entries arrived while paused, and restores the exact scroll position across
+re-renders. That count is derived by capturing the set of event IDS on screen at
+the moment of pausing and counting entries absent from it — real identity, never
+a counter of delivered snapshots and never a timestamp comparison — so it is
+exact rather than structurally always zero. The follow pill is the stream's only
+live region; the list itself is not one, because it is rebuilt wholesale on every
+snapshot and an `aria-live` list would re-announce every visible entry (and, with
+grouping on, every heading) each time. Nothing is dropped while paused. Heartbeats are coalesced in the visual stream
+only across ADJACENT entries sharing a `coalesce_key`, so an interleaved
+failure can never be swallowed; freshness reads `PassView.last_heartbeat_at`
+and `activity.latest_heartbeat_at`, which coalescing never touches.
 
 ### 5.3 Task/ticket execution page
 
@@ -477,21 +608,124 @@ than leaking internal file schemas directly. A representative shape is:
 
 ```ts
 export interface ObserveSnapshotV1 {
-  schema_version: 1;
+  schema_version: 2;
   generated_at: string;
   cursor: string;
   org: OrgView;
   sources: SourceHealthView[];
   apps: AppView[];
-  intake: ActivityView[];
+  activity_history: { scope: SectionScopeView; rows: ActivityView[] };
+  pending_intake: {
+    scope: SectionScopeView;
+    rows: PendingIntakeItemView[];
+    counts: Record<PendingIntakeState, number>;
+  };
   delivery: DeliveryTicketView[];
   parent_tasks: ParentTaskView[];
   traces: TraceView[];
   passes: PassView[];
   approvals: ApprovalView[];
+  invocations: InvocationView[];
+  activity: ActivityStreamMetaView;
+  time_policy: TimePolicyView;
   totals: TotalsView;
   attention: AttentionItemView[];
+  attention_groups: AttentionGroupView[];
 }
+
+// Every ordered or capped collection declares scope, ordering, and
+// completeness. `total` is the PRE-cap, pre-client-filter count.
+export type OrderDirection = "newest_first" | "chronological";
+export interface OrderingView {
+  sort_key: string; direction: OrderDirection; label: string; tie_breaker: string;
+}
+export interface SectionScopeView {
+  label: string; total: number; returned: number;
+  truncated: boolean; cap: number | null; ordering: OrderingView | null;
+}
+
+// The read model DECLARES its timezone contract, exactly as the ratified
+// sibling `ReportRange.display_timezone` does (docs/reporting/design.md
+// §320-326). The client never has to assume UTC.
+export interface TimePolicyView {
+  source_timezone: "UTC";
+  // The default display zone the client APPLIES — read, not decorative.
+  display_timezone: "UTC" | "viewer_local";
+  instant_format: "iso8601-utc-ms";
+  skew: { future_instants: number; max_future_ms: number; sources: string[] } | null;
+}
+
+// Metadata only — no second copy of the events, no persisted index, no store.
+export interface ActivityStreamMetaView {
+  order: "newest_first";
+  order_key_fields: string[];
+  tie_break: string;
+  total_events: number;
+  undated_events: number;
+  clock_skew_event_ids: string[];
+  completeness: "complete" | "partial";
+  incomplete_reasons: string[];
+  latest_event_at: string | null;
+  latest_heartbeat_at: string | null;
+}
+
+export interface AttentionGroupView {
+  id: string; cause_key: string; kind: string; cause: string;
+  severity: "warning" | "error"; groupable: boolean;
+  scope: { app: string | null };
+  title: string; detail: string;
+  occurrence_count: number;               // ALWAYS the true total
+  // `labels` holds role/pass labels (`builder/implement`), NOT role names.
+  affected: { passes: string[]; traces: string[]; tickets: string[]; labels: string[] };
+  earliest_occurred_at: string | null; latest_occurred_at: string | null;
+  occurrences: AttentionOccurrenceView[]; // capped at 500
+  occurrences_delivered: number; occurrences_truncated: boolean;
+  observed_at: string;
+}
+
+export interface AttentionOccurrenceView {
+  id: string; app: string | null; entity_id: string | null;
+  entity_kind: "pass" | "ticket" | "approval" | "source" | "task" | "intake_event";
+  summary: string;                        // entity-level label
+  detail: string;                         // per-occurrence divergent text
+  occurred_at: string | null;             // a REAL durable instant, never `generated_at`
+  evidence_refs: SourceRefView[];
+}
+```
+
+**Schema version.** `OBSERVE_SCHEMA_VERSION` went `1 → 2` **once** for the
+observer-diagnostics workstream (#91/#93/#94/#97). Additive fields alone would
+not have required it — `attention_groups`, `time_policy`, `activity`,
+`AttentionItemView.group_id`, and the seven new `EventView` fields are all
+additive. The bump is owed to a **removal**: `intake: ActivityView[]` no longer
+exists and is replaced by `activity_history` + `pending_intake`. This is safe
+because the observer persists no cache (§6.2) and has no consumer outside the
+bundled client, which ships in the same package. The health route reads the
+same constant rather than hardcoding a literal.
+
+**Time policy.** Every instant-valued field in the snapshot is canonical
+ISO-8601 UTC with milliseconds (`YYYY-MM-DDTHH:mm:ss.sssZ`), produced by a
+single projection helper. A value that was recorded but cannot be read becomes
+`null` with the reason appended to that entity's `quality_reason` — never
+`"Invalid Date"`, never epoch zero. `PassView.started_at`, `TraceView.started_at`,
+and `ParentTaskView.started_at` are therefore nullable.
+
+The projection performs **no** timezone conversion, locale formatting, or
+offset arithmetic; only the browser knows the operator's zone. The client
+formats per instant via `Intl.DateTimeFormat`, so daylight-saving transitions
+are the platform's concern: two instants an hour apart across a boundary render
+with different abbreviations, and a fall-back pair that shares a wall clock
+renders distinguishably. Every absolute timestamp is a `<time>` element whose
+`datetime` is the canonical UTC instant regardless of display mode, with exact
+UTC always in the `title`, plus a URL-persisted Local/UTC toggle and a header
+statement of the active zone. That policy lives in exactly one place —
+`src/report/time-policy.ts` — shared by Observer and Reports; it lives under
+`src/report/` because invariant 9 forbids anything importing `src/observe`.
+
+Clock skew is reported as `time_policy.skew` and rendered in the header. It is
+a warning and never a negative duration, tolerant to the same 30s window
+`passLiveness` already uses so ordinary NTP jitter does not flood the header.
+It is deliberately **not** an attention item: that surface belongs to grouping.
 
 export type ActivityKind =
   | "onboarding"
@@ -534,6 +768,21 @@ Use existing IDs only:
 `runId` alone is not globally unique. Text similarity, timestamps, branch
 names, or prompt contents must never be used to invent parent/child links.
 
+Attention grouping keys derive only from the enumerated `kind`/`cause`
+vocabulary plus org+app scope and, for non-groupable kinds, the entity id. A
+group key must never be derived from `title`, `detail`, a timestamp, or any
+model-produced text. Activity grouping and graph↔activity focus key exclusively
+on `(app, trace_id)` and `(app, runId)`.
+
+`PendingIntakeItemView.discovered_at` is a filesystem mtime. It may be
+displayed, and may order pending items within their own section, but it must
+never be used to correlate a pending event to a trace, task, or app, nor to
+place one in the recorded chronology.
+
+Ordering tie-breakers use a **code-unit** comparator, never `localeCompare`,
+which is ICU/locale-sensitive and would make the same durable state render
+differently on two machines.
+
 ### 6.5 Liveness semantics
 
 - Passes heartbeat every 30 seconds when the executor is healthy.
@@ -565,6 +814,12 @@ must distinguish:
 `none` pass stays visible as an execution step, contributes a real $0, raises no
 usage-incomplete attention item, and is excluded from provider-turn counts and
 settlement coverage. Only `unavailable` and `partial` are incomplete usage.
+
+This holds for an EMPTY provider set too, on every surface that computes one. A
+scope whose passes all invoked no provider is `none` — an authoritative zero —
+and only a scope with no pass evidence at all is `unavailable`. Header totals,
+the client's session-scoped totals, and `aggregateCost` apply the identical
+rule, so "zero provider turns" can never be reported as unknown cost.
 
 Unknown or unavailable cost is never displayed as free, and it never erases
 known cost. Aggregates are projected from the settled ledger through the shared
@@ -702,7 +957,18 @@ before the interaction model justifies it.
 Required frontend behaviors:
 
 - keyed incremental rendering without losing drawer/filter state;
-- keyboard navigation and visible focus;
+- keyboard navigation and visible focus, including explicit focus restoration
+  for any control a re-render destroys, and focus taken only when a surface
+  OPENS rather than on each snapshot that re-renders it while open;
+- a drawer that declares `aria-modal` must actually be modal: the background is
+  marked `inert` while it is open, so Tab, pointer, and the accessibility tree
+  agree with the declaration;
+- toggle buttons carry a FIXED label naming the state they turn on, with
+  `aria-pressed` reporting whether that state is active — a label naming the next
+  action beside `aria-pressed` naming the current one announces a contradiction;
+- a control that cannot act uses `aria-disabled` (staying focusable so its stated
+  reason is reachable) rather than `disabled`, and never carries an `aria-label`
+  that hides its visible text;
 - responsive layout at 360px and desktop widths;
 - `prefers-reduced-motion` support;
 - text/icon status in addition to color;

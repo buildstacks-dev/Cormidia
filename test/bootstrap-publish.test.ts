@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   executeBootstrapPublish,
+  githubSlugFromRemote,
   planBootstrapPublish,
 } from "../src/org/bootstrap-publish.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
@@ -177,8 +178,10 @@ describe("bootstrap publish — scope", () => {
     const gh = new FakeGhOps({ repo: f.repoSlug, issues: [] });
     await executeBootstrapPublish(plan, { app: f.app, orgHome: f.orgHome, appDir: f.appDir, gh });
 
-    // The commit contains exactly the bootstrap-owned files...
-    const committed = git(f.appDir, ["show", "--name-only", "--format=", "HEAD"])
+    // The commit on the publish branch contains exactly the bootstrap-owned
+    // files. Read the branch, not HEAD: publishing never moves the operator's
+    // checkout, so HEAD is still where they left it.
+    const committed = git(f.appDir, ["show", "--name-only", "--format=", appRepo!.branch])
       .split("\n")
       .filter(Boolean)
       .sort();
@@ -331,6 +334,190 @@ describe("bootstrap publish — preview mutates nothing", () => {
   });
 });
 
+describe("bootstrap publish — review findings", () => {
+  // The blocker: `alreadyPublished` used to mean "a local branch exists with
+  // nothing pending", so a run whose push failed AFTER committing reported
+  // "already published" forever and never pushed or opened a PR.
+  it("resumes a publish whose push failed after the commit landed", async () => {
+    const f = fixture();
+    const gh = new FakeGhOps({ repo: f.repoSlug, issues: [] });
+    const plan = await planFor(f, gh);
+    const appPlan = plan.repos.find((r) => r.kind === "app")!;
+
+    // Reproduce the partial-failure state exactly: branch created, artifacts
+    // committed, nothing pushed, no pull request.
+    git(f.appDir, ["checkout", "-b", appPlan.branch, appPlan.base.ref]);
+    git(f.appDir, ["add", "--", ...appPlan.files]);
+    git(f.appDir, ["commit", "-m", "chore(operon): onboard alpha"]);
+    git(f.appDir, ["checkout", "-"]);
+    // `rev-parse --verify` exits non-zero when the ref is absent, which is the
+    // state we are asserting: committed locally, never pushed.
+    expect(() =>
+      git(f.appDir, ["rev-parse", "--verify", `refs/remotes/origin/${appPlan.branch}`]),
+    ).toThrow();
+
+    const resumed = await planFor(f, gh);
+    const resumedApp = resumed.repos.find((r) => r.kind === "app")!;
+    expect(resumedApp.alreadyPublished).toBe(false);
+    expect(resumed.noop).toBe(false);
+
+    await executeBootstrapPublish(resumed, { app: f.app, orgHome: f.orgHome, appDir: f.appDir, gh });
+
+    // The branch reached origin and a draft pull request exists.
+    expect(git(f.appDir, ["rev-parse", `refs/remotes/origin/${appPlan.branch}`])).not.toBe("");
+    expect(gh.calls.filter((c) => c.op === "createPR").length).toBe(1);
+    expect((await gh.readPR(1)).isDraft).toBe(true);
+  });
+
+  // Observed driving the real CLI: the push succeeded and `gh pr create` then
+  // failed. The git work is complete, so a plan correctly reports
+  // `alreadyPublished` — but skipping the repo outright would mean the branch
+  // sits on origin with no pull request, forever, while the operator is told
+  // it is published.
+  it("opens the missing pull request when the push succeeded but the PR call failed", async () => {
+    const f = fixture();
+    const first = new FakeGhOps({ repo: f.repoSlug, issues: [] });
+    const plan = await planFor(f, first);
+    const appBranch = plan.repos.find((r) => r.kind === "app")!.branch;
+
+    // Publish the git half only, exactly as a failed `gh pr create` leaves it.
+    const gitOnly = plan.repos
+      .filter((r) => r.kind === "app")
+      .map(({ pr: _pr, ...rest }) => rest);
+    await executeBootstrapPublish(
+      { ...plan, repos: gitOnly },
+      { app: f.app, orgHome: f.orgHome, appDir: f.appDir, gh: first },
+    );
+    expect(first.calls.filter((c) => c.op === "createPR")).toEqual([]);
+    expect(git(f.appDir, ["rev-parse", `refs/remotes/origin/${appBranch}`])).not.toBe("");
+
+    // A retry sees the git work done...
+    const gh = new FakeGhOps({ repo: f.repoSlug, issues: [] });
+    const retry = await planFor(f, gh);
+    expect(retry.repos.find((r) => r.kind === "app")!.alreadyPublished).toBe(true);
+
+    // ...and still opens the pull request that never got created.
+    const result = await executeBootstrapPublish(retry, {
+      app: f.app,
+      orgHome: f.orgHome,
+      appDir: f.appDir,
+      gh,
+    });
+    expect(gh.calls.filter((c) => c.op === "createPR").length).toBe(1);
+    expect((await gh.readPR(1)).isDraft).toBe(true);
+    expect(result.repos.find((r) => r.kind === "app")?.prNumber).toBe(1);
+  });
+
+  // Publishing must not move the operator's checkout. Leaving the ORG HOME
+  // parked on the publish branch would make every later `operon` command read
+  // config from it; switching back afterwards would instead DELETE the newly
+  // committed files from their working tree. A temporary worktree avoids both.
+  it("leaves both checkouts exactly as the operator had them", async () => {
+    const f = fixture();
+    const appBranch = git(f.appDir, ["branch", "--show-current"]);
+    const orgBranch = git(f.orgHome, ["branch", "--show-current"]);
+    const appHead = git(f.appDir, ["rev-parse", "HEAD"]);
+    const orgHead = git(f.orgHome, ["rev-parse", "HEAD"]);
+    const gh = new FakeGhOps({ repo: f.repoSlug, issues: [] });
+
+    await executeBootstrapPublish(await planFor(f, gh), {
+      app: f.app,
+      orgHome: f.orgHome,
+      appDir: f.appDir,
+      gh,
+    });
+
+    // Same branch, same HEAD, nothing staged.
+    expect(git(f.appDir, ["branch", "--show-current"])).toBe(appBranch);
+    expect(git(f.orgHome, ["branch", "--show-current"])).toBe(orgBranch);
+    expect(git(f.appDir, ["rev-parse", "HEAD"])).toBe(appHead);
+    expect(git(f.orgHome, ["rev-parse", "HEAD"])).toBe(orgHead);
+    expect(git(f.appDir, ["diff", "--cached", "--name-only"])).toBe("");
+
+    // And the files are still where the operator can see them — the org home
+    // must not lose apps.yaml, or the app is locally unregistered until merge.
+    expect(existsSync(join(f.orgHome, "apps.yaml"))).toBe(true);
+    expect(existsSync(join(f.appDir, ".operon/config.yaml"))).toBe(true);
+
+    // No stray worktree registration left behind.
+    expect(git(f.appDir, ["worktree", "list"]).split("\n").length).toBe(1);
+  });
+
+  // Instruction docs are appended to, not authored, so whole-file staging
+  // could sweep in the operator's own in-flight edits.
+  it("refuses to publish an instruction doc changed beyond the authority block", async () => {
+    const f = fixture();
+    // Commit an AGENTS.md that already carries the authority block, then edit
+    // it the way an operator working on their own docs would.
+    write(f.appDir, "AGENTS.md", "# AGENTS\n\n<!-- operon-authority:start -->\nblock\n<!-- operon-authority:end -->\n");
+    git(f.appDir, ["add", "AGENTS.md"]);
+    git(f.appDir, ["commit", "-m", "chore: agents"]);
+    write(
+      f.appDir,
+      "AGENTS.md",
+      "# AGENTS\n\nMy own in-flight documentation work.\n\n<!-- operon-authority:start -->\nblock\n<!-- operon-authority:end -->\n",
+    );
+
+    const plan = await planFor(f);
+    expect(plan.blockers.join("\n")).toMatch(/AGENTS\.md beyond the Operon authority block/);
+    expect(plan.blockers.join("\n")).toMatch(/commit or stash/);
+  });
+
+  it("publishes an instruction doc whose only change is the authority block", async () => {
+    const f = fixture();
+    write(f.appDir, "AGENTS.md", "# AGENTS\n\nPre-existing operator content.\n");
+    git(f.appDir, ["add", "AGENTS.md"]);
+    git(f.appDir, ["commit", "-m", "chore: agents"]);
+    // Exactly what bootstrap does: append the delimited block, nothing else.
+    write(
+      f.appDir,
+      "AGENTS.md",
+      "# AGENTS\n\nPre-existing operator content.\n\n<!-- operon-authority:start -->\nauthority\n<!-- operon-authority:end -->\n",
+    );
+
+    const plan = await planFor(f);
+    expect(plan.blockers).toEqual([]);
+    expect(plan.repos.find((r) => r.kind === "app")!.files).toContain("AGENTS.md");
+  });
+
+  it("opens a draft pull request for the org side when its remote is GitHub", async () => {
+    const f = fixture();
+    // Give the org home a genuinely GitHub-shaped origin URL while keeping it
+    // resolvable offline: `insteadOf` rewrites the URL back to the local bare
+    // repo, so the real resolve/fetch path runs with zero network.
+    const localOrigin = git(f.orgHome, ["remote", "get-url", "origin"]);
+    const githubUrl = "https://github.com/owner/org-config.git";
+    git(f.orgHome, ["config", `url.${localOrigin}.insteadOf`, githubUrl]);
+    git(f.orgHome, ["remote", "set-url", "origin", githubUrl]);
+
+    const plan = await planFor(f);
+    expect(plan.blockers).toEqual([]);
+    const orgPlan = plan.repos.find((r) => r.kind === "org");
+    expect(orgPlan?.pr?.repo).toBe("owner/org-config");
+    expect(orgPlan?.pr?.title).toContain("register alpha");
+  });
+
+  it("claims no pull request when a remote is not GitHub", async () => {
+    // The local bare origin in this fixture is a plain path, not a GitHub URL.
+    const f = fixture();
+    const orgPlan = (await planFor(f)).repos.find((r) => r.kind === "org");
+    expect(orgPlan).toBeDefined();
+    expect(orgPlan!.pr).toBeUndefined();
+  });
+
+  it("parses GitHub slugs and rejects non-GitHub remotes", () => {
+    expect(githubSlugFromRemote("https://github.com/owner/repo.git")).toBe("owner/repo");
+    expect(githubSlugFromRemote("https://github.com/owner/repo")).toBe("owner/repo");
+    expect(githubSlugFromRemote("git@github.com:owner/repo.git")).toBe("owner/repo");
+    expect(githubSlugFromRemote("ssh://git@github.com/owner/repo.git")).toBe("owner/repo");
+    expect(githubSlugFromRemote("/tmp/local/origin.git")).toBeUndefined();
+    expect(githubSlugFromRemote("https://gitlab.com/owner/repo.git")).toBeUndefined();
+    // Must not be fooled by a lookalike host.
+    expect(githubSlugFromRemote("https://github.com.evil.test/owner/repo.git")).toBeUndefined();
+    expect(githubSlugFromRemote(undefined)).toBeUndefined();
+  });
+});
+
 describe("bootstrap publish — idempotent retries", () => {
   it("reuses the branch and pull request instead of opening a second one", async () => {
     const f = fixture();
@@ -361,6 +548,12 @@ describe("bootstrap publish — idempotent retries", () => {
     // No duplicate pull request, no duplicate commit.
     expect(gh.calls.filter((c) => c.op === "createPR").length).toBe(createdFirst);
     for (const repo of second.repos) expect(repo.skipped).toBeDefined();
-    expect(git(f.appDir, ["rev-list", "--count", `origin/${f.defaultBranch}..HEAD`])).toBe("1");
+    // Exactly one commit on the published branch, not two. Counted on the
+    // branch rather than HEAD: publishing never commits in the operator's
+    // checkout, so their HEAD is still at the base by design.
+    const appBranch = secondPlan.repos.find((r) => r.kind === "app")!.branch;
+    expect(
+      git(f.appDir, ["rev-list", "--count", `origin/${f.defaultBranch}..refs/remotes/origin/${appBranch}`]),
+    ).toBe("1");
   });
 });

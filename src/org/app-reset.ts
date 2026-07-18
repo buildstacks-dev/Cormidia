@@ -17,6 +17,7 @@ import { readStatusRows } from "../runtime/runlog/status.js";
 import type { GhIssue, GhOps, GhPullRequest } from "../loop/github.js";
 import { onboardingAnswersPath } from "./onboarding-answers.js";
 import { markAppEpisodesResetAbandoned } from "./learning/episode.js";
+import { readLifecycleRecord } from "./app-lifecycle.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
   type LifecycleBlocker,
@@ -230,10 +231,19 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
   // default branch is `master` or `trunk` — reset could propose deleting the
   // default branch itself (#101).
   //
-  // The merge targets are read from the pull requests we already fetched
-  // rather than resolved separately: a PR's own base is authoritative, needs
-  // no extra network call, and is correct under every default-branch name.
+  // Two independent protections, because neither alone is sufficient:
+  //
+  //  - Every open pull request's own base. Authoritative, needs no extra
+  //    network call, and correct under any default-branch name.
+  //  - The app's recorded default branch. The PR-derived set only protects a
+  //    branch that some open PR happens to target, so a default branch that
+  //    appears as a managed PR's HEAD (a human opening `main` → `production`
+  //    on a PR that links a managed issue) would otherwise slip through. The
+  //    old `!== "main"` guard was unconditional; this keeps that property
+  //    while being correct for every branch name.
   const mergeTargets = new Set(pullRequests.map((pr) => pr.baseRefName).filter(Boolean));
+  const recordedDefault = await safeRecordedDefaultBranch(stateHome, app.name);
+  if (recordedDefault !== undefined) mergeTargets.add(recordedDefault);
   const branches = [...new Set(managedPullRequests.map((pr) => pr.headRefName))]
     .filter((branch) => branch.length > 0 && !mergeTargets.has(branch))
     .sort();
@@ -747,4 +757,23 @@ function assertSafeAppSegment(app: string): void {
 function isInside(candidate: string, ancestor: string): boolean {
   const rel = relative(ancestor, candidate);
   return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !rel.startsWith(sep));
+}
+
+/** The default branch recorded for this app at bootstrap, when one exists.
+ *
+ *  Read from the durable lifecycle record rather than the network: reset is a
+ *  planning operation and must not fail because a remote is unreachable. A
+ *  missing or unreadable record simply contributes no extra protection — the
+ *  pull-request-derived merge targets still apply (#101). */
+async function safeRecordedDefaultBranch(
+  stateHome: string,
+  app: string,
+): Promise<string | undefined> {
+  try {
+    const record = await readLifecycleRecord(stateHome, app);
+    const branch = record.default_branch;
+    return typeof branch === "string" && branch.length > 0 ? branch : undefined;
+  } catch {
+    return undefined;
+  }
 }

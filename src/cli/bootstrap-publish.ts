@@ -125,15 +125,27 @@ export async function cmdBootstrapPublish(args: string[]): Promise<number> {
   }
 
   console.log(`published bootstrap artifacts for ${plan.app}\n`);
+  let drafts = 0;
   for (const repo of result.repos) {
     if (repo.skipped !== undefined) {
       console.log(`  ${repo.kind}: skipped — ${repo.skipped}`);
       continue;
     }
-    const pr = repo.prUrl ?? (repo.prNumber !== undefined ? `#${repo.prNumber}` : "(no pull request)");
-    console.log(`  ${repo.kind}: pushed ${repo.branch} → draft PR ${pr}`);
+    if (repo.prNumber === undefined) {
+      // No GitHub slug for this remote: say what actually happened rather than
+      // pointing a reviewer at a pull request that does not exist.
+      console.log(`  ${repo.kind}: pushed ${repo.branch} (no pull request — remote is not GitHub)`);
+      continue;
+    }
+    drafts++;
+    console.log(`  ${repo.kind}: pushed ${repo.branch} → draft PR ${repo.prUrl ?? `#${repo.prNumber}`}`);
   }
-  console.log("\nBoth pull requests are drafts. Review and merge them together; Operon will not.");
+  if (drafts > 0) {
+    console.log(
+      `\n${drafts === 1 ? "The pull request is a draft" : `All ${drafts} pull requests are drafts`}. ` +
+        "Review and merge them together; Operon will not.",
+    );
+  }
   return 0;
 }
 
@@ -154,12 +166,11 @@ function printPreview(plan: BootstrapPublishPlan): void {
     console.log("    files:");
     for (const file of repo.files) console.log(`      - ${file}`);
     console.log(`    push:    origin ${repo.branch}`);
-    if (repo.pr !== undefined) {
-      const target = repo.pr.existingNumber !== undefined
-        ? `reuse existing PR #${repo.pr.existingNumber}`
-        : `open DRAFT pull request into ${repo.base.defaultBranch}`;
-      console.log(`    pr:      ${target} on ${repo.pr.repo}`);
-    }
+    console.log(
+      repo.pr !== undefined
+        ? `    pr:      open (or reuse) a DRAFT pull request into ${repo.base.defaultBranch} on ${repo.pr.repo}`
+        : "    pr:      none — remote is not GitHub; the branch is pushed for review",
+    );
   }
   console.log("\nRe-run with --execute to publish. Pull requests are opened as drafts.");
 }
@@ -182,12 +193,7 @@ function planJson(plan: BootstrapPublishPlan, options: { executed: boolean }): R
       already_published: repo.alreadyPublished,
       pr: repo.pr === undefined
         ? null
-        : {
-            repo: repo.pr.repo,
-            title: repo.pr.title,
-            draft: true,
-            existing_number: repo.pr.existingNumber ?? null,
-          },
+        : { repo: repo.pr.repo, title: repo.pr.title, draft: true },
     })),
     provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
   };

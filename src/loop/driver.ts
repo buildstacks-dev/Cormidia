@@ -1064,24 +1064,43 @@ export function githubRemoteUrl(repoSlug: string): string {
 
 /** The merge target for work built on an operator-supplied checkout.
  *
- *  Preference order, both answers read from git rather than assumed: the
- *  default branch the checkout's own `origin` advertises, and — for a
- *  local-only checkout with no remote, which `snapshotSuppliedCheckout`
- *  explicitly supports — the branch that checkout is actually on. A
- *  local-only repo cannot open a pull request anyway, so refusing to run one
- *  at all would be the wrong trade; what matters is that neither branch of
- *  this function invents a name. */
+ *  Normally the default branch the checkout's own `origin` advertises. The
+ *  ONLY accepted substitute is for a checkout with no `origin` configured at
+ *  all — which `snapshotSuppliedCheckout` explicitly supports — where the
+ *  branch that checkout is on is the best available answer and there is no
+ *  remote to disagree with it.
+ *
+ *  The "no origin configured" test is deliberately separate from "resolution
+ *  failed". Falling back on ANY `ls-remote` error would mean a DNS blip or an
+ *  expired credential silently retargets pull requests at whatever branch the
+ *  operator happens to have checked out — a wrong merge target that looks
+ *  like success. A reachable-but-unresolvable remote is a loud failure, per
+ *  the doctrine in src/loop/default-branch.ts. */
 function suppliedCheckoutDefaultBranch(sourceDir: string): string {
+  let hasOrigin: boolean;
   try {
+    git(sourceDir, "remote", "get-url", "origin");
+    hasOrigin = true;
+  } catch {
+    hasOrigin = false;
+  }
+
+  if (hasOrigin) {
+    // A configured remote is authoritative. If it cannot be resolved, that is
+    // an error to surface, never a reason to guess.
     return resolveRemoteDefaultBranch("origin", { cwd: sourceDir, errorPrefix: "loop" });
-  } catch (remoteError) {
-    try {
-      return git(sourceDir, "symbolic-ref", "--short", "HEAD");
-    } catch {
-      // Detached HEAD with no remote: there is genuinely no branch to name,
-      // and guessing one here is the defect this workstream removed.
-      throw remoteError;
-    }
+  }
+
+  try {
+    return git(sourceDir, "symbolic-ref", "--short", "HEAD");
+  } catch (error) {
+    // Detached HEAD with no remote: there is genuinely no branch to name, and
+    // inventing one is the defect this workstream removed.
+    throw new Error(
+      `loop: --repo-dir checkout ${sourceDir} has no origin remote and is not on a branch, ` +
+        `so there is no merge target to resolve — ` +
+        `${error instanceof Error ? error.message.trim() : String(error)}`,
+    );
   }
 }
 

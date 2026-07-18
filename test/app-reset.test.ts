@@ -136,6 +136,41 @@ describe("app reset", () => {
     }
   });
 
+  // Near-miss the pull-request-derived guard alone does NOT catch: a human
+  // opens `<default>` → `production` (a release-promotion PR) whose body links
+  // a managed issue. The default branch is then a managed PR's HEAD and is
+  // nobody's base, so only the recorded default branch protects it.
+  it("protects the recorded default branch even when it is a managed PR's head", async () => {
+    const f = await fixture();
+    const defaultBranch = "master";
+    write(
+      f.stateHome,
+      join("lifecycle", "apps", "alpha", "record.json"),
+      JSON.stringify({
+        schema_version: 1,
+        kind: "app-lifecycle",
+        app: "alpha",
+        repo: "owner/alpha",
+        remote_url: "https://github.com/owner/alpha.git",
+        default_branch: defaultBranch,
+        default_base: "0".repeat(40),
+        onboarding_commit: "1".repeat(40),
+        managed_clone: join(f.stateHome, "repos", "alpha"),
+      }),
+    );
+    await f.gh.createPR({
+      head: defaultBranch,
+      base: "production",
+      title: "Promote to production",
+      body: "Closes #7",
+    });
+
+    const plan = await planAppReset(await f.input());
+
+    expect(plan.github.branches).not.toContain(defaultBranch);
+    expect(plan.github.branches).toContain("build/alpha-v1");
+  });
+
   it("archives before removing only the selected app's state and tracked GitHub work", async () => {
     const f = await fixture();
     const input = await f.input();

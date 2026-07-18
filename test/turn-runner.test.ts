@@ -19,6 +19,7 @@ import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "..
 import { makeBareWithClone } from "./fixtures/gitRepo.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
+import { persistStandingRoleOutcome, readPlannerFeeds } from "../src/org/standing-roles.js";
 
 const ROLE: RoleConfig = {
   name: "support",
@@ -265,6 +266,28 @@ describe("dispatched turn runner", () => {
       },
     ]);
     try {
+      await persistStandingRoleOutcome({
+        stateHome: home.root,
+        app: "alpha",
+        role: "support",
+        event: {
+          kind: "support-feedback",
+          key: "feedback.json",
+          source: "file-drop-inbox",
+          payload: {
+            kind: "support-feedback",
+            id: "feedback-1",
+            app: "alpha",
+            occurred_at: "2026-07-06T00:00:00Z",
+            source: "fixture",
+            severity: "medium",
+            channel: "email",
+            summary: "Copper Kestrel users need a clearer status message",
+          },
+        },
+        providerSummary: "grounded support digest",
+        now: new Date("2026-07-06T00:30:00Z"),
+      });
       await new ApprovalStore(home.root, { idSource: () => "ap1" }).raise({
         app: "alpha",
         role: "builder",
@@ -309,7 +332,12 @@ describe("dispatched turn runner", () => {
       expect(runtime.calls[0]?.req.task).toContain("Pass: groom");
       expect(runtime.calls[0]?.req.task).toContain("ap1");
       expect(runtime.calls[0]?.req.task).toContain("alpha: warning 900.00 / 1000.00 (90.0%)");
+      expect(runtime.calls[0]?.req.task).toContain("Copper Kestrel users need a clearer status message");
       expect(runtime.calls[0]?.req.task).toContain("# Pass: groom");
+      expect((await readPlannerFeeds(home.root, "alpha"))[0]).toMatchObject({
+        status: "consumed",
+        lifecycle: { consumed_by_turn: "turn-groom" },
+      });
 
       const journal = JSON.parse(readFileSync(`${home.root}/state/turns/turn-groom.json`, "utf8")) as {
         phase: string;
@@ -332,6 +360,90 @@ describe("dispatched turn runner", () => {
         costUsd: 0.03,
       });
       expect(typeof rows[0]!["runId"]).toBe("string");
+      const feedManifest = JSON.parse(
+        readFileSync(join(home.root, "runs", "alpha", String(rows[0]!["runId"]), "planner-feeds.json"), "utf8"),
+      ) as { entries: Array<{ consumption: string }> };
+      expect(feedManifest.entries[0]?.consumption).toBe("consumed");
+    } finally {
+      home.cleanup();
+      pair.cleanup();
+    }
+  });
+
+  it("keeps selected Planner feeds pending when groom fails before consumption", async () => {
+    const pair = makeBareWithClone();
+    const home = makeOrgHome({ approvals: true, state: true });
+    const app: AppEntry = {
+      name: "alpha",
+      repo: pair.bare.root,
+      status: "live",
+      budgetUsdMonth: 1000,
+      cadence: {},
+    };
+    const appsFile: AppsFile = {
+      org: { name: "test", maxConcurrentTurns: 2 },
+      defaults: { budgetUsdMonth: 1000 },
+      apps: [app],
+    };
+    const runtime = new FakeRuntime([{
+      result: {
+        status: "failed",
+        summary: "planner crashed before producing a groom result",
+        artifacts: [],
+        session: { runtime: "claude", id: "groom-failed" },
+        usage: { tokensIn: 10, tokensOut: 1, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+        escalations: [],
+      },
+    }]);
+    try {
+      await persistStandingRoleOutcome({
+        stateHome: home.root,
+        app: "alpha",
+        role: "support",
+        event: {
+          kind: "support-feedback",
+          key: "retry.json",
+          source: "file-drop-inbox",
+          payload: {
+            kind: "support-feedback",
+            id: "retry-1",
+            app: "alpha",
+            occurred_at: "2026-07-06T00:00:00Z",
+            source: "fixture",
+            severity: "medium",
+            channel: "email",
+            summary: "This evidence must survive the failed groom",
+          },
+        },
+        providerSummary: "support analysis",
+        now: new Date("2026-07-06T00:30:00Z"),
+      });
+      await writeJournalPatch(home.root, "turn-groom-failed", {
+        role: PLANNER.name,
+        app: app.name,
+        phase: "assembling",
+        attempt: 0,
+        triggerKind: "schedule",
+        trigger: "daily 07:00",
+      }, new Date("2026-07-06T00:00:00Z"));
+
+      const result = await runDispatchedTurn({
+        role: PLANNER,
+        app,
+        appsFile,
+        turnId: "turn-groom-failed",
+        runtimeHome: home.root,
+        orgRoot: process.cwd(),
+        runtimeFor: () => runtime,
+        now: () => new Date("2026-07-06T01:30:00Z"),
+      });
+      expect(result.status).toBe("failed");
+      expect((await readPlannerFeeds(home.root, "alpha"))[0]?.status).toBe("pending");
+      const runId = readdirSync(join(home.root, "runs", "alpha"))[0]!;
+      const manifest = JSON.parse(
+        readFileSync(join(home.root, "runs", "alpha", runId, "planner-feeds.json"), "utf8"),
+      ) as { entries: Array<{ consumption: string }> };
+      expect(manifest.entries[0]?.consumption).toBe("pending");
     } finally {
       home.cleanup();
       pair.cleanup();

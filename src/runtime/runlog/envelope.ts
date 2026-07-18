@@ -126,6 +126,8 @@ export interface RunEnvelope {
     output: string;
     session_log?: string;
     context_manifest?: string;
+    /** Caller-owned, content-bound input selection/consumption evidence. */
+    input_manifest?: string;
   };
 }
 
@@ -191,6 +193,7 @@ export interface StartRunMeta {
   authority?: AuthorityEvidence;
   providerTurnIds?: string[];
   executionStepIds?: string[];
+  inputManifestRef?: string;
   /** Workdir HEAD at pass start — the replay seed (learning-loop design
    *  §9.4: capture for replay while the episode runs, never reconstruct
    *  afterward). Absent when the workdir is not a git checkout. */
@@ -259,6 +262,7 @@ export async function startRun(
       prompt: "prompt.md",
       output: "output.md",
       session_log: "session.log",
+      ...(meta.inputManifestRef !== undefined ? { input_manifest: meta.inputManifestRef } : {}),
     },
   };
   await writeEnvelope(paths.envelope, envelope);

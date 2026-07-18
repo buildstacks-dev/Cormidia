@@ -644,6 +644,15 @@ is reserved for the **safety/approval escalation path** (a critical-op the
 human must clear); the build loop never writes it. Blocked-with-evidence,
 never silent retry-forever.
 
+Standing-role Planner feeds are a bounded lifecycle input, not replayable
+prompt history. Their producer/source/payload identity is deterministic;
+groom renders only a byte-bounded pending batch. A crash or failed Planner
+pass leaves that batch pending. A completed pass first records a content-bound
+consumption manifest and then commits an idempotent receipt; reconciliation
+finishes interrupted receipt applications. Superseded/consumed records age to
+expired and are pruned, but unconsumed records are retained and deferred to a
+later batch rather than discarded.
+
 A **legitimately-fired cap during review or ship-check** — a route/provider
 budget cap or a wall-clock/adapter timeout that aborts the pipeline — is
 terminalized the same way (L-005): `runReviewPipeline`/`runShipCheckPipeline`

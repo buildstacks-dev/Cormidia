@@ -523,6 +523,44 @@ describe("cmdPlan", () => {
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
   });
 
+  it("auto dry-run preserves repeatable required and optional planning-source declarations", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stateHome = makeDir("operon-plan-sources-json-state-");
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "ship the supplied design",
+      "--work-lifecycle",
+      "bounded-goal",
+      "--source",
+      "docs/spec.md",
+      "--optional-source",
+      "/tmp/research.md",
+      "--dry-run",
+      "--json",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const parsed = JSON.parse(log.mock.calls.map((call) => call.join(" ")).join("\n")) as {
+      planningSources: Array<{ path: string; requirement: string }>;
+    };
+    expect(parsed.planningSources).toEqual([
+      { path: "docs/spec.md", requirement: "required" },
+      { path: "/tmp/research.md", requirement: "optional" },
+    ]);
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+  });
+
   it("rejects --auto combined with --explain-route loudly instead of silently dropping the plan (L-008)", async () => {
     // The live campaign ran the documented `--auto --goal … --explain-route`
     // combination: exit 0, route JSON, zero tickets, zero spend, no warning.

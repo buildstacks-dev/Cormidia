@@ -68,7 +68,8 @@ scheduler/
     └── alerts/<alert-id>.json
 standing-roles/<app>/
 ├── artifacts/<artifact-id>.json
-└── planner-feeds/<feed-id>.json
+├── planner-feeds/<feed-id>.json
+└── planner-feed-consumptions/<batch-id>.json
 ```
 
 All scheduler evidence is `schema_version: 1`, canonical-key JSON, and sorted
@@ -76,6 +77,15 @@ on read, making projections deterministic and byte-stable. Initial identity
 publication uses exclusive create semantics; later stage transitions use
 atomic replacement. Corrupt/torn records fail closed and stay named in health
 output.
+
+Planner feeds use their own schema-v2 lifecycle. Identity binds app,
+producing role, event source/kind/key, and payload hash, preventing cross-role
+collisions. Groom selects only `pending` records under a fixed count/byte
+budget; a content-bound receipt advances the selected batch to `consumed`
+only after the Planner pipeline completes. New payload bytes for the same
+source advance older pending records to `superseded`. Terminal records become
+`expired` and are pruned after their retention window, while pending evidence
+is never removed merely because it is old.
 
 The four identity layers remain distinct:
 

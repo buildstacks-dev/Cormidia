@@ -101,6 +101,21 @@ export interface TicketPlan {
   tickets: PlanTicket[];
 }
 
+/** Orchestrator-owned provenance appended to every emitted ticket. Source
+ * content never enters GitHub; only the content-bound ref/hash and exact
+ * inclusion disposition cross the publication boundary. */
+export interface PlanningSourceTicketEvidence {
+  manifestSha256: string;
+  sources: Array<{
+    canonicalRef: string;
+    sourceSha256: string;
+    sourceBytes: number;
+    includedBytes: number;
+    inclusion: "full" | "truncated";
+    trust: string;
+  }>;
+}
+
 /** Stage-based ticket budgets (P1/P2): the smallest independently shippable
  *  milestone. A bootstrap is ONE observable milestone — the episode turned a
  *  personal website into 19 serial tickets gated on a foundation ticket that
@@ -238,6 +253,7 @@ export function renderTicketBody(
   ticket: PlanTicket,
   issueNumbers: readonly (number | undefined)[],
   releaseKind?: ReleaseKind,
+  planningSources?: PlanningSourceTicketEvidence,
 ): string {
   const deps = ticket.dependsOn
     .map((dep) => issueNumbers[dep])
@@ -266,6 +282,18 @@ export function renderTicketBody(
     "## Notes for the builder",
     ticket.notesForBuilder,
     "",
+    ...(planningSources !== undefined && planningSources.sources.length > 0
+      ? [
+          "## Planning sources consumed",
+          `Manifest SHA-256: ${planningSources.manifestSha256}`,
+          ...planningSources.sources.map(
+            (source) =>
+              `- \`${source.canonicalRef}\` — SHA-256 ${source.sourceSha256}; ` +
+              `${source.includedBytes}/${source.sourceBytes} bytes; ${source.inclusion}; ${source.trust}`,
+          ),
+          "",
+        ]
+      : []),
   ].join("\n");
 }
 
@@ -453,7 +481,11 @@ export async function publishTickets(gh: GhOps, plan: TicketPlan): Promise<Publi
 /** Publish an already-finalized projection without recomputing any floor or
  *  label transform. This is the boundary runAutoPlan uses after its result
  *  surfaces have consumed the same object. */
-export async function publishPlanProjection(gh: GhOps, projection: FinalPlanProjection): Promise<PublishResult> {
+export async function publishPlanProjection(
+  gh: GhOps,
+  projection: FinalPlanProjection,
+  planningSources?: PlanningSourceTicketEvidence,
+): Promise<PublishResult> {
   for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
 
   const issueNumbers: (number | undefined)[] = projection.tickets.map(() => undefined);
@@ -462,7 +494,7 @@ export async function publishPlanProjection(gh: GhOps, projection: FinalPlanProj
     for (const { index, ticket, labels, ready } of projection.tickets) {
       const issue = await gh.createIssue({
         title: ticket.title,
-        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind),
+        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, planningSources),
         labels,
       });
       issueNumbers[index] = issue.number;
@@ -472,7 +504,10 @@ export async function publishPlanProjection(gh: GhOps, projection: FinalPlanProj
     // their real Depends-on references now that every number is known.
     for (const { index, ticket } of projection.tickets) {
       if (ticket.dependsOn.some((dep) => dep > index)) {
-        await gh.updateIssueBody(issueNumbers[index]!, renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind));
+        await gh.updateIssueBody(
+          issueNumbers[index]!,
+          renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, planningSources),
+        );
       }
     }
   } catch (error) {

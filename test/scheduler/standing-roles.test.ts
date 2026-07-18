@@ -10,8 +10,13 @@ import { executeApprovedDeliveries } from "../../src/org/approval-delivery.js";
 import { composeGate } from "../../src/org/gate-compose.js";
 import { loadRoles } from "../../src/org/roles.js";
 import {
+  commitPlannerFeedConsumption,
+  maintainPlannerFeedRetention,
   parkStandingRoleAction,
+  plannerFeedId,
+  plannerFeedSourceIdentity,
   persistStandingRoleOutcome,
+  preparePlannerFeedBatch,
   readPlannerFeeds,
   verifyStandingRoleArtifact,
   type StandingRole,
@@ -72,6 +77,155 @@ describe("STANDING-ROLES-001 deterministic production paths", () => {
       await expect(persistStandingRoleOutcome({ stateHome: home.root, app: "service", role: "support", event: { ...eventFor("support"), payload: { ...eventFor("support").payload, source: "" } }, providerSummary: "x", now: new Date("2026-07-12T01:00:00Z") })).rejects.toThrow("provenance missing");
       await expect(persistStandingRoleOutcome({ stateHome: home.root, app: "service", role: "support", event: { ...eventFor("support"), payload: { ...eventFor("support").payload, kind: "adoption-signal" } }, providerSummary: "x", now: new Date("2026-07-12T01:00:00Z") })).rejects.toThrow("kind/payload mismatch");
     } finally { home.cleanup(); }
+  });
+
+  it("binds feed identity to the producing role and advances supersession/consumption crash-safely (#109)", async () => {
+    const home = makeOrgHome({ state: true });
+    const sourceA = plannerFeedSourceIdentity({
+      app: "service",
+      role: "support",
+      eventKind: "shared-event",
+      eventKey: "shared.json",
+      eventSource: "file-drop-inbox",
+    });
+    const sourceB = plannerFeedSourceIdentity({
+      app: "service",
+      role: "marketing",
+      eventKind: "shared-event",
+      eventKey: "shared.json",
+      eventSource: "file-drop-inbox",
+    });
+    expect(sourceA).not.toBe(sourceB);
+    const sharedPayloadHash = "sha256:shared-payload";
+    expect(new Set([
+      plannerFeedId(sourceA, sharedPayloadHash),
+      plannerFeedId(sourceB, sharedPayloadHash),
+    ])).toHaveLength(2);
+    try {
+      await persistSupportFeed(home.root, "feedback.json", "first version", new Date("2026-07-12T01:00:00Z"));
+      await persistSupportFeed(home.root, "feedback.json", "corrected version", new Date("2026-07-12T01:01:00Z"));
+      expect((await readPlannerFeeds(home.root, "service")).map((feed) => feed.status).sort()).toEqual([
+        "pending",
+        "superseded",
+      ]);
+
+      const firstBatch = await preparePlannerFeedBatch({
+        stateHome: home.root,
+        app: "service",
+        turnId: "groom-1",
+        now: new Date("2026-07-12T01:02:00Z"),
+      });
+      expect(firstBatch.selected).toHaveLength(1);
+      expect(firstBatch.selected[0]?.summary).toContain("corrected version");
+      // Crash-before-consume: no receipt means the same evidence remains pending.
+      const retryBatch = await preparePlannerFeedBatch({
+        stateHome: home.root,
+        app: "service",
+        turnId: "groom-2",
+        now: new Date("2026-07-12T01:03:00Z"),
+      });
+      expect(retryBatch.selected.map((feed) => feed.feed_id)).toEqual(
+        firstBatch.selected.map((feed) => feed.feed_id),
+      );
+      await commitPlannerFeedConsumption({
+        stateHome: home.root,
+        app: "service",
+        turnId: "groom-2",
+        batch: retryBatch,
+        now: new Date("2026-07-12T01:04:00Z"),
+      });
+      // Duplicate receipt/reconciliation is idempotent.
+      await commitPlannerFeedConsumption({
+        stateHome: home.root,
+        app: "service",
+        turnId: "groom-2",
+        batch: retryBatch,
+        now: new Date("2026-07-12T01:05:00Z"),
+      });
+      const consumed = (await readPlannerFeeds(home.root, "service")).find((feed) => feed.status === "consumed");
+      expect(consumed?.lifecycle).toMatchObject({ consumed_by_turn: "groom-2", consumption_id: retryBatch.manifest.batch_id });
+      const next = await preparePlannerFeedBatch({
+        stateHome: home.root,
+        app: "service",
+        turnId: "groom-3",
+        now: new Date("2026-07-12T01:06:00Z"),
+      });
+      expect(next.selected).toEqual([]);
+      expect(next.manifest.entries).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("bounds prompt bytes while retaining deferred pending evidence", async () => {
+    const home = makeOrgHome({ state: true });
+    try {
+      for (let index = 0; index < 3; index += 1) {
+        await persistSupportFeed(
+          home.root,
+          `feedback-${index}.json`,
+          `${index}:${"x".repeat(5_000)}`,
+          new Date(`2026-07-12T01:0${index}:00Z`),
+        );
+      }
+      const batch = await preparePlannerFeedBatch({
+        stateHome: home.root,
+        app: "service",
+        turnId: "bounded-groom",
+        now: new Date("2026-07-12T02:00:00Z"),
+        budgetBytes: 4_500,
+        maxFeeds: 2,
+      });
+      expect(batch.manifest.included_bytes).toBeLessThanOrEqual(4_500);
+      expect(batch.manifest.included_bytes).toBe(
+        batch.manifest.entries.reduce((sum, entry) => sum + entry.prompt_bytes, 0),
+      );
+      expect(batch.manifest.entries.some((entry) => entry.inclusion === "truncated")).toBe(true);
+      expect(batch.deferred.length).toBeGreaterThan(0);
+      expect((await readPlannerFeeds(home.root, "service")).filter((feed) => feed.status === "pending")).toHaveLength(3);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("expires and prunes only terminal feeds while preserving unconsumed evidence", async () => {
+    const home = makeOrgHome({ state: true });
+    try {
+      await persistSupportFeed(home.root, "old.json", "consume me", new Date("2026-07-01T00:00:00Z"));
+      await persistSupportFeed(home.root, "pending.json", "keep me", new Date("2026-07-01T00:01:00Z"));
+      const batch = await preparePlannerFeedBatch({
+        stateHome: home.root,
+        app: "service",
+        turnId: "groom-old",
+        now: new Date("2026-07-01T00:02:00Z"),
+        maxFeeds: 1,
+      });
+      await commitPlannerFeedConsumption({
+        stateHome: home.root,
+        app: "service",
+        turnId: "groom-old",
+        batch,
+        now: new Date("2026-07-01T00:03:00Z"),
+      });
+      const expired = await maintainPlannerFeedRetention(
+        home.root,
+        "service",
+        new Date("2026-07-02T00:00:00Z"),
+        { terminalRetentionMs: 0, expiredRetentionMs: 86_400_000 },
+      );
+      expect(expired).toMatchObject({ expired: 1, pendingKept: 1 });
+      expect((await readPlannerFeeds(home.root, "service")).map((feed) => feed.status).sort()).toEqual(["expired", "pending"]);
+      const pruned = await maintainPlannerFeedRetention(
+        home.root,
+        "service",
+        new Date("2026-07-03T00:00:00Z"),
+        { terminalRetentionMs: 0, expiredRetentionMs: 0 },
+      );
+      expect(pruned.pruned).toBe(1);
+      expect((await readPlannerFeeds(home.root, "service")).map((feed) => feed.status)).toEqual(["pending"]);
+    } finally {
+      home.cleanup();
+    }
   });
 
   it("queues one source-linked SRE incident, then records filing acknowledgement through the fake GitHub boundary", async () => {
@@ -216,6 +370,22 @@ async function executeAll(stateHome: string, appRoot: string): Promise<{ artifac
 
 function persistOne(stateHome: string, role: StandingRole, providerSummary: string) {
   return persistStandingRoleOutcome({ stateHome, app: "service", role, event: eventFor(role), providerSummary, now: new Date("2026-07-12T01:00:00Z") });
+}
+
+function persistSupportFeed(stateHome: string, key: string, summary: string, now: Date) {
+  const base = eventFor("support");
+  return persistStandingRoleOutcome({
+    stateHome,
+    app: "service",
+    role: "support",
+    event: {
+      ...base,
+      key,
+      payload: { ...base.payload, id: key, filename: key, summary },
+    },
+    providerSummary: `provider: ${summary}`,
+    now,
+  });
 }
 
 function eventFor(role: StandingRole) {

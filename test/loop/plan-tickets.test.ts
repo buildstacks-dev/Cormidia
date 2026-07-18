@@ -120,6 +120,24 @@ describe("renderTicketBody", () => {
     expect(parseReleaseKind(body)).toBeUndefined();
     expect(parseReleaseKind("Release-kind: yolo\n")).toBeUndefined();
   });
+
+  it("renders content-bound planning-source references without publishing source bytes", () => {
+    const body = renderTicketBody(ticket(), [], "merge-only", {
+      manifestSha256: "manifest-hash",
+      sources: [{
+        canonicalRef: "git:abc123:docs/design/spec.md",
+        sourceSha256: "source-hash",
+        sourceBytes: 120,
+        includedBytes: 100,
+        inclusion: "truncated",
+        trust: "operator-supplied-untrusted-data",
+      }],
+    });
+    expect(body).toContain("## Planning sources consumed");
+    expect(body).toContain("git:abc123:docs/design/spec.md");
+    expect(body).toContain("100/120 bytes; truncated");
+    expect(body).not.toContain("source content");
+  });
 });
 
 describe("publishTickets", () => {

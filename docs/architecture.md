@@ -333,7 +333,7 @@ state/turns/<turnId>.json  turn journals (§3)
 state/budget-overlay.json  dispatcher budget-pause overlay (§7)
 scheduler/installation.json  org-scoped scheduler ownership/definition record
 scheduler/evidence/      versioned invocation, route-decision, and alert JSON
-standing-roles/<app>/    grounded draft artifacts + deterministic Planner feeds
+standing-roles/<app>/    grounded drafts + lifecycle-bound Planner feeds/consumption receipts
 locks/<app>--<role>.lock
 approvals/               pending/ decided/ grants/ log.jsonl (§4)
 sessions/                adapter session artifacts where the SDK needs a home
@@ -1059,7 +1059,8 @@ interactive session published tickets through an agent-authored shell loop.
 
 ```
 operon plan <app> [--topic "stats percentile helper"] [--workdir <app-checkout>]
-operon plan <app> --auto --goal "<product goal>" [--stage bootstrap] [--no-publish]
+operon plan <app> --auto --goal "<product goal>" [--source <file-or-dir>]...
+  [--optional-source <file-or-dir>]... [--stage bootstrap] [--no-publish]
 ```
 
 - Assembles the Planner's context exactly as §5 (same TASTE layers, same
@@ -1079,6 +1080,12 @@ or left unlabeled for another pass) and/or a spec note committed under the
 app's `.operon/planning/`. In `--auto` mode the orchestrator publishes the
 validated plan itself with canonical labels — agents author no `gh` side
 effects.
+- `--auto` source inputs are resolved and content-bound before Runtime
+  construction. Required source failures stop the run; optional sources may
+  be deterministically truncated/excluded and remain named in the manifest.
+  Exact bytes cross the provider boundary as explicitly untrusted data. Each
+  pass envelope references its pending/consumed input manifest, while GitHub
+  tickets receive refs/hashes only.
 - Recorded in telemetry with `trigger: manual`; interactive-session rows
 carry `unmeasured: true` (the native CLI's tokens never flow through
 Operon), while `--auto` turns settle real usage per pass. The `Trigger`

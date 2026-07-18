@@ -72,7 +72,13 @@ import { appendScorecardEvent } from "./scorecards.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
 import { SchedulerEvidenceStore } from "./scheduler/evidence.js";
 import { schedulerIdentity } from "./scheduler/model.js";
-import { persistStandingRoleOutcome, readPlannerFeeds } from "./standing-roles.js";
+import {
+  commitPlannerFeedConsumption,
+  consumedPlannerFeedBatchManifest,
+  persistStandingRoleOutcome,
+  plannerFeedBatchManifestJson,
+  preparePlannerFeedBatch,
+} from "./standing-roles.js";
 
 export interface RunDispatchedTurnOptions {
   role: RoleConfig;
@@ -350,9 +356,14 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   const budgetRows = (await rollupBudgets(options.runtimeHome, options.appsFile, now)).filter(
     (row) => row.status !== "ok",
   );
-  const plannerFeeds = options.role.name === "planner"
-    ? await readPlannerFeeds(options.runtimeHome, options.app.name)
-    : [];
+  const plannerFeedBatch = options.role.name === "planner"
+    ? await preparePlannerFeedBatch({
+        stateHome: options.runtimeHome,
+        app: options.app.name,
+        turnId: options.turnId,
+        now,
+      })
+    : undefined;
 
   const result = await executePipeline({
     pipeline,
@@ -375,7 +386,9 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
           ageMs: now.getTime() - new Date(item.raisedAt).getTime(),
         })),
         budgetRows,
-        plannerFeeds: plannerFeeds.map((feed) => ({ id: feed.feed_id, summary: feed.summary })),
+        plannerFeeds: (plannerFeedBatch?.manifest.entries ?? [])
+          .filter((feed) => feed.selection === "selected")
+          .map((feed) => ({ id: feed.feed_id, summary: feed.summary })),
       }),
     promptsDir: join(options.orgRoot, "prompts"),
     context: options.context,
@@ -388,6 +401,17 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     },
     ...(options.now !== undefined ? { clock: options.now } : {}),
     telemetry: options.telemetry,
+    ...(plannerFeedBatch !== undefined
+      ? {
+          inputManifest: {
+            fileName: "planner-feeds.json",
+            pendingContents: plannerFeedBatchManifestJson(plannerFeedBatch.manifest),
+            completedContents: plannerFeedBatchManifestJson(
+              consumedPlannerFeedBatchManifest(plannerFeedBatch.manifest),
+            ),
+          },
+        }
+      : {}),
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     afterPass: (record) => {
@@ -410,6 +434,15 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   }
 
   const turnResult = resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+  if (plannerFeedBatch !== undefined && turnResult.status === "completed") {
+    await commitPlannerFeedConsumption({
+      stateHome: options.runtimeHome,
+      app: options.app.name,
+      turnId: options.turnId,
+      batch: plannerFeedBatch,
+      now: options.now?.() ?? new Date(),
+    });
+  }
   const delivery = standingRolePersistence?.artifact.delivery;
   if (delivery !== undefined && delivery.filing_state !== "filed") {
     const status: TurnResult["status"] = ["pending_approval", "ready", "executing"].includes(delivery.filing_state)

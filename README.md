@@ -439,7 +439,8 @@ runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
 ├── events.jsonl     # trace/span-scoped lifecycle events — L2
 ├── brief.md         # the exact prompt the pass received — L3, verbatim
 ├── output.md        # what the pass produced — L3, verbatim
-└── session.log      # activity log—not transcript; present only when TurnEvents streamed
+├── session.log      # activity log—not transcript; present only when TurnEvents streamed
+└── planning-sources.json / planner-feeds.json # optional content-bound input manifest
 telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
 efficiency/episodes/<hash>/ # admitted route + terminal execution steps +
                             # episode context-manifest projection
@@ -534,6 +535,16 @@ and a pre-execution historical cost estimate (or an honest unavailable
 marker plus the role-cap upper bound). Under `efficiency/v1`, this
 `planning_depth` is evidence derived from episode admission, not a second
 quick/standard/deep route authority.
+
+Automated planning also accepts repeatable required `--source <file-or-dir>`
+and optional `--optional-source <file-or-dir>` inputs. Relative paths resolve
+against the exact source checkout; absolute external sources are allowed.
+Operon resolves bounded directories, content-hashes UTF-8 text, applies the
+shared secret boundary, and records canonical refs, bytes, trust, selection,
+truncation/exclusion, and consumption before constructing a provider runtime.
+A missing, unreadable, rejected, or over-budget required source fails closed.
+Every pass retains `planning-sources.json`; emitted tickets carry only the
+manifest/source refs and hashes, never the source bytes.
 
 `operon learn` is the learning loop's human window; `operon learn --help`
 has the full argument semantics. The capture verbs (`report`, `inspect

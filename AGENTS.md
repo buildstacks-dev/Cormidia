@@ -272,6 +272,7 @@ efficacy health independently. The mechanics construct no provider runtime.
   HEAD make the scope ambiguous) ·
   `pnpm dev plan <app> --dry-run` ·
   `pnpm dev plan <app> --auto --goal "<text>" [--stage bootstrap|growth|mature]
+  [--source <file-or-dir>]... [--optional-source <file-or-dir>]...
   [--work-lifecycle existing-ticket|bounded-goal|milestone|strategy]
   [--depth quick|standard|deep] [--dry-run] [--no-publish] [--json]` (adaptive runtime-backed
   plan: schema-validated, orchestrator-published) ·

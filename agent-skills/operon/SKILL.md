@@ -171,6 +171,10 @@ separate explicit authorization.
 Interactive `operon plan <app>` hands the terminal to a live session and will
 hang a non-interactive run; headless planning must use
 `operon plan <app> --auto --goal <text>`.
+Use repeatable `--source <file-or-dir>` for required design/product-truth
+inputs and `--optional-source <file-or-dir>` only when deterministic
+truncation or exclusion is acceptable. Required source failures stop before a
+provider turn; successful tickets publish hashes/refs rather than source bytes.
 
 Live `plan`, `loop`, `dispatch`, `run-role`, and `learn experiment run`
 operations can spend tokens and modify GitHub or worktrees; `learn canary

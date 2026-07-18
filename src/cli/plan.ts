@@ -13,6 +13,7 @@ import { resolveParentTaskId } from "../org/parent-task.js";
 import { loadRoles } from "../org/roles.js";
 import { loadPipelines } from "../loop/pipelines.js";
 import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
+import type { PlanningSourceRequest } from "../org/planning-inputs.js";
 import {
   decidePlanningDepth,
   routePlanningPasses,
@@ -44,6 +45,9 @@ export async function cmdPlan(args: string[]): Promise<number> {
           "or drop --auto to preview the route without planning",
       );
     }
+    if (parsed.sources.length > 0) {
+      throw new Error("plan: --source/--optional-source cannot be combined with --explain-route because a route preview consumes no source bytes");
+    }
     const appsFile = await loadApps(join(homes.orgHome, "apps.yaml"));
     const app = appsFile.apps.find((entry) => entry.name === parsed.app);
     if (app === undefined) throw new Error(`plan: unknown app "${parsed.app}" in apps.yaml`);
@@ -65,6 +69,9 @@ export async function cmdPlan(args: string[]): Promise<number> {
       const stage = parsed.stage ?? (app.status === "onboarding" ? "bootstrap" : "mature");
       const decision = decidePlanningDepth({ goal: parsed.goal, stage, ...planningOptions(parsed) });
       const planningRoute = routePlanningPasses(decision, stage, await availablePlanningPipelines(homes.orgHome));
+      if (parsed.sources.length > 0 && decision.disposition === "direct-execution") {
+        throw new Error("plan: planning sources cannot be consumed by the direct existing-ticket route; select bounded-goal/milestone/strategy");
+      }
       if (parsed.json) {
         console.log(JSON.stringify({
           schema_version: 1,
@@ -75,6 +82,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
           decision,
           planningRoute,
           sourceCheckout: resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name)),
+          planningSources: parsed.sources,
           parentTaskId: parentTaskId ?? null,
           effects: [],
         }, null, 2));
@@ -90,6 +98,9 @@ export async function cmdPlan(args: string[]): Promise<number> {
       console.log(`routing factors: ${decision.decisionFactors.join("; ")}`);
       console.log(`execution factors: ${decision.executionDecisionFactors.join("; ")}`);
       console.log(`source checkout: ${resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name))}`);
+      for (const source of parsed.sources) {
+        console.log(`planning source (${source.requirement ?? "required"}): ${source.path}`);
+      }
       if (parentTaskId !== undefined) console.log(`parent task: ${parentTaskId}`);
       console.log("(dry-run: no runtime, run envelope, telemetry, learning projection, or GitHub write)");
       return 0;
@@ -107,6 +118,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
       signal: cancellation.signal,
       ...(parentTaskId !== undefined ? { parentTaskId } : {}),
       planning: planningOptions(parsed),
+      ...(parsed.sources.length > 0 ? { sources: parsed.sources } : {}),
     }).finally(() => cancellation.dispose());
     if (parsed.json) {
       console.log(JSON.stringify({ schema_version: 1, kind: "plan-result", app: app.name, ...result }, null, 2));
@@ -152,14 +164,22 @@ export async function cmdPlan(args: string[]): Promise<number> {
           : ` (lower-pass minus selected-pass failure rate ${outcome.observedFailureRateDelta.toFixed(3)}; ${outcome.basis})`),
       );
     }
+    if (result.planningSources !== undefined) {
+      console.log(`planning-source manifest: ${result.planningSources.manifest_sha256}`);
+      for (const source of result.planningSources.sources) {
+        console.log(
+          `planning source: ${source.canonical_ref} ${source.selection}/${source.inclusion}/${source.consumption}`,
+        );
+      }
+    }
     // A failed/incomplete planning turn must not exit 0. The explicit
     // direct-execution disposition is a completed token-free admission
     // decision and intentionally has no plan artifact.
     return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
   }
 
-  if (parsed.json || parsed.workLifecycle !== undefined) {
-    throw new Error("plan: --json and --work-lifecycle apply only to --auto or --explain-route");
+  if (parsed.json || parsed.workLifecycle !== undefined || parsed.sources.length > 0) {
+    throw new Error("plan: --json and --work-lifecycle apply only to --auto or --explain-route; planning-source flags apply only to --auto");
   }
 
   const session = await preparePlanSession({
@@ -232,6 +252,7 @@ interface ParsedPlanArgs {
   workLifecycle?: PlanningWorkLifecycle;
   explainRoute: boolean;
   json: boolean;
+  sources: PlanningSourceRequest[];
 }
 
 function parseArgs(args: string[]): ParsedPlanArgs {
@@ -262,6 +283,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
   let workLifecycle: PlanningWorkLifecycle | undefined;
   let explainRoute = false;
   let json = false;
+  const sources: PlanningSourceRequest[] = [];
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--dry-run") {
@@ -274,6 +296,11 @@ function parseArgs(args: string[]): ParsedPlanArgs {
       auto = true;
     } else if (arg === "--no-publish") {
       noPublish = true;
+    } else if (arg === "--source" || arg === "--optional-source") {
+      const next = args[i + 1];
+      if (!next || next.startsWith("--")) throw new Error(`plan: ${arg} requires a file or directory path`);
+      sources.push({ path: next, requirement: arg === "--source" ? "required" : "optional" });
+      i++;
     } else if (arg === "--goal") {
       const next = args[i + 1];
       if (!next || next.startsWith("--")) throw new Error("plan: --goal requires a string");
@@ -334,6 +361,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
     noPublish,
     explainRoute,
     json,
+    sources,
     ...(goal !== undefined ? { goal } : {}),
     ...(stage !== undefined ? { stage } : {}),
     ...(topic !== undefined ? { topic } : {}),

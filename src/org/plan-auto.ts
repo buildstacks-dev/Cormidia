@@ -22,6 +22,7 @@ import {
   publishPlanProjection,
   validatePlan,
   type FinalPlanProjection,
+  type PlanningSourceTicketEvidence,
   type ProjectStage,
   type PublishedTicket,
   type TicketPlan,
@@ -44,6 +45,16 @@ import {
   type PlanningDepthInput,
   type PlanningPassRoute,
 } from "./planning-depth.js";
+import {
+  consumedPlanningSourceManifest,
+  planningSourceBudget,
+  planningSourceManifestJson,
+  renderPlanningSourceBrief,
+  resolvePlanningSources,
+  type PlanningSourceManifest,
+  type PlanningSourceRequest,
+  type ResolvedPlanningSources,
+} from "./planning-inputs.js";
 
 export interface AutoPlanOptions {
   orgHome: string;
@@ -69,6 +80,10 @@ export interface AutoPlanOptions {
   /** Explicit/derived routing factors. Omitted fields use stage-aware
    * conservative defaults; minimumDepth can raise but never lower a floor. */
   planning?: Omit<PlanningDepthInput, "goal" | "stage">;
+  /** Repeatable, operator-declared product-truth inputs. Relative paths are
+   * resolved against the exact source checkout; absolute external files are
+   * allowed. Required sources fail closed before Runtime construction. */
+  sources?: readonly PlanningSourceRequest[];
 }
 
 export interface AutoPlanResult {
@@ -81,6 +96,7 @@ export interface AutoPlanResult {
   planningCostEstimate?: PlanningCostEstimate;
   planningRoute?: PlanningPassRoute;
   planProjection?: FinalPlanProjection;
+  planningSources?: PlanningSourceManifest;
 }
 
 export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanResult> {
@@ -96,6 +112,15 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     (row) => row.app === undefined || row.app === options.app.name,
   );
   if (planningDecision.disposition === "direct-execution") {
+    if ((options.sources?.length ?? 0) > 0) {
+      return {
+        status: "failed",
+        summary: "planning sources were supplied, but existing-ticket routing selects no planning pass; use bounded-goal/milestone/strategy or remove the sources",
+        planningDecision,
+        planningRoute: routePlanningPasses(planningDecision, stage, []),
+        planningCostEstimate: zeroPlanningCostEstimate(history),
+      };
+    }
     const planningRoute = routePlanningPasses(planningDecision, stage, []);
     return {
       status: "completed",
@@ -154,6 +179,10 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     return createPlanningSnapshot(source, join(options.stateHome, "worktrees", options.app.name, turnId));
   });
   const localRepo = snapshot.path;
+  const resolvedSources = resolveAutoPlanSources(options, snapshot, turnId, planningDecision.depth);
+  const consumedSources = resolvedSources === undefined
+    ? undefined
+    : consumedPlanningSourceManifest(resolvedSources.manifest);
   const store = new ApprovalStore(options.stateHome);
   const hooks: TurnHooks = {
     gate: composeGate(defaultGate, store, {
@@ -169,11 +198,17 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       appWorkdir: localRepo,
       app: options.app.name,
       role: planner,
-      taskText: `${stage} ${planningDecision.depth} plan for ${options.app.name}: ${options.goal}`,
+      taskText:
+        `${stage} ${planningDecision.depth} plan for ${options.app.name}: ${options.goal}` +
+        (resolvedSources === undefined ? "" : `; planning sources ${resolvedSources.manifest.manifest_sha256}`),
     })
   ).bundle;
 
-  const brief = await stageAwareBrief(options, snapshot, clock(), stage, planningDecision, route, planningCostEstimate);
+  const baseBrief = await stageAwareBrief(options, snapshot, clock(), stage, planningDecision, route, planningCostEstimate);
+  const sourceBrief = resolvedSources === undefined
+    ? ""
+    : renderPlanningSourceBrief(resolvedSources.manifest, resolvedSources.documents);
+  const brief = sourceBrief === "" ? baseBrief : `${baseBrief}\n\n${sourceBrief}`;
   const priorOutputs = new Map<string, string>();
   const finalPassId = route.selectedPasses[route.selectedPasses.length - 1];
   const planningFactor = {
@@ -256,6 +291,15 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         basis: planningCostEstimate.outcomeMeasurement.basis,
       },
     },
+    ...(resolvedSources !== undefined && consumedSources !== undefined
+      ? {
+          inputManifest: {
+            fileName: "planning-sources.json",
+            pendingContents: planningSourceManifestJson(resolvedSources.manifest),
+            completedContents: planningSourceManifestJson(consumedSources),
+          },
+        }
+      : {}),
     afterPass: (record) => {
       priorOutputs.set(record.pass.id, record.result.summary);
     },
@@ -272,6 +316,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       planningDecision,
       planningRoute: route,
       planningCostEstimate,
+      ...(resolvedSources !== undefined ? { planningSources: resolvedSources.manifest } : {}),
     };
   }
 
@@ -283,6 +328,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       planningDecision,
       planningRoute: route,
       planningCostEstimate,
+      ...(consumedSources !== undefined ? { planningSources: consumedSources } : {}),
     };
   }
   const validation = validatePlan(plan);
@@ -299,6 +345,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       planningDecision,
       planningRoute: route,
       planningCostEstimate,
+      ...(consumedSources !== undefined ? { planningSources: consumedSources } : {}),
     };
   }
 
@@ -313,10 +360,15 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       planningDecision,
       planningRoute: route,
       planningCostEstimate,
+      ...(consumedSources !== undefined ? { planningSources: consumedSources } : {}),
     };
   }
   const gh = options.gh ?? new GhCliOps(options.app.repo);
-  const { published } = await publishPlanProjection(gh, planProjection);
+  const { published } = await publishPlanProjection(
+    gh,
+    planProjection,
+    consumedSources === undefined ? undefined : planningSourceTicketEvidence(consumedSources),
+  );
   return {
     status: "completed",
     summary:
@@ -328,6 +380,40 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     planningDecision,
     planningRoute: route,
     planningCostEstimate,
+    ...(consumedSources !== undefined ? { planningSources: consumedSources } : {}),
+  };
+}
+
+function resolveAutoPlanSources(
+  options: AutoPlanOptions,
+  snapshot: PlanningSnapshot,
+  traceId: string,
+  depth: PlanningDepthDecision["depth"],
+): ResolvedPlanningSources | undefined {
+  if ((options.sources?.length ?? 0) === 0) return undefined;
+  return resolvePlanningSources({
+    app: options.app.name,
+    traceId,
+    sourceCheckout: snapshot.sourcePath,
+    sourceCheckoutHead: snapshot.sourceHead,
+    requests: options.sources ?? [],
+    budgetBytes: planningSourceBudget(depth),
+  });
+}
+
+function planningSourceTicketEvidence(manifest: PlanningSourceManifest): PlanningSourceTicketEvidence {
+  return {
+    manifestSha256: manifest.manifest_sha256,
+    sources: manifest.sources
+      .filter((source) => source.selection === "selected" && source.consumption === "consumed")
+      .map((source) => ({
+        canonicalRef: source.canonical_ref,
+        sourceSha256: source.source_sha256,
+        sourceBytes: source.source_bytes,
+        includedBytes: source.included_bytes,
+        inclusion: source.inclusion === "truncated" ? "truncated" as const : "full" as const,
+        trust: source.trust,
+      })),
   };
 }
 

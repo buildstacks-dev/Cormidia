@@ -50,7 +50,7 @@ import { gitSnapshotOf } from "../runtime/git.js";
 import { worstUsageQuality } from "../runtime/cost.js";
 import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
-import { mintRunId } from "../runtime/runlog/paths.js";
+import { mintRunId, runPaths } from "../runtime/runlog/paths.js";
 import { withAuthorityBrief } from "./brief.js";
 import { writeContextManifest } from "./context-manifest.js";
 import {
@@ -76,6 +76,7 @@ import {
   type PipelineConfig,
 } from "./pipelines.js";
 import type { LoopContinuation } from "./types.js";
+import { writeLoopFileAtomic } from "./durable.js";
 
 export interface RunlogTarget {
   /** Org runtime home the runs/ tree lives under. */
@@ -120,6 +121,15 @@ export interface ExecutePipelineOptions {
   /** Broader delegated task registered by the top-level operator harness. */
   parentTaskId?: string;
   planningRoute?: PlanningRouteEvidence;
+  /** Optional caller-owned manifest written into every pass run before the
+   * Runtime is constructed. A completed pass atomically advances the same
+   * file to `completedContents`; failed/blocked passes retain the pending
+   * selection so a reader never mistakes attempted context for consumption. */
+  inputManifest?: {
+    fileName: string;
+    pendingContents: string;
+    completedContents: string;
+  };
   /** End-to-end route authority. Omitted callers get an explicit trace-scoped
    * admission; build-loop callers pass a ticket episode admitted by the
    * driver and keep it open across build/review/ship pipelines. */
@@ -590,6 +600,9 @@ async function runPass(
   // (runRole's plain turn) — the loader rejects empty templates in config.
   const template =
     pass.template === "" ? undefined : await readFile(join(options.promptsDir, pass.template), "utf8");
+  const inputManifestRef = options.inputManifest === undefined
+    ? undefined
+    : validateInputManifestFileName(options.inputManifest.fileName);
 
   // Replay seed (learning design §9.4): captured while the episode runs,
   // never reconstructed from logs afterward. Absent for non-git workdirs.
@@ -623,6 +636,7 @@ async function runPass(
           })),
       },
       ...(options.planningRoute !== undefined ? { planningRoute: options.planningRoute } : {}),
+      ...(inputManifestRef !== undefined ? { inputManifestRef } : {}),
       ...(options.context.authority !== undefined
         ? {
             authority: {
@@ -638,6 +652,12 @@ async function runPass(
   );
   let runFinalized = false;
   try {
+  if (options.inputManifest !== undefined && inputManifestRef !== undefined) {
+    await writeLoopFileAtomic(
+      join(runPaths(root, app, runId).dir, inputManifestRef),
+      options.inputManifest.pendingContents,
+    );
+  }
   const contextManifest = await writeContextManifest({
     root,
     episodeId,
@@ -1052,6 +1072,12 @@ async function runPass(
   }
 
   const status = verdictOutcome.ok ? envelopeStatus(result) : "failed";
+  if (status === "completed" && options.inputManifest !== undefined && inputManifestRef !== undefined) {
+    await writeLoopFileAtomic(
+      join(runPaths(root, app, runId).dir, inputManifestRef),
+      options.inputManifest.completedContents,
+    );
+  }
   if (status === "failed") {
     // Infra failure — machine code, distinct population from merit (§9). The
     // adapter's own code (budget overrun, watchdog) beats the generic one:
@@ -1121,6 +1147,13 @@ async function runPass(
     }
     throw error;
   }
+}
+
+function validateInputManifestFileName(fileName: string): string {
+  if (!/^[a-z0-9][a-z0-9._-]*\.json$/.test(fileName)) {
+    throw new Error(`executePipeline: invalid input manifest file name ${JSON.stringify(fileName)}`);
+  }
+  return fileName;
 }
 
 /** Drain the buffered tool/subagent TurnEvents into L2 (§9): `tool.called`

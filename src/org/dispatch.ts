@@ -458,7 +458,7 @@ async function computeDueTurns(input: {
       const subscribers = subscribersByEvent.get(event.key);
       if (subscribers === undefined) {
         input.result.skipped.push(
-          `${app.name}: event ${event.kind} (${event.key}) has no subscriber`,
+          `no_subscriber: ${app.name} event ${event.kind} (${event.key}) has no current subscriber`,
         );
         blocked.push({ app: app.name, role: "*", triggerKind: "event", trigger: event.kind, eventKey: event.key, outcome: "skipped", reason: "no_subscriber", detail: "event has no current subscriber" });
       } else if (

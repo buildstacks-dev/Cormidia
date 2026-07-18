@@ -147,6 +147,14 @@ operon report --app <app> --period 30d --html app-report.html
 operon observe --app <app> --open
 ```
 
+Company-lifecycle files placed in
+`~/.operon/<org>/state/events/inbox/*.json` use a closed kind registry.
+`operon dispatch` reports malformed payloads as `malformed_company_event`,
+unregistered kinds as `unknown_company_event_kind`, and valid registered kinds
+with no current role trigger as the non-error skip `no_subscriber`; only valid
+subscribed kinds spawn turns. See [the event schema contract](docs/event-schemas.md)
+for the supported kinds, payloads, and exact retention behavior.
+
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
 the active org and writes app-owned files under `.operon/`, plus one marked,
 idempotent authority pointer composed into root `AGENTS.md` and `CLAUDE.md`.

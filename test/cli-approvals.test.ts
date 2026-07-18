@@ -30,7 +30,7 @@ describe("approvals execution CLI", () => {
         now,
       });
 
-      expect(await cmdApprovals(["status", "--state-home", home.root])).toBe(0);
+      expect(await cmdApprovals(["status", "--home", home.root])).toBe(0);
       const status = log.mock.calls.map((call) => call.join(" ")).join("\n");
       expect(status).toContain("failed");
       expect(status).toContain("orchestrator/dispatch");
@@ -40,11 +40,11 @@ describe("approvals execution CLI", () => {
 
       await expect(cmdApprovals([
         "disposition", pending.id, "--retry", "--reason", "credentials repaired", "--confirm", "wrong-id",
-        "--state-home", home.root, "--now", now.toISOString(),
+        "--home", home.root, "--now", now.toISOString(),
       ])).rejects.toThrow("must exactly match");
       expect(await cmdApprovals([
         "disposition", pending.id, "--retry", "--reason", "credentials repaired", "--confirm", pending.id,
-        "--state-home", home.root, "--now", now.toISOString(),
+        "--home", home.root, "--now", now.toISOString(),
       ])).toBe(0);
       expect((await store.show(pending.id)).item.execution).toMatchObject({
         state: "approved",

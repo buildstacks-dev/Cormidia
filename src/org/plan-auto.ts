@@ -15,7 +15,6 @@ import type { RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import { executePipeline } from "../loop/pipeline.js";
 import { getPipeline, loadPipelines } from "../loop/pipelines.js";
 import { readTurnRecords } from "../runtime/telemetry.js";
-import { createEventWriter } from "../runtime/runlog/events.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 import {
   finalizePlanForPublication,
@@ -304,20 +303,6 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   }
 
   const planProjection = finalizePlanForPublication(plan);
-  const finalRole = roles[pass.pass.role];
-  if (finalRole === undefined) {
-    throw new Error(`completed planning pass ${pass.pass.id} references missing role ${pass.pass.role}`);
-  }
-  await recordFinalPlanProjectionEvidence({
-    stateHome: options.stateHome,
-    app: options.app.name,
-    traceId: turnId,
-    pipeline: pipeline.name,
-    pass,
-    role: finalRole,
-    projection: planProjection,
-    clock,
-  });
 
   if (options.publish === false) {
     return {
@@ -421,46 +406,6 @@ async function stageAwareBrief(
     "Plan the smallest shippable milestone per the pass protocol.",
     `The final selected pass must emit exactly one TicketPlan JSON object with stage "${stage}" matching the provided schema; the orchestrator alone publishes it.`,
   ].join("\n");
-}
-
-async function recordFinalPlanProjectionEvidence(input: {
-  stateHome: string;
-  app: string;
-  traceId: string;
-  pipeline: string;
-  pass: NonNullable<Awaited<ReturnType<typeof executePipeline>>["passes"][number]>;
-  role: RoleConfig;
-  projection: FinalPlanProjection;
-  clock: () => Date;
-}): Promise<void> {
-  const events = createEventWriter(
-    input.stateHome,
-    {
-      runId: input.pass.runId,
-      trace_id: input.traceId,
-      span_id: input.pass.pass.id,
-      app: input.app,
-      pipeline: input.pipeline,
-      pass: input.pass.pass.id,
-      role: input.role.name,
-      model: input.pass.pass.model ?? input.role.model,
-    },
-    input.clock,
-  );
-  for (const ticket of input.projection.tickets) {
-    await events.append({
-      type: "plan.ticket_finalized",
-      detail: {
-        index: ticket.index,
-        requested_tier: ticket.requestedTier,
-        final_tier: ticket.finalTier,
-        ...(ticket.escalationReason !== undefined
-          ? { escalation_reason: ticket.escalationReason }
-          : {}),
-        labels: ticket.labels.join(","),
-      },
-    });
-  }
 }
 
 function planningBriefForPass(

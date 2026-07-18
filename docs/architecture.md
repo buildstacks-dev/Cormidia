@@ -1100,9 +1100,8 @@ type's `manual?: boolean` kind is one the dispatcher **never** auto-fires.
 - After the final pass emits a valid plan, `finalizePlanForPublication` applies
   all orchestrator-owned tier floors and canonical-label transforms once. Its
   immutable projection carries requested tier, final tier, escalation reason,
-  and exact labels; console/JSON output, no-publish results, L2
-  `plan.ticket_finalized` evidence, and GitHub publication all consume that
-  same object.
+  and exact labels; console/JSON output, no-publish results, and GitHub
+  publication all consume that same object.
 - `--explain-route` and `--auto --dry-run` stop before runtime construction and
   therefore have no ticket plan to project. `--no-publish` is the
   non-publishing mode that returns the finalized ticket projection.

@@ -58,9 +58,20 @@ const SUITE_RUNNER_CONFIG_FILES = new Set([
 /** The single definition of the executable eval suite. `executableSuiteHash`
  * hashes exactly these files and `release-attestation.ts` governs exactly these
  * paths through this same predicate, so the two can never drift out of
- * agreement. */
+ * agreement.
+ *
+ * `.github/workflows/**` and `scripts/ci/**` are covered as trees rather than as
+ * the single named qualification workflow (widened 2026-07-18, lane-based CI).
+ * Same ROOT-001 reasoning as the runner configs above: CI lane admission decides
+ * which tests execute, so leaving any of it ungoverned reopens exactly the gap
+ * that governing `vitest.config.ts` closed. Under the previous exact-filename
+ * rule a second workflow file, or a change to the path classifier that admits no
+ * lane, could skip the red contract tests while CI still reported green. Both
+ * trees ship in no package, so `release_package_sha256` never sees them. This
+ * widens governance; it never narrows it. */
 export function isExecutableSuitePath(name: string): boolean {
-  return name === ".github/workflows/efficiency-qualification.yml" ||
+  return name.startsWith(".github/workflows/") ||
+    name.startsWith("scripts/ci/") ||
     SUITE_RUNNER_CONFIG_FILES.has(name) ||
     name.startsWith("scripts/eval/") ||
     name.startsWith("test/") ||

@@ -363,13 +363,13 @@ function orgSurfacePath(path: string): boolean {
 /** A changed path the changed-path attestation rule deliberately ignores. Such
  * a path can alter none of the four governed planes: the packaged product
  * (packagedArtifactPath, checked also by release_package_sha256), the executable
- * suite (isExecutableSuitePath — the scripts/eval, test, and eval trees, the
- * workflow, and the vitest/playwright runner configs that select and grade which
+ * suite (isExecutableSuitePath — the scripts/eval, scripts/ci, test, and eval
+ * trees, the .github/workflows tree, and the runner configs that select and grade which
  * tests run — governed by executable_suite_sha256 + the proportionate-repair
  * path), the org surfaces (orgSurfacePath, governed by org_fingerprint), or the
  * promotion evidence (research/evals/** and the allowedPromotionPath allowlist).
  * Docs other than the two packed docs files, review/**, .github/** other than the
- * workflow, install/build-environment config (pnpm-workspace.yaml,
+ * workflows tree, install/build-environment config (pnpm-workspace.yaml,
  * pnpm-lock.yaml, tsconfig.json — see SUITE_RUNNER_CONFIG_FILES), and every other
  * non-shipped file therefore do NOT invalidate qualification — qualification
  * certifies product behavior and such a change cannot touch it. Ratified in

@@ -629,6 +629,51 @@ config file, not a fork.
   the strict activation mode as the default. **This does not retroactively
   qualify any prior campaign** (each is immutable at its own `campaign_sha256`
   and bytes); a release from `main` still requires a fresh qualifying campaign.
+- **CI runs change-aware lanes, executes the offline suite exactly once, and
+  governs its own lane-admission logic** (PROPOSED 2026-07-18 — ratified when
+  this PR merges; issue #99). Three parts.
+  (1) *Deduplication.* The single `deterministic` job ran `test:transformation`,
+  `eval:deterministic`, the full vitest suite, and `test:transformation:strict`
+  in sequence. Each of those umbrella scripts bundles a vitest invocation with a
+  distinct non-vitest assertion, so `test/transformation` + `test/eval` executed
+  **four times per PR/push and six times nightly** (~340s/run of pure
+  duplication, measured on run 29637905909). The distinct assertions cost ~2s
+  total, and `evaluateContracts` verifies evidence presence and the declared
+  debt set *without probing source text*, so one offline-suite execution plus
+  the atomic `eval:contracts` / `eval:contracts:strict` gates is exactly
+  equivalent coverage. The strict gate remains **unconditional** on every CI
+  invocation (J-REL-01), and the nightly shuffle is retained as the one
+  deliberate repetition because it tests a distinct invariant (order dependence
+  at two workers, concurrency dependence at one).
+  (2) *Admission.* Lanes are admitted from the changed paths, so a docs-only
+  change consumes no qualification runner — which is what AGENTS.md ("Docs-only
+  changes: nothing to run") and the 2026-07-17 qualification-scope decision
+  already promised, and which per-commit CI had never implemented. Admission
+  fails open into **more** testing: schedules, tags, manual dispatch, an
+  unresolvable diff, and any unrecognised path admit every lane; only provably
+  behaviour-free paths admit none. Pushes to `main` keep the core lane because
+  this repository has no branch-protection enforcement. Superseded pull-request
+  runs are cancelled; `main` and tag runs never are. This also adds the
+  Observer/Reports browser, smoke, build, and pack checks that AGENTS.md
+  required but per-commit CI had never run.
+  (3) *Amendment — the executable suite now governs `.github/workflows/**` and
+  `scripts/ci/**` as trees* rather than the single filename
+  `.github/workflows/efficiency-qualification.yml`. This **widens** governance
+  and is the direct extension of the ROOT-001 reasoning that put
+  `vitest.config.ts` in the suite: lane admission decides which tests execute,
+  so under the old exact-filename rule a second workflow file — or a change to
+  the path classifier that admitted no lane — could skip the red contract tests
+  while CI still reported green. Both trees ship in no package, so
+  `release_package_sha256` never sees them; `executable_suite_sha256` now does.
+  The entry above that lists ".github/** other than the workflow" as outside
+  qualification scope is amended to "outside the workflows tree". No product,
+  safety, accounting, qualification, or release assertion is weakened: the
+  release-currency gate keeps its tag/dispatch gating, full history, and
+  fail-closed behaviour, and `test/transformation/release-gate.test.ts` gains
+  regression guards that the offline suite runs exactly once, that no umbrella
+  re-run reappears, that the strict gate carries no `if:`, that concurrency
+  never cancels `main`, and that no provider-spending or externally mutating
+  command can enter CI.
 
 ## Prior art (ours)
 

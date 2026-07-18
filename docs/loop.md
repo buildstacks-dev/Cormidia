@@ -670,6 +670,17 @@ the new evidence, and the executable next step. Unaccepted worktree scratch may
 remain disposable; contracts, commits, pushed refs, findings, approvals, gate
 evidence, usage checkpoints, and terminal records do not.
 
+Approval waits add one narrower continuation boundary. A
+`blocked_on_gate` result persists the exact pipeline/pass, native session,
+completed passes, context-manifest fingerprint, worktree fingerprint, run id,
+settled pause cost, and human decisions. `operon approvals review` records an
+approved or denied decision before repairing `op:blocked → op:ready`; the next
+claim reuses the original claim number and resumes only that pass. Completed
+passes and setup are excluded. A role, runtime, route, context, or worktree
+near-miss fails before runtime construction. Approval pause, resume, repeated
+cost (zero for an exact continuation), and terminal outcome remain distinct
+claim-lifecycle events.
+
 - **Contract reuse.** The contract comment carries an HTML marker binding it
   to a sha-256 of the ticket body. While the body is unchanged, a re-claim
   reuses the contract verbatim (the contract pass is excluded via
@@ -689,11 +700,22 @@ evidence, usage checkpoints, and terminal records do not.
   claims); open PR + no open findings fast-forwards to `gates` →
   review — never a rebuild. A pruned worktree with a surviving branch is
   recreated *from the branch*, keeping its commits.
-- **Claim cap.** `<stateHome>/tickets/<app>/<issue>.json` counts claims
-  across processes. At the cap (default 3, `LoopDriverOptions.maxClaims`)
+- **Recoverable claim saga and cap.**
+  `<stateHome>/tickets/<app>/<issue>.json` records a provisional claim before
+  the GitHub label transition and commits the count only immediately before
+  the first provider turn. The next tick auto-rearms an orphaned pre-provider
+  claim without consuming allowance; an orphaned post-provider claim returns
+  fail-closed for explicit review. At the cap (default 3,
+  `LoopDriverOptions.maxClaims`)
   the driver refuses to claim and parks the ticket `op:returned` with an
   evidence digest (prior claim outcomes, contract state, PR, open
-  findings) — bounded attempts, then summon the human. The episode's human
+  findings) and an exact `operon loop rearm --app ... --ticket ... --reason
+  ... --actor ... --from-allowance ... --to-allowance ...` transaction.
+  Preview is the default; execution binds the app, ticket, reason, actor, old
+  allowance, new allowance, and prior label in a replay-safe prepared/completed
+  record. A label-only `op:ready` edit cannot change the durable cap. The
+  `CLAIM RECOVERY` block in `operon status` explains the stopped boundary and
+  next action. The episode's human
   performed all twenty re-arms by hand; this is the stop that was missing.
 
 ## 8. Parallelism — tickets, not tasks
@@ -1040,10 +1062,10 @@ distinct codes end to end (§9).
 | 1                           | Turn process dies mid-pass                           | stale lock heartbeat + journal `running`             | resume session once, else restart clean; `attempt ≥ 3` → returned + incident (architecture.md §3)                                            |
 | 2a                          | Adapter initialize/auth/transport stalls before any provider event | adapter-start deadline (default 30 sec) | abort owned provider tree; finalize `failed(error_adapter_start_timeout)` with partial/unavailable usage                                     |
 | 2b                          | SDK session hangs after starting                     | smaller of configured per-pass ceiling and episode remaining active-time allowance | kill; retain partial usage and resume from the next legal journal boundary                                                         |
-| 3                           | Dispatcher dies mid-claim                            | next tick                                            | artifact-before-label: state re-derived from GitHub artifacts; no torn claims                                                                |
+| 3                           | Dispatcher dies mid-claim                            | provisional claim lease + next-tick reconciliation  | pre-provider: repair label, retain artifacts, consume no claim; post-provider: return with evidence and require exact durable re-arm          |
 | 4                           | Host asleep / offline                                | nothing runs                                         | missed schedules collapse to one firing; distributed item state resumes on any later tick                                                    |
 | 5                           | GitHub API down / rate-limited                       | API errors on tick                                   | loud L2 event; retry next tick (polling is idempotent); repeated → anomaly flag + incident note                                              |
-| 6                           | Session resume fails                                 | adapter error                                        | restart clean, `attempt++`                                                                                                                   |
+| 6                           | Session resume or content binding fails              | adapter error or role/runtime/context/work fingerprint mismatch | fail closed before blind retry; preserve session/work evidence and require explicit re-arm or a newly authorized claim            |
 | 7                           | Run-dir / session growth                             | retention job                                        | pruned on `session_retention_days`; L1/L2 kept longer than L3; the dispatch tick runs the daily org-wide sweep (docs/scheduler.md → State retention)                                                                |
 | **Model behavior**          |                                                      |                                                      |                                                                                                                                              |
 | 8                           | Tests fail during implement                          | in-pass verification loop                            | 3 mechanical attempts → blocked-with-evidence (error verbatim / attempted fix / assessment)                                                  |

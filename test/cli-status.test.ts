@@ -12,6 +12,7 @@ import { githubIssueCreateAction } from "../src/org/approval-delivery.js";
 import { ApprovalStore } from "../src/org/approvals.js";
 import { formatStatusRows, readStatusRows } from "../src/runtime/runlog/status.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
+import { writeTicketClaimState } from "../src/loop/rehydrate.js";
 
 function env(runId: string, started: string, status: string, errorCode?: string): unknown {
   return {
@@ -178,5 +179,33 @@ describe("runlog status", () => {
       expect(text).toContain("result=response unknown cause=ambiguous_remote_response next=reconcile");
       expect(text).toContain("at=2026-07-18T12:00:00.000Z");
     } finally { log.mockRestore(); home.cleanup(); }
+  });
+
+  it("CLI explains a claim recovery stop and prints the exact next command", async () => {
+    const home = makeOrgHome({ runs: true });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      writeTicketClaimState(home.root, "alpha", 7, {
+        claims: 3,
+        outcomes: [],
+        claimAllowance: 3,
+        events: [{
+          at: "2026-07-18T12:00:00Z",
+          kind: "automatic_recovery",
+          claimNumber: 3,
+          detail: "post-provider ambiguity; explicit re-arm required",
+          repeatedCostUsd: 0,
+        }],
+      });
+      expect(await cmdStatus(["--home", home.root, "--app", "alpha"])).toBe(0);
+      const text = log.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(text).toContain("CLAIM RECOVERY");
+      expect(text).toContain("alpha#7 automatic_recovery claims=3 allowance=3");
+      expect(text).toContain("operon loop rearm --app alpha --ticket 7");
+      expect(text).toContain("--from-allowance 3 --to-allowance 4");
+    } finally {
+      log.mockRestore();
+      home.cleanup();
+    }
   });
 });

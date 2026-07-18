@@ -24,6 +24,7 @@ import { installProcessCancellation, waitForDelay } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
 import { explainContext } from "../loop/context-manifest.js";
 import { resumeExecutionJournal } from "../loop/execution-journal.js";
+import { cmdClaimRearm } from "./claim-rearm.js";
 
 /**
  * Persist the scorecard events one loop tick produced into the org scorecard
@@ -82,6 +83,9 @@ export function createLoopGateForRole(
 export async function cmdLoop(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "loop");
   args = common.rest;
+  if (args[0] === "rearm") {
+    return cmdClaimRearm(args.slice(1), await resolveOperonHomes(common));
+  }
   let appName: string | undefined;
   let once = false;
   let follow = false;

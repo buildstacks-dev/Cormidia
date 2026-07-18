@@ -31,11 +31,21 @@ import {
 import {
   parkedDigestComment,
   hashTicketBody,
+  listTicketClaimStates,
   readTicketClaimState,
   rehydrateTicketState,
-  writeTicketClaimState,
   type RehydratedState,
 } from "./rehydrate.js";
+import {
+  beginTicketClaim,
+  finishTicketClaim,
+  markTicketClaimed,
+  markTicketProviderStarted,
+  rearmCommand,
+  recoverClaimException,
+  recoverInterruptedClaims,
+  type ClaimLease,
+} from "./claim-recovery.js";
 import {
   baseRevisionForBranch,
   resolveRemoteDefaultBranch,
@@ -113,7 +123,17 @@ export interface LoopDriverOptions {
    *  `defaultLoopInputs` produces it, and the driver forwards it into claim,
    *  build, gates, review, ship, and route reassessment. */
   base: BaseRevision;
+  /** Integration-test seam for claim saga crash boundaries. Production never
+   * sets it; thrown faults must still leave a recoverable ticket. */
+  claimFault?: (boundary: ClaimFaultBoundary, issueNumber: number) => void | Promise<void>;
 }
+
+export type ClaimFaultBoundary =
+  | "after_selection"
+  | "after_label_transition"
+  | "after_pass_selection"
+  | "after_episode_lock"
+  | "before_pipeline_start";
 
 export interface LoopEngineOptions {
   pipelines: PipelinesFile;
@@ -241,6 +261,22 @@ async function resolveMergedDependencyIds(
 
 export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDriverResult> {
   const maxConcurrent = options.maxConcurrent ?? 1;
+  const lines: string[] = [];
+  if (options.engine !== undefined && options.planOnly !== true) {
+    const entries = listTicketClaimStates(options.engine.runlogRoot, options.app).map((entry) => ({
+      issueNumber: entry.issueNumber,
+      state: entry.state,
+    }));
+    lines.push(
+      ...(await recoverInterruptedClaims({
+        root: options.engine.runlogRoot,
+        app: options.app,
+        gh: options.gh,
+        entries,
+        now: options.engine.clock?.() ?? new Date(),
+      })),
+    );
+  }
   // Budget preflight before ANY claim: an exhausted app cap must stop work
   // before a ticket leaves op:ready, not mid-turn (Stage 1 exit criterion —
   // "a pass that would exceed the app cap does not start").
@@ -249,7 +285,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     if (!verdict.allowed) {
       const reason = verdict.reason ?? "app budget exhausted";
       return {
-        lines: [`budget preflight refused the tick: ${reason}`],
+        lines: [...lines, `budget preflight refused the tick: ${reason}`],
         items: [],
         scorecardEvents: [],
         budgetRefusal: reason,
@@ -276,7 +312,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   }
   const mergedDependencyIds = await resolveMergedDependencyIds(options.gh, unresolvedDepIds);
   const plan = planLoopTick(readyIssues, options.repo, maxConcurrent, mergedDependencyIds);
-  const lines = plan.map((item) => `#${item.issueNumber} ${item.title}: ready -> claim`);
+  lines.push(...plan.map((item) => `#${item.issueNumber} ${item.title}: ready -> claim`));
   if (options.planOnly) return { lines, items: [], scorecardEvents: [] };
 
   const items: LoopItem[] = [];
@@ -287,24 +323,33 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     // Cross-claim accounting + rehydration (Stage 2) — engine path only; the
     // injector path is the simulated M5 state machine and stays blank-slate.
     let rehydrated: RehydratedState | undefined;
+    let lease: ClaimLease | undefined;
     if (options.engine !== undefined) {
       const branch = branchNameForIssue(issue);
       rehydrated = await rehydrateTicketState(
         { issueNumber: issue.number, body: issue.body },
         { gh: options.gh, branch },
       );
-      const claimState = readTicketClaimState(options.engine.runlogRoot, options.app, issue.number);
-      const maxClaims = options.maxClaims ?? executionBoundsFor(planned.tier).claimAttempts;
-      if (claimState.claims >= maxClaims) {
+      const defaultAllowance = options.maxClaims ?? executionBoundsFor(planned.tier).claimAttempts;
+      const begun = await beginTicketClaim({
+        root: options.engine.runlogRoot,
+        app: options.app,
+        issueNumber: issue.number,
+        defaultAllowance,
+        now: options.engine.clock?.() ?? new Date(),
+      });
+      if (!begun.allowed || begun.lease === undefined) {
         // Nothing in the episode ever said "this ticket has bounced N times;
         // stop and summon the human" — this is that stop. Bounded attempts,
         // then park with the assembled evidence (never a bare label flip).
         await options.gh.commentIssue(
           issue.number,
           parkedDigestComment({
-            claims: claimState.claims,
-            maxClaims,
-            outcomes: claimState.outcomes,
+            app: options.app,
+            issueNumber: issue.number,
+            claims: begun.state.claims,
+            maxClaims: begun.allowance,
+            outcomes: begun.state.outcomes,
             ...(rehydrated.prNumber !== undefined ? { prNumber: rehydrated.prNumber } : {}),
             openFindings: rehydrated.findings,
             hasContract: rehydrated.contract !== undefined,
@@ -312,24 +357,33 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         );
         await options.gh.swapLabel(issue.number, "op:ready", "op:returned");
         lines.push(
-          `#${issue.number} ${issue.title}: parked after ${claimState.claims} claims (cap ${maxClaims})`,
+          `#${issue.number} ${issue.title}: parked after ${begun.state.claims} claims (cap ${begun.allowance}); ` +
+            rearmCommand({ app: options.app, issueNumber: issue.number, allowance: begun.allowance }),
         );
         continue;
       }
-      writeTicketClaimState(options.engine.runlogRoot, options.app, issue.number, {
-        claims: claimState.claims + 1,
-        lastClaimAt: (options.engine.clock?.() ?? new Date()).toISOString(),
-        outcomes: claimState.outcomes,
-      });
+      lease = begun.lease;
     }
 
-    let item = await claimTicket(issue, {
+    let item: LoopItem;
+    try {
+    await options.claimFault?.("after_selection", issue.number);
+    item = await claimTicket(issue, {
       gh: options.gh,
       targetRepo: options.repo,
       localRepo: options.localRepo,
       worktreeRoot: options.worktreeRoot,
       base: options.base,
+      afterLabelTransition: () => options.claimFault?.("after_label_transition", issue.number),
     });
+    if (options.engine !== undefined && lease !== undefined) {
+      await markTicketClaimed({
+        root: options.engine.runlogRoot,
+        app: options.app,
+        issueNumber: issue.number,
+        claimId: lease.claimId,
+      });
+    }
     if (options.turnId !== undefined) item = { ...item, turnId: options.turnId };
     if (rehydrated !== undefined) {
       item = {
@@ -347,8 +401,23 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         item = { ...item, phase: "gates" };
       }
     }
+    if (lease?.continuation !== undefined) {
+      const pipeline = lease.continuation.pipeline;
+      const resumedPhase: LoopItem["phase"] =
+        pipeline === "review" ? "reviewing" : pipeline === "ship" ? "shipping" : "building";
+      if (resumedPhase === "reviewing" || resumedPhase === "shipping") {
+        await options.gh.swapLabel(item.issueNumber, "op:building", "op:in-review");
+        item = {
+          ...item,
+          labels: item.labels.map((label) => (label === "op:building" ? "op:in-review" : label)),
+        };
+      }
+      item = { ...item, phase: resumedPhase, continuation: lease.continuation };
+    }
+    await options.claimFault?.("after_pass_selection", issue.number);
     if (options.engine !== undefined) {
       item = await admitTicketEpisode(options, item);
+      await options.claimFault?.("after_episode_lock", issue.number);
       // Provision the worktree's dependencies BEFORE the first implement pass.
       // createWorktree provisions an empty tree, and the builder's mandatory
       // "baseline before changes" check runs at the start of the implement
@@ -356,11 +425,13 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       // ticket quality (L1-02 / L-003). runGates keeps its own post-implement
       // setup re-run; this is the earlier run a fresh worktree needs. A setup
       // failure returns the ticket loudly here, so no doomed build turn runs.
-      item = await advanceProvisionSetup(item, {
-        gh: options.gh,
-        commands: gateCommandsForWorktree(options.commands, item.worktree),
-        runlog: gateRunlog(options, item),
-      });
+      if (lease?.continuation === undefined) {
+        item = await advanceProvisionSetup(item, {
+          gh: options.gh,
+          commands: gateCommandsForWorktree(options.commands, item.worktree),
+          runlog: gateRunlog(options, item),
+        });
+      }
     }
     if (options.engine === undefined) {
       item = await (options.afterClaim?.(item) ?? item);
@@ -369,6 +440,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     const criteria = parseAcceptanceCriteria(item.body);
     let criterionTests = item.criterionTests ?? criterionTestMapFromContractText(item.contract);
     let guard = 0;
+    await options.claimFault?.("before_pipeline_start", issue.number);
     while (!["merged", "returned", "blocked"].includes(item.phase)) {
       if (guard++ > 12) {
         throw new Error(`loop driver exceeded phase guard for ${item.ticketRef}`);
@@ -538,7 +610,6 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         ...(options.release !== undefined ? { release: options.release } : {}),
       });
     }
-    items.push(item);
     // L-007: when a ticket merges, the merge transition owns promoting any
     // now-unblocked dependents to op:ready. Best-effort — the merge is already
     // durable, so a re-arm failure logs a line but never fails the tick.
@@ -553,15 +624,15 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         );
       }
     }
-    if (options.engine !== undefined) {
-      // Append this claim's outcome to the cross-claim record — it is the
-      // evidence the park digest shows the human after the claim cap.
-      const claimState = readTicketClaimState(options.engine.runlogRoot, options.app, item.issueNumber);
-      claimState.outcomes = [
-        ...claimState.outcomes.slice(-9),
-        `claim ${claimState.claims}: ended ${item.phase}${item.prNumber !== undefined ? ` (PR #${item.prNumber})` : ""}`,
-      ];
-      writeTicketClaimState(options.engine.runlogRoot, options.app, item.issueNumber, claimState);
+    if (options.engine !== undefined && lease !== undefined) {
+      await finishTicketClaim({
+        root: options.engine.runlogRoot,
+        app: options.app,
+        issueNumber: item.issueNumber,
+        claimId: lease.claimId,
+        item,
+        now: options.engine.clock?.() ?? new Date(),
+      });
       const terminal = terminalDisposition(item);
       await options.engine.onEpisodeTerminal?.({
         episodeId: episodeIdFor({
@@ -573,6 +644,38 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         ...terminal,
         now: options.engine.clock?.() ?? new Date(),
       });
+    }
+    items.push(item);
+    } catch (error) {
+      if (options.engine === undefined || lease === undefined) throw error;
+      const state = readTicketClaimState(options.engine.runlogRoot, options.app, issue.number);
+      if (state.active?.claimId !== lease.claimId) throw error;
+      const recovery = await recoverClaimException({
+        root: options.engine.runlogRoot,
+        app: options.app,
+        issueNumber: issue.number,
+        claimId: lease.claimId,
+        gh: options.gh,
+        error,
+        now: options.engine.clock?.() ?? new Date(),
+      });
+      await options.gh.commentIssue(
+        issue.number,
+        [
+          "## Claim recovery",
+          "",
+          recovery,
+          "",
+          state.active.phase === "provider_started"
+            ? `Review the preserved run/worktree, then use: \`${rearmCommand({
+                app: options.app,
+                issueNumber: issue.number,
+                allowance: state.claimAllowance ?? (options.maxClaims ?? executionBoundsFor(planned.tier).claimAttempts),
+              })}\``
+            : "The next loop tick can claim this ticket normally; no claim allowance was consumed.",
+        ].join("\n"),
+      );
+      lines.push(recovery);
     }
   }
   return { lines, items, scorecardEvents: items.flatMap((item) => item.scorecardEvents ?? []) };
@@ -706,6 +809,24 @@ function enginePhaseOptions(options: LoopDriverOptions, worktree?: string, item?
     ...(engine.signal !== undefined ? { signal: engine.signal } : {}),
     ...(engine.parentTaskId !== undefined ? { parentTaskId: engine.parentTaskId } : {}),
     ...(item !== undefined ? { maxReviewCycles: executionBoundsFor(item.tier).reviewCycles } : {}),
+    ...(item?.continuation !== undefined ? { continuation: item.continuation } : {}),
+    ...(item !== undefined
+      ? {
+          beforeProviderTurn: async () => {
+            const state = readTicketClaimState(engine.runlogRoot, options.app, item.issueNumber);
+            if (state.active === undefined) {
+              throw new Error(`claim recovery: ${options.app}#${item.issueNumber} has no active claim lease`);
+            }
+            await markTicketProviderStarted({
+              root: engine.runlogRoot,
+              app: options.app,
+              issueNumber: item.issueNumber,
+              claimId: state.active.claimId,
+              now: engine.clock?.() ?? new Date(),
+            });
+          },
+        }
+      : {}),
     episode: {
       id: episodeIdFor({
         app: options.app,

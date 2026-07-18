@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_LOOP_POLICY,
   defaultLoopInputs,
@@ -19,7 +20,9 @@ import {
 } from "../src/loop/driver.js";
 import { baseRevisionForBranch } from "../src/loop/default-branch.js";
 import { branchNameForIssue, dependencyRelevantPackageJson } from "../src/loop/loop.js";
-import { writeTicketClaimState } from "../src/loop/rehydrate.js";
+import { readTicketClaimState, writeTicketClaimState } from "../src/loop/rehydrate.js";
+import { loadPipelines } from "../src/loop/pipelines.js";
+import type { RoleConfig } from "../src/runtime/types.js";
 import { makeBareWithClone, makeWorkingRepo } from "./fixtures/gitRepo.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
 
@@ -45,6 +48,21 @@ const issueBody = [
   "- [x] planned thing is testable",
   "",
 ].join("\n");
+
+const PIPELINE_FIXTURE = fileURLToPath(new URL("./fixtures/pipelines", import.meta.url));
+
+function fixtureRole(name: string): RoleConfig {
+  return {
+    name,
+    runtime: "claude",
+    model: "fixture",
+    effort: "medium",
+    delegation: { allow: [] },
+    triggers: [],
+    outputs: [],
+    maxTurnBudgetUsd: 5,
+  };
+}
 
 describe("loop driver", () => {
   it("treats a supplied repo as immutable input instead of checking out and resetting main", async () => {
@@ -434,6 +452,86 @@ describe("loop driver", () => {
       expect(digest).toBeDefined();
       expect(digest).toContain("claim 3: ended blocked");
     } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("recovers selection, label, pass-selection, episode-lock, and pipeline-start faults", async () => {
+    const repo = makeWorkingRepo();
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-faults-"));
+    const worktrees = join(root, "worktrees");
+    const gh = new FakeGhOps({
+      issues: [{ number: 1, title: "Fault boundaries", body: issueBody, labels: ["op:ready"] }],
+    });
+    const roles = {
+      planner: fixtureRole("planner"),
+      builder: fixtureRole("builder"),
+      reviewer: fixtureRole("reviewer"),
+    };
+    const pipelines = await loadPipelines(join(PIPELINE_FIXTURE, "pipelines.yaml"), {
+      roleNames: Object.keys(roles),
+      promptsDir: join(PIPELINE_FIXTURE, "prompts"),
+    });
+    writeTicketClaimState(root, "fixture", 1, {
+      claims: 1,
+      outcomes: [],
+      continuation: {
+        pipeline: "build",
+        pass: "implement",
+        role: "builder",
+        session: { runtime: "claude", id: "paused" },
+        completedPasses: ["contract"],
+        contextFingerprint: "context",
+        workFingerprint: null,
+        runId: "paused-run",
+        pausedAt: "2026-07-18T00:00:00Z",
+        decisions: [{ approvalId: "approval", decision: "approved", decidedAt: "2026-07-18T00:01:00Z" }],
+        status: "ready",
+        claimNumber: 1,
+        pauseCount: 1,
+        pauseCostUsd: 1,
+      },
+    });
+    try {
+      for (const boundary of [
+        "after_selection",
+        "after_label_transition",
+        "after_pass_selection",
+        "after_episode_lock",
+        "before_pipeline_start",
+      ] as const) {
+        const result = await runLoopOnce({
+          app: "fixture",
+          repo: "fixture/repo",
+          gh,
+          localRepo: repo.root,
+          worktreeRoot: worktrees,
+          base: { ref: repo.git("rev-parse", "HEAD"), defaultBranch: "main" },
+          policy: DEFAULT_LOOP_POLICY,
+          commands: {},
+          claimFault: (observed) => {
+            if (observed === boundary) throw new Error(`fault:${boundary}`);
+          },
+          engine: {
+            pipelines,
+            roles,
+            runtimeFor: () => {
+              throw new Error("fault boundary must stop before runtime construction");
+            },
+            promptsDir: join(PIPELINE_FIXTURE, "prompts"),
+            runlogRoot: root,
+            hooks: { gate: () => ({ allow: true }) },
+          },
+        });
+        expect(result.lines.some((line) => line.includes("recovered without consuming allowance"))).toBe(true);
+        expect((await gh.readIssue(1)).labels).toContain("op:ready");
+        const state = readTicketClaimState(root, "fixture", 1);
+        expect(state.claims).toBe(1);
+        expect(state.active).toBeUndefined();
+        expect(state.continuation?.status).toBe("ready");
+      }
+    } finally {
+      repo.cleanup();
       rmSync(root, { recursive: true, force: true });
     }
   });

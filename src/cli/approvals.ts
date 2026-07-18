@@ -16,6 +16,7 @@ import {
 import { appendDenialLesson } from "../org/denial-lessons.js";
 import { loadApps } from "../org/apps.js";
 import { GhCliOps } from "../loop/github.js";
+import { continueAfterApproval } from "../loop/claim-recovery.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -42,7 +43,7 @@ export async function cmdApprovals(args: string[]): Promise<number> {
   }
 
   if (parsed.subcommand === "review") {
-    return reviewQueue(store, homes.orgHome, parsed.batch);
+    return reviewQueue(store, homes.orgHome, stateHome, parsed.batch);
   }
 
   if (parsed.subcommand === "status") {
@@ -143,7 +144,12 @@ function decisionFromAnswer(answer: string): { kind: "approve" | "deny" | "skip"
   return { kind: "approve" };
 }
 
-async function reviewQueue(store: ApprovalStore, orgHome: string, batch: boolean): Promise<number> {
+async function reviewQueue(
+  store: ApprovalStore,
+  orgHome: string,
+  stateHome: string,
+  batch: boolean,
+): Promise<number> {
   const pending = await store.listPending();
   if (pending.length === 0) {
     console.log("approvals: 0 pending");
@@ -178,7 +184,7 @@ async function reviewQueue(store: ApprovalStore, orgHome: string, batch: boolean
       if (decision.kind === "deny") {
         const reason = (await ask("reason: ")).trim();
         for (const item of group) {
-          await store.decide(item.id, { decision: "denied", reason });
+          const decided = await store.decide(item.id, { decision: "denied", reason });
           console.log(`denied ${item.id}`);
           // A5: EVERY human denial reason persists as role memory — not only
           // the composed gate's role-forbidden flat denies. Without this, the
@@ -191,6 +197,7 @@ async function reviewQueue(store: ApprovalStore, orgHome: string, batch: boolean
             at: new Date().toISOString(),
           });
           if (recorded) console.log(`lesson recorded for role ${item.role}`);
+          await rearmTicket(orgHome, stateHome, decided);
         }
         continue;
       }
@@ -207,21 +214,12 @@ async function reviewQueue(store: ApprovalStore, orgHome: string, batch: boolean
             `approved ${item.id}${decided.grantId ? ` grant=${decided.grantId}` : ""}` +
               (decision.scope !== undefined ? ` scope=${decision.scope.kind}` : ""),
           );
+          await rearmTicket(orgHome, stateHome, decided);
         } catch (error) {
           console.log(
             `NOT decided ${item.id}: ${error instanceof Error ? error.message : String(error)} ` +
               `— still pending, review it again`,
           );
-        }
-      }
-      // A2 approve-and-rearm: continue the parked ticket from its artifacts.
-      const ticketed = group.find((item) => item.ticketRef !== undefined);
-      if (interactive && ticketed?.ticketRef !== undefined) {
-        const rearm = (await ask(`re-arm ${ticketed.ticketRef} (op:blocked -> op:ready)? [y/N]: `))
-          .trim()
-          .toLowerCase();
-        if (rearm === "y" || rearm === "yes") {
-          await rearmTicket(orgHome, ticketed);
         }
       }
     }
@@ -242,7 +240,8 @@ function groupByRuleAndApp(items: readonly ApprovalItem[]): ApprovalItem[][] {
   return [...groups.values()];
 }
 
-async function rearmTicket(orgHome: string, item: ApprovalItem): Promise<void> {
+async function rearmTicket(orgHome: string, stateHome: string, item: ApprovalItem): Promise<void> {
+  if (item.ticketRef === undefined || item.decision === undefined || item.decidedAt === undefined) return;
   const issueNumber = Number(/#(\d+)/.exec(item.ticketRef ?? "")?.[1]);
   if (!Number.isInteger(issueNumber)) {
     console.log(`re-arm skipped: cannot parse ticket ref "${item.ticketRef}"`);
@@ -255,12 +254,21 @@ async function rearmTicket(orgHome: string, item: ApprovalItem): Promise<void> {
       console.log(`re-arm skipped: app "${item.app}" not in apps.yaml`);
       return;
     }
-    await new GhCliOps(app.repo).swapLabel(issueNumber, "op:blocked", "op:ready");
-    console.log(`re-armed ${item.ticketRef}: op:blocked -> op:ready`);
+    await continueAfterApproval({
+      root: stateHome,
+      app: item.app,
+      issueNumber,
+      approvalId: item.id,
+      decision: item.decision,
+      ...(item.decision === "denied" && item.reason !== undefined ? { reason: item.reason } : {}),
+      decidedAt: item.decidedAt,
+      gh: new GhCliOps(app.repo),
+    });
+    console.log(`continued ${item.ticketRef}: ${item.decision}; exact session -> op:ready`);
   } catch (error) {
     console.log(
       `re-arm failed (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — ` +
-        `swap the label manually if the ticket should continue`,
+        `the durable decision is preserved; the next approvals/loop run repairs the label projection`,
     );
   }
 }

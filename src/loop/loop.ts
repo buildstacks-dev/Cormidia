@@ -26,6 +26,7 @@ import {
   executePipeline,
   type ExecutePipelineOptions,
   type PassRunRecord,
+  type PipelineRunResult,
   type VerdictRecordContext,
   type VerdictRecordOutcome,
 } from "./pipeline.js";
@@ -76,6 +77,9 @@ export interface ClaimTicketOptions {
    *  `master` fails inside git with an unreadable error *after* the ticket has
    *  already been relabelled `op:building`, stranding it (#101). */
   base: BaseRevision;
+  /** Fault-boundary hook used by the claim saga after the external label
+   * transition but before worktree creation. */
+  afterLabelTransition?: () => void | Promise<void>;
 }
 
 export interface GatePhaseOptions {
@@ -190,6 +194,8 @@ export interface LoopPipelineOptions {
   /** Ticket-wide route admission prepared by the loop driver. */
   episode?: ExecutePipelineOptions["episode"];
   maxReviewCycles?: number;
+  continuation?: LoopItem["continuation"];
+  beforeProviderTurn?: ExecutePipelineOptions["beforeProviderTurn"];
 }
 
 export interface BuilderPipelineOptions extends LoopPipelineOptions {
@@ -199,6 +205,60 @@ export interface BuilderPipelineOptions extends LoopPipelineOptions {
 
 const DEFAULT_MAX_REVIEW_CYCLES = 3;
 const DEFAULT_BRIEF_BUDGET_TOKENS = 24_000;
+
+async function blockedOnApproval(
+  item: LoopItem,
+  options: LoopPipelineOptions,
+  pipelineName: string,
+  result: PipelineRunResult,
+  stopped: string,
+): Promise<LoopItem | undefined> {
+  const last = result.passes.at(-1);
+  if (
+    last?.result.status !== "blocked_on_gate" ||
+    last.result.errorCode === "error_route_budget_exhausted"
+  ) {
+    return undefined;
+  }
+  const completedPasses = [
+    ...(options.continuation?.completedPasses ?? []),
+    ...result.passes
+      .filter((record) => record.result.status === "completed")
+      .map((record) => record.pass.id),
+  ].filter((pass, index, all) => all.indexOf(pass) === index);
+  const continuation: NonNullable<LoopItem["continuation"]> = {
+    pipeline: pipelineName,
+    pass: last.pass.id,
+    role: last.pass.role,
+    session: last.result.session,
+    completedPasses,
+    contextFingerprint: last.contextFingerprint,
+    workFingerprint: last.workFingerprint,
+    runId: last.runId,
+    pausedAt: (options.clock?.() ?? new Date()).toISOString(),
+    decisions: options.continuation?.decisions ?? [],
+    pauseCostUsd: last.result.usage.costUsd,
+  };
+  await options.gh.commentIssue(
+    item.issueNumber,
+    `${stopped}Waiting on the pending approval (\`operon approvals review\`). ` +
+      `The exact ${last.result.session.runtime} session and content fingerprints are checkpointed; ` +
+      "the approval decision resumes this pass without repeating completed passes.",
+  );
+  const from = stateLabelForPhase(item.phase);
+  await options.gh.swapLabel(item.issueNumber, from, "op:blocked");
+  return {
+    ...item,
+    continuation,
+    labels: replaceLabel(item.labels, from, "op:blocked"),
+    phase: "blocked",
+  };
+}
+
+function withoutContinuation(item: LoopItem): LoopItem {
+  const { continuation: _continuation, ...rest } = item;
+  return rest;
+}
 
 export function itemFromIssue(issue: GhIssue, targetRepo: string): LoopItem {
   return {
@@ -229,6 +289,7 @@ export async function claimTicket(
   const branch = branchNameForIssue(issue);
 
   await options.gh.swapLabel(issue.number, "op:ready", "op:building");
+  await options.afterLabelTransition?.();
   const worktree = createWorktree(
     options.localRepo,
     options.worktreeRoot,
@@ -616,6 +677,8 @@ export async function runBuilderPipeline(
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     ...(options.episode !== undefined ? { episode: options.episode } : {}),
+    ...(options.continuation !== undefined ? { continuation: options.continuation } : {}),
+    ...(options.beforeProviderTurn !== undefined ? { beforeProviderTurn: options.beforeProviderTurn } : {}),
     verdictSchemaFor: (pass) => VERDICT_SCHEMAS[verdictKindForPass(pass)],
     recordVerdict: async (ctx) => {
       const kind = verdictKindForPass(ctx.pass);
@@ -662,18 +725,10 @@ export async function runBuilderPipeline(
         `${last?.errorCode !== undefined ? ` (\`${last.errorCode}\`)` : ""}.\n\n` +
         `**Durable work preserved:** ${work}\n\n`;
       if (last?.status === "blocked_on_gate") {
-        // An approval wait, not a defect: op:blocked is the approval path.
-        await options.gh.commentIssue(
-          item.issueNumber,
-          `${stopped}Waiting on the pending approval (\`operon approvals\`); the ticket re-arms after the decision.`,
-        );
-        await options.gh.swapLabel(item.issueNumber, stateLabelForPhase(item.phase), "op:blocked");
-        return {
-          ...item,
-          ...(contract !== undefined ? { contract } : {}),
-          labels: replaceLabel(item.labels, stateLabelForPhase(item.phase), "op:blocked"),
-          phase: "blocked",
-        };
+        const paused = await blockedOnApproval(item, options, pipelineName, result, stopped);
+        if (paused !== undefined) {
+          return { ...paused, ...(contract !== undefined ? { contract } : {}) };
+        }
       }
       // A stopped turn is not lost work: re-arm op:ready so the next tick
       // continues from the durable artifacts. The cross-claim cap (default 3)
@@ -694,6 +749,8 @@ export async function runBuilderPipeline(
     }
     throw new Error(`${pipelineName} pipeline aborted before completion`);
   }
+
+  item = withoutContinuation(item);
 
   await journalBoundary(journal, "implementation", {
     head: headSha(worktree),
@@ -763,6 +820,8 @@ export async function runReviewPipeline(
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     ...(options.episode !== undefined ? { episode: options.episode } : {}),
+    ...(options.continuation !== undefined ? { continuation: options.continuation } : {}),
+    ...(options.beforeProviderTurn !== undefined ? { beforeProviderTurn: options.beforeProviderTurn } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);
@@ -778,6 +837,14 @@ export async function runReviewPipeline(
     const last = result.passes[result.passes.length - 1]?.result;
     const kind = journalStopKind(last?.errorCode, last?.status);
     await journalStop(journal, kind, last?.summary ?? "review pipeline aborted");
+    const paused = await blockedOnApproval(
+      item,
+      options,
+      "review",
+      result,
+      `## Review paused for approval\n\n${last?.summary ?? "A gated action requires a decision"}.\n\n`,
+    );
+    if (paused !== undefined) return paused;
     // L-005: a legitimately-fired cap terminalizes cleanly (op:returned +
     // evidence comment) instead of crashing the loop and stranding the PR.
     // A genuine internal error still throws.
@@ -786,6 +853,8 @@ export async function runReviewPipeline(
     }
     throw new Error("review pipeline aborted before completion");
   }
+
+  item = withoutContinuation(item);
 
   const body = renderReviewBody(verdicts);
   await options.gh.commentIssue(item.issueNumber, `## Structured review verdict\n\n${body}`);
@@ -868,6 +937,8 @@ export async function runShipCheckPipeline(
     ...(options.signal !== undefined ? { signal: options.signal } : {}),
     ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
     ...(options.episode !== undefined ? { episode: options.episode } : {}),
+    ...(options.continuation !== undefined ? { continuation: options.continuation } : {}),
+    ...(options.beforeProviderTurn !== undefined ? { beforeProviderTurn: options.beforeProviderTurn } : {}),
     verdictSchemaFor: () => VERDICT_SCHEMAS.review,
     recordVerdict: async (ctx) => {
       const outcome = await recordPassVerdict("review", ctx);
@@ -883,6 +954,14 @@ export async function runShipCheckPipeline(
     const last = result.passes[result.passes.length - 1]?.result;
     const kind = journalStopKind(last?.errorCode, last?.status);
     await journalStop(journal, kind, last?.summary ?? "ship-check pipeline aborted");
+    const paused = await blockedOnApproval(
+      item,
+      options,
+      "ship",
+      result,
+      `## Ship check paused for approval\n\n${last?.summary ?? "A gated action requires a decision"}.\n\n`,
+    );
+    if (paused !== undefined) return paused;
     // L-005: as in runReviewPipeline, a cap terminalizes cleanly to op:returned
     // rather than crashing the loop; a genuine internal error still throws.
     if (isCapDrivenStop(kind)) {
@@ -890,6 +969,7 @@ export async function runShipCheckPipeline(
     }
     throw new Error("ship pipeline aborted before completion");
   }
+  item = withoutContinuation(item);
   if (result.passes.length === 0) return item;
 
   const body = renderReviewBody(verdicts);

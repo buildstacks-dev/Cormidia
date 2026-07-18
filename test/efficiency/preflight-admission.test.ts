@@ -48,7 +48,7 @@ describe("Phase 3 token-free preflight/admission", () => {
         options.capabilityProfiles = {
           codex: {
             runtime: "codex",
-            capabilities: { structured_verdict: "unsupported", cancellation: "adapter", tool_gate: "adapter", cache_telemetry: "adapter" },
+            capabilities: { structured_verdict: "unsupported", cancellation: "adapter", tool_gate: "adapter", cache_telemetry: "adapter", session_resume: "native" },
             cache: { supported: true, observable: true, fields: [] },
           },
         };

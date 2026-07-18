@@ -278,7 +278,9 @@ efficacy health independently. The mechanics construct no provider runtime.
   route preview; rejects `--auto` — the two forms are mutually exclusive) ·
   `pnpm dev loop --app <app> --once --dry-run` · `pnpm dev loop
   --explain-context <episode-id>` · `pnpm dev loop --resume-episode
-  <episode-id>` ·
+  <episode-id>` · `pnpm dev loop rearm --app <app> --ticket <number> --reason
+  "<why>" --actor <identity> --from-allowance N --to-allowance N [--execute
+  --confirm <app#number>]` ·
   `pnpm dev dispatch --dry-run` · `pnpm dev approvals` · `pnpm dev approvals status` ·
   `pnpm dev scheduler install [--backend launchd|systemd] [--json]` (preview) ·
   `pnpm dev scheduler install --execute --confirm <scheduler-id-or-org>` ·

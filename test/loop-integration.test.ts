@@ -471,6 +471,46 @@ describe("M6 loop engine integration", () => {
     }
   });
 
+  it("continues a blocked builder pass in its native session without repeating contract or setup", async () => {
+    const h = await claimedHarness("Continue Approval", ["op:ready"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const firstRuntime = new FakeRuntime([
+      scripted(CONTRACT),
+      { result: turnResultOf("approval required", "blocked_on_gate") },
+    ]);
+    try {
+      const pipelines = await rootPipelines();
+      const paused = await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, firstRuntime),
+        pipelines,
+      });
+      expect(paused).toMatchObject({ phase: "blocked", continuation: { pass: "implement" } });
+      await h.gh.swapLabel(1, "op:blocked", "op:ready");
+      await h.gh.swapLabel(1, "op:ready", "op:building");
+
+      const resumedRuntime = new FakeRuntime([scripted(DONE)]);
+      const resumed = await runBuilderPipeline({
+        ...paused,
+        phase: "building",
+        labels: paused.labels.map((label) => (label === "op:blocked" ? "op:building" : label)),
+      }, {
+        ...engineOptions(h, home.root, resumedRuntime),
+        pipelines,
+        continuation: paused.continuation!,
+      });
+
+      expect(resumed.phase).toBe("gates");
+      expect(resumed.continuation).toBeUndefined();
+      expect(resumedRuntime.calls).toHaveLength(1);
+      expect(resumedRuntime.calls[0]!.req.session).toEqual(paused.continuation!.session);
+      expect(resumedRuntime.calls[0]!.req.task).toContain("Continue the existing build/implement provider session");
+      expect(resumedRuntime.calls[0]!.req.task).not.toContain("derive the implementation contract");
+    } finally {
+      home.cleanup();
+      h.cleanup();
+    }
+  });
+
   it("a fix verdict's resolution lines are posted as a durable Fix resolutions comment", async () => {
     const h = await claimedHarness("Fix Resolutions", ["op:ready"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });

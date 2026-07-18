@@ -131,6 +131,7 @@ operon app promote <app> --to live --json         # non-mutating plan
 operon new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
 operon plan <app> --dry-run
 operon loop --app <app> --once --dry-run
+operon loop rearm --app <app> --ticket <n> --reason "reviewed" --actor <identity> --from-allowance 3 --to-allowance 4 # preview
 operon dispatch --dry-run
 operon scheduler install --json                       # preview, zero writes
 operon scheduler status --json                        # read-only health
@@ -448,6 +449,8 @@ scheduler/evidence/       # exact-once invocation, decision, and local-alert JSO
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
 approvals/                # content-bound decisions, grants, execution state,
                           # attempt/result acknowledgement, transition audit
+tickets/<app>/<issue>.json # atomic provisional/paid claim, approval continuation,
+                          # re-arm transaction, and lifecycle telemetry
 learning/events/<date>/   # learning-loop capture: gate outcomes, pass verdicts,
                           # human observations, episode lifecycle, late outcomes
 learning/episodes/        # EpisodeRecord projection over runs + ledger +

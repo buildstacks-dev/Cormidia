@@ -3,6 +3,8 @@ import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { resolve } from "node:path";
 import { approvalLifecycleState, ApprovalStore } from "../org/approvals.js";
+import { listTicketClaimStates } from "../loop/rehydrate.js";
+import { rearmCommand } from "../loop/claim-recovery.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
@@ -25,6 +27,31 @@ export async function cmdStatus(args: string[]): Promise<number> {
         `at=${item.execution!.attemptedAt ?? "-"} result=${item.execution!.result ?? "-"} ` +
         `cause=${item.execution!.failureCause ?? "-"} next=${item.execution!.nextAction}`,
       );
+    }
+  }
+  const claimStates = listTicketClaimStates(stateHome, parsed.app).filter((entry) => {
+    const latest = entry.state.events?.at(-1);
+    return entry.state.active !== undefined || entry.state.continuation !== undefined ||
+      latest?.kind === "automatic_recovery" || latest?.kind === "manual_rearm";
+  });
+  if (claimStates.length > 0) {
+    console.log("\nCLAIM RECOVERY");
+    for (const entry of claimStates) {
+      const state = entry.state;
+      const latest = state.events?.at(-1);
+      const mode = state.active !== undefined
+        ? `active:${state.active.phase}`
+        : state.continuation !== undefined
+          ? `approval:${state.continuation.status}`
+          : latest?.kind ?? "idle";
+      console.log(
+        `${entry.app}#${entry.issueNumber} ${mode} claims=${state.claims} ` +
+        `allowance=${state.claimAllowance ?? "route-policy"} next=${latest?.detail ?? "inspect ticket state"}`,
+      );
+      if (latest?.detail.includes("explicit") === true) {
+        const allowance = state.claimAllowance ?? state.claims;
+        console.log(`  ${rearmCommand({ app: entry.app, issueNumber: entry.issueNumber, allowance })}`);
+      }
     }
   }
   return 0;

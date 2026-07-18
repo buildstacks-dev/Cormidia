@@ -29,6 +29,16 @@ const GIT_ENV: NodeJS.ProcessEnv = {
   GIT_CONFIG_NOSYSTEM: "1",
 };
 
+/** Wall-clock ceiling for the one network call this module makes.
+ *
+ *  `GIT_TERMINAL_PROMPT=0` stops a credential prompt from hanging, but not a
+ *  stuck TCP connect. This resolver now runs on the per-turn path
+ *  (`ensureManagedClone`), on planning, and on `bootstrap publish` — and it is
+ *  synchronous, so a hung connection would wedge a dispatch tick indefinitely
+ *  with no error to act on. Failing loudly after 30s is strictly better: the
+ *  next tick retries, and the operator gets a message naming the remote. */
+const RESOLVE_TIMEOUT_MS = 30_000;
+
 /** The base a ticket's work is measured against, resolved once per loop tick
  *  and threaded through claim, build, gates, review, ship, and turn execution.
  *
@@ -92,8 +102,17 @@ export function resolveRemoteDefaultBranch(
       env: GIT_ENV,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
+      timeout: RESOLVE_TIMEOUT_MS,
     });
   } catch (error) {
+    // A timeout kill reads as a generic spawn failure otherwise, which sends
+    // an operator looking for an auth problem that is not there.
+    if ((error as { signal?: unknown }).signal === "SIGTERM") {
+      throw new Error(
+        `${prefix}: timed out after ${RESOLVE_TIMEOUT_MS / 1000}s resolving the default branch ` +
+          `advertised by ${target} — the remote did not respond`,
+      );
+    }
     const detail = detailOf(error);
     throw new Error(
       `${prefix}: cannot resolve the default branch advertised by ${target}` +

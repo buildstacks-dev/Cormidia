@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { executePipeline } from "../../src/loop/pipeline.js";
 import { getPipeline, loadPipelines } from "../../src/loop/pipelines.js";
 import { ApprovalStore } from "../../src/org/approvals.js";
+import { executeApprovedDeliveries } from "../../src/org/approval-delivery.js";
 import { composeGate } from "../../src/org/gate-compose.js";
 import { loadRoles } from "../../src/org/roles.js";
 import {
@@ -21,6 +22,7 @@ import { FakeRuntime } from "../../src/runtime/testing/fakeRuntime.js";
 import type { TurnResult } from "../../src/runtime/types.js";
 import { grade as gradeStandingRoles } from "../../eval/graders/standing-roles.js";
 import { makeAppRepo, makeOrgHome } from "../fixtures/orgHome.js";
+import { FakeGhOps } from "../support/fakeGhOps.js";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const PROMPTS = join(ROOT, "prompts");
@@ -69,6 +71,102 @@ describe("STANDING-ROLES-001 deterministic production paths", () => {
       await expect(persistStandingRoleOutcome({ stateHome: home.root, app: "service", role: "marketing", event: eventFor("marketing"), providerSummary: "x", now: new Date("2026-09-12T01:00:00Z") })).rejects.toThrow("stale");
       await expect(persistStandingRoleOutcome({ stateHome: home.root, app: "service", role: "support", event: { ...eventFor("support"), payload: { ...eventFor("support").payload, source: "" } }, providerSummary: "x", now: new Date("2026-07-12T01:00:00Z") })).rejects.toThrow("provenance missing");
       await expect(persistStandingRoleOutcome({ stateHome: home.root, app: "service", role: "support", event: { ...eventFor("support"), payload: { ...eventFor("support").payload, kind: "adoption-signal" } }, providerSummary: "x", now: new Date("2026-07-12T01:00:00Z") })).rejects.toThrow("kind/payload mismatch");
+    } finally { home.cleanup(); }
+  });
+
+  it("queues one source-linked SRE incident, then records filing acknowledgement through the fake GitHub boundary", async () => {
+    const home = makeOrgHome({ state: true, approvals: true });
+    const now = new Date("2026-07-12T01:00:00Z");
+    const event = eventFor("sre");
+    const store = new ApprovalStore(home.root, { idSource: () => "sre-incident-approval" });
+    const gate = composeGate(defaultGate, store, {
+      app: "service",
+      role: "sre",
+      turnId: "standing-sre",
+      ticketRef: `event:${event.key}`,
+      orgHome: ROOT,
+      now: () => now,
+    });
+    try {
+      const first = await persistStandingRoleOutcome({
+        stateHome: home.root,
+        app: "service",
+        role: "sre",
+        event,
+        providerSummary: "analysis complete",
+        now,
+        repo: "fixture/service",
+        gate,
+      });
+      const retry = await persistStandingRoleOutcome({
+        stateHome: home.root,
+        app: "service",
+        role: "sre",
+        event,
+        providerSummary: "analysis complete",
+        now,
+        repo: "fixture/service",
+        gate,
+      });
+      expect(first?.artifact.delivery).toMatchObject({
+        analysis_state: "complete",
+        filing_state: "pending_approval",
+        approval_id: "sre-incident-approval",
+        required_label: "op:incident",
+        source_event_key: "sre.json",
+      });
+      expect(retry).toMatchObject({ artifactCreated: false, plannerFeedCreated: false });
+      const pending = await store.listPending();
+      expect(pending).toHaveLength(1);
+      expect(pending[0]).toMatchObject({
+        role: "sre",
+        rule: "external-publishing",
+        ticketRef: "event:sre.json",
+        classification: { rule: "external-publishing" },
+      });
+      expect(JSON.stringify(pending[0]!.classification)).not.toContain("health returned 500");
+      expect(JSON.stringify(pending[0]!.action.input)).toContain("Event: sre.json");
+
+      await store.decide(pending[0]!.id, { decision: "approved", reason: "file incident", now });
+      const gh = new FakeGhOps({ repo: "fixture/service" });
+      const outcomes = await executeApprovedDeliveries({
+        stateHome: home.root,
+        appsFile: {
+          org: { name: "fixture", maxConcurrentTurns: 2 },
+          defaults: { budgetUsdMonth: 100 },
+          apps: [{ name: "service", repo: "fixture/service", status: "live", budgetUsdMonth: 100, cadence: {} }],
+        },
+        ghFor: () => gh,
+        now: () => now,
+      });
+      expect(outcomes).toEqual([expect.objectContaining({ status: "executed", remoteRef: "#1" })]);
+      const issues = await gh.listIssues({ labels: ["op:incident"], state: "all" });
+      expect(issues).toHaveLength(1);
+      expect(issues[0]!.body).toContain("Payload SHA-256:");
+      expect((await store.show(pending[0]!.id)).item.execution).toMatchObject({ state: "executed", result: "remote action acknowledged" });
+    } finally { home.cleanup(); }
+  });
+
+  it("surfaces a flat gate denial separately from completed SRE analysis", async () => {
+    const home = makeOrgHome({ state: true, approvals: true });
+    try {
+      const persisted = await persistStandingRoleOutcome({
+        stateHome: home.root,
+        app: "service",
+        role: "sre",
+        event: eventFor("sre"),
+        providerSummary: "analysis complete",
+        now: new Date("2026-07-12T01:00:00Z"),
+        repo: "fixture/service",
+        gate: () => ({ allow: false, reason: "sandbox delivery is denied by policy", escalate: false }),
+      });
+      expect(persisted?.artifact.delivery).toMatchObject({
+        analysis_state: "complete",
+        filing_state: "gate_denied",
+        failure_cause: "gate_denied",
+        reason: "sandbox delivery is denied by policy",
+      });
+      expect(await new ApprovalStore(home.root).listPending()).toHaveLength(0);
     } finally { home.cleanup(); }
   });
 

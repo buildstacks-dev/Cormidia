@@ -2,6 +2,7 @@ import { formatStatusRows, readStatusRows } from "../runtime/runlog/status.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { resolve } from "node:path";
+import { approvalLifecycleState, ApprovalStore } from "../org/approvals.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
@@ -12,6 +13,20 @@ export async function cmdStatus(args: string[]): Promise<number> {
     ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
   });
   console.log(formatStatusRows(rows));
+  const approvals = (await new ApprovalStore(stateHome).listDecidedReadOnly())
+    .filter((item) => item.execution !== undefined)
+    .filter((item) => parsed.app === undefined || item.app === parsed.app);
+  if (approvals.length > 0) {
+    console.log("\nAPPROVAL DELIVERY");
+    for (const item of approvals) {
+      console.log(
+        `${item.id} ${item.app} ${approvalLifecycleState(item)} ` +
+        `attempt=${item.execution!.attempts} actor=${item.execution!.actor ?? "-"} ` +
+        `at=${item.execution!.attemptedAt ?? "-"} result=${item.execution!.result ?? "-"} ` +
+        `cause=${item.execution!.failureCause ?? "-"} next=${item.execution!.nextAction}`,
+      );
+    }
+  }
   return 0;
 }
 

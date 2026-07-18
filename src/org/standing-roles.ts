@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 import { link, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { GateFn, ToolAction } from "../runtime/types.js";
+import { approvalLifecycleState, ApprovalStore } from "./approvals.js";
+import { githubIssueCreateAction, type DeliveryFailureCause } from "./approval-delivery.js";
 import type { TurnEvent } from "./journal.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
 
@@ -24,6 +26,22 @@ export interface StandingRoleArtifact {
   approval_state: "not_requested" | "parked";
   draft: string;
   provider_summary_sha256: string;
+  /** Analysis and filing are distinct facts. The draft can be complete while
+   * the content-bound incident action is still awaiting approval/execution. */
+  delivery?: StandingRoleDelivery;
+}
+
+export interface StandingRoleDelivery {
+  kind: "github_issue";
+  analysis_state: "complete";
+  filing_state: "pending_approval" | "ready" | "executing" | "filed" | "failed" | "ambiguous" | "gate_denied";
+  repo: string;
+  required_label: "op:incident";
+  source_event_key: string;
+  idempotency_key: string;
+  approval_id?: string;
+  failure_cause?: DeliveryFailureCause;
+  reason?: string;
 }
 
 export interface PlannerFeedRecord {
@@ -53,12 +71,28 @@ export async function persistStandingRoleOutcome(input: {
   event: TurnEvent;
   providerSummary: string;
   now: Date;
+  repo?: string;
+  gate?: GateFn;
 }): Promise<StandingRolePersistResult | undefined> {
   if (!isStandingRole(input.role)) return undefined;
   const payload = validateEvent(input.app, input.role, input.event, input.now);
   const payloadHash = sha256(canonicalJson(payload));
   const artifactId = `standing_${sha256(`${input.app}\0${input.role}\0${input.event.key}\0${payloadHash}`).slice(7, 35)}`;
   const feedId = `planner_feed_${sha256(`${input.app}\0${input.event.key}\0${payloadHash}`).slice(7, 35)}`;
+  const draft = groundedDraft(input.role, payload);
+  const delivery = input.role === "sre" && incidentFilingRequired(payload) && input.repo !== undefined && input.gate !== undefined
+    ? await queueIncidentFiling({
+        stateHome: input.stateHome,
+        app: input.app,
+        repo: input.repo,
+        event: input.event,
+        payload,
+        payloadHash,
+        artifactId,
+        draft,
+        gate: input.gate,
+      })
+    : undefined;
   const artifact: StandingRoleArtifact = {
     schema_version: 1,
     artifact_id: artifactId,
@@ -73,8 +107,9 @@ export async function persistStandingRoleOutcome(input: {
     draft_only: true,
     outward_effects: [],
     approval_state: input.role === "sre" && deployShaped(payload) ? "parked" : "not_requested",
-    draft: groundedDraft(input.role, payload),
+    draft,
     provider_summary_sha256: sha256(input.providerSummary),
+    ...(delivery !== undefined ? { delivery } : {}),
   };
   const plannerFeed: PlannerFeedRecord = {
     schema_version: 1,
@@ -177,6 +212,99 @@ function requiredFacts(role: StandingRole, payload: Record<string, unknown>): st
 
 function deployShaped(payload: Record<string, unknown>): boolean {
   return payload.kind === "health-alert" && (payload.status === "down" || payload.severity === "critical");
+}
+
+function incidentFilingRequired(payload: Record<string, unknown>): boolean {
+  return deployShaped(payload);
+}
+
+async function queueIncidentFiling(input: {
+  stateHome: string;
+  app: string;
+  repo: string;
+  event: TurnEvent;
+  payload: Record<string, unknown>;
+  payloadHash: string;
+  artifactId: string;
+  draft: string;
+  gate: GateFn;
+}): Promise<StandingRoleDelivery> {
+  const idempotencyKey = `incident:${sha256(`${input.app}\0${input.event.key}\0${input.payloadHash}`).slice(7, 47)}`;
+  const ticketRef = `event:${input.event.key}`;
+  const action = githubIssueCreateAction({
+    repo: input.repo,
+    title: `Incident: ${stringField(input.payload, "service")} ${stringField(input.payload, "status")}`,
+    body: [
+      input.draft,
+      "",
+      "## Operon source",
+      `Event: ${input.event.key}`,
+      `Payload SHA-256: ${input.payloadHash}`,
+      `Artifact: ${input.artifactId}`,
+    ].join("\n"),
+    labels: ["op:incident"],
+    idempotency_key: idempotencyKey,
+  });
+  const store = new ApprovalStore(input.stateHome);
+  let item = await store.findEquivalent({
+    app: input.app,
+    role: "sre",
+    rule: "external-publishing",
+    action,
+    ticketRef,
+  });
+  let reason: string | undefined;
+  if (item === undefined) {
+    const decision = input.gate(action);
+    reason = decision.allow ? undefined : decision.reason;
+    item = await store.findEquivalent({
+      app: input.app,
+      role: "sre",
+      rule: "external-publishing",
+      action,
+      ticketRef,
+    });
+    // The composed gate normally records the escalation. Keep this helper
+    // fail-closed if a custom hook denies without persisting one.
+    if (item === undefined && !decision.allow) {
+      return {
+        kind: "github_issue",
+        analysis_state: "complete",
+        filing_state: "gate_denied",
+        repo: input.repo,
+        required_label: "op:incident",
+        source_event_key: input.event.key,
+        idempotency_key: idempotencyKey,
+        failure_cause: "gate_denied",
+        reason: decision.reason,
+      };
+    }
+    if (item === undefined) {
+      throw new Error("incident delivery gate allowed without a durable action record");
+    }
+  }
+  const lifecycle = approvalLifecycleState(item);
+  const filingState: StandingRoleDelivery["filing_state"] = lifecycle === "pending"
+    ? "pending_approval"
+    : lifecycle === "approved"
+      ? "ready"
+      : lifecycle === "executed"
+        ? "filed"
+        : lifecycle === "denied"
+          ? "gate_denied"
+          : lifecycle;
+  return {
+    kind: "github_issue",
+    analysis_state: "complete",
+    filing_state: filingState,
+    repo: input.repo,
+    required_label: "op:incident",
+    source_event_key: input.event.key,
+    idempotency_key: idempotencyKey,
+    approval_id: item.id,
+    ...(filingState === "gate_denied" ? { failure_cause: "gate_denied" as const } : {}),
+    ...(reason !== undefined || item.reason !== undefined ? { reason: reason ?? item.reason! } : {}),
+  };
 }
 
 function stringField(payload: Record<string, unknown>, key: string): string {

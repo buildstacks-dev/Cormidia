@@ -11,7 +11,7 @@ import { join } from "node:path";
 import type { LoopItem } from "../loop/types.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 import { runRole } from "../loop/runRole.js";
-import { defaultGate } from "../runtime/gate.js";
+import { actionEffectFields, classifyWithEvidence, defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import type { GateFn, RoleConfig, Runtime, ToolAction } from "../runtime/types.js";
@@ -43,16 +43,26 @@ export async function queueReleaseApprovals(
   for (const item of items) {
     if (item.phase !== "merged" || item.releaseTrigger === undefined) continue;
     const trigger = item.releaseTrigger;
+    const action: ToolAction = {
+      // Make the approval bind the executable action itself. A synthetic
+      // `release` tool would mint a hash no bash action could consume.
+      tool: "bash",
+      input: { command: trigger.command },
+    };
+    const classification = classifyWithEvidence(action);
     const raised = await store.raise({
       app,
       role: trigger.owner,
       rule: "production-deploy",
-      action: {
-        // Make the approval bind the executable action itself. A synthetic
-        // `release` tool would mint a hash no bash action could consume.
-        tool: "bash",
-        input: { command: trigger.command },
-      },
+      action,
+      classification: classification.cls === "critical"
+        ? classification.evidence
+        : {
+            schemaVersion: 1,
+            rule: "production-deploy",
+            reason: "merged release trigger declares a production delivery effect",
+            matchedAction: actionEffectFields(action),
+          },
       ticketRef: item.ticketRef,
       justification:
         `milestone ${item.ticketRef} merged with a declared ${trigger.kind} disposition; ` +
@@ -126,15 +136,67 @@ export async function executeApprovedReleases(
       // deployed and died before finalization, so automatic retry is unsafe.
       // Completed/failed history is quiet after any pending comment retry.
       if (existing.status === "running") {
+        if (item.execution?.state === "executing") {
+          await store.finishExecution({
+            id: item.id,
+            state: "ambiguous",
+            actor: "orchestrator/release-reconcile",
+            result: "release process stopped before acknowledgement; inspect before retrying",
+            failureCause: "ambiguous_release_result",
+            now: clock(),
+          });
+        }
         outcomes.push({
           approvalId: item.id,
           app: item.app,
           status: "skipped",
           summary: `release ${item.id} has an ambiguous running record; inspect before retrying`,
         });
+      } else if (item.execution?.state === "executing" || item.execution?.state === "ambiguous") {
+        await store.finishExecution({
+          id: item.id,
+          state: existing.status === "completed" ? "executed" : "failed",
+          actor: "orchestrator/release-reconcile",
+          result: existing.summary ?? existing.status,
+          ...(existing.status === "failed" ? { failureCause: "release_failed" } : {}),
+          now: clock(),
+        });
       }
       continue;
     }
+
+    // A process can stop after claiming the generic approval lifecycle but
+    // before the specialized release record reaches disk. There is no safe
+    // evidence that the remote command did or did not start, so make the
+    // uncertainty durable and require reconciliation/human disposition. A
+    // later dispatch must never treat the missing record as permission to run.
+    if (item.execution?.state === "executing") {
+      await store.finishExecution({
+        id: item.id,
+        state: "ambiguous",
+        actor: "orchestrator/release-reconcile",
+        result: "release claim exists without an execution record; inspect before retrying",
+        failureCause: "ambiguous_release_result",
+        now: clock(),
+      });
+      outcomes.push({
+        approvalId: item.id,
+        app: item.app,
+        status: "skipped",
+        summary: `release ${item.id} has a claim without an execution record; inspect before retrying`,
+      });
+      continue;
+    }
+    if (item.execution?.state === "ambiguous") {
+      outcomes.push({
+        approvalId: item.id,
+        app: item.app,
+        status: "skipped",
+        summary: `release ${item.id} remains ambiguous; inspect before retrying`,
+      });
+      continue;
+    }
+    if (item.execution?.state === "executed" || item.execution?.state === "failed") continue;
 
     const shown = await store.show(item.id);
     if (shown.grant === undefined || shown.grant.uses <= 0 || shown.grant.revokedAt !== undefined) {
@@ -142,11 +204,26 @@ export async function executeApprovedReleases(
     }
     if (new Date(shown.grant.expiresAt).getTime() <= clock().getTime()) continue;
 
+    if (item.execution?.executor === "release") {
+      const claimed = await store.beginExecution(item.id, "orchestrator/release", clock());
+      if (claimed === undefined) continue;
+    }
+
     const app = options.appsFile.apps.find((entry) => entry.name === item.app);
     const command = releaseCommand(item);
     const ticketRef = item.ticketRef;
     const owner = item.role;
     if (app === undefined || command === undefined || ticketRef === undefined || !isReleaseOwner(owner)) {
+      if (item.execution?.executor === "release") {
+        await store.finishExecution({
+          id: item.id,
+          state: "failed",
+          actor: "orchestrator/release",
+          result: `approved release ${item.id} has invalid app/owner/command/ticket metadata`,
+          failureCause: "invalid_release_metadata",
+          now: clock(),
+        });
+      }
       outcomes.push({
         approvalId: item.id,
         app: item.app,
@@ -189,6 +266,16 @@ export async function executeApprovedReleases(
       };
     }
     await writeExecution(options.stateHome, record);
+    if (item.execution?.executor === "release") {
+      await store.finishExecution({
+        id: item.id,
+        state: record.status === "completed" ? "executed" : "failed",
+        actor: "orchestrator/release",
+        result: record.summary ?? record.status,
+        ...(record.status === "failed" ? { failureCause: "release_failed" } : {}),
+        now: clock(),
+      });
+    }
     await recordInvocation(options.stateHome, {
       at: record.finishedAt ?? clock().toISOString(),
       kind: "release",

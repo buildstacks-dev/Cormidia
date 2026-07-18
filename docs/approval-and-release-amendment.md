@@ -81,6 +81,34 @@ adapters has live-conformance proof for. Artifact-level continuation
 captures most of the economic benefit (proportionality review, Stage 3
 note). Revisit only with a per-adapter live conformance case.
 
+### A2.1 — Typed later delivery and acknowledgement, ratified 2026-07-18
+
+The release executor proved the necessary distinction: a human decision is
+authorization, not evidence that the action ran. That distinction now applies
+to every approved item through a durable execution lifecycle:
+`approved → executing → executed | failed | ambiguous`. Each transition records
+the attempt, actor, result, remote reference when known, failure cause, and next
+action. Generic provider tool calls remain `actor-retry`; they are not replayed
+as arbitrary shell outside a provider session.
+
+A later `operon dispatch` may execute only an explicit, typed,
+orchestrator-owned allowlist. The first general actions are content-bound GitHub
+issue create/comment operations; A4 retains its specialized release executor.
+The executor claims the exact approved action, consumes its matching single-use
+grant, searches for its stable remote idempotency marker, performs the effect
+once, and persists acknowledgement. A crash after the remote response is
+reconciled from that marker. A crash or API response whose effect cannot be
+proved becomes `ambiguous`; dispatch never guesses and retries it. `operon
+approvals disposition` is the explicit human reconciliation/retry boundary.
+
+External publication joins `NEVER_SCOPEABLE_RULES`: a broad rule grant cannot
+stand in for a durable record of the exact payload and its acknowledgement.
+This is a deliberate tightening of A1, not a new outward-effect authority.
+The SRE incident pipeline uses the typed issue-create action for critical/down
+health events, with `op:incident`, source-event key, payload hash, and a stable
+incident identity. Its local analysis may be complete while filing remains
+pending, failed, or ambiguous; those claims are never collapsed.
+
 ## A3 — Batched same-rule decisions
 
 **Current:** items reviewed strictly one by one.

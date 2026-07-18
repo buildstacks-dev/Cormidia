@@ -8,6 +8,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { join, resolve } from "node:path";
 import {
+  approvalLifecycleState,
   ApprovalStore,
   type ApprovalItem,
   type DecideApprovalInput,
@@ -44,16 +45,40 @@ export async function cmdApprovals(args: string[]): Promise<number> {
     return reviewQueue(store, homes.orgHome, parsed.batch);
   }
 
+  if (parsed.subcommand === "status") {
+    printExecutionTable((await store.listDecided()).filter((item) => item.execution !== undefined));
+    return 0;
+  }
+
+  if (parsed.subcommand === "disposition") {
+    if (parsed.id === undefined) throw new Error("approvals disposition: id required");
+    if (parsed.confirm !== parsed.id) throw new Error(`approvals disposition: --confirm must exactly match ${parsed.id}`);
+    if (parsed.disposition === undefined) throw new Error("approvals disposition: choose exactly one of --executed, --failed, or --retry");
+    if (parsed.reason === undefined || parsed.reason.trim() === "") throw new Error("approvals disposition: --reason is required");
+    const item = await store.dispositionExecution({
+      id: parsed.id,
+      disposition: parsed.disposition,
+      reason: parsed.reason,
+      actor: "human/operator",
+      now: parsed.now,
+    });
+    console.log(`approval ${item.id} execution ${item.execution?.state ?? "untracked"}: ${item.execution?.nextAction ?? "none"}`);
+    return 0;
+  }
+
   const pending = await store.listPending();
   printTable(pending, parsed.now);
   return 0;
 }
 
 interface ParsedArgs {
-  subcommand: "list" | "review" | "show" | "revoke";
+  subcommand: "list" | "review" | "show" | "revoke" | "status" | "disposition";
   id?: string;
   batch: boolean;
   now: Date;
+  disposition?: "executed" | "failed" | "retry";
+  reason?: string;
+  confirm?: string;
 }
 
 function parseArgs(args: string[]): ParsedArgs {
@@ -61,11 +86,20 @@ function parseArgs(args: string[]): ParsedArgs {
   let id: string | undefined;
   let batch = false;
   let now = new Date();
+  let disposition: ParsedArgs["disposition"];
+  let reason: string | undefined;
+  let confirm: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--now") now = new Date(needValue(args, ++i, "--now"));
     else if (arg === "--batch") batch = true;
+    else if (arg === "--reason") reason = needValue(args, ++i, "--reason");
+    else if (arg === "--confirm") confirm = needValue(args, ++i, "--confirm");
+    else if (arg === "--executed" || arg === "--failed" || arg === "--retry") {
+      if (disposition !== undefined) throw new Error("approvals disposition: choose only one disposition");
+      disposition = arg.slice(2) as ParsedArgs["disposition"];
+    }
     else if (arg === "review") subcommand = "review";
     else if (arg === "show") {
       subcommand = "show";
@@ -73,11 +107,23 @@ function parseArgs(args: string[]): ParsedArgs {
     } else if (arg === "revoke") {
       subcommand = "revoke";
       id = needValue(args, ++i, "revoke");
+    } else if (arg === "status") subcommand = "status";
+    else if (arg === "disposition") {
+      subcommand = "disposition";
+      id = needValue(args, ++i, "disposition");
     } else if (arg === "list") subcommand = "list";
     else throw new Error(`approvals: unknown argument "${arg}"`);
   }
 
-  return { subcommand, batch, ...(id !== undefined ? { id } : {}), now };
+  return {
+    subcommand,
+    batch,
+    ...(id !== undefined ? { id } : {}),
+    now,
+    ...(disposition !== undefined ? { disposition } : {}),
+    ...(reason !== undefined ? { reason } : {}),
+    ...(confirm !== undefined ? { confirm } : {}),
+  };
 }
 
 /** `a` = approve single-use; `a ticket [path]` / `a app [path]` = approve
@@ -241,6 +287,26 @@ function printTable(items: readonly ApprovalItem[], now: Date): void {
   console.log(`${items.length} pending`);
 }
 
+function printExecutionTable(items: readonly ApprovalItem[]): void {
+  console.log("ID                       APP                  STATE       TRY ACTOR                    NEXT");
+  for (const item of items) {
+    console.log([
+      item.id.padEnd(24),
+      item.app.padEnd(20),
+      approvalLifecycleState(item).padEnd(11),
+      String(item.execution?.attempts ?? 0).padStart(3),
+      (item.execution?.actor ?? "-").slice(0, 24).padEnd(24),
+      item.execution?.nextAction ?? "-",
+    ].join(" "));
+    if (item.execution?.result !== undefined) console.log(`  result: ${item.execution.result}`);
+    if (item.execution?.failureCause !== undefined) console.log(`  cause: ${item.execution.failureCause}`);
+    if (item.execution?.remoteRef !== undefined) console.log(`  remote: ${item.execution.remoteRef}`);
+    if (item.execution?.attemptedAt !== undefined) console.log(`  attempted: ${item.execution.attemptedAt}`);
+    if (item.execution?.finishedAt !== undefined) console.log(`  finished: ${item.execution.finishedAt}`);
+  }
+  console.log(`${items.length} execution record(s)`);
+}
+
 function formatFullItem(item: ApprovalItem): string {
   return [
     `id: ${item.id}`,
@@ -251,6 +317,8 @@ function formatFullItem(item: ApprovalItem): string {
     `ticket: ${item.ticketRef ?? "(none)"}`,
     `raised: ${item.raisedAt}`,
     `action: ${JSON.stringify(item.action)}`,
+    `classification: ${item.classification === undefined ? "(legacy/unrecorded)" : JSON.stringify(item.classification)}`,
+    `execution: ${item.execution === undefined ? "(not approved/untracked)" : JSON.stringify(item.execution)}`,
     `justification: ${item.justification ?? "(none)"}`,
   ].join("\n");
 }

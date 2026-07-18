@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import { dispatchTick } from "../org/dispatch.js";
 import { loadApps } from "../org/apps.js";
 import { executeApprovedReleases } from "../org/release.js";
+import { executeApprovedDeliveries } from "../org/approval-delivery.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -25,6 +26,12 @@ export async function cmdDispatch(args: string[]): Promise<number> {
   const effectiveRoles = rolesPath ? resolve(rolesPath) : join(homes.orgHome, "roles.yaml");
   const appsFile = await loadApps(effectiveApps);
   const tickStarted = Date.now();
+  const deliveries = dryRun
+    ? []
+    : await executeApprovedDeliveries({
+        stateHome: homes.stateHome,
+        appsFile,
+      });
   const releases = dryRun
     ? []
     : await executeApprovedReleases({
@@ -63,7 +70,14 @@ export async function cmdDispatch(args: string[]): Promise<number> {
   for (const release of releases) {
     console.log(`release ${release.approvalId}: ${release.status} — ${release.summary.split("\n")[0]}`);
   }
-  return result.errors.length > 0 || releases.some((release) => release.status === "failed") ? 1 : 0;
+  for (const delivery of deliveries) {
+    console.log(`delivery ${delivery.approvalId}: ${delivery.status} — ${delivery.summary.split("\n")[0]}`);
+  }
+  return result.errors.length > 0 ||
+    releases.some((release) => release.status === "failed") ||
+    deliveries.some((delivery) => delivery.status === "failed" || delivery.status === "ambiguous")
+    ? 1
+    : 0;
 }
 
 function needValue(args: string[], index: number, flag: string): string {

@@ -6,7 +6,7 @@
 // with guidance and a durable lesson instead of burning a human decision —
 // the episode spent 20 decisions on attempts the protocol already forbade.
 
-import { classify, normalizeSemanticAction, stripMessageArgs } from "../runtime/gate.js";
+import { actionEffectFields, classifyWithEvidence } from "../runtime/gate.js";
 import { FORBIDDEN_BY_ROLE } from "../runtime/role-shaping.js";
 import type { GateDecision, GateFn, ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore } from "./approvals.js";
@@ -30,7 +30,8 @@ export function composeGate(
   return (action: ToolAction): GateDecision => {
     const now = context.now?.() ?? new Date();
     const hash = actionHash(action);
-    const { rule } = classify(action);
+    const classification = classifyWithEvidence(action);
+    const rule = classification.cls === "critical" ? classification.rule : undefined;
     const grant = store.findMatchingGrantSync({
       app: context.app,
       role: context.role,
@@ -100,6 +101,7 @@ export function composeGate(
         ...(context.turnId !== undefined ? { turnId: context.turnId } : {}),
         ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
         justification: decision.reason,
+        ...(classification.cls === "critical" ? { classification: classification.evidence } : {}),
         now,
       });
     }
@@ -136,46 +138,11 @@ function ruleFromReason(reason: string): string {
  *  `description`, message values, `# comments`) cannot reach a `pathContains`
  *  bound. See `src/org/release.ts`.
  *
- *  KNOWN RESIDUAL (A-006 / P1-02, NOT closed here): the bash command STRING
- *  itself is agent-authored, and its real arguments are deliberately kept, so
- *  an action can still name a scoped path in genuine command text —
- *  `cat ~/.aws/credentials || : .npmrc`, or a heredoc body naming `.npmrc` —
- *  and ride a `.npmrc`-scoped grant. Closing that requires the structural
- *  inversion to resolved-target-paths only (classify what a command *does*,
- *  not what its text *says*), which is A-006/P1-02's tuning pass — out of
- *  scope for the A-005 hotfix. */
+ *  A-006 is closed by the structural projection in `actionEffectFields`:
+ *  only resolved/parsed targets and redirect destinations reach scope
+ *  matching. Search patterns, comments, message bodies, and heredoc payloads
+ *  never do, so merely naming `.npmrc` cannot widen a `.npmrc` grant. */
 export function grantScopeText(action: ToolAction): string {
-  const semantic = normalizeSemanticAction(action);
-  const command =
-    semantic.command === null
-      ? ""
-      : stripShellComments(stripMessageArgs(semantic.command, { keepExecutable: false }));
-  return [command, ...semantic.paths].join(" ");
-}
-
-/** Drop `# …` shell comments (a `#` at the start of a token, outside quotes,
- *  running to end of line) so agent-authored comment text cannot appear at a
- *  path boundary the bound would match. Quoted `#` is preserved. */
-function stripShellComments(command: string): string {
-  let out = "";
-  let quote: '"' | "'" | null = null;
-  for (let i = 0; i < command.length; i++) {
-    const ch = command[i]!;
-    if (quote !== null) {
-      out += ch;
-      if (ch === quote) quote = null;
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      out += ch;
-      continue;
-    }
-    if (ch === "#" && (i === 0 || /\s/.test(command[i - 1]!))) {
-      while (i + 1 < command.length && command[i + 1] !== "\n") i++;
-      continue;
-    }
-    out += ch;
-  }
-  return out;
+  const fields = actionEffectFields(action);
+  return [...fields.targets, ...fields.redirections].join(" ");
 }

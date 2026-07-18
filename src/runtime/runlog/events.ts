@@ -31,6 +31,9 @@ export type RunlogEventType =
   | "subagent.completed"
   | "ticket.transition"
   | "verdict.recorded"
+  /** Orchestrator-owned post-validation projection for one planned ticket.
+   *  Carries requested/final tier and labels, never ticket prose. */
+  | "plan.ticket_finalized"
   | "escalation.raised"
   /** A provider settle found its (app, providerTurnId), or legacy
    *  (app, runId), already present and was skipped. */

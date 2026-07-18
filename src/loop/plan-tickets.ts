@@ -349,6 +349,25 @@ export interface TicketPublication {
   domainLabels: string[];
 }
 
+/** One immutable projection shared by operator output, run evidence, dry/no-
+ *  publish results, and GitHub mutation. The Planner's requested tier remains
+ *  visible even when the orchestrator raises the published tier. */
+export interface FinalTicketProjection {
+  index: number;
+  ticket: PlanTicket;
+  requestedTier: TierLabel;
+  finalTier: TierLabel;
+  escalationReason?: string;
+  domainLabels: string[];
+  labels: string[];
+  ready: boolean;
+}
+
+export interface FinalPlanProjection {
+  plan: TicketPlan;
+  tickets: FinalTicketProjection[];
+}
+
 /** Apply the orchestrator-owned sensitive-domain deep floor to a plan.
  *
  *  A ticket whose own content names a sensitive domain gets descriptive
@@ -374,6 +393,35 @@ export function applySensitiveDomainFloor(plan: TicketPlan): TicketPublication[]
   });
 }
 
+/** Validate and freeze every deterministic publication transform once. */
+export function finalizePlanForPublication(plan: TicketPlan): FinalPlanProjection {
+  const validation = validatePlan(plan);
+  if (!validation.ok) {
+    throw new Error(`finalizePlanForPublication: plan failed validation:\n- ${validation.problems.join("\n- ")}`);
+  }
+  const floored = applySensitiveDomainFloor(plan);
+  const tickets = floored.map(({ ticket, domainLabels }, index): FinalTicketProjection => {
+    const requestedTier = plan.tickets[index]!.tier;
+    const ready = ticket.dependsOn.length === 0;
+    return {
+      index,
+      ticket,
+      requestedTier,
+      finalTier: ticket.tier,
+      ...(requestedTier !== ticket.tier
+        ? { escalationReason: `sensitive-domain floor: ${domainLabels.map((label) => label.replace("domain:", "")).join(", ")}` }
+        : {}),
+      domainLabels,
+      labels: [ticket.tier, ticket.priority, ...domainLabels, ...(ready ? ["op:ready"] : [])],
+      ready,
+    };
+  });
+  return {
+    plan: { ...plan, tickets: tickets.map(({ ticket }) => ticket) },
+    tickets,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Publication — orchestrator-owned, validate-all-then-create
 // ---------------------------------------------------------------------------
@@ -383,6 +431,7 @@ export interface PublishedTicket {
   issueNumber: number;
   title: string;
   ready: boolean;
+  labels: string[];
 }
 
 export interface PublishResult {
@@ -398,35 +447,32 @@ export interface PublishResult {
  *  a failure is environmental, and everything created so far is reported in
  *  the error for manual reconciliation. */
 export async function publishTickets(gh: GhOps, plan: TicketPlan): Promise<PublishResult> {
-  const validation = validatePlan(plan);
-  if (!validation.ok) {
-    throw new Error(`publishTickets: plan failed validation:\n- ${validation.problems.join("\n- ")}`);
-  }
+  return publishPlanProjection(gh, finalizePlanForPublication(plan));
+}
+
+/** Publish an already-finalized projection without recomputing any floor or
+ *  label transform. This is the boundary runAutoPlan uses after reporting and
+ *  telemetry have consumed the same object. */
+export async function publishPlanProjection(gh: GhOps, projection: FinalPlanProjection): Promise<PublishResult> {
   for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
 
-  // Orchestrator-owned sensitive-domain floor: derive domain labels and floor
-  // risky tickets to op:tier-deep from the tickets' own content (L0-02). The
-  // ticket bodies still render from the original ticket text; only the tier
-  // label and the extra domain labels change.
-  const publications = applySensitiveDomainFloor(plan);
-  const issueNumbers: (number | undefined)[] = plan.tickets.map(() => undefined);
+  const issueNumbers: (number | undefined)[] = projection.tickets.map(() => undefined);
   const published: PublishedTicket[] = [];
   try {
-    for (const [index, { ticket, domainLabels }] of publications.entries()) {
-      const ready = ticket.dependsOn.length === 0;
+    for (const { index, ticket, labels, ready } of projection.tickets) {
       const issue = await gh.createIssue({
         title: ticket.title,
-        body: renderTicketBody(ticket, issueNumbers, plan.releaseKind),
-        labels: [ticket.tier, ticket.priority, ...domainLabels, ...(ready ? ["op:ready"] : [])],
+        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind),
+        labels,
       });
       issueNumbers[index] = issue.number;
-      published.push({ index, issueNumber: issue.number, title: ticket.title, ready });
+      published.push({ index, issueNumber: issue.number, title: ticket.title, ready, labels: [...labels] });
     }
     // Second pass: tickets whose dependencies were created after them get
     // their real Depends-on references now that every number is known.
-    for (const [index, ticket] of plan.tickets.entries()) {
+    for (const { index, ticket } of projection.tickets) {
       if (ticket.dependsOn.some((dep) => dep > index)) {
-        await gh.updateIssueBody(issueNumbers[index]!, renderTicketBody(ticket, issueNumbers, plan.releaseKind));
+        await gh.updateIssueBody(issueNumbers[index]!, renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind));
       }
     }
   } catch (error) {

@@ -10,13 +10,18 @@ import { join, resolve } from "node:path";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
+import { loadRoles } from "../org/roles.js";
+import { loadPipelines } from "../loop/pipelines.js";
+import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
 import {
   decidePlanningDepth,
+  routePlanningPasses,
   type ExpectedTicketBand,
   type ExternalConsequence,
   type PlanningDepth,
   type PlanningLevel,
   type PlanningReversibility,
+  type PlanningWorkLifecycle,
 } from "../org/planning-depth.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
@@ -44,7 +49,8 @@ export async function cmdPlan(args: string[]): Promise<number> {
     if (app === undefined) throw new Error(`plan: unknown app "${parsed.app}" in apps.yaml`);
     const stage = parsed.stage ?? (app.status === "onboarding" ? "bootstrap" : "mature");
     const decision = decidePlanningDepth({ goal: parsed.goal ?? "", stage, ...planningOptions(parsed) });
-    console.log(JSON.stringify({ schema_version: 1, kind: "route-explanation", app: app.name, stage, ...decision }, null, 2));
+    const planningRoute = routePlanningPasses(decision, stage, await availablePlanningPipelines(homes.orgHome));
+    console.log(JSON.stringify({ schema_version: 1, kind: "route-explanation", app: app.name, stage, decision, planningRoute }, null, 2));
     return 0;
   }
 
@@ -58,11 +64,31 @@ export async function cmdPlan(args: string[]): Promise<number> {
     if (parsed.dryRun) {
       const stage = parsed.stage ?? (app.status === "onboarding" ? "bootstrap" : "mature");
       const decision = decidePlanningDepth({ goal: parsed.goal, stage, ...planningOptions(parsed) });
+      const planningRoute = routePlanningPasses(decision, stage, await availablePlanningPipelines(homes.orgHome));
+      if (parsed.json) {
+        console.log(JSON.stringify({
+          schema_version: 1,
+          kind: "plan-dry-run",
+          app: app.name,
+          goal: parsed.goal,
+          stage,
+          decision,
+          planningRoute,
+          sourceCheckout: resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name)),
+          parentTaskId: parentTaskId ?? null,
+          effects: [],
+        }, null, 2));
+        return 0;
+      }
       console.log(`plan dry-run: ${app.name}`);
       console.log(`goal: ${parsed.goal}`);
       console.log(`stage: ${stage}`);
       console.log(`planning depth: ${decision.depth}`);
+      console.log(`execution route: ${decision.executionRoute}`);
+      console.log(`disposition: ${decision.disposition}`);
+      console.log(`selected passes: ${planningRoute.selectedPasses.join(" -> ") || "none"}`);
       console.log(`routing factors: ${decision.decisionFactors.join("; ")}`);
+      console.log(`execution factors: ${decision.executionDecisionFactors.join("; ")}`);
       console.log(`source checkout: ${resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name))}`);
       if (parentTaskId !== undefined) console.log(`parent task: ${parentTaskId}`);
       console.log("(dry-run: no runtime, run envelope, telemetry, learning projection, or GitHub write)");
@@ -82,20 +108,34 @@ export async function cmdPlan(args: string[]): Promise<number> {
       ...(parentTaskId !== undefined ? { parentTaskId } : {}),
       planning: planningOptions(parsed),
     }).finally(() => cancellation.dispose());
+    if (parsed.json) {
+      console.log(JSON.stringify({ schema_version: 1, kind: "plan-result", app: app.name, ...result }, null, 2));
+      return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
+    }
     console.log(`plan (${result.status}): ${result.summary}`);
     if (result.plan !== undefined) {
       console.log(`stage: ${result.plan.stage}`);
       console.log(`why this many tickets: ${result.plan.ticketCountRationale}`);
       console.log(`release disposition: ${result.plan.releaseDisposition}`);
       console.log(`release kind: ${result.plan.releaseKind}`);
+      const projected = result.planProjection?.tickets;
       result.plan.tickets.forEach((ticket, index) => {
-        console.log(`  ${index}: [${ticket.tier}/${ticket.priority}] ${ticket.title}`);
+        console.log(formatPlanTicketSummary(index, ticket, projected?.[index]));
       });
     }
     for (const problem of result.problems ?? []) console.log(`problem: ${problem}`);
     if (result.planningDecision !== undefined) {
       console.log(`planning depth: ${result.planningDecision.depth}`);
+      console.log(`execution route: ${result.planningDecision.executionRoute}`);
+      console.log(`disposition: ${result.planningDecision.disposition}`);
       console.log(`routing factors: ${result.planningDecision.decisionFactors.join("; ")}`);
+      console.log(`execution factors: ${result.planningDecision.executionDecisionFactors.join("; ")}`);
+    }
+    if (result.planningRoute !== undefined) {
+      console.log(`selected passes: ${result.planningRoute.selectedPasses.join(" -> ") || "none"}`);
+      for (const rationale of result.planningRoute.passRationales) {
+        console.log(`pass rationale: ${rationale.pass}: ${rationale.expectedRiskReduction} (${rationale.evidence})`);
+      }
     }
     if (result.planningCostEstimate !== undefined) {
       console.log(
@@ -104,10 +144,22 @@ export async function cmdPlan(args: string[]): Promise<number> {
           : `$${result.planningCostEstimate.estimatedCostUsd.toFixed(4)}`} ` +
           `(upper bound $${result.planningCostEstimate.upperBoundUsd.toFixed(2)})`,
       );
+      const outcome = result.planningCostEstimate.outcomeMeasurement;
+      console.log(
+        `downstream outcome comparison: ${outcome.status}` +
+        (outcome.observedFailureRateDelta === null
+          ? ` (${outcome.basis})`
+          : ` (lower-pass minus selected-pass failure rate ${outcome.observedFailureRateDelta.toFixed(3)}; ${outcome.basis})`),
+      );
     }
-    // A plan that produced no durable output must not exit 0 (the episode's
-    // stalled planner exited 0 after doing nothing).
+    // A failed/incomplete planning turn must not exit 0. The explicit
+    // direct-execution disposition is a completed token-free admission
+    // decision and intentionally has no plan artifact.
     return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
+  }
+
+  if (parsed.json || parsed.workLifecycle !== undefined) {
+    throw new Error("plan: --json and --work-lifecycle apply only to --auto or --explain-route");
   }
 
   const session = await preparePlanSession({
@@ -148,6 +200,17 @@ export async function cmdPlan(args: string[]): Promise<number> {
   return code;
 }
 
+export function formatPlanTicketSummary(
+  index: number,
+  ticket: PlanTicket,
+  projection?: FinalTicketProjection,
+): string {
+  return `  ${index}: [${ticket.tier}/${ticket.priority}] ${ticket.title}` +
+    (projection?.escalationReason !== undefined
+      ? ` (requested ${projection.requestedTier}; escalated: ${projection.escalationReason})`
+      : "");
+}
+
 interface ParsedPlanArgs {
   app: string;
   topic?: string;
@@ -166,7 +229,9 @@ interface ParsedPlanArgs {
   externalConsequence?: ExternalConsequence;
   expectedTickets?: ExpectedTicketBand;
   sensitiveDomains?: string[];
+  workLifecycle?: PlanningWorkLifecycle;
   explainRoute: boolean;
+  json: boolean;
 }
 
 function parseArgs(args: string[]): ParsedPlanArgs {
@@ -194,13 +259,17 @@ function parseArgs(args: string[]): ParsedPlanArgs {
   let externalConsequence: ExternalConsequence | undefined;
   let expectedTickets: ExpectedTicketBand | undefined;
   let sensitiveDomains: string[] | undefined;
+  let workLifecycle: PlanningWorkLifecycle | undefined;
   let explainRoute = false;
+  let json = false;
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--dry-run") {
       dryRun = true;
     } else if (arg === "--explain-route") {
       explainRoute = true;
+    } else if (arg === "--json") {
+      json = true;
     } else if (arg === "--auto") {
       auto = true;
     } else if (arg === "--no-publish") {
@@ -251,6 +320,8 @@ function parseArgs(args: string[]): ParsedPlanArgs {
       if (!next || next.startsWith("--")) throw new Error("plan: --sensitive-domains requires a comma-separated value");
       sensitiveDomains = [...new Set(next.split(",").map((value) => value.trim()).filter(Boolean))];
       i++;
+    } else if (arg === "--work-lifecycle") {
+      workLifecycle = enumFlag(args, ++i, "--work-lifecycle", ["existing-ticket", "bounded-goal", "milestone", "strategy"]);
     } else {
       throw new Error(`plan: unknown flag "${arg}"`);
     }
@@ -262,6 +333,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
     auto,
     noPublish,
     explainRoute,
+    json,
     ...(goal !== undefined ? { goal } : {}),
     ...(stage !== undefined ? { stage } : {}),
     ...(topic !== undefined ? { topic } : {}),
@@ -275,6 +347,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
     ...(externalConsequence !== undefined ? { externalConsequence } : {}),
     ...(expectedTickets !== undefined ? { expectedTickets } : {}),
     ...(sensitiveDomains !== undefined ? { sensitiveDomains } : {}),
+    ...(workLifecycle !== undefined ? { workLifecycle } : {}),
   };
 }
 
@@ -288,7 +361,17 @@ function planningOptions(parsed: ParsedPlanArgs) {
     ...(parsed.externalConsequence !== undefined ? { externalConsequence: parsed.externalConsequence } : {}),
     ...(parsed.expectedTickets !== undefined ? { expectedTickets: parsed.expectedTickets } : {}),
     ...(parsed.sensitiveDomains !== undefined ? { sensitiveDomains: parsed.sensitiveDomains } : {}),
+    ...(parsed.workLifecycle !== undefined ? { workLifecycle: parsed.workLifecycle } : {}),
   };
+}
+
+async function availablePlanningPipelines(orgHome: string): Promise<string[]> {
+  const roles = await loadRoles(join(orgHome, "roles.yaml"));
+  const pipelines = await loadPipelines(join(orgHome, "pipelines.yaml"), {
+    roleNames: roles.roles.map((role) => role.name),
+    promptsDir: join(orgHome, "prompts"),
+  });
+  return pipelines.pipelines.map((pipeline) => pipeline.name);
 }
 
 function enumFlag<const T extends string>(args: string[], index: number, flag: string, allowed: readonly T[]): T {

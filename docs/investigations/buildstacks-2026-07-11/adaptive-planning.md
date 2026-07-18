@@ -1,5 +1,12 @@
 # Adaptive planning-depth policy
 
+> Historical v1 investigation. `planning-depth/v2` now separates the
+> safety-floored episode execution route from lifecycle-selected planning
+> passes. Existing scoped tickets go directly to build/review, bounded goals
+> use one shaping pass, milestones add Visionary plus one PM, and competing
+> PMs/arbitration require strategy ambiguity, costly reversibility, or a human
+> deep minimum. `docs/architecture.md` §8 is the current contract.
+
 ## Implementation status
 
 Implemented in `src/org/planning-depth.ts` and the non-interactive

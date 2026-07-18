@@ -6,12 +6,13 @@
 // bare git fixture as the app repo, FakeRuntime, and FakeGhOps; no network,
 // auth, or real GitHub state is required.
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parsePlanJson, runAutoPlan } from "../src/org/plan-auto.js";
+import { readEvents } from "../src/runtime/runlog/events.js";
 import type { AppEntry, AppsFile } from "../src/org/apps.js";
 import { FakeRuntime } from "../src/runtime/testing/fakeRuntime.js";
 import type { TurnResult } from "../src/runtime/types.js";
@@ -43,6 +44,32 @@ const PLAN_JSON = JSON.stringify({
 const MATURE_PLAN_JSON = JSON.stringify({
   ...(JSON.parse(PLAN_JSON) as Record<string, unknown>),
   stage: "mature",
+});
+
+const PLAN_TICKET = (JSON.parse(PLAN_JSON) as { tickets: Array<Record<string, unknown>> }).tickets[0]!;
+const MIXED_PLAN_JSON = JSON.stringify({
+  stage: "mature",
+  ticketCountRationale: "Two independent bounded tickets exercise mixed risk.",
+  releaseDisposition: "No release action is required.",
+  releaseKind: "merge-only",
+  tickets: [
+    {
+      ...PLAN_TICKET,
+      title: "Store contact submissions",
+      tier: "op:tier-standard",
+      priority: "p1",
+      executionGroup: "storage",
+      goal: "Store user data from the contact form.",
+    },
+    {
+      ...PLAN_TICKET,
+      title: "Fix the hero typo",
+      tier: "op:tier-quick",
+      priority: "p2",
+      executionGroup: "copy",
+      goal: "Correct one bounded headline typo.",
+    },
+  ],
 });
 
 function planTurn(summary: string): TurnResult {
@@ -122,8 +149,9 @@ describe("runAutoPlan (D-PLAN-01 quick/standard/deep plan-of-record evidence)", 
       await readFile(join(stateHome, "runs", "greenfield", runId, "envelope.json"), "utf8"),
     ) as Record<string, unknown>;
     expect(envelope["planning_route"]).toMatchObject({
-      policy_version: "planning-depth/v1",
+      policy_version: "planning-depth/v2",
       depth: "quick",
+      episode_route: "quick",
       risk_tier: "low",
       selected_passes: ["bootstrap-plan"],
       estimated_cost_usd: null,
@@ -221,6 +249,125 @@ describe("runAutoPlan (D-PLAN-01 quick/standard/deep plan-of-record evidence)", 
     // intentionally nondeterministic, but both must precede arbitration.
     expect(passes.slice(1, 3).sort()).toEqual(["pm-a", "pm-b"]);
     expect(passes.slice(3)).toEqual(["arbitrator", "decomposer"]);
+  });
+
+  it("routes an existing scoped ticket directly without loading a runtime or writing planning state", async () => {
+    const { app, appsFile } = fixture();
+    let runtimeLoads = 0;
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app: { ...app, status: "live" },
+      appsFile,
+      goal: "Issue #7 already has file scope and binary criteria",
+      runtimeFor: () => {
+        runtimeLoads += 1;
+        return new FakeRuntime([]);
+      },
+      planning: { workLifecycle: "existing-ticket" },
+    });
+    expect(result).toMatchObject({
+      status: "completed",
+      planningDecision: { disposition: "direct-execution" },
+      planningRoute: { selectedPasses: [] },
+      planningCostEstimate: { estimatedCostUsd: 0, upperBoundUsd: 0 },
+    });
+    expect(runtimeLoads).toBe(0);
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
+  });
+
+  it("uses one final mixed-ticket projection for result, telemetry, and GitHub labels", async () => {
+    const { app, appsFile } = fixture();
+    const gh = new FakeGhOps();
+    const runtime = new FakeRuntime([{ result: planTurn(MIXED_PLAN_JSON) }]);
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app: { ...app, status: "live" },
+      appsFile,
+      goal: "Ship two bounded fixes",
+      gh,
+      runtimeFor: () => runtime,
+      now: () => new Date("2026-07-11T09:00:00Z"),
+      planning: {
+        workLifecycle: "bounded-goal",
+        ambiguity: "low",
+        riskTier: "low",
+        coupling: "low",
+        expectedTickets: "1-2",
+      },
+    });
+    expect(result.status, result.summary).toBe("completed");
+    expect(result.plan?.tickets.map((ticket) => ticket.tier)).toEqual(["op:tier-deep", "op:tier-quick"]);
+    expect(result.planProjection?.tickets).toEqual([
+      expect.objectContaining({
+        requestedTier: "op:tier-standard",
+        finalTier: "op:tier-deep",
+        escalationReason: "sensitive-domain floor: data",
+      }),
+      expect.objectContaining({ requestedTier: "op:tier-quick", finalTier: "op:tier-quick" }),
+    ]);
+    const jsonResult = JSON.parse(JSON.stringify(result)) as {
+      planProjection: { tickets: Array<{ requestedTier: string; finalTier: string; escalationReason?: string }> };
+    };
+    expect(jsonResult.planProjection.tickets[0]).toEqual(expect.objectContaining({
+      requestedTier: "op:tier-standard",
+      finalTier: "op:tier-deep",
+      escalationReason: "sensitive-domain floor: data",
+    }));
+    const issues = await gh.listIssues({ state: "all", limit: 10 });
+    expect(issues.map((issue) => issue.labels)).toEqual([
+      expect.arrayContaining(["op:tier-deep", "domain:data", "op:ready"]),
+      expect.arrayContaining(["op:tier-quick", "op:ready"]),
+    ]);
+    const runId = (await readdir(join(stateHome, "runs", "greenfield")))[0]!;
+    const finalized = (await readEvents(stateHome, "greenfield", runId)).filter(
+      (event) => event.event === "plan.ticket_finalized",
+    );
+    expect(finalized.map((event) => event.detail)).toEqual([
+      expect.objectContaining({
+        requested_tier: "op:tier-standard",
+        final_tier: "op:tier-deep",
+        escalation_reason: "sensitive-domain floor: data",
+      }),
+      expect.objectContaining({
+        requested_tier: "op:tier-quick",
+        final_tier: "op:tier-quick",
+      }),
+    ]);
+    expect(finalized[1]?.detail).not.toHaveProperty("escalation_reason");
+  });
+
+  it("returns the same finalized tier projection when publication is disabled", async () => {
+    const { app, appsFile } = fixture();
+    const gh = new FakeGhOps();
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app: { ...app, status: "live" },
+      appsFile,
+      goal: "Ship two bounded fixes",
+      publish: false,
+      gh,
+      runtimeFor: () => new FakeRuntime([{ result: planTurn(MIXED_PLAN_JSON) }]),
+      now: () => new Date("2026-07-11T09:00:00Z"),
+      planning: {
+        workLifecycle: "bounded-goal",
+        ambiguity: "low",
+        riskTier: "low",
+        coupling: "low",
+        expectedTickets: "1-2",
+      },
+    });
+    expect(result.status, result.summary).toBe("completed");
+    expect(result.plan?.tickets.map((ticket) => ticket.tier)).toEqual(["op:tier-deep", "op:tier-quick"]);
+    expect(result.planProjection?.tickets[0]).toMatchObject({
+      requestedTier: "op:tier-standard",
+      finalTier: "op:tier-deep",
+      escalationReason: "sensitive-domain floor: data",
+    });
+    expect(await gh.listIssues({ state: "all", limit: 10 })).toEqual([]);
   });
 });
 

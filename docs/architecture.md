@@ -1084,13 +1084,28 @@ carry `unmeasured: true` (the native CLI's tokens never flow through
 Operon), while `--auto` turns settle real usage per pass. The `Trigger`
 type's `manual?: boolean` kind is one the dispatcher **never** auto-fires.
 - Before an `--auto` runtime is constructed, `route-policy/v1` selects the
-  episode route and planning pass set from structured risk, ambiguity,
-  coupling, reversibility, external consequence, expected decomposition, and
-  sensitive-domain floors. Quick selects one combined planning/decomposition
-  pass; standard selects one PM perspective; deep retains competing PMs and
-  arbitration. The envelope records factors, selected/skipped passes,
-  model/effort, and the pre-execution cost estimate; prompt length is not an
-  input.
+  safety-floored episode execution route, while `planning-depth/v2` separately
+  selects planning passes from work lifecycle, ambiguity, reversibility, and
+  an attributable human minimum. An explicitly scoped existing ticket selects
+  no planning provider pass and is handed to the ordinary build/review loop;
+  a bounded goal uses one shaping/decomposition pass; a milestone adds
+  Visionary and one PM; competing PMs plus arbitration require a strategy,
+  high ambiguity, a costly-to-reverse decision, or a human deep minimum. A
+  sensitive but already-clear write can therefore execute under the deep
+  safety route without paying for competing product strategies. The envelope
+  records both depths, every selected/skipped pass, a per-pass expected-risk
+  reduction, model/effort, planning cost, and any parent-task-linked
+  downstream failure-rate comparison. Missing outcome cohorts are reported as
+  unavailable rather than treated as proof that more passes are better.
+- After the final pass emits a valid plan, `finalizePlanForPublication` applies
+  all orchestrator-owned tier floors and canonical-label transforms once. Its
+  immutable projection carries requested tier, final tier, escalation reason,
+  and exact labels; console/JSON output, no-publish results, L2
+  `plan.ticket_finalized` evidence, and GitHub publication all consume that
+  same object.
+- `--explain-route` and `--auto --dry-run` stop before runtime construction and
+  therefore have no ticket plan to project. `--no-publish` is the
+  non-publishing mode that returns the finalized ticket projection.
 - Gate applies as always — interactivity doesn't change the approval
 boundary; the human approving in-terminal *is* the approval surface for any
 critical op raised live (recorded to the same audit log).

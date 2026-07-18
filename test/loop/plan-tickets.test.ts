@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   CANONICAL_LABELS,
   applySensitiveDomainFloor,
+  finalizePlanForPublication,
   publishTickets,
   renderTicketBody,
   sensitiveDomainsForTicket,
@@ -358,6 +359,25 @@ describe("sensitive-domain match matrix (L0-02 anti-under-escalation regression)
 });
 
 describe("applySensitiveDomainFloor", () => {
+  it("freezes requested/final tiers, reasons, and canonical labels for a mixed plan", () => {
+    const projection = finalizePlanForPublication(storagePlan());
+    expect(projection.plan.tickets.map((item) => item.tier)).toEqual(["op:tier-deep", "op:tier-quick"]);
+    expect(projection.tickets).toEqual([
+      expect.objectContaining({
+        requestedTier: "op:tier-standard",
+        finalTier: "op:tier-deep",
+        escalationReason: "sensitive-domain floor: data",
+        labels: expect.arrayContaining(["op:tier-deep", "domain:data", "op:ready"]),
+      }),
+      expect.objectContaining({
+        requestedTier: "op:tier-quick",
+        finalTier: "op:tier-quick",
+        labels: expect.arrayContaining(["op:tier-quick"]),
+      }),
+    ]);
+    expect(projection.tickets[1]?.escalationReason).toBeUndefined();
+  });
+
   it("floors a genuinely sensitive growth ticket to op:tier-deep and labels it; leaves a plain near-miss page alone", () => {
     const publications = applySensitiveDomainFloor(storagePlan());
     // Ticket 0 genuinely stores user data ("storing user data") → floored + labeled.

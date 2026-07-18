@@ -17,8 +17,9 @@ import {
   createPlanningWorktree,
   spawnClaude,
 } from "../src/org/plan.js";
-import { cmdPlan } from "../src/cli/plan.js";
+import { cmdPlan, formatPlanTicketSummary } from "../src/cli/plan.js";
 import type { RoleConfig } from "../src/runtime/types.js";
+import type { PlanTicket } from "../src/loop/plan-tickets.js";
 
 const tempDirs: string[] = [];
 const originalCwd = process.cwd();
@@ -388,6 +389,35 @@ describe("planning worktree lifecycle", () => {
 });
 
 describe("cmdPlan", () => {
+  it("console ticket summaries show final tier, requested tier, and escalation reason", () => {
+    const ticket: PlanTicket = {
+      title: "Store submissions",
+      tier: "op:tier-deep",
+      priority: "p1",
+      dependsOn: [],
+      executionGroup: "storage",
+      fileScope: ["src/storage.ts"],
+      goal: "Store user data",
+      context: "Contact form",
+      acceptanceCriteria: ["submissions persist"],
+      outOfScope: "analytics",
+      notesForBuilder: "bounded",
+    };
+    const line = formatPlanTicketSummary(0, ticket, {
+      index: 0,
+      ticket,
+      requestedTier: "op:tier-standard",
+      finalTier: "op:tier-deep",
+      escalationReason: "sensitive-domain floor: data",
+      domainLabels: ["domain:data"],
+      labels: ["op:tier-deep", "p1", "domain:data", "op:ready"],
+      ready: true,
+    });
+    expect(line).toContain("[op:tier-deep/p1]");
+    expect(line).toContain("requested op:tier-standard");
+    expect(line).toContain("sensitive-domain floor: data");
+  });
+
   it("auto dry-run is token-free even when the legacy org has no plan-bootstrap pipeline", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp();
@@ -422,7 +452,7 @@ describe("cmdPlan", () => {
     expect(git(app, ["status", "--porcelain=v2", "--branch"])).toBe(before);
   });
 
-  it("auto dry-run raises a short auth migration to deep even with --depth quick", async () => {
+  it("auto dry-run keeps short auth work at quick planning while preserving the deep execution route", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp();
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -435,6 +465,8 @@ describe("cmdPlan", () => {
       "Migrate auth keys",
       "--depth",
       "quick",
+      "--work-lifecycle",
+      "bounded-goal",
       "--sensitive-domains",
       "security/auth/secrets",
       "--dry-run",
@@ -448,8 +480,46 @@ describe("cmdPlan", () => {
 
     expect(code).toBe(0);
     const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
-    expect(out).toContain("planning depth: deep");
-    expect(out).toContain("could not lower the deep safety floor");
+    expect(out).toContain("planning depth: quick");
+    expect(out).toContain("execution route: deep");
+    expect(out).toContain("selected passes: decomposer");
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+  });
+
+  it("JSON dry-run explains direct existing-ticket admission with zero planning passes", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stateHome = makeDir("operon-plan-direct-json-state-");
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "Issue #7 already has file scope and binary criteria",
+      "--work-lifecycle",
+      "existing-ticket",
+      "--dry-run",
+      "--json",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const output = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    const parsed = JSON.parse(output) as {
+      decision: { disposition: string };
+      planningRoute: { selectedPasses: string[]; passRationales: unknown[] };
+      effects: unknown[];
+    };
+    expect(parsed.decision.disposition).toBe("direct-execution");
+    expect(parsed.planningRoute.selectedPasses).toEqual([]);
+    expect(parsed.planningRoute.passRationales).toEqual([]);
+    expect(parsed.effects).toEqual([]);
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
   });
 
@@ -498,6 +568,7 @@ describe("cmdPlan", () => {
     expect(code).toBe(0);
     const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
     expect(out).toContain('"kind": "route-explanation"');
+    expect(out).toContain('"passRationales"');
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
   });
 

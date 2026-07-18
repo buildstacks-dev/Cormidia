@@ -92,11 +92,53 @@ it("H-EVAL-02 refuses a synthetic paired verdict or L5-only governance claim wit
   forged.learning_governance!.value.action_sha256 = `sha256:${"0".repeat(64)}`;
   expect(qualify(campaign, hashManifest(campaign), results, forged)).toMatchObject({ outcome: "invalid", reasons: expect.arrayContaining(["invalid learning governance evidence: action hash mismatch"]) });
 
+  // Evidence still claims `improved` (delta +1), but the measured results now
+  // show only a tie (control 5, treatment 5 → delta 0 → inconclusive). Even
+  // though inconclusive is an acceptable qualification outcome, a paired verdict
+  // that DISAGREES with its measurement is refused as invalid — the evidence
+  // cannot claim more than the results support (2026-07-17 decouple keeps this
+  // synthetic-verdict refusal intact).
   for (const result of results.filter((item) => item.case_id.startsWith("learning/") && item.repetition_id.endsWith("-treatment"))) (result.metrics.learning as Record<string, unknown>).effect_value = 5;
   const fixedVerdict = qualify(campaign, hashManifest(campaign), results, evidence);
   expect(fixedVerdict.outcome).toBe("invalid");
-  expect(fixedVerdict.reasons).toContain("qualification learning paired outcome inconclusive");
+  expect(fixedVerdict.reasons).toContain("invalid learning pair evidence: terminal aggregate mismatch");
 });
+
+it("H-EVAL-01 an inconclusive paired-learning block qualifies the candidate; strict improvement is required only for activation (2026-07-17 decouple)", () => {
+  const campaign = loadYamlFile("eval/campaigns/candidate-qualification.yaml") as CampaignManifest;
+  const sha = hashManifest(campaign);
+
+  // Baseline: a complete passing campaign with an IMPROVED learning block plus
+  // governance qualifies (proves the full fixture satisfies every other bound).
+  const improvedResults = campaign.cases.flatMap((item) => item.repetition_ids.map((rep) => campaignAttempt(campaign, item.case_id, rep)));
+  const improved = qualify(campaign, sha, improvedResults, qualificationEvidence(campaign, improvedResults));
+  expect(improved.learning.outcome).toBe("improved");
+  expect(improved.outcome, improved.reasons.join("; ")).toBe("qualified");
+
+  // The decouple: the SAME campaign with a tie on every learning pair (a control
+  // already at the ceiling → delta 0 → inconclusive) now QUALIFIES, with no
+  // governance/activation evidence required. Before 2026-07-17 this was invalid.
+  const tieResults = campaign.cases.flatMap((item) => item.repetition_ids.map((rep) => campaignAttempt(campaign, item.case_id, rep)));
+  for (const result of tieResults.filter((result) => result.case_id.startsWith("learning/"))) (result.metrics.learning as Record<string, unknown>).effect_value = 5;
+  const inconclusive = qualify(campaign, sha, tieResults, inconclusiveLearningEvidence(campaign));
+  expect(inconclusive.learning.outcome).toBe("inconclusive");
+  expect(inconclusive.outcome, inconclusive.reasons.join("; ")).toBe("qualified");
+  expect(inconclusive.learning.governance_evidence_sha256).toBeNull();
+
+  // A genuine regression (treatment strictly worse on every pair) still fails.
+  const regressedResults = campaign.cases.flatMap((item) => item.repetition_ids.map((rep) => campaignAttempt(campaign, item.case_id, rep)));
+  for (const result of regressedResults.filter((result) => result.case_id.startsWith("learning/"))) (result.metrics.learning as Record<string, unknown>).effect_value = result.repetition_id.endsWith("-treatment") ? 4 : 6;
+  const regressed = qualify(campaign, sha, regressedResults, inconclusiveLearningEvidence(campaign, "regressed"));
+  expect(regressed.learning.outcome).toBe("regressed");
+  expect(regressed.outcome).not.toBe("qualified");
+});
+
+function inconclusiveLearningEvidence(campaign: CampaignManifest, outcome: "inconclusive" | "regressed" = "inconclusive"): QualificationSupplementalEvidence {
+  const delta = outcome === "regressed" ? -2 : 0;
+  const pairs = [1, 2, 3].map((pair) => ({ pair_id: `pair-${pair}`, order: (["AB", "BA", "AB"] as const)[pair - 1], delta }));
+  const pairValue = { schema_version: 1, evidence_kind: "phase6-learning-pairs", campaign_id: campaign.campaign_id, campaign_sha256: hashManifest(campaign), candidate: campaign.candidate, treatment: campaign.learning_treatment, efficacy: campaign.learning_efficacy, declared_pair_order: ["AB", "BA", "AB"], decision_rule: campaign.learning_efficacy!.improved_rule, pairs, complete_pairs: 3, terminal_attempts: 6, hidden_guardrails_passed: true, outcome, missing: [] };
+  return { learning_pairs: { value: pairValue, sha256: `sha256:${"e".repeat(64)}` } };
+}
 
 function fixtureCampaign(intent: CampaignManifest["intent"]): CampaignManifest {
   return { schema_version: 1, campaign_id: "fixture", purpose: "fixture", owner: "test", created_at: "2026-07-12T00:00:00.000Z", intent, candidate: { commit: "fixture", package_sha256: `sha256:${"a".repeat(64)}`, suite_sha256: `sha256:${"b".repeat(64)}` }, org_fingerprint: `sha256:${"c".repeat(64)}`, system_fingerprint: `sha256:${"d".repeat(64)}`, cases: [{ case_id: "quick/ignore-config/v1", repetition_ids: ["q1", "q2"] }], assignments: [{ role: "builder", runtime: "codex", model: "fixture", effort: "low", capability_ref: "codex/v1" }], price_catalog_id: "prices/2026-07-12-v1", randomization_seed: "fixture", github: { owner: "fixture", repo_pattern: "operon-eval-*" }, spend: { campaign_max_usd: 10, case_max_usd: { "quick/ignore-config/v1": 5 } }, infrastructure_retries: 1, exclusions: [], stop_rules: ["hard_safety_violation"], operator_fixture: "operator-fixtures/fixture-v1.yaml", evidence_dir: ".eval-artifacts/fixture" };

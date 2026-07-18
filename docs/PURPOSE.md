@@ -575,6 +575,60 @@ config file, not a fork.
   release from post-Wave-5 `main` therefore still requires a fresh qualification
   campaign (Option 1); that requirement is now enforced by the release-currency
   gate rather than by red dev tests.
+- **Candidate qualification is decoupled from learning-activation eligibility;
+  strict paired-learning improvement gates activation, not qualification**
+  (PROPOSED 2026-07-17 — ratified when this PR merges). The Phase 6 candidate
+  campaign runs a predeclared six-arm AB/BA/AB paired-learning experiment: the
+  T1 treatment must strictly beat its paired control on all three pairs to be
+  `improved`. `qualify()` previously treated any non-`improved` aggregate
+  (including a valid, guardrail-clean `inconclusive`) as a qualification failure
+  — via `qualificationMiss` and an "invalid supplemental evidence" classification
+  — so the whole candidate, and therefore the release-currency gate, went
+  `invalid` whenever a single control artifact happened to score at the 8/8
+  ceiling (a tie → delta 0 → inconclusive). Because the treatment reliably hits
+  the ceiling and all the variance is in the controls, this made candidate
+  qualification a **stochastic ~50/50 gate driven by control draws, unrelated to
+  product quality**, and policy forbids rerunning an aggregate experiment for a
+  better draw. Empirically the qualified candidate `c6834cf0` drew controls at
+  7/6/7 (`+1,+2,+1`); the post-remediation `830028b` re-qualification drew a
+  control at 8/8 on one pair (`0,+2,+1`) and was correctly, but unshippably,
+  `invalid` despite 30/30 product attempts passing with exact settlement and zero
+  safety misses. *Decision:* candidate qualification requires a **valid,
+  guardrail-clean, non-regressing** paired-learning measurement — `improved` and
+  `inconclusive` both pass; `regressed` (any negative delta or hidden-guardrail
+  failure) and `invalid` (malformed/incomplete) still fail. **Strict `improved`
+  remains the sole outcome that may proceed to the separately-authorized
+  publish/activate/rollback activation, and to promotion of the learning
+  contract** — the activation and promotion paths are unchanged. Learning
+  *capture* (100% eligible capture) was already, and remains, the operations SLO
+  for the loop (`docs/efficiency.md` → Threshold semantics). This is the same
+  class of mis-scoping as the integrity/currency separation above: an accurate
+  check (does the treatment strictly improve artifacts *on this draw*) was
+  embedded where it structurally blocked a legitimate release. *Rationale
+  (first-principles):* learning is instrumental and outcome-accountable
+  (Non-negotiable #11) — it succeeds only by improving a *later comparable
+  episode that had headroom*. A qualification that forces an improvement out of
+  every episode — including ones where the untreated baseline already scores at
+  the ceiling — does not measure learning; it manufactures deltas, and every
+  manufactured delta competes for the same finite attention and risk budget the
+  org should reserve for the few lessons that actually move the needle. **The org
+  does not need to learn from everything; trying to dilutes the high-leverage
+  learnings.** So qualification certifies that the learning *loop* is healthy —
+  it captures every eligible episode, forms grounded/guardrailed candidates,
+  passes independent review, and never regresses — as an SLO alongside product
+  behavior, safety, accounting, settlement, and the distribution SLOs, and
+  reserves the strict `improved` verdict for **activation**, where the org
+  actually spends attention promoting a lesson only when a real, measured
+  improvement exists. Declining to activate where a control is already at the
+  ceiling is correct behavior, not a failure. Candidate qualification therefore
+  does not turn on a three-sample experiment's luck against a strong baseline. No
+  product, safety, accounting, settlement, grader,
+  threshold, or activation contract is weakened — regressions still fail
+  qualification, activation still requires strict improvement, and the executable
+  suite is `validateLearningPairEvidence(…, "qualification"|"activation")` with
+  the strict activation mode as the default. **This does not retroactively
+  qualify any prior campaign** (each is immutable at its own `campaign_sha256`
+  and bytes); a release from `main` still requires a fresh qualifying campaign.
 
 ## Prior art (ours)
 

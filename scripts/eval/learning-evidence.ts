@@ -149,7 +149,23 @@ export function writeLearningPairEvidence(input: {
   return { path, sha256: `sha256:${hashFile(path)}`, evidence };
 }
 
-export function validateLearningPairEvidence(value: unknown, campaign: CampaignManifest, campaignSha256: string): string[] {
+/**
+ * Well-formedness + verdict check for the six-arm learning pair evidence.
+ *
+ * `mode` decides how the delta-based efficacy VERDICT is treated (2026-07-17
+ * decouple decision — see docs/PURPOSE.md and docs/efficiency.md):
+ * - `"activation"` (default, strict): the separately-authorized publish/
+ *   activate/rollback path. Only `improved` may proceed — every pair must show
+ *   a strictly positive delta. Unchanged from before this decision.
+ * - `"qualification"`: candidate qualification. A valid, guardrail-clean,
+ *   non-regressing measurement is acceptable, so `improved` and `inconclusive`
+ *   both pass and a pair delta of exactly zero (a control that already scored
+ *   the ceiling) is fine. A negative delta (`regressed`) or a malformed/absent
+ *   measurement still fails. Every well-formedness, completeness, guardrail,
+ *   independent-review-approve, and per-arm check below is identical in both
+ *   modes; only the delta/outcome bar moves.
+ */
+export function validateLearningPairEvidence(value: unknown, campaign: CampaignManifest, campaignSha256: string, mode: "qualification" | "activation" = "activation"): string[] {
   const errors: string[] = [];
   const v = record(value);
   if (!v) return ["learning pair evidence must be an object"];
@@ -163,7 +179,8 @@ export function validateLearningPairEvidence(value: unknown, campaign: CampaignM
   if (!Array.isArray(v.pairs) || v.pairs.length !== 3) errors.push("learning pair denominator must be three");
   if (v.complete_pairs !== 3 || v.terminal_attempts !== 6) errors.push("learning pair terminal denominator incomplete");
   if (v.hidden_guardrails_passed !== true) errors.push("learning pair hidden guardrails failed");
-  if (v.outcome !== "improved") errors.push(`learning pair outcome ${String(v.outcome)}`);
+  const acceptableOutcomes = mode === "qualification" ? ["improved", "inconclusive"] : ["improved"];
+  if (!acceptableOutcomes.includes(String(v.outcome))) errors.push(`learning pair outcome ${String(v.outcome)}`);
   if (!Array.isArray(v.missing) || v.missing.length !== 0) errors.push("learning pair measurements missing");
   if (Array.isArray(v.pairs)) for (const [index, rawPair] of v.pairs.entries()) {
     const pair = record(rawPair);
@@ -171,7 +188,10 @@ export function validateLearningPairEvidence(value: unknown, campaign: CampaignM
     const expectedOrder = ["AB", "BA", "AB"][index];
     if (!pair || pair.pair_id !== expectedId || pair.order !== expectedOrder) { errors.push(`learning pair ${index + 1} identity mismatch`); continue; }
     const control = record(pair.control); const treatment = record(pair.treatment); const delta = finite(pair.delta);
-    if (!control || !treatment || delta === null || delta <= 0 || delta !== finite(treatment?.score)! - finite(control?.score)!) errors.push(`learning pair ${index + 1} is not a positive measured pair`);
+    const deltaConsistent = delta !== null && control && treatment && delta === finite(treatment?.score)! - finite(control?.score)!;
+    // Qualification tolerates a zero delta (a ceiling-scored control); activation requires a strictly positive one.
+    const deltaBelowBar = delta !== null && (mode === "qualification" ? delta < 0 : delta <= 0);
+    if (!control || !treatment || !deltaConsistent || deltaBelowBar) errors.push(mode === "qualification" ? `learning pair ${index + 1} is not a valid non-regressing pair` : `learning pair ${index + 1} is not a positive measured pair`);
     for (const [armName, arm] of [["control", control], ["treatment", treatment]] as const) {
       if (!arm || arm.repetition_id !== `${expectedId}-${armName}` || typeof arm.attempt_id !== "string" || !digest(arm.result_sha256) || !digest(arm.provider_artifact_sha256) || !digest(arm.verifier_evidence_sha256) || !digest(arm.grader_evidence_sha256) || !digest(arm.independent_reviewer_artifact_sha256) || arm.independent_reviewer_verdict !== "approve" || !Number.isInteger(arm.score) || finite(arm.score) === null || (arm.score as number) < 0 || (arm.score as number) > 8 || arm.hidden_guardrails_passed !== true || arm.attempt_outcome !== "passed") errors.push(`learning pair ${index + 1} ${armName} evidence invalid`);
     }

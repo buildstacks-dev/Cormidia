@@ -401,7 +401,11 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
     const primary = attempts.filter((attempt) => attempt.case_id === "learning/closure/v1" && attempt.retry_of === undefined);
     if (primary.length !== 6) return null;
     const written = writeLearningPairEvidence({ campaign, campaignSha256, campaignRoot, results: attempts });
-    if (written.evidence.outcome === "improved") return null;
+    // improved AND inconclusive both satisfy candidate qualification, so neither
+    // is a qualification-impossible terminal outcome — let the campaign continue
+    // to the autonomy block. Only regressed/invalid learning stops fail-fast
+    // (2026-07-17 decouple — docs/PURPOSE.md).
+    if (written.evidence.outcome === "improved" || written.evidence.outcome === "inconclusive") return null;
     const last = attempts.filter((attempt) => attempt.case_id === "learning/closure/v1").at(-1);
     if (!last) throw new Error("learning_campaign_stop_missing_terminal_attempt");
     const key = `${last.case_id}::${last.repetition_id}`;

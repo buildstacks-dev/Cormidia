@@ -10,10 +10,18 @@
 // caller; never imports src/org.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import type { GhIssueComment, GhOps } from "./github.js";
-import type { LoopItem } from "./types.js";
+import type { LoopContinuation, LoopItem } from "./types.js";
 import { parseVerdict, type Finding, type FindingResolution } from "./verdicts.js";
 
 // ---------------------------------------------------------------------------
@@ -172,6 +180,62 @@ export interface TicketClaimState {
   claims: number;
   lastClaimAt?: string;
   outcomes: string[];
+  /** Absolute claim allowance after an explicit human re-arm. Absent means
+   * the route-policy default remains authoritative. */
+  claimAllowance?: number;
+  active?: {
+    claimId: string;
+    claimNumber: number;
+    ownerPid: number;
+    acquiredAt: string;
+    phase: "acquiring" | "claimed" | "provider_started";
+    resume: boolean;
+    providerStartedAt?: string;
+  };
+  continuation?: LoopContinuation & {
+    status: "waiting_approval" | "ready";
+    claimNumber: number;
+    pauseCount: number;
+    pauseCostUsd: number;
+  };
+  rearms?: TicketRearmRecord[];
+  events?: TicketClaimEvent[];
+}
+
+export interface TicketRearmRecord {
+  rearmId: string;
+  app: string;
+  issueNumber: number;
+  reason: string;
+  actor: string;
+  priorAllowance: number;
+  intendedAllowance: number;
+  priorLabel: string;
+  status: "prepared" | "completed";
+  preparedAt: string;
+  completedAt?: string;
+}
+
+export interface TicketClaimEvent {
+  at: string;
+  kind:
+    | "claim_acquired"
+    | "provider_started"
+    | "approval_paused"
+    | "approval_resumed"
+    | "automatic_recovery"
+    | "manual_rearm"
+    | "claim_terminal";
+  claimNumber: number;
+  detail: string;
+  costUsd?: number;
+  repeatedCostUsd?: number;
+}
+
+export interface TicketClaimStateEntry {
+  app: string;
+  issueNumber: number;
+  state: TicketClaimState;
 }
 
 /** `<runlogRoot>/tickets/<app>/<issue>.json` — the only cross-claim counter
@@ -195,10 +259,22 @@ export function readTicketClaimState(
       claims: typeof raw.claims === "number" ? raw.claims : 0,
       ...(typeof raw.lastClaimAt === "string" ? { lastClaimAt: raw.lastClaimAt } : {}),
       outcomes: Array.isArray(raw.outcomes) ? raw.outcomes.map(String) : [],
+      ...(typeof raw.claimAllowance === "number" && Number.isInteger(raw.claimAllowance)
+        ? { claimAllowance: raw.claimAllowance }
+        : {}),
+      ...(validActiveClaim(raw.active) ? { active: raw.active } : {}),
+      ...(validContinuation(raw.continuation) ? { continuation: raw.continuation } : {}),
+      ...(Array.isArray(raw.rearms) ? { rearms: raw.rearms.filter(validRearm) } : {}),
+      ...(Array.isArray(raw.events) ? { events: raw.events.filter(validClaimEvent) } : {}),
     };
-  } catch {
-    // A torn state file must not wedge claiming; it costs one lost count.
-    return { claims: 0, outcomes: [] };
+  } catch (error) {
+    // Claim allowance is a safety/accounting boundary. Treating corrupt state
+    // as zero silently loses attempts and can repeat paid work; fail closed
+    // with an actionable path while atomic writes prevent new torn files.
+    throw new Error(
+      `ticket claim state is unreadable at ${path}; restore or explicitly archive it before re-arming`,
+      { cause: error },
+    );
   }
 }
 
@@ -210,12 +286,82 @@ export function writeTicketClaimState(
 ): void {
   const path = ticketStatePath(runlogRoot, app, issueNumber);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  const temp = `${path}.${process.pid}.${createHash("sha256").update(`${Date.now()}-${Math.random()}`).digest("hex").slice(0, 12)}.tmp`;
+  try {
+    writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    renameSync(temp, path);
+  } finally {
+    rmSync(temp, { force: true });
+  }
+}
+
+/** Diagnostic enumeration for `operon status`. Ticket state remains the
+ * source of truth; this adds no index or second store. Corrupt files stay out
+ * of the projection rather than being rewritten by a read-only command. */
+export function listTicketClaimStates(runlogRoot: string, app?: string): TicketClaimStateEntry[] {
+  const root = join(runlogRoot, "tickets");
+  if (!existsSync(root)) return [];
+  const apps = app === undefined ? readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name) : [app];
+  const entries: TicketClaimStateEntry[] = [];
+  for (const appName of apps.sort()) {
+    const dir = join(root, appName);
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir).filter((name) => /^\d+\.json$/.test(name)).sort((a, b) => Number(a.slice(0, -5)) - Number(b.slice(0, -5)))) {
+      const issueNumber = Number(file.slice(0, -5));
+      try {
+        entries.push({ app: appName, issueNumber, state: readTicketClaimState(runlogRoot, appName, issueNumber) });
+      } catch {
+        // Read-only diagnostics never mutate corrupt state. The owning command
+        // fails closed when it targets this ticket; status simply omits it.
+      }
+    }
+  }
+  return entries;
+}
+
+function validActiveClaim(value: unknown): value is NonNullable<TicketClaimState["active"]> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const active = value as NonNullable<TicketClaimState["active"]>;
+  return typeof active.claimId === "string" && Number.isInteger(active.claimNumber) &&
+    Number.isInteger(active.ownerPid) && typeof active.acquiredAt === "string" &&
+    ["acquiring", "claimed", "provider_started"].includes(active.phase) && typeof active.resume === "boolean";
+}
+
+function validContinuation(value: unknown): value is NonNullable<TicketClaimState["continuation"]> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const continuation = value as NonNullable<TicketClaimState["continuation"]>;
+  return typeof continuation.pipeline === "string" && typeof continuation.pass === "string" &&
+    typeof continuation.role === "string" && continuation.session !== undefined &&
+    typeof continuation.session.id === "string" && ["claude", "codex", "pi"].includes(continuation.session.runtime) &&
+    Array.isArray(continuation.completedPasses) && typeof continuation.contextFingerprint === "string" &&
+    typeof continuation.runId === "string" && typeof continuation.pausedAt === "string" &&
+    Array.isArray(continuation.decisions) && ["waiting_approval", "ready"].includes(continuation.status) &&
+    Number.isInteger(continuation.claimNumber) && Number.isInteger(continuation.pauseCount) &&
+    typeof continuation.pauseCostUsd === "number";
+}
+
+function validRearm(value: unknown): value is TicketRearmRecord {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as TicketRearmRecord;
+  return typeof record.rearmId === "string" && typeof record.app === "string" &&
+    Number.isInteger(record.issueNumber) && typeof record.reason === "string" &&
+    typeof record.actor === "string" && Number.isInteger(record.priorAllowance) &&
+    Number.isInteger(record.intendedAllowance) && typeof record.priorLabel === "string" &&
+    ["prepared", "completed"].includes(record.status) && typeof record.preparedAt === "string";
+}
+
+function validClaimEvent(value: unknown): value is TicketClaimEvent {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const event = value as TicketClaimEvent;
+  return typeof event.at === "string" && typeof event.kind === "string" &&
+    Number.isInteger(event.claimNumber) && typeof event.detail === "string";
 }
 
 /** The parked-ticket digest: the assembled evidence a human needs to decide,
  *  instead of a bare label flip and a scroll through 80 label transitions. */
 export function parkedDigestComment(input: {
+  app: string;
+  issueNumber: number;
   claims: number;
   maxClaims: number;
   outcomes: readonly string[];
@@ -223,12 +369,18 @@ export function parkedDigestComment(input: {
   openFindings: readonly Finding[];
   hasContract: boolean;
 }): string {
+  const command =
+    `operon loop rearm --app ${input.app} --ticket ${input.issueNumber} ` +
+    `--reason <reason> --actor <actor> --from-allowance ${input.maxClaims} ` +
+    `--to-allowance ${input.maxClaims + 1} --execute --confirm ${input.app}#${input.issueNumber}`;
   const lines = [
     `## Parked after ${input.claims} claims`,
     "",
     `This ticket has been claimed ${input.claims} times (cap ${input.maxClaims}) without merging.`,
-    "The loop will not claim it again until a human reviews this digest and re-arms it",
-    "(`op:ready`) or closes it out.",
+    "The loop will not claim it again until a human reviews this digest and uses the durable re-arm command",
+    `(a label-only \`op:ready\` change does not raise the claim allowance):`,
+    "",
+    `\`${command}\``,
     "",
     "**Prior claim outcomes:**",
     ...(input.outcomes.length > 0 ? input.outcomes.map((o) => `- ${o}`) : ["- (none recorded)"]),

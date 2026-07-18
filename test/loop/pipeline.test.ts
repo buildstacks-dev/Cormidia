@@ -18,6 +18,7 @@ import { runPaths } from "../../src/runtime/runlog/paths.js";
 import { detectRunAnomalies } from "../../src/runtime/runlog/anomalies.js";
 import { FakeRuntime, type ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";
 import type { RoleConfig, Runtime, TurnEvent, TurnResult } from "../../src/runtime/types.js";
+import type { LoopContinuation } from "../../src/loop/types.js";
 import { FakeClock } from "../fixtures/fakeClock.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
 
@@ -225,6 +226,105 @@ describe("executePipeline", () => {
       expect(result.passes.map((p) => p.pass.id)).toEqual(["implement"]);
       expect(h.fake.calls[0]?.req.session).toBeUndefined();
       expect("session" in (h.fake.calls[0]?.req ?? {})).toBe(false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("resumes the exact paused session twice without repeating completed passes", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(build, [scripted("contract"), scripted("pause-1", "blocked_on_gate")]);
+    h.options.episode = { id: "continuation-twice", finalize: false };
+    try {
+      const first = await executePipeline(h.options);
+      const paused1 = first.passes.at(-1)!;
+      const resume1 = new FakeRuntime([scripted("pause-2", "blocked_on_gate")]);
+      const second = await executePipeline({
+        ...h.options,
+        runtimeFor: () => resume1,
+        continuation: {
+          pipeline: "build",
+          pass: "implement",
+          role: "builder",
+          session: paused1.result.session,
+          completedPasses: ["contract"],
+          contextFingerprint: paused1.contextFingerprint,
+          workFingerprint: paused1.workFingerprint,
+          runId: paused1.runId,
+          pausedAt: "2026-07-05T09:30:15.000Z",
+          decisions: [{ approvalId: "approval-1", decision: "approved", decidedAt: "2026-07-05T10:00:00.000Z" }],
+        },
+      });
+      expect(second.passes.map((record) => record.pass.id)).toEqual(["implement"]);
+      expect(resume1.calls).toHaveLength(1);
+      expect(resume1.calls[0]!.req.session).toEqual(paused1.result.session);
+      expect(resume1.calls[0]!.req.task).toContain("Continue the existing build/implement provider session");
+      expect(resume1.calls[0]!.req.task).toContain("approval-1");
+
+      const paused2 = second.passes[0]!;
+      const resume2 = new FakeRuntime([scripted("finished")]);
+      const third = await executePipeline({
+        ...h.options,
+        runtimeFor: () => resume2,
+        continuation: {
+          pipeline: "build",
+          pass: "implement",
+          role: "builder",
+          session: paused2.result.session,
+          completedPasses: ["contract"],
+          contextFingerprint: paused2.contextFingerprint,
+          workFingerprint: paused2.workFingerprint,
+          runId: paused2.runId,
+          pausedAt: "2026-07-05T10:01:00.000Z",
+          decisions: [{ approvalId: "approval-2", decision: "denied", reason: "use safe alternative", decidedAt: "2026-07-05T10:02:00.000Z" }],
+        },
+      });
+      expect(third.aborted).toBe(false);
+      expect(third.passes.map((record) => record.pass.id)).toEqual(["implement"]);
+      expect(resume2.calls[0]!.req.session).toEqual(paused2.result.session);
+      expect(resume2.calls[0]!.req.task).toContain('"decision": "denied"');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("fails closed before runtime when continuation context, work, or runtime changes", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(build, [scripted("pause", "blocked_on_gate")], { selection: { tier: "quick" } });
+    h.options.episode = { id: "continuation-near-miss", finalize: false };
+    try {
+      const first = await executePipeline(h.options);
+      const paused = first.passes[0]!;
+      const exact: LoopContinuation = {
+        pipeline: "build",
+        pass: "implement",
+        role: "builder",
+        session: paused.result.session,
+        completedPasses: [],
+        contextFingerprint: paused.contextFingerprint,
+        workFingerprint: paused.workFingerprint,
+        runId: paused.runId,
+        pausedAt: "2026-07-05T09:30:15.000Z",
+        decisions: [],
+      };
+      const never = new FakeRuntime([scripted("must-not-run")]);
+      await expect(executePipeline({
+        ...h.options,
+        runtimeFor: () => never,
+        context: { taste: ["changed"], memoryExcerpts: [] },
+        continuation: exact,
+      })).rejects.toThrow("continuation context changed");
+      await expect(executePipeline({
+        ...h.options,
+        runtimeFor: () => never,
+        continuation: { ...exact, workFingerprint: "wrong" },
+      })).rejects.toThrow("continuation worktree changed");
+      await expect(executePipeline({
+        ...h.options,
+        runtimeFor: () => never,
+        continuation: { ...exact, session: { runtime: "codex", id: "wrong-runtime" } },
+      })).rejects.toThrow("continuation role/runtime changed");
+      expect(never.calls).toHaveLength(0);
     } finally {
       h.cleanup();
     }

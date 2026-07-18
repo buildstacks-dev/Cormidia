@@ -134,13 +134,15 @@ describe("cross-claim state", () => {
     const path = ticketStatePath(root, "app", 6);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, "{torn", "utf8");
-    expect(readTicketClaimState(root, "app", 6)).toEqual({ claims: 0, outcomes: [] });
+    expect(() => readTicketClaimState(root, "app", 6)).toThrow("ticket claim state is unreadable");
   });
 });
 
 describe("parkedDigestComment", () => {
   it("assembles the evidence a human needs: claims, outcomes, PR, open findings", () => {
     const digest = parkedDigestComment({
+      app: "marketplace",
+      issueNumber: 42,
       claims: 3,
       maxClaims: 3,
       outcomes: ["claim 1: ended returned", "claim 2: ended blocked (PR #23)"],

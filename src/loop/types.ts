@@ -1,5 +1,6 @@
 import type { Finding } from "./verdicts.js";
 import type { CriterionTestMap, GateRunResult } from "./qgates.js";
+import type { SessionHandle } from "../runtime/types.js";
 
 export type LoopPhase =
   | "ready"
@@ -50,6 +51,34 @@ export interface ScorecardEvent {
   value: number;
 }
 
+export interface LoopContinuationDecision {
+  approvalId: string;
+  decision: "approved" | "denied";
+  reason?: string;
+  decidedAt: string;
+}
+
+/** Exact provider continuation parked at an approval boundary. The native
+ * session alone is insufficient: resuming under changed authority/context or
+ * a changed worktree would let an old conversation act on new facts. The
+ * fingerprints therefore fail closed before runtime construction. */
+export interface LoopContinuation {
+  pipeline: string;
+  pass: string;
+  role: string;
+  session: SessionHandle;
+  completedPasses: string[];
+  contextFingerprint: string;
+  workFingerprint: string | null;
+  runId: string;
+  pausedAt: string;
+  decisions: LoopContinuationDecision[];
+  /** Spend already settled for the turn that reached the pause. Claim
+   * lifecycle telemetry reports it separately from repeated cost (zero for an
+   * exact continuation). */
+  pauseCostUsd?: number;
+}
+
 export interface LoopItem {
   issueNumber: number;
   ticketRef: string;
@@ -73,6 +102,10 @@ export interface LoopItem {
   turnId?: string;
   rebaseNote?: string;
   scorecardEvents?: ScorecardEvent[];
+  /** Same-pass native-session continuation after a granted/denied approval.
+   * It is persisted in ticket claim state by the driver and is consumed only
+   * after the approval CLI records the exact decision. */
+  continuation?: LoopContinuation;
   /** Set by advanceShipping on a merged item whose milestone declared a
    *  deploy/package disposition: the org layer queues it as a critical op. */
   releaseTrigger?: ReleaseTrigger;

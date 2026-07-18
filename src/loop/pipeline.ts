@@ -1,8 +1,9 @@
 // Pass executor (build plan M2.8; docs/loop.md §2, §4, §9, §10).
 //
-// Executes a loaded pipeline against a Runtime: fresh session per pass
-// (req.session is never set — passes communicate only through durable
-// artifacts, §2 rule 1); task = assembled brief + versioned pass template
+// Executes a loaded pipeline against a Runtime: fresh session per pass during
+// ordinary execution; an approval decision may resume ONLY that same pass's
+// content-bound native session (completed passes still communicate through
+// durable artifacts and are never repeated); task = assembled brief + versioned pass template
 // (§2); per-pass model/effort overrides copy the base RoleConfig, never
 // mutate it — and cannot cross providers by construction, because the
 // override touches model/effort only while `runtime` stays the role's own
@@ -73,6 +74,7 @@ import {
   type PassSelection,
   type PipelineConfig,
 } from "./pipelines.js";
+import type { LoopContinuation } from "./types.js";
 
 export interface RunlogTarget {
   /** Org runtime home the runs/ tree lives under. */
@@ -163,6 +165,18 @@ export interface ExecutePipelineOptions {
   };
   /** Runs after a pass completes and before the next sequential stage starts. */
   afterPass?: (record: PassRunRecord) => void | Promise<void>;
+  /** Exact same-pass provider continuation after a durable approval decision.
+   * Completed passes are not repeated; the paused pass resumes natively after
+   * role/runtime/context/work fingerprints are revalidated. */
+  continuation?: LoopContinuation;
+  /** Claim-accounting commit point. Called after route admission and runtime
+   * construction, immediately before the provider invocation (including a
+   * resumed turn), never during selection/preflight. */
+  beforeProviderTurn?: (input: {
+    pipeline: string;
+    pass: string;
+    resumed: boolean;
+  }) => void | Promise<void>;
   /** Parse + record the pass's typed verdict, AFTER the turn and BEFORE the
    *  envelope is finalized. The loop layer owns verdict semantics (kinds,
    *  reformat retry, side effects); the executor only needs the ok/failed
@@ -211,6 +225,8 @@ export interface PassRunRecord {
   pass: PassConfig;
   runId: string;
   result: TurnResult;
+  contextFingerprint: string;
+  workFingerprint: string | null;
 }
 
 export interface PipelineRunResult {
@@ -219,6 +235,54 @@ export interface PipelineRunResult {
    *  the ticket state machine owns remediation, §7). */
   passes: PassRunRecord[];
   aborted: boolean;
+}
+
+function remainingPasses(
+  options: ExecutePipelineOptions,
+  selected: PassConfig[],
+): PassConfig[] {
+  const continuation = options.continuation;
+  if (continuation === undefined) return selected;
+  if (continuation.pipeline !== options.pipeline.name) {
+    throw new Error(
+      `pipeline continuation targets ${continuation.pipeline}/${continuation.pass}, not ${options.pipeline.name}`,
+    );
+  }
+  const selectedIds = new Set(selected.map((pass) => pass.id));
+  const pipelineIds = new Set(options.pipeline.passes.map((pass) => pass.id));
+  if (!selectedIds.has(continuation.pass)) {
+    throw new Error(`pipeline continuation pass ${continuation.pass} is not selected by the current route`);
+  }
+  for (const completed of continuation.completedPasses) {
+    if (!pipelineIds.has(completed)) {
+      throw new Error(`pipeline continuation completed-pass ${completed} is not in pipeline ${options.pipeline.name}`);
+    }
+  }
+  const completed = new Set(continuation.completedPasses);
+  const remaining = selected.filter((pass) => !completed.has(pass.id));
+  if (remaining[0]?.id !== continuation.pass) {
+    throw new Error(
+      `pipeline continuation is not the next pass: expected ${remaining[0]?.id ?? "none"}, got ${continuation.pass}`,
+    );
+  }
+  return remaining;
+}
+
+function continuationTask(continuation: LoopContinuation): string {
+  const decisions = continuation.decisions.map((decision) => ({
+    approval_id: decision.approvalId,
+    decision: decision.decision,
+    ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
+    decided_at: decision.decidedAt,
+  }));
+  return [
+    `Continue the existing ${continuation.pipeline}/${continuation.pass} provider session from its approval boundary.`,
+    "Do not repeat completed analysis, setup, or implementation. Apply the recorded decision to the pending action,",
+    "then finish the same pass and return its required structured verdict.",
+    "",
+    "Approval decisions (orchestrator-owned, exact):",
+    JSON.stringify(decisions, null, 2),
+  ].join("\n");
 }
 
 export async function executePipeline(
@@ -233,7 +297,8 @@ export async function executePipeline(
     );
   }
   const clock = options.clock ?? ((): Date => new Date());
-  const selected = selectPasses(options.pipeline, options.selection);
+  const originallySelected = selectPasses(options.pipeline, options.selection);
+  const selected = remainingPasses(options, originallySelected);
   const preflight = runPipelinePreflight({
     workdir: options.workdir,
     route: options.episode?.route ?? options.selection.tier,
@@ -248,7 +313,9 @@ export async function executePipeline(
         }
       : {}),
     ...(options.episode?.budgetOverrides !== undefined ? { budgetOverrides: options.episode.budgetOverrides } : {}),
-    requiredCapabilities: options.requiredCapabilities ?? ["tool_gate", "cancellation"],
+    requiredCapabilities:
+      options.requiredCapabilities ??
+      ["tool_gate", "cancellation", ...(options.continuation !== undefined ? ["session_resume" as const] : [])],
     ...(options.capabilityProfiles !== undefined ? { capabilityProfiles: options.capabilityProfiles } : {}),
     ...(options.episode?.artifactExpectations !== undefined ? { artifacts: options.episode.artifactExpectations } : {}),
   });
@@ -487,13 +554,32 @@ async function runPass(
     model: authorized?.model ?? pass.model ?? base.model,
     effort: authorized?.effort ?? pass.effort ?? base.effort,
   };
+  const continuation = options.continuation?.pass === pass.id ? options.continuation : undefined;
+  if (
+    continuation !== undefined &&
+    (continuation.role !== role.name || continuation.session.runtime !== role.runtime)
+  ) {
+    throw new Error(
+      `pipeline continuation role/runtime changed: ${continuation.role}/${continuation.session.runtime} ` +
+        `-> ${role.name}/${role.runtime}`,
+    );
+  }
   const selectedPasses = selectPasses(options.pipeline, options.selection);
   const selectedIds = new Set(selectedPasses.map((candidate) => candidate.id));
 
   const { root, app, ticket, traceId } = options.runlog;
   const episodeId = options.episode?.id;
   if (episodeId === undefined) throw new Error("executePipeline: episode admission missing");
-  const runId = mintRunId(clock(), options.pipeline.name, pass.id);
+  const runId = mintRunId(
+    clock(),
+    options.pipeline.name,
+    continuation === undefined
+      ? pass.id
+      : `${pass.id}-resume-${fingerprint({
+          session: continuation.session,
+          decisions: continuation.decisions,
+        }).slice(0, 10)}`,
+  );
   const rawBrief = options.briefFor(pass);
   const brief =
     options.authorityBrief === "context-only"
@@ -566,9 +652,29 @@ async function runPass(
   const executableContext = contextManifest.context;
   const executableBrief = contextManifest.brief;
   const executableTemplate = contextManifest.template;
-  const task = executableTemplate === undefined
+  const originalTask = executableTemplate === undefined
     ? executableBrief
     : `${executableBrief}\n\n---\n\n${executableTemplate}`;
+  const currentWorkFingerprint = worktreeFingerprint(options.workdir) ?? null;
+  if (
+    continuation !== undefined &&
+    continuation.contextFingerprint !== contextManifest.manifest.render_sha256
+  ) {
+    throw new Error(
+      `pipeline continuation context changed for ${options.pipeline.name}/${pass.id}; ` +
+        "start a new explicitly authorized claim instead of resuming the old session",
+    );
+  }
+  if (continuation !== undefined && continuation.workFingerprint !== currentWorkFingerprint) {
+    throw new Error(
+      `pipeline continuation worktree changed for ${options.pipeline.name}/${pass.id}; ` +
+        "inspect the durable work and explicitly re-arm",
+    );
+  }
+  const task =
+    continuation === undefined
+      ? originalTask
+      : continuationTask(continuation);
   await Promise.all([
     writeBrief(root, app, runId, executableBrief),
     writePrompt(root, app, runId, task),
@@ -746,6 +852,13 @@ async function runPass(
     adapterStartTimer.unref?.();
     try {
       runtime ??= options.runtimeFor(role);
+      if (!passController.signal.aborted) {
+        await options.beforeProviderTurn?.({
+          pipeline: options.pipeline.name,
+          pass: pass.id,
+          resumed: request.session !== undefined,
+        });
+      }
       turnResult = await runOwnedTurn({
         runtime,
         request: {
@@ -855,6 +968,7 @@ async function runPass(
     result = await runProviderTurn({
       operation: `${options.pipeline.name}/${pass.id}`,
       task,
+      ...(continuation !== undefined ? { session: continuation.session } : {}),
       ...(verdictSchema !== undefined ? { verdictSchema } : {}),
     });
   } catch (error) {
@@ -983,7 +1097,13 @@ async function runPass(
   // The record is durable; NOW surface the loud typed failure to the caller.
   if (!verdictOutcome.ok) throw verdictOutcome.error;
 
-  return { pass, runId, result };
+  return {
+    pass,
+    runId,
+    result,
+    contextFingerprint: contextManifest.manifest.render_sha256,
+    workFingerprint: worktreeFingerprint(options.workdir) ?? null,
+  };
   } catch (error) {
     if (!runFinalized) {
       await finalizeRun(

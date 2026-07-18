@@ -107,6 +107,24 @@ config file, not a fork.
 
 ## Decided
 
+- **Ticket claims are recoverable sagas, and approval waits resume the exact
+  pass without consuming another claim** (ratified 2026-07-18; supersedes the
+  A2 same-pass-resume deferral below). Claim acquisition is provisional until
+  the first provider turn starts. A crash before that boundary auto-repairs the
+  GitHub label and consumes no allowance; ambiguity after provider work never
+  retries blindly and requires the explicit, content-bound `operon loop rearm`
+  transaction. Approval pauses persist the pipeline/pass, native session,
+  completed-pass set, context fingerprint, worktree fingerprint, run id, cost,
+  and exact decisions; approved and denied decisions both continue the same
+  session as distinct guidance, while changed role/runtime/context/work fails
+  closed. The claim number stays stable across any number of approval pauses,
+  and lifecycle telemetry separates pause cost from repeated cost. This change
+  is now admissible because all three adapters expose native session resume and
+  the retained final adapter calibration qualified continuation without retry
+  (`docs/capability-matrix.md`; campaign
+  `adapter-harness-calibration-v1-20260713-9c3b336d6842`). It does not broaden
+  approval authority or collapse decision and execution acknowledgement.
+
 - **Approval decisions and delivery acknowledgements are separate durable
   facts** (ratified 2026-07-18). Classification is action-aware: executable or
   typed operation, targets, redirections, environment, destination, and effect
@@ -443,9 +461,9 @@ config file, not a fork.
   revocation, per-use audit; the single-use action hash stays the default and
   self-merge, production deploy, protocol-surface writes, and
   outside-worktree actions are never scopeable. (A2) approval semantics stay
-  later-retry, now with explicit approve-and-rearm (`op:blocked → op:ready`)
-  continuing from durable artifacts; literal same-pass session resume is
-  deferred pending per-adapter live conformance. (A3) same-rule batch review
+  later-retry, with durable approve/deny-and-rearm; as amended on 2026-07-18,
+  the next tick resumes the exact content-bound provider session after all
+  three adapters obtained retained live conformance. (A3) same-rule batch review
   is allowed with unchanged per-item audit rows. (A4) every app declares a
   `release:` mechanism and owner; the orchestrator (default) or SRE triggers
   the declared deploy as a critical op after merge, SRE owns smoke/rollback,

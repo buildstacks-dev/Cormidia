@@ -59,27 +59,29 @@ prompt-injected agents gain nothing — the gate still classifies every
 action, and out-of-scope actions still escalate. The exfiltration-relevant
 rules stay un-scopeable.
 
-## A2 — Retry semantics: artifact-level continuation, ratified; same-pass
-resume deferred
+## A2 — Retry semantics: exact content-bound continuation, amended and
+ratified 2026-07-18
 
 **Current:** "later retry — never auto-execution."
 
 **Amended:** an escalation parks the pass with its durable-work state
 (Stage 3's honest stop: `op:blocked` + evidence comment). The approval
-decision gains an explicit **approve-and-rearm** option: deciding the item
-may also swap the ticket `op:blocked → op:ready`, so the next tick
-continues from durable artifacts (Stage 2 rehydration) with the grant in
-force. The human decides once and the work resumes without a second manual
-step. Deny keeps the ticket parked with the denial reason attached as
-structured guidance (and a durable lesson — A5).
+decision records the exact approved or denied outcome and atomically prepares
+the parked ticket for the next claim projection. The next tick resumes the
+same pipeline pass through its native provider session; it does not repeat
+completed passes, setup, contract derivation, or the earlier portion of the
+paused pass. Denial is distinct guidance to that same session and also remains
+a durable A5 lesson. A decision is still authorization, never evidence that
+the gated side effect executed; A2.1 acknowledgement remains unchanged.
 
-Literal same-pass suspend/resume of a live provider session remains
-**deferred**: Claude and Codex expose session/thread resume, pi does not
-expose an equivalent surface, and holding a suspended session across a
-multi-hour human decision is a provider-lifecycle design none of the three
-adapters has live-conformance proof for. Artifact-level continuation
-captures most of the economic benefit (proportionality review, Stage 3
-note). Revisit only with a per-adapter live conformance case.
+The earlier deferral is lifted on evidence, not assumption. Claude, Codex,
+and pi now expose native session resume (`docs/capability-matrix.md`), and the
+retained final adapter calibration
+`adapter-harness-calibration-v1-20260713-9c3b336d6842` qualified continuation
+without retry. Resume is content-bound to the role/runtime, context manifest,
+worktree state, completed-pass set, run, and human decisions. Any mismatch
+fails closed before runtime construction. An approval pause never consumes a
+new claim; its settled spend and zero repeated cost are recorded separately.
 
 ### A2.1 — Typed later delivery and acknowledgement, ratified 2026-07-18
 
@@ -160,8 +162,11 @@ rules apply: evidence attached, wrong lessons deleted).
 
 1. **Ticket budgets:** bootstrap ≤ 3 (default 1), growth ≤ 5, mature ≤ 7
    per milestone — enforced by plan validation (Stage 4, landed).
-2. **Attempt cap:** claim cap N=3 per ticket, all tiers; the park digest is
-   the escape hatch (Stage 2, landed).
+2. **Attempt cap:** claim cap N=3 per ticket, all tiers; acquisition remains
+   provisional until a provider turn starts, approval continuations retain the
+   original claim number, and the park digest plus exact `operon loop rearm`
+   command are mandatory on cap exhaustion. A label-only re-arm has no effect
+   on the durable allowance.
 3. **Approval semantics:** A1–A3 above.
 4. **Plan pipeline depth:** stage-dependent — one-pass `plan-bootstrap` for
    new apps, five-pass `plan` for mature ones (Stage 4, landed).

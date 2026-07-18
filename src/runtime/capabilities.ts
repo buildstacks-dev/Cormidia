@@ -4,7 +4,8 @@ export type RuntimeCapability =
   | "structured_verdict"
   | "cancellation"
   | "tool_gate"
-  | "cache_telemetry";
+  | "cache_telemetry"
+  | "session_resume";
 
 export interface RuntimeCapabilityProfile {
   runtime: RuntimeKind;
@@ -24,6 +25,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       cancellation: "native",
       tool_gate: "native",
       cache_telemetry: "native",
+      session_resume: "native",
     },
     cache: {
       supported: true,
@@ -38,6 +40,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       cancellation: "adapter",
       tool_gate: "adapter",
       cache_telemetry: "adapter",
+      session_resume: "native",
     },
     cache: {
       supported: true,
@@ -52,6 +55,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       cancellation: "adapter",
       tool_gate: "adapter",
       cache_telemetry: "adapter",
+      session_resume: "native",
     },
     cache: {
       supported: true,

@@ -142,6 +142,7 @@ efficacy health independently. The mechanics construct no provider runtime.
 | `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
 | `docs/event-schemas.md` | File-drop company-lifecycle event payload contract for Support / Marketing / SRE inputs |
 | `docs/capability-matrix.md` | Adapter capability matrix: native / adapter-built / degraded surfaces for Claude, Codex, and pi |
+| `docs/adding-updating-harnesses.md` | Runtime-harness procedure: the adapter contract, registration checklist, three test tiers, update obligations, and the one-way capability flow (#116) |
 | `docs/benchmark-runbook.md` | Stage 7 clean-room benchmark: procedure, targets, and rules |
 | `docs/proportionality-review.md` | The 2026-07-10 systemic review + staged plan (landed); §7 records benchmark rounds 1–2 |
 | `docs/approval-and-release-amendment.md` | A1–A5 approval & release boundary design (ratified 2026-07-10, implemented; cited by code) |

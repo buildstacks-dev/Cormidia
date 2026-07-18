@@ -60,6 +60,59 @@ function makeGitAppAt(root: string, withCharter = true): string {
   return root;
 }
 
+/** An app checkout backed by a real (local, bare) origin.
+ *
+ * Interactive planning fetches and resolves the remote default branch before
+ * cutting its worktree (#60), so a standalone repo with no origin is no longer
+ * a valid planning source. `second` is an independent checkout of the same
+ * origin, used to land commits that exist ONLY on the remote — that is how a
+ * stale managed clone is modelled without any network. */
+interface RemoteBackedApp {
+  bare: string;
+  clone: string;
+  second: string;
+}
+
+function makeRemoteBackedApp(defaultBranch = "main", withCharter = true): RemoteBackedApp {
+  return makeRemoteBackedAppAt(makeDir("operon-plan-remote-"), defaultBranch, withCharter);
+}
+
+function makeRemoteBackedAppAt(
+  cloneRoot: string,
+  defaultBranch = "main",
+  withCharter = true,
+): RemoteBackedApp {
+  const host = makeDir("operon-plan-origin-");
+  const bare = join(host, "origin.git");
+  execFileSync("git", ["init", "--bare", `--initial-branch=${defaultBranch}`, bare], {
+    encoding: "utf8",
+  });
+
+  // Seed the default branch on origin through a throwaway checkout.
+  const seed = join(host, "seed");
+  execFileSync("git", ["clone", bare, seed], { encoding: "utf8" });
+  git(seed, ["config", "user.email", "test@example.com"]);
+  git(seed, ["config", "user.name", "Operon Test"]);
+  write(seed, "README.md", "# app\n");
+  if (withCharter) write(seed, ".operon/TASTE.md", "# App Charter\n\nShip small.\n");
+  git(seed, ["add", "."]);
+  git(seed, ["commit", "-m", "initial"]);
+  git(seed, ["push", "-u", "origin", defaultBranch]);
+
+  mkdirSync(dirname(cloneRoot), { recursive: true });
+  rmSync(cloneRoot, { recursive: true, force: true });
+  execFileSync("git", ["clone", bare, cloneRoot], { encoding: "utf8" });
+  git(cloneRoot, ["config", "user.email", "test@example.com"]);
+  git(cloneRoot, ["config", "user.name", "Operon Test"]);
+
+  const second = join(host, "second");
+  execFileSync("git", ["clone", bare, second], { encoding: "utf8" });
+  git(second, ["config", "user.email", "test@example.com"]);
+  git(second, ["config", "user.name", "Operon Test"]);
+
+  return { bare, clone: cloneRoot, second };
+}
+
 function initGitApp(root: string, withCharter = true): void {
   git(root, ["init", "--initial-branch=main"]);
   git(root, ["config", "user.email", "test@example.com"]);
@@ -231,23 +284,106 @@ function processAlive(pid: number): boolean {
 }
 
 describe("planning worktree lifecycle", () => {
-  it("creates op/plan-<slug> off main and cleans it up", async () => {
-    const app = makeGitApp();
-    const worktree = await createPlanningWorktree(app, {
+  // The fixture is now a real bare+clone pair rather than a standalone repo:
+  // #60 requires the interactive planning worktree to be cut from the *fetched*
+  // remote default-branch tip, so a source with no remote is no longer a valid
+  // input — an unfetchable source must stop the session, not launch it.
+  it("creates op/plan-<slug> off the fetched default-branch tip and cleans it up", async () => {
+    const { clone } = makeRemoteBackedApp("main");
+    const worktree = await createPlanningWorktree(clone, {
       slug: "stats percentile helper",
       parentDir: makeDir("operon-plan-wt-"),
     });
 
     expect(worktree.branch).toBe("op/plan-stats-percentile-helper");
+    expect(worktree.base).toEqual({ ref: "origin/main", defaultBranch: "main" });
     expect(existsSync(worktree.path)).toBe(true);
     expect(git(worktree.path, ["branch", "--show-current"]).trim()).toBe(worktree.branch);
     expect(git(worktree.path, ["rev-parse", "HEAD"]).trim()).toBe(
-      git(app, ["rev-parse", "main"]).trim(),
+      git(clone, ["rev-parse", "origin/main"]).trim(),
     );
 
     await cleanupPlanningWorktree(worktree);
     expect(existsSync(worktree.path)).toBe(false);
-    expect(git(app, ["branch", "--list", worktree.branch]).trim()).toBe("");
+    expect(git(clone, ["branch", "--list", worktree.branch]).trim()).toBe("");
+  });
+
+  // The #60 defect itself: the managed clone is behind its remote, and the
+  // session used to plan against the stale local branch with nothing saying so.
+  it("plans against the remote tip when the local clone is behind (#60)", async () => {
+    const { bare, clone, second } = makeRemoteBackedApp("main");
+
+    // A change lands on the remote from elsewhere; our clone never fetched it.
+    write(second, "PRODUCT.md", "# shipped after the clone went stale\n");
+    git(second, ["add", "."]);
+    git(second, ["commit", "-m", "feat: land real product truth"]);
+    git(second, ["push", "origin", "main"]);
+    const remoteTip = git(second, ["rev-parse", "HEAD"]).trim();
+
+    const staleLocal = git(clone, ["rev-parse", "main"]).trim();
+    expect(staleLocal).not.toBe(remoteTip);
+
+    const worktree = await createPlanningWorktree(clone, {
+      slug: "stale check",
+      parentDir: makeDir("operon-plan-wt-"),
+    });
+
+    // The session sees the remote tip, not the stale local branch...
+    expect(git(worktree.path, ["rev-parse", "HEAD"]).trim()).toBe(remoteTip);
+    // ...and the product truth that only exists on the remote is actually there.
+    expect(existsSync(join(worktree.path, "PRODUCT.md"))).toBe(true);
+    // The stale local branch is genuinely still stale — the worktree was cut
+    // from the fetched remote-tracking ref, not from a silently reset branch.
+    expect(git(clone, ["rev-parse", "main"]).trim()).toBe(staleLocal);
+    expect(bare).toContain("origin.git");
+
+    await cleanupPlanningWorktree(worktree);
+  });
+
+  // Non-main default branches: the hardcoded `main` failed these outright.
+  for (const branch of ["master", "trunk"]) {
+    it(`cuts the planning worktree from a ${branch} default branch (#60/#101)`, async () => {
+      const { clone } = makeRemoteBackedApp(branch);
+      const worktree = await createPlanningWorktree(clone, {
+        slug: `plan on ${branch}`,
+        parentDir: makeDir("operon-plan-wt-"),
+      });
+
+      expect(worktree.base).toEqual({ ref: `origin/${branch}`, defaultBranch: branch });
+      expect(git(worktree.path, ["rev-parse", "HEAD"]).trim()).toBe(
+        git(clone, ["rev-parse", `origin/${branch}`]).trim(),
+      );
+
+      await cleanupPlanningWorktree(worktree);
+    });
+  }
+
+  // Fail safely: no stale worktree may be launched when the remote is
+  // unreachable or the default branch cannot be resolved.
+  it("refuses to launch a session when the remote cannot be resolved", async () => {
+    const orphan = makeGitApp();
+    const parentDir = makeDir("operon-plan-wt-");
+
+    await expect(
+      createPlanningWorktree(orphan, { slug: "no remote", parentDir }),
+    ).rejects.toThrow(/plan: cannot resolve the default branch/i);
+
+    // Nothing half-built was left behind for an operator to wander into.
+    expect(existsSync(join(parentDir, "op-plan-no-remote"))).toBe(false);
+    expect(git(orphan, ["branch", "--list", "op/plan-no-remote"]).trim()).toBe("");
+  });
+
+  it("refuses to launch a session when the fetch fails", async () => {
+    const { clone } = makeRemoteBackedApp("main");
+    // Point origin at a path that no longer exists: resolution and fetch both
+    // fail, and the failure must surface before any worktree is created.
+    git(clone, ["remote", "set-url", "origin", join(makeDir("operon-plan-gone-"), "missing.git")]);
+    const parentDir = makeDir("operon-plan-wt-");
+
+    await expect(
+      createPlanningWorktree(clone, { slug: "dead remote", parentDir }),
+    ).rejects.toThrow(/plan:/i);
+    expect(git(clone, ["branch", "--list", "op/plan-dead-remote"]).trim()).toBe("");
   });
 });
 
@@ -367,7 +503,9 @@ describe("cmdPlan", () => {
 
   it("dry-run prints app, branch, topic, and context byte size without spawning", async () => {
     const orgHome = makeOrgHome();
-    const app = makeGitApp();
+    // Remote-backed: planning now fetches and resolves the default branch
+    // before cutting its worktree (#60), so the source needs a real origin.
+    const app = makeRemoteBackedApp().clone;
     process.chdir(orgHome);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -431,7 +569,9 @@ apps:
     cadence: {}
 `,
     );
-    const app = makeGitAppAt(join(parent, "operon-sandbox-alpha"));
+    // The sibling checkout is discovered by path, but it is still a planning
+    // source and so still needs a resolvable origin (#60).
+    const app = makeRemoteBackedAppAt(join(parent, "operon-sandbox-alpha")).clone;
     process.chdir(orgHome);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 

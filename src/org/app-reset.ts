@@ -225,8 +225,17 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
   const managedPullRequests = pullRequests.filter(
     (pr) => pr.headRefName.startsWith("op/") || linkedIssueNumbers(pr.body).some((n) => managedIssueNumbers.has(n)),
   );
+  // Never propose deleting a branch that something is merging INTO. The old
+  // guard excluded the literal `main`, which protects nothing in a repo whose
+  // default branch is `master` or `trunk` — reset could propose deleting the
+  // default branch itself (#101).
+  //
+  // The merge targets are read from the pull requests we already fetched
+  // rather than resolved separately: a PR's own base is authoritative, needs
+  // no extra network call, and is correct under every default-branch name.
+  const mergeTargets = new Set(pullRequests.map((pr) => pr.baseRefName).filter(Boolean));
   const branches = [...new Set(managedPullRequests.map((pr) => pr.headRefName))]
-    .filter((branch) => branch.length > 0 && branch !== "main")
+    .filter((branch) => branch.length > 0 && !mergeTargets.has(branch))
     .sort();
   const now = options.now ?? new Date();
   const runningRows = status.filter((row) => row.status === "running");

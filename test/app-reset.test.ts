@@ -111,6 +111,31 @@ describe("app reset", () => {
     expect((await f.gh.readPR(1)).state).toBe("OPEN");
   });
 
+  // #101: the branch guard used to exclude the literal `main`, so a repo whose
+  // default branch is `master` (or `trunk`, or anything else) could have its
+  // DEFAULT BRANCH proposed for deletion. The merge target is now read from
+  // the pull requests themselves, so it is protected under any name.
+  it("never proposes deleting the merge target, whatever the default branch is named", async () => {
+    for (const defaultBranch of ["master", "trunk", "release/2026"]) {
+      const f = await fixture();
+      // A stray managed PR whose head IS the default branch — the exact shape
+      // the old `!== "main"` guard failed to catch.
+      await f.gh.createPR({
+        head: defaultBranch,
+        base: defaultBranch,
+        title: "Accidental PR from the default branch",
+        body: "Closes #7",
+      });
+
+      const plan = await planAppReset(await f.input());
+
+      expect(plan.github.branches).not.toContain(defaultBranch);
+      // ...while the genuinely disposable ticket branch is still proposed, so
+      // the guard narrows nothing it should not.
+      expect(plan.github.branches).toContain("build/alpha-v1");
+    }
+  });
+
   it("archives before removing only the selected app's state and tracked GitHub work", async () => {
     const f = await fixture();
     const input = await f.input();

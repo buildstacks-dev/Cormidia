@@ -18,6 +18,7 @@ import {
   pushBranch,
   type LoopItem,
 } from "../src/loop/loop.js";
+import { baseRevisionForBranch } from "../src/loop/default-branch.js";
 import { SELF_APPROVAL_FALLBACK_MARKER, selfApprovalMarker } from "../src/loop/github.js";
 
 const SELF_APPROVAL_SECRET = "operator-only-secret";
@@ -116,6 +117,7 @@ describe("claimTicket", () => {
       const item = await claimTicket(await gh.readIssue(1), {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -145,6 +147,7 @@ describe("claimTicket", () => {
       await claimTicket(issue, {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -153,6 +156,7 @@ describe("claimTicket", () => {
         claimTicket(issue, {
           gh,
           targetRepo: "fixture/repo",
+          base: baseRevisionForBranch("main"),
           localRepo: pair.clone.root,
           worktreeRoot: join(pair.root, "worktrees-2"),
         }),
@@ -174,6 +178,7 @@ describe("advanceGates", () => {
       let item = await claimTicket(await gh.readIssue(1), {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -182,6 +187,7 @@ describe("advanceGates", () => {
       let remediations = 0;
       item = await advanceGates(item, {
         gh,
+        base: baseRevisionForBranch("main"),
         policy: policy(3),
         commands: { testCommand: "test -f pass.txt" },
         criteria,
@@ -215,6 +221,7 @@ describe("advanceGates", () => {
       const claimed = await claimTicket(await gh.readIssue(1), {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -222,6 +229,7 @@ describe("advanceGates", () => {
 
       const returned = await advanceGates(claimed, {
         gh,
+        base: baseRevisionForBranch("main"),
         policy: policy(1),
         commands: { testCommand: "test -f never.txt" },
         criteria,
@@ -251,6 +259,7 @@ describe("advanceGates", () => {
       const claimed = await claimTicket(await gh.readIssue(1), {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -258,6 +267,7 @@ describe("advanceGates", () => {
 
       const reviewing = await advanceGates(claimed, {
         gh,
+        base: baseRevisionForBranch("main"),
         policy: policy(),
         commands: { testCommand: "test -f pass.txt" },
         criteria,
@@ -297,6 +307,7 @@ describe("advanceGates", () => {
       const claimed = await claimTicket(await gh.readIssue(1), {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -304,6 +315,7 @@ describe("advanceGates", () => {
 
       const returned = await advanceGates(claimed, {
         gh,
+        base: baseRevisionForBranch("main"),
         policy: policy(1),
         commands: { testCommand: "test -f never.txt" },
         criteria,
@@ -338,6 +350,7 @@ describe("advanceGates", () => {
       const claimed = await claimTicket(await gh.readIssue(1), {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -348,6 +361,7 @@ describe("advanceGates", () => {
 
       const reviewing = await advanceGates(claimed, {
         gh,
+        base: baseRevisionForBranch("main"),
         policy: policy(),
         commands: { testCommand: "test -f pass.txt" },
         criteria,
@@ -668,6 +682,7 @@ describe("advanceShipping", () => {
         {
           gh: h.gh,
           localRepo: h.pair.clone.root,
+          base: baseRevisionForBranch("main"),
           policy: policy(),
           commands: { testCommand: "true" },
           criteria,
@@ -714,6 +729,7 @@ describe("advanceShipping", () => {
         {
           gh: h.gh,
           localRepo: h.pair.clone.root,
+          base: baseRevisionForBranch("main"),
           policy: policy(),
           commands: { testCommand: "true" },
           criteria,
@@ -744,6 +760,7 @@ describe("advanceShipping", () => {
         {
           gh: h.gh,
           localRepo: h.pair.clone.root,
+          base: baseRevisionForBranch("main"),
           policy: policy(),
           commands: { testCommand: "true" },
           criteria,
@@ -773,6 +790,7 @@ describe("advanceShipping", () => {
         {
           gh: h.gh,
           localRepo: h.pair.clone.root,
+          base: baseRevisionForBranch("main"),
           policy: policy(),
           commands: { testCommand: "true" },
           criteria,
@@ -802,6 +820,7 @@ describe("advanceShipping", () => {
         {
           gh: h.gh,
           localRepo: h.pair.clone.root,
+          base: baseRevisionForBranch("main"),
           policy: policy(),
           commands: { testCommand: "true" },
           criteria,
@@ -831,12 +850,14 @@ describe("advanceShipping", () => {
       const first = await claimTicket(await gh.readIssue(1), {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
       const second = await claimTicket(await gh.readIssue(2), {
         gh,
         targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
       });
@@ -865,6 +886,7 @@ describe("advanceShipping", () => {
         {
           gh,
           localRepo: pair.clone.root,
+          base: baseRevisionForBranch("main"),
           policy: policy(),
           commands: { testCommand: "true" },
           criteria,
@@ -915,6 +937,7 @@ async function reviewHarness(): Promise<{ gh: FakeGhOps; item: LoopItem; cleanup
   let item = await claimTicket(await gh.readIssue(1), {
     gh,
     targetRepo: "fixture/repo",
+    base: baseRevisionForBranch("main"),
     localRepo: pair.clone.root,
     worktreeRoot: join(pair.root, "worktrees"),
   });
@@ -944,6 +967,7 @@ async function shippingHarness(title: string): Promise<{
   let item = await claimTicket(await gh.readIssue(1), {
     gh,
     targetRepo: "fixture/repo",
+    base: baseRevisionForBranch("main"),
     localRepo: pair.clone.root,
     worktreeRoot: join(pair.root, "worktrees"),
   });

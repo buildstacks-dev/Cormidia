@@ -19,6 +19,7 @@ import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { baseRevisionForBranch } from "../../src/loop/default-branch.js";
 import { runLoopOnce } from "../../src/loop/driver.js";
 import { loadPipelines, type PipelinesFile } from "../../src/loop/pipelines.js";
 import type { Policy } from "../../src/loop/policy.js";
@@ -219,6 +220,7 @@ describe("L1-02 setup gate runs at worktree provision (before the implement pass
         gh,
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
+        base: baseRevisionForBranch("main"),
         policy: policy(),
         commands: { setupCommand: SETUP_OK, testCommand: "true", lintCommand: "true" },
         engine: {
@@ -264,6 +266,7 @@ describe("L1-02 setup gate runs at worktree provision (before the implement pass
         gh,
         localRepo: pair.clone.root,
         worktreeRoot: join(pair.root, "worktrees"),
+        base: baseRevisionForBranch("main"),
         policy: policy(),
         commands: { setupCommand: SETUP_FAIL, testCommand: "true", lintCommand: "true" },
         engine: {

@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GhCliOps, type GhOps, type GhReview } from "../../src/loop/github.js";
+import { baseRevisionForBranch } from "../../src/loop/default-branch.js";
 import { DEFAULT_LOOP_POLICY, runLoopOnce } from "../../src/loop/driver.js";
 import type { LoopItem } from "../../src/loop/types.js";
 
@@ -144,6 +145,9 @@ try {
     gh: ghOps,
     localRepo: checkout,
     worktreeRoot: worktrees,
+    // `ensureFixtureApp` pins the sandbox checkout to `main` and pushes it,
+    // so the sandbox base is that branch rather than a resolved unknown.
+    base: baseRevisionForBranch("main"),
     policy: DEFAULT_LOOP_POLICY,
     commands: {
       testCommand: "npm test",

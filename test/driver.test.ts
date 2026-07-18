@@ -17,6 +17,7 @@ import {
   planLoopTick,
   runLoopOnce,
 } from "../src/loop/driver.js";
+import { baseRevisionForBranch } from "../src/loop/default-branch.js";
 import { branchNameForIssue, dependencyRelevantPackageJson } from "../src/loop/loop.js";
 import { writeTicketClaimState } from "../src/loop/rehydrate.js";
 import { makeBareWithClone, makeWorkingRepo } from "./fixtures/gitRepo.js";
@@ -106,7 +107,9 @@ describe("loop driver", () => {
 
       const inputs = await defaultLoopInputs("owner/fixture", pair.clone.root);
 
-      expect(inputs.baseRef).toBe("master");
+      // The resolved base must name `master` as the merge target and
+      // `origin/master` as the diff/branch-cut ref — never a guessed `main`.
+      expect(inputs.base).toEqual(baseRevisionForBranch("master"));
       expect(pair.clone.git("branch", "--show-current")).toBe("master");
       expect(pair.clone.git("rev-parse", "HEAD")).toBe(
         pair.clone.git("rev-parse", "origin/master"),
@@ -124,7 +127,7 @@ describe("loop driver", () => {
 
       const inputs = await defaultLoopInputs("owner/fixture", pair.clone.root);
 
-      expect(inputs.baseRef).toBe("main");
+      expect(inputs.base).toEqual(baseRevisionForBranch("main"));
       expect(pair.clone.git("branch", "--show-current")).toBe("main");
     } finally {
       pair.cleanup();
@@ -180,6 +183,7 @@ describe("loop driver", () => {
       gh,
       localRepo: "/tmp/not-used",
       worktreeRoot: "/tmp/not-used-worktrees",
+      base: baseRevisionForBranch("main"),
       policy: DEFAULT_LOOP_POLICY,
       commands: {},
       planOnly: true,
@@ -240,6 +244,7 @@ describe("loop driver", () => {
       gh,
       localRepo: "/tmp/not-used",
       worktreeRoot: "/tmp/not-used-worktrees",
+      base: baseRevisionForBranch("main"),
       policy: DEFAULT_LOOP_POLICY,
       commands: {},
       maxConcurrent: 2,
@@ -266,6 +271,7 @@ describe("loop driver", () => {
       gh,
       localRepo: "/tmp/not-used",
       worktreeRoot: "/tmp/not-used-worktrees",
+      base: baseRevisionForBranch("main"),
       policy: DEFAULT_LOOP_POLICY,
       commands: {},
       maxConcurrent: 2,
@@ -291,6 +297,7 @@ describe("loop driver", () => {
       gh,
       localRepo: "/tmp/not-used",
       worktreeRoot: "/tmp/not-used-worktrees",
+      base: baseRevisionForBranch("main"),
       policy: DEFAULT_LOOP_POLICY,
       commands: {},
       maxConcurrent: 3,
@@ -357,6 +364,7 @@ describe("loop driver", () => {
       gh,
       localRepo: "/tmp/not-used",
       worktreeRoot: "/tmp/not-used-worktrees",
+      base: baseRevisionForBranch("main"),
       policy: DEFAULT_LOOP_POLICY,
       commands: {},
       engine: {
@@ -402,6 +410,7 @@ describe("loop driver", () => {
         gh,
         localRepo: "/tmp/not-used",
         worktreeRoot: "/tmp/not-used-worktrees",
+        base: baseRevisionForBranch("main"),
         policy: DEFAULT_LOOP_POLICY,
         commands: {},
         engine: {

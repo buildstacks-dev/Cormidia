@@ -402,14 +402,25 @@ docs page that merely names a `data model`) is not spuriously over-scrutinized.
 stays at its Planner tier — `validatePlan` forbids a bootstrap deep ticket —
 so it takes neither the deep floor nor a domain label.)
 
+Planning ceremony is not selected from this ticket/episode safety tier.
+`planning-depth/v2` first asks what lifecycle decision remains: an explicitly
+scoped existing ticket bypasses pre-ticket planning; a bounded goal gets one
+shaping/decomposition pass; a milestone earns Visionary plus one PM; and only
+a competing strategy, high ambiguity, costly-to-reverse choice, or human deep
+minimum earns competing PMs and arbitration. Execution safety remains fully
+floored by `route-policy/v1`.
 
 
-### Issue intake — everything enters through the Planner
+
+### Issue intake — Planner or human triage precedes execution
 
 **Invariant: only a Planner pipeline (or the human) applies** `op:ready`**.**
 All intake — human-filed issues, Support digests, SRE incident notes,
 `op:returned` bounces, reviewer-escaped bugs — waits as plain issues until
-a Planner pipeline touches it. The loop never builds an untriaged issue.
+a Planner pipeline or human explicitly triages it. The existing-ticket
+disposition above assumes that intake contract is already satisfied: it skips
+redundant pre-ticket product planning, never readiness classification. The
+loop still never builds an untriaged issue.
 
 - `triage` (bug batches): classify each issue — *bug* → tier + spec
 links + `op:ready`; *improvement* → backlog candidate (labeled, not

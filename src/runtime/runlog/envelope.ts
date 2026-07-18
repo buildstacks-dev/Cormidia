@@ -137,14 +137,31 @@ export interface TracePlanEvidence {
 export interface PlanningRouteEvidence {
   policy_version: string;
   depth: "quick" | "standard" | "deep";
+  /** Episode execution route after safety floors. Kept separate from the
+   *  lifecycle-selected planning pass depth. */
+  episode_route?: "quick" | "standard" | "deep";
+  disposition?: string;
   risk_tier: string;
   factors: Record<string, unknown>;
   decision_factors: string[];
+  execution_admission_factors?: Array<{ kind: string; evidence: string; policy_rule: string }>;
+  execution_decision_factors?: string[];
   selected_passes: string[];
   skipped_passes: Array<{ pass: string; reason: string }>;
+  pass_rationales?: Array<{ pass: string; expected_risk_reduction: string; evidence: string }>;
   estimated_cost_usd: number | null;
   estimated_cost_upper_bound_usd: number;
   estimate_basis: string;
+  outcome_measurement?: {
+    status: "measured" | "unavailable";
+    selected_pass_count: number;
+    comparable_episodes: number;
+    lower_pass_episodes: number;
+    comparable_downstream_failure_rate: number | null;
+    lower_pass_downstream_failure_rate: number | null;
+    observed_failure_rate_delta: number | null;
+    basis: string;
+  };
 }
 
 export interface SessionEvidence extends SessionHandle {

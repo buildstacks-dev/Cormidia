@@ -9,20 +9,20 @@ const rows = (parse(readFileSync(fileURLToPath(new URL("../../eval/corpora/routi
 
 describe("ROUTE-CORPUS-001 executes the reviewed table against the production planning boundary", () => {
   it("positive baseline maps the reviewed corpus without semantic mismatches", () => {
-    const mismatches = rows.flatMap((row) => decidePlanningDepth(input(row)).depth === row.expected ? [] : [row.id]);
+    const mismatches = rows.flatMap((row) => decidePlanningDepth(input(row)).executionRoute === row.expected ? [] : [row.id]);
     expect(mismatches).toEqual([]);
   });
   it("near-miss metamorphic variants ignore length, repeated keywords metadata, and role availability", () => {
     for (const [left, right] of [["r12", "r13"], ["r01", "r14"], ["r01", "r31"]]) {
       const a = rows.find((row) => row.id === left)!; const b = rows.find((row) => row.id === right)!;
-      expect(decidePlanningDepth(input(a)).depth).toBe(decidePlanningDepth(input(b)).depth);
+      expect(decidePlanningDepth(input(a)).executionRoute).toBe(decidePlanningDepth(input(b)).executionRoute);
     }
   });
   it("prose-about-deploy/auth no longer inflates a structured low-risk route", () => {
     for (const id of ["r04"]) {
       const row = rows.find((item) => item.id === id)!;
       expect(row.expected).toBe("quick");
-      expect(decidePlanningDepth(input(row)).depth).toBe("quick");
+      expect(decidePlanningDepth(input(row)).executionRoute).toBe("quick");
     }
   });
 });

@@ -12,7 +12,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parsePlanJson, runAutoPlan } from "../src/org/plan-auto.js";
-import { readEvents } from "../src/runtime/runlog/events.js";
 import type { AppEntry, AppsFile } from "../src/org/apps.js";
 import { FakeRuntime } from "../src/runtime/testing/fakeRuntime.js";
 import type { TurnResult } from "../src/runtime/types.js";
@@ -277,7 +276,7 @@ describe("runAutoPlan (D-PLAN-01 quick/standard/deep plan-of-record evidence)", 
     expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
   });
 
-  it("uses one final mixed-ticket projection for result, telemetry, and GitHub labels", async () => {
+  it("uses one final mixed-ticket projection for result, JSON, and GitHub labels", async () => {
     const { app, appsFile } = fixture();
     const gh = new FakeGhOps();
     const runtime = new FakeRuntime([{ result: planTurn(MIXED_PLAN_JSON) }]);
@@ -321,22 +320,6 @@ describe("runAutoPlan (D-PLAN-01 quick/standard/deep plan-of-record evidence)", 
       expect.arrayContaining(["op:tier-deep", "domain:data", "op:ready"]),
       expect.arrayContaining(["op:tier-quick", "op:ready"]),
     ]);
-    const runId = (await readdir(join(stateHome, "runs", "greenfield")))[0]!;
-    const finalized = (await readEvents(stateHome, "greenfield", runId)).filter(
-      (event) => event.event === "plan.ticket_finalized",
-    );
-    expect(finalized.map((event) => event.detail)).toEqual([
-      expect.objectContaining({
-        requested_tier: "op:tier-standard",
-        final_tier: "op:tier-deep",
-        escalation_reason: "sensitive-domain floor: data",
-      }),
-      expect.objectContaining({
-        requested_tier: "op:tier-quick",
-        final_tier: "op:tier-quick",
-      }),
-    ]);
-    expect(finalized[1]?.detail).not.toHaveProperty("escalation_reason");
   });
 
   it("returns the same finalized tier projection when publication is disabled", async () => {

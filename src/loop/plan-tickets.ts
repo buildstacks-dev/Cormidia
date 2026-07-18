@@ -451,8 +451,8 @@ export async function publishTickets(gh: GhOps, plan: TicketPlan): Promise<Publi
 }
 
 /** Publish an already-finalized projection without recomputing any floor or
- *  label transform. This is the boundary runAutoPlan uses after reporting and
- *  telemetry have consumed the same object. */
+ *  label transform. This is the boundary runAutoPlan uses after its result
+ *  surfaces have consumed the same object. */
 export async function publishPlanProjection(gh: GhOps, projection: FinalPlanProjection): Promise<PublishResult> {
   for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
 

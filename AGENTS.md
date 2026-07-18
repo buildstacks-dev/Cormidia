@@ -134,6 +134,7 @@ efficacy health independently. The mechanics construct no provider runtime.
 | `docs/architecture.md` | Detailed design: dispatcher, turn lifecycle, approvals, context, memory, multi-app, bootstrap, GitHub conventions (§11 decisions ratified into docs/PURPOSE.md) |
 | `docs/loop.md` | Build-loop engineering design (the center of gravity): pass pipelines, briefs, quality gates, verdicts, ticket state machine — predecessor-orchestrator inheritance audit included |
 | `docs/scheduler.md` | Authoritative autonomous scheduler contract: lifecycle CLI, backend boundary, definition/evidence schemas, exact identities, reason codes, health semantics, and L6 boundary |
+| `docs/testing.md` | What runs when: the local loop, the CI lane table, a command reference, and why the content-hash integrity machinery exists — reference companion to Testing expectations below |
 | `docs/testing-journey.md` | Plain-language explainer: the sandbox test apps, what each build-plan stage proves against them, and the approved gamma coverage for SRE-on-live-service / Support / Marketing |
 | `docs/event-schemas.md` | File-drop company-lifecycle event payload contract for Support / Marketing / SRE inputs |
 | `docs/capability-matrix.md` | Adapter capability matrix: native / adapter-built / degraded surfaces for Claude, Codex, and pi |
@@ -179,6 +180,15 @@ efficacy health independently. The mechanics construct no provider runtime.
   `pnpm test:transformation:strict` (green current Phase 6
   scope) · `pnpm test:transformation:future-soak-strict` (separate future gate;
   expected non-zero only for `I-LIVE-01` until the genuine campaign passes).
+  Each of those is a self-contained local command that bundles a vitest run with
+  a contract assertion. The contract assertions are also available **atomically**
+  — `pnpm eval:contracts` (scope `all`, exact known-red), `pnpm
+  eval:contracts:strict` (scope `current`), `pnpm
+  eval:contracts:future-soak-strict` — so a caller that has already run the
+  offline suite does not re-enter vitest to reach them. CI uses the atomic form;
+  `evaluateContracts` verifies evidence presence and the declared debt set
+  without probing source text, so one offline-suite run plus the atomic gates is
+  complete coverage. `pnpm test:offline` is `pnpm test` with the CI timeout.
 - Efficiency eval, explicit external boundary: `pnpm eval:prepare -- --campaign
   <template> --github-owner <owner> [--authorization <standing-grant>]` ·
   preview/execute `pnpm eval:github` and `pnpm eval:live` with the same grant,
@@ -328,6 +338,24 @@ efficacy health independently. The mechanics construct no provider runtime.
 - Single package, deliberately **not** a pnpm workspace (docs/PURPOSE.md → Repo shape).
 
 ## Testing expectations
+This section is the **rules** — what you must run for a given change.
+[`docs/testing.md`](docs/testing.md) is the **map**: the local loop, the full CI
+lane table with timings, a per-command reference, and why the content-hash
+integrity machinery exists. On conflict this section wins; fix the other file.
+- **CI runs change-aware lanes** (`.github/workflows/efficiency-qualification.yml`).
+  `classify` resolves the changed paths through `scripts/ci/classify-changes.mjs`
+  and admits: `core` (offline suite **exactly once** + typecheck + the atomic
+  token-free contract gates, plus the nightly shuffle tripwire on the schedule),
+  `observer-reports` (Chromium browser tests, `smoke:onboarding`, `npm pack
+  --dry-run` — only for Observer/Reports/packaging surfaces), and
+  `release-currency` (release tags / `workflow_dispatch` only). Admission fails
+  open into more testing: a schedule, tag, dispatch, unresolvable diff, or
+  unrecognised path admits every lane; only provably behaviour-free paths
+  (documentation, reviewer notes) admit none. Superseded pull-request runs are
+  cancelled; `main` and tag runs never are. `scripts/ci/**` and
+  `.github/workflows/**` are part of the executable suite because they select
+  which tests run — the same reason `vitest.config.ts` is. Add a case to
+  `test/ci/classify-changes.test.ts` for every admission-rule change.
 - Changes under `eval/**`, `scripts/eval/**`, or transformation eval fixtures:
   run `pnpm eval:validate`, `pnpm test:transformation`, `pnpm
   eval:deterministic`, the complete `pnpm test`, and `pnpm typecheck`.

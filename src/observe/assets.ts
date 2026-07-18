@@ -162,7 +162,17 @@ export const OBSERVE_JS = String.raw`(() => {
   };
   const badge = (text, cls) => node('span',{class:'pill ' + (cls || text)},text);
   const empty = (text) => node('div',{class:'empty'},text);
-  const formatCost = (value, quality) => quality === 'unavailable' ? 'unavailable' : (quality === 'estimated' ? '~' : '') + '$' + Number(value || 0).toFixed(2) + (quality === 'partial' ? ' partial' : '');
+  // Mirrors formatCostAggregate in src/runtime/cost.ts. 'none' is a known
+  // zero; a partial total shows the recorded floor plus the unknown count so
+  // the unknown component is never read as free (#88, #90).
+  const formatCost = (value, quality, unknown) => {
+    if (quality === 'none') return '$0.00';
+    const n = Number(unknown || 0);
+    const amount = (quality === 'estimated' ? '~' : '') + '$' + Number(value || 0).toFixed(2);
+    if (quality === 'unavailable') return n > 0 ? 'unavailable (' + n + (n === 1 ? ' turn)' : ' turns)') : 'unavailable';
+    if (n > 0) return amount + ' recorded + ' + n + ' unknown';
+    return amount + (quality === 'partial' ? ' partial' : '');
+  };
   const shortTime = (value) => value ? new Date(value).toLocaleString() : 'not recorded';
   const currentFilters = () => ({ app:q('app-filter').value, role:q('role-filter').value, status:q('status-filter').value });
   const ticketNumber = (value) => { const match=/(?:^|#)(\d+)$/.exec(String(value||'').trim()); return match?Number(match[1]):null; };
@@ -200,7 +210,7 @@ export const OBSERVE_JS = String.raw`(() => {
       node('span',{},totals.active_passes+' active'),
       node('span',{},totals.pending_approvals+' approvals'),
       node('span',{},totals.delivery_ready+' ready'),
-      node('span',{},formatCost(totals.recorded_cost_usd,totals.usage_quality))
+      node('span',{},formatCost(totals.recorded_cost_usd,totals.usage_quality,totals.cost&&totals.cost.unknown_turns))
     );
     populateFilters(s);
     renderAttention(s,scope); renderApps(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistory(s,scope); renderSources(s);
@@ -243,12 +253,18 @@ export const OBSERVE_JS = String.raw`(() => {
     if(scope.kind==='task') for(const ref of scope.task.ticket_refs) { const number=ticketNumber(ref); if(number!==null&&scope.task.app) keys.add(scope.task.app+'#'+number); }
     return keys;
   }
+  // Client-side mirror of aggregateCost (src/runtime/cost.ts) for the session
+  // scope, which only the client knows. A mechanical pass ('none') is an
+  // authoritative zero and never degrades quality; an unobservable turn is
+  // counted, not summed as zero (#88, #90).
   function sessionTotals(s,scope) {
-    const passes=sessionPasses(s,scope), tickets=sessionTicketKeys(s,scope), ranks={complete:0,estimated:1,partial:2,unavailable:3};
-    const quality=passes.length?passes.map((pass)=>pass.usage.quality).reduce((worst,value)=>ranks[value]>ranks[worst]?value:worst,'complete'):'unavailable';
+    const passes=sessionPasses(s,scope), tickets=sessionTicketKeys(s,scope), ranks={none:-1,complete:0,estimated:1,partial:2,unavailable:3};
+    const provider=passes.filter((pass)=>pass.usage.quality!=='none');
+    const known=provider.filter((pass)=>pass.usage.quality!=='unavailable'&&pass.usage.cost_usd!==null&&pass.usage.cost_usd!==undefined);
+    const quality=provider.length?provider.map((pass)=>pass.usage.quality).reduce((worst,value)=>ranks[value]>ranks[worst]?value:worst,'complete'):'unavailable';
     const approvals=s.approvals.filter((approval)=>approval.ticket_ref&&tickets.has(approval.app+'#'+ticketNumber(approval.ticket_ref)));
     const delivery=s.delivery.filter((ticket)=>tickets.has(ticket.app+'#'+ticket.issue_number));
-    return { active_passes:passes.filter((pass)=>pass.status==='running').length, pending_approvals:approvals.filter((approval)=>approval.status==='pending').length, delivery_ready:delivery.filter((ticket)=>ticket.state==='ready').length, recorded_cost_usd:passes.reduce((total,pass)=>total+Number(pass.usage.cost_usd||0),0), usage_quality:quality };
+    return { active_passes:passes.filter((pass)=>pass.status==='running').length, pending_approvals:approvals.filter((approval)=>approval.status==='pending').length, delivery_ready:delivery.filter((ticket)=>ticket.state==='ready').length, recorded_cost_usd:known.reduce((total,pass)=>total+Number(pass.usage.cost_usd||0),0), usage_quality:quality, cost:{ unknown_turns:provider.length-known.length, mechanical_passes:passes.length-provider.length } };
   }
   function visibleApp(value,scope) { const f=currentFilters(); return (!scope||scope.app===null||value===scope.app||sessionPasses(state.snapshot,scope).some((pass)=>pass.app===value))&&(!f.app||value===f.app); }
   function renderAttention(s,scope) {
@@ -258,7 +274,7 @@ export const OBSERVE_JS = String.raw`(() => {
   }
   function renderApps(s,scope) {
     const apps=s.apps.filter((v)=>visibleApp(v.name,scope));
-    q('apps').replaceChildren(...apps.map((v)=>node('article',{class:'card'},node('h3',{},v.name),badge(v.lifecycle,v.lifecycle),node('p',{class:'meta'},v.repo),node('p',{class:'meta'},formatCost(v.recorded_monthly_cost_usd,v.usage_quality)+' / $'+v.budget_usd_month.toFixed(0)+' monthly'),...v.channel_gates.map((g)=>node('div',{class:'meta warn'},g)))));
+    q('apps').replaceChildren(...apps.map((v)=>node('article',{class:'card'},node('h3',{},v.name),badge(v.lifecycle,v.lifecycle),node('p',{class:'meta'},v.repo),node('p',{class:'meta'},formatCost(v.recorded_monthly_cost_usd,v.usage_quality,v.cost&&v.cost.unknown_turns)+' / $'+v.budget_usd_month.toFixed(0)+' monthly'),...v.channel_gates.map((g)=>node('div',{class:'meta warn'},g)))));
     const scopedTraces=scope?new Set(sessionTraces(s,scope).map((trace)=>trace.app+'\u0000'+trace.trace_id)):null;
     const intake=s.intake.filter((v)=>visibleApp(v.app,scope)&&(!scope||(v.trace_id&&scopedTraces.has(v.app+'\u0000'+v.trace_id))||v.parent_task_id===(scope.kind==='task'?scope.task.task_id:null))).slice(0,40);
     q('intake').replaceChildren(...(intake.length?intake.map((v)=>node('li',{},node('strong',{},v.title+' '),badge(v.status,v.status),node('div',{class:'meta'},v.kind+' · '+(v.trigger||'no trigger recorded')+' · '+shortTime(v.latest_at||v.started_at)),v.quality_reason?node('div',{class:'meta warn'},v.quality_reason):'')):[empty('No onboarding or non-ticket activity in this view.') ]));

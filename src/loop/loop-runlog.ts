@@ -148,7 +148,18 @@ export async function openPhaseRun(
       await updateEnvelope(runlog.root, runlog.app, runId, {
         executionStepIds: [step.execution_step_id],
       });
-      await finalizeRun(runlog.root, runlog.app, runId, { status }, clock());
+      // A mechanical phase invokes no provider, so its cost is an authoritative
+      // zero rather than missing evidence. Recording that explicitly keeps the
+      // pass visible as an execution step without counting it as unknown-cost
+      // provider activity (#88). Envelopes written before this recover the same
+      // fact through classifyEnvelopeUsage().
+      await finalizeRun(
+        runlog.root,
+        runlog.app,
+        runId,
+        { status, usage: { tokens_in: 0, tokens_out: 0, cost_usd: 0, quality: "none" } },
+        clock(),
+      );
     },
   };
 }

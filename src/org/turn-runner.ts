@@ -14,6 +14,7 @@ import {
   type FileLockToken,
 } from "../runtime/file-lock.js";
 import { defaultGate } from "../runtime/gate.js";
+import { worstUsageQuality } from "../runtime/cost.js";
 import { getRuntime } from "../runtime/registry.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
 import type { ContextBundle, RoleConfig, Runtime, Trigger, TurnHooks, TurnResult, TurnUsage } from "../runtime/types.js";
@@ -1034,14 +1035,14 @@ function sumUsage(usages: TurnUsage[]): TurnUsage {
   }, { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0, quality: "complete" });
 }
 
+/** Worst-wins over the shared ranking (src/runtime/cost.ts) so every surface
+ *  degrades usage quality identically. An absent quality means "complete" here:
+ *  this merges snapshots of one turn that did run a provider. */
 function leastCompleteUsageQuality(
   left: TurnUsage["quality"],
   right: TurnUsage["quality"],
 ): NonNullable<TurnUsage["quality"]> {
-  const rank = { complete: 0, estimated: 1, partial: 2, unavailable: 3 } as const;
-  const a = left ?? "complete";
-  const b = right ?? "complete";
-  return rank[a] >= rank[b] ? a : b;
+  return worstUsageQuality(left ?? "complete", right ?? "complete");
 }
 
 function journalPhaseForStatus(status: TurnResult["status"]): TurnJournal["phase"] {

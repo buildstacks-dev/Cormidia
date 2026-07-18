@@ -1,5 +1,7 @@
 import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
 import { settlementKey } from "../runtime/telemetry.js";
+import { aggregateCost, normalizeUsageQuality, worstUsageQuality } from "../runtime/cost.js";
+import { classifyEnvelopeUsage } from "../runtime/runlog/envelope.js";
 import type { LedgerRowSource } from "./ledger-source.js";
 import type { ReportDetailFacts } from "./detail-source.js";
 import type {
@@ -106,11 +108,18 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
 
 function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope"], events: ReportDetailFacts["unsettled"][number]["events"]): ReportTurnV1 {
   const usage = envelope.usage;
-  const isMechanical = usage === undefined && (envelope.role.includes("gate") || envelope.pipeline.includes("gate") || envelope.pass.includes("gate"));
-  const quality = usage?.quality ?? (usage === undefined ? "unavailable" : envelope.status === "running" ? "partial" : usage.cost_estimated === true ? "estimated" : "partial");
+  // These envelopes have no ledger settlement by construction (they are the
+  // `unsettled` set), so classifyEnvelopeUsage can decide `none` structurally.
+  // This replaces a role/pipeline/pass substring match on "gate" that missed
+  // provision/setup entirely — 14 of the 26 falsely-unknown passes in the
+  // buildstacks-site campaign (#88).
+  const quality = classifyEnvelopeUsage(envelope);
+  const isMechanical = quality === "none";
   const gates = envelope.gate_results ?? [];
-  const warnings = ["no matching ledger settlement; excluded from authoritative accounting totals"];
-  if (usage !== undefined && envelope.status !== "running") warnings.push("terminal envelope has recorded usage; explicit operon budget --reconcile may recover it");
+  const warnings = isMechanical
+    ? ["no provider was invoked; cost is an authoritative zero"]
+    : ["no matching ledger settlement; excluded from authoritative accounting totals"];
+  if (!isMechanical && usage !== undefined && envelope.status !== "running") warnings.push("terminal envelope has recorded usage; explicit operon budget --reconcile may recover it");
   return {
     id: `envelope:${envelope.app}:${envelope.run_id}`,
     source: { day: null, line: null },
@@ -136,12 +145,15 @@ function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope
     wall_clock_ms: envelope.wall_clock_ms ?? null,
     status: envelope.status,
     usage_quality: normalizedQuality(quality),
-    tokens_in: usage === undefined || quality === "unavailable" ? null : usage.tokens_in,
-    tokens_out: usage === undefined || quality === "unavailable" ? null : usage.tokens_out,
+    // A mechanical pass consumed no tokens and cost nothing, and that is known
+    // rather than missing — so it reports 0, not null, even on a legacy
+    // envelope that predates the explicit `none` usage record (#88).
+    tokens_in: isMechanical ? usage?.tokens_in ?? 0 : quality === "unavailable" || usage === undefined ? null : usage.tokens_in,
+    tokens_out: isMechanical ? usage?.tokens_out ?? 0 : quality === "unavailable" || usage === undefined ? null : usage.tokens_out,
     tokens_in_uncached: null,
     cache_read_tokens: usage?.cache_read_tokens ?? null,
     cache_creation_tokens: usage?.cache_write_tokens ?? null,
-    cost_usd: usage === undefined || quality === "unavailable" ? null : usage.cost_usd,
+    cost_usd: isMechanical ? usage?.cost_usd ?? 0 : quality === "unavailable" || usage === undefined ? null : usage.cost_usd,
     cost_estimated: usage?.cost_estimated === true,
     subagent_turns: usage?.subagent_turns ?? 0,
     tool_calls: events?.toolCalls ?? (Object.values(envelope.tool_counts ?? {}).reduce((a, b) => a + b, 0)),
@@ -171,7 +183,15 @@ function summarize(id: string, activities: ReportTurnV1[], details: ReportDetail
   const provider = activities.filter((activity) => activity.activity_type === "provider_turn");
   const settledProvider = provider.filter((activity) => activity.settled_at !== null);
   const observable = settledProvider.filter((activity) => activity.tokens_in !== null && activity.tokens_out !== null);
-  const qualities = settledProvider.map((activity) => activity.usage_quality);
+  // Known cost survives an unobservable turn; the unknown component is counted
+  // and referenced rather than summed in as zero (#90).
+  const cost = aggregateCost(
+    settledProvider.map((activity) => ({
+      costUsd: activity.cost_usd,
+      quality: activity.usage_quality,
+      ref: activity.provider_turn_id ?? activity.run_id ?? activity.id,
+    })),
+  );
   const outcome = task?.status ?? sessionOutcome(activities);
   const completion = task === undefined ? traceCompletion(activities) : taskCompletion(task);
   const warnings = [...new Set(activities.flatMap((activity) => activity.warnings))];
@@ -193,8 +213,9 @@ function summarize(id: string, activities: ReportTurnV1[], details: ReportDetail
     mechanical_passes: activities.filter((activity) => activity.activity_type === "mechanical_pass").length,
     known_input_tokens: observable.reduce((sum, activity) => sum + activity.tokens_in!, 0),
     known_output_tokens: observable.reduce((sum, activity) => sum + activity.tokens_out!, 0),
-    recorded_equivalent_cost_usd: settledProvider.reduce((sum, activity) => sum + (activity.cost_usd ?? 0), 0),
-    usage_quality: qualities.length === 0 ? "unavailable" : worstQuality(qualities),
+    recorded_equivalent_cost_usd: cost.known_cost_usd,
+    cost,
+    usage_quality: cost.provider_turns === 0 ? "unavailable" : cost.usage_quality,
     refs,
     warnings: [...new Set(warnings)].sort(),
   };
@@ -236,13 +257,14 @@ function uniqueRefs(refs: SourceRefView[]): SourceRefView[] {
   return [...map.values()].sort((a, b) => a.source.localeCompare(b.source) || a.ref.localeCompare(b.ref));
 }
 
+/** Delegates to the shared primitive so Report and Observe can never rank the
+ *  same qualities differently (#89). */
 export function normalizedQuality(value: string | undefined): ReportUsageQuality {
-  return value === "complete" || value === "estimated" || value === "partial" || value === "unavailable" ? value : "unavailable";
+  return normalizeUsageQuality(value);
 }
 
 export function worstQuality(values: readonly ReportUsageQuality[]): ReportUsageQuality {
-  const rank: Record<ReportUsageQuality, number> = { complete: 0, estimated: 1, partial: 2, unavailable: 3 };
-  return values.reduce((worst, value) => rank[value] > rank[worst] ? value : worst, "complete");
+  return values.reduce<ReportUsageQuality>((worst, value) => worstUsageQuality(worst, value), "complete");
 }
 
 function earliest(values: Array<string | null>): string | null { return values.filter((v): v is string => v !== null).sort()[0] ?? null; }

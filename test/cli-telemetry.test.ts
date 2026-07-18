@@ -285,6 +285,8 @@ describe("cmdTelemetry --json", () => {
       expect(data.running).toEqual([]);
       expect(data.totals.by_role).toContainEqual({
         role: "reviewer",
+        unknown_passes: 0,
+        mechanical_passes: 0,
         cost_usd: 0.5,
         cost_estimated: true,
         usage_quality: "estimated",
@@ -295,6 +297,8 @@ describe("cmdTelemetry --json", () => {
       expect(data.totals.by_model.map((line) => line["model"])).toEqual(["model-a", "model-b"]);
       expect(data.totals.by_ticket).toContainEqual({
         ticket: "#7",
+        unknown_passes: 0,
+        mechanical_passes: 0,
         cost_usd: expect.closeTo(0.2) as number,
         cost_estimated: false,
         usage_quality: "complete",

@@ -1,3 +1,4 @@
+import type { CostAggregate, CostScope } from "../runtime/cost.js";
 import type { AppEntry } from "../org/apps.js";
 import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
 import type { ParentTaskRecord } from "../org/parent-task.js";
@@ -10,7 +11,9 @@ import type { TurnLock } from "../org/locks.js";
 export const OBSERVE_SCHEMA_VERSION = 1 as const;
 
 export type SourceStatus = "healthy" | "degraded" | "unavailable";
-export type UsageQuality = "complete" | "partial" | "estimated" | "unavailable";
+/** `none` is an authoritative zero for a pass that invoked no provider (#88).
+ *  Mirrors UsageQuality in src/runtime/types.ts. */
+export type UsageQuality = "complete" | "partial" | "estimated" | "unavailable" | "none";
 export type Liveness = "live" | "stalled" | "terminal" | "unknown";
 export type ActivityKind =
   | "onboarding"
@@ -67,6 +70,8 @@ export interface AppView {
   budget_usd_month: number;
   recorded_monthly_cost_usd: number;
   usage_quality: UsageQuality;
+  /** Month-to-date settled-ledger aggregate for this app (#89, #90). */
+  cost: CostAggregate;
   channels: { support: string[]; marketing: string[] };
   channel_gates: string[];
   observed_at: string;
@@ -313,9 +318,16 @@ export interface TotalsView {
   active_passes: number;
   pending_approvals: number;
   delivery_ready: number;
+  /** Known recorded cost from the settled ledger. Equals `cost.known_cost_usd`;
+   *  a real floor even when `cost.coverage` is `partial` (#89, #90). */
   recorded_cost_usd: number;
   usage_quality: UsageQuality;
   incomplete_usage_passes: number;
+  /** The authoritative settled-ledger aggregate for the current filters — the
+   *  same object Reports and CLI telemetry project (#89). */
+  cost: CostAggregate;
+  /** Settlement coverage disclosed with the total (#89). */
+  cost_scope: CostScope;
 }
 
 export interface ObserveSnapshotV1 {

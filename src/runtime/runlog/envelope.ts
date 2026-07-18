@@ -17,7 +17,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { runPaths } from "./paths.js";
 import { scrubSecrets, truncatePreview } from "./redact.js";
-import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, SessionHandle } from "../types.js";
+import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, SessionHandle, UsageQuality } from "../types.js";
 
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
@@ -43,9 +43,10 @@ export interface EnvelopeUsage {
   cache_read_tokens?: number;
   cache_write_tokens?: number;
   subagent_turns?: number;
-  /** Whether the snapshot is final, partial, locally estimated, or absent at
-   * the provider boundary. */
-  quality?: "complete" | "partial" | "estimated" | "unavailable";
+  /** Whether the snapshot is final, partial, locally estimated, absent at the
+   * provider boundary, or `none` — an authoritative zero for a pass that
+   * invoked no provider at all (see UsageQuality in ../types.ts). */
+  quality?: UsageQuality;
 }
 
 export interface GateResultEntry {
@@ -337,6 +338,39 @@ export async function readEnvelope(
     throw new Error(`runlog: ${path} is not a valid v1 envelope`);
   }
   return parsed;
+}
+
+/**
+ * The ONE place an envelope's usage quality is derived. Report, Observe, and
+ * the status/telemetry CLIs all route through this so a mechanical pass cannot
+ * be `none` on one surface and `unavailable` on another (#88, #89).
+ *
+ * Passes written since #88 carry `quality: "none"` explicitly. Older envelopes
+ * are recognized structurally rather than by sniffing the pass name for
+ * "gate" — the two previous copies of that heuristic disagreed with each other
+ * and both missed `provision/setup` entirely, which is exactly the pass the
+ * buildstacks-site campaign flagged 14 times. A pass that invoked a provider
+ * always records `runtime` and `model` at admission (src/loop/pipeline.ts), so
+ * their joint absence — with no usage and no ledger settlement — is a sound
+ * structural signal that no provider was ever constructed.
+ */
+export function classifyEnvelopeUsage(
+  envelope: Pick<RunEnvelope, "usage" | "status" | "runtime" | "model">,
+  options: { settledProviderTurns?: number } = {},
+): UsageQuality {
+  if (envelope.usage?.quality !== undefined) return envelope.usage.quality;
+  const settled = options.settledProviderTurns ?? 0;
+  if (
+    envelope.usage === undefined &&
+    envelope.runtime === undefined &&
+    envelope.model === undefined &&
+    settled === 0
+  ) {
+    return "none";
+  }
+  if (envelope.usage === undefined) return "unavailable";
+  if (envelope.usage.cost_estimated === true) return "estimated";
+  return envelope.status === "running" ? "partial" : "complete";
 }
 
 /** tmp+rename: a dashboard reading mid-write sees the old envelope, never

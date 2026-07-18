@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readEvents } from "./events.js";
+import { classifyEnvelopeUsage } from "./envelope.js";
 import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
 import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
 
@@ -125,11 +126,10 @@ export async function readStatusRows(
   return options.limit === undefined ? rows : rows.slice(0, options.limit);
 }
 
+/** Envelope-only view: the ledger is not in scope here, so settlement cannot be
+ *  consulted. classifyEnvelopeUsage owns the derivation (#88). */
 function usageQuality(envelope: RunEnvelope): UsageQuality {
-  if (envelope.usage?.quality !== undefined) return envelope.usage.quality;
-  if (envelope.usage === undefined) return "unavailable";
-  if (envelope.usage.cost_estimated === true) return "estimated";
-  return envelope.status === "running" ? "partial" : "complete";
+  return classifyEnvelopeUsage(envelope);
 }
 
 export function formatStatusRows(rows: readonly StatusRow[]): string {
@@ -152,6 +152,9 @@ export function formatStatusRows(rows: readonly StatusRow[]): string {
 }
 
 function formatStatusCost(row: StatusRow): string {
+  // A pass that invoked no provider costs an authoritative $0.00 — not an
+  // unknown that an operator has to go chase (#88).
+  if (row.usageQuality === "none") return "$0.00";
   if (row.usageQuality === "unavailable") return "unavailable";
   const amount = `${row.costEstimated || row.usageQuality === "estimated" ? "~" : ""}$${row.costUsd.toFixed(2)}`;
   return row.usageQuality === "partial" ? `${amount} partial` : amount;

@@ -3,6 +3,8 @@ import { basename } from "node:path";
 import type { AppsFile } from "../org/apps.js";
 import { rollupBudgets } from "../org/budget.js";
 import { settlementIdentity, settlementKey } from "../runtime/telemetry.js";
+import { aggregateCost } from "../runtime/cost.js";
+import { classifyEnvelopeUsage } from "../runtime/runlog/envelope.js";
 import { readReportDetails } from "./detail-source.js";
 import { earliestLedgerDay, readLedgerRange, type LedgerRowSource } from "./ledger-source.js";
 import { bucketStart, nextBucket, normalizeReportRange } from "./range.js";
@@ -62,7 +64,26 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
   const overallQuality = allTurns.length === 0 ? "unavailable" : worstQuality(allTurns.map((turn) => turn.usage_quality));
   const notices = qualityNotices(allTurns, ledger.diagnostics.length, details.missingEnvelopes.length, details.unsettled.length, duplicate.rows, range.open_interval);
   if (details.scanLimited) notices.push("Envelope-only activity scan reached its 20,000-run safety bound.");
+  // The canonical aggregate. Every other surface projects this same object from
+  // the same settled rows, so "unavailable" in one place and $104.66 in another
+  // for identical scope is now a test failure rather than a campaign finding
+  // (#89). Mechanical passes never reach `allTurns` (they carry no settlement),
+  // so they are counted from the envelope side.
+  const cost = aggregateCost(
+    allTurns.map((turn) => ({
+      costUsd: turn.cost_usd,
+      quality: turn.usage_quality,
+      ref: turn.provider_turn_id ?? turn.run_id ?? turn.id,
+    })),
+  );
   const headline = {
+    cost,
+    cost_scope: {
+      settled_provider_turns: allTurns.length,
+      unsettled_provider_turns: details.unsettled.filter(
+        ({ envelope }) => classifyEnvelopeUsage(envelope) !== "none",
+      ).length,
+    },
     known_input_tokens: sumTurns(observable, "tokens_in"),
     known_output_tokens: sumTurns(observable, "tokens_out"),
     known_total_tokens: sumTurns(observable, "tokens_in") + sumTurns(observable, "tokens_out"),

@@ -1,7 +1,13 @@
 // Historical telemetry view over runs/ (Stage 2 of
-// docs/telemetry-review-and-proposed-fixes.md §5). Reads L1 envelopes + L2
-// events only — never the org ledger — so it stays truthful even before the
-// Stage 1 reconciliation completes, and never writes new telemetry.
+// docs/telemetry-review-and-proposed-fixes.md §5). Per-pass detail comes from
+// L1 envelopes + L2 events, so it stays truthful even before the Stage 1
+// reconciliation completes; it never writes telemetry.
+//
+// The AGGREGATE cost is read from the settled org ledger, which is the single
+// authority for recorded provider cost (#89). Envelope-derived per-pass sums
+// remain for drill-down but are explicitly labelled as such: they double-count
+// nothing, but they are not the authority, and before this they let the same
+// campaign report $104.66 in Reports and "unavailable" here.
 //
 // One report shape feeds three renderers (terminal, --json, --html). The
 // HTML file must be fully self-contained (inline CSS, zero external
@@ -14,6 +20,15 @@ import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { formatDuration, readStatusRows, type StatusRow } from "../runtime/runlog/status.js";
 import type { UsageQuality } from "../runtime/types.js";
+import {
+  aggregateCost,
+  formatCostAggregate,
+  formatCostScope,
+  worstUsageQuality,
+  type CostAggregate,
+  type CostScope,
+} from "../runtime/cost.js";
+import { readTurnRecords, settlementIdentity, type TurnRecord } from "../runtime/telemetry.js";
 import { listParentTasks, type ParentTaskRecord } from "../org/parent-task.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -25,7 +40,8 @@ export async function cmdTelemetry(args: string[]): Promise<number> {
 
   const rows = await readStatusRows(stateHome, parsed.app !== undefined ? { app: parsed.app } : {});
   const parentTasks = await listParentTasks(stateHome);
-  const report = buildReport(rows, parentTasks, parsed.app ?? null, parsed.date ?? null);
+  const ledger = await readTurnRecords(stateHome);
+  const report = buildReport(rows, parentTasks, parsed.app ?? null, parsed.date ?? null, ledger);
 
   if (parsed.html !== undefined) {
     const target = resolve(parsed.html);
@@ -116,6 +132,12 @@ interface TotalLine {
    *  then itself only an estimate and is marked ~. */
   costEstimated: boolean;
   usageQuality: UsageQuality;
+  /** Genuine provider passes whose usage could not be observed. Their cost is
+   *  excluded from `costUsd` rather than summed as zero (#90). */
+  unknownPasses: number;
+  /** Passes that invoked no provider — an authoritative zero, never counted as
+   *  incomplete usage (#88). */
+  mechanicalPasses: number;
   incompletePasses: number;
   passes: number;
   escalations: number;
@@ -124,6 +146,11 @@ interface TotalLine {
 interface TelemetryReport {
   app: string | null;
   date: string | null;
+  /** The authoritative recorded cost for this scope, projected from the settled
+   *  org ledger — the same object Reports and Observer project (#89). */
+  ledgerCost: CostAggregate;
+  /** Settlement coverage disclosed with the total (#89). */
+  ledgerScope: CostScope;
   passCount: number;
   tickets: TicketGroup[];
   running: PassView[];
@@ -164,6 +191,7 @@ function buildReport(
   taskRecords: ParentTaskRecord[],
   app: string | null,
   date: string | null,
+  ledgerRows: readonly TurnRecord[] = [],
 ): TelemetryReport {
   const views = rows
     .filter((row) => date === null || row.startedAt.slice(0, 10) === date)
@@ -207,9 +235,40 @@ function buildReport(
   }
 
   const parentTasks = buildParentTaskViews(taskRecords, views, [...tickets.values()], app, date);
+
+  // The authoritative aggregate: the settled ledger, filtered to exactly the
+  // scope this view renders. Same rows, same primitive, same answer as Reports
+  // and Observer for identical scope and filters (#89).
+  const scopedLedger = ledgerRows.filter(
+    (record) =>
+      (app === null || record.app === app) &&
+      (date === null || record.at.slice(0, 10) === date),
+  );
+  const ledgerCost = aggregateCost(
+    scopedLedger.map((record) => ({
+      costUsd: record.unmeasured === true ? null : record.costUsd,
+      quality: record.unmeasured === true ? "unavailable" : record.usageQuality,
+      ref: settlementIdentity(record) ?? "unattributed",
+    })),
+  );
+  // A pass is "settled" when a ledger row claims its run. Mechanical passes are
+  // not provider turns and are excluded from both sides of the ratio (#88).
+  const settledRunIds = new Set(
+    scopedLedger.flatMap((record) => (record.runId === undefined ? [] : [`${record.app ?? ""}\u0000${record.runId}`])),
+  );
+  const providerViews = views.filter((view) => view.usageQuality !== "none");
+  const ledgerScope: CostScope = {
+    settled_provider_turns: ledgerCost.provider_turns,
+    unsettled_provider_turns: providerViews.filter(
+      (view) => !settledRunIds.has(`${view.app}\u0000${view.runId}`),
+    ).length,
+  };
+
   return {
     app,
     date,
+    ledgerCost,
+    ledgerScope,
     passCount: views.length,
     tickets: [...tickets.values()],
     running: views.filter((view) => view.running),
@@ -236,16 +295,24 @@ function accumulate(map: Map<string, TotalLine>, key: string, view: PassView): v
       costUsd: 0,
       costEstimated: false,
       usageQuality: "complete",
+      unknownPasses: 0,
+      mechanicalPasses: 0,
       incompletePasses: 0,
       passes: 0,
       escalations: 0,
     };
     map.set(key, line);
   }
-  line.costUsd += view.costUsd;
+  // An unavailable pass stores a zero placeholder that is not a known zero, so
+  // it must not be summed; a mechanical pass has a genuine zero and is not
+  // incomplete (#88, #90).
+  const mechanical = view.usageQuality === "none";
+  if (view.usageQuality !== "unavailable") line.costUsd += view.costUsd;
+  else line.unknownPasses += 1;
   line.costEstimated = line.costEstimated || view.costEstimated;
-  line.usageQuality = leastCompleteQuality(line.usageQuality, view.usageQuality);
-  if (view.usageQuality !== "complete") line.incompletePasses += 1;
+  if (!mechanical) line.usageQuality = leastCompleteQuality(line.usageQuality, view.usageQuality);
+  else line.mechanicalPasses += 1;
+  if (!mechanical && view.usageQuality !== "complete") line.incompletePasses += 1;
   line.passes += 1;
   line.escalations += view.escalations;
 }
@@ -294,10 +361,12 @@ function completionIntegrity(
   const inconsistentWorkdirs = traces
     .filter((trace) => new Set(trace.passes.map((view) => view.workdir).filter(Boolean)).size > 1)
     .map((trace) => trace.traceId);
-  const qualities = views.map((view) => view.usageQuality);
-  const costTotals = qualities.length === 0
+  // Mechanical passes invoked no provider, so they can neither complete nor
+  // degrade recorded-cost completeness (#88).
+  const qualities = views.map((view) => view.usageQuality).filter((quality) => quality !== "none");
+  const costTotals: CompletionIntegrity["costTotals"] = qualities.length === 0
     ? "unavailable"
-    : qualities.reduce<UsageQuality>(leastCompleteQuality, "complete");
+    : qualities.reduce<UsageQuality>(leastCompleteQuality, "complete") as CompletionIntegrity["costTotals"];
   return {
     requiredStages,
     interruptedRuns: views
@@ -387,8 +456,7 @@ function isString(value: string | undefined): value is string {
 }
 
 function leastCompleteQuality(left: UsageQuality, right: UsageQuality): UsageQuality {
-  const rank = { complete: 0, estimated: 1, partial: 2, unavailable: 3 } as const;
-  return rank[left] >= rank[right] ? left : right;
+  return worstUsageQuality(left, right);
 }
 
 // ---------------------------------------------------------------------------
@@ -399,6 +467,7 @@ function leastCompleteQuality(left: UsageQuality, right: UsageQuality): UsageQua
  *  status` — the operator must never read a heuristic as a real charge. */
 function formatCost(costUsd: number, estimated: boolean, quality?: UsageQuality): string {
   const resolved = quality ?? (estimated ? "estimated" : "complete");
+  if (resolved === "none") return "$0.00";
   if (resolved === "unavailable") {
     return costUsd === 0 ? "unavailable" : `$${costUsd.toFixed(2)} recorded + unknown`;
   }
@@ -473,7 +542,20 @@ function renderTerminal(report: TelemetryReport): string {
     }
   }
 
-  lines.push("", "TOTALS");
+  lines.push(
+    "",
+    "RECORDED COST (settled ledger — authoritative)",
+    `  total: ${formatCostAggregate(report.ledgerCost)}`,
+    `  scope: ${formatCostScope(report.ledgerScope)}` +
+      (report.ledgerCost.mechanical_passes > 0
+        ? `; ${report.ledgerCost.mechanical_passes} mechanical pass(es) at $0.00`
+        : ""),
+    ...(report.ledgerCost.unknown_turns > 0
+      ? [`  unknown: ${report.ledgerCost.unknown_turns} provider turn(s) — ${report.ledgerCost.unknown_refs.join(", ")}`]
+      : []),
+  );
+
+  lines.push("", "TOTALS BY ATTRIBUTION (from run envelopes — drill-down, not the authority)");
   for (const [label, totals] of [
     ["role", report.totals.byRole],
     ["model", report.totals.byModel],
@@ -531,6 +613,19 @@ function passLine(view: PassView): string {
 function reportToJson(report: TelemetryReport): unknown {
   return {
     filters: { app: report.app, date: report.date },
+    recorded_cost: {
+      source: "settled_telemetry_ledger",
+      known_cost_usd: report.ledgerCost.known_cost_usd,
+      coverage: report.ledgerCost.coverage,
+      usage_quality: report.ledgerCost.usage_quality,
+      provider_turns: report.ledgerCost.provider_turns,
+      known_turns: report.ledgerCost.known_turns,
+      unknown_turns: report.ledgerCost.unknown_turns,
+      unknown_refs: report.ledgerCost.unknown_refs,
+      mechanical_passes: report.ledgerCost.mechanical_passes,
+      settled_provider_turns: report.ledgerScope.settled_provider_turns,
+      unsettled_provider_turns: report.ledgerScope.unsettled_provider_turns,
+    },
     pass_count: report.passCount,
     parent_tasks: report.parentTasks.map(parentTaskToJson),
     tickets: report.tickets.map((ticket) => ({
@@ -646,6 +741,8 @@ function totalToJson(keyName: string, line: TotalLine): unknown {
     cost_usd: line.costUsd,
     cost_estimated: line.costEstimated,
     usage_quality: line.usageQuality,
+    unknown_passes: line.unknownPasses,
+    mechanical_passes: line.mechanicalPasses,
     incomplete_passes: line.incompletePasses,
     passes: line.passes,
     escalations: line.escalations,
@@ -816,14 +913,28 @@ function renderCostSection(report: TelemetryReport): string {
     const rows = lines
       .map(
         (line) =>
-          `<tr><td>${esc(line.key)}</td><td class="num">${esc(formatCost(line.costUsd, line.costEstimated, line.usageQuality))}</td><td>${esc(line.usageQuality)}${line.incompletePasses > 0 ? ` (${line.incompletePasses} incomplete)` : ""}</td><td class="num">${line.passes}</td><td class="num">${line.escalations}</td></tr>`,
+          `<tr><td>${esc(line.key)}</td><td class="num">${esc(formatCost(line.costUsd, line.costEstimated, line.usageQuality))}</td><td>${esc(line.usageQuality)}${line.incompletePasses > 0 ? ` (${line.incompletePasses} incomplete)` : ""}${line.mechanicalPasses > 0 ? ` (${line.mechanicalPasses} mechanical)` : ""}</td><td class="num">${line.passes}</td><td class="num">${line.escalations}</td></tr>`,
       )
       .join("\n");
     return `<div class="cost-table"><h3>${esc(title)}</h3><table>
 <thead><tr><th>${esc(title)}</th><th>Recorded cost</th><th>Completeness</th><th>Passes</th><th>Esc</th></tr></thead>
 <tbody>${rows}</tbody></table></div>`;
   };
-  return `<section><h2>Cost attribution</h2><div class="cost-grid">
+  const authoritative = `<div class="cost-headline"><h3>Recorded cost — settled ledger (authoritative)</h3>
+<p class="cost-total">${esc(formatCostAggregate(report.ledgerCost))}</p>
+<p class="cost-scope">${esc(formatCostScope(report.ledgerScope))}${
+    report.ledgerCost.mechanical_passes > 0
+      ? esc(`; ${report.ledgerCost.mechanical_passes} mechanical pass(es) at $0.00`)
+      : ""
+  }</p>${
+    report.ledgerCost.unknown_turns > 0
+      ? `<p class="cost-unknown">${esc(`${report.ledgerCost.unknown_turns} provider turn(s) with unobservable usage — cost unknown, not zero:`)} <code>${esc(report.ledgerCost.unknown_refs.join(", "))}</code></p>`
+      : ""
+  }</div>`;
+  return `<section><h2>Cost attribution</h2>
+${authoritative}
+<p class="note">The tables below attribute cost from run envelopes for drill-down. The settled-ledger total above is the authority.</p>
+<div class="cost-grid">
 ${table("By role", report.totals.byRole)}
 ${table("By model", report.totals.byModel)}
 ${table("By ticket", report.totals.byTicket)}

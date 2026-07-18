@@ -98,7 +98,9 @@ function fixture(): OrgHomeFixture {
       "run-complete": { envelope: envelope("run-complete", { parent_task_id: "task-cross", trace_id: "trace-a", role: "builder", pass: "implement", usage: { tokens_in: 100, tokens_out: 10, cost_usd: 1, cache_read_tokens: 90, cache_write_tokens: 5, quality: "complete" } }), events: [{ event: "tool.called" }] },
       "retry-failed": { envelope: envelope("retry-failed", { parent_task_id: "task-cross", trace_id: "trace-a", role: "builder", pass: "retry", status: "failed" }), events: [] },
       "trace-only": { envelope: envelope("trace-only", { trace_id: "standalone", role: "reviewer", pass: "review" }), events: [] },
-      "gate-1": { envelope: envelope("gate-1", { parent_task_id: "task-cross", trace_id: "trace-a", pipeline: "gates", pass: "quality-gates", role: "quality-gates", usage: undefined }), events: [] },
+      // A real mechanical pass: openPhaseRun records no runtime, model, or usage,
+    // because no provider is ever constructed (src/loop/loop-runlog.ts).
+    "gate-1": { envelope: envelope("gate-1", { parent_task_id: "task-cross", trace_id: "trace-a", pipeline: "gates", pass: "quality-gates", role: "quality-gates", runtime: undefined, model: undefined, effort: undefined, usage: undefined }), events: [] },
       "terminal-unsettled": { envelope: envelope("terminal-unsettled", { parent_task_id: "task-cross", trace_id: "trace-a", pass: "contract", usage: { tokens_in: 3, tokens_out: 1, cost_usd: 0.03, quality: "complete" } }), events: [] },
     },
     beta: { "beta-turn": { envelope: envelope("beta-turn", { app: "beta", parent_task_id: "task-cross", trace_id: "trace-b", role: "planner", pipeline: "plan", pass: "plan" }), events: [] } },

@@ -10,12 +10,15 @@ import {
 } from "../loop/efficiency.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { settlementIdentity, type TurnRecord } from "../runtime/telemetry.js";
+import { normalizeUsageQuality } from "../runtime/cost.js";
 import type { ContextManifest } from "../loop/context-manifest.js";
 import type { LedgerRowSource } from "./ledger-source.js";
 import type { ReportDetailFacts } from "./detail-source.js";
 import type {
   ReportEfficiencyEpisodeV1,
   ReportEfficiencyV1,
+  ReportRepeatedWorkStepV1,
+  ReportRepeatedWorkV1,
   ReportEvidenceMetricV1,
   ReportRangeV1,
 } from "./types.js";
@@ -170,6 +173,17 @@ export async function buildEfficiencyReport(input: {
   issues.unsettled_provider_step_ids.push(...coverage.missing);
   issues.mechanical_with_settlement_step_ids.push(...coverage.mechanical_with_settlement);
 
+  // Settled cost by provider turn identity — the authority repeated-work
+  // attribution joins against (#89, #92). A row whose usage was unobservable
+  // maps to null so a repeat can report unknown instead of a silent zero.
+  const costByProviderTurn = new Map<string, number | null>();
+  for (const row of rows) {
+    const id = row.providerTurnId;
+    if (id === undefined) continue;
+    const unavailable = row.unmeasured === true || normalizeUsageQuality(row.usageQuality) === "unavailable";
+    costByProviderTurn.set(id, unavailable || !Number.isFinite(row.costUsd) ? null : row.costUsd);
+  }
+
   const episodes: ReportEfficiencyEpisodeV1[] = [];
   for (const episodeId of [...allEpisodeIds].sort()) {
     const route = routeById.get(episodeId);
@@ -201,6 +215,13 @@ export async function buildEfficiencyReport(input: {
             envelope.finished_at === undefined ? [] : [{ start: envelope.started_at, end: envelope.finished_at }],
           );
     const productiveKnown = providerSteps.length > 0 && providerSteps.every((step) => step.productive !== null);
+    // Repeated-work cost is attributed from the settled ledger for exactly the
+    // duplicated steps. It is deliberately independent of `usageKnown`, which
+    // gates the episode-wide token/cost totals: one estimated turn elsewhere in
+    // the episode must not invalidate a duplication measurement that its own
+    // settlements fully support (#92).
+    const repeatedWork = deriveRepeatedWork(providerSteps, costByProviderTurn);
+    if (repeatedWork.missing_inputs.length > 0) episodeIssues.push("repeated_work_settlement_missing");
     const elapsedBounds = route === undefined
       ? {
           start: episodeEnvelopes.map((envelope) => envelope.started_at).sort()[0],
@@ -231,9 +252,8 @@ export async function buildEfficiencyReport(input: {
       elapsed_time_ms: elapsedTime,
       human_wait_ms: elapsedTime === null || activeTime === null ? null : Math.max(0, elapsedTime - activeTime),
       productive_provider_turns: productiveKnown ? providerSteps.filter((step) => step.productive).length : null,
-      repeated_work_cost_usd: productiveKnown && usageKnown
-        ? providerSteps.filter((step) => step.repeated_from_step_id !== null).reduce((sum, step) => sum + (step.usage?.costUsd ?? 0), 0)
-        : null,
+      repeated_work_cost_usd: repeatedWork.cost_usd,
+      repeated_work: repeatedWork,
       route_variances: route?.reassessments.length ?? 0,
       issues: episodeIssues,
     });
@@ -256,7 +276,9 @@ export async function buildEfficiencyReport(input: {
       row.runId !== undefined &&
       envelopeByRun.has(`${row.app}\0${row.runId}`),
   );
-  const repeatedCostKnown = episodes.every((episode) => episode.repeated_work_cost_usd !== null || episode.provider_turns === 0);
+  // Unknown only where the duplicated steps' own settlements are missing. An
+  // episode with no provider turns contributes a proven zero (#92).
+  const repeatedCostKnown = episodes.every((episode) => episode.repeated_work_cost_usd !== null);
   return {
     episodes,
     metrics: {
@@ -309,7 +331,98 @@ export async function buildEfficiencyReport(input: {
     repeated_work_cost_usd: repeatedCostKnown
       ? episodes.reduce((sum, episode) => sum + (episode.repeated_work_cost_usd ?? 0), 0)
       : null,
+    repeated_work: {
+      fingerprint: REPEATED_WORK_FINGERPRINT,
+      cost_usd: repeatedCostKnown ? episodes.reduce((sum, e) => sum + (e.repeated_work_cost_usd ?? 0), 0) : null,
+      recovery_defect_cost_usd: repeatedCostKnown
+        ? episodes.reduce((sum, e) => sum + (e.repeated_work.recovery_defect_cost_usd ?? 0), 0)
+        : null,
+      retry_cost_usd: repeatedCostKnown
+        ? episodes.reduce((sum, e) => sum + (e.repeated_work.retry_cost_usd ?? 0), 0)
+        : null,
+      repeated_steps: episodes.flatMap((e) => e.repeated_work.repeated_steps),
+      considered_provider_steps: episodes.reduce((sum, e) => sum + e.repeated_work.considered_provider_steps, 0),
+      missing_inputs: [...new Set(episodes.flatMap((e) => e.repeated_work.missing_inputs))].sort(),
+    },
     issues: mapSortedUnique(issues),
+  };
+}
+
+/**
+ * The duplication fingerprint (#92).
+ *
+ * A provider execution step is *repeated* when its `input_fingerprint` — the
+ * stable hash of (operation, role+runtime+model+effort, task, rendered context
+ * sha, session) computed in src/loop/pipeline.ts before the runtime is
+ * constructed — equals that of an earlier step in the same episode. The loop
+ * already records that match as `repeated_from_step_id`; this derivation reads
+ * it rather than inventing a second notion of duplication.
+ *
+ * Cost is attributed from the settled ledger, joined on provider turn identity.
+ * The step's own `usage` snapshot is deliberately not the source: the ledger is
+ * the authority for recorded provider cost (#89), and a step whose usage was
+ * never settled must read as unknown rather than as a silent zero.
+ *
+ * `null` means the repeated steps themselves lack settled cost. It is NOT
+ * returned merely because some unrelated turn in the episode was estimated —
+ * that over-strict gate is why a campaign with $14.62 of plainly duplicated
+ * work reported no valid result at all.
+ */
+const REPEATED_WORK_FINGERPRINT = "execution_step_input_fingerprint/v1" as const;
+
+/** Origin statuses that mean the repeat was forced by the orchestrator losing
+ *  durable work, not by the pass legitimately failing and being retried. */
+const RECOVERY_DEFECT_STATUSES: ReadonlySet<string> = new Set(["interrupted", "cancelled", "timed_out"]);
+
+function deriveRepeatedWork(
+  providerSteps: readonly ExecutionStepRecord[],
+  costByProviderTurn: ReadonlyMap<string, number | null>,
+): ReportRepeatedWorkV1 {
+  const byStepId = new Map(providerSteps.map((step) => [step.execution_step_id, step]));
+  const repeated = providerSteps.filter((step) => step.repeated_from_step_id !== null);
+  const missingInputs: string[] = [];
+  const steps: ReportRepeatedWorkStepV1[] = repeated.map((step) => {
+    const origin = step.repeated_from_step_id === null ? undefined : byStepId.get(step.repeated_from_step_id);
+    // An origin we cannot read is treated as a defect: a repeat with no
+    // surviving predecessor is the signature of lost work, and guessing
+    // "legitimate retry" would understate the defect cost.
+    const cause: ReportRepeatedWorkStepV1["cause"] =
+      origin === undefined || RECOVERY_DEFECT_STATUSES.has(origin.status) ? "recovery_defect" : "retry";
+    const settled = step.provider_turn_id === null ? undefined : costByProviderTurn.get(step.provider_turn_id);
+    const cost = settled ?? null;
+    if (cost === null) {
+      missingInputs.push(
+        `settled cost missing for repeated execution step ${step.execution_step_id}`,
+      );
+    }
+    return {
+      execution_step_id: step.execution_step_id,
+      repeated_from_step_id: step.repeated_from_step_id!,
+      provider_turn_id: step.provider_turn_id,
+      run_id: step.run_id,
+      operation: step.operation,
+      origin_status: origin?.status ?? null,
+      origin_error_code: origin?.error_code ?? null,
+      cause,
+      cost_usd: cost,
+    };
+  });
+
+  const known = steps.filter((step) => step.cost_usd !== null);
+  const sumOf = (predicate: (step: ReportRepeatedWorkStepV1) => boolean): number =>
+    known.filter(predicate).reduce((sum, step) => sum + step.cost_usd!, 0);
+
+  return {
+    fingerprint: REPEATED_WORK_FINGERPRINT,
+    // Zero is returned only when the evidence proves no repeated work: durable
+    // steps exist and none of them is a repeat. Missing settlement for a step
+    // that IS a repeat yields null (#92).
+    cost_usd: missingInputs.length > 0 ? null : sumOf(() => true),
+    recovery_defect_cost_usd: missingInputs.length > 0 ? null : sumOf((step) => step.cause === "recovery_defect"),
+    retry_cost_usd: missingInputs.length > 0 ? null : sumOf((step) => step.cause === "retry"),
+    repeated_steps: steps,
+    considered_provider_steps: providerSteps.length,
+    missing_inputs: [...new Set(missingInputs)].sort(),
   };
 }
 

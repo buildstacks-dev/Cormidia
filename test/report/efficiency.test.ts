@@ -130,15 +130,21 @@ describe("efficiency reporting", () => {
       query: { app: "fixture", period: "all" },
       now: new Date("2026-07-13T02:00:00.000Z"),
     });
+    // Token and cost totals stay null: nonqualifying usage must never enter an
+    // exact efficiency sample. Repeated-work cost is a different question — the
+    // episode has one durable provider step and it is not a repeat, so "no
+    // repeated work" is proven evidence, not a missing measurement (#92).
     expect(report.efficiency.episodes[0]).toMatchObject({
       input_tokens: null,
       output_tokens: null,
       equivalent_cost_usd: null,
-      repeated_work_cost_usd: null,
+      repeated_work_cost_usd: 0,
       issues: ["nonqualifying_usage_quality"],
     });
+    expect(report.efficiency.episodes[0]!.repeated_work.repeated_steps).toEqual([]);
+    expect(report.efficiency.episodes[0]!.repeated_work.missing_inputs).toEqual([]);
     expect(report.efficiency.issues.partial_or_unavailable_provider_turn_ids).toHaveLength(1);
-    expect(report.efficiency.repeated_work_cost_usd).toBeNull();
+    expect(report.efficiency.repeated_work_cost_usd).toBe(0);
   });
 
   it("B-RPT-02 is byte-for-byte read-only and performs no implicit reconciliation", async () => {

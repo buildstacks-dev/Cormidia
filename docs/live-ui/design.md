@@ -556,10 +556,25 @@ must distinguish:
 - `complete`: final provider usage is available;
 - `partial`: a lower bound from an interrupted/running turn;
 - `estimated`: Operon-computed equivalent cost, not a provider invoice;
-- `unavailable`: usage was not observable.
+- `unavailable`: a provider turn ran and its usage was not observable;
+- `none`: no provider was invoked at all — a deterministic orchestration pass
+  (provision/setup, quality gates, the merge state machine). Its zero cost is
+  authoritative, not missing.
 
-Unknown or unavailable cost is never displayed as free. Totals inherit the
-least-complete quality of their contributors and show incomplete-pass counts.
+`none` and `unavailable` are different facts and must never be conflated. A
+`none` pass stays visible as an execution step, contributes a real $0, raises no
+usage-incomplete attention item, and is excluded from provider-turn counts and
+settlement coverage. Only `unavailable` and `partial` are incomplete usage.
+
+Unknown or unavailable cost is never displayed as free, and it never erases
+known cost. Aggregates are projected from the settled ledger through the shared
+`aggregateCost` primitive (`src/runtime/cost.ts`), which reports a known
+subtotal, a separately counted unknown component with drill-down references, and
+a coverage verdict of `none` / `complete` / `partial` / `unavailable`. A single
+unobservable turn downgrades an aggregate to `partial` — it does not collapse it
+to "unavailable". Header totals, app cards, Reports, and `operon telemetry` all
+project the same object for the same scope and filters, and
+`test/report/cost-reconciliation.test.ts` fails when any two disagree.
 
 ### 6.7 Corruption, pruning, and legacy records
 

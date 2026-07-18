@@ -735,7 +735,52 @@ interface ReportSnapshotV1 {
 ```
 
 The JSON schema should use `null` for unavailable numeric facts. Zero means a
-measured zero. Every aggregate with incomplete contributors includes quality
+measured zero.
+
+### Cost aggregation and the `none` quality
+
+Every aggregate cost surface projects the settled telemetry ledger through the
+one primitive in `src/runtime/cost.ts`. The ledger is the authority for recorded
+provider cost; envelope-derived sums are drill-down only and are labelled as
+such wherever they are rendered.
+
+`aggregateCost` returns a known subtotal, the count and references of provider
+turns whose usage could not be observed, the count of non-provider passes, and a
+coverage verdict:
+
+- `none` — no provider turns in scope; the zero is authoritative;
+- `complete` — every provider turn is observable;
+- `partial` — some are not; the known subtotal is a true floor and the unknown
+  component is counted separately and never rendered as zero;
+- `unavailable` — provider turns exist and none is observable.
+
+A fifth usage quality, `none`, marks a pass that invoked no provider. It is
+derived once, in `classifyEnvelopeUsage` (`src/runtime/runlog/envelope.ts`):
+explicitly from the recorded `quality` for passes written since the fix, and
+structurally for older envelopes — absent runtime, absent model, absent usage,
+and no ledger settlement. It is emphatically not a match on the pass name, which
+is what the two previous heuristics did, disagreeing with each other and both
+missing `provision/setup`.
+
+### Repeated work
+
+`repeated_work_cost_usd` is derived from the duplication fingerprint recorded by
+the loop: a provider execution step whose `input_fingerprint` matches an earlier
+step in the same episode carries `repeated_from_step_id`. Cost is attributed
+from the settled ledger for exactly those repeated steps — not from the step's
+own usage snapshot.
+
+`repeated_work` carries the calculation inputs: the fingerprint identifier, each
+duplicated step with its origin status and error code, and a `cause` of
+`recovery_defect` (the origin was interrupted, cancelled, or timed out, so the
+orchestrator lost durable work) or `retry` (the origin failed on its own terms
+and was legitimately retried).
+
+The measurement is `null` only when a repeated step's own settlement is missing.
+It is not invalidated by an unrelated turn elsewhere in the episode having
+estimated or partial usage — that over-strict gate is why a campaign with
+plainly duplicated, fully settled work reported no valid result. Zero is
+returned only when the evidence proves no repeated work. Every aggregate with incomplete contributors includes quality
 and incomplete counts.
 
 ### 9.2 Session summary
@@ -758,7 +803,8 @@ interface ReportSessionSummaryV1 {
   known_input_tokens: number;
   known_output_tokens: number;
   recorded_equivalent_cost_usd: number;
-  usage_quality: "complete" | "estimated" | "partial" | "unavailable";
+  usage_quality: "complete" | "estimated" | "partial" | "unavailable" | "none";
+  cost: CostAggregate;
   refs: SourceRefView[];
   warnings: string[];
 }

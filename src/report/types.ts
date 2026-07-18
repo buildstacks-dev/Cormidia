@@ -1,10 +1,13 @@
 import type { AppStatus } from "../org/apps.js";
+import type { CostAggregate } from "../runtime/cost.js";
 
 export const REPORT_SCHEMA_VERSION = 1 as const;
 
 export type ReportPreset = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
 export type ReportBucketKind = "day" | "week" | "month";
-export type ReportUsageQuality = "complete" | "estimated" | "partial" | "unavailable";
+/** `none` is an authoritative zero for a pass that invoked no provider — see
+ *  UsageQuality in src/runtime/types.ts (#88). */
+export type ReportUsageQuality = "complete" | "estimated" | "partial" | "unavailable" | "none";
 export type CompletionIntegrity = "complete" | "incomplete" | "unknown";
 
 export interface ReportRangeV1 {
@@ -51,6 +54,14 @@ export interface ReportQualityV1 {
 }
 
 export interface ReportHeadlineV1 {
+  /** The canonical settled-ledger cost aggregate for this scope, range, and
+   *  filters. Live Observer and CLI telemetry project the same object from the
+   *  same rows so no two surfaces can disagree about known cost or coverage
+   *  (#89). `recorded_equivalent_cost_usd` below is its `known_cost_usd`. */
+  cost: CostAggregate;
+  /** Settlement coverage disclosed with the total, so an operator can see how
+   *  much of the scope actually reached the ledger (#89). */
+  cost_scope: { settled_provider_turns: number; unsettled_provider_turns: number };
   known_input_tokens: number;
   known_output_tokens: number;
   known_total_tokens: number;
@@ -146,6 +157,39 @@ export interface ReportTurnV1 {
   warnings: string[];
 }
 
+/** One duplicated provider execution step and its attributed settled cost (#92). */
+export interface ReportRepeatedWorkStepV1 {
+  execution_step_id: string;
+  /** The earlier step whose input_fingerprint this one matched. */
+  repeated_from_step_id: string;
+  provider_turn_id: string | null;
+  run_id: string;
+  operation: string;
+  origin_status: string | null;
+  origin_error_code: string | null;
+  /** `recovery_defect` — the origin step was interrupted, cancelled, or timed
+   *  out, so the orchestrator lost durable work and had to redo it.
+   *  `retry` — the origin failed on its own terms and was legitimately retried. */
+  cause: "recovery_defect" | "retry";
+  /** Settled ledger cost for this repeat, or null when it never settled. */
+  cost_usd: number | null;
+}
+
+/** The calculation inputs behind repeated_work_cost_usd, so the number can be
+ *  audited rather than trusted (#92). */
+export interface ReportRepeatedWorkV1 {
+  /** Identifies how duplication was determined. */
+  fingerprint: "execution_step_input_fingerprint/v1";
+  /** Total attributed cost; null only when a repeated step's own settlement is
+   *  missing — never merely because some other turn was estimated. */
+  cost_usd: number | null;
+  recovery_defect_cost_usd: number | null;
+  retry_cost_usd: number | null;
+  repeated_steps: ReportRepeatedWorkStepV1[];
+  considered_provider_steps: number;
+  missing_inputs: string[];
+}
+
 export interface ReportEvidenceMetricV1 {
   status: "valid" | "invalid_measurement";
   numerator: number;
@@ -173,6 +217,8 @@ export interface ReportEfficiencyEpisodeV1 {
   human_wait_ms: number | null;
   productive_provider_turns: number | null;
   repeated_work_cost_usd: number | null;
+  /** Calculation inputs and duplicated-step references behind the number (#92). */
+  repeated_work: ReportRepeatedWorkV1;
   route_variances: number;
   issues: string[];
 }
@@ -192,6 +238,8 @@ export interface ReportEfficiencyV1 {
     run_ids: string[];
   }>;
   repeated_work_cost_usd: number | null;
+  /** Calculation inputs and duplicated-step references behind the number (#92). */
+  repeated_work: ReportRepeatedWorkV1;
   issues: {
     missing_route_episode_ids: string[];
     missing_context_manifest_run_ids: string[];
@@ -229,6 +277,9 @@ export interface ReportSessionSummaryV1 {
   known_input_tokens: number;
   known_output_tokens: number;
   recorded_equivalent_cost_usd: number;
+  /** Known cost plus the separately-counted unknown component for this session
+   *  (#90). `recorded_equivalent_cost_usd` is its `known_cost_usd`. */
+  cost: CostAggregate;
   usage_quality: ReportUsageQuality;
   refs: SourceRefView[];
   warnings: string[];

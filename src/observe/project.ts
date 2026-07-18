@@ -3,7 +3,8 @@ import { parseDependsOn, selectReadyTickets, type SchedulableTicket } from "../l
 import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
 import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
 import type { StatusRow } from "../runtime/runlog/status.js";
-import { settlementKey } from "../runtime/telemetry.js";
+import { settlementKey, settlementIdentity } from "../runtime/telemetry.js";
+import { aggregateCost, normalizeUsageQuality, worstUsageQuality } from "../runtime/cost.js";
 import {
   OBSERVE_SCHEMA_VERSION,
   type ActivityKind,
@@ -28,6 +29,10 @@ import {
 export const PASS_STALE_AFTER_MS = 3 * 60 * 1000;
 
 const QUALITY_RANK: Record<UsageQuality, number> = {
+  // `none` is the identity element: a known zero that can never drag an
+  // aggregate down, and that loses to any genuine provider quality (#88).
+  // Mirrors the shared table in src/runtime/cost.ts.
+  none: -1,
   complete: 0,
   estimated: 1,
   partial: 2,
@@ -61,7 +66,15 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
     .filter((app) => input.filters.app === undefined || app.name === input.filters.app)
     .map((app) => {
       const rows = input.ledger.filter((row) => row.app === app.name && row.at.slice(0, 7) === observedAt.slice(0, 7));
-      const quality = aggregateQuality(rows.map((row) => normalizeQuality(row.usageQuality)));
+      // Month-to-date spend from the settled ledger. An unobservable turn is
+      // counted and referenced, never summed in as zero (#90).
+      const cost = aggregateCost(
+        rows.map((row) => ({
+          costUsd: row.unmeasured === true ? null : row.costUsd,
+          quality: row.unmeasured === true ? "unavailable" : row.usageQuality,
+          ref: settlementIdentity(row) ?? "unattributed",
+        })),
+      );
       const channelGates: string[] = [];
       if ((app.channels?.support ?? []).length === 0) channelGates.push("Support disabled: no support channel configured");
       if ((app.channels?.marketing ?? []).length === 0) channelGates.push("Marketing disabled: no marketing channel configured");
@@ -71,8 +84,9 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
         repo: app.repo,
         lifecycle: app.status,
         budget_usd_month: app.budgetUsdMonth,
-        recorded_monthly_cost_usd: sum(rows.map((row) => row.costUsd)),
-        usage_quality: rows.length === 0 ? "unavailable" as const : quality,
+        recorded_monthly_cost_usd: cost.known_cost_usd,
+        cost,
+        usage_quality: rows.length === 0 ? "unavailable" as const : cost.usage_quality,
         channels: {
           support: [...(app.channels?.support ?? [])],
           marketing: [...(app.channels?.marketing ?? [])],
@@ -101,7 +115,35 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
       wall_clock_ms: record.wallClockMs,
     }));
   const attention = projectAttention(input, passes, delivery, approvals, observedAt);
-  const quality = aggregateQuality(passes.map((pass) => pass.usage.quality));
+
+  // The header total is projected from the settled ledger, filtered to exactly
+  // the passes on screen — not re-derived from envelope usage. That divergence
+  // is what let the same page show "unavailable" in the header and $104.66 in
+  // App lifecycle for one completed campaign (#89).
+  const visibleRuns = new Set(passes.map((pass) => settlementKey(pass.app, pass.run_id)));
+  const scopedLedger = input.ledger.filter(
+    (row) => row.runId !== undefined && visibleRuns.has(settlementKey(row.app, row.runId)),
+  );
+  const cost = aggregateCost(
+    scopedLedger.map((row) => ({
+      costUsd: row.unmeasured === true ? null : row.costUsd,
+      quality: row.unmeasured === true ? "unavailable" : row.usageQuality,
+      ref: settlementIdentity(row) ?? "unattributed",
+    })),
+  );
+  const settledRuns = new Set(
+    scopedLedger.map((row) => settlementKey(row.app, row.runId!)),
+  );
+  // Mechanical passes are not provider turns, so they belong to neither side of
+  // settlement coverage (#88).
+  const providerPasses = passes.filter((pass) => pass.usage.quality !== "none");
+  const costScope = {
+    settled_provider_turns: cost.provider_turns,
+    unsettled_provider_turns: providerPasses.filter(
+      (pass) => !settledRuns.has(settlementKey(pass.app, pass.run_id)),
+    ).length,
+  };
+  const quality = aggregateQuality(providerPasses.map((pass) => pass.usage.quality));
 
   return {
     schema_version: OBSERVE_SCHEMA_VERSION,
@@ -128,9 +170,13 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
       active_passes: passes.filter((pass) => pass.status === "running").length,
       pending_approvals: approvals.filter((approval) => approval.status === "pending").length,
       delivery_ready: delivery.filter((ticket) => ticket.state === "ready").length,
-      recorded_cost_usd: sum(passes.map((pass) => pass.usage.cost_usd ?? 0)),
-      usage_quality: passes.length === 0 ? "unavailable" : quality,
-      incomplete_usage_passes: passes.filter((pass) => pass.usage.quality !== "complete").length,
+      recorded_cost_usd: cost.known_cost_usd,
+      cost,
+      cost_scope: costScope,
+      usage_quality: providerPasses.length === 0 ? "unavailable" : quality,
+      // Only genuine provider turns can have incomplete usage. A mechanical
+      // pass invoked no provider, so it is never counted here (#88).
+      incomplete_usage_passes: providerPasses.filter((pass) => pass.usage.quality !== "complete").length,
     },
     attention,
   };
@@ -176,11 +222,8 @@ function aggregatePassSettlements(rows: ObserveProjectionInput["ledger"]): Map<s
   return grouped;
 }
 
-function worseUsageQuality(left: string | undefined, right: string | undefined): "complete" | "estimated" | "partial" | "unavailable" {
-  const rank = { complete: 0, estimated: 1, partial: 2, unavailable: 3 } as const;
-  const a = normalizeQuality(left);
-  const b = normalizeQuality(right);
-  return rank[a] >= rank[b] ? a : b;
+function worseUsageQuality(left: string | undefined, right: string | undefined): UsageQuality {
+  return worstUsageQuality(left, right);
 }
 
 function projectPass(
@@ -769,8 +812,10 @@ function aggregateQuality(qualities: UsageQuality[]): UsageQuality {
   return qualities.reduce<UsageQuality>((worst, value) => QUALITY_RANK[value] > QUALITY_RANK[worst] ? value : worst, "complete");
 }
 
+/** Delegates to the shared primitive so Observe and Report cannot classify the
+ *  same stored quality differently (#89). */
 function normalizeQuality(value: string | undefined): UsageQuality {
-  return value === "complete" || value === "partial" || value === "estimated" || value === "unavailable" ? value : "unavailable";
+  return normalizeUsageQuality(value);
 }
 
 function sum(values: number[]): number {

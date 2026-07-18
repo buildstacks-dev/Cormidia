@@ -137,7 +137,17 @@ export interface TurnUsage {
   quality?: UsageQuality;
 }
 
-export type UsageQuality = "complete" | "partial" | "estimated" | "unavailable";
+/**
+ * Completeness of a usage snapshot.
+ *
+ * `none` is the authoritative-zero case: the pass invoked no provider at all
+ * (deterministic orchestration — provision/setup, quality gates, the merge
+ * state machine), so absent runtime/model/usage is expected rather than
+ * missing. It is distinct from `unavailable`, which means a genuine provider
+ * turn ran and its usage could not be observed. Conflating the two made every
+ * mechanical pass look like unknown-cost provider activity (#88).
+ */
+export type UsageQuality = "complete" | "partial" | "estimated" | "unavailable" | "none";
 
 export interface TurnResult {
   status: "completed" | "blocked_on_gate" | "failed" | "cancelled" | "timed_out";

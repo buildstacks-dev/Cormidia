@@ -126,7 +126,10 @@ function verifyContractEvidenceInternal(root: string, projectionPath: string, ex
   const governancePath = join(bundleRoot, "artifact", "learning-governance.json");
   if (existsSync(pairPath)) {
     const pair = JSON.parse(readFileSync(pairPath, "utf8")) as LearningPairEvidence;
-    const errors = validateLearningPairEvidence(pair, manifest, campaignSha256);
+    // Qualification-scope validation (accepts a valid, guardrail-clean
+    // inconclusive) — consistent with the qualify() recompute below. Strict
+    // `improved` is required only on the activation path (2026-07-17 decouple).
+    const errors = validateLearningPairEvidence(pair, manifest, campaignSha256, "qualification");
     if (errors.length > 0) throw new Error(`contract_evidence_learning_pair_invalid:${errors.join(";")}`);
     verifyLearningPairFiles(bundleRoot, pair);
   }

@@ -275,7 +275,7 @@ it("J-STAT-02 fail-fast also stops on a pristine harness failure before construc
   expect(constructions).toBe(0);
 });
 
-it("H-EVAL-01 final qualification stops before later cases when the complete paired-learning block is not improved", async () => {
+it("H-EVAL-01 an inconclusive paired-learning block no longer stops qualification — the campaign continues to later cases", async () => {
   const root = mkdtempSync(join(tmpdir(), "operon-eval-learning-fail-fast-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
   const template = loadYamlFile(join(process.cwd(), "eval/campaigns/candidate-qualification.yaml")) as CampaignManifest;
   const repetitions = ["pair-1-control", "pair-1-treatment", "pair-2-treatment", "pair-2-control", "pair-3-control", "pair-3-treatment"];
@@ -296,10 +296,13 @@ it("H-EVAL-01 final qualification stops before later cases when the complete pai
     const verdict = request.task.includes("Independently review the proposed learning candidate") ? "\nVERDICT: APPROVE" : "";
     return { status: "completed", summary: `${role.name} fixture${verdict}`, artifacts: [], session: { runtime: role.runtime, id: role.name }, usage: usage(), escalations: [] };
   } }) });
-  expect(result.attempts).toHaveLength(6);
-  expect(result.attempts.every((attempt) => attempt.outcome === "passed")).toBe(true);
-  expect(result.stop).toMatchObject({ outcome: "learning_inconclusive", reason: "qualification_impossible_after_learning_pair_outcome", remaining: ["roles/standing/v1::support-1"] });
-  expect(supportTurns).toBe(0);
+  // The six learning arms are identical, so every pair ties (delta 0) → the
+  // block is `inconclusive`. Before the 2026-07-17 decouple this fail-fast
+  // stopped the campaign; now inconclusive is an acceptable qualification
+  // outcome, so the campaign proceeds to the standing-role case it used to skip.
+  expect(result.attempts.map((attempt) => attempt.repetition_id)).toContain("support-1");
+  expect(supportTurns).toBeGreaterThan(0);
+  expect(result.stop?.outcome).not.toBe("learning_inconclusive");
   expect(JSON.parse(readFileSync(join(root, ".eval-artifacts/learning-fail-fast-fixture/artifact/learning-pairs.json"), "utf8"))).toMatchObject({ outcome: "inconclusive", complete_pairs: 3, terminal_attempts: 6 });
 }, 15_000);
 

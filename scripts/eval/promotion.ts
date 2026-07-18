@@ -194,7 +194,11 @@ function verifyQualificationArchive(archiveRoot: string, campaign: CampaignManif
   const governancePath = join(archiveRoot, "artifact", "learning-governance.json");
   if (existsSync(pairPath)) {
     const pair = readJson(pairPath) as LearningPairEvidence;
-    const errors = validateLearningPairEvidence(pair, campaign, campaignSha256);
+    // Qualification-scope validation (accepts a valid, guardrail-clean
+    // inconclusive) — consistent with the qualify() recompute below and the
+    // promotion of the nine provider contracts, none of which is a learning
+    // contract. Strict `improved` gates activation only (2026-07-17 decouple).
+    const errors = validateLearningPairEvidence(pair, campaign, campaignSha256, "qualification");
     if (errors.length > 0) throw new Error(`promotion_learning_pair_invalid:${errors.join(";")}`);
     verifyLearningPairFiles(archiveRoot, pair);
   }

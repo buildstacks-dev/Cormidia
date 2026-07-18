@@ -213,8 +213,15 @@ with the reviewer artifact hash; a rejection is a valid guardrail failure and
 cannot be normalized into an approval. Any negative delta or hidden-guardrail failure is
 `regressed`; nonnegative pairs with any zero delta are `inconclusive`; and
 missing, mismatched, or infrastructure-corrupt evidence is `invalid`. A
-declared or copied verdict is not a measurement. Only `improved` may proceed.
-After all pairs terminate, a separate token-free preview binds the exact
+declared or copied verdict is not a measurement. **Candidate qualification
+requires a valid, guardrail-clean, non-regressing measurement — `improved` and
+`inconclusive` both satisfy it, while `regressed` and `invalid` fail it. Strict
+improvement (`improved`) is required, and is the only outcome that may proceed,
+for the separately-authorized activation, not for candidate qualification
+(2026-07-17 decouple — see `docs/PURPOSE.md`). Learning *capture* (100% eligible
+capture) remains the operations SLO for the loop.**
+After all pairs terminate — and only when the measured outcome is `improved` —
+a separate token-free preview binds the exact
 candidate, pair-evidence hash, reviewer-artifact hashes, and one isolated
 publish/activate/rollback action. Executing that action requires its own exact
 candidate and action-hash authorization; L5 provider-spend authorization does

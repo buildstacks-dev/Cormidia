@@ -28,6 +28,32 @@ it("H-EVAL-01 derives AB/BA/AB outcomes from exact retained provider artifacts i
   expect(() => learningActivationPreview({ repositoryRoot: rejected.repositoryRoot, campaign: rejected.campaign, campaignSha256: rejected.campaignSha256, campaignRoot: rejected.campaignRoot })).toThrow(/pair_evidence_invalid:learning pair hidden guardrails failed/);
 });
 
+it("H-EVAL-01 qualification-mode pair evidence accepts an inconclusive ceiling-tie that activation still refuses; a regression fails both (2026-07-17 decouple)", () => {
+  const improvedRig = makeRig([5, 6, 5, 6, 5, 6]);
+  const improved = writeLearningPairEvidence(improvedRig);
+  expect(improved.evidence.outcome).toBe("improved");
+  expect(validateLearningPairEvidence(improved.evidence, improvedRig.campaign, improvedRig.campaignSha256, "qualification")).toEqual([]);
+  expect(validateLearningPairEvidence(improved.evidence, improvedRig.campaign, improvedRig.campaignSha256, "activation")).toEqual([]);
+
+  // A tie on every pair (a control that already scored at the ceiling) is
+  // inconclusive: acceptable for candidate QUALIFICATION, still refused for the
+  // separately-authorized ACTIVATION (default mode is activation-strict).
+  const tieRig = makeRig([5, 5, 5, 5, 5, 5]);
+  const inconclusive = writeLearningPairEvidence(tieRig);
+  expect(inconclusive.evidence.outcome).toBe("inconclusive");
+  expect(validateLearningPairEvidence(inconclusive.evidence, tieRig.campaign, tieRig.campaignSha256, "qualification")).toEqual([]);
+  expect(validateLearningPairEvidence(inconclusive.evidence, tieRig.campaign, tieRig.campaignSha256, "activation")).toContain("learning pair outcome inconclusive");
+  expect(validateLearningPairEvidence(inconclusive.evidence, tieRig.campaign, tieRig.campaignSha256)).toContain("learning pair outcome inconclusive");
+
+  // A genuine regression (treatment strictly worse than control on every pair)
+  // fails BOTH modes — qualification is NOT weakened for regressions.
+  const regressedRig = makeRig([6, 5, 6, 5, 6, 5]);
+  const regressed = writeLearningPairEvidence(regressedRig);
+  expect(regressed.evidence.outcome).toBe("regressed");
+  expect(validateLearningPairEvidence(regressed.evidence, regressedRig.campaign, regressedRig.campaignSha256, "qualification")).toContain("learning pair outcome regressed");
+  expect(validateLearningPairEvidence(regressed.evidence, regressedRig.campaign, regressedRig.campaignSha256, "activation")).toContain("learning pair outcome regressed");
+});
+
 it("H-EVAL-02 previews one content-bound activation/rollback without mutation and rejects stale result bytes", () => {
   const rig = makeRig([5, 6, 5, 6, 5, 6]);
   writeLearningPairEvidence(rig);

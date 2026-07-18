@@ -758,7 +758,12 @@ export function qualify(campaign: CampaignManifest, campaignSha256: string, resu
     const measuredOutcome: Qualification["learning"]["outcome"] = completedPairs !== 3 ? "invalid" : paired.some((pair) => pair.guardFailure) || pairDeltas.some((delta) => delta < 0) ? "regressed" : pairDeltas.every((delta) => delta > 0) ? "improved" : "inconclusive";
     learningSummary = { declared_pairs: learningKeys.length / 2, completed_pairs: completedPairs, pair_deltas: pairDeltas, outcome: measuredOutcome, pair_evidence_sha256: supplemental.learning_pairs?.sha256 ?? null, governance_evidence_sha256: supplemental.learning_governance?.sha256 ?? null, action_sha256: null, human_decisions: 0 };
     if (learningKeys.length !== 6 || completedPairs !== 3) { reasons.push("qualification learning pair measurement invalid"); qualificationMiss = true; }
-    if (measuredOutcome !== "improved") { reasons.push(`qualification learning paired outcome ${measuredOutcome}`); qualificationMiss = true; }
+    // Candidate qualification requires a valid, guardrail-clean, non-regressing
+    // paired-learning measurement — improved OR inconclusive both pass. Only a
+    // regression (negative delta or guardrail failure) or an invalid measurement
+    // fails qualification; strict improvement is required only for the
+    // separately-authorized activation (2026-07-17 decouple — docs/PURPOSE.md).
+    if (measuredOutcome === "regressed" || measuredOutcome === "invalid") { reasons.push(`qualification learning paired outcome ${measuredOutcome}`); qualificationMiss = true; }
     const pairEvidence = supplemental.learning_pairs?.value;
     if (!pairEvidence) reasons.push("missing learning pair evidence");
     else {
@@ -794,7 +799,10 @@ export function qualify(campaign: CampaignManifest, campaignSha256: string, resu
   }
   const invalid = reasons.some((reason) => reason.includes("invalid result") || reason.includes("foreign") || reason.includes("duplicate") || reason.includes("unrecovered infrastructure") || reason.includes("harness_error") || reason.includes("retry linkage") || reason.includes("retries ") || reason.includes("invalid measurement population") || reason.includes("invalid metric") || reason.includes(": missing ") || reason.includes("settlement mismatch") || reason.includes("mechanical step has provider settlement") || reason.includes("terminal integrity failed") || reason.includes("usage quality unavailable") || reason.startsWith("invalid learning") || reason.startsWith("invalid supplemental"));
   const meritMiss = counts.product_miss + counts.safety_stop + counts.budget_stop > 0;
-  const aggregateLearningMiss = campaign.learning_treatment !== undefined && !["improved", "not_applicable"].includes(learningSummary.outcome);
+  // A learning outcome that fails candidate qualification (regressed/invalid)
+  // is a terminal aggregate failure that legitimately justifies a fail-fast
+  // stop; inconclusive now qualifies, so it is no longer terminal (2026-07-17).
+  const aggregateLearningMiss = campaign.learning_treatment !== undefined && !["improved", "inconclusive", "not_applicable"].includes(learningSummary.outcome);
   const stoppedAfterTerminalFailure = campaign.stop_rules.includes("qualification_impossible_stops_campaign") && (meritMiss || aggregateLearningMiss);
   const incomplete = !invalid && !stoppedAfterTerminalFailure && reasons.some((reason) => reason.includes("missing attempt") || reason.includes("not_run") || reason.startsWith("missing learning"));
   const miss = qualificationMiss || meritMiss;

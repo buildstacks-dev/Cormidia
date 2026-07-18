@@ -27,7 +27,11 @@ const governancePath = join(campaignRoot, "artifact", "learning-governance.json"
 if (existsSync(pairPath)) {
   const value = JSON.parse(readFileSync(pairPath, "utf8")) as Record<string, unknown>;
   supplemental.learning_pairs = { value, sha256: `sha256:${hashFile(pairPath)}` };
-  const pairErrors = validateLearningPairEvidence(value, campaign, campaignSha256);
+  // Candidate qualification uses the qualification-mode bar: a valid,
+  // guardrail-clean, non-regressing learning measurement is acceptable
+  // (improved OR inconclusive). `improved` remains required only on the
+  // separately-authorized activation/promotion paths (2026-07-17 decouple).
+  const pairErrors = validateLearningPairEvidence(value, campaign, campaignSha256, "qualification");
   try { verifyLearningPairFiles(campaignRoot, value as unknown as LearningPairEvidence); }
   catch (error) { pairErrors.push(error instanceof Error ? error.message : String(error)); }
   if (pairErrors.length > 0) supplemental.validation_errors = pairErrors;

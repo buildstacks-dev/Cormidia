@@ -41,7 +41,7 @@ import {
   type GateVerdictStatus,
   type LearningEvent,
 } from "./events.js";
-import { projectEfficiencyEvidence } from "./efficiency-evidence.js";
+import { isEfficiencyEvidenceEvent, projectEfficiencyEvidence } from "./efficiency-evidence.js";
 import { readSchedulerMissEvidence } from "../scheduler/evidence.js";
 
 export interface CaptureCursor {
@@ -97,6 +97,18 @@ export interface CaptureProjectionResult {
     runId: string;
     reason: "mechanical_execution" | "learning_replay_reserved";
   }>;
+  /** Phase 4 YIELD, tracked alongside receipts. A receipt says the projector
+   * ran; these say whether it produced anything. `projected_exactly_once`
+   * counted perfectly while the projector discarded 100% of evidence (#141). */
+  runsWithoutEvents: number;
+  runsWithoutEfficiencyEvidence: number;
+  /** Eligible runs that finalized `failed` or `cancelled` — the two statuses
+   * the projector is guaranteed to have a class for — yet produced no
+   * efficiency evidence at all. Unlike a bare zero-yield count this cannot
+   * fire on a genuinely clean org: a healthy run has nothing to classify, but
+   * a run that demonstrably failed and yields nothing is a projector fault.
+   * See `hasFailureSignal` for why `blocked`/`timed_out` are excluded. */
+  evidenceGaps: Array<{ app: string; runId: string; reason: "terminal_failure_without_evidence" }>;
   /** Alias with the complete typed recovery inventory used by health JSON. */
   blockedRuns: Array<{ app: string; runId: string; reason: CaptureBlockingReason }>;
   eventsEmitted: number;
@@ -151,6 +163,9 @@ async function captureEvents(
     projectedExactlyOnce: 0,
     duplicateProjections: 0,
     ineligibleRuns: await listReplayRuns(stateHome),
+    runsWithoutEvents: 0,
+    runsWithoutEfficiencyEvidence: 0,
+    evidenceGaps: [],
     blockedRuns: [],
     eventsEmitted: 0,
     eventsDeduped: 0,
@@ -211,6 +226,19 @@ async function captureEvents(
     }
     const eventFiles = eventFileRefs(stateHome, events);
     const eventIds = events.map((event) => event.event_id).sort();
+
+    // Yield accounting runs before every `continue` below: a run already
+    // covered by a receipt still counts toward yield, or a fully-projected
+    // dead projector would report no gaps at all.
+    const efficiencyEvidence = events.filter(isEfficiencyEvidenceEvent);
+    if (events.length === 0) result.runsWithoutEvents += 1;
+    if (efficiencyEvidence.length === 0) {
+      result.runsWithoutEfficiencyEvidence += 1;
+      if (hasFailureSignal(envelope)) {
+        result.evidenceGaps.push({ app, runId, reason: "terminal_failure_without_evidence" });
+      }
+    }
+
     if (receipt !== undefined && await receiptIsComplete(stateHome, receipt, eventIds)) {
       result.runsAlreadyProjected += 1;
       result.projectedExactlyOnce += 1;
@@ -222,9 +250,18 @@ async function captureEvents(
       );
     }
     const missingBefore = eventFiles.filter((path) => !existsSync(join(stateHome, path)));
-    if (receipt !== undefined && missingBefore.length === 0) {
-      // Legacy receipt migration: the event file exists, but older cursors did
-      // not bind the receipt to its paths. Upgrade without re-appending.
+    if (receipt !== undefined && missingBefore.length === 0 && await eventsAlreadyPresent(stateHome, events)) {
+      // Legacy receipt migration: the events are all already on disk, but
+      // older cursors did not bind the receipt to its paths. Upgrade the
+      // receipt without re-appending.
+      //
+      // Presence is checked by EVENT ID, not by target-file existence. The
+      // file-existence heuristic silently skipped back-fill whenever a
+      // projector fix made a run derive MORE events than its receipt recorded:
+      // the file existed (some other event had landed in it), so this branch
+      // rebound the receipt and the new evidence was never written. That is
+      // what kept every org that had already been captured under the #137
+      // defect permanently empty, even after the defect was fixed.
       result.receiptsNeedingUpgrade += 1;
       result.refreshRequired ||= !write;
       if (write) {
@@ -243,7 +280,13 @@ async function captureEvents(
       const { emitted, deduped } = await appendLearningEventsDeduped(stateHome, events);
       result.eventsEmitted += emitted;
       result.eventsDeduped += deduped;
-      result.duplicateProjections += deduped > 0 ? 1 : 0;
+      // Partial overlap is EXPECTED when back-filling a receipt that recorded
+      // fewer events than the run now derives (a projector fix widened the
+      // set). Counting that as a duplicate projection would degrade capture
+      // health on the very refresh that repairs the org. Only dedup against a
+      // receipt that claimed the same set is a genuine exactly-once signal.
+      const backFilling = receipt !== undefined && receipt.events < events.length;
+      result.duplicateProjections += deduped > 0 && !backFilling ? 1 : 0;
       cursor.runs[key] = {
         projected_at: clock().toISOString(),
         events: events.length,
@@ -390,10 +433,17 @@ async function deriveRunEvents(
   if (efficiency?.episodeId !== undefined) {
     journal = (await readExecutionJournal(stateHome, efficiency.episodeId).catch(() => null)) ?? null;
   }
+  // The envelope goes through UNMODIFIED: its `episode_id` is the
+  // efficiency-namespace id (`ticket:<app>:#2`) that the execution steps on
+  // disk are keyed on, and the projector matches steps against it. The
+  // learning-namespace anchor (`ep_<app>_ticket_0002`) travels separately as
+  // event identity. Overwriting one with the other made the step filter match
+  // nothing and dropped 100% of efficiency evidence in every org (#137).
   out.push(
     ...projectEfficiencyEvidence({
       runs: [{
-        envelope: { ...envelope, episode_id: anchor.episodeId },
+        envelope,
+        learning_episode_id: anchor.episodeId,
         events: l2,
         route: efficiency?.route ?? null,
         journal,
@@ -523,6 +573,24 @@ function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, Ind
   return out;
 }
 
+/**
+ * Did this run demonstrably go wrong in a way the projector has a class for?
+ *
+ * The bar is deliberately narrow: ONLY statuses the projector is guaranteed to
+ * classify, so a gap always means the projector failed rather than that the
+ * status has no class yet. `failed` yields `execution.pass_failed` (or
+ * `execution.cap_stop`); `cancelled` yields `execution.cancelled`.
+ *
+ * `blocked` and `timed_out` are excluded on purpose. `blocked` is a MERIT
+ * outcome — an approval-gated pass, i.e. healthy operation — and the projector
+ * emits nothing for either, so counting them would pin `capture.status` to
+ * `degraded` forever on a perfectly healthy org that uses approval gating.
+ * That false alarm is exactly what #141 exists to avoid.
+ */
+function hasFailureSignal(envelope: RunEnvelope): boolean {
+  return envelope.status === "failed" || envelope.status === "cancelled";
+}
+
 function isMechanicalRun(envelope: RunEnvelope, indexed: IndexedEfficiencyRun | undefined): boolean {
   if (indexed !== undefined && indexed.steps.length > 0) {
     return indexed.steps.every((step) => step.kind === "mechanical");
@@ -543,6 +611,24 @@ function block(
   result.runsPending += 1;
   result.pendingRuns.push(item);
   result.blockedRuns.push(item);
+}
+
+/** Are every one of these derived events already in their target files? The
+ *  append path is dedup-safe either way; this only decides whether a receipt
+ *  can be rebound without touching the event files at all. */
+async function eventsAlreadyPresent(stateHome: string, events: LearningEvent[]): Promise<boolean> {
+  if (events.length === 0) return true;
+  const byPath = new Map<string, LearningEvent[]>();
+  for (const event of events) {
+    const path = learningEventPath(stateHome, event);
+    byPath.set(path, [...(byPath.get(path) ?? []), event]);
+  }
+  for (const [path, bucket] of byPath) {
+    if (!existsSync(path)) return false;
+    const present = new Set((await readLearningEventFile(path)).map((event) => event.event_id));
+    if (bucket.some((event) => !present.has(event.event_id))) return false;
+  }
+  return true;
 }
 
 async function receiptIsComplete(

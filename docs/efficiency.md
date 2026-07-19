@@ -250,6 +250,35 @@ three independent dimensions. It is read-only unless `--refresh` is supplied;
 the refresh writes only rebuildable evidence/health projections and cannot
 write protected active learning state.
 
+Health reports **yield**, not just receipts (#141). `projected_exactly_once`
+says the projector ran over a run; it says nothing about whether anything came
+out, so a projector emitting nothing for every run once read as perfectly
+healthy while the Phase 4 loop was dead. Alongside the receipt counters,
+`capture` now carries `runs_without_events`,
+`runs_without_efficiency_evidence`, and `evidence_gaps` — the eligible runs
+that finalized `failed` or `cancelled` and yet produced no efficiency evidence
+at all. A non-empty `evidence_gaps` degrades `capture.status`.
+
+The bar is deliberately narrow so the check cannot cry wolf. Only statuses the
+projector is *guaranteed* to classify count, so a gap always means the
+projector failed rather than that the status has no class yet. `blocked` and
+`timed_out` are excluded: `blocked` is a merit outcome (an approval-gated
+pass — healthy operation), and counting either would pin an approval-gating
+org to `degraded` permanently with gaps no fix could clear. A healthy run
+simply has nothing to classify, and that is not a gap.
+
+Back-fill is likewise not a fault: re-projecting a run whose receipt predates a
+projector fix legitimately re-derives events already on disk alongside new
+ones, and that overlap does not count as a duplicate projection. Otherwise the
+refresh that repairs an org would degrade its health.
+
+`governance.status` distinguishes "clusters evaluated, none actionable" from
+"no input at all": with `evidence_events: 0` it reports `invalid_measurement`,
+never `healthy`. Absence of evidence is not absence of problems. Genuine
+governance faults still outrank the missing denominator — lineage gaps and
+overdue reviews report `degraded` even with no evidence, so an actionable
+problem is never masked by "no input".
+
 ## Threshold semantics
 
 1. **Hard invariants** gate every attempt: outcome oracle, safety, terminal

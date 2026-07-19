@@ -19,6 +19,7 @@ export const EFFICIENCY_CLUSTER_VERSION = "efficiency-cluster/v1" as const;
 export const EFFICIENCY_ERROR_CLASSES = [
   "execution.cancelled",
   "execution.cap_stop",
+  "execution.pass_failed",
   "environment.retry_cluster",
   "route.budget_variance",
   "route.budget_overrun",
@@ -34,6 +35,52 @@ export const EFFICIENCY_ERROR_CLASSES = [
 
 export type EfficiencyErrorClass = (typeof EFFICIENCY_ERROR_CLASSES)[number];
 const EFFICIENCY_CLASS_SET = new Set<string>(EFFICIENCY_ERROR_CLASSES);
+
+/**
+ * ONE canonical cause per class. Recurrence keys on (app, role, class, cause),
+ * so any two code paths that can emit the same class must pass the identical
+ * string — otherwise ten genuinely identical failures split across two
+ * sub-threshold clusters and the distiller produces no candidate for a failure
+ * mode that is plainly recurring.
+ *
+ * `execution.pass_failed` is deliberately absent: it is the unmapped-code
+ * fallback, and its cause embeds the `error_code` so two passes failing for
+ * unrelated reasons cannot cluster into one false recurrence.
+ */
+const CLASS_CAUSES = {
+  "execution.cap_stop": "the admitted execution route reached a deterministic cap",
+  "execution.cancelled": "provider execution ended cancelled",
+  "execution.missing_finalization": "provider execution is missing finalization",
+} as const satisfies Partial<Record<EfficiencyErrorClass, string>>;
+
+/**
+ * Terminal `error_code` → typed class, so a failed pass is evidence even when
+ * the journal, route record, or efficiency episode is absent (#138). Before
+ * this, a run finalized `failed` with a precise `error_code` produced nothing
+ * at all unless an execution journal happened to exist alongside it.
+ *
+ * Substring predicates, not an enumerated table, deliberately: this mirrors
+ * `journalStopKind` in src/loop/loop.ts, so a newly-introduced budget/cap code
+ * classifies correctly without a second table having to be remembered. A code
+ * that maps to the class another branch also emits reuses that branch's
+ * canonical cause via `CLASS_CAUSES`, and `add` admits one event per
+ * (run, class) — together that keeps a capped run with a journal from
+ * double-counting toward `min_cluster_events`.
+ */
+function terminalErrorClass(errorCode: string): EfficiencyErrorClass {
+  if (errorCode === "error_cancelled") return "execution.cancelled";
+  if (errorCode === "error_stale_missing_finalization") return "execution.missing_finalization";
+  // Same predicate as `journalStopKind` in src/loop/loop.ts. Keep them
+  // identical: a code the loop treats as a cap must classify as one here.
+  if (errorCode.includes("budget") || errorCode.includes("cap")) return "execution.cap_stop";
+  return "execution.pass_failed";
+}
+
+function causeFor(errorClass: EfficiencyErrorClass, errorCode: string): string {
+  return errorClass in CLASS_CAUSES
+    ? CLASS_CAUSES[errorClass as keyof typeof CLASS_CAUSES]
+    : `provider pass terminated with ${errorCode}`;
+}
 
 export interface EfficiencyActionSummary {
   run_id: string;
@@ -66,6 +113,19 @@ export interface SchedulerMissEvidence {
 
 export interface EfficiencyRunEvidence {
   envelope: RunEnvelope;
+  /**
+   * Learning-namespace episode id to stamp on the events this run produces
+   * (`ep_<app>_ticket_0002`), when it differs from the efficiency-namespace id
+   * the envelope and its execution steps are keyed on (`ticket:<app>:#2`).
+   *
+   * The two ids are threaded separately on purpose (#137). `envelope.episode_id`
+   * stays the STEP-MATCHING key — the filter below is a correctness guard
+   * against cross-episode step bleed and must keep comparing like with like —
+   * while this field carries event identity. Overwriting one with the other
+   * made the filter match nothing, classified every provider run as mechanical,
+   * and silently dropped 100% of efficiency evidence.
+   */
+  learning_episode_id?: string;
   /** Explicit verifier-owned execution kind when importing an evidence
    * snapshot. Live projection derives this from execution steps. */
   kind?: "provider" | "mechanical";
@@ -113,11 +173,27 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
     if (explicitlyMechanical || envelope.app === "learning-replay") continue;
 
     const action = run.action ?? summarizeActions(envelope.run_id, run.events ?? []);
-    const base = baseEvent(envelope, input.appStages);
+    const base = baseEvent(run, input.appStages);
     const timestamp = envelope.finished_at ?? envelope.last_seen_at ?? envelope.started_at;
+    // One event per (run, class). `source_identity` already collapses to the
+    // same id, but making the guard explicit is what lets the journal-derived
+    // and error-code-derived cap paths coexist without either double-counting
+    // toward `min_cluster_events` or depending on emission order (#138).
+    //
+    // A repeat call MERGES its detail rather than being dropped: the journal
+    // path carries `stop_reason`, the error-code path carries `error_code`,
+    // and a capped run should keep both. First cause wins — the causes for a
+    // shared class are identical by construction (`CLASS_CAUSES`), so this
+    // only ever affects payload richness, never cluster identity.
+    const emitted = new Map<EfficiencyErrorClass, LearningEvent>();
     const add = (errorClass: EfficiencyErrorClass, cause: string, detail: Record<string, unknown>): void => {
+      const existing = emitted.get(errorClass);
+      if (existing !== undefined) {
+        existing.payload = { ...detail, ...existing.payload };
+        return;
+      }
       const sourceIdentity = `${envelope.app}\0${envelope.run_id}\0${errorClass}`;
-      out.push({
+      const event: LearningEvent = {
         ...base,
         event_id: `evt_eff_${digest(`${EFFICIENCY_EVIDENCE_VERSION}\0${sourceIdentity}`).slice(0, 24)}`,
         ts: timestamp,
@@ -133,19 +209,52 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
           source_identity: sourceIdentity,
           ...detail,
         },
-      });
+      };
+      emitted.set(errorClass, event);
+      out.push(event);
     };
 
     const statuses = new Set([envelope.status, ...providerSteps.map((step) => step.status)]);
     if (statuses.has("cancelled")) {
-      add("execution.cancelled", "provider execution ended cancelled", {
+      add("execution.cancelled", CLASS_CAUSES["execution.cancelled"], {
         terminal_reason: envelope.terminal_reason ?? terminalReason(providerSteps),
       });
     }
+    // The execution journal is EPISODE-scoped: every run in the episode reads
+    // the same `stop`, so attributing it to all of them blames passes that
+    // never hit the cap and multiplies the recurrence count for the class.
+    // The CALLER decides which single run owns it — capture passes the
+    // journal only for the episode's terminal provider run. Do NOT re-derive
+    // that here from the run's own status: the quality-gate repair cap
+    // (src/loop/loop.ts:373) stops the journal after every pass has completed
+    // cleanly, so a "did this run end badly" test silently discards the most
+    // common cap path in the product.
     if (run.journal?.stop?.kind === "cap_stop") {
-      add("execution.cap_stop", "the admitted execution route reached a deterministic cap", {
+      add("execution.cap_stop", CLASS_CAUSES["execution.cap_stop"], {
         stop_reason: run.journal.stop.reason,
         next_boundary: run.journal.stop.next_boundary,
+      });
+    }
+    // A terminally failed provider pass is evidence on its own, with no
+    // dependency on the journal, route record, or efficiency episode existing
+    // (#138). Before this, the single clearest failure signal the system
+    // produces — `pass.failed` with a precise `error_code` — became nothing.
+    // `finalizeRun` records `error_code` only when the caller supplied one, so
+    // a failed pass can carry none at all. It must still be evidence: without
+    // the fallback such a run yields nothing, and `hasFailureSignal` in
+    // capture.ts would raise an evidence gap that no projector fix can ever
+    // clear. The sentinel keeps the (failed -> always classified) invariant
+    // total, and clusters separately from any real code.
+    if (statuses.has("failed")) {
+      const failureCode =
+        envelope.error_code ??
+        providerSteps.find((step) => step.error_code !== null)?.error_code ??
+        "error_unspecified";
+      const errorClass = terminalErrorClass(failureCode);
+      add(errorClass, causeFor(errorClass, failureCode), {
+        error_code: failureCode,
+        envelope_status: envelope.status,
+        terminal_reason: envelope.terminal_reason ?? null,
       });
     }
     if (
@@ -155,11 +264,11 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
       add("execution.stale_finalization", "provider execution has no truthful timely terminal record", {
         last_seen_at: envelope.last_seen_at ?? null,
       });
-      add("execution.missing_finalization", "provider execution is missing finalization", {
+      add("execution.missing_finalization", CLASS_CAUSES["execution.missing_finalization"], {
         envelope_status: envelope.status,
       });
     } else if (envelope.finished_at === undefined) {
-      add("execution.missing_finalization", "terminal provider envelope is missing finished_at", {
+      add("execution.missing_finalization", CLASS_CAUSES["execution.missing_finalization"], {
         envelope_status: envelope.status,
       });
     }
@@ -437,9 +546,16 @@ function supplementalEvent(input: {
   };
 }
 
-function baseEvent(envelope: RunEnvelope, appStages: Record<string, string> | undefined) {
+/** Event identity uses the learning-namespace id when the caller threaded one;
+ *  step matching (above) keeps using `envelope.episode_id`. See
+ *  `EfficiencyRunEvidence.learning_episode_id` (#137). */
+function baseEvent(run: EfficiencyRunEvidence, appStages: Record<string, string> | undefined) {
+  const envelope = run.envelope;
   return {
-    episode_id: envelope.episode_id ?? `ep_${safe(envelope.app)}_turn_${safe(envelope.trace_id)}`,
+    episode_id:
+      run.learning_episode_id ??
+      envelope.episode_id ??
+      `ep_${safe(envelope.app)}_turn_${safe(envelope.trace_id)}`,
     turn_id: envelope.trace_id,
     run_id: envelope.run_id,
     app: envelope.app,

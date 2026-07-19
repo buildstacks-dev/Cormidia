@@ -707,8 +707,11 @@ function isEvidenceEvent(event: LearningEvent): boolean {
   if (event.type === "human_correction") return true;
   if (event.error_class !== undefined) return true;
   if (event.type === "gate_verdict") return event.payload?.["status"] === "fail";
-  if (event.type === "tool_outcome") return event.payload?.["success"] === false;
-  return event.type === "error" || event.type === "retro_note";
+  // `tool_outcome` / `retro_note` branches lived here with no emitter that
+  // could ever produce them (#140), making the allowlist look far broader than
+  // the real producer set: failed `gate_verdict`, the efficiency `error`
+  // classes, and manual `human_correction`.
+  return event.type === "error";
 }
 
 function humanErrorClass(event: LearningEvent): string | undefined {

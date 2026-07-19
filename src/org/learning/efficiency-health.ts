@@ -43,9 +43,15 @@ export interface LearningEfficiencyHealth {
     repairs: number;
     reset_abandoned_episodes: string[];
     ineligible_runs: CaptureProjectionResult["ineligibleRuns"];
+    /** Yield, not just receipts (#141). */
+    runs_without_events: number;
+    runs_without_efficiency_evidence: number;
+    evidence_gaps: CaptureProjectionResult["evidenceGaps"];
   };
   governance: {
     status: HealthStatus;
+    /** Denominator for `status`: zero means no input, which is not health. */
+    evidence_events: number;
     actionable_clusters: number;
     non_actionable_clusters: number;
     candidate_dispositions: Record<CandidateDispositionKind, number>;
@@ -228,11 +234,25 @@ export async function projectLearningEfficiencyHealth(
       ? "invalid_measurement"
       : options.capture.blockedRuns.length === 0 &&
           options.capture.projectedExactlyOnce === captureEligible &&
-          options.capture.duplicateProjections === 0
+          options.capture.duplicateProjections === 0 &&
+          // A run that demonstrably failed and yielded no evidence is a
+          // projector fault, not a clean org. Without this, capture reported
+          // "healthy" while discarding 100% of provider evidence (#141).
+          options.capture.evidenceGaps.length === 0
         ? "healthy"
         : "degraded";
+  // Absence of evidence is not absence of problems: `healthy` on an empty
+  // input set is the same shape of error the capture block used to make.
+  const evidenceEvents = events.filter(isEfficiencyEvidenceEvent).length;
   const governanceStatus: HealthStatus =
-    lineageGaps.length > 0 || overdue.length > 0 ? "degraded" : "healthy";
+    // Real governance faults outrank a missing denominator: an org can hold
+    // lineage gaps or overdue reviews with no efficiency evidence at all, and
+    // reporting only "no input" would hide the actionable problem.
+    lineageGaps.length > 0 || overdue.length > 0
+      ? "degraded"
+      : evidenceEvents === 0
+        ? "invalid_measurement"
+        : "healthy";
   const efficacyStatus: HealthStatus =
     experiments.length === 0 || validComparisons === 0
       ? "invalid_measurement"
@@ -256,9 +276,13 @@ export async function projectLearningEfficiencyHealth(
         .map((episode) => episode.episode_id)
         .sort(),
       ineligible_runs: [...options.capture.ineligibleRuns].sort(byRun),
+      runs_without_events: options.capture.runsWithoutEvents,
+      runs_without_efficiency_evidence: options.capture.runsWithoutEfficiencyEvidence,
+      evidence_gaps: [...options.capture.evidenceGaps].sort(byRun),
     },
     governance: {
       status: governanceStatus,
+      evidence_events: evidenceEvents,
       actionable_clusters: dispositions.filter((item) => item.disposition === "actionable").length,
       non_actionable_clusters: dispositions.filter((item) => item.disposition !== "actionable").length,
       candidate_dispositions: dispositionsCount,

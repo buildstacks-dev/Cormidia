@@ -38,16 +38,24 @@ narrative/<app>/
   <episode-slug>.md      rendered story (derived from capture each render)
 ```
 - `<episode-slug>` = episode id with path-unsafe chars collapsed, suffixed
-  with an 8-hex sha256 of the exact id (`storySlug`, src/narrative/capture.ts)
-  so unvalidated app names and `:`-bearing episode ids can never collide or
-  escape the directory.
+  with an 8-hex sha256 of the exact id (`storySlug` delegates to the runlog
+  `hashedFileStem`, importable by org-layer retention without touching this
+  leaf) so unvalidated app names and `:`-bearing episode ids can never
+  collide or escape the directory.
 - The `.json` capture is the source of truth for the `.md`; markdown format
-  can evolve without losing captured quotes.
+  can evolve without losing captured quotes. A corrupt capture is
+  quarantined to `<slug>.json.corrupt` (bytes preserved for forensics) and
+  recaptured from live sources — never silently overwritten, never allowed
+  to hide the story from the INDEX.
 - Retention: `narrativeDays: 1825` in `DEFAULT_STATE_RETENTION` — the
   longest window in the table; this is the institutional record the other
   subtrees feed. The sweeper ages a story pair by the capture's own
-  `captured_at`, keeps torn files fail-safe, and never touches INDEX.md
-  (src/org/retention.ts `sweepNarrative`).
+  `captured_at` **with identity binding** (only a record whose story_id/app
+  map to its own filename is deletable — foreign/torn files are kept, fail
+  safe), deletes `.md` before `.json` so a crash can never orphan an
+  unageable `.md`, ages orphaned `.md` and quarantined `.corrupt` files by
+  fs mtime, and never touches INDEX.md (src/org/retention.ts
+  `sweepNarrative`).
 
 ## 4. Quote-at-write-time
 
@@ -64,11 +72,23 @@ time** and links to full forensics as a bonus that degrades gracefully:
 
 Rules:
 - Every quoted byte passes through `scrubSecrets` (the ONE secret-regex
-  list) — L3 is unredacted by design; narrative must be shareable.
+  list) **at capture time, with the CURRENT pattern list** — including
+  envelope `verdict_summary`, ticket titles, and journal stop reasons that
+  were already scrubbed at write time with whatever list existed then.
+  Captures outlive their sources by years; the newest list wins.
 - Excerpts are bounded (per-quote and per-story byte caps).
-- **Merge, never overwrite**: re-render re-projects from live sources and
-  keeps previously captured quotes whose sources are gone. An episode whose
-  sources are fully swept renders unchanged from its capture.
+- **Merge, never lose, never regress**: re-render re-projects from live
+  sources and merges. Captured quotes and moments survive source expiry; a
+  fold computed from partially swept sources (missing runs the capture knew
+  about) can never flip a terminal status, and story-level fields are
+  monotonic — `opened` never moves later, enriched titles are never
+  replaced by their generic prefix, cost never shrinks, planned tickets
+  union rather than replace. An episode whose sources are fully swept
+  renders unchanged from its capture.
+- **Identity binds to the directory**: an envelope whose `run_id`/`app` do
+  not match the run dir it sits in is skipped loudly — a copied or tampered
+  run dir can never smuggle foreign content into another app's narrative or
+  reach a path join.
 
 ## 5. Sources (all existing, all read-only)
 

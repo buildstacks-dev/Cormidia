@@ -7,11 +7,14 @@
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
 import {
+  boundQuote,
   readAppRunSources,
   readDeliveryJournal,
   readLedgerRows,
   readRunQuote,
   readTaskOriginQuote,
+  scrubCaptureText,
+  MOMENT_QUOTE_MAX,
   ORIGIN_QUOTE_MAX,
 } from "./sources.js";
 import {
@@ -45,25 +48,24 @@ export async function foldAppStories(stateHome: string, app: string): Promise<Na
     stories.push(await foldStory(stateHome, app, episodeId, envelopes, sources.publishedTickets, ledger));
   }
 
-  // Ticket stories join back to the planning story that published them —
+  // Ticket stories join back to the planning execution that published them —
   // locally, from #128 records, never guessed from content.
-  const byIssue = new Map<number, NarrativeStory>();
-  for (const story of stories) {
-    for (const ticket of story.planned_tickets ?? []) byIssue.set(ticket.issue_number, story);
-  }
   for (const story of stories) {
     const issue = ticketIssueNumber(story.ticket_ref);
-    const planner = issue === undefined ? undefined : byIssue.get(issue);
-    if (issue !== undefined && planner !== undefined) {
-      const record = [...planner.planned_tickets ?? []].find((t) => t.issue_number === issue);
-      story.planned_by = {
-        episode_id: planner.story_id,
-        run_id: findPublisherRunId(sources.publishedTickets, issue) ?? "",
-        trace_id: planner.story_id.split(":").slice(2).join(":"),
-      };
-      if (record !== undefined && story.ticket_ref !== undefined) {
-        story.title = `Ticket ${story.ticket_ref} — ${record.title}`;
-      }
+    if (issue === undefined) continue;
+    // The publication record carries the EXACT episode/run/trace identity —
+    // byte-identical to the ticket body's Planned-by trailer (#128). Never
+    // derive it by string-splitting an episode id.
+    const record = findPublicationRecord(sources.publishedTickets, issue);
+    if (record === undefined) continue;
+    story.planned_by = {
+      episode_id: record.episode_id,
+      run_id: record.run_id,
+      trace_id: record.trace_id,
+    };
+    const entry = record.published.find((t) => t.issue_number === issue);
+    if (entry !== undefined && story.ticket_ref !== undefined) {
+      story.title = `Ticket ${story.ticket_ref} — ${scrubCaptureText(entry.title)}`;
     }
   }
   return { stories, problems: sources.problems };
@@ -86,9 +88,12 @@ async function foldStory(
 
   const moments: NarrativeMoment[] = [];
   for (const envelope of ordered) {
+    // Every quote path re-scrubs at capture time — verdict_summary was
+    // scrubbed at write time, but with whatever pattern list existed THEN,
+    // and captures outlive their sources by years.
     const quote =
       envelope.verdict_summary !== undefined && envelope.verdict_summary.trim() !== ""
-        ? { source: `runs/${app}/${envelope.run_id}/envelope.json`, text: envelope.verdict_summary, truncated: false }
+        ? boundQuote(`runs/${app}/${envelope.run_id}/envelope.json`, envelope.verdict_summary, MOMENT_QUOTE_MAX)
         : await readRunQuote(stateHome, app, envelope.run_id, "output.md");
     moments.push({
       at: envelope.started_at,
@@ -109,7 +114,7 @@ async function foldStory(
     .map((envelope) => publishedTickets.get(envelope.run_id))
     .filter((record): record is NonNullable<typeof record> => record !== undefined);
   const plannedTickets = published.flatMap((record) =>
-    record.published.map((t) => ({ issue_number: t.issue_number, title: t.title, ready: t.ready })),
+    record.published.map((t) => ({ issue_number: t.issue_number, title: scrubCaptureText(t.title), ready: t.ready })),
   );
 
   // Origin: the delegated parent-task prompt when recorded, else the
@@ -140,7 +145,7 @@ async function foldStory(
           ...(journal.status === "completed" && journal.stages.some((s) => s.boundary === "merge" && s.status === "completed")
             ? { outcome: "merged" }
             : journal.stop !== null
-              ? { outcome: `${journal.stop.kind}: ${journal.stop.reason}` }
+              ? { outcome: scrubCaptureText(`${journal.stop.kind}: ${journal.stop.reason}`) }
               : {}),
         };
 
@@ -174,7 +179,7 @@ async function foldStory(
       ? { origin: { kind: origin.kind, ...(origin.ref !== undefined ? { ref: origin.ref } : {}), ...(origin.quote !== undefined ? { quote: origin.quote } : {}) } }
       : {}),
     ...(plannedTickets.length > 0 ? { planned_tickets: plannedTickets } : {}),
-    ...(first.ticket !== undefined ? { ticket_ref: `#${first.ticket}` } : {}),
+    ...(first.ticket !== undefined ? { ticket_ref: normalizeTicketRef(first.ticket) } : {}),
     moments,
     ...(delivery !== undefined ? { delivery } : {}),
     ...(cost !== undefined ? { cost } : {}),
@@ -190,12 +195,21 @@ function storyKind(episodeId: string, envelopes: RunEnvelope[]): StoryKind {
 
 function storyTitle(kind: StoryKind, episodeId: string, envelopes: RunEnvelope[], published: number): string {
   const first = envelopes[0]!;
-  if (kind === "ticket") return `Ticket #${first.ticket ?? episodeId.split(":").pop()}`;
+  if (kind === "ticket") {
+    return `Ticket ${normalizeTicketRef(first.ticket ?? episodeId.split(":").pop() ?? "?")}`;
+  }
   if (kind === "planning") {
     const suffix = published > 0 ? ` — published ${published} ticket(s)` : "";
     return `Planning (${first.pipeline})${suffix}`;
   }
   return `${first.pipeline} trace`;
+}
+
+/** Production envelopes carry ticket refs already `#`-prefixed
+ *  (`loop.ts` ticketRef = `#${issue.number}`); planning-era paths may hand a
+ *  bare number. Normalize once so `##41` can never exist in a capture. */
+function normalizeTicketRef(ticket: string): string {
+  return ticket.startsWith("#") ? ticket : `#${ticket}`;
 }
 
 function isTerminal(envelopes: RunEnvelope[]): boolean {
@@ -218,12 +232,12 @@ function ticketIssueNumber(ticketRef: string | undefined): number | undefined {
   return match === null ? undefined : Number(match[1]);
 }
 
-function findPublisherRunId(
+function findPublicationRecord(
   records: Map<string, import("../loop/plan-publication-record.js").PublishedTicketsRecord>,
   issue: number,
-): string | undefined {
+): import("../loop/plan-publication-record.js").PublishedTicketsRecord | undefined {
   for (const record of records.values()) {
-    if (record.published.some((t) => t.issue_number === issue)) return record.run_id;
+    if (record.published.some((t) => t.issue_number === issue)) return record;
   }
   return undefined;
 }

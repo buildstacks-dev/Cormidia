@@ -7,7 +7,7 @@
 // other subtree.
 
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveOperonHomes } from "../org/home.js";
 import { writeLoopFileAtomic } from "../loop/durable.js";
@@ -43,6 +43,7 @@ export async function cmdNarrative(args: string[]): Promise<number> {
   }
 
   let printed = false;
+  const summaries: Array<{ app: string; stories: number; index: string; problems: string[] }> = [];
   for (const app of apps) {
     const fold = await foldAppStories(stateHome, app);
     const captured = await listCapturedStories(stateHome, app);
@@ -56,8 +57,12 @@ export async function cmdNarrative(args: string[]): Promise<number> {
       try {
         prior = merged.get(fresh.story_id) ?? (await readCapturedStory(stateHome, app, fresh.story_id));
       } catch (error) {
-        problems.push((error as Error).message);
-        continue; // corrupt capture: surface it, never overwrite it
+        // Corrupt capture: quarantine the bytes for forensics, then let the
+        // fresh fold recapture — dropping the story here would lose its
+        // quotes to the next runs/ sweep AND hide it from INDEX/--episode.
+        problems.push(`${(error as Error).message} — moved aside to .corrupt; recaptured from live sources`);
+        await quarantineCorruptCapture(stateHome, app, fresh.story_id);
+        prior = undefined;
       }
       merged.set(fresh.story_id, mergeStory(prior, fresh));
     }
@@ -83,31 +88,34 @@ export async function cmdNarrative(args: string[]): Promise<number> {
       join(narrativeDir(stateHome, app), "INDEX.md"),
       renderIndexMarkdown(app, stories),
     );
-    if (parsed.json) {
-      console.log(
-        JSON.stringify(
-          {
-            app,
-            stories: stories.length,
-            index: join(narrativeDir(stateHome, app), "INDEX.md"),
-            problems,
-          },
-          null,
-          2,
-        ),
-      );
-    } else {
+    summaries.push({ app, stories: stories.length, index: join(narrativeDir(stateHome, app), "INDEX.md"), problems });
+    if (!parsed.json) {
       console.log(`narrative: ${app} — ${stories.length} story(ies) → ${narrativeDir(stateHome, app)}`);
       for (const problem of problems) console.error(`narrative: warning: ${problem}`);
     }
     printed = true;
   }
 
+  // One parseable document, like `operon report --json` — never a
+  // concatenated stream of per-app objects.
+  if (parsed.json && parsed.episode === undefined) console.log(JSON.stringify(summaries, null, 2));
+
   if (parsed.episode !== undefined && !printed) {
     console.error(`narrative: episode "${parsed.episode}" not found`);
     return 1;
   }
   return 0;
+}
+
+/** Preserve the corrupt bytes beside the capture (`<slug>.json.corrupt`)
+ *  so recapture never silently destroys evidence of what went wrong. */
+async function quarantineCorruptCapture(stateHome: string, app: string, storyId: string): Promise<void> {
+  const path = join(narrativeDir(stateHome, app), `${storySlug(storyId)}.json`);
+  try {
+    await rename(path, `${path}.corrupt`);
+  } catch {
+    // Already quarantined or vanished — recapture proceeds either way.
+  }
 }
 
 export function parseNarrativeArgs(args: string[]): NarrativeArgs {

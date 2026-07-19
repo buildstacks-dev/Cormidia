@@ -11,7 +11,7 @@
 // reconciliation window `operon budget --reconcile` can back-fill.
 // Offline only: temp homes, fixed clocks, no provider runtime, no network.
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { readFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -35,6 +35,7 @@ import {
 } from "../src/loop/efficiency.js";
 import { recordTurnOnce, type TurnRecord } from "../src/runtime/telemetry.js";
 import { finalizeRun, startRun, updateEnvelope } from "../src/runtime/runlog/envelope.js";
+import { hashedFileStem } from "../src/runtime/runlog/paths.js";
 import type { RoleConfig, TurnResult } from "../src/runtime/types.js";
 import { makeOrgHome, type OrgHomeFixture } from "./fixtures/orgHome.js";
 
@@ -242,27 +243,60 @@ describe("tasks/, invocations/, and learning/events/ retention", () => {
     }
   });
 
-  it("prunes narrative story pairs by their own captured_at and keeps recent, torn, and INDEX files (#129)", async () => {
+  it("prunes narrative story pairs by their own captured_at with identity binding, and keeps recent, torn, foreign, and INDEX files (#129)", async () => {
     const home = makeOrgHome();
     try {
       const dir = join(home.root, "narrative", "greenfield");
       mkdirSync(dir, { recursive: true });
-      const story = (capturedAt: string): string =>
-        JSON.stringify({ schema_version: 1, story_id: "s", app: "greenfield", title: "t", opened: capturedAt, status: "completed", moments: [], captured_at: capturedAt });
-      writeFileSync(join(dir, "old-story.json"), story("2020-01-01T00:00:00.000Z"));
-      writeFileSync(join(dir, "old-story.md"), "# old\n");
-      writeFileSync(join(dir, "recent-story.json"), story("2026-07-01T00:00:00.000Z"));
-      writeFileSync(join(dir, "recent-story.md"), "# recent\n");
+      const story = (id: string, capturedAt: string): string =>
+        JSON.stringify({ schema_version: 1, story_id: id, app: "greenfield", title: "t", opened: capturedAt, status: "completed", moments: [], captured_at: capturedAt });
+      const oldSlug = hashedFileStem("ticket:greenfield:1");
+      const recentSlug = hashedFileStem("ticket:greenfield:2");
+      writeFileSync(join(dir, `${oldSlug}.json`), story("ticket:greenfield:1", "2020-01-01T00:00:00.000Z"));
+      writeFileSync(join(dir, `${oldSlug}.md`), "# old\n");
+      writeFileSync(join(dir, `${recentSlug}.json`), story("ticket:greenfield:2", "2026-07-01T00:00:00.000Z"));
+      writeFileSync(join(dir, `${recentSlug}.md`), "# recent\n");
       writeFileSync(join(dir, "torn-story.json"), "{\"schema_version\":1");
+      // Foreign v1 record whose story_id does NOT map to its filename —
+      // aged content, but the identity binding keeps it (sweepTasks model).
+      writeFileSync(join(dir, "foreign-copy.json"), story("ticket:greenfield:1", "2020-01-01T00:00:00.000Z"));
       writeFileSync(join(dir, "INDEX.md"), "# index\n");
       const result = await sweepStateRetention(home.root, NOW);
-      expect(result.narrative).toMatchObject({ pruned: 1, kept: 2 });
-      expect(existsSync(join(dir, "old-story.json"))).toBe(false);
-      expect(existsSync(join(dir, "old-story.md"))).toBe(false);
-      expect(existsSync(join(dir, "recent-story.json"))).toBe(true);
-      expect(existsSync(join(dir, "recent-story.md"))).toBe(true);
+      expect(result.narrative).toMatchObject({ pruned: 1, kept: 3 });
+      expect(existsSync(join(dir, `${oldSlug}.json`))).toBe(false);
+      expect(existsSync(join(dir, `${oldSlug}.md`))).toBe(false);
+      expect(existsSync(join(dir, `${recentSlug}.json`))).toBe(true);
+      expect(existsSync(join(dir, `${recentSlug}.md`))).toBe(true);
       expect(existsSync(join(dir, "torn-story.json"))).toBe(true);
+      expect(existsSync(join(dir, "foreign-copy.json"))).toBe(true);
       expect(existsSync(join(dir, "INDEX.md"))).toBe(true);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("ages orphaned narrative .md and quarantined .corrupt files by mtime — nothing escapes the window (#129)", async () => {
+    const home = makeOrgHome();
+    try {
+      const dir = join(home.root, "narrative", "greenfield");
+      mkdirSync(dir, { recursive: true });
+      const ancient = new Date("2020-01-01T00:00:00.000Z");
+      // Orphan .md: its capture is gone (crash between the pair rm's, or
+      // external deletion) — no captured_at exists, so fs mtime ages it.
+      writeFileSync(join(dir, "orphan-story.md"), "# orphan\n");
+      utimesSync(join(dir, "orphan-story.md"), ancient, ancient);
+      writeFileSync(join(dir, "fresh-orphan.md"), "# fresh orphan\n");
+      // Quarantined corrupt bytes age the same way.
+      writeFileSync(join(dir, "story.json.corrupt"), "{ torn");
+      utimesSync(join(dir, "story.json.corrupt"), ancient, ancient);
+      writeFileSync(join(dir, "INDEX.md"), "# index\n");
+      utimesSync(join(dir, "INDEX.md"), ancient, ancient);
+      const result = await sweepStateRetention(home.root, NOW);
+      expect(result.narrative).toMatchObject({ pruned: 2, kept: 1 });
+      expect(existsSync(join(dir, "orphan-story.md"))).toBe(false);
+      expect(existsSync(join(dir, "story.json.corrupt"))).toBe(false);
+      expect(existsSync(join(dir, "fresh-orphan.md"))).toBe(true);
+      expect(existsSync(join(dir, "INDEX.md"))).toBe(true); // never swept, any age
     } finally {
       home.cleanup();
     }

@@ -10,6 +10,7 @@
 // Date.now() here) and nothing touches the filesystem — writers arrive with
 // M2.5–M2.7.
 
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 /** Path-safe id segment: anything outside [A-Za-z0-9-] collapses to a
@@ -21,6 +22,17 @@ export function sanitizeIdPart(part: string): string {
     throw new Error(`runlog: id part "${part}" has no path-safe characters`);
   }
   return cleaned;
+}
+
+/** Path-safe, collision-proof file stem for an ARBITRARY id: readable
+ *  sanitized prefix + 8-hex sha256 of the exact bytes, so ids that differ
+ *  only in collapsed characters (or exceed the prefix cap) can never map to
+ *  one file, and no id can escape its directory. Never throws — an id with
+ *  no safe characters still gets a stem from its hash. */
+export function hashedFileStem(id: string): string {
+  const readable = id.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  const hash = createHash("sha256").update(id).digest("hex").slice(0, 8);
+  return `${readable === "" ? "id" : readable}-${hash}`;
 }
 
 /** `YYYYMMDD-HHMMSS-<pipeline>-<pass>` in UTC (docs/loop.md §9). */

@@ -87,10 +87,12 @@ describe("narrative fold", () => {
       }),
     );
     // Build episode: one implement pass on ticket 41, with an L3 output
-    // containing a seeded secret that must never reach a quote.
+    // containing a seeded secret that must never reach a quote. The ticket
+    // field is PRODUCTION-shaped — loop.ts stamps `#${issue.number}` — the
+    // review-fix regression is that a bare "41" fixture masked a ##41 bug.
     seedRun(
       BUILD_RUN,
-      envelope({ episode_id: TICKET_EPISODE, ticket: "41" }),
+      envelope({ episode_id: TICKET_EPISODE, ticket: "#41" }),
       { "output.md": "Implemented the scaffold. Never log sk-ant-api03-aaaaaaaaaaaaaaaaaaaaaaaa again.\n" },
     );
     // Execution journal for the build episode.
@@ -141,6 +143,8 @@ describe("narrative fold", () => {
 
     const ticket = stories.find((s) => s.story_id === TICKET_EPISODE)!;
     expect(ticket.kind).toBe("ticket");
+    // Production `ticket: "#41"` normalizes once — never "##41" (review fix).
+    expect(ticket.ticket_ref).toBe("#41");
     expect(ticket.title).toBe("Ticket #41 — Ship the scaffold");
     expect(ticket.planned_by).toEqual({
       episode_id: PLAN_EPISODE,
@@ -151,6 +155,68 @@ describe("narrative fold", () => {
     expect(ticket.delivery?.stages.map((s) => s.boundary)).toEqual(["implementation", "merge"]);
     expect(ticket.cost).toEqual({ usd: 2.5, provider_turns: 1, unmeasured_turns: 0 });
     expect(ticket.status).toBe("completed");
+  });
+
+  it("rejects envelopes whose identity does not bind to their run dir (review fix)", async () => {
+    seedFixture();
+    // A copied/tampered run dir whose envelope claims a foreign run_id must
+    // never reach path joins (readRunQuote) or collapse onto another moment.
+    seedRun("20260713-000000-build-standard-copy", envelope({ run_id: "../escape/target" }));
+    seedRun("20260713-000001-build-standard-foreign", envelope({ run_id: "20260713-000001-build-standard-foreign", app: "other-app" }));
+    const { stories, problems } = await foldAppStories(stateHome, APP);
+    expect(stories).toHaveLength(2); // both intruders skipped, base stories intact
+    expect(problems.filter((p) => p.includes("not a valid v1 envelope for this run dir"))).toHaveLength(2);
+  });
+
+  it("re-scrubs verdict summaries with the CURRENT pattern list at capture time (review fix)", async () => {
+    seedFixture();
+    seedRun(
+      "20260713-000002-build-standard-verify",
+      envelope({
+        run_id: "20260713-000002-build-standard-verify",
+        episode_id: TICKET_EPISODE,
+        ticket: "#41",
+        pass: "verify",
+        started_at: "2026-07-13T00:00:00.000Z",
+        finished_at: "2026-07-13T00:01:00.000Z",
+        verdict_summary: "PASS — but found sk-ant-api03-bbbbbbbbbbbbbbbbbbbbbbbb in a log line",
+      }),
+    );
+    const { stories } = await foldAppStories(stateHome, APP);
+    const ticket = stories.find((s) => s.story_id === TICKET_EPISODE)!;
+    const verify = ticket.moments.find((m) => m.pass === "verify")!;
+    expect(verify.quote!.text).toContain("PASS");
+    expect(verify.quote!.text).not.toContain("sk-ant-api03");
+  });
+
+  it("a partial fold (earliest sources swept) never regresses captured story fields (review fix)", async () => {
+    seedFixture();
+    const first = await foldAppStories(stateHome, APP);
+    const capturedTicket = first.stories.find((s) => s.story_id === TICKET_EPISODE)!;
+    expect(capturedTicket.title).toBe("Ticket #41 — Ship the scaffold");
+
+    // Simulate: planning runs + ledger swept; the ticket run alone survives,
+    // plus a NEW later verify run (so the fresh fold is genuinely fresh but
+    // its view of planning-derived fields regressed).
+    rmSync(join(stateHome, "runs", APP, PLAN_RUN), { recursive: true, force: true });
+    rmSync(join(stateHome, "telemetry"), { recursive: true, force: true });
+    const second = await foldAppStories(stateHome, APP);
+    const fresh = second.stories.find((s) => s.story_id === TICKET_EPISODE)!;
+    expect(fresh.title).toBe("Ticket #41"); // regressed: publication record gone
+    expect(fresh.cost).toBeUndefined(); // regressed: ledger swept
+
+    const merged = mergeStory(capturedTicket, fresh);
+    expect(merged.title).toBe("Ticket #41 — Ship the scaffold"); // enrichment kept
+    expect(merged.cost).toEqual(capturedTicket.cost); // settlement kept
+    expect(merged.planned_by).toEqual(capturedTicket.planned_by);
+    expect(merged.opened).toBe(capturedTicket.opened);
+
+    // And a PARTIAL fold (fresh missing a captured run) can never flip a
+    // terminal status or shrink the moment set.
+    const partial = { ...fresh, moments: [], status: "failed" as const };
+    const guarded = mergeStory(capturedTicket, partial);
+    expect(guarded.status).toBe(capturedTicket.status);
+    expect(guarded.moments.length).toBe(capturedTicket.moments.length);
   });
 
   it("never lets a seeded secret reach a quote (L3 is unredacted; narrative is shareable)", async () => {

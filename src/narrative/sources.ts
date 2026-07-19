@@ -50,8 +50,12 @@ export async function readAppRunSources(stateHome: string, app: string): Promise
       const parsed = JSON.parse(
         await readFile(join(dir, runId, "envelope.json"), "utf8"),
       ) as RunEnvelope;
-      if (parsed.schema_version !== 1 || typeof parsed.run_id !== "string") {
-        out.problems.push(`runs/${app}/${runId}: not a valid v1 envelope`);
+      // Identity binds to the directory, like every sibling reader
+      // (readParentTask, readExecutionJournal, readPublishedTicketsRecord):
+      // a copied/tampered envelope must never smuggle a foreign run_id into
+      // path joins (readRunQuote) or collapse two dirs onto one moment key.
+      if (parsed.schema_version !== 1 || parsed.run_id !== runId || parsed.app !== app) {
+        out.problems.push(`runs/${app}/${runId}: not a valid v1 envelope for this run dir`);
         continue;
       }
       out.envelopes.push(parsed);
@@ -135,4 +139,12 @@ export function boundQuote(source: string, raw: string, maxChars: number): Narra
     text: truncated ? `${scrubbed.slice(0, maxChars)}…` : scrubbed,
     truncated,
   };
+}
+
+/** The leaf's ONE re-scrub for non-quote text landing in a capture (ticket
+ *  titles, journal stop reasons, verdicts): write-time scrubbing used
+ *  whatever pattern list existed THEN; captures outlive their sources by
+ *  years, so they re-scrub with the current list at capture time. */
+export function scrubCaptureText(raw: string): string {
+  return scrubSecrets(raw);
 }

@@ -41,9 +41,10 @@
 // Anything ambiguous is kept and retried on a later sweep.
 
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { readEfficiencyEvidence } from "../loop/efficiency.js";
+import { hashedFileStem } from "../runtime/runlog/paths.js";
 import { pruneRuns } from "../runtime/runlog/retention.js";
 import {
   acquireSettlementLock,
@@ -195,16 +196,23 @@ export async function sweepStateRetention(
 
 /** `narrative/<app>/<slug>.{json,md}` story pairs age by the capture's OWN
  *  `captured_at` (the newest source timestamp folded in), read like
- *  sweepTasks reads task.json — a torn or foreign .json is kept, fail safe.
- *  The paired .md follows its capture; INDEX.md is regenerated on the next
- *  render and never swept here. */
+ *  sweepTasks reads task.json with the same identity binding: only a record
+ *  whose story_id/app actually map to the file it sits in is deletable — a
+ *  torn or foreign .json is kept, fail safe. Deletion is .md FIRST so a
+ *  crash between the two rm's leaves the .json, which the next sweep
+ *  re-ages (the reverse order would orphan an unageable .md forever).
+ *  Orphaned .md files (capture gone) and quarantined `.json.corrupt` files
+ *  age by fs mtime — no readable captured_at exists for either. INDEX.md is
+ *  regenerated on the next render and never swept here. */
 async function sweepNarrative(stateHome: string, cutoffMs: number): Promise<SubtreeSweep> {
   const out: SubtreeSweep = { pruned: 0, kept: 0 };
   const root = join(stateHome, "narrative");
   for (const app of await listDirNames(root)) {
     const dir = join(root, app);
-    for (const name of (await readdir(dir)).filter((f) => f.endsWith(".json"))) {
-      let record: { schema_version?: unknown; captured_at?: unknown };
+    const names = await readdir(dir);
+    const jsonNames = new Set(names.filter((f) => f.endsWith(".json")));
+    for (const name of jsonNames) {
+      let record: { schema_version?: unknown; captured_at?: unknown; story_id?: unknown; app?: unknown };
       try {
         record = JSON.parse(await readFile(join(dir, name), "utf8")) as typeof record;
       } catch {
@@ -213,14 +221,36 @@ async function sweepNarrative(stateHome: string, cutoffMs: number): Promise<Subt
       }
       const aged =
         record.schema_version === 1 &&
+        record.app === app &&
+        typeof record.story_id === "string" &&
+        `${hashedFileStem(record.story_id)}.json` === name &&
         typeof record.captured_at === "string" &&
         !Number.isNaN(Date.parse(record.captured_at)) &&
         Date.parse(record.captured_at) < cutoffMs;
       if (aged) {
-        await rm(join(dir, name), { force: true });
         await rm(join(dir, name.replace(/\.json$/, ".md")), { force: true });
+        await rm(join(dir, name), { force: true });
         out.pruned += 1;
       } else {
+        out.kept += 1;
+      }
+    }
+    // Files with no readable capture to age by: orphaned .md (its .json is
+    // gone) and quarantined .corrupt bytes — mtime is the only honest clock.
+    for (const name of names) {
+      const orphanMd =
+        name.endsWith(".md") && name !== "INDEX.md" && !jsonNames.has(name.replace(/\.md$/, ".json"));
+      const corrupt = name.endsWith(".json.corrupt");
+      if (!orphanMd && !corrupt) continue;
+      try {
+        const info = await stat(join(dir, name));
+        if (info.mtimeMs < cutoffMs) {
+          await rm(join(dir, name), { force: true });
+          out.pruned += 1;
+        } else {
+          out.kept += 1;
+        }
+      } catch {
         out.kept += 1;
       }
     }

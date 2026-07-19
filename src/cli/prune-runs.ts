@@ -70,6 +70,7 @@ function printSweep(result: StateSweepResult): void {
     ["learning/events/", "learning_events", result.windows.learningEventsDays],
     ["scheduler/evidence/", "scheduler_evidence", result.windows.schedulerEvidenceDays],
     ["state/retention/sweeps/", "sweep_records", result.windows.sweepRecordDays],
+    ["narrative/", "narrative", result.windows.narrativeDays],
   ];
   console.log(`state retention sweep at ${result.swept_at}`);
   for (const [label, key, windowDays] of rows) {

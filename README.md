@@ -448,8 +448,16 @@ runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
 ├── brief.md         # the exact prompt the pass received — L3, verbatim
 ├── output.md        # what the pass produced — L3, verbatim
 ├── session.log      # activity log—not transcript; present only when TurnEvents streamed
-└── planning-sources.json / planner-feeds.json # optional content-bound input manifest
+├── planning-sources.json / planner-feeds.json # optional content-bound input manifest
+└── published-tickets.json # final planning pass only: issue numbers + the same
+                           # episode/run/trace identity each ticket body's
+                           # Planned-by: trailer carries (#128)
 telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
+narrative/<app>/          # human-level causal timeline (#129): one captured
+                          # story (.json) + rendered markdown (.md) per episode
+                          # and a time-ordered INDEX.md — quotes captured at
+                          # render time survive the 30-day runs/ sweep
+                          # (`operon narrative`; docs/narrative/design.md)
 efficiency/episodes/<hash>/ # admitted route + terminal execution steps +
                             # episode context-manifest projection
 invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)

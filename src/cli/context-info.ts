@@ -66,6 +66,7 @@ const CAPABILITIES = [
   { command: "analyze", writes: false, spendsTokens: false, summary: "report run anomaly signals" },
   { command: "telemetry", writes: false, spendsTokens: false, summary: "historical pass/trace/cost view over run records" },
   { command: "report", writes: false, spendsTokens: false, summary: "ledger-first org/app usage report; --html writes only the user-selected export" },
+  { command: "narrative", writes: true, spendsTokens: false, summary: "render the human-level causal timeline (one markdown story per episode + per-app INDEX.md); writes only under the state home's narrative/; --episode prints without writing" },
   { command: "observe", writes: false, spendsTokens: false, summary: "loopback-only read-only Live and Reports UI over durable Operon and GitHub state" },
   { command: "task", writes: true, spendsTokens: false, summary: "record the broader delegated task, fallback, and terminal outcome" },
   { command: "retro", writes: true, spendsTokens: false, summary: "write an evidence-based org retro" },

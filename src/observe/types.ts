@@ -14,7 +14,13 @@ import type { TurnLock } from "../org/locks.js";
  *  `pending_intake`, which is a breaking read-model change. The observer
  *  persists no cache and has no consumer outside the bundled client that ships
  *  in the same package, so exactly one bump covers the whole workstream.
- *  Rationale recorded in docs/live-ui/design.md §6.3. */
+ *  Rationale recorded in docs/live-ui/design.md §6.3.
+ *
+ *  The observer-traces workstream (#95/#96/#98) rides the SAME bump: every one
+ *  of its read-model changes is additive (`TraceNodeView`, per-entity duration /
+ *  counts / cost, `traces_scope`, `scope_statement`, `cost_window`) and nothing
+ *  was removed or retyped, so a second bump would signal a break that did not
+ *  happen. One bump covers the branch. */
 export const OBSERVE_SCHEMA_VERSION = 2 as const;
 
 export type SourceStatus = "healthy" | "degraded" | "unavailable";
@@ -77,6 +83,83 @@ export interface SectionScopeView {
   ordering: OrderingView | null;
 }
 
+/**
+ * Why a duration is not a number. A recorded interval is only measurable when
+ * BOTH endpoints were recorded and readable and the finish does not precede the
+ * start. Every other case is a typed, displayable reason — never a negative
+ * number, never `Math.abs`, never a substituted `Date.now()` (invariant 11).
+ */
+export type DurationQuality = "measured" | "running" | "unrecorded" | "clock_skew";
+
+export interface DurationView {
+  ms: number | null;
+  quality: DurationQuality;
+  /** Verbatim operator-facing cause; null exactly when `quality` is `measured`. */
+  unknown_reason: string | null;
+}
+
+/**
+ * The single closed vocabulary for an execution-graph node. The legend, the
+ * stylesheet, and the tests all read THIS array, so a state the projection can
+ * emit but the legend does not explain (or a legend row for a state that can
+ * never occur) is a mechanical test failure rather than a reading an operator
+ * has to discover is wrong.
+ */
+export const GRAPH_NODE_STATES = Object.freeze([
+  "not_started",
+  "running",
+  "completed",
+  "blocked",
+  "failed",
+  "skipped",
+  "not_observed",
+  "unknown",
+] as const);
+export type GraphNodeState = (typeof GRAPH_NODE_STATES)[number];
+
+/**
+ * One node in a trace's execution graph. Identity, typed status, and the
+ * routing reason ONLY — no previews, no verdict text, no artifacts, no tool
+ * arguments. Adding a preview here would leak L3 evidence into the SSE payload
+ * through a path the pass-level redaction tests do not cover (invariant 5).
+ */
+export interface TraceNodeView {
+  order: number;
+  kind: "pass" | "skipped" | "missing";
+  /** Composite pass identity, or null for a node that was never executed. */
+  pass_id: string | null;
+  pass: string;
+  role: string | null;
+  runtime: string | null;
+  model: string | null;
+  status: string;
+  liveness: Liveness | null;
+  state_token: GraphNodeState;
+  /** Verbatim `trace_plan.skipped_passes[].reason`. Never truncated, never
+   *  title-cased, never re-derived from a completeness diff. */
+  reason: string | null;
+}
+
+/**
+ * What the header totals actually cover. Deliberately NOT named
+ * `SectionScopeView` — that type means label/total/returned/truncated/cap and
+ * answers "is this list complete", where this one answers "what does this
+ * number include". The client composes the client-owned trace scope on top.
+ */
+export interface ScopeStatementView {
+  /** The post-filter app names the totals cover — never every configured app. */
+  apps: string[];
+  app_filter: string | null;
+  time_range: {
+    start_utc: string | null;
+    end_utc: string;
+    basis: "all_recorded" | "since_filter";
+  };
+  /** Canonical sorted `key=value` list derived ONLY from ObserveFiltersV1, so
+   *  identical filter state is a byte-identical statement. */
+  filters: string[];
+}
+
 /** The read model DECLARES its timezone contract, exactly as the ratified
  *  sibling `ReportRange.display_timezone` does (docs/reporting/design.md
  *  §320-326). The client must never have to assume UTC. */
@@ -123,6 +206,16 @@ export interface AppView {
   usage_quality: UsageQuality;
   /** Month-to-date settled-ledger aggregate for this app (#89, #90). */
   cost: CostAggregate;
+  /** The projection ASSERTS that the budget figures above are an app-wide
+   *  month-to-date fact, so the client can LABEL them under a historical
+   *  selection instead of inventing the claim or silently rescoping them
+   *  (invariant 14). Never narrowed by `filters.since`/`parent_task`/`ticket`. */
+  cost_window: {
+    basis: "month_to_date";
+    start_utc: string;
+    end_utc: string;
+    app_wide: true;
+  };
   channels: { support: string[]; marketing: string[] };
   channel_gates: string[];
   observed_at: string;
@@ -248,16 +341,33 @@ export interface ParentTaskView {
   trace_ids: string[];
   ticket_refs: string[];
   completion_integrity: CompletionIntegrityView;
+  duration: DurationView;
+  trace_count: number;
+  pass_count: number;
+  active_passes: number;
+  /** Ledger-first, through the same `costForPasses` helper `TotalsView` and
+   *  `TraceView` use, so a per-row figure can never contradict the header (#89). */
+  cost: CostAggregate;
+  recorded_cost_usd: number;
+  usage_quality: UsageQuality;
   observed_at: string;
   source_refs: SourceRefView[];
 }
 
 export interface TraceView {
+  /** The composite navigable identity. `trace_id` alone is NOT globally unique
+   *  — two apps routinely carry the same trace id (invariant 3). */
   id: string;
   trace_id: string;
   app: string;
   ticket: string | null;
   parent_task_id: string | null;
+  /** `task:${parent_task_id}` when this trace is claimed by a parent task, else
+   *  null. Set ONLY from the trace's own recorded `parent_task_id` — never by
+   *  matching a task's `trace_ids` on a bare, app-ambiguous trace id. This is
+   *  the session the history index must navigate to, because `sessions()` emits
+   *  no standalone entry for a claimed trace. */
+  parent_session_id: string | null;
   pipeline: string;
   pass_ids: string[];
   required_passes: string[] | null;
@@ -267,6 +377,28 @@ export interface TraceView {
   status: string;
   started_at: string | null;
   finished_at: string | null;
+  /** Opaque total-order key from `buildOrderKey`. Clients sort on it, never
+   *  parse it. The '0'/'1' prefix is what puts undated traces LAST under a
+   *  newest-first sort rather than first by lexicographic accident. */
+  order_key: string;
+  duration: DurationView;
+  /** `not_recorded` means no pass in this trace carried a trace plan. Expected
+   *  stages are then UNKNOWN and `graph_nodes` contains zero `missing` nodes —
+   *  the mechanical form of "never fabricate stages for a legacy trace"
+   *  (design.md §5.3, invariant 13). */
+  manifest: "recorded" | "not_recorded";
+  pass_counts: {
+    observed: number;
+    skipped: number;
+    missing: number;
+    /** null exactly when `manifest` is `not_recorded`. */
+    required: number | null;
+  };
+  active_passes: number;
+  cost: CostAggregate;
+  recorded_cost_usd: number;
+  usage_quality: UsageQuality;
+  graph_nodes: TraceNodeView[];
   completion_integrity: CompletionIntegrityView;
   observed_at: string;
 }
@@ -518,6 +650,11 @@ export interface TotalsView {
   cost: CostAggregate;
   /** Settlement coverage disclosed with the total (#89). */
   cost_scope: CostScope;
+  /** What this number covers: apps, time range, and filters. The server-side
+   *  half of "totals always state app, time range, filters, and trace scope";
+   *  trace scope is client-owned because session selection lives only in the
+   *  client, and is composed on top of this. */
+  scope_statement: ScopeStatementView;
 }
 
 export interface ObserveSnapshotV1 {
@@ -540,7 +677,13 @@ export interface ObserveSnapshotV1 {
   };
   delivery: DeliveryTicketView[];
   parent_tasks: ParentTaskView[];
+  /** A FLAT array, deliberately: `sessions()`, the filter dropdowns, the graph,
+   *  and the history index all read one collection, so there is no second store
+   *  (invariant 1). Completeness and ordering are declared alongside it. */
   traces: TraceView[];
+  /** `cap` is null — the projection does not truncate traces. The client's
+   *  display cap is disclosed by the client badge ON TOP of this honest total. */
+  traces_scope: SectionScopeView;
   passes: PassView[];
   approvals: ApprovalView[];
   invocations: InvocationView[];

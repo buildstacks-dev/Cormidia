@@ -4,7 +4,8 @@ import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
 import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
 import type { StatusRow } from "../runtime/runlog/status.js";
 import { settlementKey, settlementIdentity } from "../runtime/telemetry.js";
-import { aggregateCost, normalizeUsageQuality, worstUsageQuality } from "../runtime/cost.js";
+import { aggregateCost, normalizeUsageQuality, providerPassRef, worstUsageQuality, type CostAggregate } from "../runtime/cost.js";
+import type { TurnRecord } from "../runtime/telemetry.js";
 import { ACTIVITY_ORDER, ORDER_SEPARATOR, buildOrderKey, compareStable, orderRows, orderingView, sectionScope } from "./order.js";
 import {
   OBSERVE_SCHEMA_VERSION,
@@ -19,6 +20,10 @@ import {
   type CompletionIntegrityView,
   type DeliveryState,
   type DeliveryTicketView,
+  type DurationView,
+  type GraphNodeState,
+  type ScopeStatementView,
+  type TraceNodeView,
   type EventKind,
   type EventOutcome,
   type EventView,
@@ -149,6 +154,127 @@ const QUALITY_RANK: Record<UsageQuality, number> = {
   unavailable: 3,
 };
 
+/**
+ * Every settled ledger row, grouped by `(app, runId)`. Built ONCE per snapshot:
+ * a `input.ledger.filter(...)` inside the trace loop would be O(traces × ledger)
+ * and visible on a real org home.
+ */
+function ledgerRowsByRun(rows: readonly TurnRecord[]): Map<string, TurnRecord[]> {
+  const byRun = new Map<string, TurnRecord[]>();
+  for (const row of rows) {
+    if (row.runId === undefined) continue;
+    const key = settlementKey(row.app, row.runId);
+    byRun.set(key, [...(byRun.get(key) ?? []), row]);
+  }
+  return byRun;
+}
+
+/**
+ * THE per-scope cost aggregate. `snapshot.totals`, `TraceView` and
+ * `ParentTaskView` all call this, so a per-row figure can never contradict the
+ * header the way an envelope-summing row once did (#89).
+ *
+ * Ledger-first, and settlement-aware in both directions:
+ *
+ *  - A settled row contributes its recorded cost (or a counted unknown when the
+ *    row is `unmeasured`).
+ *  - A genuine provider pass with NO settled row contributes a counted unknown
+ *    keyed on its own pass id. Without this, `aggregateCost([])` would return
+ *    `coverage: "none"` — an AUTHORITATIVE zero — for a scope whose provider
+ *    turns simply never reached the ledger, and the client would render an
+ *    unobservable turn as `$0.00` (invariant 4).
+ *  - A mechanical pass (`quality: "none"`) contributes an authoritative zero and
+ *    is never counted as an unknown turn (#88).
+ */
+function costForPasses(
+  passes: readonly PassView[],
+  byRun: Map<string, TurnRecord[]>,
+): { cost: CostAggregate; usage_quality: UsageQuality; rows: TurnRecord[]; scope: { settled_provider_turns: number; unsettled_provider_turns: number } } {
+  const rows: TurnRecord[] = [];
+  const contributions: Array<{ costUsd: number | null; quality: string; ref: string }> = [];
+  let unsettledProviderTurns = 0;
+  for (const pass of passes) {
+    const settled = byRun.get(settlementKey(pass.app, pass.run_id)) ?? [];
+    if (pass.usage.quality === "none") {
+      // An authoritative zero. Never an unknown turn, never a settlement gap.
+      contributions.push({ costUsd: 0, quality: "none", ref: pass.id });
+      continue;
+    }
+    if (settled.length === 0) {
+      unsettledProviderTurns += 1;
+      contributions.push({ costUsd: null, quality: "unavailable", ref: pass.id });
+      continue;
+    }
+    for (const row of settled) {
+      rows.push(row);
+      contributions.push({
+        costUsd: row.unmeasured === true ? null : row.costUsd,
+        quality: row.unmeasured === true ? "unavailable" : row.usageQuality,
+        ref: settlementIdentity(row) ?? pass.id,
+      });
+    }
+  }
+  const cost = aggregateCost(contributions);
+  return {
+    cost,
+    // A scope with no pass evidence AT ALL is genuinely unknown; a scope whose
+    // passes all invoked no provider is an authoritative zero. The two are never
+    // conflated in either direction (invariant 4).
+    usage_quality: passes.length === 0 ? "unavailable" : cost.usage_quality,
+    rows,
+    scope: {
+      settled_provider_turns: cost.provider_turns - unsettledProviderTurns,
+      unsettled_provider_turns: unsettledProviderTurns,
+    },
+  };
+}
+
+/**
+ * A recorded interval, or a typed reason it is not one. Reads only the two
+ * recorded instants: never `Date.now()` (which would make a running trace's
+ * duration non-deterministic) and never `Math.abs` or a clamp on a backwards
+ * pair (which would present recorded clock skew as a real measurement).
+ *
+ * `subject` NAMES the entity being measured. A parent task rendering "Trace not
+ * finished" tells the operator a different record is running than the one they
+ * are looking at, which is an identity error in operator-facing text even
+ * though the interval arithmetic is identical.
+ */
+function durationBetween(startedAt: string | null, finishedAt: string | null, subject = "Trace"): DurationView {
+  if (startedAt === null || finishedAt === null) {
+    return finishedAt === null && startedAt !== null
+      ? { ms: null, quality: "running", unknown_reason: `${subject} not finished` }
+      : { ms: null, quality: "unrecorded", unknown_reason: "Start or finish instant not recorded" };
+  }
+  const start = Date.parse(startedAt);
+  const finish = Date.parse(finishedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(finish)) {
+    return { ms: null, quality: "unrecorded", unknown_reason: "Unreadable instant" };
+  }
+  if (finish < start) {
+    return { ms: null, quality: "clock_skew", unknown_reason: "Finish instant precedes start (clock skew)" };
+  }
+  return { ms: finish - start, quality: "measured", unknown_reason: null };
+}
+
+/**
+ * The graph state token for an OBSERVED pass. Derived only from typed fields —
+ * never from a title, branch, prompt, or timestamp text (invariant 2).
+ *
+ * A pass whose start instant was recorded but is UNREADABLE reaches here with
+ * `started_at === null` and a non-null `quality_reason`. That is a corrupt
+ * record, not a clean pre-start state, so it maps to `unknown` rather than
+ * `not_started`.
+ */
+function graphState(pass: PassView): GraphNodeState {
+  if (pass.status === "running") return "running";
+  if (pass.status === "completed") return "completed";
+  if (pass.status === "blocked") return "blocked";
+  if (pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled") return "failed";
+  if (pass.started_at === null) return pass.quality_reason === null ? "not_started" : "unknown";
+  return "unknown";
+}
+
 export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSnapshotV1 {
   const observedAt = input.now.toISOString();
   const ledger = aggregatePassSettlements(input.ledger);
@@ -160,8 +286,9 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
       input.now,
     ))
     .filter((pass) => passMatches(pass, input.filters));
-  const traces = projectTraces(passes, observedAt).filter((trace) => traceMatches(trace, input.filters));
-  const parentTasks = projectParentTasks(input, passes, traces, observedAt).filter((task) =>
+  const byRun = ledgerRowsByRun(input.ledger);
+  const traces = projectTraces(passes, observedAt, byRun).filter((trace) => traceMatches(trace, input.filters));
+  const parentTasks = projectParentTasks(input, passes, traces, observedAt, byRun).filter((task) =>
     input.filters.parent_task === undefined || task.task_id === input.filters.parent_task,
   );
   const approvals = input.approvals
@@ -185,6 +312,16 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
           ref: settlementIdentity(row) ?? "unattributed",
         })),
       );
+      // Deliberately NOT narrowed by `filters.since`/`parent_task`/`ticket`: the
+      // app card is a month-to-date, app-wide budget fact and the client labels
+      // it as such under a historical selection rather than rescoping it into a
+      // different, smaller number that looks like the same one (invariant 14).
+      const costWindow = {
+        basis: "month_to_date" as const,
+        start_utc: `${observedAt.slice(0, 7)}-01T00:00:00.000Z`,
+        end_utc: observedAt,
+        app_wide: true as const,
+      };
       const channelGates: string[] = [];
       if ((app.channels?.support ?? []).length === 0) channelGates.push("Support disabled: no support channel configured");
       if ((app.channels?.marketing ?? []).length === 0) channelGates.push("Marketing disabled: no marketing channel configured");
@@ -196,6 +333,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
         budget_usd_month: app.budgetUsdMonth,
         recorded_monthly_cost_usd: cost.known_cost_usd,
         cost,
+        cost_window: costWindow,
         usage_quality: rows.length === 0 ? "unavailable" as const : cost.usage_quality,
         channels: {
           support: [...(app.channels?.support ?? [])],
@@ -249,29 +387,14 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
   // the passes on screen — not re-derived from envelope usage. That divergence
   // is what let the same page show "unavailable" in the header and $104.66 in
   // App lifecycle for one completed campaign (#89).
-  const visibleRuns = new Set(passes.map((pass) => settlementKey(pass.app, pass.run_id)));
-  const scopedLedger = input.ledger.filter(
-    (row) => row.runId !== undefined && visibleRuns.has(settlementKey(row.app, row.runId)),
-  );
-  const cost = aggregateCost(
-    scopedLedger.map((row) => ({
-      costUsd: row.unmeasured === true ? null : row.costUsd,
-      quality: row.unmeasured === true ? "unavailable" : row.usageQuality,
-      ref: settlementIdentity(row) ?? "unattributed",
-    })),
-  );
-  const settledRuns = new Set(
-    scopedLedger.map((row) => settlementKey(row.app, row.runId!)),
-  );
+  // The SAME helper every per-entity row uses, so the header and a row can no
+  // longer disagree about the same passes.
+  const totalsCost = costForPasses(passes, byRun);
+  const cost = totalsCost.cost;
+  const costScope = totalsCost.scope;
   // Mechanical passes are not provider turns, so they belong to neither side of
   // settlement coverage (#88).
   const providerPasses = passes.filter((pass) => pass.usage.quality !== "none");
-  const costScope = {
-    settled_provider_turns: cost.provider_turns,
-    unsettled_provider_turns: providerPasses.filter(
-      (pass) => !settledRuns.has(settlementKey(pass.app, pass.run_id)),
-    ).length,
-  };
   const quality = aggregateQuality(providerPasses.map((pass) => pass.usage.quality));
   const activity = projectActivityMeta(input.passes, passes, observedAt);
 
@@ -298,6 +421,15 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
     delivery,
     parent_tasks: parentTasks,
     traces,
+    // `cap` is null: the projection does not truncate traces, so this `total` is
+    // the honest pre-client-filter denominator the client badge must quote even
+    // when its own display cap or search narrows what is on screen.
+    traces_scope: sectionScope(
+      "Execution traces",
+      traces,
+      null,
+      orderingView("order_key", "trace id ascending (app-scoped composite id)", "newest_first"),
+    ).scope,
     passes,
     approvals,
     invocations,
@@ -328,6 +460,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
       // Only genuine provider turns can have incomplete usage. A mechanical
       // pass invoked no provider, so it is never counted here (#88).
       incomplete_usage_passes: providerPasses.filter((pass) => pass.usage.quality !== "complete").length,
+      scope_statement: scopeStatement(input, apps, observedAt),
     },
     attention: attention.items,
     attention_groups: attention.groups,
@@ -336,6 +469,38 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
   // surface, and a header warning is the right place for a clock fact.
   snapshot.time_policy = { ...snapshot.time_policy, skew: collectSkew(snapshot, input.now.getTime()) };
   return snapshot;
+}
+
+/**
+ * What the header totals cover. `apps` is the POST-filter list, so a statement
+ * can never claim org-wide coverage for a single-app total; and `basis` is
+ * `since_filter` whenever rows before `since` were dropped, so "all recorded"
+ * is never asserted over a truncated range.
+ */
+function scopeStatement(
+  input: ObserveProjectionInput,
+  apps: Array<{ name: string }>,
+  observedAt: string,
+): ScopeStatementView {
+  const filters: string[] = [];
+  const f = input.filters;
+  if (f.app !== undefined) filters.push(`app=${f.app}`);
+  if (f.parent_task !== undefined) filters.push(`parent_task=${f.parent_task}`);
+  if (f.ticket !== undefined) filters.push(`ticket=${f.ticket}`);
+  if (f.status !== undefined) filters.push(`status=${f.status}`);
+  if (f.role !== undefined) filters.push(`role=${f.role}`);
+  if (f.since !== undefined) filters.push(`since=${f.since}`);
+  if (f.order !== undefined) filters.push(`order=${f.order}`);
+  return {
+    apps: apps.map((app) => app.name),
+    app_filter: f.app ?? null,
+    time_range: {
+      start_utc: f.since ?? null,
+      end_utc: observedAt,
+      basis: f.since === undefined ? "all_recorded" : "since_filter",
+    },
+    filters: filters.sort(compareStable),
+  };
 }
 
 function countPendingStates(rows: PendingIntakeItemView[]): Record<PendingIntakeState, number> {
@@ -629,13 +794,13 @@ function artifactRefs(indexed: IndexedPass): ArtifactRefView[] {
   });
 }
 
-function projectTraces(passes: PassView[], observedAt: string): TraceView[] {
+function projectTraces(passes: PassView[], observedAt: string, byRun: Map<string, TurnRecord[]>): TraceView[] {
   const groups = new Map<string, PassView[]>();
   for (const pass of passes) {
     const key = `${pass.app}\u0000${pass.trace_id}`;
     groups.set(key, [...(groups.get(key) ?? []), pass]);
   }
-  return [...groups.values()].map<TraceView>((group) => {
+  const projected = [...groups.values()].map<TraceView>((group) => {
     const ordered = [...group].sort((a, b) => ascendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
     const sourceRows = ordered;
     const indexed = sourceRows.map((pass) => pass.pass);
@@ -649,12 +814,65 @@ function projectTraces(passes: PassView[], observedAt: string): TraceView[] {
     if (required === null) reasons.push("Trace manifest not recorded; required stages are unknown");
     if (missing.length > 0) reasons.push(`Missing selected passes: ${missing.join(", ")}`);
     if (group.some((pass) => pass.status !== "completed")) reasons.push("One or more observed passes did not complete");
+    const startedAt = ordered[0]!.started_at;
+    const finishedAt = group.every((pass) => pass.finished_at !== null)
+      ? [...group].map((pass) => pass.finished_at!).sort(compareStable).at(-1) ?? null
+      : null;
+    // Observed passes first in the already-stable `ordered` sequence, then
+    // skipped, then missing. `missing` is empty whenever the manifest was not
+    // recorded, so a legacy trace emits ZERO `not_observed` nodes rather than a
+    // fabricated pipeline of grey pending stages (invariant 13, design.md §5.3).
+    const graphNodes: TraceNodeView[] = [
+      ...ordered.map<Omit<TraceNodeView, "order">>((pass) => ({
+        kind: "pass",
+        pass_id: pass.id,
+        pass: pass.pass,
+        role: pass.role,
+        runtime: pass.runtime,
+        model: pass.model,
+        status: pass.status,
+        liveness: pass.liveness,
+        state_token: graphState(pass),
+        reason: null,
+      })),
+      ...[...skipped].sort((a, b) => compareStable(a.pass, b.pass)).map<Omit<TraceNodeView, "order">>((entry) => ({
+        kind: "skipped",
+        pass_id: null,
+        pass: entry.pass,
+        role: null,
+        runtime: null,
+        model: null,
+        status: "skipped",
+        liveness: null,
+        state_token: "skipped",
+        // Verbatim. A completeness diff would report this deliberate routing
+        // decision as a gap and lose the reason entirely.
+        reason: entry.reason,
+      })),
+      ...[...missing].sort(compareStable).map<Omit<TraceNodeView, "order">>((pass) => ({
+        kind: "missing",
+        pass_id: null,
+        pass,
+        role: null,
+        runtime: null,
+        model: null,
+        status: "not_observed",
+        liveness: null,
+        state_token: "not_observed",
+        reason: null,
+      })),
+    ].map((entry, order) => ({ order, ...entry }));
+    const aggregate = costForPasses(group, byRun);
     return {
       id: `trace:${raw!.app}:${raw!.trace_id}`,
       trace_id: raw!.trace_id,
       app: raw!.app,
       ticket: raw!.ticket,
       parent_task_id: raw!.parent_task_id,
+      // Real identity only: the trace's OWN recorded parent task. Matching a
+      // task's `trace_ids` on a bare trace id would claim the beta trace for an
+      // alpha task whenever the two share an id (invariants 2 and 3).
+      parent_session_id: raw!.parent_task_id === null ? null : `task:${raw!.parent_task_id}`,
       pipeline: raw!.pipeline,
       pass_ids: ordered.map((pass) => pass.id),
       required_passes: required,
@@ -662,10 +880,28 @@ function projectTraces(passes: PassView[], observedAt: string): TraceView[] {
       skipped_passes: skipped,
       missing_passes: missing,
       status,
-      started_at: ordered[0]!.started_at,
-      finished_at: group.every((pass) => pass.finished_at !== null)
-        ? [...group].map((pass) => pass.finished_at!).sort(compareStable).at(-1) ?? null
-        : null,
+      started_at: startedAt,
+      finished_at: finishedAt,
+      // Reuses the shared key builder for its '0'/'1' dated-before-undated prefix
+      // — that prefix is what puts an undated trace LAST under a descending sort
+      // rather than first by lexicographic accident. Identity is deliberately
+      // EXCLUDED from the key: `orderRows` applies the direction sign to the
+      // whole primary key, so folding app/trace id in would reverse the tie-break
+      // too, and "ties by trace id ascending" would be a false claim.
+      order_key: buildOrderKey({ ts_utc: startedAt, app: "", run_id: "", seq: 0 }),
+      duration: durationBetween(startedAt, finishedAt),
+      manifest: required === null ? "not_recorded" : "recorded",
+      pass_counts: {
+        observed: ordered.length,
+        skipped: skipped.length,
+        missing: missing.length,
+        required: required === null ? null : required.length,
+      },
+      active_passes: group.filter((pass) => pass.status === "running").length,
+      cost: aggregate.cost,
+      recorded_cost_usd: aggregate.cost.known_cost_usd,
+      usage_quality: aggregate.usage_quality,
+      graph_nodes: graphNodes,
       completion_integrity: {
         required_stages: required === null ? "unknown" : missing.length === 0 && group.every((pass) => pass.status === "completed") ? "complete" : "incomplete",
         usage,
@@ -677,7 +913,13 @@ function projectTraces(passes: PassView[], observedAt: string): TraceView[] {
       },
       observed_at: observedAt,
     };
-  }).sort((a, b) => descendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
+  });
+  // ONE ordering primitive, the same one the activity chronology uses. Sorting
+  // on `order_key` rather than on the raw instant is what puts undated traces
+  // LAST under newest-first, and `orderRows`' always-ascending identity
+  // tie-break is what keeps two same-instant traces from silently reversing —
+  // which `[...traces].sort(byStartedAt).reverse()` would do.
+  return orderRows(projected, (trace) => trace.order_key, (trace) => trace.id, "newest_first");
 }
 
 function findTraceRequired(group: PassView[]): string[] | null {
@@ -696,7 +938,7 @@ function traceStatus(group: PassView[], missing: string[]): string {
   return group.every((pass) => pass.status === "completed") ? "completed" : "unknown";
 }
 
-function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], traces: TraceView[], observedAt: string): ParentTaskView[] {
+function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], traces: TraceView[], observedAt: string, byRun: Map<string, TurnRecord[]>): ParentTaskView[] {
   return input.parent_tasks.map<ParentTaskView>((record) => {
     const taskPasses = passes.filter((pass) => pass.parent_task_id === record.taskId);
     const taskTraces = traces.filter((trace) => trace.parent_task_id === record.taskId);
@@ -710,6 +952,7 @@ function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], t
     if (taskTraces.length === 0) reasons.push("No correlated trace recorded");
     if (taskTraces.some((trace) => !trace.completion_integrity.operon_end_to_end_complete)) reasons.push("One or more correlated traces is incomplete");
     const complete = reasons.length === 0;
+    const taskCost = costForPasses(taskPasses, byRun);
     return {
       id: `task:${record.taskId}`,
       task_id: record.taskId,
@@ -746,6 +989,15 @@ function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], t
         operon_end_to_end_complete: complete,
         reasons,
       },
+      duration: durationBetween(instant(record.startedAt), instant(record.endedAt), "Parent task"),
+      // Counted from the already-correlated pass/trace sets — never from text,
+      // titles, or timestamp proximity (invariant 2).
+      trace_count: taskTraces.length,
+      pass_count: taskPasses.length,
+      active_passes: taskPasses.filter((pass) => pass.status === "running").length,
+      cost: taskCost.cost,
+      recorded_cost_usd: taskCost.cost.known_cost_usd,
+      usage_quality: taskCost.usage_quality,
       observed_at: observedAt,
       source_refs: [{ source: "parent_task", ref: `tasks/${record.taskId}/task.json` }],
     };
@@ -1462,8 +1714,11 @@ function sum(values: number[]): number {
   return values.reduce((total, value) => total + value, 0);
 }
 
+/** Delegates to the shared runtime primitive: an unsettled provider pass is
+ *  contributed to the cost aggregate under this exact id by BOTH the Observer
+ *  and Reports, so the two surfaces cannot name the same pass differently. */
 function passId(app: string, runId: string): string {
-  return `pass:${app}:${runId}`;
+  return providerPassRef(app, runId);
 }
 
 function ticketNumber(ticket: string | null): number | null {

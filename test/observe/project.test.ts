@@ -3,6 +3,7 @@ import type { AppEntry } from "../../src/org/apps.js";
 import type { StatusRow } from "../../src/runtime/runlog/status.js";
 import { PASS_STALE_AFTER_MS, passLiveness, projectObserveSnapshot } from "../../src/observe/project.js";
 import type { RunlogEvent } from "../../src/runtime/runlog/events.js";
+import { GRAPH_NODE_STATES } from "../../src/observe/types.js";
 import type { IndexedPass, ObserveProjectionInput, SourceHealthView } from "../../src/observe/types.js";
 
 const NOW = new Date("2026-07-12T12:00:00.000Z");
@@ -492,8 +493,10 @@ describe("timestamp policy (#93)", () => {
     expect(snapshot.totals.incomplete_usage_passes).toBe(0);
     expect(snapshot.totals.cost_scope).toEqual({ settled_provider_turns: 0, unsettled_provider_turns: 1 });
     expect(Object.keys(snapshot.totals).sort()).toEqual([
+      // `scope_statement` is ADDITIVE (#98): the totals shape gains what the
+      // number covers, and every pre-existing key keeps its exact meaning.
       "active_passes", "cost", "cost_scope", "delivery_ready", "incomplete_usage_passes",
-      "pending_approvals", "recorded_cost_usd", "usage_quality",
+      "pending_approvals", "recorded_cost_usd", "scope_statement", "usage_quality",
     ]);
   });
 
@@ -519,6 +522,299 @@ describe("timestamp policy (#93)", () => {
     nothing.apps = [app("alpha", "live")];
     nothing.passes = [];
     expect(projectObserveSnapshot(nothing).totals.usage_quality).toBe("unavailable");
+  });
+});
+
+describe("execution-graph trace boundaries, ordering, and manifest honesty (#95)", () => {
+  it("measures a recorded interval and refuses to invent one from clock skew", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live")];
+    input.passes = [
+      finishedAtIndexed(row({ app: "alpha", runId: "ok", traceId: "t-ok", startedAt: "2026-07-12T11:00:00.000Z" }), "2026-07-12T11:30:00.000Z"),
+      // Recorded clock skew: the finish instant precedes the start. A duration is
+      // NOT derivable here, and -3600000, 0, or Math.abs(...) would each present
+      // a corrupt record as a measurement (invariant 11).
+      finishedAtIndexed(row({ app: "alpha", runId: "skew", traceId: "t-skew", startedAt: "2026-07-12T11:00:00.000Z" }), "2026-07-12T10:00:00.000Z"),
+      indexed(row({ app: "alpha", runId: "run", traceId: "t-run", status: "running", startedAt: "2026-07-12T11:00:00.000Z" })),
+    ];
+    const byId = new Map(projectObserveSnapshot(input).traces.map((trace) => [trace.trace_id, trace]));
+    expect(byId.get("t-ok")!.duration).toEqual({ ms: 1_800_000, quality: "measured", unknown_reason: null });
+    expect(byId.get("t-skew")!.duration).toEqual({
+      ms: null, quality: "clock_skew", unknown_reason: "Finish instant precedes start (clock skew)",
+    });
+    // A running trace never substitutes Date.now(): that would make the value
+    // non-deterministic and silently non-reproducible between two snapshots.
+    expect(byId.get("t-run")!.duration).toEqual({ ms: null, quality: "running", unknown_reason: "Trace not finished" });
+    for (const trace of byId.values()) expect(trace.duration.ms === null || trace.duration.ms >= 0).toBe(true);
+  });
+
+  it("orders traces newest-instant-first, ties ascending by composite id, undated LAST", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live"), app("beta", "live")];
+    // Input order matters to this assertion. Feeding the tied pair as (b, a)
+    // let `sort(byStartedAt).reverse()` reproduce the expected output by
+    // coincidence — a stable ascending sort keeps b before a, and reversing
+    // puts a first. Fed as (a, b) the naive implementation yields
+    // [t-b, t-a, t-c, t-undated] and the assertion below fails, which is what
+    // the comment always claimed it did.
+    input.passes = [
+      indexed(row({ app: "alpha", runId: "a", traceId: "t-a", startedAt: "2026-07-12T11:00:00.000Z" })),
+      indexed(row({ app: "alpha", runId: "b", traceId: "t-b", startedAt: "2026-07-12T11:00:00.000Z" })),
+      indexed(row({ app: "beta", runId: "c", traceId: "t-c", startedAt: "2026-07-12T09:00:00.000Z" })),
+      indexed(row({ app: "alpha", runId: "z", traceId: "t-undated", startedAt: undefined as unknown as string })),
+    ];
+    const snapshot = projectObserveSnapshot(input);
+    // `[...traces].sort(byStartedAt).reverse()` reverses the TIE too (producing
+    // t-b before t-a) and hoists the undated trace to the front. Both are wrong.
+    expect(snapshot.traces.map((trace) => trace.id)).toEqual([
+      "trace:alpha:t-a", "trace:alpha:t-b", "trace:beta:t-c", "trace:alpha:t-undated",
+    ]);
+    expect(snapshot.traces_scope.ordering).toEqual({
+      sort_key: "order_key",
+      direction: "newest_first",
+      label: "Newest first",
+      tie_breaker: "trace id ascending (app-scoped composite id)",
+    });
+    // The honest pre-client-filter denominator; the projection caps nothing.
+    expect(snapshot.traces_scope).toMatchObject({ total: 4, returned: 4, truncated: false, cap: null });
+  });
+
+  // The permutation guarantee attention grouping (#91) and activity ordering
+  // (#97) already carry, which the trace sort did not. A single fixed input
+  // order can only ever prove the sort is right for that one order; an
+  // insertion-dependent implementation is right for some orders and wrong for
+  // others, which is exactly how it survives review.
+  it("orders traces identically for EVERY input permutation (#95)", () => {
+    const rows = [
+      row({ app: "alpha", runId: "a", traceId: "t-a", startedAt: "2026-07-12T11:00:00.000Z" }),
+      row({ app: "alpha", runId: "b", traceId: "t-b", startedAt: "2026-07-12T11:00:00.000Z" }),
+      row({ app: "beta", runId: "c", traceId: "t-tie", startedAt: "2026-07-12T11:00:00.000Z" }),
+      row({ app: "beta", runId: "d", traceId: "t-older", startedAt: "2026-07-12T09:00:00.000Z" }),
+      row({ app: "alpha", runId: "z", traceId: "t-undated", startedAt: undefined as unknown as string }),
+    ];
+    // Newest instant first; within an instant, ascending by the app-scoped
+    // COMPOSITE id (so "beta" sorts after "alpha" for the same instant);
+    // undated last.
+    const expected = [
+      "trace:alpha:t-a", "trace:alpha:t-b", "trace:beta:t-tie",
+      "trace:beta:t-older", "trace:alpha:t-undated",
+    ];
+    for (const permutation of permutations(rows)) {
+      const input = baseInput();
+      input.apps = [app("alpha", "live"), app("beta", "live")];
+      input.passes = permutation.map(indexed);
+      expect(projectObserveSnapshot(input).traces.map((trace) => trace.id)).toEqual(expected);
+    }
+  });
+
+  it("preserves the verbatim routing reason for a skipped pass instead of reporting a gap", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live")];
+    input.passes = [indexed(row({
+      app: "alpha", runId: "run-1", traceId: "trace-1", pass: "implement",
+      tracePlan: { required_passes: ["contract", "implement"], skipped_passes: [{ pass: "security", reason: "quick tier routing" }] },
+    }))];
+    const trace = projectObserveSnapshot(input).traces[0]!;
+    const skipped = trace.graph_nodes.filter((graphNode) => graphNode.kind === "skipped");
+    expect(skipped).toHaveLength(1);
+    // Deriving skipped nodes from `required.filter(p => !observed.includes(p))`
+    // yields `kind: "missing"` with `reason: null` — it loses the routing reason
+    // AND misclassifies a deliberate skip as a completeness gap.
+    expect(skipped[0]).toMatchObject({ kind: "skipped", pass: "security", state_token: "skipped", reason: "quick tier routing", pass_id: null });
+    expect(trace.manifest).toBe("recorded");
+    // `contract` was genuinely selected and never observed: that IS a gap.
+    expect(trace.graph_nodes.filter((graphNode) => graphNode.kind === "missing").map((graphNode) => graphNode.pass)).toEqual(["contract"]);
+    expect(trace.pass_counts).toEqual({ observed: 1, skipped: 1, missing: 1, required: 2 });
+  });
+
+  it("fabricates no expected stages for a trace whose manifest was never recorded", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live")];
+    input.passes = [indexed(row({ app: "alpha", runId: "legacy", traceId: "trace-legacy" }))];
+    const trace = projectObserveSnapshot(input).traces[0]!;
+    expect(trace.manifest).toBe("not_recorded");
+    expect(trace.required_passes).toBeNull();
+    expect(trace.missing_passes).toEqual([]);
+    expect(trace.pass_counts).toEqual({ observed: 1, skipped: 0, missing: 0, required: null });
+    // Falling back to a default stage list (contract → implement → review → ship)
+    // would emit four `not_observed` nodes and report a deficiency that the
+    // durable record never claimed (design.md §5.3, invariant 13).
+    expect(trace.graph_nodes.every((graphNode) => graphNode.kind !== "missing")).toBe(true);
+    expect(trace.graph_nodes.every((graphNode) => graphNode.state_token !== "not_observed")).toBe(true);
+    // "unknown", not "incomplete": an unknown requirement is not a failed one.
+    expect(trace.completion_integrity.required_stages).toBe("unknown");
+  });
+
+  it("derives every node state token from typed fields, and never from a corrupt instant", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live")];
+    input.passes = [
+      indexed(row({ app: "alpha", runId: "r1", traceId: "t", pass: "a", status: "running" })),
+      indexed(row({ app: "alpha", runId: "r2", traceId: "t", pass: "b", status: "failed_gate" })),
+      indexed(row({ app: "alpha", runId: "r3", traceId: "t", pass: "c", status: "timed_out" })),
+      indexed(row({ app: "alpha", runId: "r4", traceId: "t", pass: "d", status: "blocked" })),
+      indexed(row({ app: "alpha", runId: "r5", traceId: "t", pass: "e", status: "queued", startedAt: undefined as unknown as string })),
+      // A recorded-but-UNREADABLE start instant. It must not read as a clean
+      // pre-start state: the record is corrupt, which is a different fact.
+      indexed(row({ app: "alpha", runId: "r6", traceId: "t", pass: "f", status: "queued", startedAt: "not-an-instant" })),
+    ];
+    const trace = projectObserveSnapshot(input).traces[0]!;
+    const byPass = new Map(trace.graph_nodes.map((graphNode) => [graphNode.pass, graphNode.state_token]));
+    expect(byPass.get("a")).toBe("running");
+    expect(byPass.get("b")).toBe("failed");
+    expect(byPass.get("c")).toBe("failed");
+    expect(byPass.get("d")).toBe("blocked");
+    expect(byPass.get("e")).toBe("not_started");
+    expect(byPass.get("f")).toBe("unknown");
+    for (const graphNode of trace.graph_nodes) expect(GRAPH_NODE_STATES).toContain(graphNode.state_token);
+    // Nodes carry identity, typed status and the routing reason ONLY. A preview
+    // here would leak L3 evidence through a path pass-level redaction does not
+    // cover (invariant 5).
+    expect(Object.keys(trace.graph_nodes[0]!).sort()).toEqual([
+      "kind", "liveness", "model", "order", "pass", "pass_id", "reason", "role", "runtime", "state_token", "status",
+    ]);
+  });
+});
+
+describe("per-entity cost is ledger-first and never conflates none with unavailable (#95/#96/#98)", () => {
+  it("counts an unobservable turn instead of summing it as zero, in every direction", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live")];
+    input.passes = [
+      // P: two genuine provider passes, ZERO settled ledger rows.
+      indexed(row({ app: "alpha", runId: "p1", traceId: "t-unsettled", pass: "a", usageQuality: "complete" })),
+      indexed(row({ app: "alpha", runId: "p2", traceId: "t-unsettled", pass: "b", usageQuality: "complete" })),
+      // M: every pass invoked no provider — an AUTHORITATIVE zero.
+      indexed(row({ app: "alpha", runId: "m1", traceId: "t-mech", usageQuality: "none" })),
+      // U: one provider pass whose single ledger row is `unmeasured`.
+      indexed(row({ app: "alpha", runId: "u1", traceId: "t-unmeasured", usageQuality: "complete" })),
+      // S: settled, fully known.
+      indexed(row({ app: "alpha", runId: "s1", traceId: "t-settled", usageQuality: "complete" })),
+    ];
+    input.ledger = [
+      {
+        at: NOW.toISOString(), role: "builder", runtime: "codex", model: "gpt-5.5", status: "completed",
+        tokensIn: 1, tokensOut: 1, costUsd: null as unknown as number, usageQuality: "unavailable", subagentTurns: 0,
+        wallClockMs: 1, escalations: 0, app: "alpha", runId: "u1", traceId: "t-unmeasured", pipeline: "build",
+        pass: "implement", unmeasured: true,
+      },
+      {
+        at: NOW.toISOString(), role: "builder", runtime: "codex", model: "gpt-5.5", status: "completed",
+        tokensIn: 1, tokensOut: 1, costUsd: 1.25, usageQuality: "complete", subagentTurns: 0,
+        wallClockMs: 1, escalations: 0, app: "alpha", runId: "s1", traceId: "t-settled", pipeline: "build", pass: "implement",
+      },
+    ];
+    const byId = new Map(projectObserveSnapshot(input).traces.map((trace) => [trace.trace_id, trace]));
+
+    // Summing `PassView.usage.cost_usd` would report a known cost for turns that
+    // never reached the ledger — the #89 envelope-vs-ledger divergence — and
+    // taking quality from the worst PASS quality would report "complete".
+    const unsettled = byId.get("t-unsettled")!;
+    expect(unsettled.usage_quality).toBe("unavailable");
+    expect(unsettled.recorded_cost_usd).toBe(0);
+    expect(unsettled.cost.unknown_turns).toBe(2);
+    expect(unsettled.cost.unknown_refs).toEqual(["pass:alpha:p1", "pass:alpha:p2"]);
+    expect(unsettled.cost.coverage).not.toBe("complete");
+
+    // The sharper miss in the other direction: reporting "unavailable" for a
+    // scope whose passes are authoritatively known to have cost nothing.
+    const mechanical = byId.get("t-mech")!;
+    expect(mechanical.usage_quality).toBe("none");
+    expect(mechanical.recorded_cost_usd).toBe(0);
+    expect(mechanical.cost.provider_turns).toBe(0);
+    expect(mechanical.cost.mechanical_passes).toBe(1);
+
+    const unmeasured = byId.get("t-unmeasured")!;
+    expect(unmeasured.usage_quality).toBe("unavailable");
+    expect(unmeasured.recorded_cost_usd).toBe(0);
+    expect(unmeasured.cost.unknown_turns).toBe(1);
+    expect(unmeasured.cost.unknown_refs.length).toBeGreaterThan(0);
+
+    expect(byId.get("t-settled")!).toMatchObject({ usage_quality: "complete", recorded_cost_usd: 1.25 });
+  });
+
+  it("gives a parent task the identical rules, and never claims another app's trace", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live"), app("beta", "live")];
+    input.parent_tasks = [{
+      schemaVersion: 1, taskId: "task-1", app: "alpha", objective: "Ship", promptRef: "prompt.md",
+      promptSha256: "a".repeat(64), requiredStages: ["builder"], executionMode: "operon", fallbackEvents: [],
+      status: "completed", startedAt: "2026-07-12T10:00:00.000Z", endedAt: "2026-07-12T10:02:00.000Z",
+      // Deliberately lists the BARE trace id, which both apps use.
+      refs: { tickets: [], traces: ["t-1"], branches: [], prs: [], reviews: [], deployments: [] },
+    }];
+    input.passes = [
+      indexed(row({ app: "alpha", runId: "a1", traceId: "t-1", parentTaskId: "task-1", usageQuality: "none" })),
+      indexed(row({ app: "beta", runId: "b1", traceId: "t-1", usageQuality: "none" })),
+    ];
+    const snapshot = projectObserveSnapshot(input);
+    expect(snapshot.traces.map((trace) => trace.id)).toEqual(["trace:alpha:t-1", "trace:beta:t-1"]);
+    // Matching a task's `trace_ids` on a bare trace id would hand the beta trace
+    // to an alpha task (invariants 2 and 3).
+    expect(snapshot.traces.map((trace) => trace.parent_session_id)).toEqual(["task:task-1", null]);
+    const task = snapshot.parent_tasks[0]!;
+    expect(task.duration).toEqual({ ms: 120_000, quality: "measured", unknown_reason: null });
+    expect(task).toMatchObject({ trace_count: 1, pass_count: 1, usage_quality: "none", recorded_cost_usd: 0 });
+    expect(task.cost.provider_turns).toBe(0);
+  });
+});
+
+describe("every number states what it covers (#98)", () => {
+  it("declares the apps, time range and filters the totals actually cover", () => {
+    const wide = baseInput();
+    wide.apps = [app("alpha", "live"), app("beta", "live")];
+    const openStatement = projectObserveSnapshot(wide).totals.scope_statement;
+    expect(openStatement.apps).toEqual(["alpha", "beta"]);
+    expect(openStatement.app_filter).toBeNull();
+    expect(openStatement.filters).toEqual([]);
+    expect(openStatement.time_range).toEqual({
+      start_utc: null, end_utc: NOW.toISOString(), basis: "all_recorded",
+    });
+
+    const narrowed = baseInput();
+    narrowed.apps = [app("alpha", "live"), app("beta", "live")];
+    narrowed.filters = { app: "alpha", role: "builder", since: "2026-07-12T06:00:00.000Z" };
+    const statement = projectObserveSnapshot(narrowed).totals.scope_statement;
+    // Listing every configured app while the totals cover one is the exact
+    // falsification this field exists to prevent.
+    expect(statement.apps).toEqual(["alpha"]);
+    expect(statement.app_filter).toBe("alpha");
+    // "all recorded" while rows before `since` were dropped is the other one.
+    expect(statement.time_range).toEqual({
+      start_utc: "2026-07-12T06:00:00.000Z", end_utc: NOW.toISOString(), basis: "since_filter",
+    });
+    expect(statement.filters).toEqual(["app=alpha", "role=builder", "since=2026-07-12T06:00:00.000Z"]);
+  });
+
+  it("keeps the app budget card an app-wide month-to-date fact, unnarrowed by `since`", () => {
+    const input = baseInput();
+    input.apps = [app("alpha", "live")];
+    input.filters = { since: "2026-07-12T06:00:00.000Z" };
+    input.passes = [indexed(row({ app: "alpha", runId: "r1", traceId: "t-1" }))];
+    input.ledger = [
+      // Previous month: genuinely outside a month-to-date window.
+      {
+        at: "2026-06-30T23:59:59.000Z", role: "builder", runtime: "codex", model: "gpt-5.5", status: "completed",
+        tokensIn: 1, tokensOut: 1, costUsd: 5, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1,
+        escalations: 0, app: "alpha", runId: "old", traceId: "t-old", pipeline: "build", pass: "implement",
+      },
+      // Current month but BEFORE `filters.since`. Reusing the filtered ledger for
+      // the app card would silently drop this and understate the month.
+      {
+        at: "2026-07-02T01:00:00.000Z", role: "builder", runtime: "codex", model: "gpt-5.5", status: "completed",
+        tokensIn: 1, tokensOut: 1, costUsd: 2, usageQuality: "complete", subagentTurns: 0, wallClockMs: 1,
+        escalations: 0, app: "alpha", runId: "early", traceId: "t-early", pipeline: "build", pass: "implement",
+      },
+    ];
+    const alpha = projectObserveSnapshot(input).apps[0]!;
+    expect(alpha.recorded_monthly_cost_usd).toBe(2);
+    expect(alpha.cost_window).toEqual({
+      basis: "month_to_date",
+      start_utc: "2026-07-01T00:00:00.000Z",
+      end_utc: NOW.toISOString(),
+      app_wide: true,
+    });
+    expect(alpha.cost_window.start_utc).not.toBe(input.filters.since);
   });
 });
 
@@ -840,6 +1136,18 @@ describe("activity ordering and classification (#97)", () => {
   });
 });
 
+/** Every ordering of `items`. Used to prove a sort is a pure function of the
+ *  records rather than of the order they happened to be read in. */
+function permutations<T>(items: readonly T[]): T[][] {
+  if (items.length <= 1) return [[...items]];
+  const out: T[][] = [];
+  for (let index = 0; index < items.length; index += 1) {
+    const rest = [...items.slice(0, index), ...items.slice(index + 1)];
+    for (const tail of permutations(rest)) out.push([items[index]!, ...tail]);
+  }
+  return out;
+}
+
 function baseInput(): ObserveProjectionInput {
   return {
     now: NOW,
@@ -892,6 +1200,11 @@ function row(overrides: Partial<StatusRow> & { app: string; runId: string; trace
   };
 }
 
+/** A pass whose envelope recorded a finish instant — the only source a trace
+ *  duration may be derived from. */
+function finishedAtIndexed(value: StatusRow, finishedAt: string): IndexedPass {
+  return { ...indexed(value), envelope_finished_at: finishedAt };
+}
 function indexed(value: StatusRow): IndexedPass {
   return {
     row: value,

@@ -26,8 +26,8 @@ or mutation controls. Stopping the server cannot stop or alter Operon work;
 restarting it reconstructs the same view from disk and GitHub.
 
 The UI unifies live and historical telemetry. A running trace continues to
-update; once it ends, the same page becomes its permanent replay and forensic
-record. The existing `operon telemetry` terminal, JSON, and portable HTML
+update; once it ends, the same page becomes its permanent recorded snapshot and
+forensic record. The existing `operon telemetry` terminal, JSON, and portable HTML
 outputs remain supported views over the same underlying facts.
 
 The queue decision is:
@@ -323,6 +323,13 @@ chronological collection** — that is a type invariant, not a convention. Each
 row states its trigger and source in plain language, and offers navigation to
 its trace/parent-task session using real identity only.
 
+Under a session selection, membership is proved by a **positive** identity
+match: the row's trace is one of the session's traces, or its `parent_task_id`
+IS the selected parent task's id. A null `parent_task_id` is the ABSENCE of a
+correlation and never a match — comparing it against a `null` sentinel under a
+single-trace session admitted every same-app row with no parent task while the
+badge asserted "This trace only".
+
 **Pending intake** (`pending_intake`) is undated or independently-timed work
 waiting to be picked up: `state/events/inbox/*.json` drops and apps awaiting
 promotion. It renders as a `<ul>`, not an `<ol>`, because it is explicitly not
@@ -341,7 +348,7 @@ M` rather than silently slicing.
 
 That rule has no exemptions. **Every** capped section — recorded activity,
 pending intake, attention occurrences, the execution graph, the live activity
-stream, its undated tail, and historical replay / completion integrity — reads
+stream, its undated tail, and recorded sessions / completion integrity — reads
 its cap from one named limit key, renders its disclosure through the same scope
 badge, and offers a `Show more` control that raises that key. A badge printing a
 pre-cap total beside a sliced list is worse than a bare slice: a bare slice
@@ -486,6 +493,74 @@ Recommended state treatment:
 Color must never be the only signal; text, icons, and accessible labels carry
 the same meaning.
 
+#### Trace boundaries, node vocabulary, and search (#95)
+
+The graph renders **stacked trace groups**, not one horizontal row. Each group
+is a `section.trace-group` carrying `data-trace-id` set to `TraceView.id` — the
+composite `trace:<app>:<trace_id>`, never the bare trace id, which is not
+globally unique (two apps routinely share one). Its `h3.trace-head` states, all
+as visible text and not only in an accessible label:
+
+- trace id, app, pipeline, and ticket (or `no ticket`);
+- a status pill;
+- the start instant, as a `<time datetime>` through the one timestamp policy;
+- the duration, or the verbatim recorded reason there is none — `Trace not
+  finished`, `Start or finish instant not recorded`, `Unreadable instant`, or
+  `Finish instant precedes start (clock skew)`. A negative duration, a clamp to
+  zero, an `abs()`, or a substituted `Date.now()` are all forbidden;
+- `N observed · M skipped · K not observed`;
+- the trace's ledger-first cost through the single cost renderer;
+- for a legacy trace, the literal note `Trace manifest not recorded — expected
+  stages unknown`.
+
+Each group also carries a **Filter activity to this trace** action, which writes
+the composite id into the existing `?trace=` filter. It adds no route and issues
+no request.
+
+Nodes come from `TraceView.graph_nodes` and are never re-derived in the client.
+`GRAPH_NODE_STATES` in `src/observe/types.ts` is the single closed vocabulary the
+projection emits, the legend explains, the stylesheet styles, and the tests
+assert — an emitted state with no legend row, or a legend row for a state the
+projection cannot emit, is a test failure. The legend is a keyboard-reachable
+`<details>` whose rows are text (never a swatch alone, never a `title=`
+tooltip), and it also explains the arrow and the absent-stage rule.
+
+**A trace whose `manifest` is `not_recorded` emits ZERO `not_observed` nodes.**
+Expected stages are unknown, `completion_integrity.required_stages` is
+`unknown` (not `incomplete`), and a default pipeline stage list is never
+substituted. This is the mechanical form of "no fabricated expected stages for
+legacy traces" above.
+
+Clicking a pass node opens the pass drawer AND sets `?pass=`, which drives the
+Live activity focus. The selection is exposed with `aria-current` on the node
+and `data-selected` on its owning group, survives SSE re-render and a full
+reload, and lives in the URL only — never in `localStorage`, a cookie, or any
+server-side map.
+
+`traces_scope` declares the projection's honest pre-filter total and the trace
+ordering (`order_key`, newest instant first, ties by composite trace id
+**ascending**). The trace sort is a pure function of the records: it is proved
+permutation-stable, never `[...traces].sort(by).reverse()`, which reverses the
+tie-break as well and hoists undated traces to the front.
+
+The graph badge's denominator is **this section's own pre-search collection** —
+the traces in scope after the session selection and app filter, before the graph
+search and the display cap. Quoting the org-wide `traces_scope.total` instead
+turns every narrowing into a false truncation claim: a single-trace session then
+reads `showing 1 of 4` with no pager, telling the operator three traces were
+withheld from a section that withheld nothing. A deliberate scope narrowing is
+declared by the scope KIND and the session/filter detail beside it; **truncation
+is a different fact**, and only the display cap and the projection's delivery
+limit may assert it. Server-side delivery truncation is still surfaced, under
+its own named cause, whenever the section is showing the org-wide set the
+projection capped.
+
+`?gq=` is a client-side search over projected identity only — trace id, app,
+pipeline, ticket, and pass/role names. It never matches prompt text, previews,
+branch names, or timestamps, never touches the network, and never narrows the
+disclosed denominator: the badge reports matches and the recorded total
+separately.
+
 ### 5.4 Pass inspection drawer
 
 Clicking a pass opens a drawer without leaving the graph. Organize it as:
@@ -535,15 +610,81 @@ Clicking a pass opens a drawer without leaving the graph. Organize it as:
 - activity log, always labeled **activity log—not transcript**;
 - native transcript/session link only when the adapter says one exists.
 
-### 5.5 Historical replay
+### 5.5 Recorded session snapshots
 
-A completed task uses the same graph and activity timeline. The operator can
-scrub to a point in time and inspect what was known then. Replay uses event
-timestamps and envelope final state; it must not manufacture intermediate
-states absent from old records.
+A completed task uses the same graph and activity timeline. Each record is a
+**recorded snapshot** built from durable event timestamps and envelope final
+state; it must not manufacture intermediate states absent from old records.
+Nothing is animated and no intermediate state is reconstructed, so the surface
+is named for what it is — the word "replay" is used nowhere in the UI, including
+the header identity line (#96).
 
-The header session chooser provides the entry point to that replay. **Live
-org** shows the ordinary current projection. Choosing a parent task scopes the
+The section is two lists with different, stated scopes:
+
+- **`#history-index`** — the navigable index of every recorded session: one row
+  per parent task and one per trace. It is **deliberately not rescoped** by the
+  current selection, and its badge says so with a reason. Rescoping it would
+  collapse the list to the session already selected and leave the header
+  dropdown as the only way to reach another, which is the defect rather than
+  the fix.
+- **`#history`** — completion-integrity records, scoped to the current selection
+  exactly as before.
+
+They are independent collections and hold **independent paging keys**
+(`history-index` and `history`). A shared key would couple their caps, make
+`?more=` unable to express them separately, and — because a pager's focus is
+restored by key — send keyboard focus into whichever list rendered first. Every
+capped collection's key appears exactly once in `DEFAULT_LIMITS`.
+
+Every index row is either a `<button>` carrying `data-session-id` (a real
+selectable session identity) or a static card stating why it is not selectable.
+A trace **claimed by a parent task** navigates to that task's session and says
+so: its own composite id is not a selectable session and choosing it would be
+silently reset to Live org. The claim is resolved through the SAME `sessions()`
+correlation the Session control uses, which covers both forms the projection
+records — a trace carrying `parent_task_id` (surfaced as `parent_session_id`)
+**and** a trace named only in the task's recorded `refs.traces`. Resolving
+through `parent_session_id` alone declared the second form out of window while
+its claiming session sat in the dropdown. The recorded-activity `session_ref`
+resolves through the same map, so a row and the dropdown cannot disagree about
+whether a record is reachable.
+
+`aria-current` is DERIVED from the selected session during render, never set
+imperatively in the click handler, so an SSE re-render cannot drop it. It marks
+exactly ONE row — the session's own. A claimed trace whose parent is selected is
+marked `data-session-member="true"` and says "in the selected session" in text,
+so "current" keeps a single meaning and colour is never the only signal.
+Activation reuses `selectSession()` whole, inheriting its filter reset, drawer
+close, and URL rewrite. Focus restoration is keyed on the ROW id, not the
+session id: several rows legitimately navigate to the same session, so a session
+id does not identify the control that was activated. Row activation never
+scrolls or focuses on an unrelated re-render.
+
+Each row renders the start instant (`<time datetime>`), duration, pipeline,
+status, pass count, and recorded cost through the ONE cost renderer, so an
+`unavailable` aggregate can never appear as `$0.00`.
+
+`?hq=` searches **structured identity only** — task id, trace id, app, pipeline,
+ticket, status. It never indexes an objective, prompt, preview, or verdict:
+letting user-typed text match model-produced content would allow a search to
+imply a relationship the projection never recorded.
+
+A `?session=` naming a record outside the delivered window **keeps the
+selection** and reports an honest empty projection for it, with a stated reason
+and a `— not in current window` option in the chooser. This is the same
+out-of-window handling the trace and pass filters already apply. It must NOT
+fall back to Live org: a historical view returns to live only when the operator
+chooses **Live org**, and a silent reset both widens the scope without saying so
+and destroys the meaning of a link that promised one session. Under such a
+selection the header cost reports `unavailable`, never `$0.00` — an
+authoritative zero for records that were simply not delivered is the
+`none`/`unavailable` conflation the cost contract forbids. The reason is DERIVED
+from the current snapshot on every render rather than stored, so it can neither
+go stale nor be cleared before it is read.
+
+The header session chooser provides the entry point to that scope change, and a
+history-index row is the same change reached the other way — the two stay
+synchronized in BOTH directions. **Live org** shows the ordinary current projection. Choosing a parent task scopes the
 existing app, attention, delivery, graph, activity, history, totals, drawer,
 and evidence components to its explicitly correlated traces and tickets;
 choosing a standalone trace scopes them to that trace. The browser keeps the
@@ -553,6 +694,88 @@ as historical, and does not jump back to live until the operator chooses
 or PR facts remain current external facts unless a historical event recorded
 their earlier state; the UI must not imply it reconstructed an org-wide
 point-in-time snapshot that does not exist.
+
+#### Per-section scope labelling (#98)
+
+Every major section — Attention, App lifecycle, Recorded activity, Pending
+intake, Product delivery, Execution graph, Live activity, Recorded sessions,
+Completion integrity records, Source health — carries a `.scope-badge` with a
+`data-scope-kind` drawn from ONE closed vocabulary:
+
+| Kind | Meaning |
+| --- | --- |
+| `live_app_wide` | the ordinary current projection, nothing narrowing it |
+| `filtered_app_wide` | app-wide, narrowed by the explicit filters, which the badge names |
+| `parent_task_session` | scoped to the selected parent task |
+| `single_trace` | scoped to the selected standalone trace |
+| `app_wide_context` | deliberately NOT narrowed by the current selection, with a stated reason |
+
+A session kind WINS over a filter for a session-scoped section — a selected
+trace is the narrower projection — but the active filters are never discarded:
+they still appear in the badge detail through `activeFacets()`. A section-local
+text search (`?gq=`, `?hq=`) is named only in its own section's badge, never in
+`activeFacets()`, because it narrows nothing else.
+
+`app_wide_context` is not an escape hatch. A section may only claim it with a
+reason from `APP_WIDE_REASONS`, rendered as a `[data-scope-reason]` line in the
+section BODY and joined into the list's `aria-describedby`. The three standing
+exemptions and their reasons:
+
+- **App lifecycle** — the monthly budget is an app-wide month-to-date fact
+  (`AppView.cost_window`, `basis: month_to_date`, `app_wide: true`, never
+  narrowed by `since`/`parent_task`/`ticket`). Under a selection the card keeps
+  its month-to-date figure unchanged and adds a separately labelled
+  `this session:` line, so the two figures are never left side by side
+  unexplained. It is never rescoped and never falsified to `$0.00`.
+- **Source health** — CURRENT observer health, not health as of the session.
+  Its rendered values are byte-identical under a historical selection: only the
+  label changes. Filtering it, blanking it, or restamping `observed_at` to the
+  trace's start would each imply an org-wide point-in-time snapshot that does
+  not exist.
+- **Pending intake** — carries no trace or task identity, so a session cannot
+  include it.
+
+`#history-index` takes the same exemption whenever anything else is narrowed.
+
+`TotalsView.scope_statement` is the server-side half of "totals always state
+what they cover": the post-filter app list, the app filter, the time range with
+an explicit `all_recorded` / `since_filter` basis, and the canonical sorted
+filter list. Claiming `all_recorded` while rows before `since` were dropped, or
+listing every configured app while the totals cover one, are the two
+falsifications it exists to prevent. The client composes the client-owned trace
+scope on top and renders **both** range instants through the one timestamp
+policy; the trace is named WITH its app, because a bare trace id is ambiguous.
+
+The statement reports the two filter classes **separately**, because they do
+different things:
+
+- **snapshot filters** — `totals.scope_statement.filters`, the server-side
+  narrowing (`operon observe --app/--ticket/…`). The totals already exclude
+  everything it dropped. Rendering only the client dropdowns printed
+  `filters: none` under `--ticket 42`, affirmatively denying a narrowing that
+  had occurred.
+- **display filters** — the client app/role/status/trace/pass/kind/outcome
+  controls. These narrow the SECTIONS below and deliberately do **not** narrow
+  the header totals, which are the projection's ledger-first aggregate;
+  recomputing them client-side would fork the `none`/`unavailable` rule the
+  whole surface shares. The statement says so in those words, so both halves are
+  true rather than one being true by omission.
+
+For the same reason `scope_statement.apps` remains the server's post-snapshot-
+filter list even under a client app filter: it names what the totals cover, not
+what is on screen.
+
+Per-entity cost (`TraceView` / `ParentTaskView`: `cost`, `recorded_cost_usd`,
+`usage_quality`, `active_passes`) comes from the same `costForPasses` helper as
+`totals.cost`, so a row can no longer contradict the header (#89). The client's
+former `sessionTotals` cost mirror — a second implementation of the
+`none`-vs-`unavailable` rule — is deleted. The helper is settlement-aware in
+both directions: a settled row contributes its recorded cost, a genuine provider
+pass with no settled row contributes a COUNTED unknown keyed on its pass id, and
+a mechanical pass contributes an authoritative zero. Without the middle rule an
+unsettled provider turn would aggregate to `coverage: "none"` and render as
+`$0.00` (invariant 4). One consequence is deliberate and visible: under a
+selection the header is now settled-ledger-first rather than envelope-derived.
 
 The historical page also shows completion integrity:
 
@@ -623,6 +846,7 @@ export interface ObserveSnapshotV1 {
   delivery: DeliveryTicketView[];
   parent_tasks: ParentTaskView[];
   traces: TraceView[];
+  traces_scope: SectionScopeView;
   passes: PassView[];
   approvals: ApprovalView[];
   invocations: InvocationView[];

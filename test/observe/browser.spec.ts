@@ -38,7 +38,9 @@ test.beforeAll(async () => {
     last_seen_at: "2026-07-12T11:59:59.000Z",
     usage: { tokens_in: 10, tokens_out: 5, cost_usd: 0.1, quality: "partial", cost_estimated: true },
     previews: { output: "<script>window.__operonInjected=true</script>" },
-    trace_plan: { required_passes: ["implement"], skipped_passes: [{ pass: "security", reason: "quick tier routing" }] },
+    // The routing reason carries a hostile payload: it must reach the DOM as
+    // literal TEXT, verbatim and un-truncated, and must never execute.
+    trace_plan: { required_passes: ["implement"], skipped_passes: [{ pass: "security", reason: "quick tier routing <script>window.__operonGraphInjected=true</script>" }] },
     refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md", session_log: "session.log" },
   }, null, 2)}\n`);
   write(stateHome, "runs/alpha/run-1/events.jsonl", `${JSON.stringify({
@@ -86,12 +88,45 @@ test.beforeAll(async () => {
     refs: { tickets: ["#2"], traces: ["trace-2"], branches: [], prs: [], reviews: [], deployments: [] },
   }, null, 2)}\n`);
   write(stateHome, "tasks/task-2/prompt.md", "Earlier outer prompt\n");
+  // LOAD-BEARING COLLISION: `trace-2` exists in BOTH alpha and beta. It is the
+  // only case that catches a graph, badge, cost, or history row keyed on the
+  // bare `trace_id` instead of the composite `TraceView.id` (invariant 3). Do
+  // not de-duplicate these ids.
+  //
+  // run-collision also carries envelope usage with NO matching telemetry row, so
+  // it pins "an unsettled provider turn never renders as $0.00" (invariant 4).
   write(stateHome, "runs/beta/run-collision/envelope.json", `${JSON.stringify({
     schema_version: 1, run_id: "run-collision", trace_id: "trace-2", app: "beta", pipeline: "build", pass: "beta-collision", role: "builder",
     runtime: "codex", model: "gpt-5.5", status: "completed", started_at: "2026-07-10T10:00:00.000Z", finished_at: "2026-07-10T10:01:00.000Z",
     wall_clock_ms: 60_000, usage: { tokens_in: 10, tokens_out: 5, cost_usd: 9.99, quality: "complete" },
     refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md", session_log: "session.log" },
   }, null, 2)}\n`);
+  // An ALL-MECHANICAL trace: every pass invoked no provider, so its cost is an
+  // AUTHORITATIVE zero ($0.00) and must never render as "unavailable". Paired
+  // with run-collision above, the two pin both directions of invariant 4.
+  write(stateHome, "runs/beta/run-mech/envelope.json", `${JSON.stringify({
+    schema_version: 1, run_id: "run-mech", trace_id: "trace-mech", app: "beta", pipeline: "build", pass: "setup", role: "builder",
+    runtime: "codex", model: "gpt-5.5", status: "completed", started_at: "2026-07-09T10:00:00.000Z", finished_at: "2026-07-09T10:00:30.000Z",
+    wall_clock_ms: 30_000, usage: { tokens_in: 0, tokens_out: 0, cost_usd: 0, quality: "none" },
+    refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md", session_log: "session.log" },
+  }, null, 2)}\n`);
+  // A trace claimed by a parent task through its recorded refs.traces ALONE:
+  // the envelope carries NO parent_task_id, so `parent_session_id` is null and
+  // the only evidence of the correlation is task-3's own refs. Reading just
+  // parent_session_id reported this row as "not in the current window" while its
+  // claiming session sat in the Session control (#96).
+  write(stateHome, "runs/alpha/run-3/envelope.json", `${JSON.stringify({
+    schema_version: 1, run_id: "run-3", trace_id: "trace-3", app: "alpha", pipeline: "build", pass: "implement", role: "builder",
+    runtime: "codex", model: "gpt-5.5", status: "completed", started_at: "2026-07-08T10:00:00.000Z", finished_at: "2026-07-08T10:01:00.000Z",
+    wall_clock_ms: 60_000, usage: { tokens_in: 0, tokens_out: 0, cost_usd: 0, quality: "none" },
+    refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md", session_log: "session.log" },
+  }, null, 2)}\n`);
+  write(stateHome, "tasks/task-3/task.json", `${JSON.stringify({
+    schemaVersion: 1, taskId: "task-3", app: "alpha", objective: "Claims its trace by reference only", promptRef: "prompt.md", promptSha256: "c".repeat(64),
+    requiredStages: ["builder"], executionMode: "operon", fallbackEvents: [], status: "completed", startedAt: "2026-07-08T09:55:00.000Z", endedAt: "2026-07-08T10:02:00.000Z",
+    refs: { tickets: [], traces: ["trace-3"], branches: [], prs: [], reviews: [], deployments: [] },
+  }, null, 2)}\n`);
+  write(stateHome, "tasks/task-3/prompt.md", "Reference-claimed outer prompt\n");
   write(stateHome, "telemetry/2026-07-12.jsonl", [
     { at: "2026-07-12T12:00:00.000Z", role: "builder", runtime: "codex", model: "gpt-5.5<script>window.__operonInjected=true</script>", status: "completed", tokensIn: 10, tokensOut: 5, costUsd: 0.1, usageQuality: "partial", subagentTurns: 0, wallClockMs: 1000, escalations: 0, app: "alpha", runId: "run-1", traceId: "trace-1", parentTaskId: "task-1", pipeline: "build", pass: "implement", costEstimated: true },
     { at: "2026-07-11T10:02:00.000Z", role: "reviewer", runtime: "claude", model: "claude-opus-4-1", status: "completed", tokensIn: 20, tokensOut: 10, costUsd: 0.3, usageQuality: "complete", subagentTurns: 0, wallClockMs: 120000, escalations: 0, app: "alpha", runId: "run-2", traceId: "trace-2", parentTaskId: "task-2", pipeline: "review", pass: "historical-review" },
@@ -135,7 +170,10 @@ test("renders live overview safely, supports keyboard inspection, artifacts, fil
   await expect(page.locator("#connection")).toHaveText("live");
   await expect(page.getByText("fixture-org", { exact: false })).toBeVisible();
   await expect(page.locator("#session-selector")).toHaveValue("");
-  await expect(page.locator("#session-selector option")).toHaveCount(4);
+  // Live org + task-1 + task-2 + task-3 (which claims trace-3 by reference
+  // only) + two standalone beta traces (trace-2 collision and the
+  // all-mechanical trace-mech).
+  await expect(page.locator("#session-selector option")).toHaveCount(6);
   await expect(page.locator("#session-selector")).toContainText("task-1");
   await expect(page.locator("#session-selector")).toContainText("task-2");
   await expect(page.locator("#session-selector")).toContainText("beta");
@@ -177,7 +215,8 @@ test("renders live overview safely, supports keyboard inspection, artifacts, fil
   await page.locator("#session-selector").selectOption("");
   await expect(page).not.toHaveURL(/session=/);
   await expect(page.locator("#session-mode")).toHaveText("live");
-  await expect(page.locator(".trace-node")).toHaveCount(3);
+  // One node per observed pass across the five recorded traces.
+  await expect(page.locator(".trace-node")).toHaveCount(4);
 
   github.issue.labels = ["op:building", "p1"];
   await service.refreshGithubNow();
@@ -214,7 +253,7 @@ test("navigates to Reports, preserves URL controls, renders exhaustive safe sess
   await expect(page.getByRole("link", { name: "Reports" })).toHaveAttribute("aria-current", "page");
   await expect(page.locator("#status")).toContainText("Snapshot generated");
   await expect(page.locator("#report section").first()).toContainText("Data quality");
-  await expect(page.locator(".session")).toHaveCount(3); // two settled tasks plus one envelope-only beta trace
+  await expect(page.locator(".session")).toHaveCount(5); // two settled tasks plus three envelope-only traces (two beta, one alpha)
   await page.locator(".session").first().click();
   await expect(page.locator(".session").first()).toContainText("provider_turn");
   await expect(page.locator("body")).toContainText("gpt-5.5<script>window.__operonInjected=true</script>");
@@ -472,7 +511,7 @@ test("separates recorded activity from pending intake and navigates by real sess
   await expect(page.locator("#pending-intake")).toContainText("Company event file drop");
   // A corrupt file still shows a received time, labelled as discovered.
   await expect(page.locator("#pending-intake")).toContainText("discovered");
-  await expect(page.locator("#pending-intake-scope")).toContainText("pending");
+  await expect(page.locator("#pending-intake-scope")).toContainText("waiting");
   // The unmapped hostile kind reaches the DOM as text, never as markup.
   await expect(page.locator("#pending-intake")).toContainText("<img src=x onerror=alert(1)>");
   expect(await page.locator("#pending-intake img").count()).toBe(0);
@@ -659,6 +698,533 @@ test("discloses every capped section instead of silently slicing, and keeps focu
   expect(new Set(labels).size).toBe(labels.length);
 });
 
+// #95 — a trace is a first-class, visible, selectable, linkable thing. The
+// campaign defect was that the graph knew its traces and showed no boundaries at
+// all: the trace id existed only in an aria-label.
+test("gives every trace a visible boundary, a legend, an actionable node, and an honest manifest", async ({ page }) => {
+  await page.goto(server.url);
+  await expect(page.locator("#connection")).toHaveText("live");
+
+  // --- Boundary header. The id must be in VISIBLE TEXT, not only in an
+  // attribute: a sighted operator reading the graph could not see it before.
+  const alphaOne = page.locator('#graph .trace-group[data-trace-id="trace:alpha:trace-1"]');
+  await expect(alphaOne).toHaveCount(1);
+  const head = alphaOne.locator(".trace-head");
+  await expect(head).toContainText("trace-1");
+  await expect(head).toContainText("build");
+  await expect(head.locator('time[datetime="2026-07-12T11:30:00.000Z"]')).toHaveCount(1);
+  await expect(head.locator(".pill")).toContainText("running");
+  // A running trace has no measurable duration and never borrows the clock.
+  await expect(head).toContainText("Trace not finished");
+  await expect(head).toContainText("1 observed · 1 skipped · 0 not observed");
+
+  // --- Invariant 3: `trace-2` exists in both apps and must render as two
+  // distinct groups. Anything keyed on the bare trace id merges them.
+  await expect(page.locator('#graph .trace-group[data-trace-id="trace:alpha:trace-2"]')).toHaveCount(1);
+  await expect(page.locator('#graph .trace-group[data-trace-id="trace:beta:trace-2"]')).toHaveCount(1);
+
+  // --- Cost per trace, both directions of invariant 4. beta/run-collision has
+  // envelope usage but no settled ledger row; beta/run-mech invoked no provider.
+  await expect(page.locator('#graph .trace-group[data-trace-id="trace:beta:trace-2"] .trace-head')).toContainText("unavailable (1 turn)");
+  await expect(page.locator('#graph .trace-group[data-trace-id="trace:beta:trace-2"] .trace-head')).not.toContainText("$0.00");
+  await expect(page.locator('#graph .trace-group[data-trace-id="trace:beta:trace-mech"] .trace-head')).toContainText("$0.00");
+
+  // --- Legacy trace: no manifest, therefore NO fabricated expected stages.
+  const legacy = page.locator('#graph .trace-group[data-trace-id="trace:beta:trace-2"]');
+  await expect(legacy.locator(".trace-node.not_observed")).toHaveCount(0);
+  await expect(legacy).toContainText("Trace manifest not recorded — expected stages unknown");
+
+  // --- Skipped routing branch: the state in words AND the verbatim reason,
+  // rendered as text. An innerHTML implementation executes nothing visible for a
+  // <script> inserted this way but STRIPS the literal characters, so assert the
+  // literal text is PRESENT rather than only that the flag is unset.
+  const skipped = alphaOne.locator(".trace-node.skipped");
+  await expect(skipped).toHaveCount(1);
+  await expect(skipped).toContainText("skipped by routing");
+  await expect(skipped).toContainText("quick tier routing <script>window.__operonGraphInjected=true</script>");
+  expect(await page.evaluate(() => (window as unknown as { __operonGraphInjected?: boolean }).__operonGraphInjected)).toBeUndefined();
+
+  // --- Legend: keyboard reachable, and every row states its meaning in WORDS.
+  await page.locator("#graph-search").focus();
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("SUMMARY");
+  expect(await page.evaluate(() => document.activeElement?.closest("details")?.id)).toBe("graph-legend");
+  // Native <details> gives keyboard expansion and aria-expanded with no custom
+  // JS; the rows must be readable text once open, not a tooltip.
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#graph-legend")).toHaveAttribute("open", /.*/);
+  const legendRows = await page.$$eval("#graph-legend li[data-legend-state]", (elements) =>
+    elements.map((element) => ({ state: element.getAttribute("data-legend-state"), text: (element as HTMLElement).innerText.trim() })));
+  expect(legendRows.length).toBeGreaterThan(0);
+  // A row whose only content is a coloured swatch teaches nothing (invariant 7).
+  for (const entry of legendRows) expect(entry.text, entry.state ?? "").toContain(entry.state!.replace(/_/g, " "));
+  await expect(page.locator("#graph-legend")).toContainText("→");
+  await expect(page.locator("#graph-legend")).toContainText("skipped by routing");
+
+  // --- Clicking a pass node is a real, persistent, linkable selection.
+  await clickClear(page.locator('#graph [data-pass-id="pass:alpha:run-1"]'));
+  await expect(page.locator("#drawer")).toBeVisible();
+  await expect(page.locator("#drawer-title")).toHaveText("Pass inspection");
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/pass=pass%3Aalpha%3Arun-1/);
+  await expect(page.locator("#pass-filter")).toHaveValue("pass:alpha:run-1");
+  await expect(page.locator('#graph [aria-current="true"][data-pass-id]')).toHaveCount(1);
+  await expect(page.locator('#graph .trace-group[data-trace-id="trace:alpha:trace-1"]')).toHaveAttribute("data-selected", "true");
+  const focused = await page.$$eval('#activity li[data-focused="true"]', (elements) =>
+    elements.map((element) => (element as HTMLElement).dataset["passId"]));
+  expect(focused.length).toBeGreaterThan(0);
+  expect([...new Set(focused)]).toEqual(["pass:alpha:run-1"]);
+
+  // A re-render driven by SSE must not forget the selection…
+  github.issue.labels = ["op:ready", "p1"];
+  await service.refreshGithubNow();
+  await page.waitForTimeout(200);
+  await expect(page.locator('#graph [aria-current="true"][data-pass-id]')).toHaveCount(1);
+  // …and the selection lives in the URL ONLY: no client store (invariant 1).
+  expect(await page.evaluate(() => localStorage.length)).toBe(0);
+  expect(await page.evaluate(() => document.cookie)).toBe("");
+  const selectedUrl = page.url();
+  await page.goto(selectedUrl);
+  await expect(page.locator('#graph [aria-current="true"][data-pass-id]')).toHaveCount(1);
+
+  // --- Trace-level action reuses the landed ?trace= filter on COMPOSITE
+  // identity. Writing the bare trace_id would fail to resolve and the badge
+  // would read 'selected trace is not in the current window'.
+  await clickClear(page.locator('#graph .trace-group[data-trace-id="trace:alpha:trace-1"] [data-trace-filter]'));
+  await expect(page).toHaveURL(/trace=trace%3Aalpha%3Atrace-1/);
+  await expect(page.locator("#trace-filter")).toHaveValue("trace:alpha:trace-1");
+  await expect(page.locator("#activity-scope")).not.toContainText("selected trace is not in the current window");
+  const traceScoped = await page.$$eval("#activity li", (elements) => elements.map((element) => (element as HTMLElement).dataset["passId"]));
+  expect(traceScoped.length).toBeGreaterThan(0);
+  expect(traceScoped.every((value) => value!.startsWith("pass:alpha:"))).toBe(true);
+});
+
+test("discloses trace search against the honest total and keeps it in URL state", async ({ page }) => {
+  const requests: string[] = [];
+  const capped = new URL(server.url);
+  capped.searchParams.set("more", "graph=1");
+  await page.goto(capped.toString());
+  await expect(page.locator("#connection")).toHaveText("live");
+  page.on("request", (request) => { if (!request.url().includes("/api/v1/events")) requests.push(request.url()); });
+
+  await expect(page.locator("#graph .trace-group")).toHaveCount(1);
+  await expect(page.locator("#graph-scope")).toContainText("showing 1 of 5");
+  await expect(page.locator("#graph")).toHaveAttribute("aria-describedby", /graph-scope/);
+  await expect(page.locator('#graph [data-more-key="graph"]')).toHaveAttribute("aria-label", "Show more execution graph traces");
+
+  await page.locator("#graph-search").fill("collision");
+  await expect(page.locator("#graph .trace-group")).toHaveCount(1);
+  await expect(page.locator('#graph .trace-group[data-trace-id="trace:beta:trace-2"]')).toHaveCount(1);
+  await expect(page).toHaveURL(/gq=collision/);
+  // The denominator stays the projection's honest total. 'showing 1 of 1' with
+  // no recorded count would tell the operator only one trace exists.
+  await expect(page.locator("#graph-scope")).toContainText("5 recorded");
+  await expect(page.locator("#graph-scope")).toContainText("graph search=collision");
+  // A search is pure client-side narrowing over data already delivered.
+  expect(requests).toEqual([]);
+
+  const shared = page.url();
+  await page.goto(shared);
+  await expect(page.locator("#graph .trace-group")).toHaveCount(1);
+  await expect(page.locator("#graph-search")).toHaveValue("collision");
+  await expect(page.locator('#graph .trace-group[data-trace-id="trace:beta:trace-2"]')).toHaveCount(1);
+});
+
+// Two lists live inside the "Recorded sessions and completion integrity"
+// section. They are independent collections and must hold independent paging
+// keys: a shared key couples their caps, makes `?more=` unable to express them
+// separately, and — because the pager's focus is restored by key — sends
+// keyboard focus into whichever list renders first.
+test("recorded sessions and integrity records page independently", async ({ page }) => {
+  const capped = new URL(server.url);
+  capped.searchParams.set("more", "history-index=1,history=1");
+  await page.goto(capped.toString());
+  await expect(page.locator("#connection")).toHaveText("live");
+
+  await expect(page.locator("#history-index .history-row")).toHaveCount(1);
+  await expect(page.locator("#history .history-row")).toHaveCount(1);
+
+  // Distinct keys and distinct accessible names. A single key here is exactly
+  // what makes cross-section focus restoration possible.
+  const indexPager = page.locator('#history-index [data-more-key="history-index"]');
+  const recordPager = page.locator('#history [data-more-key="history"]');
+  await expect(indexPager).toHaveAttribute("aria-label", "Show more recorded sessions");
+  await expect(recordPager).toHaveAttribute("aria-label", "Show more completion integrity records");
+  expect(await page.locator('#history-index [data-more-key="history"]').count()).toBe(0);
+  expect(await page.locator('#history [data-more-key="history-index"]').count()).toBe(0);
+
+  // Paging the index leaves the integrity list exactly where it was.
+  await clickClear(indexPager);
+  expect(await page.locator("#history-index .history-row").count()).toBeGreaterThan(1);
+  await expect(page.locator("#history .history-row")).toHaveCount(1);
+  await expect(recordPager).toHaveCount(1);
+
+  // The URL carries both caps separately, so the link reproduces this view.
+  const more = new URL(page.url()).searchParams.get("more") ?? "";
+  expect(more).toContain("history=1");
+  expect(more).toContain("history-index=31");
+
+  // Focus stayed inside the section the operator was paging.
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.closest("#history-index") !== null)).toBe(true);
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.closest("#history") !== null)).toBe(false);
+
+  // And paging the integrity list back does not re-collapse or re-expand the index.
+  const indexRows = await page.locator("#history-index .history-row").count();
+  await clickClear(recordPager);
+  expect(await page.locator("#history .history-row").count()).toBeGreaterThan(1);
+  await expect(page.locator("#history-index .history-row")).toHaveCount(indexRows);
+});
+
+// A trace whose ONLY evidence of a parent is that task's recorded refs.traces.
+// It is not itself selectable, so it must navigate to — and be marked as part
+// of — the session that claims it, rather than claiming to be out of window.
+test("a trace claimed only by refs.traces navigates to its claiming session", async ({ page }) => {
+  await page.goto(server.url);
+  await expect(page.locator("#connection")).toHaveText("live");
+
+  const row = page.locator('#history-index [data-row-id="trace:alpha:trace-3"]');
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("part of recorded session task:task-3");
+  await expect(row).not.toContainText("not in the current window");
+  await expect(row).toHaveAttribute("data-session-id", "task:task-3");
+
+  // The recorded-activity row for the same trace resolves the same way.
+  await expect(page.locator("#activity-history")).not.toContainText("trace:alpha:trace-3 not selectable");
+  await expect(page.locator('#activity-history [data-session-target="task:task-3"]')).toHaveCount(1);
+
+  // Activating it selects the claiming session, and the row then reports itself
+  // as a member of that session — in text, not by colour alone.
+  await clickClear(row);
+  await expect(page.locator("#session-selector")).toHaveValue("task:task-3");
+  await expect(row).toHaveAttribute("data-session-member", "true");
+  await expect(row).toContainText("in the selected session");
+  // aria-current still marks exactly one row: the session's own.
+  await expect(page.locator('#history-index .history-row[aria-current="true"]')).toHaveCount(1);
+  await expect(page.locator('#history-index .history-row[aria-current="true"]')).toHaveAttribute("data-row-id", "task:task-3");
+  // Focus was restored to the row that was activated, not to another row
+  // sharing its session id.
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset["rowId"])).toBe("trace:alpha:trace-3");
+});
+
+// A deliberate scope NARROWING is not truncation. The scope kind and the
+// session detail say what was excluded and why; only the display cap and the
+// projection's delivery limit may claim records were withheld. Quoting the
+// org-wide trace total as the denominator turned every narrowing into an
+// affirmative false claim — "showing 1 of 4" with no pager, for a section that
+// withheld nothing.
+test("a narrowed section discloses its own collection, never a wider one", async ({ page }) => {
+  const scoped = new URL(server.url);
+  scoped.searchParams.set("session", "trace:beta:trace-mech");
+  await page.goto(scoped.toString());
+  await expect(page.locator("#connection")).toHaveText("live");
+
+  await expect(page.locator("#graph .trace-group")).toHaveCount(1);
+  await expect(page.locator("#graph-scope")).toHaveAttribute("data-scope-kind", "single_trace");
+  await expect(page.locator("#graph-scope")).toContainText("1 shown");
+  await expect(page.locator("#graph-scope")).not.toContainText("of 4");
+  await expect(page.locator("#graph-scope")).not.toContainText("showing 1 of");
+  // No pager, because nothing was withheld — the disclosure and the controls
+  // must tell the same story.
+  await expect(page.locator('#graph [data-more-key="graph"]')).toHaveCount(0);
+
+  // The app filter narrows this section too, and its denominator follows.
+  await page.goto(server.url);
+  await page.locator("#app-filter").selectOption("beta");
+  await expect(page.locator("#graph-scope")).toContainText("2 shown");
+  await expect(page.locator("#graph-scope")).not.toContainText("of 4");
+});
+
+// "This trace only" must ADMIT only that trace. Membership is proved by real
+// identity; a null parent_task_id is the absence of a correlation, never a
+// match against a trace session's (non-existent) task id.
+test("a single-trace session admits only that trace's recorded activity", async ({ page }) => {
+  await page.goto(server.url);
+  await expect(page.locator("#connection")).toHaveText("live");
+  // Both beta traces are ticketless, so both are recorded-activity rows, and
+  // both carry a null parent_task_id — the pair the old predicate conflated.
+  const liveRows = await page.$$eval("#activity-history li", (elements) => elements.length);
+  expect(liveRows).toBeGreaterThan(1);
+
+  const scoped = new URL(server.url);
+  scoped.searchParams.set("session", "trace:beta:trace-mech");
+  await page.goto(scoped.toString());
+  await expect(page.locator("#activity-history-scope")).toHaveAttribute("data-scope-kind", "single_trace");
+  await expect(page.locator("#activity-history-scope")).toContainText("This trace only");
+  await expect(page.locator("#activity-history li")).toHaveCount(1);
+  await expect(page.locator("#activity-history")).not.toContainText("beta-collision");
+});
+
+// #96 — a recorded session is a snapshot, not an animated replay, and each row
+// must be a real control that changes scope.
+test("turns recorded sessions into two-way navigation without replay language", async ({ page }) => {
+  await page.goto(server.url);
+  await expect(page.locator("#connection")).toHaveText("live");
+
+  await expect(page.locator("#history-title")).toHaveText("Recorded sessions and completion integrity");
+  await expect(page.locator("#history-title")).not.toContainText(/replay/i);
+  await expect(page.locator("#identity")).not.toContainText(/replay/i);
+  await expect(page.locator("#identity")).toContainText("updated");
+  const explanation = page.locator("#history-title").locator("xpath=../following-sibling::p[1]");
+  await expect(explanation).toContainText("recorded snapshot");
+  await expect(explanation).toContainText("No intermediate state is reconstructed");
+  await expect(explanation).toContainText("Session control");
+
+  // Every row is either a real control or states why it is not one.
+  const rows = await page.$$eval("#history-index .history-row", (elements) => elements.map((element) => ({
+    tag: element.tagName,
+    session: (element as HTMLElement).dataset["sessionId"] ?? null,
+    row: (element as HTMLElement).dataset["rowId"] ?? null,
+    notSelectable: (element as HTMLElement).dataset["notSelectable"] ?? null,
+    text: (element as HTMLElement).innerText.trim(),
+  })));
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) {
+    if (row.session) expect(row.tag).toBe("BUTTON");
+    else { expect(row.notSelectable).toBe("true"); expect(row.text.length).toBeGreaterThan(0); }
+  }
+  // A trace CLAIMED by a parent task navigates to the parent session: its own
+  // composite id is not a selectable session and would be silently reset.
+  const claimed = rows.find((row) => row.row === "trace:alpha:trace-1")!;
+  expect(claimed.session).toBe("task:task-1");
+  expect(claimed.text).toContain("part of recorded session task:task-1");
+
+  // Declared fields are actually rendered, and cost goes through the ONE renderer.
+  const betaRow = page.locator('#history-index [data-row-id="trace:beta:trace-2"]');
+  await expect(betaRow.locator("time[datetime]")).toHaveCount(1);
+  await expect(betaRow).toContainText("1 passes");
+  await expect(betaRow).toContainText("unavailable (1 turn)");
+  await expect(page.locator('#history-index [data-row-id="trace:beta:trace-mech"]')).toContainText("$0.00");
+  await expect(page.locator('#history-index [data-row-id="trace:alpha:trace-1"]')).toContainText("Trace not finished");
+
+  // Row -> dropdown, on the composite identity. With alpha also carrying
+  // `trace-2`, a bare-id implementation selects the wrong app's session.
+  await clickClear(page.locator('#history-index [data-session-id="trace:beta:trace-2"]'));
+  await expect(page.locator("#session-selector")).toHaveValue("trace:beta:trace-2");
+  await expect(page.locator("#session-mode")).toHaveText("historical");
+  // selectSession() is reused, not forked: its filter reset comes along.
+  await expect(page.locator("#trace-filter")).toHaveValue("");
+  await expect(page.locator("#pass-filter")).toHaveValue("");
+  const graphApps = await page.$$eval("#graph .trace-group", (elements) => elements.map((element) => (element as HTMLElement).dataset["traceId"]));
+  expect(graphApps).toEqual(["trace:beta:trace-2"]);
+  // Focus lands on the replacement control rather than at <body>.
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset["sessionId"])).toBe("trace:beta:trace-2");
+
+  // Dropdown -> row. aria-current is DERIVED from state, so an SSE re-render
+  // cannot drop it, and it must not steal focus or scroll.
+  await page.locator("#session-selector").selectOption("task:task-2");
+  await expect(page.locator('#history-index .history-row[aria-current="true"]')).toHaveCount(1);
+  await expect(page.locator('#history-index .history-row[aria-current="true"]')).toHaveAttribute("data-row-id", "task:task-2");
+  const before = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollTop,
+    active: (document.activeElement as HTMLElement | null)?.tagName ?? null,
+  }));
+  github.issue.labels = ["op:ready", "p1"];
+  await service.refreshGithubNow();
+  await page.waitForTimeout(250);
+  await expect(page.locator('#history-index .history-row[aria-current="true"]')).toHaveCount(1);
+  await expect(page.locator('#history-index .history-row[aria-current="true"]')).toHaveAttribute("data-row-id", "task:task-2");
+  expect(await page.evaluate(() => ({
+    scroll: document.documentElement.scrollTop,
+    active: (document.activeElement as HTMLElement | null)?.tagName ?? null,
+  }))).toEqual(before);
+
+  await page.locator("#session-selector").selectOption("");
+  await expect(page.locator('#history-index .history-row[aria-current="true"]')).toHaveCount(0);
+
+  // Search is over STRUCTURED IDENTITY only. Indexing a parent task's objective
+  // would let free text imply a relationship the projection never recorded.
+  const total = rows.length;
+  await page.locator("#history-search").fill("beta");
+  await expect(page).toHaveURL(/hq=beta/);
+  await expect(page.locator("#history-index-scope")).toContainText(`${total} recorded`);
+  await expect(page.locator("#history-index-scope")).toContainText("matching");
+  const matchedRows = await page.$$eval("#history-index .history-row", (elements) => elements.map((element) => (element as HTMLElement).dataset["rowId"]));
+  expect(matchedRows.every((value) => value!.includes("beta"))).toBe(true);
+
+  await page.locator("#history-search").fill("observed slice");
+  await expect(page.locator("#history-index-scope")).toContainText(`showing 0 of 0 matching · ${total} recorded`);
+  await page.locator("#history-search").fill("task-1");
+  expect(await page.locator("#history-index .history-row").count()).toBeGreaterThan(0);
+
+  await page.locator("#history-search").fill("");
+  await expect(page.locator("#history-index-scope")).toContainText(`${total} shown`);
+});
+
+// A ?session= naming a record outside the delivered window KEEPS the selection
+// and reports an empty projection for it. It must NOT fall back to Live org: a
+// historical view may only return to live when the operator picks "Live org"
+// (invariant 15), and this is the same out-of-window handling the trace and
+// pass filters already apply through syncOptionPairs.
+test("keeps a session that left the window selected, and states why it is empty", async ({ page }) => {
+  const ghost = new URL(server.url);
+  ghost.searchParams.set("session", "trace:alpha:ghost");
+  await page.goto(ghost.toString());
+  await expect(page.locator("#connection")).toHaveText("live");
+
+  // Still historical, still the selected value, and the URL still means what it
+  // said — the selection was not silently widened to the whole org.
+  await expect(page.locator("#session-mode")).toHaveText("historical");
+  await expect(page.locator("#session-selector")).toHaveValue("trace:alpha:ghost");
+  await expect(page.locator("#session-selector")).toContainText("not in current window");
+  expect(new URL(page.url()).searchParams.get("session")).toBe("trace:alpha:ghost");
+
+  await expect(page.locator("#history-index-scope-reason")).toContainText("not in the delivered window");
+  await expect(page.locator("#history-index-scope-reason")).toContainText('until you choose "Live org"');
+  await expect(page.locator("#scope-statement")).toContainText("trace:alpha:ghost (not in the delivered window)");
+
+  // An undelivered scope has no recorded aggregate. It reports "unavailable",
+  // never $0.00: an authoritative zero for records that were simply not
+  // delivered is the none/unavailable conflation invariant 4 forbids.
+  await expect(page.locator("#totals")).toContainText("unavailable");
+  await expect(page.locator("#totals")).not.toContainText("$0.00");
+
+  // Only the operator's own choice returns to live.
+  await page.locator("#session-selector").selectOption("");
+  await expect(page.locator("#session-mode")).toHaveText("live");
+  expect(new URL(page.url()).searchParams.get("session")).toBe(null);
+  await expect(page.locator("#history-index-scope-reason")).toBeHidden();
+});
+
+// #98 — the required end-to-end switch between Live org and a historical trace,
+// asserting several sections' scope labels at once including ones that stay
+// app-wide.
+const SCOPE_KINDS = ["live_app_wide", "filtered_app_wide", "parent_task_session", "single_trace", "app_wide_context"];
+
+test("switches between Live org and a historical trace with every section stating its scope", async ({ page }) => {
+  await page.goto(server.url);
+  await expect(page.locator("#connection")).toHaveText("live");
+
+  const badges = async () => page.$$eval("#main [data-scope-kind], header [data-scope-kind]", (elements) =>
+    elements.map((element) => ({ id: element.id, kind: element.getAttribute("data-scope-kind"), text: (element as HTMLElement).textContent?.trim() ?? "" })));
+
+  const live = await badges();
+  expect(live.length).toBeGreaterThanOrEqual(9);
+  for (const badge of live) {
+    expect(SCOPE_KINDS, badge.id).toContain(badge.kind!);
+    expect(badge.text.length, badge.id).toBeGreaterThan(0);
+    expect(badge.kind, badge.id).toBe("live_app_wide");
+  }
+  const liveApps = await page.locator("#apps").innerText();
+  const liveSources = await page.locator("#sources").innerText();
+
+  // The scope statement always states apps, range, filters and trace scope.
+  await expect(page.locator("#totals")).toHaveAttribute("aria-describedby", "scope-statement");
+  await expect(page.locator("#scope-statement")).toContainText("apps: alpha, beta");
+  await expect(page.locator("#scope-statement")).toContainText("time range: all recorded through");
+  // Both filter classes are named explicitly. Asserting a bare "filters: none"
+  // was satisfied by the substring of either segment, so it could not tell an
+  // undeclared snapshot filter from a genuinely unfiltered view.
+  await expect(page.locator("#scope-statement")).toContainText("snapshot filters: none");
+  await expect(page.locator("#scope-statement")).toContainText("display filters: none");
+  await expect(page.locator("#scope-statement")).toContainText("trace: none");
+  expect(await page.locator("#scope-statement time[datetime]").count()).toBe(1);
+
+  // A filter alone is app-wide-but-filtered, not a session.
+  await page.locator("#app-filter").selectOption("alpha");
+  await expect(page.locator("#graph-scope")).toHaveAttribute("data-scope-kind", "filtered_app_wide");
+  await page.locator("#app-filter").selectOption("");
+  await expect(page.locator("#graph-scope")).toHaveAttribute("data-scope-kind", "live_app_wide");
+
+  // --- Switch to a historical trace.
+  await page.locator("#session-selector").selectOption("trace:beta:trace-2");
+  await expect(page).toHaveURL(/session=trace%3Abeta%3Atrace-2/);
+  await expect(page.locator("#session-mode")).toHaveText("historical");
+  for (const id of ["graph-scope", "activity-scope", "history-scope", "attention-count", "delivery-scope", "activity-history-scope"]) {
+    await expect(page.locator(`#${id}`), id).toHaveAttribute("data-scope-kind", "single_trace");
+  }
+  // Sections that are legitimately app-wide or current-time are LABELLED, never
+  // silently rescoped or falsified (invariant 14).
+  for (const id of ["apps-scope", "sources-scope", "pending-intake-scope", "history-index-scope"]) {
+    await expect(page.locator(`#${id}`), id).toHaveAttribute("data-scope-kind", "app_wide_context");
+    await expect(page.locator(`#${id}-reason`), id).not.toBeEmpty();
+  }
+  // Byte-identical: filtering, blanking, or restamping source health would each
+  // imply an org-wide point-in-time snapshot that does not exist.
+  expect(await page.locator("#sources").innerText()).toBe(liveSources);
+  // The app card keeps its month-to-date figure for an app with real spend.
+  await expect(page.locator("#apps")).toContainText("month-to-date · app-wide");
+  await expect(page.locator("#apps")).toContainText("$0.40");
+  expect(liveApps).toContain("$0.40");
+  // An unsettled provider turn is 'unavailable', never $0.00 and never the
+  // envelope amount (#89, invariant 4).
+  await expect(page.locator("#totals")).toContainText("unavailable (1 turn)");
+  await expect(page.locator("#totals")).not.toContainText("$9.99");
+  // An empty historical delivery projection is STATED, not implied six times.
+  await expect(page.locator("#delivery .delivery-column")).toHaveCount(0);
+  await expect(page.locator("#delivery .empty")).toHaveCount(1);
+  await expect(page.locator("#delivery")).toContainText("no correlated GitHub tickets");
+
+  // Invariant 15: a fresh snapshot must not jump the view back to live.
+  github.issue.labels = ["op:building", "p1"];
+  await service.refreshGithubNow();
+  await page.waitForTimeout(250);
+  await expect(page.locator("#session-mode")).toHaveText("historical");
+  await expect(page.locator("#graph-scope")).toHaveAttribute("data-scope-kind", "single_trace");
+  await expect(page.locator("#apps-scope")).toHaveAttribute("data-scope-kind", "app_wide_context");
+
+  await page.reload();
+  await expect(page.locator("#session-selector")).toHaveValue("trace:beta:trace-2");
+  await expect(page.locator("#session-mode")).toHaveText("historical");
+  await expect(page.locator("#graph-scope")).toHaveAttribute("data-scope-kind", "single_trace");
+
+  // A parent-task session is its own kind, and a filter under it is still named.
+  const both = new URL(server.url);
+  both.searchParams.set("app", "alpha");
+  both.searchParams.set("role", "builder");
+  both.searchParams.set("session", "task:task-1");
+  await page.goto(both.toString());
+  await expect(page.locator("#graph-scope")).toHaveAttribute("data-scope-kind", "parent_task_session");
+  // Session kind wins over filters, but the filters are NOT discarded.
+  await expect(page.locator("#graph-scope")).toContainText("app=alpha (pass)");
+  // `apps` is the SERVER's post-snapshot-filter list, so under a client-side
+  // app filter it still names every delivered app — and the statement says so
+  // rather than implying the totals were narrowed. Asserting "apps: alpha"
+  // passed vacuously against "apps: alpha, beta"; this pins the whole segment.
+  await expect(page.locator("#scope-statement")).toContainText("apps: alpha, beta");
+  await expect(page.locator("#scope-statement")).toContainText("snapshot filters: none");
+  await expect(page.locator("#scope-statement")).toContainText(
+    "display filters: app=alpha (pass), role=builder (pass) (narrow the sections below, not these totals)",
+  );
+  await expect(page.locator("#scope-statement")).toContainText("trace: parent task task-1");
+
+  // Back to Live org.
+  await page.locator("#session-selector").selectOption("");
+  await expect(page).not.toHaveURL(/session=/);
+  await expect(page.locator("#session-mode")).toHaveText("live");
+  // Every badge is either scope-derived and names the narrowing, or declares
+  // itself app-wide WITH a stated reason. 'unaffected' is not an escape hatch.
+  for (const badge of await badges()) {
+    if (badge.kind === "app_wide_context") await expect(page.locator(`#${badge.id}-reason`), badge.id).not.toBeEmpty();
+    else { expect(badge.kind, badge.id).toBe("filtered_app_wide"); expect(badge.text, badge.id).toContain("app=alpha"); }
+  }
+  await page.locator("#clear-filters").click();
+  for (const badge of await badges()) expect(badge.kind, badge.id).toBe("live_app_wide");
+});
+
+test("keeps every scope badge and reason readable at 360px with reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 360, height: 720 });
+  const historical = new URL(server.url);
+  historical.searchParams.set("session", "trace:beta:trace-2");
+  await page.goto(historical.toString());
+  await expect(page.locator("#connection")).toHaveText("live");
+  await expect(page.locator("#session-mode")).toHaveText("historical");
+
+  // The badges and reason lines are the longest strings on the page; a missing
+  // overflow-wrap or min-width:0 pushes the whole document wide.
+  const widths = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    client: document.documentElement.clientWidth,
+  }));
+  expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+  for (const badge of await page.locator("[data-scope-kind]").all()) await expect(badge).toBeVisible();
+  for (const reason of await page.locator("[data-scope-reason]").all()) await expect(reason).toBeVisible();
+  // A long node row scrolls inside its OWN container, not by widening the page.
+  const overflow = await page.$$eval(".trace-group ol.trace", (elements) => elements.map((element) => getComputedStyle(element).overflowX));
+  expect(overflow.length).toBeGreaterThan(0);
+  for (const value of overflow) expect(value).toBe("auto");
+});
+
 /** The global header is `position: sticky`, so an element the browser scrolls
  *  flush to the top edge sits underneath it. Centre the target first — this is
  *  what a real operator's scroll does, and it keeps these assertions about
@@ -685,6 +1251,57 @@ class MutableGitHub implements ObserveGitHubSource {
     };
   }
 }
+
+// A SERVER-SIDE snapshot filter (operon observe --ticket 1) narrows what the
+// projection delivers, so the header totals genuinely cover less. The statement
+// must declare it: reading only the client dropdowns printed "filters: none"
+// over a snapshot already narrowed to one ticket — an affirmative denial of a
+// narrowing that had occurred (#98, invariant 8).
+test.describe("a snapshot narrowed by a server-side filter", () => {
+  let filteredService: ObserveService;
+  let filteredServer: StartedObserveServer;
+
+  test.beforeAll(async () => {
+    filteredService = new ObserveService({
+      orgName: "fixture-org",
+      stateHome,
+      appsFile: appsFile(),
+      filters: { ticket: 1 },
+      reconcileMs: 60_000,
+      githubPollMs: 60_000,
+      heartbeatMs: 500,
+      watchFiles: false,
+      clock: () => new Date("2026-07-12T12:00:00.000Z"),
+    });
+    await filteredService.start();
+    filteredServer = await startObserveServer({ service: filteredService, stateHome, port: 0 });
+  });
+
+  test.afterAll(async () => {
+    await filteredService.stop();
+    if (filteredServer.server.listening) await filteredServer.close();
+  });
+
+  test("declares the snapshot filter it was delivered under", async ({ page }) => {
+    await page.goto(filteredServer.url);
+    await expect(page.locator("#connection")).toHaveText("live");
+
+    // The fact the projection recorded, surfaced verbatim rather than re-derived.
+    await expect(page.locator("#scope-statement")).toContainText("snapshot filters: ticket=1");
+    await expect(page.locator("#scope-statement")).not.toContainText("snapshot filters: none");
+    // The client dropdowns are untouched, and are reported as their own class.
+    await expect(page.locator("#scope-statement")).toContainText("display filters: none");
+
+    // The narrowing is real: passes for other tickets were never delivered.
+    const tickets = await page.evaluate(async () => {
+      const response = await fetch("/api/v1/snapshot" + location.search, { cache: "no-store" });
+      const snapshot = await response.json() as { passes: Array<{ ticket: string | null }> };
+      return snapshot.passes.map((pass) => pass.ticket);
+    });
+    expect(tickets.length).toBeGreaterThan(0);
+    expect([...new Set(tickets)]).toEqual(["#1"]);
+  });
+});
 
 function appsFile(): AppsFile {
   return {

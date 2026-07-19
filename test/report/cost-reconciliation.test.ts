@@ -94,9 +94,25 @@ describe("cross-surface cost reconciliation", () => {
       expect(cost.unknown_refs).toEqual(["run-unavailable"]);
     }
 
-    // Mechanical passes are excluded from provider accounting everywhere (#88).
-    expect(report.headline.cost.mechanical_passes).toBe(0); // no ledger rows exist for them
-    expect(snapshot.totals.cost.mechanical_passes).toBe(0);
+    // Mechanical passes are excluded from PROVIDER accounting everywhere (#88):
+    // they contribute nothing to known cost, unknown turns, coverage, or
+    // settlement — all asserted above and all still identical across surfaces.
+    //
+    // They are nonetheless REAL passes, and both surfaces must report the same
+    // number of them. Neither can see them in the ledger (a mechanical pass
+    // settles no row), so both count them from envelope evidence — the Observer
+    // via `costForPasses`, Reports via the unsettled envelope scan. An earlier
+    // revision of this test accepted 0 on one surface and 2 on the other; that
+    // is the one-scope-two-answers shape #89 exists to forbid, so the counts are
+    // now pinned equal to each other AND to the fixture's real pass count.
+    expect(report.headline.cost.mechanical_passes).toBe(2);
+    expect(snapshot.totals.cost.mechanical_passes).toBe(2);
+    expect(snapshot.totals.cost.mechanical_passes).toBe(report.headline.cost.mechanical_passes);
+    // The count must never leak into provider accounting on either surface —
+    // this is what makes counting them safe rather than merely symmetrical.
+    expect(snapshot.totals.cost.provider_turns).toBe(report.headline.cost.provider_turns);
+    expect(report.headline.cost.known_cost_usd).toBeCloseTo(EXPECTED_KNOWN_COST, 6);
+    expect(report.headline.cost.coverage).toBe("partial");
     // estimated + partial + unavailable. The pre-existing "not complete"
     // semantics is preserved; what changed is that the two mechanical passes
     // are no longer counted here (#88).
@@ -137,6 +153,67 @@ describe("cross-surface cost reconciliation", () => {
       provider_turns: cost.provider_turns,
     });
     expect(comparable(snapshot.totals.cost)).toEqual(comparable(report.headline.cost));
+  });
+
+  // The case the parity assertion above could NOT exercise: the base fixture
+  // pins `unsettled_provider_turns` to 0, so it can only compare two surfaces
+  // over a scope where the settlement gap is empty.
+  //
+  // A provider pass with no settled ledger row used to be counted by the
+  // Observer (as an unknown turn) and ignored by Reports (which aggregated
+  // settled rows only). For one identical scope that produced coverage
+  // "partial" / 1 unknown / N+1 provider turns against "complete" / 0 / N —
+  // the divergence #89 exists to make impossible.
+  it("an UNSETTLED provider pass is counted identically by both surfaces (#89)", async () => {
+    home = fixtureWithUnsettledPass();
+    const report = await buildReport({
+      orgName: "fixture-org", stateHome: home.root, appsFile: APPS, now: NOW,
+      query: { app: "alpha", period: "all" },
+    });
+    const ledger = await readTurnRecords(home.root);
+    const statusRows = await readStatusRows(home.root, { app: "alpha" });
+    const snapshot = projectObserveSnapshot({
+      ...baseObserveInput(home.root),
+      passes: statusRows.map(indexed),
+      ledger,
+    });
+
+    // The fixture genuinely exercises the gap — without this the assertions
+    // below would pass vacuously, exactly as the base fixture's did.
+    expect(report.headline.cost_scope.unsettled_provider_turns).toBe(1);
+    expect(snapshot.totals.cost_scope.unsettled_provider_turns).toBe(1);
+    expect(report.headline.cost_scope.settled_provider_turns).toBe(1);
+    expect(snapshot.totals.cost_scope.settled_provider_turns).toBe(1);
+
+    // One settled complete turn plus one unobservable one: two provider turns,
+    // one unknown, partial coverage — on BOTH surfaces.
+    for (const cost of [report.headline.cost, snapshot.totals.cost]) {
+      expect(cost.provider_turns).toBe(2);
+      expect(cost.known_turns).toBe(1);
+      expect(cost.unknown_turns).toBe(1);
+      expect(cost.coverage).toBe("partial");
+      expect(cost.known_cost_usd).toBeCloseTo(60, 6);
+      // Named under the shared `providerPassRef` identity, so the two surfaces
+      // cannot describe the same pass with different references. Sorted only
+      // because contribution ORDER is not a claim either surface makes.
+      expect([...cost.unknown_refs].sort()).toEqual(["pass:alpha:run-unsettled"]);
+    }
+
+    // A scope whose provider turns ALL failed to settle must report
+    // "unavailable", never the authoritative zero `aggregateCost([])` returns
+    // (invariant 4).
+    home.cleanup();
+    home = makeOrgHome({ runs: { records: { alpha: {
+      "run-only": { envelope: envelope("run-only", { usage: usage(5) }), events: [] },
+    } } } });
+    const unsettledOnly = await buildReport({
+      orgName: "fixture-org", stateHome: home.root, appsFile: APPS, now: NOW,
+      query: { app: "alpha", period: "all" },
+    });
+    expect(unsettledOnly.headline.cost.coverage).toBe("unavailable");
+    expect(unsettledOnly.headline.cost.coverage).not.toBe("none");
+    expect(unsettledOnly.headline.cost.unknown_turns).toBe(1);
+    expect(unsettledOnly.headline.cost.known_cost_usd).toBe(0);
   });
 
   it("mechanical passes raise no usage-incomplete Attention item (#88)", async () => {
@@ -235,6 +312,19 @@ function fixture(): OrgHomeFixture {
     // Deliberately NO rows for run-provision / run-gates: mechanical work
     // creates no provider settlement (docs/PURPOSE.md, efficiency doctrine).
   ]);
+  return home;
+}
+
+/** One settled provider turn plus one provider pass that never reached the
+ *  ledger — the settlement gap the base fixture deliberately does not contain. */
+function fixtureWithUnsettledPass(): OrgHomeFixture {
+  const home = makeOrgHome({ runs: { records: { alpha: {
+    "run-complete": { envelope: envelope("run-complete", { usage: usage(60) }), events: [] },
+    // A genuine provider pass: runtime and model ARE recorded and its usage is
+    // a real provider usage record. It simply never settled into the ledger.
+    "run-unsettled": { envelope: envelope("run-unsettled", { role: "builder", usage: usage(7) }), events: [] },
+  } } } });
+  writeLedger(home.root, [row("run-complete", { costUsd: 60, tokensIn: 1000, tokensOut: 100 })]);
   return home;
 }
 

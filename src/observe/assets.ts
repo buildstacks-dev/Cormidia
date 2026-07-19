@@ -26,8 +26,9 @@ export const OBSERVE_HTML = `<!doctype html>
         </select>
       </label>
       <span id="session-mode" class="pill live">live</span>
-      <div id="totals" class="totals"></div>
+      <div id="totals" class="totals" aria-describedby="scope-statement"></div>
     </div>
+    <p id="scope-statement" class="meta scope-statement"></p>
   </header>
   <nav class="filters" aria-label="Observer filters">
     <label>App <select id="app-filter"><option value="">All apps</option></select></label>
@@ -38,11 +39,11 @@ export const OBSERVE_HTML = `<!doctype html>
   <div id="banner" class="banner" role="status" hidden></div>
   <main id="main">
     <section aria-labelledby="attention-title">
-      <div class="section-heading"><h1 id="attention-title">Attention</h1><span id="attention-count"></span></div>
+      <div class="section-heading"><h1 id="attention-title">Attention</h1><span id="attention-count" class="scope-badge"></span></div>
       <div id="attention" class="attention-grid"></div>
     </section>
     <section aria-labelledby="apps-title">
-      <div class="section-heading"><h2 id="apps-title">App lifecycle</h2></div>
+      <div class="section-heading"><h2 id="apps-title">App lifecycle</h2><span id="apps-scope" class="scope-badge"></span></div>
       <div id="apps" class="app-grid"></div>
       <section aria-labelledby="activity-history-title">
         <div class="section-heading"><h3 id="activity-history-title">Recorded activity</h3><span id="activity-history-scope" class="scope-badge"></span><button id="order-toggle" type="button" aria-pressed="false">Oldest first</button></div>
@@ -54,12 +55,30 @@ export const OBSERVE_HTML = `<!doctype html>
       </section>
     </section>
     <section aria-labelledby="delivery-title">
-      <div class="section-heading"><h2 id="delivery-title">Product delivery</h2><span>GitHub <code>op:ready</code> is the claimable queue</span></div>
+      <div class="section-heading"><h2 id="delivery-title">Product delivery</h2><span id="delivery-scope" class="scope-badge"></span><span>GitHub <code>op:ready</code> is the claimable queue</span></div>
       <div id="delivery" class="delivery-board"></div>
     </section>
     <section class="workspace" aria-label="Execution and activity">
       <div>
         <div class="section-heading"><h2 id="graph-title">Execution graph</h2><span id="graph-scope" class="scope-badge"></span></div>
+        <div class="graph-controls">
+          <label>Find trace <input id="graph-search" type="search" placeholder="trace id, app, pipeline, ticket, pass or role"></label>
+          <details id="graph-legend">
+            <summary>Graph legend</summary>
+            <ul class="legend-list">
+              <li data-legend-state="not_started"><span class="legend-swatch" aria-hidden="true"></span>not started — selected, no start instant recorded yet</li>
+              <li data-legend-state="running"><span class="legend-swatch" aria-hidden="true"></span>running — a provider or mechanical turn is in flight</li>
+              <li data-legend-state="completed"><span class="legend-swatch" aria-hidden="true"></span>completed — terminal, recorded as finished</li>
+              <li data-legend-state="blocked"><span class="legend-swatch" aria-hidden="true"></span>blocked — terminal for now, waiting on an approval or dependency</li>
+              <li data-legend-state="failed"><span class="legend-swatch" aria-hidden="true"></span>failed — terminal: failed, timed out, or cancelled</li>
+              <li data-legend-state="skipped"><span class="legend-swatch" aria-hidden="true"></span>skipped by routing — a recorded routing branch that was deliberately not taken; the reason is shown on the node</li>
+              <li data-legend-state="not_observed"><span class="legend-swatch" aria-hidden="true"></span>selected, not observed — the trace manifest required this pass and no record of it exists</li>
+              <li data-legend-state="unknown"><span class="legend-swatch" aria-hidden="true"></span>unknown legacy evidence — recorded state is not interpretable; never inferred</li>
+              <li data-legend-arrow="true"><span class="legend-swatch" aria-hidden="true">&rarr;</span>arrow (&rarr;) — recorded execution order within one trace, oldest start first. It is not a dependency edge.</li>
+              <li data-legend-manifest="true"><span class="legend-swatch" aria-hidden="true"></span>a trace whose manifest was not recorded shows no expected stages at all: absent, never a grey pending row</li>
+            </ul>
+          </details>
+        </div>
         <div id="graph" class="graph" tabindex="0"></div>
       </div>
       <div>
@@ -76,11 +95,15 @@ export const OBSERVE_HTML = `<!doctype html>
       </div>
     </section>
     <section aria-labelledby="history-title">
-      <div class="section-heading"><h2 id="history-title">Historical replay and completion integrity</h2><span id="history-scope" class="scope-badge"></span></div>
+      <div class="section-heading"><h2 id="history-title">Recorded sessions and completion integrity</h2><span id="history-index-scope" class="scope-badge"></span></div>
+      <p class="meta">Each row is a recorded snapshot built from durable event timestamps and envelope final state. No intermediate state is reconstructed and nothing is animated. Selecting a row is the same scope change as the Session control in the header.</p>
+      <label class="history-find">Find a recorded session <input id="history-search" type="search" placeholder="task id, trace id, app, pipeline, ticket, status, approval id, role or rule"></label>
+      <div id="history-index" class="history history-index"></div>
+      <div class="section-heading"><h3 id="history-records-title">Completion integrity records</h3><span id="history-scope" class="scope-badge"></span></div>
       <div id="history" class="history"></div>
     </section>
     <section aria-labelledby="sources-title">
-      <div class="section-heading"><h2 id="sources-title">Source health</h2></div>
+      <div class="section-heading"><h2 id="sources-title">Source health</h2><span id="sources-scope" class="scope-badge"></span></div>
       <div id="sources" class="sources"></div>
     </section>
   </main>
@@ -162,15 +185,68 @@ details.attention-item > summary { cursor:pointer; display:flex; flex-wrap:wrap;
 .ticket { width:100%; text-align:left; background:var(--panel); margin-bottom:.5rem; padding:.65rem; }
 .ticket strong { display:block; margin-bottom:.35rem; }
 .workspace { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr); gap:1rem; }
-.graph { min-height:220px; padding:.8rem; border:1px solid var(--line); border-radius:7px; overflow:auto; display:flex; gap:.5rem; align-items:flex-start; }
-.trace { display:flex; gap:.35rem; align-items:center; min-width:max-content; }
-.trace-node { max-width:190px; min-width:140px; text-align:left; background:var(--panel); padding:.7rem; position:relative; }
+/* Stacked trace GROUPS, each with its own horizontally scrolling node row. The
+   overflow lives on \`ol.trace\`, not on #graph: a long trace must scroll inside
+   its own container or it pushes the page body wide at 360px. */
+.graph { min-height:220px; padding:.8rem; border:1px solid var(--line); border-radius:7px; display:grid; gap:.7rem; min-width:0; }
+.graph-controls { display:flex; gap:.8rem; align-items:end; flex-wrap:wrap; padding:0 0 .5rem; min-width:0; }
+.graph-controls label { display:grid; gap:.2rem; color:var(--muted); font-size:.72rem; min-width:0; }
+.graph-controls input { font:inherit; color:var(--text); background:#202a36; border:1px solid var(--line); border-radius:5px; padding:.45rem .65rem; max-width:100%; min-width:0; }
+.trace-group { background:#0e131a; border:1px solid var(--line); border-radius:7px; padding:.55rem; min-width:0; }
+.trace-group[data-selected='true'] { border-color:var(--blue); border-width:2px; }
+.trace-group[data-selected='true'] .trace-head strong::before { content:'▸ '; }
+.trace-head { display:flex; flex-wrap:wrap; gap:.45rem; align-items:baseline; font-size:.8rem; font-weight:400; margin-bottom:.4rem; overflow-wrap:anywhere; min-width:0; }
+.trace-head strong { font-size:.9rem; }
+.trace-actions { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:.4rem; }
+.trace { display:flex; gap:.35rem; align-items:center; min-width:0; overflow-x:auto; list-style:none; margin:0; padding:0 0 .35rem; }
+.trace > li { display:flex; align-items:center; flex:0 0 auto; }
+.trace-node { max-width:190px; min-width:140px; text-align:left; background:var(--panel); padding:.7rem; position:relative; border:1px solid var(--line); border-radius:5px; color:var(--text); display:block; }
 .trace-node.skipped { border-style:dashed; opacity:.72; }.trace-node.running.live::after { content:''; position:absolute; width:8px; height:8px; border-radius:50%; background:var(--blue); top:.4rem; right:.4rem; animation:pulse 1.4s infinite; }
+.trace-node.not_started { border-style:dotted; }
+.trace-node.blocked { border-left:4px solid var(--amber); }
+.trace-node.failed { border-left:4px solid var(--red); }
+.trace-node.completed { border-left:4px solid var(--green); }
+.trace-node.running { border-left:4px solid var(--blue); }
+.trace-node.not_observed { border-style:dashed; border-left:4px solid var(--red); opacity:.8; }
+.trace-node.unknown { border-style:dotted; opacity:.8; }
+#graph-legend { color:var(--muted); font-size:.75rem; }
+#graph-legend summary { cursor:pointer; }
+.legend-list { list-style:none; margin:.4rem 0 0; padding:0; display:grid; gap:.25rem; }
+.legend-list li { display:flex; gap:.45rem; align-items:baseline; overflow-wrap:anywhere; min-width:0; }
+.legend-swatch { flex:0 0 auto; width:1.1rem; height:.85rem; min-width:1.1rem; max-width:1.1rem; display:inline-block; border:1px solid var(--line); border-radius:3px; }
+/* The swatch is a SECOND signal, never the only one: each legend row states its
+   state in words, and the shape cue (solid / dotted / dashed / coloured rule)
+   is what carries over to the node itself. */
+[data-legend-state='not_started'] .legend-swatch { border-style:dotted; }
+[data-legend-state='running'] .legend-swatch { border-left:4px solid var(--blue); }
+[data-legend-state='completed'] .legend-swatch { border-left:4px solid var(--green); }
+[data-legend-state='blocked'] .legend-swatch { border-left:4px solid var(--amber); }
+[data-legend-state='failed'] .legend-swatch { border-left:4px solid var(--red); }
+[data-legend-state='skipped'] .legend-swatch { border-style:dashed; opacity:.72; }
+[data-legend-state='not_observed'] .legend-swatch { border-style:dashed; border-left:4px solid var(--red); }
+[data-legend-state='unknown'] .legend-swatch { border-style:dotted; opacity:.8; }
+[data-legend-arrow] .legend-swatch,[data-legend-manifest] .legend-swatch { border:0; color:var(--muted); }
 .arrow { color:var(--muted); align-self:center; }
 .activity { max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:7px; background:#0e131a; }
 .activity time { color:var(--muted); font-size:.72rem; }
-.history { display:grid; gap:.6rem; }.history-row { display:grid; grid-template-columns:minmax(160px,.6fr) 1fr auto; gap:.7rem; align-items:center; }
+.history { display:grid; gap:.6rem; }.history-row { display:grid; grid-template-columns:minmax(160px,.6fr) 1fr auto; gap:.7rem; align-items:center; min-width:0; overflow-wrap:anywhere; }
+/* A selectable row is a real button: full-width, start-aligned, and its focus
+   ring must survive the card background. Selection is signalled by a left rule
+   AND the word "selected" — never by colour alone (invariant 7). */
+button.history-row { width:100%; text-align:start; font:inherit; border-radius:7px; }
+button.history-row[aria-current='true'] { border-color:var(--blue); border-left:5px solid var(--blue); }
+/* A trace CLAIMED by the selected parent task. Marked with a dashed rule as
+   well as a colour, and it also carries the words 'in the selected session', so
+   colour is never the only signal (invariant 7). */
+button.history-row[data-session-member='true'] { border-left:5px dashed var(--blue); }
+.history-row.static { opacity:.85; border-style:dashed; }
+.history-index { display:grid; gap:.6rem; }
+.history-find { display:grid; gap:.25rem; color:var(--muted); font-size:.75rem; margin:.2rem 0 .6rem; min-width:0; }
+.history-find input { font:inherit; color:var(--text); background:#202a36; border:1px solid var(--line); border-radius:5px; padding:.45rem .65rem; max-width:100%; min-width:0; }
 .integrity { color:var(--muted); font-size:.75rem; }
+.scope-statement { grid-column:1/-1; margin:.35rem 0 0; overflow-wrap:anywhere; min-width:0; }
+[data-scope-reason] { margin:.15rem 0 .45rem; overflow-wrap:anywhere; min-width:0; }
+.session-cost { color:var(--muted); font-size:.75rem; overflow-wrap:anywhere; }
 .drawer { position:fixed; z-index:30; top:0; right:0; height:100vh; width:min(620px,92vw); background:var(--panel2); border-left:1px solid var(--line); padding:1rem; overflow:auto; box-shadow:-15px 0 40px #0008; }
 .drawer-head { display:flex; justify-content:space-between; align-items:center; position:sticky; top:-1rem; background:var(--panel2); padding:1rem 0; z-index:1; }
 .drawer section { border-top:1px solid var(--line); padding:.8rem 0; }
@@ -192,7 +268,11 @@ export const OBSERVE_JS = String.raw`(() => {
   const state = {
     snapshot:null, selectedPass:null, selectedSession:'', eventSource:null, autoScroll:true, reconnects:0,
     timeMode:'local', timeModePinned:false, order:'newest_first', group:'none', eventKind:'', outcome:'',
-    passFilter:'', traceFilter:'',
+    // There is deliberately no sessionResetReason: the out-of-window statement
+    // is DERIVED from the current snapshot on every render
+    // (sessionUnavailableNote), so it can neither go stale nor be cleared by the
+    // next render before the operator has read it.
+    passFilter:'', traceFilter:'', graphQuery:'', historyQuery:'',
     openAttentionGroups:new Set(), limits:{}, newSincePaused:0,
     // Paused-counter bookkeeping. Both hold EVENT IDS — real identity, never a
     // snapshot counter or a timestamp comparison (invariant 2).
@@ -236,26 +316,84 @@ export const OBSERVE_JS = String.raw`(() => {
   const stamp = (value, prefix) => timeEl(value, state.timeMode, prefix);
   const stampText = (value) => formatStamp(value, state.timeMode);
   // SHARED PRIMITIVE — truncation disclosure. A filtered or capped count is
-  // never presented as a total.
+  // never presented as a total. "capped" is false | true | string: a bare true
+  // keeps the original '(delivery capped)' cause, and a string names a different
+  // one — the graph's truncation is a CLIENT DISPLAY cap, and printing
+  // 'delivery capped' there would state a false cause.
   const disclose = (shown, total, capped) =>
-    shown >= total && !capped ? String(total) + ' shown' : 'showing ' + shown + ' of ' + total + (capped ? ' (delivery capped)' : '');
-  // SHARED PRIMITIVE — section scope badge. Expresses live app-wide, filtered
-  // app-wide, and single-trace/parent-task scope, plus the declared ordering.
-  const scopeBadge = (label, shown, total, ordering, capped) => {
-    const parts = [label, disclose(shown, total, capped)];
-    if (ordering) parts.push(ordering);
-    return parts.filter(Boolean).join(' · ');
+    shown >= total && !capped
+      ? String(total) + ' shown'
+      : 'showing ' + shown + ' of ' + total + (capped ? ' (' + (capped === true ? 'delivery capped' : capped) + ')' : '');
+  // Disclosure for a section that ALSO carries a text search. The search
+  // narrowing is never subtracted from the recorded total: the operator is told
+  // how many records exist, how many the search matched, and how many are on
+  // screen. Recomputing the denominator from the post-search array is the exact
+  // lie sectionScope's doc-comment forbids.
+  const discloseSearch = (shown, matched, total, capped, query) => query
+    ? 'showing ' + shown + ' of ' + matched + ' matching · ' + total + ' recorded' + (capped ? ' (' + (capped === true ? 'delivery capped' : capped) + ')' : '')
+    : disclose(shown, total, capped);
+  // SHARED PRIMITIVE — the closed scope vocabulary. Every major section reports
+  // one of exactly these five kinds, so 'which projection am I looking at' is
+  // answerable without reading the code.
+  const SCOPE_KINDS = {
+    live_app_wide:'App-wide · live',
+    filtered_app_wide:'App-wide · filtered',
+    parent_task_session:'This session (parent task)',
+    single_trace:'This trace only',
+    app_wide_context:'App-wide (not narrowed by this selection)',
   };
-  const renderSectionScope = (badgeId, listId, text) => {
-    q(badgeId).textContent = text;
+  // The stated reason a section is DELIBERATELY not narrowed by the current
+  // selection. 'Unaffected' is not an escape hatch: a section may only declare
+  // app_wide_context if it can say why (invariant 14).
+  const APP_WIDE_REASONS = {
+    'apps-scope':'Monthly budget is an app-wide month-to-date fact; a session cannot narrow it.',
+    'pending-intake-scope':'Pending intake carries no trace or task identity, so a session cannot include it.',
+    'sources-scope':'Source health is CURRENT observer health, not health as of this session.',
+    'history-index-scope':'The recorded-session index is navigation, so it is not narrowed by the current selection.',
+  };
+  // Session kind WINS over filters for a session-scoped section — a selected
+  // trace is a narrower projection than a filter. The active filters are not
+  // discarded: they still appear in the badge DETAIL through activeFacets().
+  const scopeKind = (scope, options) => (options && options.appWide)
+    ? 'app_wide_context'
+    : scope ? (scope.kind === 'task' ? 'parent_task_session' : 'single_trace')
+    : (activeFacets().length ? 'filtered_app_wide' : 'live_app_wide');
+  // SHARED PRIMITIVE — section scope badge. The kind LABEL and the machine
+  // readable kind are produced at one site, so badge text and data-scope-kind
+  // can never drift.
+  const sectionScopeText = (kind, detail, disclosure, ordering, note) =>
+    [SCOPE_KINDS[kind], detail, disclosure, ordering, note].filter(Boolean).join(' · ');
+  // Writes the badge, its machine-readable kind, the aria wiring, and — for an
+  // intentionally app-wide section — a stated reason rendered as a ".meta" line
+  // in the SECTION BODY (not inside the heading flex row, which would wrap
+  // unpredictably) and joined into the list's aria-describedby.
+  const renderSectionScope = (badgeId, listId, kind, text, reason) => {
+    const badge = q(badgeId);
+    badge.textContent = text;
+    badge.dataset.scopeKind = kind;
     const list = q(listId);
-    if (list) list.setAttribute('aria-describedby', badgeId);
+    if (!list) return;
+    const reasonId = badgeId + '-reason';
+    let line = q(reasonId);
+    if (reason) {
+      if (!line) { line = node('p',{class:'meta',id:reasonId,dataset:{scopeReason:kind}}); list.parentNode.insertBefore(line, list); }
+      line.dataset.scopeReason = kind;
+      line.textContent = reason;
+      line.hidden = false;
+    } else if (line) { line.textContent = ''; line.hidden = true; }
+    list.setAttribute('aria-describedby', reason && line && !line.hidden ? badgeId + ' ' + reasonId : badgeId);
   };
   // SHARED PRIMITIVE — paging. EVERY capped collection reads its cap from here,
   // so a section cannot reintroduce a bare .slice(): the cap is a named key with
   // a declared default, and the same key is what showMore raises and what the
   // URL carries.
-  const DEFAULT_LIMITS = {graph:20, history:30, activity:40, 'activity-undated':40, 'activity-history':40, 'pending-intake':40};
+  // EVERY key here belongs to exactly ONE section. Two sections sharing a key
+  // share a cap, a URL parameter, and — because restorePendingFocus resolves a
+  // pager by key — a focus target: paging one would silently re-paginate the
+  // other and throw keyboard focus into it. 'history-index' (recorded sessions)
+  // and 'history' (completion integrity records) are independent lists that
+  // happen to live in one <section>, so they hold independent keys.
+  const DEFAULT_LIMITS = {graph:20, 'history-index':30, history:30, activity:40, 'activity-undated':40, 'activity-history':40, 'pending-intake':40};
   const ATTENTION_LIMIT = 20;
   const limitFor = (key) => state.limits[key] || DEFAULT_LIMITS[key] || ATTENTION_LIMIT;
   // Each Show more names its own section, because several render at once and
@@ -268,14 +406,26 @@ export const OBSERVE_JS = String.raw`(() => {
     'aria-label':'Show more ' + label,
     onclick:()=>{ state.limits[key]=limitFor(key)+(step||40); state.pendingFocus={key,listId}; syncUrl(); },
   },'Show more');
+  // Focus is restored WITHIN the list that owns the control, never by a global
+  // document lookup: a global querySelector returns the first match in DOM
+  // order, which lands on whichever section happens to render first rather than
+  // the one the operator was working in.
   function restorePendingFocus() {
     const pending = state.pendingFocus;
     if (!pending) return;
     state.pendingFocus = null;
-    const button = document.querySelector('[data-more-key="' + CSS.escape(pending.key) + '"]');
-    const target = button || q(pending.listId);
+    const list = q(pending.listId);
+    // rowId, not sessionId: several index rows legitimately navigate to the SAME
+    // session (a parent task and each trace it claims), so a session id does not
+    // identify the control that was activated.
+    const control = list && pending.rowId
+      ? list.querySelector('[data-row-id="' + CSS.escape(pending.rowId) + '"]')
+      : list && pending.key
+      ? list.querySelector('[data-more-key="' + CSS.escape(pending.key) + '"]')
+      : null;
+    const target = control || list;
     if (!target) return;
-    if (target !== button && !target.hasAttribute('tabindex')) target.setAttribute('tabindex','-1');
+    if (target !== control && !target.hasAttribute('tabindex')) target.setAttribute('tabindex','-1');
     target.focus();
   }
   // SHARED PRIMITIVE — ordering. Reads the projection's declared sort key and
@@ -305,6 +455,10 @@ export const OBSERVE_JS = String.raw`(() => {
     return parts;
   };
   const withFacets = (label) => { const parts = activeFacets(); return parts.length ? label + ' · filtered by ' + parts.join(', ') : label; };
+  // A section-local text search is named in THAT section's label only. Putting
+  // it into activeFacets() would make every other badge claim it was narrowed by
+  // a search it never applied.
+  const withSearch = (label, query, noun) => query ? label + ' · filtered by ' + noun + ' search=' + query : label;
   const ticketNumber = (value) => { const match=/(?:^|#)(\d+)$/.exec(String(value||'').trim()); return match?Number(match[1]):null; };
   function setConnection(value, label) { q('connection').className='status '+value; q('connection').textContent=label || value; }
   async function fetchSnapshot() {
@@ -333,7 +487,10 @@ export const OBSERVE_JS = String.raw`(() => {
     applyTimePolicy(s);
     populateSessions(s);
     const scope=selectedSession(s);
-    q('identity').replaceChildren(document.createTextNode(s.org.name+' · '+s.org.state_home_id+' · '+(scope?'historical replay · ':'')+'updated '),stamp(s.generated_at));
+    // "session", not "replay": nothing is animated and no intermediate state is
+    // reconstructed. The word had to change here as well as in the section
+    // heading, or the page would still teach the wrong model (design.md §5.5).
+    q('identity').replaceChildren(document.createTextNode(s.org.name+' · '+s.org.state_home_id+' · '+(scope?'historical session · ':'')+'updated '),stamp(s.generated_at));
     q('timezone').textContent=zoneStatement(state.timeMode);
     renderClockSkew(s);
     q('session-mode').className='pill '+(scope?'unknown':'live'); q('session-mode').textContent=scope?'historical':'live';
@@ -346,7 +503,8 @@ export const OBSERVE_JS = String.raw`(() => {
       node('span',{},formatCost(totals.recorded_cost_usd,totals.usage_quality,totals.cost&&totals.cost.unknown_turns))
     );
     populateFilters(s);
-    renderAttention(s,scope); renderApps(s,scope); renderActivityHistory(s,scope); renderPendingIntake(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistory(s,scope); renderSources(s);
+    renderScopeStatement(s,scope);
+    renderAttention(s,scope); renderApps(s,scope); renderActivityHistory(s,scope); renderPendingIntake(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistoryIndex(s); renderHistory(s,scope); renderSources(s,scope);
     // A snapshot must never steal focus: the drawer takes focus when it OPENS,
     // not on each of the re-renders SSE drives while it is open.
     if(state.selectedPass) { const pass=s.passes.find((p)=>p.id===state.selectedPass); if(pass) renderDrawer(pass,false); else closeDrawer(); }
@@ -361,6 +519,45 @@ export const OBSERVE_JS = String.raw`(() => {
     const mode=declared==='UTC'?'utc':'local';
     if(mode===state.timeMode) return;
     state.timeMode=mode; syncTimeControl();
+  }
+  // The header total always states WHAT it covers: apps, time range, filters,
+  // and trace scope. The server owns apps/range/filters (totals.scope_statement);
+  // the trace scope is client-owned because session selection lives only in the
+  // client. The trace is named with its app, because a bare trace id is
+  // ambiguous whenever two apps share one (invariant 3).
+  //
+  // The two filter classes are reported SEPARATELY because they do different
+  // things. A snapshot filter (operon observe --app/--ticket/--since/…) narrowed
+  // what the server delivered, so the totals already exclude everything it
+  // dropped; reading only activeFacets() printed 'filters: none' under
+  // --ticket 42, affirmatively denying a narrowing that had occurred. A
+  // display filter narrows the SECTIONS below and deliberately does not narrow
+  // these totals, which are the projection's ledger-first aggregate — recomputing
+  // them client-side would fork the none/unavailable rule the whole surface
+  // shares (invariant 4, #89). Saying which is which is what makes both true.
+  function renderScopeStatement(s,scope) {
+    const statement=s.totals&&s.totals.scope_statement;
+    const snapshotFilters=statement&&statement.filters?statement.filters:[];
+    const displayFilters=activeFacets();
+    const children=[document.createTextNode(
+      'apps: '+(statement&&statement.apps.length?statement.apps.join(', '):'none')+' · time range: ')];
+    if(statement&&statement.time_range.basis==='since_filter') {
+      // Through the SHARED time policy like every other absolute instant: a raw
+      // ISO text node carries no zone token, no hover UTC, and ignores the
+      // Local/UTC toggle the rest of the page obeys.
+      children.push(document.createTextNode('since '));
+      children.push(stamp(statement.time_range.start_utc));
+      children.push(document.createTextNode(' through '));
+    } else children.push(document.createTextNode('all recorded through '));
+    children.push(stamp(statement?statement.time_range.end_utc:s.generated_at));
+    children.push(document.createTextNode(
+      ' · snapshot filters: '+(snapshotFilters.length?snapshotFilters.join(', '):'none')+
+      ' · display filters: '+(displayFilters.length?displayFilters.join(', ')+' (narrow the sections below, not these totals)':'none')+
+      ' · trace: '+
+      (scope?(scope.unavailable?scope.id+' (not in the delivered window)'
+        :scope.kind==='task'?'parent task '+scope.task.task_id+' ('+(scope.app||'org')+')'
+        :scope.trace.trace_id+' ('+scope.trace.app+')'):'none')));
+    q('scope-statement').replaceChildren(...children);
   }
   function syncTimeControl() { q('tz-toggle').setAttribute('aria-pressed',String(state.timeMode==='utc')); }
   function syncOrderControl() { q('order-toggle').setAttribute('aria-pressed',String(state.order==='chronological')); }
@@ -416,39 +613,94 @@ export const OBSERVE_JS = String.raw`(() => {
     const taskOptions=available.filter((v)=>v.kind==='task').map(optionFor);
     const traceOptions=available.filter((v)=>v.kind==='trace').map(optionFor);
     select.replaceChildren(node('option',{value:''},'Live org'),...(taskOptions.length?[node('optgroup',{label:'Parent tasks'},...taskOptions)]:[]),...(traceOptions.length?[node('optgroup',{label:'Standalone traces'},...traceOptions)]:[]));
-    if(current&&available.some((v)=>v.id===current)) select.value=current;
-    else if(current) { state.selectedSession=''; select.value=''; replaceSessionUrl(''); }
+    // A ?session= naming a record that has left the delivered window KEEPS the
+    // selection, exactly as syncOptionPairs keeps an out-of-window trace or pass
+    // filter. A historical view must not jump back to live until the operator
+    // picks 'Live org' (invariant 15): silently widening the scope hands the
+    // operator org-wide numbers under a link that promised one session, and the
+    // reset also destroyed the shared link's meaning.
+    if(current&&!available.some((v)=>v.id===current)) select.append(node('option',{value:current},current+' — not in current window'));
+    select.value=current;
   }
-  function selectedSession(s) { return state.selectedSession?sessions(s).find((v)=>v.id===state.selectedSession)||null:null; }
+  // Where a recorded id can actually be NAVIGATED to. available is the set of
+  // selectable sessions; claimedBy maps a trace a session COVERS but that is
+  // not itself selectable onto the session that claims it. Both are read from
+  // sessions() — the one correlation the Session control uses — so a row and the
+  // dropdown can never disagree about whether a record is reachable.
+  //
+  // A trace claimed only through a parent task's recorded refs.traces has a null
+  // parent_task_id and therefore a null parent_session_id. Resolving through
+  // parent_session_id alone reported such a trace as "not in the current window"
+  // while its claiming session was sitting in the dropdown — a false statement
+  // about durable state, and the correlation is a real recorded reference, not
+  // an inference (invariant 2).
+  function sessionTargets(s) {
+    const all=sessions(s), available=new Set(all.map((v)=>v.id)), claimedBy=new Map();
+    for(const session of all) for(const traceKey of session.traceKeys) if(traceKey!==session.id) claimedBy.set(traceKey,session.id);
+    return { available, claimedBy, resolve:(id)=>available.has(id)?id:(claimedBy.get(id)||null) };
+  }
+  // The selection is honoured even when the delivered window no longer contains
+  // it. The returned scope carries NO records rather than falling through to the
+  // whole org, so every section reports an honest empty projection for the
+  // session the operator asked for.
+  function selectedSession(s) {
+    if(!state.selectedSession) return null;
+    const found=sessions(s).find((v)=>v.id===state.selectedSession);
+    if(found) return found;
+    const isTask=state.selectedSession.indexOf('task:')===0;
+    return { id:state.selectedSession, kind:isTask?'task':'trace', unavailable:true,
+      task:null, trace:null, traceKeys:new Set(), passIds:new Set(), app:null,
+      startedAt:'', finishedAt:'', status:'unknown', label:state.selectedSession };
+  }
+  // The stated reason, DERIVED from the current snapshot on every render. A
+  // stored one-shot string is wrong in both directions: never cleared it lies
+  // about the present, and cleared by the next render it disappears before the
+  // operator reads it.
+  function sessionUnavailableNote(s) {
+    if(!s||!state.selectedSession) return '';
+    const scope=selectedSession(s);
+    return scope&&scope.unavailable
+      ? 'Selected session '+scope.id+' is not in the delivered window, so no records for it are available. It stays selected until you choose "Live org".'
+      : '';
+  }
   function sessionPasses(s,scope) { return scope?s.passes.filter((pass)=>scope.passIds.has(pass.id)):s.passes; }
   function sessionTraces(s,scope) { return scope?s.traces.filter((trace)=>scope.traceKeys.has(trace.id)):s.traces; }
   function sessionTicketKeys(s,scope) {
     if(!scope) return null; const keys=new Set();
     for(const pass of sessionPasses(s,scope)) { const number=ticketNumber(pass.ticket); if(number!==null) keys.add(pass.app+'#'+number); }
-    if(scope.kind==='task') for(const ref of scope.task.ticket_refs) { const number=ticketNumber(ref); if(number!==null&&scope.task.app) keys.add(scope.task.app+'#'+number); }
+    if(scope.kind==='task'&&scope.task) for(const ref of scope.task.ticket_refs) { const number=ticketNumber(ref); if(number!==null&&scope.task.app) keys.add(scope.task.app+'#'+number); }
     return keys;
   }
-  // Client-side mirror of aggregateCost (src/runtime/cost.ts) for the session
-  // scope, which only the client knows. A mechanical pass ('none') is an
-  // authoritative zero and never degrades quality; an unobservable turn is
-  // counted, not summed as zero (#88, #90).
+  // Cost, quality and active-pass counts are READ from the selected entity's
+  // projected, ledger-first aggregate — the client no longer keeps a second
+  // implementation of the none-vs-unavailable rule (invariant 4), and the header
+  // under a selection is settled-ledger-first exactly like snapshot.totals, so
+  // the two can no longer disagree about the same passes (#89).
+  //
+  // Approvals and delivery readiness stay client-derived: they depend on ticket
+  // key resolution only the client performs.
   function sessionTotals(s,scope) {
-    const passes=sessionPasses(s,scope), tickets=sessionTicketKeys(s,scope), ranks={none:-1,complete:0,estimated:1,partial:2,unavailable:3};
-    const provider=passes.filter((pass)=>pass.usage.quality!=='none');
-    const known=provider.filter((pass)=>pass.usage.quality!=='unavailable'&&pass.usage.cost_usd!==null&&pass.usage.cost_usd!==undefined);
-    // 'none' and 'unavailable' are never conflated (invariant 4). All-mechanical
-    // passes are an AUTHORITATIVE zero; only a scope with no pass evidence at all
-    // is unavailable. Mirrors the same rule in project.ts and cost.ts.
-    const quality=provider.length
-      ? provider.map((pass)=>pass.usage.quality).reduce((worst,value)=>ranks[value]>ranks[worst]?value:worst,'complete')
-      : passes.length?'none':'unavailable';
+    // A selection outside the delivered window has NO recorded aggregate. The
+    // cost renders 'unavailable', never $0.00: an authoritative zero for records
+    // that were simply not delivered is the none/unavailable conflation
+    // invariant 4 forbids.
+    if(scope.unavailable) return { active_passes:0, pending_approvals:0, delivery_ready:0,
+      recorded_cost_usd:0, usage_quality:'unavailable', cost:{unknown_turns:0} };
+    const entity=entityCost(scope), tickets=sessionTicketKeys(s,scope);
     const approvals=s.approvals.filter((approval)=>approval.ticket_ref&&tickets.has(approval.app+'#'+ticketNumber(approval.ticket_ref)));
     const delivery=s.delivery.filter((ticket)=>tickets.has(ticket.app+'#'+ticket.issue_number));
-    return { active_passes:passes.filter((pass)=>pass.status==='running').length, pending_approvals:approvals.filter((approval)=>approval.status==='pending').length, delivery_ready:delivery.filter((ticket)=>ticket.state==='ready').length, recorded_cost_usd:known.reduce((total,pass)=>total+Number(pass.usage.cost_usd||0),0), usage_quality:quality, cost:{ unknown_turns:provider.length-known.length, mechanical_passes:passes.length-provider.length } };
+    return {
+      active_passes:entity.active_passes||0,
+      pending_approvals:approvals.filter((approval)=>approval.status==='pending').length,
+      delivery_ready:delivery.filter((ticket)=>ticket.state==='ready').length,
+      recorded_cost_usd:entity.recorded_cost_usd,
+      usage_quality:entity.usage_quality,
+      cost:entity.cost,
+    };
   }
   function visibleApp(value,scope) { const f=currentFilters(); return (!scope||scope.app===null||value===scope.app||sessionPasses(state.snapshot,scope).some((pass)=>pass.app===value))&&(!f.app||value===f.app); }
   function renderAttention(s,scope) {
-    const entities=scope?new Set([...sessionPasses(s,scope).map((pass)=>pass.id),...(scope.kind==='task'?['task:'+scope.task.task_id]:[]),...[...sessionTicketKeys(s,scope)].map((key)=>'ticket:'+key.replace('#',':'))]):null;
+    const entities=scope?new Set([...sessionPasses(s,scope).map((pass)=>pass.id),...(scope.kind==='task'&&scope.task?['task:'+scope.task.task_id]:[]),...[...sessionTicketKeys(s,scope)].map((key)=>'ticket:'+key.replace('#',':'))]):null;
     // Occurrence-level scope filtering, using the SAME predicate the flat list
     // used. A group with zero visible occurrences is hidden entirely.
     const visible=(v)=>scope?(v.kind==='source_health'||(v.entity_id&&entities.has(v.entity_id))):(v.app===null||visibleApp(v.app,scope));
@@ -457,9 +709,14 @@ export const OBSERVE_JS = String.raw`(() => {
       return { g, occurrences };
     }).filter((entry)=>entry.occurrences.length>0);
     const items=s.attention.filter(visible);
-    q('attention-count').textContent=groups.length
-      ? groups.length+' group(s) · '+items.length+' item(s) · most severe first'
-      : 'clear';
+    const kind=scopeKind(scope);
+    // The count line keeps its id and its 'group(s)' / 'most severe first'
+    // tokens; it simply becomes the section's scope badge rather than a second,
+    // kind-less status string.
+    renderSectionScope('attention-count','attention',kind,sectionScopeText(kind,
+      withFacets(scope?'this session':'all visible apps'),
+      groups.length?groups.length+' group(s) · '+items.length+' item(s)':'clear',
+      'most severe first'));
     // Rendered in the order the PROJECTION delivered. Any client-side sort here
     // would reintroduce the instability the ordering contract forbids.
     q('attention').replaceChildren(...(groups.length?groups.map(attentionGroup):[empty('No conditions require interpretation.') ]));
@@ -512,53 +769,104 @@ export const OBSERVE_JS = String.raw`(() => {
     }
     return lines;
   }
+  // App lifecycle is DELIBERATELY not rescoped by a session. The monthly budget
+  // is an app-wide month-to-date fact, and a session cannot narrow it: silently
+  // rescoping it would present a smaller number that looks like the same one,
+  // and blanking it would falsify an app that genuinely has spend (invariant
+  // 14). It is narrowed only by the explicit app filter.
   function renderApps(s,scope) {
-    const apps=s.apps.filter((v)=>visibleApp(v.name,scope));
-    q('apps').replaceChildren(...apps.map((v)=>node('article',{class:'card'},node('h3',{},v.name),badge(v.lifecycle,v.lifecycle),node('p',{class:'meta'},v.repo),node('p',{class:'meta'},formatCost(v.recorded_monthly_cost_usd,v.usage_quality,v.cost&&v.cost.unknown_turns)+' / $'+v.budget_usd_month.toFixed(0)+' monthly'),...v.channel_gates.map((g)=>node('div',{class:'meta warn'},g)))));
+    const f=currentFilters();
+    const apps=s.apps.filter((v)=>!f.app||v.name===f.app);
+    const kind=scopeKind(scope,{appWide:Boolean(scope)});
+    renderSectionScope('apps-scope','apps',kind,sectionScopeText(kind,
+      withFacets('month-to-date · app-wide'),disclose(apps.length,apps.length,false)),
+      scope?APP_WIDE_REASONS['apps-scope']:'');
+    // Under a selection the SESSION figure is rendered as a second, separately
+    // labelled line read from the selected entity's projected ledger-first cost,
+    // so the two numbers are never left sitting side by side unexplained.
+    const sessionCost=scope?entityCost(scope):null;
+    q('apps').replaceChildren(...apps.map((v)=>node('article',{class:'card'},
+      node('h3',{},v.name),
+      badge(v.lifecycle,v.lifecycle),
+      node('p',{class:'meta'},v.repo),
+      node('p',{class:'meta'},'month-to-date · app-wide: '+formatCost(v.recorded_monthly_cost_usd,v.usage_quality,v.cost&&v.cost.unknown_turns)+' / $'+v.budget_usd_month.toFixed(0)+' monthly'),
+      node('p',{class:'meta'},'window '+(v.cost_window?v.cost_window.start_utc.slice(0,10)+' → now (UTC month)':'month to date')),
+      sessionCost&&scope.app===v.name?node('p',{class:'session-cost'},'this session: '+formatCost(sessionCost.recorded_cost_usd,sessionCost.usage_quality,sessionCost.cost&&sessionCost.cost.unknown_turns)):'',
+      ...v.channel_gates.map((g)=>node('div',{class:'meta warn'},g)))));
   }
+  // The selected session's own projected entity. Cost, quality and active-pass
+  // counts are read straight off it: the client no longer maintains a second
+  // implementation of the none-vs-unavailable rule (invariant 4), and the header
+  // total is ledger-first exactly like snapshot.totals (#89).
+  function entityCost(scope) { return scope.kind==='task'?scope.task:scope.trace; }
   function renderActivityHistory(s,scope) {
     const section=s.activity_history, ordering=section.scope.ordering;
     const scopedTraces=scope?new Set(sessionTraces(s,scope).map((trace)=>trace.app+'\u0000'+trace.trace_id)):null;
-    const filtered=section.rows.filter((v)=>visibleApp(v.app,scope)&&(!scope||(v.trace_id&&scopedTraces.has(v.app+'\u0000'+v.trace_id))||v.parent_task_id===(scope.kind==='task'?scope.task.task_id:null)));
+    // Membership is proved by a real identity: the row's trace is one of the
+    // session's traces, or its parent_task_id IS the selected task's id.
+    //
+    // Comparing parent_task_id against a scope.kind==='task' conditional
+    // compared it against null in the TRACE case, so under a single-trace
+    // session every same-app row with no parent task was admitted while the
+    // badge asserted 'This trace only'. A null parent_task_id is the ABSENCE
+    // of a correlation, never a match (invariant 2).
+    const inScope=(v)=>{
+      if(!scope) return true;
+      if(v.trace_id&&scopedTraces.has(v.app+'\u0000'+v.trace_id)) return true;
+      return scope.kind==='task'&&Boolean(scope.task)&&v.parent_task_id!==null&&v.parent_task_id===scope.task.task_id;
+    };
+    const filtered=section.rows.filter((v)=>visibleApp(v.app,scope)&&inScope(v));
     const ordered=orderClientRows(filtered,ordering,state.order);
     const limit=limitFor('activity-history'), rows=ordered.slice(0,limit);
-    renderSectionScope('activity-history-scope','activity-history',
-      scopeBadge(scope?'this session':'all visible apps',rows.length,section.scope.total,directionLabel(state.order)+' · ties by '+(ordering?ordering.tie_breaker:'id_asc'),section.scope.truncated));
-    const available=new Set(sessions(s).map((v)=>v.id));
+    const kind=scopeKind(scope);
+    renderSectionScope('activity-history-scope','activity-history',kind,sectionScopeText(kind,
+      withFacets(scope?'this session':'all visible apps'),
+      disclose(rows.length,section.scope.total,section.scope.truncated),
+      directionLabel(state.order)+' · ties by '+(ordering?ordering.tie_breaker:'id_asc')));
+    const targets=sessionTargets(s);
     q('activity-history').replaceChildren(...(rows.length?[...rows.map((v)=>node('li',{},
       node('strong',{},v.summary),
       badge(v.status,v.status),
       node('div',{class:'meta'},v.trigger_label+' · '+v.source_label),
       stamp(v.occurred_at),
-      sessionLink(v,available),
+      sessionLink(v,targets),
       node('div',{class:'meta'},v.kind+' · '+v.pipeline),
       v.quality_reason?node('div',{class:'meta warn'},v.quality_reason):'',
     )),...(rows.length<ordered.length?[node('li',{},showMore('activity-history',40,'recorded activity','activity-history'))]:[])]:[empty('No recorded non-ticket activity in this view.')]));
   }
   // Navigation reuses the existing read-only session machinery: it sets URL
   // state and re-renders. It adds no route and issues no request.
-  function sessionLink(row,available) {
+  function sessionLink(row,targets) {
     const ref=row.session_ref;
     if(!ref) return node('span',{class:'meta'},'no correlated session recorded');
+    // Resolved through the SAME claim map the recorded-session index uses, so a
+    // trace claimed only by a parent task's refs.traces navigates to that task
+    // instead of being declared unreachable.
+    const target=targets.resolve(ref.id);
     // aria-disabled, NOT disabled: the button keeps its place in the tab order
     // so the stated reason is reachable, and it carries no aria-label so its
     // accessible name IS its visible text (WCAG 2.5.3).
-    if(!available.has(ref.id)) return node('button',{class:'session-link',type:'button','aria-disabled':'true'},'session '+ref.id+' not selectable — not in current window');
-    return node('button',{class:'session-link',type:'button','aria-label':'View session '+ref.id,onclick:()=>{ selectSession(ref.id); }},'View session '+ref.id);
+    if(!target) return node('button',{class:'session-link',type:'button','aria-disabled':'true'},'session '+ref.id+' not selectable — not in current window');
+    const label=target===ref.id?'View session '+target:'View recorded session '+target;
+    return node('button',{class:'session-link',type:'button',dataset:{sessionTarget:target},'aria-label':label,onclick:()=>{ selectSession(target); }},label);
   }
   function renderPendingIntake(s,scope) {
     const section=s.pending_intake, counts=section.counts;
     if(scope) {
       // Pending items carry no trace/task identity, so a session scope cannot
       // include them. Say so rather than rendering a misleading empty list.
-      renderSectionScope('pending-intake-scope','pending-intake','org-wide · '+section.scope.total+' pending');
+      renderSectionScope('pending-intake-scope','pending-intake','app_wide_context',
+        sectionScopeText('app_wide_context','org-wide',section.scope.total+' pending'),
+        APP_WIDE_REASONS['pending-intake-scope']);
       q('pending-intake').replaceChildren(node('li',{class:'meta'},'Pending intake is org-wide and not part of this session.'));
       return;
     }
     const filtered=section.rows.filter((v)=>visibleApp(v.app,scope));
     const limit=limitFor('pending-intake'), rows=filtered.slice(0,limit);
-    renderSectionScope('pending-intake-scope','pending-intake',
-      section.scope.total+' pending · '+counts.pending+' waiting · '+counts.corrupt+' corrupt · '+counts.awaiting_promotion+' awaiting promotion · '+disclose(rows.length,section.scope.total,section.scope.truncated));
+    const kind=scopeKind(scope);
+    renderSectionScope('pending-intake-scope','pending-intake',kind,sectionScopeText(kind,
+      withFacets(counts.pending+' waiting · '+counts.corrupt+' corrupt · '+counts.awaiting_promotion+' awaiting promotion'),
+      disclose(rows.length,section.scope.total,section.scope.truncated)),'');
     q('pending-intake').replaceChildren(...(rows.length?[...rows.map((v)=>node('li',{},
       node('strong',{},v.title),
       // State is TEXT, never colour alone.
@@ -574,22 +882,134 @@ export const OBSERVE_JS = String.raw`(() => {
   function renderDelivery(s,scope) {
     const defs=[['ready','Ready'],['building','Building'],['in_review','Reviewing'],['blocked_on_approval','Waiting approval'],['returned','Returned'],['merged','Recently completed']];
     const sessionTickets=sessionTicketKeys(s,scope); const tickets=s.delivery.filter((v)=>visibleApp(v.app,scope)&&(!sessionTickets||sessionTickets.has(v.app+'#'+v.issue_number)));
+    const kind=scopeKind(scope);
+    renderSectionScope('delivery-scope','delivery',kind,sectionScopeText(kind,
+      withFacets(scope?'tickets correlated to this session':'all visible apps'),
+      disclose(tickets.length,tickets.length,false)),'');
+    // Six columns each reading 'None' is indistinguishable from 'this app has no
+    // work'. When a selection correlates to no ticket at all, say exactly that
+    // once instead of implying an empty queue six times.
+    if(scope&&sessionTickets&&sessionTickets.size===0) {
+      q('delivery').replaceChildren(empty('This session has no correlated GitHub tickets. The app-wide delivery queue is hidden by the current selection.'));
+      return;
+    }
     q('delivery').replaceChildren(...defs.map(([key,label])=>{ const rows=tickets.filter((v)=>v.state===key); return node('section',{class:'delivery-column','aria-label':label},node('h3',{},label,node('span',{class:'meta'},String(rows.length))),...(rows.length?rows.map(ticketCard):[empty('None') ])); }));
   }
   function ticketCard(ticket) {
     return node('button',{class:'ticket',type:'button',onclick:()=>selectTicket(ticket)},node('strong',{},'#'+ticket.issue_number+' '+ticket.title),node('span',{class:'meta'},ticket.app+' · '+(ticket.priority?'p'+ticket.priority:'no priority')+' · '+(ticket.tier||'tier unknown')),ticket.dependency_blocked?node('span',{class:'pill blocked'},'dependency blocked'):'',...ticket.pull_requests.flatMap((p)=>[node('span',{class:'pill'},'PR #'+p.number),badge('review '+p.review_integrity,p.review_integrity==='fresh_approved'?'completed':p.review_integrity==='stale_approval'||p.review_integrity==='changes_requested'?'failed':'unknown'),badge('checks '+p.check_integrity,p.check_integrity==='green'?'completed':p.check_integrity==='red'?'failed':p.check_integrity==='pending'?'blocked':'unknown')]));
   }
   function selectTicket(ticket) { const pass=state.snapshot.passes.find((p)=>p.app===ticket.app&&Number(String(p.ticket||'').replace('#',''))===ticket.issue_number); if(pass) openDrawer(pass.id); }
+  // Plain-language state words. Colour is never the only signal: every node
+  // renders its state as TEXT drawn from the same closed vocabulary the legend
+  // and the stylesheet read (invariant 7).
+  const GRAPH_STATE_WORDS={not_started:'not started',running:'running',completed:'completed',blocked:'blocked',failed:'failed',skipped:'skipped by routing',not_observed:'selected, not observed',unknown:'unknown legacy evidence'};
+  function humanDuration(ms) {
+    const seconds=Math.round(ms/1000);
+    if(seconds<60) return seconds+'s';
+    const minutes=Math.floor(seconds/60);
+    if(minutes<60) return minutes+'m '+(seconds%60)+'s';
+    return Math.floor(minutes/60)+'h '+(minutes%60)+'m';
+  }
+  // A duration is either a real measurement or the verbatim recorded reason it
+  // is not one. Never a negative number and never a clock read (invariant 11).
+  const durationText=(duration)=>!duration?'duration not recorded':duration.ms===null?duration.unknown_reason:humanDuration(duration.ms);
+  // Search matches PROJECTED IDENTITY ONLY — trace id, app, pipeline, ticket,
+  // and pass/role names. Never prompt text, previews, branch names, verdicts, or
+  // timestamps (invariant 2), and it never touches the network.
+  function traceMatchesQuery(trace,query) {
+    if(!query) return true;
+    const needle=query.toLowerCase();
+    const fields=[trace.trace_id,trace.app,trace.pipeline,trace.ticket||''];
+    for(const graphNode of trace.graph_nodes||[]) { fields.push(graphNode.pass); fields.push(graphNode.role||''); }
+    return fields.some((value)=>String(value).toLowerCase().includes(needle));
+  }
   function renderGraph(s,scope) {
     // The graph is a CAPPED collection like every other one, so it goes through
     // the shared scope/paging primitives. Printing the pre-cap total next to a
     // silently sliced list is an affirmative false claim about what is on
     // screen — worse than a bare slice, which at least claims nothing.
-    const all=sessionTraces(s,scope).filter((v)=>visibleApp(v.app,scope));
-    const limit=limitFor('graph'), traces=all.slice(0,limit);
-    renderSectionScope('graph-scope','graph',
-      scopeBadge((scope?'this session':'all visible apps')+' · trace(s)',traces.length,all.length,'Newest start first · ties by trace id'));
-    const graph=q('graph'); graph.replaceChildren(...(traces.length?[...traces.map((trace)=>{ const passes=trace.pass_ids.map((id)=>s.passes.find((p)=>p.id===id)).filter(Boolean); const nodes=[]; passes.forEach((pass,index)=>{ if(index) nodes.push(node('span',{class:'arrow','aria-hidden':'true'},'→')); nodes.push(node('button',{class:'trace-node '+pass.status+' '+pass.liveness,type:'button',dataset:{passId:pass.id},'aria-current':String(state.passFilter===pass.id),onclick:()=>{ openDrawer(pass.id); selectPass(pass.id,false); },'aria-label':pass.role+' '+pass.pass+' '+pass.status},node('strong',{},pass.role),node('div',{},pass.pass),node('div',{class:'meta'},pass.runtime+'/'+(pass.model||'?')),badge(pass.status,pass.status),pass.status==='running'?badge(pass.liveness,pass.liveness):'')); }); for(const skip of trace.skipped_passes){ if(nodes.length) nodes.push(node('span',{class:'arrow','aria-hidden':'true'},'→')); nodes.push(node('div',{class:'trace-node skipped','aria-label':'Skipped '+skip.pass},node('strong',{},skip.pass),node('div',{class:'meta'},skip.reason),badge('skipped','unknown'))); } return node('div',{class:'trace','aria-label':'Trace '+trace.trace_id},...nodes); }),...(traces.length<all.length?[showMore('graph',DEFAULT_LIMITS.graph,'execution graph traces','graph')]:[])]:[empty('No correlated trace evidence for the selected filters.') ]));
+    const visible=sessionTraces(s,scope).filter((v)=>visibleApp(v.app,scope));
+    const matched=visible.filter((v)=>traceMatchesQuery(v,state.graphQuery));
+    const limit=limitFor('graph'), traces=matched.slice(0,limit);
+    const capped=traces.length<matched.length?'display capped':false;
+    const kind=scopeKind(scope);
+    // The DENOMINATOR is THIS section's own pre-search collection — the traces
+    // in scope after the session selection and app filter, before the graph
+    // search and the display cap. Quoting the org-wide traces_scope.total
+    // instead turned every narrowing into a false truncation claim: a
+    // single-trace session rendered 'showing 1 of 4' with no pager, telling the
+    // operator that three traces had been withheld from a section that withheld
+    // nothing. A deliberate scope narrowing is declared by the scope KIND (and
+    // by the session/filter detail beside it); truncation is a different fact
+    // and only the cap and the projection's delivery limit may assert it.
+    //
+    // Server-side delivery truncation is still surfaced, as its own named cause,
+    // whenever this section is showing the org-wide set the projection capped.
+    const deliveryCapped=!scope&&!currentFilters().app&&s.traces_scope&&s.traces_scope.truncated;
+    renderSectionScope('graph-scope','graph',kind,sectionScopeText(kind,
+      withSearch(withFacets((scope?'this session':'all visible apps')+' · trace(s)'),state.graphQuery,'graph'),
+      discloseSearch(traces.length,matched.length,visible.length,capped||(deliveryCapped?'delivery capped':false),state.graphQuery),
+      s.traces_scope&&s.traces_scope.ordering?s.traces_scope.ordering.label+' · ties by '+s.traces_scope.ordering.tie_breaker:'Newest start first · ties by trace id'));
+    const graph=q('graph');
+    graph.replaceChildren(...(traces.length
+      ? [...traces.map((trace)=>traceGroup(s,trace)),...(traces.length<matched.length?[showMore('graph',DEFAULT_LIMITS.graph,'execution graph traces','graph')]:[])]
+      : [empty(state.graphQuery?'No trace matches this search in the current scope.':'No correlated trace evidence for the selected filters.')]));
+  }
+  function traceGroup(s,trace) {
+    const selected=Boolean(state.passFilter)&&(trace.graph_nodes||[]).some((graphNode)=>graphNode.pass_id===state.passFilter);
+    const counts=trace.pass_counts||{observed:trace.pass_ids.length,skipped:0,missing:0,required:null};
+    const items=[];
+    (trace.graph_nodes||[]).forEach((graphNode,index)=>{
+      if(index) items.push(node('li',{class:'arrow','aria-hidden':'true'},'→'));
+      items.push(node('li',{},graphNodeElement(s,graphNode)));
+    });
+    return node('section',{class:'trace-group',dataset:{traceId:trace.id,selected:String(selected)},'aria-label':'Trace '+trace.trace_id+' in '+trace.app},
+      // Everything an operator needs to identify the trace is rendered as TEXT.
+      // Putting the id only into an aria-label — the original defect — made it
+      // invisible to the sighted operator reading the graph.
+      node('h3',{class:'trace-head'},
+        node('strong',{},trace.trace_id),
+        node('span',{class:'meta'},trace.app+' · '+trace.pipeline+' · '+(trace.ticket||'no ticket')),
+        badge(trace.status,trace.status),
+        stamp(trace.started_at,'started'),
+        node('span',{class:'meta'},'duration '+durationText(trace.duration)),
+        node('span',{class:'meta'},counts.observed+' observed · '+counts.skipped+' skipped · '+counts.missing+' not observed'),
+        node('span',{class:'meta'},formatCost(trace.recorded_cost_usd,trace.usage_quality,trace.cost&&trace.cost.unknown_turns)),
+        trace.manifest==='not_recorded'?node('span',{class:'meta warn'},'Trace manifest not recorded — expected stages unknown'):'',
+        selected?node('span',{class:'meta'},'selected'):'',
+      ),
+      node('div',{class:'trace-actions'},
+        // Reuses the landed ?trace= filter end to end. The COMPOSITE identity is
+        // written, never the bare trace_id: two apps routinely share one, and a
+        // bare id fails to resolve through s.traces.find(t => t.id === …)
+        // (invariant 3).
+        node('button',{class:'session-link',type:'button',dataset:{traceFilter:trace.id},'aria-label':'Filter activity to trace '+trace.trace_id+' in '+trace.app,
+          onclick:()=>{ state.traceFilter=trace.id; q('trace-filter').value=trace.id; syncUrl(); }},'Filter activity to this trace'),
+      ),
+      node('ol',{class:'trace'},...items));
+  }
+  function graphNodeElement(s,graphNode) {
+    const word=GRAPH_STATE_WORDS[graphNode.state_token]||graphNode.state_token;
+    if(graphNode.kind!=='pass') {
+      // Non-interactive: there is no pass record to inspect. The routing reason
+      // is assigned as TEXT, never innerHTML (invariant 5).
+      return node('div',{class:'trace-node '+graphNode.state_token,dataset:{nodeState:graphNode.state_token},'aria-label':word+' '+graphNode.pass},
+        node('strong',{},graphNode.pass),
+        node('div',{},word),
+        graphNode.reason?node('div',{class:'meta'},graphNode.reason):'',
+        badge(word,graphNode.state_token==='skipped'?'unknown':'failed'));
+    }
+    const pass=s.passes.find((p)=>p.id===graphNode.pass_id);
+    return node('button',{class:'trace-node '+graphNode.state_token+(graphNode.liveness?' '+graphNode.liveness:''),type:'button',
+      dataset:{passId:graphNode.pass_id,nodeState:graphNode.state_token},
+      'aria-current':String(state.passFilter===graphNode.pass_id),
+      onclick:()=>{ if(pass) openDrawer(graphNode.pass_id); selectPass(graphNode.pass_id,false); },
+      'aria-label':(graphNode.role||'role unrecorded')+' '+graphNode.pass+' '+word},
+      node('strong',{},graphNode.role||'role unrecorded'),
+      node('div',{},graphNode.pass),
+      node('div',{class:'meta'},(graphNode.runtime||'?')+'/'+(graphNode.model||'?')),
+      badge(word,graphNode.state_token),
+      graphNode.state_token==='running'&&graphNode.liveness?badge(graphNode.liveness,graphNode.liveness):'');
   }
   // The projection owns the total order; the client owns filtering, grouping,
   // paging and focus. No ts comparison happens here — only order_key.
@@ -642,11 +1062,11 @@ export const OBSERVE_JS = String.raw`(() => {
     let label=withFacets(scope?'this session':'all visible passes');
     if(unresolvedTraceFilter(s)) label+=' · selected trace is not in the current window';
     if(unresolvedPassFilter(s)) label+=' · selected pass is not in the current window';
-    renderSectionScope('activity-scope','activity',scopeBadge(
+    const kind=scopeKind(scope);
+    renderSectionScope('activity-scope','activity',kind,sectionScopeText(kind,
       label,
-      shown.length+undatedShown.length,meta.total_events,
-      'newest first · '+meta.tie_break,
-      meta.completeness==='partial'));
+      disclose(shown.length+undatedShown.length,meta.total_events,meta.completeness==='partial'),
+      'newest first · '+meta.tie_break));
     const graphPasses=new Set(sessionTraces(s,scope).filter((v)=>visibleApp(v.app,scope)).flatMap((trace)=>trace.pass_ids));
     const rows=shown.map((entry)=>activityRow(entry,graphPasses));
     let children;
@@ -738,8 +1158,114 @@ export const OBSERVE_JS = String.raw`(() => {
   // shared primitives like every other collection. The cap is applied to the
   // combined source list BEFORE any node is built, so the disclosure and the
   // DOM can never disagree.
+  // The NAVIGABLE session index. Deliberately NOT rescoped by the current
+  // selection: rescoping it would collapse the list to the one session already
+  // selected, leaving the header dropdown as the only way to reach another —
+  // which is the bug, not the fix. Because that is a deliberate exception, the
+  // badge STATES it rather than leaving the operator to infer it (design.md
+  // §5.5, invariant 14).
+  function historyIndexRows(s) {
+    const targets=sessionTargets(s), available=targets.available;
+    const rows=[];
+    for(const task of s.parent_tasks) rows.push({
+      rowId:'task:'+task.task_id, target:available.has('task:'+task.task_id)?'task:'+task.task_id:null,
+      kind:'task', title:task.task_id, app:task.app||'org', pipeline:'parent task', status:task.status,
+      ticket:(task.ticket_refs||[]).join(' '), startedAt:task.started_at, duration:task.duration,
+      counts:(task.trace_count||0)+' trace'+(task.trace_count===1?'':'s')+' · '+(task.pass_count||0)+' pass'+(task.pass_count===1?'':'es'),
+      cost:task.cost, recorded:task.recorded_cost_usd, quality:task.usage_quality, note:'',
+    });
+    for(const trace of s.traces) {
+      // A trace CLAIMED by a parent task is not itself a selectable session:
+      // sessions() emits no standalone entry for it, and navigating to its own
+      // composite id would be silently reset to Live org. It navigates to its
+      // recorded parent session and says so.
+      const own=available.has(trace.id)?trace.id:null;
+      const recorded=trace.parent_session_id&&available.has(trace.parent_session_id)?trace.parent_session_id:null;
+      const parent=recorded||targets.claimedBy.get(trace.id)||null;
+      rows.push({
+        rowId:trace.id, target:own||parent, kind:'trace', title:trace.trace_id, app:trace.app,
+        pipeline:trace.pipeline, status:trace.status, ticket:trace.ticket||'', startedAt:trace.started_at,
+        duration:trace.duration,
+        counts:(trace.pass_counts?trace.pass_counts.observed:trace.pass_ids.length)+' passes'+(trace.pass_counts&&trace.pass_counts.skipped?' · '+trace.pass_counts.skipped+' skipped':''),
+        cost:trace.cost, recorded:trace.recorded_cost_usd, quality:trace.usage_quality,
+        note:own?'':parent?'part of recorded session '+parent:'not selectable — this record is not in the current window',
+      });
+    }
+    // started_at descending with an always-ascending identity tie-break, mirroring
+    // orderRows: 'newest first' is never [...rows].reverse(), which would reverse
+    // ties too. Dated rows sort before undated ones.
+    const key=(row)=>row.startedAt?'1\u0000'+row.startedAt:'0';
+    return rows.sort((a,b)=>{ const x=key(a), y=key(b); return x<y?1:x>y?-1:(a.rowId<b.rowId?-1:a.rowId>b.rowId?1:0); });
+  }
+  // Identity fields ONLY. A search over a parent task's objective or a pass
+  // preview would let user-typed text imply a relationship the projection never
+  // recorded, and would index model-produced content (invariants 2 and 5).
+  const rowMatchesQuery=(row,query)=>!query||[row.title,row.app,row.pipeline,row.status,row.ticket,row.rowId].some((v)=>String(v||'').toLowerCase().includes(query.toLowerCase()));
+  function renderHistoryIndex(s) {
+    const all=historyIndexRows(s);
+    const matched=all.filter((row)=>rowMatchesQuery(row,state.historyQuery));
+    // 'history-index', NOT 'history': the Completion integrity records list below
+    // owns 'history'. Sharing the key coupled the two caps, made ?more=history=N
+    // unable to express them independently, and sent the pager's restored focus
+    // to whichever list rendered first.
+    const limit=limitFor('history-index'), rows=matched.slice(0,limit);
+    const capped=rows.length<matched.length?'display capped':false;
+    // The index reports app_wide_context exactly when something ELSE on the page
+    // IS narrowed and this list deliberately is not. With nothing narrowing it,
+    // claiming an exemption would be noise.
+    const narrowed=Boolean(state.selectedSession)||activeFacets().length>0;
+    const kind=narrowed?'app_wide_context':'live_app_wide';
+    const reasons=narrowed?[APP_WIDE_REASONS['history-index-scope']]:[];
+    // DERIVED each render from the live snapshot, never a stored flag: a stored
+    // one-shot message is either shown forever or cleared by whichever render
+    // happens to run next.
+    const outOfWindow=sessionUnavailableNote(state.snapshot);
+    if(outOfWindow) reasons.push(outOfWindow);
+    renderSectionScope('history-index-scope','history-index',kind,
+      sectionScopeText(kind,withSearch('all recorded sessions',state.historyQuery,'session'),
+        discloseSearch(rows.length,matched.length,all.length,capped,state.historyQuery),
+        'Newest start first · ties by composite session id ascending',
+        narrowed?'not narrowed by the current selection':''),
+      reasons.join(' '));
+    q('history-index').replaceChildren(...(rows.length
+      ? [...rows.map((row)=>historyIndexRow(row)),...(rows.length<matched.length?[showMore('history-index',DEFAULT_LIMITS['history-index'],'recorded sessions','history-index')]:[])]
+      : [empty(state.historyQuery?'No recorded session matches this search.':'No recorded sessions.')]));
+  }
+  function historyIndexRow(row) {
+    const cells=[
+      node('div',{},node('strong',{},row.title),node('div',{class:'meta'},row.app+' · '+row.pipeline+(row.ticket?' · '+row.ticket:'')),stamp(row.startedAt,'started')),
+      node('div',{class:'integrity'},
+        node('span',{class:'duration-cell'},durationText(row.duration)),' · ',
+        node('span',{},row.counts),' · ',
+        // The ONE cost renderer, so an unavailable aggregate can never render as
+        // $0.00 through a second toFixed(2) path (invariant 4).
+        node('span',{class:'cost-cell'},formatCost(row.recorded,row.quality,row.cost&&row.cost.unknown_turns)),
+        row.note?node('div',{class:'meta'},row.note):''),
+      badge(row.status,row.status),
+    ];
+    if(!row.target) return node('article',{class:'card history-row static',dataset:{notSelectable:'true',rowId:row.rowId}},...cells);
+    // A row is CURRENT when the session it navigates to is the selected one.
+    // Keying this on rowId alone left a claimed trace visibly unselected after
+    // the operator activated it — the row selects its parent task, so its own
+    // composite id is never the selected session. aria-current still marks
+    // exactly one row (the session's own), while a claimed trace is marked as a
+    // MEMBER, in text as well as in data, so 'current' keeps one meaning.
+    const isSession=state.selectedSession===row.rowId;
+    const isMember=!isSession&&Boolean(state.selectedSession)&&state.selectedSession===row.target;
+    return node('button',{class:'card history-row',type:'button',
+      dataset:{sessionId:row.target,rowId:row.rowId,sessionMember:String(isMember)},
+      'aria-current':String(isSession),
+      'aria-label':(isSession?'Selected recorded session ':isMember?'Part of the selected recorded session ':'Select recorded session ')+row.target,
+      // The existing selectSession(): filter reset, drawer close, URL rewrite and
+      // re-render are inherited unchanged rather than forked.
+      // pendingFocus carries the ROW id: several rows share one session id, so a
+      // session id would restore focus to whichever of them renders first.
+      onclick:()=>{ state.pendingFocus={key:null,listId:'history-index',rowId:row.rowId}; selectSession(row.target); }},
+      ...cells,
+      isMember?node('span',{class:'meta'},'in the selected session'):'');
+  }
   function renderHistory(s,scope) {
-    const tasks=s.parent_tasks.filter((v)=>(!v.app||visibleApp(v.app,scope))&&(!scope||scope.kind==='task'&&v.task_id===scope.task.task_id));
+    const tasks=s.parent_tasks.filter((v)=>(!v.app||visibleApp(v.app,scope))&&(!scope||Boolean(scope.task)&&v.task_id===scope.task.task_id));
     const traces=sessionTraces(s,scope).filter((v)=>visibleApp(v.app,scope));
     const approvals=s.approvals.filter((approval)=>approval.execution_state&&visibleApp(approval.app,scope));
     const source=[
@@ -747,8 +1273,11 @@ export const OBSERVE_JS = String.raw`(() => {
       ...(tasks.length?tasks.map((v)=>({kind:'task',v})):traces.map((v)=>({kind:'trace',v}))),
     ];
     const limit=limitFor('history'), rows=source.slice(0,limit);
-    renderSectionScope('history-scope','history',
-      scopeBadge((scope?'this session':'all visible apps')+' · record(s)',rows.length,source.length,'Approval deliveries first, then '+(tasks.length?'parent tasks':'traces')+' newest start first'));
+    const kind=scopeKind(scope);
+    renderSectionScope('history-scope','history',kind,sectionScopeText(kind,
+      withFacets((scope?'this session':'all visible apps')+' · record(s)'),
+      disclose(rows.length,source.length,false),
+      'Approval deliveries first, then '+(tasks.length?'parent tasks':'traces')+' newest start first'),'');
     const card=(entry)=>entry.kind==='approval'
       ? node('article',{class:'card history-row'},node('div',{},node('strong',{},'Approval '+entry.v.approval_id),node('div',{class:'meta'},entry.v.app+' · '+entry.v.role+' · '+entry.v.rule)),node('div',{class:'integrity'},'attempt '+entry.v.execution_attempts+' · actor '+(entry.v.execution_actor||'unrecorded')+' · result '+(entry.v.execution_result||'unrecorded')+' · next '+(entry.v.execution_next_action||'unrecorded')+(entry.v.execution_remote_ref?' · remote '+entry.v.execution_remote_ref:'')),badge(entry.v.execution_state,entry.v.execution_state==='executed'?'completed':entry.v.execution_state==='failed'||entry.v.execution_state==='ambiguous'?'failed':'blocked'))
       : entry.kind==='task'
@@ -758,7 +1287,23 @@ export const OBSERVE_JS = String.raw`(() => {
       ? [...rows.map(card),...(rows.length<source.length?[showMore('history',DEFAULT_LIMITS.history,'completion integrity records','history')]:[])]
       : [empty('No parent-task or trace history recorded.') ]));
   }
-  function renderSources(s) { q('sources').replaceChildren(...s.sources.map((v)=>node('article',{class:'source'},node('h3',{},v.id+' '),badge(v.status,v.status==='healthy'?'completed':v.status==='degraded'?'blocked':'failed'),node('p',{class:'meta'},v.detail),node('p',{class:'meta'},'observed ',stamp(v.observed_at))))); }
+  // Source health is CURRENT observer health, ALWAYS. Under a historical
+  // selection its values are untouched — filtering, blanking, or rewriting
+  // observed_at to the trace's start time would each imply an org-wide
+  // point-in-time snapshot that does not exist (invariant 14, design.md §5).
+  // Only the LABEL changes.
+  function renderSources(s,scope) {
+    // Source health is narrowed by NOTHING — not by a session and not by the app
+    // or role filters — so it declares the exemption whenever anything else on
+    // the page is narrowed, and states why.
+    const narrowed=Boolean(scope)||activeFacets().length>0;
+    const kind=narrowed?'app_wide_context':'live_app_wide';
+    renderSectionScope('sources-scope','sources',kind,
+      sectionScopeText(kind,'current observer health',disclose(s.sources.length,s.sources.length,false)),
+      narrowed?APP_WIDE_REASONS['sources-scope']:'');
+    renderSourceCards(s);
+  }
+  function renderSourceCards(s) { q('sources').replaceChildren(...s.sources.map((v)=>node('article',{class:'source'},node('h3',{},v.id+' '),badge(v.status,v.status==='healthy'?'completed':v.status==='degraded'?'blocked':'failed'),node('p',{class:'meta'},v.detail),node('p',{class:'meta'},'observed ',stamp(v.observed_at))))); }
   function openDrawer(id) { state.selectedPass=id; const pass=state.snapshot.passes.find((p)=>p.id===id); if(pass) renderDrawer(pass,true); }
   // The drawer declares aria-modal, so the background must actually BE
   // unreachable — 'inert' is what makes that true for Tab, pointer, and the
@@ -803,13 +1348,16 @@ export const OBSERVE_JS = String.raw`(() => {
   }
   // ONE URL-sync path, written in a fixed canonical order so identical filter
   // state always yields a byte-identical shareable link (invariant 8).
-  const URL_KEYS=['app','role','status','order','tz','ev','outcome','trace','pass','group','more','open'];
+  // 'gq' and 'hq' are DECLARED here in a fixed position, not appended ad hoc, so
+  // two operators looking at the same view still produce a byte-identical link.
+  const URL_KEYS=['app','role','status','order','tz','ev','outcome','trace','pass','gq','hq','group','more','open'];
   function writeUrl() {
     const url=new URL(location.href), f=currentFilters();
     const values={app:f.app,role:f.role,status:f.status,
       order:state.order==='newest_first'?'':'chronological',
       tz:state.timeModePinned?state.timeMode:'',
       ev:state.eventKind,outcome:state.outcome,trace:state.traceFilter,pass:state.passFilter,
+      gq:state.graphQuery,hq:state.historyQuery,
       group:state.group==='none'?'':state.group,
       // Paging and expansion are part of what the sender was looking at, so a
       // handed-over link reproduces them too (invariant 8). Both are written in
@@ -824,7 +1372,7 @@ export const OBSERVE_JS = String.raw`(() => {
   function syncUrl() { writeUrl(); render(); }
   q('session-selector').addEventListener('change',()=>{ selectSession(q('session-selector').value); });
   for(const id of ['app-filter','role-filter','status-filter']) q(id).addEventListener('change',syncUrl);
-  q('clear-filters').addEventListener('click',()=>{ q('app-filter').value=''; q('role-filter').value=''; q('status-filter').value=''; state.eventKind=''; state.outcome=''; state.passFilter=''; state.traceFilter=''; state.group='none'; q('event-kind-filter').value=''; q('outcome-filter').value=''; q('trace-filter').value=''; q('pass-filter').value=''; q('group-mode').value='none'; syncUrl(); });
+  q('clear-filters').addEventListener('click',()=>{ q('app-filter').value=''; q('role-filter').value=''; q('status-filter').value=''; state.eventKind=''; state.outcome=''; state.passFilter=''; state.traceFilter=''; state.group='none'; state.graphQuery=''; state.historyQuery=''; q('graph-search').value=''; q('history-search').value=''; q('event-kind-filter').value=''; q('outcome-filter').value=''; q('trace-filter').value=''; q('pass-filter').value=''; q('group-mode').value='none'; syncUrl(); });
   // Both toggles keep a FIXED label naming the state they turn on, with
   // aria-pressed reporting whether that state is currently active. A label that
   // named the next action while aria-pressed named the current one announced a
@@ -836,6 +1384,10 @@ export const OBSERVE_JS = String.raw`(() => {
   q('trace-filter').addEventListener('change',()=>{ state.traceFilter=q('trace-filter').value; syncUrl(); });
   q('pass-filter').addEventListener('change',()=>{ state.passFilter=q('pass-filter').value; syncUrl(); });
   q('group-mode').addEventListener('change',()=>{ state.group=q('group-mode').value; syncUrl(); });
+  // Both searches are pure client-side narrowing over data already delivered:
+  // they issue no request and are persisted nowhere but the URL (invariant 1).
+  q('graph-search').addEventListener('input',()=>{ state.graphQuery=q('graph-search').value; syncUrl(); });
+  q('history-search').addEventListener('input',()=>{ state.historyQuery=q('history-search').value; syncUrl(); });
   q('close-drawer').addEventListener('click',closeDrawer); q('drawer-backdrop').addEventListener('click',closeDrawer); document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&!q('drawer').hidden) closeDrawer(); });
   // Exactly scrollTop === 0 is "following". The inherited wasBottom heuristic
   // is deleted: it is correct for an oldest-first list and inverted for this
@@ -860,6 +1412,8 @@ export const OBSERVE_JS = String.raw`(() => {
   state.group=['trace','pass'].includes(params.get('group'))?params.get('group'):'none';
   state.eventKind=params.get('ev')||''; state.outcome=params.get('outcome')||'';
   state.passFilter=params.get('pass')||''; state.traceFilter=params.get('trace')||'';
+  state.graphQuery=params.get('gq')||''; state.historyQuery=params.get('hq')||'';
+  q('graph-search').value=state.graphQuery; q('history-search').value=state.historyQuery;
   // 'more' restores paging. Keys may contain ':' (attention:<group id>), so the
   // split is on the LAST '=' and the value is clamped: a hand-edited link must
   // not be able to ask the client to build an unbounded list.

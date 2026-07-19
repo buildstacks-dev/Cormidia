@@ -22,11 +22,13 @@ import {
   publishPlanProjection,
   validatePlan,
   type FinalPlanProjection,
+  type PlanProvenance,
   type PlanningSourceTicketEvidence,
   type ProjectStage,
   type PublishedTicket,
   type TicketPlan,
 } from "../loop/plan-tickets.js";
+import { writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import { ApprovalStore } from "./approvals.js";
 import type { AppEntry } from "./apps.js";
 import { rollupBudgets } from "./budget.js";
@@ -364,11 +366,21 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     };
   }
   const gh = options.gh ?? new GhCliOps(options.app.repo);
+  // Durable planner->ticket provenance (#128): the episode id is the one this
+  // function passed to executePipeline (admission uses a supplied id verbatim),
+  // and the run id is the final planning pass whose verdict became the plan.
+  const provenance: PlanProvenance = {
+    episodeId: `trace:${options.app.name}:${turnId}`,
+    runId: pass.runId,
+    traceId: turnId,
+  };
   const { published } = await publishPlanProjection(
     gh,
     planProjection,
     consumedSources === undefined ? undefined : planningSourceTicketEvidence(consumedSources),
+    provenance,
   );
+  await writePublishedTicketsRecord(options.stateHome, options.app.name, provenance, published, clock());
   return {
     status: "completed",
     summary:

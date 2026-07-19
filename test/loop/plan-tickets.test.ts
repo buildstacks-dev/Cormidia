@@ -10,12 +10,15 @@ import {
   CANONICAL_LABELS,
   applySensitiveDomainFloor,
   finalizePlanForPublication,
+  publishPlanProjection,
   publishTickets,
   renderTicketBody,
   sensitiveDomainsForTicket,
   validatePlan,
+  type PlanProvenance,
   type PlanTicket,
   type TicketPlan,
+  parsePlannedBy,
   parseReleaseKind,
 } from "../../src/loop/plan-tickets.js";
 import { itemFromIssue, parseAcceptanceCriteria } from "../../src/loop/loop.js";
@@ -121,6 +124,31 @@ describe("renderTicketBody", () => {
     expect(parseReleaseKind("Release-kind: yolo\n")).toBeUndefined();
   });
 
+  it("renders and reads back the Planned-by trailer (#128)", () => {
+    const provenance: PlanProvenance = {
+      episodeId: "trace:greenfield:plan-greenfield-1234",
+      runId: "20260718-090000-plan-bootstrap-bootstrap-plan",
+      traceId: "plan-greenfield-1234",
+    };
+    const body = renderTicketBody(ticket(), [], "deploy", undefined, provenance);
+    expect(body).toContain(
+      "Planned-by: episode=trace:greenfield:plan-greenfield-1234 " +
+        "run=20260718-090000-plan-bootstrap-bootstrap-plan trace=plan-greenfield-1234",
+    );
+    expect(parsePlannedBy(body)).toEqual(provenance);
+    // The trailer never disturbs the loop's own parsers.
+    expect(parseReleaseKind(body)).toBe("deploy");
+    expect(parseScope(body)).toEqual(["src/**", "package.json"]);
+  });
+
+  it("pre-provenance bodies carry no planning identity — absent or malformed reads as unknown", () => {
+    const body = renderTicketBody(ticket(), []);
+    expect(body).not.toContain("Planned-by:");
+    expect(parsePlannedBy(body)).toBeUndefined();
+    expect(parsePlannedBy("Planned-by: episode=only\n")).toBeUndefined();
+    expect(parsePlannedBy("Planned-by: run=x trace=y episode=z\n")).toBeUndefined();
+  });
+
   it("renders content-bound planning-source references without publishing source bytes", () => {
     const body = renderTicketBody(ticket(), [], "merge-only", {
       manifestSha256: "manifest-hash",
@@ -182,6 +210,33 @@ describe("publishTickets", () => {
       (i) => i.number === published[0]!.issueNumber,
     )!;
     expect(parseReleaseKind(issue.body)).toBe("deploy");
+  });
+
+  it("stamps the Planned-by trailer into every published body, including back-filled ones (#128)", async () => {
+    const gh = new FakeGhOps();
+    const provenance: PlanProvenance = {
+      episodeId: "trace:greenfield:plan-greenfield-1234",
+      runId: "20260718-090000-plan-bootstrap-bootstrap-plan",
+      traceId: "plan-greenfield-1234",
+    };
+    const forward = plan({
+      ticketCountRationale: "Parallel pair with a cross-check ticket.",
+      tickets: [ticket({ title: "A", dependsOn: [1] }), ticket({ title: "B" })],
+    });
+    const { published } = await publishPlanProjection(
+      gh,
+      finalizePlanForPublication(forward),
+      undefined,
+      provenance,
+    );
+    const issues = await gh.listIssues({ state: "all", limit: 10 });
+    for (const { issueNumber } of published) {
+      const issue = issues.find((i) => i.number === issueNumber)!;
+      expect(parsePlannedBy(issue.body)).toEqual(provenance);
+    }
+    // The back-filled forward dependency kept its trailer through the rewrite.
+    const a = issues.find((i) => i.number === published[0]!.issueNumber)!;
+    expect(parseDependsOn(a.body)).toEqual([published[1]!.issueNumber]);
   });
 
   it("refuses to touch GitHub when validation fails", async () => {

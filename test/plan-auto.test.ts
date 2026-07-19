@@ -12,6 +12,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parsePlanJson, runAutoPlan } from "../src/org/plan-auto.js";
+import { parsePlannedBy } from "../src/loop/plan-tickets.js";
+import { readPublishedTicketsRecord } from "../src/loop/plan-publication-record.js";
 import type { AppEntry, AppsFile } from "../src/org/apps.js";
 import { FakeRuntime } from "../src/runtime/testing/fakeRuntime.js";
 import type { TurnResult } from "../src/runtime/types.js";
@@ -154,6 +156,33 @@ describe("runAutoPlan (D-PLAN-01 quick/standard/deep plan-of-record evidence)", 
       risk_tier: "low",
       selected_passes: ["bootstrap-plan"],
       estimated_cost_usd: null,
+    });
+    // #128: the planner run -> published tickets edge is durable in BOTH
+    // halves and they cross-check: the local record in the run dir, and the
+    // Planned-by trailer in the published body — each carrying the SAME
+    // episode/run/trace identity the envelope recorded.
+    const record = await readPublishedTicketsRecord(stateHome, "greenfield", runId);
+    expect(record).toMatchObject({
+      schema_version: 1,
+      app: "greenfield",
+      episode_id: envelope["episode_id"],
+      run_id: runId,
+      trace_id: envelope["trace_id"],
+      published_at: "2026-07-11T09:00:00.000Z",
+    });
+    expect(record!.published).toEqual([
+      {
+        index: 0,
+        issue_number: issues[0]!.number,
+        title: "Ship the scaffold with a visible landing page",
+        ready: true,
+        labels: expect.arrayContaining(["op:ready", "op:tier-standard", "p1"]) as unknown as string[],
+      },
+    ]);
+    expect(parsePlannedBy(issues[0]!.body)).toEqual({
+      episodeId: record!.episode_id,
+      runId: record!.run_id,
+      traceId: record!.trace_id,
     });
   });
 

@@ -1086,6 +1086,12 @@ effects.
   Exact bytes cross the provider boundary as explicitly untrusted data. Each
   pass envelope references its pending/consumed input manifest, while GitHub
   tickets receive refs/hashes only.
+- Published tickets carry a `Planned-by: episode=… run=… trace=…` trailer
+  (`parsePlannedBy` reads it back), and the orchestrator writes the mirror
+  record `published-tickets.json` into the final planning pass's run dir —
+  the two durable halves of the planner→ticket causal edge (#128). The
+  trailer travels with the repo and survives every local retention sweep;
+  the local record cross-checks it against the envelope identity.
 - Recorded in telemetry with `trigger: manual`; interactive-session rows
 carry `unmeasured: true` (the native CLI's tokens never flow through
 Operon), while `--auto` turns settle real usage per pass. The `Trigger`

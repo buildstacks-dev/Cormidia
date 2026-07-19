@@ -30,6 +30,7 @@ import { cmdTask } from "./cli/task.js";
 import { cmdOrg } from "./cli/org.js";
 import { cmdObserve } from "./cli/observe.js";
 import { cmdReport } from "./cli/report.js";
+import { cmdNarrative } from "./cli/narrative.js";
 import { cmdScheduler } from "./cli/scheduler.js";
 import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.js";
 
@@ -93,6 +94,9 @@ Usage:
                            historical pass/trace/cost view over run records
   operon report [--app <app>] [--period 7d|30d|90d|1y|all] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--bucket auto|day|week|month] [--json] [--html <path>] [--open] [--summary-only]
                            ledger-first org/app usage and management report
+  operon narrative [--app <app>] [--episode <id>] [--json]
+                           human-level causal timeline: one markdown story
+                           per episode + per-app INDEX.md (token-free)
   operon observe [--app <app>] [--parent-task <id>] [--ticket <number>] [--port <number>] [--open]
                            start the loopback-only, read-only Live + Reports UI
   operon task <begin|fallback|finish|show> ...
@@ -146,6 +150,7 @@ const HELP = {
   analyze: `Usage: operon analyze [--app <app-name>]${HOME_HELP}`,
   telemetry: `Usage: operon telemetry [--app <app-name>] [--date YYYY-MM-DD] [--json] [--html <path>]${HOME_HELP}\n\nHistorical view over runs/**/envelope.json: per-ticket trace blocks, role/model/ticket cost totals, and still-running passes. --html writes a self-contained static report (Gantt + pass table + cost attribution).`,
   report: `Usage: operon report [--app <app-name>] [--period 7d|30d|90d|1y|all] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--bucket auto|day|week|month] [--json] [--html <path>] [--open] [--summary-only]${HOME_HELP}\n\nDeterministic, token-free, ledger-first management report. The default is the trailing 90 UTC calendar days. JSON and portable HTML are exhaustive unless --summary-only is explicit. --html writes only the selected target; report generation never reconciles or mutates Operon state.`,
+  narrative: `Usage: operon narrative [--app <app-name>] [--episode <episode-id>] [--json]${HOME_HELP}\n\nDeterministic, token-free human-level causal timeline (docs/narrative/design.md). Folds durable run/journal/ledger/publication records into one markdown story per episode plus a per-app INDEX.md under the state home's narrative/ subtree. Quotes are captured at render time and survive retention sweeps of their sources; re-renders merge, never lose. Writes only under narrative/; --episode prints one story (with --json, its capture) without writing.`,
   observe: `Usage: operon observe [--app <app-name>] [--parent-task <id>] [--ticket <number>] [--port <number>] [--open|--no-open]${HOME_HELP}\n\nStarts a foreground, loopback-only read-only observer serving Live at / and Reports at /reports. HTTP provides versioned snapshots, reports, exports, and deliberate local artifact access; SSE updates Live only. The per-process capability URL is printed once. The observer performs no provider turn, spends no tokens, exposes no workflow mutation endpoint, and stopping it never affects an Operon run.`,
   task: `Usage:\n  operon task begin --id <id> --prompt-file <path> [--app <app>] [--workdir <path>] [--harness codex|claude|pi] [--native-task-id <id>] [--required-stages planner,builder,reviewer]\n  operon task fallback --id <id> --reason <text> [--actor <name>] [--external-only]\n  operon task finish --id <id> --status completed|failed|cancelled|timed_out [--result <text>] [--ticket <ref>] [--trace <id>] [--branch <ref>] [--pr <ref>] [--review <ref>] [--deployment <ref>] [--implementation complete|incomplete|unknown] [--ci green|red|pending|unknown] [--operon-review approved|changes_requested|awaiting|bypassed|not_required|unknown] [--human-review approved|awaiting|not_required|unknown] [--pr-state open|merged|closed|abandoned|none|unknown] [--issue-closes-on-merge <ref>]\n  operon task show --id <id> [--json|--prompt]${HOME_HELP}\n\nBegin once from the exact outer harness prompt, export OPERON_PARENT_TASK_ID for child Operon commands, record every manual/external fallback, then finish at the delegated outcome boundary.`,
   dispatch: `Usage: operon dispatch [--dry-run] [--apps <path>] [--roles <path>]${HOME_HELP}`,
@@ -197,6 +202,7 @@ const COMMANDS: Record<string, CliCommand> = {
   status: { run: (args) => cmdStatus(args), help: HELP.status },
   telemetry: { run: (args) => cmdTelemetry(args), help: HELP.telemetry },
   report: { run: (args) => cmdReport(args), help: HELP.report },
+  narrative: { run: (args) => cmdNarrative(args), help: HELP.narrative },
   observe: { run: (args) => cmdObserve(args), help: HELP.observe },
   task: { run: (args) => cmdTask(args), help: HELP.task },
 };

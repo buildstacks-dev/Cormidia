@@ -78,6 +78,11 @@ export interface StateRetentionPolicy {
   schedulerEvidenceDays: number;
   /** `state/retention/sweeps/<date>.json` — the sweep's own records. */
   sweepRecordDays: number;
+  /** `narrative/<app>/` — captured stories + rendered markdown (#129). The
+   *  longest window in the table: narrative is the institutional record the
+   *  other subtrees feed, and its captures preserve quotes whose sources
+   *  are swept in 30 days. */
+  narrativeDays: number;
 }
 
 export const DEFAULT_STATE_RETENTION: StateRetentionPolicy = {
@@ -89,6 +94,7 @@ export const DEFAULT_STATE_RETENTION: StateRetentionPolicy = {
   learningEventsDays: 180,
   schedulerEvidenceDays: 365,
   sweepRecordDays: 90,
+  narrativeDays: 1825,
 };
 
 /** Resolve the windows actually applied: the ledger and every projection must
@@ -130,6 +136,7 @@ export interface StateSweepResult {
   learning_events: SubtreeSweep;
   scheduler_evidence: SubtreeSweep;
   sweep_records: SubtreeSweep;
+  narrative: SubtreeSweep;
   /** Per-subtree failures. A failed subtree keeps its files and is retried by
    *  a later sweep; it never aborts the others. */
   errors: string[];
@@ -157,6 +164,7 @@ export async function sweepStateRetention(
     learning_events: { pruned: 0, kept: 0 },
     scheduler_evidence: { pruned: 0, kept: 0 },
     sweep_records: { pruned: 0, kept: 0 },
+    narrative: { pruned: 0, kept: 0 },
     errors: [],
   };
   const subtree = async (name: keyof StateSweepResult & string, run: () => Promise<SubtreeSweep>): Promise<void> => {
@@ -181,7 +189,43 @@ export async function sweepStateRetention(
   await subtree("scheduler_evidence", () => sweepSchedulerEvidence(root, cutoff(windows.schedulerEvidenceDays)));
   await subtree("telemetry", () => sweepTelemetry(root, cutoff(windows.telemetryDays), now));
   await subtree("sweep_records", () => sweepDateFiles(sweepRecordDir(root), cutoff(windows.sweepRecordDays), ".json"));
+  await subtree("narrative", () => sweepNarrative(root, cutoff(windows.narrativeDays)));
   return result;
+}
+
+/** `narrative/<app>/<slug>.{json,md}` story pairs age by the capture's OWN
+ *  `captured_at` (the newest source timestamp folded in), read like
+ *  sweepTasks reads task.json — a torn or foreign .json is kept, fail safe.
+ *  The paired .md follows its capture; INDEX.md is regenerated on the next
+ *  render and never swept here. */
+async function sweepNarrative(stateHome: string, cutoffMs: number): Promise<SubtreeSweep> {
+  const out: SubtreeSweep = { pruned: 0, kept: 0 };
+  const root = join(stateHome, "narrative");
+  for (const app of await listDirNames(root)) {
+    const dir = join(root, app);
+    for (const name of (await readdir(dir)).filter((f) => f.endsWith(".json"))) {
+      let record: { schema_version?: unknown; captured_at?: unknown };
+      try {
+        record = JSON.parse(await readFile(join(dir, name), "utf8")) as typeof record;
+      } catch {
+        out.kept += 1;
+        continue;
+      }
+      const aged =
+        record.schema_version === 1 &&
+        typeof record.captured_at === "string" &&
+        !Number.isNaN(Date.parse(record.captured_at)) &&
+        Date.parse(record.captured_at) < cutoffMs;
+      if (aged) {
+        await rm(join(dir, name), { force: true });
+        await rm(join(dir, name.replace(/\.json$/, ".md")), { force: true });
+        out.pruned += 1;
+      } else {
+        out.kept += 1;
+      }
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

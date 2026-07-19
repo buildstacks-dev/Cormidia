@@ -242,6 +242,32 @@ describe("tasks/, invocations/, and learning/events/ retention", () => {
     }
   });
 
+  it("prunes narrative story pairs by their own captured_at and keeps recent, torn, and INDEX files (#129)", async () => {
+    const home = makeOrgHome();
+    try {
+      const dir = join(home.root, "narrative", "greenfield");
+      mkdirSync(dir, { recursive: true });
+      const story = (capturedAt: string): string =>
+        JSON.stringify({ schema_version: 1, story_id: "s", app: "greenfield", title: "t", opened: capturedAt, status: "completed", moments: [], captured_at: capturedAt });
+      writeFileSync(join(dir, "old-story.json"), story("2020-01-01T00:00:00.000Z"));
+      writeFileSync(join(dir, "old-story.md"), "# old\n");
+      writeFileSync(join(dir, "recent-story.json"), story("2026-07-01T00:00:00.000Z"));
+      writeFileSync(join(dir, "recent-story.md"), "# recent\n");
+      writeFileSync(join(dir, "torn-story.json"), "{\"schema_version\":1");
+      writeFileSync(join(dir, "INDEX.md"), "# index\n");
+      const result = await sweepStateRetention(home.root, NOW);
+      expect(result.narrative).toMatchObject({ pruned: 1, kept: 2 });
+      expect(existsSync(join(dir, "old-story.json"))).toBe(false);
+      expect(existsSync(join(dir, "old-story.md"))).toBe(false);
+      expect(existsSync(join(dir, "recent-story.json"))).toBe(true);
+      expect(existsSync(join(dir, "recent-story.md"))).toBe(true);
+      expect(existsSync(join(dir, "torn-story.json"))).toBe(true);
+      expect(existsSync(join(dir, "INDEX.md"))).toBe(true);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("prunes aged invocation day-files and learning event day-dirs while never touching the durable learning archives", async () => {
     const home = makeOrgHome();
     try {

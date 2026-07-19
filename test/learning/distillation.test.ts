@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   compactionReport,
+  distillationBrief,
   parseDistillationOutput,
   parseLearningReviewOutput,
   persistDistillationOutput,
@@ -119,6 +120,64 @@ describe("M6 deterministic distillation", () => {
       evidenceEvents: 0,
       clusters: [],
     });
+  });
+
+  // The first live distillation after the #137 evidence fix returned
+  // `proposed_scope: "cursor-buildstack app, builder role execution path"` and
+  // failed closed after two attempts. Nothing on the producing side stated the
+  // scope vocabulary: the prompt says only "keep scope narrow", the schema
+  // typed the field as a bare string, and the brief handed the model `app` and
+  // `roles` as raw values — so a prose answer was the natural reading.
+  it("names the exact legal proposed_scope values in the brief", async () => {
+    const r = rig();
+    await seed(r.state.root, [evidence("evt_a1"), evidence("evt_a2")]);
+    const preparation = await prepareDistillation(prepareInput(r));
+    const brief = distillationBrief(preparation);
+
+    expect(brief).toContain("proposed_scope must be EXACTLY one of these strings:");
+    // Derived from the clusters in this very brief, so the list cannot drift
+    // from what the turn is about.
+    for (const scope of ["org", "roles/builder", "apps/alpha", "apps/alpha/roles/builder"]) {
+      expect(brief, scope).toContain(scope);
+    }
+    // The bare app name is what the live turn actually answered.
+    expect(brief).toContain("Do not invent a scope or describe it in prose.");
+  });
+
+  it("rejects a prose or bare-app scope and tells the retry the legal values", async () => {
+    const r = rig();
+    await seed(r.state.root, [evidence("evt_a1"), evidence("evt_a2")]);
+    const preparation = await prepareDistillation(prepareInput(r));
+    const cluster = preparation.clusters[0]!;
+
+    const proposal = (scope: string): string => JSON.stringify({
+      candidates: [{
+        cluster_fingerprint: cluster.fingerprint,
+        destination: "ticket",
+        title: "Builder execution route repeatedly stops at a deterministic cap",
+        proposed_scope: scope,
+        proposed_tier: "T0",
+        claims_efficacy: false,
+        draft_summary: "s",
+        draft_body: "b",
+        acceptance: ["a"],
+        topic_key: cluster.error_class,
+      }],
+    });
+
+    for (const bad of ["alpha", "alpha app, builder role execution path", "builder"]) {
+      const parsed = parseDistillationOutput(proposal(bad), preparation, "alpha");
+      expect(parsed.ok, bad).toBe(false);
+      if (parsed.ok) continue;
+      // The reason is handed to the reformat attempt, so it must be
+      // actionable, not merely a rejection.
+      expect(parsed.reason).toContain("proposed_scope must be exactly one of");
+      expect(parsed.reason).toContain("apps/alpha");
+    }
+
+    // A scope IS never coerced — widening a governance scope silently would be
+    // worse than refusing the candidate.
+    expect(parseDistillationOutput(proposal("apps/alpha"), preparation, "alpha").ok).toBe(true);
   });
 
   it("clusters actionable evidence and persists a skill draft only through the candidate store", async () => {

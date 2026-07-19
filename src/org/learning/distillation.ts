@@ -280,12 +280,46 @@ export async function prepareDistillation(
   }
 }
 
+/**
+ * The exact `proposed_scope` values this turn may return.
+ *
+ * The scope grammar (`org | roles/<role> | apps/<app> | apps/<app>/roles/<role>`)
+ * is enforced by `isValidLoopScope`, but nothing on the producing side used to
+ * state it: the prompt says only "keep scope narrow", the schema typed the
+ * field as a bare string, and the brief handed the model `app` and `roles` as
+ * raw values. The first live distillation duly answered
+ * `"cursor-buildstack app, builder role execution path"` and the turn failed
+ * closed after two attempts.
+ *
+ * Enumerating the legal values — rather than restating the grammar — means the
+ * model never has to construct one, and the list is derived from the very
+ * clusters in the brief, so it cannot drift from what the turn is about.
+ */
+function legalScopes(clusters: EvidenceCluster[]): string[] {
+  const apps = [...new Set(clusters.map((cluster) => cluster.app))].sort();
+  const roles = [...new Set(clusters.flatMap((cluster) => cluster.roles))].sort();
+  return [
+    "org",
+    ...roles.map((role) => `roles/${role}`),
+    ...apps.flatMap((app) => [
+      `apps/${app}`,
+      ...roles.map((role) => `apps/${app}/roles/${role}`),
+    ]),
+  ];
+}
+
 export function distillationBrief(preparation: DistillationPreparation): string {
   return [
     "Deterministic precheck selected these evidence clusters. Propose at most one candidate per cluster.",
     "Use the lowest-authority useful destination. Set topic_key exactly to error_class.",
     "Recurring procedural lessons may use skill_draft; this is the retired retro-curation skill-draft lane.",
     "Do not write files or active governance surfaces; return only the structured result.",
+    "",
+    // Verbatim legal values, not a grammar to instantiate. A scope outside this
+    // list fails the turn closed — it is never coerced, because silently
+    // widening a governance scope is worse than refusing the candidate.
+    `proposed_scope must be EXACTLY one of these strings: ${legalScopes(preparation.clusters).join(", ")}.`,
+    "Prefer the narrowest one that fits. Do not invent a scope or describe it in prose.",
     "",
     JSON.stringify(
       preparation.clusters.map((cluster) => ({
@@ -323,7 +357,12 @@ export function parseDistillationOutput(
     }
     seen.add(proposal.cluster_fingerprint);
     if (!isValidLoopScope(proposal.proposed_scope)) {
-      return distillFailure(`invalid V1 scope ${proposal.proposed_scope}`);
+      // This reason is handed back to the reformat attempt, so it names the
+      // legal values rather than only rejecting the bad one.
+      return distillFailure(
+        `invalid V1 scope ${JSON.stringify(proposal.proposed_scope)} — ` +
+          `proposed_scope must be exactly one of: ${legalScopes(preparation.clusters).join(", ")}`,
+      );
     }
     if (
       proposal.proposed_scope.startsWith("apps/") &&
@@ -474,7 +513,10 @@ export function parseLearningReviewOutput(
     if (seen.has(review.candidate_id)) return reviewFailure(`duplicate review for ${review.candidate_id}`);
     seen.add(review.candidate_id);
     if (!isValidLoopScope(review.proposed_scope)) {
-      return reviewFailure(`invalid V1 scope ${review.proposed_scope}`);
+      return reviewFailure(
+        `invalid V1 scope ${JSON.stringify(review.proposed_scope)} — proposed_scope must be ` +
+          `exactly one of: org, roles/<role>, apps/<app>, apps/<app>/roles/<role>`,
+      );
     }
     if (review.rationale.trim() === "") return reviewFailure(`empty rationale for ${review.candidate_id}`);
   }

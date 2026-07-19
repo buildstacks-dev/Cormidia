@@ -14,9 +14,10 @@
 // which follows finalize. Writes go through tmp+rename like every other run
 // artifact so a reader never sees a torn record.
 
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { runPaths } from "../runtime/runlog/paths.js";
+import { writeLoopFileAtomic } from "./durable.js";
 import type { PlanProvenance, PublishedTicket } from "./plan-tickets.js";
 
 export const PUBLISHED_TICKETS_FILENAME = "published-tickets.json";
@@ -65,16 +66,19 @@ export async function writePublishedTicketsRecord(
       labels: [...ticket.labels],
     })),
   };
-  const path = publishedTicketsPath(root, app, provenance.runId);
-  const tmp = `${path}.tmp`;
-  await writeFile(tmp, JSON.stringify(record, null, 2) + "\n", "utf8");
-  await rename(tmp, path);
+  await writeLoopFileAtomic(
+    publishedTicketsPath(root, app, provenance.runId),
+    JSON.stringify(record, null, 2) + "\n",
+  );
   return record;
 }
 
 /** Absent (retention-swept, pre-#128, or publish never ran) → undefined;
- *  a torn/invalid file is an error — tmp+rename means it never happens
- *  from this writer, so corruption is worth surfacing, not masking. */
+ *  a torn/invalid file is an error — writeLoopFileAtomic means it never
+ *  happens from this writer, so corruption is worth surfacing, not masking.
+ *  Validation is structural over EVERY field a consumer cross-checks: a
+ *  wrong-typed episode_id must fail the read, never flow into an identity
+ *  comparison and silently conclude the provenance edge is broken. */
 export async function readPublishedTicketsRecord(
   root: string,
   app: string,
@@ -87,9 +91,40 @@ export async function readPublishedTicketsRecord(
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
   }
-  const parsed = JSON.parse(raw) as PublishedTicketsRecord;
-  if (parsed.schema_version !== 1 || typeof parsed.run_id !== "string" || !Array.isArray(parsed.published)) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`published-tickets record for ${app}/${runId} is not valid JSON`);
+  }
+  if (!isPublishedTicketsRecord(parsed)) {
     throw new Error(`published-tickets record for ${app}/${runId} is not a valid v1 record`);
   }
   return parsed;
+}
+
+function isPublishedTicketsRecord(value: unknown): value is PublishedTicketsRecord {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    record["schema_version"] === 1 &&
+    typeof record["app"] === "string" &&
+    typeof record["episode_id"] === "string" &&
+    typeof record["run_id"] === "string" &&
+    typeof record["trace_id"] === "string" &&
+    typeof record["published_at"] === "string" &&
+    Array.isArray(record["published"]) &&
+    record["published"].every((entry: unknown) => {
+      if (typeof entry !== "object" || entry === null) return false;
+      const ticket = entry as Record<string, unknown>;
+      return (
+        typeof ticket["index"] === "number" &&
+        typeof ticket["issue_number"] === "number" &&
+        typeof ticket["title"] === "string" &&
+        typeof ticket["ready"] === "boolean" &&
+        Array.isArray(ticket["labels"]) &&
+        ticket["labels"].every((label: unknown) => typeof label === "string")
+      );
+    })
+  );
 }

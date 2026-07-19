@@ -6,7 +6,7 @@
 // bare git fixture as the app repo, FakeRuntime, and FakeGhOps; no network,
 // auth, or real GitHub state is required.
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -184,6 +184,37 @@ describe("runAutoPlan (D-PLAN-01 quick/standard/deep plan-of-record evidence)", 
       runId: record!.run_id,
       traceId: record!.trace_id,
     });
+  });
+
+  it("keeps a completed publication completed when the local record write fails (review fix)", async () => {
+    const { app, appsFile } = fixture();
+    const gh = new FakeGhOps();
+    const runtime = new FakeRuntime([{ result: planTurn(PLAN_JSON) }]);
+    // The run id is deterministic under the fixed clock; making the record
+    // path an occupied DIRECTORY forces the post-publish evidence write to
+    // fail. Publication truth must survive: tickets exist on GitHub, and a
+    // reported failure would invite a duplicate republish on retry.
+    const runDir = join(stateHome, "runs", "greenfield", "20260711-090000-plan-bootstrap-bootstrap-plan");
+    mkdirSync(join(runDir, "published-tickets.json"), { recursive: true });
+
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: "A personal website for the founder",
+      gh,
+      runtimeFor: () => runtime,
+      now: () => new Date("2026-07-11T09:00:00Z"),
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.published).toHaveLength(1);
+    expect(result.summary).toContain("published 1 ticket(s)");
+    expect(result.summary).toContain("published-tickets record write failed");
+    // The permanent half still carries the identity.
+    const issues = await gh.listIssues({ state: "all", limit: 10 });
+    expect(parsePlannedBy(issues[0]!.body)).toBeDefined();
   });
 
   it("delivers explicit source bytes, records consumption in the run, and publishes hash-only provenance (#112)", async () => {

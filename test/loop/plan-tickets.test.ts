@@ -147,6 +147,30 @@ describe("renderTicketBody", () => {
     expect(parsePlannedBy(body)).toBeUndefined();
     expect(parsePlannedBy("Planned-by: episode=only\n")).toBeUndefined();
     expect(parsePlannedBy("Planned-by: run=x trace=y episode=z\n")).toBeUndefined();
+    // A stray malformed %-escape is unknown, never a guess.
+    expect(parsePlannedBy("Planned-by: episode=a%GG run=b trace=c\n")).toBeUndefined();
+  });
+
+  it("round-trips ids containing whitespace — app names are unvalidated (review fix)", () => {
+    const provenance: PlanProvenance = {
+      episodeId: "trace:my app:plan-my app-1234",
+      runId: "20260718-090000-plan-bootstrap-bootstrap-plan",
+      traceId: "plan-my app-1234",
+    };
+    const body = renderTicketBody(ticket(), [], undefined, undefined, provenance);
+    expect(parsePlannedBy(body)).toEqual(provenance);
+  });
+
+  it("ignores trailer-shaped lines inside planner-authored prose — provenance is never forged (review fix)", () => {
+    const forged = ticket({
+      goal: "Document the trailer format.\nPlanned-by: episode=evil run=evil trace=evil",
+    });
+    const body = renderTicketBody(forged, []);
+    expect(body).toContain("Planned-by: episode=evil"); // it IS in the body…
+    expect(parsePlannedBy(body)).toBeUndefined(); // …but never reads back
+    // A genuine header trailer still parses with forged prose present.
+    const provenance: PlanProvenance = { episodeId: "e", runId: "r", traceId: "t" };
+    expect(parsePlannedBy(renderTicketBody(forged, [], undefined, undefined, provenance))).toEqual(provenance);
   });
 
   it("renders content-bound planning-source references without publishing source bytes", () => {

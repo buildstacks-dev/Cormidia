@@ -169,6 +169,10 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   });
 
   const turnId = `plan-${options.app.name}-${clock().getTime()}`;
+  // The ONE binding for this trace's episode identity: executePipeline
+  // admission uses a supplied id verbatim, and the published provenance
+  // (#128) must carry the same bytes.
+  const episodeId = `trace:${options.app.name}:${turnId}`;
   // Plan from an isolated, trace-scoped snapshot. A supplied checkout is an
   // immutable source: clone its current HEAD without checking out/resetting it.
   // The default source remains Operon's explicitly managed clone, which is
@@ -251,7 +255,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     verdictSchemaFor: (pass) => (pass.id === finalPassId ? PLAN_SCHEMA : undefined),
     telemetry: { orgDir: options.stateHome, trigger: "manual" },
     episode: {
-      id: `trace:${options.app.name}:${turnId}`,
+      id: episodeId,
       route: planningDecision.executionRoute,
       policyVersion: planningDecision.policyVersion,
       factors: [...planningDecision.executionFactors, planningFactor],
@@ -366,11 +370,10 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     };
   }
   const gh = options.gh ?? new GhCliOps(options.app.repo);
-  // Durable planner->ticket provenance (#128): the episode id is the one this
-  // function passed to executePipeline (admission uses a supplied id verbatim),
-  // and the run id is the final planning pass whose verdict became the plan.
+  // Durable planner->ticket provenance (#128): the run id is the final
+  // planning pass whose verdict became the plan.
   const provenance: PlanProvenance = {
-    episodeId: `trace:${options.app.name}:${turnId}`,
+    episodeId,
     runId: pass.runId,
     traceId: turnId,
   };
@@ -380,12 +383,22 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     consumedSources === undefined ? undefined : planningSourceTicketEvidence(consumedSources),
     provenance,
   );
-  await writePublishedTicketsRecord(options.stateHome, options.app.name, provenance, published, clock());
+  // Evidence, not authority: once tickets exist on GitHub, a failed local
+  // record write must never turn the completed publication into a reported
+  // failure — a retry would republish the whole set as duplicates. Degrade
+  // to a loud note; the ticket-body trailers still carry the identity.
+  let recordNote = "";
+  try {
+    await writePublishedTicketsRecord(options.stateHome, options.app.name, provenance, published, clock());
+  } catch (error) {
+    recordNote = `; published-tickets record write failed: ${(error as Error).message}`;
+  }
   return {
     status: "completed",
     summary:
       `${planningDecision.depth} planning published ${published.length} ticket(s): ` +
-      published.map((t) => `#${t.issueNumber}${t.ready ? " (ready)" : ""}`).join(", "),
+      published.map((t) => `#${t.issueNumber}${t.ready ? " (ready)" : ""}`).join(", ") +
+      recordNote,
     plan: planProjection.plan,
     planProjection,
     published,

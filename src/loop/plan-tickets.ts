@@ -279,7 +279,10 @@ export function renderTicketBody(
     `Execution group: ${ticket.executionGroup}`,
     ...(releaseKind !== undefined ? [`Release-kind: ${releaseKind}`] : []),
     ...(provenance !== undefined
-      ? [`Planned-by: episode=${provenance.episodeId} run=${provenance.runId} trace=${provenance.traceId}`]
+      ? [
+          `Planned-by: episode=${encodeProvenanceId(provenance.episodeId)} ` +
+            `run=${encodeProvenanceId(provenance.runId)} trace=${encodeProvenanceId(provenance.traceId)}`,
+        ]
       : []),
     "",
     "## Goal",
@@ -324,13 +327,38 @@ export function parseReleaseKind(body: string): ReleaseKind | undefined {
   return RELEASE_KINDS.find((kind) => kind === candidate);
 }
 
+/** Minimal escaping so the space-delimited trailer round-trips ANY id:
+ *  app names are unvalidated and embedded in episode/trace ids, so an app
+ *  named "my app" must not render a trailer its own parser can never read
+ *  back. Only `%` and whitespace are escaped — ordinary ids stay
+ *  byte-identical. */
+function encodeProvenanceId(id: string): string {
+  return id.replace(/[%\s]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
+}
+
 /** Read the `Planned-by:` trailer back from a published ticket body (#128).
  *  Absent or malformed → undefined: pre-provenance tickets carry no planning
- *  identity, and a consumer must treat that as "unknown", never guess. */
+ *  identity, and a consumer must treat that as "unknown", never guess.
+ *
+ *  Only the HEADER block (before the first `## ` section) is searched:
+ *  everything from `## Goal` on is planner-authored prose, and a
+ *  trailer-shaped line inside it must not read back as provenance. The
+ *  trailer is advisory, not authenticated — a GitHub body is editable by any
+ *  repo writer, so the trusted half of the edge is the local
+ *  published-tickets record, which this trailer merely cross-checks. */
 export function parsePlannedBy(body: string): PlanProvenance | undefined {
-  const match = /^Planned-by:\s*episode=(\S+)\s+run=(\S+)\s+trace=(\S+)\s*$/m.exec(body);
+  const header = body.split(/^## /m, 1)[0] ?? body;
+  const match = /^Planned-by:\s*episode=(\S+)\s+run=(\S+)\s+trace=(\S+)\s*$/m.exec(header);
   if (match === null) return undefined;
-  return { episodeId: match[1]!, runId: match[2]!, traceId: match[3]! };
+  try {
+    return {
+      episodeId: decodeURIComponent(match[1]!),
+      runId: decodeURIComponent(match[2]!),
+      traceId: decodeURIComponent(match[3]!),
+    };
+  } catch {
+    return undefined; // stray malformed %-escape → unknown, never a guess
+  }
 }
 
 // ---------------------------------------------------------------------------

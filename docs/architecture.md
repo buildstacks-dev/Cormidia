@@ -91,7 +91,10 @@ constructing a runtime. The production pass executor enforces that boundary:
 the durable route and token-free configuration/capability/artifact preflight
 precede runtime construction; each provider invocation reserves remaining
 turn, cost, time, and tool allowance and owns one terminal execution step plus
-one settlement; and each pass writes a budgeted, component-hashed context
+one settlement. The cost reservation is atomic across concurrent invocations
+and clamps the adapter's per-turn dollar ceiling to the remaining admitted
+exposure; incomplete usage blocks later admission rather than being read as
+zero. Each pass writes a budgeted, component-hashed context
 manifest. `route-policy/v1` makes pass/model/effort selection factor-backed and
 monotonic. Older planning-depth or timeout settings are not competing
 authorities.

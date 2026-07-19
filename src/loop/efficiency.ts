@@ -14,6 +14,10 @@ import {
 } from "./route-policy.js";
 
 export const EFFICIENCY_SCHEMA_VERSION = 1 as const;
+/** Floating-point comparison tolerance only. This is not a spend allowance:
+ * any observable provider overrun beyond this arithmetic epsilon stops the
+ * episode before another provider turn can be admitted. */
+export const EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD = 1e-9;
 export type EfficiencyRoute = "deterministic" | TicketTier;
 
 export interface RouteBudget {
@@ -173,6 +177,16 @@ export interface StartedProviderStep {
   providerTurnId: string;
   startedAt: Date;
   inputFingerprint: string;
+  reservation: {
+    inputTokens: number;
+    equivalentCostUsd: number;
+    activeTimeMs: number;
+  };
+  budget: {
+    capUsd: number;
+    settledUsd: number;
+    alreadyReservedUsd: number;
+  };
 }
 
 export interface StartedProviderReceipt {
@@ -192,7 +206,7 @@ export interface StartedProviderReceipt {
   input_fingerprint: string;
   context_manifest_ref: string | null;
   /** Conservative allowance reserved before runtime construction. Older
-   * receipts may omit it and are treated as a zero-quantity reservation. */
+   * in-flight receipts that omit it block further admission as unmeasured. */
   reservation?: {
     input_tokens: number;
     equivalent_cost_usd: number;
@@ -222,13 +236,31 @@ export interface BudgetCheck {
   allowed: boolean;
   counters: EpisodeCounters;
   remaining: RouteBudget;
+  exposure: {
+    capUsd: number;
+    settledUsd: number;
+    reservedUsd: number;
+    requestedUsd: number;
+  };
+  errorCode?: "error_route_budget_exhausted" | "error_route_budget_unmeasured";
   reason?: string;
 }
 
 export class ProviderBudgetRefusalError extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly errorCode: NonNullable<BudgetCheck["errorCode"]>;
+  readonly budget: BudgetCheck;
+
+  constructor(episodeId: string, operation: string, budget: BudgetCheck) {
+    const exposure = budget.exposure;
+    super(
+      `episode ${episodeId} cannot start ${operation}: ${budget.reason ?? "route budget exhausted"}; ` +
+        `cap=$${formatUsd(exposure.capUsd)}, settled=$${formatUsd(exposure.settledUsd)}, ` +
+        `reserved=$${formatUsd(exposure.reservedUsd)}, requested=$${formatUsd(exposure.requestedUsd)}, ` +
+        `denied_step=${operation}`,
+    );
     this.name = "ProviderBudgetRefusalError";
+    this.errorCode = budget.errorCode ?? "error_route_budget_exhausted";
+    this.budget = budget;
   }
 }
 
@@ -394,16 +426,19 @@ export async function checkProviderBudget(input: {
 }): Promise<BudgetCheck> {
   const route = await readRouteRecord(input.root, input.episodeId);
   const counters = await deriveEpisodeCounters(input.root, input.episodeId);
+  const terminalUnmeasured = [...counters.partial_or_unavailable_steps];
+  const settledUsd = counters.equivalent_cost_usd;
   const pending = await pendingProviderReservations(input.root, input.episodeId);
+  const reservedUsd = pending.receipts.reduce(
+    (sum, receipt) => sum + (receipt.reservation?.equivalent_cost_usd ?? 0),
+    0,
+  );
   counters.provider_turns += pending.receipts.length + pending.corrupt.length;
   counters.input_tokens += pending.receipts.reduce(
     (sum, receipt) => sum + (receipt.reservation?.input_tokens ?? 0),
     0,
   );
-  counters.equivalent_cost_usd += pending.receipts.reduce(
-    (sum, receipt) => sum + (receipt.reservation?.equivalent_cost_usd ?? 0),
-    0,
-  );
+  counters.equivalent_cost_usd += reservedUsd;
   counters.active_time_ms += pending.receipts.reduce(
     (sum, receipt) => sum + (receipt.reservation?.active_time_ms ?? 0),
     0,
@@ -412,14 +447,32 @@ export async function checkProviderBudget(input: {
     ...pending.receipts.map((receipt) => receipt.execution_step_id),
     ...pending.corrupt,
   );
-  const checked = budgetCheck(route, counters, input.next);
-  return pending.corrupt.length === 0
-    ? checked
-    : {
-        ...checked,
-        allowed: false,
-        reason: "corrupt provider reservation prevents safe admission",
-      };
+  const checked = budgetCheck(route, counters, input.next, { settledUsd, reservedUsd });
+  if (pending.corrupt.length > 0) {
+    return {
+      ...checked,
+      allowed: false,
+      errorCode: "error_route_budget_unmeasured",
+      reason: "corrupt provider reservation prevents safe admission",
+    };
+  }
+  if (pending.receipts.some((receipt) => receipt.reservation === undefined)) {
+    return {
+      ...checked,
+      allowed: false,
+      errorCode: "error_route_budget_unmeasured",
+      reason: "an in-flight provider turn has no measurable cost reservation",
+    };
+  }
+  if (terminalUnmeasured.length > 0) {
+    return {
+      ...checked,
+      allowed: false,
+      errorCode: "error_route_budget_unmeasured",
+      reason: `provider usage is partial or unavailable for ${terminalUnmeasured.join(", ")}`,
+    };
+  }
+  return checked;
 }
 
 export async function remainingExecutionAllowance(
@@ -446,7 +499,14 @@ function budgetCheck(
   route: RouteRecord,
   counters: EpisodeCounters,
   next: { inputTokens?: number; costUsd?: number; activeTimeMs?: number } = {},
+  exposure: { settledUsd: number; reservedUsd: number } = {
+    settledUsd: counters.equivalent_cost_usd,
+    reservedUsd: 0,
+  },
 ): BudgetCheck {
+  assertNonNegativeFinite("declared input-token allowance", next.inputTokens);
+  assertNonNegativeFinite("declared equivalent-cost allowance", next.costUsd);
+  assertNonNegativeFinite("declared active-time allowance", next.activeTimeMs);
   const remaining: RouteBudget = {
     provider_turns: route.budget.provider_turns - counters.provider_turns,
     input_tokens:
@@ -463,7 +523,10 @@ function budgetCheck(
       ? "provider-turn budget exhausted"
       : remaining.input_tokens !== null && (next.inputTokens ?? 0) > remaining.input_tokens
         ? "declared input-token allowance is insufficient"
-        : (next.costUsd ?? 0) > remaining.equivalent_cost_usd
+        : remaining.equivalent_cost_usd <= EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+          ? "equivalent-cost budget exhausted"
+          : (next.costUsd ?? 0) >
+              remaining.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
           ? "declared equivalent-cost allowance is insufficient"
           : (next.activeTimeMs ?? 0) > remaining.active_time_ms
             ? "declared active-time allowance is insufficient"
@@ -472,8 +535,25 @@ function budgetCheck(
     allowed: refusal === undefined,
     counters,
     remaining,
+    exposure: {
+      capUsd: route.budget.equivalent_cost_usd,
+      settledUsd: exposure.settledUsd,
+      reservedUsd: exposure.reservedUsd,
+      requestedUsd: next.costUsd ?? 0,
+    },
+    ...(refusal !== undefined ? { errorCode: "error_route_budget_exhausted" as const } : {}),
     ...(refusal !== undefined ? { reason: refusal } : {}),
   };
+}
+
+function assertNonNegativeFinite(label: string, value: number | undefined): void {
+  if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+    throw new TypeError(`${label} must be a finite non-negative number`);
+  }
+}
+
+function formatUsd(value: number): string {
+  return value.toFixed(4);
 }
 
 export async function beginProviderStep(input: {
@@ -488,17 +568,51 @@ export async function beginProviderStep(input: {
   now: Date;
   next?: { inputTokens?: number; costUsd?: number; activeTimeMs?: number };
 }): Promise<StartedProviderStep> {
+  if (!Number.isFinite(input.role.maxTurnBudgetUsd) || input.role.maxTurnBudgetUsd <= 0) {
+    throw new TypeError(`role ${input.role.name} has an invalid maxTurnBudgetUsd`);
+  }
+  if (
+    input.next?.costUsd !== undefined &&
+    input.next.costUsd >
+      input.role.maxTurnBudgetUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+  ) {
+    throw new TypeError(
+      `declared equivalent-cost allowance $${formatUsd(input.next.costUsd)} exceeds ` +
+        `role ${input.role.name} maxTurnBudgetUsd $${formatUsd(input.role.maxTurnBudgetUsd)}`,
+    );
+  }
   const release = await acquireEpisodeReservationLock(input.root, input.episodeId);
   try {
-    const budget = await checkProviderBudget({
+    let budget = await checkProviderBudget({
       root: input.root,
       episodeId: input.episodeId,
       ...(input.next !== undefined ? { next: input.next } : {}),
     });
     if (!budget.allowed) {
-      throw new ProviderBudgetRefusalError(
-        `episode ${input.episodeId} cannot start ${input.operation}: ${budget.reason ?? "route budget exhausted"}`,
-      );
+      throw new ProviderBudgetRefusalError(input.episodeId, input.operation, budget);
+    }
+    const reservation = {
+      inputTokens: input.next?.inputTokens ?? 0,
+      equivalentCostUsd:
+        input.next?.costUsd ??
+        Math.min(input.role.maxTurnBudgetUsd, Math.max(0, budget.remaining.equivalent_cost_usd)),
+      activeTimeMs: input.next?.activeTimeMs ?? 0,
+    };
+    // Production callers normally omit an estimate. In that case the
+    // enforceable adapter ceiling is the smaller of the role cap and the
+    // episode's remaining cost; explicit estimates are checked as declared.
+    if (input.next?.costUsd === undefined) {
+      budget = await checkProviderBudget({
+        root: input.root,
+        episodeId: input.episodeId,
+        next: {
+          ...(input.next ?? {}),
+          costUsd: reservation.equivalentCostUsd,
+        },
+      });
+      if (!budget.allowed) {
+        throw new ProviderBudgetRefusalError(input.episodeId, input.operation, budget);
+      }
     }
     const executionStepId = `${input.runId}:provider:${input.ordinal}`;
     const providerTurnId = sha256(`${input.episodeId}\0${executionStepId}`);
@@ -527,9 +641,9 @@ export async function beginProviderStep(input: {
         input_fingerprint: input.inputFingerprint,
         context_manifest_ref: "context-manifest.json",
         reservation: {
-          input_tokens: input.next?.inputTokens ?? 0,
-          equivalent_cost_usd: input.next?.costUsd ?? 0,
-          active_time_ms: input.next?.activeTimeMs ?? 0,
+          input_tokens: reservation.inputTokens,
+          equivalent_cost_usd: reservation.equivalentCostUsd,
+          active_time_ms: reservation.activeTimeMs,
         },
       }, null, 2)}\n`,
     );
@@ -538,6 +652,12 @@ export async function beginProviderStep(input: {
       providerTurnId,
       startedAt: input.now,
       inputFingerprint: input.inputFingerprint,
+      reservation,
+      budget: {
+        capUsd: budget.exposure.capUsd,
+        settledUsd: budget.exposure.settledUsd,
+        alreadyReservedUsd: budget.exposure.reservedUsd,
+      },
     };
   } finally {
     await release();

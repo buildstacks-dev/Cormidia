@@ -414,7 +414,7 @@ describe("M6 loop engine integration", () => {
     }
   });
 
-  it("a stopped turn re-arms op:ready with a durable-work comment instead of stranding op:building", async () => {
+  it("a provider budget stop returns the ticket with durable-work evidence instead of buying a retry", async () => {
     const h = await claimedHarness("Stopped Turn", ["op:ready"]);
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
     // Implement pass fails hard (e.g. budget kill) after the contract pass.
@@ -428,17 +428,17 @@ describe("M6 loop engine integration", () => {
         pipelines: await rootPipelines(),
       });
 
-      expect(next.phase).toBe("ready");
-      expect(next.labels).toContain("op:ready");
+      expect(next.phase).toBe("returned");
+      expect(next.labels).toContain("op:returned");
       const issue = (await h.gh.listIssues({ state: "all", limit: 5 }))[0]!;
-      expect(issue.labels).toContain("op:ready");
+      expect(issue.labels).toContain("op:returned");
       expect(issue.labels).not.toContain("op:building");
-      const stopped = (h.gh.issueComments.get(1) ?? []).find((c) =>
-        c.startsWith("## Turn stopped before completion"),
+      const stopped = (h.gh.issueComments.get(1) ?? []).find((comment) =>
+        comment.startsWith("## Build stopped: budget/limit exhausted"),
       );
       expect(stopped).toBeDefined();
       expect(stopped).toContain("error_max_budget_usd");
-      expect(stopped).toContain("Durable work preserved");
+      expect(stopped).toContain("durable work is preserved");
     } finally {
       home.cleanup();
       h.cleanup();
@@ -740,6 +740,31 @@ describe("M6 loop engine integration", () => {
       homeB.cleanup();
       under.cleanup();
       atCap.cleanup();
+    }
+  });
+
+  it("route-budget refusal during build parks op:returned instead of authorizing an automatic retry", async () => {
+    const h = await claimedHarness("Budget Cap Build", ["op:ready"]);
+    const home = makeOrgHome({ runs: { apps: ["fixture"] } });
+    const fake = new FakeRuntime([budgetBlockedTurn("build/contract")]);
+    try {
+      const returned = await runBuilderPipeline(h.item, {
+        ...engineOptions(h, home.root, fake),
+        pipelines: await rootPipelines(),
+      });
+
+      expect(returned.phase).toBe("returned");
+      expect(returned.labels).toContain("op:returned");
+      expect(returned.labels).not.toContain("op:ready");
+      expect((await h.gh.readIssue(1)).labels).toContain("op:returned");
+      expect((await h.gh.readIssue(1)).labels).not.toContain("op:ready");
+      const comment = h.gh.issueComments.get(1)?.join("\n") ?? "";
+      expect(comment).toContain("error_route_budget_exhausted");
+      expect(comment).toContain("No additional provider turn was authorized");
+      expect(comment).toContain("rather than automatically re-arming");
+    } finally {
+      home.cleanup();
+      h.cleanup();
     }
   });
 

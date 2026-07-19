@@ -62,6 +62,24 @@ records its factor, remaining budget, and newly authorized budget. A cap never
 authorizes false completion: insufficient remaining budget parks or reassesses
 before the next provider turn.
 
+Equivalent-cost admission is pessimistic and pre-runtime. Under the episode
+lock, Operon adds settled provider cost to every in-flight reservation, then
+reserves either the caller's declared maximum exposure or the smaller of the
+role's per-turn cap and the route's remaining cost. That reservation becomes
+the adapter request's actual `maxTurnBudgetUsd`; it is not merely telemetry.
+Finalization atomically replaces the reservation with observed usage, so a
+retry or concurrent settlement cannot count both. Mechanical steps create no
+provider reservation and consume no equivalent-cost budget.
+
+There is no positive estimation-variance allowance. The implementation uses a
+`1e-9` USD epsilon only to make floating-point comparisons stable. Any larger
+observed overrun stops and returns the episode with cap, settled cost, other
+reservations, the turn's reserved exposure, and the denied step recorded.
+Partial, unavailable, invalid, or legacy-unreserved usage fails closed before
+another provider runtime can be constructed. A human may preserve the durable
+work and explicitly reassess the route; estimation variance never silently
+makes the route cap advisory.
+
 `route-policy/v1` is the executable classifier. It consumes structured risk
 facts only, selects the smallest safe quick/standard/deep route, binds every
 extra pass to a named factor, and records model/effort before runtime

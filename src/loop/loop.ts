@@ -216,7 +216,7 @@ async function blockedOnApproval(
   const last = result.passes.at(-1);
   if (
     last?.result.status !== "blocked_on_gate" ||
-    last.result.errorCode === "error_route_budget_exhausted"
+    last.result.errorCode?.startsWith("error_route_budget_") === true
   ) {
     return undefined;
   }
@@ -713,9 +713,10 @@ export async function runBuilderPipeline(
     // advanceGates owns that loop's bookkeeping.
     if (options.gateResult === undefined) {
       const last = result.passes[result.passes.length - 1]?.result;
+      const stopKind = journalStopKind(last?.errorCode, last?.status);
       await journalStop(
         journal,
-        journalStopKind(last?.errorCode, last?.status),
+        stopKind,
         last?.summary ?? `${pipelineName} pipeline aborted`,
       );
       const work = durableWorkSummary(worktree, item.branch, options.base);
@@ -729,6 +730,10 @@ export async function runBuilderPipeline(
         if (paused !== undefined) {
           return { ...paused, ...(contract !== undefined ? { contract } : {}) };
         }
+      }
+      if (stopKind === "cap_stop") {
+        const returned = await returnedOnCapStop(item, options, pipelineName, last);
+        return { ...returned, ...(contract !== undefined ? { contract } : {}) };
       }
       // A stopped turn is not lost work: re-arm op:ready so the next tick
       // continues from the durable artifacts. The cross-claim cap (default 3)
@@ -2029,12 +2034,9 @@ interface AbortPassResult {
   summary?: string;
 }
 
-/** L-005: terminalize a review/ship pipeline that a cap stopped mid-flight.
- *  Route `op:in-review -> op:returned` with a budget/limit-exhaustion evidence
- *  comment so the ticket does not sit forever at `op:in-review` (a label that
- *  falsely reads "review in progress") with an open, mergeable PR the loop
- *  will never touch again. The PR is left open and untouched — a human decides
- *  whether to merge it as-is or raise the budget and re-run. */
+/** Terminalize any provider pipeline that a legitimate cap stopped mid-flight.
+ * The current claim label is replaced with `op:returned`; durable work and an
+ * open PR, when present, are left untouched for a human budget decision. */
 async function returnedOnCapStop(
   item: LoopItem,
   options: LoopPipelineOptions,
@@ -2042,10 +2044,11 @@ async function returnedOnCapStop(
   last: AbortPassResult | undefined,
 ): Promise<LoopItem> {
   await options.gh.commentIssue(item.issueNumber, capExhaustionComment(pipelineName, last, item.prNumber));
-  await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+  const fromLabel = stateLabelForPhase(item.phase);
+  await options.gh.swapLabel(item.issueNumber, fromLabel, "op:returned");
   return {
     ...item,
-    labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
+    labels: replaceLabel(item.labels, fromLabel, "op:returned"),
     phase: "returned",
   };
 }
@@ -2055,23 +2058,31 @@ function capExhaustionComment(
   last: AbortPassResult | undefined,
   prNumber: number | undefined,
 ): string {
-  const label = pipelineName === "ship" ? "Ship-check" : "Review";
+  const label =
+    pipelineName === "ship"
+      ? "Ship-check"
+      : pipelineName === "review"
+        ? "Review"
+        : pipelineName === "fix"
+          ? "Fix"
+          : "Build";
   const detail = last?.summary ?? "a provider budget or wall-clock cap was reached";
-  return [
+  const lines = [
     `## ${label} stopped: budget/limit exhausted`,
     "",
     `The ${pipelineName} pipeline stopped before completion because a cap fired: ${detail}` +
       `${last?.errorCode !== undefined ? ` (\`${last.errorCode}\`)` : ""}.`,
     "",
     prNumber !== undefined
-      ? `**PR #${prNumber} is left open and was not orphaned.** The code work is durable; a human decides whether to:`
-      : "**The ticket is returned for a human decision:**",
-    "- merge the open PR as-is if the review so far is sufficient, or",
-    "- raise the app/route budget (or the wall-clock cap) and re-run `operon loop` to finish the review.",
+      ? `**PR #${prNumber} is left open and was not orphaned.** The code work is durable.`
+      : "**Any durable work is preserved.** No additional provider turn was authorized.",
     "",
-    "Routed to `op:returned` rather than left at `op:in-review` (which would falsely read " +
-      '"PR open, review in progress" for a ticket the loop will never touch again).',
-  ].join("\n");
+    "The ticket is returned for a human decision: accept the durable work if sufficient, or " +
+      "reassess/raise the route budget and re-run `operon loop`.",
+    "",
+    "Routed to `op:returned` rather than automatically re-arming another provider turn.",
+  ];
+  return lines.join("\n");
 }
 
 function stateLabelForPhase(phase: LoopPhase): string {

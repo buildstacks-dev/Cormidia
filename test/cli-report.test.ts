@@ -6,7 +6,8 @@ import { cmdReport, parseReportArgs } from "../src/cli/report.js";
 import { initOrgHome } from "../src/org/home.js";
 
 const cleanups: string[] = [];
-afterEach(() => { vi.restoreAllMocks(); while (cleanups.length) rmSync(cleanups.pop()!, { recursive: true, force: true }); });
+const DAY_MS = 24 * 60 * 60 * 1_000;
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); while (cleanups.length) rmSync(cleanups.pop()!, { recursive: true, force: true }); });
 
 describe("operon report CLI", () => {
   it("validates range/format arguments and --open", () => {
@@ -43,7 +44,7 @@ describe("operon report CLI", () => {
     expect(html).not.toMatch(/https?:\/\//);
     expect(html).toContain("@media print");
     expect(html).toContain("prefers-reduced-motion");
-    expect((html.match(/ledger:2026-07-12:1/g) ?? [])).toHaveLength(1);
+    expect((html.match(new RegExp(rig.inRangeLedgerId, "g")) ?? [])).toHaveLength(1);
   });
 
   it("summary-only is explicit in JSON and HTML", async () => {
@@ -55,6 +56,19 @@ describe("operon report CLI", () => {
     expect(report.sessions.items).toHaveLength(1);
   });
 
+  it("keeps 7d windowing active across a UTC day boundary", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2034-02-01T23:59:59.000Z"));
+    const rig = await fixture();
+    vi.setSystemTime(new Date("2034-02-02T00:00:01.000Z"));
+    const output = await capture(["--org-home", rig.orgHome, "--state-home", rig.stateHome, "--period", "7d", "--json"]);
+    const report = JSON.parse(output) as { session_details: unknown[] };
+    const details = JSON.stringify(report.session_details);
+    expect(report.session_details).toHaveLength(1);
+    expect(details).toContain(rig.inRangeLedgerId);
+    expect(details).not.toContain(rig.outOfRangeLedgerId);
+  });
+
   it("rejects unknown apps and period/custom conflicts without a partial target", async () => {
     const rig = await fixture();
     const target = join(rig.root, "must-not-exist.html");
@@ -64,17 +78,30 @@ describe("operon report CLI", () => {
   });
 });
 
-async function fixture(): Promise<{ root: string; orgHome: string; stateHome: string }> {
+async function fixture(): Promise<{ root: string; orgHome: string; stateHome: string; inRangeLedgerId: string; outOfRangeLedgerId: string }> {
   const root = mkdtempSync(join(tmpdir(), "operon-report-cli-")); cleanups.push(root);
   const orgHome = join(root, "org"); const stateHome = join(root, "state");
   await initOrgHome({ target: orgHome, name: "report-cli", stateHome, homeDir: join(root, "home") });
   writeFileSync(join(orgHome, "apps.yaml"), `schema_version: 1\norg:\n  name: report-cli\n  max_concurrent_turns: 2\ndefaults:\n  budget_usd_month: 1000\napps:\n  alpha:\n    repo: owner/alpha\n    status: live\n    budget_usd_month: 100\n    cadence: {}\n    channels: {}\n`, "utf8");
-  write(stateHome, "telemetry/2026-07-12.jsonl", `${JSON.stringify({ at: "2026-07-12T09:00:00.000Z", role: "builder", runtime: "codex", model: "model-<img src=x>", status: "completed", tokensIn: 10, tokensOut: 2, costUsd: 0.2, usageQuality: "estimated", subagentTurns: 0, wallClockMs: 1000, escalations: 0, app: "alpha", runId: "run-1", traceId: "trace-1", parentTaskId: "task-1", pipeline: "build", pass: "implement", costEstimated: true })}\n`);
-  write(stateHome, "runs/alpha/run-1/envelope.json", `${JSON.stringify({ schema_version: 1, run_id: "run-1", trace_id: "trace-1", parent_task_id: "task-1", app: "alpha", pipeline: "build", pass: "implement", role: "builder", runtime: "codex", model: "model-<img src=x>", status: "completed", started_at: "2026-07-12T08:00:00Z", finished_at: "2026-07-12T08:01:00Z", usage: { tokens_in: 10, tokens_out: 2, cost_usd: 0.2, quality: "estimated", cost_estimated: true }, refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md" } })}\n`);
-  write(stateHome, "runs/alpha/run-1/prompt.md", "SECRET-L3-PROMPT");
-  write(stateHome, "tasks/task-1/task.json", `${JSON.stringify({ schemaVersion: 1, taskId: "task-1", app: "alpha", objective: "Cross <script>window.__pwn=true</script>", promptRef: "prompt.md", promptSha256: "a".repeat(64), requiredStages: ["builder"], executionMode: "operon", fallbackEvents: [], status: "completed", startedAt: "2026-07-12T08:00:00Z", endedAt: "2026-07-12T08:01:00Z", refs: { tickets: [], traces: ["trace-1"], branches: [], prs: [], reviews: [], deployments: [] } })}\n`);
-  write(stateHome, "tasks/task-1/prompt.md", "SECRET-L3-PROMPT");
-  return { root, orgHome, stateHome };
+  const { inRangeDay, outOfRangeDay } = fixtureDays();
+  writeReportEvidence(stateHome, { day: inRangeDay, suffix: "1", model: "model-<img src=x>", objective: "Cross <script>window.__pwn=true</script>" });
+  writeReportEvidence(stateHome, { day: outOfRangeDay, suffix: "out-of-range", model: "old-model", objective: "Outside the 7d window" });
+  return { root, orgHome, stateHome, inRangeLedgerId: `ledger:${inRangeDay}:1`, outOfRangeLedgerId: `ledger:${outOfRangeDay}:1` };
+}
+
+function fixtureDays(now = new Date()): { inRangeDay: string; outOfRangeDay: string } {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const day = (offset: number): string => new Date(today + offset * DAY_MS).toISOString().slice(0, 10);
+  return { inRangeDay: day(-1), outOfRangeDay: day(-7) };
+}
+
+function writeReportEvidence(stateHome: string, evidence: { day: string; suffix: string; model: string; objective: string }): void {
+  const runId = `run-${evidence.suffix}`; const traceId = `trace-${evidence.suffix}`; const taskId = `task-${evidence.suffix}`;
+  write(stateHome, `telemetry/${evidence.day}.jsonl`, `${JSON.stringify({ at: `${evidence.day}T09:00:00.000Z`, role: "builder", runtime: "codex", model: evidence.model, status: "completed", tokensIn: 10, tokensOut: 2, costUsd: 0.2, usageQuality: "estimated", subagentTurns: 0, wallClockMs: 1000, escalations: 0, app: "alpha", runId, traceId, parentTaskId: taskId, pipeline: "build", pass: "implement", costEstimated: true })}\n`);
+  write(stateHome, `runs/alpha/${runId}/envelope.json`, `${JSON.stringify({ schema_version: 1, run_id: runId, trace_id: traceId, parent_task_id: taskId, app: "alpha", pipeline: "build", pass: "implement", role: "builder", runtime: "codex", model: evidence.model, status: "completed", started_at: `${evidence.day}T08:00:00Z`, finished_at: `${evidence.day}T08:01:00Z`, usage: { tokens_in: 10, tokens_out: 2, cost_usd: 0.2, quality: "estimated", cost_estimated: true }, refs: { events: "events.jsonl", brief: "brief.md", prompt: "prompt.md", output: "output.md" } })}\n`);
+  write(stateHome, `runs/alpha/${runId}/prompt.md`, "SECRET-L3-PROMPT");
+  write(stateHome, `tasks/${taskId}/task.json`, `${JSON.stringify({ schemaVersion: 1, taskId, app: "alpha", objective: evidence.objective, promptRef: "prompt.md", promptSha256: "a".repeat(64), requiredStages: ["builder"], executionMode: "operon", fallbackEvents: [], status: "completed", startedAt: `${evidence.day}T08:00:00Z`, endedAt: `${evidence.day}T08:01:00Z`, refs: { tickets: [], traces: [traceId], branches: [], prs: [], reviews: [], deployments: [] } })}\n`);
+  write(stateHome, `tasks/${taskId}/prompt.md`, "SECRET-L3-PROMPT");
 }
 
 async function capture(args: string[]): Promise<string> { const log = vi.spyOn(console, "log").mockImplementation(() => {}); try { await cmdReport(args); return log.mock.calls.map((call) => call.join(" ")).join("\n"); } finally { log.mockRestore(); } }

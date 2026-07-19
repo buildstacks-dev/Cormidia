@@ -323,6 +323,12 @@ Rules:
   `to_exclusive` ISO instants plus `display_timezone: "UTC"`.
 - Browser-local time may be shown secondarily, but tooltips and exports retain
   UTC so two operators interpret the same report identically.
+- The browser Reports surface renders every absolute timestamp through
+  `src/report/time-policy.ts`, the single presentation-only time policy it
+  SHARES with the Observer (`docs/live-ui/design.md` §6.3): a `<time>` element
+  whose `datetime` is the canonical UTC instant, a visible zone abbreviation or
+  padded UTC offset, and exact UTC in the tooltip. It lives under `src/report/`
+  because nothing may import `src/observe`.
 - `1y` means today plus the preceding 364 UTC calendar days, not “current
   calendar year.”
 - `all` begins at the earliest readable ledger row. It is explicit because it

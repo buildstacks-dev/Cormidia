@@ -4,29 +4,144 @@ import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
 import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
 import type { StatusRow } from "../runtime/runlog/status.js";
 import { settlementKey, settlementIdentity } from "../runtime/telemetry.js";
-import { aggregateCost, normalizeUsageQuality, worstUsageQuality } from "../runtime/cost.js";
+import { aggregateCost, normalizeUsageQuality, providerPassRef, worstUsageQuality, type CostAggregate } from "../runtime/cost.js";
+import type { TurnRecord } from "../runtime/telemetry.js";
+import { ACTIVITY_ORDER, ORDER_SEPARATOR, buildOrderKey, compareStable, orderRows, orderingView, sectionScope } from "./order.js";
 import {
   OBSERVE_SCHEMA_VERSION,
   type ActivityKind,
+  type ActivityStreamMetaView,
   type ActivityView,
   type ApprovalView,
   type ArtifactRefView,
+  type AttentionGroupView,
   type AttentionItemView,
+  type AttentionOccurrenceView,
   type CompletionIntegrityView,
   type DeliveryState,
   type DeliveryTicketView,
+  type DurationView,
+  type GraphNodeState,
+  type ScopeStatementView,
+  type TraceNodeView,
+  type EventKind,
+  type EventOutcome,
   type EventView,
   type IndexedPass,
   type ObserveProjectionInput,
   type ObserveSnapshotV1,
+  type OrderDirection,
   type ParentTaskView,
   type PassView,
+  type PendingIntakeItemView,
+  type PendingIntakeState,
   type PullRequestView,
+  type SourceRefView,
+  type TimePolicyView,
   type TraceView,
   type UsageQuality,
 } from "./types.js";
 
 export const PASS_STALE_AFTER_MS = 3 * 60 * 1000;
+/** Reuses the tolerance already encoded in `passLiveness` rather than
+ *  inventing a second constant. Ordinary NTP jitter must not flood the header. */
+export const CLOCK_SKEW_TOLERANCE_MS = 30_000;
+const ACTIVITY_HISTORY_CAP = 200;
+const PENDING_INTAKE_CAP = 200;
+const ATTENTION_OCCURRENCE_CAP = 500;
+
+/**
+ * The ONE instant normalizer. Every instant-valued emission routes through it,
+ * so `<time datetime>` always carries a single canonical machine-readable form
+ * and a raw-string sort is a correct instant sort. Sources genuinely vary: the
+ * approvals path emits `...T10:00:00Z` with no milliseconds, and GitHub can
+ * emit a non-UTC offset.
+ *
+ * Absent -> null. Unparseable -> null (never 'Invalid Date', never epoch zero).
+ * No timezone conversion, no locale formatting, no offset arithmetic happens
+ * here or anywhere else in the projection: only the browser knows the
+ * operator's zone.
+ */
+function instant(value: string | Date | null | undefined): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
+}
+
+/** True when a value was recorded but could not be read as an instant. */
+function unreadableInstant(value: string | null | undefined): boolean {
+  return value !== null && value !== undefined && value !== "" && instant(value) === null;
+}
+
+function ascendingNullsLast(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return compareStable(a, b);
+}
+
+/** Nulls stay LAST in both directions — an undated record is not "oldest". */
+function descendingNullsLast(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return compareStable(b, a);
+}
+
+const EVENT_KINDS: Record<string, EventKind> = {
+  "run.started": "run", "run.completed": "run",
+  "pass.started": "pass", "pass.completed": "pass", "pass.failed": "pass",
+  "pass.cancelled": "pass", "pass.timed_out": "pass",
+  // Heartbeats get their OWN kind so coalescing them can never swallow a
+  // pass outcome carried on the same pass.
+  "pass.heartbeat": "heartbeat",
+  "gate.started": "gate", "gate.passed": "gate", "gate.failed": "gate",
+  "tool.called": "tool",
+  "subagent.started": "subagent", "subagent.completed": "subagent",
+  "ticket.transition": "ticket",
+  "verdict.recorded": "verdict",
+  "plan.ticket_finalized": "plan",
+  "escalation.raised": "escalation",
+  "telemetry.settle_skipped": "telemetry", "telemetry.settle_failed": "telemetry",
+};
+
+const EVENT_OUTCOMES: Record<string, EventOutcome> = {
+  "run.started": "pending", "run.completed": "success",
+  "pass.started": "pending", "pass.completed": "success",
+  "pass.failed": "failure", "pass.cancelled": "failure", "pass.timed_out": "failure",
+  "pass.heartbeat": "not_applicable",
+  "gate.started": "pending", "gate.passed": "success", "gate.failed": "failure",
+  "subagent.started": "pending", "subagent.completed": "success",
+  "ticket.transition": "not_applicable",
+  "verdict.recorded": "not_applicable",
+  "plan.ticket_finalized": "not_applicable",
+  "escalation.raised": "not_applicable",
+  // A benign exactly-once skip is NOT a failure, whatever its severity.
+  "telemetry.settle_skipped": "not_applicable",
+  "telemetry.settle_failed": "failure",
+};
+
+/** Total over RunlogEventType; a legacy or future event string never throws. */
+function eventKind(event: string): EventKind {
+  return EVENT_KINDS[event] ?? "other";
+}
+
+/**
+ * Derived from the typed event and typed `detail` fields only — never from
+ * `severity`, which would turn a benign `telemetry.settle_skipped` (severity
+ * `warn`) red and would call a failed tool call at severity `info` a success.
+ */
+function eventOutcome(event: string, detail: Record<string, string | number | boolean>): EventOutcome {
+  if (event === "tool.called") {
+    // Absent `success` is genuinely unknown: neither a truthy nor a falsy
+    // default may invent an outcome the adapter did not report.
+    if (detail["success"] === true) return "success";
+    if (detail["success"] === false) return "failure";
+    return "unknown";
+  }
+  return EVENT_OUTCOMES[event] ?? "unknown";
+}
 
 const QUALITY_RANK: Record<UsageQuality, number> = {
   // `none` is the identity element: a known zero that can never drag an
@@ -39,6 +154,127 @@ const QUALITY_RANK: Record<UsageQuality, number> = {
   unavailable: 3,
 };
 
+/**
+ * Every settled ledger row, grouped by `(app, runId)`. Built ONCE per snapshot:
+ * a `input.ledger.filter(...)` inside the trace loop would be O(traces × ledger)
+ * and visible on a real org home.
+ */
+function ledgerRowsByRun(rows: readonly TurnRecord[]): Map<string, TurnRecord[]> {
+  const byRun = new Map<string, TurnRecord[]>();
+  for (const row of rows) {
+    if (row.runId === undefined) continue;
+    const key = settlementKey(row.app, row.runId);
+    byRun.set(key, [...(byRun.get(key) ?? []), row]);
+  }
+  return byRun;
+}
+
+/**
+ * THE per-scope cost aggregate. `snapshot.totals`, `TraceView` and
+ * `ParentTaskView` all call this, so a per-row figure can never contradict the
+ * header the way an envelope-summing row once did (#89).
+ *
+ * Ledger-first, and settlement-aware in both directions:
+ *
+ *  - A settled row contributes its recorded cost (or a counted unknown when the
+ *    row is `unmeasured`).
+ *  - A genuine provider pass with NO settled row contributes a counted unknown
+ *    keyed on its own pass id. Without this, `aggregateCost([])` would return
+ *    `coverage: "none"` — an AUTHORITATIVE zero — for a scope whose provider
+ *    turns simply never reached the ledger, and the client would render an
+ *    unobservable turn as `$0.00` (invariant 4).
+ *  - A mechanical pass (`quality: "none"`) contributes an authoritative zero and
+ *    is never counted as an unknown turn (#88).
+ */
+function costForPasses(
+  passes: readonly PassView[],
+  byRun: Map<string, TurnRecord[]>,
+): { cost: CostAggregate; usage_quality: UsageQuality; rows: TurnRecord[]; scope: { settled_provider_turns: number; unsettled_provider_turns: number } } {
+  const rows: TurnRecord[] = [];
+  const contributions: Array<{ costUsd: number | null; quality: string; ref: string }> = [];
+  let unsettledProviderTurns = 0;
+  for (const pass of passes) {
+    const settled = byRun.get(settlementKey(pass.app, pass.run_id)) ?? [];
+    if (pass.usage.quality === "none") {
+      // An authoritative zero. Never an unknown turn, never a settlement gap.
+      contributions.push({ costUsd: 0, quality: "none", ref: pass.id });
+      continue;
+    }
+    if (settled.length === 0) {
+      unsettledProviderTurns += 1;
+      contributions.push({ costUsd: null, quality: "unavailable", ref: pass.id });
+      continue;
+    }
+    for (const row of settled) {
+      rows.push(row);
+      contributions.push({
+        costUsd: row.unmeasured === true ? null : row.costUsd,
+        quality: row.unmeasured === true ? "unavailable" : row.usageQuality,
+        ref: settlementIdentity(row) ?? pass.id,
+      });
+    }
+  }
+  const cost = aggregateCost(contributions);
+  return {
+    cost,
+    // A scope with no pass evidence AT ALL is genuinely unknown; a scope whose
+    // passes all invoked no provider is an authoritative zero. The two are never
+    // conflated in either direction (invariant 4).
+    usage_quality: passes.length === 0 ? "unavailable" : cost.usage_quality,
+    rows,
+    scope: {
+      settled_provider_turns: cost.provider_turns - unsettledProviderTurns,
+      unsettled_provider_turns: unsettledProviderTurns,
+    },
+  };
+}
+
+/**
+ * A recorded interval, or a typed reason it is not one. Reads only the two
+ * recorded instants: never `Date.now()` (which would make a running trace's
+ * duration non-deterministic) and never `Math.abs` or a clamp on a backwards
+ * pair (which would present recorded clock skew as a real measurement).
+ *
+ * `subject` NAMES the entity being measured. A parent task rendering "Trace not
+ * finished" tells the operator a different record is running than the one they
+ * are looking at, which is an identity error in operator-facing text even
+ * though the interval arithmetic is identical.
+ */
+function durationBetween(startedAt: string | null, finishedAt: string | null, subject = "Trace"): DurationView {
+  if (startedAt === null || finishedAt === null) {
+    return finishedAt === null && startedAt !== null
+      ? { ms: null, quality: "running", unknown_reason: `${subject} not finished` }
+      : { ms: null, quality: "unrecorded", unknown_reason: "Start or finish instant not recorded" };
+  }
+  const start = Date.parse(startedAt);
+  const finish = Date.parse(finishedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(finish)) {
+    return { ms: null, quality: "unrecorded", unknown_reason: "Unreadable instant" };
+  }
+  if (finish < start) {
+    return { ms: null, quality: "clock_skew", unknown_reason: "Finish instant precedes start (clock skew)" };
+  }
+  return { ms: finish - start, quality: "measured", unknown_reason: null };
+}
+
+/**
+ * The graph state token for an OBSERVED pass. Derived only from typed fields —
+ * never from a title, branch, prompt, or timestamp text (invariant 2).
+ *
+ * A pass whose start instant was recorded but is UNREADABLE reaches here with
+ * `started_at === null` and a non-null `quality_reason`. That is a corrupt
+ * record, not a clean pre-start state, so it maps to `unknown` rather than
+ * `not_started`.
+ */
+function graphState(pass: PassView): GraphNodeState {
+  if (pass.status === "running") return "running";
+  if (pass.status === "completed") return "completed";
+  if (pass.status === "blocked") return "blocked";
+  if (pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled") return "failed";
+  if (pass.started_at === null) return pass.quality_reason === null ? "not_started" : "unknown";
+  return "unknown";
+}
+
 export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSnapshotV1 {
   const observedAt = input.now.toISOString();
   const ledger = aggregatePassSettlements(input.ledger);
@@ -50,8 +286,9 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
       input.now,
     ))
     .filter((pass) => passMatches(pass, input.filters));
-  const traces = projectTraces(passes, observedAt).filter((trace) => traceMatches(trace, input.filters));
-  const parentTasks = projectParentTasks(input, passes, traces, observedAt).filter((task) =>
+  const byRun = ledgerRowsByRun(input.ledger);
+  const traces = projectTraces(passes, observedAt, byRun).filter((trace) => traceMatches(trace, input.filters));
+  const parentTasks = projectParentTasks(input, passes, traces, observedAt, byRun).filter((task) =>
     input.filters.parent_task === undefined || task.task_id === input.filters.parent_task,
   );
   const approvals = input.approvals
@@ -75,6 +312,16 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
           ref: settlementIdentity(row) ?? "unattributed",
         })),
       );
+      // Deliberately NOT narrowed by `filters.since`/`parent_task`/`ticket`: the
+      // app card is a month-to-date, app-wide budget fact and the client labels
+      // it as such under a historical selection rather than rescoping it into a
+      // different, smaller number that looks like the same one (invariant 14).
+      const costWindow = {
+        basis: "month_to_date" as const,
+        start_utc: `${observedAt.slice(0, 7)}-01T00:00:00.000Z`,
+        end_utc: observedAt,
+        app_wide: true as const,
+      };
       const channelGates: string[] = [];
       if ((app.channels?.support ?? []).length === 0) channelGates.push("Support disabled: no support channel configured");
       if ((app.channels?.marketing ?? []).length === 0) channelGates.push("Marketing disabled: no marketing channel configured");
@@ -86,6 +333,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
         budget_usd_month: app.budgetUsdMonth,
         recorded_monthly_cost_usd: cost.known_cost_usd,
         cost,
+        cost_window: costWindow,
         usage_quality: rows.length === 0 ? "unavailable" as const : cost.usage_quality,
         channels: {
           support: [...(app.channels?.support ?? [])],
@@ -96,9 +344,28 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
         source_refs: [{ source: "org", ref: "apps.yaml" }],
       };
     });
-  const intake = projectIntake(input, passes, observedAt).filter((activity) =>
+  // Two typed collections instead of one apparently-ordered concatenation. The
+  // recorded chronology is dated by type; pending intake is explicitly not a
+  // sequence and carries its own count and state (#94).
+  const direction: OrderDirection = input.filters.order ?? "newest_first";
+  const activityRows = projectActivityHistory(input, passes, observedAt, direction).filter((activity) =>
     (input.filters.app === undefined || activity.app === input.filters.app) &&
     (input.filters.parent_task === undefined || activity.parent_task_id === input.filters.parent_task),
+  );
+  const pendingRows = projectPendingIntake(input, observedAt).filter((item) =>
+    input.filters.app === undefined || item.app === input.filters.app,
+  );
+  const activityHistory = sectionScope(
+    "Recorded activity",
+    activityRows,
+    ACTIVITY_HISTORY_CAP,
+    orderingView("occurred_at", "id_asc", direction),
+  );
+  const pendingIntake = sectionScope(
+    "Pending intake",
+    pendingRows,
+    PENDING_INTAKE_CAP,
+    orderingView("occurred_at", "filename_asc", "newest_first"),
   );
   const invocations = input.invocations
     .filter((record) => input.filters.app === undefined || record.app === input.filters.app)
@@ -108,7 +375,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
       kind: record.kind,
       app: record.app ?? null,
       parent_task_id: record.parentTaskId ?? null,
-      at: record.at,
+      at: instant(record.at) ?? record.at,
       dry_run: record.dryRun === true,
       items_claimed: record.itemsClaimed ?? null,
       outcome: truncatePreview(scrubSecrets(record.outcome), 240),
@@ -120,32 +387,18 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
   // the passes on screen — not re-derived from envelope usage. That divergence
   // is what let the same page show "unavailable" in the header and $104.66 in
   // App lifecycle for one completed campaign (#89).
-  const visibleRuns = new Set(passes.map((pass) => settlementKey(pass.app, pass.run_id)));
-  const scopedLedger = input.ledger.filter(
-    (row) => row.runId !== undefined && visibleRuns.has(settlementKey(row.app, row.runId)),
-  );
-  const cost = aggregateCost(
-    scopedLedger.map((row) => ({
-      costUsd: row.unmeasured === true ? null : row.costUsd,
-      quality: row.unmeasured === true ? "unavailable" : row.usageQuality,
-      ref: settlementIdentity(row) ?? "unattributed",
-    })),
-  );
-  const settledRuns = new Set(
-    scopedLedger.map((row) => settlementKey(row.app, row.runId!)),
-  );
+  // The SAME helper every per-entity row uses, so the header and a row can no
+  // longer disagree about the same passes.
+  const totalsCost = costForPasses(passes, byRun);
+  const cost = totalsCost.cost;
+  const costScope = totalsCost.scope;
   // Mechanical passes are not provider turns, so they belong to neither side of
   // settlement coverage (#88).
   const providerPasses = passes.filter((pass) => pass.usage.quality !== "none");
-  const costScope = {
-    settled_provider_turns: cost.provider_turns,
-    unsettled_provider_turns: providerPasses.filter(
-      (pass) => !settledRuns.has(settlementKey(pass.app, pass.run_id)),
-    ).length,
-  };
   const quality = aggregateQuality(providerPasses.map((pass) => pass.usage.quality));
+  const activity = projectActivityMeta(input.passes, passes, observedAt);
 
-  return {
+  const snapshot: ObserveSnapshotV1 = {
     schema_version: OBSERVE_SCHEMA_VERSION,
     generated_at: observedAt,
     cursor: input.cursor,
@@ -159,13 +412,38 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
     },
     sources: input.source_health,
     apps,
-    intake,
+    activity_history: activityHistory,
+    pending_intake: {
+      scope: pendingIntake.scope,
+      rows: pendingIntake.rows,
+      counts: countPendingStates(pendingRows),
+    },
     delivery,
     parent_tasks: parentTasks,
     traces,
+    // `cap` is null: the projection does not truncate traces, so this `total` is
+    // the honest pre-client-filter denominator the client badge must quote even
+    // when its own display cap or search narrows what is on screen.
+    traces_scope: sectionScope(
+      "Execution traces",
+      traces,
+      null,
+      orderingView("order_key", "trace id ascending (app-scoped composite id)", "newest_first"),
+    ).scope,
     passes,
     approvals,
     invocations,
+    activity,
+    time_policy: {
+      source_timezone: "UTC",
+      // What the CLIENT should display by default, and it is read: the bundle
+      // applies this unless the operator pinned a zone with `?tz=`. Declaring
+      // "UTC" here while the client defaulted to viewer-local made the field
+      // both wrong and dead.
+      display_timezone: "viewer_local",
+      instant_format: "iso8601-utc-ms",
+      skew: null,
+    },
     totals: {
       active_passes: passes.filter((pass) => pass.status === "running").length,
       pending_approvals: approvals.filter((approval) => approval.status === "pending").length,
@@ -173,12 +451,147 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
       recorded_cost_usd: cost.known_cost_usd,
       cost,
       cost_scope: costScope,
-      usage_quality: providerPasses.length === 0 ? "unavailable" : quality,
+      // `none` and `unavailable` are never conflated (invariant 4). Passes that
+      // all invoked no provider are an AUTHORITATIVE zero (`none`); only a scope
+      // with no pass evidence at all is genuinely `unavailable`. Mirrors
+      // aggregateCost in src/runtime/cost.ts, which returns `none` for zero
+      // provider turns.
+      usage_quality: providerPasses.length > 0 ? quality : passes.length > 0 ? "none" : "unavailable",
       // Only genuine provider turns can have incomplete usage. A mechanical
       // pass invoked no provider, so it is never counted here (#88).
       incomplete_usage_passes: providerPasses.filter((pass) => pass.usage.quality !== "complete").length,
+      scope_statement: scopeStatement(input, apps, observedAt),
     },
-    attention,
+    attention: attention.items,
+    attention_groups: attention.groups,
+  };
+  // Skew is data on the snapshot, not an attention item: #91 owns the attention
+  // surface, and a header warning is the right place for a clock fact.
+  snapshot.time_policy = { ...snapshot.time_policy, skew: collectSkew(snapshot, input.now.getTime()) };
+  return snapshot;
+}
+
+/**
+ * What the header totals cover. `apps` is the POST-filter list, so a statement
+ * can never claim org-wide coverage for a single-app total; and `basis` is
+ * `since_filter` whenever rows before `since` were dropped, so "all recorded"
+ * is never asserted over a truncated range.
+ */
+function scopeStatement(
+  input: ObserveProjectionInput,
+  apps: Array<{ name: string }>,
+  observedAt: string,
+): ScopeStatementView {
+  const filters: string[] = [];
+  const f = input.filters;
+  if (f.app !== undefined) filters.push(`app=${f.app}`);
+  if (f.parent_task !== undefined) filters.push(`parent_task=${f.parent_task}`);
+  if (f.ticket !== undefined) filters.push(`ticket=${f.ticket}`);
+  if (f.status !== undefined) filters.push(`status=${f.status}`);
+  if (f.role !== undefined) filters.push(`role=${f.role}`);
+  if (f.since !== undefined) filters.push(`since=${f.since}`);
+  if (f.order !== undefined) filters.push(`order=${f.order}`);
+  return {
+    apps: apps.map((app) => app.name),
+    app_filter: f.app ?? null,
+    time_range: {
+      start_utc: f.since ?? null,
+      end_utc: observedAt,
+      basis: f.since === undefined ? "all_recorded" : "since_filter",
+    },
+    filters: filters.sort(compareStable),
+  };
+}
+
+function countPendingStates(rows: PendingIntakeItemView[]): Record<PendingIntakeState, number> {
+  const counts: Record<PendingIntakeState, number> = { pending: 0, corrupt: 0, awaiting_promotion: 0 };
+  for (const row of rows) counts[row.state] += 1;
+  return counts;
+}
+
+/**
+ * Metadata only — no second copy of the events, no persisted index, no store.
+ * `total_events` is the authoritative denominator for the client's disclosure,
+ * and freshness reads `latest_heartbeat_at` here, so visual heartbeat
+ * coalescing in the client can never change what "fresh" means.
+ */
+function projectActivityMeta(indexed: IndexedPass[], passes: PassView[], observedAt: string): ActivityStreamMetaView {
+  const events = passes.flatMap((pass) => pass.events);
+  const dated = events.map((event) => event.ts_utc).filter((value): value is string => value !== null);
+  const heartbeats = events
+    .filter((event) => event.kind === "heartbeat")
+    .map((event) => event.ts_utc)
+    .filter((value): value is string => value !== null);
+  const reasons: string[] = [];
+  for (const pass of indexed) {
+    if (pass.events_corrupt !== undefined) reasons.push(`${passId(pass.row.app, pass.row.runId)}: ${pass.events_corrupt}`);
+  }
+  for (const pass of passes) {
+    const artifact = pass.artifacts.find((entry) => entry.kind === "events");
+    if (artifact !== undefined && artifact.expired) reasons.push(`${pass.id}: structured events expired by retention`);
+  }
+  return {
+    order: "newest_first",
+    order_key_fields: [...ACTIVITY_ORDER.key_fields],
+    tie_break: ACTIVITY_ORDER.tie_break,
+    total_events: events.length,
+    undated_events: events.filter((event) => event.ts_utc === null).length,
+    clock_skew_event_ids: events
+      .filter((event) => event.ts_utc !== null && event.ts_utc > observedAt)
+      .map((event) => event.id)
+      .sort(compareStable),
+    completeness: reasons.length === 0 ? "complete" : "partial",
+    incomplete_reasons: [...new Set(reasons)].sort(compareStable),
+    latest_event_at: dated.sort(compareStable).at(-1) ?? null,
+    latest_heartbeat_at: heartbeats.sort(compareStable).at(-1) ?? null,
+  };
+}
+
+/**
+ * Walks the finished snapshot for canonical instants that are meaningfully in
+ * the future and reports them as a warning. The 30s tolerance is the one
+ * already encoded in `passLiveness`, so ordinary NTP jitter never floods the
+ * header. Never produces a negative duration (invariant 11).
+ */
+function collectSkew(snapshot: ObserveSnapshotV1, nowMs: number): TimePolicyView["skew"] {
+  const canonical = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+  const sources: string[] = [];
+  let maxFuture = 0;
+  const walk = (value: unknown, owner: string, path: string): void => {
+    if (typeof value === "string") {
+      if (!canonical.test(value)) return;
+      const ahead = Date.parse(value) - nowMs;
+      if (ahead <= CLOCK_SKEW_TOLERANCE_MS) return;
+      maxFuture = Math.max(maxFuture, ahead);
+      sources.push(owner === "" ? path : `${owner}.${path}`);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) walk(entry, owner, path);
+      return;
+    }
+    if (value === null || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    // The nearest enclosing `id` qualifies the field path, so a report reads
+    // `pass:alpha:run-1.started_at` rather than an anonymous index chain.
+    const nextOwner = typeof record["id"] === "string" ? record["id"] : owner;
+    for (const [key, entry] of Object.entries(record)) {
+      if (key === "generated_at" || key === "observed_at" || key === "cursor") continue;
+      walk(entry, nextOwner, key);
+    }
+  };
+  // Only the entities that carry SOURCE instants. Traces and activity rows are
+  // derived from these, so walking them too would report one skewed clock many
+  // times over.
+  walk(snapshot.passes, "", "passes");
+  walk(snapshot.approvals, "", "approvals");
+  walk(snapshot.parent_tasks, "", "parent_tasks");
+  walk(snapshot.pending_intake.rows, "", "pending_intake");
+  if (sources.length === 0) return null;
+  return {
+    future_instants: sources.length,
+    max_future_ms: Math.max(0, maxFuture),
+    sources: [...new Set(sources)].sort(compareStable),
   };
 }
 
@@ -238,16 +651,29 @@ function projectPass(
   const usageQuality = settled !== undefined
     ? normalizeQuality(settled.usageQuality)
     : normalizeQuality(row.usageQuality);
-  const events: EventView[] = indexed.events.map((event, index) => ({
-    id: `${row.app}:${row.runId}:event:${index}`,
-    ts: event.ts,
-    event: event.event,
-    severity: event.severity,
-    span_id: event.span_id,
-    parent_span_id: event.parent_span_id ?? null,
-    error_code: event.error_code ?? null,
-    detail: scrubEventDetail(event.detail ?? {}),
-  }));
+  const events: EventView[] = indexed.events.map((event, index) => {
+    const detail = scrubEventDetail(event.detail ?? {});
+    const tsUtc = instant(event.ts);
+    const tool = detail["tool"];
+    return {
+      id: `${row.app}:${row.runId}:event:${index}`,
+      ts: event.ts,
+      seq: index,
+      ts_utc: tsUtc,
+      order_key: buildOrderKey({ ts_utc: tsUtc, app: row.app, run_id: row.runId, seq: index }),
+      kind: eventKind(event.event),
+      outcome: eventOutcome(event.event, detail),
+      // Already scrubbed by scrubEventDetail; still never raw tool arguments.
+      tool_name: event.event === "tool.called" && typeof tool === "string" ? tool : null,
+      coalesce_key: event.event === "pass.heartbeat" ? `heartbeat:${passId(row.app, row.runId)}` : null,
+      event: event.event,
+      severity: event.severity,
+      span_id: event.span_id,
+      parent_span_id: event.parent_span_id ?? null,
+      error_code: event.error_code ?? null,
+      detail,
+    };
+  });
   const refs = artifactRefs(indexed);
   const resultRefs = (row.artifacts ?? []).map((artifact) => ({ source: artifact.kind, ref: artifact.ref }));
   return {
@@ -266,10 +692,11 @@ function projectPass(
     status,
     liveness: liveness.state,
     liveness_reason: liveness.reason,
-    started_at: row.startedAt,
-    finished_at: indexed.envelope_finished_at ?? null,
-    last_heartbeat_at: row.lastSeenAt ?? null,
-    wall_clock_ms: status === "running" ? null : row.durationMs,
+    started_at: instant(row.startedAt),
+    finished_at: instant(indexed.envelope_finished_at),
+    last_heartbeat_at: instant(row.lastSeenAt),
+    // Clamped: a skewed clock produces a warning, never a negative duration.
+    wall_clock_ms: status === "running" ? null : Math.max(0, row.durationMs),
     workdir: row.workdir ?? null,
     git_branch: row.gitBranch ?? null,
     git_head: row.gitHead ?? null,
@@ -308,12 +735,27 @@ function projectPass(
     planning_route: row.planningRoute ?? null,
     lock: lock === undefined ? null : {
       pid: lock.pid,
-      heartbeat_at: lock.heartbeatAt,
+      heartbeat_at: instant(lock.heartbeatAt),
       fresh: now.getTime() - new Date(lock.heartbeatAt).getTime() <= 2 * 60 * 1000,
     },
-    observed_at: now.toISOString(),
-    quality_reason: indexed.events_corrupt ?? (status.startsWith("corrupt") ? "Envelope is unreadable" : null),
+    observed_at: instant(now)!,
+    quality_reason: passQualityReason(indexed, status),
   };
+}
+
+/** A recorded-but-unreadable timestamp is disclosed on the entity that carries
+ *  it. It is never rendered as 'Invalid Date' and never coerced to epoch zero. */
+function passQualityReason(indexed: IndexedPass, status: string): string | null {
+  const reasons: string[] = [];
+  if (indexed.events_corrupt !== undefined) reasons.push(indexed.events_corrupt);
+  else if (status.startsWith("corrupt")) reasons.push("Envelope is unreadable");
+  const unreadable = ([
+    ["started_at", indexed.row.startedAt],
+    ["last_seen_at", indexed.row.lastSeenAt],
+    ["finished_at", indexed.envelope_finished_at],
+  ] as const).filter(([, value]) => unreadableInstant(value)).map(([field]) => field);
+  if (unreadable.length > 0) reasons.push(`Recorded timestamp is unreadable: ${unreadable.join(", ")}`);
+  return reasons.length === 0 ? null : reasons.join("; ");
 }
 
 export function passLiveness(row: StatusRow, now: Date): { state: PassView["liveness"]; reason: string } {
@@ -352,14 +794,14 @@ function artifactRefs(indexed: IndexedPass): ArtifactRefView[] {
   });
 }
 
-function projectTraces(passes: PassView[], observedAt: string): TraceView[] {
+function projectTraces(passes: PassView[], observedAt: string, byRun: Map<string, TurnRecord[]>): TraceView[] {
   const groups = new Map<string, PassView[]>();
   for (const pass of passes) {
     const key = `${pass.app}\u0000${pass.trace_id}`;
     groups.set(key, [...(groups.get(key) ?? []), pass]);
   }
-  return [...groups.values()].map<TraceView>((group) => {
-    const ordered = [...group].sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id));
+  const projected = [...groups.values()].map<TraceView>((group) => {
+    const ordered = [...group].sort((a, b) => ascendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
     const sourceRows = ordered;
     const indexed = sourceRows.map((pass) => pass.pass);
     const raw = group[0];
@@ -372,12 +814,65 @@ function projectTraces(passes: PassView[], observedAt: string): TraceView[] {
     if (required === null) reasons.push("Trace manifest not recorded; required stages are unknown");
     if (missing.length > 0) reasons.push(`Missing selected passes: ${missing.join(", ")}`);
     if (group.some((pass) => pass.status !== "completed")) reasons.push("One or more observed passes did not complete");
+    const startedAt = ordered[0]!.started_at;
+    const finishedAt = group.every((pass) => pass.finished_at !== null)
+      ? [...group].map((pass) => pass.finished_at!).sort(compareStable).at(-1) ?? null
+      : null;
+    // Observed passes first in the already-stable `ordered` sequence, then
+    // skipped, then missing. `missing` is empty whenever the manifest was not
+    // recorded, so a legacy trace emits ZERO `not_observed` nodes rather than a
+    // fabricated pipeline of grey pending stages (invariant 13, design.md §5.3).
+    const graphNodes: TraceNodeView[] = [
+      ...ordered.map<Omit<TraceNodeView, "order">>((pass) => ({
+        kind: "pass",
+        pass_id: pass.id,
+        pass: pass.pass,
+        role: pass.role,
+        runtime: pass.runtime,
+        model: pass.model,
+        status: pass.status,
+        liveness: pass.liveness,
+        state_token: graphState(pass),
+        reason: null,
+      })),
+      ...[...skipped].sort((a, b) => compareStable(a.pass, b.pass)).map<Omit<TraceNodeView, "order">>((entry) => ({
+        kind: "skipped",
+        pass_id: null,
+        pass: entry.pass,
+        role: null,
+        runtime: null,
+        model: null,
+        status: "skipped",
+        liveness: null,
+        state_token: "skipped",
+        // Verbatim. A completeness diff would report this deliberate routing
+        // decision as a gap and lose the reason entirely.
+        reason: entry.reason,
+      })),
+      ...[...missing].sort(compareStable).map<Omit<TraceNodeView, "order">>((pass) => ({
+        kind: "missing",
+        pass_id: null,
+        pass,
+        role: null,
+        runtime: null,
+        model: null,
+        status: "not_observed",
+        liveness: null,
+        state_token: "not_observed",
+        reason: null,
+      })),
+    ].map((entry, order) => ({ order, ...entry }));
+    const aggregate = costForPasses(group, byRun);
     return {
       id: `trace:${raw!.app}:${raw!.trace_id}`,
       trace_id: raw!.trace_id,
       app: raw!.app,
       ticket: raw!.ticket,
       parent_task_id: raw!.parent_task_id,
+      // Real identity only: the trace's OWN recorded parent task. Matching a
+      // task's `trace_ids` on a bare trace id would claim the beta trace for an
+      // alpha task whenever the two share an id (invariants 2 and 3).
+      parent_session_id: raw!.parent_task_id === null ? null : `task:${raw!.parent_task_id}`,
       pipeline: raw!.pipeline,
       pass_ids: ordered.map((pass) => pass.id),
       required_passes: required,
@@ -385,10 +880,28 @@ function projectTraces(passes: PassView[], observedAt: string): TraceView[] {
       skipped_passes: skipped,
       missing_passes: missing,
       status,
-      started_at: ordered[0]!.started_at,
-      finished_at: group.every((pass) => pass.finished_at !== null)
-        ? [...group].map((pass) => pass.finished_at!).sort().at(-1) ?? null
-        : null,
+      started_at: startedAt,
+      finished_at: finishedAt,
+      // Reuses the shared key builder for its '0'/'1' dated-before-undated prefix
+      // — that prefix is what puts an undated trace LAST under a descending sort
+      // rather than first by lexicographic accident. Identity is deliberately
+      // EXCLUDED from the key: `orderRows` applies the direction sign to the
+      // whole primary key, so folding app/trace id in would reverse the tie-break
+      // too, and "ties by trace id ascending" would be a false claim.
+      order_key: buildOrderKey({ ts_utc: startedAt, app: "", run_id: "", seq: 0 }),
+      duration: durationBetween(startedAt, finishedAt),
+      manifest: required === null ? "not_recorded" : "recorded",
+      pass_counts: {
+        observed: ordered.length,
+        skipped: skipped.length,
+        missing: missing.length,
+        required: required === null ? null : required.length,
+      },
+      active_passes: group.filter((pass) => pass.status === "running").length,
+      cost: aggregate.cost,
+      recorded_cost_usd: aggregate.cost.known_cost_usd,
+      usage_quality: aggregate.usage_quality,
+      graph_nodes: graphNodes,
       completion_integrity: {
         required_stages: required === null ? "unknown" : missing.length === 0 && group.every((pass) => pass.status === "completed") ? "complete" : "incomplete",
         usage,
@@ -400,7 +913,13 @@ function projectTraces(passes: PassView[], observedAt: string): TraceView[] {
       },
       observed_at: observedAt,
     };
-  }).sort((a, b) => b.started_at.localeCompare(a.started_at));
+  });
+  // ONE ordering primitive, the same one the activity chronology uses. Sorting
+  // on `order_key` rather than on the raw instant is what puts undated traces
+  // LAST under newest-first, and `orderRows`' always-ascending identity
+  // tie-break is what keeps two same-instant traces from silently reversing —
+  // which `[...traces].sort(byStartedAt).reverse()` would do.
+  return orderRows(projected, (trace) => trace.order_key, (trace) => trace.id, "newest_first");
 }
 
 function findTraceRequired(group: PassView[]): string[] | null {
@@ -419,7 +938,7 @@ function traceStatus(group: PassView[], missing: string[]): string {
   return group.every((pass) => pass.status === "completed") ? "completed" : "unknown";
 }
 
-function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], traces: TraceView[], observedAt: string): ParentTaskView[] {
+function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], traces: TraceView[], observedAt: string, byRun: Map<string, TurnRecord[]>): ParentTaskView[] {
   return input.parent_tasks.map<ParentTaskView>((record) => {
     const taskPasses = passes.filter((pass) => pass.parent_task_id === record.taskId);
     const taskTraces = traces.filter((trace) => trace.parent_task_id === record.taskId);
@@ -433,6 +952,7 @@ function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], t
     if (taskTraces.length === 0) reasons.push("No correlated trace recorded");
     if (taskTraces.some((trace) => !trace.completion_integrity.operon_end_to_end_complete)) reasons.push("One or more correlated traces is incomplete");
     const complete = reasons.length === 0;
+    const taskCost = costForPasses(taskPasses, byRun);
     return {
       id: `task:${record.taskId}`,
       task_id: record.taskId,
@@ -441,8 +961,8 @@ function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], t
       completion_criteria: record.completionCriteria !== undefined ? truncatePreview(scrubSecrets(record.completionCriteria), 400) : null,
       status: record.status,
       execution_mode: record.executionMode,
-      started_at: record.startedAt,
-      ended_at: record.endedAt ?? null,
+      started_at: instant(record.startedAt),
+      ended_at: instant(record.endedAt),
       prompt: {
         kind: "task",
         label: "Exact original operator prompt",
@@ -469,10 +989,19 @@ function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], t
         operon_end_to_end_complete: complete,
         reasons,
       },
+      duration: durationBetween(instant(record.startedAt), instant(record.endedAt), "Parent task"),
+      // Counted from the already-correlated pass/trace sets — never from text,
+      // titles, or timestamp proximity (invariant 2).
+      trace_count: taskTraces.length,
+      pass_count: taskPasses.length,
+      active_passes: taskPasses.filter((pass) => pass.status === "running").length,
+      cost: taskCost.cost,
+      recorded_cost_usd: taskCost.cost.known_cost_usd,
+      usage_quality: taskCost.usage_quality,
       observed_at: observedAt,
       source_refs: [{ source: "parent_task", ref: `tasks/${record.taskId}/task.json` }],
     };
-  }).sort((a, b) => b.started_at.localeCompare(a.started_at));
+  }).sort((a, b) => descendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
 }
 
 function projectApproval(item: ApprovalItem, grant: ApprovalGrant | undefined, now: Date): ApprovalView {
@@ -492,9 +1021,9 @@ function projectApproval(item: ApprovalItem, grant: ApprovalGrant | undefined, n
     status,
     ticket_ref: item.ticketRef ?? null,
     turn_id: item.turnId ?? null,
-    raised_at: item.raisedAt,
-    decided_at: item.decidedAt ?? null,
-    expires_at: grant?.expiresAt ?? null,
+    raised_at: instant(item.raisedAt)!,
+    decided_at: instant(item.decidedAt),
+    expires_at: instant(grant?.expiresAt),
     scope: grant?.scope === undefined ? null : `${grant.scope.kind}:${grant.scope.rule}${grant.scope.pathContains === undefined ? "" : `:${grant.scope.pathContains}`}`,
     reason: item.reason !== undefined ? truncatePreview(scrubSecrets(item.reason), 240) : null,
     execution_state: item.execution?.state ?? null,
@@ -504,9 +1033,9 @@ function projectApproval(item: ApprovalItem, grant: ApprovalGrant | undefined, n
     execution_failure_cause: item.execution?.failureCause ?? null,
     execution_next_action: item.execution?.nextAction ?? null,
     execution_remote_ref: item.execution?.remoteRef ?? null,
-    execution_attempted_at: item.execution?.attemptedAt ?? null,
-    execution_finished_at: item.execution?.finishedAt ?? null,
-    observed_at: now.toISOString(),
+    execution_attempted_at: instant(item.execution?.attemptedAt),
+    execution_finished_at: instant(item.execution?.finishedAt),
+    observed_at: instant(now)!,
     source_refs: [{ source: "approvals", ref: `approvals/${item.status === "pending" ? "pending" : "decided"}/${item.id}.json` }],
   };
 }
@@ -556,7 +1085,10 @@ function projectDelivery(
     const ranks = new Map(selected.map((item, index) => [item.id, index + 1]));
     const merged = new Set(mapped.filter((entry) => entry.state === "merged").map((entry) => entry.issue.number));
     for (const entry of mapped) {
-      const latestEvent = entry.passes.flatMap((pass) => pass.events).sort((a, b) => b.ts.localeCompare(a.ts))[0];
+      // Same total order as the activity stream: a raw `ts` string compare has
+      // no tie-break and sorts a non-UTC offset wrong, so the two surfaces
+      // could disagree about which event is latest.
+      const latestEvent = entry.passes.flatMap((pass) => pass.events).sort((a, b) => compareStable(b.order_key, a.order_key))[0];
       const branches = [...new Set(entry.passes.map((pass) => pass.git_branch).filter((value): value is string => value !== null))];
       out.push({
         id: `ticket:${source.app}:${entry.issue.number}`,
@@ -590,7 +1122,11 @@ function projectPullRequest(
   reviews: ObserveProjectionInput["github"][number]["pull_requests"][number]["reviews"],
   checks: Array<{ name: string; state: string; link?: string }>,
 ): PullRequestView {
-  const latest = [...reviews].sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""))[0];
+  // Which review is "latest" decides `review_integrity`, so it must be an
+  // instant compare, not a raw-string one: GitHub can emit a non-UTC offset,
+  // and the `?? ""` fallback silently ranked an undated review as oldest-wins.
+  const latest = [...reviews]
+    .sort((a, b) => descendingNullsLast(instant(a.submittedAt), instant(b.submittedAt)))[0];
   const reviewIntegrity: PullRequestView["review_integrity"] = latest === undefined
     ? "missing"
     : latest.state === "CHANGES_REQUESTED"
@@ -616,7 +1152,7 @@ function projectPullRequest(
     reviews: reviews.map((review) => ({
       state: review.state,
       commit_id: review.commitId ?? null,
-      submitted_at: review.submittedAt ?? null,
+      submitted_at: instant(review.submittedAt),
       author: review.author ?? null,
     })),
     review_integrity: reviewIntegrity,
@@ -625,70 +1161,261 @@ function projectPullRequest(
   };
 }
 
-function projectIntake(input: ObserveProjectionInput, passes: PassView[], observedAt: string): ActivityView[] {
-  const out: ActivityView[] = [];
-  for (const app of input.apps) {
-    if (app.status === "onboarding") {
-      out.push({
-        id: `intake:onboarding:${app.name}`,
-        app: app.name,
-        kind: "onboarding",
-        status: "onboarding",
-        title: `${app.name} onboarding`,
-        trigger: null,
-        trace_id: null,
-        parent_task_id: null,
-        started_at: null,
-        latest_at: null,
-        result_refs: [{ source: "org", ref: "apps.yaml" }],
-        observed_at: observedAt,
-        quality_reason: "Lifecycle is authoritative from apps.yaml; promotion is not an observer action",
-      });
-    }
-  }
+// Plain-language labels. Closed vocabulary with a TOTAL fallback: an operator
+// must never have to know an internal pipeline name to read the section, and a
+// label is never null or empty (#94).
+const TRIGGER_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  schedule: "Ran on a schedule",
+  event: "Woken by a company event",
+  manual: "Started by a human command",
+});
+const TRIGGER_SOURCE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  schedule: "Org schedule",
+  event: "Company event file drop",
+  manual: "Human operator command",
+});
+/** The four contract kinds in docs/event-schemas.md. */
+const EVENT_KIND_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  "health-alert": "Service health alert",
+  "support-feedback": "User feedback from a support channel",
+  "adoption-signal": "Product adoption signal",
+  "launch-calendar": "Planned launch date",
+});
+
+function triggerLabel(trigger: string | null): string {
+  if (trigger === null) return "Trigger not recorded";
+  return TRIGGER_LABELS[trigger] ?? `Trigger: ${trigger}`;
+}
+
+function triggerSourceLabel(trigger: string | null): string {
+  if (trigger === null) return "Recorded run evidence";
+  return TRIGGER_SOURCE_LABELS[trigger] ?? "Recorded run evidence";
+}
+
+function eventKindLabel(kind: string | null): string {
+  if (kind === null) return "Company event: kind not recorded";
+  return EVENT_KIND_LABELS[kind] ?? `Company event: ${kind}`;
+}
+
+function activityLabel(kind: ActivityKind): string {
+  if (kind === "planning") return "Planning activity";
+  if (kind === "learning") return "Learning activity";
+  if (kind === "onboarding") return "Onboarding activity";
+  if (kind === "company_event") return "Company-event activity";
+  if (kind === "scheduled_role") return "Scheduled role activity";
+  return "Role activity";
+}
+
+/**
+ * RECORDED executions only. Every row is dated by construction: a trace whose
+ * passes carry no readable instant cannot produce an `occurred_at`, so it is
+ * excluded rather than collapsed to the empty string and sorted to an arbitrary
+ * end of what reads as a chronology (#94).
+ */
+function projectActivityHistory(
+  input: ObserveProjectionInput,
+  passes: PassView[],
+  observedAt: string,
+  direction: OrderDirection,
+): ActivityView[] {
+  const rows: ActivityView[] = [];
   const traces = new Map<string, PassView[]>();
   for (const pass of passes.filter((candidate) => candidate.ticket === null)) {
-    const key = `${pass.app}\u0000${pass.trace_id}`;
+    const key = `${pass.app}${ORDER_SEPARATOR}${pass.trace_id}`;
     traces.set(key, [...(traces.get(key) ?? []), pass]);
   }
   for (const group of traces.values()) {
-    const first = [...group].sort((a, b) => a.started_at.localeCompare(b.started_at))[0]!;
-    const latest = [...group].sort((a, b) => (b.finished_at ?? b.started_at).localeCompare(a.finished_at ?? a.started_at))[0]!;
-    out.push({
+    const ordered = [...group].sort((a, b) => ascendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
+    const first = ordered[0]!;
+    const latest = [...group].sort((a, b) =>
+      descendingNullsLast(a.finished_at ?? a.started_at, b.finished_at ?? b.started_at) || compareStable(a.id, b.id),
+    )[0]!;
+    const startedAt = first.started_at;
+    const occurredAt = latest.finished_at ?? latest.started_at;
+    // The type invariant made visible: no readable instant, no chronology.
+    if (startedAt === null || occurredAt === null) continue;
+    const trigger = ledgerTrigger(input, first);
+    const roles = [...new Set(group.map((pass) => pass.role))].sort(compareStable);
+    rows.push({
       id: `intake:trace:${first.app}:${first.trace_id}`,
       app: first.app,
       kind: activityKind(first),
       status: traceStatus(group, []),
-      title: `${first.pipeline} · ${[...new Set(group.map((pass) => pass.role))].join(", ")}`,
-      trigger: ledgerTrigger(input, first),
+      title: `${first.pipeline} · ${roles.join(", ")}`,
+      summary: `${activityLabel(activityKind(first))} by ${roles.join(", ")}`,
+      trigger,
+      trigger_label: triggerLabel(trigger),
+      source_label: triggerSourceLabel(trigger),
+      pipeline: first.pipeline,
       trace_id: first.trace_id,
       parent_task_id: first.parent_task_id,
-      started_at: first.started_at,
-      latest_at: latest.finished_at ?? latest.started_at,
+      // Real identity only. The trace form is byte-identical to projectTraces'
+      // `trace:${app}:${trace_id}` template, so a cross-app trace-id collision
+      // can never collapse two rows onto one session (invariant 3).
+      session_ref: first.parent_task_id !== null
+        ? { id: `task:${first.parent_task_id}`, kind: "task" as const }
+        : { id: `trace:${first.app}:${first.trace_id}`, kind: "trace" as const },
+      started_at: startedAt,
+      latest_at: occurredAt,
+      occurred_at: occurredAt,
       result_refs: group.flatMap((pass) => pass.result_refs),
       observed_at: observedAt,
       quality_reason: null,
     });
   }
-  for (const item of input.inbox) {
-    if (item.app === null) continue;
-    out.push({
-      id: `intake:event:${item.filename}`,
-      app: item.app,
-      kind: "company_event",
-      status: item.error === undefined ? "pending" : "corrupt",
-      title: item.kind === null ? item.filename : `${item.kind} · ${item.filename}`,
-      trigger: item.kind,
-      trace_id: null,
-      parent_task_id: null,
-      started_at: null,
-      latest_at: null,
-      result_refs: [{ source: "event_inbox", ref: `state/events/inbox/${item.filename}` }],
+  return orderRows(rows, (row) => row.occurred_at, (row) => row.id, direction);
+}
+
+const PENDING_STATE_LABELS: Readonly<Record<PendingIntakeState, string>> = Object.freeze({
+  pending: "Pending — not yet consumed",
+  corrupt: "Corrupt — unreadable on disk",
+  awaiting_promotion: "Awaiting promotion",
+});
+
+/**
+ * Undated (or independently-timed) work waiting to be picked up. Explicitly NOT
+ * a sequence: it is ordered only within its own section so the list is stable,
+ * and `discovered_at` is a filesystem observation that may be DISPLAYED but is
+ * never a correlation key and is never promoted into `occurred_at`.
+ */
+function projectPendingIntake(input: ObserveProjectionInput, observedAt: string): PendingIntakeItemView[] {
+  const rows: PendingIntakeItemView[] = [];
+  for (const app of input.apps) {
+    if (app.status !== "onboarding") continue;
+    rows.push({
+      id: `intake:onboarding:${app.name}`,
+      app: app.name,
+      source: "app_lifecycle",
+      source_label: "App registry (apps.yaml)",
+      state: "awaiting_promotion",
+      state_label: PENDING_STATE_LABELS.awaiting_promotion,
+      event_kind: null,
+      event_id: null,
+      title: `${app.name} onboarding`,
+      trigger_label: "Recorded app lifecycle state",
+      occurred_at: null,
+      discovered_at: null,
+      timestamp_basis: "none",
+      result_refs: [{ source: "org", ref: "apps.yaml" }],
       observed_at: observedAt,
-      quality_reason: item.error ?? null,
+      quality_reason: "Lifecycle is authoritative from apps.yaml; promotion is not an observer action",
     });
   }
-  return out.sort((a, b) => (b.latest_at ?? b.started_at ?? "").localeCompare(a.latest_at ?? a.started_at ?? ""));
+  for (const item of input.inbox) {
+    if (item.app === null && item.error === undefined) continue;
+    const occurredAt = instant(item.occurred_at);
+    const discoveredAt = instant(item.discovered_at);
+    const state: PendingIntakeState = item.error === undefined ? "pending" : "corrupt";
+    // The basis says which clock the operator is actually reading. A received
+    // time is never presented as an event time.
+    const basis = occurredAt !== null ? "occurred" : discoveredAt !== null ? "discovered" : "none";
+    rows.push({
+      id: `intake:event:${item.filename}`,
+      app: item.app ?? "unattributed",
+      source: "event_inbox",
+      source_label: "Company event file drop",
+      state,
+      state_label: PENDING_STATE_LABELS[state],
+      event_kind: item.kind,
+      event_id: item.event_id ?? null,
+      title: truncatePreview(scrubSecrets(item.kind === null ? item.filename : `${item.kind} · ${item.filename}`), 180),
+      trigger_label: truncatePreview(scrubSecrets(eventKindLabel(item.kind)), 180),
+      occurred_at: occurredAt,
+      discovered_at: discoveredAt,
+      timestamp_basis: basis,
+      result_refs: [{ source: "event_inbox", ref: `state/events/inbox/${item.filename}` }],
+      observed_at: observedAt,
+      quality_reason: item.error ?? (unreadableInstant(item.occurred_at) ? "Recorded event timestamp is unreadable" : null),
+    });
+  }
+  // Section-local presentation order ONLY. This ordering must never be used to
+  // correlate or group anything (invariant 2).
+  return orderRows(rows, (row) => row.occurred_at ?? row.discovered_at ?? "", (row) => row.id, "newest_first");
+}
+
+/**
+ * One emission: the flat item the snapshot has always carried, plus the
+ * occurrence-level facts that legitimately differ within a cause group.
+ */
+interface AttentionSpec {
+  severity: AttentionItemView["severity"];
+  kind: string;
+  /** ALWAYS read from a typed, closed-vocabulary field — never from `title`,
+   *  `detail`, a timestamp, or any model-produced text (invariant 2). */
+  cause: string;
+  groupable: boolean;
+  app: string | null;
+  entityId: string | null;
+  entityKind: AttentionOccurrenceView["entity_kind"];
+  /** The flat item's title/detail — unchanged from before grouping existed.
+   *  `snapshot.attention` keeps the complete unaggregated truth. */
+  title: string;
+  detail: string;
+  /** Cause-level strings for the group card: identical for every occurrence by
+   *  construction, so the card never copies the first occurrence's text. */
+  groupTitle: string;
+  groupDetail: string;
+  /** Entity-level concise label, e.g. `builder/implement` or `#12 Fix flake`. */
+  summary: string;
+  /** Per-occurrence divergent text (liveness/terminal/quality reason). */
+  occurrenceDetail: string;
+  /** A real durable instant, or null. NEVER the snapshot time, which is
+   *  identical for every item and therefore useless as an ordering key. */
+  occurredAt: string | null;
+  evidenceRefs: SourceRefView[];
+  observedAt: string;
+  /** Correlation facts carried for the group's `affected` summary. Real
+   *  identity fields only — never parsed out of any label. */
+  traceId?: string | null;
+  ticket?: string | null;
+}
+
+interface AttentionEmission {
+  item: AttentionItemView;
+  occurrence: AttentionOccurrenceView;
+  spec: AttentionSpec;
+  causeKey: string;
+  groupId: string;
+}
+
+/** Group ids stay in `[A-Za-z0-9:_.-]` so a follow-up `?attention_open=<id>`
+ *  URL parameter is possible without changing the key. */
+function idSafe(value: string): string {
+  return value.replace(/[^A-Za-z0-9:_.-]/g, "_");
+}
+
+function attention(spec: AttentionSpec): AttentionEmission {
+  const scope = spec.app ?? "*org*";
+  const causeKey = spec.groupable
+    ? [spec.kind, spec.cause, scope].join(ORDER_SEPARATOR)
+    : [spec.kind, spec.cause, scope, spec.entityId ?? spec.title].join(ORDER_SEPARATOR);
+  const groupId = spec.groupable
+    ? `attention-group:${idSafe(spec.kind)}:${idSafe(spec.cause)}:${idSafe(spec.app ?? "org")}`
+    // Without the entity id appended, two independently actionable conditions
+    // would collide on one id (e.g. two returned tickets on the same app).
+    : `attention-group:${idSafe(spec.kind)}:${idSafe(spec.cause)}:${idSafe(spec.app ?? "org")}:${idSafe(spec.entityId ?? spec.title)}`;
+  const item: AttentionItemView = {
+    id: `attention:${spec.kind}:${spec.entityId ?? spec.title}`,
+    severity: spec.severity,
+    kind: spec.kind,
+    app: spec.app,
+    entity_id: spec.entityId,
+    title: truncatePreview(scrubSecrets(spec.title), 180),
+    detail: truncatePreview(scrubSecrets(spec.detail), 400),
+    observed_at: spec.observedAt,
+    group_id: groupId,
+  };
+  const occurrence: AttentionOccurrenceView = {
+    id: spec.entityId ?? item.id,
+    app: spec.app,
+    entity_id: spec.entityId,
+    entity_kind: spec.entityKind,
+    summary: truncatePreview(scrubSecrets(spec.summary), 180),
+    detail: truncatePreview(scrubSecrets(spec.occurrenceDetail), 400),
+    occurred_at: spec.occurredAt,
+    evidence_refs: spec.evidenceRefs,
+  };
+  return { item, occurrence, spec, causeKey, groupId };
 }
 
 function projectAttention(
@@ -697,59 +1424,224 @@ function projectAttention(
   delivery: DeliveryTicketView[],
   approvals: ApprovalView[],
   observedAt: string,
-): AttentionItemView[] {
-  const out: AttentionItemView[] = [];
+): { items: AttentionItemView[]; groups: AttentionGroupView[] } {
+  const out: AttentionEmission[] = [];
   for (const approval of approvals.filter((item) => item.status === "pending")) {
-    out.push(attention("warning", "pending_approval", approval.app, approval.id, `Approval ${approval.approval_id} is waiting`, approval.rule, observedAt));
+    out.push(attention({
+      severity: "warning", kind: "pending_approval", cause: approval.rule, groupable: true,
+      app: approval.app, entityId: approval.id, entityKind: "approval",
+      title: `Approval ${approval.approval_id} is waiting`, detail: approval.rule,
+      groupTitle: "Approval is waiting", groupDetail: approval.rule,
+      summary: `${approval.approval_id} · ${approval.role}`,
+      occurrenceDetail: approval.reason ?? "No reason recorded",
+      occurredAt: approval.raised_at, evidenceRefs: approval.source_refs, observedAt,
+    }));
   }
   for (const approval of approvals.filter((item) => item.execution_state === "failed" || item.execution_state === "ambiguous")) {
-    out.push(attention(
-      "error",
-      "approval_delivery",
-      approval.app,
-      approval.id,
-      `Approval ${approval.approval_id} delivery is ${approval.execution_state}`,
-      `attempt ${approval.execution_attempts}; actor ${approval.execution_actor ?? "unrecorded"}; ` +
+    out.push(attention({
+      severity: "error", kind: "approval_delivery", cause: approval.execution_state!, groupable: true,
+      app: approval.app, entityId: approval.id, entityKind: "approval",
+      title: `Approval ${approval.approval_id} delivery is ${approval.execution_state}`,
+      detail:
+        `attempt ${approval.execution_attempts}; actor ${approval.execution_actor ?? "unrecorded"}; ` +
         `result ${approval.execution_result ?? "unrecorded"}; next ${approval.execution_next_action ?? "unrecorded"}`,
-      observedAt,
-    ));
+      groupTitle: `Approval delivery is ${approval.execution_state}`,
+      groupDetail: "Delivery requires reconciliation before the action can be trusted",
+      summary: `${approval.approval_id} · ${approval.role}`,
+      occurrenceDetail:
+        `attempt ${approval.execution_attempts}; actor ${approval.execution_actor ?? "unrecorded"}; ` +
+        `result ${approval.execution_result ?? "unrecorded"}; next ${approval.execution_next_action ?? "unrecorded"}`,
+      occurredAt: approval.execution_finished_at ?? approval.execution_attempted_at ?? approval.raised_at,
+      evidenceRefs: approval.source_refs, observedAt,
+    }));
   }
   for (const pass of passes) {
-    if (pass.liveness === "stalled") out.push(attention("error", "stale_pass", pass.app, pass.id, `${pass.role}/${pass.pass} is stalled`, pass.liveness_reason, observedAt));
+    const passRefs: SourceRefView[] = [{ source: "runs", ref: `runs/${pass.app}/${pass.run_id}/` }, ...pass.result_refs];
+    const passSummary = `${pass.role}/${pass.pass}`;
+    const correlation = { traceId: pass.trace_id, ticket: pass.ticket };
+    if (pass.liveness === "stalled") {
+      out.push(attention({
+        severity: "error", kind: "stale_pass", cause: "stalled", groupable: true,
+        app: pass.app, entityId: pass.id, entityKind: "pass",
+        title: `${pass.role}/${pass.pass} is stalled`, detail: pass.liveness_reason,
+        groupTitle: "Pass is stalled", groupDetail: "No heartbeat within the liveness threshold",
+        summary: passSummary, occurrenceDetail: pass.liveness_reason,
+        occurredAt: pass.started_at, evidenceRefs: passRefs, observedAt, ...correlation,
+      }));
+    }
     if (pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled") {
-      out.push(attention("error", "failed_pass", pass.app, pass.id, `${pass.role}/${pass.pass} ${pass.status}`, pass.terminal_reason ?? "No terminal reason recorded", observedAt));
+      out.push(attention({
+        // Cause-level title: `${role}/${pass} ${status}` differs per occurrence
+        // and therefore belongs on the occurrence, not the group.
+        severity: "error", kind: "failed_pass", cause: pass.status, groupable: true,
+        app: pass.app, entityId: pass.id, entityKind: "pass",
+        title: `${pass.role}/${pass.pass} ${pass.status}`, detail: pass.terminal_reason ?? "No terminal reason recorded",
+        groupTitle: `Pass ${pass.status}`, groupDetail: "A terminal pass did not complete",
+        summary: passSummary, occurrenceDetail: pass.terminal_reason ?? "No terminal reason recorded",
+        occurredAt: pass.started_at, evidenceRefs: passRefs, observedAt, ...correlation,
+      }));
     }
+    // `none` is an authoritative zero for a pass that invoked no provider: it
+    // raises NO item and is excluded from provider-turn counts. Widening this
+    // to `!== "complete"` is the classic none/unavailable conflation (#88).
     if (pass.usage.quality === "partial" || pass.usage.quality === "unavailable") {
-      out.push(attention("warning", "usage_incomplete", pass.app, pass.id, `Usage is ${pass.usage.quality}`, "Unknown cost is not free", observedAt));
+      out.push(attention({
+        severity: "warning", kind: "usage_incomplete", cause: pass.usage.quality, groupable: true,
+        app: pass.app, entityId: pass.id, entityKind: "pass",
+        title: `Usage is ${pass.usage.quality}`, detail: "Unknown cost is not free",
+        groupTitle: `Usage is ${pass.usage.quality}`, groupDetail: "Unknown cost is not free",
+        summary: passSummary,
+        occurrenceDetail: pass.usage.settled ? "Settled into the ledger with incomplete usage" : "Not settled into the ledger",
+        occurredAt: pass.started_at, evidenceRefs: passRefs, observedAt, ...correlation,
+      }));
     }
-    if (pass.quality_reason !== null) out.push(attention("error", "corrupt_run", pass.app, pass.id, "Run evidence is degraded", pass.quality_reason, observedAt));
+    if (pass.quality_reason !== null) {
+      out.push(attention({
+        severity: "error", kind: "corrupt_run", cause: "degraded_run_evidence", groupable: true,
+        app: pass.app, entityId: pass.id, entityKind: "pass",
+        title: "Run evidence is degraded", detail: pass.quality_reason,
+        groupTitle: "Run evidence is degraded", groupDetail: "Durable run evidence could not be read in full",
+        summary: passSummary, occurrenceDetail: pass.quality_reason,
+        occurredAt: pass.started_at, evidenceRefs: passRefs, observedAt, ...correlation,
+      }));
+    }
   }
   for (const ticket of delivery.filter((item) => item.state === "returned")) {
-    out.push(attention("warning", "returned_ticket", ticket.app, ticket.id, `Ticket #${ticket.issue_number} was returned`, ticket.title, observedAt));
+    out.push(attention({
+      // Independently actionable: two returned tickets are two decisions, so
+      // they must never collapse into one card.
+      severity: "warning", kind: "returned_ticket", cause: "returned", groupable: false,
+      app: ticket.app, entityId: ticket.id, entityKind: "ticket",
+      title: `Ticket #${ticket.issue_number} was returned`, detail: ticket.title,
+      groupTitle: `Ticket #${ticket.issue_number} was returned`, groupDetail: ticket.title,
+      summary: `#${ticket.issue_number} ${ticket.title}`, occurrenceDetail: ticket.quality_reason ?? "Returned for rework",
+      occurredAt: ticket.observed_at, evidenceRefs: ticket.source_refs, observedAt, ticket: `#${ticket.issue_number}`,
+    }));
   }
   for (const ticket of delivery.filter((item) => item.state === "merged" && item.quality_reason !== null)) {
-    out.push(attention("warning", "delivery_integrity", ticket.app, ticket.id, `Ticket #${ticket.issue_number} completion needs attention`, ticket.quality_reason!, observedAt));
+    out.push(attention({
+      severity: "warning", kind: "delivery_integrity", cause: "delivery_integrity", groupable: false,
+      app: ticket.app, entityId: ticket.id, entityKind: "ticket",
+      title: `Ticket #${ticket.issue_number} completion needs attention`, detail: ticket.quality_reason!,
+      groupTitle: `Ticket #${ticket.issue_number} completion needs attention`, groupDetail: ticket.quality_reason!,
+      summary: `#${ticket.issue_number} ${ticket.title}`, occurrenceDetail: ticket.quality_reason!,
+      occurredAt: ticket.observed_at, evidenceRefs: ticket.source_refs, observedAt, ticket: `#${ticket.issue_number}`,
+    }));
   }
   for (const source of input.source_health.filter((source) => source.status !== "healthy")) {
-    out.push(attention(source.status === "unavailable" ? "error" : "warning", "source_health", null, `source:${source.id}`, `${source.id} is ${source.status}`, source.detail, observedAt));
+    out.push(attention({
+      severity: source.status === "unavailable" ? "error" : "warning",
+      kind: "source_health", cause: source.id, groupable: false,
+      app: null, entityId: `source:${source.id}`, entityKind: "source",
+      title: `${source.id} is ${source.status}`, detail: source.detail,
+      groupTitle: `${source.id} is ${source.status}`, groupDetail: source.detail,
+      summary: source.id, occurrenceDetail: source.detail,
+      occurredAt: source.observed_at,
+      // No durable run directory exists for a source; a plausible-looking path
+      // would be a fabricated reference.
+      evidenceRefs: [], observedAt,
+    }));
   }
-  for (const run of input.corrupt_runs) out.push(attention("error", "corrupt_run", run.app, passId(run.app, run.run_id), "Envelope is corrupt", run.detail, observedAt));
-  for (const task of input.corrupt_tasks) out.push(attention("error", "corrupt_task", null, `task:${task.task_id}`, "Parent task record is corrupt", task.detail, observedAt));
-  for (const event of input.inbox.filter((item) => item.error !== undefined)) out.push(attention("error", "corrupt_intake", event.app, `event:${event.filename}`, "Intake event is corrupt", event.error!, observedAt));
-  return uniqueBy(out, (item) => item.id);
+  for (const run of input.corrupt_runs) {
+    out.push(attention({
+      severity: "error", kind: "corrupt_run", cause: "corrupt_envelope", groupable: true,
+      app: run.app, entityId: passId(run.app, run.run_id), entityKind: "pass",
+      title: "Envelope is corrupt", detail: run.detail,
+      groupTitle: "Envelope is corrupt", groupDetail: "The run envelope could not be parsed",
+      summary: run.run_id, occurrenceDetail: run.detail,
+      occurredAt: null, evidenceRefs: [{ source: "runs", ref: `runs/${run.app}/${run.run_id}/` }], observedAt,
+    }));
+  }
+  for (const task of input.corrupt_tasks) {
+    out.push(attention({
+      severity: "error", kind: "corrupt_task", cause: "corrupt_task", groupable: false,
+      app: null, entityId: `task:${task.task_id}`, entityKind: "task",
+      title: "Parent task record is corrupt", detail: task.detail,
+      groupTitle: "Parent task record is corrupt", groupDetail: task.detail,
+      summary: task.task_id, occurrenceDetail: task.detail,
+      occurredAt: null, evidenceRefs: [{ source: "task", ref: `tasks/${task.task_id}/task.json` }], observedAt,
+    }));
+  }
+  for (const event of input.inbox.filter((item) => item.error !== undefined)) {
+    out.push(attention({
+      severity: "error", kind: "corrupt_intake", cause: "corrupt_intake", groupable: true,
+      app: event.app, entityId: `event:${event.filename}`, entityKind: "intake_event",
+      title: "Intake event is corrupt", detail: event.error!,
+      groupTitle: "Intake event is corrupt", groupDetail: "A company-event file could not be read",
+      summary: event.filename, occurrenceDetail: event.error!,
+      occurredAt: instant(event.discovered_at),
+      evidenceRefs: [{ source: "event_inbox", ref: `state/events/inbox/${event.filename}` }], observedAt,
+    }));
+  }
+  // Dedupe BEFORE counting. `corrupt_run` is emitted from two call sites and
+  // both can produce the same item id; grouping before this step would inflate
+  // every occurrence_count.
+  const deduped = uniqueBy(out, (emission) => emission.item.id);
+  return { items: deduped.map((emission) => emission.item), groups: groupAttention(deduped) };
 }
 
-function attention(severity: AttentionItemView["severity"], kind: string, app: string | null, entityId: string | null, title: string, detail: string, observedAt: string): AttentionItemView {
-  return {
-    id: `attention:${kind}:${entityId ?? title}`,
-    severity,
-    kind,
-    app,
-    entity_id: entityId,
-    title: truncatePreview(scrubSecrets(title), 180),
-    detail: truncatePreview(scrubSecrets(detail), 400),
-    observed_at: observedAt,
-  };
+const SEVERITY_RANK: Record<AttentionItemView["severity"], number> = { error: 0, warning: 1 };
+
+/**
+ * Group by (kind, cause, app) — all typed, closed-vocabulary identity fields —
+ * plus the entity id for independently actionable kinds. Nothing here reads
+ * `title`, `detail`, a timestamp, or model-produced text.
+ *
+ * Ordering is fully declared and permutation-stable: severity rank, then
+ * occurrence count descending, then `cause_key` ascending by CODE UNIT.
+ * `localeCompare` is deliberately not used — it is ICU/locale-sensitive and
+ * would make the same durable state render differently on two machines.
+ */
+function groupAttention(emissions: AttentionEmission[]): AttentionGroupView[] {
+  const buckets = new Map<string, AttentionEmission[]>();
+  for (const emission of emissions) {
+    buckets.set(emission.causeKey, [...(buckets.get(emission.causeKey) ?? []), emission]);
+  }
+  const groups = [...buckets.entries()].map(([causeKey, members]) => {
+    const head = members[0]!;
+    const occurrences = [...members]
+      .map((member) => member.occurrence)
+      .sort((a, b) => ascendingNullsLast(a.occurred_at, b.occurred_at) || compareStable(a.id, b.id));
+    const dated = occurrences.map((occurrence) => occurrence.occurred_at).filter((value): value is string => value !== null);
+    const delivered = occurrences.slice(0, ATTENTION_OCCURRENCE_CAP);
+    const passRefs = members.filter((member) => member.spec.entityKind === "pass");
+    return {
+      id: head.groupId,
+      cause_key: causeKey,
+      kind: head.spec.kind,
+      cause: head.spec.cause,
+      severity: head.spec.severity,
+      groupable: head.spec.groupable,
+      scope: { app: head.spec.app },
+      title: truncatePreview(scrubSecrets(head.spec.groupTitle), 180),
+      detail: truncatePreview(scrubSecrets(head.spec.groupDetail), 400),
+      // ALWAYS the true total, independent of the delivery cap.
+      occurrence_count: members.length,
+      affected: {
+        passes: sortedUnique(passRefs.map((member) => member.occurrence.id)),
+        traces: sortedUnique(members.map((member) => member.spec.traceId ?? null)),
+        tickets: sortedUnique(members.map((member) => member.spec.ticket ?? null)),
+        // Deduped by LABEL — but occurrences are never deduped by label, since
+        // occurrence identity is (app, runId) / approval id / repo#issue only.
+        labels: sortedUnique(members.map((member) => member.occurrence.summary)),
+      },
+      earliest_occurred_at: dated[0] ?? null,
+      latest_occurred_at: dated.at(-1) ?? null,
+      occurrences: delivered,
+      occurrences_delivered: delivered.length,
+      occurrences_truncated: delivered.length < occurrences.length,
+      observed_at: head.item.observed_at,
+    } satisfies AttentionGroupView;
+  });
+  return groups.sort((a, b) =>
+    SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+    b.occurrence_count - a.occurrence_count ||
+    compareStable(a.cause_key, b.cause_key),
+  );
+}
+
+function sortedUnique(values: Array<string | null>): string[] {
+  return [...new Set(values.filter((value): value is string => value !== null && value !== ""))].sort(compareStable);
 }
 
 function deliveryState(issueState: string, labels: string[], prs: PullRequestView[]): { state: DeliveryState; reason?: string } {
@@ -822,8 +1714,11 @@ function sum(values: number[]): number {
   return values.reduce((total, value) => total + value, 0);
 }
 
+/** Delegates to the shared runtime primitive: an unsettled provider pass is
+ *  contributed to the cost aggregate under this exact id by BOTH the Observer
+ *  and Reports, so the two surfaces cannot name the same pass differently. */
 function passId(app: string, runId: string): string {
-  return `pass:${app}:${runId}`;
+  return providerPassRef(app, runId);
 }
 
 function ticketNumber(ticket: string | null): number | null {
@@ -851,7 +1746,9 @@ function passMatches(pass: PassView, filters: ObserveProjectionInput["filters"])
   if (filters.ticket !== undefined && ticketNumber(pass.ticket) !== filters.ticket) return false;
   if (filters.status !== undefined && pass.status !== filters.status) return false;
   if (filters.role !== undefined && pass.role !== filters.role) return false;
-  if (filters.since !== undefined && pass.started_at < filters.since) return false;
+  // An undated pass cannot be proven to fall inside a since-window, so it is
+  // excluded rather than admitted on an empty-string comparison.
+  if (filters.since !== undefined && (pass.started_at === null || pass.started_at < filters.since)) return false;
   return true;
 }
 

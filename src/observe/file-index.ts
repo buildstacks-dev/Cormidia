@@ -255,18 +255,39 @@ async function indexInbox(dir: string): Promise<LocalProjectionSources["inbox"]>
   const out: LocalProjectionSources["inbox"] = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    // Captured before the parse so a corrupt file still has a received time.
+    let discoveredAt: string | undefined;
     try {
       const file = join(dir, entry.name);
       const info = await lstat(file);
       if (info.isSymbolicLink()) throw new Error("symlink inbox entries are not accepted");
+      discoveredAt = info.mtime.toISOString();
       const value = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+      const occurredAt = value["occurred_at"];
+      const eventId = value["id"];
+      const eventSource = value["source"];
       out.push({
         filename: entry.name,
         app: typeof value["app"] === "string" ? value["app"] : null,
         kind: typeof value["kind"] === "string" ? value["kind"] : null,
+        // An unparseable payload instant is dropped rather than passed through,
+        // and is never backfilled from the mtime: a received time is not an
+        // event time (#94).
+        ...(typeof occurredAt === "string" && !Number.isNaN(Date.parse(occurredAt))
+          ? { occurred_at: occurredAt }
+          : {}),
+        ...(typeof eventId === "string" ? { event_id: eventId } : {}),
+        ...(typeof eventSource === "string" ? { source: eventSource } : {}),
+        ...(discoveredAt !== undefined ? { discovered_at: discoveredAt } : {}),
       });
     } catch (error) {
-      out.push({ filename: entry.name, app: null, kind: null, error: error instanceof Error ? error.message : String(error) });
+      out.push({
+        filename: entry.name,
+        app: null,
+        kind: null,
+        ...(discoveredAt !== undefined ? { discovered_at: discoveredAt } : {}),
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
   return out.sort((a, b) => a.filename.localeCompare(b.filename));

@@ -3,7 +3,7 @@ import { basename } from "node:path";
 import type { AppsFile } from "../org/apps.js";
 import { rollupBudgets } from "../org/budget.js";
 import { settlementIdentity, settlementKey } from "../runtime/telemetry.js";
-import { aggregateCost } from "../runtime/cost.js";
+import { aggregateCost, providerPassRef } from "../runtime/cost.js";
 import { classifyEnvelopeUsage } from "../runtime/runlog/envelope.js";
 import { readReportDetails } from "./detail-source.js";
 import { earliestLedgerDay, readLedgerRange, type LedgerRowSource } from "./ledger-source.js";
@@ -64,25 +64,61 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
   const overallQuality = allTurns.length === 0 ? "unavailable" : worstQuality(allTurns.map((turn) => turn.usage_quality));
   const notices = qualityNotices(allTurns, ledger.diagnostics.length, details.missingEnvelopes.length, details.unsettled.length, duplicate.rows, range.open_interval);
   if (details.scanLimited) notices.push("Envelope-only activity scan reached its 20,000-run safety bound.");
+  // A genuine provider pass that produced NO settled ledger row. It is a real
+  // turn whose cost was never observed, so it must be aggregated as a counted
+  // unknown — exactly as `costForPasses` does in src/observe/project.ts, under
+  // the same `providerPassRef` identity.
+  //
+  // Aggregating only `allTurns` was wrong twice over. For identical scope the
+  // Observer reported coverage "partial" with one unknown turn while Reports
+  // reported "complete" with zero — the one-scope-two-answers divergence #89
+  // exists to prevent. And for a scope whose provider turns ALL failed to
+  // settle, `aggregateCost([])` returned coverage "none": an AUTHORITATIVE zero
+  // for work that was never observed, which is the `none`/`unavailable`
+  // conflation invariant 4 forbids. `cost_scope` still discloses the settled
+  // and unsettled split separately, because "counted as unknown" and "never
+  // reached the ledger" remain different facts.
+  const unsettledProviderPasses = details.unsettled.filter(
+    ({ envelope }) => classifyEnvelopeUsage(envelope) !== "none",
+  );
+  // A mechanical pass carries no settlement either, so it is equally invisible
+  // to a ledger-only aggregate. Reports already counts it from envelope evidence
+  // per session (`mechanical_passes`, src/report/sessions.ts), so counting it in
+  // the headline is consistency rather than a new concept — and it keeps the
+  // count identical to the Observer's instead of leaving one surface reporting 0
+  // and the other 2 for one scope. `aggregateCost` short-circuits `none` before
+  // any provider arithmetic, so this cannot reach known cost, unknown turns,
+  // coverage, or usage quality (#88).
+  const unsettledMechanicalPasses = details.unsettled.filter(
+    ({ envelope }) => classifyEnvelopeUsage(envelope) === "none",
+  );
   // The canonical aggregate. Every other surface projects this same object from
-  // the same settled rows, so "unavailable" in one place and $104.66 in another
-  // for identical scope is now a test failure rather than a campaign finding
-  // (#89). Mechanical passes never reach `allTurns` (they carry no settlement),
-  // so they are counted from the envelope side.
-  const cost = aggregateCost(
-    allTurns.map((turn) => ({
+  // the same evidence, so "unavailable" in one place and $104.66 in another for
+  // identical scope is now a test failure rather than a campaign finding (#89).
+  // Mechanical passes never reach `allTurns` (they carry no settlement), so they
+  // are counted from the envelope side.
+  const cost = aggregateCost([
+    ...allTurns.map((turn) => ({
       costUsd: turn.cost_usd,
       quality: turn.usage_quality,
       ref: turn.provider_turn_id ?? turn.run_id ?? turn.id,
     })),
-  );
+    ...unsettledProviderPasses.map(({ envelope }) => ({
+      costUsd: null,
+      quality: "unavailable",
+      ref: providerPassRef(envelope.app, envelope.run_id),
+    })),
+    ...unsettledMechanicalPasses.map(({ envelope }) => ({
+      costUsd: 0,
+      quality: "none",
+      ref: providerPassRef(envelope.app, envelope.run_id),
+    })),
+  ]);
   const headline = {
     cost,
     cost_scope: {
       settled_provider_turns: allTurns.length,
-      unsettled_provider_turns: details.unsettled.filter(
-        ({ envelope }) => classifyEnvelopeUsage(envelope) !== "none",
-      ).length,
+      unsettled_provider_turns: unsettledProviderPasses.length,
     },
     known_input_tokens: sumTurns(observable, "tokens_in"),
     known_output_tokens: sumTurns(observable, "tokens_out"),

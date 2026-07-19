@@ -5,6 +5,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { dirname, join, resolve, sep } from "node:path";
 import { OBSERVE_CSS, OBSERVE_HTML, OBSERVE_JS } from "./assets.js";
 import type { ObserveService } from "./live-source.js";
+import { OBSERVE_SCHEMA_VERSION } from "./types.js";
 import { REPORT_CSS, REPORT_HTML, REPORT_JS } from "../report/assets.js";
 import { ReportServiceError, type ReportService } from "../report/service.js";
 import type { ReportQuery } from "../report/types.js";
@@ -118,7 +119,7 @@ async function route(
     return;
   }
   if (url.pathname === "/healthz") {
-    sendJson(response, method, 200, { status: "ok", read_only: true, schema_version: 1, cursor: options.service.snapshot().cursor });
+    sendJson(response, method, 200, { status: "ok", read_only: true, schema_version: OBSERVE_SCHEMA_VERSION, cursor: options.service.snapshot().cursor });
     return;
   }
   if (url.pathname === "/api/v1/snapshot") {

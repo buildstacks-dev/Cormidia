@@ -119,6 +119,20 @@ export function emptyCostAggregate(): CostAggregate {
   };
 }
 
+/**
+ * The ONE cross-surface identity for a provider pass, used as the `ref` of a
+ * pass that reached NO settled ledger row.
+ *
+ * Both the Observer projection and Reports must contribute such a pass to the
+ * aggregate as a counted unknown (never an absent turn, never an authoritative
+ * zero — invariant 4). If the two surfaces named it differently, they would
+ * report identical scope with different `unknown_refs`, which is the same class
+ * of defect as reporting it with different totals (#89).
+ */
+export function providerPassRef(app: string, runId: string): string {
+  return `pass:${app}:${runId}`;
+}
+
 export function aggregateCost(contributions: readonly CostContribution[]): CostAggregate {
   let knownCost = 0;
   let knownTurns = 0;

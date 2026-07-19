@@ -1,3 +1,5 @@
+import { TIME_POLICY_JS } from "./time-policy.js";
+
 export const REPORT_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -12,6 +14,7 @@ export const REPORT_HTML = `<!doctype html>
     <div><strong>OPERON</strong><span class="marker">READ ONLY · TOKEN FREE · AS OF</span></div>
     <nav aria-label="Primary"><a href="/">Live</a><a href="/reports" aria-current="page">Reports</a></nav>
     <p id="identity">Loading report…</p>
+    <p id="timezone" class="tz"></p>
   </header>
   <main id="report-main">
     <form id="controls">
@@ -50,6 +53,7 @@ header nav a,.button { border:1px solid var(--line); padding:.4rem .65rem; borde
 header nav [aria-current] { border-color:var(--blue); }
 header p { color:var(--muted); text-align:right; }
 .marker { margin-left:.7rem; color:var(--amber); font-size:.72rem; }
+.tz { color:var(--muted); font-size:.72rem; text-align:right; margin:.2rem 0 0; }
 main { max-width:1500px; margin:auto; padding:1rem; }
 form { display:flex; gap:.6rem; align-items:end; flex-wrap:wrap; border-bottom:1px solid var(--line); padding:0 0 1rem; }
 #session-controls { padding-top:1rem; border-top:1px solid var(--line); }
@@ -83,7 +87,7 @@ th,td { text-align:left; padding:.4rem; border-bottom:1px solid var(--line); }
 export const REPORT_JS = String.raw`
 (() => {
   'use strict';
-  const q = (id) => document.getElementById(id);
+  const q = (id) => document.getElementById(id);` + TIME_POLICY_JS + String.raw`
   const node = (tag, attrs, ...children) => {
     const element = document.createElement(tag);
     for (const [key, value] of Object.entries(attrs || {})) {
@@ -138,7 +142,12 @@ export const REPORT_JS = String.raw`
       const sessions = await sessionsResponse.json();
       render(report);
       renderSessions(sessions);
-      q('status').textContent = 'Snapshot generated ' + new Date(report.generated_at).toLocaleString() + ' · explicit Refresh updates it.';
+      q('status').replaceChildren(
+        document.createTextNode('Snapshot generated '),
+        timeEl(report.generated_at, 'local'),
+        document.createTextNode(' · explicit Refresh updates it.'),
+      );
+      q('timezone').textContent = zoneStatement('local');
     } catch (error) {
       q('status').className = 'error';
       q('status').textContent = 'Report failed: ' + String(error);
@@ -146,7 +155,10 @@ export const REPORT_JS = String.raw`
   }
 
   function render(report) {
-    q('identity').textContent = report.org.name + ' · ' + report.org.state_home_id + ' · ' + report.generated_at;
+    q('identity').replaceChildren(
+      document.createTextNode(report.org.name + ' · ' + report.org.state_home_id + ' · '),
+      timeEl(report.generated_at, 'local'),
+    );
     if (q('app').options.length === 1) {
       for (const app of report.apps) q('app').append(node('option', { value: app.app }, app.app));
     }

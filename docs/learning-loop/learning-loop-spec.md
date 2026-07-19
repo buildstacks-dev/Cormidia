@@ -289,18 +289,28 @@ by replaying immutable evidence and atomically rebinding the same ids.
 envelope that ended `failed` yields evidence from its own `error_code`, with no
 dependency on an execution journal, route record, or efficiency episode
 existing. A code naming a budget or cap classifies as `execution.cap_stop`
-instead — including when the cap fired inside the quality-gate remediation
-loop, which never reaches `stopExecutionJournal` and so writes no journal stop
-at all. The projector admits at most one event per (run, class), so a capped
-run carrying both a journal stop and a matching error code counts once toward
-`min_cluster_events`. The cause string is constant per class, except for
-`execution.pass_failed`, which includes the `error_code` so two passes failing
+instead. The projector admits at most one event per (run, class) — a repeat
+classification merges its detail rather than emitting again — so a capped run
+carrying both a journal stop and a matching error code counts once toward
+`min_cluster_events` while keeping both `stop_reason` and `error_code`.
+
+Every class that more than one code path can emit has ONE canonical cause
+string (`CLASS_CAUSES`). Recurrence keys on (app, role, class, cause), so two
+paths emitting the same class under different prose would split a single
+recurrence across two sub-threshold clusters. `execution.pass_failed` is the
+deliberate exception: its cause embeds the `error_code`, so two passes failing
 for unrelated reasons cannot cluster into one false recurrence.
 
 An execution journal is EPISODE-scoped: every run in the episode reads the same
-`stop`. Only a run that itself ended non-cleanly may be attributed the
-episode's cap — otherwise a pass that completed successfully inherits a cap it
-never hit, and the recurrence count for the class inflates.
+`stop`, so exactly one run must own it or a single cap is counted once per
+pass. The owner is the episode's **last provider run** — determined by capture,
+which is the only layer that sees the whole episode. It is deliberately not
+derived from a run's own status: the quality-gate repair cap
+(`src/loop/loop.ts`, remediation exhaustion) stops the journal after every pass
+in the episode has completed cleanly, so a "did this run end badly" test would
+discard the most common cap path in the product. Provider-only, because
+mechanical runs are ineligible for capture and a trailing gate run would
+swallow the stop.
 
 The learning-namespace episode id (`ep_<app>_ticket_0002`) and the
 efficiency-namespace id (`ticket:<app>:#2`) are threaded **separately** through

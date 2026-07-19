@@ -256,16 +256,28 @@ out, so a projector emitting nothing for every run once read as perfectly
 healthy while the Phase 4 loop was dead. Alongside the receipt counters,
 `capture` now carries `runs_without_events`,
 `runs_without_efficiency_evidence`, and `evidence_gaps` — the eligible runs
-that carry a failure signal on disk (terminal failed/cancelled status, an
-`error_code`, or a non-completed provider step) and yet produced no efficiency
-evidence at all. A non-empty `evidence_gaps` degrades `capture.status`. The
-check is deliberately narrow so it cannot cry wolf: a healthy run has nothing
-to classify, and only a run that demonstrably failed while yielding nothing
-indicates a projector fault.
+that finalized `failed` or `cancelled` and yet produced no efficiency evidence
+at all. A non-empty `evidence_gaps` degrades `capture.status`.
+
+The bar is deliberately narrow so the check cannot cry wolf. Only statuses the
+projector is *guaranteed* to classify count, so a gap always means the
+projector failed rather than that the status has no class yet. `blocked` and
+`timed_out` are excluded: `blocked` is a merit outcome (an approval-gated
+pass — healthy operation), and counting either would pin an approval-gating
+org to `degraded` permanently with gaps no fix could clear. A healthy run
+simply has nothing to classify, and that is not a gap.
+
+Back-fill is likewise not a fault: re-projecting a run whose receipt predates a
+projector fix legitimately re-derives events already on disk alongside new
+ones, and that overlap does not count as a duplicate projection. Otherwise the
+refresh that repairs an org would degrade its health.
 
 `governance.status` distinguishes "clusters evaluated, none actionable" from
 "no input at all": with `evidence_events: 0` it reports `invalid_measurement`,
-never `healthy`. Absence of evidence is not absence of problems.
+never `healthy`. Absence of evidence is not absence of problems. Genuine
+governance faults still outrank the missing denominator — lineage gaps and
+overdue reviews report `degraded` even with no evidence, so an actionable
+problem is never masked by "no input".
 
 ## Threshold semantics
 

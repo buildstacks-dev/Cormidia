@@ -376,6 +376,42 @@ describe("failed passes are first-class evidence (#138)", () => {
     expect(new Set(capStops.map((e) => e.event_id)).size).toBe(1);
   });
 
+  // The quality-gate repair cap (src/loop/loop.ts:373) stops the journal after
+  // the remediation allowance is exhausted — at which point EVERY pass in the
+  // episode has completed cleanly and no envelope is `failed`. An earlier
+  // version of this fix gated the journal cap on "did this run end badly",
+  // which silently discarded the most common cap path in the product.
+  it("still projects a cap whose episode contains no failed pass", async () => {
+    const episodeId = `ticket:${APP}:#4`;
+    const contract = "20260712-180000-build-contract";
+    const fix = "20260712-181000-build-fix";
+    const { events } = await capture({
+      runs: { records: { [APP]: {
+        [contract]: { envelope: envelope({ run_id: contract, episode_id: episodeId, ticket: "#4", pass: "contract" }), events: [] },
+        [fix]: { envelope: envelope({ run_id: fix, episode_id: episodeId, ticket: "#4", pass: "fix" }), events: [] },
+      } } },
+      efficiency: { episodes: { [episodeId]: {
+        journal: {
+          status: "stopped",
+          stop: {
+            kind: "cap_stop", at: "2026-07-12T18:20:00.000Z",
+            reason: "quality-gate repair cap exhausted at 3",
+            next_boundary: "implementation", durable_artifacts: [],
+          },
+        },
+        steps: {
+          "step-contract": { run_id: contract, status: "completed", finished_at: "2026-07-12T18:05:00.000Z" },
+          "step-fix": { run_id: fix, status: "completed", finished_at: "2026-07-12T18:15:00.000Z" },
+        },
+      } } },
+    });
+
+    const capStops = events.filter((e) => e.error_class === "execution.cap_stop");
+    expect(capStops, "a gate-repair cap must still be evidence").toHaveLength(1);
+    // The episode's LAST provider run owns the episode-scoped journal.
+    expect(capStops[0]!.run_id).toBe(fix);
+  });
+
   // The episode journal is shared by every run in the episode. A pass that
   // completed cleanly must not inherit the episode's cap.
   it("does not attribute an episode-level cap to a pass that completed cleanly", async () => {
@@ -413,8 +449,8 @@ describe("failed passes are first-class evidence (#138)", () => {
               },
             },
             steps: {
-              "step-clean": { run_id: clean, status: "completed" },
-              "step-failed": { run_id: failed, status: "failed", error_code: "error_max_budget_usd" },
+              "step-clean": { run_id: clean, status: "completed", finished_at: "2026-07-12T15:55:00.000Z" },
+              "step-failed": { run_id: failed, status: "failed", error_code: "error_max_budget_usd", finished_at: "2026-07-12T16:05:00.000Z" },
             },
           },
         },

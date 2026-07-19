@@ -245,10 +245,13 @@ export async function projectLearningEfficiencyHealth(
   // input set is the same shape of error the capture block used to make.
   const evidenceEvents = events.filter(isEfficiencyEvidenceEvent).length;
   const governanceStatus: HealthStatus =
-    evidenceEvents === 0
-      ? "invalid_measurement"
-      : lineageGaps.length > 0 || overdue.length > 0
-        ? "degraded"
+    // Real governance faults outrank a missing denominator: an org can hold
+    // lineage gaps or overdue reviews with no efficiency evidence at all, and
+    // reporting only "no input" would hide the actionable problem.
+    lineageGaps.length > 0 || overdue.length > 0
+      ? "degraded"
+      : evidenceEvents === 0
+        ? "invalid_measurement"
         : "healthy";
   const efficacyStatus: HealthStatus =
     experiments.length === 0 || validComparisons === 0

@@ -102,12 +102,12 @@ export interface CaptureProjectionResult {
    * counted perfectly while the projector discarded 100% of evidence (#141). */
   runsWithoutEvents: number;
   runsWithoutEfficiencyEvidence: number;
-  /** Eligible runs that carry a failure signal on disk — a terminal failed /
-   * cancelled status, an `error_code`, or a non-completed provider step — yet
-   * produced no efficiency evidence at all. Unlike a bare zero-yield count
-   * this cannot fire on a genuinely clean org: a healthy run has nothing to
-   * classify, but a run that demonstrably failed and yields nothing is a
-   * projector fault. */
+  /** Eligible runs that finalized `failed` or `cancelled` — the two statuses
+   * the projector is guaranteed to have a class for — yet produced no
+   * efficiency evidence at all. Unlike a bare zero-yield count this cannot
+   * fire on a genuinely clean org: a healthy run has nothing to classify, but
+   * a run that demonstrably failed and yields nothing is a projector fault.
+   * See `hasFailureSignal` for why `blocked`/`timed_out` are excluded. */
   evidenceGaps: Array<{ app: string; runId: string; reason: "terminal_failure_without_evidence" }>;
   /** Alias with the complete typed recovery inventory used by health JSON. */
   blockedRuns: Array<{ app: string; runId: string; reason: CaptureBlockingReason }>;
@@ -234,7 +234,7 @@ async function captureEvents(
     if (events.length === 0) result.runsWithoutEvents += 1;
     if (efficiencyEvidence.length === 0) {
       result.runsWithoutEfficiencyEvidence += 1;
-      if (hasFailureSignal(envelope, efficiencyRun)) {
+      if (hasFailureSignal(envelope)) {
         result.evidenceGaps.push({ app, runId, reason: "terminal_failure_without_evidence" });
       }
     }
@@ -280,7 +280,13 @@ async function captureEvents(
       const { emitted, deduped } = await appendLearningEventsDeduped(stateHome, events);
       result.eventsEmitted += emitted;
       result.eventsDeduped += deduped;
-      result.duplicateProjections += deduped > 0 ? 1 : 0;
+      // Partial overlap is EXPECTED when back-filling a receipt that recorded
+      // fewer events than the run now derives (a projector fix widened the
+      // set). Counting that as a duplicate projection would degrade capture
+      // health on the very refresh that repairs the org. Only dedup against a
+      // receipt that claimed the same set is a genuine exactly-once signal.
+      const backFilling = receipt !== undefined && receipt.events < events.length;
+      result.duplicateProjections += deduped > 0 && !backFilling ? 1 : 0;
       cursor.runs[key] = {
         projected_at: clock().toISOString(),
         events: events.length,
@@ -423,8 +429,15 @@ async function deriveRunEvents(
     });
   }
 
+  // The execution journal is EPISODE-scoped. Read it only for the run that
+  // terminated the episode, so a single cap produces a single event instead of
+  // one per pass in the episode. When the episode has no provider step to
+  // anchor on, no run claims it.
   let journal: ExecutionJournal | null = null;
-  if (efficiency?.episodeId !== undefined) {
+  if (
+    efficiency?.episodeId !== undefined &&
+    efficiency.terminalRunId === envelope.run_id
+  ) {
     journal = (await readExecutionJournal(stateHome, efficiency.episodeId).catch(() => null)) ?? null;
   }
   // The envelope goes through UNMODIFIED: its `episode_id` is the
@@ -546,6 +559,31 @@ interface IndexedEfficiencyRun {
   route: EfficiencyEpisodeEvidence["route"];
   steps: EfficiencyEpisodeEvidence["steps"];
   corruptFiles: string[];
+  /** The run that owns this episode's execution journal — see
+   *  `episodeTerminalProviderRun`. */
+  terminalRunId: string | undefined;
+}
+
+/**
+ * The episode's LAST provider run: the one whose execution the episode-scoped
+ * journal stop actually terminated.
+ *
+ * The journal is written once per episode and every run in that episode reads
+ * the same `stop`, so exactly one run must own it as evidence or a single cap
+ * is counted once per pass. Provider-only because mechanical runs are
+ * ineligible for capture — attributing the stop to a trailing gate run would
+ * discard it. Ties break on step id so the choice is deterministic.
+ */
+function episodeTerminalProviderRun(
+  steps: EfficiencyEpisodeEvidence["steps"],
+): string | undefined {
+  return [...steps]
+    .filter((step) => step.kind === "provider")
+    .sort((a, b) =>
+      a.finished_at.localeCompare(b.finished_at) ||
+      a.execution_step_id.localeCompare(b.execution_step_id),
+    )
+    .at(-1)?.run_id;
 }
 
 function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, IndexedEfficiencyRun> {
@@ -553,6 +591,7 @@ function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, Ind
   for (const episode of evidence) {
     const episodeId = episode.route?.episode_id ?? episode.steps[0]?.episode_id;
     if (episodeId === undefined) continue;
+    const terminalRunId = episodeTerminalProviderRun(episode.steps);
     for (const step of episode.steps) {
       const key = `${step.app}/${step.run_id}`;
       const current = out.get(key);
@@ -561,22 +600,29 @@ function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, Ind
         route: episode.route,
         steps: [...(current?.steps ?? []), step],
         corruptFiles: [...new Set([...(current?.corruptFiles ?? []), ...episode.corrupt_files])].sort(),
+        terminalRunId,
       });
     }
   }
   return out;
 }
 
-/** Did this run demonstrably go wrong? Deliberately conservative: only signals
- *  the orchestrator itself recorded count, so a clean org never trips the
- *  evidence-gap check while a dead projector always does (#141). */
-function hasFailureSignal(envelope: RunEnvelope, indexed: IndexedEfficiencyRun | undefined): boolean {
-  const terminal: Array<RunEnvelope["status"]> = ["failed", "cancelled", "timed_out", "blocked"];
-  return (
-    terminal.includes(envelope.status) ||
-    envelope.error_code !== undefined ||
-    (indexed?.steps ?? []).some((step) => step.status !== "completed" || step.error_code !== null)
-  );
+/**
+ * Did this run demonstrably go wrong in a way the projector has a class for?
+ *
+ * The bar is deliberately narrow: ONLY statuses the projector is guaranteed to
+ * classify, so a gap always means the projector failed rather than that the
+ * status has no class yet. `failed` yields `execution.pass_failed` (or
+ * `execution.cap_stop`); `cancelled` yields `execution.cancelled`.
+ *
+ * `blocked` and `timed_out` are excluded on purpose. `blocked` is a MERIT
+ * outcome — an approval-gated pass, i.e. healthy operation — and the projector
+ * emits nothing for either, so counting them would pin `capture.status` to
+ * `degraded` forever on a perfectly healthy org that uses approval gating.
+ * That false alarm is exactly what #141 exists to avoid.
+ */
+function hasFailureSignal(envelope: RunEnvelope): boolean {
+  return envelope.status === "failed" || envelope.status === "cancelled";
 }
 
 function isMechanicalRun(envelope: RunEnvelope, indexed: IndexedEfficiencyRun | undefined): boolean {

@@ -36,30 +36,50 @@ export const EFFICIENCY_ERROR_CLASSES = [
 export type EfficiencyErrorClass = (typeof EFFICIENCY_ERROR_CLASSES)[number];
 const EFFICIENCY_CLASS_SET = new Set<string>(EFFICIENCY_ERROR_CLASSES);
 
-/** One constant cause per class: recurrence keys on (app, role, class, cause),
- *  so the journal-derived and error-code-derived cap paths must agree
- *  verbatim or a capped run would split across two clusters. */
-const CAP_STOP_CAUSE = "the admitted execution route reached a deterministic cap";
+/**
+ * ONE canonical cause per class. Recurrence keys on (app, role, class, cause),
+ * so any two code paths that can emit the same class must pass the identical
+ * string — otherwise ten genuinely identical failures split across two
+ * sub-threshold clusters and the distiller produces no candidate for a failure
+ * mode that is plainly recurring.
+ *
+ * `execution.pass_failed` is deliberately absent: it is the unmapped-code
+ * fallback, and its cause embeds the `error_code` so two passes failing for
+ * unrelated reasons cannot cluster into one false recurrence.
+ */
+const CLASS_CAUSES = {
+  "execution.cap_stop": "the admitted execution route reached a deterministic cap",
+  "execution.cancelled": "provider execution ended cancelled",
+  "execution.missing_finalization": "provider execution is missing finalization",
+} as const satisfies Partial<Record<EfficiencyErrorClass, string>>;
 
 /**
  * Terminal `error_code` → typed class, so a failed pass is evidence even when
- * the journal, route record, or efficiency episode is absent (#138). The
- * envelope's own code is authoritative: a cap that fires inside the
- * quality-gate remediation loop never reaches `stopExecutionJournal`, so
- * `journal.stop` cannot be the only path to `execution.cap_stop`.
+ * the journal, route record, or efficiency episode is absent (#138). Before
+ * this, a run finalized `failed` with a precise `error_code` produced nothing
+ * at all unless an execution journal happened to exist alongside it.
  *
  * Substring predicates, not an enumerated table, deliberately: this mirrors
  * `journalStopKind` in src/loop/loop.ts, so a newly-introduced budget/cap code
  * classifies correctly without a second table having to be remembered. A code
- * that maps to the class the journal would also have produced yields the SAME
- * `source_identity`, and `add` admits one event per (run, class) — that is
- * what keeps a capped run with a journal from double-counting.
+ * that maps to the class another branch also emits reuses that branch's
+ * canonical cause via `CLASS_CAUSES`, and `add` admits one event per
+ * (run, class) — together that keeps a capped run with a journal from
+ * double-counting toward `min_cluster_events`.
  */
 function terminalErrorClass(errorCode: string): EfficiencyErrorClass {
   if (errorCode === "error_cancelled") return "execution.cancelled";
   if (errorCode === "error_stale_missing_finalization") return "execution.missing_finalization";
-  if (errorCode.includes("budget") || errorCode.includes("cap")) return "execution.cap_stop";
+  if (errorCode.includes("budget") || errorCode.includes("_cap_") || errorCode.endsWith("_cap")) {
+    return "execution.cap_stop";
+  }
   return "execution.pass_failed";
+}
+
+function causeFor(errorClass: EfficiencyErrorClass, errorCode: string): string {
+  return errorClass in CLASS_CAUSES
+    ? CLASS_CAUSES[errorClass as keyof typeof CLASS_CAUSES]
+    : `provider pass terminated with ${errorCode}`;
 }
 
 export interface EfficiencyActionSummary {
@@ -159,12 +179,21 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
     // same id, but making the guard explicit is what lets the journal-derived
     // and error-code-derived cap paths coexist without either double-counting
     // toward `min_cluster_events` or depending on emission order (#138).
-    const emitted = new Set<EfficiencyErrorClass>();
+    //
+    // A repeat call MERGES its detail rather than being dropped: the journal
+    // path carries `stop_reason`, the error-code path carries `error_code`,
+    // and a capped run should keep both. First cause wins — the causes for a
+    // shared class are identical by construction (`CLASS_CAUSES`), so this
+    // only ever affects payload richness, never cluster identity.
+    const emitted = new Map<EfficiencyErrorClass, LearningEvent>();
     const add = (errorClass: EfficiencyErrorClass, cause: string, detail: Record<string, unknown>): void => {
-      if (emitted.has(errorClass)) return;
-      emitted.add(errorClass);
+      const existing = emitted.get(errorClass);
+      if (existing !== undefined) {
+        existing.payload = { ...detail, ...existing.payload };
+        return;
+      }
       const sourceIdentity = `${envelope.app}\0${envelope.run_id}\0${errorClass}`;
-      out.push({
+      const event: LearningEvent = {
         ...base,
         event_id: `evt_eff_${digest(`${EFFICIENCY_EVIDENCE_VERSION}\0${sourceIdentity}`).slice(0, 24)}`,
         ts: timestamp,
@@ -180,23 +209,28 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
           source_identity: sourceIdentity,
           ...detail,
         },
-      });
+      };
+      emitted.set(errorClass, event);
+      out.push(event);
     };
 
     const statuses = new Set([envelope.status, ...providerSteps.map((step) => step.status)]);
     if (statuses.has("cancelled")) {
-      add("execution.cancelled", "provider execution ended cancelled", {
+      add("execution.cancelled", CLASS_CAUSES["execution.cancelled"], {
         terminal_reason: envelope.terminal_reason ?? terminalReason(providerSteps),
       });
     }
     // The execution journal is EPISODE-scoped: every run in the episode reads
-    // the same `stop`. Only the run that actually ended non-cleanly can be the
-    // one the cap stopped — attributing an episode-level cap to a pass that
-    // completed successfully both blames the wrong pass and inflates the
-    // recurrence count for the class.
-    const endedUncleanly = envelope.status !== "completed" || providerSteps.some((step) => step.status !== "completed");
-    if (run.journal?.stop?.kind === "cap_stop" && endedUncleanly) {
-      add("execution.cap_stop", CAP_STOP_CAUSE, {
+    // the same `stop`, so attributing it to all of them blames passes that
+    // never hit the cap and multiplies the recurrence count for the class.
+    // The CALLER decides which single run owns it — capture passes the
+    // journal only for the episode's terminal provider run. Do NOT re-derive
+    // that here from the run's own status: the quality-gate repair cap
+    // (src/loop/loop.ts:373) stops the journal after every pass has completed
+    // cleanly, so a "did this run end badly" test silently discards the most
+    // common cap path in the product.
+    if (run.journal?.stop?.kind === "cap_stop") {
+      add("execution.cap_stop", CLASS_CAUSES["execution.cap_stop"], {
         stop_reason: run.journal.stop.reason,
         next_boundary: run.journal.stop.next_boundary,
       });
@@ -210,19 +244,10 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
       : undefined;
     if (failureCode !== undefined && failureCode !== null) {
       const errorClass = terminalErrorClass(failureCode);
-      add(
-        errorClass,
-        errorClass === "execution.cap_stop"
-          ? CAP_STOP_CAUSE
-          // The code is part of the cause: two passes failing for unrelated
-          // reasons must not cluster into one false recurrence.
-          : `provider pass terminated with ${failureCode}`,
-        {
-          error_code: failureCode,
-          envelope_status: envelope.status,
-          terminal_reason: envelope.terminal_reason ?? null,
-        },
-      );
+      add(errorClass, causeFor(errorClass, failureCode), {
+        error_code: failureCode,
+        envelope_status: envelope.status,
+      });
     }
     if (
       envelope.status === "running" ||
@@ -231,11 +256,11 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
       add("execution.stale_finalization", "provider execution has no truthful timely terminal record", {
         last_seen_at: envelope.last_seen_at ?? null,
       });
-      add("execution.missing_finalization", "provider execution is missing finalization", {
+      add("execution.missing_finalization", CLASS_CAUSES["execution.missing_finalization"], {
         envelope_status: envelope.status,
       });
     } else if (envelope.finished_at === undefined) {
-      add("execution.missing_finalization", "terminal provider envelope is missing finished_at", {
+      add("execution.missing_finalization", CLASS_CAUSES["execution.missing_finalization"], {
         envelope_status: envelope.status,
       });
     }

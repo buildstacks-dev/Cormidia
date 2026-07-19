@@ -7,7 +7,7 @@
 // so nothing in the event stream distinguished a budget kill from an ordinary
 // unmerged close.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { previewCaptureEvents, projectCaptureEvents } from "../../src/org/learning/capture.js";
@@ -17,6 +17,8 @@ import { createEpisodeProjector } from "../../src/org/learning/episode.js";
 import { readLearningEvents } from "../../src/org/learning/events.js";
 import { defaultLearningPolicy } from "../../src/org/learning/policy.js";
 import { orgLearningRoot } from "../../src/org/learning/concepts.js";
+import { writeReviewerVerdict } from "../../src/org/learning/review.js";
+import { makeReviewerVerdict } from "./helpers.js";
 import type { RunEnvelope } from "../../src/runtime/runlog/envelope.js";
 import { FakeClock } from "../fixtures/fakeClock.js";
 import { makeOrgHome, type OrgHomeOptions } from "../fixtures/orgHome.js";
@@ -296,6 +298,86 @@ describe("efficiency health reports evidence yield, not just receipts (#141)", (
     expect(projected.governance.evidence_events).toBe(1);
     expect(projected.governance.status).toBe("healthy");
     expect(projected.governance.actionable_clusters).toBe(0);
+  });
+
+  // `blocked` is a MERIT outcome — an approval-gated pass — and the projector
+  // emits nothing for it or for `timed_out`. Counting either as a failure
+  // signal would pin a perfectly healthy approval-gating org to `degraded`
+  // forever, with gaps no fix could clear. That is the false alarm #141 exists
+  // to avoid, not an instance of it.
+  it("does not flag approval-gated or timed-out runs as evidence gaps", async () => {
+    for (const status of ["blocked", "timed_out"] as const) {
+      const runId = "20260711-100600-build-implement";
+      const state = makeOrgHome({
+        runs: { records: { [APP]: { [runId]: {
+          envelope: envelope({ run_id: runId, episode_id: `ticket:${APP}:#7`, status }),
+          events: [],
+        } } } },
+        efficiency: { episodes: {
+          [`ticket:${APP}:#7`]: { steps: { "step-1": { run_id: runId, status: "blocked" } } },
+        } },
+      });
+      cleanup.push(state.cleanup);
+
+      const result = await projectCaptureEvents({ stateHome: state.root, appStages: { [APP]: "live" } });
+      expect(result.evidenceGaps, `${status} must not read as a projector fault`).toEqual([]);
+      const projected = await health(state.root);
+      expect(projected.capture.evidence_gaps, status).toEqual([]);
+      expect(projected.capture.status, status).toBe("healthy");
+    }
+  });
+
+  // Back-filling an org captured under #137 legitimately re-derives events
+  // that are already on disk alongside genuinely new ones. Counting that
+  // overlap as a duplicate projection would degrade capture health on the very
+  // refresh that repairs the org — the signal reserved for real exactly-once
+  // violations.
+  it("does not report a duplicate projection when back-filling a stale receipt", async () => {
+    const runId = "20260711-100600-build-implement";
+    const state = makeOrgHome({
+      ...failedRun(runId, `ticket:${APP}:#7`),
+      efficiency: { episodes: {
+        [`ticket:${APP}:#7`]: { steps: { "step-1": { run_id: runId, status: "failed", error_code: "error_max_budget_usd" } } },
+      } },
+    });
+    cleanup.push(state.cleanup);
+    await projectCaptureEvents({ stateHome: state.root, appStages: { [APP]: "live" } });
+
+    // Rewrite the receipt as a pre-fix one: fewer events, no bound ids.
+    const cursorPath = join(state.root, "learning", "metrics", "capture-cursor.json");
+    const cursor = JSON.parse(readFileSync(cursorPath, "utf8")) as {
+      runs: Record<string, { projected_at: string; events: number }>;
+    };
+    cursor.runs[`${APP}/${runId}`] = { projected_at: "2026-07-11T10:30:00.000Z", events: 0 };
+    writeFileSync(cursorPath, JSON.stringify(cursor, null, 2) + "\n");
+
+    const second = await projectCaptureEvents({ stateHome: state.root, appStages: { [APP]: "live" } });
+    expect(second.duplicateProjections).toBe(0);
+    const projected = await health(state.root);
+    expect(projected.capture.duplicate_projections).toBe(0);
+    expect(projected.capture.status).toBe("healthy");
+  });
+
+  // A missing denominator must not mask an actionable governance fault.
+  it("reports degraded, not invalid_measurement, when lineage gaps exist with no evidence", async () => {
+    const orgHome = makeOrgHome();
+    cleanup.push(orgHome.cleanup);
+    const state = makeOrgHome({ runs: { apps: [APP] } });
+    cleanup.push(state.cleanup);
+
+    // A reviewer verdict with no corresponding candidate is a lineage gap.
+    await writeReviewerVerdict(orgHome.root, makeReviewerVerdict({ candidate_id: "cand_orphan" }));
+
+    const projected = await projectLearningEfficiencyHealth({
+      orgHome: orgHome.root,
+      stateHome: state.root,
+      capture: await previewCaptureEvents({ stateHome: state.root, appStages: { [APP]: "live" } }),
+      policy: defaultLearningPolicy(),
+      roots: [orgLearningRoot(orgHome.root)],
+    });
+    expect(projected.governance.evidence_events).toBe(0);
+    expect(projected.governance.lineage_gaps.length).toBeGreaterThan(0);
+    expect(projected.governance.status).toBe("degraded");
   });
 
   it("a clean org with no failures reports no evidence gaps", async () => {

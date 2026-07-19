@@ -796,6 +796,12 @@ for, never a rewrite.
   output.md         L3 — final output text
   session.log       L3 — structured activity log fed by TurnHooks.onEvent;
                     explicitly NOT a full transcript
+  published-tickets.json  (final planning pass only) — orchestrator-owned
+                    publication evidence written AFTER finalize: issue
+                    numbers plus the same episode/run/trace identity each
+                    ticket body's `Planned-by:` trailer carries (#128).
+                    A sibling file by design — terminal envelopes are
+                    never patched.
 ```
 
 `runId = YYYYMMDD-HHMMSS-<pipeline>-<pass>`, chronologically sortable.

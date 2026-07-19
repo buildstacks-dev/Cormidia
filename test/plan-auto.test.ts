@@ -6,12 +6,14 @@
 // bare git fixture as the app repo, FakeRuntime, and FakeGhOps; no network,
 // auth, or real GitHub state is required.
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parsePlanJson, runAutoPlan } from "../src/org/plan-auto.js";
+import { parsePlannedBy } from "../src/loop/plan-tickets.js";
+import { readPublishedTicketsRecord } from "../src/loop/plan-publication-record.js";
 import type { AppEntry, AppsFile } from "../src/org/apps.js";
 import { FakeRuntime } from "../src/runtime/testing/fakeRuntime.js";
 import type { TurnResult } from "../src/runtime/types.js";
@@ -155,6 +157,64 @@ describe("runAutoPlan (D-PLAN-01 quick/standard/deep plan-of-record evidence)", 
       selected_passes: ["bootstrap-plan"],
       estimated_cost_usd: null,
     });
+    // #128: the planner run -> published tickets edge is durable in BOTH
+    // halves and they cross-check: the local record in the run dir, and the
+    // Planned-by trailer in the published body — each carrying the SAME
+    // episode/run/trace identity the envelope recorded.
+    const record = await readPublishedTicketsRecord(stateHome, "greenfield", runId);
+    expect(record).toMatchObject({
+      schema_version: 1,
+      app: "greenfield",
+      episode_id: envelope["episode_id"],
+      run_id: runId,
+      trace_id: envelope["trace_id"],
+      published_at: "2026-07-11T09:00:00.000Z",
+    });
+    expect(record!.published).toEqual([
+      {
+        index: 0,
+        issue_number: issues[0]!.number,
+        title: "Ship the scaffold with a visible landing page",
+        ready: true,
+        labels: expect.arrayContaining(["op:ready", "op:tier-standard", "p1"]) as unknown as string[],
+      },
+    ]);
+    expect(parsePlannedBy(issues[0]!.body)).toEqual({
+      episodeId: record!.episode_id,
+      runId: record!.run_id,
+      traceId: record!.trace_id,
+    });
+  });
+
+  it("keeps a completed publication completed when the local record write fails (review fix)", async () => {
+    const { app, appsFile } = fixture();
+    const gh = new FakeGhOps();
+    const runtime = new FakeRuntime([{ result: planTurn(PLAN_JSON) }]);
+    // The run id is deterministic under the fixed clock; making the record
+    // path an occupied DIRECTORY forces the post-publish evidence write to
+    // fail. Publication truth must survive: tickets exist on GitHub, and a
+    // reported failure would invite a duplicate republish on retry.
+    const runDir = join(stateHome, "runs", "greenfield", "20260711-090000-plan-bootstrap-bootstrap-plan");
+    mkdirSync(join(runDir, "published-tickets.json"), { recursive: true });
+
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: "A personal website for the founder",
+      gh,
+      runtimeFor: () => runtime,
+      now: () => new Date("2026-07-11T09:00:00Z"),
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.published).toHaveLength(1);
+    expect(result.summary).toContain("published 1 ticket(s)");
+    expect(result.summary).toContain("published-tickets record write failed");
+    // The permanent half still carries the identity.
+    const issues = await gh.listIssues({ state: "all", limit: 10 });
+    expect(parsePlannedBy(issues[0]!.body)).toBeDefined();
   });
 
   it("delivers explicit source bytes, records consumption in the run, and publishes hash-only provenance (#112)", async () => {

@@ -245,15 +245,30 @@ export function validatePlan(plan: TicketPlan): PlanValidation {
 // Rendering — bodies the loop's own parsers read back
 // ---------------------------------------------------------------------------
 
+/** Durable causal identity of the planning execution that authored a ticket.
+ *  Stamped into every published body as a `Planned-by:` trailer so the build
+ *  episode the ticket later becomes can be joined back to the planning episode
+ *  that created it — from the ticket body alone, after every local retention
+ *  sweep (#128). The ids are the planner's episode/run/trace identities as the
+ *  runlog recorded them. */
+export interface PlanProvenance {
+  episodeId: string;
+  runId: string;
+  traceId: string;
+}
+
 /** `issueNumbers[i]` is the created issue for plan ticket i; dependsOn indexes
  *  render as real `Depends-on: #<n>` references the scheduler parses.
  *  `releaseKind` renders as a `Release-kind:` trailer the ship gate reads
- *  back (P7) — undefined omits the line (pre-A4 bodies parse unchanged). */
+ *  back (P7) — undefined omits the line (pre-A4 bodies parse unchanged).
+ *  `provenance` renders as a `Planned-by:` trailer (#128) — undefined omits
+ *  the line (pre-provenance bodies parse unchanged). */
 export function renderTicketBody(
   ticket: PlanTicket,
   issueNumbers: readonly (number | undefined)[],
   releaseKind?: ReleaseKind,
   planningSources?: PlanningSourceTicketEvidence,
+  provenance?: PlanProvenance,
 ): string {
   const deps = ticket.dependsOn
     .map((dep) => issueNumbers[dep])
@@ -263,6 +278,12 @@ export function renderTicketBody(
     ...(deps.length > 0 ? [deps.join("\n"), ""] : []),
     `Execution group: ${ticket.executionGroup}`,
     ...(releaseKind !== undefined ? [`Release-kind: ${releaseKind}`] : []),
+    ...(provenance !== undefined
+      ? [
+          `Planned-by: episode=${encodeProvenanceId(provenance.episodeId)} ` +
+            `run=${encodeProvenanceId(provenance.runId)} trace=${encodeProvenanceId(provenance.traceId)}`,
+        ]
+      : []),
     "",
     "## Goal",
     ticket.goal,
@@ -304,6 +325,40 @@ export function parseReleaseKind(body: string): ReleaseKind | undefined {
   const match = /^Release-kind:\s*(\S+)\s*$/m.exec(body);
   const candidate = match?.[1];
   return RELEASE_KINDS.find((kind) => kind === candidate);
+}
+
+/** Minimal escaping so the space-delimited trailer round-trips ANY id:
+ *  app names are unvalidated and embedded in episode/trace ids, so an app
+ *  named "my app" must not render a trailer its own parser can never read
+ *  back. Only `%` and whitespace are escaped — ordinary ids stay
+ *  byte-identical. */
+function encodeProvenanceId(id: string): string {
+  return id.replace(/[%\s]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
+}
+
+/** Read the `Planned-by:` trailer back from a published ticket body (#128).
+ *  Absent or malformed → undefined: pre-provenance tickets carry no planning
+ *  identity, and a consumer must treat that as "unknown", never guess.
+ *
+ *  Only the HEADER block (before the first `## ` section) is searched:
+ *  everything from `## Goal` on is planner-authored prose, and a
+ *  trailer-shaped line inside it must not read back as provenance. The
+ *  trailer is advisory, not authenticated — a GitHub body is editable by any
+ *  repo writer, so the trusted half of the edge is the local
+ *  published-tickets record, which this trailer merely cross-checks. */
+export function parsePlannedBy(body: string): PlanProvenance | undefined {
+  const header = body.split(/^## /m, 1)[0] ?? body;
+  const match = /^Planned-by:\s*episode=(\S+)\s+run=(\S+)\s+trace=(\S+)\s*$/m.exec(header);
+  if (match === null) return undefined;
+  try {
+    return {
+      episodeId: decodeURIComponent(match[1]!),
+      runId: decodeURIComponent(match[2]!),
+      traceId: decodeURIComponent(match[3]!),
+    };
+  } catch {
+    return undefined; // stray malformed %-escape → unknown, never a guess
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -485,6 +540,7 @@ export async function publishPlanProjection(
   gh: GhOps,
   projection: FinalPlanProjection,
   planningSources?: PlanningSourceTicketEvidence,
+  provenance?: PlanProvenance,
 ): Promise<PublishResult> {
   for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
 
@@ -494,7 +550,7 @@ export async function publishPlanProjection(
     for (const { index, ticket, labels, ready } of projection.tickets) {
       const issue = await gh.createIssue({
         title: ticket.title,
-        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, planningSources),
+        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, planningSources, provenance),
         labels,
       });
       issueNumbers[index] = issue.number;
@@ -506,7 +562,7 @@ export async function publishPlanProjection(
       if (ticket.dependsOn.some((dep) => dep > index)) {
         await gh.updateIssueBody(
           issueNumbers[index]!,
-          renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, planningSources),
+          renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, planningSources, provenance),
         );
       }
     }

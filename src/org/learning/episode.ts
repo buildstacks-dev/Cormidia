@@ -936,6 +936,16 @@ async function emitLifecycleEvents(
           completed: record.outcome?.completed ?? false,
           ...(record.outcome?.merged !== undefined ? { merged: record.outcome.merged } : {}),
           cost_usd: record.outcome?.cost_usd ?? 0,
+          // The episode record already computed this; dropping it left the
+          // event stream unable to tell a budget kill from a review rejection
+          // or an ordinary unmerged close (#139). Deliberately NOT an
+          // `error_class`: `episode_closed` must stay excluded from distiller
+          // evidence — episode-level closes are not per-cause recurrence
+          // signal, and smuggling one in would turn every unmerged ticket
+          // into a candidate.
+          ...(record.outcome?.terminal_reason !== undefined
+            ? { terminal_reason: record.outcome.terminal_reason }
+            : {}),
         },
       });
     }

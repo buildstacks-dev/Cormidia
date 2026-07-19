@@ -20,16 +20,26 @@ import { readJsonLinesTolerant } from "./records.js";
  *  the draft enum predates that and has no member for it. Recorded as a spec
  *  delta in the M1a PR. `canary_assigned` is the M5 sticky-assignment event
  *  (design §8.4): emitted once per episode at first governed resolve while a
- *  canary is active. */
+ *  canary is active.
+ *
+ *  Every member here MUST have at least one emitter in `src/` — a
+ *  declared-but-unemitted type is misleading dead code, not harmless surface.
+ *  `env_fact`, `tool_outcome`, `retro_note`, and `artifact_created` were
+ *  removed for exactly that reason (#140): two of them were live-looking
+ *  inputs to the distiller's evidence filter whose branches could never fire,
+ *  which made an empty distillation read as plausible rather than alarming.
+ *  Per-tool failure is already covered in aggregate by the `tooling.*`
+ *  efficiency classes. Re-adding any of them is fine — but land the emitter in
+ *  the same change, or `test/learning/event-types.test.ts` fails the build.
+ *
+ *  Removal is forward-compatible by construction: `readLearningEvents` parses
+ *  historical rows without validating `type`, so events written under the old
+ *  enum still read back over the 1825-day retention window. */
 export type LearningEventType =
   | "error"
   | "human_correction"
   | "gate_verdict"
   | "pass_verdict"
-  | "env_fact"
-  | "tool_outcome"
-  | "retro_note"
-  | "artifact_created"
   | "concept_loaded"
   | "context_evicted"
   | "conflict_resolved"

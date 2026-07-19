@@ -133,6 +133,20 @@ side-effect replacement before results; and `operon learn report
 --efficiency-health [--json] [--refresh]` reports capture, governance, and
 efficacy health independently. The mechanics construct no provider runtime.
 
+That closed loop was **built but not actually live** until 2026-07-19: capture
+overwrote the run envelope's efficiency-namespace `episode_id` with the
+learning anchor before handing the run to the projector, so the provider-step
+filter matched nothing, every provider run classified as mechanical, and zero
+efficiency evidence reached `learning/events/` in any org (#137). A failed pass
+additionally produced no learning event of any kind (#138), and
+`--efficiency-health` reported `capture.status: "healthy"` throughout, because
+it counted runs projected rather than evidence produced (#141). The two episode
+id namespaces are now threaded separately at the seam, a terminal `failed`
+envelope is evidence on its own `error_code`, and health degrades on a run that
+demonstrably failed while yielding nothing. `test/learning/evidence-projection.test.ts`
+drives capture → `prepareDistillation` end-to-end and fails the build if a
+cluster stops forming — the coverage gap that let this ship green (#142).
+
 ## Map
 | Path | What it is |
 | --- | --- |

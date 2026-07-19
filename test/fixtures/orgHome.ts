@@ -28,6 +28,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stringify as toYaml } from "yaml";
 import { runPaths } from "../../src/runtime/runlog/paths.js";
+import {
+  efficiencyEpisodeDir,
+  executionStepPath,
+  routeRecordPath,
+  type ExecutionStepRecord,
+  type RouteRecord,
+} from "../../src/loop/efficiency.js";
+import {
+  executionJournalPath,
+  type ExecutionJournal,
+} from "../../src/loop/execution-journal.js";
 
 // ---------------------------------------------------------------------------
 // Shared sub-builder option shapes
@@ -124,12 +135,41 @@ export interface RunsOptions {
   records?: Record<string, Record<string, RunRecordOptions>>;
 }
 
+/** One efficiency episode as the orchestrator actually writes it (#142):
+ * `efficiency/episodes/<sha256(episodeId)[0..32]>/{route.json,
+ * execution-journal.json, steps/<sha256(stepId)>.json}`.
+ *
+ * Ids matter here more than anywhere else in this fixture. `episodeId` is the
+ * EFFICIENCY-namespace id (`ticket:<app>:#2`, `trace:<app>:<trace>`) — the same
+ * id the run envelope carries and the capture→projector seam matches steps on.
+ * A fixture that invents a self-consistent id of its own cannot reproduce the
+ * namespace mismatch that dropped 100% of production evidence (#137), which is
+ * precisely why the pre-existing hand-built fixtures missed it. */
+export interface EfficiencyEpisodeOptions {
+  /** route.json. Merged over a valid minimal record, so a test states only
+   * the fields it is about (usually `budget.equivalent_cost_usd`). */
+  route?: Partial<RouteRecord> | false;
+  /** execution-journal.json — omit for an episode with no journal, which is
+   * the shape a cap firing inside the quality-gate repair loop leaves. */
+  journal?: Partial<ExecutionJournal>;
+  /** steps/<hash>.json, keyed by `execution_step_id`. Each is merged over a
+   * valid minimal provider step bound to this episode. */
+  steps?: Record<string, Partial<ExecutionStepRecord> & { run_id: string }>;
+}
+
+export interface EfficiencyOptions {
+  /** Efficiency-namespace episode id → episode contents. */
+  episodes?: Record<string, EfficiencyEpisodeOptions>;
+}
+
 export interface OrgHomeOptions {
   taste?: boolean | TasteOptions;
   memory?: boolean | MemoryOptions;
   state?: boolean | StateOptions;
   approvals?: boolean | ApprovalsOptions;
   runs?: boolean | RunsOptions;
+  /** efficiency/episodes/<hash>/… (Phase 4 route/journal/step evidence). */
+  efficiency?: boolean | EfficiencyOptions;
 }
 
 export interface OrgHomeFixture {
@@ -153,6 +193,10 @@ export interface OrgHomeFixture {
     approvalsLog: string;
     runsAppDir(app: string): string;
     runDir(app: string, runId: string): string;
+    efficiencyEpisodeDir(episodeId: string): string;
+    routeRecord(episodeId: string): string;
+    executionJournal(episodeId: string): string;
+    executionStep(episodeId: string, stepId: string): string;
   };
   /** Removes the entire temp tree. Safe to call more than once. */
   cleanup(): void;
@@ -175,6 +219,9 @@ export function buildOrgHomeAt(dir: string, options: OrgHomeOptions = {}): OrgHo
     buildApprovals(dir, paths, options.approvals === true ? {} : options.approvals);
   }
   if (options.runs) buildRuns(dir, paths, options.runs === true ? {} : options.runs);
+  if (options.efficiency) {
+    buildEfficiency(dir, paths, options.efficiency === true ? {} : options.efficiency);
+  }
 
   return {
     root: dir,
@@ -201,6 +248,12 @@ function orgHomePaths(dir: string): OrgHomeFixture["paths"] {
     approvalsLog: join(dir, "approvals", "log.jsonl"),
     runsAppDir: (app) => join(dir, "runs", app),
     runDir: (app, runId) => runPaths(dir, app, runId).dir,
+    // Real path builders, like `runs` above: fixture layout and production
+    // layout cannot drift apart.
+    efficiencyEpisodeDir: (episodeId) => efficiencyEpisodeDir(dir, episodeId),
+    routeRecord: (episodeId) => routeRecordPath(dir, episodeId),
+    executionJournal: (episodeId) => executionJournalPath(dir, episodeId),
+    executionStep: (episodeId, stepId) => executionStepPath(dir, episodeId, stepId),
   };
 }
 
@@ -290,6 +343,128 @@ function buildRuns(dir: string, paths: OrgHomeFixture["paths"], opts: RunsOption
       if (record.sessionLog !== undefined) writeFile(rp.sessionLog, record.sessionLog);
     }
   }
+}
+
+function buildEfficiency(
+  dir: string,
+  paths: OrgHomeFixture["paths"],
+  opts: EfficiencyOptions,
+): void {
+  ensureDir(join(dir, "efficiency", "episodes"));
+  for (const [episodeId, episode] of Object.entries(opts.episodes ?? {})) {
+    const app = appOf(episodeId);
+    ensureDir(paths.efficiencyEpisodeDir(episodeId));
+    if (episode.route !== false) {
+      writeJson(paths.routeRecord(episodeId), {
+        ...minimalRoute(episodeId, app),
+        ...episode.route,
+        // The episode's own id is never overridable: a route filed under a
+        // different id is corruption, not a fixture option.
+        episode_id: episodeId,
+      });
+    }
+    if (episode.journal !== undefined) {
+      writeJson(paths.executionJournal(episodeId), {
+        ...minimalJournal(episodeId, app),
+        ...episode.journal,
+        episode_id: episodeId,
+      });
+    }
+    for (const [stepId, step] of Object.entries(episode.steps ?? {})) {
+      // The default is derived from the EFFECTIVE kind: a mechanical step must
+      // carry `provider_turn_id: null` or the real reader rejects it as corrupt.
+      writeJson(paths.executionStep(episodeId, stepId), {
+        ...minimalStep(episodeId, app, stepId, step.run_id, step.kind ?? "provider"),
+        ...step,
+        execution_step_id: stepId,
+        episode_id: episodeId,
+      });
+    }
+  }
+}
+
+/** `ticket:alpha:#2` / `trace:alpha:t-1` → `alpha`. Keeps fixture episode ids
+ *  and the app they belong to from being stated twice and disagreeing. */
+function appOf(episodeId: string): string {
+  return episodeId.split(":")[1] ?? "alpha";
+}
+
+function minimalRoute(episodeId: string, app: string): RouteRecord {
+  return {
+    schema_version: 1,
+    episode_id: episodeId,
+    app,
+    policy_version: "fixture",
+    admitted_at: "2026-07-12T10:00:00.000Z",
+    planned_route: "standard",
+    current_route: "standard",
+    final_route: "standard",
+    factors: [],
+    authorized_passes: [],
+    budget: {
+      provider_turns: 5,
+      input_tokens: 4_000_000,
+      equivalent_cost_usd: 15,
+      active_time_ms: 45 * 60_000,
+      human_decisions: null,
+    },
+    execution_bounds: null,
+    reassessments: [],
+    terminal: null,
+  };
+}
+
+function minimalJournal(episodeId: string, app: string): ExecutionJournal {
+  return {
+    schema_version: 1,
+    episode_id: episodeId,
+    app,
+    ticket_ref: episodeId,
+    stages: [],
+    status: "running",
+    next_boundary: null,
+    stop: null,
+    updated_at: "2026-07-12T10:05:00.000Z",
+  };
+}
+
+function minimalStep(
+  episodeId: string,
+  app: string,
+  stepId: string,
+  runId: string,
+  kind: "provider" | "mechanical",
+): ExecutionStepRecord {
+  const mechanical = kind === "mechanical";
+  return {
+    schema_version: 1,
+    execution_step_id: stepId,
+    episode_id: episodeId,
+    app,
+    run_id: runId,
+    kind,
+    provider_turn_id: mechanical ? null : `turn-${stepId}`,
+    operation: mechanical ? "gates/setup" : "build/implement",
+    role: mechanical ? null : "builder",
+    runtime: mechanical ? null : "codex",
+    model: mechanical ? null : "fixture",
+    effort: mechanical ? null : "medium",
+    started_at: "2026-07-12T10:00:00.000Z",
+    finished_at: "2026-07-12T10:05:00.000Z",
+    status: "completed",
+    error_code: null,
+    reason: "fixture step",
+    next_step: null,
+    context_manifest_ref: null,
+    input_fingerprint: `fp-in-${stepId}`,
+    work_fingerprint_before: null,
+    work_fingerprint_after: null,
+    artifact_fingerprint: null,
+    productive: false,
+    repeated_from_step_id: null,
+    tool_call_count: 0,
+    usage: null,
+  };
 }
 
 // ---------------------------------------------------------------------------

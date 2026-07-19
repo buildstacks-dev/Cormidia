@@ -250,6 +250,23 @@ three independent dimensions. It is read-only unless `--refresh` is supplied;
 the refresh writes only rebuildable evidence/health projections and cannot
 write protected active learning state.
 
+Health reports **yield**, not just receipts (#141). `projected_exactly_once`
+says the projector ran over a run; it says nothing about whether anything came
+out, so a projector emitting nothing for every run once read as perfectly
+healthy while the Phase 4 loop was dead. Alongside the receipt counters,
+`capture` now carries `runs_without_events`,
+`runs_without_efficiency_evidence`, and `evidence_gaps` — the eligible runs
+that carry a failure signal on disk (terminal failed/cancelled status, an
+`error_code`, or a non-completed provider step) and yet produced no efficiency
+evidence at all. A non-empty `evidence_gaps` degrades `capture.status`. The
+check is deliberately narrow so it cannot cry wolf: a healthy run has nothing
+to classify, and only a run that demonstrably failed while yielding nothing
+indicates a projector fault.
+
+`governance.status` distinguishes "clusters evaluated, none actionable" from
+"no input at all": with `evidence_events: 0` it reports `invalid_measurement`,
+never `healthy`. Absence of evidence is not absence of problems.
+
 ## Threshold semantics
 
 1. **Hard invariants** gate every attempt: outcome oracle, safety, terminal

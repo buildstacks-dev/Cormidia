@@ -277,12 +277,40 @@ missing-finalization artifacts remain named blockers; a stale receipt repairs
 by replaying immutable evidence and atomically rebinding the same ids.
 
 `efficiency-evidence/v1` adds these stable trusted `error_class` values:
-`execution.cancelled`, `execution.cap_stop`, `environment.retry_cluster`,
+`execution.cancelled`, `execution.cap_stop`, `execution.pass_failed`,
+`environment.retry_cluster`,
 `route.budget_variance`, `route.budget_overrun`,
 `execution.stale_finalization`, `execution.missing_finalization`,
 `approval.false_positive`, `execution.repeated_work`,
 `review.long_duration`, `tooling.bash_heavy`,
-`tooling.shell_heavy_repetition`, and `scheduler.missed_tick`. Scheduler-miss
+`tooling.shell_heavy_repetition`, and `scheduler.missed_tick`.
+
+`execution.pass_failed` (#138) is the terminal-failure fallback: a provider
+envelope that ended `failed` yields evidence from its own `error_code`, with no
+dependency on an execution journal, route record, or efficiency episode
+existing. A code naming a budget or cap classifies as `execution.cap_stop`
+instead — including when the cap fired inside the quality-gate remediation
+loop, which never reaches `stopExecutionJournal` and so writes no journal stop
+at all. The projector admits at most one event per (run, class), so a capped
+run carrying both a journal stop and a matching error code counts once toward
+`min_cluster_events`. The cause string is constant per class, except for
+`execution.pass_failed`, which includes the `error_code` so two passes failing
+for unrelated reasons cannot cluster into one false recurrence.
+
+An execution journal is EPISODE-scoped: every run in the episode reads the same
+`stop`. Only a run that itself ended non-cleanly may be attributed the
+episode's cap — otherwise a pass that completed successfully inherits a cap it
+never hit, and the recurrence count for the class inflates.
+
+The learning-namespace episode id (`ep_<app>_ticket_0002`) and the
+efficiency-namespace id (`ticket:<app>:#2`) are threaded **separately** through
+this projection (#137). `envelope.episode_id` is the step-matching key, since
+execution-step records on disk are filed under the efficiency id; the learning
+anchor travels alongside as event identity. Collapsing the two made the
+step filter match nothing, classified every provider run as mechanical, and
+silently discarded 100% of efficiency evidence in every org.
+
+Scheduler-miss
 evidence is now projected from the Phase 5 scheduler's orchestrator-owned
 `missed_window_reconciled` decision through the same `efficiency-evidence/v1`
 capture path. The scheduler creates no competing learning record or provider
@@ -342,10 +370,6 @@ error
 human_correction
 gate_verdict
 pass_verdict
-env_fact
-tool_outcome
-retro_note
-artifact_created
 concept_loaded
 context_evicted
 conflict_resolved
@@ -359,6 +383,22 @@ publish_committed
 
 (`pass_verdict` and `canary_assigned` were added in the build —
 `src/org/learning/events.ts`.)
+
+`env_fact`, `tool_outcome`, `retro_note`, and `artifact_created` were **removed
+from the enum** (#140). All four were declared in the draft and never emitted
+by anything; two of them (`tool_outcome`, `retro_note`) were consumed by the
+distiller's evidence filter, so that filter advertised evidence channels no
+producer could ever fill — which is part of why an empty distillation read as
+plausible rather than alarming. Per-tool failure remains covered in aggregate
+by the `tooling.*` efficiency classes below.
+
+Every member of the enum MUST have at least one emitter in `src/`; re-adding
+any of these types is fine, but the emitter lands in the same change.
+`test/learning/event-types.test.ts` enforces this in both directions and fails
+the build on a declared-but-unemitted type, or on a filter branch naming a type
+that is not declared. Removal is forward-compatible: `readLearningEvents` does
+not validate `type`, so events written under the old enum stay readable across
+the 1825-day retention window.
 
 `emitter` enum:
 

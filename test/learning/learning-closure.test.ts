@@ -59,6 +59,11 @@ function capture(): CaptureProjectionResult {
     projectedExactlyOnce: 2,
     duplicateProjections: 0,
     ineligibleRuns: [],
+    // Both runs yielded evidence, so there is nothing to report as a gap
+    // (#141). A zero-yield run with a failure signal would degrade capture.
+    runsWithoutEvents: 0,
+    runsWithoutEfficiencyEvidence: 0,
+    evidenceGaps: [],
     blockedRuns: [],
     eventsEmitted: 2,
     eventsDeduped: 0,

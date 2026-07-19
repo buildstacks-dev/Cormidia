@@ -429,15 +429,8 @@ async function deriveRunEvents(
     });
   }
 
-  // The execution journal is EPISODE-scoped. Read it only for the run that
-  // terminated the episode, so a single cap produces a single event instead of
-  // one per pass in the episode. When the episode has no provider step to
-  // anchor on, no run claims it.
   let journal: ExecutionJournal | null = null;
-  if (
-    efficiency?.episodeId !== undefined &&
-    efficiency.terminalRunId === envelope.run_id
-  ) {
+  if (efficiency?.episodeId !== undefined) {
     journal = (await readExecutionJournal(stateHome, efficiency.episodeId).catch(() => null)) ?? null;
   }
   // The envelope goes through UNMODIFIED: its `episode_id` is the
@@ -559,31 +552,6 @@ interface IndexedEfficiencyRun {
   route: EfficiencyEpisodeEvidence["route"];
   steps: EfficiencyEpisodeEvidence["steps"];
   corruptFiles: string[];
-  /** The run that owns this episode's execution journal — see
-   *  `episodeTerminalProviderRun`. */
-  terminalRunId: string | undefined;
-}
-
-/**
- * The episode's LAST provider run: the one whose execution the episode-scoped
- * journal stop actually terminated.
- *
- * The journal is written once per episode and every run in that episode reads
- * the same `stop`, so exactly one run must own it as evidence or a single cap
- * is counted once per pass. Provider-only because mechanical runs are
- * ineligible for capture — attributing the stop to a trailing gate run would
- * discard it. Ties break on step id so the choice is deterministic.
- */
-function episodeTerminalProviderRun(
-  steps: EfficiencyEpisodeEvidence["steps"],
-): string | undefined {
-  return [...steps]
-    .filter((step) => step.kind === "provider")
-    .sort((a, b) =>
-      a.finished_at.localeCompare(b.finished_at) ||
-      a.execution_step_id.localeCompare(b.execution_step_id),
-    )
-    .at(-1)?.run_id;
 }
 
 function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, IndexedEfficiencyRun> {
@@ -591,7 +559,6 @@ function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, Ind
   for (const episode of evidence) {
     const episodeId = episode.route?.episode_id ?? episode.steps[0]?.episode_id;
     if (episodeId === undefined) continue;
-    const terminalRunId = episodeTerminalProviderRun(episode.steps);
     for (const step of episode.steps) {
       const key = `${step.app}/${step.run_id}`;
       const current = out.get(key);
@@ -600,7 +567,6 @@ function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, Ind
         route: episode.route,
         steps: [...(current?.steps ?? []), step],
         corruptFiles: [...new Set([...(current?.corruptFiles ?? []), ...episode.corrupt_files])].sort(),
-        terminalRunId,
       });
     }
   }

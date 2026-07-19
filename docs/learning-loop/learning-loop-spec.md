@@ -289,7 +289,11 @@ by replaying immutable evidence and atomically rebinding the same ids.
 envelope that ended `failed` yields evidence from its own `error_code`, with no
 dependency on an execution journal, route record, or efficiency episode
 existing. A code naming a budget or cap classifies as `execution.cap_stop`
-instead. The projector admits at most one event per (run, class) — a repeat
+instead, using the same predicate as `journalStopKind` in `src/loop/loop.ts` —
+the two must not drift. A failed envelope carrying NO `error_code` (the
+orchestrator records one only when the caller supplied it) falls back to
+`error_unspecified`, so `failed` always yields evidence; capture's
+evidence-gap check depends on that invariant being total. The projector admits at most one event per (run, class) — a repeat
 classification merges its detail rather than emitting again — so a capped run
 carrying both a journal stop and a matching error code counts once toward
 `min_cluster_events` while keeping both `stop_reason` and `error_code`.
@@ -302,15 +306,16 @@ deliberate exception: its cause embeds the `error_code`, so two passes failing
 for unrelated reasons cannot cluster into one false recurrence.
 
 An execution journal is EPISODE-scoped: every run in the episode reads the same
-`stop`, so exactly one run must own it or a single cap is counted once per
-pass. The owner is the episode's **last provider run** — determined by capture,
-which is the only layer that sees the whole episode. It is deliberately not
-derived from a run's own status: the quality-gate repair cap
-(`src/loop/loop.ts`, remediation exhaustion) stops the journal after every pass
-in the episode has completed cleanly, so a "did this run end badly" test would
-discard the most common cap path in the product. Provider-only, because
-mechanical runs are ineligible for capture and a trailing gate run would
-swallow the stop.
+`stop`, and every eligible run in that episode therefore projects the cap. One
+cap consequently contributes several events, inflating recurrence for the
+class. This is long-standing behaviour, not a Phase 4 regression, and is
+tracked separately — the fix is an episode-scoped projection alongside
+scheduler-miss evidence, NOT a per-run ownership test. Two per-run attempts
+were tried and rejected: gating on "did this run end badly" discards the
+quality-gate repair cap (`src/loop/loop.ts`, remediation exhaustion), which
+stops the journal after every pass in the episode has completed cleanly; and
+electing the episode's last provider run re-elects a different owner as the
+episode grows, so a resumed episode emits the same cap twice under two ids.
 
 The learning-namespace episode id (`ep_<app>_ticket_0002`) and the
 efficiency-namespace id (`ticket:<app>:#2`) are threaded **separately** through

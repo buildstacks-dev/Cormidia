@@ -70,9 +70,9 @@ const CLASS_CAUSES = {
 function terminalErrorClass(errorCode: string): EfficiencyErrorClass {
   if (errorCode === "error_cancelled") return "execution.cancelled";
   if (errorCode === "error_stale_missing_finalization") return "execution.missing_finalization";
-  if (errorCode.includes("budget") || errorCode.includes("_cap_") || errorCode.endsWith("_cap")) {
-    return "execution.cap_stop";
-  }
+  // Same predicate as `journalStopKind` in src/loop/loop.ts. Keep them
+  // identical: a code the loop treats as a cap must classify as one here.
+  if (errorCode.includes("budget") || errorCode.includes("cap")) return "execution.cap_stop";
   return "execution.pass_failed";
 }
 
@@ -239,14 +239,22 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
     // dependency on the journal, route record, or efficiency episode existing
     // (#138). Before this, the single clearest failure signal the system
     // produces — `pass.failed` with a precise `error_code` — became nothing.
-    const failureCode = statuses.has("failed")
-      ? envelope.error_code ?? providerSteps.find((step) => step.error_code !== null)?.error_code
-      : undefined;
-    if (failureCode !== undefined && failureCode !== null) {
+    // `finalizeRun` records `error_code` only when the caller supplied one, so
+    // a failed pass can carry none at all. It must still be evidence: without
+    // the fallback such a run yields nothing, and `hasFailureSignal` in
+    // capture.ts would raise an evidence gap that no projector fix can ever
+    // clear. The sentinel keeps the (failed -> always classified) invariant
+    // total, and clusters separately from any real code.
+    if (statuses.has("failed")) {
+      const failureCode =
+        envelope.error_code ??
+        providerSteps.find((step) => step.error_code !== null)?.error_code ??
+        "error_unspecified";
       const errorClass = terminalErrorClass(failureCode);
       add(errorClass, causeFor(errorClass, failureCode), {
         error_code: failureCode,
         envelope_status: envelope.status,
+        terminal_reason: envelope.terminal_reason ?? null,
       });
     }
     if (

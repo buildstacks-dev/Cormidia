@@ -686,7 +686,15 @@ const DISTILLATION_PROPOSAL_SCHEMA: VerdictSchema = {
     cluster_fingerprint: { type: "string" },
     destination: { type: "string", enum: LEARNING_DESTINATIONS },
     title: { type: "string" },
-    proposed_scope: { type: "string" },
+    proposed_scope: {
+      type: "string",
+      description:
+        "Governed learning scope. EXACTLY one of: `org`, `roles/<role>`, " +
+        "`apps/<app>`, or `apps/<app>/roles/<role>` (src/org/memory.ts " +
+        "`isValidLoopScope`). A bare app name, a role name on its own, or any " +
+        "prose description is rejected — use `apps/<app>`, not `<app>`. The " +
+        "brief lists the exact legal values for this turn.",
+    },
     proposed_tier: { type: "string", enum: ["T0", "T1", "T2", "T3"] },
     claims_efficacy: { type: "boolean" },
     draft_summary: { type: "string" },

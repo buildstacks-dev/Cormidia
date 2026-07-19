@@ -56,6 +56,7 @@ import { writeContextManifest } from "./context-manifest.js";
 import {
   admitEpisode,
   beginProviderStep,
+  EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD,
   episodeIdFor,
   finalizeEpisode,
   finalizeProviderStep,
@@ -66,6 +67,7 @@ import {
   type AdmissionFactor,
   type AuthorizedPass,
   type RouteBudget,
+  type StartedProviderStep,
 } from "./efficiency.js";
 import { runPipelinePreflight, type PipelineArtifactExpectation } from "./preflight.js";
 import {
@@ -854,6 +856,10 @@ async function runPass(
         ? { next: options.episode.nextTurnEstimate }
         : {}),
     });
+    const admittedRole: RoleConfig =
+      started.reservation.equivalentCostUsd === role.maxTurnBudgetUsd
+        ? role
+        : { ...role, maxTurnBudgetUsd: started.reservation.equivalentCostUsd };
     await updateEnvelope(root, app, runId, {
       providerTurnIds: [started.providerTurnId],
       executionStepIds: [started.executionStepId],
@@ -872,7 +878,7 @@ async function runPass(
     }, adapterStartTimeoutMs);
     adapterStartTimer.unref?.();
     try {
-      runtime ??= options.runtimeFor(role);
+      runtime ??= options.runtimeFor(admittedRole);
       if (!passController.signal.aborted) {
         await options.beforeProviderTurn?.({
           pipeline: options.pipeline.name,
@@ -883,7 +889,7 @@ async function runPass(
       turnResult = await runOwnedTurn({
         runtime,
         request: {
-          role,
+          role: admittedRole,
           workdir: options.workdir,
           task: request.task,
           context: executableContext,
@@ -895,17 +901,23 @@ async function runPass(
         },
         hooks: passHooks,
         signal: passController.signal,
-        role,
+        role: admittedRole,
         passId: pass.id,
         graceMs: options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
         latestProgress: () => latestProgress,
       });
     } catch (error) {
-      turnResult = failedResult(error, role, pass.id, latestProgress);
+      turnResult = failedResult(error, admittedRole, pass.id, latestProgress);
     } finally {
       if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
       adapterStartTimer = undefined;
     }
+    turnResult = enforceEquivalentCostReservation({
+      episodeId,
+      operation: request.operation,
+      started,
+      result: turnResult,
+    });
     const artifactFingerprint =
       turnResult.artifacts.length === 0 ? undefined : fingerprint(turnResult.artifacts);
     const after = worktreeFingerprint(options.workdir);
@@ -916,7 +928,7 @@ async function runPass(
       runId,
       started,
       operation: request.operation,
-      role,
+      role: admittedRole,
       result: turnResult,
       finishedAt: clock(),
       contextManifestRef: contextManifest.relativeRef,
@@ -925,7 +937,7 @@ async function runPass(
       ...(artifactFingerprint !== undefined ? { artifactFingerprint } : {}),
       toolCallCount: providerToolCalls - toolCallStart,
     });
-    const settlement = toRecord(role, turnResult, clock(), {
+    const settlement = toRecord(admittedRole, turnResult, clock(), {
       app,
       ...(options.telemetry?.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
       runId,
@@ -996,7 +1008,7 @@ async function runPass(
     if (!(error instanceof ProviderBudgetRefusalError)) throw error;
     result = {
       status: "blocked_on_gate",
-      errorCode: "error_route_budget_exhausted",
+      errorCode: error.errorCode,
       summary: error.message,
       artifacts: [],
       session: { runtime: role.runtime, id: `route-budget-${pass.id}` },
@@ -1053,7 +1065,7 @@ async function runPass(
         ok: false,
         errorCode:
           error instanceof ProviderBudgetRefusalError
-            ? "error_route_budget_exhausted"
+            ? error.errorCode
             : "error_verdict_persist",
         error: error instanceof Error ? error : new Error(String(error)),
       };
@@ -1220,6 +1232,76 @@ function envelopeStatus(result: TurnResult): Exclude<EnvelopeStatus, "running"> 
   if (result.status === "cancelled") return "cancelled";
   if (result.status === "timed_out") return "timed_out";
   return "failed";
+}
+
+/** The reservation is also the adapter's hard per-turn ceiling. Providers can
+ * report a final amount just beyond a streaming stop boundary, so any observed
+ * overrun beyond floating-point epsilon blocks the episode and preserves the
+ * paid turn's evidence; it never authorizes another provider turn. */
+function enforceEquivalentCostReservation(input: {
+  episodeId: string;
+  operation: string;
+  started: StartedProviderStep;
+  result: TurnResult;
+}): TurnResult {
+  const { result, started } = input;
+  const observed = result.usage.costUsd;
+  const details =
+    `cap=$${formatCost(started.budget.capUsd)}, ` +
+    `settled=$${formatCost(started.budget.settledUsd)}, ` +
+    `other_reserved=$${formatCost(started.budget.alreadyReservedUsd)}, ` +
+    `reserved_exposure=$${formatCost(started.reservation.equivalentCostUsd)}, ` +
+    `denied_step=${input.operation}`;
+  if (!Number.isFinite(observed) || observed < 0) {
+    return {
+      ...result,
+      status: "blocked_on_gate",
+      errorCode: "error_route_budget_unmeasured",
+      summary:
+        `episode ${input.episodeId} stopped after ${input.operation}: provider cost is invalid or unavailable; ` +
+        `${details}`,
+    };
+  }
+  if (
+    observed >
+    started.reservation.equivalentCostUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+  ) {
+    if (
+      result.status === "failed" &&
+      result.errorCode?.includes("budget") === true
+    ) {
+      return {
+        ...result,
+        summary: `${result.summary}; ${details}; observed=$${formatCost(observed)}`,
+      };
+    }
+    return {
+      ...result,
+      status: "blocked_on_gate",
+      errorCode: "error_route_budget_exhausted",
+      summary:
+        `episode ${input.episodeId} stopped after ${input.operation}: observed cost ` +
+        `$${formatCost(observed)} exceeded the reserved exposure; ${details}`,
+    };
+  }
+  if (
+    result.status === "completed" &&
+    (result.usage.quality === "partial" || result.usage.quality === "unavailable")
+  ) {
+    return {
+      ...result,
+      status: "blocked_on_gate",
+      errorCode: "error_route_budget_unmeasured",
+      summary:
+        `episode ${input.episodeId} stopped after ${input.operation}: provider usage is ` +
+        `${result.usage.quality}, so safe remaining cost cannot be proven; ${details}`,
+    };
+  }
+  return result;
+}
+
+function formatCost(value: number): string {
+  return value.toFixed(4);
 }
 
 /** Sum two turn usages (base + a verdict reformat retry). Optional split

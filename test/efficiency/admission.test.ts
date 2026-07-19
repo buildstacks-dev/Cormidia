@@ -11,6 +11,7 @@ import {
   finalizeEpisode,
   finalizeProviderStep,
   ProviderBudgetRefusalError,
+  recordMechanicalStep,
   readRouteRecord,
   reassessEpisode,
   routeRecordPath,
@@ -311,15 +312,16 @@ describe("efficiency route admission", () => {
         now: new Date("2026-07-13T00:00:00.000Z"),
       })),
     );
-    expect(attempts.filter((attempt) => attempt.status === "fulfilled")).toHaveLength(3);
+    expect(attempts.filter((attempt) => attempt.status === "fulfilled")).toHaveLength(2);
     const refusals = attempts.filter(
       (attempt): attempt is PromiseRejectedResult => attempt.status === "rejected",
     );
-    expect(refusals).toHaveLength(5);
+    expect(refusals).toHaveLength(6);
     expect(refusals.every((attempt) => attempt.reason instanceof ProviderBudgetRefusalError)).toBe(true);
     await expect(checkProviderBudget({ root: home.root, episodeId })).resolves.toMatchObject({
       allowed: false,
-      counters: { provider_turns: 3 },
+      counters: { provider_turns: 2, equivalent_cost_usd: 8 },
+      reason: "equivalent-cost budget exhausted",
     });
   });
 
@@ -350,6 +352,267 @@ describe("efficiency route admission", () => {
         equivalent_cost_usd: 6,
         active_time_ms: 10 * 60_000,
       },
+    });
+  });
+
+  it("B-ADM-06 admits just-under and exact-cap exposure but rejects a near-miss over the cap", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:cost-boundaries";
+    await admission(home.root, episodeId);
+
+    await expect(checkProviderBudget({
+      root: home.root,
+      episodeId,
+      next: { costUsd: 7.9999 },
+    })).resolves.toMatchObject({ allowed: true });
+    await expect(checkProviderBudget({
+      root: home.root,
+      episodeId,
+      next: { costUsd: 8 },
+    })).resolves.toMatchObject({ allowed: true, remaining: { equivalent_cost_usd: 8 } });
+    await expect(checkProviderBudget({
+      root: home.root,
+      episodeId,
+      next: { costUsd: 8.0001 },
+    })).resolves.toMatchObject({
+      allowed: false,
+      errorCode: "error_route_budget_exhausted",
+      reason: "declared equivalent-cost allowance is insufficient",
+      exposure: { capUsd: 8, settledUsd: 0, reservedUsd: 0, requestedUsd: 8.0001 },
+    });
+  });
+
+  it("B-ADM-06 refuses a would-exceed turn with complete cost and denied-step evidence", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:would-exceed";
+    await admission(home.root, episodeId);
+    const spent = await beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "spent",
+      ordinal: 1,
+      operation: "build/contract",
+      role: ROLE,
+      inputFingerprint: "spent-input",
+      next: { costUsd: 4.5 },
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+    await finalizeProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "spent",
+      started: spent,
+      operation: "build/contract",
+      role: ROLE,
+      result: result({ costUsd: 4.5 }),
+      finishedAt: new Date("2026-07-13T00:00:01.000Z"),
+      contextManifestRef: "context-manifest.json",
+    });
+
+    const denied = beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "denied",
+      ordinal: 1,
+      operation: "build/implement",
+      role: ROLE,
+      inputFingerprint: "denied-input",
+      next: { costUsd: 4 },
+      now: new Date("2026-07-13T00:00:02.000Z"),
+    });
+    await expect(denied).rejects.toMatchObject({
+      errorCode: "error_route_budget_exhausted",
+      message: expect.stringMatching(
+        /cap=\$8\.0000, settled=\$4\.5000, reserved=\$0\.0000, requested=\$4\.0000, denied_step=build\/implement/,
+      ),
+    });
+  });
+
+  it("B-ADM-06 replaces a reservation with settlement atomically and never double-reserves a retry", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:settlement-race";
+    await admission(home.root, episodeId);
+    const first = await beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "first",
+      ordinal: 1,
+      operation: "build/contract",
+      role: ROLE,
+      inputFingerprint: "first-input",
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+    await beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "second",
+      ordinal: 1,
+      operation: "build/implement",
+      role: ROLE,
+      inputFingerprint: "second-input",
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+
+    const racingRetry = beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "retry",
+      ordinal: 1,
+      operation: "build/retry",
+      role: ROLE,
+      inputFingerprint: "retry-input",
+      now: new Date("2026-07-13T00:00:01.000Z"),
+    });
+    const settlement = finalizeProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "first",
+      started: first,
+      operation: "build/contract",
+      role: ROLE,
+      result: result({ costUsd: 1 }),
+      finishedAt: new Date("2026-07-13T00:00:01.000Z"),
+      contextManifestRef: "context-manifest.json",
+    });
+    const [retryOutcome] = await Promise.allSettled([racingRetry, settlement]);
+    const retry = retryOutcome.status === "fulfilled"
+      ? retryOutcome.value
+      : await beginProviderStep({
+          root: home.root,
+          episodeId,
+          app: "fixture",
+          runId: "retry-after-settlement",
+          ordinal: 1,
+          operation: "build/retry",
+          role: ROLE,
+          inputFingerprint: "retry-after-settlement-input",
+          now: new Date("2026-07-13T00:00:02.000Z"),
+        });
+    if (retryOutcome.status === "rejected") {
+      expect(retryOutcome.reason).toBeInstanceOf(ProviderBudgetRefusalError);
+    }
+    expect(retry.reservation.equivalentCostUsd).toBe(4);
+    const checked = await checkProviderBudget({ root: home.root, episodeId });
+    expect(checked.counters.equivalent_cost_usd).toBe(8);
+    expect(checked.counters.provider_turns).toBe(3);
+    expect(checked.exposure.settledUsd + checked.exposure.reservedUsd).toBe(8);
+  });
+
+  it("B-ADM-06 fails closed when settled provider usage is unavailable", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:unknown-usage";
+    await admission(home.root, episodeId);
+    const started = await beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "unknown",
+      ordinal: 1,
+      operation: "build/implement",
+      role: ROLE,
+      inputFingerprint: "unknown-input",
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+    await finalizeProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "unknown",
+      started,
+      operation: "build/implement",
+      role: ROLE,
+      result: result({ costUsd: 0, quality: "unavailable" }),
+      finishedAt: new Date("2026-07-13T00:00:01.000Z"),
+      contextManifestRef: "context-manifest.json",
+    });
+
+    await expect(checkProviderBudget({ root: home.root, episodeId })).resolves.toMatchObject({
+      allowed: false,
+      errorCode: "error_route_budget_unmeasured",
+      reason: expect.stringContaining("partial or unavailable"),
+    });
+    await expect(beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "after-unknown",
+      ordinal: 1,
+      operation: "build/retry",
+      role: ROLE,
+      inputFingerprint: "after-unknown-input",
+      now: new Date("2026-07-13T00:00:02.000Z"),
+    })).rejects.toMatchObject({ errorCode: "error_route_budget_unmeasured" });
+  });
+
+  it("B-ADM-06 keeps mechanical steps outside provider-turn and equivalent-cost accounting", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:mechanical-zero-cost";
+    await admission(home.root, episodeId);
+    await recordMechanicalStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "mechanical",
+      operation: "quality-gates",
+      startedAt: new Date("2026-07-13T00:00:00.000Z"),
+      finishedAt: new Date("2026-07-13T00:00:01.000Z"),
+      status: "completed",
+      reason: "offline checks passed",
+      inputFingerprint: "mechanical-input",
+    });
+    await expect(checkProviderBudget({ root: home.root, episodeId })).resolves.toMatchObject({
+      allowed: true,
+      counters: { provider_turns: 0, equivalent_cost_usd: 0 },
+      remaining: { provider_turns: 3, equivalent_cost_usd: 8 },
+    });
+  });
+
+  it("B-ADM-06 clamps runtime construction to remaining route exposure and stops estimation overrun", async () => {
+    home = makeOrgHome();
+    const prompts = join(home.root, "prompts");
+    await mkdir(prompts, { recursive: true });
+    writeFileSync(join(prompts, "pass.md"), "Implement.");
+    let admittedCap: number | undefined;
+    const stopped = await executePipeline({
+      pipeline: PIPELINE,
+      selection: { tier: "quick" },
+      roles: { builder: { ...ROLE, maxTurnBudgetUsd: 15 } },
+      runtimeFor: (admittedRole) => {
+        admittedCap = admittedRole.maxTurnBudgetUsd;
+        return {
+          kind: "codex",
+          runTurn: async (request) => {
+            expect(request.role.maxTurnBudgetUsd).toBe(8);
+            return result({ costUsd: 8.01, costEstimated: true });
+          },
+        };
+      },
+      briefFor: () => "bounded task",
+      promptsDir: prompts,
+      context: { taste: [], memoryExcerpts: [] },
+      workdir: home.root,
+      hooks: { gate: () => ({ allow: true }) },
+      runlog: { root: home.root, app: "fixture", traceId: "trace-cost-overrun" },
+      episode: {
+        id: "episode:cost-overrun",
+        route: "quick",
+        factors: [FACTOR],
+        authorizedPasses: [PASS],
+      },
+      clock: () => new Date("2026-07-13T00:00:00.000Z"),
+    });
+    expect(admittedCap).toBe(8);
+    expect(stopped.passes[0]?.result).toMatchObject({
+      status: "blocked_on_gate",
+      errorCode: "error_route_budget_exhausted",
+      summary: expect.stringContaining("reserved exposure"),
     });
   });
 

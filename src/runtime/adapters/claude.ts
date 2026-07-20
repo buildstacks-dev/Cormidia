@@ -89,6 +89,15 @@ export interface ClaudeRuntimeOptions {
  *  is an event and only the subagent's action hits the gate). */
 const SUBAGENT_SPAWN_TOOLS = new Set(["task", "agent"]);
 
+/** Claude Code implements `--json-schema` with a harness-owned output tool.
+ * It is not an agent capability or side effect: its input is the final value
+ * already constrained by the schema attached to this exact turn. Routing it
+ * through the org gate lets a deny-all turn (notably EpisodePlanner) disable
+ * the very structured-output contract it was admitted with. The bypass is
+ * deliberately conditional on that contract being present; an ordinary tool
+ * with the same name still goes through the gate. */
+const STRUCTURED_OUTPUT_TOOL = "structuredoutput";
+
 /**
  * Normalize an SDK tool call into the gate's provider-neutral ToolAction
  * (src/runtime/types.ts: "as seen by the gate, normalized across
@@ -190,6 +199,14 @@ export class ClaudeRuntime implements Runtime {
     // auto-allowed read-only commands and subagent calls (see header note).
     const preToolUseGate = async (input: HookInput): Promise<HookJSONOutput> => {
       if (input.hook_event_name !== "PreToolUse") return {};
+      if (
+        req.verdictSchema !== undefined &&
+        input.tool_name.toLowerCase() === STRUCTURED_OUTPUT_TOOL
+      ) {
+        return {
+          hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" },
+        };
+      }
       if (SUBAGENT_SPAWN_TOOLS.has(input.tool_name.toLowerCase())) {
         return {
           hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" },
@@ -214,6 +231,12 @@ export class ClaudeRuntime implements Runtime {
       toolName: string,
       input: Record<string, unknown>,
     ): Promise<PermissionResult> => {
+      if (
+        req.verdictSchema !== undefined &&
+        toolName.toLowerCase() === STRUCTURED_OUTPUT_TOOL
+      ) {
+        return { behavior: "allow", updatedInput: input };
+      }
       if (SUBAGENT_SPAWN_TOOLS.has(toolName.toLowerCase())) {
         return { behavior: "allow", updatedInput: input };
       }
@@ -374,7 +397,7 @@ export class ClaudeRuntime implements Runtime {
       status: resultMsg.subtype === "success" ? "completed" : "failed",
       summary:
         resultMsg.subtype === "success"
-          ? resultMsg.result.trim()
+          ? structuredResultSummary(req, resultMsg)
           : `${resultMsg.subtype}: ${resultMsg.errors.join("; ")}`,
       artifacts: budgetOverrun
         ? [
@@ -404,6 +427,17 @@ export class ClaudeRuntime implements Runtime {
       escalations,
     };
   }
+}
+
+function structuredResultSummary(
+  req: TurnRequest,
+  result: Extract<SDKMessage, { type: "result"; subtype: "success" }>,
+): string {
+  if (req.verdictSchema !== undefined && result.structured_output !== undefined) {
+    const encoded = JSON.stringify(result.structured_output);
+    if (encoded !== undefined) return encoded;
+  }
+  return result.result.trim();
 }
 
 function protectHostHome(

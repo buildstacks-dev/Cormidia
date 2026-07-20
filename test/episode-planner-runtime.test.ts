@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EPISODE_PLAN_PROPOSAL_SCHEMA,
+  EpisodePlanValidationError,
   episodeIntentHash,
   readCurrentEpisodePlan,
   type CreatorEpisodeScope,
@@ -167,10 +168,48 @@ describe("provider-backed EpisodePlanner", () => {
     expect(prepared.plannerAttempts).toBe(2);
     expect(runtime.calls).toHaveLength(2);
     expect(runtime.calls[1]!.req.task).toContain("plan_structure_invalid");
+    expect(runtime.calls[1]!.req.task).toContain('"path": "$.schemaVersion"');
+    expect(runtime.calls[1]!.req.task).toContain('"constraint": "const"');
     expect(runtime.calls[1]!.req.task).toContain('"attempt": 2');
+    expect(runtime.calls.map((call) => call.req.verdictSchema)).toEqual([
+      EPISODE_PLAN_PROPOSAL_SCHEMA,
+      EPISODE_PLAN_PROPOSAL_SCHEMA,
+    ]);
     expect((await readExecutionSteps(home.root, intent.episodeId)).map((step) => step.operation))
       .toEqual(["episode-planner/plan", "episode-planner/repair"]);
     expect(await readTurnRecords(home.root)).toHaveLength(2);
+  });
+
+  it("does not buy a repair turn when validation supplies no actionable defect", async () => {
+    home = makeOrgHome();
+    const intent = makeIntent();
+    const runtime = new FakeRuntime([
+      { result: completed(JSON.stringify(proposal(intent))) },
+      { result: completed(JSON.stringify(proposal(intent))) },
+    ], "codex");
+
+    await expect(prepareEpisodePlanWithRuntime({
+      ...baseOptions(home.root, intent),
+      runtimeForAssignment: () => runtime,
+      validateAcceptedPlan: () => {
+        throw new EpisodePlanValidationError([{
+          code: "plan_structure_invalid",
+          message: "proposed EpisodePlan is not a strict schema-v1 plan",
+        }]);
+      },
+    })).rejects.toMatchObject({
+      code: "error_episode_planner_failed",
+      attempts: 1,
+      issues: [{
+        code: "plan_structure_invalid",
+        message: "proposed EpisodePlan is not a strict schema-v1 plan",
+      }],
+    });
+
+    expect(runtime.calls).toHaveLength(1);
+    expect((await readExecutionSteps(home.root, intent.episodeId)).map((step) => step.operation))
+      .toEqual(["episode-planner/plan"]);
+    expect(await readTurnRecords(home.root)).toHaveLength(1);
   });
 
   it("confines planner attempts to the bounded manifest and denies every tool without network access", async () => {

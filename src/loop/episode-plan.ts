@@ -452,6 +452,15 @@ export interface EpisodePlanIssue {
   code: EpisodePlanReasonCode;
   message: string;
   stepId?: string;
+  /** JSONPath into a rejected provider proposal when the failure is
+   * structural. Semantic policy issues may instead identify only a step. */
+  path?: string;
+  /** Machine-readable JSON Schema constraint (`required`, `type`, ...). */
+  constraint?: string;
+  /** Concise expectation safe to return to the bounded repair turn. */
+  expected?: string;
+  /** Concise description of the rejected value; never an unbounded dump. */
+  received?: string;
 }
 
 export interface EpisodePlanValidationResult {
@@ -562,10 +571,23 @@ export function canonicalJson(value: unknown): string {
 
 /** Strict provider-output boundary. Unknown fields and malformed nested data fail closed. */
 export function parseProposedEpisodePlan(value: unknown): ProposedEpisodePlan {
+  const structuralIssues = validateProposalSchema(value);
+  if (structuralIssues.length > 0) {
+    throw new EpisodePlanValidationError(structuralIssues);
+  }
   if (!isProposedEpisodePlan(value)) {
-    throw new EpisodePlanValidationError([
-      issue("plan_structure_invalid", "proposed EpisodePlan is not a strict schema-v1 plan"),
-    ]);
+    // The native schema and strict parser are intentionally independent
+    // tripwires. If they ever drift, a model repair has no field-level defect
+    // to act on; fail once with a developer-facing diagnostic instead of
+    // buying a second guess.
+    throw new EpisodePlanValidationError([{
+      code: "plan_structure_invalid",
+      message: "proposal matched the EpisodePlan schema but failed the internal strict parser",
+      path: "$",
+      constraint: "internal_schema_consistency",
+      expected: "EPISODE_PLAN_PROPOSAL_SCHEMA and strict parser to agree",
+      received: "schema-valid proposal",
+    }]);
   }
   return structuredClone(value);
 }
@@ -2092,6 +2114,274 @@ function isJsonValue(value: unknown): value is JsonValue {
   if (typeof value === "number") return Number.isFinite(value);
   if (Array.isArray(value)) return value.every(isJsonValue);
   return isRecord(value) && Object.values(value).every(isJsonValue);
+}
+
+/** Deterministic diagnostics for the same schema attached to native
+ * structured-output calls. This is intentionally a small evaluator for the
+ * keywords used by EPISODE_PLAN_PROPOSAL_SCHEMA, not a second general-purpose
+ * JSON Schema dependency. */
+function validateProposalSchema(value: unknown): EpisodePlanIssue[] {
+  return validateSchemaNode(
+    value,
+    EPISODE_PLAN_PROPOSAL_SCHEMA as Record<string, unknown>,
+    "$",
+  );
+}
+
+function validateSchemaNode(
+  value: unknown,
+  schema: Record<string, unknown>,
+  path: string,
+  stepId?: string,
+): EpisodePlanIssue[] {
+  const oneOf = schema["oneOf"];
+  if (Array.isArray(oneOf)) {
+    const alternatives = oneOf.filter(isRecord);
+    const discriminated = discriminatedAlternative(value, alternatives);
+    if (discriminated !== undefined) {
+      return validateSchemaNode(value, discriminated, path, stepId);
+    }
+    const kinds = alternatives.flatMap((alternative) => {
+      const properties = alternative["properties"];
+      if (!isRecord(properties) || !isRecord(properties["kind"])) return [];
+      const kind = properties["kind"]["const"];
+      return typeof kind === "string" ? [kind] : [];
+    });
+    if (kinds.length > 0) {
+      const receivedKind = isRecord(value) ? value["kind"] : undefined;
+      return [structureIssue(
+        `${path}.kind`,
+        "oneOf",
+        kinds.map((kind) => JSON.stringify(kind)).join(" | "),
+        describeReceived(receivedKind),
+        stepId,
+      )];
+    }
+    const candidates = alternatives.map((alternative) =>
+      validateSchemaNode(value, alternative, path, stepId));
+    const matches = candidates.filter((issues) => issues.length === 0);
+    if (matches.length === 1) return [];
+    if (matches.length === 0 && candidates.length > 0) {
+      return [...candidates].sort((left, right) => left.length - right.length)[0]!;
+    }
+    return [structureIssue(
+      path,
+      "oneOf",
+      "exactly one schema alternative",
+      `${matches.length} matching alternatives`,
+      stepId,
+    )];
+  }
+
+  if (Object.hasOwn(schema, "const") && !Object.is(value, schema["const"])) {
+    return [structureIssue(
+      path,
+      "const",
+      describeReceived(schema["const"]),
+      describeReceived(value),
+      stepId,
+    )];
+  }
+  const enumeration = schema["enum"];
+  if (Array.isArray(enumeration) && !enumeration.some((entry) => Object.is(entry, value))) {
+    return [structureIssue(
+      path,
+      "enum",
+      enumeration.map(describeReceived).join(" | "),
+      describeReceived(value),
+      stepId,
+    )];
+  }
+
+  const type = schema["type"];
+  if (typeof type === "string" && !matchesSchemaType(value, type)) {
+    return [structureIssue(path, "type", type, describeReceived(value), stepId)];
+  }
+
+  const issues: EpisodePlanIssue[] = [];
+  if (type === "object" && isRecord(value)) {
+    const properties = isRecord(schema["properties"]) ? schema["properties"] : {};
+    const required = Array.isArray(schema["required"])
+      ? schema["required"].filter((entry): entry is string => typeof entry === "string")
+      : [];
+    for (const key of required) {
+      if (!Object.hasOwn(value, key)) {
+        issues.push(structureIssue(
+          propertyPath(path, key),
+          "required",
+          schemaExpectation(isRecord(properties[key]) ? properties[key] : {}),
+          "missing",
+          stepId,
+        ));
+      }
+    }
+    if (schema["additionalProperties"] === false) {
+      for (const key of Object.keys(value)) {
+        if (!Object.hasOwn(properties, key)) {
+          issues.push(structureIssue(
+            propertyPath(path, key),
+            "additionalProperties",
+            "no undeclared property",
+            describeReceived(value[key]),
+            stepId,
+          ));
+        }
+      }
+    }
+    for (const [key, childSchema] of Object.entries(properties)) {
+      if (Object.hasOwn(value, key) && isRecord(childSchema)) {
+        issues.push(...validateSchemaNode(
+          value[key],
+          childSchema,
+          propertyPath(path, key),
+          stepId,
+        ));
+      }
+    }
+  }
+
+  if (type === "array" && Array.isArray(value)) {
+    const minItems = schema["minItems"];
+    if (typeof minItems === "number" && value.length < minItems) {
+      issues.push(structureIssue(
+        path,
+        "minItems",
+        `at least ${minItems} item(s)`,
+        `${value.length} item(s)`,
+        stepId,
+      ));
+    }
+    const items = schema["items"];
+    if (isRecord(items)) {
+      value.forEach((entry, index) => {
+        const childStepId = path === "$.steps" && isRecord(entry) && nonEmpty(entry["id"])
+          ? entry["id"]
+          : stepId;
+        issues.push(...validateSchemaNode(entry, items, `${path}[${index}]`, childStepId));
+      });
+    }
+  }
+
+  if (type === "string" && typeof value === "string") {
+    const minLength = schema["minLength"];
+    if (
+      typeof minLength === "number" &&
+      (value.length < minLength || (minLength > 0 && value.trim().length === 0))
+    ) {
+      issues.push(structureIssue(
+        path,
+        "minLength",
+        `at least ${minLength} non-blank character(s)`,
+        describeReceived(value),
+        stepId,
+      ));
+    }
+    const pattern = schema["pattern"];
+    if (typeof pattern === "string" && !new RegExp(pattern).test(value)) {
+      issues.push(structureIssue(
+        path,
+        "pattern",
+        `string matching /${pattern}/`,
+        describeReceived(value),
+        stepId,
+      ));
+    }
+    if (schema["format"] === "date-time" && !validTimestamp(value)) {
+      issues.push(structureIssue(
+        path,
+        "format",
+        "ISO date-time",
+        describeReceived(value),
+        stepId,
+      ));
+    }
+  }
+
+  if ((type === "number" || type === "integer") && typeof value === "number") {
+    const minimum = schema["minimum"];
+    if (typeof minimum === "number" && value < minimum) {
+      issues.push(structureIssue(path, "minimum", `number >= ${minimum}`, String(value), stepId));
+    }
+    const exclusiveMinimum = schema["exclusiveMinimum"];
+    if (typeof exclusiveMinimum === "number" && value <= exclusiveMinimum) {
+      issues.push(structureIssue(
+        path,
+        "exclusiveMinimum",
+        `number > ${exclusiveMinimum}`,
+        String(value),
+        stepId,
+      ));
+    }
+  }
+  return issues;
+}
+
+function discriminatedAlternative(
+  value: unknown,
+  alternatives: readonly Record<string, unknown>[],
+): Record<string, unknown> | undefined {
+  if (!isRecord(value) || typeof value["kind"] !== "string") return undefined;
+  return alternatives.find((alternative) => {
+    const properties = alternative["properties"];
+    return isRecord(properties) && isRecord(properties["kind"]) &&
+      properties["kind"]["const"] === value["kind"];
+  });
+}
+
+function matchesSchemaType(value: unknown, type: string): boolean {
+  switch (type) {
+    case "object": return isRecord(value);
+    case "array": return Array.isArray(value);
+    case "string": return typeof value === "string";
+    case "integer": return typeof value === "number" && Number.isSafeInteger(value);
+    case "number": return typeof value === "number" && Number.isFinite(value);
+    case "boolean": return typeof value === "boolean";
+    case "null": return value === null;
+    default: return true;
+  }
+}
+
+function structureIssue(
+  path: string,
+  constraint: string,
+  expected: string,
+  received: string,
+  stepId?: string,
+): EpisodePlanIssue {
+  return {
+    code: "plan_structure_invalid",
+    message: `${path}: expected ${expected}; received ${received} (${constraint})`,
+    ...(stepId === undefined ? {} : { stepId }),
+    path,
+    constraint,
+    expected,
+    received,
+  };
+}
+
+function schemaExpectation(schema: Record<string, unknown>): string {
+  if (Object.hasOwn(schema, "const")) return describeReceived(schema["const"]);
+  if (Array.isArray(schema["enum"])) return schema["enum"].map(describeReceived).join(" | ");
+  if (typeof schema["type"] === "string") return schema["type"];
+  return "required property";
+}
+
+function propertyPath(parent: string, key: string): string {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)
+    ? `${parent}.${key}`
+    : `${parent}[${JSON.stringify(key)}]`;
+}
+
+function describeReceived(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (Array.isArray(value)) return `array(${value.length})`;
+  if (isRecord(value)) return `object(${Object.keys(value).length} keys)`;
+  if (typeof value === "string") {
+    const encoded = JSON.stringify(value);
+    return encoded.length <= 120 ? encoded : `${encoded.slice(0, 116)}...\"`;
+  }
+  return String(value);
 }
 
 function isProposedEpisodePlan(value: unknown): value is ProposedEpisodePlan {

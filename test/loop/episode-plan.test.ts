@@ -394,7 +394,15 @@ describe("EpisodePlan core", () => {
     try {
       parseProposedEpisodePlan(unknown);
     } catch (error) {
-      expect(error).toMatchObject({ issues: [{ code: "plan_structure_invalid" }] });
+      expect(error).toMatchObject({
+        issues: [{
+          code: "plan_structure_invalid",
+          path: "$.runtime",
+          constraint: "additionalProperties",
+          expected: "no undeclared property",
+          received: '"codex"',
+        }],
+      });
     }
     const legacyTuple = structuredClone(adaptive) as unknown as { steps: Array<Record<string, unknown>> };
     legacyTuple.steps[0]!["assignment"] = { runtime: "codex", model: "gpt-5.6-sol", effort: "high" };
@@ -402,9 +410,35 @@ describe("EpisodePlan core", () => {
     const missingOperation = structuredClone(fixed) as unknown as { steps: Array<Record<string, unknown>> };
     delete missingOperation.steps[0]!["operation"];
     expect(() => parseProposedEpisodePlan(missingOperation)).toThrowError(EpisodePlanValidationError);
+    try {
+      parseProposedEpisodePlan(missingOperation);
+    } catch (error) {
+      expect(error).toMatchObject({
+        issues: expect.arrayContaining([expect.objectContaining({
+          code: "plan_structure_invalid",
+          stepId: "build",
+          path: "$.steps[0].operation",
+          constraint: "required",
+          expected: "string",
+          received: "missing",
+        })]),
+      });
+    }
     const malformedOperation = structuredClone(fixed) as unknown as { steps: Array<Record<string, unknown>> };
     malformedOperation.steps[0]!["operation"] = "free form operation";
     expect(() => parseProposedEpisodePlan(malformedOperation)).toThrowError(EpisodePlanValidationError);
+    try {
+      parseProposedEpisodePlan(malformedOperation);
+    } catch (error) {
+      expect(error).toMatchObject({
+        issues: [expect.objectContaining({
+          stepId: "build",
+          path: "$.steps[0].operation",
+          constraint: "pattern",
+          received: '"free form operation"',
+        })],
+      });
+    }
     const unknownStepField = structuredClone(fixed) as unknown as { steps: Array<Record<string, unknown>> };
     unknownStepField.steps[0]!["runtime"] = "codex";
     expect(() => parseProposedEpisodePlan(unknownStepField)).toThrowError(EpisodePlanValidationError);

@@ -12,10 +12,12 @@ import {
   CodexRuntime,
   normalizeCodexApprovalAction,
   normalizeCodexApprovalActions,
+  toCodexStrictSchema,
   type CodexAppServerClient,
   type CodexServerMessage,
   type JsonRpcId,
 } from "../../src/runtime/adapters/codex.js";
+import { EPISODE_PLAN_PROPOSAL_SCHEMA } from "../../src/loop/episode-plan.js";
 import { defaultGate } from "../../src/runtime/gate.js";
 import { buildTurnExecutionFacts } from "../../src/runtime/assignment.js";
 import type { RoleConfig, ToolAction, TurnEvent, TurnRequest, TurnResult } from "../../src/runtime/types.js";
@@ -297,6 +299,23 @@ describe("CodexRuntime (App Server mocked)", () => {
     });
     expect(result.session).toEqual({ runtime: "codex", id: "thread-1" });
     expect(result.usage).toMatchObject({ tokensIn: 12, tokensInUncached: 10, cacheReadTokens: 2, tokensOut: 8 });
+  });
+
+  it("attaches the EpisodePlan schema to the App Server turn request", async () => {
+    const client = new FakeCodexClient({ result: makeResult("done") });
+
+    await new CodexRuntime({ clientFactory: () => client }).runTurn(
+      makeReq({
+        verdictSchema: EPISODE_PLAN_PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
+      }),
+      { gate: defaultGate },
+    );
+
+    expect(client.requests[2]?.params).toMatchObject({
+      outputSchema: toCodexStrictSchema(
+        EPISODE_PLAN_PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
+      ),
+    });
   });
 
   it("enables workspace-scoped network access only when the turn opts in", async () => {

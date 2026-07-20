@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { EpisodeIntent } from "../src/loop/episode-plan.js";
+import {
+  EPISODE_PLAN_PROPOSAL_SCHEMA,
+  type EpisodeIntent,
+} from "../src/loop/episode-plan.js";
 import { renderEpisodePlannerBrief } from "../src/org/episode-planner/brief.js";
 
 describe("EpisodePlanner bounded brief", () => {
@@ -10,7 +13,15 @@ describe("EpisodePlanner bounded brief", () => {
       attempt: 2,
       proposalCreatedAt: "2026-07-19T18:00:00.000Z",
       validationDiagnostics: [
-        { code: "plan_step_id_invalid", message: "bad id", stepId: "z" },
+        {
+          code: "plan_structure_invalid",
+          message: "bad output kind",
+          stepId: "z",
+          path: "$.steps[0].expectedOutputs[0].kind",
+          constraint: "minLength",
+          expected: "at least 1 non-blank character(s)",
+          received: '""',
+        },
         { code: "plan_assignment_not_allowed", message: "bad tuple", stepId: "a" },
       ],
     });
@@ -27,10 +38,18 @@ describe("EpisodePlanner bounded brief", () => {
         planningSource: "episode_planner",
         createdAt: "2026-07-19T18:00:00.000Z",
       },
+      proposalSchema: EPISODE_PLAN_PROPOSAL_SCHEMA,
       intent,
       validationDiagnostics: [
         { code: "plan_assignment_not_allowed", stepId: "a" },
-        { code: "plan_step_id_invalid", stepId: "z" },
+        {
+          code: "plan_structure_invalid",
+          stepId: "z",
+          path: "$.steps[0].expectedOutputs[0].kind",
+          constraint: "minLength",
+          expected: "at least 1 non-blank character(s)",
+          received: '""',
+        },
       ],
     });
   });

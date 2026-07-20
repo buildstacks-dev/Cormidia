@@ -381,7 +381,9 @@ export async function prepareEpisodePlanWithRuntime(
       };
     } catch (error) {
       diagnostics = diagnosticsFrom(error);
-      if (attempt === 2) throw new EpisodePlannerFailedError(attempt, diagnostics);
+      if (attempt === 2 || !hasActionableRepairDiagnostic(diagnostics)) {
+        throw new EpisodePlannerFailedError(attempt, diagnostics);
+      }
     }
   }
   throw new EpisodePlannerFailedError(2, diagnostics);
@@ -491,7 +493,7 @@ export function createProviderEpisodePlanRevisionProposer(
         return { plan, policy: policy.validation };
       } catch (error) {
         diagnostics = diagnosticsFrom(error);
-        if (attempt === 2) {
+        if (attempt === 2 || !hasActionableRepairDiagnostic(diagnostics)) {
           throw new EpisodePlannerFailedError(attempt, diagnostics);
         }
       }
@@ -1133,7 +1135,11 @@ function parsePlannerOutput(raw: string) {
   } catch {
     throw new EpisodePlanValidationError([{
       code: "plan_structure_invalid",
-      message: "EpisodePlanner output must be one strict JSON object",
+      message: "$: expected one strict JSON object; received invalid JSON text (json)",
+      path: "$",
+      constraint: "json",
+      expected: "one strict JSON object",
+      received: "invalid JSON text",
     }]);
   }
   return parseProposedEpisodePlan(value);
@@ -1143,10 +1149,46 @@ function diagnosticsFrom(error: unknown): EpisodePlanIssue[] {
   if (error instanceof EpisodePlanValidationError) {
     return error.issues.map((issue) => ({ ...issue }));
   }
+  if (hasIssueArray(error)) {
+    return error.issues.map((entry) => ({
+      code: "plan_structure_invalid",
+      message: `${entry.code}: ${entry.message}`,
+      ...(entry.stepId === undefined ? {} : { stepId: entry.stepId }),
+      path: entry.stepId === undefined
+        ? "$"
+        : `$.steps[id=${JSON.stringify(entry.stepId)}]`,
+      constraint: entry.code,
+      expected: entry.message,
+      received: "policy-invalid proposal",
+    }));
+  }
   return [{
     code: "plan_structure_invalid",
     message: error instanceof Error ? error.message : String(error),
   }];
+}
+
+function hasIssueArray(error: unknown): error is {
+  issues: Array<{ code: string; message: string; stepId?: string }>;
+} {
+  if (error === null || typeof error !== "object" || !("issues" in error)) return false;
+  const issues = (error as { issues?: unknown }).issues;
+  return Array.isArray(issues) && issues.length > 0 && issues.every((entry) =>
+    entry !== null && typeof entry === "object" &&
+    typeof (entry as { code?: unknown }).code === "string" &&
+    typeof (entry as { message?: unknown }).message === "string" &&
+    ((entry as { stepId?: unknown }).stepId === undefined ||
+      typeof (entry as { stepId?: unknown }).stepId === "string"));
+}
+
+function hasActionableRepairDiagnostic(issues: readonly EpisodePlanIssue[]): boolean {
+  return issues.some((entry) =>
+    entry.code !== "plan_structure_invalid" ||
+    (
+      entry.path !== undefined &&
+      entry.constraint !== undefined &&
+      entry.constraint !== "internal_schema_consistency"
+    ));
 }
 
 function assertRevisionProposalIdentity(

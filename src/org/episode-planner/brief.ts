@@ -1,5 +1,8 @@
 import { SECRET_PATTERNS } from "../../runtime/secret-patterns.js";
-import { episodeIntentHash } from "../../loop/episode-plan.js";
+import {
+  EPISODE_PLAN_PROPOSAL_SCHEMA,
+  episodeIntentHash,
+} from "../../loop/episode-plan.js";
 import type { EpisodePlan } from "../../loop/episode-plan.js";
 import type { EpisodeReplanRecord } from "../../loop/episode-replan.js";
 import type { EpisodePlannerProposalRequest } from "./coordinator.js";
@@ -15,6 +18,10 @@ export function renderEpisodePlannerBrief(
       code: entry.code,
       message: entry.message,
       ...(entry.stepId === undefined ? {} : { stepId: entry.stepId }),
+      ...(entry.path === undefined ? {} : { path: entry.path }),
+      ...(entry.constraint === undefined ? {} : { constraint: entry.constraint }),
+      ...(entry.expected === undefined ? {} : { expected: entry.expected }),
+      ...(entry.received === undefined ? {} : { received: entry.received }),
     }))
     .sort((left, right) =>
       left.code.localeCompare(right.code) ||
@@ -33,6 +40,11 @@ export function renderEpisodePlannerBrief(
       planningSource: "episode_planner",
       createdAt: request.proposalCreatedAt,
     },
+    // Pi's structured-verdict capability is an explicit prompt/parser
+    // fallback, and native adapter regressions must remain diagnosable rather
+    // than asking the planner to guess a hidden shape. Keep the canonical
+    // schema in the bounded input as well as on TurnRequest.verdictSchema.
+    proposalSchema: EPISODE_PLAN_PROPOSAL_SCHEMA,
     intent: request.intent,
     validationDiagnostics: diagnostics,
     deterministicSafetyFloor: {
@@ -91,6 +103,10 @@ export function renderEpisodePlannerRevisionBrief(
       code: entry.code,
       message: entry.message,
       ...(entry.stepId === undefined ? {} : { stepId: entry.stepId }),
+      ...(entry.path === undefined ? {} : { path: entry.path }),
+      ...(entry.constraint === undefined ? {} : { constraint: entry.constraint }),
+      ...(entry.expected === undefined ? {} : { expected: entry.expected }),
+      ...(entry.received === undefined ? {} : { received: entry.received }),
     }))
     .sort((left, right) =>
       left.code.localeCompare(right.code) ||
@@ -109,6 +125,7 @@ export function renderEpisodePlannerRevisionBrief(
       planningSource: request.previousPlan.planningSource,
       createdAt: request.proposalCreatedAt,
     },
+    proposalSchema: EPISODE_PLAN_PROPOSAL_SCHEMA,
     immutableIntent: request.intent,
     previousAcceptedPlan: request.previousPlan,
     materialEvent: request.replan,

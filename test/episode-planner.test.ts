@@ -400,9 +400,15 @@ describe("EpisodePlanner coordination", () => {
     const intent = makeIntent(app);
     const propose = vi.fn(async ({ attempt, validationDiagnostics }) => {
       if (attempt === 1) return { schemaVersion: 99 };
-      expect(validationDiagnostics).toEqual([
-        expect.objectContaining({ code: "plan_structure_invalid" }),
-      ]);
+      expect(validationDiagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "plan_structure_invalid",
+          path: "$.schemaVersion",
+          constraint: "const",
+          expected: "1",
+          received: "99",
+        }),
+      ]));
       return proposal(intent, FIXED);
     });
     const prepared = await prepareEpisodePlan({

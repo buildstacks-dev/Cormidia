@@ -15,6 +15,7 @@ import { createNewApp } from "../../src/org/new-app.js";
 import {
   executeAppPromotion,
   lifecycleRecordPath,
+  planAppPromotion,
   verifyApp,
   type RuntimeReadinessInspector,
 } from "../../src/org/app-lifecycle.js";
@@ -100,6 +101,17 @@ function pushScaffoldToLocalBare(root: string, targetDir: string): string {
   return bare;
 }
 
+function pushScaffoldUnchanged(root: string, targetDir: string): string {
+  const bare = join(root, "origin.git");
+  git(root, "init", "--bare", "--initial-branch=main", bare);
+  git(targetDir, "init", "--initial-branch=main");
+  git(targetDir, "add", ".");
+  git(targetDir, "commit", "-m", "Bootstrap stack-neutral app");
+  git(targetDir, "remote", "add", "origin", bare);
+  git(targetDir, "push", "-u", "origin", "main");
+  return bare;
+}
+
 describe("greenfield lifecycle record (L0-01)", () => {
   it("new-app records an onboarding-source pointer, not a lifecycle record", async () => {
     const root = tempRoot();
@@ -161,6 +173,48 @@ describe("greenfield lifecycle record (L0-01)", () => {
     // The registry moved to live with no hand-edit of apps.yaml.
     const after = await loadApps(join(orgHome, "apps.yaml"));
     expect(after.apps.find((app) => app.name === "shipit")?.status).toBe("live");
+  });
+
+  it("keeps a bare scaffold unverified and unpromotable until its first implementation adds real gates", async () => {
+    const root = tempRoot();
+    const { orgHome, stateHome } = await makeOrg(root);
+    const targetDir = join(root, "app");
+    await createNewApp({
+      appName: "bareapp",
+      targetDir,
+      repoSlug: "owner/bareapp",
+      goal: "Establish the product stack deliberately.",
+      template: "bare",
+      orgHome,
+      stateHome,
+    });
+    pushScaffoldUnchanged(root, targetDir);
+
+    const verification = await verifyApp({
+      orgHome,
+      stateHome,
+      appName: "bareapp",
+      runtimeReadiness: noRuntimeChecks,
+    });
+    expect(verification.status).toBe("invalid");
+    expect(verification.checks).toContainEqual(expect.objectContaining({
+      id: "app-checks",
+      status: "fail",
+      detail: "no test or lint command declared",
+    }));
+
+    const promotion = await planAppPromotion({
+      orgHome,
+      stateHome,
+      appName: "bareapp",
+      to: "live",
+      runtimeReadiness: noRuntimeChecks,
+    });
+    expect(promotion.executable).toBe(false);
+    expect(promotion.verification.checks).toContainEqual(expect.objectContaining({
+      id: "app-checks-evidence",
+      status: "blocked",
+    }));
   });
 
   it("verify returns a typed blocked result for a pre-existing app with no record and no onboarding pointer", async () => {

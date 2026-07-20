@@ -155,6 +155,7 @@ operon org upgrade --authority delegated-operator --json
 operon app verify <app> --json
 operon app promote <app> --to live --json         # non-mutating plan
 operon new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
+operon new-app docs-site --target-dir ../docs-site --repo owner/docs-site --goal "Publish product documentation" --template bare --dry-run --json
 operon plan <app> --dry-run
 operon loop --app <app> --once --dry-run
 operon loop rearm --app <app> --ticket <n> --reason "reviewed" --actor <identity> --from-allowance 3 --to-allowance 4 # preview
@@ -191,9 +192,19 @@ state home before anything is written. A non-interactive run requires
 non-secret answers are retained in isolated state and reset archives;
 `--answers-from <app>` resolves the app's latest default reset archive.
 Generated YAML/authority metadata and text formatting are validated before
-success. `new-app` creates a separate product
-repo skeleton and then follows the same bootstrap/register path. Neither
-command creates or publishes a GitHub repo.
+success. `new-app` creates a separate product repo and then follows the same
+bootstrap/register path. Its backward-compatible default,
+`--template typescript-node`, emits the existing npm + strict TypeScript web
+scaffold and executable setup/test/lint commands. `--template bare` emits only
+stack-neutral product docs and Operon artifacts: no framework, runtime, package
+manager, application skeleton, or gate command is inferred from `--goal`.
+Required test/lint gates remain explicitly pending and fail closed until the
+first implementation configures meaningful stack-specific commands. Dry-run
+text and JSON report the selected template, exact paths, and gate state.
+For `bare`, run only the generated stack-and-gates establishment issue through
+the loop first; it reloads commands from the Builder worktree before gates.
+Verify and preview promotion only after that issue merges with real checks.
+Neither command creates or publishes a GitHub repo.
 
 Onboarding claims follow an evidence ladder:
 

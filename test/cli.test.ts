@@ -213,11 +213,101 @@ describe("cli dispatch", () => {
       ]);
       expect(code).toBe(0);
       expect(stdout).toContain("would create greenfield app: marketplace");
+      expect(stdout).toContain("template: typescript-node");
+      expect(stdout).toContain("quality gates: configured");
+      expect(stdout).toContain("package.json");
       expect(stdout).toContain(".operon/bootstrap/initial-issue.md");
       expect(existsSync(target)).toBe(false);
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }
+  });
+
+  it("new-app help documents explicit templates and the bare fail-closed boundary", async () => {
+    const { stdout, code } = await runCli(["new-app", "--help"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("--template typescript-node|bare");
+    expect(stdout).toContain("typescript-node is the backward-compatible default");
+    expect(stdout).toContain("free-form goal text never selects one");
+    expect(stdout).toContain("fail closed");
+    expect(stdout).toContain("Run only its generated stack-and-gates establishment issue through the loop first");
+    expect(stdout).toContain("verify and preview promotion only after that issue merges");
+    expect(stdout).toContain("--json");
+  });
+
+  it("new-app bare JSON dry-run reports exact stack-neutral effects without writing", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "operon-cli-new-app-bare-parent-"));
+    const target = join(parent, "bare-product");
+    try {
+      const { stdout, stderr, code } = await runCli([
+        "new-app",
+        "bare-product",
+        "--target-dir",
+        target,
+        "--repo",
+        "owner/bare-product",
+        "--goal",
+        "Build an Astro site without inferring its stack.",
+        "--template",
+        "bare",
+        "--org-home",
+        ORG_HOME,
+        "--dry-run",
+        "--json",
+      ]);
+      expect(code, stderr).toBe(0);
+      const result = JSON.parse(stdout) as {
+        template: string;
+        dryRun: boolean;
+        created: string[];
+        updated: string[];
+        stateCreated: string[];
+        qualityGates: Record<string, unknown>;
+      };
+      expect(result).toMatchObject({
+        template: "bare",
+        dryRun: true,
+        qualityGates: {
+          status: "pending",
+          setupCommand: null,
+          testCommand: null,
+          lintCommand: null,
+        },
+      });
+      expect(result.qualityGates["detail"]).toContain(
+        "Run only the generated stack-and-gates establishment issue through the loop first",
+      );
+      expect(result.created).toContain("docs/ARCHITECTURE.md");
+      expect(result.created).toContain(".operon/bootstrap/initial-issue.md");
+      expect(result.created).not.toContain("package.json");
+      expect(result.created).not.toContain("src/domain.ts");
+      expect(result.updated).toContain(`${ORG_HOME}/apps.yaml`);
+      expect(result.stateCreated).toEqual([
+        join(STATE_HOME, "lifecycle", "apps", "bare-product", "answers.json"),
+        join(STATE_HOME, "lifecycle", "apps", "bare-product", "onboarding-source.json"),
+      ]);
+      expect(existsSync(target)).toBe(false);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("new-app rejects unknown templates before resolving homes or writing", async () => {
+    const target = join(tmpdir(), "operon-cli-new-app-invalid-template");
+    const { stderr, code } = await runCli([
+      "new-app",
+      "invalid-template",
+      "--target-dir",
+      target,
+      "--repo",
+      "owner/invalid-template",
+      "--template",
+      "astro",
+      "--dry-run",
+    ]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("--template must be one of typescript-node|bare");
+    expect(existsSync(target)).toBe(false);
   });
 
   it("doctor resolves the active org from a neutral cwd", async () => {

@@ -1305,18 +1305,38 @@ autonomously scheduled.
 operon new-app "marketplace for dummy products" \
   --name marketplace \
   --target-dir ~/Build/marketplace \
-  --repo owner/marketplace
+  --repo owner/marketplace \
+  --template typescript-node
 ```
 
 `new-app` is deterministic and local. It creates a separate target app repo
 skeleton, starter product truth (`docs/VISION.md`, `docs/REQUIREMENTS.md`),
-starter architecture/runbook/testing docs, a strict TypeScript web shell, an
-initial GitHub issue body under `.operon/bootstrap/`, and a Planner seed under
-`.operon/planning/`. It then calls the same bootstrap/register implementation
-described below, so greenfield and existing-app onboarding converge at the
-`.operon/` contract and `apps.yaml` registry. If Support or Marketing channels
-are supplied, they are preserved in the org registry so channel-presence gating
-can fire those roles.
+starter architecture/runbook/testing docs, an initial GitHub issue body under
+`.operon/bootstrap/`, and a Planner seed under `.operon/planning/`. The
+explicit template selects the rest:
+
+- `typescript-node` is the backward-compatible default. It emits the existing
+  npm + strict TypeScript web shell and configures executable setup, test, and
+  lint commands.
+- `bare` emits no runtime, package-manager, framework, source, test, or server
+  skeleton. It leaves required test/lint commands absent with explicit pending
+  guidance, so the loop fails closed until the first implementation selects a
+  stack and adds meaningful stack-specific gates. The goal is product truth,
+  never a template-inference input.
+
+It then calls the same bootstrap/register implementation described below, so
+greenfield and existing-app onboarding converge at the `.operon/` contract and
+`apps.yaml` registry. Dry-run text and JSON include the selected template, the
+exact target/org/state paths, and configured-or-pending gate state. If Support
+or Marketing channels are supplied, they are preserved in the org registry so
+channel-presence gating can fire those roles.
+
+For `bare`, the generated initial issue is a deliberately narrow bootstrap
+exception to the usual ready-work posture: the manual loop may build the first
+stack and gate commands because gate resolution reloads the Builder worktree
+immediately before quality gates. Keep that as the only ready product-work
+issue. Run `app verify` and preview promotion only after it merges; verification
+correctly fails while required commands are absent.
 
 `new-app` does not create a GitHub repo, push code, publish marketing content,
 or run the Planner. Those are explicit follow-up operations recorded in the

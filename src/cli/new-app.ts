@@ -1,7 +1,12 @@
 // `operon new-app` — greenfield product bootstrap. This creates the target app
 // repo skeleton first, then hands off to the normal bootstrap/register path.
 
-import { createNewApp } from "../org/new-app.js";
+import {
+  createNewApp,
+  DEFAULT_NEW_APP_TEMPLATE,
+  NEW_APP_TEMPLATES,
+  type NewAppTemplate,
+} from "../org/new-app.js";
 import { ORG_HOME_DEFINITION, resolveOperonHomes, STATE_HOME_DEFINITION } from "../org/home.js";
 
 export async function cmdNewApp(args: string[]): Promise<number> {
@@ -14,6 +19,7 @@ export async function cmdNewApp(args: string[]): Promise<number> {
     targetDir: parsed.targetDir,
     repoSlug: parsed.repoSlug,
     goal: parsed.goal,
+    template: parsed.template,
     orgHome: homes.orgHome,
     stateHome: homes.stateHome,
     supportChannels: parsed.supportChannels,
@@ -21,9 +27,21 @@ export async function cmdNewApp(args: string[]): Promise<number> {
     dryRun: parsed.dryRun,
   });
 
+  if (parsed.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return 0;
+  }
+
   console.log(`${result.dryRun ? "would create" : "created"} greenfield app: ${result.appName}`);
   console.log(`target: ${result.targetDir}`);
   console.log(`repo: ${result.repoSlug}`);
+  console.log(`template: ${result.template}`);
+  console.log(`quality gates: ${result.qualityGates.status} — ${result.qualityGates.detail}`);
+  if (result.qualityGates.status === "configured") {
+    console.log(`  setup_command: ${result.qualityGates.setupCommand}`);
+    console.log(`  test_command: ${result.qualityGates.testCommand}`);
+    console.log(`  lint_command: ${result.qualityGates.lintCommand}`);
+  }
   if (result.joinedOrgHome) console.log(`org home: ${result.joinedOrgHome}`);
   console.log(`org home means: ${ORG_HOME_DEFINITION}`);
   console.log(`state home: ${homes.stateHome} — ${STATE_HOME_DEFINITION}`);
@@ -31,6 +49,10 @@ export async function cmdNewApp(args: string[]): Promise<number> {
   for (const rel of result.created) console.log(`  ${rel}`);
   console.log("\nupdated:");
   for (const rel of result.updated) console.log(`  ${rel}`);
+  if (result.stateCreated.length > 0) {
+    console.log("\nstate records:");
+    for (const path of result.stateCreated) console.log(`  ${path}`);
+  }
   if (result.dryRun) {
     console.log("\n(dry-run: nothing written)");
   } else {
@@ -47,10 +69,12 @@ interface ParsedNewAppArgs {
   targetDir: string;
   repoSlug: string;
   goal: string;
+  template: NewAppTemplate;
   orgHome?: string;
   supportChannels: string[];
   marketingChannels: string[];
   dryRun: boolean;
+  json: boolean;
 }
 
 function parseArgs(args: string[]): ParsedNewAppArgs {
@@ -58,8 +82,8 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
   if (!first || first.startsWith("--")) {
     throw new Error(
       "new-app: usage: operon new-app <name-or-goal> --target-dir <path> --repo <owner/repo> " +
-        '[--goal <string>] [--name <app>] [--org-home <path>] [--support-channel <id>] ' +
-        "[--marketing-channel <id>] [--dry-run]",
+        '[--goal <string>] [--name <app>] [--template typescript-node|bare] [--org-home <path>] ' +
+        "[--support-channel <id>] [--marketing-channel <id>] [--dry-run] [--json]",
     );
   }
 
@@ -67,15 +91,19 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
   let targetDir: string | undefined;
   let repoSlug: string | undefined;
   let goal: string | undefined;
+  let template = DEFAULT_NEW_APP_TEMPLATE;
   let orgHome: string | undefined;
   const supportChannels: string[] = [];
   const marketingChannels: string[] = [];
   let dryRun = false;
+  let json = false;
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--dry-run") {
       dryRun = true;
+    } else if (arg === "--json") {
+      json = true;
     } else if (arg === "--name") {
       appName = readValue(args, ++i, "--name");
     } else if (arg === "--target-dir") {
@@ -84,6 +112,8 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
       repoSlug = readValue(args, ++i, "--repo");
     } else if (arg === "--goal") {
       goal = readValue(args, ++i, "--goal");
+    } else if (arg === "--template") {
+      template = parseTemplate(readValue(args, ++i, "--template"));
     } else if (arg === "--org-home") {
       orgHome = readValue(args, ++i, "--org-home");
     } else if (arg === "--support-channel") {
@@ -106,11 +136,23 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
     targetDir,
     repoSlug,
     goal: goal ?? first,
+    template,
     ...(orgHome ? { orgHome } : {}),
     supportChannels,
     marketingChannels,
     dryRun,
+    json,
   };
+}
+
+function parseTemplate(value: string): NewAppTemplate {
+  const template = NEW_APP_TEMPLATES.find((candidate) => candidate === value);
+  if (template === undefined) {
+    throw new Error(
+      `new-app: --template must be one of ${NEW_APP_TEMPLATES.join("|")} (got "${value}")`,
+    );
+  }
+  return template;
 }
 
 function readValue(args: string[], index: number, flag: string): string {

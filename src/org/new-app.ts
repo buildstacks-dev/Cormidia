@@ -12,8 +12,16 @@ import {
   validateEmittedArtifacts,
   type BootstrapAnswers,
 } from "./bootstrap.js";
-import { storeOnboardingSource } from "./onboarding-answers.js";
+import {
+  onboardingAnswersPath,
+  onboardingSourcePath,
+  storeOnboardingSource,
+} from "./onboarding-answers.js";
 import { loadRoles } from "./roles.js";
+
+export const NEW_APP_TEMPLATES = ["typescript-node", "bare"] as const;
+export type NewAppTemplate = (typeof NEW_APP_TEMPLATES)[number];
+export const DEFAULT_NEW_APP_TEMPLATE: NewAppTemplate = "typescript-node";
 
 export interface NewAppOptions {
   /** Operon app key. Defaults to the target directory basename. */
@@ -24,6 +32,8 @@ export interface NewAppOptions {
   repoSlug: string;
   /** Human-provided product idea or mandate. */
   goal: string;
+  /** Explicit scaffold shape. The existing TypeScript/Node scaffold remains the default. */
+  template?: NewAppTemplate;
   /** Existing org home to join. */
   orgHome: string;
   /** Resolved runtime state used to preserve normalized recovery answers. */
@@ -40,9 +50,18 @@ export interface NewAppResult {
   appName: string;
   targetDir: string;
   repoSlug: string;
+  template: NewAppTemplate;
   dryRun: boolean;
   created: string[];
   updated: string[];
+  stateCreated: string[];
+  qualityGates: {
+    status: "configured" | "pending";
+    setupCommand: string | null;
+    testCommand: string | null;
+    lintCommand: string | null;
+    detail: string;
+  };
   joinedOrgHome?: string;
 }
 
@@ -56,6 +75,7 @@ const CORE_ROLES = ["planner", "builder", "reviewer", "sre"] as const;
 export async function createNewApp(options: NewAppOptions): Promise<NewAppResult> {
   const targetDir = resolve(options.targetDir);
   const appName = sanitizeAppName(options.appName ?? basename(targetDir));
+  const template = options.template ?? DEFAULT_NEW_APP_TEMPLATE;
   const goal = options.goal.trim();
   if (goal.length === 0) throw new Error("new-app: --goal must be a non-empty string");
   if (!isRepoSlug(options.repoSlug)) {
@@ -67,11 +87,12 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   const answers = buildAnswers({
     appName,
     goal,
+    template,
     allRoles,
     supportChannels: options.supportChannels ?? [],
     marketingChannels: options.marketingChannels ?? [],
   });
-  const scaffold = generatedFiles(appName, options.repoSlug, goal);
+  const scaffold = generatedFiles(template, appName, options.repoSlug, goal);
   const bootstrapFiles = appArtifactFiles(answers, allRoles);
   const operonSeedFiles = [
     ".operon/bootstrap/initial-issue.md",
@@ -85,15 +106,25 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     ...operonSeedFiles,
   ];
   const plannedUpdated = ["AGENTS.md", ".operon/config.yaml", `${orgHome}/apps.yaml`];
+  const stateCreated = options.stateHome === undefined
+    ? []
+    : [
+        onboardingAnswersPath(options.stateHome, appName),
+        onboardingSourcePath(options.stateHome, appName),
+      ];
+  const qualityGates = qualityGatePlan(template);
 
   if (options.dryRun) {
     return {
       appName,
       targetDir,
       repoSlug: options.repoSlug,
+      template,
       dryRun: true,
       created: plannedCreated,
       updated: plannedUpdated,
+      stateCreated,
+      qualityGates,
       joinedOrgHome: orgHome,
     };
   }
@@ -119,8 +150,14 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     });
   }
 
-  await appendGateCommands(targetDir);
-  const operonSeeds = generatedOperonSeedFiles(appName, options.repoSlug, goal, targetDir);
+  await appendGateCommands(targetDir, template);
+  const operonSeeds = generatedOperonSeedFiles(
+    template,
+    appName,
+    options.repoSlug,
+    goal,
+    targetDir,
+  );
   for (const file of operonSeeds) await writeGeneratedFile(targetDir, file);
   await validateEmittedArtifacts(
     targetDir,
@@ -134,9 +171,12 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     appName,
     targetDir,
     repoSlug: options.repoSlug,
+    template,
     dryRun: false,
     created: [...scaffold.map((file) => file.rel), ...bootstrap.created, ...operonSeeds.map((file) => file.rel)],
     updated: [...new Set([...plannedUpdated, ...bootstrap.updated])],
+    stateCreated,
+    qualityGates,
     ...(bootstrap.joinedOrgHome ? { joinedOrgHome: bootstrap.joinedOrgHome } : {}),
   };
 }
@@ -144,6 +184,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
 function buildAnswers(options: {
   appName: string;
   goal: string;
+  template: NewAppTemplate;
   allRoles: string[];
   supportChannels: string[];
   marketingChannels: string[];
@@ -162,15 +203,23 @@ function buildAnswers(options: {
     channels["marketing"] = options.marketingChannels;
   }
 
+  const product = options.template === "bare"
+    ? `${options.appName} is a greenfield product scaffolded from this goal: ${options.goal}. ` +
+      "The repository is intentionally stack-neutral: it begins with product truth and Operon bootstrap artifacts only. " +
+      "The first implementation work must select the stack and establish meaningful stack-specific build, test, and lint gates."
+    : `${options.appName} is a greenfield product scaffolded from this goal: ` +
+      `${options.goal}. The initial app is intentionally small: a documented web product skeleton, ` +
+      "a starter domain model, and an Operon-ready first ticket packet.";
+  const good = options.template === "bare"
+    ? "Good means the first implementation explicitly records its stack, delivers one observable product slice, " +
+      "and configures non-vacuous test and lint commands before Operon accepts the work. Missing gate commands remain a failure, not a green check."
+    : "Good means the first vertical slice is buildable from GitHub issues, has explicit acceptance criteria, " +
+      "keeps product truth in docs, and keeps every code change covered by the configured build, test, and lint gates.";
+
   return parseAnswers(
     {
-      product:
-        `${options.appName} is a greenfield product scaffolded from this goal: ` +
-        `${options.goal}. The initial app is intentionally small: a documented web product skeleton, ` +
-        "a starter domain model, and an Operon-ready first ticket packet.",
-      good:
-        "Good means the first vertical slice is buildable from GitHub issues, has explicit acceptance criteria, " +
-        "keeps product truth in docs, and keeps every code change covered by the configured build, test, and lint gates.",
+      product,
+      good,
       roles,
       criticalOps: {
         deployCommands: [],
@@ -200,21 +249,70 @@ async function writeGeneratedFile(root: string, file: GeneratedFile): Promise<vo
   await writeFile(path, file.content, "utf8");
 }
 
-async function appendGateCommands(targetDir: string): Promise<void> {
+function qualityGatePlan(template: NewAppTemplate): NewAppResult["qualityGates"] {
+  if (template === "bare") {
+    return {
+      status: "pending",
+      setupCommand: null,
+      testCommand: null,
+      lintCommand: null,
+      detail:
+        "Required test and lint commands are intentionally absent. Run only the generated stack-and-gates establishment issue through the loop first; app verification and promotion remain blocked until that change merges with meaningful stack-specific gates.",
+    };
+  }
+  return {
+    status: "configured",
+    setupCommand: "npm install",
+    testCommand: "npm test",
+    lintCommand: "npm run lint",
+    detail: "The TypeScript/Node scaffold includes executable setup, test, and lint commands.",
+  };
+}
+
+async function appendGateCommands(targetDir: string, template: NewAppTemplate): Promise<void> {
   const configPath = join(targetDir, ".operon", "config.yaml");
-  await appendFile(
-    configPath,
-    `
+  const content = template === "bare"
+    ? `
+# Quality gates for the bare template are intentionally pending.
+# Required test and lint gates fail closed while these keys are absent. The
+# first implementation must replace these examples with meaningful commands
+# for its explicitly selected stack; do not use no-op or zero-test commands.
+# setup_command: <optional stack-specific setup command>
+# test_command: <meaningful stack-specific test command>
+# lint_command: <meaningful stack-specific lint or static-analysis command>
+`
+    : `
 # Gate commands used by Operon's loop in fresh worktrees.
 setup_command: npm install
 test_command: npm test
 lint_command: npm run lint
-`,
+`;
+  await appendFile(
+    configPath,
+    content,
     "utf8",
   );
 }
 
-function generatedFiles(appName: string, repoSlug: string, goal: string): GeneratedFile[] {
+function generatedFiles(
+  template: NewAppTemplate,
+  appName: string,
+  repoSlug: string,
+  goal: string,
+): GeneratedFile[] {
+  if (template === "bare") {
+    return [
+      { rel: ".gitignore", content: bareGitignore() },
+      { rel: "AGENTS.md", content: bareAgentsMd(appName) },
+      { rel: "README.md", content: bareReadmeMd(appName, repoSlug, goal) },
+      { rel: "docs/VISION.md", content: visionMd(appName, goal) },
+      { rel: "docs/REQUIREMENTS.md", content: bareRequirementsMd(appName, goal) },
+      { rel: "docs/ARCHITECTURE.md", content: bareArchitectureMd(appName) },
+      { rel: "docs/RUNBOOK.md", content: bareRunbookMd(appName) },
+      { rel: "docs/TESTING.md", content: bareTestingMd() },
+    ];
+  }
+
   const packageName = npmPackageName(appName);
   return [
     { rel: ".gitignore", content: gitignore() },
@@ -238,15 +336,27 @@ function generatedFiles(appName: string, repoSlug: string, goal: string): Genera
 }
 
 function generatedOperonSeedFiles(
+  template: NewAppTemplate,
   appName: string,
   repoSlug: string,
   goal: string,
   targetDir: string,
 ): GeneratedFile[] {
   return [
-    { rel: ".operon/bootstrap/initial-issue.md", content: initialIssueMd(appName, goal) },
-    { rel: ".operon/bootstrap/next-commands.md", content: nextCommandsMd(appName, repoSlug, targetDir) },
-    { rel: ".operon/planning/0001-greenfield-seed.md", content: planningSeedMd(appName, goal) },
+    {
+      rel: ".operon/bootstrap/initial-issue.md",
+      content: template === "bare" ? bareInitialIssueMd(appName, goal) : initialIssueMd(appName, goal),
+    },
+    {
+      rel: ".operon/bootstrap/next-commands.md",
+      content: template === "bare"
+        ? bareNextCommandsMd(appName, repoSlug, targetDir)
+        : nextCommandsMd(appName, repoSlug, targetDir),
+    },
+    {
+      rel: ".operon/planning/0001-greenfield-seed.md",
+      content: template === "bare" ? barePlanningSeedMd(appName, goal) : planningSeedMd(appName, goal),
+    },
   ];
 }
 
@@ -277,6 +387,77 @@ function html(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function bareGitignore(): string {
+  return `.env
+.env.*
+!.env.example
+`;
+}
+
+function bareAgentsMd(appName: string): string {
+  return `# AGENTS.md
+
+## Scope
+Applies to the whole ${appName} app repo.
+
+## Product Truth
+- Product vision starts in docs/VISION.md.
+- Buildable requirements start in docs/REQUIREMENTS.md.
+- Operon app policy and memory live under .operon/.
+
+## Commands
+- Status: pending; the bare template intentionally selects no stack.
+- The first implementation must record exact install/build/test/lint commands here.
+- It must also configure meaningful test and lint commands in .operon/config.yaml.
+
+## Working Rules
+- Select the implementation stack explicitly from product requirements and record it in docs/ARCHITECTURE.md.
+- Do not use placeholder, no-op, or zero-test commands to make a quality gate pass.
+- Keep changes mapped to an issue acceptance criterion.
+- Update docs when product behavior, commands, or architecture changes.
+`;
+}
+
+function bareReadmeMd(appName: string, repoSlug: string, goal: string): string {
+  return `# ${appName}
+
+${goal}
+
+This repo was scaffolded by \`operon new-app --template bare\` as a stack-neutral
+greenfield product target. It contains product truth and Operon bootstrap
+artifacts, but deliberately chooses no framework, runtime, package manager, or
+application skeleton.
+
+## Implementation Baseline — Pending
+
+The first implementation work must:
+
+- select and document the stack in \`docs/ARCHITECTURE.md\`;
+- add the stack's real source, manifest, and local commands;
+- add meaningful automated tests and lint or static analysis; and
+- set \`test_command\` and \`lint_command\` (plus \`setup_command\` when needed)
+  in \`.operon/config.yaml\`.
+
+Those required gate commands are intentionally absent. Operon treats them as
+unconfigured failures, so this empty scaffold cannot certify itself with
+vacuous green checks.
+
+## Operon
+
+- GitHub repo slug: \`${repoSlug}\`
+- App charter: \`.operon/TASTE.md\`
+- App registry entry: \`.operon/config.yaml\`
+- Initial issue body: \`.operon/bootstrap/initial-issue.md\`
+- Planner seed: \`.operon/planning/0001-greenfield-seed.md\`
+
+After creating and pushing the private GitHub repo, create the initial issue
+from \`.operon/bootstrap/initial-issue.md\` and label it \`op:ready\`.
+Keep it as the only ready product-work issue and run it through the loop first.
+Do not run app verification or promotion until it merges with meaningful gate
+commands; both correctly remain blocked while this scaffold is pending.
+`;
 }
 
 function gitignore(): string {
@@ -664,6 +845,123 @@ ${goal}
 `;
 }
 
+function bareRequirementsMd(appName: string, goal: string): string {
+  return `# Requirements - ${appName}
+
+This is a stack-neutral bootstrap PRD seed generated from the initial goal. The
+Planner should refine it before deep product work; \`operon new-app\` has not
+inferred an implementation stack from the goal.
+
+## Problem
+
+${goal}
+
+## Initial Requirements
+
+- Define the first persona and the workflow they complete.
+- Select an implementation stack explicitly and record the decision in
+  \`docs/ARCHITECTURE.md\`.
+- Implement the smallest observable end-to-end product slice appropriate to
+  that stack.
+- Add meaningful automated tests and lint or static analysis for the selected
+  stack.
+- Configure the resulting commands in \`.operon/config.yaml\`; a no-op or a
+  command that succeeds while running zero tests is not acceptable.
+- Update the runbook and this requirements document with the real commands and
+  behavior.
+
+## Acceptance Contract For First Implementation
+
+- AC1: The selected stack and its rationale are documented.
+- AC2: The repository contains the stack's real manifest, source, and local
+  workflow rather than placeholder application files.
+- AC3: \`test_command\` runs named behavior tests and fails when that behavior is
+  broken.
+- AC4: \`lint_command\` performs meaningful lint or static analysis.
+- AC5: The first product workflow has an observable result and updated docs.
+`;
+}
+
+function bareArchitectureMd(appName: string): string {
+  return `# Architecture - ${appName}
+
+## Current Shape
+
+No application stack is selected. The bare template contains product truth and
+Operon bootstrap artifacts only; it emits no runtime, package-manager,
+framework, source, test, or server skeleton.
+
+## First Implementation Decision
+
+Choose a stack from the product requirements and any reviewed design sources,
+then record the runtime, package/build tooling, source layout, test strategy,
+and local execution path here. The scaffold does not infer that choice from
+free-form goal text.
+
+## Quality-Gate Boundary
+
+\`.operon/config.yaml\` intentionally has no \`test_command\` or \`lint_command\`.
+Operon's required gates therefore fail closed until the first implementation
+adds meaningful stack-specific commands. Add \`setup_command\` only when a fresh
+worktree needs a deterministic setup step.
+`;
+}
+
+function bareRunbookMd(appName: string): string {
+  return `# Runbook - ${appName}
+
+## Local Start — Pending
+
+The bare template selects no runtime or package manager. Replace this section
+with the exact setup and start commands when the first implementation selects
+the stack.
+
+## Quality Gates — Pending
+
+The first implementation must add real commands to \`.operon/config.yaml\`:
+
+\`\`\`yaml
+setup_command: <optional stack-specific setup command>
+test_command: <meaningful stack-specific test command>
+lint_command: <meaningful stack-specific lint or static-analysis command>
+\`\`\`
+
+Do not copy the placeholders literally and do not use commands that pass
+without exercising the implemented product. Until the required commands are
+configured, Operon reports the test and lint gates as unconfigured failures.
+
+## Operon Loop
+
+After this repo is pushed and an \`op:ready\` issue exists, run from any
+directory (Operon resolves the active org home):
+
+\`\`\`bash
+operon loop --app ${appName} --once
+\`\`\`
+`;
+}
+
+function bareTestingMd(): string {
+  return `# Testing
+
+No test framework is selected by the bare template. Missing test and lint
+commands fail closed in Operon; this scaffold does not claim that an empty or
+zero-test project is healthy.
+
+The first implementation must:
+
+- choose the stack's test and lint/static-analysis tools;
+- add at least one named behavior test for the first product slice;
+- prove that the test command fails when that behavior is broken;
+- configure \`test_command\` and \`lint_command\` in
+  \`.operon/config.yaml\`; and
+- replace this file with the exact local and CI workflow.
+
+Acceptance criteria in GitHub issues should map to named tests or a documented
+manual check where automation is genuinely inapplicable.
+`;
+}
+
 function architectureMd(appName: string): string {
   return `# Architecture - ${appName}
 
@@ -725,6 +1023,45 @@ should map to named tests or a documented manual check.
 `;
 }
 
+function bareInitialIssueMd(appName: string, goal: string): string {
+  return `## Goal
+
+Establish the implementation stack, meaningful quality gates, and first usable
+product slice for ${appName}.
+
+Seed goal:
+
+> ${goal}
+
+## Context
+
+- Product seed: docs/VISION.md
+- Stack-neutral PRD: docs/REQUIREMENTS.md
+- Pending architecture decision: docs/ARCHITECTURE.md
+- Pending local workflow: docs/RUNBOOK.md
+- Gate contract: docs/TESTING.md and .operon/config.yaml
+
+The \`bare\` template was selected explicitly. It emitted no application/runtime
+skeleton and did not infer a stack from the goal. Required test and lint gates
+remain unconfigured and fail closed until this work establishes them.
+
+## Acceptance Criteria
+
+- [ ] AC1: The selected stack and rationale are recorded in docs/ARCHITECTURE.md.
+- [ ] AC2: The stack's real manifest, source layout, and local workflow replace the pending guidance.
+- [ ] AC3: .operon/config.yaml declares a meaningful stack-specific \`test_command\` that runs at least one named behavior test and fails when the behavior breaks.
+- [ ] AC4: .operon/config.yaml declares a meaningful stack-specific \`lint_command\` (and \`setup_command\` when fresh worktrees need it).
+- [ ] AC5: The first product workflow has an observable result and docs explain how to run it.
+
+## Suggested Implementation Notes
+
+- Choose the stack from product requirements and reviewed sources, not from a scaffold assumption.
+- Keep the first PR narrow enough to prove one end-to-end slice.
+- Do not use placeholder, no-op, or zero-test commands to satisfy the gates.
+- If the Planner needs to split this, keep stack selection and meaningful gates in the first implementation dependency.
+`;
+}
+
 function initialIssueMd(appName: string, goal: string): string {
   return `## Goal
 
@@ -754,6 +1091,33 @@ Seed goal:
 - Keep the first PR narrow.
 - Prefer one end-to-end vertical slice over broad placeholders.
 - If the Planner needs to split this, create child issues and leave this issue as the milestone tracker.
+`;
+}
+
+function bareNextCommandsMd(appName: string, repoSlug: string, targetDir: string): string {
+  const commandLead = "Run these from the generated app repo after reviewing the scaffold.";
+  const bareLead = `The bare template's generated initial issue is the stack-and-gates
+establishment path. Keep it as the only ready product-work issue until it
+merges: the loop reloads gate commands from the Builder worktree before gates,
+so that issue can introduce the first real commands without certifying the
+empty scaffold.
+
+Do not run operon app verify or operon app promote before that issue merges.
+Verification intentionally fails while test/lint commands are absent, and
+promotion requires a passing verification. Do not substitute placeholder,
+no-op, or zero-test commands.
+
+${commandLead}`;
+  const shared = nextCommandsMd(appName, repoSlug, targetDir)
+    .replace(commandLead, bareLead)
+    .trimEnd();
+  return `${shared}
+
+## After The Stack-And-Gates Issue Merges
+
+Run operon app verify ${appName}. Preview promotion only after verification is
+ready; the merged stack-specific tests and lint/static analysis, not the empty
+scaffold, are the evidence that may make the app runtime-ready.
 `;
 }
 
@@ -795,6 +1159,37 @@ Prefer concrete GitHub issues with binary acceptance criteria and named tests.
 
 - Start with a product-definition ticket only if the current PRD is too vague.
 - Next create one first-slice implementation ticket.
+- Add infrastructure tickets only when the first slice needs them.
+- Keep Support and Marketing work tied to declared channels and real artifacts.
+`;
+}
+
+function barePlanningSeedMd(appName: string, goal: string): string {
+  return `# Greenfield Planning Seed - ${appName}
+
+## Product Goal
+
+${goal}
+
+## Template Boundary
+
+The operator explicitly selected the stack-neutral \`bare\` template. The
+scaffold emitted no application/runtime skeleton and did not infer a stack from
+the free-form goal.
+
+## Planner Task
+
+Refine docs/VISION.md and docs/REQUIREMENTS.md into a buildable first milestone.
+The first implementation dependency must explicitly select and document the
+stack, add real source and local workflows, and establish meaningful
+stack-specific test and lint gates in \`.operon/config.yaml\`.
+
+## Decomposition Guidance
+
+- Start with a product-definition ticket only if the current PRD is too vague.
+- Keep stack selection, the first observable slice, and non-vacuous gate setup
+  together or encode explicit dependencies that prevent implementation from
+  being certified before its gates exist.
 - Add infrastructure tickets only when the first slice needs them.
 - Keep Support and Marketing work tied to declared channels and real artifacts.
 `;

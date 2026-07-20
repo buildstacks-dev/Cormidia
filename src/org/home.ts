@@ -61,6 +61,26 @@ export interface OperonHomes {
   pointerPath: string;
 }
 
+/**
+ * Stable machine-readable identity for the expected first-run state where no
+ * org has been selected yet. The full Error message remains the human CLI
+ * diagnostic; JSON-aware callers use these fields without matching prose.
+ */
+export class NoActiveOrgError extends Error {
+  readonly code = "no_active_org" as const;
+  readonly publicMessage = "no active org home";
+  readonly remediation =
+    "Run `operon org init <path> --name <name>` or set OPERON_ORG_HOME to a complete org home.";
+
+  constructor() {
+    super(
+      "operon: no active org home — create one with `operon org init <path> --name <name>` " +
+        "or select one with OPERON_ORG_HOME",
+    );
+    this.name = "NoActiveOrgError";
+  }
+}
+
 export async function resolveOperonHomes(options: OperonHomeOptions = {}): Promise<OperonHomes> {
   const homeDir = options.homeDir ?? homedir();
   const pointerPath = options.pointerPath ?? join(homeDir, ".operon", "config");
@@ -71,10 +91,7 @@ export async function resolveOperonHomes(options: OperonHomeOptions = {}): Promi
     pointerPath,
   });
   if (orgHome === undefined) {
-    throw new Error(
-      "operon: no active org home — create one with `operon org init <path> --name <name>` " +
-        "or select one with OPERON_ORG_HOME",
-    );
+    throw new NoActiveOrgError();
   }
   await validateOrgHome(orgHome);
   const appsFile = await loadApps(join(orgHome, "apps.yaml"));

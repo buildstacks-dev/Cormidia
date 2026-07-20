@@ -60,6 +60,7 @@ async function runCliFrom(
   const env: NodeJS.ProcessEnv = { ...process.env, HOME: homeDir };
   delete env.OPERON_ORG_HOME;
   delete env.OPERON_STATE_HOME;
+  delete env.OPERON_HOME;
   try {
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
@@ -74,6 +75,60 @@ async function runCliFrom(
 }
 
 describe("cli dispatch", () => {
+  it.each([
+    { label: "context", args: ["context", "--json"] },
+    { label: "org show", args: ["org", "show", "--json"] },
+  ])("$label keeps the JSON contract when no org is active", async ({ args }) => {
+    const home = mkdtempSync(join(tmpdir(), "operon-cli-no-active-org-"));
+    try {
+      const { stdout, stderr, code } = await runCliFrom(args, NEUTRAL_CWD, home);
+      expect(code).toBe(1);
+      expect(stderr).toBe("");
+      expect(JSON.parse(stdout)).toEqual({
+        schema_version: 1,
+        ok: false,
+        error: {
+          code: "no_active_org",
+          message: "no active org home",
+          remediation:
+            "Run `operon org init <path> --name <name>` or set OPERON_ORG_HOME to a complete org home.",
+        },
+      });
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the existing human diagnostic when no org is active", async () => {
+    const home = mkdtempSync(join(tmpdir(), "operon-cli-no-active-org-human-"));
+    try {
+      const { stdout, stderr, code } = await runCliFrom(["context"], NEUTRAL_CWD, home);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr.trim()).toBe(
+        "operon: no active org home — create one with `operon org init <path> --name <name>` " +
+          "or select one with OPERON_ORG_HOME",
+      );
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizes other thrown JSON-mode failures at the shared boundary", async () => {
+    const { stdout, stderr, code } = await runCli(["context", "--json", "--not-a-context-flag"]);
+    expect(code).toBe(1);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toEqual({
+      schema_version: 1,
+      ok: false,
+      error: {
+        code: "command_failed",
+        message: 'context: unknown argument "--not-a-context-flag"',
+        remediation: "Run `operon context --help` and correct the invocation or configuration.",
+      },
+    });
+  });
+
   it("unknown command prints an error to stderr and exits 1", async () => {
     const { stdout, stderr, code } = await runCli(["bogus-command"]);
     expect(code).toBe(1);

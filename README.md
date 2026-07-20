@@ -134,6 +134,13 @@ operon pipelines
 operon doctor --json
 ```
 
+For every command that accepts `--json`, the format contract also covers
+failures caught at the CLI boundary. A failed invocation exits non-zero and
+prints one document to stdout with `schema_version`, `ok: false`, and a stable
+`error.code`, `error.message`, and `error.remediation`; it does not prepend a
+plaintext stderr diagnostic. For example, discovery before an org is selected
+reports `error.code: "no_active_org"`, so callers never need to match prose.
+
 By default `doctor` runs bounded, non-billable readiness probes only for the
 runtimes and models referenced by the active `roles.yaml`: Claude performs an
 SDK initialize/account-info control request, Codex performs App Server

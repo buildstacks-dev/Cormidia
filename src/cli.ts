@@ -34,6 +34,7 @@ import { cmdReport } from "./cli/report.js";
 import { cmdNarrative } from "./cli/narrative.js";
 import { cmdScheduler } from "./cli/scheduler.js";
 import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.js";
+import { runJsonCliCommand } from "./cli/json-failure.js";
 
 const USAGE = `operon — org runtime for a team of AI agents
 
@@ -242,7 +243,9 @@ async function main(): Promise<number> {
       console.log(command.help);
       return 0;
     }
-    return await command.run(rest);
+    return rest.includes("--json")
+      ? await runJsonCliCommand(cmd, () => command.run(rest))
+      : await command.run(rest);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     return 1;

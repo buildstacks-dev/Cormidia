@@ -21,7 +21,13 @@ export async function cmdApps(args: string[] = []): Promise<number> {
   const repoWidth = Math.max("REPO".length, ...apps.map((a) => a.repo.length)) + 2;
   const statusWidth = Math.max("STATUS".length, ...apps.map((a) => a.status.length)) + 2;
   const pad = (s: string, n: number) => s.padEnd(n);
-  console.log(pad("APP", appWidth) + pad("REPO", repoWidth) + pad("STATUS", statusWidth) + "BUDGET");
+  console.log(
+    pad("APP", appWidth) +
+      pad("REPO", repoWidth) +
+      pad("STATUS", statusWidth) +
+      pad("ASSIGNMENT", 12) +
+      "BUDGET",
+  );
   for (const a of apps) {
     const cadence = Object.keys(a.cadence).length
       ? `  (cadence overrides: ${Object.keys(a.cadence).join(", ")})`
@@ -30,6 +36,7 @@ export async function cmdApps(args: string[] = []): Promise<number> {
       pad(a.name, appWidth) +
         pad(a.repo, repoWidth) +
         pad(a.status, statusWidth) +
+        pad(a.execution?.assignmentMode ?? "fixed", 12) +
         `$${a.budgetUsdMonth}/mo` +
         cadence,
     );

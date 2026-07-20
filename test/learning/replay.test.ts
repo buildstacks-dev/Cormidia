@@ -9,12 +9,20 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { readExecutionSteps } from "../../src/loop/efficiency.js";
+import {
+  readCurrentEpisodePlan,
+  readEpisodePlanVersion,
+} from "../../src/loop/episode-plan.js";
+import { readEpisodePlanExecutionJournal } from "../../src/loop/episode-plan-executor.js";
+import { readEpisodeReplanJournal } from "../../src/loop/episode-replan.js";
 import { listRuns } from "../../src/org/learning/capture.js";
 import type { EvalFixture } from "../../src/org/learning/eval-fixture.js";
 import { validateExperimentRecord } from "../../src/org/learning/experiment.js";
 import { defaultLearningPolicy } from "../../src/org/learning/policy.js";
 import {
   createLoopReplayExecutor,
+  replayEpisodeIdForAttempt,
   REPLAY_RUNLOG_APP,
   type LoopReplayExecutorOptions,
   type ReplayAttemptRequest,
@@ -60,10 +68,10 @@ const APPROVE = "Verdict: approve";
 const FINDING =
   "- testing/major src/x.ts:1 -- missing regression coverage -> add the test\nVerdict: findings";
 
-function role(name: string): RoleConfig {
+function role(name: string, runtime: RoleConfig["runtime"] = "claude"): RoleConfig {
   return {
     name,
-    runtime: "claude",
+    runtime,
     model: `${name}-model`,
     effort: "high",
     delegation: { allow: [] },
@@ -73,7 +81,11 @@ function role(name: string): RoleConfig {
   };
 }
 
-const ROLES = { builder: role("builder"), reviewer: role("reviewer") };
+const ROLES = {
+  builder: role("builder", "claude"),
+  reviewer: role("reviewer", "codex"),
+  planner: role("planner", "claude"),
+};
 
 interface Rig {
   org: OrgHomeFixture;
@@ -130,8 +142,27 @@ function makeRig(): Rig {
       stateHome: state.root,
       localRepo: repo.root,
       worktreeRoot,
+      app: {
+        name: "any",
+        repo: "owner/alpha",
+        status: "paused",
+        budgetUsdMonth: 100,
+        cadence: {},
+        execution: { assignmentMode: "fixed", allowedAssignments: {} },
+      },
       roles: ROLES,
-      runtimeFor: () => runtime,
+      runtimeForAssignment: (assignment) => ({
+        kind: assignment.harness,
+        runTurn: (turnRequest, hooks) => runtime.runTurn(turnRequest, hooks),
+      }),
+      assignmentReadinessProbe: async (request) => ({
+        runtime: request.runtime,
+        models: [...request.models],
+        status: "ready",
+        detail: "test adapter ready; no model turn sent",
+        durationMs: 1,
+        billable: false,
+      }),
       policy: defaultLearningPolicy(),
       candidateRef: "cand_20260711_01JGHI",
       clock: () => new Date("2026-07-11T12:00:00Z"),
@@ -213,7 +244,8 @@ describe("full paired-replay attempt", () => {
     const runtime = committing(fake, { "Implement the CSV export": { "src/x.ts": "export {};\n" } });
     const executor = createLoopReplayExecutor(rig.options(runtime));
 
-    const attempt = await executor.attempt(request({ arm: "control" }, rig));
+    const replayRequest = request({ arm: "control" }, rig);
+    const attempt = await executor.attempt(replayRequest);
     expect(attempt.metrics).toMatchObject({
       merged: 1,
       review_cycles: 0,
@@ -229,6 +261,34 @@ describe("full paired-replay attempt", () => {
     expect(fake.calls[0]?.req.task).toBe(BRIEF);
     expect(fake.calls[1]?.req.task).toContain("## Diff under review");
     expect(fake.calls[1]?.req.task).toContain("src/x.ts");
+    expect(fake.calls.map((call) => call.req.assignment)).toEqual([
+      { harness: "claude", model: "builder-model", effort: "high" },
+      { harness: "codex", model: "reviewer-model", effort: "high" },
+    ]);
+
+    const episodeId = replayEpisodeIdForAttempt(replayRequest);
+    const plan = await readCurrentEpisodePlan(rig.state.root, episodeId);
+    expect(plan).toMatchObject({
+      version: 1,
+      planningSource: "creator_scope",
+      creatorProvenance: { creatorId: "learning-experiment-runner" },
+    });
+    expect(plan?.steps.filter((step) => step.kind === "provider_turn").map((step) => ({
+      id: step.id,
+      assignmentSource: step.assignmentSource,
+      assignment: step.assignment,
+    }))).toEqual([
+      {
+        id: "replay-build",
+        assignmentSource: "configured",
+        assignment: { harness: "claude", model: "builder-model", effort: "high" },
+      },
+      {
+        id: "replay-review",
+        assignmentSource: "configured",
+        assignment: { harness: "codex", model: "reviewer-model", effort: "high" },
+      },
+    ]);
 
     // Runs land in the reserved namespace, settle with learning attribution…
     const rows = await readTurnRecords(rig.state.root);
@@ -238,6 +298,13 @@ describe("full paired-replay attempt", () => {
       expect(row.experimentRef).toBe("exp_replay_01");
       expect(row.candidateRef).toBe("cand_20260711_01JGHI");
       expect(row.trigger).toBe("manual");
+    }
+    const providerEvidence = (await readExecutionSteps(rig.state.root, episodeId))
+      .filter((step) => step.kind === "provider");
+    expect(providerEvidence).toHaveLength(2);
+    for (const step of providerEvidence) {
+      expect(step.experiment_ref).toBe("exp_replay_01");
+      expect(step.candidate_ref).toBe("cand_20260711_01JGHI");
     }
     // …and the capture projector never sees them (evidence stays clean).
     expect(await listRuns(rig.state.root)).toEqual([]);
@@ -261,10 +328,37 @@ describe("full paired-replay attempt", () => {
     });
     const executor = createLoopReplayExecutor(rig.options(runtime));
 
-    const attempt = await executor.attempt(request({ arm: "control" }, rig));
+    const replayRequest = request({ arm: "control" }, rig);
+    const attempt = await executor.attempt(replayRequest);
     expect(attempt.metrics).toMatchObject({ merged: 1, review_cycles: 1, held_in_pass: 1 });
     expect(fake.calls).toHaveLength(4);
     expect(fake.calls[2]?.req.task).toContain("missing regression coverage");
+
+    const episodeId = replayEpisodeIdForAttempt(replayRequest);
+    const v1 = await readEpisodePlanVersion(rig.state.root, episodeId, 1);
+    const v2 = await readEpisodePlanVersion(rig.state.root, episodeId, 2);
+    expect(v1?.steps.map((step) => step.id)).toEqual([
+      "replay-build",
+      "replay-gates",
+      "replay-review",
+      "replay-review-decision",
+    ]);
+    expect(v2?.steps.map((step) => step.id)).toEqual([
+      "replay-build",
+      "replay-gates",
+      "replay-review",
+      "replay-fix",
+      "replay-regate",
+      "replay-rereview",
+      "replay-review-decision",
+    ]);
+    expect(v2?.steps.slice(0, 3)).toEqual(v1?.steps.slice(0, 3));
+    expect((await readEpisodeReplanJournal(rig.state.root, episodeId))?.records)
+      .toMatchObject([{ trigger: { kind: "failed_gate" }, status: "accepted", revisionVersion: 2 }]);
+    const journal = await readEpisodePlanExecutionJournal(rig.state.root, episodeId);
+    expect(journal?.events.filter((event) =>
+      event.kind === "step_completed" && event.step_id === "replay-build"))
+      .toHaveLength(1);
   });
 
   it("keeps expected outcomes verifier-only — no brief or context byte carries them (design §9.3)", async () => {
@@ -283,6 +377,122 @@ describe("full paired-replay attempt", () => {
       expect(bytes).not.toContain("12.41"); // the observed/expected cost
       expect(bytes).not.toContain("build-outcome@1");
     }
+  });
+
+  it("fails an invalid review verdict once without a hidden reformat provider turn", async () => {
+    const rig = makeRig();
+    const fake = new FakeRuntime([
+      { result: turn("built") },
+      { result: turn("looks fine to me") },
+    ]);
+    const runtime = committing(fake, { "Implement the CSV export": { "src/x.ts": "x\n" } });
+    const executor = createLoopReplayExecutor(rig.options(runtime));
+
+    const attempt = await executor.attempt(request({ arm: "control" }, rig));
+    expect(attempt).toMatchObject({ heldInPass: false, runIds: expect.any(Array) });
+    expect(attempt.runIds).toHaveLength(2);
+    expect(fake.calls).toHaveLength(2);
+    const rows = (await readTurnRecords(rig.state.root))
+      .filter((row) => row.app === REPLAY_RUNLOG_APP);
+    expect(rows).toHaveLength(2);
+    expect(rows.at(-1)?.status).toBe("completed");
+    const runs = readdirSync(join(rig.state.root, "runs", REPLAY_RUNLOG_APP));
+    expect(runs).toHaveLength(2);
+  });
+});
+
+describe("assignment-aware durable replay execution", () => {
+  it("persists creator-selected adaptive tuples and executes different harnesses", async () => {
+    const rig = makeRig();
+    const adaptiveBuilder: RoleConfig = {
+      ...role("builder", "claude"),
+      adaptiveAssignments: [{
+        id: "builder-pi-qualified",
+        harness: "pi",
+        model: "anthropic/claude-qualified",
+        efforts: ["medium"],
+        providerFamily: "anthropic",
+        capabilityRef: "pi/v1",
+        qualificationRef: "test:builder-pi-qualified",
+        pricing: {
+          kind: "conservative_estimate",
+          maxTurnCostUsd: 3,
+          sourceRef: "test:price-catalog",
+        },
+      }],
+    };
+    const adaptiveRoles = {
+      builder: adaptiveBuilder,
+      reviewer: role("reviewer", "codex"),
+      planner: role("planner", "claude"),
+    };
+    const fake = new FakeRuntime([{ result: turn("built") }, { result: turn(APPROVE) }]);
+    const runtime = committing(fake, { "Implement the CSV export": { "src/x.ts": "x\n" } });
+    const executor = createLoopReplayExecutor(rig.options(runtime, {
+      roles: adaptiveRoles,
+      app: {
+        name: "any",
+        repo: "owner/alpha",
+        status: "paused",
+        budgetUsdMonth: 100,
+        cadence: {},
+        execution: {
+          assignmentMode: "adaptive",
+          allowedAssignments: {
+            builder: ["builder-pi-qualified"],
+            reviewer: ["configured"],
+            planner: ["configured"],
+          },
+        },
+      },
+    }));
+    const replayRequest = request({ arm: "control" }, rig);
+
+    await expect(executor.attempt(replayRequest)).resolves.toMatchObject({ heldInPass: true });
+    expect(fake.calls.map((call) => call.req.assignment)).toEqual([
+      { harness: "pi", model: "anthropic/claude-qualified", effort: "medium" },
+      { harness: "codex", model: "reviewer-model", effort: "high" },
+    ]);
+    const plan = await readCurrentEpisodePlan(
+      rig.state.root,
+      replayEpisodeIdForAttempt(replayRequest),
+    );
+    expect(plan?.steps.filter((step) => step.kind === "provider_turn").map((step) => ({
+      harness: step.assignment.harness,
+      source: step.assignmentSource,
+    }))).toEqual([
+      { harness: "pi", source: "creator" },
+      { harness: "codex", source: "creator" },
+    ]);
+  });
+
+  it("resumes a crash after terminal provider evidence without a duplicate turn", async () => {
+    const rig = makeRig();
+    const fake = new FakeRuntime([{ result: turn("built") }]);
+    const runtime = committing(fake, { "Implement the CSV export": { "src/x.ts": "x\n" } });
+    let injected = false;
+    const executor = createLoopReplayExecutor(rig.options(runtime, {
+      afterProviderEvidence: ({ recovered }) => {
+        if (!recovered && !injected) {
+          injected = true;
+          throw new Error("fault after terminal provider evidence");
+        }
+      },
+    }));
+    const replayRequest = request({ arm: "control", pair: 0, mode: "targeted" }, rig);
+    const episodeId = replayEpisodeIdForAttempt(replayRequest);
+
+    await expect(executor.attempt(replayRequest)).rejects.toMatchObject({
+      code: "error_episode_plan_step_interrupted",
+    });
+    expect(fake.calls).toHaveLength(1);
+    expect(readdirSync(join(rig.state.root, "worktrees", "learning-replay"))).toHaveLength(1);
+    expect((await readEpisodePlanExecutionJournal(rig.state.root, episodeId))?.status).toBe("running");
+
+    await expect(executor.attempt(replayRequest)).resolves.toMatchObject({ heldInPass: true });
+    expect(fake.calls).toHaveLength(1);
+    expect(readdirSync(join(rig.state.root, "worktrees", "learning-replay"))).toEqual([]);
+    expect((await readEpisodePlanExecutionJournal(rig.state.root, episodeId))?.status).toBe("completed");
   });
 });
 

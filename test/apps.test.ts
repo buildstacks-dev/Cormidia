@@ -58,10 +58,123 @@ describe("loadApps", () => {
       support: [],
       planner: [{ schedule: "daily 08:00" }],
     });
+    expect(civic.execution).toEqual({ assignmentMode: "fixed", allowedAssignments: {} });
 
     const buildstacks = apps[1]!;
     expect(buildstacks.status).toBe("onboarding");
     expect(buildstacks.cadence).toEqual({}); // cadence is optional
+    expect(buildstacks.execution).toEqual({ assignmentMode: "fixed", allowedAssignments: {} });
+  });
+
+  it("parses adaptive assignment mode and strict per-role candidate narrowing", async () => {
+    const path = appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: live
+    execution:
+      assignment_mode: adaptive
+      allowed_assignments:
+        builder: [configured, codex-primary, economical.v1]
+        reviewer: []
+`);
+    const { apps } = await loadApps(path);
+    expect(apps[0]!.execution).toEqual({
+      assignmentMode: "adaptive",
+      allowedAssignments: {
+        builder: ["configured", "codex-primary", "economical.v1"],
+        reviewer: [],
+      },
+    });
+  });
+
+  it("normalizes omitted execution and explicit fixed execution identically", async () => {
+    const path = appsFile(`
+org: {name: operon}
+apps:
+  legacy: {repo: owner/legacy, status: live}
+  explicit:
+    repo: owner/explicit
+    status: live
+    execution: {assignment_mode: fixed}
+`);
+    const { apps } = await loadApps(path);
+    expect(apps[0]!.execution).toEqual(apps[1]!.execution);
+    expect(apps[0]!.execution).toEqual({ assignmentMode: "fixed", allowedAssignments: {} });
+  });
+
+  it("rejects invalid execution modes and unknown execution keys", async () => {
+    await expect(loadApps(appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: live
+    execution: {assignment_mode: automatic}
+`))).rejects.toThrow(/execution\.assignment_mode must be one of fixed \| adaptive/);
+
+    await expect(loadApps(appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: live
+    execution: {assignment_mode: fixed, planning_enabled: false}
+`))).rejects.toThrow(/execution: unknown key "planning_enabled"/);
+
+    await expect(loadApps(appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: live
+    execution: {assignment_mode: null}
+`))).rejects.toThrow(/execution\.assignment_mode must be one of fixed \| adaptive/);
+
+    await expect(loadApps(appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: live
+    execution: {assignment_mode: fixed, allowed_assignments: null}
+`))).rejects.toThrow(/execution\.allowed_assignments must be a mapping/);
+  });
+
+  it("rejects unknown app fields instead of silently defaulting assignment policy", async () => {
+    await expect(loadApps(appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: live
+    executon: {assignment_mode: adaptive}
+`))).rejects.toThrow(/app "civic": unknown field\(s\): executon/);
+  });
+
+  it("rejects duplicate, empty, and non-canonical assignment IDs", async () => {
+    const config = (ids: string) => appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: live
+    execution:
+      assignment_mode: adaptive
+      allowed_assignments:
+        builder: ${ids}
+`);
+    await expect(loadApps(config("[configured, configured]"))).rejects.toThrow(
+      /duplicate assignment ID "configured"/,
+    );
+    await expect(loadApps(config("[\"\"]"))).rejects.toThrow(/must be a stable lowercase assignment ID/);
+    await expect(loadApps(config("[Codex-Primary]"))).rejects.toThrow(
+      /must be a stable lowercase assignment ID/,
+    );
+    await expect(loadApps(config("[-codex]"))).rejects.toThrow(
+      /must be a stable lowercase assignment ID/,
+    );
   });
 
   it("rejects the reserved learning-replay app name (M5 replay namespace)", async () => {

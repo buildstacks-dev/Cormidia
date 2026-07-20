@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v2.5 — 2026-07-18. Human-ratified decision log. Keep this file high-level;
+*v2.6 — 2026-07-19. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
 
 ## One-liner
@@ -71,10 +71,12 @@ config file, not a fork.
    model and let a builder run with a few prompts." There is a specific taste in
    how software gets built — protocols, standards, review gates — and the system
    must make those enforceable and easy to customize.
-2. **Model-agnostic.** Each role is assigned a model independently, and
-   assignments change over time (e.g. a frontier model for planning and review;
-   a cheaper/faster model for building, SRE, and support). Swapping a role's
-   model must be a config change, not a rewrite.
+2. **Model-agnostic.** Role responsibility and execution assignment are
+   separate. Every provider turn receives one atomic harness, exact-model, and
+   effort assignment. Fixed assignments resolve from configuration; adaptive
+   assignments are selected only from exact org-approved candidates. Changing
+   an assignment must be a config change, not a rewrite, and must never broaden
+   the role's authority.
 3. **The agent is the code.** Each agent = a versioned blob of code/config/prompt
    in the repo — inspectable, diffable, reviewable like anything else.
 4. **Reusable beyond the first app.** The org runtime must not absorb
@@ -91,9 +93,11 @@ config file, not a fork.
 7. **Intelligence is reserved for judgment.** Parsing, migration,
    synchronization, validation, capture, aggregation, reconciliation, and
    other deterministic mechanics use zero model turns by default.
-8. **Risk buys process.** Every additional planning, review, isolation, model
-   effort, or context allowance requires a recorded risk or uncertainty
-   factor under the canonical efficiency policy.
+8. **Risk buys process.** The normal EpisodePlanner turn establishes the
+   smallest sufficient workflow. Every additional planning revision, review,
+   isolation, model effort, or context allowance requires a recorded risk,
+   uncertainty, safety, or failed-assumption factor under the canonical
+   efficiency policy.
 9. **Forward progress is durable.** Valid decisions and artifacts survive
    interruption, approval, retry, reset, and restart. Re-derivation requires a
    recorded invalidation reason.
@@ -106,6 +110,40 @@ config file, not a fork.
     event or plausible candidate alone is not improvement.
 
 ## Decided
+
+- **Episode planning precedes execution routing; creator scope is the only
+  planner-turn bypass; turn assignment is atomic** (ratified 2026-07-19).
+  Every episode persists one schema-validated, executable EpisodePlan before
+  delivery begins. Normally a dedicated EpisodePlanner designs the smallest
+  sufficient role/turn graph in both assignment modes. It may be skipped only
+  when the human or agent that created the episode explicitly supplied
+  provenance-bearing, execution-ready scope: bounded objective and exclusions,
+  acceptance criteria and expected artifacts, necessary provider/mechanical
+  steps and dependencies directly or through an unambiguous governed workflow
+  template, known constraints and safety facts, and every assignment decision
+  that cannot be resolved deterministically. Apparent simplicity, title,
+  labels, prompt length, lifecycle, tier, or existing-ticket status never imply
+  this bypass. Incomplete creator scope remains authoritative input and the
+  EpisodePlanner completes the missing decisions.
+
+  App configuration exposes `fixed` and `adaptive` assignment modes; omission
+  preserves existing configured behavior by resolving to `fixed` and never
+  disables planning. In fixed mode the EpisodePlanner chooses the workflow and
+  each provider step receives its configured atomic harness/model/effort tuple.
+  In adaptive mode the EpisodePlanner—or an execution-ready creator—chooses
+  each tuple from exact org-approved candidates narrowed by app policy. The
+  EpisodePlanner's own boot assignment is explicit and fixed, never recursively
+  selected. Deterministic policy validates capabilities, qualification,
+  availability, budgets, approvals, safety floors, gates, release constraints,
+  terminal coverage, and independent review; it may reject or require a
+  bounded revision but may not silently replace the plan with a static
+  workflow. Accepted plans are persisted before their first delivery turn;
+  revisions are versioned, bounded, and forward-only. Quick/standard/deep may
+  remain as derived compatibility, reporting, or safety-floor projections, but
+  no longer select the workflow or cap a turn's effort. This supersedes the
+  route-first/static-pass-set reading of the 2026-07-06 protocol-loop and
+  2026-07-12/13 efficiency-doctrine decisions while preserving their safety,
+  approval, accounting, continuation, evidence, and hard-ceiling guarantees.
 
 - **Ticket claims are recoverable sagas, and approval waits resume the exact
   pass without consuming another claim** (ratified 2026-07-18; supersedes the
@@ -858,3 +896,7 @@ will resolve them.
   product, safety, accounting, learning-integrity, budget, and CI failures
   remain blockers; bounded evaluator-only defects are retained and disclosed
   without recursively restarting provider qualification.
+- 2026-07-19 — v2.6: EpisodePlanner made the default start of every episode in
+  fixed and adaptive assignment modes; explicit execution-ready creator scope
+  became the sole planner-turn bypass; atomic harness/model/effort assignment,
+  plan-derived routing, and forward-only plan revisions were ratified.

@@ -83,7 +83,7 @@ describe("cli dispatch", () => {
     const { stdout, code } = await runCli(["apps"]);
     expect(code).toBe(0);
     expect(stdout).toContain("apps.yaml: OK");
-    expect(stdout).toMatch(/APP\s+REPO\s+STATUS\s+BUDGET/);
+    expect(stdout).toMatch(/APP\s+REPO\s+STATUS\s+ASSIGNMENT\s+BUDGET/);
   });
 
   it("app reset help is available from the top-level dispatch table", async () => {

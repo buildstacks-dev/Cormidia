@@ -123,7 +123,18 @@ describe("runRole", () => {
       expect(result.brief).toContain(
         "Runtime context: 4 taste layers and 1 memory excerpt supplied",
       );
-      expect(fake.calls[0]?.req.context).toEqual(context);
+      expect(fake.calls[0]?.req.context).toMatchObject(context);
+      expect(fake.calls[0]?.req.context.execution).toMatchObject({
+        role: "planner",
+        assignment: {
+          harness: PLANNER.runtime,
+          model: PLANNER.model,
+          effort: PLANNER.effort,
+        },
+        resolvedCapabilities: expect.arrayContaining(["tool_gate", "cancellation"]),
+        requiredCapabilities: ["cancellation", "session_resume", "tool_gate"],
+        roleDelegation: { allow: [] },
+      });
     } finally {
       home.cleanup();
     }

@@ -1,6 +1,6 @@
 # The Build Loop — engineering design
 
-*Living design doc — last aligned 2026-07-13. The loop is Operon's center
+*Living design doc — last aligned 2026-07-19. The loop is Operon's center
 of gravity: a TypeScript
 re-engineering of the predecessor orchestrator — a private Python prototype
 that proved the approach, called simply "the predecessor" throughout
@@ -8,7 +8,7 @@ that proved the approach, called simply "the predecessor" throughout
 — made framework-agnostic through the runtime adapters. This doc is the
 detail layer for* `src/loop/`*;* `docs/architecture.md` *§3 holds the
 surrounding turn/worktree machinery. §11 records decisions ratified into
-docs/PURPOSE.md on 2026-07-06 and 2026-07-13; future new decisions should be proposed here
+docs/PURPOSE.md on 2026-07-06, 2026-07-13, and 2026-07-19; future new decisions should be proposed here
 first, then promoted only after human ratification.*
 
 ## 0. Position
@@ -26,23 +26,26 @@ is never a better prompt; it is code.
 The loop must be rock solid for **three workloads**:
 
 
-| Workload                 | Planning entry                                                                                  | Loop behavior                                                                                                 |
-| ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Greenfield product build | Planner `plan` pipeline: vision → competing roadmaps → arbitration → decomposition into tickets | Dependency-ordered ticket stream; test-infrastructure tickets first; cross-milestone integration tickets last |
-| Feature additions        | Co-planning / `groom` pipeline → spec doc + tickets                                             | Standard pipeline, contract pass mandatory                                                                    |
-| Bug batches              | `triage` pipeline → `tier:quick` tickets                                                        | Typed contract + implement; full mechanical gates — speed comes from narrow scope, never weaker completeness  |
+| Workload                 | Episode planning                                                                 | Loop behavior                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Greenfield product build | EpisodePlanner starts with product discovery/decomposition; complete child scopes can omit redundant child planner turns | Dependency-ordered ticket stream; test-infrastructure tickets first; cross-milestone integration tickets last |
+| Feature additions        | EpisodePlanner selects only the roles, provider turns, gates, and approvals justified by the bounded goal | Accepted plan DAG plus contract/gates required by its facts                                                    |
+| Bug batches              | Each episode is planned normally unless its creator deliberately supplied complete executable scope | Localized work stays small; ambiguous work gains diagnosis/reproduction without weakening mechanical gates    |
 
 
-The workloads differ in **planning pipeline and tier defaults, not loop
-machinery** — one loop, tuned by config.
+The workloads share one contract: `intent → plan → deterministic validation →
+ready-step execution → evidence`. Quick/standard/deep is derived after plan
+acceptance for compatibility, reporting, or a safety floor; it does not choose
+the workflow.
 
-**Planning is not a loop phase.** The predecessor ran plan/dev/review/ship as
-one pipeline because it had one agent identity. Operon has a standing Planner
-role: the predecessor's `plan`/`plan_deep`/`supplement`/`onboard` phases become
-**Planner pipelines** (§4) run on the Planner's own triggers, emitting
-tickets to GitHub. The loop consumes `op:ready` tickets and knows nothing
-about how they were planned. The ticket format (architecture.md §10) is the
-contract between them.
+**Episode planning precedes the delivery loop.** Normally EpisodePlanner runs
+in both fixed and adaptive assignment modes. It may be skipped only when the
+episode's human or agent creator explicitly supplied complete,
+provenance-bearing scope that normalizes into the same executable plan. An
+`op:ready` ticket, existing-ticket lifecycle, short prompt, or apparent
+simplicity is never enough. Product-planning pipelines may still emit tickets,
+but those tickets are inputs/artifacts rather than authority to bypass episode
+planning.
 
 ## 1. Inheritance audit — what we keep, change, drop
 
@@ -51,8 +54,8 @@ From the predecessor (reviewed in full 2026-07-04):
 **Keep (proven, ports directly)**
 
 - Fresh session per pass; durable state between passes, never chat memory.
-- Multi-pass phases with per-pass prompt template, model, and
-thinking/effort overrides; parallel pass groups (competing-PMs pattern).
+- Versioned prompt/gate protocol stages, now selected as typed EpisodePlan
+steps with one atomic harness/model/effort assignment per provider turn.
 - Mechanical preflight gates in orchestrator code — tests, lint, e2e, secret
 regex scan, completeness, review freshness — risk-tiered by changed-file
 globs, "no agent hallucination can bypass these"; gates run twice at ship.
@@ -103,20 +106,23 @@ orchestrator too (TASTE §6).
 scope after merge-conflict pain; its execution-groups parser survives as
 dead code. We revive the idea **one level up** (§8): parallel *tickets* on
 separate branches/worktrees, where git actually isolates them.
-- `skip_contracts` *global flag* → per-ticket tiering (§4) decides.
+- `skip_contracts` *global flag* → the validated plan explicitly includes or
+  omits a contract step and records why, subject to deterministic floors.
 
 
 
 ## 2. The pass model
 
-A **pass** is a configured protocol stage and an orchestration identity:
+A **pass** is a configured protocol stage and an orchestration identity. For a
+provider step in an accepted plan it is currently a one-step transport, not a
+workflow selector:
 
 ```
 pass normally invokes Runtime.runTurn(req, hooks) where
   req.task    = brief (assembled, §3) + pass prompt template (versioned file)
   req.context = TASTE layers + memory excerpts (architecture.md §5)
-  req.role    = the role this pass belongs to (adapter, model, budget)
-  overrides   = per-pass model/effort within the role's provider
+  req.role    = responsibility, instructions, tools, permissions, outputs
+  assignment  = exact { harness, model, effort } authorized by the plan
 ```
 
 A pass is not the provider-accounting identity. Each adapter invocation is a
@@ -137,20 +143,22 @@ Rules, all inherited from the predecessor and now contract-level:
   in the org home — diffable, reviewable, and a protocol surface: the
    safety gate's `protocol-self-edit` rule extends to `prompts/**` and
    `pipelines.yaml` (gate.ts change + conformance cases).
-3. **Per-pass overrides stay within the role's provider.** contract and
-  implement may use different efforts of the builder's model family;
-   cross-provider remains an org-level flow between roles (docs/PURPOSE.md).
+3. **Assignment is atomic and separate from role authority.** The executor
+  instantiates `assignment.harness`, then passes its exact model and effort.
+  It never overrides only one member or infers a harness from a model. Role
+  tools and permissions are applied after adapter selection and do not widen.
 4. **Sequential passes re-read state; parallel groups are for independent
   writers.** Consecutive passes marked with the same `parallel_group` run
    concurrently and must declare disjoint outputs (competing roadmaps →
    separate files; the arbitrator merges).
-5. **Harness delegation is per-pass discretion.** `delegation.allow` governs
+5. **Harness delegation is per-step discretion.** `delegation.allow` governs
   what a pass may fan out *internally* (scouts, adversarial verifiers).
-   The pipeline is the protocol; delegation is tactics inside one step.
+   The accepted plan is the workflow; delegation is tactics inside one step.
 6. **Legacy per-pass safety caps** (the predecessor used `max_turns=50`) and
   the role's `max_turn_budget_usd` still bound the current implementation.
   They do not authorize additional episode spend. The target pre-provider-turn
-  check uses the route's remaining allowance from `docs/efficiency.md`.
+  check uses the plan-derived route's remaining allowance from
+  `docs/efficiency.md`.
 
 Adapter requirement surfaced by the predecessor's sharpest edge: briefs are
 large (it needed a custom stdin transport because prompts overflow ARG_MAX).
@@ -195,109 +203,57 @@ Feature specs get a durable home so tickets can link to them:
 whose Context section links the spec; the assembler does the rest. This is
 the mechanism behind "here are the parts of the PRD relevant to you."
 
-## 4. Pipelines
+## 4. EpisodePlan workflow and pipeline transport
 
-`pipelines.yaml` (org home, human-ratified like roles.yaml) maps each
-pipeline to ordered passes — the port of the predecessor's phases→passes
-structure, with roles resolved through Operon's org chart:
+The primary workflow is the accepted `EpisodePlan`, not `pipelines.yaml`. Its
+typed DAG contains provider turns, mechanical gates, and approvals, each with
+dependencies, bounded inputs, expected outputs, and terminal coverage.
+Provider steps additionally carry role, required capabilities, exact atomic
+assignment, candidate/source provenance, concise selection reason, and a
+per-turn budget ceiling.
 
-```yaml
-# pipelines.yaml — sketch
-build:
-  passes:
-    - id: contract          # port of dev/contract.md
-      role: builder
-      template: build/contract.md
-      skip_on_tier: [quick] # bug-batch tickets skip straight to implement
-    - id: implement         # port of dev.md
-      role: builder
-      template: build/implement.md
+`pipelines.yaml` remains a human-ratified catalog of protocol templates and
+gate vocabulary, a compatibility reader for historical/static episodes, and
+the transport substrate for a planned provider step. The accepted-plan
+executor synthesizes a single-pass `episode-plan-dag` pipeline for exactly one
+authorized step. That transport cannot choose another role, insert a pass, or
+override one member of the assignment tuple. Existing build/review/fix/ship
+pipelines stay readable during migration, but their ordered pass lists are not
+a second workflow authority.
 
-review:
-  passes:
-    - id: verify            # port of review.md; template carries a security
-      role: reviewer        #   lens — different provider than builder, by config
-      template: review/verify.md
-    - id: security-deep     # dedicated security review — see "Review
-      role: reviewer        #   dimensions" below
-      template: review/security.md
-      only_on: {risk: [high], dimension_globs: security}
-    - id: perf-scale        # performance & scale review
-      role: reviewer
-      template: review/perf.md
-      only_on: {labels: [op:perf-sensitive], dimension_globs: perf}
+### Planning, validation, and admission
 
-fix:                        # bounce target; brief carries findings
-  passes:
-    - id: fix
-      role: builder
-      template: build/fix.md
+For every episode, the org layer builds a bounded `EpisodeIntent` from trigger,
+app/repository, role/capability, assignment-candidate, budget, safety, and
+creator-scope facts. If creator scope explicitly declares its planning
+disposition, provenance, objective and exclusions, acceptance criteria,
+artifacts, constraints and safety facts, and complete governed steps/template,
+it can normalize without a provider turn. Otherwise EpisodePlanner runs under
+its fixed boot tuple. In fixed mode the planner chooses roles and steps, then
+code resolves configured assignments; in adaptive mode every provider step
+must choose an exact allowed candidate.
 
-ship:
-  mechanical: true          # no agent passes at standard tiers (§5)
-  passes:
-    - id: ship-check        # optional judgment layer, port of ship.md's
-      role: reviewer        # four-gate checklist minus what preflight
-      template: ship/check.md               # already proves mechanically
-      only_on: { risk: [high], tier: [deep] }
+Pure validation checks role/tuple/capability membership, DAG integrity and
+reachability, required outputs, independent provider review, deterministic
+safety floors, approvals, terminal coverage, and budget arithmetic. A
+planner-authored structural failure gets at most one bounded repair. Creator
+scope that omits non-authoritative planning details invokes EpisodePlanner;
+contradictory authoritative scope fails closed.
 
-plan:                       # Planner pipelines — same executor, not part
-  passes:                   # of the build loop
-    - id: visionary
-      role: planner
-      template: plan/visionary.md
-      effort: high
-    - id: pm-a
-      role: planner
-      template: plan/pm.md
-      parallel_group: competing-pms
-    - id: pm-b
-      role: planner
-      template: plan/pm-b.md
-      parallel_group: competing-pms
-    - id: arbitrator        # three-category merge: agreed/disputed/gap
-      role: planner
-      template: plan/arbitrator.md
-    - id: decomposer        # atomic tickets, deps, execution groups
-      role: planner
-      template: plan/decomposer.md
+The accepted plan is persisted atomically before delivery. Only then does
+`episode-route.ts` derive the compatibility route and exact authorized provider
+steps. Quick/standard/deep is a plan-complexity/safety label. It cannot add a
+generic pass set or cap effort. Before every provider turn the existing
+preflight, reservation, context-manifest, execution-step, and exactly-once
+ledger checks remain mandatory.
 
-groom:                      # steady state: digests+incidents → tickets
-  passes: [...]             # (absorbs the predecessor's supplement phase)
-triage:                     # bug batch: issues → tiered ready tickets
-  passes: [...]
-```
-
-As of M8, the root `pipelines.yaml` carries the executable v0 set:
-`build`, `review`, `fix`, `ship`, `plan`, `plan-bootstrap` (the one-pass
-bootstrap plan for a new app — proportionality-review Stage 4), `groom`,
-`triage`, `sre-incident`, `sre-health`, `support-digest`,
-`marketing-release`, and `ci-sweep`. Trigger-to-pipeline routing lives in
-`src/org/trigger-routing.ts` so roles.yaml stays declarative and unknown
-mappings fail as loud skips.
-
-### Episode admission and pass selection
-
-Before constructing any runtime, the execution contract admits the episode
-under `docs/efficiency.md`: immutable `planned_route`, policy version,
-risk/uncertainty factors, selected pass set, model/effort choices, context and
-human-attention allowances, and lower/upper cost. Before any additional
-provider turn, the loop checks the remaining allowance. A new factor requires a
-recorded reassessment before extra spend; `current_route` changes only there,
-and `final_route` records the terminal route. Required independent review and
-safety evidence are never removed merely to retain a route label.
-
-The production pass executor durably commits this episode-wide admission
-record before constructing a runtime, and the ticket driver shares it across
-build/review/fix/ship transitions. `route-policy/v1` consumes structured risk
-facts, not ticket prose, and binds every selected pass plus its model/effort to
-the factor that authorized it. Quick uses the minimum ratified pass set,
-standard retains independent review, and deep adds the security/rollback/
-approval evidence required by its factors. `operon plan --auto` uses that same
-episode route as its planning authority. A human minimum may raise the route
-but cannot lower a safety floor; pipeline shape and role availability cannot
-deepen the episode. Unexpected findings trigger a monotonic reassessment and
-new pass authorization before more provider work.
+Ready steps execute in stable dependency order. A failed assumption, new
+scope, unavailable assignment, failed gate, approval constraint, or exhausted
+estimate may request a bounded revision. Revision publication and execution
+share the episode lock; only future work changes, while completed steps and
+their artifacts, approvals, route evidence, and settlements remain linked to
+the plan version that authorized them. Adapter unavailability never triggers
+silent tuple substitution.
 
 
 
@@ -305,20 +261,31 @@ new pass authorization before more provider work.
 
 Functionality review (the `verify` pass) runs on every PR. The other review
 dimensions — security, performance/scale, and any future lens — are
-**conditional passes selected by the same machinery that tiers the
-mechanical gates**: changed-file globs and ticket labels in the app's
-`.operon/policy.yaml` (the `dimension_globs` references above), so adding a
-dimension is a pipelines.yaml + policy.yaml edit, never loop code.
+**conditional plan requirements validated against the same structured facts
+that floor mechanical gates**: changed-file globs, repository/change facts,
+and explicit safety facts from app policy. EpisodePlanner proposes the
+smallest workflow above those floors; deterministic validation rejects a plan
+that omits required independent/security/performance evidence. Adding a
+dimension extends governed policy and protocol vocabulary, not an ad hoc
+branch in the executor.
+
+Published ticket labels are translated only by exact structured mappings:
+`domain:auth`, `domain:security`, `domain:secret`, `domain:privacy`, and
+`domain:payment` require the ticket security floor; `domain:data` requires the
+data-integrity floor without pretending ordinary user-data work is a
+migration; `op:perf-sensitive` and `op:incident` retain their typed
+performance and incident floors. Title/body keyword matches never create or
+remove safety authority.
 
 Security is the deliberate exception — always-on, at two depths:
 
 1. **Every PR, cheap:** the mechanical secret scan (§5) plus a security lens
    baked into the standard `verify` template (injection, authz, unsafe
    deserialization, secret handling — reviewed alongside functionality).
-2. **On trigger, deep:** the dedicated `security-deep` pass when the diff
-   touches security-sensitive globs (auth, crypto, network ingress,
-   dependency manifests, input parsing) or the ticket carries high risk
-   tier.
+2. **On trigger:** a dedicated security provider step when structured facts
+  identify authentication, secrets, sensitive ingress/parsing, or another
+  policy-declared surface. The derived route will normally report `deep`, but
+  that label did not choose the step.
 
 Performance/scale review is conditional only: globs (hot paths, queries,
 migrations, caching) or a Planner-set `op:perf-sensitive` label.
@@ -361,66 +328,44 @@ cross-milestone integration tickets last.
 
 
 
-### Tiering — pipeline shape by ticket, gates by files
+### Derived labels and deterministic safety floors
 
-Two orthogonal axes, both ported:
+Two compatibility labels remain, but neither authors the workflow:
 
-- **Ticket tier** (Planner-assigned label `op:tier-quick|standard|deep`)
-selects *passes*: deep adds the ship-check pass; every tier runs the typed
-contract because completeness cannot be proven without its criterion→test map.
-- **Risk tier** (changed-file globs in the app's `.operon/policy.yaml`,
-highest tier wins, unmatched → medium) selects *gates* (§5). A quick
-ticket that touches `auth/**` still gets high-tier gates — tiering makes
-the loop cheaper, **never** less safe.
+- **Episode route** (`quick|standard|deep`) is derived from accepted plan
+  complexity and typed safety facts. It supports reporting, historical readers,
+  hard-ceiling selection, and an explainable safety floor.
+- **Changed-file risk tier** in `.operon/policy.yaml` selects deterministic
+  mechanical gate strength. A small plan touching a sensitive surface still
+  receives the required gates; economy never weakens safety.
 
-The ticket tier is a Planner *floor*, not the last word. The
-sensitive-domain deep floor (`route-policy.ts`: `sensitiveDomains.length > 0`
-forces the deep route) is **orchestrator-owned**, so it cannot depend on the
-Planner remembering to set the label. At plan publication
-(`plan-tickets.ts` → `applySensitiveDomainFloor`) the orchestrator reads each
-ticket's own **prose** — title, goal, context, out-of-scope, notes, acceptance
-— against the shared `auth|security|secret|privacy|payment|data` keyword set.
-Each domain is a curated **whole-word** alternation covering its real
-inflections (`auth` also matches `authentication`/`authorization`/`OAuth`,
-`secret` matches plural `secrets`, `payment` matches `payments`, `security`
-matches `secure`), so genuine sensitive work cannot slip under the floor — a
-too-narrow `\bauth\b` stem that skipped `authentication` would make tiering
-*less* safe, which the floor must never do. The whole-word boundaries still
-keep compounds from over-firing (`database`/`metadata`/`dataset` are not
-`data`, `data model` is a schema not user-data handling, `author`/`authored`/
-`authoritative` are not `auth`, `secretary` is not `secret`). `fileScope` **paths are not
-scanned** — a `src/data/**` path is too noisy to floor a whole ticket on, and
-genuine auth/crypto file surfaces are already caught by the review dimension's
-path match at diff/route time (L1-05), so no signal is lost overall. A match
-attaches the descriptive `domain:<d>` label(s) **and** floors the ticket to
-`op:tier-deep`. `routeDecisionForItem` (`driver.ts`) reads `sensitiveDomains`
-back from those labels, so a goal explicitly about storing user data receives
-the deep route and the `security-deep` pass — "never less safe" holds in the
-escalating direction too, not only for gates, while ordinary work (a plain
-docs page that merely names a `data model`) is not spuriously over-scrutinized.
-(Bootstrap is the deliberate exception: a greenfield scaffold "with no users"
-stays at its Planner tier — `validatePlan` forbids a bootstrap deep ticket —
-so it takes neither the deep floor nor a domain label.)
+Product-ticket publication may continue to attach `op:tier-*` and `domain:*`
+labels for compatibility. Its prose-sensitive-domain classifier is not the
+EpisodePlan safety boundary. Before EpisodePlanner, Operon gathers typed safety
+facts from the trigger, declared creator constraints, repository/change facts,
+app policy, and explicit evidence references. Deterministic validation can add
+a visible mandatory gate/approval floor or reject the plan, but it cannot
+quietly manufacture a generic provider team. Prose keyword matching is never
+the sole safety control.
 
-Planning ceremony is not selected from this ticket/episode safety tier.
-`planning-depth/v2` first asks what lifecycle decision remains: an explicitly
-scoped existing ticket bypasses pre-ticket planning; a bounded goal gets one
-shaping/decomposition pass; a milestone earns Visionary plus one PM; and only
-a competing strategy, high ambiguity, costly-to-reverse choice, or human deep
-minimum earns competing PMs and arbitration. Execution safety remains fully
-floored by `route-policy/v1`.
+The older `planning-depth/v2` and `route-policy/v1` records remain readable for
+historical artifacts and derived compatibility reports. Product planning and
+ticket delivery no longer use them to choose workflow. Their
+`direct-execution` disposition, ticket tier, and selected pass set have no
+authority to bypass EpisodePlanner or alter an accepted plan.
 
 
 
 ### Issue intake — Planner or human triage precedes execution
 
-**Invariant: only a Planner pipeline (or the human) applies** `op:ready`**.**
+**Invariant: only governed product planning (or the human) applies**
+`op:ready`**.**
 All intake — human-filed issues, Support digests, SRE incident notes,
 `op:returned` bounces, reviewer-escaped bugs — waits as plain issues until
-a Planner pipeline or human explicitly triages it. The existing-ticket
-disposition above assumes that intake contract is already satisfied: it skips
-redundant pre-ticket product planning, never readiness classification. The
-loop still never builds an untriaged issue.
+a product-planning workflow or human explicitly triages it. That readiness
+classification is separate from episode planning. A ready existing ticket
+still runs EpisodePlanner unless its creator supplied an execution-ready scope
+with provenance. The loop never builds an untriaged issue.
 
 - `triage` (bug batches): classify each issue — *bug* → tier + spec
 links + `op:ready`; *improvement* → backlog candidate (labeled, not
@@ -509,9 +454,10 @@ therefore a first-class artifact with named owners at every step:
 
 - The Planner's decomposer emits **binary, mechanically checkable** criteria
   (already protocol, §4) — "works correctly" is a spec bug, not a criterion.
-- For deep-tier or high-risk tickets, criteria get **human sign-off** with
-  the spec (co-planning session or spec-PR review) before any `op:ready`
-  label — the human helps define "done", not just approve the diff.
+- When typed safety facts or policy require it, criteria get **human sign-off**
+  with the spec (co-planning session or spec-PR review) before any `op:ready`
+  label. The derived route may report `deep`, but the approval fact is the
+  authority — the human helps define "done", not just approve the diff.
 - The Builder's contract pass maps **each criterion to named tests**; the
   completeness gate (table above) fails — not warns — when a ticket has no
   parseable criteria or a criterion has no covering test.
@@ -673,11 +619,13 @@ A re-claim is **not** a blank slate. Before claiming, the driver rehydrates
 ticket-lifetime state from the artifacts previous turns left behind
 (`src/loop/rehydrate.ts`):
 
-`efficiency/episodes/<episode>/execution-journal.json` then selects the next
-legal boundary across route, contract, implementation, push, gates, PR,
-findings, approvals, merge, and release. Accepted boundary fingerprints are
-reused. Ticket, commit, or reopened-finding drift records why the affected
-suffix was invalidated; no still-valid productive prefix repeats. `operon loop
+`efficiency/episodes/<episode>/plan-current.json` and
+`plan-execution-journal.json` select the persisted plan version and next ready
+step. A legacy ticket-delivery step may then consult `execution-journal.json`
+for its finer contract, implementation, push, gates, PR, findings, approvals,
+merge, and release boundaries. Accepted boundary fingerprints are reused.
+Ticket, commit, or reopened-finding drift records why future work was
+invalidated; no still-valid productive prefix repeats. `operon loop
 --resume-episode <episode>` is a **read-only preview** of that decision — it
 prints the resume plan (`{ "preview": true, "resume": … }`) and states plainly
 that it does not execute; actual continuation is `operon loop --app <app>`,
@@ -884,10 +832,11 @@ weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
   exhausted its monthly cap refuses to claim before any pass starts, so the
   budget hard-stop (architecture.md §7) governs manual and dispatched turns
   equally. `operon budget --reconcile` back-fills the ledger from run
-  envelopes (idempotent); interactive co-planning rows carry
-`unmeasured: true` (cost unknown, not zero). New ledger rows also carry
-`usageQuality: complete|partial|estimated|unavailable`; dashboards label
-recorded lower bounds instead of presenting unknown spend as free.
+  envelopes (idempotent). The retired native interactive planner no longer
+  creates fabricated zero-usage rows; live planning uses the ordinary measured
+  EpisodePlan path. New ledger rows also carry
+  `usageQuality: complete|partial|estimated|unavailable`; dashboards label
+  recorded lower bounds instead of presenting unknown spend as free.
   - **Exactly-once is indexed, not rescanned (F-002).** `recordTurnOnce`
   answers its idempotency check from a compact keys-only sidecar,
   `telemetry-index/settled.keys` (a sibling of `telemetry/`, kept out of the
@@ -954,12 +903,18 @@ task before it can say “Operon end-to-end complete.”
 
 ```
 src/loop/
+  episode-plan.ts   versioned intent/scope/plan contracts, pure validator,
+                    atomic persistence, forward-only revision rules
+  episode-plan-executor.ts deterministic plan-DAG readiness, journal and resume
+  episode-route.ts  one-way accepted-plan → route/authorization projection
+  episode-replan.ts typed material events and bounded revision requests
+  planner-admission.ts planner boot-turn reservation/settlement/repair bounds
   loop.ts          ticket state machine (§7): phases, label swaps, bounded
                    review/gate/ship cycles, squash-merge
   driver.ts        manual tick driver: advance ready tickets once (`operon
                    loop` and the sandbox e2e; dispatch calls the same phases)
-  pipeline.ts      pass executor: run passes, parallel groups, per-pass
-                   overrides, runlog + ledger settlement per pass
+  pipeline.ts      provider-step/static-compatibility transport, exact atomic
+                   assignments, runlog + ledger settlement per invocation
   pipelines.ts     pipelines.yaml schema/loader — typed, validated config
   brief.ts         brief assembler (§3), state-budgeted
   qgates.ts        quality-gate engine (§5) — pure subprocess + git
@@ -975,19 +930,22 @@ src/loop/
   policy.ts        .operon/policy.yaml loader: risk tiers → gate sets
   preflight.ts     token-free config/capability/budget/artifact/environment
                    admission before any model turn
-  route-policy.ts  deterministic structured-risk route/pass/model policy
+  route-policy.ts  legacy static-route compatibility reader; not plan authority
   execution-journal.ts durable route-to-release boundary and invalidation log
   context-manifest.ts component budgets, hashes, deltas, dedupe and explain
   plan-tickets.ts  schema-validated, orchestrator-published planning tickets
-  runRole.ts       manual role turn as a synthesized one-pass pipeline
+  runRole.ts       low-level one-pass transport retained for dry-run/tests;
+                   live manual turns enter the org EpisodePlan boundary
   types.ts         LoopItem/LoopPhase and shared loop types
 prompts/           pass templates (org home, human-ratified)
 pipelines.yaml     pipeline → passes config (org home, human-ratified)
 ```
 
 Import direction holds: `src/org` (dispatcher) → `src/loop` → `src/runtime`.
-The Planner's pipelines run on the same `pipeline.ts` executor — the
-executor is loop-layer machinery, not build-loop-specific.
+`src/org/episode-planner/` owns bounded intent/policy/runtime orchestration and
+calls these provider-neutral contracts. Planned provider steps and historical
+static pipelines use the same `pipeline.ts` transport; the executor is
+loop-layer machinery, not a workflow designer or build-loop-specific runtime.
 
 The contract deltas this design flagged all landed: the gate's
 `protocol-self-edit` rule covers `pipelines.yaml` and `prompts/**`
@@ -1005,21 +963,21 @@ src/runtime/types.ts; `LoopItem` carries `tier` / `remediationAttempts` /
 ## 11. Ratified decisions promoted to docs/PURPOSE.md
 
 Decisions 1–8 were ratified by the human operator on 2026-07-06; decision 9
-was ratified on 2026-07-13. All are promoted to docs/PURPOSE.md:
+was ratified on 2026-07-13, and decision 10 on 2026-07-19. All are promoted to
+docs/PURPOSE.md; decision 10 supersedes conflicting static-workflow mechanics:
 
 1. **The loop is protocol-driven at the substage level.** The orchestrator
-  owns pass pipelines — versioned prompt templates, per-pass model/effort,
-   deterministic sequencing — executed through the runtime adapters.
-   Harness-internal delegation is per-pass discretion, not a substitute for
-   the pipeline. (Refines "employee is a team": the artifact-level org
-   contract stands; a role turn may be a pipeline of passes.)
+  owns versioned prompts, typed gates, and evidence contracts executed through
+  runtime adapters. Static pass ordering and per-pass overrides are now
+  compatibility input/transport, not the primary workflow authority.
 2. **Quality gates are orchestrator code**, distinct from the safety gate:
   risk-tiered mechanical preflight (tests/lint/e2e/secret-scan/
    completeness/review-freshness) between passes and twice at ship; the
    judgment layer runs only above a green mechanical layer; no side effect
    ever keys off agent prose.
-3. **Planning is a Planner pipeline, not a loop phase.** The ticket is the
-  contract between planning and building.
+3. **Historical product-planning separation.** Product planning was a Planner
+  pipeline and the ticket its build-loop contract. Decision 10 adds universal
+  execution episode planning before delivery, including an existing ticket.
 4. **Briefs are assembled, budgeted context packets** (ticket + spec
   excerpts + contract + findings + history + memory), logged verbatim per
    run — the "more effort and more context" doctrine made mechanical.
@@ -1038,11 +996,16 @@ was ratified on 2026-07-13. All are promoted to docs/PURPOSE.md:
    enforced by the completeness gate; never summarized or builder-edited.
    (§5)
 9. **The episode owns route and execution economy** (ratified 2026-07-13).
-  Admission precedes runtime construction; a pass is orchestration while each
-  adapter invocation is a separately settled provider turn; valid artifacts
-  survive interruption; and `docs/efficiency.md` is the sole route-budget
-  authority. Review and safety evidence are never traded away for a route
-  label.
+  Admission precedes runtime construction; each adapter invocation is a
+  separately settled provider turn; valid artifacts survive interruption;
+  and review/safety evidence is never traded away for a label. Decision 10
+  makes that route a plan projection rather than a workflow selector.
+10. **EpisodePlanner and atomic assignment** (ratified 2026-07-19). Every
+  episode persists one validated plan before delivery. Normally EpisodePlanner
+  designs the shortest sufficient graph in fixed and adaptive assignment
+  modes; only explicit execution-ready creator scope bypasses its provider
+  turn. Harness/model/effort is indivisible, role authority remains separate,
+  revisions are forward-only, and quick/standard/deep cannot select workflow.
 
 
 
@@ -1060,15 +1023,12 @@ was ratified on 2026-07-13. All are promoted to docs/PURPOSE.md:
    answer. *(build-time verification)*
 
 Historical decision, 2026-07-06: milestone planning used the deep `plan`
-pipeline and the per-pass wall-clock cap fell back to 60 minutes. P0-06,
-ratified 2026-07-13, supersedes both as operating defaults. Planning ceremony
-does not select an episode route; admission factors select the smallest safe
-pass set. The implementation still honors per-pass `wall_clock_minutes` and
-`killHungTurns` still uses the legacy fallback when unset, but that fallback is
-a non-normative kill ceiling until route remaining-time enforcement replaces
-it. The same 2026-07-06 decision retained high-tier autonomous Builder
-contracts, approved Lab as a future opt-in role, and kept competitive
-intelligence in the Marketing `ci-sweep` pipeline.
+pipeline and the per-pass wall-clock cap fell back to 60 minutes. P0-06
+(2026-07-13), then decision 10 (2026-07-19), supersede both as
+workflow-selection defaults. The accepted EpisodePlan selects the smallest
+sufficient graph and derives its safety route. The implementation still
+honors per-pass `wall_clock_minutes` and `killHungTurns` still uses the legacy
+fallback when unset, but that fallback is a non-normative kill ceiling.
 
 
 

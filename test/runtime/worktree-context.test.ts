@@ -11,6 +11,7 @@ import {
   renderContextBundle,
   writeMaskedWorktreeFile,
 } from "../../src/runtime/worktree-context.js";
+import { buildTurnExecutionFacts } from "../../src/runtime/assignment.js";
 
 describe("worktree context helper", () => {
   it("renders taste layers followed by memory excerpts", () => {
@@ -20,6 +21,44 @@ describe("worktree context helper", () => {
         memoryExcerpts: ["MEMORY-1", "MEMORY-2"],
       }),
     ).toBe("ORG\n\n---\n\nROLE\n\n---\n\nAPP\n\n---\n\n## Memory excerpts\n\nMEMORY-1\n\nMEMORY-2");
+  });
+
+  it("renders validated assignment and capability facts without granting authority", () => {
+    const rendered = renderContextBundle({
+      taste: ["ORG"],
+      memoryExcerpts: [],
+      execution: buildTurnExecutionFacts(
+        { harness: "codex", model: "gpt-5.6-sol", effort: "xhigh" },
+        { name: "builder", delegation: { allow: ["explore"] } },
+        ["structured_verdict", "session_resume"],
+      ),
+    });
+
+    expect(rendered).toContain("## Turn execution facts");
+    expect(rendered).toContain("Harness: codex");
+    expect(rendered).toContain("Exact model: gpt-5.6-sol");
+    expect(rendered).toContain("Effort: xhigh");
+    expect(rendered).toContain("- structured verdict: adapter-built; required for this turn");
+    expect(rendered).toContain("- intra-turn fan-out: native");
+    expect(rendered).toContain("Role-approved subagent types: explore");
+    expect(rendered).toContain("does not change the role's tools, permissions, or approval boundaries");
+  });
+
+  it("rejects malformed or duplicate resolved capability facts", () => {
+    const execution = buildTurnExecutionFacts(
+      { harness: "claude", model: "claude-exact", effort: "high" },
+      { name: "reviewer", delegation: { allow: [] } },
+    );
+    expect(() =>
+      renderContextBundle({
+        taste: [],
+        memoryExcerpts: [],
+        execution: {
+          ...execution,
+          resolvedCapabilities: [...execution.resolvedCapabilities, "tool_gate"],
+        },
+      }),
+    ).toThrow(/duplicates "tool_gate"/);
   });
 
   it("writes a masked context file and records it once in git exclude", async () => {

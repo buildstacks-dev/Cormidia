@@ -17,12 +17,27 @@ import {
   loadGateCommands,
   planLoopTick,
   runLoopOnce,
+  type TicketEpisodeExecutor,
+  type TicketEpisodePlanner,
 } from "../src/loop/driver.js";
 import { baseRevisionForBranch } from "../src/loop/default-branch.js";
+import {
+  deriveEpisodeSafetyRoute,
+  episodeIntentHash,
+  persistEpisodePlan,
+  type CreatorEpisodeScope,
+  type EpisodeIntent,
+  type EpisodePlan,
+  type EpisodePlanValidationPolicy,
+  type ProviderTurnStep,
+} from "../src/loop/episode-plan.js";
+import { routeAdmissionForEpisodePlan } from "../src/loop/episode-route.js";
+import { admitPlannedEpisodeRoute } from "../src/loop/planner-admission.js";
 import { branchNameForIssue, dependencyRelevantPackageJson } from "../src/loop/loop.js";
 import { readTicketClaimState, writeTicketClaimState } from "../src/loop/rehydrate.js";
 import { loadPipelines } from "../src/loop/pipelines.js";
-import type { RoleConfig } from "../src/runtime/types.js";
+import { resolvedRuntimeCapabilities } from "../src/runtime/capabilities.js";
+import type { RoleConfig, TurnAssignment } from "../src/runtime/types.js";
 import { makeBareWithClone, makeWorkingRepo } from "./fixtures/gitRepo.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
 
@@ -61,6 +76,130 @@ function fixtureRole(name: string): RoleConfig {
     triggers: [],
     outputs: [],
     maxTurnBudgetUsd: 5,
+  };
+}
+
+const DRIVER_ASSIGNMENT: TurnAssignment = {
+  harness: "claude",
+  model: "fixture",
+  effort: "medium",
+};
+
+/** Install the smallest durable execution authority needed by claim-saga
+ * tests. The executor intentionally performs no provider or mechanical work:
+ * each test is proving that claim bounds/faults stop before delivery. */
+function claimBoundaryEpisodeFixture(root: string): {
+  planTicket: TicketEpisodePlanner;
+  executeTicketPlan: TicketEpisodeExecutor;
+} {
+  const planTicket: TicketEpisodePlanner = async (request) => {
+    const provenance = {
+      source: "agent" as const,
+      creatorId: "driver-claim-boundary-fixture",
+      createdAt: "2026-07-19T22:00:00.000Z",
+      evidenceRefs: ["test:driver:claim-boundary"],
+    };
+    const step: ProviderTurnStep = {
+      kind: "provider_turn",
+      operation: "build/implement",
+      id: "implement",
+      role: "builder",
+      objective: "Exercise the bounded claim boundary",
+      dependsOn: [],
+      requiredCapabilities: [],
+      assignment: DRIVER_ASSIGNMENT,
+      assignmentSource: "configured",
+      inputRefs: [{ ref: `github:${request.ticket.ticketRef}`, required: true }],
+      expectedOutputs: [{ id: "patch", kind: "patch", required: true }],
+      maxTurnBudgetUsd: 5,
+      selectionReason: "The explicit fixture scope requires one bounded implementation turn",
+    };
+    const creatorStep = structuredClone(step);
+    delete (creatorStep as Partial<ProviderTurnStep>).assignmentSource;
+    const creatorScope: CreatorEpisodeScope = {
+      planningDisposition: "execution_ready",
+      provenance,
+      objective: request.ticket.title,
+      inScope: [request.ticket.ticketRef],
+      outOfScope: ["unrelated repository work"],
+      acceptanceCriteria: ["the claim boundary is handled durably"],
+      expectedArtifacts: [{ id: "patch", kind: "patch", required: true }],
+      declaredConstraints: { network: false },
+      safetyFacts: [],
+      steps: [creatorStep],
+    };
+    const intent: EpisodeIntent = {
+      episodeId: request.episodeId,
+      app: request.app,
+      assignmentMode: "fixed",
+      trigger: { kind: "ticket", sourceRef: `github:${request.ticket.ticketRef}` },
+      goal: creatorScope.objective,
+      lifecycle: "existing-ticket",
+      appStage: "growth",
+      repositoryFacts: { baseRef: request.base.ref },
+      requestedConstraints: { network: false },
+      hardBudget: { maxProviderTurns: 1, maxEquivalentCostUsd: 5 },
+      availableRoles: [{
+        role: "builder",
+        responsibility: "implement",
+        requiredCapabilities: [],
+        expectedOutputs: ["patch"],
+        configuredAssignment: DRIVER_ASSIGNMENT,
+      }],
+      allowedAssignments: [{
+        candidateId: "configured",
+        role: "builder",
+        assignment: DRIVER_ASSIGNMENT,
+        providerFamily: "anthropic",
+        capabilities: resolvedRuntimeCapabilities("claude"),
+        qualificationRef: "configured-role-assignment:builder",
+        priceRef: "role.max_turn_budget_usd",
+        maxTurnCostUsd: 5,
+        available: true,
+      }],
+      requiredSafetyFacts: [],
+      creatorScope,
+    };
+    const plan: EpisodePlan = {
+      schemaVersion: 1,
+      episodeId: request.episodeId,
+      version: 1,
+      intentHash: episodeIntentHash(intent),
+      summary: creatorScope.objective,
+      workflowClass: "claim-boundary-fixture",
+      planningSource: "creator_scope",
+      creatorProvenance: provenance,
+      steps: [{ ...step }],
+      estimatedBudget: {
+        providerTurns: 1,
+        providerTurnBudgetUsd: 5,
+        mechanicalOverheadUsd: 0,
+        totalBudgetUsd: 5,
+      },
+      derivedSafetyRoute: deriveEpisodeSafetyRoute([step], []),
+      createdAt: provenance.createdAt,
+    };
+    const policy: EpisodePlanValidationPolicy = {
+      mode: "fixed",
+      configuredAssignmentFor: (role) => role === "builder" ? DRIVER_ASSIGNMENT : undefined,
+      isAssignmentAllowed: (role, assignment) =>
+        role === "builder" && JSON.stringify(assignment) === JSON.stringify(DRIVER_ASSIGNMENT),
+      isKnownRole: (role) => role === "builder",
+      capabilitiesFor: () => resolvedRuntimeCapabilities("claude"),
+      requiredTerminalOutputIds: ["patch"],
+    };
+    await persistEpisodePlan({ root, plan, intent, policy });
+    await admitPlannedEpisodeRoute(routeAdmissionForEpisodePlan({
+      root,
+      intent,
+      plan,
+      now: new Date("2026-07-19T22:00:00.000Z"),
+    }));
+    return { intent, plan };
+  };
+  return {
+    planTicket,
+    executeTicketPlan: async ({ item }) => item,
   };
 }
 
@@ -422,6 +561,7 @@ describe("loop driver", () => {
       outcomes: ["claim 1: ended returned", "claim 2: ended returned", "claim 3: ended blocked"],
     });
     try {
+      const episode = claimBoundaryEpisodeFixture(root);
       const result = await runLoopOnce({
         app: "fixture",
         repo: "fixture/repo",
@@ -440,6 +580,8 @@ describe("loop driver", () => {
           promptsDir: "/tmp/not-used-prompts",
           runlogRoot: root,
           hooks: { gate: () => ({ allow: true }) },
+          planTicket: episode.planTicket,
+          executeTicketPlan: episode.executeTicketPlan,
         },
       });
 
@@ -493,6 +635,7 @@ describe("loop driver", () => {
       },
     });
     try {
+      const episode = claimBoundaryEpisodeFixture(root);
       for (const boundary of [
         "after_selection",
         "after_label_transition",
@@ -521,6 +664,8 @@ describe("loop driver", () => {
             promptsDir: join(PIPELINE_FIXTURE, "prompts"),
             runlogRoot: root,
             hooks: { gate: () => ({ allow: true }) },
+            planTicket: episode.planTicket,
+            executeTicketPlan: episode.executeTicketPlan,
           },
         });
         expect(result.lines.some((line) => line.includes("recovered without consuming allowance"))).toBe(true);

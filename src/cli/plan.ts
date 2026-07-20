@@ -1,8 +1,9 @@
-// `operon plan <app>` — manual Planner co-planning launcher, plus the
-// non-interactive `--auto` mode (Stage 4): one runtime-backed planning turn
-// producing a schema-validated, orchestrator-published bootstrap plan.
+// `operon plan <app>` — token-free manual context/worktree preview plus the
+// EpisodePlanner-backed `--auto` mode. The former native interactive child
+// process is intentionally unavailable because it bypassed durable plan,
+// assignment, gate, envelope, and settlement authority.
 
-import { cleanupPlanningWorktree, preparePlanSession, recordPlanTelemetry, spawnClaude } from "../org/plan.js";
+import { cleanupPlanningWorktree, preparePlanSession } from "../org/plan.js";
 import { runAutoPlan } from "../org/plan-auto.js";
 import { loadApps } from "../org/apps.js";
 import { resolveOperonHomes } from "../org/home.js";
@@ -11,12 +12,14 @@ import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
 import { loadRoles } from "../org/roles.js";
-import { loadPipelines } from "../loop/pipelines.js";
+import { isBudgetBlocking, rollupBudgets } from "../org/budget.js";
 import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
 import type { PlanningSourceRequest } from "../org/planning-inputs.js";
+import { previewEpisode, type EpisodePlanningPreview } from "../org/episode-planner/orchestrator.js";
+import { stableHash, type JsonValue } from "../loop/episode-plan.js";
+import { PLANNING_PROVIDER_OPERATION_CATALOG } from "../loop/planning-episode-plan.js";
+import { safetyFactsFromPlanningRequest } from "../org/episode-safety-facts.js";
 import {
-  decidePlanningDepth,
-  routePlanningPasses,
   type ExpectedTicketBand,
   type ExternalConsequence,
   type PlanningDepth,
@@ -51,10 +54,20 @@ export async function cmdPlan(args: string[]): Promise<number> {
     const appsFile = await loadApps(join(homes.orgHome, "apps.yaml"));
     const app = appsFile.apps.find((entry) => entry.name === parsed.app);
     if (app === undefined) throw new Error(`plan: unknown app "${parsed.app}" in apps.yaml`);
-    const stage = parsed.stage ?? (app.status === "onboarding" ? "bootstrap" : "mature");
-    const decision = decidePlanningDepth({ goal: parsed.goal ?? "", stage, ...planningOptions(parsed) });
-    const planningRoute = routePlanningPasses(decision, stage, await availablePlanningPipelines(homes.orgHome));
-    console.log(JSON.stringify({ schema_version: 1, kind: "route-explanation", app: app.name, stage, decision, planningRoute }, null, 2));
+    const preview = await previewAutoPlanningRequest({
+      orgHome: homes.orgHome,
+      stateHome: homes.stateHome,
+      appsFile,
+      app,
+      parsed,
+      parentTaskId,
+    });
+    console.log(JSON.stringify({
+      schema_version: 1,
+      kind: "episode-planning-preview",
+      request: "explain-route",
+      ...preview,
+    }, null, 2));
     return 0;
   }
 
@@ -66,42 +79,46 @@ export async function cmdPlan(args: string[]): Promise<number> {
     const app = appsFile.apps.find((entry) => entry.name === parsed.app);
     if (app === undefined) throw new Error(`plan: unknown app "${parsed.app}" in apps.yaml`);
     if (parsed.dryRun) {
-      const stage = parsed.stage ?? (app.status === "onboarding" ? "bootstrap" : "mature");
-      const decision = decidePlanningDepth({ goal: parsed.goal, stage, ...planningOptions(parsed) });
-      const planningRoute = routePlanningPasses(decision, stage, await availablePlanningPipelines(homes.orgHome));
-      if (parsed.sources.length > 0 && decision.disposition === "direct-execution") {
-        throw new Error("plan: planning sources cannot be consumed by the direct existing-ticket route; select bounded-goal/milestone/strategy");
-      }
+      const preview = await previewAutoPlanningRequest({
+        orgHome: homes.orgHome,
+        stateHome: homes.stateHome,
+        appsFile,
+        app,
+        parsed,
+        parentTaskId,
+      });
       if (parsed.json) {
         console.log(JSON.stringify({
           schema_version: 1,
-          kind: "plan-dry-run",
-          app: app.name,
-          goal: parsed.goal,
-          stage,
-          decision,
-          planningRoute,
-          sourceCheckout: resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name)),
-          planningSources: parsed.sources,
-          parentTaskId: parentTaskId ?? null,
-          effects: [],
+          kind: "episode-planning-preview",
+          request: "auto-dry-run",
+          ...preview,
         }, null, 2));
         return 0;
       }
       console.log(`plan dry-run: ${app.name}`);
       console.log(`goal: ${parsed.goal}`);
-      console.log(`stage: ${stage}`);
-      console.log(`planning depth: ${decision.depth}`);
-      console.log(`execution route: ${decision.executionRoute}`);
-      console.log(`disposition: ${decision.disposition}`);
-      console.log(`selected passes: ${planningRoute.selectedPasses.join(" -> ") || "none"}`);
-      console.log(`routing factors: ${decision.decisionFactors.join("; ")}`);
-      console.log(`execution factors: ${decision.executionDecisionFactors.join("; ")}`);
-      console.log(`source checkout: ${resolve(parsed.workdir ?? join(homes.stateHome, "repos", app.name))}`);
+      console.log(`stage: ${preview.stage}`);
+      console.log(`assignment mode: ${preview.episode.assignmentMode}`);
+      console.log(`planning path: ${preview.episode.planningPath}`);
+      console.log(
+        `planner boot assignment: ${preview.episode.plannerBoot.assignment.harness}/` +
+          `${preview.episode.plannerBoot.assignment.model}/${preview.episode.plannerBoot.assignment.effort}`,
+      );
+      console.log(`approved assignment candidates: ${preview.episode.allowedAssignments.length}`);
+      console.log(
+        `budget: $${preview.budget.remainingUsd.toFixed(2)} remaining of ` +
+          `$${preview.budget.monthlyUsd.toFixed(2)} (${preview.budget.status})`,
+      );
+      console.log(
+        `required safety facts: ${preview.episode.requiredSafetyFacts.map((fact) => fact.kind).join(", ") || "none"}`,
+      );
+      console.log(`source checkout: ${preview.sourceCheckout}`);
       for (const source of parsed.sources) {
         console.log(`planning source (${source.requirement ?? "required"}): ${source.path}`);
       }
       if (parentTaskId !== undefined) console.log(`parent task: ${parentTaskId}`);
+      console.log(preview.episode.disclaimer);
       console.log("(dry-run: no runtime, run envelope, telemetry, learning projection, or GitHub write)");
       return 0;
     }
@@ -136,34 +153,6 @@ export async function cmdPlan(args: string[]): Promise<number> {
       });
     }
     for (const problem of result.problems ?? []) console.log(`problem: ${problem}`);
-    if (result.planningDecision !== undefined) {
-      console.log(`planning depth: ${result.planningDecision.depth}`);
-      console.log(`execution route: ${result.planningDecision.executionRoute}`);
-      console.log(`disposition: ${result.planningDecision.disposition}`);
-      console.log(`routing factors: ${result.planningDecision.decisionFactors.join("; ")}`);
-      console.log(`execution factors: ${result.planningDecision.executionDecisionFactors.join("; ")}`);
-    }
-    if (result.planningRoute !== undefined) {
-      console.log(`selected passes: ${result.planningRoute.selectedPasses.join(" -> ") || "none"}`);
-      for (const rationale of result.planningRoute.passRationales) {
-        console.log(`pass rationale: ${rationale.pass}: ${rationale.expectedRiskReduction} (${rationale.evidence})`);
-      }
-    }
-    if (result.planningCostEstimate !== undefined) {
-      console.log(
-        `estimated planning cost: ${result.planningCostEstimate.estimatedCostUsd === null
-          ? "unavailable"
-          : `$${result.planningCostEstimate.estimatedCostUsd.toFixed(4)}`} ` +
-          `(upper bound $${result.planningCostEstimate.upperBoundUsd.toFixed(2)})`,
-      );
-      const outcome = result.planningCostEstimate.outcomeMeasurement;
-      console.log(
-        `downstream outcome comparison: ${outcome.status}` +
-        (outcome.observedFailureRateDelta === null
-          ? ` (${outcome.basis})`
-          : ` (lower-pass minus selected-pass failure rate ${outcome.observedFailureRateDelta.toFixed(3)}; ${outcome.basis})`),
-      );
-    }
     if (result.planningSources !== undefined) {
       console.log(`planning-source manifest: ${result.planningSources.manifest_sha256}`);
       for (const source of result.planningSources.sources) {
@@ -182,6 +171,14 @@ export async function cmdPlan(args: string[]): Promise<number> {
     throw new Error("plan: --json and --work-lifecycle apply only to --auto or --explain-route; planning-source flags apply only to --auto");
   }
 
+  if (!parsed.dryRun) {
+    throw new Error(
+      "plan: live interactive co-planning is disabled because the native CLI path cannot preserve " +
+        "durable EpisodePlan, exact assignment, gate, envelope, and settlement evidence; " +
+        "use --auto --goal <text> for plan-aware execution, or add --dry-run for the token-free context/worktree preview",
+    );
+  }
+
   const session = await preparePlanSession({
     appName: parsed.app,
     orgHome: homes.orgHome,
@@ -190,34 +187,12 @@ export async function cmdPlan(args: string[]): Promise<number> {
     ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
   });
 
-  if (parsed.dryRun) {
-    try {
-      printSummary(session, true);
-      return 0;
-    } finally {
-      await cleanupPlanningWorktree(session.worktree);
-    }
+  try {
+    printSummary(session);
+    return 0;
+  } finally {
+    await cleanupPlanningWorktree(session.worktree);
   }
-
-  printSummary(session, false);
-  const startedAt = new Date();
-  const cancellation = installProcessCancellation();
-  const code = await spawnClaude(session.invocation, cancellation.signal).finally(() => cancellation.dispose());
-  const endedAt = new Date();
-  await recordPlanTelemetry({
-    orgDir: homes.stateHome,
-    role: session.plannerRole,
-    app: session.app.name,
-    status: cancellation.signal.aborted ? "cancelled" : code === 0 ? "completed" : "failed",
-    startedAt,
-    endedAt,
-    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
-  });
-  console.log(
-    `planner session exited ${code}; worktree left at ${session.worktree.path} ` +
-      `on ${session.worktree.branch}`,
-  );
-  return code;
 }
 
 export function formatPlanTicketSummary(
@@ -259,7 +234,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
   const app = args[0];
   if (!app || app.startsWith("--")) {
     throw new Error(
-      "plan: usage: operon plan <app> [--topic <string>] [--dry-run] [--workdir <path>] " +
+      "plan: usage: operon plan <app> --dry-run [--topic <string>] [--workdir <path>] " +
         "| operon plan <app> --auto --goal <text> [--stage bootstrap] [--no-publish]",
     );
   }
@@ -393,13 +368,160 @@ function planningOptions(parsed: ParsedPlanArgs) {
   };
 }
 
-async function availablePlanningPipelines(orgHome: string): Promise<string[]> {
-  const roles = await loadRoles(join(orgHome, "roles.yaml"));
-  const pipelines = await loadPipelines(join(orgHome, "pipelines.yaml"), {
-    roleNames: roles.roles.map((role) => role.name),
-    promptsDir: join(orgHome, "prompts"),
+interface AutoPlanningPreviewResult {
+  app: string;
+  goal: string;
+  stage: "bootstrap" | "growth" | "mature";
+  sourceCheckout: string;
+  planningSources: PlanningSourceRequest[];
+  parentTaskId: string | null;
+  budget: {
+    monthlyUsd: number;
+    spentUsd: number;
+    remainingUsd: number;
+    status: "ok" | "warning";
+  };
+  effects: [];
+  episode: EpisodePlanningPreview;
+}
+
+/** Token-free preview of deterministic planning inputs and authority. It does
+ * not guess the provider-authored workflow or persist an episode. */
+async function previewAutoPlanningRequest(input: {
+  orgHome: string;
+  stateHome: string;
+  appsFile: Awaited<ReturnType<typeof loadApps>>;
+  app: Awaited<ReturnType<typeof loadApps>>["apps"][number];
+  parsed: ParsedPlanArgs;
+  parentTaskId: string | undefined;
+}): Promise<AutoPlanningPreviewResult> {
+  const goal = input.parsed.goal ?? "";
+  const stage = input.parsed.stage ??
+    (input.app.status === "onboarding" ? "bootstrap" : "mature");
+  const sourceCheckout = resolve(
+    input.parsed.workdir ?? join(input.stateHome, "repos", input.app.name),
+  );
+  const roles = (await loadRoles(join(input.orgHome, "roles.yaml"))).roles;
+  const planner = roles.find((role) => role.name === "planner");
+  if (planner === undefined) throw new Error("plan: roles.yaml has no planner role");
+  const budget = (await rollupBudgets(input.stateHome, input.appsFile))
+    .find((row) => row.app === input.app.name);
+  if (budget === undefined) throw new Error(`plan: no app budget exists for ${input.app.name}`);
+  if (isBudgetBlocking(budget.status)) {
+    throw new Error(
+      budget.status === "unknown"
+        ? `plan: ${input.app.name} budget total is unverifiable; run \`operon budget --reconcile\``
+        : `plan: ${input.app.name} has exhausted its monthly budget`,
+    );
+  }
+  const remainingBudgetUsd = Math.max(0, budget.budgetUsd - budget.spentUsd);
+  const perAttemptCost = Math.min(planner.maxTurnBudgetUsd, remainingBudgetUsd / 3);
+  if (!Number.isFinite(perAttemptCost) || perAttemptCost <= 0) {
+    throw new Error("plan: EpisodePlanner has no positive admitted budget");
+  }
+  const plannerReserveUsd = perAttemptCost * 2;
+  const deliveryBudgetUsd = Math.max(0, remainingBudgetUsd - plannerReserveUsd);
+  if (deliveryBudgetUsd <= 0) {
+    throw new Error("plan: app budget cannot cover EpisodePlanner admission and delivery planning");
+  }
+  const requestedPlanningFacts = jsonPreviewValue(planningOptions(input.parsed));
+  const planningSources = input.parsed.sources.map((source) => ({ ...source }));
+  const requestIdentity = {
+    app: input.app.name,
+    goal,
+    stage,
+    requestedPlanningFacts,
+    planningSources,
+    sourceCheckout,
+    parentTaskId: input.parentTaskId ?? null,
+    budget: {
+      monthlyUsd: budget.budgetUsd,
+      spentUsd: budget.spentUsd,
+      remainingUsd: remainingBudgetUsd,
+      status: budget.status === "warning" ? "warning" : "ok",
+    },
+  };
+  const requestHash = stableHash(requestIdentity);
+  const episode = previewEpisode({
+    app: input.app,
+    roles,
+    facts: {
+      episodeId: `preview:${input.app.name}:${requestHash.slice(0, 24)}`,
+      trigger: {
+        kind: "manual_product_planning_preview",
+        sourceRef: input.parentTaskId ?? `cli:plan:${input.app.name}`,
+        payloadHash: requestHash,
+      },
+      goal,
+      lifecycle: input.parsed.workLifecycle ?? "bounded-goal",
+      appStage: stage,
+      repositoryFacts: {
+        sourceCheckout,
+        inspection: "deferred_until_provider_backed_plan",
+      },
+      requestedConstraints: {
+        workflowAuthority: "accepted_episode_plan_only",
+        previewOnly: true,
+        requestedPlanningFacts,
+        planningSources: jsonPreviewValue(planningSources),
+        planningOperationCatalog: Object.values(PLANNING_PROVIDER_OPERATION_CATALOG)
+          .map((entry) => ({ ...entry }))
+          .sort((left, right) => left.operation.localeCompare(right.operation)),
+      },
+      hardBudget: {
+        maxProviderTurns: Object.keys(PLANNING_PROVIDER_OPERATION_CATALOG).length,
+        maxEquivalentCostUsd: deliveryBudgetUsd,
+        maxMechanicalOverheadUsd: 0,
+        maxInputTokens: 2_000_000,
+        maxActiveTimeMs: 30 * 60_000,
+        maxHumanDecisions: 0,
+      },
+      requiredSafetyFacts: safetyFactsFromPlanningRequest(planningOptions(input.parsed)),
+      responsibilityByRole: Object.fromEntries(roles.map((role) => [
+        role.name,
+        role.name === "planner"
+          ? "Select the smallest sufficient governed product-planning workflow"
+          : `Configured ${role.name} responsibility; unavailable to product-planning operations`,
+      ])),
+    },
+    planner: {
+      limits: {
+        maxAttempts: 2,
+        perAttempt: {
+          inputTokens: 64_000,
+          equivalentCostUsd: perAttemptCost,
+          activeTimeMs: 5 * 60_000,
+        },
+        aggregate: {
+          providerTurns: 2,
+          inputTokens: 128_000,
+          equivalentCostUsd: plannerReserveUsd,
+          activeTimeMs: 10 * 60_000,
+        },
+      },
+      requiredCapabilities: ["cancellation", "session_resume", "tool_gate"],
+    },
   });
-  return pipelines.pipelines.map((pipeline) => pipeline.name);
+  return {
+    app: input.app.name,
+    goal,
+    stage,
+    sourceCheckout,
+    planningSources,
+    parentTaskId: input.parentTaskId ?? null,
+    budget: {
+      monthlyUsd: budget.budgetUsd,
+      spentUsd: budget.spentUsd,
+      remainingUsd: remainingBudgetUsd,
+      status: budget.status === "warning" ? "warning" : "ok",
+    },
+    effects: [],
+    episode,
+  };
+}
+
+function jsonPreviewValue(value: unknown): JsonValue {
+  return JSON.parse(JSON.stringify(value)) as JsonValue;
 }
 
 function enumFlag<const T extends string>(args: string[], index: number, flag: string, allowed: readonly T[]): T {
@@ -412,7 +534,6 @@ function enumFlag<const T extends string>(args: string[], index: number, flag: s
 
 function printSummary(
   session: Awaited<ReturnType<typeof preparePlanSession>>,
-  dryRun: boolean,
 ): void {
   console.log(`plan app: ${session.app.name}`);
   console.log(`repo: ${session.app.repo}`);
@@ -420,5 +541,5 @@ function printSummary(
   console.log(`worktree: ${session.worktree.path}`);
   console.log(`topic: ${session.context.openingTask.replace(/^Co-planning topic: /, "")}`);
   console.log(`context bytes: ${session.context.byteSize}`);
-  if (dryRun) console.log("(dry-run: Claude not spawned; worktree cleaned up)");
+  console.log("(dry-run: no provider constructed; worktree cleaned up)");
 }

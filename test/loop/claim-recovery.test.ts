@@ -35,7 +35,12 @@ describe("claim recovery saga", () => {
     await markTicketProviderStarted({ root, app: "app", issueNumber: 7, claimId: first.lease!.claimId });
     expect(readTicketClaimState(root, "app", 7).claims).toBe(1);
 
-    const continuation1 = continuation("session-1", 1.25);
+    const continuation1: LoopContinuation = {
+      ...continuation("session-1", 1.25),
+      assignment: { harness: "claude", model: "claude-exact", effort: "high" },
+      planVersion: 2,
+      planStepId: "implement",
+    };
     await finishTicketClaim({
       root,
       app: "app",
@@ -54,6 +59,11 @@ describe("claim recovery saga", () => {
     });
     const resumed1 = await beginTicketClaim({ root, app: "app", issueNumber: 7, defaultAllowance: 3 });
     expect(resumed1.lease).toMatchObject({ claimNumber: 1, resume: true });
+    expect(resumed1.lease!.continuation).toMatchObject({
+      assignment: { harness: "claude", model: "claude-exact", effort: "high" },
+      planVersion: 2,
+      planStepId: "implement",
+    });
     expect(resumed1.lease!.continuation!.decisions).toMatchObject([{ decision: "approved" }]);
     await markTicketProviderStarted({ root, app: "app", issueNumber: 7, claimId: resumed1.lease!.claimId });
     expect(readTicketClaimState(root, "app", 7).claims).toBe(1);

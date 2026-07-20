@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { writeContextManifest } from "../src/loop/context-manifest.js";
+import { buildTurnExecutionFacts } from "../src/runtime/assignment.js";
 import type { ContextBundle } from "../src/runtime/types.js";
+import { renderTurnExecutionFacts } from "../src/runtime/worktree-context.js";
 import { makeOrgHome, type OrgHomeFixture } from "./fixtures/orgHome.js";
 
 describe("context manifests", () => {
@@ -78,6 +81,58 @@ describe("context manifests", () => {
     });
     expect(stripIdentity(second.manifest)).toEqual(stripIdentity(first.manifest));
     expect(JSON.parse(await readFile(join(home.root, "runs", "fixture", "run-a", "context-manifest.json"), "utf8"))).toEqual(second.manifest);
+  });
+
+  it("binds required execution facts and plan identity through context compaction", async () => {
+    home = makeOrgHome();
+    await Promise.all([
+      mkdir(join(home.root, "runs", "fixture", "run-a"), { recursive: true }),
+      mkdir(join(home.root, "runs", "fixture", "run-b"), { recursive: true }),
+    ]);
+    const context: ContextBundle = {
+      ...bundle(),
+      execution: buildTurnExecutionFacts(
+        { harness: "codex", model: "gpt-5.6-sol", effort: "high" },
+        { name: "builder", delegation: { allow: ["explore", "test-fanout"] } },
+        ["cancellation", "tool_gate"],
+      ),
+    };
+    const first = await writeContextManifest({
+      root: home.root,
+      episodeId: "episode:execution",
+      app: "fixture",
+      runId: "run-a",
+      context,
+      brief: "same brief",
+    });
+    const second = await writeContextManifest({
+      root: home.root,
+      episodeId: "episode:execution",
+      app: "fixture",
+      runId: "run-b",
+      context,
+      brief: "same brief",
+      planVersion: 2,
+      planStepId: "build",
+    });
+
+    expect(second.context.execution).toEqual(context.execution);
+    expect(second.manifest).toMatchObject({ plan_version: 2, plan_step_id: "build" });
+    const firstExecution = first.manifest.components.find((component) => component.category === "execution");
+    const secondExecution = second.manifest.components.find((component) => component.category === "execution");
+    expect(secondExecution).toMatchObject({
+      source: "runtime-capability-profile:codex/v1:role:builder",
+      requirement: "required",
+      eviction: "kept",
+      transport: "full",
+    });
+    expect(secondExecution?.cache_identity).toBe(firstExecution?.cache_identity);
+    expect(secondExecution?.source_sha256).toBe(firstExecution?.source_sha256);
+    expect(secondExecution?.source_sha256).toBe(
+      createHash("sha256")
+        .update(renderTurnExecutionFacts(context.execution!))
+        .digest("hex"),
+    );
   });
 });
 

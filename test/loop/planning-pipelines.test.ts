@@ -130,9 +130,10 @@ describe("M8 planning and standing-role pipelines", () => {
 
     for (const pipelineName of ids) {
       const home = makeOrgHome({ runs: { apps: ["alpha"] } });
-      const fake = new FakeRuntime(scripted(`${pipelineName} done`));
       try {
         const pipeline = getPipeline(file, pipelineName);
+        const assignedRuntime = roles[pipeline.passes[0]!.role]!.runtime;
+        const fake = new FakeRuntime(scripted(`${pipelineName} done`), assignedRuntime);
         const executed = await executePipeline({
           pipeline,
           selection: { tier: "standard" },

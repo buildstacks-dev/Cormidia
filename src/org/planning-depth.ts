@@ -1,13 +1,10 @@
-// Deterministic adaptive planning-depth policy. Prompt length is deliberately
-// absent: a three-word auth migration can be deep, while a long bounded docs
-// cleanup can be quick. The router is code-owned/versioned; human-ratified
-// prompts and safety gates remain unchanged.
+// Historical quick/standard/deep compatibility projection. It is retained for
+// old evidence/evals and structured request display only. It never selects
+// EpisodePlan steps, assignments, passes, budgets, retries, or a planner-turn
+// bypass; the accepted EpisodePlan is the sole live workflow authority.
 
-import type { PassConfig } from "../loop/pipelines.js";
 import { decideExecutionRoute } from "../loop/route-policy.js";
 import type { AdmissionFactor } from "../loop/efficiency.js";
-import type { RoleConfig } from "../runtime/types.js";
-import type { TurnRecord } from "../runtime/telemetry.js";
 
 export const PLANNING_DEPTH_POLICY_VERSION = "planning-depth/v2";
 
@@ -17,6 +14,9 @@ export type PlanningReversibility = "reversible" | "costly-to-reverse" | "irreve
 export type ExternalConsequence = "none" | "internal" | "customer-public-production";
 export type ExpectedTicketBand = "1-2" | "3-6" | "7+";
 export type PlanningWorkLifecycle = "existing-ticket" | "bounded-goal" | "milestone" | "strategy";
+/** `direct-execution` remains readable for historical planning records only.
+ * Current episodes may skip the dedicated planner exclusively through the
+ * explicit CreatorEpisodeScope contract in episode-plan.ts. */
 export type PlanningDisposition = "direct-execution" | "shape-ticket" | "plan-milestone" | "plan-strategy";
 
 export interface PlanningDepthInput {
@@ -29,8 +29,8 @@ export interface PlanningDepthInput {
   externalConsequence?: ExternalConsequence;
   expectedTickets?: ExpectedTicketBand;
   sensitiveDomains?: string[];
-  /** What kind of planning decision remains. Existing scoped tickets need no
-   *  pre-ticket provider pass; strategies may earn competing perspectives. */
+  /** What kind of planning decision remains. This affects the legacy product-
+   *  planning projection only; it never authorizes a planner-turn bypass. */
   workLifecycle?: PlanningWorkLifecycle;
   /** Attributable current-human minimum. It may raise, never lower, the
    *  lifecycle-selected planning depth. Execution safety floors are separate. */
@@ -60,44 +60,6 @@ export interface PlanningDepthDecision {
   executionFactors: AdmissionFactor[];
   executionDecisionFactors: string[];
   decisionFactors: string[];
-}
-
-export interface PlanningPassRationale {
-  pass: string;
-  expectedRiskReduction: string;
-  evidence: string;
-}
-
-export type PlanningPassRoute = {
-  disposition: Exclude<PlanningDisposition, "direct-execution">;
-  pipeline: "plan-bootstrap" | "plan";
-  selectedPasses: string[];
-  skippedPasses: Array<{ pass: string; reason: string }>;
-  passRationales: PlanningPassRationale[];
-} | {
-  disposition: "direct-execution";
-  pipeline: null;
-  selectedPasses: [];
-  skippedPasses: Array<{ pass: string; reason: string }>;
-  passRationales: [];
-};
-
-export interface PlanningOutcomeMeasurement {
-  status: "measured" | "unavailable";
-  selectedPassCount: number;
-  comparableEpisodes: number;
-  lowerPassEpisodes: number;
-  comparableDownstreamFailureRate: number | null;
-  lowerPassDownstreamFailureRate: number | null;
-  observedFailureRateDelta: number | null;
-  basis: string;
-}
-
-export interface PlanningCostEstimate {
-  estimatedCostUsd: number | null;
-  upperBoundUsd: number;
-  basis: string;
-  outcomeMeasurement: PlanningOutcomeMeasurement;
 }
 
 const DEPTH_RANK: Record<PlanningDepth, number> = { quick: 0, standard: 1, deep: 2 };
@@ -162,122 +124,6 @@ export function decidePlanningDepth(input: PlanningDepthInput): PlanningDepthDec
   };
 }
 
-export function routePlanningPasses(
-  decision: PlanningDepthDecision,
-  stage: PlanningDepthInput["stage"],
-  availablePipelines: readonly string[],
-): PlanningPassRoute {
-  const all = ["visionary", "pm-a", "pm-b", "arbitrator", "decomposer"];
-  if (decision.disposition === "direct-execution") {
-    return {
-      disposition: "direct-execution",
-      pipeline: null,
-      selectedPasses: [],
-      skippedPasses: all.map((pass) => ({
-        pass,
-        reason: "an already-scoped ticket goes directly to the ordinary build/review loop",
-      })),
-      passRationales: [],
-    };
-  }
-  const hasBootstrap = availablePipelines.includes("plan-bootstrap");
-  if (decision.depth === "quick" && stage === "bootstrap" && hasBootstrap) {
-    return {
-      disposition: decision.disposition,
-      pipeline: "plan-bootstrap",
-      selectedPasses: ["bootstrap-plan"],
-      skippedPasses: [],
-      passRationales: passRationales(decision, ["bootstrap-plan"]),
-    };
-  }
-  if (!availablePipelines.includes("plan")) {
-    throw new Error(
-      `adaptive planning needs pipeline "plan" for ${decision.depth}/${stage}; available: ${availablePipelines.join(", ")}`,
-    );
-  }
-  const selectedPasses =
-    decision.depth === "quick"
-      ? ["decomposer"]
-      : decision.depth === "standard"
-        ? ["visionary", "pm-a", "decomposer"]
-        : ["visionary", "pm-a", "pm-b", "arbitrator", "decomposer"];
-  return {
-    disposition: decision.disposition,
-    pipeline: "plan",
-    selectedPasses,
-    skippedPasses: all
-      .filter((pass) => !selectedPasses.includes(pass))
-      .map((pass) => ({ pass, reason: planningSkipReason(decision.depth, pass) })),
-    passRationales: passRationales(decision, selectedPasses),
-  };
-}
-
-export function estimatePlanningCost(input: {
-  selectedPasses: readonly PassConfig[];
-  roles: Record<string, RoleConfig>;
-  history: readonly TurnRecord[];
-}): PlanningCostEstimate {
-  let total = 0;
-  let complete = true;
-  const bases: string[] = [];
-  let upperBoundUsd = 0;
-  for (const pass of input.selectedPasses) {
-    const role = input.roles[pass.role];
-    if (role === undefined) continue;
-    upperBoundUsd += role.maxTurnBudgetUsd;
-    const exact = usableCosts(
-      input.history.filter(
-        (row) => (row.pipeline === "plan" || row.pipeline === "plan-bootstrap") && row.pass === pass.id,
-      ),
-    );
-    const comparable = exact.length > 0
-      ? exact
-      : usableCosts(input.history.filter((row) => row.role === role.name && row.model === (pass.model ?? role.model)));
-    if (comparable.length === 0) {
-      complete = false;
-      bases.push(`${pass.id}: no historical comparable`);
-      continue;
-    }
-    const median = medianOf(comparable);
-    total += median;
-    bases.push(`${pass.id}: median of ${comparable.length} comparable turn(s)`);
-  }
-  return {
-    estimatedCostUsd: complete ? total : null,
-    upperBoundUsd,
-    basis: `${bases.join("; ") || "no selected pass history"}; role caps are an upper bound, not expected cost`,
-    outcomeMeasurement: measureDownstreamOutcomes(input.selectedPasses.length, input.history),
-  };
-}
-
-export function zeroPlanningCostEstimate(history: readonly TurnRecord[]): PlanningCostEstimate {
-  return {
-    estimatedCostUsd: 0,
-    upperBoundUsd: 0,
-    basis: "direct execution selects no planning provider passes",
-    outcomeMeasurement: measureDownstreamOutcomes(0, history),
-  };
-}
-
-function usableCosts(rows: readonly TurnRecord[]): number[] {
-  return rows
-    .filter((row) => row.usageQuality !== "unavailable" && Number.isFinite(row.costUsd) && row.costUsd >= 0)
-    .map((row) => row.costUsd);
-}
-
-function medianOf(values: readonly number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
-}
-
-function planningSkipReason(depth: PlanningDepth, pass: string): string {
-  if (depth === "quick") return "quick route uses one combined planner/decomposer pass";
-  if (pass === "pm-b") return "standard route uses one PM perspective; no concrete disagreement trigger was recorded";
-  if (pass === "arbitrator") return "standard route has no competing PM outputs to arbitrate";
-  return `${pass} is not required by the ${depth} route`;
-}
-
 function defaultWorkLifecycle(
   stage: PlanningDepthInput["stage"],
   expectedTickets: ExpectedTicketBand,
@@ -306,7 +152,6 @@ function planningDepthFor(input: {
 }
 
 function planningDisposition(workLifecycle: PlanningWorkLifecycle, depth: PlanningDepth): PlanningDisposition {
-  if (workLifecycle === "existing-ticket" && depth === "quick") return "direct-execution";
   if (depth === "deep") return "plan-strategy";
   return workLifecycle === "milestone" ? "plan-milestone" : "shape-ticket";
 }
@@ -318,7 +163,9 @@ function planningDecisionFactors(input: {
   depth: PlanningDepth;
 }): string[] {
   if (input.workLifecycle === "existing-ticket" && input.depth === "quick") {
-    return ["existing scoped ticket bypasses pre-ticket planning and enters build/review"];
+    return [
+      "existing-ticket lifecycle keeps product shaping minimal; planner bypass still requires an explicit validated creator scope",
+    ];
   }
   const factors = [`${input.workLifecycle} lifecycle selects ${input.depth} planning`];
   if (input.ambiguity === "high") factors.push("high ambiguity earns competing product perspectives");
@@ -326,70 +173,4 @@ function planningDecisionFactors(input: {
     factors.push(`${input.reversibility} decision earns competing product perspectives`);
   }
   return factors;
-}
-
-function passRationales(
-  decision: PlanningDepthDecision,
-  selectedPasses: readonly string[],
-): PlanningPassRationale[] {
-  const evidence = `${decision.workLifecycle}; ambiguity=${decision.factors.ambiguity}; reversibility=${decision.factors.reversibility}`;
-  return selectedPasses.map((pass) => ({
-    pass,
-    evidence,
-    expectedRiskReduction:
-      pass === "bootstrap-plan"
-        ? "shape the greenfield milestone into the smallest observable ticket set"
-        : pass === "visionary"
-          ? "resolve the milestone or product boundary before ticket decomposition"
-          : pass === "pm-a"
-            ? "turn the selected product boundary into one coherent delivery strategy"
-            : pass === "pm-b"
-              ? "surface a genuinely competing strategy before a costly decision is committed"
-              : pass === "arbitrator"
-                ? "resolve recorded strategy disagreement into one decision"
-                : "produce binary acceptance criteria and bounded ticket scope for the build handoff",
-  }));
-}
-
-function measureDownstreamOutcomes(
-  selectedPassCount: number,
-  history: readonly TurnRecord[],
-): PlanningOutcomeMeasurement {
-  const byTask = new Map<string, TurnRecord[]>();
-  for (const row of history) {
-    if (row.parentTaskId === undefined) continue;
-    const rows = byTask.get(row.parentTaskId) ?? [];
-    rows.push(row);
-    byTask.set(row.parentTaskId, rows);
-  }
-  const episodes = [...byTask.values()].flatMap((rows) => {
-    const downstream = rows.filter((row) => row.pipeline !== "plan" && row.pipeline !== "plan-bootstrap");
-    if (downstream.length === 0) return [];
-    return [{
-      passCount: rows.filter((row) => row.pipeline === "plan" || row.pipeline === "plan-bootstrap").length,
-      failed: downstream.some((row) => row.status !== "completed"),
-    }];
-  });
-  const comparable = episodes.filter((episode) => episode.passCount === selectedPassCount);
-  const lower = episodes.filter((episode) => episode.passCount < selectedPassCount);
-  const comparableRate = failureRate(comparable);
-  const lowerRate = failureRate(lower);
-  const measured = comparableRate !== null && lowerRate !== null;
-  return {
-    status: measured ? "measured" : "unavailable",
-    selectedPassCount,
-    comparableEpisodes: comparable.length,
-    lowerPassEpisodes: lower.length,
-    comparableDownstreamFailureRate: comparableRate,
-    lowerPassDownstreamFailureRate: lowerRate,
-    observedFailureRateDelta: measured ? lowerRate - comparableRate : null,
-    basis: measured
-      ? "parent-task-linked downstream provider outcomes; delta is observational, not a causal claim"
-      : "no parent-task-linked comparable and lower-pass downstream outcome cohorts; expected pass benefits remain hypotheses",
-  };
-}
-
-function failureRate(episodes: ReadonlyArray<{ failed: boolean }>): number | null {
-  if (episodes.length === 0) return null;
-  return episodes.filter((episode) => episode.failed).length / episodes.length;
 }

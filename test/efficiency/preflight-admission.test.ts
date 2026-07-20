@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { executePipeline, type ExecutePipelineOptions } from "../../src/loop/pipeline.js";
-import type { RoleConfig } from "../../src/runtime/types.js";
+import type { RoleConfig, Runtime } from "../../src/runtime/types.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
 
 const role: RoleConfig = {
@@ -47,8 +47,9 @@ describe("Phase 3 token-free preflight/admission", () => {
         options.requiredCapabilities = ["structured_verdict"];
         options.capabilityProfiles = {
           codex: {
+            ref: "codex/v1",
             runtime: "codex",
-            capabilities: { structured_verdict: "unsupported", cancellation: "adapter", tool_gate: "adapter", cache_telemetry: "adapter", session_resume: "native" },
+            capabilities: { structured_verdict: "unsupported", cancellation: "adapter", tool_gate: "adapter", cache_telemetry: "adapter", session_resume: "native", intra_turn_fanout: "native" },
             cache: { supported: true, observable: true, fields: [] },
           },
         };
@@ -69,6 +70,118 @@ describe("Phase 3 token-free preflight/admission", () => {
       } finally {
         home.cleanup();
       }
+    }
+  });
+
+  it("checks capabilities on the authorized harness rather than the role default", async () => {
+    const home = makeOrgHome();
+    const constructed = { value: 0 };
+    try {
+      const options = base(home, constructed);
+      const runtime: Runtime = {
+        kind: "claude",
+        runTurn: async () => ({
+          status: "completed",
+          summary: "done",
+          artifacts: [],
+          session: { runtime: "claude", id: "session" },
+          usage: {
+            tokensIn: 1,
+            tokensOut: 1,
+            costUsd: 0.01,
+            subagentTurns: 0,
+            wallClockMs: 1,
+            quality: "complete",
+          },
+          escalations: [],
+        }),
+      };
+      let selectionRuntime: RoleConfig["runtime"] | undefined;
+      options.runtimeFor = (selection) => {
+        constructed.value += 1;
+        selectionRuntime = selection.runtime;
+        return runtime;
+      };
+      options.requiredCapabilities = ["structured_verdict"];
+      options.capabilityProfiles = {
+        codex: {
+          ref: "codex/v1",
+          runtime: "codex",
+          capabilities: {
+            structured_verdict: "unsupported",
+            cancellation: "adapter",
+            tool_gate: "adapter",
+            cache_telemetry: "adapter",
+            session_resume: "native",
+            intra_turn_fanout: "native",
+          },
+          cache: { supported: true, observable: true, fields: [] },
+        },
+      };
+      options.episode = {
+        route: "quick",
+        factors: [{ kind: "uncertainty", evidence: "fixture", policy_rule: "fixture" }],
+        authorizedPasses: [{
+          pipeline: "build",
+          pass: "implement",
+          role: "builder",
+          runtime: "claude",
+          model: "claude-exact",
+          effort: "high",
+          factor_rules: ["fixture"],
+        }],
+      };
+      const result = await executePipeline(options);
+      expect(result.aborted).toBe(false);
+      expect(constructed.value).toBe(1);
+      // The legacy factory receives a selection-only view of the authorized
+      // tuple, while the adapter request itself still receives the base role.
+      expect(selectionRuntime).toBe("claude");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("rejects a missing capability on the assigned harness even when the role default supports it", async () => {
+    const home = makeOrgHome();
+    const constructed = { value: 0 };
+    try {
+      const options = base(home, constructed);
+      options.requiredCapabilities = ["structured_verdict"];
+      options.capabilityProfiles = {
+        claude: {
+          ref: "claude/v1",
+          runtime: "claude",
+          capabilities: {
+            structured_verdict: "unsupported",
+            cancellation: "native",
+            tool_gate: "native",
+            cache_telemetry: "native",
+            session_resume: "native",
+            intra_turn_fanout: "native",
+          },
+          cache: { supported: true, observable: true, fields: [] },
+        },
+      };
+      options.episode = {
+        route: "quick",
+        factors: [{ kind: "uncertainty", evidence: "fixture", policy_rule: "fixture" }],
+        authorizedPasses: [{
+          pipeline: "build",
+          pass: "implement",
+          role: "builder",
+          runtime: "claude",
+          model: "claude-exact",
+          effort: "high",
+          factor_rules: ["fixture"],
+        }],
+      };
+      await expect(executePipeline(options)).rejects.toThrow(
+        "claude/builder lacks required capability structured_verdict",
+      );
+      expect(constructed.value).toBe(0);
+    } finally {
+      home.cleanup();
     }
   });
 });

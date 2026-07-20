@@ -53,8 +53,10 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../types.js";
+import { resolveTurnRequestAssignment } from "../assignment.js";
 import { claudeDenyRulesForRole } from "../role-shaping.js";
 import { toolUseEvent } from "../tool-events.js";
+import { renderContextBundle } from "../worktree-context.js";
 
 /** The SDK's query() shape, injectable so unit tests run with a scripted
  *  stand-in and zero network/CLI dependency. */
@@ -130,16 +132,7 @@ export function normalizeToolAction(
 /** Layers joined in ContextBundle order: authority, org TASTE, role addendum,
  * app override, then memory excerpts (docs/architecture.md §5). */
 export function buildSystemPromptAppend(req: TurnRequest): string {
-  const sections: string[] = [
-    ...(req.context.authority !== undefined
-      ? [`## Effective delegated authority\n\n${req.context.authority.text.trim()}`]
-      : []),
-    ...req.context.taste,
-  ];
-  if (req.context.memoryExcerpts.length > 0) {
-    sections.push(["## Memory excerpts", ...req.context.memoryExcerpts].join("\n\n"));
-  }
-  return sections.join("\n\n---\n\n");
+  return renderContextBundle(req.context);
 }
 
 export class ClaudeRuntime implements Runtime {
@@ -156,6 +149,7 @@ export class ClaudeRuntime implements Runtime {
   }
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
+    const assignment = resolveTurnRequestAssignment(req, this.kind);
     if (req.session !== undefined && req.session.runtime !== "claude") {
       throw new Error(
         `ClaudeRuntime cannot resume a "${req.session.runtime}" session — ` +
@@ -257,8 +251,8 @@ export class ClaudeRuntime implements Runtime {
     const options: SdkOptions = {
       ...this.baseOptions,
       ...(settings !== undefined ? { settings } : {}),
-      model: req.role.model,
-      effort: req.role.effort,
+      model: assignment.model,
+      effort: assignment.effort,
       cwd: req.workdir,
       systemPrompt: {
         type: "preset",

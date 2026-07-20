@@ -92,7 +92,13 @@ describe("narrative fold", () => {
     // review-fix regression is that a bare "41" fixture masked a ##41 bug.
     seedRun(
       BUILD_RUN,
-      envelope({ episode_id: TICKET_EPISODE, ticket: "#41" }),
+      envelope({
+        episode_id: TICKET_EPISODE,
+        ticket: "#41",
+        plan_version: 4,
+        plan_step_id: "build-ticket-41",
+        assignment_source: "configured",
+      }),
       { "output.md": "Implemented the scaffold. Never log sk-ant-api03-aaaaaaaaaaaaaaaaaaaaaaaa again.\n" },
     );
     // Execution journal for the build episode.
@@ -155,6 +161,14 @@ describe("narrative fold", () => {
     expect(ticket.delivery?.stages.map((s) => s.boundary)).toEqual(["implementation", "merge"]);
     expect(ticket.cost).toEqual({ usd: 2.5, provider_turns: 1, unmeasured_turns: 0 });
     expect(ticket.status).toBe("completed");
+    expect(ticket.moments[0]).toMatchObject({
+      plan_version: 4,
+      plan_step_id: "build-ticket-41",
+      assignment_source: "configured",
+    });
+    expect(planning.moments[0]).not.toHaveProperty("plan_version");
+    expect(planning.moments[0]).not.toHaveProperty("plan_step_id");
+    expect(planning.moments[0]).not.toHaveProperty("assignment_source");
   });
 
   it("rejects envelopes whose identity does not bind to their run dir (review fix)", async () => {
@@ -262,6 +276,7 @@ describe("narrative fold", () => {
     expect(one).toContain("# Ticket #41 — Ship the scaffold");
     expect(one).toContain("| merge | completed |");
     expect(one).toContain(`Planned by: [\`${PLAN_EPISODE}\`](${storySlug(PLAN_EPISODE)}.md)`);
+    expect(one).toContain("plan v4 · step `build-ticket-41` · assignment `configured`");
     expect(one).toContain("$2.50 settled across 1 provider turn(s)");
 
     const index = renderIndexMarkdown(APP, stories);

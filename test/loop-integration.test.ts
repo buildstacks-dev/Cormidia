@@ -26,7 +26,9 @@ import {
 } from "../src/loop/loop.js";
 import { runAutoPlan } from "../src/org/plan-auto.js";
 import { beginParentTask, finishParentTask } from "../src/org/parent-task.js";
+import { createTicketEpisodeRuntime } from "../src/org/ticket-episode-runtime.js";
 import { loadPipelines, type PipelinesFile } from "../src/loop/pipelines.js";
+import type { CreatorEpisodeScope } from "../src/loop/episode-plan.js";
 import type { Policy } from "../src/loop/policy.js";
 import type { GateRunResult } from "../src/loop/qgates.js";
 import { VerdictParseError } from "../src/loop/verdicts.js";
@@ -188,6 +190,40 @@ describe("M6 loop engine integration", () => {
         },
         goal: "Ship one bounded end-to-end acceptance fixture",
         workdir: pair.clone.root,
+        // This fixture is explicitly exercising the downstream lifecycle, so
+        // its human-authored one-step product-planning scope deliberately
+        // bypasses only the redundant EpisodePlanner boot turn. The governed
+        // bootstrap pass still produces and validates the TicketPlan.
+        creatorScope: {
+          planningDisposition: "execution_ready",
+          provenance: {
+            source: "human",
+            creatorId: "loop-integration-fixture",
+            createdAt: "2026-07-11T21:01:00.000Z",
+            evidenceRefs: ["test:loop-integration:human-merge-boundary"],
+          },
+          workKind: "bootstrap-product-plan",
+          objective: "Ship one bounded end-to-end acceptance fixture",
+          inScope: ["Create the one-ticket bootstrap TicketPlan"],
+          outOfScope: ["Merge without the human boundary"],
+          acceptanceCriteria: ["The TicketPlan contains the bounded lifecycle fixture"],
+          expectedArtifacts: [{ id: "ticket-plan", kind: "TicketPlan", required: true }],
+          declaredConstraints: { source: "integration-fixture" },
+          safetyFacts: [],
+          steps: [{
+            kind: "provider_turn",
+            id: "ticket-plan",
+            operation: "plan/bootstrap",
+            role: "planner",
+            objective: "Produce the bounded bootstrap TicketPlan",
+            dependsOn: [],
+            requiredCapabilities: ["structured_verdict"],
+            inputRefs: [],
+            expectedOutputs: [{ id: "ticket-plan", kind: "TicketPlan", required: true }],
+            maxTurnBudgetUsd: 5,
+            selectionReason: "Human supplied the complete one-step governed workflow",
+          }],
+        },
         gh,
         runtimeFor: () => runtime,
         parentTaskId: taskId,
@@ -376,7 +412,10 @@ describe("M6 loop engine integration", () => {
       });
 
       expect(seen).toEqual([{ issue: 1, pipeline: "build" }]);
-      expect(fake.calls[0]?.req.context).toBe(episodeBundle);
+      expect(fake.calls[0]?.req.context).toMatchObject(episodeBundle);
+      expect(fake.calls[0]?.req.context.execution).toMatchObject({
+        assignment: { harness: "claude", model: "builder-model" },
+      });
       expect(fake.calls[1]?.req.context.taste).toEqual(episodeBundle.taste);
       expect(fake.calls[1]?.req.context.memoryExcerpts).toEqual([
         expect.stringMatching(/^\[context-reference source="unattributed:memory:0" sha256="[a-f0-9]{64}"\]$/),
@@ -484,7 +523,17 @@ describe("M6 loop engine integration", () => {
         ...engineOptions(h, home.root, firstRuntime),
         pipelines,
       });
-      expect(paused).toMatchObject({ phase: "blocked", continuation: { pass: "implement" } });
+      expect(paused).toMatchObject({
+        phase: "blocked",
+        continuation: {
+          pass: "implement",
+          assignment: {
+            harness: "claude",
+            model: expect.any(String),
+            effort: expect.any(String),
+          },
+        },
+      });
       await h.gh.swapLabel(1, "op:blocked", "op:ready");
       await h.gh.swapLabel(1, "op:ready", "op:building");
 
@@ -674,6 +723,7 @@ describe("M6 loop engine integration", () => {
       "# Pass: implement": { "auth/change.ts": "export const changed = true;\n" },
     });
     try {
+      const ticketEpisode = ticketEpisodeFixture(home.root, gh, runtime);
       const result = await runLoopOnce({
         app: "fixture",
         repo: "fixture/repo",
@@ -685,22 +735,21 @@ describe("M6 loop engine integration", () => {
         commands: { testCommand: "true", lintCommand: "true" },
         engine: {
           pipelines: await rootPipelines(),
-          roles: ROLES,
+          roles: ticketEpisode.roles,
           runtimeFor: () => runtime,
           promptsDir: PROMPTS_DIR,
           runlogRoot: home.root,
           hooks: allowAllHooks(),
+          planTicket: ticketEpisode.planTicket,
+          executeTicketPlan: ticketEpisode.executeTicketPlan,
         },
       });
 
-      expect(result.items[0]?.phase).toBe("merged");
+      expect(result.items[0]?.phase, result.lines.join("\n")).toBe("merged");
       expect(fake.calls.some((call) => call.req.task.includes("# Pass: ship-check"))).toBe(true);
       const route = await readRouteRecord(home.root, "ticket:fixture:#1");
       expect([...new Set(route.authorized_passes.map((pass) => pass.pipeline))].sort()).toEqual([
-        "build",
-        "fix",
-        "review",
-        "ship",
+        "episode-plan-dag",
       ]);
       const ops = gh.calls.map((call) => call.op);
       expect(ops.lastIndexOf("createReview")).toBeLessThan(ops.indexOf("squashMerge"));
@@ -865,6 +914,7 @@ describe("M6 loop engine integration", () => {
       "# Pass: implement": { "auth/change.ts": "export const changed = true;\n" },
     });
     try {
+      const ticketEpisode = ticketEpisodeFixture(home.root, gh, runtime);
       const result = await runLoopOnce({
         app: "fixture",
         repo: "fixture/repo",
@@ -876,15 +926,17 @@ describe("M6 loop engine integration", () => {
         commands: { testCommand: "true", lintCommand: "true" },
         engine: {
           pipelines: await rootPipelines(),
-          roles: ROLES,
+          roles: ticketEpisode.roles,
           runtimeFor: () => runtime,
           promptsDir: PROMPTS_DIR,
           runlogRoot: home.root,
           hooks: allowAllHooks(),
+          planTicket: ticketEpisode.planTicket,
+          executeTicketPlan: ticketEpisode.executeTicketPlan,
         },
       });
 
-      expect(result.items[0]?.phase).toBe("merged");
+      expect(result.items[0]?.phase, result.lines.join("\n")).toBe("merged");
       // #2 depended on #1; #1 merged this tick -> #2 carries op:ready, no hand edit.
       expect((await gh.readIssue(2)).labels).toContain("op:ready");
       // #3 depends on the still-open, unmerged #4 -> stays blocked (stateless).
@@ -1177,6 +1229,126 @@ function engineOptions(
     policy: policy(),
     commands: { testCommand: "true", lintCommand: "true" },
     hooks: allowAllHooks(),
+  };
+}
+
+function ticketEpisodeFixture(
+  stateHome: string,
+  gh: FakeGhOps,
+  runtime: Runtime,
+): {
+  roles: Record<string, RoleConfig>;
+  planTicket: ReturnType<typeof createTicketEpisodeRuntime>["planTicket"];
+  executeTicketPlan: ReturnType<typeof createTicketEpisodeRuntime>["executeTicketPlan"];
+} {
+  const roles: Record<string, RoleConfig> = {
+    ...ROLES,
+    builder: {
+      ...ROLES.builder!,
+      runtime: "codex",
+      model: "builder-model",
+      effort: "high",
+    },
+    reviewer: {
+      ...ROLES.reviewer!,
+      runtime: "claude",
+      model: "reviewer-model",
+      effort: "xhigh",
+    },
+  };
+  const callbacks = createTicketEpisodeRuntime({
+    root: stateHome,
+    orgRoot: ROOT,
+    app: {
+      name: "fixture",
+      repo: "fixture/repo",
+      status: "live",
+      budgetUsdMonth: 100,
+      cadence: {},
+      execution: { assignmentMode: "fixed", allowedAssignments: {} },
+    },
+    roles: Object.values(roles),
+    gh,
+    policy: policy(),
+    commands: { testCommand: "true", lintCommand: "true" },
+    hooks: allowAllHooks(),
+    runtimeForAssignment: (assignment) => ({
+      kind: assignment.harness,
+      runTurn: runtime.runTurn.bind(runtime),
+    }),
+    plannerContext: { taste: ["integration fixture"], memoryExcerpts: [] },
+    remainingBudgetUsd: 100,
+    creatorScopeForTicket: () => completeTicketCreatorScope(),
+    now: () => new Date("2026-07-19T23:00:00.000Z"),
+  });
+  return { roles, ...callbacks };
+}
+
+function completeTicketCreatorScope(): CreatorEpisodeScope {
+  const output = (id: string, kind: string) => ({ id, kind, required: true });
+  const gate = (
+    id: string,
+    gateKind: string,
+    dependsOn: string[],
+    outputId: string,
+  ): Extract<NonNullable<CreatorEpisodeScope["steps"]>[number], { kind: "mechanical_gate" }> => ({
+    kind: "mechanical_gate",
+    id,
+    gate: gateKind,
+    objective: `Execute ${gateKind}`,
+    dependsOn,
+    inputRefs: [],
+    expectedOutputs: [output(outputId, "mechanical-evidence")],
+  });
+  const provider = (
+    id: string,
+    operation: string,
+    roleName: string,
+    dependsOn: string[],
+    outputId: string,
+  ): Extract<NonNullable<CreatorEpisodeScope["steps"]>[number], { kind: "provider_turn" }> => ({
+    kind: "provider_turn",
+    id,
+    operation,
+    role: roleName,
+    objective: `Execute ${operation}`,
+    dependsOn,
+    requiredCapabilities: ["tool_gate"],
+    inputRefs: [],
+    expectedOutputs: [output(outputId, "ticket-evidence")],
+    maxTurnBudgetUsd: 5,
+    selectionReason: `${operation} is explicitly required by the complete ticket scope`,
+  });
+  const steps: NonNullable<CreatorEpisodeScope["steps"]> = [
+    gate("provision", "ticket/provision", [], "provisioned"),
+    provider("contract", "build/contract", "builder", ["provision"], "contract"),
+    provider("implement", "build/implement", "builder", ["provision", "contract"], "patch"),
+    gate("gates", "ticket/gates-and-pr", ["implement"], "pull-request"),
+    provider("verify", "review/verify", "reviewer", ["gates"], "functional-review"),
+    provider("security", "review/security-deep", "reviewer", ["gates"], "security-review"),
+    gate("authorize", "ticket/review-authorization", ["verify", "security"], "authorization"),
+    provider("ship-check", "ship/ship-check", "reviewer", ["authorize"], "ship-verdict"),
+    gate("ship", "ticket/ship", ["ship-check"], "merge"),
+  ];
+  return {
+    planningDisposition: "execution_ready",
+    provenance: {
+      source: "agent",
+      creatorId: "loop-integration-parent",
+      createdAt: "2026-07-19T22:59:00.000Z",
+      evidenceRefs: ["test:loop-integration:ticket-plan"],
+    },
+    objective: "Implement, independently review, and merge the bounded ticket",
+    inScope: ["the selected ticket and its declared file scope"],
+    outOfScope: ["unrelated repository work"],
+    acceptanceCriteria: ["all gates and independent review pass before merge"],
+    expectedArtifacts: [output("merge", "mechanical-evidence")],
+    declaredConstraints: { networkAccess: false },
+    safetyFacts: [{
+      kind: "independent_review",
+      evidenceRefs: ["test:loop-integration:review"],
+    }],
+    steps,
   };
 }
 

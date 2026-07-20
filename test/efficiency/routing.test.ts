@@ -119,7 +119,7 @@ describe("Phase 3 deterministic routing", () => {
     })).toThrow(/without recorded factor rule sensitive_review/);
   });
 
-  it("D-ROUTE-05 records policy-selected model and effort before execution", async () => {
+  it("D-ROUTE-05 preserves each fixed role's exact atomic assignment before execution", async () => {
     const root = mkdtempSync(join(tmpdir(), "operon-route-"));
     const rolesFile = await loadRoles("roles.yaml");
     const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
@@ -129,7 +129,11 @@ describe("Phase 3 deterministic routing", () => {
     });
     const decision = decideExecutionRoute(profile(corpus.cases.find((row) => row.id === "r01")!));
     const passes = authorizeRoutePasses({ decision, pipelines: pipelines.pipelines, roles });
-    expect(passes.every((pass) => pass.effort === "low")).toBe(true);
+    expect(passes.every((pass) => {
+      const role = roles[pass.role];
+      return role !== undefined && pass.runtime === role.runtime &&
+        pass.model === role.model && pass.effort === role.effort;
+    })).toBe(true);
     await admitEpisode({
       root,
       episodeId: "route-recorded-before-runtime",

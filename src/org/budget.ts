@@ -16,6 +16,7 @@ import {
   type TurnRecord,
 } from "../runtime/telemetry.js";
 import { finalizeRun, readEnvelope, type RunEnvelope } from "../runtime/runlog/envelope.js";
+import { scrubSecrets } from "../runtime/runlog/redact.js";
 import type { TurnResult } from "../runtime/types.js";
 import {
   finalizeEpisode,
@@ -136,10 +137,10 @@ export async function rollupLearningSpend(
       } catch {
         continue;
       }
-      // Rows reconciled from crashed replay passes carry the reserved app
-      // but no refs (envelopes don't store them — documented M5 boundary):
-      // they still count against the monthly cap; per-candidate attribution
-      // for them is lost.
+      // Current crashed replay passes recover attribution from terminal
+      // provider evidence. Legacy rows may still have only the reserved app,
+      // so they continue to count against the monthly cap even when the old
+      // artifact cannot recover finer attribution.
       const isReplayRow =
         record.experimentRef !== undefined ||
         record.candidateRef !== undefined ||
@@ -320,7 +321,7 @@ export async function reconcileLedger(
       }
       const key = settlementKey(step.app, providerTurnId);
       if (settledKeys.has(key)) continue;
-      const record = recordFromExecutionStep(step);
+      const record = turnRecordFromExecutionStep(step);
       if (await recordTurnOnce(stateHome, record)) {
         settledKeys.add(key);
         result.settled += 1;
@@ -469,7 +470,11 @@ async function terminalizeEpisodeIfOpen(
   });
 }
 
-function recordFromExecutionStep(step: ExecutionStepRecord): TurnRecord {
+/** Reconstruct the exactly-once ledger row owned by a terminal provider
+ * execution record. This is shared by the ledger sweep and immediate
+ * EpisodePlan resume repair, so both preserve the same assignment/plan audit
+ * identity instead of producing a lower-fidelity recovery row. */
+export function turnRecordFromExecutionStep(step: ExecutionStepRecord): TurnRecord {
   const usage = step.usage ?? {
     tokensIn: 0,
     tokensOut: 0,
@@ -483,6 +488,7 @@ function recordFromExecutionStep(step: ExecutionStepRecord): TurnRecord {
     role: step.role ?? "unknown",
     runtime: step.runtime ?? "unknown",
     model: step.model ?? "unknown",
+    ...(step.effort === null ? {} : { effort: step.effort }),
     status:
       step.status === "completed"
         ? "completed"
@@ -505,6 +511,25 @@ function recordFromExecutionStep(step: ExecutionStepRecord): TurnRecord {
     ...(step.provider_turn_id !== null ? { providerTurnId: step.provider_turn_id } : {}),
     executionStepId: step.execution_step_id,
     episodeId: step.episode_id,
+    ...(step.plan_version === undefined ? {} : { planVersion: step.plan_version }),
+    ...(step.plan_step_id === undefined ? {} : { planStepId: step.plan_step_id }),
+    ...(step.assignment_source === undefined
+      ? {}
+      : { assignmentSource: step.assignment_source }),
+    ...(step.assignment_candidate_id === undefined
+      ? {}
+      : { assignmentCandidateId: step.assignment_candidate_id }),
+    ...(step.selection_reason === undefined
+      ? {}
+      : { selectionReason: scrubSecrets(step.selection_reason) }),
+    ...(step.resolved_capabilities === undefined
+      ? {}
+      : { resolvedCapabilities: [...step.resolved_capabilities] }),
+    ...(step.experiment_ref === undefined ? {} : { experimentRef: step.experiment_ref }),
+    ...(step.candidate_ref === undefined ? {} : { candidateRef: step.candidate_ref }),
+    ...(step.learning_activity === undefined
+      ? {}
+      : { learningActivity: step.learning_activity }),
     pipeline: step.operation.split("/", 1)[0] ?? "unknown",
     pass: step.operation.includes("/") ? step.operation.slice(step.operation.indexOf("/") + 1) : step.operation,
   };

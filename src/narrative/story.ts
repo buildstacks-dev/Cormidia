@@ -102,6 +102,11 @@ async function foldStory(
       pass: envelope.pass,
       role: envelope.role,
       ...(envelope.model !== undefined ? { model: envelope.model } : {}),
+      ...(envelope.plan_version !== undefined ? { plan_version: envelope.plan_version } : {}),
+      ...(envelope.plan_step_id !== undefined ? { plan_step_id: envelope.plan_step_id } : {}),
+      ...(envelope.assignment_source !== undefined
+        ? { assignment_source: envelope.assignment_source }
+        : {}),
       status: envelope.status,
       headline: `${envelope.pass} (${envelope.role}) — ${envelope.status}`,
       ...(quote !== undefined ? { quote } : {}),

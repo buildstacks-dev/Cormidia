@@ -15,6 +15,7 @@ import { ApprovalStore } from "../src/org/approvals.js";
 import { readScorecards } from "../src/org/scorecards.js";
 import { FakeRuntime } from "../src/runtime/testing/fakeRuntime.js";
 import type { AppEntry, AppsFile } from "../src/org/apps.js";
+import type { CreatorEpisodeScope } from "../src/loop/episode-plan.js";
 import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../src/runtime/types.js";
 import { makeBareWithClone } from "./fixtures/gitRepo.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
@@ -215,6 +216,8 @@ describe("dispatched turn runner", () => {
         runtimeHome: home.root,
         orgRoot: process.cwd(),
         runtimeFor: () => runtime,
+        episodePlannerPromptText: "Return exactly one EpisodePlan JSON object.",
+        creatorScope: genericSupportScope(),
         now: () => new Date("2026-07-06T00:00:01Z"),
       });
 
@@ -339,6 +342,19 @@ describe("dispatched turn runner", () => {
         lifecycle: { consumed_by_turn: "turn-groom" },
       });
 
+      const resumed = await runDispatchedTurn({
+        role: PLANNER,
+        app,
+        appsFile,
+        turnId: "turn-groom",
+        runtimeHome: home.root,
+        orgRoot: process.cwd(),
+        runtimeFor: () => runtime,
+        now: () => new Date("2026-07-06T01:31:00Z"),
+      });
+      expect(resumed.status).toBe("completed");
+      expect(runtime.calls).toHaveLength(1);
+
       const journal = JSON.parse(readFileSync(`${home.root}/state/turns/turn-groom.json`, "utf8")) as {
         phase: string;
       };
@@ -355,8 +371,11 @@ describe("dispatched turn runner", () => {
       expect(rows[0]).toMatchObject({
         trigger: "schedule",
         app: "alpha",
-        pipeline: "groom",
-        pass: "groom",
+        pipeline: "episode-plan-dag",
+        pass: "gp-groom-groom",
+        planVersion: 1,
+        planStepId: "gp-groom-groom",
+        assignmentSource: "configured",
         costUsd: 0.03,
       });
       expect(typeof rows[0]!["runId"]).toBe("string");
@@ -707,7 +726,10 @@ describe("dispatched turn runner", () => {
     const runtime: Runtime = {
       kind: "claude",
       runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
-        if (req.task.includes("# Pass: implement")) {
+        if (
+          req.task.includes("# Pass: implement") ||
+          req.task.includes("Operation: build/implement")
+        ) {
           writeFileSync(join(req.workdir, "README.md"), "# fixture origin\n\nupdated\n", "utf8");
           git(req.workdir, "add", "README.md");
           git(req.workdir, "commit", "-m", "feat: update readme");
@@ -737,7 +759,8 @@ describe("dispatched turn runner", () => {
         runtimeHome: home.root,
         orgRoot: process.cwd(),
         gh,
-        runtimeFor: () => runtime,
+        creatorScope: builderTicketScope(),
+        runtimeFor: (selected) => ({ ...runtime, kind: selected.runtime }),
         now: () => new Date("2026-07-06T02:00:00Z"),
       });
 
@@ -759,7 +782,8 @@ describe("dispatched turn runner", () => {
         runtimeHome: home.root,
         orgRoot: process.cwd(),
         gh,
-        runtimeFor: () => runtime,
+        creatorScope: builderTicketScope(),
+        runtimeFor: (selected) => ({ ...runtime, kind: selected.runtime }),
         now: () => new Date("2026-07-06T02:00:00Z"),
       });
       expect(await readScorecards(home.root, "alpha", "builder")).toHaveLength(1);
@@ -769,6 +793,105 @@ describe("dispatched turn runner", () => {
     }
   });
 });
+
+function genericSupportScope(): CreatorEpisodeScope {
+  return {
+    planningDisposition: "execution_ready",
+    provenance: {
+      source: "human",
+      creatorId: "turn-runner-test",
+      createdAt: "2026-07-06T00:00:00.000Z",
+      evidenceRefs: ["turn:turn1"],
+    },
+    objective: "Handle the bounded support alert",
+    inScope: ["inspect the dispatched alert"],
+    outOfScope: ["publish externally"],
+    acceptanceCriteria: ["return one support digest"],
+    expectedArtifacts: [{ id: "feedback-digest", kind: "digest", required: true }],
+    declaredConstraints: { networkAccess: false },
+    safetyFacts: [],
+    steps: [{
+      kind: "provider_turn",
+      operation: "support/digest",
+      id: "support-digest",
+      role: "support",
+      objective: "Inspect the alert and return a bounded support digest",
+      dependsOn: [],
+      requiredCapabilities: ["tool_gate"],
+      inputRefs: [{ ref: "turn:turn1", required: true }],
+      expectedOutputs: [{ id: "feedback-digest", kind: "digest", required: true }],
+      maxTurnBudgetUsd: 1,
+      selectionReason: "The creator supplied one complete, bounded support step",
+    }],
+  };
+}
+
+function builderTicketScope(): CreatorEpisodeScope {
+  const output = (id: string, kind: string) => ({ id, kind, required: true });
+  const mechanical = (
+    id: string,
+    gate: string,
+    dependsOn: string[],
+    outputId: string,
+  ): Extract<NonNullable<CreatorEpisodeScope["steps"]>[number], { kind: "mechanical_gate" }> => ({
+    kind: "mechanical_gate",
+    id,
+    gate,
+    objective: `Execute ${gate}`,
+    dependsOn,
+    inputRefs: [],
+    expectedOutputs: [output(outputId, "mechanical-evidence")],
+  });
+  const provider = (
+    id: string,
+    operation: string,
+    role: string,
+    dependsOn: string[],
+    outputId: string,
+  ): Extract<NonNullable<CreatorEpisodeScope["steps"]>[number], { kind: "provider_turn" }> => ({
+    kind: "provider_turn",
+    id,
+    operation,
+    role,
+    objective: `Execute ${operation}`,
+    dependsOn,
+    requiredCapabilities: ["tool_gate"],
+    inputRefs: [],
+    expectedOutputs: [output(outputId, "ticket-evidence")],
+    maxTurnBudgetUsd: 5,
+    selectionReason: `${operation} is required by this execution-ready ticket scope`,
+  });
+  const steps: NonNullable<CreatorEpisodeScope["steps"]> = [
+    mechanical("provision", "ticket/provision", [], "provisioned"),
+    provider("contract", "build/contract", "builder", ["provision"], "contract"),
+    provider("implement", "build/implement", "builder", ["provision", "contract"], "patch"),
+    mechanical("gates", "ticket/gates-and-pr", ["implement"], "pull-request"),
+    provider("verify", "review/verify", "reviewer", ["gates"], "review"),
+    mechanical("authorize", "ticket/review-authorization", ["verify"], "authorization"),
+    provider("ship-check", "ship/ship-check", "reviewer", ["authorize"], "ship-verdict"),
+    mechanical("ship", "ticket/ship", ["ship-check"], "merge"),
+  ];
+  return {
+    planningDisposition: "execution_ready",
+    provenance: {
+      source: "agent",
+      creatorId: "turn-runner-test-parent",
+      createdAt: "2026-07-06T00:00:00.000Z",
+      evidenceRefs: ["turn:turn-build"],
+    },
+    objective: "Apply and merge the bounded README ticket",
+    inScope: ["README.md"],
+    outOfScope: ["unrelated source files"],
+    acceptanceCriteria: ["README changes are merged after independent review"],
+    expectedArtifacts: [output("merge", "mechanical-evidence")],
+    declaredConstraints: { networkAccess: false },
+    safetyFacts: [{
+      kind: "independent_review",
+      evidenceRefs: ["ticket:#1"],
+    }],
+    steps,
+  };
+}
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, {

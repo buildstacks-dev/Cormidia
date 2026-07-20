@@ -9,12 +9,29 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse, parseDocument, stringify } from "yaml";
 import type { RoleConfig, Trigger } from "../runtime/types.js";
+import { isAssignmentCandidateId } from "../runtime/assignment.js";
+import { ASSIGNMENT_MODES, type AssignmentMode } from "../loop/episode-plan.js";
 import { RELEASE_KINDS, RELEASE_OWNERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner } from "../loop/types.js";
 import { writeFileAtomic } from "./atomic.js";
+import {
+  loadRoles,
+  resolveApprovedAssignmentCandidates,
+} from "./roles.js";
 
 export type AppStatus = "live" | "paused" | "onboarding";
+export type AppAssignmentMode = AssignmentMode;
 
 const STATUSES: AppStatus[] = ["live", "paused", "onboarding"];
+
+/** App-owned assignment policy. This selects how an already-required provider
+ * turn receives its atomic assignment; it is deliberately not a planning
+ * enable/disable switch. `allowedAssignments` only narrows role-local,
+ * org-approved candidate IDs. Membership is validated where app and role
+ * configuration are assembled; this loader owns syntax and normalization. */
+export interface AppExecutionConfig {
+  assignmentMode: AppAssignmentMode;
+  allowedAssignments: Record<string, string[]>;
+}
 
 /** Feedback/publishing channels an app exposes (docs/PURPOSE.md → "Support
  *  and Marketing are disabled per app until that app has real feedback or
@@ -47,6 +64,9 @@ export interface AppEntry {
   /** Declared release mechanism (A4). Absent = the app declares none: any
    *  milestone whose plan requires deploy/package fails the ship gate (P7). */
   release?: ReleaseConfig;
+  /** Assignment policy. `loadApps` always resolves omission to fixed mode;
+   *  optional here for legacy hand-built/test entries. */
+  execution?: AppExecutionConfig;
 }
 
 export interface AppsFile {
@@ -76,6 +96,7 @@ export interface AppRegistration {
   budgetUsdMonth?: number;
   cadence?: Record<string, Trigger[]>;
   channels?: AppChannels;
+  execution?: AppExecutionConfig;
 }
 
 export interface JoinExistingOrgResult {
@@ -151,6 +172,22 @@ function parseApp(
   }
   if (!specUnknown || typeof specUnknown !== "object") throw err("not a mapping");
   const spec = specUnknown as Record<string, unknown>;
+  const allowedFields = new Set([
+    "repo",
+    "status",
+    "budget_usd_month",
+    "cadence",
+    "channels",
+    "release",
+    "execution",
+    // Bootstrap-owned app extension consumed by the gate-extension loader;
+    // the registry intentionally preserves but does not interpret it here.
+    "critical_ops",
+  ]);
+  const unknownFields = Object.keys(spec).filter((key) => !allowedFields.has(key));
+  if (unknownFields.length > 0) {
+    throw err(`unknown field(s): ${unknownFields.sort().join(", ")}`);
+  }
 
   const repo = spec["repo"];
   if (typeof repo !== "string" || repo.length === 0) {
@@ -197,8 +234,117 @@ function parseApp(
     budgetUsdMonth: numberOr(spec["budget_usd_month"], defaultBudget),
     cadence,
     channels: parseChannels(spec["channels"], err),
+    execution: parseExecution(spec["execution"], err),
     ...(release !== undefined ? { release } : {}),
   };
+}
+
+/** Resolve legacy omission and validate the in-memory registration form.
+ * Exported so lifecycle mirror checks compare effective behavior rather than
+ * YAML spelling (`execution` omitted === explicit fixed with no narrowing). */
+export function normalizeAppExecution(
+  execution: AppExecutionConfig | undefined,
+  errorPrefix = "execution",
+): AppExecutionConfig {
+  if (execution === undefined) return { assignmentMode: "fixed", allowedAssignments: {} };
+  const err = (msg: string) => new Error(`${errorPrefix}: ${msg}`);
+  if (!execution || typeof execution !== "object" || Array.isArray(execution)) {
+    throw err("must be an object");
+  }
+  const spec = execution as unknown as Record<string, unknown>;
+  for (const key of Object.keys(spec)) {
+    if (key !== "assignmentMode" && key !== "allowedAssignments") {
+      throw err(`unknown key "${key}" (allowed: assignmentMode, allowedAssignments)`);
+    }
+  }
+  if (!ASSIGNMENT_MODES.includes(execution.assignmentMode)) {
+    throw err(`assignmentMode must be one of ${ASSIGNMENT_MODES.join(" | ")}`);
+  }
+  return {
+    assignmentMode: execution.assignmentMode,
+    allowedAssignments: parseAllowedAssignments(
+      execution.allowedAssignments,
+      err,
+      "allowedAssignments",
+    ),
+  };
+}
+
+/** Convert normalized in-memory spelling to the shared apps.yaml /
+ * `.operon/config.yaml` public schema. */
+export function appExecutionYaml(
+  execution: AppExecutionConfig | undefined,
+): Record<string, unknown> {
+  const normalized = normalizeAppExecution(execution);
+  const out: Record<string, unknown> = { assignment_mode: normalized.assignmentMode };
+  if (Object.keys(normalized.allowedAssignments).length > 0) {
+    out["allowed_assignments"] = normalized.allowedAssignments;
+  }
+  return out;
+}
+
+function parseExecution(raw: unknown, err: (msg: string) => Error): AppExecutionConfig {
+  if (raw === undefined) return { assignmentMode: "fixed", allowedAssignments: {} };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw err("execution must be a mapping");
+  }
+  const spec = raw as Record<string, unknown>;
+  for (const key of Object.keys(spec)) {
+    if (key !== "assignment_mode" && key !== "allowed_assignments") {
+      throw err(
+        `execution: unknown key "${key}" (allowed: assignment_mode, allowed_assignments)`,
+      );
+    }
+  }
+
+  const mode = spec["assignment_mode"] === undefined ? "fixed" : spec["assignment_mode"];
+  if (typeof mode !== "string" || !ASSIGNMENT_MODES.includes(mode as AppAssignmentMode)) {
+    throw err(`execution.assignment_mode must be one of ${ASSIGNMENT_MODES.join(" | ")}`);
+  }
+
+  return {
+    assignmentMode: mode as AppAssignmentMode,
+    allowedAssignments: parseAllowedAssignments(
+      spec["allowed_assignments"] === undefined ? {} : spec["allowed_assignments"],
+      err,
+      "execution.allowed_assignments",
+    ),
+  };
+}
+
+function parseAllowedAssignments(
+  raw: unknown,
+  err: (msg: string) => Error,
+  field: string,
+): Record<string, string[]> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw err(`${field} must be a mapping of role -> assignment ID list`);
+  }
+
+  const result: Record<string, string[]> = {};
+  for (const [role, idsRaw] of Object.entries(raw as Record<string, unknown>)) {
+    if (role.trim().length === 0 || role !== role.trim()) {
+      throw err(`${field} role keys must be non-empty and contain no surrounding whitespace`);
+    }
+    if (!Array.isArray(idsRaw)) {
+      throw err(`${field}.${role} must be a list of assignment IDs`);
+    }
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    for (const [index, id] of idsRaw.entries()) {
+      if (typeof id !== "string" || !isAssignmentCandidateId(id)) {
+        throw err(
+          `${field}.${role}[${index}] must be a stable lowercase assignment ID ` +
+            "(1-128 alphanumeric/./_/- characters; punctuation cannot lead or trail)",
+        );
+      }
+      if (seen.has(id)) throw err(`${field}.${role} contains duplicate assignment ID "${id}"`);
+      seen.add(id);
+      ids.push(id);
+    }
+    result[role] = ids;
+  }
+  return result;
 }
 
 /** Parse the optional `release:` block (docs/approval-and-release-amendment.md
@@ -334,6 +480,7 @@ export async function joinExistingOrg(
 
   const status = registration.status ?? "onboarding";
   const cadence = registration.cadence ?? {};
+  const execution = normalizeAppExecution(registration.execution, "bootstrap: execution");
   const entry: AppEntry = {
     name: registration.name,
     repo: registration.repo,
@@ -341,7 +488,9 @@ export async function joinExistingOrg(
     budgetUsdMonth: registration.budgetUsdMonth ?? file.defaults.budgetUsdMonth,
     cadence,
     channels: registration.channels ?? {},
+    execution,
   };
+  await validateRegistrationAssignments(orgHome, entry);
 
   const blockSpec: Record<string, unknown> = {
     repo: registration.repo,
@@ -351,6 +500,7 @@ export async function joinExistingOrg(
     blockSpec["budget_usd_month"] = registration.budgetUsdMonth;
   }
   blockSpec["cadence"] = cadence;
+  blockSpec["execution"] = appExecutionYaml(execution);
   if (registration.channels !== undefined && Object.keys(registration.channels).length > 0) {
     blockSpec["channels"] = registration.channels;
   }
@@ -390,6 +540,44 @@ export async function joinExistingOrg(
   }
 
   return { orgHome, appsPath, app: entry };
+}
+
+/** Validate behavior-affecting app narrowing before the registry is touched.
+ * Syntax-only validation is insufficient here: an unknown role/candidate
+ * would otherwise be persisted successfully and fail later when the complete
+ * org home is assembled. Fixed legacy registrations with no narrowing remain
+ * compatible and do not require an eager roles.yaml read. */
+async function validateRegistrationAssignments(
+  orgHome: string,
+  app: Pick<AppEntry, "name" | "execution">,
+): Promise<void> {
+  const execution = normalizeAppExecution(
+    app.execution,
+    `bootstrap: app "${app.name}" execution`,
+  );
+  const narrowedRoles = Object.keys(execution.allowedAssignments).sort();
+  if (execution.assignmentMode === "fixed" && narrowedRoles.length === 0) return;
+
+  const roles = (await loadRoles(join(orgHome, "roles.yaml"))).roles;
+  const roleByName = new Map(roles.map((role) => [role.name, role]));
+  const unknownRoles = narrowedRoles.filter((role) => !roleByName.has(role));
+  if (unknownRoles.length > 0) {
+    throw new Error(
+      `bootstrap: app "${app.name}" execution.allowed_assignments references ` +
+        `unknown role(s): ${unknownRoles.join(", ")}`,
+    );
+  }
+  for (const roleName of narrowedRoles) {
+    resolveApprovedAssignmentCandidates(
+      roleByName.get(roleName)!,
+      execution.allowedAssignments[roleName],
+    );
+  }
+  if (!roleByName.has("planner")) {
+    throw new Error(
+      `bootstrap: app "${app.name}" adaptive assignment requires a configured planner boot role`,
+    );
+  }
 }
 
 /** Remove one explicitly named app from the org registry. This is the local

@@ -46,27 +46,63 @@ settle exactly once. A pass-level summary cannot hide those turns.
 
 ## Route admission
 
-Admission durably records `planned_route`, policy version, explicit risk and
-uncertainty factors, pass set, model/effort selection, budgets, and lower/upper
-cost before a runtime can be constructed. `planned_route` is immutable.
-`current_route` changes only through a recorded reassessment; `final_route`
-records the route under which the episode actually terminated.
+Every episode begins with a bounded, deterministic EpisodeIntent containing
+facts, constraints, hard ceilings, available roles and assignments, safety
+facts, and any explicit creator scope. A complete provenance-bearing creator
+scope is normalized token-free into the same EpisodePlan schema. Otherwise a
+dedicated EpisodePlanner runs using an explicitly configured fixed assignment.
+Its boot turn is admitted against its own turn cap and the hard org/app/
+invocation ceilings before its runtime is constructed, settles exactly once,
+counts in the episode's totals, and cannot select itself.
 
-Valid depth factors are blast radius, reversibility, sensitive domain,
-uncertainty/ambiguity, component or external-system count, release consequence,
-novelty relative to validated evidence, and evidence/test quality. Prompt
-length, repeated keywords, and role availability are not factors.
+The accepted EpisodePlan is the episode's workflow authority. Before the first
+delivery runtime is constructed it durably records its intent hash, version,
+planning source and provenance, typed dependency graph, required inputs and
+outputs, deterministic gates and approval boundaries, exact atomic assignments,
+per-turn ceilings and estimates, total estimated budget, and derived safety
+route. Fixed mode resolves assignments from configuration after workflow
+design; adaptive mode accepts only exact candidates approved by the org and
+narrowed by the app. No fallback may silently change one tuple member.
+
+Deterministic validation checks role and candidate membership, harness/model/
+effort compatibility, required capabilities, declared qualification provenance
+and current non-billable availability,
+DAG integrity and reachability, budget arithmetic, terminal coverage, approval
+and critical-operation policy, mandatory gates, release constraints, and
+independent or cross-provider review. Policy may reject a plan or require one
+bounded repair; any mandatory floor must be visible in the accepted plan. It
+must not quietly substitute a generic static workflow.
+
+Mechanical gates and approval checkpoints currently construct no provider
+runtime, so their equivalent-provider monetary overhead is deterministically
+`$0`; a planner cannot invent a non-zero overhead allowance. Their count,
+active time, approvals, and external consequences remain bounded separately.
+
+Admission then durably records the accepted plan version, derived
+`planned_route`, policy version, explicit risk and uncertainty factors,
+assignments, budgets, and lower/upper cost. `planned_route` is an immutable
+projection of plan V1. `current_route` changes only through a recorded
+forward-only plan revision or safety reassessment; `final_route` records the
+projection under which the episode actually terminated.
+
+Valid safety and reporting factors remain blast radius, reversibility,
+sensitive domain, uncertainty/ambiguity, component or external-system count,
+release consequence, novelty relative to validated evidence, and evidence/test
+quality. Prompt length, repeated keywords, role availability, title, labels,
+and apparent simplicity cannot authorize a planner bypass or select a route.
 
 A new finding may escalate a route. Escalation preserves valid artifacts and
 records its factor, remaining budget, and newly authorized budget. A cap never
 authorizes false completion: insufficient remaining budget parks or reassesses
 before the next provider turn.
 
-Equivalent-cost admission is pessimistic and pre-runtime. Under the episode
-lock, Operon adds settled provider cost to every in-flight reservation, then
-reserves either the caller's declared maximum exposure or the smaller of the
-role's per-turn cap and the route's remaining cost. That reservation becomes
-the adapter request's actual `maxTurnBudgetUsd`; it is not merely telemetry.
+Equivalent-cost admission remains pessimistic and pre-runtime for every
+provider turn, including the EpisodePlanner boot turn. Under the episode lock,
+Operon adds settled provider cost to every in-flight reservation, then reserves
+the applicable planning cap or the smaller of the planned step ceiling, the
+role's per-turn cap, and the episode's remaining hard cost. That reservation
+becomes the adapter request's actual `maxTurnBudgetUsd`; it is not merely
+telemetry.
 Finalization atomically replaces the reservation with observed usage, so a
 retry or concurrent settlement cannot count both. Mechanical steps create no
 provider reservation and consume no equivalent-cost budget.
@@ -80,21 +116,25 @@ another provider runtime can be constructed. A human may preserve the durable
 work and explicitly reassess the route; estimation variance never silently
 makes the route cap advisory.
 
-`route-policy/v1` is the executable classifier. It consumes structured risk
-facts only, selects the smallest safe quick/standard/deep route, binds every
-extra pass to a named factor, and records model/effort before runtime
-construction. Mechanical-only completion is limited to the ratified allowlist;
-prose, prompt length, and keyword repetition cannot select it or deepen a
-route. Unexpected findings can only preserve or escalate the current route.
+The executable plan validator consumes structured facts and the proposed plan;
+it validates rather than authors the workflow. Quick/standard/deep is derived
+from accepted plan complexity and safety factors for compatibility, reporting,
+hard-ceiling selection, or a safety floor. It never chooses the pass set, model,
+effort, or planner bypass. Mechanical-only completion remains limited to the
+ratified allowlist. Unexpected findings can preserve valid artifacts and cause
+a bounded forward-only plan revision; they cannot mutate a completed step or
+silently substitute an assignment.
 
-The route belongs to the episode. A planning-depth or selected-pass-set value
-is evidence derived from admission, not a second route authority. Pipeline
-shape, role availability, prompt length, and prose keywords cannot deepen an
-episode by themselves.
+The EpisodePlan belongs to the episode. A route, planning-depth value, selected
+pass set, or pipeline name is evidence derived from the accepted plan, not a
+second workflow authority. Static pipelines may provide governed step/gate
+vocabulary or complete creator-selected workflow templates, but cannot replace
+the accepted plan as the primary workflow.
 
 ## Context and continuation budgets
 
-Context is admitted under the episode route just like turns and cost. Each
+Context is admitted under the accepted plan and derived route just like turns
+and cost. Each
 pass records source and rendered bytes, component hashes, cache identity,
 prior-pass change state, duplicate relationships, category caps, transport,
 and deterministic eviction. Unchanged material may travel as a stable
@@ -104,14 +144,15 @@ if that required set exceeds the route cap, admission stops before runtime
 construction and the route must be reassessed. Cache visibility reports the
 adapter's actual capability—never a fabricated zero.
 
-The episode execution journal advances through route, contract,
-implementation, push, gates, PR, findings, approvals, merge, and release.
-Restart selects the next legal boundary. Repeating accepted work requires a
-durable invalidation reason and invalidates only the affected suffix. Route
-bounds cover environment retries, tool calls, active wall time, claim
-attempts, repair attempts, review cycles, provider turns, and cost. Cap stop,
-cancellation, crash, and timeout are terminal execution outcomes with an
-executable resume decision; they do not erase artifact, episode, or settlement
+The episode execution journal advances through ready steps in the accepted plan
+DAG and records the plan version that authorized each step. Restart selects the
+same next ready step deterministically. Repeating accepted work requires a
+durable invalidation reason and a forward-only plan revision that replaces only
+the affected future suffix. Plan and route bounds cover planning revisions,
+environment retries, tool calls, active wall time, claim attempts, repair
+attempts, review cycles, provider turns, and cost. Cap stop, cancellation,
+crash, and timeout are terminal execution outcomes with an executable resume
+decision; they do not erase artifact, episode, plan, assignment, or settlement
 evidence.
 
 ## Lifecycle evidence vocabulary
@@ -152,9 +193,11 @@ must construct zero provider runtimes.
 
 <!-- efficiency-budgets:end -->
 
-Contract + implementation + independent review consumes the nominal quick
-allowance. A required repair after those three turns is a route reassessment,
-not a fourth quick turn. No required review is skipped to preserve a label.
+The provider-turn cap includes the EpisodePlanner boot turn when it runs. A
+plan that cannot fit the applicable hard ceiling must derive a higher permitted
+route, reduce scope through an explicit revision, or fail with the minimum
+safe budget and required scope/config change. No provider turn is hidden and no
+required review is skipped to preserve a label.
 
 ## Measurements
 

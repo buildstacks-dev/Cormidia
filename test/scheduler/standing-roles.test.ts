@@ -345,7 +345,7 @@ async function executeAll(stateHome: string, appRoot: string): Promise<{ artifac
   const artifacts: StandingRoleArtifact[] = [];
   for (const [role, pipelineName] of [["sre", "sre-incident"], ["support", "support-digest"], ["marketing", "ci-sweep"]] as const) {
     const result = turnResult(`${role} provider draft grounded in fixture`);
-    const fake = new FakeRuntime([{ result }]);
+    const fake = new FakeRuntime([{ result }], roles[role]!.runtime);
     const execution = await executePipeline({
       pipeline: getPipeline(pipelines, pipelineName),
       selection: { tier: "standard" },

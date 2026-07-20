@@ -22,6 +22,7 @@ import { runConformanceSuite } from "../conformance/harness.js";
 import { makeWorkingRepo } from "../fixtures/gitRepo.js";
 import type { ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";
 import { mapPiThinkingLevel, PiRuntime, resolvePiModel } from "../../src/runtime/adapters/pi.js";
+import { buildTurnExecutionFacts } from "../../src/runtime/assignment.js";
 import { defaultGate } from "../../src/runtime/gate.js";
 import type { RoleConfig, ToolAction, TurnEvent, TurnResult } from "../../src/runtime/types.js";
 
@@ -60,32 +61,82 @@ describe("PiRuntime (SDK mocked)", () => {
       provider: "openai-codex",
       id: "gpt-5.6-sol",
     });
-    expect(mapPiThinkingLevel("max")).toBe("xhigh");
+    expect(() => mapPiThinkingLevel("max")).toThrow(/no effort alias is allowed/);
     expect(mapPiThinkingLevel("medium")).toBe("medium");
   });
 
-  it("writes native pi context and starts a session with model, thinking, tools, and gate extension", async () => {
+  it("uses the explicit assignment in native context and session options", async () => {
     const repo = await makeWorkingRepo();
     const captures: Array<CreateAgentSessionOptions> = [];
     const runtime = makePiRuntime([{ result: makeResult("done") }], captures);
+    const assignment = {
+      harness: "pi" as const,
+      model: "openai-codex/gpt-5.6-sol",
+      effort: "xhigh" as const,
+    };
 
     const result = await runtime.runTurn(
       {
         role: PI_ROLE,
+        assignment,
         workdir: repo.root,
         task: "do the thing",
-        context: { taste: ["ORG", "ROLE"], memoryExcerpts: ["MEMORY"] },
+        context: {
+          taste: ["ORG", "ROLE"],
+          memoryExcerpts: ["MEMORY"],
+          execution: buildTurnExecutionFacts(
+            assignment,
+            PI_ROLE,
+            ["tool_gate", "session_resume"],
+          ),
+        },
       },
       { gate: defaultGate },
     );
 
-    expect(readFileSync(join(repo.root, ".pi/APPEND_SYSTEM.md"), "utf8")).toContain("ORG");
+    const nativeContext = readFileSync(join(repo.root, ".pi/APPEND_SYSTEM.md"), "utf8");
+    expect(nativeContext).toContain("ORG");
+    expect(nativeContext).toContain("Turn execution facts");
+    expect(nativeContext).toContain("Exact model: openai-codex/gpt-5.6-sol");
     expect(readFileSync(join(repo.root, ".git/info/exclude"), "utf8")).toContain(".pi/APPEND_SYSTEM.md");
     expect(captures[0]?.cwd).toBe(repo.root);
-    expect(captures[0]?.thinkingLevel).toBe("high");
+    expect(captures[0]?.model).toMatchObject({ provider: "openai-codex", id: "gpt-5.6-sol" });
+    expect(captures[0]?.thinkingLevel).toBe("xhigh");
     expect(captures[0]?.tools).toEqual(["read", "bash", "edit", "write"]);
     expect(result.session.runtime).toBe("pi");
     expect(result.summary).toBe("done");
+  });
+
+  it("rejects another harness and unsupported max effort before creating a session", async () => {
+    const repo = await makeWorkingRepo();
+    const captures: Array<CreateAgentSessionOptions> = [];
+    const runtime = makePiRuntime([{ result: makeResult("done") }], captures);
+
+    await expect(
+      runtime.runTurn(
+        {
+          role: PI_ROLE,
+          assignment: { harness: "codex", model: "gpt-exact", effort: "high" },
+          workdir: repo.root,
+          task: "wrong harness",
+          context: { taste: [], memoryExcerpts: [] },
+        },
+        { gate: defaultGate },
+      ),
+    ).rejects.toThrow(/does not match "pi" adapter/);
+    await expect(
+      runtime.runTurn(
+        {
+          role: PI_ROLE,
+          assignment: { harness: "pi", model: PI_MODEL, effort: "max" },
+          workdir: repo.root,
+          task: "unsupported effort",
+          context: { taste: [], memoryExcerpts: [] },
+        },
+        { gate: defaultGate },
+      ),
+    ).rejects.toThrow(/max is unsupported by pi/);
+    expect(captures).toHaveLength(0);
   });
 
   it("adds a degradation artifact when delegation is configured", async () => {

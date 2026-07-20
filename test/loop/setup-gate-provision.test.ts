@@ -21,8 +21,10 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { baseRevisionForBranch } from "../../src/loop/default-branch.js";
 import { runLoopOnce } from "../../src/loop/driver.js";
+import type { CreatorEpisodeScope } from "../../src/loop/episode-plan.js";
 import { loadPipelines, type PipelinesFile } from "../../src/loop/pipelines.js";
 import type { Policy } from "../../src/loop/policy.js";
+import { createTicketEpisodeRuntime } from "../../src/org/ticket-episode-runtime.js";
 import { readEvents } from "../../src/runtime/runlog/events.js";
 import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../../src/runtime/types.js";
 import { makeBareWithClone } from "../fixtures/gitRepo.js";
@@ -128,6 +130,127 @@ function allowAllHooks(): TurnHooks {
   return { gate: () => ({ allow: true }) };
 }
 
+/** Supply explicit creator-authored workflow authority while keeping the real
+ * production ticket DAG executor on the path whose setup ordering is tested. */
+function ticketEpisodeFixture(
+  stateHome: string,
+  gh: FakeGhOps,
+  runtime: Runtime,
+  commands: { setupCommand: string; testCommand: string; lintCommand: string },
+): {
+  roles: Record<string, RoleConfig>;
+  planTicket: ReturnType<typeof createTicketEpisodeRuntime>["planTicket"];
+  executeTicketPlan: ReturnType<typeof createTicketEpisodeRuntime>["executeTicketPlan"];
+} {
+  const roles: Record<string, RoleConfig> = {
+    ...ROLES,
+    builder: {
+      ...ROLES.builder!,
+      runtime: "codex",
+      model: "builder-model",
+    },
+    reviewer: {
+      ...ROLES.reviewer!,
+      runtime: "claude",
+      model: "reviewer-model",
+    },
+  };
+  const callbacks = createTicketEpisodeRuntime({
+    root: stateHome,
+    orgRoot: REPO_ROOT,
+    app: {
+      name: "fixture",
+      repo: "fixture/repo",
+      status: "live",
+      budgetUsdMonth: 100,
+      cadence: {},
+      execution: { assignmentMode: "fixed", allowedAssignments: {} },
+    },
+    roles: Object.values(roles),
+    gh,
+    policy: policy(),
+    commands,
+    hooks: allowAllHooks(),
+    runtimeForAssignment: (assignment) => ({
+      kind: assignment.harness,
+      runTurn: runtime.runTurn.bind(runtime),
+    }),
+    plannerContext: { taste: ["setup-gate fixture"], memoryExcerpts: [] },
+    remainingBudgetUsd: 100,
+    creatorScopeForTicket: () => completeTicketCreatorScope(),
+    now: () => new Date("2026-07-19T22:00:00.000Z"),
+  });
+  return { roles, ...callbacks };
+}
+
+function completeTicketCreatorScope(): CreatorEpisodeScope {
+  const output = (id: string, kind: string) => ({ id, kind, required: true });
+  const gate = (
+    id: string,
+    gateKind: string,
+    dependsOn: string[],
+    outputId: string,
+  ): Extract<NonNullable<CreatorEpisodeScope["steps"]>[number], { kind: "mechanical_gate" }> => ({
+    kind: "mechanical_gate",
+    id,
+    gate: gateKind,
+    objective: `Execute ${gateKind}`,
+    dependsOn,
+    inputRefs: [],
+    expectedOutputs: [output(outputId, "mechanical-evidence")],
+  });
+  const provider = (
+    id: string,
+    operation: string,
+    roleName: string,
+    dependsOn: string[],
+    outputId: string,
+  ): Extract<NonNullable<CreatorEpisodeScope["steps"]>[number], { kind: "provider_turn" }> => ({
+    kind: "provider_turn",
+    id,
+    operation,
+    role: roleName,
+    objective: `Execute ${operation}`,
+    dependsOn,
+    requiredCapabilities: ["tool_gate"],
+    inputRefs: [],
+    expectedOutputs: [output(outputId, "ticket-evidence")],
+    maxTurnBudgetUsd: 5,
+    selectionReason: `${operation} is explicitly required by the complete ticket scope`,
+  });
+  const steps: NonNullable<CreatorEpisodeScope["steps"]> = [
+    gate("provision", "ticket/provision", [], "provisioned"),
+    provider("contract", "build/contract", "builder", ["provision"], "contract"),
+    provider("implement", "build/implement", "builder", ["provision", "contract"], "patch"),
+    gate("gates", "ticket/gates-and-pr", ["implement"], "pull-request"),
+    provider("verify", "review/verify", "reviewer", ["gates"], "functional-review"),
+    provider("security", "review/security-deep", "reviewer", ["gates"], "security-review"),
+    gate("authorize", "ticket/review-authorization", ["verify", "security"], "authorization"),
+    provider("ship-check", "ship/ship-check", "reviewer", ["authorize"], "ship-verdict"),
+    gate("ship", "ticket/ship", ["ship-check"], "merge"),
+  ];
+  return {
+    planningDisposition: "execution_ready",
+    provenance: {
+      source: "agent",
+      creatorId: "setup-gate-parent",
+      createdAt: "2026-07-19T21:59:00.000Z",
+      evidenceRefs: ["test:setup-gate:ticket-plan"],
+    },
+    objective: "Provision, implement, independently review, and merge the bounded ticket",
+    inScope: ["the selected ticket and its declared file scope"],
+    outOfScope: ["unrelated repository work"],
+    acceptanceCriteria: ["setup succeeds before implementation and all delivery gates pass"],
+    expectedArtifacts: [output("merge", "mechanical-evidence")],
+    declaredConstraints: { networkAccess: false },
+    safetyFacts: [{
+      kind: "independent_review",
+      evidenceRefs: ["test:setup-gate:review"],
+    }],
+    steps,
+  };
+}
+
 function commit(worktree: string, message: string, files: Record<string, string>): void {
   const env = {
     ...process.env,
@@ -214,6 +337,8 @@ describe("L1-02 setup gate runs at worktree provision (before the implement pass
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
     const probe = markerRecordingRuntime();
     try {
+      const commands = { setupCommand: SETUP_OK, testCommand: "true", lintCommand: "true" };
+      const ticketEpisode = ticketEpisodeFixture(home.root, gh, probe.runtime, commands);
       const result = await runLoopOnce({
         app: "fixture",
         repo: "fixture/repo",
@@ -222,14 +347,19 @@ describe("L1-02 setup gate runs at worktree provision (before the implement pass
         worktreeRoot: join(pair.root, "worktrees"),
         base: baseRevisionForBranch("main"),
         policy: policy(),
-        commands: { setupCommand: SETUP_OK, testCommand: "true", lintCommand: "true" },
+        commands,
         engine: {
           pipelines: await rootPipelines(),
-          roles: ROLES,
-          runtimeFor: () => probe.runtime,
+          roles: ticketEpisode.roles,
+          runtimeFor: (role) => ({
+            kind: role.runtime,
+            runTurn: probe.runtime.runTurn.bind(probe.runtime),
+          }),
           promptsDir: PROMPTS_DIR,
           runlogRoot: home.root,
           hooks: allowAllHooks(),
+          planTicket: ticketEpisode.planTicket,
+          executeTicketPlan: ticketEpisode.executeTicketPlan,
         },
       });
 
@@ -260,6 +390,8 @@ describe("L1-02 setup gate runs at worktree provision (before the implement pass
     const home = makeOrgHome({ runs: { apps: ["fixture"] } });
     const probe = markerRecordingRuntime();
     try {
+      const commands = { setupCommand: SETUP_FAIL, testCommand: "true", lintCommand: "true" };
+      const ticketEpisode = ticketEpisodeFixture(home.root, gh, probe.runtime, commands);
       const result = await runLoopOnce({
         app: "fixture",
         repo: "fixture/repo",
@@ -268,14 +400,19 @@ describe("L1-02 setup gate runs at worktree provision (before the implement pass
         worktreeRoot: join(pair.root, "worktrees"),
         base: baseRevisionForBranch("main"),
         policy: policy(),
-        commands: { setupCommand: SETUP_FAIL, testCommand: "true", lintCommand: "true" },
+        commands,
         engine: {
           pipelines: await rootPipelines(),
-          roles: ROLES,
-          runtimeFor: () => probe.runtime,
+          roles: ticketEpisode.roles,
+          runtimeFor: (role) => ({
+            kind: role.runtime,
+            runTurn: probe.runtime.runTurn.bind(probe.runtime),
+          }),
           promptsDir: PROMPTS_DIR,
           runlogRoot: home.root,
           hooks: allowAllHooks(),
+          planTicket: ticketEpisode.planTicket,
+          executeTicketPlan: ticketEpisode.executeTicketPlan,
         },
       });
 

@@ -7,20 +7,37 @@ a private GitHub repo, with a human approver gating critical operations only.
 ```mermaid
 flowchart TD
     T["⏱ Timer tick (~5 min)<br/><b>start here</b>"] --> D["Dispatcher<br/>polls GitHub + grants;<br/>re-queues blocked turns first"]
-    D -->|"for each due (role, app)"| R["Turn runner<br/>assembles context, cuts worktree"]
+    D -->|"for each due episode"| I["Episode intent<br/>bounded facts + hard ceilings"]
+    I --> P{"Execution-ready<br/>creator scope?"}
+    P -->|"yes"| N["Normalize creator scope"]
+    P -->|"no"| EP["EpisodePlanner<br/>smallest sufficient workflow"]
+    N --> V["Validate + persist EpisodePlan"]
+    EP --> V
+    V --> R["Execute ready plan step<br/>role + atomic assignment"]
     R --> A["Runtime adapter<br/>claude · codex · pi"]
     A -->|"each tool action"| G{"Critical-ops gate<br/>classify"}
     G -->|"routine (or grant on file)"| GH[("GitHub<br/>issues, PRs, reviews")]
     G -->|"critical, no grant"| B["Turn ends blocked_on_gate<br/>→ approval queue"]
     B --> H["Human approver"]
-    H -->|"grant / deny"| N["↻ Next tick<br/>Dispatcher re-runs the turn"]
-    GH -->|"polled next tick"| N
+    H -->|"grant / deny"| NT["↻ Next tick<br/>Dispatcher re-runs the turn"]
+    GH -->|"polled next tick"| NT
 ```
 
 The flow is a single loop, read top to bottom: the **Timer tick** wakes the
-**Dispatcher**, which runs due turns through the adapter and gate, then the
+**Dispatcher**, which turns due work into one durable episode plan before any
+delivery turn reaches an adapter, then the
 `↻ Next tick` node folds back to the Dispatcher on the following tick — grants
 and freshly-polled GitHub events are both picked up there.
+
+EpisodePlanner normally runs for every episode in both assignment modes. The
+only provider-planning-turn bypass is an explicit, provenance-bearing creator
+scope complete enough to normalize into the same executable plan. A short
+prompt, an existing ticket, or work that merely looks simple never implies the
+bypass. `fixed` and `adaptive` change only how each planned provider step gets
+its indivisible harness/model/effort assignment: fixed resolves the configured
+tuple; adaptive chooses an exact approved candidate. Role permissions do not
+change with the assignment. The planner boot turn receives no network or tool
+authority; deterministic intent gathering is complete before it runs.
 
 The gate classifies *every* tool action; only ops matching a critical rule are
 blocked. A blocked op does not resume in place — the turn ends `blocked_on_gate`,
@@ -38,10 +55,10 @@ self-contained wiki that walks the three layers, the build loop, and the
 runtime adapters, with curated reading paths for coming up to speed.
 
 Operon turns approved goals into verified software outcomes with process
-proportional to risk, minimal human attention, durable forward progress, and
-continuously improving unit economics. `docs/VISION.md` states the operator
-outcome; `docs/efficiency.md` is the sole normative route, budget,
-measurement, and qualification contract.
+proportional to the work and its risk, minimal human attention, durable forward
+progress, and continuously improving unit economics. `docs/VISION.md` states
+the operator outcome; `docs/efficiency.md` is the normative plan-derived
+budget, route, measurement, and qualification contract.
 
 ## Install locally
 
@@ -204,11 +221,19 @@ agreement; a definition file alone is never healthy. See
 reason codes, and health rules.
 
 The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
-`run-role` assemble real context but spend no tokens. Live forms can spend
-tokens and touch GitHub:
+`run-role` spend no tokens. The current `plan --auto --dry-run` and
+`plan --explain-route` commands expose only a provisional, token-free intent
+preview: current ledger budget, declared request facts, assignment candidates,
+safety facts, creator-scope assessment, and the fixed planner boot boundary.
+Repository/source inspection owned by the live snapshot remains clearly
+deferred. The previews deliberately return
+`exactProviderAuthoredPlan: null`; only the live EpisodePlanner call can design
+that workflow. `operon episode explain <episode-id>` exposes the read-only
+durable plan, assignment rationale, route, and execution status. Live forms
+can spend tokens and touch GitHub:
 
 ```bash
-operon plan <app>
+operon plan <app> --auto --goal "<bounded goal>"
 operon loop --app <app> --once
 operon dispatch
 pnpm test:live
@@ -417,9 +442,11 @@ or external browser requests.
 src/runtime/   the runtime contract: Runtime interface, critical-ops gate,
                telemetry, L1-L3 run logs, secret-patterns, adapters
                (Claude SDK, Codex App Server, pi SDK)
-src/loop/      pass pipelines, briefs, quality gates, verdict parsing, and
+src/loop/      durable EpisodePlan schema/DAG execution, plan-derived route,
+               pass transport, briefs, quality gates, verdict parsing, and
                the ticket -> PR -> review -> merge state machine
-src/org/       app registry, bootstrap, co-planning, dispatch, approvals,
+src/org/       EpisodePlanner intent/policy/runtime/orchestration, app registry,
+               bootstrap, co-planning, dispatch, approvals,
                budget overlays, trigger routing, context, memory, scorecards,
                retro, org-scoped scheduler lifecycle/evidence, standing-role
                artifacts, and the governed learning loop (src/org/learning/)
@@ -458,8 +485,9 @@ narrative/<app>/          # human-level causal timeline (#129): one captured
                           # and a time-ordered INDEX.md — quotes captured at
                           # render time survive the 30-day runs/ sweep
                           # (`operon narrative`; docs/narrative/design.md)
-efficiency/episodes/<hash>/ # admitted route + terminal execution steps +
-                            # episode context-manifest projection
+efficiency/episodes/<hash>/ # EpisodeIntent + immutable plan-vN records/current
+                            # pointer + plan-DAG journal + derived route +
+                            # terminal execution steps + context projection
 invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)
 scheduler/installation.json # owned definition/install record
 scheduler/evidence/       # exact-once invocation, decision, and local-alert JSON
@@ -540,17 +568,42 @@ Telemetry joins those child traces back to the exact prompt and will not call
 a task “Operon end-to-end complete” when a required stage or Reviewer is
 missing, or when execution used a fallback.
 
-`operon plan <app> --auto --goal "..."` currently chooses a planning pass set
-before any model turn. Quick planning uses one combined
-planning/decomposition pass; standard uses a visionary, one PM perspective,
-and a decomposer; deep adds a second competing PM and arbitration. The route uses explicit risk,
-ambiguity, coupling, reversibility, external-consequence, expected-ticket,
-and sensitive-domain factors—not prompt length. Every planning envelope
-records the policy version, factors, selected/skipped passes with reasons,
-and a pre-execution historical cost estimate (or an honest unavailable
-marker plus the role-cap upper bound). Under `efficiency/v1`, this
-`planning_depth` is evidence derived from episode admission, not a second
-quick/standard/deep route authority.
+Episode execution now has one workflow authority: a schema-validated,
+versioned `EpisodePlan`. EpisodePlanner normally designs the smallest
+sufficient role/step DAG before delivery. A creator may avoid that provider
+turn only by deliberately supplying complete scope, acceptance criteria,
+artifacts, governed steps or a workflow-template reference, safety facts, and
+provenance; Operon normalizes it into the same plan and validates it under the
+same policy. Incomplete creator scope remains authoritative input, but
+EpisodePlanner fills the missing decisions.
+
+App configuration uses `execution.assignment_mode: fixed | adaptive` and
+defaults omission to `fixed`. Fixed mode preserves the role's configured
+harness/model/effort tuple. Adaptive mode can only select exact, qualified
+role candidates allowed by the org and optionally narrowed by the app. The
+tuple is persisted and resumed atomically; no fallback may change just its
+harness, model, or effort. Roles still own instructions, tools, permissions,
+and expected outputs, so a different assignment never grants broader
+authority. See `docs/architecture.md` § 7 for the exact
+`adaptive_assignments` and app-narrowing schema.
+
+After validation, the plan is written before its first delivery turn. Its
+typed provider, mechanical-gate, and approval steps execute in deterministic
+dependency order. New material evidence can produce a bounded, forward-only
+plan revision: completed steps, artifacts, approvals, and accounting remain
+linked to the version that authorized them. Budget, approval requirements,
+and quick/standard/deep labels are projections of the accepted plan constrained
+by hard policy, not inputs that choose a generic pass set. `pipelines.yaml`
+remains a governed protocol vocabulary and one-step provider transport for the
+current executor; it is not a second workflow planner.
+
+`operon plan --auto` is itself an EpisodePlanner-backed episode. Its accepted
+plan selects the smallest DAG over code-owned, human-ratified product-planning
+operations; the terminal operation emits the existing schema-validated
+`TicketPlan`, which the deterministic publisher may turn into GitHub issues.
+The old depth/risk flags remain bounded request facts and compatibility input,
+not pass selectors or planner-bypass signals. Use `operon episode explain
+<episode-id>` for the accepted execution plan's durable explanation.
 
 Automated planning also accepts repeatable required `--source <file-or-dir>`
 and optional `--optional-source <file-or-dir>` inputs. Relative paths resolve
@@ -620,14 +673,11 @@ degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
   surface tool calls before execution, so their events carry no
   `success`/`durationMs` outcome fields; per-tool failure and latency
   analytics are Codex-only for now.
-- **Interactive co-planning usage is unmeasured.** Interactive `operon plan`
-  spawns the native `claude` CLI with inherited stdio, so session tokens never
-  flow through Operon; those ledger rows carry an explicit `unmeasured: true`
-  marker (cost unknown, not zero). The runtime-backed `plan --auto` mode is
-  fully measured — prefer it wherever a goal can be stated non-interactively.
-- **Interactive co-planning can use a stale managed clone.** The launcher does
-  not yet fetch the remote default branch before cutting its worktree. Tracked
-  in [issue #60](https://github.com/buildstacks-dev/Operon/issues/60).
+- **Native interactive co-planning is retired.** A TTY child process cannot
+  preserve the durable EpisodePlan, exact assignment, gate, run-envelope, and
+  settlement boundary, so bare `operon plan <app>` fails closed. Use
+  `plan --auto --goal ...` for measured planning. The manual `--dry-run` form
+  remains as a token-free current-worktree/context preview.
 - **Bootstrap publication remains manual.** A safe, draft-PR-only publication
   workflow with exact staging and dry-run semantics is tracked in
   [issue #61](https://github.com/buildstacks-dev/Operon/issues/61).

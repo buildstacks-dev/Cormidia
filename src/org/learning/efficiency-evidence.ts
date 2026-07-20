@@ -9,6 +9,7 @@
 import { createHash } from "node:crypto";
 import type { RunlogEvent } from "../../runtime/runlog/events.js";
 import type { RunEnvelope } from "../../runtime/runlog/envelope.js";
+import type { TurnAssignmentSource } from "../../runtime/types.js";
 import type { ExecutionJournal } from "../../loop/execution-journal.js";
 import type { ExecutionStepRecord, RouteRecord } from "../../loop/efficiency.js";
 import { METRIC_EMITTERS, type LearningEvent } from "./events.js";
@@ -174,6 +175,7 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
 
     const action = run.action ?? summarizeActions(envelope.run_id, run.events ?? []);
     const base = baseEvent(run, input.appStages);
+    const planProvenance = projectPlanProvenance(envelope, providerSteps);
     const timestamp = envelope.finished_at ?? envelope.last_seen_at ?? envelope.started_at;
     // One event per (run, class). `source_identity` already collapses to the
     // same id, but making the guard explicit is what lets the journal-derived
@@ -208,6 +210,7 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
           evidence_kind: "provider",
           source_identity: sourceIdentity,
           ...detail,
+          ...planProvenance,
         },
       };
       emitted.set(errorClass, event);
@@ -566,6 +569,47 @@ function baseEvent(run: EfficiencyRunEvidence, appStages: Record<string, string>
     risk_tier: null,
     release_disposition: null,
   } as const;
+}
+
+interface EfficiencyPlanProvenance {
+  plan_version?: number;
+  plan_step_id?: string;
+  assignment_source?: TurnAssignmentSource;
+  provider_family?: string;
+}
+
+/** Project only unambiguous durable provenance. Modern runs carry plan and
+ * assignment identity on both their envelope and execution step; provider
+ * family currently lives on the step. Historical evidence simply omits these
+ * additive keys, and contradictory sources do not get papered over. */
+function projectPlanProvenance(
+  envelope: RunEnvelope,
+  providerSteps: readonly ExecutionStepRecord[],
+): EfficiencyPlanProvenance {
+  const planVersion = singleValue([
+    envelope.plan_version,
+    ...providerSteps.map((step) => step.plan_version),
+  ]);
+  const planStepId = singleValue([
+    envelope.plan_step_id,
+    ...providerSteps.map((step) => step.plan_step_id),
+  ]);
+  const assignmentSource = singleValue([
+    envelope.assignment_source,
+    ...providerSteps.map((step) => step.assignment_source),
+  ]);
+  const providerFamily = singleValue(providerSteps.map((step) => step.provider_family));
+  return {
+    ...(planVersion !== undefined ? { plan_version: planVersion } : {}),
+    ...(planStepId !== undefined ? { plan_step_id: planStepId } : {}),
+    ...(assignmentSource !== undefined ? { assignment_source: assignmentSource } : {}),
+    ...(providerFamily !== undefined ? { provider_family: providerFamily } : {}),
+  };
+}
+
+function singleValue<T extends string | number>(values: readonly (T | undefined)[]): T | undefined {
+  const uniqueValues = [...new Set(values.filter((value): value is T => value !== undefined))];
+  return uniqueValues.length === 1 ? uniqueValues[0] : undefined;
 }
 
 function summarizeActions(runId: string, events: RunlogEvent[]): EfficiencyActionSummary {

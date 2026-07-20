@@ -31,6 +31,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { baseRevisionForBranch } from "../../src/loop/default-branch.js";
 import { runLoopOnce } from "../../src/loop/driver.js";
+import type { CreatorEpisodeScope } from "../../src/loop/episode-plan.js";
 import type {
   CreatePrInput,
   GhPullRequest,
@@ -48,6 +49,7 @@ import {
 } from "../../src/loop/loop.js";
 import { loadPipelines, type PipelinesFile } from "../../src/loop/pipelines.js";
 import type { Policy } from "../../src/loop/policy.js";
+import { createTicketEpisodeRuntime } from "../../src/org/ticket-episode-runtime.js";
 import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../../src/runtime/types.js";
 import { makeBareWithClone, type BareCloneFixture } from "../fixtures/gitRepo.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
@@ -314,6 +316,128 @@ function allowAllHooks(): TurnHooks {
   return { gate: () => ({ allow: true }) };
 }
 
+/** Give the full-driver rows explicit, durable workflow authority. The
+ * creator-authored scope is intentionally complete, so these branch-focused
+ * tests skip only the redundant planner provider turn; the production ticket
+ * DAG executor still owns every real provision/build/gate/review/ship step. */
+function ticketEpisodeFixture(
+  stateHome: string,
+  gh: DefaultBranchGhOps,
+  runtime: Runtime,
+): {
+  roles: Record<string, RoleConfig>;
+  planTicket: ReturnType<typeof createTicketEpisodeRuntime>["planTicket"];
+  executeTicketPlan: ReturnType<typeof createTicketEpisodeRuntime>["executeTicketPlan"];
+} {
+  const roles: Record<string, RoleConfig> = {
+    ...ROLES,
+    builder: {
+      ...ROLES.builder!,
+      runtime: "codex",
+      model: "builder-model",
+    },
+    reviewer: {
+      ...ROLES.reviewer!,
+      runtime: "claude",
+      model: "reviewer-model",
+    },
+  };
+  const callbacks = createTicketEpisodeRuntime({
+    root: stateHome,
+    orgRoot: REPO_ROOT,
+    app: {
+      name: "fixture",
+      repo: "fixture/repo",
+      status: "live",
+      budgetUsdMonth: 100,
+      cadence: {},
+      execution: { assignmentMode: "fixed", allowedAssignments: {} },
+    },
+    roles: Object.values(roles),
+    gh,
+    policy: policy(),
+    commands: { testCommand: "true", lintCommand: "true" },
+    hooks: allowAllHooks(),
+    runtimeForAssignment: (assignment) => ({
+      kind: assignment.harness,
+      runTurn: runtime.runTurn.bind(runtime),
+    }),
+    plannerContext: { taste: ["default-branch fixture"], memoryExcerpts: [] },
+    remainingBudgetUsd: 100,
+    creatorScopeForTicket: () => completeTicketCreatorScope("default-branch-parent"),
+    now: () => new Date("2026-07-19T22:00:00.000Z"),
+  });
+  return { roles, ...callbacks };
+}
+
+function completeTicketCreatorScope(creatorId: string): CreatorEpisodeScope {
+  const output = (id: string, kind: string) => ({ id, kind, required: true });
+  const gate = (
+    id: string,
+    gateKind: string,
+    dependsOn: string[],
+    outputId: string,
+  ): Extract<NonNullable<CreatorEpisodeScope["steps"]>[number], { kind: "mechanical_gate" }> => ({
+    kind: "mechanical_gate",
+    id,
+    gate: gateKind,
+    objective: `Execute ${gateKind}`,
+    dependsOn,
+    inputRefs: [],
+    expectedOutputs: [output(outputId, "mechanical-evidence")],
+  });
+  const provider = (
+    id: string,
+    operation: string,
+    roleName: string,
+    dependsOn: string[],
+    outputId: string,
+  ): Extract<NonNullable<CreatorEpisodeScope["steps"]>[number], { kind: "provider_turn" }> => ({
+    kind: "provider_turn",
+    id,
+    operation,
+    role: roleName,
+    objective: `Execute ${operation}`,
+    dependsOn,
+    requiredCapabilities: ["tool_gate"],
+    inputRefs: [],
+    expectedOutputs: [output(outputId, "ticket-evidence")],
+    maxTurnBudgetUsd: 5,
+    selectionReason: `${operation} is explicitly required by the complete ticket scope`,
+  });
+  const steps: NonNullable<CreatorEpisodeScope["steps"]> = [
+    gate("provision", "ticket/provision", [], "provisioned"),
+    provider("contract", "build/contract", "builder", ["provision"], "contract"),
+    provider("implement", "build/implement", "builder", ["provision", "contract"], "patch"),
+    gate("gates", "ticket/gates-and-pr", ["implement"], "pull-request"),
+    provider("verify", "review/verify", "reviewer", ["gates"], "functional-review"),
+    provider("security", "review/security-deep", "reviewer", ["gates"], "security-review"),
+    gate("authorize", "ticket/review-authorization", ["verify", "security"], "authorization"),
+    provider("ship-check", "ship/ship-check", "reviewer", ["authorize"], "ship-verdict"),
+    gate("ship", "ticket/ship", ["ship-check"], "merge"),
+  ];
+  return {
+    planningDisposition: "execution_ready",
+    provenance: {
+      source: "agent",
+      creatorId,
+      createdAt: "2026-07-19T21:59:00.000Z",
+      evidenceRefs: ["test:default-branch:ticket-plan"],
+    },
+    objective: "Implement, independently review, and merge the bounded ticket",
+    inScope: ["the selected ticket and its declared file scope"],
+    outOfScope: ["unrelated repository work"],
+    acceptanceCriteria: ["all gates and independent review pass before merge"],
+    expectedArtifacts: [output("merge", "mechanical-evidence")],
+    declaredConstraints: { networkAccess: false },
+    safetyFacts: [{
+      kind: "independent_review",
+      evidenceRefs: ["test:default-branch:review"],
+    }],
+    steps,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // The parameterized suite
 // ---------------------------------------------------------------------------
@@ -542,6 +666,7 @@ for (const defaultBranch of DEFAULT_BRANCHES) {
       const home = makeOrgHome({ runs: { apps: ["fixture"] } });
       const probe = loopRuntime();
       try {
+        const ticketEpisode = ticketEpisodeFixture(home.root, h.gh, probe.runtime);
         const result = await runLoopOnce({
           app: "fixture",
           repo: "fixture/repo",
@@ -553,11 +678,16 @@ for (const defaultBranch of DEFAULT_BRANCHES) {
           commands: { testCommand: "true", lintCommand: "true" },
           engine: {
             pipelines: await rootPipelines(),
-            roles: ROLES,
-            runtimeFor: () => probe.runtime,
+            roles: ticketEpisode.roles,
+            runtimeFor: (role) => ({
+              kind: role.runtime,
+              runTurn: probe.runtime.runTurn.bind(probe.runtime),
+            }),
             promptsDir: PROMPTS_DIR,
             runlogRoot: home.root,
             hooks: allowAllHooks(),
+            planTicket: ticketEpisode.planTicket,
+            executeTicketPlan: ticketEpisode.executeTicketPlan,
           },
         });
 

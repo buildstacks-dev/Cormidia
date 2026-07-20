@@ -1,5 +1,6 @@
 import type { AppStatus } from "../org/apps.js";
 import type { CostAggregate } from "../runtime/cost.js";
+import type { TurnAssignmentSource } from "../runtime/types.js";
 
 export const REPORT_SCHEMA_VERSION = 1 as const;
 
@@ -122,6 +123,11 @@ export interface ReportTurnV1 {
   provider_turn_id: string | null;
   execution_step_id: string | null;
   episode_id: string | null;
+  /** Accepted EpisodePlan provenance. Omitted for historical activity that
+   *  predates plan-DAG execution. */
+  plan_version?: number;
+  plan_step_id?: string;
+  assignment_source?: TurnAssignmentSource;
   trace_id: string | null;
   parent_task_id: string | null;
   ticket: string | null;

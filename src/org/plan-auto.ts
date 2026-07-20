@@ -27,6 +27,7 @@ import type {
   CreatorEpisodeScope,
 } from "../loop/episode-plan.js";
 import {
+  assessCreatorScope,
   stableHash,
 } from "../loop/episode-plan.js";
 import type {
@@ -102,6 +103,7 @@ import {
 } from "./episode-planner/execution.js";
 import {
   buildEpisodeIntent,
+  createEpisodePlanningPolicy,
   type EpisodeSafetyFloorMapping,
 } from "./episode-planner/policy.js";
 import {
@@ -183,6 +185,10 @@ export interface AutoPlanOptions {
   sources?: readonly PlanningSourceRequest[];
   /** The only explicit zero-planner path. No scope is inferred from goal text. */
   creatorScope?: CreatorEpisodeScope;
+  /** A caller that explicitly promises execution readiness must fail closed
+   * instead of falling back to EpisodePlanner when the supplied scope is
+   * incomplete. The CLI sets this only with --execution-ready. */
+  requireExecutionReadyCreatorScope?: boolean;
   /** Stable identity for an explicit resume. Omission creates a new episode. */
   episodeId?: string;
   /** Test/embedded seam; production loads prompts/episode/plan.md. */
@@ -267,14 +273,22 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     (priorAdmission === undefined
       ? defaultPlannerLimits(planner, remainingBudgetUsd)
       : limitsFromAdmission(priorAdmission));
+  const explicitExecutionReadyCreatorPath =
+    options.requireExecutionReadyCreatorScope === true &&
+    options.creatorScope?.planningDisposition === "execution_ready";
   const deliveryBudgetUsd = existingIntent?.hardBudget.maxEquivalentCostUsd ??
-    Math.max(0, remainingBudgetUsd - limits.aggregate.equivalentCostUsd);
+    Math.max(
+      0,
+      remainingBudgetUsd -
+        (explicitExecutionReadyCreatorPath ? 0 : limits.aggregate.equivalentCostUsd),
+    );
   if (deliveryBudgetUsd <= 0) {
     return {
       status: "failed",
-      summary:
-        "remaining app budget cannot cover both the bounded EpisodePlanner admission " +
-        "and one delivery-planning turn",
+      summary: explicitExecutionReadyCreatorPath
+        ? "remaining app budget cannot cover the creator-scoped planning workflow"
+        : "remaining app budget cannot cover both the bounded EpisodePlanner admission " +
+          "and one delivery-planning turn",
       episodeId,
     };
   }
@@ -369,6 +383,35 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     ])),
     ...(options.creatorScope === undefined ? {} : { creatorScope: options.creatorScope }),
   });
+
+  if (options.requireExecutionReadyCreatorScope) {
+    const policy = createEpisodePlanningPolicy(options.app, {
+      intent,
+      roles: rolesFile.roles,
+      assignmentAuthority: existingIntent === undefined ? "current_config" : "persisted_intent",
+      safetyFloorMapping: PRODUCT_PLANNING_SUBJECT_SAFETY_MAPPING,
+    });
+    const assessment = assessCreatorScope(intent.creatorScope, policy.creatorScope);
+    if (!assessment.executionReady) {
+      return {
+        status: "failed",
+        summary:
+          "explicit execution-ready creator scope is incomplete or invalid; " +
+          "EpisodePlanner was not invoked",
+        problems: assessment.issues.map((entry) => `${entry.code}: ${entry.message}`),
+        episodeId,
+        ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
+      };
+    }
+    try {
+      assertPlanningEpisodePlanValid({ steps: assessment.resolvedSteps! }, stage);
+    } catch (error) {
+      return failedResult(error, {
+        episodeId,
+        ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
+      });
+    }
+  }
 
   const store = new ApprovalStore(options.stateHome);
   const hooks: TurnHooks = {
@@ -1196,6 +1239,15 @@ async function productPlanningBrief(input: {
     "",
     "## Product goal",
     input.options.goal,
+    ...(input.options.creatorScope === undefined
+      ? []
+      : [
+          "",
+          "## Authoritative execution-ready creator scope",
+          "Preserve these creator-authored boundaries, criteria, constraints, safety facts, and provenance exactly. " +
+            "Do not redesign or widen them.",
+          JSON.stringify(input.options.creatorScope, null, 2),
+        ]),
     "",
     "## Accepted workflow boundary",
     "Execute only the current EpisodePlan step and its governed prompt. " +

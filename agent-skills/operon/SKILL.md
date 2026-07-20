@@ -145,6 +145,7 @@ Prefer token-free inspection before a live turn:
 
 ```bash
 operon plan <app> --dry-run
+operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready --dry-run
 operon loop --app <app> --once --dry-run
 operon dispatch --dry-run
 operon run-role <role> --app <app> --dry-run
@@ -170,12 +171,25 @@ separate explicit authorization.
 
 Bare `operon plan <app>` fails closed because the retired native interactive
 child could not preserve durable plan and execution evidence. Live planning
-must use `operon plan <app> --auto --goal <text>`; the manual `--dry-run` form
-is only a token-free context/worktree preview.
+must use `operon plan <app> --auto --goal <text>` or an explicit
+`operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready`;
+the manual `--dry-run` form is only a token-free context/worktree preview.
 Use repeatable `--source <file-or-dir>` for required design/product-truth
 inputs and `--optional-source <file-or-dir>` only when deterministic
 truncation or exclusion is acceptable. Required source failures stop before a
 provider turn; successful tickets publish hashes/refs rather than source bytes.
+
+Creator-scope JSON/YAML must match the strict `CreatorEpisodeScope` contract,
+including `planningDisposition: execution_ready`, creator provenance,
+objective and exclusions, acceptance criteria, expected artifacts, declared
+constraints, safety facts, and exactly one explicit step DAG or governed
+workflow template. The file flag and `--execution-ready` are required together;
+Operon never infers readiness. Fixed mode resolves configured assignments;
+adaptive steps must carry exact approved assignments. An invalid or incomplete
+scope fails before provider construction rather than falling back to
+EpisodePlanner. A valid scope skips only the dedicated design turn, then
+executes its declared governed planning step(s) through normal durable
+validation, accounting, TicketPlan projection, and publication boundaries.
 
 Live `plan --auto`, `loop`, `dispatch`, `run-role`, and `learn experiment run`
 operations can spend tokens and modify GitHub or worktrees; `learn canary

@@ -299,6 +299,7 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
   it("skips only the dedicated planner for an explicit execution-ready creator scope", async () => {
     const { app, appsFile } = fixture();
     const runtime = new ProductPlanningRuntime();
+    let runtimeLoads = 0;
     const creatorScope = executionReadyBootstrapScope();
     const result = await runAutoPlan({
       orgHome: process.cwd(),
@@ -309,20 +310,188 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
       workdir: pair.clone.root,
       publish: false,
       creatorScope,
-      runtimeFor: () => runtime,
+      requireExecutionReadyCreatorScope: true,
+      runtimeFor: () => {
+        runtimeLoads += 1;
+        return runtime;
+      },
       now: () => NOW,
     });
 
     expect(result.status, result.summary).toBe("completed");
     expect(result.planningTurnSkipped).toBe(true);
     expect(result.episodePlan?.planningSource).toBe("creator_scope");
+    expect(result.episodePlan?.creatorProvenance).toEqual(creatorScope.provenance);
+    expect(result.planProjection?.plan.stage).toBe("bootstrap");
+    expect(runtimeLoads).toBe(1);
     expect(runtime.calls).toHaveLength(1);
+    expect(runtime.calls.some((call) => call.req.task.includes("[episode_planner_input]"))).toBe(false);
     expect(runtime.calls[0]!.req.task).toContain("Operation: plan/bootstrap");
+    expect(runtime.calls[0]!.req.task).toContain(creatorScope.acceptanceCriteria[0]!);
+    expect(runtime.calls[0]!.req.task).toContain(creatorScope.provenance.creatorId);
     expect(existsSync(join(
       stateHome,
       "efficiency",
       "episodes",
     ))).toBe(true);
+  });
+
+  it("reserves no hypothetical EpisodePlanner budget for an explicit creator bypass", async () => {
+    const { app, appsFile } = fixture();
+    app.budgetUsdMonth = 6;
+    appsFile.defaults.budgetUsdMonth = 6;
+    const creatorScope = executionReadyBootstrapScope();
+    const creatorRuntime = new ProductPlanningRuntime();
+
+    const creator = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: creatorScope.objective,
+      workdir: pair.clone.root,
+      publish: false,
+      creatorScope,
+      requireExecutionReadyCreatorScope: true,
+      episodeId: "trace:greenfield:creator-small-budget",
+      runtimeFor: () => creatorRuntime,
+      now: () => NOW,
+    });
+
+    expect(creator.status, creator.summary).toBe("completed");
+    expect(creator.planningTurnSkipped).toBe(true);
+    expect(creatorRuntime.calls).toHaveLength(1);
+    expect(creatorRuntime.calls[0]!.req.task).toContain("Operation: plan/bootstrap");
+
+    const ordinaryRuntime = new ProductPlanningRuntime();
+    const ordinary = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: "Plan the same small-budget bootstrap without creator scope",
+      workdir: pair.clone.root,
+      publish: false,
+      episodeId: "trace:greenfield:ordinary-small-budget",
+      runtimeFor: () => ordinaryRuntime,
+      episodePlannerPromptText: EPISODE_PROMPT,
+      now: () => NOW,
+    });
+
+    expect(ordinary.status).toBe("failed");
+    expect(ordinary.problems?.join(" ")).toContain("plan_budget_cost_exceeded");
+    expect(ordinaryRuntime.calls).toHaveLength(2);
+    expect(ordinaryRuntime.calls.every((call) => call.req.task.includes("[episode_planner_input]")))
+      .toBe(true);
+  });
+
+  it("does not rebind a persisted creator episode to different provenance on resume", async () => {
+    const { app, appsFile } = fixture();
+    const episodeId = "trace:greenfield:immutable-creator-scope";
+    const creatorScope = executionReadyBootstrapScope();
+    const firstRuntime = new ProductPlanningRuntime();
+    const first = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: creatorScope.objective,
+      workdir: pair.clone.root,
+      publish: false,
+      creatorScope,
+      requireExecutionReadyCreatorScope: true,
+      episodeId,
+      runtimeFor: () => firstRuntime,
+      now: () => NOW,
+    });
+    expect(first.status, first.summary).toBe("completed");
+
+    const rebound = structuredClone(creatorScope);
+    rebound.provenance.creatorId = "different-creator@example.test";
+    let runtimeLoads = 0;
+    await expect(runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: rebound.objective,
+      workdir: pair.clone.root,
+      publish: false,
+      creatorScope: rebound,
+      requireExecutionReadyCreatorScope: true,
+      episodeId,
+      runtimeFor: () => {
+        runtimeLoads += 1;
+        return new ProductPlanningRuntime();
+      },
+      now: () => NOW,
+    })).rejects.toThrow(/resume facts differ from persisted intent/);
+    expect(runtimeLoads).toBe(0);
+    expect((await readCurrentEpisodePlan(stateHome, episodeId))?.creatorProvenance)
+      .toEqual(creatorScope.provenance);
+  });
+
+  it("fails an explicitly execution-ready but incomplete creator scope before runtime construction", async () => {
+    const { app, appsFile } = fixture();
+    const creatorScope = executionReadyBootstrapScope();
+    creatorScope.acceptanceCriteria = [];
+    let runtimeLoads = 0;
+
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: creatorScope.objective,
+      workdir: pair.clone.root,
+      publish: false,
+      creatorScope,
+      requireExecutionReadyCreatorScope: true,
+      runtimeFor: () => {
+        runtimeLoads += 1;
+        return new ProductPlanningRuntime();
+      },
+      now: () => NOW,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.summary).toContain("EpisodePlanner was not invoked");
+    expect(result.problems).toEqual([
+      expect.stringContaining("creator_scope_acceptance_required"),
+    ]);
+    expect(runtimeLoads).toBe(0);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
+  });
+
+  it("fails a disposition-mismatched creator scope before runtime construction", async () => {
+    const { app, appsFile } = fixture();
+    const creatorScope = executionReadyBootstrapScope();
+    creatorScope.planningDisposition = "planner_input";
+    let runtimeLoads = 0;
+
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: creatorScope.objective,
+      workdir: pair.clone.root,
+      publish: false,
+      creatorScope,
+      requireExecutionReadyCreatorScope: true,
+      runtimeFor: () => {
+        runtimeLoads += 1;
+        return new ProductPlanningRuntime();
+      },
+      now: () => NOW,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.problems).toEqual([
+      expect.stringContaining("creator_scope_bypass_not_requested"),
+    ]);
+    expect(runtimeLoads).toBe(0);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
   });
 
   it("rejects invented operations before route persistence or delivery execution", async () => {

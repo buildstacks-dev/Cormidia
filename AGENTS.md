@@ -299,6 +299,9 @@ cluster stops forming — the coverage gap that let this ship green (#142).
   [--work-lifecycle existing-ticket|bounded-goal|milestone|strategy]
   [--depth quick|standard|deep] [--dry-run] [--no-publish] [--json]` (adaptive runtime-backed
   plan: schema-validated, orchestrator-published) ·
+  `pnpm dev plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready
+  [--dry-run] [--no-publish] [--json]` (explicit strict creator-scope bypass;
+  no inferred readiness) ·
   `pnpm dev plan <app> --explain-route --goal "<text>" [--stage …]` (token-free
   route preview; rejects `--auto` — the two forms are mutually exclusive) ·
   `pnpm dev loop --app <app> --once --dry-run` · `pnpm dev loop

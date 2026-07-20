@@ -55,7 +55,7 @@ const CAPABILITIES = [
   { command: "pipelines", writes: false, spendsTokens: false, summary: "validate and list pass pipelines" },
   { command: "bootstrap", writes: true, spendsTokens: false, summary: "onboard an existing local app repo" },
   { command: "new-app", writes: true, spendsTokens: false, summary: "create and onboard a greenfield app repo" },
-  { command: "plan", writes: true, spendsTokens: true, summary: "run plan-aware EpisodePlanner work with --auto; manual --dry-run only previews context/worktree" },
+  { command: "plan", writes: true, spendsTokens: true, summary: "run plan-aware work with --auto or an explicit --creator-scope/--execution-ready bypass; --dry-run is token-free" },
   { command: "loop", writes: true, spendsTokens: true, summary: "advance ready GitHub tickets; --dry-run is token-free" },
   { command: "dispatch", writes: true, spendsTokens: true, summary: "run one scheduler tick; --dry-run is token-free" },
   { command: "episode explain", writes: false, spendsTokens: false, summary: "explain a durable EpisodePlan, execution status, and each exact harness/model/effort assignment" },

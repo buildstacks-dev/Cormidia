@@ -10,14 +10,20 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { stringify as stringifyYaml } from "yaml";
 import {
   assemblePlanningContext,
   cleanupPlanningWorktree,
   createPlanningWorktree,
 } from "../src/org/plan.js";
-import { cmdPlan, formatPlanTicketSummary } from "../src/cli/plan.js";
+import {
+  cmdPlan,
+  formatPlanTicketSummary,
+  loadCreatorEpisodeScopeFile,
+} from "../src/cli/plan.js";
 import type { RoleConfig } from "../src/runtime/types.js";
 import type { PlanTicket } from "../src/loop/plan-tickets.js";
+import type { CreatorEpisodeScope } from "../src/loop/episode-plan.js";
 
 const tempDirs: string[] = [];
 const originalCwd = process.cwd();
@@ -122,7 +128,7 @@ function initGitApp(root: string, withCharter = true): void {
   git(root, ["commit", "-m", "initial"]);
 }
 
-function makeOrgHome(appName = "operon-sandbox-alpha"): string {
+function makeOrgHome(appName = "operon-sandbox-alpha", budgetUsdMonth = 1000): string {
   const root = makeDir("operon-plan-org-");
   write(root, "TASTE.md", "# Org Taste\n\nBe precise.\n");
   write(
@@ -144,7 +150,7 @@ roles:
     root,
     "apps.yaml",
     `org: {name: operon, max_concurrent_turns: 2}
-defaults: {budget_usd_month: 1000}
+defaults: {budget_usd_month: ${budgetUsdMonth}}
 apps:
   ${appName}:
     repo: owner/${appName}
@@ -171,6 +177,39 @@ const PLANNER: RoleConfig = {
   outputs: ["tickets"],
   maxTurnBudgetUsd: 5,
 };
+
+function executionReadyCreatorScope(): CreatorEpisodeScope {
+  return {
+    planningDisposition: "execution_ready",
+    provenance: {
+      source: "human",
+      creatorId: "operator@example.test",
+      createdAt: "2026-07-20T12:00:00.000Z",
+      evidenceRefs: ["design:feature-a"],
+    },
+    workKind: "bounded-product-plan",
+    objective: "Turn the approved Feature A design into one implementation ticket",
+    inScope: ["Create the schema-valid TicketPlan for Feature A"],
+    outOfScope: ["Redesign Feature A", "Publish anything except orchestrator-owned tickets"],
+    acceptanceCriteria: ["The TicketPlan preserves the approved Feature A acceptance criteria"],
+    expectedArtifacts: [{ id: "ticket-plan", kind: "TicketPlan", required: true }],
+    declaredConstraints: { designAuthority: "design:feature-a" },
+    safetyFacts: [],
+    steps: [{
+      kind: "provider_turn",
+      id: "ticket-plan",
+      operation: "plan/bootstrap",
+      role: "planner",
+      objective: "Render the approved creator scope as a TicketPlan",
+      dependsOn: [],
+      requiredCapabilities: ["structured_verdict"],
+      inputRefs: [],
+      expectedOutputs: [{ id: "ticket-plan", kind: "TicketPlan", required: true }],
+      maxTurnBudgetUsd: 5,
+      selectionReason: "The creator supplied every workflow decision except deterministic ticket rendering",
+    }],
+  };
+}
 
 describe("assemblePlanningContext", () => {
   it("concatenates shared context layers and keeps the topic as task text", async () => {
@@ -375,6 +414,184 @@ describe("cmdPlan", () => {
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
     expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
     expect(git(app, ["status", "--porcelain=v2", "--branch"])).toBe(before);
+  });
+
+  it("loads JSON and YAML creator-scope transports through the same strict schema", async () => {
+    const scope = executionReadyCreatorScope();
+    const root = makeDir("operon-plan-creator-scope-files-");
+    const jsonPath = join(root, "scope.json");
+    const yamlPath = join(root, "scope.yaml");
+    writeFileSync(jsonPath, `${JSON.stringify(scope, null, 2)}\n`);
+    writeFileSync(yamlPath, stringifyYaml(scope));
+
+    await expect(loadCreatorEpisodeScopeFile(jsonPath)).resolves.toEqual(scope);
+    await expect(loadCreatorEpisodeScopeFile(yamlPath)).resolves.toEqual(scope);
+  });
+
+  it("previews an explicit YAML creator scope without --auto, --goal, runtime, or durable writes", async () => {
+    const orgHome = makeOrgHome("operon-sandbox-alpha", 6);
+    const app = makeGitApp();
+    const stateHome = makeDir("operon-plan-creator-dry-state-");
+    const scope = executionReadyCreatorScope();
+    const scopePath = join(makeDir("operon-plan-creator-input-"), "scope.yaml");
+    writeFileSync(scopePath, stringifyYaml(scope));
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--creator-scope",
+      scopePath,
+      "--execution-ready",
+      "--dry-run",
+      "--json",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const parsed = JSON.parse(log.mock.calls.map((call) => call.join(" ")).join("\n")) as {
+      request: string;
+      goal: string;
+      effects: unknown[];
+      episode: {
+        planningPath: string;
+        creatorScope: { executionReady: boolean; issues: unknown[] };
+        plannerBoot: { providerTurnRequired: boolean };
+        intent: {
+          creatorScope: CreatorEpisodeScope;
+          hardBudget: { maxEquivalentCostUsd: number };
+        };
+      };
+    };
+    expect(parsed.request).toBe("creator-scope-dry-run");
+    expect(parsed.goal).toBe(scope.objective);
+    expect(parsed.episode.planningPath).toBe("creator_scope_normalization");
+    expect(parsed.episode.creatorScope).toMatchObject({ executionReady: true, issues: [] });
+    expect(parsed.episode.plannerBoot.providerTurnRequired).toBe(false);
+    expect(parsed.episode.intent.creatorScope.provenance).toEqual(scope.provenance);
+    expect(parsed.episode.intent.hardBudget.maxEquivalentCostUsd).toBe(6);
+    expect(parsed.effects).toEqual([]);
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
+  });
+
+  it("requires --creator-scope and --execution-ready together instead of inferring intent", async () => {
+    const scopePath = join(makeDir("operon-plan-creator-flags-"), "scope.json");
+    writeFileSync(scopePath, `${JSON.stringify(executionReadyCreatorScope())}\n`);
+
+    await expect(cmdPlan([
+      "fixture",
+      "--creator-scope",
+      scopePath,
+      "--dry-run",
+    ])).rejects.toThrow(/--creator-scope requires --execution-ready.*never inferred/);
+    await expect(cmdPlan([
+      "fixture",
+      "--execution-ready",
+      "--dry-run",
+    ])).rejects.toThrow(/--execution-ready requires --creator-scope/);
+    await expect(cmdPlan([
+      "fixture",
+      "--creator-scope",
+      scopePath,
+      "--execution-ready",
+      "--goal",
+      "A conflicting objective",
+    ])).rejects.toThrow(/--goal must exactly match the authoritative --creator-scope objective/);
+  });
+
+  it("rejects a disposition mismatch before resolving an org or constructing a provider", async () => {
+    const scope = executionReadyCreatorScope();
+    scope.planningDisposition = "planner_input";
+    const scopePath = join(makeDir("operon-plan-creator-disposition-"), "scope.json");
+    writeFileSync(scopePath, `${JSON.stringify(scope)}\n`);
+
+    await expect(cmdPlan([
+      "fixture",
+      "--creator-scope",
+      scopePath,
+      "--execution-ready",
+    ])).rejects.toThrow(/planningDisposition: execution_ready; received planner_input/);
+  });
+
+  it("rejects incomplete execution-ready scope with field-level diagnostics and no provider evidence", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const stateHome = makeDir("operon-plan-creator-incomplete-state-");
+    const scope = executionReadyCreatorScope();
+    scope.acceptanceCriteria = [];
+    const scopePath = join(makeDir("operon-plan-creator-incomplete-"), "scope.yaml");
+    writeFileSync(scopePath, stringifyYaml(scope));
+
+    await expect(cmdPlan([
+      "operon-sandbox-alpha",
+      "--creator-scope",
+      scopePath,
+      "--execution-ready",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ])).rejects.toThrow(/creator_scope_acceptance_required.*will not infer readiness or silently invoke EpisodePlanner/);
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
+  });
+
+  it("applies the live product-planning operation and terminal-output contract during dry-run", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const stateHome = makeDir("operon-plan-creator-domain-state-");
+    const root = makeDir("operon-plan-creator-domain-");
+    const invented = executionReadyCreatorScope();
+    const inventedStep = invented.steps![0]!;
+    if (inventedStep.kind !== "provider_turn") throw new Error("fixture step must be provider turn");
+    inventedStep.operation = "plan/invented";
+    const inventedPath = join(root, "invented.yaml");
+    writeFileSync(inventedPath, stringifyYaml(invented));
+
+    await expect(cmdPlan([
+      "operon-sandbox-alpha",
+      "--creator-scope",
+      inventedPath,
+      "--execution-ready",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ])).rejects.toThrow(/planning_provider_operation_unknown.*no provider was constructed/);
+
+    const wrongArtifact = executionReadyCreatorScope();
+    const wrongArtifactStep = wrongArtifact.steps![0]!;
+    if (wrongArtifactStep.kind !== "provider_turn") throw new Error("fixture step must be provider turn");
+    wrongArtifactStep.expectedOutputs = [{ id: "ticket-plan", kind: "planning-artifact", required: true }];
+    const wrongArtifactPath = join(root, "wrong-artifact.json");
+    writeFileSync(wrongArtifactPath, `${JSON.stringify(wrongArtifact)}\n`);
+
+    await expect(cmdPlan([
+      "operon-sandbox-alpha",
+      "--creator-scope",
+      wrongArtifactPath,
+      "--execution-ready",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ])).rejects.toThrow(/planning_ticket_plan_output_invalid.*no provider was constructed/);
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
   });
 
   it("auto dry-run does not turn explicit risk hints into a guessed workflow", async () => {

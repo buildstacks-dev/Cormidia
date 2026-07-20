@@ -7,7 +7,9 @@ import { cleanupPlanningWorktree, preparePlanSession } from "../org/plan.js";
 import { runAutoPlan } from "../org/plan-auto.js";
 import { loadApps } from "../org/apps.js";
 import { resolveOperonHomes } from "../org/home.js";
-import { join, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { extname, join, resolve } from "node:path";
+import { parse as parseYaml } from "yaml";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
@@ -16,8 +18,16 @@ import { isBudgetBlocking, rollupBudgets } from "../org/budget.js";
 import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
 import type { PlanningSourceRequest } from "../org/planning-inputs.js";
 import { previewEpisode, type EpisodePlanningPreview } from "../org/episode-planner/orchestrator.js";
-import { stableHash, type JsonValue } from "../loop/episode-plan.js";
-import { PLANNING_PROVIDER_OPERATION_CATALOG } from "../loop/planning-episode-plan.js";
+import {
+  parseCreatorEpisodeScope,
+  stableHash,
+  type CreatorEpisodeScope,
+  type JsonValue,
+} from "../loop/episode-plan.js";
+import {
+  assertPlanningEpisodePlanValid,
+  PLANNING_PROVIDER_OPERATION_CATALOG,
+} from "../loop/planning-episode-plan.js";
 import { safetyFactsFromPlanningRequest } from "../org/episode-safety-facts.js";
 import {
   type ExpectedTicketBand,
@@ -31,6 +41,27 @@ import {
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
   const parsed = parseArgs(common.rest);
+  const creatorScope = parsed.creatorScopePath === undefined
+    ? undefined
+    : await loadCreatorEpisodeScopeFile(parsed.creatorScopePath);
+  if (creatorScope !== undefined && creatorScope.planningDisposition !== "execution_ready") {
+    throw new Error(
+      "plan: --execution-ready requires the creator-scope file to declare " +
+        `planningDisposition: execution_ready; received ${creatorScope.planningDisposition}`,
+    );
+  }
+  if (
+    creatorScope !== undefined &&
+    parsed.goal !== undefined &&
+    parsed.goal !== creatorScope.objective
+  ) {
+    throw new Error(
+      "plan: --goal must exactly match the authoritative --creator-scope objective when both are supplied; " +
+        "omit --goal to use the creator-scope objective",
+    );
+  }
+  const automated = parsed.auto || creatorScope !== undefined;
+  const goal = creatorScope?.objective ?? parsed.goal;
   const homes = await resolveOperonHomes(common);
   const parentTaskId = await resolveParentTaskId(homes.stateHome, parsed.parentTaskId);
 
@@ -41,11 +72,12 @@ export async function cmdPlan(args: string[]): Promise<number> {
     // live campaign followed exactly that combination and believed planning
     // had happened (review L-008). Contradictory instructions are rejected
     // loudly instead of one being silently discarded.
-    if (parsed.auto) {
+    if (automated) {
       throw new Error(
-        "plan: --explain-route (token-free route preview) cannot be combined with --auto (a real planning run) — " +
+        "plan: --explain-route (token-free route preview) cannot be combined with --auto or " +
+          "--creator-scope (a planning run) — " +
           "drop --explain-route to plan (the plan output includes its routing decision), " +
-          "or drop --auto to preview the route without planning",
+          "or drop the planning-run flags to preview the route without planning",
       );
     }
     if (parsed.sources.length > 0) {
@@ -60,6 +92,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
       appsFile,
       app,
       parsed,
+      goal: goal ?? "",
       parentTaskId,
     });
     console.log(JSON.stringify({
@@ -71,8 +104,8 @@ export async function cmdPlan(args: string[]): Promise<number> {
     return 0;
   }
 
-  if (parsed.auto) {
-    if (parsed.goal === undefined) {
+  if (automated) {
+    if (goal === undefined) {
       throw new Error("plan: --auto requires --goal <text> — planning without a goal is how a website becomes 19 tickets");
     }
     const appsFile = await loadApps(join(homes.orgHome, "apps.yaml"));
@@ -85,26 +118,38 @@ export async function cmdPlan(args: string[]): Promise<number> {
         appsFile,
         app,
         parsed,
+        goal,
+        ...(creatorScope === undefined ? {} : { creatorScope }),
         parentTaskId,
       });
+      assertExplicitCreatorScopeReady(creatorScope, preview, parsed.creatorScopePath);
       if (parsed.json) {
         console.log(JSON.stringify({
           schema_version: 1,
           kind: "episode-planning-preview",
-          request: "auto-dry-run",
+          request: creatorScope === undefined ? "auto-dry-run" : "creator-scope-dry-run",
           ...preview,
         }, null, 2));
         return 0;
       }
       console.log(`plan dry-run: ${app.name}`);
-      console.log(`goal: ${parsed.goal}`);
+      console.log(`goal: ${goal}`);
       console.log(`stage: ${preview.stage}`);
       console.log(`assignment mode: ${preview.episode.assignmentMode}`);
       console.log(`planning path: ${preview.episode.planningPath}`);
-      console.log(
-        `planner boot assignment: ${preview.episode.plannerBoot.assignment.harness}/` +
-          `${preview.episode.plannerBoot.assignment.model}/${preview.episode.plannerBoot.assignment.effort}`,
-      );
+      if (creatorScope !== undefined) {
+        console.log(`creator scope: ${resolve(parsed.creatorScopePath!)}`);
+        console.log(
+          `creator provenance: ${creatorScope.provenance.source}/${creatorScope.provenance.creatorId}`,
+        );
+        console.log("dedicated EpisodePlanner turn: skipped (explicit execution-ready creator scope)");
+      }
+      if (preview.episode.plannerBoot.providerTurnRequired) {
+        console.log(
+          `planner boot assignment: ${preview.episode.plannerBoot.assignment.harness}/` +
+            `${preview.episode.plannerBoot.assignment.model}/${preview.episode.plannerBoot.assignment.effort}`,
+        );
+      }
       console.log(`approved assignment candidates: ${preview.episode.allowedAssignments.length}`);
       console.log(
         `budget: $${preview.budget.remainingUsd.toFixed(2)} remaining of ` +
@@ -128,7 +173,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
       stateHome: homes.stateHome,
       app,
       appsFile,
-      goal: parsed.goal,
+      goal,
       ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
       ...(parsed.stage !== undefined ? { stage: parsed.stage } : {}),
       ...(parsed.noPublish ? { publish: false } : {}),
@@ -136,6 +181,9 @@ export async function cmdPlan(args: string[]): Promise<number> {
       ...(parentTaskId !== undefined ? { parentTaskId } : {}),
       planning: planningOptions(parsed),
       ...(parsed.sources.length > 0 ? { sources: parsed.sources } : {}),
+      ...(creatorScope === undefined
+        ? {}
+        : { creatorScope, requireExecutionReadyCreatorScope: true }),
     }).finally(() => cancellation.dispose());
     if (parsed.json) {
       console.log(JSON.stringify({ schema_version: 1, kind: "plan-result", app: app.name, ...result }, null, 2));
@@ -228,6 +276,7 @@ interface ParsedPlanArgs {
   explainRoute: boolean;
   json: boolean;
   sources: PlanningSourceRequest[];
+  creatorScopePath?: string;
 }
 
 function parseArgs(args: string[]): ParsedPlanArgs {
@@ -235,7 +284,8 @@ function parseArgs(args: string[]): ParsedPlanArgs {
   if (!app || app.startsWith("--")) {
     throw new Error(
       "plan: usage: operon plan <app> --dry-run [--topic <string>] [--workdir <path>] " +
-        "| operon plan <app> --auto --goal <text> [--stage bootstrap] [--no-publish]",
+        "| operon plan <app> --auto --goal <text> [--stage bootstrap] [--no-publish] " +
+        "| operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready [--no-publish]",
     );
   }
 
@@ -258,6 +308,8 @@ function parseArgs(args: string[]): ParsedPlanArgs {
   let workLifecycle: PlanningWorkLifecycle | undefined;
   let explainRoute = false;
   let json = false;
+  let creatorScopePath: string | undefined;
+  let executionReady = false;
   const sources: PlanningSourceRequest[] = [];
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
@@ -271,6 +323,16 @@ function parseArgs(args: string[]): ParsedPlanArgs {
       auto = true;
     } else if (arg === "--no-publish") {
       noPublish = true;
+    } else if (arg === "--creator-scope") {
+      const next = args[i + 1];
+      if (!next || next.startsWith("--")) {
+        throw new Error("plan: --creator-scope requires a .json, .yaml, or .yml file path");
+      }
+      if (creatorScopePath !== undefined) throw new Error("plan: --creator-scope may be supplied only once");
+      creatorScopePath = next;
+      i++;
+    } else if (arg === "--execution-ready") {
+      executionReady = true;
     } else if (arg === "--source" || arg === "--optional-source") {
       const next = args[i + 1];
       if (!next || next.startsWith("--")) throw new Error(`plan: ${arg} requires a file or directory path`);
@@ -329,6 +391,23 @@ function parseArgs(args: string[]): ParsedPlanArgs {
     }
   }
 
+  if (creatorScopePath !== undefined && !executionReady) {
+    throw new Error(
+      "plan: --creator-scope requires --execution-ready; creator readiness is never inferred from file contents",
+    );
+  }
+  if (executionReady && creatorScopePath === undefined) {
+    throw new Error("plan: --execution-ready requires --creator-scope <scope.json|scope.yaml>");
+  }
+  if (creatorScopePath !== undefined && explainRoute) {
+    throw new Error(
+      "plan: --creator-scope/--execution-ready cannot be combined with --explain-route; use --dry-run for a token-free creator-scope preview",
+    );
+  }
+  if (creatorScopePath !== undefined && topic !== undefined) {
+    throw new Error("plan: --topic applies only to the manual context preview, not --creator-scope");
+  }
+
   return {
     app,
     dryRun,
@@ -351,6 +430,7 @@ function parseArgs(args: string[]): ParsedPlanArgs {
     ...(expectedTickets !== undefined ? { expectedTickets } : {}),
     ...(sensitiveDomains !== undefined ? { sensitiveDomains } : {}),
     ...(workLifecycle !== undefined ? { workLifecycle } : {}),
+    ...(creatorScopePath !== undefined ? { creatorScopePath } : {}),
   };
 }
 
@@ -393,9 +473,11 @@ async function previewAutoPlanningRequest(input: {
   appsFile: Awaited<ReturnType<typeof loadApps>>;
   app: Awaited<ReturnType<typeof loadApps>>["apps"][number];
   parsed: ParsedPlanArgs;
+  goal: string;
+  creatorScope?: CreatorEpisodeScope;
   parentTaskId: string | undefined;
 }): Promise<AutoPlanningPreviewResult> {
-  const goal = input.parsed.goal ?? "";
+  const goal = input.goal;
   const stage = input.parsed.stage ??
     (input.app.status === "onboarding" ? "bootstrap" : "mature");
   const sourceCheckout = resolve(
@@ -420,9 +502,18 @@ async function previewAutoPlanningRequest(input: {
     throw new Error("plan: EpisodePlanner has no positive admitted budget");
   }
   const plannerReserveUsd = perAttemptCost * 2;
-  const deliveryBudgetUsd = Math.max(0, remainingBudgetUsd - plannerReserveUsd);
+  const explicitExecutionReadyCreatorPath =
+    input.creatorScope?.planningDisposition === "execution_ready";
+  const deliveryBudgetUsd = Math.max(
+    0,
+    remainingBudgetUsd - (explicitExecutionReadyCreatorPath ? 0 : plannerReserveUsd),
+  );
   if (deliveryBudgetUsd <= 0) {
-    throw new Error("plan: app budget cannot cover EpisodePlanner admission and delivery planning");
+    throw new Error(
+      explicitExecutionReadyCreatorPath
+        ? "plan: app budget cannot cover the creator-scoped planning workflow"
+        : "plan: app budget cannot cover EpisodePlanner admission and delivery planning",
+    );
   }
   const requestedPlanningFacts = jsonPreviewValue(planningOptions(input.parsed));
   const planningSources = input.parsed.sources.map((source) => ({ ...source }));
@@ -432,6 +523,7 @@ async function previewAutoPlanningRequest(input: {
     stage,
     requestedPlanningFacts,
     planningSources,
+    creatorScope: input.creatorScope ?? null,
     sourceCheckout,
     parentTaskId: input.parentTaskId ?? null,
     budget: {
@@ -483,6 +575,7 @@ async function previewAutoPlanningRequest(input: {
           ? "Select the smallest sufficient governed product-planning workflow"
           : `Configured ${role.name} responsibility; unavailable to product-planning operations`,
       ])),
+      ...(input.creatorScope === undefined ? {} : { creatorScope: input.creatorScope }),
     },
     planner: {
       limits: {
@@ -518,6 +611,83 @@ async function previewAutoPlanningRequest(input: {
     effects: [],
     episode,
   };
+}
+
+/** Read a creator scope at the CLI boundary, then hand the decoded value to
+ * the one canonical strict parser. JSON and YAML are transport formats only;
+ * they do not define competing scope schemas. */
+export async function loadCreatorEpisodeScopeFile(path: string): Promise<CreatorEpisodeScope> {
+  const absolute = resolve(path);
+  const extension = extname(absolute).toLowerCase();
+  if (extension !== ".json" && extension !== ".yaml" && extension !== ".yml") {
+    throw new Error(
+      `plan: --creator-scope must be a .json, .yaml, or .yml file; received ${absolute}`,
+    );
+  }
+
+  let bytes: string;
+  try {
+    bytes = await readFile(absolute, "utf8");
+  } catch (error) {
+    throw new Error(
+      `plan: cannot read --creator-scope file ${absolute}: ${errorText(error)}`,
+      { cause: error },
+    );
+  }
+
+  let decoded: unknown;
+  try {
+    decoded = extension === ".json" ? JSON.parse(bytes) : parseYaml(bytes);
+  } catch (error) {
+    throw new Error(
+      `plan: cannot parse --creator-scope file ${absolute} as ${extension === ".json" ? "JSON" : "YAML"}: ${errorText(error)}`,
+      { cause: error },
+    );
+  }
+
+  try {
+    return parseCreatorEpisodeScope(decoded);
+  } catch (error) {
+    throw new Error(
+      `plan: --creator-scope file ${absolute} is not a strict CreatorEpisodeScope: ${errorText(error)}. ` +
+        "Required fields are planningDisposition, provenance, objective, inScope, outOfScope, " +
+        "acceptanceCriteria, expectedArtifacts, declaredConstraints, and safetyFacts; provide exactly one of steps or workflowTemplate for execution-ready scope.",
+      { cause: error },
+    );
+  }
+}
+
+function assertExplicitCreatorScopeReady(
+  scope: CreatorEpisodeScope | undefined,
+  preview: AutoPlanningPreviewResult,
+  path: string | undefined,
+): void {
+  if (scope === undefined) return;
+  if (!preview.episode.creatorScope.executionReady) {
+    const problems = preview.episode.creatorScope.issues
+      .map((entry) => `${entry.code}: ${entry.message}`)
+      .join("; ");
+    throw new Error(
+      `plan: --execution-ready creator scope ${resolve(path!)} is incomplete or invalid: ${problems}. ` +
+        "Correct the declared scope; Operon will not infer readiness or silently invoke EpisodePlanner.",
+    );
+  }
+  try {
+    assertPlanningEpisodePlanValid(
+      { steps: preview.episode.creatorScope.resolvedSteps! },
+      preview.stage,
+    );
+  } catch (error) {
+    throw new Error(
+      `plan: --execution-ready creator scope ${resolve(path!)} is not a valid product-planning workflow: ` +
+        `${errorText(error)}. Correct its governed operation and terminal TicketPlan contract; no provider was constructed.`,
+      { cause: error },
+    );
+  }
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function jsonPreviewValue(value: unknown): JsonValue {

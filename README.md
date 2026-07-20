@@ -232,14 +232,16 @@ reason codes, and health rules.
 
 The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
 `run-role` spend no tokens. The current `plan --auto --dry-run` and
+`plan --creator-scope ... --execution-ready --dry-run` and
 `plan --explain-route` commands expose only a provisional, token-free intent
 preview: current ledger budget, declared request facts, assignment candidates,
 safety facts, creator-scope assessment, and the fixed planner boot boundary.
 Repository/source inspection owned by the live snapshot remains clearly
 deferred. The previews deliberately return
-`exactProviderAuthoredPlan: null`; only the live EpisodePlanner call can design
-that workflow. `operon episode explain <episode-id>` exposes the read-only
-durable plan, assignment rationale, route, and execution status.
+`exactProviderAuthoredPlan: null`; ordinary auto planning needs a live
+EpisodePlanner call, while explicit creator scope is normalized and persisted
+only during live execution. `operon episode explain <episode-id>` exposes the
+read-only durable plan, assignment rationale, route, and execution status.
 
 `run-role` denies network access by default. `--allow-network` admits egress
 for that invocation only, appears in the token-free brief, and is bound into
@@ -249,12 +251,64 @@ Live forms can spend tokens and touch GitHub:
 
 ```bash
 operon plan <app> --auto --goal "<bounded goal>"
+operon plan <app> --creator-scope ./scope.yaml --execution-ready --no-publish
 operon loop --app <app> --once
 operon dispatch
 pnpm test:live
 GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup
 GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox
 ```
+
+An execution-ready creator scope is the explicit alternative to the dedicated
+EpisodePlanner design turn. `--creator-scope` and `--execution-ready` are
+required together; readiness is never inferred from a detailed-looking goal or
+file. JSON and YAML are transport formats for the existing strict
+`CreatorEpisodeScope` schema, not separate plan schemas. The scope's objective
+supplies `--goal` when it is omitted. A mismatched disposition, incomplete
+scope, unknown operation/role, or unapproved adaptive assignment fails before
+provider construction instead of silently falling back to EpisodePlanner.
+
+```yaml
+planningDisposition: execution_ready
+provenance:
+  source: human
+  creatorId: operator@example.com
+  createdAt: "2026-07-20T12:00:00.000Z"
+  evidenceRefs: [docs/specs/feature-a.md]
+workKind: bounded-product-plan
+objective: Turn the approved Feature A design into implementation tickets
+inScope: [Preserve and decompose the approved Feature A design]
+outOfScope: [Redesign Feature A]
+acceptanceCriteria: [Every approved criterion appears in a buildable ticket]
+expectedArtifacts:
+  - {id: ticket-plan, kind: TicketPlan, required: true}
+declaredConstraints: {designRef: docs/specs/feature-a.md}
+safetyFacts: []
+steps:
+  - kind: provider_turn
+    id: ticket-plan
+    operation: plan/decompose
+    role: planner
+    objective: Render the approved design as a TicketPlan
+    dependsOn: []
+    requiredCapabilities: [structured_verdict]
+    inputRefs: []
+    expectedOutputs:
+      - {id: ticket-plan, kind: TicketPlan, required: true}
+    maxTurnBudgetUsd: 5
+    selectionReason: The creator already supplied every design decision
+```
+
+The terminal operation must match the requested/default stage:
+`plan/bootstrap` for bootstrap and `plan/decompose` for growth or mature.
+In fixed assignment mode, omit `assignment` and Operon resolves the configured
+role tuple. In adaptive mode, each provider step must include one exact approved
+`assignment` tuple. `--dry-run` validates and previews creator-scope
+normalization with zero runtime calls or durable writes. Live execution skips
+the dedicated EpisodePlanner, persists the creator provenance and normalized
+EpisodePlan, executes only the declared governed planning steps, and sends the
+resulting schema-validated TicketPlan through the same no-publish or
+orchestrator-owned publication projection as ordinary planning.
 
 ## Reset an app for another test iteration
 
@@ -691,8 +745,10 @@ degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
 - **Native interactive co-planning is retired.** A TTY child process cannot
   preserve the durable EpisodePlan, exact assignment, gate, run-envelope, and
   settlement boundary, so bare `operon plan <app>` fails closed. Use
-  `plan --auto --goal ...` for measured planning. The manual `--dry-run` form
-  remains as a token-free current-worktree/context preview.
+  `plan --auto --goal ...` for EpisodePlanner-backed planning, or
+  `plan --creator-scope <json-or-yaml> --execution-ready` for an explicitly
+  complete creator-authored bypass. The manual `--dry-run` form remains as a
+  token-free current-worktree/context preview.
 - **Bootstrap publication remains manual.** A safe, draft-PR-only publication
   workflow with exact staging and dry-run semantics is tracked in
   [issue #61](https://github.com/buildstacks-dev/Operon/issues/61).

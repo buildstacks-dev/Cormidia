@@ -1189,7 +1189,9 @@ candidates, safety facts, and whether explicit creator scope is complete;
 `orchestrateEpisode` creates or normalizes and persists the plan; and
 `explainEpisode` joins the intent, accepted version, derived route, step
 assignments, and execution journal. The preview deliberately returns
-`exactProviderAuthoredPlan: null` when EpisodePlanner would have to run.
+`exactProviderAuthoredPlan: null` when EpisodePlanner would have to run; an
+explicit creator-scope preview instead proves whether the supplied scope can
+take the deterministic normalization path, without persisting it.
 
 The public `operon episode explain <episode-id>` command exposes the durable
 explanation read-only. `operon plan --explain-route` and `--auto --dry-run`
@@ -1203,6 +1205,8 @@ may choose from, never evidence that its turn may be skipped.
 operon plan <app> --dry-run [--topic "stats percentile helper"] [--workdir <app-checkout>]
 operon plan <app> --auto --goal "<product goal>" [--source <file-or-dir>]...
   [--optional-source <file-or-dir>]... [--stage bootstrap] [--no-publish]
+operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready
+  [--dry-run] [--no-publish]
 ```
 
 - The manual `--dry-run` form assembles the Planner's context exactly as §5
@@ -1214,12 +1218,21 @@ operon plan <app> --auto --goal "<product goal>" [--source <file-or-dir>]...
   bypassed durable plan, exact assignment, gate, envelope, and settlement
   authority. Bare `operon plan <app>` therefore fails before worktree creation
   and directs the operator to `--auto --goal` for live planning.
+- The creator-scope form accepts JSON or YAML only as transport for the one
+  strict `CreatorEpisodeScope` parser. `--creator-scope` and
+  `--execution-ready` require each other, and the file must independently
+  declare `planningDisposition: execution_ready`; its objective supplies the
+  goal when `--goal` is absent. Incomplete scope, a disposition mismatch,
+  invalid governed operations, or unapproved adaptive assignments fail before
+  provider construction instead of silently invoking EpisodePlanner. A valid
+  scope retains its exact provenance in `EpisodeIntent` and `EpisodePlan` and
+  is included as authoritative input to its declared planning-operation turns.
 - App checkout resolution is shared by manual app CLIs: explicit `--workdir`
   wins; otherwise Operon prefers the managed dispatch clone at
   `~/.operon/<org>/repos/<app>`, then a sibling checkout beside the Operon
   repo (the `~/Build/<app>` laptop layout), then the repo basename. It fails
   loudly instead of silently using the Operon repo as the target app.
-- In `--auto` mode the orchestrator publishes the validated TicketPlan with
+- In automated mode the orchestrator publishes the validated TicketPlan with
   canonical labels — agents author no `gh` side effects.
 - `--auto` source inputs are resolved and content-bound before Runtime
   construction. Required source failures stop the run; optional sources may
@@ -1233,10 +1246,15 @@ operon plan <app> --auto --goal "<product goal>" [--source <file-or-dir>]...
   the two durable halves of the planner→ticket causal edge (#128). The
   trailer travels with the repo and survives every local retention sweep;
   the local record cross-checks it against the envelope identity.
-- `--auto` provider turns settle measured usage through the ordinary episode
+- Automated-planning provider turns settle measured usage through the ordinary episode
   boundary. The manual preview records no telemetry because it invokes no
   provider. The `Trigger` type's `manual?: boolean` kind remains a declaration
   the dispatcher **never** auto-fires.
+- Budget admission reserves the bounded two-attempt EpisodePlanner allowance
+  only when that provider design turn may run. An explicit, validated
+  execution-ready creator path reserves zero hypothetical planner spend and
+  gives its declared workflow the existing remaining delivery ceiling;
+  persisted intents keep their original immutable ceiling.
 - Legacy depth/risk flags are retained as bounded request facts for callers and
   historical evidence. They do not select the product-planning steps. Existing
   ticket status and the former `direct-execution` disposition are not valid
@@ -1247,7 +1265,7 @@ operon plan <app> --auto --goal "<product goal>" [--source <file-or-dir>]...
   immutable projection carries requested tier, final tier, escalation reason,
   and exact labels; console/JSON output, no-publish results, and GitHub
   publication all consume that same object.
-- `--explain-route` and `--auto --dry-run` stop before runtime construction and
+- `--explain-route`, `--auto --dry-run`, and creator-scope `--dry-run` stop before runtime construction and
   show provisional bounded intent authority without pretending to know the
   eventual execution EpisodePlan or TicketPlan. `--no-publish` runs the
   accepted product-planning EpisodePlan but does not publish its finalized

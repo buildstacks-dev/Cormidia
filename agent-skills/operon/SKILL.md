@@ -202,9 +202,16 @@ For a fresh standalone `run-role`, preview and live modes both require
 invocation/trace identity; it is not a GitHub ticket number and does not bind a
 ticket. The preview validates and displays the template hash/summary,
 provenance, objective, creator scope, and assignment without constructing a
-provider or writing state. It does not prove provider readiness or mutable
-live state. `--workdir` is unsupported because live execution always uses the
-org-managed app clone.
+provider or writing state. It reads a discovered registered checkout and
+reports the predicted managed/live checkout, but does not synchronize the
+managed clone or create or verify the live worktree. It does not prove provider
+authentication/readiness, live budget or approval outcomes, or external state
+that can change after preview. `--workdir` is unsupported because a
+preview-only override would misrepresent the route-selected live checkout.
+Live first synchronizes the registered app's managed clone; a fresh explicit
+standalone turn then executes in a durable per-turn worktree cut from that exact
+resolved base. Reusing the same invocation identity rediscovers that worktree
+without resetting or deleting preserved WIP.
 
 In fixed assignment mode both forms must omit `--assignment`; Operon resolves
 the role's configured atomic tuple. In adaptive mode both forms require exactly
@@ -212,8 +219,9 @@ the role's configured atomic tuple. In adaptive mode both forms require exactly
 candidates, unsupported efforts, or a selector in fixed mode. Use `operon
 roles` and `operon apps` to inspect the effective catalog and app narrowing
 before selecting it. A durable resume may reuse its persisted creator scope
-without a mutable template; scheduled/event routes keep their governed
-pipeline scope and reject standalone overrides.
+without a mutable template. Governed scheduled, event, and ticket routes keep
+their governed scope and existing checkout ownership, and reject standalone
+overrides.
 
 `operon learn` read subcommands (`report`, `inspect`, `show`) are fine for
 diagnosis. `report` is read-only by default; use `report --refresh` only when

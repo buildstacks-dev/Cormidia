@@ -583,11 +583,30 @@ schedules (oldest due first).
 `operon run-role … --turn <id>` as a detached process, so the 5-minute
 timer never kills a long turn. `run-role` is thereby also the manual
 entrypoint (roadmap item 2) — the dispatcher is just the thing that calls
-it on time. Provider egress is denied by default. A manual invocation may
-admit it with `--allow-network`; that boolean is shown by `--dry-run`, bound
-into the creator scope, and copied to only that episode's `TurnRequest`s.
-Resume rejects a different value instead of silently widening or narrowing
-the persisted invocation.
+it on time. `--turn` is the invocation/trace identity used by the journal and
+run evidence; it is not a GitHub ticket number and never creates a ticket
+binding. Ticket context, when present, comes from the already-durable dispatch
+journal.
+- A fresh manual standalone invocation requires `--app`, `--turn`, and one
+non-empty bounded `--template` in both dry-run and live forms. Both forms enter
+the same read-only journal/route/durable-intent/template/assignment/scope
+inspection first. The dry-run reports the template hash and summary,
+provenance, objective, execution-ready creator scope, and atomic assignment,
+then stops with zero provider turns and zero state writes. Live persists the
+already-inspected manual journal before provider entry. Provider readiness,
+budget/approval outcomes, managed-clone synchronization, and mutable external
+state are explicit preview exclusions.
+- A durable resume may reuse its accepted creator bytes without rereading a
+mutable template. Scheduled/event dispatch journals already name a governed
+pipeline or ticket protocol, so those routes may omit the standalone template
+and reject CLI template/assignment overrides instead of ignoring them.
+`--workdir` is unsupported: preview reads a discovered registered checkout;
+live always synchronizes and executes in the org-managed clone. Provider egress
+is denied by default. A manual invocation may admit it with
+`--allow-network`; that boolean is shown by `--dry-run`, bound into the creator
+scope, and copied to only that episode's `TurnRequest`s. Resume rejects a
+different value instead of silently widening or narrowing the persisted
+invocation.
 
 
 
@@ -1227,12 +1246,15 @@ operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready
   provider construction instead of silently invoking EpisodePlanner. A valid
   scope retains its exact provenance in `EpisodeIntent` and `EpisodePlan` and
   is included as authoritative input to its declared planning-operation turns.
-- App checkout resolution is shared by manual app CLIs: explicit `--workdir`
-  wins; otherwise Operon prefers the managed dispatch clone at
+- Manual `plan --dry-run` checkout resolution accepts an explicit `--workdir`;
+  otherwise Operon prefers the managed dispatch clone at
   `~/.operon/<org>/repos/<app>`, then a sibling checkout beside the Operon
   repo (the `~/Build/<app>` laptop layout), then the repo basename. It fails
   loudly instead of silently using the Operon repo as the target app.
-- In automated mode the orchestrator publishes the validated TicketPlan with
+  `run-role` deliberately does not share that override: its live path owns the
+  managed clone, so accepting a preview-only workdir would misrepresent the
+  execution checkout.
+- In `--auto` mode the orchestrator publishes the validated TicketPlan with
   canonical labels — agents author no `gh` side effects.
 - `--auto` source inputs are resolved and content-bound before Runtime
   construction. Required source failures stop the run; optional sources may

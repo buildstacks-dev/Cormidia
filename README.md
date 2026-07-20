@@ -163,8 +163,8 @@ operon dispatch --dry-run
 operon scheduler install --json                       # preview, zero writes
 operon scheduler status --json                        # read-only health
 operon scheduler uninstall --json                     # preview, zero writes
-operon run-role <role> --app <app> --dry-run
-operon run-role <role> --app <app> --dry-run --allow-network # explicit per-invocation egress preview
+operon run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run
+operon run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run --allow-network # explicit per-invocation egress preview
 operon status
 operon budget
 operon analyze
@@ -253,6 +253,19 @@ deferred. The previews deliberately return
 EpisodePlanner call, while explicit creator scope is normalized and persisted
 only during live execution. `operon episode explain <episode-id>` exposes the
 read-only durable plan, assignment rationale, route, and execution status.
+
+Fresh standalone `run-role` preview and live invocations require the same app,
+invocation identity, bounded template, and assignment semantics. `--turn` is a
+trace/session identity, not a GitHub ticket number or ticket binding. The
+preview reads and hashes the template, validates the execution-ready creator
+scope, reports its provenance/objective/atomic assignment, constructs no
+provider runtime, and writes no state. Provider readiness, live budget and
+approval outcomes, managed-clone synchronization, and later external-state
+changes remain explicit exclusions. `--workdir` is intentionally unsupported:
+preview reads a discovered registered checkout, while live execution
+synchronizes the org-managed clone. A durable resume may reuse its persisted
+creator bytes without a mutable template file; scheduled/event routes keep
+their governed pipeline scope.
 
 `run-role` denies network access by default. `--allow-network` admits egress
 for that invocation only, appears in the token-free brief, and is bound into

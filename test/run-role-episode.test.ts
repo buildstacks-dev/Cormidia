@@ -1,3 +1,5 @@
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { episodeIdFor } from "../src/loop/efficiency.js";
 import { readCurrentEpisodePlan } from "../src/loop/episode-plan.js";
@@ -5,6 +7,7 @@ import type { RoleConfig } from "../src/runtime/types.js";
 import type { AppEntry } from "../src/org/apps.js";
 import {
   buildStandaloneRunRoleScope,
+  inspectStandaloneRunRoleScope,
   prepareStandaloneRunRoleScope,
 } from "../src/org/run-role-episode.js";
 import {
@@ -20,6 +23,11 @@ import { writeJournalPatch } from "../src/org/journal.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
 
 const NOW = new Date("2026-07-19T18:00:00.000Z");
+const TEMPLATE_SHA256 = "a".repeat(64);
+const TEMPLATE = {
+  text: "# Bounded support task\n\nProduce one evidence-backed digest.",
+  sha256: TEMPLATE_SHA256,
+};
 
 const PLANNER: RoleConfig = {
   name: "planner",
@@ -78,7 +86,7 @@ const PROVENANCE = {
   source: "human" as const,
   creatorId: "operon-cli",
   createdAt: NOW.toISOString(),
-  evidenceRefs: ["turn:manual-support"],
+  evidenceRefs: ["turn:manual-support", `template:sha256:${TEMPLATE_SHA256}`],
 };
 
 describe("standalone run-role EpisodePlan boundary", () => {
@@ -92,6 +100,7 @@ describe("standalone run-role EpisodePlan boundary", () => {
         role: SUPPORT,
         turnId: "manual-support",
         provenance: PROVENANCE,
+        template: TEMPLATE,
       });
       expect(scope.steps).toEqual([
         expect.objectContaining({
@@ -153,6 +162,7 @@ describe("standalone run-role EpisodePlan boundary", () => {
         role: SUPPORT,
         turnId: "adaptive-support",
         provenance: PROVENANCE,
+        template: TEMPLATE,
       })).toThrow(/adaptive mode requires --assignment/);
       expect(() => buildStandaloneRunRoleScope({
         app: ADAPTIVE_APP,
@@ -161,6 +171,7 @@ describe("standalone run-role EpisodePlan boundary", () => {
         turnId: "adaptive-support",
         provenance: PROVENANCE,
         assignmentSelector: "pi-qualified@xhigh",
+        template: TEMPLATE,
       })).toThrow(/not one exact approved support tuple/);
 
       const scope = buildStandaloneRunRoleScope({
@@ -170,6 +181,7 @@ describe("standalone run-role EpisodePlan boundary", () => {
         turnId: "adaptive-support",
         provenance: PROVENANCE,
         assignmentSelector: "pi-qualified@high",
+        template: TEMPLATE,
       });
       const intent = intentFor(ADAPTIVE_APP, roles, scope, "adaptive-support");
       const prepared = await prepareEpisodePlan({
@@ -201,12 +213,15 @@ describe("standalone run-role EpisodePlan boundary", () => {
     const home = makeOrgHome({ state: true });
     const roles = [PLANNER, SUPPORT];
     try {
+      const templatePath = join(home.root, "resume-template.md");
+      writeFileSync(templatePath, TEMPLATE.text, "utf8");
       const first = await prepareStandaloneRunRoleScope({
         stateHome: home.root,
         app: FIXED_APP,
         roles,
         role: SUPPORT,
         turnId: "resume-support",
+        templatePath,
         networkAccess: true,
         now: () => NOW,
       });
@@ -227,12 +242,21 @@ describe("standalone run-role EpisodePlan boundary", () => {
         roles,
         role: SUPPORT,
         turnId: "resume-support",
-        templatePath: "/this/template/does/not-exist.md",
         networkAccess: true,
         now: () => new Date("2026-07-20T18:00:00.000Z"),
       });
       expect(resumed.reusedPersistedIntent).toBe(true);
       expect(resumed.creatorScope).toEqual(first.creatorScope);
+
+      await expect(prepareStandaloneRunRoleScope({
+        stateHome: home.root,
+        app: FIXED_APP,
+        roles,
+        role: SUPPORT,
+        turnId: "resume-support",
+        templatePath: "/this/template/does/not-exist.md",
+        networkAccess: true,
+      })).rejects.toThrow(/cannot read template/);
 
       await expect(prepareStandaloneRunRoleScope({
         stateHome: home.root,
@@ -272,6 +296,48 @@ describe("standalone run-role EpisodePlan boundary", () => {
 
       expect(prepared.route).toEqual({ kind: "pipeline", pipeline: "support-digest" });
       expect(prepared.creatorScope).toBeUndefined();
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("inspects without state and live preparation persists the same validated scope", async () => {
+    const home = makeOrgHome({ state: true });
+    const templatePath = join(home.root, "preview-template.md");
+    writeFileSync(templatePath, TEMPLATE.text, "utf8");
+    try {
+      const inspected = await inspectStandaloneRunRoleScope({
+        stateHome: home.root,
+        app: FIXED_APP,
+        roles: [PLANNER, SUPPORT],
+        role: SUPPORT,
+        turnId: "preview-only",
+        templatePath,
+        now: () => NOW,
+      });
+
+      expect(inspected.journalPersisted).toBe(false);
+      expect(inspected.template).toMatchObject({
+        path: templatePath,
+        summary: "# Bounded support task",
+      });
+      expect(inspected.creatorScope?.objective).toContain("Produce one evidence-backed digest.");
+      expect(existsSync(home.paths.turn("preview-only"))).toBe(false);
+
+      const prepared = await prepareStandaloneRunRoleScope({
+        stateHome: home.root,
+        app: FIXED_APP,
+        roles: [PLANNER, SUPPORT],
+        role: SUPPORT,
+        turnId: "preview-only",
+        templatePath,
+        now: () => NOW,
+      });
+      expect(prepared.creatorScope).toEqual(inspected.creatorScope);
+      expect(prepared.template).toEqual(inspected.template);
+      expect(prepared.route).toEqual(inspected.route);
+      expect(prepared.journalPersisted).toBe(true);
+      expect(existsSync(home.paths.turn("preview-only"))).toBe(true);
     } finally {
       home.cleanup();
     }

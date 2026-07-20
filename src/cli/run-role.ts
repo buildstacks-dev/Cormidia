@@ -1,26 +1,38 @@
-// `operon run-role <role> [--app <app>] [--turn <id>] [--template <path>]
+// `operon run-role <role> --app <app> --turn <id> --template <path>`
 // [--assignment <candidate-id>@<effort>] [--allow-network] [--dry-run]`.
-// --dry-run uses the loop-layer transport only to print the assembled brief
-// and constructs no Runtime. A live standalone invocation is an explicit
-// episode creator: it persists one creator-scoped EpisodePlan step before the
-// dispatcher constructs a provider. Existing scheduled/event routes retain
-// their governed pipeline or ticket EpisodePlan boundaries.
+// Both modes first traverse the same read-only argument/template/assignment/
+// creator-scope inspection. --dry-run then prints that execution intent and
+// constructs no Runtime or state; live persists the already-validated manual
+// creator journal before the dispatcher constructs a provider. Existing
+// scheduled/event routes retain their governed pipeline or ticket EpisodePlan
+// boundaries and reject standalone scope overrides.
 
 import { join } from "node:path";
 import { loadRoles } from "../org/roles.js";
 import { runRole } from "../loop/runRole.js";
-import { loadApps } from "../org/apps.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { assembleContext } from "../org/context.js";
 import { runDispatchedTurn } from "../org/turn-runner.js";
-import type { ContextBundle } from "../runtime/types.js";
+import type { ContextBundle, RoleConfig } from "../runtime/types.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
-import { prepareStandaloneRunRoleScope } from "../org/run-role-episode.js";
+import {
+  inspectStandaloneRunRoleScope,
+  prepareStandaloneRunRoleScope,
+  type PreparedStandaloneRunRoleScope,
+} from "../org/run-role-episode.js";
 
-export async function cmdRunRole(args: string[]): Promise<number> {
+export interface RunRoleCommandDependencies {
+  /** Test seam at the provider-owning boundary. Dry-run must never call it. */
+  runDispatchedTurn?: typeof runDispatchedTurn;
+}
+
+export async function cmdRunRole(
+  args: string[],
+  dependencies: RunRoleCommandDependencies = {},
+): Promise<number> {
   const common = extractHomeFlags(args, "run-role");
   args = common.rest;
   let name: string | undefined;
@@ -47,14 +59,23 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
   if (name === undefined) throw new Error("run-role: role name required — operon run-role <role>");
-  if (dryRun && assignmentSelector !== undefined) {
-    throw new Error("run-role: --assignment is only valid for a live adaptive episode");
+  if (app === undefined) {
+    throw new Error("run-role: --app <app> is required for both dry-run and live turns");
+  }
+  if (turnId === undefined) {
+    throw new Error("run-role: --turn <invocation-id> is required for both dry-run and live turns");
+  }
+  validateInvocationId(turnId);
+  if (workdir !== undefined) {
+    throw new Error(
+      "run-role: --workdir is not supported; preview reads a discovered registered checkout " +
+        "and live execution uses the org-managed app clone",
+    );
   }
 
   const homes = await resolveOperonHomes(common);
   const parentTaskId = await resolveParentTaskId(homes.stateHome, parentTaskInput);
   const rolesPath = join(homes.orgHome, "roles.yaml");
-  const appsPath = join(homes.orgHome, "apps.yaml");
   const { roles } = await loadRoles(rolesPath);
   const role = roles.find((r) => r.name === name);
   if (role === undefined) {
@@ -62,26 +83,25 @@ export async function cmdRunRole(args: string[]): Promise<number> {
       `unknown role "${name}" — roles.yaml defines: ${roles.map((r) => r.name).join(", ")}`,
     );
   }
+  const appsFile = homes.appsFile;
+  const appEntry = appsFile.apps.find((entry) => entry.name === app);
+  if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
+  const scopeOptions = {
+    stateHome: homes.stateHome,
+    app: appEntry,
+    roles,
+    role,
+    turnId,
+    ...(assignmentSelector === undefined ? {} : { assignmentSelector }),
+    ...(templatePath === undefined ? {} : { templatePath }),
+    ...(parentTaskId === undefined ? {} : { parentTaskId }),
+    networkAccess,
+  };
 
   if (!dryRun) {
-    if (app === undefined) throw new Error("run-role: live turns require --app <app>");
-    if (turnId === undefined) throw new Error("run-role: live turns require --turn <id>");
-    const appsFile = await loadApps(appsPath);
-    const appEntry = appsFile.apps.find((entry) => entry.name === app);
-    if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
-    const prepared = await prepareStandaloneRunRoleScope({
-      stateHome: homes.stateHome,
-      app: appEntry,
-      roles,
-      role,
-      turnId,
-      ...(assignmentSelector === undefined ? {} : { assignmentSelector }),
-      ...(templatePath === undefined ? {} : { templatePath }),
-      ...(parentTaskId === undefined ? {} : { parentTaskId }),
-      networkAccess,
-    });
+    const prepared = await prepareStandaloneRunRoleScope(scopeOptions);
     const cancellation = installProcessCancellation();
-    const result = await runDispatchedTurn({
+    const result = await (dependencies.runDispatchedTurn ?? runDispatchedTurn)({
       role,
       app: appEntry,
       appsFile,
@@ -97,38 +117,39 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
   }
 
-  let resolvedWorkdir = workdir ?? process.cwd();
-  let context: ContextBundle | undefined;
-  if (app !== undefined) {
-    const appsFile = await loadApps(appsPath);
-    const appEntry = appsFile.apps.find((entry) => entry.name === app);
-    if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
-    resolvedWorkdir = resolveAppWorkdir(appEntry, {
-      orgRoot: homes.orgHome,
-      runtimeHome: homes.stateHome,
-      ...(workdir !== undefined ? { explicitWorkdir: workdir } : {}),
-    });
-    context = (
-      await assembleContext({
-        orgHome: homes.orgHome,
-        appWorkdir: resolvedWorkdir,
-        app: appEntry.name,
-        role,
-        taskText: `manual ${role.name} turn for ${appEntry.name}`,
-      })
-    ).bundle;
-  }
+  const prepared = await inspectStandaloneRunRoleScope(scopeOptions);
+  const resolvedWorkdir = resolveAppWorkdir(appEntry, {
+    orgRoot: homes.orgHome,
+    runtimeHome: homes.stateHome,
+  });
+  const context: ContextBundle = (
+    await assembleContext({
+      orgHome: homes.orgHome,
+      appWorkdir: resolvedWorkdir,
+      app: appEntry.name,
+      role,
+      taskText: prepared.creatorScope?.objective ?? `manual ${role.name} turn for ${appEntry.name}`,
+    })
+  ).bundle;
 
   const result = await runRole({
     role,
-    ...(app !== undefined ? { app } : {}),
-    ...(turnId !== undefined ? { turnId } : {}),
+    app,
+    turnId,
     ...(templatePath !== undefined ? { templatePath } : {}),
-    ...(context !== undefined ? { context } : {}),
+    context,
     dryRun: true,
     workdir: resolvedWorkdir,
     ...(parentTaskId !== undefined ? { parentTaskId } : {}),
     ...(networkAccess ? { networkAccess: true } : {}),
+  });
+  printPreview({
+    prepared,
+    app: appEntry.name,
+    role,
+    turnId,
+    previewWorkdir: resolvedWorkdir,
+    managedWorkdir: join(homes.stateHome, "repos", appEntry.name),
   });
   console.log(result.brief);
   // The brief references the context by count; a live turn passes the full
@@ -136,7 +157,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   // path we also print the assembled app-aware context so the operator can
   // actually verify what the role would see (M12: app charter, role addendum,
   // memory excerpts) rather than trusting a count.
-  if (context !== undefined) printContext(context);
+  printContext(context);
   return 0;
 }
 
@@ -146,6 +167,103 @@ function needValue(args: string[], index: number, flag: string): string {
     throw new Error(`run-role: ${flag} requires a value`);
   }
   return value;
+}
+
+function validateInvocationId(value: string): void {
+  if (
+    value.length === 0 || value.length > 256 || value !== value.trim() ||
+    value === "." || value === ".." || /[\\/\0]/u.test(value)
+  ) {
+    throw new Error(
+      "run-role: --turn must be a non-empty path-safe invocation identity; " +
+        "it is not a GitHub ticket number",
+    );
+  }
+}
+
+function printPreview(options: {
+  prepared: PreparedStandaloneRunRoleScope;
+  app: string;
+  role: RoleConfig;
+  turnId: string;
+  previewWorkdir: string;
+  managedWorkdir: string;
+}): void {
+  const { prepared } = options;
+  console.log("[run-role preview]");
+  console.log("Mode: token-free, read-only validation; provider/runtime turns: 0; state writes: 0");
+  console.log(`App: ${options.app}`);
+  console.log(`Role: ${options.role.name}`);
+  console.log(`Turn invocation identity: ${options.turnId}`);
+  console.log(
+    "Turn semantics: --turn is an invocation/trace identity only; it is not a GitHub ticket " +
+      "number and does not bind this turn to a ticket.",
+  );
+  console.log(
+    prepared.journal.ticketRef === undefined
+      ? "Ticket binding: none; no ticket is inferred from --turn."
+      : `Ticket context: ${prepared.journal.ticketRef} comes from the durable journal, not from --turn.`,
+  );
+  console.log(`Preview context checkout (read-only): ${options.previewWorkdir}`);
+  console.log(`Live execution checkout (managed): ${options.managedWorkdir}`);
+  console.log("Workdir contract: --workdir is unsupported; live synchronizes the registered app's managed clone.");
+
+  const scope = prepared.creatorScope;
+  if (scope === undefined) {
+    console.log(`Execution scope: governed ${describeRoute(prepared)}; no standalone override accepted.`);
+  } else {
+    console.log(
+      `Execution scope: ${scope.planningDisposition} ${scope.workKind}; ` +
+        `${scope.steps?.length ?? 0} bounded step(s); persisted intent reused: ${prepared.reusedPersistedIntent}`,
+    );
+    if (prepared.template !== undefined) {
+      console.log(
+        `Template: ${prepared.template.path} (${prepared.template.bytes} bytes, ` +
+          `${prepared.template.lines} lines)`,
+      );
+      console.log(`Template summary: ${prepared.template.summary}`);
+      console.log(`Template SHA-256: ${prepared.template.sha256}`);
+    } else {
+      console.log("Template: reused from durable creator scope; no mutable template file was read.");
+      console.log(`Template SHA-256: ${templateSha256(scope) ?? "unavailable"}`);
+    }
+    console.log(
+      `Provenance: ${scope.provenance.source} ${scope.provenance.creatorId} at ` +
+        `${scope.provenance.createdAt}`,
+    );
+    console.log(`Provenance evidence: ${scope.provenance.evidenceRefs.join(", ")}`);
+    const providerStep = scope.steps?.find((step) => step.kind === "provider_turn");
+    if (providerStep?.kind === "provider_turn") {
+      const assignment = providerStep.assignment === undefined
+        ? `${options.role.runtime}/${options.role.model}@${options.role.effort} (configured fixed tuple)`
+        : `${providerStep.assignment.harness}/${providerStep.assignment.model}@${providerStep.assignment.effort} ` +
+          "(creator-selected approved tuple)";
+      console.log(`Assignment: ${assignment}`);
+      console.log(`Assignment rationale: ${providerStep.selectionReason}`);
+      console.log(`Execution input refs: ${providerStep.inputRefs.map((input) => input.ref).join(", ")}`);
+    }
+    console.log("Objective:");
+    console.log(scope.objective);
+  }
+  console.log(
+    "Live readiness exclusions: provider authentication/readiness, budget and approval outcomes, " +
+      "managed-clone synchronization, and external state changes after this preview.",
+  );
+  console.log("");
+}
+
+function templateSha256(scope: NonNullable<PreparedStandaloneRunRoleScope["creatorScope"]>): string | undefined {
+  const standalone = scope.declaredConstraints["standaloneRunRole"];
+  if (typeof standalone !== "object" || standalone === null || Array.isArray(standalone)) {
+    return undefined;
+  }
+  const value = standalone["templateSha256"];
+  return typeof value === "string" ? value : undefined;
+}
+
+function describeRoute(prepared: PreparedStandaloneRunRoleScope): string {
+  const route = prepared.route;
+  return route.kind === "skip" ? route.reason : `${route.kind} ${route.pipeline}`;
 }
 
 function printContext(context: ContextBundle): void {

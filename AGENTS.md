@@ -344,8 +344,10 @@ cluster stops forming — the coverage gap that let this ship green (#142).
   `pnpm dev learn canary promote --root org|app [--app <name>]` ·
   `pnpm dev learn canary stop --root org|app --reason "<why>"` ·
   `pnpm dev learn distill [--app <name>] [--dry-run]` ·
-  `pnpm dev run-role <role> --app <app> --dry-run` ·
-  `pnpm dev run-role <role> --dry-run` · `pnpm dev prune-runs [--sweep]` ·
+  `pnpm dev run-role <role> --app <app> --turn <invocation-id> --template <path>
+  [--assignment <candidate-id>@<effort>] [--dry-run]` (`--turn` is trace
+  identity, not a ticket binding; `--workdir` is unsupported) ·
+  `pnpm dev prune-runs [--sweep]` ·
   `pnpm dev doctor [--config-only]` (default probes configured adapter readiness
   without a model turn; config-only never claims readiness)
 - M5 GitHub sandbox e2e: `GH_SANDBOX_REPO=<owner/repo> pnpm e2e:sandbox:setup`

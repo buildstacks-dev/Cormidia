@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import {
   episodeIdFor,
   fingerprint,
@@ -45,7 +46,21 @@ export interface PreparedStandaloneRunRoleScope {
   journal: TurnJournal;
   route: TriggerRoute;
   creatorScope?: CreatorEpisodeScope;
+  template?: StandaloneRunRoleTemplate;
   reusedPersistedIntent: boolean;
+  /** True when the journal already existed or the live preparation persisted
+   * it. The inspection entrypoint always leaves a newly synthesized journal
+   * in memory and reports false. */
+  journalPersisted: boolean;
+}
+
+export interface StandaloneRunRoleTemplate {
+  path: string;
+  text: string;
+  bytes: number;
+  lines: number;
+  summary: string;
+  sha256: string;
 }
 
 /**
@@ -60,13 +75,65 @@ export interface PreparedStandaloneRunRoleScope {
 export async function prepareStandaloneRunRoleScope(
   options: PrepareStandaloneRunRoleScopeOptions,
 ): Promise<PreparedStandaloneRunRoleScope> {
-  const journal = await ensureMatchingJournal(options);
+  const preparedAt = options.now?.() ?? new Date();
+  const inspected = await inspectStandaloneRunRoleScopeAt(options, preparedAt);
+  if (inspected.journalPersisted) return inspected;
+
+  // Validate every deterministic input before creating durable state. A bad
+  // template or assignment therefore leaves no half-prepared manual turn.
+  // Recheck if another owner created the journal between inspection and this
+  // boundary so a concurrent identity can never be silently overwritten.
+  if (existsSync(journalPath(options.stateHome, options.turnId))) {
+    return inspectStandaloneRunRoleScopeAt(options, preparedAt);
+  }
+  const journal = await writeJournalPatch(
+    options.stateHome,
+    options.turnId,
+    manualJournalPatch(options),
+    preparedAt,
+  );
+  assertMatchingJournal(journal, options);
+  return { ...inspected, journal, journalPersisted: true };
+}
+
+/**
+ * Read-only counterpart to live preparation. It follows the same journal,
+ * route, durable-intent, template, assignment, and creator-scope validation
+ * path, but synthesizes a missing manual journal in memory and never writes
+ * state. Provider/runtime readiness is deliberately outside this boundary.
+ */
+export async function inspectStandaloneRunRoleScope(
+  options: PrepareStandaloneRunRoleScopeOptions,
+): Promise<PreparedStandaloneRunRoleScope> {
+  return inspectStandaloneRunRoleScopeAt(options, options.now?.() ?? new Date());
+}
+
+async function inspectStandaloneRunRoleScopeAt(
+  options: PrepareStandaloneRunRoleScopeOptions,
+  preparedAt: Date,
+): Promise<PreparedStandaloneRunRoleScope> {
+  const journalPathValue = journalPath(options.stateHome, options.turnId);
+  const journalPersisted = existsSync(journalPathValue);
+  const journal = journalPersisted
+    ? await readJournal(options.stateHome, options.turnId)
+    : syntheticManualJournal(options, preparedAt);
+  assertMatchingJournal(journal, options);
   const route = resolveTriggerRoute({
     role: options.role.name,
     trigger: triggerFromJournal(journal),
   });
   if (route.kind !== "skip") {
-    return { journal, route, reusedPersistedIntent: false };
+    if (options.templatePath !== undefined) {
+      throw new Error(
+        `run-role: --template cannot override governed ${describeRoute(route)} scope`,
+      );
+    }
+    if (options.assignmentSelector !== undefined) {
+      throw new Error(
+        `run-role: --assignment cannot override governed ${describeRoute(route)} assignment`,
+      );
+    }
+    return { journal, route, reusedPersistedIntent: false, journalPersisted };
   }
 
   const episodeId = episodeIdForJournal(options.app.name, journal, options.turnId);
@@ -85,19 +152,28 @@ export async function prepareStandaloneRunRoleScope(
     }
     assertRequestedSelectionMatchesPersisted(options.assignmentSelector, persistedIntent.creatorScope);
     assertRequestedNetworkMatchesPersisted(options.networkAccess === true, persistedIntent.creatorScope);
+    const template = options.templatePath === undefined
+      ? undefined
+      : await readBoundedTemplate(options.templatePath);
+    assertRequestedTemplateMatchesPersisted(template, persistedIntent.creatorScope);
     return {
       journal,
       route,
       ...(persistedIntent.creatorScope === undefined
         ? {}
         : { creatorScope: structuredClone(persistedIntent.creatorScope) }),
+      ...(template === undefined ? {} : { template }),
       reusedPersistedIntent: true,
+      journalPersisted,
     };
   }
 
-  const template = options.templatePath === undefined
-    ? undefined
-    : await readBoundedTemplate(options.templatePath);
+  if (options.templatePath === undefined) {
+    throw new Error(
+      "run-role: standalone manual turns require --template <path> with bounded creator instructions",
+    );
+  }
+  const template = await readBoundedTemplate(options.templatePath);
   const provenance = creatorProvenance(journal, options.parentTaskId, template?.sha256);
   const creatorScope = buildStandaloneRunRoleScope({
     app: options.app,
@@ -109,9 +185,16 @@ export async function prepareStandaloneRunRoleScope(
       ? {}
       : { assignmentSelector: options.assignmentSelector }),
     networkAccess: options.networkAccess === true,
-    ...(template === undefined ? {} : { template }),
+    template,
   });
-  return { journal, route, creatorScope, reusedPersistedIntent: false };
+  return {
+    journal,
+    route,
+    creatorScope,
+    template,
+    reusedPersistedIntent: false,
+    journalPersisted,
+  };
 }
 
 export interface BuildStandaloneRunRoleScopeOptions {
@@ -122,10 +205,7 @@ export interface BuildStandaloneRunRoleScopeOptions {
   provenance: CreatorScopeProvenance;
   assignmentSelector?: string;
   networkAccess?: boolean;
-  template?: {
-    text: string;
-    sha256: string;
-  };
+  template: Pick<StandaloneRunRoleTemplate, "text" | "sha256">;
 }
 
 /** Pure creator-scope construction, exported for boundary tests. */
@@ -154,17 +234,11 @@ export function buildStandaloneRunRoleScope(
     kind: outputKind,
     required: true,
   } as const;
-  const templateRef = options.template === undefined
-    ? undefined
-    : `template:sha256:${options.template.sha256}`;
+  const templateRef = `template:sha256:${options.template.sha256}`;
   const objective = [
     `Execute exactly one bounded ${options.role.name} role turn for ${options.app.name}.`,
-    ...(options.template === undefined
-      ? []
-      : [
-          "Creator-supplied turn instructions:",
-          options.template.text,
-        ]),
+    "Creator-supplied turn instructions:",
+    options.template.text,
   ].join("\n\n");
   const step: ProposedProviderTurnStep = {
     kind: "provider_turn",
@@ -176,7 +250,7 @@ export function buildStandaloneRunRoleScope(
     requiredCapabilities: ["tool_gate"],
     inputRefs: [
       { ref: `turn:${options.turnId}`, required: true },
-      ...(templateRef === undefined ? [] : [{ ref: templateRef, required: true }]),
+      { ref: templateRef, required: true },
     ],
     expectedOutputs: [expectedOutput],
     maxTurnBudgetUsd: selected?.maxTurnCostUsd ?? options.role.maxTurnBudgetUsd,
@@ -191,7 +265,7 @@ export function buildStandaloneRunRoleScope(
       providerTurns: 1,
       networkAccess: options.networkAccess === true,
       assignmentSelector: options.assignmentSelector ?? null,
-      templateSha256: options.template?.sha256 ?? null,
+      templateSha256: options.template.sha256,
     },
   };
   return {
@@ -201,7 +275,7 @@ export function buildStandaloneRunRoleScope(
     objective,
     inScope: [
       `one ${options.role.name} provider turn under the configured role authority`,
-      ...(templateRef === undefined ? [] : [`the content-bound input ${templateRef}`]),
+      `the content-bound input ${templateRef}`,
     ],
     outOfScope: [
       "additional provider roles or turns",
@@ -211,6 +285,7 @@ export function buildStandaloneRunRoleScope(
     acceptanceCriteria: [
       `the accepted plan contains exactly one ${options.role.name} provider step`,
       `the turn records one required ${outputKind} result`,
+      `the provider objective remains bound to ${templateRef}`,
     ],
     expectedArtifacts: [expectedOutput],
     declaredConstraints,
@@ -219,32 +294,44 @@ export function buildStandaloneRunRoleScope(
   };
 }
 
-async function ensureMatchingJournal(
+function assertMatchingJournal(
+  journal: TurnJournal,
   options: PrepareStandaloneRunRoleScopeOptions,
-): Promise<TurnJournal> {
-  const path = journalPath(options.stateHome, options.turnId);
-  const journal = existsSync(path)
-    ? await readJournal(options.stateHome, options.turnId)
-    : await writeJournalPatch(
-        options.stateHome,
-        options.turnId,
-        {
-          role: options.role.name,
-          app: options.app.name,
-          phase: "assembling",
-          attempt: 0,
-          triggerKind: "manual",
-          trigger: "manual",
-          pid: process.pid,
-        },
-        options.now?.() ?? new Date(),
-      );
+): void {
   if (journal.role !== options.role.name || journal.app !== options.app.name) {
     throw new Error(
       `run-role: turn ${options.turnId} already belongs to ${journal.app}/${journal.role}`,
     );
   }
-  return journal;
+}
+
+function manualJournalPatch(
+  options: PrepareStandaloneRunRoleScopeOptions,
+): Pick<TurnJournal, "role" | "app"> & Partial<TurnJournal> {
+  return {
+    role: options.role.name,
+    app: options.app.name,
+    phase: "assembling",
+    attempt: 0,
+    triggerKind: "manual",
+    trigger: "manual",
+    pid: process.pid,
+  };
+}
+
+function syntheticManualJournal(
+  options: PrepareStandaloneRunRoleScopeOptions,
+  now: Date,
+): TurnJournal {
+  const timestamp = now.toISOString();
+  return {
+    turnId: options.turnId,
+    ...manualJournalPatch(options),
+    phase: "assembling",
+    attempt: 0,
+    startedAt: timestamp,
+    updatedAt: timestamp,
+  };
 }
 
 function selectAssignment(
@@ -280,19 +367,33 @@ function selectAssignment(
   return matches[0]!;
 }
 
-async function readBoundedTemplate(path: string): Promise<{ text: string; sha256: string }> {
-  const text = await readFile(path, "utf8");
+async function readBoundedTemplate(path: string): Promise<StandaloneRunRoleTemplate> {
+  const resolvedPath = resolve(path);
+  let text: string;
+  try {
+    text = await readFile(resolvedPath, "utf8");
+  } catch (error) {
+    throw new Error(
+      `run-role: cannot read template ${resolvedPath}: ${errorMessage(error)}`,
+      { cause: error },
+    );
+  }
   const bytes = Buffer.byteLength(text);
   if (bytes === 0 || text.trim().length === 0) {
-    throw new Error(`run-role: template ${path} is empty`);
+    throw new Error(`run-role: template ${resolvedPath} is empty`);
   }
   if (bytes > MAX_RUN_ROLE_TEMPLATE_BYTES) {
     throw new Error(
-      `run-role: template ${path} is ${bytes} bytes; maximum is ${MAX_RUN_ROLE_TEMPLATE_BYTES}`,
+      `run-role: template ${resolvedPath} is ${bytes} bytes; maximum is ${MAX_RUN_ROLE_TEMPLATE_BYTES}`,
     );
   }
+  const nonEmptyLines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
   return {
+    path: resolvedPath,
     text,
+    bytes,
+    lines: text.split(/\r?\n/u).length,
+    summary: truncateSummary(nonEmptyLines[0] ?? "(no non-empty line)"),
     sha256: createHash("sha256").update(text).digest("hex"),
   };
 }
@@ -375,6 +476,33 @@ function assertRequestedNetworkMatchesPersisted(
         "conflicts with the persisted episode intent",
     );
   }
+}
+
+function assertRequestedTemplateMatchesPersisted(
+  requested: StandaloneRunRoleTemplate | undefined,
+  scope: CreatorEpisodeScope | undefined,
+): void {
+  if (requested === undefined) return;
+  const standalone = scope?.declaredConstraints["standaloneRunRole"];
+  const persisted = isRecord(standalone) ? standalone["templateSha256"] : undefined;
+  if (persisted !== requested.sha256) {
+    throw new Error(
+      `run-role: --template ${requested.path} sha256:${requested.sha256} ` +
+        `conflicts with persisted episode intent template ${String(persisted)}`,
+    );
+  }
+}
+
+function describeRoute(route: Exclude<TriggerRoute, { kind: "skip" }>): string {
+  return `${route.kind} ${route.pipeline}`;
+}
+
+function truncateSummary(value: string): string {
+  return value.length <= 160 ? value : `${value.slice(0, 157)}...`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function firstNonEmpty(values: readonly string[]): string | undefined {

@@ -207,34 +207,12 @@ describe("runRole", () => {
 });
 
 describe("run-role CLI", () => {
-  it("run-role planner --dry-run prints the brief, exit 0", async () => {
-    const { stdout } = await execFileAsync(
-      process.execPath,
-      ["--import", TSX_LOADER, CLI_PATH, "run-role", "planner", "--dry-run", "--org-home", REPO_ROOT],
-      { cwd: REPO_ROOT },
-    );
-    expect(stdout).toContain("[ticket]");
-    expect(stdout).toContain("Manual role turn: planner");
-    expect(stdout).toContain("Network access: denied by default");
-  });
-
-  it("--allow-network is reflected faithfully in the token-free brief", async () => {
-    const { stdout } = await execFileAsync(
-      process.execPath,
-      [
-        "--import", TSX_LOADER, CLI_PATH, "run-role", "planner", "--dry-run",
-        "--allow-network", "--org-home", REPO_ROOT,
-      ],
-      { cwd: REPO_ROOT },
-    );
-    expect(stdout).toContain("Network access: allowed by explicit --allow-network");
-  });
-
   it("a live blocked_on_gate outcome exits nonzero before constructing a provider", async () => {
     const root = mkdtempSync(join(tmpdir(), "runrole-blocked-cli-"));
     tempDirs.push(root);
     const orgHome = join(root, "org");
     const stateHome = join(root, "state-home");
+    const templatePath = join(root, "bounded-support.md");
     await initOrgHome({
       target: orgHome,
       name: "runrole-blocked",
@@ -256,6 +234,7 @@ describe("run-role CLI", () => {
       "    cadence: {}",
       "",
     ].join("\n"), "utf8");
+    writeFileSync(templatePath, "# Bounded support retry\n\nReconcile only the existing approval stall.\n", "utf8");
     const store = new ApprovalStore(stateHome, { idSource: () => "cli-stall" });
     const action = { tool: "bash", input: { command: "cat .env" } };
     await store.raise({ app: "alpha", role: "support", rule: "secrets-or-auth", action });
@@ -277,6 +256,7 @@ describe("run-role CLI", () => {
       [
         "--import", TSX_LOADER, CLI_PATH, "run-role", "support",
         "--app", "alpha", "--turn", "cli-blocked",
+        "--template", templatePath,
         "--org-home", orgHome, "--state-home", stateHome,
       ],
       { cwd: REPO_ROOT },
@@ -288,7 +268,11 @@ describe("run-role CLI", () => {
 
   it("unknown role exits non-zero with a clear message", async () => {
     await expect(
-      execFileAsync(process.execPath, ["--import", TSX_LOADER, CLI_PATH, "run-role", "stranger", "--dry-run", "--org-home", REPO_ROOT], {
+      execFileAsync(process.execPath, [
+        "--import", TSX_LOADER, CLI_PATH, "run-role", "stranger",
+        "--app", "operon", "--turn", "unknown-role", "--template", "/not-read.md",
+        "--dry-run", "--org-home", REPO_ROOT,
+      ], {
         cwd: REPO_ROOT,
       }),
     ).rejects.toMatchObject({

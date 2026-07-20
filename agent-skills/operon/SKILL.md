@@ -148,7 +148,7 @@ operon plan <app> --dry-run
 operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready --dry-run
 operon loop --app <app> --once --dry-run
 operon dispatch --dry-run
-operon run-role <role> --app <app> --dry-run
+operon run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run
 operon scheduler install --json
 operon scheduler status --json
 operon scheduler uninstall --json
@@ -197,12 +197,23 @@ start` begins a live trial that shapes subsequent turns. Critical operations
 stop in the durable approval queue; inspect it with `operon approvals` and
 never bypass that boundary.
 
-For a live standalone `run-role`, fixed assignment mode must omit
-`--assignment`; Operon resolves the role's configured atomic tuple. Adaptive
-mode requires exactly `--assignment <approved-candidate-id>@<effort>` and
-rejects omission, unknown candidates, unsupported efforts, or a selector in
-fixed mode. Use `operon roles` and `operon apps` to inspect the effective
-catalog and app narrowing before selecting it.
+For a fresh standalone `run-role`, preview and live modes both require
+`--app`, `--turn`, and a non-empty bounded `--template`. `--turn` is only an
+invocation/trace identity; it is not a GitHub ticket number and does not bind a
+ticket. The preview validates and displays the template hash/summary,
+provenance, objective, creator scope, and assignment without constructing a
+provider or writing state. It does not prove provider readiness or mutable
+live state. `--workdir` is unsupported because live execution always uses the
+org-managed app clone.
+
+In fixed assignment mode both forms must omit `--assignment`; Operon resolves
+the role's configured atomic tuple. In adaptive mode both forms require exactly
+`--assignment <approved-candidate-id>@<effort>` and reject omission, unknown
+candidates, unsupported efforts, or a selector in fixed mode. Use `operon
+roles` and `operon apps` to inspect the effective catalog and app narrowing
+before selecting it. A durable resume may reuse its persisted creator scope
+without a mutable template; scheduled/event routes keep their governed
+pipeline scope and reject standalone overrides.
 
 `operon learn` read subcommands (`report`, `inspect`, `show`) are fine for
 diagnosis. `report` is read-only by default; use `report --refresh` only when

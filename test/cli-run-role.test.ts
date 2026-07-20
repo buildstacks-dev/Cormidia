@@ -32,16 +32,21 @@ describe("run-role flag parsing", () => {
     );
   });
 
-  it("does not pretend a dry-run selected an adaptive assignment", async () => {
+  it.each([
+    { mode: "dry-run", extra: ["--dry-run"] },
+    { mode: "live", extra: [] },
+  ])("rejects --workdir consistently in $mode mode before org resolution", async ({ extra }) => {
     await expect(cmdRunRole([
       "builder",
-      "--dry-run",
-      "--assignment",
-      "candidate@high",
-      "--org-home",
-      "/__operon_cli_run_role_test_missing_org__",
+      "--app", "alpha",
+      "--turn", "workdir-contract",
+      "--template", "/not-read.md",
+      "--workdir", "/tmp/not-used",
+      ...extra,
+      "--org-home", "/__operon_cli_run_role_test_missing_org__",
     ])).rejects.toThrow(
-      "run-role: --assignment is only valid for a live adaptive episode",
+      "run-role: --workdir is not supported; preview reads a discovered registered checkout " +
+        "and live execution uses the org-managed app clone",
     );
   });
 });

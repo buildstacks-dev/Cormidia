@@ -177,6 +177,18 @@ describe("cli dispatch", () => {
     expect(parsed.commands).toContainEqual(expect.objectContaining({ command: "scheduler", writes: true, spendsTokens: false }));
   });
 
+  it("run-role help exposes the bounded parity and managed-workdir contract", async () => {
+    const help = await runCli(["run-role", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.stdout).toContain(
+      "--app <app-name> --turn <invocation-id> --template <path>",
+    );
+    expect(help.stdout).toContain("it is not a GitHub ticket number and does not bind a ticket");
+    expect(help.stdout).toContain("--workdir is not supported");
+    expect(help.stdout).toContain("zero provider/runtime turns and zero state writes");
+    expect(help.stdout).not.toContain("[--workdir <path>]");
+  });
+
   it("pipelines subcommand validates the root pipelines.yaml", async () => {
     const { stdout, code } = await runCli(["pipelines"]);
     expect(code).toBe(0);

@@ -49,7 +49,8 @@ describe("runRetro", () => {
   it("CLI prints the written path", async () => {
     const home = makeOrgHome();
     const orgHome = join(home.root, "org");
-    await initOrgHome({ target: orgHome, name: "retro-test", stateHome: home.root, homeDir: home.root });
+    const stateHome = join(home.root, "state");
+    await initOrgHome({ target: orgHome, name: "retro-test", stateHome, homeDir: home.root });
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
       const code = await cmdRetro([
@@ -58,7 +59,7 @@ describe("runRetro", () => {
         "--org-home",
         orgHome,
         "--state-home",
-        home.root,
+        stateHome,
       ]);
       expect(code).toBe(0);
       expect(log.mock.calls[0]?.[0]).toBe(join(orgHome, "retro", "2026-07-04.md"));

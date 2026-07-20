@@ -43,7 +43,7 @@ export async function cmdContext(args: string[]): Promise<number> {
 }
 
 const CAPABILITIES = [
-  { command: "org init", writes: true, spendsTokens: false, summary: "create and select an org home with a versioned authority charter" },
+  { command: "org init", writes: true, spendsTokens: false, summary: "preview with --dry-run or safely create/populate and select an org home" },
   { command: "org show", writes: false, spendsTokens: false, summary: "show resolved package, org, and state homes" },
   { command: "org use", writes: true, spendsTokens: false, summary: "select an existing complete org home" },
   { command: "org upgrade", writes: true, spendsTokens: false, summary: "preview/apply an additive archived org migration with post-upgrade doctor" },

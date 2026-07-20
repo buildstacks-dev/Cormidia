@@ -95,13 +95,22 @@ Create the org before onboarding an app; this can be run from any directory:
 
 ```bash
 operon --version
+operon org init ~/Build/my-org --name my-org --dry-run
 operon org init ~/Build/my-org --name my-org
 operon doctor
 operon context
 ```
 
-`org init` creates a complete org home from packaged templates, including a
-versioned `AUTHORITY.md`, creates the
+`org init --dry-run` is a token-free, zero-write preflight: it resolves the org,
+state, and pointer paths; lists every generated destination; and shows the
+authority summary plus complete packaged role chart. Without `--dry-run`, init
+keeps its execute-by-default compatibility. It creates an absent directory or
+safely populates an existing real directory while preserving unrelated entries;
+an existing org, generated-path collision, or symlink blocks before target
+mutation and nothing is overwritten.
+
+Successful init creates a complete org home from packaged templates, including
+a versioned `AUTHORITY.md`, creates the
 default state home at `~/.operon/<org>`, and records the active org pointer at
 `~/.operon/config`. Use `operon org use <path>` to switch to another complete
 org. `OPERON_ORG_HOME` and `OPERON_STATE_HOME` are explicit per-process

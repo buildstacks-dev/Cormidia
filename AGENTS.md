@@ -276,7 +276,7 @@ cluster stops forming — the coverage gap that let this ship green (#142).
   state/app trees; exercises source link, skill link, org init, scan + full
   bootstrap, agent introspection, doctor, greenfield dry-run, and compiled CLI
   from a neutral cwd.
-- CLI after local install: `operon org init <path> --name <name>` · `operon
+- CLI after local install: `operon org init <path> --name <name> [--dry-run] [--json]` · `operon
   context` · `operon capabilities` · `operon doctor`; every command resolves
   the active org independently of cwd.
 - CLI in source-development mode: `pnpm dev roles` · `pnpm dev apps` · `pnpm dev pipelines` ·

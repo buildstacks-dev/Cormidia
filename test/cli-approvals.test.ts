@@ -10,15 +10,16 @@ describe("approvals execution CLI", () => {
   it("shows attempt/actor/result/next action and requires an exact confirmed retry disposition", async () => {
     const home = makeOrgHome({ approvals: true });
     const orgHome = join(home.root, "org");
+    const stateHome = join(home.root, "state");
     await initOrgHome({
       target: orgHome,
       name: "approval-cli",
-      stateHome: home.root,
+      stateHome,
       homeDir: join(home.root, "operator-home"),
     });
-    const homeArgs = ["--org-home", orgHome, "--state-home", home.root];
+    const homeArgs = ["--org-home", orgHome, "--state-home", stateHome];
     const now = new Date("2026-07-18T12:00:00Z");
-    const store = new ApprovalStore(home.root, { idSource: () => "delivery-cli-1" });
+    const store = new ApprovalStore(stateHome, { idSource: () => "delivery-cli-1" });
     const action = githubIssueCreateAction({
       repo: "fixture/service",
       title: "Incident",

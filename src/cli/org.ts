@@ -4,13 +4,15 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import {
-  initOrgHome,
+  executeOrgInit,
   ORG_HOME_DEFINITION,
+  planOrgInit,
   readActiveOrgPointer,
   resolveOperonHomes,
   STATE_HOME_DEFINITION,
   validateOrgHome,
   writeActiveOrgPointer,
+  type InitOrgHomePlanPreview,
   type InitOrgHomeResult,
 } from "../org/home.js";
 import { loadApps } from "../org/apps.js";
@@ -120,6 +122,7 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
   let authorityProfile: AuthorityProfile = "delegated-operator";
   let authorityFile: string | undefined;
   let authorityBy: string | undefined;
+  let dryRun = false;
   let json = false;
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]!;
@@ -133,6 +136,7 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
       else throw new Error("org init: --authority must be delegated-operator | conservative | custom");
     } else if (arg === "--authority-file") authorityFile = needValue(args, ++i, "--authority-file");
     else if (arg === "--authority-by") authorityBy = needValue(args, ++i, "--authority-by");
+    else if (arg === "--dry-run") dryRun = true;
     else if (arg === "--json") json = true;
     else throw new Error(`org init: unknown argument "${arg}"`);
   }
@@ -146,7 +150,7 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
   const authorityCustomText =
     authorityFile !== undefined ? await readFile(resolve(authorityFile), "utf8") : undefined;
 
-  const result = await initOrgHome({
+  const plan = await planOrgInit({
     target,
     name,
     ...(stateHome !== undefined ? { stateHome } : {}),
@@ -157,11 +161,71 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
     ...(authorityCustomText !== undefined ? { authorityCustomText } : {}),
     ...(authorityBy !== undefined ? { authorityGrantedBy: authorityBy } : {}),
   });
+  if (dryRun) {
+    if (json) console.log(stableJson(plan.preview).trimEnd());
+    else printInitPlan(plan.preview);
+    return plan.preview.executable ? 0 : 2;
+  }
+
+  const result = await executeOrgInit(plan);
   printHomes(result, json, "created and selected");
   if (!json) {
     console.log("Next: run `operon doctor`, then onboard an app with `operon bootstrap <local-repo-path>`.");
   }
   return 0;
+}
+
+function printInitPlan(plan: InitOrgHomePlanPreview): void {
+  console.log(`Org init preview: ${plan.status}`);
+  console.log(`Org home:   ${plan.org_home} — ${ORG_HOME_DEFINITION}.`);
+  console.log(`State home: ${plan.state_home} — ${STATE_HOME_DEFINITION}.`);
+  console.log(`Pointer:    ${plan.pointer_path}`);
+  console.log("Effects:");
+  console.log(`  - ${plan.effects.org_home.action} org home: ${plan.effects.org_home.path}`);
+  console.log(`  - ${plan.effects.state_home.action} state home: ${plan.effects.state_home.path}`);
+  console.log(`  - ${plan.effects.active_pointer.action} active pointer: ${plan.effects.active_pointer.path}`);
+  console.log("Generated destinations:");
+  for (const destination of plan.effects.generated_destinations) {
+    const suffix = destination.kind === "directory" ? "/" : "";
+    console.log(
+      `  - ${destination.disposition.padEnd(7)} ${destination.kind.padEnd(9)} ${destination.path}${suffix}`,
+    );
+  }
+  console.log(`Authority: ${plan.authority.version}`);
+  console.log("Automatic:");
+  for (const action of plan.authority.automatic) console.log(`  - ${action}`);
+  console.log("Human-gated:");
+  for (const action of plan.authority.human_gated) console.log(`  - ${action}`);
+  console.log("Default role chart:");
+  const roleWidth = Math.max(12, ...plan.roles.map((role) => role.name.length + 2));
+  const pad = (value: string, width: number) => value.padEnd(width);
+  console.log(
+    pad("ROLE", roleWidth) + pad("RUNTIME", 9) + pad("MODEL", 22) + pad("EFFORT", 8) + "TRIGGERS",
+  );
+  for (const role of plan.roles) {
+    console.log(
+      pad(role.name, roleWidth) +
+        pad(role.runtime, 9) +
+        pad(role.model, 22) +
+        pad(role.effort, 8) +
+        renderTriggers(role.triggers),
+    );
+  }
+  for (const blocker of plan.blockers) {
+    console.log(`Blocked: ${blocker.code} — ${blocker.detail}`);
+    console.log(`  ${blocker.remediation}`);
+  }
+  console.log("No changes made. Remove --dry-run to create and select this org.");
+}
+
+function renderTriggers(triggers: InitOrgHomePlanPreview["roles"][number]["triggers"]): string {
+  return triggers
+    .map((trigger) => {
+      if (trigger.schedule !== undefined) return `schedule:${trigger.schedule}`;
+      if (trigger.event !== undefined) return `event:${trigger.event}`;
+      return "manual";
+    })
+    .join(", ") || "-";
 }
 
 async function show(args: string[], options: OrgCommandOptions): Promise<number> {

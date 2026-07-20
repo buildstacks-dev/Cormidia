@@ -52,6 +52,27 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
   }
 }
 
+async function runCliFrom(
+  args: string[],
+  cwd: string,
+  homeDir: string,
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  const env: NodeJS.ProcessEnv = { ...process.env, HOME: homeDir };
+  delete env.OPERON_ORG_HOME;
+  delete env.OPERON_STATE_HOME;
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      process.execPath,
+      ["--import", TSX_LOADER, CLI_PATH, ...args],
+      { cwd, env },
+    );
+    return { stdout, stderr, code: 0 };
+  } catch (e) {
+    const err = e as { stdout?: string; stderr?: string; code?: number };
+    return { stdout: err.stdout ?? "", stderr: err.stderr ?? "", code: err.code ?? 1 };
+  }
+}
+
 describe("cli dispatch", () => {
   it("unknown command prints an error to stderr and exits 1", async () => {
     const { stdout, stderr, code } = await runCli(["bogus-command"]);
@@ -92,6 +113,29 @@ describe("cli dispatch", () => {
     expect(stdout).toContain("operon app reset <app-name>");
     expect(stdout).toContain("--execute --confirm <app-name>");
     expect(stdout).toContain("--force");
+  });
+
+  it("org init supports the current-directory idiom", async () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-cli-dot-init-"));
+    const current = join(root, "current");
+    const home = join(root, "home");
+    try {
+      await import("node:fs/promises").then(({ mkdir }) =>
+        Promise.all([mkdir(current), mkdir(home)]),
+      );
+      const { stdout, stderr, code } = await runCliFrom(
+        ["org", "init", ".", "--name", "dot-org"],
+        current,
+        home,
+      );
+      expect(code, stderr).toBe(0);
+      expect(stdout).toContain("Org created and selected: dot-org");
+      expect(existsSync(join(current, "roles.yaml"))).toBe(true);
+      expect(existsSync(join(home, ".operon", "dot-org"))).toBe(true);
+      expect(existsSync(join(home, ".operon", "config"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("observe is discoverable as read-only and token-free", async () => {

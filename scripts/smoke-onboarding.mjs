@@ -62,6 +62,19 @@ try {
   assert(existsSync(join(piHome, "skills", "operon", "SKILL.md")), "pi skill link was not created");
 
   run(operon, ["--version"], neutral);
+  const initPreview = JSON.parse(run(
+    operon,
+    ["org", "init", orgHome, "--name", "fixture-org", "--state-home", stateHome, "--dry-run", "--json"],
+    neutral,
+  ));
+  assert(initPreview.status === "ready" && initPreview.executable === true, "org init dry-run was not executable");
+  assert(initPreview.effects?.state_home?.action === "create", "org init dry-run omitted the state-home effect");
+  assert(initPreview.effects?.active_pointer?.action === "create", "org init dry-run omitted the pointer effect");
+  assert(initPreview.roles?.some((role) => role.name === "planner" && role.runtime && role.model && role.effort), "org init dry-run omitted the default role chart");
+  assert(initPreview.effects?.generated_destinations?.some((entry) => entry.relative_path === "prompts/build/contract.md"), "org init dry-run omitted nested generated files");
+  assert(!existsSync(orgHome), "org init dry-run created the org home");
+  assert(!existsSync(stateHome), "org init dry-run created the state home");
+  assert(!existsSync(join(home, ".operon", "config")), "org init dry-run wrote the active pointer");
   const initialized = run(
     operon,
     ["org", "init", orgHome, "--name", "fixture-org", "--state-home", stateHome],

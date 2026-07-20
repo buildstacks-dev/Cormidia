@@ -241,9 +241,18 @@ skills/                  promoted skills (Agent Skills standard)
 retro/<date>.md          weekly retro notes (§6)
 ```
 
-`operon org init <path> --name <name>` atomically creates and validates this
-complete tree, creates the state home, and writes `~/.operon/config` with the
-active `org_home`. Onboarding selects `delegated-operator` (default),
+`operon org init <path> --name <name> --dry-run [--json]` builds the same
+read-only init manifest execution consumes: resolved org/state/pointer effects,
+every generated file and directory, authority summary, packaged role chart,
+and any nested collision blocker. It writes no target, state, pointer, or stage.
+Execution remains the compatibility default. An absent target is atomically
+staged, validated, and renamed; an existing real directory is populated with
+exclusive file creation and exact-entry rollback while unrelated bytes and
+reusable directories remain untouched. A complete org directs the operator to
+`operon org use <path>`. Generated-file, nested-path, non-directory,
+overlapping, or symlink collisions fail before target mutation. Successful
+execution creates the state home and writes `~/.operon/config` with the active
+`org_home`. Onboarding selects `delegated-operator` (default),
 `conservative`, or an attributable custom authority file and previews both
 automatic and human-gated actions. A pre-feature org with no `AUTHORITY.md`
 fails closed to the built-in legacy-conservative profile; it never silently

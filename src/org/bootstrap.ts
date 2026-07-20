@@ -20,7 +20,14 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
 import type { AuthorityContext, Trigger } from "../runtime/types.js";
-import { joinExistingOrg, loadApps, removeExistingApp, type AppRegistration } from "./apps.js";
+import {
+  appExecutionYaml,
+  joinExistingOrg,
+  loadApps,
+  normalizeAppExecution,
+  removeExistingApp,
+  type AppRegistration,
+} from "./apps.js";
 import { loadRoles } from "./roles.js";
 import {
   applyAppAuthority,
@@ -946,6 +953,7 @@ function configYaml(
     status: "onboarding",
     budget_usd_month: answers.budgetUsdMonth,
     cadence,
+    execution: appExecutionYaml(undefined),
     critical_ops: {
       deploy_commands: answers.criticalOps.deployCommands,
       publish_targets: answers.criticalOps.publishTargets,
@@ -969,6 +977,9 @@ function configYaml(
 # critical_ops: app-specific extensions to the org gate's rule set
 #   (§9 step 2: deploy commands, publish targets, secret locations).
 # channels: what Support/Marketing watch and draft for, when enabled.
+# execution.assignment_mode: fixed (configured tuple) or adaptive (one of the
+#   org-approved candidate IDs, optionally narrowed per role). Assignment mode
+#   changes assignment selection only; it never disables episode planning.
 # release: the app's declared release mechanism (A4) — omitted until the
 #   app has one. A milestone whose plan requires deploy/package fails the
 #   ship gate unless this declares it, e.g.:
@@ -1207,6 +1218,7 @@ function registrationFromAnswers(
     status: "onboarding",
     budgetUsdMonth: answers.budgetUsdMonth,
     cadence: cadenceForAnswers(answers, allRoles),
+    execution: normalizeAppExecution(undefined),
     ...(Object.keys(channels).length > 0 ? { channels } : {}),
   };
 }
@@ -1239,6 +1251,7 @@ export async function registerAppWithExistingOrg(
     repo,
     status: "onboarding",
     cadence: {},
+    execution: normalizeAppExecution(undefined),
   });
   return { scan, appName, joinedOrgHome: joined.orgHome };
 }

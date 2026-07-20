@@ -31,6 +31,35 @@ If you have already run `pnpm test`, use the **atomic** contract commands
 reach a 0.6s assertion. The composites exist so a single command is
 self-contained when you have *not* run the suite.
 
+### EpisodePlanner coverage
+
+The EpisodePlanner change is tested at behavior boundaries rather than by
+snapshotting one model response:
+
+| Contract | Focused files |
+| --- | --- |
+| Fixed default, adaptive candidate narrowing, atomic tuple validation | `test/apps.test.ts`, `test/roles.test.ts`, `test/execution-assignments.test.ts` |
+| Creator-scope completeness/provenance and non-inferred bypass | `test/episode-planner.test.ts`, `test/episode-orchestrator.test.ts` |
+| Plan schema, DAG, budgets, safety route, immutable versions/revisions | `test/loop/episode-plan.test.ts`, `test/loop/episode-replan.test.ts`, `test/loop/episode-plan-executor.test.ts` |
+| Fixed planner boot admission, bounded repair, exactly-once settlement | `test/efficiency/planner-admission.test.ts`, `test/episode-planner-runtime.test.ts` |
+| Exact plan-derived assignment through adapter request, envelope, journal and ledger | `test/episode-plan-execution.test.ts`, `test/loop/pipeline.test.ts`, adapter tests |
+| Scenario presence and important absence (docs, bugs, prototype, product, deploy, migration/auth, incident) | `test/episode-planner-scenarios.test.ts` |
+
+Run the narrowest relevant files while editing, then follow `AGENTS.md` for
+the changed paths. Source/config changes require at least `pnpm test`, `pnpm
+typecheck`, and `pnpm build`; app/planning/loop paths may also trigger the
+repository's sandbox commands. These tests use fake runtimes and temporary
+state homes. They do not authorize `pnpm test:live`, GitHub sandbox mutation,
+learning activation, or a soak campaign.
+
+The required matrix is explicit: unscoped fixed and adaptive episodes invoke
+EpisodePlanner; complete creator-scoped fixed and adaptive episodes normalize
+without that provider turn; incomplete or merely inferred scope invokes the
+planner. A token-free preview test must assert that it exposes intent,
+candidates, safety facts, and the expected planning path while leaving the
+exact provider-authored plan `null`. An explain test reads only a persisted
+plan and journal; it does not reconstruct workflow from route/tier history.
+
 ## When CI runs at all
 
 Pushing a branch does **not** run CI. Only these do:

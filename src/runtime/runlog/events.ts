@@ -31,6 +31,11 @@ export type RunlogEventType =
   | "subagent.completed"
   | "ticket.transition"
   | "verdict.recorded"
+  /** Orchestrator-owned commit marker written only after the domain verdict
+   * recorder returns successfully. Unlike `verdict.recorded` (whose detail is
+   * domain-owned), this is the restart-safe proof that governed post-provider
+   * persistence finished. */
+  | "verdict.persistence_completed"
   | "escalation.raised"
   /** A provider settle found its (app, providerTurnId), or legacy
    *  (app, runId), already present and was skipped. */

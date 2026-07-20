@@ -8,19 +8,65 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  readExecutionSteps,
+} from "../loop/efficiency.js";
+import type {
+  ApprovalStep,
+  CreatorEpisodeScope,
+  EpisodePlan,
+  EpisodeStep,
+  MechanicalGateStep,
+  PlannedOutput,
+  ProposedEpisodeStep,
+  ProviderTurnStep,
+  SafetyFact,
+} from "../loop/episode-plan.js";
+import { stableHash } from "../loop/episode-plan.js";
+import type {
+  ApprovalStepOutcome,
+  EpisodePlanExecutionResult,
+  EpisodeStepFailedOutcome,
+} from "../loop/episode-plan-executor.js";
 import type { LoopItem } from "../loop/types.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
-import { runRole } from "../loop/runRole.js";
 import { actionEffectFields, classifyWithEvidence, defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
+import { readEnvelope } from "../runtime/runlog/envelope.js";
+import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
+import { runPaths } from "../runtime/runlog/paths.js";
 import { recordInvocation } from "../runtime/telemetry.js";
-import type { GateFn, RoleConfig, Runtime, ToolAction } from "../runtime/types.js";
+import type {
+  ContextBundle,
+  GateFn,
+  RoleConfig,
+  Runtime,
+  ToolAction,
+  TurnAssignment,
+} from "../runtime/types.js";
 import { ApprovalStore, actionHash, type ApprovalItem } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { writeFileAtomic } from "./atomic.js";
+import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext } from "./context.js";
+import {
+  assignmentsForRole,
+  resolveAppAssignments,
+} from "./execution-assignments.js";
 import { composeGate, grantScopeText } from "./gate-compose.js";
+import {
+  orchestrateEpisode,
+  type EpisodeOrchestrationFacts,
+} from "./episode-planner/orchestrator.js";
 import { loadRoles } from "./roles.js";
+
+const RELEASE_EPISODE_POLICY_VERSION = "approved-release/episode-plan-v1";
+const RELEASE_OPERATION = "release/sre-approved-command";
+const RELEASE_APPROVAL_STEP = "approve-release";
+const RELEASE_PREFLIGHT_STEP = "release-preflight";
+const RELEASE_EXECUTION_STEP = "execute-release";
+const RELEASE_CONFIRM_STEP = "confirm-release-command";
+const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
 
 export interface QueuedRelease {
   approvalId: string;
@@ -108,7 +154,13 @@ export interface ExecuteApprovedReleasesOptions {
   now?: () => Date;
   commandRunner?: (command: string, cwd: string, env: NodeJS.ProcessEnv) => Promise<ReleaseCommandResult>;
   ghFor?: (app: AppEntry) => GhOps;
+  /** Exact assignment-aware factory. The legacy role-only seam remains for
+   * existing callers, but it receives a role view carrying the persisted
+   * assignment and may not return a different harness. */
+  runtimeForAssignment?: (assignment: TurnAssignment, role: RoleConfig) => Runtime;
   runtimeFor?: (role: RoleConfig) => Runtime;
+  assignmentReadinessProbe?: RuntimeReadinessProbe;
+  assignmentReadinessTimeoutMs?: number;
 }
 
 export interface ReleaseExecutionOutcome {
@@ -116,6 +168,11 @@ export interface ReleaseExecutionOutcome {
   app: string;
   status: "completed" | "failed" | "skipped";
   summary: string;
+}
+
+/** Stable durable EpisodePlan identity for one single-use approved release. */
+export function approvedReleaseEpisodeId(app: string, approvalId: string): string {
+  return `approved-release:${app}:${approvalId}`;
 }
 
 /** Execute every approved, unconsumed production release exactly once. This
@@ -247,9 +304,7 @@ export async function executeApprovedReleases(
     await writeExecution(options.stateHome, record);
 
     try {
-      const result = owner === "orchestrator"
-        ? await executeOrchestratorRelease(options, store, item, app, command)
-        : await executeSreRelease(options, store, item, app, command);
+      const result = await executeReleaseEpisode(options, store, item, app, command);
       record = {
         ...record,
         status: result.exitCode === 0 ? "completed" : "failed",
@@ -262,7 +317,7 @@ export async function executeApprovedReleases(
         ...record,
         status: "failed",
         finishedAt: clock().toISOString(),
-        summary: error instanceof Error ? error.message : String(error),
+        summary: releaseErrorSummary(error),
       };
     }
     await writeExecution(options.stateHome, record);
@@ -298,34 +353,21 @@ export async function executeApprovedReleases(
   return outcomes;
 }
 
-async function executeOrchestratorRelease(
-  options: ExecuteApprovedReleasesOptions,
-  store: ApprovalStore,
-  item: ApprovalItem,
-  app: AppEntry,
-  command: string,
-): Promise<ReleaseCommandResult> {
-  const grant = store.findMatchingGrantSync({
-    app: item.app,
-    role: item.role,
-    actionHash: actionHash(item.action),
-    rule: item.rule,
-    // A-005/P0-04b: the `pathContains` bound must see NORMALIZED target paths
-    // (via grantScopeText), never `JSON.stringify(input)` — the release command
-    // is agent-influenceable (`.operon/config.yaml` `release:` block), so a raw
-    // actionText would let a `# comment` naming the scoped path widen a scoped
-    // grant, the exact A-005 mechanism on the release path.
-    actionText: grantScopeText(item.action),
-    ...(item.ticketRef !== undefined ? { ticketRef: item.ticketRef } : {}),
-    now: options.now?.() ?? new Date(),
-  });
-  if (grant === undefined) throw new Error(`release ${item.id}: approved grant does not match the command`);
-  store.consumeGrantSync(grant.grantId, options.now?.() ?? new Date());
-  const cwd = managedClone(options.stateHome, app);
-  return (options.commandRunner ?? runReleaseCommand)(command, cwd, { ...process.env, CI: "1" });
+interface ReleaseEpisodeDefinition {
+  episodeId: string;
+  scope: CreatorEpisodeScope;
+  safetyFacts: SafetyFact[];
+  expectedSteps: EpisodeStep[];
+  providerBudgetUsd: number;
 }
 
-async function executeSreRelease(
+/**
+ * Execute an approved release through the same durable plan boundary as every
+ * other episode. The ApprovalStore remains the authority: the plan approval
+ * step observes the already-approved single-use grant but does not consume it;
+ * only the exact command gate/mechanical command consumes that grant.
+ */
+async function executeReleaseEpisode(
   options: ExecuteApprovedReleasesOptions,
   store: ApprovalStore,
   item: ApprovalItem,
@@ -333,80 +375,608 @@ async function executeSreRelease(
   command: string,
 ): Promise<ReleaseCommandResult> {
   const roles = await loadRoles(join(options.orgHome, "roles.yaml"));
-  const role = roles.roles.find((entry) => entry.name === "sre");
-  if (role === undefined) throw new Error("release: owner sre requires an sre role in roles.yaml");
   const cwd = managedClone(options.stateHome, app);
-  const context = (
-    await assembleContext({
-      orgHome: options.orgHome,
-      appWorkdir: cwd,
-      app: app.name,
-      role,
-      taskText: `execute approved release ${item.id} for ${item.ticketRef ?? "unknown ticket"}`,
-    })
-  ).bundle;
+  const plannerRole = requireReleaseRole(roles.roles, "planner");
+  const sreRole = item.role === "sre" ? requireReleaseRole(roles.roles, "sre") : undefined;
+  const definition = await buildReleaseEpisodeDefinition(
+    options,
+    item,
+    app,
+    roles.roles,
+    command,
+    sreRole,
+  );
+  const runtimeForAssignment = releaseRuntimeFactory(options);
+  const context = sreRole === undefined
+    ? EMPTY_CONTEXT
+    : (
+        await assembleContext({
+          orgHome: options.orgHome,
+          appWorkdir: cwd,
+          app: app.name,
+          role: sreRole,
+          taskText: `execute approved release ${item.id} for ${item.ticketRef ?? "unknown ticket"}`,
+        })
+      ).bundle;
   let attempted = false;
+  let commandResult: ReleaseCommandResult | undefined;
+  const gate = sreRole === undefined
+    ? defaultGate
+    : sreReleaseGate(options, store, item, command, () => attempted, () => {
+        attempted = true;
+      });
+  const facts: EpisodeOrchestrationFacts = releaseEpisodeFacts(
+    definition,
+    item,
+    app,
+    command,
+  );
+  const orchestrated = await orchestrateEpisode({
+    root: options.stateHome,
+    app,
+    roles: roles.roles,
+    facts,
+    mode: "execute",
+    ...(options.assignmentReadinessProbe === undefined
+      ? {}
+      : { assignmentReadinessProbe: options.assignmentReadinessProbe }),
+    ...(options.assignmentReadinessTimeoutMs === undefined
+      ? {}
+      : { assignmentReadinessTimeoutMs: options.assignmentReadinessTimeoutMs }),
+    planner: {
+      // This creator scope is deliberately execution-ready. Any provider call
+      // here would be recursive/redundant planning and is a closed failure.
+      promptText: "",
+      context: EMPTY_CONTEXT,
+      workdir: cwd,
+      hooks: { gate: defaultGate },
+      runtimeForAssignment,
+      policyVersion: RELEASE_EPISODE_POLICY_VERSION,
+      limits: unusedReleasePlannerLimits(plannerRole.maxTurnBudgetUsd),
+      validateAcceptedPlan: (plan) => assertReleaseEpisodePlan(plan, definition),
+      ...(options.now === undefined ? {} : { now: options.now }),
+    },
+    execution: {
+      workdir: cwd,
+      hooks: { gate },
+      runtimeForAssignment,
+      contextForProviderStep: () => context,
+      mechanical: async (step) => {
+        if (step.id === RELEASE_PREFLIGHT_STEP && step.gate === "release") {
+          const problem = await releaseApprovalProblem(options, store, item);
+          return problem === undefined
+            ? {
+                status: "completed",
+                artifact: { approvalId: item.id, actionHash: actionHash(item.action) },
+              }
+            : releaseStepFailure("error_release_preflight", problem);
+        }
+        if (
+          item.role === "orchestrator" &&
+          step.id === RELEASE_EXECUTION_STEP &&
+          step.gate === "release-command"
+        ) {
+          commandResult = await runApprovedOrchestratorCommand(
+            options,
+            store,
+            item,
+            app,
+            command,
+          );
+          return commandResult.exitCode === 0
+            ? { status: "completed", artifact: releaseCommandArtifact(commandResult) }
+            : releaseStepFailure(
+                "error_release_command_failed",
+                releaseSummary(commandResult),
+                releaseCommandArtifact(commandResult),
+              );
+        }
+        if (
+          item.role === "sre" &&
+          step.id === RELEASE_CONFIRM_STEP &&
+          step.gate === "release-command-attempted"
+        ) {
+          return attempted
+            ? {
+                status: "completed",
+                artifact: { approvalId: item.id, exactCommandAttempted: true },
+              }
+            : releaseStepFailure(
+                "error_release_command_not_attempted",
+                "SRE release turn completed without attempting the approved command",
+              );
+        }
+        return releaseStepFailure(
+          "error_release_plan_operation_unknown",
+          `release plan contains unknown mechanical operation ${step.id}/${step.gate}`,
+        );
+      },
+      approval: (step) => executeReleaseApprovalStep(options, store, item, step),
+      telemetry: { orgDir: options.stateHome, trigger: "manual" },
+      ...(options.now === undefined ? {} : { now: options.now }),
+    },
+  });
+  if (orchestrated.prepared.planningTurnSkipped !== true || orchestrated.prepared.plannerAttempts !== 0) {
+    throw new Error("approved release unexpectedly invoked EpisodePlanner");
+  }
+  assertReleaseEpisodePlan(orchestrated.prepared.plan, definition);
+
+  if (item.role === "orchestrator") {
+    return commandResult ?? releaseFailureResult(orchestrated.execution);
+  }
+  if (!attempted) {
+    throw new Error("SRE release turn completed without attempting the approved command");
+  }
+  return releaseProviderResult(
+    options.stateHome,
+    app.name,
+    orchestrated.prepared.plan,
+    orchestrated.execution,
+  );
+}
+
+async function buildReleaseEpisodeDefinition(
+  options: ExecuteApprovedReleasesOptions,
+  item: ApprovalItem,
+  app: AppEntry,
+  roles: readonly RoleConfig[],
+  command: string,
+  sreRole: RoleConfig | undefined,
+): Promise<ReleaseEpisodeDefinition> {
+  const resolved = resolveAppAssignments(app, roles);
+  let providerAssignment: TurnAssignment | undefined;
+  let providerBudgetUsd = 0;
+  if (sreRole !== undefined) {
+    const budget = (await rollupBudgets(
+      options.stateHome,
+      options.appsFile,
+      options.now?.() ?? new Date(),
+    )).find((entry) => entry.app === app.name);
+    if (budget === undefined) throw new Error(`release: no budget policy for ${app.name}`);
+    if (isBudgetBlocking(budget.status)) {
+      throw new Error(
+        budget.status === "unknown"
+          ? `release: ${app.name} budget is unverifiable; reconcile before an SRE provider turn`
+          : `release: ${app.name} has exhausted its provider budget`,
+      );
+    }
+    const remaining = Math.max(0, budget.budgetUsd - budget.spentUsd);
+    const selected = assignmentsForRole(resolved, "sre")[0];
+    if (selected === undefined) throw new Error("release: no approved assignment for sre");
+    providerAssignment = { ...selected.assignment };
+    providerBudgetUsd = Math.min(
+      remaining,
+      sreRole.maxTurnBudgetUsd,
+      selected.maxTurnCostUsd,
+    );
+    if (!Number.isFinite(providerBudgetUsd) || providerBudgetUsd <= 0) {
+      throw new Error("release: no positive app/role budget remains for the SRE provider turn");
+    }
+  }
+
+  const episodeId = approvedReleaseEpisodeId(app.name, item.id);
+  const actionRef = releaseActionRef(item);
+  const finalOutput: PlannedOutput = {
+    id: "release-outcome",
+    kind: "approved-release-outcome",
+    required: true,
+  };
+  const approval: ApprovalStep = {
+    kind: "approval",
+    id: RELEASE_APPROVAL_STEP,
+    objective: `Confirm the existing human approval and exact single-use grant for ${item.id}`,
+    dependsOn: [],
+    inputRefs: [{ ref: actionRef, required: true }],
+    expectedOutputs: [],
+    approvalKind: "critical-operation",
+    actionRef,
+  };
+  const preflight: MechanicalGateStep = {
+    kind: "mechanical_gate",
+    id: RELEASE_PREFLIGHT_STEP,
+    objective: "Validate that the approved release command still has an exact unconsumed grant",
+    dependsOn: [RELEASE_APPROVAL_STEP],
+    inputRefs: [{ ref: actionRef, required: true }],
+    expectedOutputs: [],
+    gate: "release",
+  };
+  const proposedSteps: ProposedEpisodeStep[] = [approval, preflight];
+  const expectedSteps: EpisodeStep[] = [approval, preflight];
+
+  if (item.role === "sre") {
+    if (providerAssignment === undefined || sreRole === undefined) {
+      throw new Error("release: SRE plan lacks an exact approved assignment");
+    }
+    const providerProposal = {
+      kind: "provider_turn" as const,
+      id: RELEASE_EXECUTION_STEP,
+      operation: RELEASE_OPERATION,
+      role: "sre",
+      objective: approvedReleaseObjective(item, app, command),
+      dependsOn: [RELEASE_PREFLIGHT_STEP],
+      requiredCapabilities: ["tool_gate"],
+      inputRefs: [{ ref: actionRef, required: true }],
+      expectedOutputs: [{ id: "sre-release-report", kind: "release-report", required: false }],
+      maxTurnBudgetUsd: providerBudgetUsd,
+      selectionReason:
+        resolved.mode === "fixed"
+          ? "Approved SRE release; exact assignment resolves from fixed role configuration"
+          : "Approved SRE release; creator selected an exact app-narrowed approved assignment",
+      ...(resolved.mode === "adaptive" ? { assignment: { ...providerAssignment } } : {}),
+    };
+    const providerStep: ProviderTurnStep = {
+      ...providerProposal,
+      assignment: { ...providerAssignment },
+      assignmentSource: resolved.mode === "fixed" ? "configured" : "creator",
+    };
+    const confirmation: MechanicalGateStep = {
+      kind: "mechanical_gate",
+      id: RELEASE_CONFIRM_STEP,
+      objective: "Confirm that the SRE turn attempted the one exact approved command",
+      dependsOn: [RELEASE_EXECUTION_STEP],
+      inputRefs: [{ ref: actionRef, required: true }],
+      expectedOutputs: [finalOutput],
+      gate: "release-command-attempted",
+    };
+    proposedSteps.push(providerProposal, confirmation);
+    expectedSteps.push(providerStep, confirmation);
+  } else {
+    const commandStep: MechanicalGateStep = {
+      kind: "mechanical_gate",
+      id: RELEASE_EXECUTION_STEP,
+      objective: "Execute the exact approved orchestrator-owned release command once",
+      dependsOn: [RELEASE_PREFLIGHT_STEP],
+      inputRefs: [{ ref: actionRef, required: true }],
+      expectedOutputs: [finalOutput],
+      gate: "release-command",
+    };
+    proposedSteps.push(commandStep);
+    expectedSteps.push(commandStep);
+  }
+
+  const evidenceRefs = [
+    `approval:${item.id}`,
+    `release-action:${actionHash(item.action)}`,
+    ...(item.ticketRef === undefined ? [] : [`ticket:${item.ticketRef}`]),
+  ];
+  const safetyFacts: SafetyFact[] = [
+    { kind: "critical_operation", evidenceRefs: [...evidenceRefs] },
+    { kind: "release", evidenceRefs: [...evidenceRefs] },
+  ];
+  const scope: CreatorEpisodeScope = {
+    planningDisposition: "execution_ready",
+    provenance: {
+      source: "agent",
+      creatorId: "orchestrator/release",
+      createdAt: item.decidedAt ?? item.raisedAt,
+      evidenceRefs,
+    },
+    workKind: `approved-release:${item.role}`,
+    objective: `Execute approved release ${item.id} for ${app.name}`,
+    inScope: ["The exact approved release command and its single-use grant"],
+    outOfScope: ["Command substitutions", "additional smoke checks", "rollback actions", "unapproved follow-up work"],
+    acceptanceCriteria: [
+      "The persisted plan observes the existing approval before execution",
+      "Only the exact approved command may consume the single-use grant",
+      "The command outcome is durably journaled without an implicit retry",
+    ],
+    expectedArtifacts: [finalOutput],
+    declaredConstraints: {
+      approvalId: item.id,
+      actionHash: actionHash(item.action),
+      app: app.name,
+      owner: item.role,
+      command,
+      ticketRef: item.ticketRef ?? null,
+      grantConsumptionBoundary: "exact-release-command-only",
+    },
+    safetyFacts,
+    steps: proposedSteps,
+  };
+  return {
+    episodeId,
+    scope,
+    safetyFacts,
+    expectedSteps,
+    providerBudgetUsd,
+  };
+}
+
+function releaseEpisodeFacts(
+  definition: ReleaseEpisodeDefinition,
+  item: ApprovalItem,
+  app: AppEntry,
+  command: string,
+): EpisodeOrchestrationFacts {
+  return {
+    episodeId: definition.episodeId,
+    trigger: {
+      kind: "approved_release",
+      sourceRef: `approval:${item.id}`,
+      payloadHash: stableHash({
+        approvalId: item.id,
+        actionHash: actionHash(item.action),
+        app: app.name,
+        owner: item.role,
+        ticketRef: item.ticketRef ?? null,
+      }),
+    },
+    goal: definition.scope.objective,
+    lifecycle: "approved-release",
+    appStage: app.status,
+    repositoryFacts: {
+      targetRepo: app.repo,
+      managedClonePresent: true,
+    },
+    requestedConstraints: {
+      approvalId: item.id,
+      actionHash: actionHash(item.action),
+      owner: item.role,
+      command,
+      commandSubstitutionAllowed: false,
+      retryAmbiguousExecution: false,
+    },
+    hardBudget: {
+      maxProviderTurns: item.role === "sre" ? 1 : 0,
+      maxEquivalentCostUsd: definition.providerBudgetUsd,
+      maxMechanicalOverheadUsd: 0,
+      maxInputTokens: item.role === "sre" ? 256_000 : 0,
+      maxActiveTimeMs: item.role === "sre" ? 30 * 60_000 : 60_000,
+      maxHumanDecisions: 1,
+    },
+    requiredSafetyFacts: structuredClone(definition.safetyFacts),
+    responsibilityByRole: item.role === "sre"
+      ? { sre: "Own only the exact already-approved release command" }
+      : {},
+    creatorScope: structuredClone(definition.scope),
+  };
+}
+
+function assertReleaseEpisodePlan(plan: EpisodePlan, definition: ReleaseEpisodeDefinition): void {
+  if (plan.episodeId !== definition.episodeId) {
+    throw new Error(`release EpisodePlan identity changed from ${definition.episodeId}`);
+  }
+  if (plan.planningSource !== "creator_scope") {
+    throw new Error("approved release must use its explicit creator scope");
+  }
+  if (stableHash(plan.steps) !== stableHash(definition.expectedSteps)) {
+    throw new Error("approved release EpisodePlan differs from the code-owned operation graph or assignment");
+  }
+}
+
+async function executeReleaseApprovalStep(
+  options: ExecuteApprovedReleasesOptions,
+  store: ApprovalStore,
+  item: ApprovalItem,
+  step: ApprovalStep,
+): Promise<ApprovalStepOutcome> {
+  if (
+    step.id !== RELEASE_APPROVAL_STEP ||
+    step.approvalKind !== "critical-operation" ||
+    step.actionRef !== releaseActionRef(item)
+  ) {
+    return releaseStepFailure(
+      "error_release_approval_binding",
+      "release approval step is not bound to the approved action",
+    );
+  }
+  const problem = await releaseApprovalProblem(options, store, item);
+  return problem === undefined
+    ? {
+        status: "completed",
+        artifact: { approvalId: item.id, actionHash: actionHash(item.action) },
+      }
+    : releaseStepFailure("error_release_approval_unavailable", problem);
+}
+
+async function releaseApprovalProblem(
+  options: ExecuteApprovedReleasesOptions,
+  store: ApprovalStore,
+  item: ApprovalItem,
+): Promise<string | undefined> {
+  try {
+    const shown = await store.show(item.id);
+    if (
+      shown.item.status !== "approved" ||
+      shown.item.decision !== "approved" ||
+      shown.item.rule !== "production-deploy" ||
+      shown.item.app !== item.app ||
+      shown.item.role !== item.role ||
+      actionHash(shown.item.action) !== actionHash(item.action)
+    ) {
+      return `release ${item.id}: approval metadata changed before execution`;
+    }
+    if (findReleaseGrant(options, store, item) === undefined) {
+      return `release ${item.id}: approved grant does not match the command`;
+    }
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+function findReleaseGrant(
+  options: ExecuteApprovedReleasesOptions,
+  store: ApprovalStore,
+  item: ApprovalItem,
+) {
+  const common = {
+    app: item.app,
+    role: item.role,
+    actionHash: actionHash(item.action),
+    // A-005/P0-04b: the matcher sees normalized semantic target text, never
+    // raw JSON containing agent-influenceable shell comments.
+    actionText: grantScopeText(item.action),
+    now: options.now?.() ?? new Date(),
+  };
+  return item.role === "orchestrator"
+    ? store.findMatchingGrantSync({
+        ...common,
+        rule: item.rule,
+        ...(item.ticketRef === undefined ? {} : { ticketRef: item.ticketRef }),
+      })
+    : store.findMatchingGrantSync(common);
+}
+
+async function runApprovedOrchestratorCommand(
+  options: ExecuteApprovedReleasesOptions,
+  store: ApprovalStore,
+  item: ApprovalItem,
+  app: AppEntry,
+  command: string,
+): Promise<ReleaseCommandResult> {
+  const grant = findReleaseGrant(options, store, item);
+  if (grant === undefined) throw new Error(`release ${item.id}: approved grant does not match the command`);
+  // This is deliberately the first grant consumption in the plan. The prior
+  // approval and release-preflight steps only observe the grant.
+  store.consumeGrantSync(grant.grantId, options.now?.() ?? new Date());
+  const cwd = managedClone(options.stateHome, app);
+  return (options.commandRunner ?? runReleaseCommand)(command, cwd, { ...process.env, CI: "1" });
+}
+
+function sreReleaseGate(
+  options: ExecuteApprovedReleasesOptions,
+  store: ApprovalStore,
+  item: ApprovalItem,
+  command: string,
+  attempted: () => boolean,
+  markAttempted: () => void,
+): GateFn {
   const baseGate = composeGate(defaultGate, store, {
     app: item.app,
     role: item.role,
     ...(item.ticketRef !== undefined ? { ticketRef: item.ticketRef } : {}),
     orgHome: options.orgHome,
-    ...(options.now !== undefined ? { now: options.now } : {}),
+    ...(options.now === undefined ? {} : { now: options.now }),
   });
-  const gate: GateFn = (action) => {
-    if (!attempted && sameReleaseCommand(action, command)) {
-      const shown = store.findMatchingGrantSync({
-        app: item.app,
-        role: item.role,
-        actionHash: actionHash(item.action),
-        // A-005/P0-04b: this matches only the exact unscoped production-deploy
-        // grant (no `rule` passed, so `pathContains` is never consulted here),
-        // but build the scope text through the same helper — never raw JSON —
-        // so this call site can never widen a scoped grant on agent free text.
-        actionText: grantScopeText(item.action),
-        now: options.now?.() ?? new Date(),
-      });
-      if (shown === undefined) return { allow: false, reason: "approved release grant is unavailable", escalate: false };
-      store.consumeGrantSync(shown.grantId, options.now?.() ?? new Date());
-      attempted = true;
+  return (action) => {
+    if (!attempted() && sameReleaseCommand(action, command)) {
+      const grant = findReleaseGrant(options, store, item);
+      if (grant === undefined) {
+        return {
+          allow: false,
+          reason: "approved release grant is unavailable",
+          escalate: false,
+        };
+      }
+      // The exact approved command is the sole SRE consumption boundary.
+      store.consumeGrantSync(grant.grantId, options.now?.() ?? new Date());
+      markAttempted();
       return { allow: true };
     }
     return baseGate(action);
   };
-  const turn = await runRole({
-    role,
-    app: app.name,
-    turnId: `release-${item.id}`,
-    dryRun: false,
-    workdir: cwd,
-    runlogRoot: options.stateHome,
-    runtimeFor: options.runtimeFor ?? ((selected) => getRuntime(selected.runtime)),
-    hooks: { gate },
-    context,
-    telemetry: { orgDir: options.stateHome, trigger: "manual" },
-    briefOverride: [
-      "# Approved production release",
-      "",
-      `Approval: ${item.id}`,
-      `App: ${app.name}`,
-      `Ticket: ${item.ticketRef ?? "(none)"}`,
-      "",
-      "Run exactly this already-approved command once, without prefixes, suffixes, or substitutions:",
-      "",
-      "```sh",
-      command,
-      "```",
-      "",
-      "Report the command outcome. Do not perform smoke checks or rollback in this turn.",
-    ].join("\n"),
-  });
-  const result = turn.record?.result;
-  if (!attempted) throw new Error("SRE release turn completed without attempting the approved command");
-  if (result === undefined) throw new Error("SRE release turn produced no pass result");
+}
+
+function releaseRuntimeFactory(options: ExecuteApprovedReleasesOptions) {
+  return (assignment: TurnAssignment, role: RoleConfig): Runtime => {
+    const effectiveRole: RoleConfig = {
+      ...role,
+      runtime: assignment.harness,
+      model: assignment.model,
+      effort: assignment.effort,
+    };
+    const runtime = options.runtimeForAssignment?.(assignment, role) ??
+      options.runtimeFor?.(effectiveRole) ??
+      getRuntime(assignment.harness);
+    if (runtime.kind !== assignment.harness) {
+      throw new Error(
+        `release runtime factory returned ${runtime.kind} for persisted ${assignment.harness} assignment`,
+      );
+    }
+    return runtime;
+  };
+}
+
+async function releaseProviderResult(
+  root: string,
+  app: string,
+  plan: EpisodePlan,
+  execution: EpisodePlanExecutionResult | null,
+): Promise<ReleaseCommandResult> {
+  const evidence = (await readExecutionSteps(root, plan.episodeId)).filter((step) =>
+    step.kind === "provider" &&
+    step.plan_version === plan.version &&
+    step.plan_step_id === RELEASE_EXECUTION_STEP,
+  );
+  if (evidence.length !== 1) {
+    throw new Error(`SRE release turn has ${evidence.length} terminal provider records`);
+  }
+  const record = evidence[0]!;
+  const envelope = await readEnvelope(root, app, record.run_id);
+  let output = record.reason;
+  try {
+    output = await readFile(runPaths(root, app, record.run_id).output, "utf8");
+  } catch {
+    // The terminal execution step remains the authoritative fallback.
+  }
+  const completed =
+    execution?.status === "completed" &&
+    record.status === "completed" &&
+    envelope.status === "completed";
   return {
-    exitCode: result.status === "completed" ? 0 : 1,
-    stdout: result.summary,
-    stderr: result.status === "completed" ? "" : result.summary,
+    exitCode: completed ? 0 : 1,
+    stdout: completed ? output : "",
+    stderr: completed ? "" : execution?.summary ?? output,
+  };
+}
+
+function releaseFailureResult(execution: EpisodePlanExecutionResult | null): ReleaseCommandResult {
+  const summary = execution?.summary ?? "approved release EpisodePlan did not complete";
+  return { exitCode: 1, stdout: "", stderr: summary };
+}
+
+function releaseStepFailure(
+  reasonCode: string,
+  summary: string,
+  artifact?: unknown,
+): EpisodeStepFailedOutcome {
+  return {
+    status: "failed",
+    reasonCode,
+    summary,
+    ...(artifact === undefined ? {} : { artifact }),
+  };
+}
+
+function releaseCommandArtifact(result: ReleaseCommandResult): Record<string, string | number> {
+  return {
+    exitCode: result.exitCode,
+    stdoutSha256: stableHash(result.stdout),
+    stderrSha256: stableHash(result.stderr),
+  };
+}
+
+function releaseActionRef(item: ApprovalItem): string {
+  return `approval:${item.id}:action-sha256:${actionHash(item.action)}`;
+}
+
+function approvedReleaseObjective(item: ApprovalItem, app: AppEntry, command: string): string {
+  return [
+    `Approved production release ${item.id} for ${app.name}.`,
+    `Run exactly this already-approved command once: ${command}`,
+    "Do not add prefixes, suffixes, substitutions, smoke checks, rollback, or follow-up actions.",
+    "Report the command outcome only.",
+  ].join(" ");
+}
+
+function requireReleaseRole(roles: readonly RoleConfig[], name: string): RoleConfig {
+  const role = roles.find((entry) => entry.name === name);
+  if (role === undefined) throw new Error(`release: requires ${name} in roles.yaml`);
+  return role;
+}
+
+function unusedReleasePlannerLimits(roleBudgetUsd: number) {
+  const equivalentCostUsd = Math.min(roleBudgetUsd, 0.01);
+  return {
+    maxAttempts: 1,
+    perAttempt: { inputTokens: 1, equivalentCostUsd, activeTimeMs: 1 },
+    aggregate: {
+      providerTurns: 1,
+      inputTokens: 1,
+      equivalentCostUsd,
+      activeTimeMs: 1,
+    },
   };
 }
 
@@ -515,6 +1085,13 @@ function releaseSummary(result: ReleaseCommandResult): string {
 
 function tail(value: string, max: number): string {
   return value.length <= max ? value : value.slice(value.length - max);
+}
+
+function releaseErrorSummary(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  return error.cause instanceof Error
+    ? `${error.message}: ${error.cause.message}`
+    : error.message;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

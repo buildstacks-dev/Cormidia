@@ -42,6 +42,12 @@ export function renderStoryMarkdown(story: NarrativeStory): string {
   for (const moment of story.moments) {
     const model = moment.model !== undefined ? `, ${moment.model}` : "";
     lines.push(`- **${moment.at} — ${moment.headline}**${model === "" ? "" : ` _(model${model.replace(",", ":")})_`}`);
+    const planEvidence = [
+      moment.plan_version === undefined ? undefined : `plan v${moment.plan_version}`,
+      moment.plan_step_id === undefined ? undefined : `step \`${moment.plan_step_id}\``,
+      moment.assignment_source === undefined ? undefined : `assignment \`${moment.assignment_source}\``,
+    ].filter((value): value is string => value !== undefined);
+    if (planEvidence.length > 0) lines.push(`  - ${planEvidence.join(" · ")}`);
     if (moment.quote !== undefined) lines.push(...quoteBlock(moment.quote, "  "));
     lines.push(`  - evidence: \`${moment.evidence}\``);
   }

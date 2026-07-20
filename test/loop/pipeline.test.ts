@@ -1,6 +1,6 @@
 // Tests the pass executor in src/loop/pipeline.ts.
 // Covers sequential and parallel pass execution, task/template assembly,
-// per-pass overrides, gate propagation, runlog records, tool/subagent event
+// fixed/adaptive assignments, gate propagation, runlog records, tool/subagent event
 // bridging, anomaly inputs, and abort-on-failed-pass behavior.
 // Uses FakeRuntime, FakeClock, local prompt fixtures, and temp runlogs; no
 // network, auth, real org state, or live wall clock is required.
@@ -11,13 +11,16 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executePipeline, type ExecutePipelineOptions } from "../../src/loop/pipeline.js";
+import { readEfficiencyEvidence, readExecutionSteps, readRouteRecord } from "../../src/loop/efficiency.js";
+import { readContextManifest } from "../../src/loop/context-manifest.js";
 import { getPipeline, loadPipelines, type PipelineConfig, type PipelinesFile } from "../../src/loop/pipelines.js";
 import { readEnvelope } from "../../src/runtime/runlog/envelope.js";
 import { readEvents, reconstructSpanTree } from "../../src/runtime/runlog/events.js";
 import { runPaths } from "../../src/runtime/runlog/paths.js";
 import { detectRunAnomalies } from "../../src/runtime/runlog/anomalies.js";
+import { resolvedRuntimeCapabilities } from "../../src/runtime/capabilities.js";
 import { FakeRuntime, type ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";
-import type { RoleConfig, Runtime, TurnEvent, TurnResult } from "../../src/runtime/types.js";
+import type { RoleConfig, Runtime, TurnAssignment, TurnEvent, TurnResult } from "../../src/runtime/types.js";
 import type { LoopContinuation } from "../../src/loop/types.js";
 import { FakeClock } from "../fixtures/fakeClock.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
@@ -299,6 +302,7 @@ describe("executePipeline", () => {
         pipeline: "build",
         pass: "implement",
         role: "builder",
+        assignment: paused.assignment,
         session: paused.result.session,
         completedPasses: [],
         contextFingerprint: paused.contextFingerprint,
@@ -324,6 +328,132 @@ describe("executePipeline", () => {
         runtimeFor: () => never,
         continuation: { ...exact, session: { runtime: "codex", id: "wrong-runtime" } },
       })).rejects.toThrow("continuation role/runtime changed");
+      expect(never.calls).toHaveLength(0);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("resumes the persisted assignment across config drift and rejects tuple substitution", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const h = makeHarness(build, [scripted("pause", "blocked_on_gate")], {
+      selection: { tier: "quick" },
+    });
+    h.options.episode = {
+      id: "continuation-persisted-assignment",
+      finalize: false,
+      route: "quick",
+      factors: [{ kind: "uncertainty", evidence: "fixture", policy_rule: "accepted_plan_v2" }],
+      authorizedPasses: [{
+        pipeline: "build",
+        pass: "implement",
+        role: "builder",
+        runtime: "claude",
+        model: "gpt-5.5",
+        effort: "high",
+        factor_rules: ["accepted_plan_v2"],
+        assignment_source: "episode_planner",
+        plan_version: 2,
+        plan_step_id: "implement",
+      }],
+    };
+    try {
+      const first = await executePipeline(h.options);
+      const paused = first.passes[0]!;
+      const continuation: LoopContinuation = {
+        pipeline: "build",
+        pass: "implement",
+        role: "builder",
+        assignment: paused.assignment,
+        planVersion: paused.planMetadata.plan_version!,
+        planStepId: paused.planMetadata.plan_step_id!,
+        session: paused.result.session,
+        completedPasses: [],
+        contextFingerprint: paused.contextFingerprint,
+        workFingerprint: paused.workFingerprint,
+        runId: paused.runId,
+        pausedAt: "2026-07-05T09:30:15.000Z",
+        decisions: [],
+      };
+      const persisted = await readRouteRecord(
+        h.options.runlog.root,
+        "continuation-persisted-assignment",
+      );
+      const changedRole = role("builder", {
+        model: "new-config-default",
+        effort: "low",
+      });
+      const resumed = new FakeRuntime([scripted("resumed")]);
+      let selectedAssignment: TurnAssignment | undefined;
+      const second = await executePipeline({
+        ...h.options,
+        roles: { ...ROLES, builder: changedRole },
+        runtimeForAssignment: (assignment) => {
+          selectedAssignment = assignment;
+          return resumed;
+        },
+        episode: {
+          id: "continuation-persisted-assignment",
+          finalize: false,
+          authorizedPasses: persisted.authorized_passes,
+        },
+        continuation,
+      });
+      expect(second.aborted).toBe(false);
+      expect(selectedAssignment).toEqual(paused.assignment);
+      expect(resumed.calls[0]!.req.assignment).toEqual(paused.assignment);
+      expect(resumed.calls[0]!.req.role).toBe(changedRole);
+      expect(resumed.calls[0]!.req.role.model).toBe("new-config-default");
+
+      const never = new FakeRuntime([scripted("must not run")]);
+      await expect(executePipeline({
+        ...h.options,
+        runtimeForAssignment: () => never,
+        episode: {
+          id: "continuation-substitution-rejected",
+          finalize: false,
+          route: "quick",
+          factors: [{ kind: "uncertainty", evidence: "fixture", policy_rule: "fixture" }],
+          authorizedPasses: [{
+            pipeline: "build",
+            pass: "implement",
+            role: "builder",
+            runtime: paused.assignment.harness,
+            model: "silently-substituted-model",
+            effort: paused.assignment.effort,
+            factor_rules: ["fixture"],
+            assignment_source: "episode_planner",
+            plan_version: 2,
+            plan_step_id: "implement",
+          }],
+        },
+        continuation,
+      })).rejects.toThrow("continuation assignment changed");
+      expect(never.calls).toHaveLength(0);
+
+      await expect(executePipeline({
+        ...h.options,
+        runtimeForAssignment: () => never,
+        episode: {
+          id: "continuation-plan-revision-rejected",
+          finalize: false,
+          route: "quick",
+          factors: [{ kind: "uncertainty", evidence: "fixture", policy_rule: "fixture" }],
+          authorizedPasses: [{
+            pipeline: "build",
+            pass: "implement",
+            role: "builder",
+            runtime: paused.assignment.harness,
+            model: paused.assignment.model,
+            effort: paused.assignment.effort,
+            factor_rules: ["fixture"],
+            assignment_source: "episode_planner",
+            plan_version: 3,
+            plan_step_id: "implement",
+          }],
+        },
+        continuation,
+      })).rejects.toThrow("continuation plan version/step changed");
       expect(never.calls).toHaveLength(0);
     } finally {
       h.cleanup();
@@ -468,22 +598,202 @@ describe("executePipeline", () => {
     }
   });
 
-  it("per-pass override copies the role — base config never mutates, runtime never changes", async () => {
+  it("keeps the configured fixed tuple atomic and ignores legacy partial pass overrides", async () => {
     const build = getPipeline(await loadFixture(), "build");
     const h = makeHarness(build, [scripted("contract"), scripted("implement")]);
     try {
       await executePipeline(h.options);
 
-      // Fixture: implement has effort:high + model:gpt-5.5.
+      // Fixture: implement declares the historical effort/model override. A
+      // fixed turn now resolves all three tuple members from the role.
       const implementCall = h.fake.calls[1];
-      expect(implementCall?.req.role.effort).toBe("high");
-      expect(implementCall?.req.role.model).toBe("gpt-5.5");
-      expect(implementCall?.req.role.runtime).toBe("claude"); // never overridable
+      expect(implementCall?.req.role).toBe(ROLES["builder"]);
+      expect(implementCall?.req.assignment).toEqual({
+        harness: "claude",
+        model: "base-model",
+        effort: "medium",
+      });
 
       // The base config is untouched.
       expect(ROLES["builder"]).toMatchObject({ effort: "medium", model: "base-model" });
-      // The contract call saw the un-overridden role.
-      expect(h.fake.calls[0]?.req.role.effort).toBe("medium");
+      // The contract call saw the same role with its own atomic assignment.
+      expect(h.fake.calls[0]?.req.role).toBe(ROLES["builder"]);
+      expect(h.fake.calls[0]?.req.assignment).toEqual({
+        harness: "claude",
+        model: "base-model",
+        effort: "medium",
+      });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("selects a cross-harness adapter while preserving role authority and exact evidence", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const assignment: TurnAssignment = {
+      harness: "codex",
+      model: "gpt-adaptive-exact",
+      effort: "high",
+    };
+    const adaptiveResult = turnResult("adaptive done");
+    adaptiveResult.session = { runtime: "codex", id: "codex-adaptive-session" };
+    const adaptive = new FakeRuntime([{ result: adaptiveResult }], "codex");
+    const selected: Array<{ assignment: TurnAssignment; role: RoleConfig }> = [];
+    const gateRoles: RoleConfig[] = [];
+    const h = makeHarness(build, [], {
+      selection: { tier: "quick" },
+      runtimeFor: () => {
+        throw new Error("legacy factory must not select an adaptive assignment");
+      },
+      runtimeForAssignment: (selectedAssignment, selectedRole) => {
+        selected.push({ assignment: selectedAssignment, role: selectedRole });
+        return adaptive;
+      },
+      gateForRole: (selectedRole) => {
+        gateRoles.push(selectedRole);
+        return () => ({ allow: true });
+      },
+      episode: {
+        id: "episode:adaptive-cross-harness",
+        route: "quick",
+        finalize: false,
+        factors: [{
+          kind: "uncertainty",
+          evidence: "validated adaptive fixture",
+          policy_rule: "accepted_plan_v3",
+        }],
+        authorizedPasses: [{
+          pipeline: "build",
+          pass: "implement",
+          role: "builder",
+          runtime: assignment.harness,
+          model: assignment.model,
+          effort: assignment.effort,
+          factor_rules: ["accepted_plan_v3"],
+          assignment_source: "episode_planner",
+          assignment_candidate_id: "codex-adaptive",
+          plan_version: 3,
+          plan_step_id: "implement",
+          selection_reason: "localized implementation needs the qualified Codex adapter",
+          provider_family: "openai",
+        }],
+      },
+      telemetry: { orgDir: "placeholder", trigger: "manual" },
+    });
+    h.options.telemetry = { orgDir: h.options.runlog.root, trigger: "manual" };
+    try {
+      const result = await executePipeline(h.options);
+      const record = result.passes[0]!;
+      expect(result.aborted).toBe(false);
+      expect(selected).toEqual([{ assignment, role: ROLES["builder"] }]);
+      expect(gateRoles).toEqual([ROLES["builder"]]);
+      expect(adaptive.calls[0]!.req.role).toBe(ROLES["builder"]);
+      expect(adaptive.calls[0]!.req.role).toMatchObject({
+        runtime: "claude",
+        model: "base-model",
+        effort: "medium",
+        delegation: ROLES["builder"]!.delegation,
+      });
+      expect(adaptive.calls[0]!.req.assignment).toEqual(assignment);
+      const resolvedCapabilities = resolvedRuntimeCapabilities("codex");
+      expect(adaptive.calls[0]!.req.context.execution).toEqual({
+        role: "builder",
+        assignment,
+        resolvedCapabilities,
+        requiredCapabilities: ["cancellation", "session_resume", "tool_gate"],
+        roleDelegation: { allow: [] },
+      });
+
+      const envelope = await readEnvelope(h.options.runlog.root, "civic", record.runId);
+      expect(envelope).toMatchObject({
+        runtime: assignment.harness,
+        model: assignment.model,
+        effort: assignment.effort,
+        assignment_source: "episode_planner",
+        assignment_candidate_id: "codex-adaptive",
+        plan_version: 3,
+        plan_step_id: "implement",
+        selection_reason: "localized implementation needs the qualified Codex adapter",
+        resolved_capabilities: resolvedCapabilities,
+      });
+      const manifest = await readContextManifest(
+        h.options.runlog.root,
+        "civic",
+        record.runId,
+      );
+      expect(manifest).toMatchObject({
+        plan_version: 3,
+        plan_step_id: "implement",
+        cache: { runtime: "codex" },
+      });
+      expect(manifest.components.some((component) => component.category === "execution")).toBe(true);
+
+      const episode = (await readEfficiencyEvidence(h.options.runlog.root)).find(
+        (candidate) => candidate.route?.episode_id === "episode:adaptive-cross-harness",
+      );
+      expect(episode?.steps).toHaveLength(1);
+      expect(episode?.steps[0]).toMatchObject({
+        runtime: assignment.harness,
+        model: assignment.model,
+        effort: assignment.effort,
+        assignment_source: "episode_planner",
+        assignment_candidate_id: "codex-adaptive",
+        plan_version: 3,
+        plan_step_id: "implement",
+        resolved_capabilities: resolvedCapabilities,
+      });
+      const ledger = JSON.parse(
+        readFileSync(join(h.options.runlog.root, "telemetry", "2026-07-05.jsonl"), "utf8").trim(),
+      ) as Record<string, unknown>;
+      expect(ledger).toMatchObject({
+        runtime: assignment.harness,
+        model: assignment.model,
+        effort: assignment.effort,
+        assignmentSource: "episode_planner",
+        assignmentCandidateId: "codex-adaptive",
+        planVersion: 3,
+        planStepId: "implement",
+        resolvedCapabilities,
+      });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("rejects a mismatched runtime factory before invoking the provider", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const wrong = new FakeRuntime([scripted("must not run")], "claude");
+    let beforeProvider = false;
+    const h = makeHarness(build, [], {
+      selection: { tier: "quick" },
+      runtimeForAssignment: () => wrong,
+      beforeProviderTurn: () => {
+        beforeProvider = true;
+      },
+      episode: {
+        route: "quick",
+        factors: [{ kind: "uncertainty", evidence: "fixture", policy_rule: "fixture" }],
+        authorizedPasses: [{
+          pipeline: "build",
+          pass: "implement",
+          role: "builder",
+          runtime: "codex",
+          model: "gpt-exact",
+          effort: "medium",
+          factor_rules: ["fixture"],
+        }],
+      },
+    });
+    try {
+      const result = await executePipeline(h.options);
+      expect(result.aborted).toBe(true);
+      expect(result.passes[0]?.result).toMatchObject({
+        status: "failed",
+        errorCode: "error_runtime_failed",
+        summary: expect.stringContaining("returned claude for codex assignment"),
+      });
+      expect(wrong.calls).toHaveLength(0);
+      expect(beforeProvider).toBe(false);
     } finally {
       h.cleanup();
     }
@@ -727,6 +1037,78 @@ describe("executePipeline", () => {
     }
   });
 
+  it("does not complete when a verdict recorder omits durable verdict evidence", async () => {
+    const review = getPipeline(await loadFixture(), "review");
+    const h = makeHarness(review, [scripted("Verdict: approve")], {
+      selection: { tier: "quick" },
+    });
+    h.options.recordVerdict = async () => ({ ok: true });
+    try {
+      await expect(executePipeline(h.options)).rejects.toThrow(
+        "returned without durable verdict.recorded evidence",
+      );
+      expect(await readEnvelope(
+        h.options.runlog.root,
+        "civic",
+        "20260705-093015-review-verify",
+      )).toMatchObject({
+        status: "failed",
+        error_code: "error_verdict_persist",
+      });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("never launches an unplanned verdict-reformat turn from an accepted plan step", async () => {
+    const review = getPipeline(await loadFixture(), "review");
+    const h = makeHarness(review, [scripted("not a verdict")], { selection: { tier: "quick" } });
+    h.options.episode = {
+      id: "episode:planned-verdict-no-reformat",
+      route: "quick",
+      budgetOverrides: { provider_turns: 2 },
+      factors: [{ kind: "uncertainty", evidence: "fixture", policy_rule: "fixture" }],
+      authorizedPasses: [{
+        pipeline: "review",
+        pass: "verify",
+        role: "reviewer",
+        runtime: "claude",
+        model: "reviewer-model",
+        effort: "high",
+        factor_rules: ["fixture"],
+        assignment_source: "episode_planner",
+        plan_version: 1,
+        plan_step_id: "review",
+      }],
+    };
+    h.options.recordVerdict = async (ctx) => {
+      await ctx.runProviderTurn({
+        operation: "review-verdict-reformat",
+        task: "Reformat the verdict.",
+        session: ctx.result.session,
+      });
+      return { ok: true };
+    };
+    try {
+      await expect(executePipeline(h.options)).rejects.toThrow(
+        "authorizes one provider turn",
+      );
+      expect(h.fake.calls).toHaveLength(1);
+      expect(await readEnvelope(
+        h.options.runlog.root,
+        "civic",
+        "20260705-093015-review-verify",
+      )).toMatchObject({
+        status: "failed",
+        error_code: "error_verdict_persist",
+      });
+      expect(await readExecutionSteps(h.options.runlog.root, "episode:planned-verdict-no-reformat"))
+        .toHaveLength(1);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("every executed pass leaves a complete run record with matching runIds", async () => {
     const build = getPipeline(await loadFixture(), "build");
     const h = makeHarness(build, [
@@ -751,7 +1133,7 @@ describe("executePipeline", () => {
         expect(envelope.status).toBe("completed");
         expect(envelope).toMatchObject({
           runtime: "claude",
-          effort: record.pass.id === "implement" ? "high" : "medium",
+          effort: "medium",
           workdir: "/tmp/workdir",
           session: {
             runtime: "claude",

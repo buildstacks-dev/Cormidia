@@ -1,15 +1,39 @@
 import type { RuntimeKind } from "./types.js";
 
-export type RuntimeCapability =
-  | "structured_verdict"
-  | "cancellation"
-  | "tool_gate"
-  | "cache_telemetry"
-  | "session_resume";
+/**
+ * Adapter surfaces that can affect how a turn should be executed.
+ *
+ * Keep this list small and behavioral. A capability belongs here when the
+ * orchestrator validates it or when an agent inside the turn needs to know
+ * whether it can rely on the surface. Role tools and permissions deliberately
+ * do not belong here: selecting a harness must never grant authority.
+ */
+export const RUNTIME_CAPABILITIES = [
+  "cache_telemetry",
+  "cancellation",
+  "intra_turn_fanout",
+  "session_resume",
+  "structured_verdict",
+  "tool_gate",
+] as const;
+
+export type RuntimeCapability = (typeof RUNTIME_CAPABILITIES)[number];
+
+export const RUNTIME_CAPABILITY_SUPPORT = [
+  "native",
+  "adapter",
+  "fallback",
+  "unsupported",
+] as const;
+
+/** `fallback` is intentionally rendered to agents as "fallback (degraded)". */
+export type RuntimeCapabilitySupport = (typeof RUNTIME_CAPABILITY_SUPPORT)[number];
 
 export interface RuntimeCapabilityProfile {
+  /** Versioned identifier also used by assignment qualification records. */
+  ref: `${RuntimeKind}/v${number}`;
   runtime: RuntimeKind;
-  capabilities: Record<RuntimeCapability, "native" | "adapter" | "fallback" | "unsupported">;
+  capabilities: Record<RuntimeCapability, RuntimeCapabilitySupport>;
   cache: {
     supported: boolean;
     observable: boolean;
@@ -19,13 +43,15 @@ export interface RuntimeCapabilityProfile {
 
 const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
   claude: {
+    ref: "claude/v1",
     runtime: "claude",
     capabilities: {
-      structured_verdict: "native",
-      cancellation: "native",
-      tool_gate: "native",
       cache_telemetry: "native",
+      cancellation: "native",
+      intra_turn_fanout: "native",
       session_resume: "native",
+      structured_verdict: "native",
+      tool_gate: "native",
     },
     cache: {
       supported: true,
@@ -34,13 +60,15 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
     },
   },
   codex: {
+    ref: "codex/v1",
     runtime: "codex",
     capabilities: {
-      structured_verdict: "adapter",
-      cancellation: "adapter",
-      tool_gate: "adapter",
       cache_telemetry: "adapter",
+      cancellation: "adapter",
+      intra_turn_fanout: "native",
       session_resume: "native",
+      structured_verdict: "adapter",
+      tool_gate: "adapter",
     },
     cache: {
       supported: true,
@@ -49,13 +77,17 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
     },
   },
   pi: {
+    ref: "pi/v1",
     runtime: "pi",
     capabilities: {
-      structured_verdict: "fallback",
-      cancellation: "adapter",
-      tool_gate: "adapter",
       cache_telemetry: "adapter",
+      cancellation: "adapter",
+      // Pi has no fan-out surface. The adapter's degradation artifact makes
+      // that absence visible after the turn, but it does not provide fan-out.
+      intra_turn_fanout: "unsupported",
       session_resume: "native",
+      structured_verdict: "fallback",
+      tool_gate: "adapter",
     },
     cache: {
       supported: true,
@@ -63,6 +95,15 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
     },
   },
+};
+
+const CAPABILITY_LABELS: Record<RuntimeCapability, string> = {
+  cache_telemetry: "cache telemetry",
+  cancellation: "cancellation",
+  intra_turn_fanout: "intra-turn fan-out",
+  session_resume: "session resume",
+  structured_verdict: "structured verdict",
+  tool_gate: "tool gate",
 };
 
 export function runtimeCapabilityProfile(runtime: RuntimeKind): RuntimeCapabilityProfile {
@@ -74,9 +115,81 @@ export function runtimeCapabilityProfile(runtime: RuntimeKind): RuntimeCapabilit
   };
 }
 
+export function isRuntimeCapability(value: unknown): value is RuntimeCapability {
+  return typeof value === "string" &&
+    RUNTIME_CAPABILITIES.includes(value as RuntimeCapability);
+}
+
+export function validateRuntimeCapabilities(
+  values: unknown,
+  context = "runtime capabilities",
+): RuntimeCapability[] {
+  if (!Array.isArray(values)) throw new Error(`${context} must be an array`);
+  const capabilities = values.map((value, index) => {
+    if (!isRuntimeCapability(value)) {
+      throw new Error(
+        `${context}[${index}] must be one of ${RUNTIME_CAPABILITIES.join(" | ")}`,
+      );
+    }
+    return value;
+  });
+  const duplicate = capabilities.find(
+    (capability, index) => capabilities.indexOf(capability) !== index,
+  );
+  if (duplicate !== undefined) {
+    throw new Error(`${context} duplicates ${JSON.stringify(duplicate)}`);
+  }
+  return capabilities.sort();
+}
+
 export function hasRuntimeCapability(
   profile: RuntimeCapabilityProfile,
   capability: RuntimeCapability,
 ): boolean {
-  return profile.capabilities[capability] !== "unsupported";
+  const support = profile.capabilities[capability];
+  return support !== undefined && support !== "unsupported";
+}
+
+/** Stable evidence projection: known, non-unsupported surface names only. */
+export function resolvedRuntimeCapabilities(runtime: RuntimeKind): RuntimeCapability[] {
+  const profile = runtimeCapabilityProfile(runtime);
+  return RUNTIME_CAPABILITIES.filter((capability) =>
+    hasRuntimeCapability(profile, capability)
+  ).sort();
+}
+
+export function runtimeCapabilitySupportLabel(
+  support: RuntimeCapabilitySupport,
+): string {
+  if (support === "adapter") return "adapter-built";
+  if (support === "fallback") return "fallback (degraded)";
+  return support;
+}
+
+/**
+ * Concise, deterministic turn guidance. Harness-specific facts come only from
+ * runtimeCapabilityProfile(); callers may identify required surfaces but
+ * cannot supply or rewrite capability prose.
+ */
+export function runtimeCapabilityGuidance(
+  runtime: RuntimeKind,
+  requiredValues: readonly RuntimeCapability[] = [],
+): string[] {
+  const profile = runtimeCapabilityProfile(runtime);
+  const required = new Set(validateRuntimeCapabilities([...requiredValues], "required capabilities"));
+  for (const capability of required) {
+    if (!hasRuntimeCapability(profile, capability)) {
+      throw new Error(`${runtime} lacks required capability ${capability}`);
+    }
+  }
+  return RUNTIME_CAPABILITIES.map((capability) => {
+    const support = profile.capabilities[capability];
+    const requirement = required.has(capability) ? "; required for this turn" : "";
+    const constraint = capability === "intra_turn_fanout" && support === "unsupported"
+      ? "; unavailable—work serially"
+      : support === "unsupported"
+        ? "; do not rely on this surface"
+        : "";
+    return `- ${CAPABILITY_LABELS[capability]}: ${runtimeCapabilitySupportLabel(support)}${requirement}${constraint}`;
+  });
 }

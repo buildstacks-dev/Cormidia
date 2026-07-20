@@ -4,11 +4,10 @@
 // ordinary execution; an approval decision may resume ONLY that same pass's
 // content-bound native session (completed passes still communicate through
 // durable artifacts and are never repeated); task = assembled brief + versioned pass template
-// (§2); per-pass model/effort overrides copy the base RoleConfig, never
-// mutate it — and cannot cross providers by construction, because the
-// override touches model/effort only while `runtime` stays the role's own
-// (§2 rule 3). Same-parallel_group passes run concurrently (§2 rule 4);
-// the caller's gate propagates unchanged to every call.
+// (§2); each provider pass resolves one atomic harness/model/effort assignment
+// while the base RoleConfig remains the sole source of role identity and
+// authority. Same-parallel_group passes run concurrently (§2 rule 4); the
+// caller's role-shaped gate propagates unchanged to every call.
 //
 // Every pass leaves its full run record (§9 — "if something executes, its
 // logs exist"): L1 envelope opened → updated → finalized, L2 pass events,
@@ -25,13 +24,27 @@ import type {
   ContextBundle,
   RoleConfig,
   Runtime,
+  TurnAssignment,
   TurnEvent,
   TurnHooks,
   TurnResult,
   TurnProgress,
   TurnUsage,
 } from "../runtime/types.js";
-import type { RuntimeCapability, RuntimeCapabilityProfile } from "../runtime/capabilities.js";
+import {
+  hasRuntimeCapability,
+  resolvedRuntimeCapabilities,
+  runtimeCapabilityProfile,
+  type RuntimeCapability,
+  type RuntimeCapabilityProfile,
+} from "../runtime/capabilities.js";
+import {
+  buildTurnExecutionFacts,
+  configuredProviderFamily,
+  turnAssignmentsEqual,
+  validateTurnAssignment,
+  validateTurnExecutionFacts,
+} from "../runtime/assignment.js";
 import {
   recordTurnOnce,
   toRecord,
@@ -48,9 +61,13 @@ import {
 } from "../runtime/runlog/envelope.js";
 import { gitSnapshotOf } from "../runtime/git.js";
 import { worstUsageQuality } from "../runtime/cost.js";
-import { createEventWriter, type EventWriter } from "../runtime/runlog/events.js";
+import {
+  createEventWriter,
+  readEvents,
+  type EventWriter,
+} from "../runtime/runlog/events.js";
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
-import { mintRunId, runPaths } from "../runtime/runlog/paths.js";
+import { mintRunId, runPaths, RUN_ID_RE } from "../runtime/runlog/paths.js";
 import { withAuthorityBrief } from "./brief.js";
 import { writeContextManifest } from "./context-manifest.js";
 import {
@@ -67,6 +84,7 @@ import {
   type AdmissionFactor,
   type AuthorizedPass,
   type RouteBudget,
+  type ProviderStepPlanMetadata,
   type StartedProviderStep,
 } from "./efficiency.js";
 import { runPipelinePreflight, type PipelineArtifactExpectation } from "./preflight.js";
@@ -94,7 +112,13 @@ export interface ExecutePipelineOptions {
   selection: PassSelection;
   /** Resolved role configs by name (the org layer resolves; loop consumes). */
   roles: Record<string, RoleConfig>;
+  /** Legacy factory retained while callers migrate. The executor supplies a
+   * selection-only RoleConfig whose runtime/model/effort equal the validated
+   * atomic assignment; the TurnRequest still receives the base role. */
   runtimeFor: (role: RoleConfig) => Runtime;
+  /** Assignment-aware factory. New adaptive callers should use this seam so
+   * harness selection is explicit and cannot be inferred from a model id. */
+  runtimeForAssignment?: (assignment: TurnAssignment, role: RoleConfig) => Runtime;
   /** Assembled brief per pass (src/loop/brief.ts is the usual producer). */
   briefFor: (pass: PassConfig) => string;
   /** Directory the pass templates live under (pipelines.yaml's sibling). */
@@ -120,6 +144,9 @@ export interface ExecutePipelineOptions {
    *  actual role running each pass. */
   gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
   runlog: RunlogTarget;
+  /** Stable caller-owned identity for a durable outer step. A retry may reuse
+   * it only after reconciling prior terminal/pending evidence. */
+  runIdForPass?: (pass: PassConfig) => string;
   /** Broader delegated task registered by the top-level operator harness. */
   parentTaskId?: string;
   planningRoute?: PlanningRouteEvidence;
@@ -210,8 +237,10 @@ export interface VerdictRecordContext {
   pass: PassConfig;
   runId: string;
   result: TurnResult;
-  /** The resolved (per-pass-overridden) role. */
+  /** The unchanged organizational role whose authority governs the turn. */
   role: RoleConfig;
+  /** The exact indivisible tuple used by the parent and every repair turn. */
+  assignment: TurnAssignment;
   /** The pass hooks (the conformance gate is preserved) for the reformat turn. */
   hooks: TurnHooks;
   workdir: string;
@@ -238,6 +267,8 @@ export interface PassRunRecord {
   pass: PassConfig;
   runId: string;
   result: TurnResult;
+  assignment: TurnAssignment;
+  planMetadata: ProviderStepPlanMetadata;
   contextFingerprint: string;
   workFingerprint: string | null;
 }
@@ -328,7 +359,7 @@ export async function executePipeline(
     ...(options.episode?.budgetOverrides !== undefined ? { budgetOverrides: options.episode.budgetOverrides } : {}),
     requiredCapabilities:
       options.requiredCapabilities ??
-      ["tool_gate", "cancellation", ...(options.continuation !== undefined ? ["session_resume" as const] : [])],
+      ["tool_gate", "cancellation", "session_resume"],
     ...(options.capabilityProfiles !== undefined ? { capabilityProfiles: options.capabilityProfiles } : {}),
     ...(options.episode?.artifactExpectations !== undefined ? { artifacts: options.episode.artifactExpectations } : {}),
   });
@@ -346,7 +377,18 @@ export async function executePipeline(
   const admission = await admitPipelineEpisode(options, clock(), stages.flat());
   const admittedOptions: ExecutePipelineOptions = {
     ...options,
-    episode: { ...options.episode, id: admission.episode_id },
+    // Execute only the durable authorization returned by admission. This also
+    // upgrades legacy implicit callers to one explicit atomic tuple per pass
+    // without changing their public call shape.
+    episode: {
+      ...options.episode,
+      id: admission.episode_id,
+      // A reassessed route retains historical authorizations additively. Use
+      // the caller's current-plan slice when supplied (admission just proved
+      // every entry is durable); implicit callers use the newly admitted set.
+      authorizedPasses:
+        options.episode?.authorizedPasses ?? admission.authorized_passes,
+    },
   };
 
   const records: PassRunRecord[] = [];
@@ -418,13 +460,18 @@ async function admitPipelineEpisode(
   const passes = options.episode?.authorizedPasses ?? selected.map((pass): AuthorizedPass => {
     const role = options.roles[pass.role];
     if (role === undefined) throw new Error(`executePipeline: missing role ${pass.role}`);
+    const assignment = validateTurnAssignment({
+      harness: role.runtime,
+      model: role.model,
+      effort: role.effort,
+    }, `${options.pipeline.name}/${pass.id} configured assignment`);
     return {
       pipeline: options.pipeline.name,
       pass: pass.id,
       role: role.name,
-      runtime: role.runtime,
-      model: pass.model ?? role.model,
-      effort: pass.effort ?? role.effort,
+      runtime: assignment.harness,
+      model: assignment.model,
+      effort: assignment.effort,
       factor_rules: factorRules,
     };
   });
@@ -501,13 +548,18 @@ async function runOwnedTurn(options: {
   request: Parameters<Runtime["runTurn"]>[0];
   hooks: TurnHooks;
   signal: AbortSignal;
-  role: RoleConfig;
+  assignment: TurnAssignment;
   passId: string;
   graceMs: number;
   latestProgress: () => TurnProgress | undefined;
 }): Promise<TurnResult> {
   if (options.signal.aborted) {
-    return stoppedResult(abortDescriptor(options.signal.reason), options.role, options.passId, options.latestProgress());
+    return stoppedResult(
+      abortDescriptor(options.signal.reason),
+      options.assignment.harness,
+      options.passId,
+      options.latestProgress(),
+    );
   }
 
   const outcome: Promise<TurnOutcome> = Promise.resolve()
@@ -520,7 +572,7 @@ async function runOwnedTurn(options: {
   const first = await Promise.race([outcome, aborted]);
   if ("result" in first && first.result !== undefined) return first.result;
   if ("error" in first) {
-    return failedResult(first.error, options.role, options.passId, options.latestProgress());
+    return failedResult(first.error, options.assignment.harness, options.passId, options.latestProgress());
   }
 
   const descriptor = abortDescriptor(options.signal.reason);
@@ -531,11 +583,126 @@ async function runOwnedTurn(options: {
   void outcome.then(() => {});
   return stoppedResult(
     descriptor,
-    options.role,
+    options.assignment.harness,
     options.passId,
     options.latestProgress(),
     settledDuringGrace.value?.result,
   );
+}
+
+function capabilityProfileFor(
+  options: ExecutePipelineOptions,
+  assignment: TurnAssignment,
+): RuntimeCapabilityProfile {
+  const profile =
+    options.capabilityProfiles?.[assignment.harness] ??
+    runtimeCapabilityProfile(assignment.harness);
+  if (profile.runtime !== assignment.harness) {
+    throw new Error(
+      `executePipeline: capability profile ${profile.runtime} does not match ` +
+        `${assignment.harness} assignment`,
+    );
+  }
+  for (const capability of options.requiredCapabilities ?? []) {
+    if (!hasRuntimeCapability(profile, capability)) {
+      throw new Error(
+        `executePipeline: ${assignment.harness} assignment lacks required capability ${capability}`,
+      );
+    }
+  }
+  return profile;
+}
+
+function contextWithExecution(
+  context: ContextBundle,
+  assignment: TurnAssignment,
+  role: RoleConfig,
+  requiredCapabilities: RuntimeCapability[],
+): ContextBundle {
+  const execution = buildTurnExecutionFacts(assignment, role, requiredCapabilities);
+  if (context.execution !== undefined) {
+    const supplied = validateTurnExecutionFacts(context.execution, "pipeline context execution facts");
+    if (JSON.stringify(supplied) !== JSON.stringify(execution)) {
+      throw new Error(
+        "executePipeline: caller-supplied execution facts disagree with the authorized assignment",
+      );
+    }
+  }
+  return {
+    ...context,
+    execution,
+  };
+}
+
+function validateContinuationAssignment(
+  continuation: LoopContinuation,
+  role: RoleConfig,
+  assignment: TurnAssignment,
+  planMetadata: ProviderStepPlanMetadata,
+): void {
+  if (
+    continuation.role !== role.name ||
+    continuation.session.runtime !== assignment.harness
+  ) {
+    throw new Error(
+      `pipeline continuation role/runtime changed: ${continuation.role}/${continuation.session.runtime} ` +
+        `-> ${role.name}/${assignment.harness}`,
+    );
+  }
+
+  if (continuation.assignment !== undefined) {
+    const persisted = validateTurnAssignment(
+      continuation.assignment,
+      "pipeline continuation assignment",
+    );
+    if (!turnAssignmentsEqual(persisted, assignment)) {
+      throw new Error(
+        "pipeline continuation assignment changed; resume the persisted tuple or create a plan revision",
+      );
+    }
+  }
+
+  const persistedHasPlan =
+    continuation.planVersion !== undefined || continuation.planStepId !== undefined;
+  const currentHasPlan =
+    planMetadata.plan_version !== undefined || planMetadata.plan_step_id !== undefined;
+  if (
+    (persistedHasPlan &&
+      (continuation.planVersion === undefined || continuation.planStepId === undefined)) ||
+    (currentHasPlan &&
+      (planMetadata.plan_version === undefined || planMetadata.plan_step_id === undefined))
+  ) {
+    throw new Error("pipeline continuation has incomplete plan identity");
+  }
+  if (
+    persistedHasPlan !== currentHasPlan ||
+    (persistedHasPlan &&
+      (continuation.planVersion !== planMetadata.plan_version ||
+        continuation.planStepId !== planMetadata.plan_step_id))
+  ) {
+    throw new Error(
+      "pipeline continuation plan version/step changed; resume from the persisted accepted plan",
+    );
+  }
+}
+
+function constructRuntimeForAssignment(
+  options: ExecutePipelineOptions,
+  assignment: TurnAssignment,
+  role: RoleConfig,
+): Runtime {
+  if (options.runtimeForAssignment !== undefined) {
+    return options.runtimeForAssignment(assignment, role);
+  }
+  // Compatibility only: use the tuple as a selection view for existing
+  // `getRuntime(role.runtime)` factories. It is never passed to the adapter,
+  // gate, tool shaper, or verdict recorder as the role's authority.
+  return options.runtimeFor({
+    ...role,
+    runtime: assignment.harness,
+    model: assignment.model,
+    effort: assignment.effort,
+  });
 }
 
 async function runPass(
@@ -550,40 +717,85 @@ async function runPass(
         `defines: ${Object.keys(options.roles).join(", ")}`,
     );
   }
-  const authorized = options.episode?.authorizedPasses?.find(
+  const authorizedMatches = options.episode?.authorizedPasses?.filter(
     (candidate) => candidate.pipeline === options.pipeline.name && candidate.pass === pass.id,
   );
-  if (options.episode?.authorizedPasses !== undefined && authorized === undefined) {
-    throw new Error(`executePipeline: ${options.pipeline.name}/${pass.id} is not route-authorized`);
-  }
-  if (authorized !== undefined && (authorized.role !== base.name || authorized.runtime !== base.runtime)) {
-    throw new Error(`executePipeline: route authorization for ${options.pipeline.name}/${pass.id} changes role/runtime`);
-  }
-  // Copy, never mutate; `runtime` is deliberately not overridable (§2 rule 3).
-  // Route authorization is the pre-execution model/effort authority when it
-  // exists; otherwise the configured pass/role remains the explicit choice.
-  const role: RoleConfig = {
-    ...base,
-    model: authorized?.model ?? pass.model ?? base.model,
-    effort: authorized?.effort ?? pass.effort ?? base.effort,
-  };
-  const continuation = options.continuation?.pass === pass.id ? options.continuation : undefined;
-  if (
-    continuation !== undefined &&
-    (continuation.role !== role.name || continuation.session.runtime !== role.runtime)
-  ) {
+  if (authorizedMatches !== undefined && authorizedMatches.length !== 1) {
     throw new Error(
-      `pipeline continuation role/runtime changed: ${continuation.role}/${continuation.session.runtime} ` +
-        `-> ${role.name}/${role.runtime}`,
+      `executePipeline: ${options.pipeline.name}/${pass.id} requires exactly one route authorization; ` +
+        `found ${authorizedMatches.length}`,
     );
   }
+  const authorized = authorizedMatches?.[0];
+  if (authorized !== undefined && authorized.role !== base.name) {
+    throw new Error(
+      `executePipeline: route authorization for ${options.pipeline.name}/${pass.id} changes role ` +
+        `${base.name} -> ${authorized.role}`,
+    );
+  }
+  const assignment = validateTurnAssignment(
+    authorized === undefined
+      ? {
+          harness: base.runtime,
+          model: base.model,
+          effort: base.effort,
+        }
+      : {
+          harness: authorized.runtime,
+          model: authorized.model,
+          effort: authorized.effort,
+        },
+    `${options.pipeline.name}/${pass.id} authorized assignment`,
+  );
+  // Responsibility and authority remain bound to this unchanged role. Model,
+  // effort, and harness travel separately as one TurnAssignment.
+  const role = base;
+  capabilityProfileFor(options, assignment);
+  const resolvedCapabilities = resolvedRuntimeCapabilities(assignment.harness);
+  if (authorized?.resolved_capabilities !== undefined) {
+    const claimed = [...authorized.resolved_capabilities].sort();
+    if (JSON.stringify(claimed) !== JSON.stringify(resolvedCapabilities)) {
+      throw new Error(
+        `executePipeline: resolved capabilities for ${options.pipeline.name}/${pass.id} changed; ` +
+          "persist a plan revision before execution",
+      );
+    }
+  }
+  const planMetadata: ProviderStepPlanMetadata = {
+    assignment_source: authorized?.assignment_source ?? "configured",
+    ...(authorized?.assignment_candidate_id !== undefined
+      ? { assignment_candidate_id: authorized.assignment_candidate_id }
+      : {}),
+    ...(authorized?.plan_version !== undefined
+      ? { plan_version: authorized.plan_version, plan_step_id: authorized.plan_step_id }
+      : {}),
+    selection_reason:
+      authorized?.selection_reason ?? "resolved from the configured pipeline pass and role",
+    provider_family: authorized?.provider_family ?? configuredProviderFamily(assignment),
+    resolved_capabilities: resolvedCapabilities,
+  };
+  const continuation = options.continuation?.pass === pass.id ? options.continuation : undefined;
+  if (continuation !== undefined) {
+    validateContinuationAssignment(continuation, role, assignment, planMetadata);
+  }
+  const requiredCapabilities = options.requiredCapabilities ?? [
+    "tool_gate",
+    "cancellation",
+    "session_resume",
+  ];
+  const executionContext = contextWithExecution(
+    options.context,
+    assignment,
+    role,
+    requiredCapabilities,
+  );
   const selectedPasses = selectPasses(options.pipeline, options.selection);
   const selectedIds = new Set(selectedPasses.map((candidate) => candidate.id));
 
   const { root, app, ticket, traceId } = options.runlog;
   const episodeId = options.episode?.id;
   if (episodeId === undefined) throw new Error("executePipeline: episode admission missing");
-  const runId = mintRunId(
+  const runId = options.runIdForPass?.(pass) ?? mintRunId(
     clock(),
     options.pipeline.name,
     continuation === undefined
@@ -593,11 +805,14 @@ async function runPass(
           decisions: continuation.decisions,
         }).slice(0, 10)}`,
   );
+  if (!RUN_ID_RE.test(runId)) {
+    throw new Error(`executePipeline: caller-owned run id ${JSON.stringify(runId)} is not a valid runlog id`);
+  }
   const rawBrief = options.briefFor(pass);
   const brief =
     options.authorityBrief === "context-only"
       ? rawBrief
-      : withAuthorityBrief(rawBrief, options.context);
+      : withAuthorityBrief(rawBrief, executionContext);
   // template "" = brief-only task. Only a synthesized pipeline can carry it
   // (runRole's plain turn) — the loader rejects empty templates in config.
   const template =
@@ -623,9 +838,25 @@ async function runPass(
       pipeline: options.pipeline.name,
       pass: pass.id,
       role: role.name,
-      runtime: role.runtime,
-      model: role.model,
-      effort: role.effort,
+      runtime: assignment.harness,
+      model: assignment.model,
+      effort: assignment.effort,
+      ...(planMetadata.assignment_source !== undefined
+        ? { assignmentSource: planMetadata.assignment_source }
+        : {}),
+      ...(planMetadata.assignment_candidate_id !== undefined
+        ? { assignmentCandidateId: planMetadata.assignment_candidate_id }
+        : {}),
+      ...(planMetadata.plan_version !== undefined
+        ? {
+            planVersion: planMetadata.plan_version,
+            planStepId: planMetadata.plan_step_id,
+          }
+        : {}),
+      ...(planMetadata.selection_reason !== undefined
+        ? { selectionReason: planMetadata.selection_reason }
+        : {}),
+      resolvedCapabilities,
       workdir: resolve(options.workdir),
       ...(git !== undefined ? { gitHead: git.head, gitBranch: git.branch } : {}),
       tracePlan: {
@@ -639,13 +870,13 @@ async function runPass(
       },
       ...(options.planningRoute !== undefined ? { planningRoute: options.planningRoute } : {}),
       ...(inputManifestRef !== undefined ? { inputManifestRef } : {}),
-      ...(options.context.authority !== undefined
+      ...(executionContext.authority !== undefined
         ? {
             authority: {
-              profile: options.context.authority.profile,
-              version: options.context.authority.version,
-              sha256: options.context.authority.sha256,
-              sources: [...options.context.authority.sources],
+              profile: executionContext.authority.profile,
+              version: executionContext.authority.version,
+              sha256: executionContext.authority.sha256,
+              sources: [...executionContext.authority.sources],
             },
           }
         : {}),
@@ -665,11 +896,17 @@ async function runPass(
     episodeId,
     app,
     runId,
-    context: options.context,
+    context: executionContext,
     brief,
     ...(template !== undefined ? { template } : {}),
     route: options.episode?.route ?? options.selection.tier,
-    runtime: role.runtime,
+    runtime: assignment.harness,
+    ...(planMetadata.plan_version !== undefined
+      ? {
+          planVersion: planMetadata.plan_version,
+          planStepId: planMetadata.plan_step_id,
+        }
+      : {}),
     ...(options.contextBudgetBytes !== undefined ? { capBytes: options.contextBudgetBytes } : {}),
   });
   const executableContext = contextManifest.context;
@@ -717,7 +954,7 @@ async function runPass(
       pipeline: options.pipeline.name,
       pass: pass.id,
       role: role.name,
-      model: role.model,
+      model: assignment.model,
     },
     clock,
   );
@@ -833,11 +1070,22 @@ async function runPass(
     session?: TurnResult["session"];
     verdictSchema?: Record<string, unknown>;
   }): Promise<TurnResult> => {
+    if (providerOrdinal > 0 && planMetadata.plan_version !== undefined) {
+      throw new Error(
+        `accepted EpisodePlan step ${planMetadata.plan_step_id ?? pass.id} authorizes one provider turn; ` +
+          `operation ${request.operation} requires an explicit future step or plan revision`,
+      );
+    }
     const ordinal = (providerOrdinal += 1);
     const toolCallStart = providerToolCalls;
     const inputFingerprint = fingerprint({
       operation: request.operation,
-      role: { name: role.name, runtime: role.runtime, model: role.model, effort: role.effort },
+      role: { name: role.name },
+      assignment,
+      plan: {
+        version: planMetadata.plan_version ?? null,
+        step: planMetadata.plan_step_id ?? null,
+      },
       task: request.task,
       context: contextManifest.manifest.render_sha256,
       session: request.session?.id ?? null,
@@ -850,6 +1098,19 @@ async function runPass(
       ordinal,
       operation: request.operation,
       role,
+      assignment,
+      planMetadata,
+      settlementAttribution: {
+        ...(options.telemetry?.experimentRef === undefined
+          ? {}
+          : { experiment_ref: options.telemetry.experimentRef }),
+        ...(options.telemetry?.candidateRef === undefined
+          ? {}
+          : { candidate_ref: options.telemetry.candidateRef }),
+        ...(options.telemetry?.learningActivity === undefined
+          ? {}
+          : { learning_activity: options.telemetry.learningActivity }),
+      },
       inputFingerprint,
       now: clock(),
       ...(options.episode?.nextTurnEstimate !== undefined
@@ -878,7 +1139,13 @@ async function runPass(
     }, adapterStartTimeoutMs);
     adapterStartTimer.unref?.();
     try {
-      runtime ??= options.runtimeFor(admittedRole);
+      runtime ??= constructRuntimeForAssignment(options, assignment, admittedRole);
+      if (runtime.kind !== assignment.harness) {
+        throw new Error(
+          `executePipeline: runtime factory returned ${runtime.kind} for ${assignment.harness} assignment; ` +
+            "no provider turn was started",
+        );
+      }
       if (!passController.signal.aborted) {
         await options.beforeProviderTurn?.({
           pipeline: options.pipeline.name,
@@ -890,6 +1157,7 @@ async function runPass(
         runtime,
         request: {
           role: admittedRole,
+          assignment,
           workdir: options.workdir,
           task: request.task,
           context: executableContext,
@@ -901,13 +1169,13 @@ async function runPass(
         },
         hooks: passHooks,
         signal: passController.signal,
-        role: admittedRole,
+        assignment,
         passId: pass.id,
         graceMs: options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
         latestProgress: () => latestProgress,
       });
     } catch (error) {
-      turnResult = failedResult(error, admittedRole, pass.id, latestProgress);
+      turnResult = failedResult(error, assignment.harness, pass.id, latestProgress);
     } finally {
       if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
       adapterStartTimer = undefined;
@@ -917,6 +1185,27 @@ async function runPass(
       operation: request.operation,
       started,
       result: turnResult,
+    });
+    // Persist the provider result on the parent run before publishing the
+    // terminal execution record. That record is the resume authority for an
+    // accepted EpisodePlan step, so once it exists a restart must also have
+    // enough durable run evidence to recover output, session, usage, and
+    // settlement without invoking the provider again.
+    await checkpointWrites;
+    const durableUsage = providerResults.reduce(
+      (sum, prior) => sumTurnUsage(sum, prior.usage),
+      turnResult.usage,
+    );
+    if (ordinal === 1) {
+      await writeOutput(root, app, runId, turnResult.summary);
+    }
+    await updateEnvelope(root, app, runId, {
+      usage: toEnvelopeUsage(durableUsage),
+      session: sessionEvidence(turnResult.session),
+      ...(turnResult.artifacts.length > 0 ? { artifacts: turnResult.artifacts } : {}),
+      ...(ordinal === 1
+        ? { previews: { task: request.task, output: turnResult.summary } }
+        : {}),
     });
     const artifactFingerprint =
       turnResult.artifacts.length === 0 ? undefined : fingerprint(turnResult.artifacts);
@@ -929,6 +1218,8 @@ async function runPass(
       started,
       operation: request.operation,
       role: admittedRole,
+      assignment,
+      planMetadata,
       result: turnResult,
       finishedAt: clock(),
       contextManifestRef: contextManifest.relativeRef,
@@ -937,13 +1228,36 @@ async function runPass(
       ...(artifactFingerprint !== undefined ? { artifactFingerprint } : {}),
       toolCallCount: providerToolCalls - toolCallStart,
     });
-    const settlement = toRecord(admittedRole, turnResult, clock(), {
+    const settlementRole: RoleConfig = {
+      ...admittedRole,
+      runtime: assignment.harness,
+      model: assignment.model,
+      effort: assignment.effort,
+    };
+    const settlement = toRecord(settlementRole, turnResult, clock(), {
       app,
       ...(options.telemetry?.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
       runId,
       providerTurnId: started.providerTurnId,
       executionStepId: started.executionStepId,
       episodeId,
+      effort: assignment.effort,
+      ...(planMetadata.plan_version !== undefined
+        ? {
+            planVersion: planMetadata.plan_version,
+            planStepId: planMetadata.plan_step_id,
+          }
+        : {}),
+      ...(planMetadata.assignment_source !== undefined
+        ? { assignmentSource: planMetadata.assignment_source }
+        : {}),
+      ...(planMetadata.assignment_candidate_id !== undefined
+        ? { assignmentCandidateId: planMetadata.assignment_candidate_id }
+        : {}),
+      ...(planMetadata.selection_reason !== undefined
+        ? { selectionReason: planMetadata.selection_reason }
+        : {}),
+      resolvedCapabilities,
       traceId,
       ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
       pipeline: options.pipeline.name,
@@ -1011,7 +1325,7 @@ async function runPass(
       errorCode: error.errorCode,
       summary: error.message,
       artifacts: [],
-      session: { runtime: role.runtime, id: `route-budget-${pass.id}` },
+      session: { runtime: assignment.harness, id: `route-budget-${pass.id}` },
       usage: unavailableUsage(),
       escalations: [],
     };
@@ -1053,6 +1367,7 @@ async function runPass(
         runId,
         result,
         role,
+        assignment,
         hooks: passHooks,
         workdir: options.workdir,
         context: executableContext,
@@ -1060,6 +1375,28 @@ async function runPass(
         clock,
         runProviderTurn,
       });
+      if (
+        verdictOutcome.ok &&
+        !(await readEvents(root, app, runId)).some((event) => event.event === "verdict.recorded")
+      ) {
+        verdictOutcome = {
+          ok: false,
+          errorCode: "error_verdict_persist",
+          error: new Error(
+            `verdict recorder for ${options.pipeline.name}/${pass.id} returned without durable verdict.recorded evidence`,
+          ),
+        };
+      }
+      if (verdictOutcome.ok) {
+        // The provider execution record is intentionally durable before this
+        // callback. This separate orchestrator-owned marker closes the crash
+        // window: a governed resume may trust terminal provider output only
+        // after verdict parsing/persistence has also committed.
+        await events.append({
+          type: "verdict.persistence_completed",
+          detail: { provider_turns: providerResults.length },
+        });
+      }
     } catch (error) {
       verdictOutcome = {
         ok: false,
@@ -1140,6 +1477,8 @@ async function runPass(
     pass,
     runId,
     result,
+    assignment,
+    planMetadata,
     contextFingerprint: contextManifest.manifest.render_sha256,
     workFingerprint: worktreeFingerprint(options.workdir) ?? null,
   };
@@ -1398,7 +1737,7 @@ function isAbortDescriptor(value: unknown): value is AbortDescriptor {
 
 function stoppedResult(
   descriptor: AbortDescriptor,
-  role: RoleConfig,
+  runtime: TurnAssignment["harness"],
   passId: string,
   progress: TurnProgress | undefined,
   settled?: TurnResult,
@@ -1409,7 +1748,7 @@ function stoppedResult(
     errorCode: descriptor.errorCode,
     summary: descriptor.reason,
     artifacts: settled?.artifacts ?? [],
-    session: settled?.session ?? progress?.session ?? { runtime: role.runtime, id: `${descriptor.status}-${passId}` },
+    session: settled?.session ?? progress?.session ?? { runtime, id: `${descriptor.status}-${passId}` },
     usage: {
       ...usage,
       quality: usage.quality === "unavailable" ? "unavailable" : "partial",
@@ -1420,7 +1759,7 @@ function stoppedResult(
 
 function failedResult(
   error: unknown,
-  role: RoleConfig,
+  runtime: TurnAssignment["harness"],
   passId: string,
   progress: TurnProgress | undefined,
 ): TurnResult {
@@ -1431,7 +1770,7 @@ function failedResult(
     errorCode: "error_runtime_failed",
     summary: message,
     artifacts: [],
-    session: progress?.session ?? { runtime: role.runtime, id: `failed-${passId}` },
+    session: progress?.session ?? { runtime, id: `failed-${passId}` },
     usage: {
       ...usage,
       quality: progress?.usage === undefined ? "unavailable" : "partial",

@@ -1,6 +1,7 @@
 // M6 ordinary-turn integration: distiller and independent reviewer execute
-// through runDispatchedTurn/executePipeline, use native schemas, settle in the
-// org ledger/learning overlay, append scorecards, and persist governed records.
+// through runDispatchedTurn and a durable creator-scoped EpisodePlan, use
+// native schemas, settle in the org ledger/learning overlay, append scorecards,
+// and persist governed records.
 
 import { cpSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cmdLearn } from "../../src/cli/learn.js";
 import { rollupLearningSpend } from "../../src/org/budget.js";
 import { writeJournalPatch } from "../../src/org/journal.js";
+import { episodeIdFor } from "../../src/loop/efficiency.js";
+import { readCurrentEpisodePlan } from "../../src/loop/episode-plan.js";
 import { listCandidateArtifacts } from "../../src/org/learning/candidate-store.js";
 import { appLearningRoot } from "../../src/org/learning/concepts.js";
 import { listM6RunRecords, prepareDistillation } from "../../src/org/learning/distillation.js";
@@ -118,7 +121,7 @@ describe("M6 scheduled turns", () => {
       turnId: "turn-empty",
       orgRoot: org.root,
       runtimeHome: state.root,
-      runtimeFor: () => runtime,
+      runtimeFor: (selected) => ({ ...runtime, kind: selected.runtime }),
       now: () => clock.now(),
     })).status).toBe("completed");
     expect(calls).toBe(0);
@@ -126,6 +129,94 @@ describe("M6 scheduled turns", () => {
     expect(await listM6RunRecords(state.root)).toMatchObject([
       { status: "skipped", reason: "no_actionable_evidence", model_turns: 0 },
     ]);
+  });
+
+  it("fails malformed M6 output after its single planned provider turn without a hidden reformat", async () => {
+    const org = makeOrgHome();
+    const state = makeOrgHome({ state: true, approvals: true });
+    const git = makeBareWithClone();
+    cleanups.push(org.cleanup, state.cleanup, git.cleanup);
+    for (const entry of ["TASTE.md", "roles.yaml", "pipelines.yaml", "prompts", "taste"]) {
+      cpSync(join(ROOT, entry), join(org.root, entry), { recursive: true });
+    }
+    const app = {
+      name: "alpha",
+      repo: git.bare.root,
+      status: "live" as const,
+      budgetUsdMonth: 1000,
+      cadence: {},
+    };
+    const appsFile = {
+      org: { name: "m6-invalid", maxConcurrentTurns: 1 },
+      defaults: { budgetUsdMonth: 1000 },
+      apps: [app],
+    };
+    const clock = new FakeClock("2026-07-13T06:00:00.000Z");
+    const sink = createLearningEventSink(state.root);
+    for (const id of ["evt_invalid_1", "evt_invalid_2"]) {
+      await sink.emit({
+        event_id: id,
+        episode_id: `ep_invalid_${id.slice(-1)}`,
+        ts: "2026-07-12T12:00:00.000Z",
+        app: "alpha",
+        agent_role: "builder",
+        type: "error",
+        error_class: "review.missing_test_mapping",
+        cause_hypothesis: "criteria were not mapped",
+        emitter: "orchestrator",
+        source_channel: "internal",
+        trust: "trusted",
+      });
+    }
+    const role = (await loadRoles(join(org.root, "roles.yaml"))).roles.find(
+      (entry) => entry.name === "distiller",
+    )!;
+    await writeJournalPatch(state.root, "turn-invalid-distill", {
+      role: role.name,
+      app: app.name,
+      phase: "assembling",
+      attempt: 0,
+      triggerKind: "schedule",
+      trigger: "daily 06:00",
+    }, clock.now());
+    let calls = 0;
+    const runtime: Runtime = {
+      kind: "claude",
+      async runTurn(req) {
+        calls += 1;
+        return result(req, "not a valid distillation verdict", 0.25);
+      },
+    };
+
+    const outcome = await runDispatchedTurn({
+      role,
+      app,
+      appsFile,
+      turnId: "turn-invalid-distill",
+      orgRoot: org.root,
+      runtimeHome: state.root,
+      runtimeFor: (selected) => ({ ...runtime, kind: selected.runtime }),
+      now: () => clock.now(),
+    });
+
+    expect(outcome.status).toBe("failed");
+    expect(calls).toBe(1);
+    expect(await listM6RunRecords(state.root)).toMatchObject([{
+      status: "failed",
+      model_turns: 1,
+    }]);
+    const plan = await readCurrentEpisodePlan(
+      state.root,
+      episodeIdFor({ app: "alpha", traceId: "turn-invalid-distill" }),
+    );
+    expect(plan).toMatchObject({
+      planningSource: "creator_scope",
+      steps: [{
+        kind: "provider_turn",
+        id: "gp-learning-distill-distill",
+        assignmentSource: "configured",
+      }],
+    });
   });
 
   it("settles distiller/reviewer telemetry and budget attribution, records scorecards, and persists structured review", async () => {
@@ -255,9 +346,23 @@ describe("M6 scheduled turns", () => {
       turnId: "turn-distill",
       orgRoot: org.root,
       runtimeHome: state.root,
-      runtimeFor: () => runtime,
+      runtimeFor: (selected) => ({ ...runtime, kind: selected.runtime }),
       now: () => clock.now(),
     })).status).toBe("completed");
+
+    // A retry after the provider/verdict became durable closes from the same
+    // accepted plan and exact assignment; it must not run distillation again.
+    expect((await runDispatchedTurn({
+      role: distiller,
+      app,
+      appsFile,
+      turnId: "turn-distill",
+      orgRoot: org.root,
+      runtimeHome: state.root,
+      runtimeFor: (selected) => ({ ...runtime, kind: selected.runtime }),
+      now: () => clock.now(),
+    })).status).toBe("completed");
+    expect(schemaCalls).toEqual([{ role: "distiller", schema: true }]);
 
     const managedRoot = appLearningRoot(join(state.root, "repos", "alpha"));
     const candidate = (await listCandidateArtifacts(managedRoot))[0]!;
@@ -277,7 +382,7 @@ describe("M6 scheduled turns", () => {
       turnId: "turn-learning-review",
       orgRoot: org.root,
       runtimeHome: state.root,
-      runtimeFor: () => runtime,
+      runtimeFor: (selected) => ({ ...runtime, kind: selected.runtime }),
       now: () => clock.now(),
     })).status).toBe("completed");
 

@@ -1,21 +1,19 @@
-// Tests the planner co-planning launcher in src/org/plan.ts and cmdPlan.
-// Covers planning context assembly, Claude invocation arguments, temporary
-// planning worktree creation/cleanup, dry-run output, and sibling checkout
-// resolution.
+// Tests the token-free manual planning preview in src/org/plan.ts and cmdPlan.
+// Covers planning context assembly, temporary planning worktree
+// creation/cleanup, dry-run output, fail-closed live behavior, and sibling
+// checkout resolution.
 // Uses local temp git repos and mocked console output; no network, auth, real
 // org state, or live wall clock is required.
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import {
   assemblePlanningContext,
-  buildClaudeInvocation,
   cleanupPlanningWorktree,
   createPlanningWorktree,
-  spawnClaude,
 } from "../src/org/plan.js";
 import { cmdPlan, formatPlanTicketSummary } from "../src/cli/plan.js";
 import type { RoleConfig } from "../src/runtime/types.js";
@@ -210,80 +208,6 @@ describe("assemblePlanningContext", () => {
   });
 });
 
-describe("Claude invocation", () => {
-  it("includes --append-system-prompt and the worktree cwd", async () => {
-    const context = {
-      systemPrompt: "system context",
-      openingTask: "Co-planning topic: x",
-      byteSize: 14,
-      sources: [],
-    };
-    const invocation = buildClaudeInvocation(context, "/tmp/worktree");
-    expect(invocation.command).toBe("claude");
-    expect(invocation.args).toEqual([
-      "--append-system-prompt",
-      "system context",
-      "Co-planning topic: x",
-    ]);
-    expect(invocation.cwd).toBe("/tmp/worktree");
-  });
-
-  it.skipIf(process.platform === "win32")(
-    "cancellation terminates the native CLI process group, including descendants",
-    async () => {
-      const root = makeDir("operon-plan-process-group-");
-      const pidFile = join(root, "descendant.pid");
-      const script = join(root, "parent.cjs");
-      writeFileSync(
-        script,
-        [
-          "const { spawn } = require('node:child_process');",
-          "const { writeFileSync } = require('node:fs');",
-          "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
-          "writeFileSync(process.argv[2], String(child.pid));",
-          "setInterval(() => {}, 1000);",
-          "",
-        ].join("\n"),
-      );
-      const controller = new AbortController();
-      const running = spawnClaude(
-        { command: process.execPath, args: [script, pidFile], cwd: root },
-        controller.signal,
-      );
-      await pollUntil(() => existsSync(pidFile), 1_000);
-      const descendantPid = Number(readFileSync(pidFile, "utf8"));
-      expect(processAlive(descendantPid)).toBe(true);
-
-      controller.abort({
-        status: "cancelled",
-        errorCode: "error_cancelled",
-        reason: "operator cancellation (SIGTERM)",
-      });
-      expect(await running).toBe(143);
-      await pollUntil(() => !processAlive(descendantPid), 2_500);
-      expect(processAlive(descendantPid)).toBe(false);
-    },
-    5_000,
-  );
-});
-
-async function pollUntil(predicate: () => boolean, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
-    if (Date.now() >= deadline) throw new Error(`condition not met within ${timeoutMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
-
-function processAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 describe("planning worktree lifecycle", () => {
   // The fixture is now a real bare+clone pair rather than a standalone repo:
   // #60 requires the interactive planning worktree to be cut from the *fetched*
@@ -418,7 +342,7 @@ describe("cmdPlan", () => {
     expect(line).toContain("sensitive-domain floor: data");
   });
 
-  it("auto dry-run is token-free even when the legacy org has no plan-bootstrap pipeline", async () => {
+  it("auto dry-run previews EpisodePlanner authority without calling a runtime", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp();
     process.chdir(orgHome);
@@ -444,15 +368,16 @@ describe("cmdPlan", () => {
     expect(log.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
       "dry-run",
     );
-    expect(log.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
-      "planning depth: quick",
-    );
+    const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain("assignment mode: fixed");
+    expect(out).toContain("planning path: episode_planner_provider_turn");
+    expect(out).toContain("cannot claim the exact provider-authored EpisodePlan");
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
     expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
     expect(git(app, ["status", "--porcelain=v2", "--branch"])).toBe(before);
   });
 
-  it("auto dry-run keeps short auth work at quick planning while preserving the deep execution route", async () => {
+  it("auto dry-run does not turn explicit risk hints into a guessed workflow", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp();
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -468,7 +393,7 @@ describe("cmdPlan", () => {
       "--work-lifecycle",
       "bounded-goal",
       "--sensitive-domains",
-      "security/auth/secrets",
+      "auth,secrets,data-migration,production-deployment,performance,user-data",
       "--dry-run",
       "--workdir",
       app,
@@ -480,13 +405,42 @@ describe("cmdPlan", () => {
 
     expect(code).toBe(0);
     const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
-    expect(out).toContain("planning depth: quick");
-    expect(out).toContain("execution route: deep");
-    expect(out).toContain("selected passes: decomposer");
+    expect(out).toContain("planning path: episode_planner_provider_turn");
+    expect(out).toContain(
+      "required safety facts: authentication, data_migration, performance_sensitive, production_deployment, secrets",
+    );
+    expect(out).not.toContain("planning depth:");
+    expect(out).not.toContain("selected passes:");
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
   });
 
-  it("JSON dry-run explains direct existing-ticket admission with zero planning passes", async () => {
+  it("does not derive safety authority from a sensitive-looking goal", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stateHome = makeDir("operon-plan-prose-safety-state-");
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "Migrate auth secrets to production with a faster incident rollback",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain("required safety facts: none");
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+  });
+
+  it("JSON dry-run never infers an existing-ticket planner bypass", async () => {
     const orgHome = makeOrgHome();
     const app = makeGitApp();
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -512,14 +466,62 @@ describe("cmdPlan", () => {
     expect(code).toBe(0);
     const output = log.mock.calls.map((call) => call.join(" ")).join("\n");
     const parsed = JSON.parse(output) as {
-      decision: { disposition: string };
-      planningRoute: { selectedPasses: string[]; passRationales: unknown[] };
+      episode: {
+        planningPath: string;
+        exactProviderAuthoredPlan: unknown;
+        creatorScope: { executionReady: boolean; issues: Array<{ code: string }> };
+      };
       effects: unknown[];
     };
-    expect(parsed.decision.disposition).toBe("direct-execution");
-    expect(parsed.planningRoute.selectedPasses).toEqual([]);
-    expect(parsed.planningRoute.passRationales).toEqual([]);
+    expect(parsed.episode.planningPath).toBe("episode_planner_provider_turn");
+    expect(parsed.episode.exactProviderAuthoredPlan).toBeNull();
+    expect(parsed.episode.creatorScope.executionReady).toBe(false);
+    expect(parsed.episode.creatorScope.issues).toEqual([
+      expect.objectContaining({ code: "creator_scope_absent" }),
+    ]);
     expect(parsed.effects).toEqual([]);
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+  });
+
+  it("dry-run derives its ceiling from current ledger spend, not the full monthly budget", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stateHome = makeDir("operon-plan-budget-preview-state-");
+    const month = new Date().toISOString().slice(0, 7);
+    write(
+      stateHome,
+      `telemetry/${month}-01.jsonl`,
+      `${JSON.stringify({ app: "operon-sandbox-alpha", costUsd: 125 })}\n`,
+    );
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "ship the bounded change",
+      "--dry-run",
+      "--json",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const parsed = JSON.parse(log.mock.calls.map((call) => call.join(" ")).join("\n")) as {
+      budget: { monthlyUsd: number; spentUsd: number; remainingUsd: number; status: string };
+      episode: { intent: { hardBudget: { maxEquivalentCostUsd: number } } };
+    };
+    expect(parsed.budget).toEqual({
+      monthlyUsd: 1000,
+      spentUsd: 125,
+      remainingUsd: 875,
+      status: "ok",
+    });
+    expect(parsed.episode.intent.hardBudget.maxEquivalentCostUsd).toBeLessThan(875);
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
   });
 
@@ -605,9 +607,36 @@ describe("cmdPlan", () => {
 
     expect(code).toBe(0);
     const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
-    expect(out).toContain('"kind": "route-explanation"');
-    expect(out).toContain('"passRationales"');
+    expect(out).toContain('"kind": "episode-planning-preview"');
+    expect(out).toContain('"request": "explain-route"');
+    expect(out).toContain('"exactProviderAuthoredPlan": null');
+    expect(out).toContain("cannot claim the exact provider-authored EpisodePlan");
+    expect(out).not.toContain('"selectedPasses"');
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
+  });
+
+  it("fails closed before worktree or telemetry creation for the retired native interactive path", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const stateHome = makeDir("operon-plan-disabled-live-state-");
+    const before = git(app, ["status", "--porcelain=v2", "--branch"]);
+
+    await expect(cmdPlan([
+      "operon-sandbox-alpha",
+      "--topic",
+      "stats percentile helper",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ])).rejects.toThrow(/live interactive co-planning is disabled.*--auto --goal/s);
+
+    expect(git(app, ["branch", "--list", "op/plan-stats-percentile-helper"]).trim()).toBe("");
+    expect(git(app, ["status", "--porcelain=v2", "--branch"])).toBe(before);
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
   });
 
   it("dry-run prints app, branch, topic, and context byte size without spawning", async () => {

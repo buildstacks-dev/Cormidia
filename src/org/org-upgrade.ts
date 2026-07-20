@@ -96,14 +96,25 @@ export async function planOrgUpgrade(options: OrgUpgradeOptions): Promise<OrgUpg
     if (!existsSync(join(orgHome, rel))) changes.push({ path: rel, action: "add", detail: "copy packaged ratified surface" });
   }
   for (const rel of ADDITIVE_TREES) {
-    if (existsSync(join(templateRoot, rel)) && !existsSync(join(orgHome, rel))) {
-      changes.push({ path: `${rel}/`, action: "add", detail: "copy packaged ratified tree" });
+    if (!existsSync(join(templateRoot, rel))) continue;
+    for (const packagedPath of await additiveTreeFiles(templateRoot, rel)) {
+      if (!existsSync(join(orgHome, packagedPath))) {
+        changes.push({
+          path: packagedPath,
+          action: "add",
+          detail: `copy missing packaged ratified ${rel} surface`,
+        });
+      }
     }
   }
   // validateOrgHome also expects all required files; name them explicitly if
   // the packaged surface list changes later.
   for (const rel of ORG_REQUIRED_FILES) {
-    if (rel !== "apps.yaml" && !existsSync(join(orgHome, rel)) && !changes.some((change) => change.path === rel)) {
+    if (
+      rel !== "apps.yaml" &&
+      !existsSync(join(orgHome, rel)) &&
+      !changes.some((change) => change.path === rel || change.path.startsWith(`${rel}/`))
+    ) {
       changes.push({ path: rel, action: "add", detail: "copy required packaged surface" });
     }
   }
@@ -193,6 +204,9 @@ async function executeOrgUpgradeLocked(
       const target = join(plan.org_home, rel);
       await options.fault?.(rel === "apps.yaml" ? "before_registry_write" : "before_config_write");
       if (existsSync(target)) {
+        if (change.action === "add") {
+          throw new Error(`org upgrade: additive target appeared after preview; refusing to overwrite ${target}`);
+        }
         const info = await lstat(target);
         if (info.isSymbolicLink()) throw new Error(`org upgrade: symlink target forbidden: ${target}`);
         await rm(target, { recursive: true, force: true });
@@ -298,6 +312,7 @@ async function stageUpgrade(plan: OrgUpgradePlan, options: OrgUpgradeOptions): P
       } else {
         const source = join(templateRoot, rel);
         if (!existsSync(source)) throw new Error(`org upgrade: packaged migration source missing: ${source}`);
+        await mkdir(dirname(join(staged, rel)), { recursive: true });
         await cp(source, join(staged, rel), { recursive: true, errorOnExist: true, force: false });
       }
     }
@@ -362,4 +377,26 @@ async function fileManifest(root: string): Promise<Array<{ path: string; bytes: 
   }
   await visit(root);
   return records.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** Enumerate packaged tree leaves so upgrades can add a newly introduced
+ * nested prompt/taste file without replacing any existing human-ratified
+ * bytes. Directory-level copying made an already-present `prompts/` tree hide
+ * every later packaged protocol addition. */
+async function additiveTreeFiles(templateRoot: string, tree: string): Promise<string[]> {
+  const root = join(templateRoot, tree);
+  const files: string[] = [];
+  async function visit(directory: string): Promise<void> {
+    for (const entry of (await readdir(directory, { withFileTypes: true }))
+      .sort((left, right) => left.name.localeCompare(right.name))) {
+      const path = join(directory, entry.name);
+      if (entry.isSymbolicLink()) {
+        throw new Error(`org upgrade: packaged migration source symlink forbidden: ${path}`);
+      }
+      if (entry.isDirectory()) await visit(path);
+      else if (entry.isFile()) files.push(relative(templateRoot, path));
+    }
+  }
+  await visit(root);
+  return files.sort();
 }

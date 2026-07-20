@@ -26,6 +26,7 @@ import type {
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeRuntime, type QueryFn } from "../../src/runtime/adapters/claude.js";
+import { buildTurnExecutionFacts } from "../../src/runtime/assignment.js";
 import { defaultGate } from "../../src/runtime/gate.js";
 import type { ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";
 import type { RoleConfig, ToolAction, TurnEvent } from "../../src/runtime/types.js";
@@ -176,6 +177,93 @@ function makeClaudeRuntime(turns: ScriptedTurn[]): ClaudeRuntime {
 }
 
 describe("ClaudeRuntime (Agent SDK mocked)", () => {
+  it("uses the explicit assignment and exposes matching execution facts", async () => {
+    let captured: SdkOptions | undefined;
+    const queryFn: QueryFn = ({ options }) => {
+      captured = options;
+      return (async function* () {
+        yield initMessage(String(options?.cwd ?? ""));
+        yield successResultMessage("done");
+      })();
+    };
+    const assignment = {
+      harness: "claude" as const,
+      model: "claude-assigned-model",
+      effort: "max" as const,
+    };
+
+    await new ClaudeRuntime({ queryFn }).runTurn(
+      {
+        role: CLAUDE_ROLE,
+        assignment,
+        workdir: "/tmp/operon-claude-assignment",
+        task: "use the planned tuple",
+        context: {
+          taste: [],
+          memoryExcerpts: [],
+          execution: buildTurnExecutionFacts(
+            assignment,
+            CLAUDE_ROLE,
+            ["tool_gate", "session_resume"],
+          ),
+        },
+      },
+      { gate: defaultGate },
+    );
+
+    expect(captured?.model).toBe("claude-assigned-model");
+    expect(captured?.effort).toBe("max");
+    expect(JSON.stringify(captured?.systemPrompt)).toContain("Turn execution facts");
+    expect(JSON.stringify(captured?.systemPrompt)).toContain("session resume");
+  });
+
+  it("rejects a tuple for another harness before invoking Claude", async () => {
+    let invoked = false;
+    const runtime = new ClaudeRuntime({
+      queryFn: () => {
+        invoked = true;
+        return (async function* () {})();
+      },
+    });
+
+    await expect(
+      runtime.runTurn(
+        {
+          role: CLAUDE_ROLE,
+          assignment: { harness: "codex", model: "gpt-exact", effort: "high" },
+          workdir: "/tmp/operon-claude-assignment",
+          task: "wrong harness",
+          context: { taste: [], memoryExcerpts: [] },
+        },
+        { gate: defaultGate },
+      ),
+    ).rejects.toThrow(/does not match "claude" adapter/);
+    expect(invoked).toBe(false);
+  });
+
+  it("rejects execution facts that disagree with the request assignment", async () => {
+    const runtime = new ClaudeRuntime({ queryFn: () => (async function* () {})() });
+    await expect(
+      runtime.runTurn(
+        {
+          role: CLAUDE_ROLE,
+          assignment: { harness: "claude", model: "claude-a", effort: "high" },
+          workdir: "/tmp/operon-claude-assignment",
+          task: "mismatched facts",
+          context: {
+            taste: [],
+            memoryExcerpts: [],
+            execution: buildTurnExecutionFacts(
+              { harness: "claude", model: "claude-b", effort: "high" },
+              CLAUDE_ROLE,
+            ),
+          },
+        },
+        { gate: defaultGate },
+      ),
+    ).rejects.toThrow(/execution facts assignment does not match/);
+  });
+
   it("routes a gate-allowed tool call once and passes usage/session through", async () => {
     const events: TurnEvent[] = [];
     const gateCalls: ToolAction[] = [];

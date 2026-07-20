@@ -23,14 +23,11 @@ export const PRIORITY_LABELS = ["p1", "p2", "p3"] as const;
 export type TierLabel = (typeof TIER_LABELS)[number];
 export type PriorityLabel = (typeof PRIORITY_LABELS)[number];
 
-/** The sensitive risk domains — the ONE keyword set shared with the route
- *  policy's deep floor. `routeDecisionForItem` (src/loop/driver.ts) derives
- *  `sensitiveDomains` from `item.labels` with exactly this alternation
- *  (`/auth|security|secret|privacy|payment|data/`); a ticket carrying a
- *  `domain:<d>` label is what makes `route-policy.ts`'s always-implemented
- *  sensitive-domain floor able to fire. Attaching these labels at publication
- *  is the orchestrator ENCODING the Planner's own risk identification as a
- *  durable label instead of relying on prose that no owner reads (Theme 6). */
+/** Sensitive risk domains retained in published ticket metadata. These labels
+ *  remain useful to historical readers and the non-authoritative legacy route
+ *  projection, but live workflow/safety authority comes from the validated
+ *  EpisodePlan. Attaching them still preserves the Planner's risk signal as
+ *  durable structured evidence instead of unowned prose (Theme 6). */
 export const SENSITIVE_DOMAINS = ["auth", "security", "secret", "privacy", "payment", "data"] as const;
 export type SensitiveDomain = (typeof SENSITIVE_DOMAINS)[number];
 
@@ -49,9 +46,9 @@ export const CANONICAL_LABELS: readonly { name: string; color: string; descripti
   { name: "op:in-review", color: "1d76db", description: "PR open, review in progress" },
   { name: "op:returned", color: "d93f0b", description: "Returned for human/planner triage" },
   { name: "op:blocked", color: "b60205", description: "Waiting on a critical-op approval" },
-  { name: "op:tier-quick", color: "c2e0c6", description: "Quick tier: implement only" },
-  { name: "op:tier-standard", color: "bfdadc", description: "Standard tier: contract + implement" },
-  { name: "op:tier-deep", color: "d4c5f9", description: "Deep tier: full pass set + human sign-off" },
+  { name: "op:tier-quick", color: "c2e0c6", description: "Derived quick reporting/safety label" },
+  { name: "op:tier-standard", color: "bfdadc", description: "Derived standard reporting/safety label" },
+  { name: "op:tier-deep", color: "d4c5f9", description: "Derived deep reporting/safety label" },
   { name: "p1", color: "e11d21", description: "Priority 1" },
   { name: "p2", color: "eb6420", description: "Priority 2" },
   { name: "p3", color: "fef2c0", description: "Priority 3" },
@@ -451,20 +448,17 @@ export interface FinalPlanProjection {
   tickets: FinalTicketProjection[];
 }
 
-/** Apply the orchestrator-owned sensitive-domain deep floor to a plan.
+/** Apply the historical sensitive-domain tier projection to published tickets.
  *
  *  A ticket whose own content names a sensitive domain gets descriptive
- *  `domain:<d>` labels AND is floored to `op:tier-deep`, so the route
- *  policy's sensitive-domain floor (`route-policy.ts`) fires: at loop time
- *  `routeDecisionForItem` reads `sensitiveDomains` from these labels and a
- *  deep tier keeps the structured decision consistent (a domain label on a
- *  still-`standard` ticket would make that consistency check throw — the
- *  label and the deep tier are one escalation, applied together).
+ *  `domain:<d>` labels AND is projected as `op:tier-deep`. Historical readers
+ *  therefore retain a self-consistent label/tier pair. Live execution does not
+ *  derive a route or authorize turns from this projection; EpisodePlan policy
+ *  validation owns those decisions.
  *
  *  Bootstrap is the deliberate exception: a greenfield scaffold "with no
  *  users" must not be deep (validatePlan enforces this, P2), so a bootstrap
- *  ticket keeps its tier and takes no domain label — attaching one without
- *  the matching deep tier would break the loop's route consistency check. */
+ *  ticket keeps its tier and takes no domain label. */
 export function applySensitiveDomainFloor(plan: TicketPlan): TicketPublication[] {
   return plan.tickets.map((ticket) => {
     const domains = plan.stage === "bootstrap" ? [] : sensitiveDomainsForTicket(ticket);

@@ -8,19 +8,27 @@ import {
   checkProviderBudget,
   deriveEpisodeCounters,
   efficiencyEpisodeDir,
+  executionStepPath,
   finalizeEpisode,
   finalizeProviderStep,
   ProviderBudgetRefusalError,
   recordMechanicalStep,
+  readEfficiencyEvidence,
   readRouteRecord,
   reassessEpisode,
   routeRecordPath,
   type AdmissionFactor,
   type AuthorizedPass,
+  type ProviderStepPlanMetadata,
 } from "../../src/loop/efficiency.js";
 import { executePipeline } from "../../src/loop/pipeline.js";
 import type { PipelineConfig } from "../../src/loop/pipelines.js";
-import type { RoleConfig, Runtime, TurnResult } from "../../src/runtime/types.js";
+import type {
+  RoleConfig,
+  Runtime,
+  TurnAssignment,
+  TurnResult,
+} from "../../src/runtime/types.js";
 import { makeOrgHome, type OrgHomeFixture } from "../fixtures/orgHome.js";
 
 const ROLE: RoleConfig = {
@@ -51,6 +59,20 @@ const PIPELINE: PipelineConfig = {
   name: "build",
   mechanical: false,
   passes: [{ id: "implement", role: ROLE.name, template: "pass.md" }],
+};
+const ADAPTIVE_ASSIGNMENT: TurnAssignment = {
+  harness: "claude",
+  model: "claude-test",
+  effort: "high",
+};
+const PLAN_METADATA: ProviderStepPlanMetadata = {
+  assignment_source: "episode_planner",
+  assignment_candidate_id: "claude-high",
+  plan_version: 2,
+  plan_step_id: "implement",
+  selection_reason: "Independent capable implementation turn",
+  provider_family: "anthropic",
+  resolved_capabilities: ["workspace-write", "shell"],
 };
 
 describe("efficiency route admission", () => {
@@ -133,6 +155,288 @@ describe("efficiency route admission", () => {
     expect(attempts.filter((attempt) => attempt.status === "fulfilled")).toHaveLength(1);
     expect(attempts.filter((attempt) => attempt.status === "rejected")).toHaveLength(1);
     expect((await readRouteRecord(home.root, episodeId)).planned_route).toMatch(/quick|standard/);
+  });
+
+  it("persists assignment and plan authorization metadata as part of pass identity", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:plan-authorization";
+    const authorized: AuthorizedPass = {
+      ...PASS,
+      runtime: ADAPTIVE_ASSIGNMENT.harness,
+      model: ADAPTIVE_ASSIGNMENT.model,
+      effort: ADAPTIVE_ASSIGNMENT.effort,
+      ...PLAN_METADATA,
+    };
+    await admitEpisode({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      route: "quick",
+      policyVersion: "test/v1",
+      factors: [FACTOR],
+      passes: [authorized],
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+    expect((await readRouteRecord(home.root, episodeId)).authorized_passes[0]).toMatchObject({
+      runtime: "claude",
+      model: "claude-test",
+      effort: "high",
+      assignment_source: "episode_planner",
+      assignment_candidate_id: "claude-high",
+      plan_version: 2,
+      plan_step_id: "implement",
+      provider_family: "anthropic",
+      resolved_capabilities: ["shell", "workspace-write"],
+    });
+
+    await expect(admitEpisode({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      route: "quick",
+      policyVersion: "test/v1",
+      factors: [FACTOR],
+      passes: [{ ...authorized, plan_version: 3 }],
+      now: new Date("2026-07-13T00:00:01.000Z"),
+    })).rejects.toThrow("unrecorded pass authorization");
+  });
+
+  it("advances plan route authority atomically while retaining historical authorizations", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:plan-route-revision";
+    const v1Pass: AuthorizedPass = {
+      ...PASS,
+      assignment_source: "configured",
+      assignment_candidate_id: "configured",
+      plan_version: 1,
+      plan_step_id: "implement",
+      selection_reason: "Initial accepted plan",
+      provider_family: "openai",
+      resolved_capabilities: ["workspace-read"],
+    };
+    await admitEpisode({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      route: "quick",
+      policyVersion: "episode-plan/test-v1",
+      factors: [FACTOR],
+      passes: [v1Pass],
+      executionBounds: null,
+      currentPlanVersion: 1,
+      currentPlanHash: "1".repeat(64),
+      now: new Date("2026-07-19T00:00:00.000Z"),
+    });
+
+    const v2Pass: AuthorizedPass = {
+      ...v1Pass,
+      plan_version: 2,
+      selection_reason: "Revised future implementation authorization",
+    };
+    const competing = await Promise.allSettled([
+      admitEpisode({
+        root: home.root,
+        episodeId,
+        app: "fixture",
+        route: "standard",
+        policyVersion: "episode-plan/test-v1",
+        factors: [FACTOR],
+        passes: [v2Pass],
+        executionBounds: null,
+        currentPlanVersion: 2,
+        currentPlanHash: "2".repeat(64),
+        now: new Date("2026-07-19T00:01:00.000Z"),
+      }),
+      admitEpisode({
+        root: home.root,
+        episodeId,
+        app: "fixture",
+        route: "standard",
+        policyVersion: "episode-plan/test-v1",
+        factors: [FACTOR],
+        passes: [v2Pass],
+        executionBounds: null,
+        currentPlanVersion: 2,
+        currentPlanHash: "3".repeat(64),
+        now: new Date("2026-07-19T00:01:00.000Z"),
+      }),
+    ]);
+    expect(competing.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(competing.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+
+    const record = await readRouteRecord(home.root, episodeId);
+    expect(record).toMatchObject({
+      planned_route: "quick",
+      current_route: "standard",
+      current_plan_version: 2,
+      budget: { provider_turns: 5, equivalent_cost_usd: 15 },
+    });
+    expect(record.current_plan_hash).toMatch(/^(2{64}|3{64})$/u);
+    expect(record.authorized_passes.map((pass) => pass.plan_version)).toEqual([1, 2]);
+    expect(record.authorized_passes.filter((pass) => pass.plan_version === 2)).toEqual([v2Pass]);
+    expect(record.reassessments).toHaveLength(1);
+
+    await expect(admitEpisode({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      route: "standard",
+      policyVersion: "episode-plan/test-v1",
+      factors: [FACTOR],
+      passes: [v1Pass],
+      executionBounds: null,
+      now: new Date("2026-07-19T00:02:00.000Z"),
+    })).rejects.toThrow("not from current plan v2");
+
+    await expect(admitEpisode({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      route: "quick",
+      policyVersion: "episode-plan/test-v1",
+      factors: [FACTOR],
+      passes: [{ ...v2Pass, plan_version: 3 }],
+      executionBounds: null,
+      currentPlanVersion: 3,
+      currentPlanHash: "4".repeat(64),
+      now: new Date("2026-07-19T00:02:00.000Z"),
+    })).rejects.toThrow("cannot reduce depth");
+
+    await expect(admitEpisode({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      route: "standard",
+      policyVersion: "episode-plan/test-v1",
+      factors: [FACTOR],
+      passes: [{ ...v2Pass, plan_version: 3 }],
+      budgetOverrides: { provider_turns: 4 },
+      executionBounds: null,
+      currentPlanVersion: 3,
+      currentPlanHash: "4".repeat(64),
+      now: new Date("2026-07-19T00:02:00.000Z"),
+    })).rejects.toThrow("cannot reduce route budget authority");
+  });
+
+  it("persists one explicit assignment from reservation through terminal evidence", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:assignment-evidence";
+    await admission(home.root, episodeId);
+    await expect(beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "invalid-assignment-run",
+      ordinal: 1,
+      operation: "build/implement",
+      role: ROLE,
+      assignment: { harness: "codex", model: "gpt-test", effort: "max" },
+      inputFingerprint: "invalid-assignment-input",
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    })).rejects.toThrow("effort max is unsupported by codex");
+    const started = await beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "adaptive-run",
+      ordinal: 1,
+      operation: "build/implement",
+      role: ROLE,
+      assignment: ADAPTIVE_ASSIGNMENT,
+      planMetadata: PLAN_METADATA,
+      inputFingerprint: "adaptive-input",
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+    expect((await readEfficiencyEvidence(home.root))[0]?.pending_started[0]).toMatchObject({
+      runtime: "claude",
+      model: "claude-test",
+      effort: "high",
+      assignment_source: "episode_planner",
+      assignment_candidate_id: "claude-high",
+      plan_version: 2,
+      plan_step_id: "implement",
+      provider_family: "anthropic",
+      resolved_capabilities: ["shell", "workspace-write"],
+    });
+
+    const record = await finalizeProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "adaptive-run",
+      started,
+      operation: "build/implement",
+      role: ROLE,
+      assignment: ADAPTIVE_ASSIGNMENT,
+      planMetadata: PLAN_METADATA,
+      result: result(),
+      finishedAt: new Date("2026-07-13T00:00:01.000Z"),
+      contextManifestRef: "context-manifest.json",
+    });
+    expect(record).toMatchObject({
+      runtime: "claude",
+      model: "claude-test",
+      effort: "high",
+      assignment_source: "episode_planner",
+      assignment_candidate_id: "claude-high",
+      plan_version: 2,
+      plan_step_id: "implement",
+      provider_family: "anthropic",
+      resolved_capabilities: ["shell", "workspace-write"],
+    });
+    expect((await readEfficiencyEvidence(home.root))[0]).toMatchObject({
+      pending_started: [],
+      steps: [{ execution_step_id: started.executionStepId, runtime: "claude" }],
+    });
+  });
+
+  it("fails finalization closed when assignment or plan evidence changes after reservation", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:assignment-mismatch";
+    await admission(home.root, episodeId);
+    const started = await beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "mismatch-run",
+      ordinal: 1,
+      operation: "build/implement",
+      role: ROLE,
+      assignment: ADAPTIVE_ASSIGNMENT,
+      planMetadata: PLAN_METADATA,
+      inputFingerprint: "mismatch-input",
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+    const common = {
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "mismatch-run",
+      started,
+      operation: "build/implement",
+      role: ROLE,
+      result: result(),
+      finishedAt: new Date("2026-07-13T00:00:01.000Z"),
+      contextManifestRef: "context-manifest.json",
+    };
+    await expect(finalizeProviderStep({
+      ...common,
+      assignment: { ...ADAPTIVE_ASSIGNMENT, model: "different-model" },
+      planMetadata: PLAN_METADATA,
+    })).rejects.toThrow("assignment disagrees with its started receipt");
+    await expect(finalizeProviderStep({
+      ...common,
+      assignment: ADAPTIVE_ASSIGNMENT,
+      planMetadata: { ...PLAN_METADATA, plan_step_id: "different-step" },
+    })).rejects.toThrow("plan metadata disagrees with its started receipt");
+    expect(existsSync(`${executionStepPath(home.root, episodeId, started.executionStepId)}.started`)).toBe(true);
+    expect((await readEfficiencyEvidence(home.root))[0]?.steps).toHaveLength(0);
+
+    await expect(finalizeProviderStep({
+      ...common,
+      assignment: ADAPTIVE_ASSIGNMENT,
+      planMetadata: PLAN_METADATA,
+    })).resolves.toMatchObject({ runtime: "claude", plan_step_id: "implement" });
   });
 
   it("F-SET-01 terminalizes a started pass when pre-provider evidence writing fails", async () => {
@@ -555,7 +859,7 @@ describe("efficiency route admission", () => {
     home = makeOrgHome();
     const episodeId = "episode:mechanical-zero-cost";
     await admission(home.root, episodeId);
-    await recordMechanicalStep({
+    const mechanical = await recordMechanicalStep({
       root: home.root,
       episodeId,
       app: "fixture",
@@ -566,7 +870,9 @@ describe("efficiency route admission", () => {
       status: "completed",
       reason: "offline checks passed",
       inputFingerprint: "mechanical-input",
+      planMetadata: { plan_version: 4, plan_step_id: "focused-tests" },
     });
+    expect(mechanical).toMatchObject({ plan_version: 4, plan_step_id: "focused-tests" });
     await expect(checkProviderBudget({ root: home.root, episodeId })).resolves.toMatchObject({
       allowed: true,
       counters: { provider_turns: 0, equivalent_cost_usd: 0 },

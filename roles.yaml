@@ -72,6 +72,17 @@ roles:
     runtime: claude
     model: claude-sonnet-5      # high volume, low stakes per message → cheap tier
     effort: medium              # that still writes well; Haiku scouts for triage
+    adaptive_assignments:
+      - id: pi-openai-gpt-5.6-sol-medium-qualified-20260718
+        harness: pi
+        model: openai-codex/gpt-5.6-sol
+        efforts: [medium]
+        provider_family: openai
+        capability_ref: pi/v1
+        qualification_ref: campaign:candidate-qualification-v1-20260718-eb658f6309c9
+        conservative_estimate:
+          max_turn_cost_usd: 5
+          source: https://developers.openai.com/api/docs/pricing
     delegation:
       allow: [triage-fanout]
     triggers:
@@ -86,6 +97,17 @@ roles:
     runtime: claude
     model: claude-sonnet-5      # strong prose at volume; swap to Opus for
     effort: high                # positioning-level work
+    adaptive_assignments:
+      - id: pi-openai-gpt-5.6-sol-medium-qualified-20260718
+        harness: pi
+        model: openai-codex/gpt-5.6-sol
+        efforts: [medium]
+        provider_family: openai
+        capability_ref: pi/v1
+        qualification_ref: campaign:candidate-qualification-v1-20260718-eb658f6309c9
+        conservative_estimate:
+          max_turn_cost_usd: 5
+          source: https://developers.openai.com/api/docs/pricing
     delegation:
       allow: [research-fanout]  # competitive/landscape reads, adoption-signal sweeps
     triggers:

@@ -17,7 +17,15 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { runPaths } from "./paths.js";
 import { scrubSecrets, truncatePreview } from "./redact.js";
-import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, SessionHandle, UsageQuality } from "../types.js";
+import type {
+  Artifact,
+  AuthorityEvidence,
+  Effort,
+  RuntimeKind,
+  SessionHandle,
+  TurnAssignmentSource,
+  UsageQuality,
+} from "../types.js";
 
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
@@ -64,6 +72,9 @@ export interface RunEnvelope {
   parent_task_id?: string;
   /** End-to-end efficiency/admission identity. */
   episode_id?: string;
+  /** Accepted plan version and provider-step identity that authorized this run. */
+  plan_version?: number;
+  plan_step_id?: string;
   app: string;
   ticket?: string;
   pipeline: string;
@@ -73,6 +84,11 @@ export interface RunEnvelope {
   runtime?: RuntimeKind;
   model?: string;
   effort?: Effort;
+  /** Audit evidence for the atomic harness/model/effort assignment. */
+  assignment_source?: TurnAssignmentSource;
+  assignment_candidate_id?: string;
+  selection_reason?: string;
+  resolved_capabilities?: string[];
   /** Actual directory and Git identity observed at pass start. */
   workdir?: string;
   git_branch?: string;
@@ -178,6 +194,8 @@ export interface StartRunMeta {
   traceId: string;
   parentTaskId?: string;
   episodeId?: string;
+  planVersion?: number;
+  planStepId?: string;
   app: string;
   ticket?: string;
   pipeline: string;
@@ -186,6 +204,10 @@ export interface StartRunMeta {
   runtime?: RuntimeKind;
   model?: string;
   effort?: Effort;
+  assignmentSource?: TurnAssignmentSource;
+  assignmentCandidateId?: string;
+  selectionReason?: string;
+  resolvedCapabilities?: string[];
   workdir?: string;
   gitBranch?: string;
   tracePlan?: TracePlanEvidence;
@@ -238,6 +260,8 @@ export async function startRun(
     trace_id: meta.traceId,
     ...(meta.parentTaskId !== undefined ? { parent_task_id: meta.parentTaskId } : {}),
     ...(meta.episodeId !== undefined ? { episode_id: meta.episodeId } : {}),
+    ...(meta.planVersion !== undefined ? { plan_version: meta.planVersion } : {}),
+    ...(meta.planStepId !== undefined ? { plan_step_id: meta.planStepId } : {}),
     app: meta.app,
     ...(meta.ticket !== undefined ? { ticket: meta.ticket } : {}),
     pipeline: meta.pipeline,
@@ -246,6 +270,16 @@ export async function startRun(
     ...(meta.runtime !== undefined ? { runtime: meta.runtime } : {}),
     ...(meta.model !== undefined ? { model: meta.model } : {}),
     ...(meta.effort !== undefined ? { effort: meta.effort } : {}),
+    ...(meta.assignmentSource !== undefined ? { assignment_source: meta.assignmentSource } : {}),
+    ...(meta.assignmentCandidateId !== undefined
+      ? { assignment_candidate_id: meta.assignmentCandidateId }
+      : {}),
+    ...(meta.selectionReason !== undefined
+      ? { selection_reason: scrubSecrets(meta.selectionReason) }
+      : {}),
+    ...(meta.resolvedCapabilities !== undefined
+      ? { resolved_capabilities: [...meta.resolvedCapabilities] }
+      : {}),
     ...(meta.workdir !== undefined ? { workdir: meta.workdir } : {}),
     ...(meta.gitBranch !== undefined ? { git_branch: meta.gitBranch } : {}),
     ...(meta.tracePlan !== undefined ? { trace_plan: meta.tracePlan } : {}),

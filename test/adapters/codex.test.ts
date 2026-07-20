@@ -17,6 +17,7 @@ import {
   type JsonRpcId,
 } from "../../src/runtime/adapters/codex.js";
 import { defaultGate } from "../../src/runtime/gate.js";
+import { buildTurnExecutionFacts } from "../../src/runtime/assignment.js";
 import type { RoleConfig, ToolAction, TurnEvent, TurnRequest, TurnResult } from "../../src/runtime/types.js";
 
 const CODEX_ROLE: RoleConfig = {
@@ -212,6 +213,59 @@ function approvalMessage(index: number, action: ToolAction): CodexServerMessage 
 }
 
 describe("CodexRuntime (App Server mocked)", () => {
+  it("uses the explicit assignment atomically for thread and turn requests", async () => {
+    const client = new FakeCodexClient({ result: makeResult("done") });
+    const assignment = { harness: "codex" as const, model: "gpt-5.4", effort: "xhigh" as const };
+
+    await new CodexRuntime({ clientFactory: () => client }).runTurn(
+      makeReq({
+        assignment,
+        context: {
+          taste: [],
+          memoryExcerpts: [],
+          execution: buildTurnExecutionFacts(
+            assignment,
+            CODEX_ROLE,
+            ["structured_verdict", "tool_gate"],
+          ),
+        },
+      }),
+      { gate: defaultGate },
+    );
+
+    expect(client.requests[1]?.params).toMatchObject({
+      model: "gpt-5.4",
+      config: { model_reasoning_effort: "xhigh" },
+    });
+    expect(client.requests[2]?.params).toMatchObject({ model: "gpt-5.4", effort: "xhigh" });
+    expect(JSON.stringify(client.requests[1]?.params)).toContain("Turn execution facts");
+    expect(JSON.stringify(client.requests[1]?.params)).toContain("structured verdict");
+  });
+
+  it("rejects another harness and unsupported max effort without starting App Server", async () => {
+    let factoryCalls = 0;
+    const runtime = new CodexRuntime({
+      clientFactory: () => {
+        factoryCalls += 1;
+        return new FakeCodexClient();
+      },
+    });
+
+    await expect(
+      runtime.runTurn(
+        makeReq({ assignment: { harness: "claude", model: "claude-exact", effort: "high" } }),
+        { gate: defaultGate },
+      ),
+    ).rejects.toThrow(/does not match "codex" adapter/);
+    await expect(
+      runtime.runTurn(
+        makeReq({ assignment: { harness: "codex", model: "gpt-exact", effort: "max" } }),
+        { gate: defaultGate },
+      ),
+    ).rejects.toThrow(/max is unsupported by codex/);
+    expect(factoryCalls).toBe(0);
+  });
+
   it("maps a new turn onto initialize, thread/start, and turn/start", async () => {
     const client = new FakeCodexClient({ result: makeResult("done") });
     const result = await new CodexRuntime({ clientFactory: () => client }).runTurn(makeReq(), {

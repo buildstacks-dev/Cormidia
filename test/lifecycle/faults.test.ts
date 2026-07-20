@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { afterEach, describe, expect, it } from "vitest";
 import { bootstrapFromRecoveredAnswers, executeAppPromotion, planAppPromotion, verifyApp } from "../../src/org/app-lifecycle.js";
 import { joinExistingOrg, loadApps } from "../../src/org/apps.js";
 import { executeOrgUpgrade, planOrgUpgrade } from "../../src/org/org-upgrade.js";
+import { PACKAGE_ROOT } from "../../src/org/home.js";
 import type { LifecycleFaultPoint } from "../../src/org/lifecycle.js";
 import { executeAppReset, planAppReset } from "../../src/org/app-reset.js";
 import { parseAnswers } from "../../src/org/bootstrap.js";
@@ -19,6 +20,33 @@ const failAt = (expected: LifecycleFaultPoint) => async (actual: LifecycleFaultP
 };
 
 describe("C-LIFE-02 lifecycle transaction restart boundaries", () => {
+  it("org upgrade adds missing nested packaged prompts without overwriting existing prompt bytes", async () => {
+    const world = await makeLifecycleTestWorld(); worlds.push(world);
+    const missing = "prompts/episode/plan.md";
+    const preserved = "prompts/review/verify.md";
+    unlinkSync(join(world.orgHome, missing));
+    writeFileSync(join(world.orgHome, preserved), "human-ratified local protocol\n");
+
+    const input = {
+      orgHome: world.orgHome,
+      stateHome: world.stateHome,
+      archiveRoot: world.archives,
+    };
+    const plan = await planOrgUpgrade(input);
+    expect(plan.changes).toEqual([
+      expect.objectContaining({ path: missing, action: "add" }),
+    ]);
+
+    const result = await executeOrgUpgrade(input, plan);
+    expect(result.status).toBe("upgraded");
+    expect(readFileSync(join(world.orgHome, missing), "utf8")).toBe(
+      readFileSync(join(PACKAGE_ROOT, missing), "utf8"),
+    );
+    expect(readFileSync(join(world.orgHome, preserved), "utf8")).toBe(
+      "human-ratified local protocol\n",
+    );
+  });
+
   for (const point of [
     "before_archive_creation",
     "after_archive_creation",

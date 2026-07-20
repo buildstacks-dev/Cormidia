@@ -49,6 +49,19 @@ describe("ledger-first report projection", () => {
     expect(report.quality.duplicate_keys).toEqual(["alpha/run-complete"]);
     const task = report.session_details.find((item) => item.summary.id === "task:task-cross")!;
     expect(task.summary).toMatchObject({ outcome: "completed", completion_integrity: "complete" });
+    expect(task.activities.find((turn) => turn.run_id === "run-complete")).toMatchObject({
+      plan_version: 2,
+      plan_step_id: "implement-v2",
+      assignment_source: "episode_planner",
+    });
+    expect(task.activities.find((turn) => turn.run_id === "terminal-unsettled")).toMatchObject({
+      plan_version: 3,
+      plan_step_id: "contract-v3",
+      assignment_source: "creator",
+    });
+    expect(report.unattributed_turns[0]).not.toHaveProperty("plan_version");
+    expect(report.unattributed_turns[0]).not.toHaveProperty("plan_step_id");
+    expect(report.unattributed_turns[0]).not.toHaveProperty("assignment_source");
     expect(task.activities.some((turn) => turn.activity_type === "mechanical_pass" && turn.run_id === "gate-1")).toBe(true);
     expect(task.activities.some((turn) => turn.run_id === "terminal-unsettled" && turn.warnings.some((warning) => warning.includes("--reconcile")))).toBe(true);
     expect(task.activities.filter((turn) => turn.run_id === "retry-failed")).toHaveLength(1);
@@ -95,13 +108,13 @@ describe("ledger-first report projection", () => {
 function fixture(): OrgHomeFixture {
   const home = makeOrgHome({ runs: { records: {
     alpha: {
-      "run-complete": { envelope: envelope("run-complete", { parent_task_id: "task-cross", trace_id: "trace-a", role: "builder", pass: "implement", usage: { tokens_in: 100, tokens_out: 10, cost_usd: 1, cache_read_tokens: 90, cache_write_tokens: 5, quality: "complete" } }), events: [{ event: "tool.called" }] },
+      "run-complete": { envelope: envelope("run-complete", { parent_task_id: "task-cross", trace_id: "trace-a", role: "builder", pass: "implement", plan_version: 2, plan_step_id: "implement-v2", assignment_source: "episode_planner", usage: { tokens_in: 100, tokens_out: 10, cost_usd: 1, cache_read_tokens: 90, cache_write_tokens: 5, quality: "complete" } }), events: [{ event: "tool.called" }] },
       "retry-failed": { envelope: envelope("retry-failed", { parent_task_id: "task-cross", trace_id: "trace-a", role: "builder", pass: "retry", status: "failed" }), events: [] },
       "trace-only": { envelope: envelope("trace-only", { trace_id: "standalone", role: "reviewer", pass: "review" }), events: [] },
       // A real mechanical pass: openPhaseRun records no runtime, model, or usage,
     // because no provider is ever constructed (src/loop/loop-runlog.ts).
     "gate-1": { envelope: envelope("gate-1", { parent_task_id: "task-cross", trace_id: "trace-a", pipeline: "gates", pass: "quality-gates", role: "quality-gates", runtime: undefined, model: undefined, effort: undefined, usage: undefined }), events: [] },
-      "terminal-unsettled": { envelope: envelope("terminal-unsettled", { parent_task_id: "task-cross", trace_id: "trace-a", pass: "contract", usage: { tokens_in: 3, tokens_out: 1, cost_usd: 0.03, quality: "complete" } }), events: [] },
+      "terminal-unsettled": { envelope: envelope("terminal-unsettled", { parent_task_id: "task-cross", trace_id: "trace-a", pass: "contract", plan_version: 3, plan_step_id: "contract-v3", assignment_source: "creator", usage: { tokens_in: 3, tokens_out: 1, cost_usd: 0.03, quality: "complete" } }), events: [] },
     },
     beta: { "beta-turn": { envelope: envelope("beta-turn", { app: "beta", parent_task_id: "task-cross", trace_id: "trace-b", role: "planner", pipeline: "plan", pass: "plan" }), events: [] } },
   } } });
@@ -109,8 +122,8 @@ function fixture(): OrgHomeFixture {
     schemaVersion: 1, taskId: "task-cross", app: "alpha", objective: "Cross-app objective <script>x</script>", promptRef: "prompt.md", promptSha256: "a".repeat(64), requiredStages: ["builder"], executionMode: "operon", fallbackEvents: [{ at: "2026-07-11T01:00:00Z", reason: "manual retry" }], status: "completed", startedAt: "2026-07-10T00:00:00Z", endedAt: "2026-07-12T10:00:00Z", completionState: { implementation: "complete", ci: "green", operonReview: "approved", humanReview: "not_required", pr: "merged", issuesCloseOnMerge: ["#1"] }, refs: { tickets: ["#1"], traces: ["trace-a", "trace-b"], branches: ["op/1"], prs: ["#2"], reviews: ["review-1"], deployments: [] },
   }));
   const rows: unknown[] = [
-    row("run-complete", { parentTaskId: "task-cross", traceId: "trace-a", tokensIn: 100, tokensOut: 10, costUsd: 1, cacheReadTokens: 90, cacheCreationTokens: 5 }),
-    row("run-complete", { parentTaskId: "task-cross", traceId: "trace-a", tokensIn: 100, tokensOut: 10, costUsd: 1, cacheReadTokens: 90, cacheCreationTokens: 5 }),
+    row("run-complete", { parentTaskId: "task-cross", traceId: "trace-a", planVersion: 2, planStepId: "implement-v2", assignmentSource: "episode_planner", tokensIn: 100, tokensOut: 10, costUsd: 1, cacheReadTokens: 90, cacheCreationTokens: 5 }),
+    row("run-complete", { parentTaskId: "task-cross", traceId: "trace-a", planVersion: 2, planStepId: "implement-v2", assignmentSource: "episode_planner", tokensIn: 100, tokensOut: 10, costUsd: 1, cacheReadTokens: 90, cacheCreationTokens: 5 }),
     row("retry-failed", { parentTaskId: "task-cross", traceId: "trace-a", status: "failed", tokensIn: 50, tokensOut: 5, costUsd: 0.5 }),
     row("beta-turn", { app: "beta", parentTaskId: "task-cross", traceId: "trace-b", role: "planner", tokensIn: 200, tokensOut: 20, costUsd: 2, costEstimated: true, usageQuality: "estimated" }),
     row("trace-only", { traceId: "standalone", role: "reviewer", tokensIn: 75, tokensOut: 10, costUsd: 0.2 }),

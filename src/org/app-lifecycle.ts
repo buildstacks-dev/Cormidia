@@ -14,7 +14,14 @@ import {
   type RuntimeReadinessProbe,
   type RuntimeReadinessRequest,
 } from "../runtime/readiness.js";
-import { loadApps, removeExistingApp, updateAppStatus, type AppEntry } from "./apps.js";
+import {
+  joinExistingOrg,
+  loadApps,
+  normalizeAppExecution,
+  removeExistingApp,
+  updateAppStatus,
+  type AppEntry,
+} from "./apps.js";
 import {
   appArtifactFiles,
   buildOnboardingGapReport,
@@ -25,8 +32,8 @@ import {
   type BootstrapRunResult,
 } from "./bootstrap.js";
 import { resolveAuthority } from "./authority.js";
+import { resolveAppAssignments } from "./execution-assignments.js";
 import { loadRoles } from "./roles.js";
-import { joinExistingOrg } from "./apps.js";
 import { resolveRemoteDefaultBranch } from "../loop/default-branch.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
@@ -293,6 +300,7 @@ async function bootstrapFromRecoveredAnswersLocked(
       status: "onboarding",
       budgetUsdMonth: answers.budgetUsdMonth,
       cadence: cadenceForAnswers(answers, allRoles),
+      execution: normalizeAppExecution(undefined),
       ...(Object.keys(answers.channels).length > 0 ? { channels: answers.channels } : {}),
     });
     registered = true;
@@ -480,7 +488,10 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
       configOnly: options.configOnly === true,
       ...(options.readinessTimeoutMs !== undefined ? { timeoutMs: options.readinessTimeoutMs } : {}),
     }));
-  checks.push(...await runtimeInspector(groupRuntimes(rolesForApp(await loadRoles(join(orgHome, "roles.yaml")), app))));
+  checks.push(...await runtimeInspector(runtimeCandidatesForApp(
+    await loadRoles(join(orgHome, "roles.yaml")),
+    app,
+  )));
 
   const invalid = checks.some((check) => check.status === "fail");
   const ready = !invalid && checks.every((check) => check.status === "pass");
@@ -1149,6 +1160,26 @@ function rolesForApp(roles: Awaited<ReturnType<typeof loadRoles>>, app: AppEntry
   return roles.roles.filter((role) => !(role.name in app.cadence) || app.cadence[role.name]!.length > 0);
 }
 
+/** Readiness covers every tuple the effective app policy could select. Fixed
+ * apps probe only configured tuples; adaptive apps probe every app-narrowed,
+ * org-approved harness/model pair. The fixed Planner boot tuple is already in
+ * the Planner catalog and therefore cannot escape the same check. */
+function runtimeCandidatesForApp(
+  roles: Awaited<ReturnType<typeof loadRoles>>,
+  app: AppEntry,
+): Array<{ runtime: RuntimeKind; models: string[] }> {
+  const enabled = new Set(rolesForApp(roles, app).map((role) => role.name));
+  const resolved = resolveAppAssignments(app, roles.roles);
+  return groupRuntimes(
+    resolved.roles
+      .filter((role) => enabled.has(role.role))
+      .flatMap((role) => role.assignments.map(({ assignment }) => ({
+        runtime: assignment.harness,
+        model: assignment.model,
+      }))),
+  );
+}
+
 function groupRuntimes(roles: Array<{ runtime: RuntimeKind; model: string }>): Array<{ runtime: RuntimeKind; models: string[] }> {
   const grouped = new Map<RuntimeKind, Set<string>>();
   for (const role of roles) {
@@ -1162,7 +1193,7 @@ function groupRuntimes(roles: Array<{ runtime: RuntimeKind; model: string }>): A
 // The app-vs-registry agreement check is tamper detection over the fields that
 // must be identical in both the org registry (apps.yaml) and the app-owned
 // `.operon/config.yaml`: identity (name/repo), lifecycle state (status),
-// operating cadence, event channels, and release wiring.
+// operating cadence, event channels, assignment policy, and release wiring.
 //
 // `budgetUsdMonth` is DELIBERATELY excluded (B-LIVE-05). Budget is
 // operationally owned by the org registry and enforced there: every budget
@@ -1185,6 +1216,7 @@ function comparableApp(app: AppEntry): unknown {
     status: app.status,
     cadence: app.cadence,
     channels: app.channels ?? {},
+    execution: normalizeAppExecution(app.execution),
     release: app.release ?? null,
   };
 }

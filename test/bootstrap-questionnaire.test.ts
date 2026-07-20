@@ -177,6 +177,7 @@ describe("emitAppArtifacts", () => {
     const entry = raw["apps"]!["sandbox-alpha"]!;
     expect(entry["budget_usd_month"]).toBe(250);
     expect(entry["cadence"]).toEqual({});
+    expect(entry["execution"]).toEqual({ assignment_mode: "fixed" });
   });
 
   it("critical-op extensions included in the app entry", async () => {
@@ -356,6 +357,9 @@ describe("bootstrapRun", () => {
     expect(file.apps[0]!.repo).toBe("bikramgupta/operon-sandbox-alpha");
     expect(file.apps[0]!.status).toBe("onboarding");
     expect(file.apps[0]!.budgetUsdMonth).toBe(250);
+    expect(file.apps[0]!.execution).toEqual({ assignmentMode: "fixed", allowedAssignments: {} });
+    const registry = await loadApps(join(orgHome, "apps.yaml"));
+    expect(registry.apps[0]!.execution).toEqual(file.apps[0]!.execution);
     const agents = await readFile(join(target, "AGENTS.md"), "utf8");
     expect(agents.startsWith("# AGENTS\n")).toBe(true);
     expect(agents.match(/operon-authority:start/g)).toHaveLength(1);

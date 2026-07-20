@@ -25,9 +25,9 @@ import type { Effort } from "../runtime/types.js";
 
 const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];
 
-/** Ticket tier (Planner-assigned `op:tier-*` label; docs/loop.md §4):
- *  selects PASSES. Risk tier (policy.yaml globs) selects GATES — different
- *  axis, owned by M4.2. */
+/** Historical ticket-tier vocabulary. It remains readable for legacy routes
+ * and may parameterize an explicitly governed workflow template, but it never
+ * selects live EpisodePlan steps or creates a planner-turn bypass. */
 export type TicketTier = "quick" | "standard" | "deep";
 export const TICKET_TIERS: TicketTier[] = ["quick", "standard", "deep"];
 
@@ -37,9 +37,8 @@ export const TICKET_TIERS: TicketTier[] = ["quick", "standard", "deep"];
 export interface OnlyOn {
   /** Risk tiers that trigger the pass (vocabulary owned by policy.yaml). */
   risk?: string[];
-  /** Ticket tiers that trigger the pass — first-class, so "deep adds the
-   *  ship-check pass" (§4 tiering) keys off PassSelection.tier, not off the
-   *  raw op:tier-* label happening to be echoed into `labels`. */
+  /** Compatibility condition for a governed template or historical route.
+   * Accepted EpisodePlan DAG execution selects exact operations directly. */
   tier?: TicketTier[];
   /** Ticket labels that trigger the pass (e.g. `op:perf-sensitive`). */
   labels?: string[];

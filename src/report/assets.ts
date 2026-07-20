@@ -279,15 +279,22 @@ export const REPORT_JS = String.raw`
 
   function session(item) {
     const summary = item.summary;
-    const rows = node('tbody', {}, ...item.activities.map((value) => node('tr', {},
-      node('td', {}, value.activity_type),
-      node('td', {}, (value.app || '?') + '/' + (value.run_id || 'legacy')),
-      node('td', {}, value.role + ' / ' + (value.model || '?')),
-      node('td', {}, (value.pipeline || '?') + '/' + (value.pass || '?')),
-      node('td', {}, value.status),
-      node('td', {}, value.tokens_in === null ? 'unknown' : value.tokens_in + ' / ' + value.tokens_out),
-      node('td', {}, value.cost_usd === null ? 'unknown' : money(value.cost_usd) + ' ' + value.usage_quality),
-    )));
+    const rows = node('tbody', {}, ...item.activities.map((value) => {
+      const plan = [
+        value.plan_version === undefined ? '' : 'plan v' + value.plan_version,
+        value.plan_step_id === undefined ? '' : 'step ' + value.plan_step_id,
+        value.assignment_source === undefined ? '' : 'assignment ' + value.assignment_source,
+      ].filter(Boolean).join(' · ');
+      return node('tr', {},
+        node('td', {}, value.activity_type),
+        node('td', {}, (value.app || '?') + '/' + (value.run_id || 'legacy'), plan ? node('small', {}, plan) : ''),
+        node('td', {}, value.role + ' / ' + (value.model || '?')),
+        node('td', {}, (value.pipeline || '?') + '/' + (value.pass || '?')),
+        node('td', {}, value.status),
+        node('td', {}, value.tokens_in === null ? 'unknown' : value.tokens_in + ' / ' + value.tokens_out),
+        node('td', {}, value.cost_usd === null ? 'unknown' : money(value.cost_usd) + ' ' + value.usage_quality),
+      );
+    }));
     const liveHref = summary.kind === 'orphan_run' ? '/' : '/?session=' + encodeURIComponent(summary.id);
     return node('details', { class: 'session' },
       node('summary', {}, node('span', {}, node('a', { href: liveHref }, summary.label), ' · ' + summary.outcome), node('span', {}, num(summary.known_input_tokens + summary.known_output_tokens) + ' tokens · ' + money(summary.recorded_equivalent_cost_usd))),

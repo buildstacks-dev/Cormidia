@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
 import { loadPipelines } from "../loop/pipelines.js";
 import { findExistingOrg, loadApps, type AppsFile } from "./apps.js";
+import { resolveAppAssignments } from "./execution-assignments.js";
 import { loadRoles } from "./roles.js";
 import {
   authorityPreview,
@@ -88,7 +89,8 @@ export async function validateOrgHome(orgHomeIn: string): Promise<void> {
     throw new Error(`operon: ${orgHome} is not a complete org home — missing prompts/`);
   }
   const roles = await loadRoles(join(orgHome, "roles.yaml"));
-  await loadApps(join(orgHome, "apps.yaml"));
+  const apps = await loadApps(join(orgHome, "apps.yaml"));
+  for (const app of apps.apps) resolveAppAssignments(app, roles.roles);
   await loadPipelines(join(orgHome, "pipelines.yaml"), {
     roleNames: roles.roles.map((role) => role.name),
     promptsDir: join(orgHome, "prompts"),

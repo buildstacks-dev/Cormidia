@@ -61,6 +61,9 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
   if (!ownsPassEvidence) warnings.push("pass-level tool and gate evidence is attached to the first provider turn only");
   const refs = envelopeRefs(envelope);
   const gates = envelope?.gate_results ?? [];
+  const planVersion = row.planVersion ?? envelope?.plan_version;
+  const planStepId = row.planStepId ?? envelope?.plan_step_id;
+  const assignmentSource = row.assignmentSource ?? envelope?.assignment_source;
   return {
     id: `ledger:${source.day}:${source.line}`,
     source: { day: source.day, line: source.line },
@@ -70,6 +73,9 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
     provider_turn_id: row.providerTurnId ?? null,
     execution_step_id: row.executionStepId ?? null,
     episode_id: row.episodeId ?? envelope?.episode_id ?? null,
+    ...(planVersion !== undefined ? { plan_version: planVersion } : {}),
+    ...(planStepId !== undefined ? { plan_step_id: planStepId } : {}),
+    ...(assignmentSource !== undefined ? { assignment_source: assignmentSource } : {}),
     trace_id: row.traceId ?? envelope?.trace_id ?? null,
     parent_task_id: row.parentTaskId ?? envelope?.parent_task_id ?? null,
     ticket: envelope?.ticket ?? null,
@@ -129,6 +135,11 @@ function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope
     provider_turn_id: null,
     execution_step_id: envelope.execution_step_ids?.[0] ?? null,
     episode_id: envelope.episode_id ?? null,
+    ...(envelope.plan_version !== undefined ? { plan_version: envelope.plan_version } : {}),
+    ...(envelope.plan_step_id !== undefined ? { plan_step_id: envelope.plan_step_id } : {}),
+    ...(envelope.assignment_source !== undefined
+      ? { assignment_source: envelope.assignment_source }
+      : {}),
     trace_id: envelope.trace_id,
     parent_task_id: envelope.parent_task_id ?? null,
     ticket: envelope.ticket ?? null,

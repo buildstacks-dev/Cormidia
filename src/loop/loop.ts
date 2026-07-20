@@ -230,6 +230,13 @@ async function blockedOnApproval(
     pipeline: pipelineName,
     pass: last.pass.id,
     role: last.pass.role,
+    assignment: last.assignment,
+    ...(last.planMetadata.plan_version !== undefined
+      ? {
+          planVersion: last.planMetadata.plan_version,
+          planStepId: last.planMetadata.plan_step_id,
+        }
+      : {}),
     session: last.result.session,
     completedPasses,
     contextFingerprint: last.contextFingerprint,
@@ -1147,6 +1154,54 @@ export async function advanceShipping(
   };
 }
 
+/** Crash recovery for the narrow window after GitHub has durably merged the
+ * PR but before the caller persisted its outer EpisodePlan step. It performs
+ * only the idempotent post-merge tail; the caller must first prove the PR is
+ * already `MERGED`. No gate, review, provider, or second merge is attempted. */
+export async function recoverAlreadyMergedTicket(
+  item: LoopItem,
+  options: Pick<ShippingPhaseOptions, "gh" | "localRepo" | "release">,
+): Promise<LoopItem> {
+  const branch = requireField(item, "branch");
+  try {
+    await options.gh.deleteBranch(branch);
+  } catch (error) {
+    // Remote deletion is idempotent: an already-absent branch is success. A
+    // transport/auth failure remains loud rather than being misreported as a
+    // completed cleanup.
+    if (!/not found|does not exist|no matching ref|reference does not exist/i.test(
+      error instanceof Error ? error.message : String(error),
+    )) throw error;
+  }
+  const issue = await options.gh.readIssue(item.issueNumber);
+  if (issue.labels.includes("op:in-review")) {
+    await options.gh.removeLabel(item.issueNumber, "op:in-review");
+  }
+  const checkedBody = checkAcceptanceBoxes(issue.body);
+  if (checkedBody !== issue.body) await options.gh.updateIssueBody(item.issueNumber, checkedBody);
+  if (item.worktree !== undefined && existsSync(item.worktree)) {
+    removeWorktree(options.localRepo, item.worktree);
+  }
+  const requiredKind = parseReleaseKind(item.body);
+  const releaseTrigger =
+    requiredKind !== undefined &&
+    requiredKind !== "merge-only" &&
+    options.release?.kind === requiredKind &&
+    options.release.command !== undefined
+      ? {
+          kind: requiredKind,
+          command: options.release.command,
+          owner: options.release.owner,
+        }
+      : undefined;
+  return {
+    ...item,
+    labels: issue.labels.filter((label) => label !== "op:in-review"),
+    phase: "merged",
+    ...(releaseTrigger === undefined ? {} : { releaseTrigger }),
+  };
+}
+
 /** L-007 / L1-04: orchestrator-owned dependency re-arm. When a predecessor
  *  ticket merges, promote every dependency-locked backlog ticket whose
  *  dependencies are now all satisfied to `op:ready` — with no manual label edit
@@ -1473,7 +1528,10 @@ function verdictDetail(
   return { kind, verdict: v.verdict, findings: v.findings.length };
 }
 
-function renderContractComment(verdict: ContractVerdict): string {
+/** Stable orchestrator rendering reused by the EpisodePlan ticket adapter.
+ * Keeping this in the loop layer ensures legacy pipeline and plan-DAG
+ * execution publish the same durable contract grammar. */
+export function renderContractComment(verdict: ContractVerdict): string {
   return [
     "## Implementation contract",
     "",
@@ -1495,7 +1553,8 @@ function renderContractComment(verdict: ContractVerdict): string {
   ].join("\n");
 }
 
-function renderBuildBlockedComment(verdict: BuildVerdict): string {
+/** Stable blocked-evidence rendering shared by both ticket executors. */
+export function renderBuildBlockedComment(verdict: BuildVerdict): string {
   const entry = verdict.blockedEntry;
   if (entry === undefined) {
     return [
@@ -1533,7 +1592,8 @@ function renderBuildBlockedComment(verdict: BuildVerdict): string {
   ].join("\n");
 }
 
-function renderReviewBody(entries: readonly { pass: string; verdict: ReviewVerdict }[]): string {
+/** Stable review rendering shared by both ticket executors. */
+export function renderReviewBody(entries: readonly { pass: string; verdict: ReviewVerdict }[]): string {
   const findings = entries.flatMap((entry) => entry.verdict.findings);
   const lines = [
     ...findings.map(findingLine),

@@ -91,6 +91,7 @@ describe("efficiency reporting", () => {
     expect(report.efficiency.issues.repeated_provider_step_ids).toHaveLength(1);
     expect(report.efficiency.context_by_category.map((row) => row.category)).toEqual([
       "brief",
+      "execution",
       "template",
     ]);
     const terminal = renderReportTerminal(report);

@@ -18,6 +18,7 @@ import {
   type RuntimeCapability,
   type RuntimeCapabilityProfile,
 } from "../runtime/capabilities.js";
+import { validateTurnAssignment } from "../runtime/assignment.js";
 import type { RoleConfig, RuntimeKind } from "../runtime/types.js";
 import {
   ROUTE_BUDGETS,
@@ -161,27 +162,54 @@ export function runPipelinePreflight(input: PipelinePreflightInput): PipelinePre
       problems.push(`pass ${pass.id} references missing role ${pass.role}`);
       continue;
     }
-    if (role.model.trim() === "") problems.push(`role ${role.name} has no model`);
     if (!Number.isFinite(role.maxTurnBudgetUsd) || role.maxTurnBudgetUsd <= 0) {
       problems.push(`role ${role.name} has an invalid maxTurnBudgetUsd`);
     }
-    const profile = input.capabilityProfiles?.[role.runtime] ?? runtimeCapabilityProfile(role.runtime);
+    let assignment;
+    try {
+      assignment = validateTurnAssignment({
+        harness: role.runtime,
+        model: role.model,
+        effort: role.effort,
+      }, `pass ${pass.id} assignment`);
+    } catch (error) {
+      problems.push(error instanceof Error ? error.message : String(error));
+      continue;
+    }
     if (input.authorizedPasses !== undefined) {
-      const authorized = input.authorizedPasses.find((candidate) => candidate.pass === pass.id);
-      if (authorized === undefined) {
-        problems.push(`pass ${pass.id} lacks pre-execution route authorization`);
-      } else if (
-        authorized.role !== role.name ||
-        authorized.runtime !== role.runtime ||
-        authorized.model.trim() === "" ||
-        authorized.factor_rules.length === 0
-      ) {
+      const matches = input.authorizedPasses.filter(
+        (candidate) => candidate.pass === pass.id,
+      );
+      if (matches.length !== 1) {
+        problems.push(
+          `pass ${pass.id} requires exactly one pre-execution route authorization; found ${matches.length}`,
+        );
+      } else if (matches[0]!.role !== role.name || matches[0]!.factor_rules.length === 0) {
         problems.push(`pass ${pass.id} has invalid route-selected role/model/effort evidence`);
+      } else {
+        try {
+          assignment = validateTurnAssignment({
+            harness: matches[0]!.runtime,
+            model: matches[0]!.model,
+            effort: matches[0]!.effort,
+          }, `pass ${pass.id} route-authorized assignment`);
+        } catch (error) {
+          problems.push(error instanceof Error ? error.message : String(error));
+        }
       }
+    }
+    const profile =
+      input.capabilityProfiles?.[assignment.harness] ??
+      runtimeCapabilityProfile(assignment.harness);
+    if (profile.runtime !== assignment.harness) {
+      problems.push(
+        `capability profile ${profile.runtime} does not match assigned harness ${assignment.harness}`,
+      );
+      continue;
     }
     for (const capability of input.requiredCapabilities ?? []) {
       if (!hasRuntimeCapability(profile, capability)) {
-        problems.push(`${role.runtime}/${role.name} lacks required capability ${capability}`);
+        problems.push(`${assignment.harness}/${role.name} lacks required capability ${capability}`);
       }
     }
   }

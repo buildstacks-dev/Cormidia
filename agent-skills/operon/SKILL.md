@@ -168,19 +168,27 @@ duplicates/orphans, and provider-settlement agreement. `doctor --config-only`
 cannot claim execution health. A real launchd/systemd mutation always needs
 separate explicit authorization.
 
-Interactive `operon plan <app>` hands the terminal to a live session and will
-hang a non-interactive run; headless planning must use
-`operon plan <app> --auto --goal <text>`.
+Bare `operon plan <app>` fails closed because the retired native interactive
+child could not preserve durable plan and execution evidence. Live planning
+must use `operon plan <app> --auto --goal <text>`; the manual `--dry-run` form
+is only a token-free context/worktree preview.
 Use repeatable `--source <file-or-dir>` for required design/product-truth
 inputs and `--optional-source <file-or-dir>` only when deterministic
 truncation or exclusion is acceptable. Required source failures stop before a
 provider turn; successful tickets publish hashes/refs rather than source bytes.
 
-Live `plan`, `loop`, `dispatch`, `run-role`, and `learn experiment run`
+Live `plan --auto`, `loop`, `dispatch`, `run-role`, and `learn experiment run`
 operations can spend tokens and modify GitHub or worktrees; `learn canary
 start` begins a live trial that shapes subsequent turns. Critical operations
 stop in the durable approval queue; inspect it with `operon approvals` and
 never bypass that boundary.
+
+For a live standalone `run-role`, fixed assignment mode must omit
+`--assignment`; Operon resolves the role's configured atomic tuple. Adaptive
+mode requires exactly `--assignment <approved-candidate-id>@<effort>` and
+rejects omission, unknown candidates, unsupported efforts, or a selector in
+fixed mode. Use `operon roles` and `operon apps` to inspect the effective
+catalog and app narrowing before selecting it.
 
 `operon learn` read subcommands (`report`, `inspect`, `show`) are fine for
 diagnosis. `report` is read-only by default; use `report --refresh` only when

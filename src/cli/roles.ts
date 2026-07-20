@@ -15,10 +15,24 @@ export async function cmdRoles(args: string[] = []): Promise<number> {
   console.log(`${path}: OK — ${roles.length} roles, default turn budget $${defaults.maxTurnBudgetUsd}\n`);
   const pad = (s: string, n: number) => s.padEnd(n);
   const roleWidth = Math.max(12, ...roles.map((role) => role.name.length + 2));
-  console.log(pad("ROLE", roleWidth) + pad("RUNTIME", 9) + pad("MODEL", 22) + pad("EFFORT", 8) + "TRIGGERS");
+  console.log(
+    pad("ROLE", roleWidth) +
+      pad("RUNTIME", 9) +
+      pad("MODEL", 22) +
+      pad("EFFORT", 8) +
+      pad("ADAPTIVE", 10) +
+      "TRIGGERS",
+  );
   for (const r of roles) {
     const triggers = r.triggers.map((t) => t.schedule ?? `on:${t.event}`).join(", ") || "-";
-    console.log(pad(r.name, roleWidth) + pad(r.runtime, 9) + pad(r.model, 22) + pad(r.effort, 8) + triggers);
+    console.log(
+      pad(r.name, roleWidth) +
+        pad(r.runtime, 9) +
+        pad(r.model, 22) +
+        pad(r.effort, 8) +
+        pad(String(r.adaptiveAssignments?.length ?? 0), 10) +
+        triggers,
+    );
   }
   return 0;
 }

@@ -3,7 +3,7 @@
 //
 // Before #101 three layers each had their own idea of the base branch: the
 // loop driver resolved the real one and dropped it, the pipelines defaulted to
-// the literal `origin/main`, and the turn runner and interactive planner
+// the literal `origin/main`, and the turn runner and manual planning preview
 // hardcoded `main` outright. A fresh repository whose default branch is
 // `master` (a stock `git init` with no `init.defaultBranch`) reached its first
 // ticket tick and died inside git with `fatal: ambiguous argument

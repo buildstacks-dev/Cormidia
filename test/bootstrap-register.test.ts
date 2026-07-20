@@ -49,6 +49,39 @@ apps:
     cadence: {}
 `,
   );
+  write(
+    root,
+    "roles.yaml",
+    `defaults:
+  max_turn_budget_usd: 5
+roles:
+  planner:
+    runtime: claude
+    model: claude-opus-4-8
+    effort: high
+    delegation: { allow: [] }
+    triggers: []
+    outputs: [tickets]
+  builder:
+    runtime: codex
+    model: gpt-5.6-sol
+    effort: high
+    delegation: { allow: [] }
+    triggers: []
+    outputs: [pr]
+    adaptive_assignments:
+      - id: codex-primary
+        harness: codex
+        model: gpt-5.6-sol
+        efforts: [medium]
+        provider_family: openai
+        capability_ref: codex/v1
+        qualification_ref: qualification:fixture-codex-primary
+        conservative_estimate:
+          max_turn_cost_usd: 5
+          source: qualification:fixture-price
+`,
+  );
   return root;
 }
 
@@ -105,6 +138,48 @@ describe("joinExistingOrg", () => {
       ["alpha", "owner/alpha", "live"],
       ["beta", "owner/beta", "onboarding"],
     ]);
+    expect(file.apps[1]!.execution).toEqual({ assignmentMode: "fixed", allowedAssignments: {} });
+  });
+
+  it("round-trips an adaptive app assignment policy through registration", async () => {
+    const orgHome = makeOrgHome();
+    const result = await joinExistingOrg(orgHome, {
+      name: "beta",
+      repo: "owner/beta",
+      execution: {
+        assignmentMode: "adaptive",
+        allowedAssignments: { builder: ["configured", "codex-primary"] },
+      },
+    });
+
+    expect(result.app.execution).toEqual({
+      assignmentMode: "adaptive",
+      allowedAssignments: { builder: ["configured", "codex-primary"] },
+    });
+    const file = await loadApps(join(orgHome, "apps.yaml"));
+    expect(file.apps[1]!.execution).toEqual(result.app.execution);
+    expect(await readFile(join(orgHome, "apps.yaml"), "utf8")).toContain(
+      "assignment_mode: adaptive",
+    );
+  });
+
+  it("rejects an unapproved adaptive assignment before changing apps.yaml", async () => {
+    const orgHome = makeOrgHome();
+    const appsPath = join(orgHome, "apps.yaml");
+    const before = await readFile(appsPath, "utf8");
+
+    await expect(
+      joinExistingOrg(orgHome, {
+        name: "beta",
+        repo: "owner/beta",
+        execution: {
+          assignmentMode: "adaptive",
+          allowedAssignments: { builder: ["configured", "not-approved"] },
+        },
+      }),
+    ).rejects.toThrow(/unknown candidate/);
+
+    expect(await readFile(appsPath, "utf8")).toBe(before);
   });
 
   it("rejects a duplicate repo slug", async () => {
@@ -185,7 +260,10 @@ describe("bootstrap existing-org flow", () => {
       repo: "owner/beta",
       status: "onboarding",
       budgetUsdMonth: 1000,
+      execution: { assignmentMode: "fixed", allowedAssignments: {} },
     });
+    const appConfig = await loadApps(join(app, ".operon", "config.yaml"));
+    expect(file.apps.at(-1)!.execution).toEqual(appConfig.apps[0]!.execution);
   });
 
   it("CLI non-interactive mode requires answers before registering", async () => {

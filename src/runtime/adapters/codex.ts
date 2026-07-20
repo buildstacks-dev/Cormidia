@@ -16,10 +16,12 @@ import type {
   Runtime,
   ToolAction,
   TurnHooks,
+  TurnAssignment,
   TurnRequest,
   TurnResult,
   TurnUsage,
 } from "../types.js";
+import { resolveTurnRequestAssignment } from "../assignment.js";
 import { renderContextBundle } from "../worktree-context.js";
 import { toolUseEvent } from "../tool-events.js";
 import { codexAppServerArgs, startCodexGateBridge } from "./codex-gate-bridge.js";
@@ -255,6 +257,7 @@ export class CodexRuntime implements Runtime {
   }
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
+    const assignment = resolveTurnRequestAssignment(req, this.kind);
     if (req.session !== undefined && req.session.runtime !== "codex") {
       throw new Error(
         `CodexRuntime cannot resume a "${req.session.runtime}" session - ` +
@@ -291,8 +294,11 @@ export class CodexRuntime implements Runtime {
 
       const threadResponse =
         req.session === undefined
-          ? await client.request("thread/start", threadParams(req))
-          : await client.request("thread/resume", { threadId: req.session.id, ...threadParams(req) });
+          ? await client.request("thread/start", threadParams(req, assignment))
+          : await client.request("thread/resume", {
+              threadId: req.session.id,
+              ...threadParams(req, assignment),
+            });
       const threadId = extractThreadId(threadResponse) ?? req.session?.id;
       if (threadId === undefined) {
         throw new Error("CodexRuntime: App Server did not return a thread id");
@@ -300,10 +306,10 @@ export class CodexRuntime implements Runtime {
       state.threadId = threadId;
       hooks.onProgress?.({ session: { runtime: "codex", id: threadId } });
 
-      await client.request("turn/start", turnParams(req, threadId));
+      await client.request("turn/start", turnParams(req, assignment, threadId));
 
       for await (const message of client) {
-        await this.handleServerMessage(client, message, req, hooks, escalations, state);
+        await this.handleServerMessage(client, message, req, assignment, hooks, escalations, state);
         if (state.status !== undefined) break;
       }
 
@@ -347,6 +353,7 @@ export class CodexRuntime implements Runtime {
     client: CodexAppServerClient,
     message: CodexServerMessage,
     req: TurnRequest,
+    assignment: TurnAssignment,
     hooks: TurnHooks,
     escalations: GateEscalation[],
     state: CodexTurnState,
@@ -377,7 +384,7 @@ export class CodexRuntime implements Runtime {
           // resumed thread, whose `.total` would include prior turns' tokens.
           const delta = usageFromTokenNotification(
             message.params,
-            req.role.model,
+            assignment.model,
             state.subagentTurns,
             state.durationMs,
           );
@@ -578,20 +585,24 @@ async function declineMcpElicitation(
   await client.respond(message.id, { action: "decline", content: null, _meta: null });
 }
 
-function threadParams(req: TurnRequest): Record<string, unknown> {
+function threadParams(req: TurnRequest, assignment: TurnAssignment): Record<string, unknown> {
   return {
-    model: req.role.model,
+    model: assignment.model,
     cwd: req.workdir,
     approvalPolicy: "untrusted",
     approvalsReviewer: "user",
     sandbox: "workspace-write",
     developerInstructions: renderContextBundle(req.context),
     ephemeral: false,
-    config: { model_reasoning_effort: mapCodexEffort(req.role.effort) },
+    config: { model_reasoning_effort: mapCodexEffort(assignment.effort) },
   };
 }
 
-function turnParams(req: TurnRequest, threadId: string): Record<string, unknown> {
+function turnParams(
+  req: TurnRequest,
+  assignment: TurnAssignment,
+  threadId: string,
+): Record<string, unknown> {
   return {
     threadId,
     input: [{ type: "text", text: req.task, text_elements: [] }],
@@ -605,8 +616,8 @@ function turnParams(req: TurnRequest, threadId: string): Record<string, unknown>
       excludeTmpdirEnvVar: false,
       excludeSlashTmp: false,
     },
-    model: req.role.model,
-    effort: mapCodexEffort(req.role.effort),
+    model: assignment.model,
+    effort: mapCodexEffort(assignment.effort),
     ...(req.verdictSchema !== undefined
       ? { outputSchema: toCodexStrictSchema(req.verdictSchema) }
       : {}),
@@ -662,8 +673,10 @@ function nullableType(type: unknown): unknown {
   return type;
 }
 
-function mapCodexEffort(effort: TurnRequest["role"]["effort"]): string {
-  if (effort === "max") return "xhigh";
+function mapCodexEffort(effort: TurnAssignment["effort"]): string {
+  if (effort === "max") {
+    throw new Error("CodexRuntime: effort max is unsupported; no effort alias is allowed");
+  }
   return effort;
 }
 

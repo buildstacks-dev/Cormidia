@@ -10,6 +10,7 @@ import {
 } from "../../src/org/learning/efficiency-evidence.js";
 import { projectCaptureEvents } from "../../src/org/learning/capture.js";
 import { readLearningEvents } from "../../src/org/learning/events.js";
+import type { ExecutionStepRecord } from "../../src/loop/efficiency.js";
 import type { RunEnvelope } from "../../src/runtime/runlog/envelope.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
 
@@ -120,6 +121,95 @@ function makeComparable(events: ReturnType<typeof historicalProjection>) {
 }
 
 describe("LEARNING-CLOSURE-001 production efficiency capture and recurrence", () => {
+  it("projects unambiguous plan/assignment provenance and leaves legacy evidence absent", () => {
+    const plannedEnvelope: RunEnvelope = {
+      schema_version: 1,
+      run_id: "planned-failure",
+      trace_id: "trace-planned-failure",
+      episode_id: "episode-planned",
+      plan_version: 3,
+      plan_step_id: "review-v3",
+      app: "alpha",
+      pipeline: "review",
+      pass: "review",
+      role: "reviewer",
+      runtime: "pi",
+      model: "openai-codex/gpt-test",
+      effort: "high",
+      assignment_source: "episode_planner",
+      status: "failed",
+      error_code: "error_review_failed",
+      started_at: "2026-07-12T10:00:00.000Z",
+      finished_at: "2026-07-12T10:01:00.000Z",
+      refs: { events: "events.jsonl", brief: "brief.md", output: "output.md" },
+    };
+    const plannedStep: ExecutionStepRecord = {
+      schema_version: 1,
+      execution_step_id: "execution-review-v3",
+      episode_id: "episode-planned",
+      app: "alpha",
+      run_id: "planned-failure",
+      kind: "provider",
+      provider_turn_id: "turn-review-v3",
+      operation: "review/independent",
+      role: "reviewer",
+      runtime: "pi",
+      model: "openai-codex/gpt-test",
+      effort: "high",
+      assignment_source: "episode_planner",
+      plan_version: 3,
+      plan_step_id: "review-v3",
+      provider_family: "openai",
+      started_at: "2026-07-12T10:00:00.000Z",
+      finished_at: "2026-07-12T10:01:00.000Z",
+      status: "failed",
+      error_code: "error_review_failed",
+      reason: "fixture failure",
+      next_step: null,
+      context_manifest_ref: null,
+      input_fingerprint: "input-review-v3",
+      work_fingerprint_before: null,
+      work_fingerprint_after: null,
+      artifact_fingerprint: null,
+      productive: false,
+      repeated_from_step_id: null,
+      tool_call_count: 0,
+      usage: null,
+    };
+    const {
+      plan_version: _planVersion,
+      plan_step_id: _planStepId,
+      assignment_source: _assignmentSource,
+      ...legacyEnvelope
+    } = plannedEnvelope;
+    const events = projectEfficiencyEvidence({
+      runs: [
+        { envelope: plannedEnvelope, steps: [plannedStep] },
+        {
+          envelope: {
+            ...legacyEnvelope,
+            run_id: "legacy-failure",
+            trace_id: "trace-legacy-failure",
+            episode_id: "episode-legacy",
+          },
+        },
+      ],
+    });
+
+    const planned = events.find((event) => event.run_id === "planned-failure")!;
+    expect(planned.payload).toMatchObject({
+      plan_version: 3,
+      plan_step_id: "review-v3",
+      assignment_source: "episode_planner",
+      provider_family: "openai",
+    });
+    const legacy = events.find((event) => event.run_id === "legacy-failure")!;
+    expect(legacy.payload).not.toHaveProperty("plan_version");
+    expect(legacy.payload).not.toHaveProperty("plan_step_id");
+    expect(legacy.payload).not.toHaveProperty("assignment_source");
+    expect(legacy.payload).not.toHaveProperty("provider_family");
+  });
+
   it("maps authoritative historical records to stable typed classes and excludes mechanical execution", () => {
     const events = historicalProjection();
     const classes = new Set(events.map((event) => event.error_class));

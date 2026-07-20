@@ -1,12 +1,12 @@
-// Planner co-planning mode (architecture.md §8): resolve one app, assemble
-// the shared five-layer Planner context, create a planning worktree on main,
-// then hand the terminal to the native Claude CLI with --append-system-prompt.
+// Token-free manual planning preview (architecture.md §8): resolve one app,
+// assemble the shared Planner context, and create a disposable worktree from
+// the fetched remote default-branch tip. Live planning itself runs through the
+// EpisodePlanner boundary; this module never constructs or spawns a provider.
 
 import { mkdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
-import { spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { loadApps, type AppEntry } from "./apps.js";
 import {
@@ -16,8 +16,7 @@ import {
 } from "../loop/default-branch.js";
 import { resolveAppWorkdir } from "./app-workdir.js";
 import { loadRoles } from "./roles.js";
-import { recordTurn, toRecord } from "../runtime/telemetry.js";
-import type { RoleConfig, TurnResult } from "../runtime/types.js";
+import type { RoleConfig } from "../runtime/types.js";
 import { assembleContext } from "./context.js";
 
 const execFileAsync = promisify(execFile);
@@ -57,20 +56,6 @@ export async function assemblePlanningContext(
     openingTask,
     byteSize: assembled.byteSize,
     sources: assembled.sources,
-  };
-}
-
-export interface ClaudeInvocation {
-  command: string;
-  args: string[];
-  cwd: string;
-}
-
-export function buildClaudeInvocation(context: PlanningContext, cwd: string): ClaudeInvocation {
-  return {
-    command: "claude",
-    args: ["--append-system-prompt", context.systemPrompt, context.openingTask],
-    cwd,
   };
 }
 
@@ -206,7 +191,6 @@ export interface PlanSession {
   plannerRole: RoleConfig;
   context: PlanningContext;
   worktree: PlanningWorktree;
-  invocation: ClaudeInvocation;
 }
 
 export async function preparePlanSession(
@@ -227,9 +211,6 @@ export async function preparePlanSession(
   const rolesFile = await loadRoles(rolesPath);
   const plannerRole = rolesFile.roles.find((r) => r.name === "planner");
   if (!plannerRole) throw new Error(`plan: roles.yaml has no planner role (${rolesPath})`);
-  if (plannerRole.runtime !== "claude") {
-    throw new Error(`plan: co-planning v1 requires planner.runtime=claude (got ${plannerRole.runtime})`);
-  }
 
   const appWorkdir = resolveAppWorkdir(app, {
     orgRoot: orgHome,
@@ -249,90 +230,6 @@ export async function preparePlanSession(
     slug: options.topic ?? app.name,
     ...(options.worktreeParent ? { parentDir: options.worktreeParent } : {}),
   });
-  const invocation = buildClaudeInvocation(context, worktree.path);
 
-  return { app, plannerRole, context, worktree, invocation };
-}
-
-export async function spawnClaude(invocation: ClaudeInvocation, signal?: AbortSignal): Promise<number> {
-  const child = spawn(invocation.command, invocation.args, {
-    cwd: invocation.cwd,
-    stdio: "inherit",
-    // The native CLI may create adapter/tool descendants. Give it a process
-    // group that Operon owns so cancellation reaches the whole tree.
-    detached: process.platform !== "win32",
-  });
-  return new Promise((resolveCode, reject) => {
-    let forceTimer: NodeJS.Timeout | undefined;
-    const stop = (): void => {
-      terminateOwnedProcess(child.pid, "SIGTERM");
-      forceTimer = setTimeout(() => terminateOwnedProcess(child.pid, "SIGKILL"), 1_000);
-      forceTimer.unref?.();
-    };
-    if (signal?.aborted) stop();
-    else signal?.addEventListener("abort", stop, { once: true });
-    child.on("error", (error) => {
-      signal?.removeEventListener("abort", stop);
-      if (forceTimer !== undefined) clearTimeout(forceTimer);
-      reject(error);
-    });
-    child.on("close", (code) => {
-      signal?.removeEventListener("abort", stop);
-      if (forceTimer !== undefined) clearTimeout(forceTimer);
-      resolveCode(signal?.aborted ? abortExitCode(signal.reason) : code ?? 1);
-    });
-  });
-}
-
-function terminateOwnedProcess(pid: number | undefined, signal: NodeJS.Signals): void {
-  if (pid === undefined) return;
-  try {
-    if (process.platform !== "win32") process.kill(-pid, signal);
-    else process.kill(pid, signal);
-  } catch {
-    // The whole group has already exited.
-  }
-}
-
-function abortExitCode(reason: unknown): number {
-  if (reason !== null && typeof reason === "object") {
-    const text = (reason as Record<string, unknown>)["reason"];
-    if (typeof text === "string" && text.includes("SIGTERM")) return 143;
-  }
-  return 130;
-}
-
-export async function recordPlanTelemetry(options: {
-  orgDir: string;
-  role: RoleConfig;
-  app: string;
-  status: TurnResult["status"];
-  startedAt: Date;
-  endedAt: Date;
-  parentTaskId?: string;
-}): Promise<void> {
-  const wallClockMs = Math.max(0, options.endedAt.getTime() - options.startedAt.getTime());
-  // The interactive session runs through the native CLI with inherited stdio:
-  // its tokens flow to the operator's terminal and never through Operon, so
-  // there is no usage to record. Zeros alone would silently sum into budget
-  // totals as if the session were free — mark the row `unmeasured` so readers
-  // report "cost unknown" instead of "cost zero" (telemetry doc Defect A; the
-  // real fix is the non-interactive runtime-backed planning mode, Stage 4).
-  const result: TurnResult = {
-    status: options.status,
-    summary: "manual planner co-planning session",
-    artifacts: [],
-    session: { runtime: "claude", id: `plan-${options.startedAt.toISOString()}` },
-    usage: { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs },
-    escalations: [],
-  };
-  await recordTurn(
-    options.orgDir,
-    toRecord(options.role, result, options.endedAt, {
-      app: options.app,
-      trigger: "manual",
-      unmeasured: true,
-      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
-    }),
-  );
+  return { app, plannerRole, context, worktree };
 }

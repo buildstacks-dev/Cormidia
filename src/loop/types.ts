@@ -1,6 +1,6 @@
 import type { Finding } from "./verdicts.js";
 import type { CriterionTestMap, GateRunResult } from "./qgates.js";
-import type { SessionHandle } from "../runtime/types.js";
+import type { SessionHandle, TurnAssignment } from "../runtime/types.js";
 
 export type LoopPhase =
   | "ready"
@@ -66,6 +66,13 @@ export interface LoopContinuation {
   pipeline: string;
   pass: string;
   role: string;
+  /** Exact tuple used by the paused turn. Optional only for historical
+   * continuations written before assignment-aware execution. */
+  assignment?: TurnAssignment;
+  /** Accepted plan identity. Both fields are present together on plan-backed
+   * continuations; omission remains readable for historical static routes. */
+  planVersion?: number;
+  planStepId?: string;
   session: SessionHandle;
   completedPasses: string[];
   contextFingerprint: string;

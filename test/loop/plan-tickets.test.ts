@@ -273,11 +273,10 @@ describe("publishTickets", () => {
   });
 });
 
-// L0-02 (L-004): the sensitive-domain deep floor is implemented and correct in
-// route-policy.ts but was dead because nothing attached the domain labels
-// routeDecisionForItem reads sensitiveDomains from. The orchestrator now
-// attaches them (and floors the ticket to op:tier-deep) at publication from the
-// ticket's own content — the mirror image of over-service. The match is at
+// L0-02 (L-004): preserve the historical sensitive-domain label/tier projection
+// without making it live workflow authority. The orchestrator attaches the
+// labels (and projects the ticket as op:tier-deep) at publication from the
+// ticket's own content. The match is at
 // WORD boundaries over PROSE only, so it fires on genuine sensitive work and
 // NOT on compound words (`database`/`metadata`/`data model`) or noisy scope
 // paths (`src/data/**`) — those are the over-escalation the L0-02 fixup removes.
@@ -525,7 +524,7 @@ describe("publishTickets — sensitive-domain deep floor (L0-02)", () => {
     expect(storage.labels).not.toContain("op:tier-standard");
   });
 
-  it("the published storage ticket routes DEEP via the sensitive-domain floor — no hand-applied label", async () => {
+  it("the published storage ticket retains a DEEP compatibility projection — no hand-applied label", async () => {
     const gh = new FakeGhOps();
     const { published } = await publishTickets(gh, storagePlan());
     const storage = (await gh.listIssues({ state: "all", limit: 10 })).find(
@@ -542,7 +541,7 @@ describe("publishTickets — sensitive-domain deep floor (L0-02)", () => {
     expect(decision.decisionRules).toContain("sensitive_domain");
   });
 
-  it("a vanilla growth ticket still routes standard — the floor does not over-fire", async () => {
+  it("a vanilla growth ticket retains a standard compatibility projection", async () => {
     const gh = new FakeGhOps();
     const vanilla = plan({
       stage: "growth",

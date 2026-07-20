@@ -3,9 +3,10 @@
 
 import { join } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
-import type { GateFn, RoleConfig } from "../runtime/types.js";
+import type { GateFn, RoleConfig, TurnAssignment } from "../runtime/types.js";
 import { getRuntime } from "../runtime/registry.js";
 import { defaultLoopInputs, runLoopOnce } from "../loop/driver.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
 import { loadPipelines } from "../loop/pipelines.js";
 import { finalizeEpisode } from "../loop/efficiency.js";
 import type { ScorecardEvent as LoopScorecardEvent } from "../loop/types.js";
@@ -15,6 +16,8 @@ import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
 import { enforceBudgetOverlay, isBudgetBlocking } from "../org/budget.js";
+import { createTicketEpisodeRuntime } from "../org/ticket-episode-runtime.js";
+import { createExistingTicketApprovalHandler } from "../org/ticket-episode-approval.js";
 import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
 import { recordInvocation } from "../runtime/telemetry.js";
@@ -69,8 +72,8 @@ export function createLoopGateForRole(
   app: string,
   turnId: string,
   orgHome?: string,
+  store: ApprovalStore = new ApprovalStore(stateHome),
 ): (role: RoleConfig) => GateFn {
-  const store = new ApprovalStore(stateHome);
   return (role) =>
     composeGate(defaultGate, store, {
       app,
@@ -203,6 +206,134 @@ export async function cmdLoop(args: string[]): Promise<number> {
     // attribution/dedupe key the org scorecard ledger records under.
     const turnId = `loop-${selectedApp.name}-${Date.now()}`;
     const tickStarted = Date.now();
+    let liveEngine: NonNullable<Parameters<typeof runLoopOnce>[0]["engine"]> | undefined;
+    if (!dryRun) {
+      const plannerRole = roles["planner"];
+      if (plannerRole === undefined) {
+        throw new Error("loop: roles.yaml has no planner role for ticket EpisodePlanner boot");
+      }
+      const approvalStore = new ApprovalStore(homes.stateHome);
+      const gateForRole = createLoopGateForRole(
+        homes.stateHome,
+        selectedApp.name,
+        turnId,
+        homes.orgHome,
+        approvalStore,
+      );
+      const budgetRows = await enforceBudgetOverlay(homes.stateHome, appsFile);
+      const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);
+      if (budgetRow === undefined) {
+        throw new Error(`loop: could not resolve the app budget for ${selectedApp.name}`);
+      }
+      const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
+      const fallbackContext = (await assembleContext({
+        orgHome: homes.orgHome,
+        appWorkdir: localRepo,
+        app: selectedApp.name,
+        role: builderRole,
+        taskText: `build loop for ${selectedApp.name}`,
+      })).bundle;
+      const plannerContext = (await assembleContext({
+        orgHome: homes.orgHome,
+        appWorkdir: localRepo,
+        app: selectedApp.name,
+        role: plannerRole,
+        taskText: `plan bounded ticket delivery for ${selectedApp.name}`,
+      })).bundle;
+      const resolveEpisodeContext = createEpisodeContextResolver({
+        orgHome: homes.orgHome,
+        appWorkdir: localRepo,
+        app: selectedApp.name,
+        roles,
+        stateHome: homes.stateHome,
+        turnId,
+      });
+      const runtimeForAssignment = (assignment: TurnAssignment) =>
+        getRuntime(assignment.harness);
+      const ticketEpisode = createTicketEpisodeRuntime({
+        root: homes.stateHome,
+        orgRoot: homes.orgHome,
+        app: selectedApp,
+        roles: rolesFile.roles,
+        gh: inputs.gh,
+        policy: inputs.policy,
+        commands: inputs.commands,
+        hooks: { gate: defaultGate },
+        runtimeForAssignment,
+        plannerContext,
+        contextForProviderStep: async ({ item, role }) =>
+          (await resolveEpisodeContext(
+            item,
+            EPISODE_PLAN_EXECUTION_PIPELINE,
+            role.name,
+          )) ?? fallbackContext,
+        remainingBudgetUsd,
+        gateForRole,
+        approval: createExistingTicketApprovalHandler({
+          store: approvalStore,
+          app: selectedApp.name,
+          roleNames: rolesFile.roles.map((role) => role.name),
+        }),
+        ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
+          ? {}
+          : {
+              authorization: {
+                selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"],
+              },
+            }),
+        ...(selectedApp.release === undefined ? {} : { release: selectedApp.release }),
+        telemetry: { orgDir: homes.stateHome, trigger: "manual" },
+        ...(parentTaskId === undefined ? {} : { parentTaskId }),
+        ...(allowNetwork ? { networkAccess: true } : {}),
+        ...(cancellation === undefined ? {} : { signal: cancellation.signal }),
+      });
+      liveEngine = {
+        pipelines,
+        roles,
+        runtimeFor: (role) => getRuntime(role.runtime),
+        promptsDir,
+        runlogRoot: homes.stateHome,
+        hooks: { gate: defaultGate },
+        gateForRole,
+        context: fallbackContext,
+        // One governed resolve per (ticket episode, plan role), pinned for
+        // the tick. The accepted plan, rather than a static pipeline name,
+        // now owns the execution sequence.
+        contextFor: resolveEpisodeContext,
+        planTicket: ticketEpisode.planTicket,
+        executeTicketPlan: ticketEpisode.executeTicketPlan,
+        ...(allowNetwork ? { networkAccess: true } : {}),
+        telemetry: { orgDir: homes.stateHome, trigger: "manual" },
+        onEpisodeTerminal: async (terminal) => {
+          await finalizeEpisode({
+            root: homes.stateHome,
+            episodeId: terminal.episodeId,
+            status: terminal.status,
+            reason: terminal.reason,
+            ...(terminal.nextStep !== undefined ? { nextStep: terminal.nextStep } : {}),
+            now: terminal.now,
+          });
+        },
+        ...(cancellation !== undefined ? { signal: cancellation.signal } : {}),
+        ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+        budgetGuard: async () => {
+          if (isBudgetBlocking(budgetRow.status)) {
+            return {
+              allowed: false,
+              reason:
+                budgetRow.status === "unknown"
+                  ? `${budgetRow.app} budget total could not be computed this month ` +
+                    `(malformed ledger row) — refusing to spend; run ` +
+                    `\`operon budget --reconcile\` to repair the ledger`
+                  : `${budgetRow.app} spent $${budgetRow.spentUsd.toFixed(2)} of its ` +
+                    `$${budgetRow.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
+                    `or wait for the month to reset`,
+            };
+          }
+          return { allowed: true };
+        },
+      };
+    }
     const result = await runLoopOnce({
       app: selectedApp.name,
       repo: selectedApp.repo,
@@ -223,88 +354,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       ...(process.env["OPERON_SELF_APPROVAL_SECRET"] !== undefined
         ? { authorization: { selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"] } }
         : {}),
-      ...(!dryRun
-        ? {
-            engine: {
-            pipelines,
-            roles,
-            runtimeFor: (role) => getRuntime(role.runtime),
-            promptsDir,
-            runlogRoot: homes.stateHome,
-            hooks: { gate: defaultGate },
-            gateForRole: createLoopGateForRole(
-              homes.stateHome,
-              selectedApp.name,
-              turnId,
-              homes.orgHome,
-            ),
-            // Fallback context (unknown pipeline names): taste layers plus
-            // legacy memory, no governed resolve — the per-episode resolves
-            // below own the governed pins.
-            context: (await assembleContext({
-              orgHome: homes.orgHome,
-              appWorkdir: localRepo,
-              app: selectedApp.name,
-              role: builderRole,
-              taskText: `build loop for ${selectedApp.name}`,
-            })).bundle,
-            // One governed resolve per (ticket episode, pipeline role),
-            // pinned for the tick (learning-loop M5, design §8.4). This
-            // replaces the M4 tick-level builder-only pin: the resolve now
-            // anchors on the same ticket episode the capture projector
-            // attributes the passes to, lineage is episode-sticky, and
-            // reviewer-scoped concepts reach review passes.
-            contextFor: createEpisodeContextResolver({
-              orgHome: homes.orgHome,
-              appWorkdir: localRepo,
-              app: selectedApp.name,
-              roles,
-              stateHome: homes.stateHome,
-              turnId,
-            }),
-            ...(allowNetwork ? { networkAccess: true } : {}),
-            // Every provider invocation this tick settles into the org ledger
-            // under its providerTurnId. Manual loop spend was previously
-            // invisible to `operon budget`.
-            telemetry: { orgDir: homes.stateHome, trigger: "manual" },
-            onEpisodeTerminal: async (terminal) => {
-              await finalizeEpisode({
-                root: homes.stateHome,
-                episodeId: terminal.episodeId,
-                status: terminal.status,
-                reason: terminal.reason,
-                ...(terminal.nextStep !== undefined ? { nextStep: terminal.nextStep } : {}),
-                now: terminal.now,
-              });
-            },
-            ...(cancellation !== undefined ? { signal: cancellation.signal } : {}),
-            ...(parentTaskId !== undefined ? { parentTaskId } : {}),
-            budgetGuard: async () => {
-              // enforceBudgetOverlay (not a bare rollup) so the pause overlay
-              // is recomputed here too: a month-old pause clears once spend
-              // resets, and a fresh overage raises its approval item exactly
-              // once — the manual path must not depend on someone running
-              // `operon budget` or a dispatch tick to refresh either.
-              const rows = await enforceBudgetOverlay(homes.stateHome, appsFile);
-              const row = rows.find((r) => r.app === selectedApp.name);
-              if (row !== undefined && isBudgetBlocking(row.status)) {
-                return {
-                  allowed: false,
-                  reason:
-                    row.status === "unknown"
-                      ? `${row.app} budget total could not be computed this month ` +
-                        `(malformed ledger row) — refusing to spend; run ` +
-                        `\`operon budget --reconcile\` to repair the ledger`
-                      : `${row.app} spent $${row.spentUsd.toFixed(2)} of its ` +
-                        `$${row.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
-                        `or wait for the month to reset`,
-                };
-              }
-              return { allowed: true };
-            },
-            },
-          }
-        : {}),
+      ...(liveEngine === undefined ? {} : { engine: liveEngine }),
     });
     await persistLoopScorecards(homes.stateHome, selectedApp.name, result.scorecardEvents);
     // A4: a merged deploy/package milestone queues its release as a critical

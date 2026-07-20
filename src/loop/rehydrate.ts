@@ -20,6 +20,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { isTurnAssignment } from "../runtime/assignment.js";
 import type { GhIssueComment, GhOps } from "./github.js";
 import type { LoopContinuation, LoopItem } from "./types.js";
 import { parseVerdict, type Finding, type FindingResolution } from "./verdicts.js";
@@ -330,8 +331,16 @@ function validActiveClaim(value: unknown): value is NonNullable<TicketClaimState
 function validContinuation(value: unknown): value is NonNullable<TicketClaimState["continuation"]> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const continuation = value as NonNullable<TicketClaimState["continuation"]>;
+  const planIdentityValid =
+    (continuation.planVersion === undefined && continuation.planStepId === undefined) ||
+    (Number.isInteger(continuation.planVersion) &&
+      (continuation.planVersion ?? 0) > 0 &&
+      typeof continuation.planStepId === "string" &&
+      continuation.planStepId.length > 0);
   return typeof continuation.pipeline === "string" && typeof continuation.pass === "string" &&
     typeof continuation.role === "string" && continuation.session !== undefined &&
+    (continuation.assignment === undefined || isTurnAssignment(continuation.assignment)) &&
+    planIdentityValid &&
     typeof continuation.session.id === "string" && ["claude", "codex", "pi"].includes(continuation.session.runtime) &&
     Array.isArray(continuation.completedPasses) && typeof continuation.contextFingerprint === "string" &&
     typeof continuation.runId === "string" && typeof continuation.pausedAt === "string" &&

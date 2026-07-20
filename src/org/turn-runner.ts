@@ -2,7 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -16,8 +16,18 @@ import {
 import { defaultGate } from "../runtime/gate.js";
 import { worstUsageQuality } from "../runtime/cost.js";
 import { getRuntime } from "../runtime/registry.js";
+import { readEnvelope } from "../runtime/runlog/envelope.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
-import type { ContextBundle, RoleConfig, Runtime, Trigger, TurnHooks, TurnResult, TurnUsage } from "../runtime/types.js";
+import type {
+  ContextBundle,
+  RoleConfig,
+  Runtime,
+  Trigger,
+  TurnAssignment,
+  TurnHooks,
+  TurnResult,
+  TurnUsage,
+} from "../runtime/types.js";
 import { loadGateCommands, runLoopOnce } from "../loop/driver.js";
 import {
   baseRevisionForBranch,
@@ -27,17 +37,43 @@ import {
 import { queueReleaseApprovals } from "./release.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 import {
-  executePipeline,
   type PipelineRunResult,
   type VerdictRecordContext,
   type VerdictRecordOutcome,
 } from "../loop/pipeline.js";
-import { getPipeline, loadPipelines, type PassConfig, type PipelineConfig } from "../loop/pipelines.js";
-import { loadPolicy } from "../loop/policy.js";
-import { runRole } from "../loop/runRole.js";
-import { finalizeEpisode } from "../loop/efficiency.js";
 import {
-  parseWithRetry,
+  getPipeline,
+  loadPipelines,
+  selectPasses,
+  type PassConfig,
+  type PipelineConfig,
+} from "../loop/pipelines.js";
+import { loadPolicy } from "../loop/policy.js";
+import {
+  episodeIdFor,
+  finalizeEpisode,
+  fingerprint,
+  readRouteRecord,
+} from "../loop/efficiency.js";
+import type {
+  ApprovalStep,
+  CreatorEpisodeScope,
+  EpisodeIntent,
+  JsonValue,
+  MechanicalGateStep,
+  SafetyFact,
+} from "../loop/episode-plan.js";
+import { stableHash } from "../loop/episode-plan.js";
+import type {
+  ApprovalStepOutcome,
+  EpisodePlanExecutionResult,
+  EpisodeStepCompletedOutcome,
+  EpisodeStepExecutionContext,
+  EpisodeStepFailedOutcome,
+} from "../loop/episode-plan-executor.js";
+import type { PlannerAdmissionLimits } from "../loop/planner-admission.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
+import {
   VerdictParseError,
   VERDICT_SCHEMAS,
   type ParseResult,
@@ -47,6 +83,17 @@ import { ApprovalStore } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
+import {
+  orchestrateEpisode,
+  previewEpisode,
+  type EpisodeOrchestrationFacts,
+} from "./episode-planner/orchestrator.js";
+import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
+import { inspectEpisodeRepository } from "./episode-planner/repository-facts.js";
+import {
+  orchestrateGovernedPipelineEpisode,
+  type GovernedPipelineProviderEvidence,
+} from "./governed-pipeline-episode.js";
 import { composeGate } from "./gate-compose.js";
 import {
   distillationBrief,
@@ -58,6 +105,7 @@ import {
   persistLearningReviewOutput,
   prepareDistillation,
   prepareLearningReview,
+  listM6RunRecords,
   writeM6RunRecord,
   writeCompactionSnapshot,
   type M6RunRecord,
@@ -68,8 +116,15 @@ import { readLearningEvents } from "./learning/events.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import { acquireLock, heartbeatLock, readLockOrUndefined, releaseLock } from "./locks.js";
 import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
+import { loadRoles } from "./roles.js";
 import { appendScorecardEvent } from "./scorecards.js";
+import { createTicketEpisodeRuntime } from "./ticket-episode-runtime.js";
+import { createExistingTicketApprovalHandler } from "./ticket-episode-approval.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
+import {
+  mergeEpisodeSafetyFacts,
+  safetyFactsFromTurnEvent,
+} from "./episode-safety-facts.js";
 import { SchedulerEvidenceStore } from "./scheduler/evidence.js";
 import { schedulerIdentity } from "./scheduler/model.js";
 import {
@@ -89,6 +144,29 @@ export interface RunDispatchedTurnOptions {
   orgRoot?: string;
   gh?: GhOps;
   runtimeFor?: (role: RoleConfig) => Runtime;
+  /** Exact-assignment runtime seam used by EpisodePlanner and accepted-plan
+   * delivery. When omitted, the legacy role seam is adapted without changing
+   * any member of the persisted harness/model/effort tuple. */
+  runtimeForAssignment?: (assignment: TurnAssignment, role: RoleConfig) => Runtime;
+  /** The sole explicit generic-turn planner bypass. Supplying a prompt, title,
+   * short trigger, or apparently simple task never creates this value. */
+  creatorScope?: CreatorEpisodeScope;
+  /** Test/embedder seam. Production loads the human-ratified planner prompt
+   * from prompts/episode/plan.md and fails closed if it is unavailable. */
+  episodePlannerPromptText?: string;
+  /** Optional narrower planning allowance. Production otherwise derives a
+   * bounded allowance from the fixed Planner role and remaining app budget. */
+  episodePlannerLimits?: PlannerAdmissionLimits;
+  /** Generic episodes do not acquire new mechanical or approval authority by
+   * implication. A caller that owns such a boundary must supply it explicitly. */
+  episodeMechanicalHandler?: (
+    step: MechanicalGateStep,
+    execution: EpisodeStepExecutionContext,
+  ) => Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome>;
+  episodeApprovalHandler?: (
+    step: ApprovalStep,
+    execution: EpisodeStepExecutionContext,
+  ) => Promise<ApprovalStepOutcome>;
   now?: () => Date;
   /** Cooperative cancellation sent by the owning CLI/dispatcher process. */
   signal?: AbortSignal;
@@ -194,6 +272,8 @@ export async function runDispatchedTurn(
         base: clone.base,
         context,
         hooks,
+        journal,
+        store,
         telemetry,
       });
     } else if (route.kind === "pipeline") {
@@ -202,6 +282,7 @@ export async function runDispatchedTurn(
         runtimeHome,
         orgRoot,
         localRepo,
+        base: clone.base,
         context,
         hooks,
         journal,
@@ -215,22 +296,18 @@ export async function runDispatchedTurn(
         options.role,
       );
     } else {
-      const generic = await runRole({
-        role: options.role,
-        app: options.app.name,
-        turnId: options.turnId,
-        dryRun: false,
-        workdir: localRepo,
-        runlogRoot: runtimeHome,
-        runtimeFor: options.runtimeFor ?? ((role) => getRuntime(role.runtime)),
-        hooks,
+      result = await runGenericEpisodeTurn({
+        ...options,
+        runtimeHome,
+        orgRoot,
+        localRepo,
+        base: clone.base,
         context,
-        clock,
+        hooks,
+        journal,
         telemetry,
-        ...(options.signal !== undefined ? { signal: options.signal } : {}),
-        ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+        store,
       });
-      result = generic.record?.result ?? zeroResult("completed", "role turn completed", options.role);
     }
 
     await writeJournalPatch(runtimeHome, options.turnId, {
@@ -303,10 +380,417 @@ export async function runDispatchedTurn(
   }
 }
 
+const GENERIC_EPISODE_PLANNER_POLICY_VERSION = "generic-dispatched-turn/episode-planner-v1";
+const GENERIC_EPISODE_MAX_PROVIDER_TURNS = 8;
+const GENERIC_TRIGGER_PAYLOAD_MAX_BYTES = 32 * 1024;
+
+async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
+  runtimeHome: string;
+  orgRoot: string;
+  localRepo: string;
+  base: BaseRevision;
+  context: ContextBundle;
+  hooks: TurnHooks;
+  journal: TurnJournal;
+  telemetry: { orgDir: string; trigger?: TriggerKind };
+  store: ApprovalStore;
+}): Promise<TurnResult> {
+  const clock = options.now ?? (() => new Date());
+  const configured = await loadRoles(join(options.orgRoot, "roles.yaml"));
+  const roles = configured.roles;
+  if (!roles.some((role) => role.name === options.role.name)) {
+    throw new Error(`generic episode role ${options.role.name} is not present in roles.yaml`);
+  }
+  const plannerRole = roles.find((role) => role.name === "planner");
+  if (plannerRole === undefined) {
+    throw new Error("generic episode planning requires a configured planner role in roles.yaml");
+  }
+
+  const budget = (await rollupBudgets(options.runtimeHome, options.appsFile, clock()))
+    .find((row) => row.app === options.app.name);
+  if (budget === undefined) {
+    throw new Error(`generic episode planning could not resolve the app budget for ${options.app.name}`);
+  }
+  if (isBudgetBlocking(budget.status)) {
+    throw new Error(
+      budget.status === "unknown"
+        ? `${options.app.name} budget total is unverifiable; run \`operon budget --reconcile\` before planning`
+        : `${options.app.name} has exhausted its monthly budget`,
+    );
+  }
+  const remainingBudgetUsd = Math.max(0, budget.budgetUsd - budget.spentUsd);
+  if (remainingBudgetUsd <= 0) {
+    throw new Error(`${options.app.name} has no remaining budget for an EpisodePlan`);
+  }
+
+  const repository = inspectEpisodeRepository({
+    workdir: options.localRepo,
+    baseRevision: options.base,
+  });
+  const learningAnchor = journalEpisodeAnchor(options.app.name, options.journal, options.turnId);
+  const episodeId = genericEfficiencyEpisodeId(options.app.name, options.journal, options.turnId);
+  const runtimeForAssignment = exactRuntimeFactory(options);
+  const gateForRole = (role: RoleConfig): TurnHooks["gate"] =>
+    composeGate(defaultGate, options.store, {
+      app: options.app.name,
+      role: role.name,
+      turnId: options.turnId,
+      ...(options.journal.event !== undefined
+        ? { ticketRef: `event:${options.journal.event.key}` }
+        : {}),
+      orgHome: options.orgRoot,
+      now: clock,
+    });
+  // Rebuild every per-step context from the same loaded RoleConfig that owns
+  // execution authority. The dispatch envelope's role name is checked above,
+  // but a caller-supplied RoleConfig must not smuggle different instructions,
+  // outputs, or tool shaping into a turn that executes under current org config.
+  const contextByRole = new Map<string, ContextBundle>();
+  const contextForRole = async (role: RoleConfig): Promise<ContextBundle> => {
+    const existing = contextByRole.get(role.name);
+    if (existing !== undefined) return existing;
+    const assembled = await buildContext(
+      options.orgRoot,
+      options.localRepo,
+      options.app.name,
+      role,
+      options.journal,
+      { stateHome: options.runtimeHome, turnId: options.turnId },
+    );
+    contextByRole.set(role.name, assembled);
+    return assembled;
+  };
+  const plannerContext = await contextForRole(plannerRole);
+  const plannerLimits = options.episodePlannerLimits ??
+    defaultGenericPlannerLimits(plannerRole, remainingBudgetUsd);
+  const trigger = genericTriggerFacts(options.journal, options.turnId);
+
+  const provisionalFacts: EpisodeOrchestrationFacts = {
+    episodeId,
+    trigger: trigger.descriptor,
+    goal: options.creatorScope?.objective ?? genericEpisodeGoal(options, learningAnchor.kind),
+    lifecycle: learningAnchor.kind,
+    appStage: options.app.status,
+    repositoryFacts: repository.repositoryFacts,
+    changeFacts: repository.changeFacts,
+    requestedConstraints: {
+      dispatchRole: options.role.name,
+      trigger: trigger.details,
+      sourceEvidence: {
+        kind: learningAnchor.source.kind,
+        ref: learningAnchor.source.ref,
+      },
+      networkAccess: false,
+    },
+    hardBudget: {
+      maxProviderTurns: GENERIC_EPISODE_MAX_PROVIDER_TURNS,
+      maxEquivalentCostUsd: remainingBudgetUsd,
+      maxMechanicalOverheadUsd: remainingBudgetUsd,
+      maxInputTokens: 256_000,
+      maxActiveTimeMs: 60 * 60 * 1_000,
+      maxHumanDecisions: 2,
+    },
+    requiredSafetyFacts: genericSafetyFacts(options.journal, options.creatorScope),
+    responsibilityByRole: Object.fromEntries(
+      roles.map((role) => [
+        role.name,
+        role.name === options.role.name
+          ? `Own the dispatched ${options.role.name} responsibility for this trigger`
+          : `Configured ${role.name} responsibility`,
+      ]),
+    ),
+    ...(options.creatorScope === undefined ? {} : { creatorScope: options.creatorScope }),
+  };
+  const deterministicPreview = previewEpisode({
+    app: options.app,
+    roles,
+    facts: provisionalFacts,
+    planner: { limits: plannerLimits },
+  });
+  const plannerReserveUsd = deterministicPreview.plannerBoot.providerTurnRequired
+    ? plannerLimits.aggregate.equivalentCostUsd
+    : 0;
+  const plannerReserveTurns = deterministicPreview.plannerBoot.providerTurnRequired
+    ? plannerLimits.aggregate.providerTurns
+    : 0;
+  const plannerReserveInputTokens = deterministicPreview.plannerBoot.providerTurnRequired
+    ? plannerLimits.aggregate.inputTokens
+    : 0;
+  const plannerReserveActiveTimeMs = deterministicPreview.plannerBoot.providerTurnRequired
+    ? plannerLimits.aggregate.activeTimeMs
+    : 0;
+  const deliveryBudgetUsd = remainingBudgetUsd - plannerReserveUsd;
+  if (deliveryBudgetUsd <= 0) {
+    throw new Error(
+      `${options.app.name} cannot safely admit both EpisodePlanner and delivery: ` +
+        `$${remainingBudgetUsd.toFixed(2)} remains, while the bounded planner may consume ` +
+        `$${plannerReserveUsd.toFixed(2)}`,
+    );
+  }
+  const facts: EpisodeOrchestrationFacts = {
+    ...provisionalFacts,
+    hardBudget: {
+      ...provisionalFacts.hardBudget,
+      maxProviderTurns: Math.max(
+        0,
+        provisionalFacts.hardBudget.maxProviderTurns - plannerReserveTurns,
+      ),
+      maxEquivalentCostUsd: deliveryBudgetUsd,
+      maxMechanicalOverheadUsd: deliveryBudgetUsd,
+      maxInputTokens: Math.max(
+        0,
+        (provisionalFacts.hardBudget.maxInputTokens ?? 0) - plannerReserveInputTokens,
+      ),
+      maxActiveTimeMs: Math.max(
+        0,
+        (provisionalFacts.hardBudget.maxActiveTimeMs ?? 0) - plannerReserveActiveTimeMs,
+      ),
+    },
+  };
+  const promptText = deterministicPreview.plannerBoot.providerTurnRequired
+    ? await resolveEpisodePlannerPrompt(options)
+    : "";
+
+  const orchestrated = await orchestrateEpisode({
+    root: options.runtimeHome,
+    app: options.app,
+    roles,
+    mode: "execute",
+    facts,
+    planner: {
+      promptText,
+      context: plannerContext,
+      workdir: options.localRepo,
+      hooks: { gate: gateForRole(plannerRole) },
+      runtimeForAssignment,
+      policyVersion: GENERIC_EPISODE_PLANNER_POLICY_VERSION,
+      limits: plannerLimits,
+      traceId: options.turnId,
+      telemetry: options.telemetry,
+      now: clock,
+      ...(options.journal.event?.kind === "release-shipped"
+        ? { safetyFloorMapping: { gateKinds: { release: [] } } }
+        : {}),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+    },
+    execution: {
+      workdir: options.localRepo,
+      hooks: options.hooks,
+      gateForRole,
+      runtimeForAssignment,
+      contextForProviderStep: async ({ step }) => {
+        const role = roles.find((candidate) => candidate.name === step.role);
+        if (role === undefined) throw new Error(`accepted plan step ${step.id} has unknown role ${step.role}`);
+        return contextForRole(role);
+      },
+      mechanical: options.episodeMechanicalHandler ?? unsupportedGenericMechanicalStep,
+      approval: options.episodeApprovalHandler ?? unsupportedGenericApprovalStep,
+      telemetry: options.telemetry,
+      now: clock,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+    },
+  });
+  return genericExecutionResult(orchestrated.execution, orchestrated.intent.episodeId, options.role);
+}
+
+function genericEfficiencyEpisodeId(
+  app: string,
+  journal: TurnJournal,
+  turnId: string,
+): string {
+  if (journal.event !== undefined) {
+    return episodeIdFor({
+      app,
+      traceId: `event:${journal.event.kind}:${journal.event.key}`,
+    });
+  }
+  if (journal.ticketRef !== undefined) {
+    return episodeIdFor({ app, ticket: journal.ticketRef, traceId: turnId });
+  }
+  return episodeIdFor({ app, traceId: turnId });
+}
+
+async function resolveEpisodePlannerPrompt(options: RunDispatchedTurnOptions & {
+  orgRoot: string;
+}): Promise<string> {
+  if (options.episodePlannerPromptText !== undefined) {
+    if (options.episodePlannerPromptText.trim().length === 0) {
+      throw new Error("injected EpisodePlanner prompt must not be empty");
+    }
+    return options.episodePlannerPromptText;
+  }
+  const path = join(options.orgRoot, "prompts", "episode", "plan.md");
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `generic episode requires the human-ratified EpisodePlanner prompt at ${path}; ` +
+        `ratify/install that protected surface before retrying (${detail})`,
+    );
+  }
+}
+
+function exactRuntimeFactory(
+  options: Pick<RunDispatchedTurnOptions, "runtimeFor" | "runtimeForAssignment">,
+): (assignment: TurnAssignment, role: RoleConfig) => Runtime {
+  if (options.runtimeForAssignment !== undefined) return options.runtimeForAssignment;
+  if (options.runtimeFor !== undefined) {
+    return (assignment, role) => options.runtimeFor!({
+      ...role,
+      runtime: assignment.harness,
+      model: assignment.model,
+      effort: assignment.effort,
+    });
+  }
+  return (assignment) => getRuntime(assignment.harness);
+}
+
+function defaultGenericPlannerLimits(
+  plannerRole: RoleConfig,
+  remainingBudgetUsd: number,
+): PlannerAdmissionLimits {
+  const maxAttempts = 2;
+  const equivalentCostUsd = Math.min(
+    plannerRole.maxTurnBudgetUsd,
+    remainingBudgetUsd / maxAttempts,
+  );
+  if (!Number.isFinite(equivalentCostUsd) || equivalentCostUsd <= 0) {
+    throw new Error("remaining app budget cannot admit one bounded EpisodePlanner attempt");
+  }
+  return {
+    maxAttempts,
+    perAttempt: {
+      inputTokens: 64_000,
+      equivalentCostUsd,
+      activeTimeMs: 5 * 60 * 1_000,
+    },
+    aggregate: {
+      providerTurns: maxAttempts,
+      inputTokens: 128_000,
+      equivalentCostUsd: equivalentCostUsd * maxAttempts,
+      activeTimeMs: 10 * 60 * 1_000,
+    },
+  };
+}
+
+function genericTriggerFacts(
+  journal: TurnJournal,
+  turnId: string,
+): {
+  descriptor: { kind: string; sourceRef: string; payloadHash?: string };
+  details: Record<string, JsonValue>;
+} {
+  if (journal.event !== undefined) {
+    const payloadHash = fingerprint(journal.event.payload);
+    const payload = boundedTriggerPayload(journal.event.payload);
+    return {
+      descriptor: {
+        kind: journal.event.kind,
+        sourceRef: `${journal.event.source}:${journal.event.key}`,
+        payloadHash,
+      },
+      details: {
+        kind: "event",
+        eventKind: journal.event.kind,
+        source: journal.event.source,
+        key: journal.event.key,
+        payloadHash,
+        ...(payload === undefined
+          ? { payloadIncluded: false }
+          : { payloadIncluded: true, payload }),
+      },
+    };
+  }
+  const kind = journal.triggerKind ?? "manual";
+  const value = journal.trigger ?? turnId;
+  return {
+    descriptor: { kind, sourceRef: `${kind}:${value}` },
+    details: { kind, value },
+  };
+}
+
+function boundedTriggerPayload(payload: Record<string, unknown>): JsonValue | undefined {
+  try {
+    const rendered = JSON.stringify(payload);
+    if (Buffer.byteLength(rendered) > GENERIC_TRIGGER_PAYLOAD_MAX_BYTES) return undefined;
+    return JSON.parse(rendered) as JsonValue;
+  } catch {
+    return undefined;
+  }
+}
+
+function genericSafetyFacts(
+  journal: TurnJournal,
+  creatorScope: CreatorEpisodeScope | undefined,
+): SafetyFact[] {
+  return mergeEpisodeSafetyFacts(
+    safetyFactsFromTurnEvent(journal.event),
+    creatorScope?.safetyFacts ?? [],
+  );
+}
+
+function genericEpisodeGoal(
+  options: Pick<RunDispatchedTurnOptions, "app" | "role" | "turnId"> & { journal: TurnJournal },
+  lifecycle: string,
+): string {
+  const trigger = options.journal.event === undefined
+    ? `${options.journal.triggerKind ?? "manual"}:${options.journal.trigger ?? options.turnId}`
+    : `event:${options.journal.event.kind}:${options.journal.event.key}`;
+  return `Execute the bounded ${options.role.name} responsibility for ${options.app.name} (${lifecycle}; ${trigger}).`;
+}
+
+async function unsupportedGenericMechanicalStep(
+  step: MechanicalGateStep,
+  _execution: EpisodeStepExecutionContext,
+): Promise<EpisodeStepFailedOutcome> {
+  return {
+    status: "failed",
+    reasonCode: "error_generic_episode_mechanical_gate_unsupported",
+    summary: `generic dispatched turns have no registered handler for mechanical gate ${step.gate}`,
+  };
+}
+
+async function unsupportedGenericApprovalStep(
+  step: ApprovalStep,
+  _execution: EpisodeStepExecutionContext,
+): Promise<ApprovalStepOutcome> {
+  return {
+    status: "failed",
+    reasonCode: "error_generic_episode_approval_unsupported",
+    summary: `generic dispatched turns have no registered approval handler for ${step.approvalKind}`,
+  };
+}
+
+function genericExecutionResult(
+  execution: EpisodePlanExecutionResult | null,
+  episodeId: string,
+  role: RoleConfig,
+): TurnResult {
+  if (execution === null) {
+    return zeroResult("failed", `episode ${episodeId} was planned but not executed`, role);
+  }
+  const blockedByProviderGate = execution.status === "failed" &&
+    execution.reasonCode?.includes("blocked_on_gate") === true;
+  const status: TurnResult["status"] = execution.status === "completed"
+    ? "completed"
+    : execution.status === "waiting_approval" || execution.status === "denied" || blockedByProviderGate
+      ? "blocked_on_gate"
+      : "failed";
+  const summary = execution.summary ??
+    (execution.status === "completed"
+      ? `episode ${episodeId} completed accepted plan v${execution.planVersion}`
+      : `episode ${episodeId} stopped with ${execution.status}`);
+  return zeroResult(status, summary, role);
+}
+
 async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   runtimeHome: string;
   orgRoot: string;
   localRepo: string;
+  base: BaseRevision;
   context: ContextBundle;
   hooks: TurnHooks;
   journal: TurnJournal;
@@ -317,7 +801,8 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     learningActivity?: "distillation" | "review";
   };
 }): Promise<TurnResult> {
-  const rolesFile = await import("./roles.js").then((m) => m.loadRoles(join(options.orgRoot, "roles.yaml")));
+  const rolesFile = await loadRoles(join(options.orgRoot, "roles.yaml"));
+  const configuredRoles = rolesFile.roles;
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
   const pipelines = await loadPipelines(join(options.orgRoot, "pipelines.yaml"), {
     roleNames: rolesFile.roles.map((role) => role.name),
@@ -350,10 +835,26 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     });
   }
 
-  const priorOutputs = new Map<string, string>();
+  const selectedPasses = selectPasses(pipeline, { tier: "standard" });
   const now = options.now?.() ?? new Date();
+  const episodeId = genericEfficiencyEpisodeId(options.app.name, options.journal, options.turnId);
+  const trigger = genericTriggerFacts(options.journal, options.turnId);
+  const persistedIntent = await readPersistedEpisodeIntent(options.runtimeHome, episodeId);
   const approvalRows = await new ApprovalStore(options.runtimeHome).listPending();
-  const budgetRows = (await rollupBudgets(options.runtimeHome, options.appsFile, now)).filter(
+  const allBudgetRows = await rollupBudgets(options.runtimeHome, options.appsFile, now);
+  const appBudget = allBudgetRows.find((row) => row.app === options.app.name);
+  if (appBudget === undefined) {
+    throw new Error(`governed pipeline could not resolve the app budget for ${options.app.name}`);
+  }
+  if (persistedIntent === undefined && isBudgetBlocking(appBudget.status)) {
+    throw new Error(
+      appBudget.status === "unknown"
+        ? `${options.app.name} budget total is unverifiable; run \`operon budget --reconcile\` before executing ${options.pipelineName}`
+        : `${options.app.name} has exhausted its monthly budget`,
+    );
+  }
+  const remainingBudgetUsd = Math.max(0, appBudget.budgetUsd - appBudget.spentUsd);
+  const budgetRows = allBudgetRows.filter(
     (row) => row.status !== "ok",
   );
   const plannerFeedBatch = options.role.name === "planner"
@@ -364,60 +865,151 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
         now,
       })
     : undefined;
-
-  const result = await executePipeline({
-    pipeline,
-    selection: { tier: "standard" },
-    roles,
-    runtimeFor: options.runtimeFor ?? ((role) => getRuntime(role.runtime)),
-    briefFor: (pass) =>
-      protocolBrief({
-        app: options.app.name,
-        role: options.role.name,
-        pipelineName: options.pipelineName,
-        pass,
-        journal: options.journal,
-        priorOutputs,
-        approvalRows: approvalRows.map((item) => ({
-          id: item.id,
-          app: item.app,
-          role: item.role,
-          rule: item.rule,
-          ageMs: now.getTime() - new Date(item.raisedAt).getTime(),
-        })),
-        budgetRows,
-        plannerFeeds: (plannerFeedBatch?.manifest.entries ?? [])
-          .filter((feed) => feed.selection === "selected")
-          .map((feed) => ({ id: feed.feed_id, summary: feed.summary })),
-      }),
-    promptsDir: join(options.orgRoot, "prompts"),
-    context: options.context,
-    workdir: options.localRepo,
-    hooks: options.hooks,
-    runlog: {
-      root: options.runtimeHome,
+  const repository = persistedIntent === undefined
+    ? inspectEpisodeRepository({ workdir: options.localRepo, baseRevision: options.base })
+    : undefined;
+  const facts = persistedIntent === undefined
+    ? {
+        episodeId,
+        trigger: trigger.descriptor,
+        lifecycle: journalEpisodeAnchor(options.app.name, options.journal, options.turnId).kind,
+        appStage: options.app.status,
+        repositoryFacts: repository!.repositoryFacts,
+        changeFacts: repository!.changeFacts,
+        requestedConstraints: {
+          dispatchRole: options.role.name,
+          trigger: trigger.details,
+          networkAccess: false,
+        },
+        hardBudget: {
+          maxProviderTurns: selectedPasses.length,
+          maxEquivalentCostUsd: remainingBudgetUsd,
+          maxMechanicalOverheadUsd: 0,
+          maxInputTokens: 256_000,
+          maxActiveTimeMs: 60 * 60 * 1_000,
+          maxHumanDecisions: 0,
+        },
+      }
+    : governedFactsFromPersistedIntent(persistedIntent);
+  const store = new ApprovalStore(options.runtimeHome);
+  const clock = options.now ?? (() => new Date());
+  const gateForRole = (role: RoleConfig): TurnHooks["gate"] =>
+    composeGate(defaultGate, store, {
       app: options.app.name,
-      traceId: options.turnId,
+      role: role.name,
+      turnId: options.turnId,
+      ...(options.journal.event === undefined
+        ? {}
+        : { ticketRef: `event:${options.journal.event.key}` }),
+      orgHome: options.orgRoot,
+      now: clock,
+    });
+  const contexts = new Map<string, ContextBundle>();
+  const contextForRole = async (role: RoleConfig): Promise<ContextBundle> => {
+    const cached = contexts.get(role.name);
+    if (cached !== undefined) return cached;
+    const context = await buildContext(
+      options.orgRoot,
+      options.localRepo,
+      options.app.name,
+      role,
+      options.journal,
+      { stateHome: options.runtimeHome, turnId: options.turnId },
+    );
+    contexts.set(role.name, context);
+    return context;
+  };
+  const pipelineEvidenceRef = `pipeline-config:${stableHash(pipeline)}`;
+  const triggerEvidenceRef = trigger.descriptor.sourceRef ?? `turn:${options.turnId}`;
+  const orchestrated = await orchestrateGovernedPipelineEpisode({
+    root: options.runtimeHome,
+    app: options.app,
+    roles: configuredRoles,
+    pipeline,
+    selectedPasses,
+    provenance: {
+      source: "agent",
+      creatorId: `trigger-router/${options.pipelineName}`,
+      createdAt: options.journal.startedAt,
+      evidenceRefs: [pipelineEvidenceRef, triggerEvidenceRef],
     },
-    ...(options.now !== undefined ? { clock: options.now } : {}),
+    objective: `Execute the governed ${options.pipelineName} protocol for ${options.app.name}`,
+    inScope: selectedPasses.map((pass) => `${options.pipelineName}/${pass.id}`),
+    outOfScope: [
+      "provider work outside the selected governed protocol",
+      ...pipeline.passes
+        .filter((pass) => !selectedPasses.some((selected) => selected.id === pass.id))
+        .map((pass) => `${options.pipelineName}/${pass.id}`),
+    ],
+    acceptanceCriteria: selectedPasses.map(
+      (pass) => `${options.pipelineName}/${pass.id} produces one durable provider result`,
+    ),
+    declaredConstraints: {
+      dispatchRole: options.role.name,
+      trigger: trigger.details,
+      networkAccess: false,
+    },
+    safetyFacts: genericSafetyFacts(options.journal, undefined),
+    ...(options.journal.event?.kind === "release-shipped"
+      ? { safetyFloorMapping: { gateKinds: { release: [] } } }
+      : {}),
+    // The exact feed selection is content-bound in each run's input manifest.
+    // Keep the durable plan input stable if consumption commits immediately
+    // before a dispatcher crash and the same turn is resumed.
+    inputRefs: [{ ref: triggerEvidenceRef, required: true }],
+    facts,
+    workdir: options.localRepo,
+    promptsDir: join(options.orgRoot, "prompts"),
+    hooks: options.hooks,
+    runtimeForAssignment: exactRuntimeFactory(options),
+    gateForRole,
+    ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
     telemetry: options.telemetry,
-    ...(plannerFeedBatch !== undefined
-      ? {
-          inputManifest: {
+    now: clock,
+    mode: "execute",
+    delivery: {
+      contextForStep: ({ role }) => contextForRole(role),
+      briefForStep: ({ pass, role, dependencyOutputs }) =>
+        protocolBrief({
+          app: options.app.name,
+          role: role.name,
+          pipelineName: options.pipelineName,
+          pass,
+          journal: options.journal,
+          priorOutputs: new Map(
+            dependencyOutputs.map((entry) => [entry.passId, entry.output]),
+          ),
+          approvalRows: approvalRows.map((item) => ({
+            id: item.id,
+            app: item.app,
+            role: item.role,
+            rule: item.rule,
+            ageMs: now.getTime() - new Date(item.raisedAt).getTime(),
+          })),
+          budgetRows,
+          plannerFeeds: (plannerFeedBatch?.manifest.entries ?? [])
+            .filter((feed) => feed.selection === "selected")
+            .map((feed) => ({ id: feed.feed_id, summary: feed.summary })),
+        }),
+      inputManifestForStep: () => plannerFeedBatch === undefined
+        ? undefined
+        : {
             fileName: "planner-feeds.json",
             pendingContents: plannerFeedBatchManifestJson(plannerFeedBatch.manifest),
             completedContents: plannerFeedBatchManifestJson(
               consumedPlannerFeedBatchManifest(plannerFeedBatch.manifest),
             ),
           },
-        }
-      : {}),
-    ...(options.signal !== undefined ? { signal: options.signal } : {}),
-    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
-    afterPass: (record) => {
-      priorOutputs.set(record.pass.id, record.result.summary);
     },
   });
+  const result = await pipelineResultFromGovernedEvidence(
+    options.runtimeHome,
+    options.app.name,
+    pipeline,
+    orchestrated.providerEvidence,
+    orchestrated.execution?.status !== "completed",
+  );
 
   let standingRolePersistence: Awaited<ReturnType<typeof persistStandingRoleOutcome>> = undefined;
   if (options.journal.event !== undefined) {
@@ -465,6 +1057,7 @@ async function runM6PipelineTurn(
     runtimeHome: string;
     orgRoot: string;
     localRepo: string;
+    base: BaseRevision;
     context: ContextBundle;
     hooks: TurnHooks;
     journal: TurnJournal;
@@ -500,6 +1093,26 @@ async function runM6PipelineTurn(
     started_at: started.toISOString(),
     finished_at: clock().toISOString(),
   });
+
+  const existingIntent = await readPersistedEpisodeIntent(
+    options.runtimeHome,
+    genericEfficiencyEpisodeId(options.app.name, options.journal, options.turnId),
+  );
+  const existingRecord = (await listM6RunRecords(options.runtimeHome))
+    .find((record) =>
+      record.run_id === options.turnId &&
+      record.model_turns > 0 &&
+      record.kind === (options.pipelineName === "learning-distill"
+        ? "distillation"
+        : "learning_review"),
+    );
+  if (existingIntent !== undefined && existingRecord !== undefined) {
+    const result = options.pipelineName === "learning-distill"
+      ? await executeM6Pipeline(options, m6RecoveryFlow("learning-distill"))
+      : await executeM6Pipeline(options, m6RecoveryFlow("learning-review"));
+    await recordM6Scorecard(options, result);
+    return resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+  }
 
   if (options.pipelineName === "learning-distill") {
     const preparation = await prepareDistillation({
@@ -632,11 +1245,11 @@ async function runM6PipelineTurn(
     brief: learningReviewBrief(preparation),
     kind: "learning-review",
     parse: (text) => parseLearningReviewOutput(text, preparation),
-    onVerdict: async (verdict) => {
+    onVerdict: async (verdict, assignment) => {
       const reviewed = await persistLearningReviewOutput({
         orgHome: options.orgRoot,
         now: clock(),
-        reviewer: `${options.role.name}:${options.role.runtime}/${options.role.model}`,
+        reviewer: `${options.role.name}:${assignment.harness}/${assignment.model}`,
         preparation,
         verdict,
       });
@@ -711,13 +1324,37 @@ async function recordM6Scorecard(
   );
 }
 
+function m6RecoveryFlow<K extends "learning-distill" | "learning-review">(
+  kind: K,
+): {
+  brief: string;
+  kind: K;
+  parse: (text: string) => ParseResult<K>;
+  onVerdict: (verdict: VerdictTypes[K], assignment: TurnAssignment) => Promise<number>;
+} {
+  return {
+    brief: `Recover the already-terminal governed ${kind} provider evidence.`,
+    kind,
+    parse: () => ({
+      ok: false,
+      kind,
+      reason: `recovery for ${kind} must not invoke a new provider turn`,
+    }),
+    onVerdict: async () => {
+      throw new Error(`recovery for ${kind} must use the persisted verdict record`);
+    },
+  };
+}
+
 async function executeM6Pipeline<K extends "learning-distill" | "learning-review">(
   options: RunDispatchedTurnOptions & {
     runtimeHome: string;
     orgRoot: string;
     localRepo: string;
+    base: BaseRevision;
     context: ContextBundle;
     hooks: TurnHooks;
+    journal: TurnJournal;
     pipelineName: "learning-distill" | "learning-review";
     telemetry: {
       orgDir: string;
@@ -731,58 +1368,126 @@ async function executeM6Pipeline<K extends "learning-distill" | "learning-review
     brief: string;
     kind: K;
     parse: (text: string) => ParseResult<K>;
-    onVerdict: (verdict: VerdictTypes[K]) => Promise<number>;
+    onVerdict: (verdict: VerdictTypes[K], assignment: TurnAssignment) => Promise<number>;
   },
 ): Promise<PipelineRunResult> {
-  return executePipeline({
+  const configuredRoles = Object.values(options.roles);
+  const selectedPasses = selectPasses(options.pipeline, { tier: "standard" });
+  const clock = options.now ?? (() => new Date());
+  const episodeId = genericEfficiencyEpisodeId(options.app.name, options.journal, options.turnId);
+  const trigger = genericTriggerFacts(options.journal, options.turnId);
+  const persistedIntent = await readPersistedEpisodeIntent(options.runtimeHome, episodeId);
+  const budget = (await rollupBudgets(options.runtimeHome, options.appsFile, clock()))
+    .find((row) => row.app === options.app.name);
+  if (budget === undefined) {
+    throw new Error(`M6 pipeline could not resolve the app budget for ${options.app.name}`);
+  }
+  if (persistedIntent === undefined && isBudgetBlocking(budget.status)) {
+    throw new Error(
+      budget.status === "unknown"
+        ? `${options.app.name} budget total is unverifiable; run \`operon budget --reconcile\` before ${flow.kind}`
+        : `${options.app.name} has exhausted its monthly budget`,
+    );
+  }
+  const repository = persistedIntent === undefined
+    ? inspectEpisodeRepository({ workdir: options.localRepo, baseRevision: options.base })
+    : undefined;
+  const facts = persistedIntent === undefined
+    ? {
+        episodeId,
+        trigger: trigger.descriptor,
+        lifecycle: journalEpisodeAnchor(options.app.name, options.journal, options.turnId).kind,
+        appStage: options.app.status,
+        repositoryFacts: repository!.repositoryFacts,
+        changeFacts: repository!.changeFacts,
+        requestedConstraints: {
+          dispatchRole: options.role.name,
+          trigger: trigger.details,
+          learningActivity: options.telemetry.learningActivity ?? flow.kind,
+          networkAccess: false,
+        },
+        hardBudget: {
+          maxProviderTurns: selectedPasses.length,
+          maxEquivalentCostUsd: Math.max(0, budget.budgetUsd - budget.spentUsd),
+          maxMechanicalOverheadUsd: 0,
+          maxInputTokens: 256_000,
+          maxActiveTimeMs: 60 * 60 * 1_000,
+          maxHumanDecisions: 0,
+        },
+      }
+    : governedFactsFromPersistedIntent(persistedIntent);
+  const pipelineEvidenceRef = `pipeline-config:${stableHash(options.pipeline)}`;
+  const triggerEvidenceRef = trigger.descriptor.sourceRef ?? `turn:${options.turnId}`;
+  const orchestrated = await orchestrateGovernedPipelineEpisode({
+    root: options.runtimeHome,
+    app: options.app,
+    roles: configuredRoles,
     pipeline: options.pipeline,
-    selection: { tier: "standard" },
-    roles: options.roles,
-    runtimeFor: options.runtimeFor ?? ((role) => getRuntime(role.runtime)),
-    briefFor: () => flow.brief,
-    promptsDir: join(options.orgRoot, "prompts"),
-    context: options.context,
-    workdir: options.localRepo,
-    hooks: options.hooks,
-    runlog: {
-      root: options.runtimeHome,
-      app: options.app.name,
-      traceId: options.turnId,
+    selectedPasses,
+    provenance: {
+      source: "agent",
+      creatorId: `learning-scheduler/${flow.kind}`,
+      createdAt: options.journal.startedAt,
+      evidenceRefs: [pipelineEvidenceRef, triggerEvidenceRef],
     },
-    ...(options.now !== undefined ? { clock: options.now } : {}),
-    verdictSchemaFor: () => VERDICT_SCHEMAS[flow.kind] as Record<string, unknown>,
+    objective: `Execute the governed ${flow.kind} protocol for ${options.app.name}`,
+    inScope: selectedPasses.map((pass) => `${options.pipelineName}/${pass.id}`),
+    outOfScope: ["provider work outside the selected governed learning protocol"],
+    acceptanceCriteria: selectedPasses.map(
+      (pass) => `${options.pipelineName}/${pass.id} produces one durable structured result`,
+    ),
+    declaredConstraints: {
+      dispatchRole: options.role.name,
+      trigger: trigger.details,
+      learningActivity: options.telemetry.learningActivity ?? flow.kind,
+      networkAccess: false,
+    },
+    inputRefs: [{ ref: triggerEvidenceRef, required: true }],
+    facts,
+    workdir: options.localRepo,
+    promptsDir: join(options.orgRoot, "prompts"),
+    hooks: options.hooks,
+    runtimeForAssignment: exactRuntimeFactory(options),
+    ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
     telemetry: options.telemetry,
-    ...(options.signal !== undefined ? { signal: options.signal } : {}),
-    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
-    recordVerdict: async (ctx) => recordM6Verdict(flow, ctx),
+    now: clock,
+    mode: "execute",
+    delivery: {
+      contextForStep: () => options.context,
+      briefForStep: () => flow.brief,
+      verdictSchemaForStep: () => VERDICT_SCHEMAS[flow.kind] as Record<string, unknown>,
+      recordVerdictForStep: ({ step }) => async (ctx) =>
+        recordM6Verdict(flow, ctx, step.assignment),
+    },
   });
+  return pipelineResultFromGovernedEvidence(
+    options.runtimeHome,
+    options.app.name,
+    options.pipeline,
+    orchestrated.providerEvidence,
+    orchestrated.execution?.status !== "completed",
+  );
 }
 
 async function recordM6Verdict<K extends "learning-distill" | "learning-review">(
   flow: {
     kind: K;
     parse: (text: string) => ParseResult<K>;
-    onVerdict: (verdict: VerdictTypes[K]) => Promise<number>;
+    onVerdict: (verdict: VerdictTypes[K], assignment: TurnAssignment) => Promise<number>;
   },
   ctx: VerdictRecordContext,
+  assignment: TurnAssignment,
 ): Promise<VerdictRecordOutcome> {
-  const reformat = async (reason: string): Promise<string> => {
-    const retried = await ctx.runProviderTurn({
-      operation: `${flow.kind}-verdict-reformat`,
-      task: [
-          `Your ${flow.kind} structured output could not be accepted:`,
-          reason,
-          "",
-          "Return only one corrected JSON object matching the supplied schema and evidence.",
-        ].join("\n"),
-      session: ctx.result.session,
-      verdictSchema: VERDICT_SCHEMAS[flow.kind] as Record<string, unknown>,
-    });
-    return retried.summary;
-  };
   try {
-    const verdict = await parseWithRetry(flow.kind, ctx.result.summary, reformat, flow.parse);
-    const records = await flow.onVerdict(verdict);
+    const parsed = flow.parse(ctx.result.summary);
+    if (!parsed.ok) {
+      throw new VerdictParseError(flow.kind, [{
+        text: ctx.result.summary,
+        reason: parsed.reason,
+      }]);
+    }
+    const records = await flow.onVerdict(parsed.verdict, assignment);
     await ctx.events.append({
       type: "verdict.recorded",
       detail: { kind: flow.kind, records },
@@ -797,6 +1502,108 @@ async function recordM6Verdict<K extends "learning-distill" | "learning-review">
   }
 }
 
+function governedFactsFromPersistedIntent(intent: EpisodeIntent) {
+  return {
+    episodeId: intent.episodeId,
+    trigger: structuredClone(intent.trigger),
+    lifecycle: intent.lifecycle,
+    appStage: intent.appStage,
+    repositoryFacts: structuredClone(intent.repositoryFacts),
+    ...(intent.changeFacts === undefined
+      ? {}
+      : { changeFacts: structuredClone(intent.changeFacts) }),
+    requestedConstraints: structuredClone(intent.requestedConstraints),
+    hardBudget: structuredClone(intent.hardBudget),
+    responsibilityByRole: Object.fromEntries(
+      intent.availableRoles.map((role) => [role.role, role.responsibility]),
+    ),
+  };
+}
+
+async function pipelineResultFromGovernedEvidence(
+  root: string,
+  app: string,
+  pipeline: PipelineConfig,
+  evidence: readonly GovernedPipelineProviderEvidence[],
+  aborted: boolean,
+): Promise<PipelineRunResult> {
+  const passById = new Map(pipeline.passes.map((pass) => [pass.id, pass]));
+  const passes = await Promise.all(evidence.map(async (entry) => {
+    const pass = passById.get(entry.passId);
+    if (pass === undefined) {
+      throw new Error(
+        `governed provider evidence references unknown pass ${pipeline.name}/${entry.passId}`,
+      );
+    }
+    const envelope = await readEnvelope(root, app, entry.record.run_id);
+    const result: TurnResult = {
+      status: entry.envelopeStatus === "blocked" ? "blocked_on_gate" : entry.envelopeStatus,
+      summary: entry.output,
+      artifacts: structuredClone(envelope.artifacts ?? []),
+      session: envelope.session === undefined
+        ? { runtime: entry.assignment.harness, id: `governed-${entry.record.run_id}` }
+        : structuredClone(envelope.session),
+      usage: entry.record.usage ?? turnUsageFromEnvelope(envelope),
+      escalations: [],
+      ...(envelope.error_code === undefined ? {} : { errorCode: envelope.error_code }),
+    };
+    return {
+      pass: structuredClone(pass),
+      runId: entry.record.run_id,
+      result,
+      assignment: { ...entry.assignment },
+      planMetadata: {
+        ...(entry.record.assignment_source === undefined
+          ? {}
+          : { assignment_source: entry.record.assignment_source }),
+        ...(entry.record.assignment_candidate_id === undefined
+          ? {}
+          : { assignment_candidate_id: entry.record.assignment_candidate_id }),
+        ...(entry.record.plan_version === undefined
+          ? {}
+          : { plan_version: entry.record.plan_version }),
+        ...(entry.record.plan_step_id === undefined
+          ? {}
+          : { plan_step_id: entry.record.plan_step_id }),
+        ...(entry.record.selection_reason === undefined
+          ? {}
+          : { selection_reason: entry.record.selection_reason }),
+        ...(entry.record.provider_family === undefined
+          ? {}
+          : { provider_family: entry.record.provider_family }),
+        ...(entry.record.resolved_capabilities === undefined
+          ? {}
+          : { resolved_capabilities: [...entry.record.resolved_capabilities] }),
+      },
+      // The durable execution record is the authoritative bounded input and
+      // work snapshot. These projection-only fields are not written back.
+      contextFingerprint: entry.record.input_fingerprint,
+      workFingerprint: entry.record.work_fingerprint_after,
+    };
+  }));
+  return { passes, aborted };
+}
+
+function turnUsageFromEnvelope(
+  envelope: Awaited<ReturnType<typeof readEnvelope>>,
+): TurnUsage {
+  const usage = envelope.usage;
+  return {
+    tokensIn: usage?.tokens_in ?? 0,
+    tokensOut: usage?.tokens_out ?? 0,
+    costUsd: usage?.cost_usd ?? 0,
+    subagentTurns: usage?.subagent_turns ?? 0,
+    wallClockMs: envelope.wall_clock_ms ?? 0,
+    quality: usage?.quality ?? (usage === undefined ? "unavailable" : "complete"),
+    ...(usage?.cache_read_tokens === undefined
+      ? {}
+      : { cacheReadTokens: usage.cache_read_tokens }),
+    ...(usage?.cache_write_tokens === undefined
+      ? {}
+      : { cacheCreationTokens: usage.cache_write_tokens }),
+  };
+}
+
 async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   runtimeHome: string;
   orgRoot: string;
@@ -806,16 +1613,104 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   base: BaseRevision;
   context: ContextBundle;
   hooks: TurnHooks;
+  journal: TurnJournal;
+  store: ApprovalStore;
   telemetry: { orgDir: string; trigger?: TriggerKind };
 }): Promise<TurnResult> {
-  const rolesFile = await import("./roles.js").then((m) => m.loadRoles(join(options.orgRoot, "roles.yaml")));
+  const clock = options.now ?? (() => new Date());
+  const rolesFile = await loadRoles(join(options.orgRoot, "roles.yaml"));
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
+  const plannerRole = roles["planner"];
+  if (plannerRole === undefined) {
+    throw new Error("ticket episode planning requires a configured planner role in roles.yaml");
+  }
   const pipelines = await loadPipelines(join(options.orgRoot, "pipelines.yaml"), {
     roleNames: rolesFile.roles.map((role) => role.name),
     promptsDir: join(options.orgRoot, "prompts"),
   });
   const policy = await loadPolicy(join(options.localRepo, ".operon", "policy.yaml"));
   const gh = options.gh ?? new GhCliOps(options.app.repo);
+  const commands = loadGateCommands(options.localRepo);
+  const budgetRows = await rollupBudgets(options.runtimeHome, options.appsFile, clock());
+  const budgetRow = budgetRows.find((row) => row.app === options.app.name);
+  if (budgetRow === undefined) {
+    throw new Error(`ticket episode planning could not resolve the app budget for ${options.app.name}`);
+  }
+  const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
+  const runtimeForAssignment = exactRuntimeFactory(options);
+  const gateForRole = (role: RoleConfig): TurnHooks["gate"] =>
+    composeGate(defaultGate, options.store, {
+      app: options.app.name,
+      role: role.name,
+      turnId: options.turnId,
+      ...(options.journal.ticketRef === undefined
+        ? {}
+        : { ticketRef: options.journal.ticketRef }),
+      orgHome: options.orgRoot,
+      now: clock,
+    });
+  const plannerContext = await buildContext(
+    options.orgRoot,
+    options.localRepo,
+    options.app.name,
+    plannerRole,
+    options.journal,
+    { stateHome: options.runtimeHome, turnId: options.turnId },
+  );
+  const resolveEpisodeContext = createEpisodeContextResolver({
+    orgHome: options.orgRoot,
+    appWorkdir: options.localRepo,
+    app: options.app.name,
+    roles,
+    stateHome: options.runtimeHome,
+    turnId: options.turnId,
+  });
+  const ticketEpisode = createTicketEpisodeRuntime({
+    root: options.runtimeHome,
+    orgRoot: options.orgRoot,
+    app: options.app,
+    roles: rolesFile.roles,
+    gh,
+    policy,
+    commands,
+    hooks: options.hooks,
+    runtimeForAssignment,
+    plannerContext,
+    contextForProviderStep: async ({ item, role }) =>
+      (await resolveEpisodeContext(
+        item,
+        EPISODE_PLAN_EXECUTION_PIPELINE,
+        role.name,
+      )) ?? options.context,
+    remainingBudgetUsd,
+    gateForRole,
+    approval: createExistingTicketApprovalHandler({
+      store: options.store,
+      app: options.app.name,
+      roleNames: rolesFile.roles.map((role) => role.name),
+    }),
+    ...(options.creatorScope === undefined
+      ? {}
+      : { creatorScopeForTicket: () => options.creatorScope }),
+    ...(options.episodePlannerPromptText === undefined
+      ? {}
+      : { plannerPromptText: options.episodePlannerPromptText }),
+    ...(options.episodePlannerLimits === undefined
+      ? {}
+      : { plannerLimits: options.episodePlannerLimits }),
+    ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
+      ? {}
+      : {
+          authorization: {
+            selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"],
+          },
+        }),
+    ...(options.app.release === undefined ? {} : { release: options.app.release }),
+    telemetry: options.telemetry,
+    ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+    now: clock,
+  });
   const result = await runLoopOnce({
     app: options.app.name,
     repo: options.app.repo,
@@ -823,10 +1718,17 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     localRepo: options.localRepo,
     worktreeRoot: join(options.runtimeHome, "worktrees", options.app.name),
     policy,
-    commands: loadGateCommands(options.localRepo),
+    commands,
     base: options.base,
     maxConcurrent: 1,
     turnId: options.turnId,
+    ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
+      ? {}
+      : {
+          authorization: {
+            selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"],
+          },
+        }),
     ...(options.app.release !== undefined ? { release: options.app.release } : {}),
     engine: {
       pipelines,
@@ -835,21 +1737,25 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       promptsDir: join(options.orgRoot, "prompts"),
       runlogRoot: options.runtimeHome,
       hooks: options.hooks,
+      gateForRole,
       context: options.context,
       // Per-episode governed resolve (learning-loop M5): loop passes pin on
       // the TICKET episode with the pipeline's role, closing the M4
       // mid-turn ticket-claim boundary — the dispatch turn's own turn-start
       // pin (options.context) stays for non-ticket work.
-      contextFor: createEpisodeContextResolver({
-        orgHome: options.orgRoot,
-        appWorkdir: options.localRepo,
-        app: options.app.name,
-        roles,
-        stateHome: options.runtimeHome,
-        turnId: options.turnId,
-      }),
+      contextFor: resolveEpisodeContext,
+      planTicket: ticketEpisode.planTicket,
+      executeTicketPlan: ticketEpisode.executeTicketPlan,
       telemetry: options.telemetry,
       onEpisodeTerminal: async (terminal) => {
+        const route = await readRouteRecord(options.runtimeHome, terminal.episodeId);
+        if (route.terminal !== null) {
+          if (route.terminal.status === terminal.status) return;
+          throw new Error(
+            `ticket episode ${terminal.episodeId} terminal status changed ` +
+              `${route.terminal.status} -> ${terminal.status}`,
+          );
+        }
         await finalizeEpisode({
           root: options.runtimeHome,
           episodeId: terminal.episodeId,
@@ -862,13 +1768,11 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
       ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
       budgetGuard: async () => {
-        const rows = await rollupBudgets(options.runtimeHome, options.appsFile, options.now?.() ?? new Date());
-        const row = rows.find((r) => r.app === options.app.name);
-        if (row !== undefined && isBudgetBlocking(row.status)) {
+        if (isBudgetBlocking(budgetRow.status)) {
           const reason =
-            row.status === "unknown"
-              ? `${row.app} budget total could not be computed this month (malformed ledger row) — refusing to spend; run \`operon budget --reconcile\` to repair the ledger`
-              : `${row.app} spent $${row.spentUsd.toFixed(2)} of $${row.budgetUsd.toFixed(2)} this month`;
+            budgetRow.status === "unknown"
+              ? `${budgetRow.app} budget total could not be computed this month (malformed ledger row) — refusing to spend; run \`operon budget --reconcile\` to repair the ledger`
+              : `${budgetRow.app} spent $${budgetRow.spentUsd.toFixed(2)} of $${budgetRow.budgetUsd.toFixed(2)} this month`;
           return { allowed: false, reason };
         }
         return { allowed: true };

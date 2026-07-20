@@ -11,7 +11,15 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { Trigger, TurnResult, RoleConfig, UsageQuality } from "./types.js";
+import type {
+  Effort,
+  RoleConfig,
+  Trigger,
+  TurnAssignmentSource,
+  TurnResult,
+  UsageQuality,
+} from "./types.js";
+import { scrubSecrets } from "./runlog/redact.js";
 
 /** Which trigger kind fired a turn — derived from `Trigger` so the two can
  *  never drift apart. Manual turns record `"manual"` (architecture.md §8). */
@@ -22,6 +30,9 @@ export interface TurnRecord {
   role: string;
   runtime: string;
   model: string;
+  /** Exact effort used by this provider turn. Optional for historical rows
+   *  and callers that have not yet adopted assignment-aware execution. */
+  effort?: Effort;
   status: TurnResult["status"];
   tokensIn: number;
   tokensInUncached?: number;
@@ -52,6 +63,14 @@ export interface TurnRecord {
   executionStepId?: string;
   /** Organizational episode that admitted this provider turn. */
   episodeId?: string;
+  /** Durable plan version and provider-step identity that authorized the turn. */
+  planVersion?: number;
+  planStepId?: string;
+  /** Audit evidence for the atomic harness/model/effort assignment. */
+  assignmentSource?: TurnAssignmentSource;
+  assignmentCandidateId?: string;
+  selectionReason?: string;
+  resolvedCapabilities?: string[];
   traceId?: string;
   parentTaskId?: string;
   pipeline?: string;
@@ -59,9 +78,10 @@ export interface TurnRecord {
   /** True when costUsd is an Operon-computed equivalent-cost estimate for a
    *  subscription-backed provider, not a provider-invoiced charge. */
   costEstimated?: boolean;
-  /** True when the session's usage was unobservable (interactive co-planning
-   *  through the native CLI). costUsd stays 0 — the honest reading is
-   *  "unknown", never "free"; readers surface the count separately. */
+  /** Legacy/historical marker for sessions whose usage was unobservable (the
+   *  retired native interactive planner produced these). costUsd stays 0 —
+   *  the honest reading is "unknown", never "free"; readers surface the count
+   *  separately. New provider turns settle through the ordinary runtime. */
   unmeasured?: boolean;
   /** Learning-loop attribution (M5): replay/eval passes settle like every
    *  provider turn, and these refs are what the learning budget overlay
@@ -85,6 +105,13 @@ export interface TurnAttribution {
   providerTurnId?: string;
   executionStepId?: string;
   episodeId?: string;
+  effort?: Effort;
+  planVersion?: number;
+  planStepId?: string;
+  assignmentSource?: TurnAssignmentSource;
+  assignmentCandidateId?: string;
+  selectionReason?: string;
+  resolvedCapabilities?: string[];
   traceId?: string;
   parentTaskId?: string;
   pipeline?: string;
@@ -129,6 +156,19 @@ export function toRecord(
   if (attribution.providerTurnId !== undefined) record.providerTurnId = attribution.providerTurnId;
   if (attribution.executionStepId !== undefined) record.executionStepId = attribution.executionStepId;
   if (attribution.episodeId !== undefined) record.episodeId = attribution.episodeId;
+  if (attribution.effort !== undefined) record.effort = attribution.effort;
+  if (attribution.planVersion !== undefined) record.planVersion = attribution.planVersion;
+  if (attribution.planStepId !== undefined) record.planStepId = attribution.planStepId;
+  if (attribution.assignmentSource !== undefined) record.assignmentSource = attribution.assignmentSource;
+  if (attribution.assignmentCandidateId !== undefined) {
+    record.assignmentCandidateId = attribution.assignmentCandidateId;
+  }
+  if (attribution.selectionReason !== undefined) {
+    record.selectionReason = scrubSecrets(attribution.selectionReason);
+  }
+  if (attribution.resolvedCapabilities !== undefined) {
+    record.resolvedCapabilities = [...attribution.resolvedCapabilities];
+  }
   if (attribution.traceId !== undefined) record.traceId = attribution.traceId;
   if (attribution.parentTaskId !== undefined) record.parentTaskId = attribution.parentTaskId;
   if (attribution.pipeline !== undefined) record.pipeline = attribution.pipeline;
@@ -185,6 +225,11 @@ export async function recordTurnOnce(orgDir: string, record: TurnRecord): Promis
   const key = settlementKey(record.app, identity);
   const release = await acquireSettlementLock(orgDir);
   try {
+    // A prior writer may have reached the authoritative ledger append but
+    // crashed before advancing the derived sidecar. Repair that one bounded
+    // transaction before consulting the index; otherwise the sidecar miss
+    // would permit a duplicate row for an already-paid provider turn.
+    await repairPendingSettlement(orgDir);
     // Consult the compact settled-key sidecar index instead of re-parsing the
     // entire ledger history on every write (F-002: that made settling N turns
     // over a system's life O(N²)). The cross-process lock still serializes the
@@ -192,8 +237,14 @@ export async function recordTurnOnce(orgDir: string, record: TurnRecord): Promis
     // ledger-FIRST below, so it can only ever LAG the ledger — a lag cannot
     // lose a settlement (see loadSettledIndex).
     if ((await loadSettledIndex(orgDir)).has(key)) return false;
+    await writePendingSettlement(orgDir, {
+      schema_version: 1,
+      key,
+      ledger_day: record.at.slice(0, 10),
+    });
     await recordTurn(orgDir, record); // ledger row first — the durable spend
     await appendSettledKey(orgDir, key); // then the derived index
+    await rm(pendingSettlementPath(orgDir), { force: true });
     return true;
   } finally {
     await release();
@@ -213,15 +264,95 @@ export async function recordTurnOnce(orgDir: string, record: TurnRecord): Promis
  *     index; it can never leave a key in the index that is absent from the
  *     ledger. So `index-hit ⟹ ledger-hit` always holds — the check never
  *     false-positives, hence never SKIPS (loses) a genuinely-new paid turn.
- *   - A lag can at worst allow a DUPLICATE if the same key is settled again.
- *     Neither settlement re-entry path does that: the pass executor settles a
- *     given providerTurnId exactly once, and `reconcileLedger` reads the
- *     authoritative ledger (readSettledKeys) before it re-settles, so it never
- *     re-presents a ledger-present key. Budget accounting also reads the
- *     ledger, not this index, so a lag never mis-counts spend (invariant #6).
+ *   - The under-lock pending-settlement journal closes the ledger/index crash
+ *     window. A retry checks that transaction's exact ledger day, repairs a
+ *     lagging key, and removes the journal before it can append another row.
+ *     Budget accounting also reads the ledger, not this index, so repair never
+ *     changes the source of truth (invariant #6).
  *  The full ledger scan is retained only as the rebuild path. */
 function settledIndexPath(orgDir: string): string {
   return join(orgDir, "telemetry-index", "settled.keys");
+}
+
+function settledIndexRecoveryMarkerPath(orgDir: string): string {
+  return join(orgDir, "telemetry-index", "ledger-first-recovery-v1");
+}
+
+interface PendingSettlement {
+  schema_version: 1;
+  key: string;
+  ledger_day: string;
+}
+
+function pendingSettlementPath(orgDir: string): string {
+  return join(orgDir, "telemetry-index", "pending-settlement.json");
+}
+
+/** Persist intent before the ledger append. The global settlement lock means
+ * one fixed journal path is sufficient and makes an interrupted transaction
+ * discoverable by any later settlement/resume process. */
+async function writePendingSettlement(
+  orgDir: string,
+  pending: PendingSettlement,
+): Promise<void> {
+  const path = pendingSettlementPath(orgDir);
+  await writeTelemetryIndexFileAtomic(path, `${JSON.stringify(pending)}\n`);
+}
+
+/** Repair the only ambiguous ordering window: pending intent exists and the
+ * ledger may or may not contain its row. Absence means the prior writer died
+ * before append and the intent can be discarded. Presence means spend is
+ * durable, so the sidecar must catch up before another write is considered. */
+async function repairPendingSettlement(orgDir: string): Promise<void> {
+  const path = pendingSettlementPath(orgDir);
+  if (!existsSync(path)) return;
+  let value: unknown;
+  try {
+    value = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `telemetry pending settlement is unreadable: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!isPendingSettlement(value)) {
+    throw new Error("telemetry pending settlement has an invalid schema");
+  }
+  if (await ledgerDayContainsSettlement(orgDir, value.ledger_day, value.key)) {
+    const settled = await loadSettledIndex(orgDir);
+    if (!settled.has(value.key)) await appendSettledKey(orgDir, value.key);
+  }
+  await rm(path, { force: true });
+}
+
+function isPendingSettlement(value: unknown): value is PendingSettlement {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return item["schema_version"] === 1 &&
+    typeof item["key"] === "string" &&
+    item["key"].length > 0 &&
+    typeof item["ledger_day"] === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(item["ledger_day"]);
+}
+
+async function ledgerDayContainsSettlement(
+  orgDir: string,
+  day: string,
+  key: string,
+): Promise<boolean> {
+  const path = join(orgDir, "telemetry", `${day}.jsonl`);
+  if (!existsSync(path)) return false;
+  const text = await readFile(path, "utf8");
+  for (const line of text.split("\n")) {
+    if (line.trim().length === 0) continue;
+    try {
+      const row = JSON.parse(line) as TurnRecord;
+      const identity = settlementIdentity(row);
+      if (identity !== undefined && settlementKey(row.app, identity) === key) return true;
+    } catch {
+      // Torn/corrupt rows are not durable settlement evidence.
+    }
+  }
+  return false;
 }
 
 /** Every settled key according to the sidecar. Rebuilt from the authoritative
@@ -231,21 +362,36 @@ function settledIndexPath(orgDir: string): string {
  *  Must be called under the settlement lock. */
 async function loadSettledIndex(orgDir: string): Promise<Set<string>> {
   const path = settledIndexPath(orgDir);
+  const ids = new Set<string>();
   if (existsSync(path)) {
-    const ids = new Set<string>();
     const text = await readFile(path, "utf8");
     for (const line of text.split("\n")) {
       if (line.length === 0) continue;
       ids.add(line);
     }
-    return ids;
   }
-  const keys = await readSettledKeys(orgDir);
+  const recoveryMarker = settledIndexRecoveryMarkerPath(orgDir);
+  if (!existsSync(path) || !existsSync(recoveryMarker)) {
+    // One-time migration for indexes written before the pending journal
+    // existed: union (never replace) retained sidecar keys with authoritative
+    // ledger keys so a historical ledger-first crash cannot duplicate on the
+    // first post-upgrade retry. Afterwards the transaction journal keeps this
+    // fast path O(1) without repeated ledger scans.
+    for (const key of await readSettledKeys(orgDir)) ids.add(key);
+    await writeTelemetryIndexFileAtomic(
+      path,
+      [...ids].sort().map((id) => `${id}\n`).join(""),
+    );
+    await writeTelemetryIndexFileAtomic(recoveryMarker, "1\n");
+  }
+  return ids;
+}
+
+async function writeTelemetryIndexFileAtomic(path: string, contents: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmp = `${path}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
-  await writeFile(tmp, [...keys].map((id) => `${id}\n`).join(""), "utf8");
+  await writeFile(tmp, contents, "utf8");
   await rename(tmp, path);
-  return keys;
 }
 
 /** Append one settled key to the sidecar. Called under the settlement lock,

@@ -25,4 +25,21 @@ describe("run-role flag parsing", () => {
       "run-role: --turn requires a value",
     );
   });
+
+  it("rejects a trailing --assignment with no value", async () => {
+    await expect(cmdRunRole(["builder", "--app", "alpha", "--assignment"])).rejects.toThrow(
+      "run-role: --assignment requires a value",
+    );
+  });
+
+  it("does not pretend a dry-run selected an adaptive assignment", async () => {
+    await expect(cmdRunRole([
+      "builder",
+      "--dry-run",
+      "--assignment",
+      "candidate@high",
+    ])).rejects.toThrow(
+      "run-role: --assignment is only valid for a live adaptive episode",
+    );
+  });
 });

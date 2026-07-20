@@ -3,14 +3,16 @@ import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { runtimeCapabilityProfile, type RuntimeCapabilityProfile } from "../runtime/capabilities.js";
+import { validateTurnExecutionFacts } from "../runtime/assignment.js";
 import type { ContextBundle, ContextComponent, RuntimeKind } from "../runtime/types.js";
 import { runPaths } from "../runtime/runlog/paths.js";
-import { renderContextBundle } from "../runtime/worktree-context.js";
+import { renderContextBundle, renderTurnExecutionFacts } from "../runtime/worktree-context.js";
 import { writeLoopFileAtomic } from "./durable.js";
 import { efficiencyEpisodeDir, fingerprint, type EfficiencyRoute } from "./efficiency.js";
 
 export type ContextCategory =
   | "authority"
+  | "execution"
   | "taste"
   | "role_protocol"
   | "memory"
@@ -47,6 +49,8 @@ export interface ContextManifest {
   episode_id: string;
   app: string;
   run_id: string;
+  plan_version?: number;
+  plan_step_id?: string;
   route: EfficiencyRoute;
   render_sha256: string;
   rendered_bytes: number;
@@ -105,6 +109,8 @@ export async function writeContextManifest(input: {
   template?: string;
   route?: EfficiencyRoute;
   runtime?: RuntimeKind;
+  planVersion?: number;
+  planStepId?: string;
   capBytes?: number;
 }): Promise<{
   manifest: ContextManifest;
@@ -153,6 +159,8 @@ export async function writeContextManifest(input: {
     episode_id: input.episodeId,
     app: input.app,
     run_id: input.runId,
+    ...(input.planVersion !== undefined ? { plan_version: input.planVersion } : {}),
+    ...(input.planStepId !== undefined ? { plan_step_id: input.planStepId } : {}),
     route,
     render_sha256: fingerprint({ context: renderedContext, brief: preparedBrief, template: preparedTemplate ?? null }),
     rendered_bytes: Buffer.byteLength(rendered),
@@ -303,7 +311,7 @@ function prepareEntries(
 }
 
 function preparedContextBundle(context: ContextBundle, entries: PreparedEntry[]): ContextBundle {
-  const contextEntries = entries.filter((entry) => ["authority", "taste", "role_protocol", "memory"].includes(entry.input.category));
+  const contextEntries = entries.filter((entry) => ["authority", "execution", "taste", "role_protocol", "memory"].includes(entry.input.category));
   // Preserve the caller's exact bundle (including object identity) when the
   // budgeter made no transport change. Besides avoiding needless adapter
   // churn, this keeps episode-sticky governed context sticky by construction.
@@ -341,14 +349,16 @@ function preparedContextBundle(context: ContextBundle, entries: PreparedEntry[])
     taste,
     memoryExcerpts,
     components,
+    ...(context.execution !== undefined ? { execution: context.execution } : {}),
   };
 }
 
 function contextComponents(context: ContextBundle): ManifestInputComponent[] {
-  if (context.components !== undefined) return context.components;
-  const fallback: ManifestInputComponent[] = [];
-  if (context.authority !== undefined) {
-    fallback.push({
+  const components: ManifestInputComponent[] = context.components === undefined
+    ? []
+    : context.components.map((component) => ({ ...component }));
+  if (context.components === undefined && context.authority !== undefined) {
+    components.push({
       category: "authority",
       source: context.authority.sources.join(" | ") || "unattributed:authority",
       rendered: context.authority.text,
@@ -357,21 +367,38 @@ function contextComponents(context: ContextBundle): ManifestInputComponent[] {
       cacheIdentity: context.authority.sha256,
     });
   }
-  context.taste.forEach((rendered, index) => fallback.push({
-    category: "taste",
-    source: `unattributed:taste:${index}`,
-    rendered,
-    inclusionReason: "safety and taste layer; never evict",
-    requirement: "required",
-  }));
-  context.memoryExcerpts.forEach((rendered, index) => fallback.push({
-    category: "memory",
-    source: `unattributed:memory:${index}`,
-    rendered,
-    inclusionReason: "optional governed or legacy memory excerpt",
-    requirement: "optional",
-  }));
-  return fallback;
+  if (context.components === undefined) {
+    context.taste.forEach((rendered, index) => components.push({
+      category: "taste",
+      source: `unattributed:taste:${index}`,
+      rendered,
+      inclusionReason: "safety and taste layer; never evict",
+      requirement: "required",
+    }));
+    context.memoryExcerpts.forEach((rendered, index) => components.push({
+      category: "memory",
+      source: `unattributed:memory:${index}`,
+      rendered,
+      inclusionReason: "optional governed or legacy memory excerpt",
+      requirement: "optional",
+    }));
+  }
+  if (context.execution !== undefined) {
+    const facts = validateTurnExecutionFacts(
+      context.execution,
+      "context manifest execution facts",
+    );
+    const rendered = renderTurnExecutionFacts(facts);
+    components.push({
+      category: "execution",
+      source: `runtime-capability-profile:${runtimeCapabilityProfile(facts.assignment.harness).ref}:role:${facts.role}`,
+      rendered,
+      inclusionReason: "exact assignment, role policy, and profile-derived adapter capabilities; never evict",
+      requirement: "required",
+      cacheIdentity: sha256(`turn-execution-facts/v1\0${rendered}`),
+    });
+  }
+  return components;
 }
 
 function briefComponents(brief: string): ManifestInputComponent[] {
@@ -437,7 +464,7 @@ function briefInclusionReason(category: ContextCategory): string {
 }
 
 function isBriefCategory(category: ContextCategory): boolean {
-  return !["authority", "taste", "role_protocol", "memory", "template"].includes(category);
+  return !["authority", "execution", "taste", "role_protocol", "memory", "template"].includes(category);
 }
 
 function assertNoHiddenAnswer(components: ManifestInputComponent[]): void {

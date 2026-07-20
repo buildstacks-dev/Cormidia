@@ -1,6 +1,8 @@
-// Manual role turn as a synthesized one-pass pipeline (build plan M2.9;
+// Low-level manual-role transport as a synthesized one-pass pipeline (build plan M2.9;
 // docs/loop.md §2, §3; architecture.md §2 — the dispatcher spawns exactly
-// this signature, so the contract is fixed here once).
+// this signature, so the contract is fixed here once). This helper is not an
+// episode-creation boundary: the live CLI enters the org-layer EpisodePlan
+// boundary first. Embedders that create provider work must do the same.
 //
 // `dryRun` assembles and returns the brief without constructing any
 // Runtime — the token-free path. A live run goes through the M2.8 executor

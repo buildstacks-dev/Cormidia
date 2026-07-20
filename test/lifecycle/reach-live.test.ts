@@ -225,6 +225,51 @@ describe("B-LIVE-05 registry-authoritative budget divergence does not fail verif
   });
 });
 
+describe("assignment execution config is behavior-relevant mirror state", () => {
+  it("treats legacy omission and explicit fixed mode as the same effective policy", async () => {
+    const world = await makeLifecycleTestWorld(); worlds.push(world);
+    await reachable(world, LIFECYCLE_ANSWERS);
+
+    // New app config explicitly records fixed mode; a legacy registry entry
+    // may omit it. Both normalize to the same effective assignment policy.
+    editRegistryApp(world.orgHome, "sparse", (spec) => { delete spec["execution"]; });
+
+    const report = await verifyApp({
+      orgHome: world.orgHome,
+      stateHome: world.stateHome,
+      appName: "sparse",
+      readinessProbe: READY_RUNTIME_PROBE,
+    });
+
+    expect(check(report, "registry-config")?.status).toBe("pass");
+    expect(report.status).toBe("ready");
+  });
+
+  it("fails verification when registry and app assignment policies differ", async () => {
+    const world = await makeLifecycleTestWorld(); worlds.push(world);
+    await reachable(world, LIFECYCLE_ANSWERS);
+
+    editRegistryApp(world.orgHome, "sparse", (spec) => {
+      spec["execution"] = {
+        assignment_mode: "adaptive",
+        allowed_assignments: { builder: ["configured"] },
+      };
+    });
+
+    const report = await verifyApp({
+      orgHome: world.orgHome,
+      stateHome: world.stateHome,
+      appName: "sparse",
+      readinessProbe: READY_RUNTIME_PROBE,
+    });
+
+    const registryConfig = check(report, "registry-config");
+    expect(registryConfig?.status).toBe("fail");
+    expect(registryConfig?.detail).toContain("registry and app config differ");
+    expect(report.status).toBe("invalid");
+  });
+});
+
 function capRegistryBudget(orgHome: string, app: string, budget: number): void {
   editRegistryApp(orgHome, app, (spec) => { spec["budget_usd_month"] = budget; });
 }

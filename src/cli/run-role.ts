@@ -1,9 +1,10 @@
 // `operon run-role <role> [--app <app>] [--turn <id>] [--template <path>]
-// [--dry-run]` — one plain role turn as a synthesized one-pass pipeline.
-// --dry-run prints the assembled brief and constructs no Runtime (the
-// token-free path). Live CLI runs arrive with the dispatcher wiring; the
-// loop-layer contract (src/loop/runRole.ts) is already live-capable and
-// the dispatcher will call it with this exact signature.
+// [--assignment <candidate-id>@<effort>] [--dry-run]`.
+// --dry-run uses the loop-layer transport only to print the assembled brief
+// and constructs no Runtime. A live standalone invocation is an explicit
+// episode creator: it persists one creator-scoped EpisodePlan step before the
+// dispatcher constructs a provider. Existing scheduled/event routes retain
+// their governed pipeline or ticket EpisodePlan boundaries.
 
 import { join } from "node:path";
 import { loadRoles } from "../org/roles.js";
@@ -17,6 +18,7 @@ import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
+import { prepareStandaloneRunRoleScope } from "../org/run-role-episode.js";
 
 export async function cmdRunRole(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "run-role");
@@ -28,6 +30,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   let workdir: string | undefined;
   let dryRun = false;
   let parentTaskInput: string | undefined;
+  let assignmentSelector: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -37,6 +40,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     else if (arg === "--template") templatePath = needValue(args, ++i, "--template");
     else if (arg === "--workdir") workdir = needValue(args, ++i, "--workdir");
     else if (arg === "--parent-task") parentTaskInput = needValue(args, ++i, "--parent-task");
+    else if (arg === "--assignment") assignmentSelector = needValue(args, ++i, "--assignment");
     else if (arg !== undefined && !arg.startsWith("--") && name === undefined) name = arg;
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
@@ -60,6 +64,16 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     const appsFile = await loadApps(appsPath);
     const appEntry = appsFile.apps.find((entry) => entry.name === app);
     if (appEntry === undefined) throw new Error(`run-role: unknown app "${app}" in apps.yaml`);
+    const prepared = await prepareStandaloneRunRoleScope({
+      stateHome: homes.stateHome,
+      app: appEntry,
+      roles,
+      role,
+      turnId,
+      ...(assignmentSelector === undefined ? {} : { assignmentSelector }),
+      ...(templatePath === undefined ? {} : { templatePath }),
+      ...(parentTaskId === undefined ? {} : { parentTaskId }),
+    });
     const cancellation = installProcessCancellation();
     const result = await runDispatchedTurn({
       role,
@@ -70,9 +84,14 @@ export async function cmdRunRole(args: string[]): Promise<number> {
       runtimeHome: homes.stateHome,
       signal: cancellation.signal,
       ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+      ...(prepared.creatorScope === undefined ? {} : { creatorScope: prepared.creatorScope }),
     }).finally(() => cancellation.dispose());
     console.log(`${turnId}: ${result.status} — ${result.summary}`);
     return cancellation.exitCode ?? (result.status === "failed" ? 1 : 0);
+  }
+
+  if (assignmentSelector !== undefined) {
+    throw new Error("run-role: --assignment is only valid for a live adaptive episode");
   }
 
   let resolvedWorkdir = workdir ?? process.cwd();

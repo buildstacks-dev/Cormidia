@@ -30,9 +30,9 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 
-/** Risk tier (changed-file globs in `.operon/policy.yaml`): selects GATES.
- *  Ticket tier (`op:tier-*` label; pipelines.ts) selects PASSES — the other
- *  axis (docs/loop.md §4). */
+/** Risk tier (changed-file globs in `.operon/policy.yaml`) selects only
+ * deterministic gates. `op:tier-*` is retained as metadata for historical
+ * readers; live provider-step selection comes from the accepted EpisodePlan. */
 export type RiskTier = "low" | "medium" | "high";
 /** Ascending severity — resolveTier folds with "highest wins". */
 export const RISK_TIERS: RiskTier[] = ["low", "medium", "high"];

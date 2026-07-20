@@ -531,7 +531,7 @@
           <tr><td><span class="path">context.ts</span></td><td>Five-layer context assembly per (role, app): TASTE layers + role craft + app charter + memory + repo.</td></tr>
           <tr><td><span class="path">memory.ts</span></td><td>OKF working-memory bundles — markdown + YAML frontmatter agents read and update directly. Malformed docs are skipped, not fatal.</td></tr>
           <tr><td><span class="path">scorecards.ts / retro.ts</span></td><td>Forward grades per (role, app); a retro pass turns scores into memory updates and skill promotions.</td></tr>
-          <tr><td><span class="path">bootstrap.ts / plan.ts / plan-auto.ts</span></td><td>Onboard a repo (scan → emit <code>.operon/</code>), launch an interactive co-planning session, or run <code>plan --auto</code>: one non-interactive planner turn whose schema-validated 1–3-ticket plan the orchestrator publishes with canonical labels.</td></tr>
+          <tr><td><span class="path">bootstrap.ts / plan.ts / plan-auto.ts</span></td><td>Onboard a repo (scan → emit <code>.operon/</code>), preview current Planner context/worktree token-free, or run <code>plan --auto</code> through the durable EpisodePlanner boundary and publish its schema-validated TicketPlan with canonical labels.</td></tr>
           <tr><td><span class="path">events.ts / trigger-routing.ts</span></td><td>File-drop company events, routed by kind to the role that handles them.</td></tr>
           <tr><td><span class="path">learning/</span></td><td>The governed learning loop — capture, episodes, experiments, activation. <a href="#learning">See below.</a></td></tr>
         </tbody>
@@ -579,7 +579,7 @@
           <tr><td><span class="path">status · budget · analyze</span></td><td>Recent runs; monthly spend rollup; cache-token telemetry &amp; anomaly flags. <small>offline</small></td></tr>
           <tr><td><span class="path">approvals</span></td><td>Review the critical-op queue one item at a time. <small>offline</small></td></tr>
           <tr><td><span class="path">bootstrap</span></td><td>Scan a local app repo, explain the resolved homes, emit app-owned <code>.operon/</code> artifacts, and register it in the active org. <small>--scan-only offline</small></td></tr>
-          <tr><td><span class="path">plan · run-role · loop</span></td><td>A co-planning session (or <code>--auto --goal</code>: a non-interactive, orchestrator-published bootstrap plan); one role turn; one ticket through the loop. <small>--dry-run offline · live spends tokens</small></td></tr>
+          <tr><td><span class="path">plan · run-role · loop</span></td><td>A token-free planning preview or <code>--auto --goal</code> durable planning episode; one role turn; one ticket through the loop. <small>--dry-run offline · live spends tokens</small></td></tr>
           <tr><td><span class="path">dispatch</span></td><td>One autonomous tick. <small>--dry-run offline</small></td></tr>
           <tr><td><span class="path">retro · prune-runs</span></td><td>Write a retro report; delete old finalized run records.</td></tr>
           <tr><td><span class="path">learn</span></td><td>The learning-loop window: inspect episodes, review/publish/resolve governed concepts, run declared experiments, drive a live canary. <small>offline except experiment run (paired replay spends tokens)</small></td></tr>

@@ -3,14 +3,21 @@
 // and a later dispatch executes an approved command once with a durable
 // outcome. Uses temp files, FakeGhOps, and FakeRuntime only; no network.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ApprovalStore, actionHash, ACTION_IDENTITY_VERSION } from "../src/org/approvals.js";
 import type { ApprovalGrant, ApprovalItem } from "../src/org/approvals.js";
 import { grantScopeText } from "../src/org/gate-compose.js";
-import { executeApprovedReleases, queueReleaseApprovals } from "../src/org/release.js";
+import {
+  approvedReleaseEpisodeId,
+  executeApprovedReleases,
+  queueReleaseApprovals,
+} from "../src/org/release.js";
 import type { LoopItem } from "../src/loop/types.js";
+import { readCurrentEpisodePlan } from "../src/loop/episode-plan.js";
+import { readEpisodePlanExecutionJournal } from "../src/loop/episode-plan-executor.js";
+import { plannerAdmissionPath } from "../src/loop/planner-admission.js";
 import type { AppsFile } from "../src/org/apps.js";
 import type { ToolAction } from "../src/runtime/types.js";
 import { FakeRuntime } from "../src/runtime/testing/fakeRuntime.js";
@@ -94,6 +101,7 @@ describe("queueReleaseApprovals", () => {
     const appsFile = fixtureApps("orchestrator");
     const clone = join(home.root, "repos", "site");
     mkdirSync(clone, { recursive: true });
+    writePlannerRoles(home.root);
     let calls = 0;
     try {
       const [queued] = await queueReleaseApprovals(home.root, "site", [
@@ -128,6 +136,21 @@ describe("queueReleaseApprovals", () => {
       expect(first).toMatchObject([{ status: "completed", approvalId: queued!.approvalId }]);
       expect(second).toEqual([]);
       expect(calls).toBe(1);
+      const episodeId = approvedReleaseEpisodeId("site", queued!.approvalId);
+      const plan = await readCurrentEpisodePlan(home.root, episodeId);
+      expect(plan).toMatchObject({
+        planningSource: "creator_scope",
+        workflowClass: "approved-release:orchestrator",
+      });
+      expect(plan?.steps.map((step) => [step.kind, step.id])).toEqual([
+        ["approval", "approve-release"],
+        ["mechanical_gate", "release-preflight"],
+        ["mechanical_gate", "execute-release"],
+      ]);
+      expect(existsSync(plannerAdmissionPath(home.root, episodeId))).toBe(false);
+      expect(await readEpisodePlanExecutionJournal(home.root, episodeId)).toMatchObject({
+        status: "completed",
+      });
       expect(gh.issueComments.get(7)?.[0]).toContain("Status: **completed**");
       const shown = await new ApprovalStore(home.root).show(queued!.approvalId);
       const grant = shown.grant;
@@ -154,7 +177,7 @@ describe("queueReleaseApprovals", () => {
     mkdirSync(clone, { recursive: true });
     writeFileSync(
       join(home.root, "roles.yaml"),
-      `roles:\n  sre:\n    runtime: codex\n    model: gpt-test\n    effort: medium\n    delegation: {allow: []}\n    triggers: []\n    outputs: [incident-notes]\n    max_turn_budget_usd: 5\n`,
+      fixedSreRolesYaml(),
       "utf8",
     );
     const runtime = new FakeRuntime([
@@ -167,9 +190,27 @@ describe("queueReleaseApprovals", () => {
       const [queued] = await queueReleaseApprovals(home.root, "site", [
         mergedItem({ releaseTrigger: { kind: "deploy", command: "./deploy.sh", owner: "sre" } }),
       ]);
-      await new ApprovalStore(home.root).decide(queued!.approvalId, { decision: "approved" });
+      const store = new ApprovalStore(home.root);
+      await store.decide(queued!.approvalId, { decision: "approved" });
+      const grantId = (await store.show(queued!.approvalId)).grant!.grantId;
 
       const result = await executeApprovedReleases({
+        stateHome: home.root,
+        orgHome: home.root,
+        appsFile,
+        runtimeFor: () => {
+          // Creator-scope normalization, approval observation, and release
+          // preflight are all durable before runtime construction, but none
+          // may consume the grant. Only the exact bash gate below may do so.
+          expect(JSON.parse(readFileSync(
+            join(home.root, "approvals", "grants", `${grantId}.json`),
+            "utf8",
+          ))).toMatchObject({ uses: 1 });
+          return runtime;
+        },
+        ghFor: () => gh,
+      });
+      const resumed = await executeApprovedReleases({
         stateHome: home.root,
         orgHome: home.root,
         appsFile,
@@ -177,10 +218,31 @@ describe("queueReleaseApprovals", () => {
         ghFor: () => gh,
       });
 
-      expect(result).toMatchObject([{ status: "completed", approvalId: queued!.approvalId }]);
+      expect(result, JSON.stringify(result)).toMatchObject([
+        { status: "completed", approvalId: queued!.approvalId },
+      ]);
+      expect(resumed).toEqual([]);
       expect(runtime.calls).toHaveLength(1);
       expect(runtime.calls[0]?.req.task).toContain("Approved production release");
+      expect(runtime.calls[0]?.req.assignment).toEqual({
+        harness: "codex",
+        model: "gpt-test",
+        effort: "medium",
+      });
       expect(runtime.calls[0]?.gateCalls[0]?.decision.allow).toBe(true);
+      const episodeId = approvedReleaseEpisodeId("site", queued!.approvalId);
+      const plan = await readCurrentEpisodePlan(home.root, episodeId);
+      expect(plan).toMatchObject({ planningSource: "creator_scope" });
+      expect(plan?.steps.find((step) => step.kind === "provider_turn")).toMatchObject({
+        operation: "release/sre-approved-command",
+        role: "sre",
+        assignment: { harness: "codex", model: "gpt-test", effort: "medium" },
+        assignmentSource: "configured",
+      });
+      expect(existsSync(plannerAdmissionPath(home.root, episodeId))).toBe(false);
+      expect(await readEpisodePlanExecutionJournal(home.root, episodeId)).toMatchObject({
+        status: "completed",
+      });
       const shown = await new ApprovalStore(home.root).show(queued!.approvalId);
       expect(shown.grant?.uses).toBe(0);
       expect(shown.item.execution).toMatchObject({ state: "executed", executor: "release", attempts: 1 });
@@ -190,8 +252,76 @@ describe("queueReleaseApprovals", () => {
     }
   });
 
+  it("materializes and executes the exact app-narrowed adaptive SRE assignment", async () => {
+    const home = makeOrgHome({ approvals: true, taste: true });
+    const gh = new FakeGhOps({ issues: [{ number: 7, title: "Ship it" }] });
+    const appsFile = fixtureApps("sre");
+    appsFile.apps[0]!.execution = {
+      assignmentMode: "adaptive",
+      allowedAssignments: { sre: ["release-pi"] },
+    };
+    mkdirSync(join(home.root, "repos", "site"), { recursive: true });
+    writeFileSync(join(home.root, "roles.yaml"), adaptiveSreRolesYaml(), "utf8");
+    const runtime = new FakeRuntime([
+      {
+        toolActions: [{ action: { tool: "bash", input: { command: "./deploy.sh" } } }],
+        result: completedResult("adaptive release command completed", "pi"),
+      },
+    ], "pi");
+    const selected: Array<{ assignment: unknown; role: string }> = [];
+    try {
+      const [queued] = await queueReleaseApprovals(home.root, "site", [
+        mergedItem({ releaseTrigger: { kind: "deploy", command: "./deploy.sh", owner: "sre" } }),
+      ]);
+      await new ApprovalStore(home.root).decide(queued!.approvalId, { decision: "approved" });
+
+      const result = await executeApprovedReleases({
+        stateHome: home.root,
+        orgHome: home.root,
+        appsFile,
+        assignmentReadinessProbe: async (request) => ({
+          runtime: request.runtime,
+          models: [...request.models],
+          status: "ready",
+          detail: "test adapter ready; no model turn sent",
+          durationMs: 1,
+          billable: false,
+        }),
+        runtimeForAssignment: (assignment, role) => {
+          selected.push({ assignment: { ...assignment }, role: role.name });
+          return runtime;
+        },
+        ghFor: () => gh,
+      });
+
+      expect(result).toMatchObject([{ status: "completed", approvalId: queued!.approvalId }]);
+      expect(selected).toEqual([{
+        assignment: {
+          harness: "pi",
+          model: "openai-codex/gpt-test",
+          effort: "high",
+        },
+        role: "sre",
+      }]);
+      expect(runtime.calls[0]?.req.assignment).toEqual(selected[0]?.assignment);
+      const plan = await readCurrentEpisodePlan(
+        home.root,
+        approvedReleaseEpisodeId("site", queued!.approvalId),
+      );
+      expect(plan?.steps.find((step) => step.kind === "provider_turn")).toMatchObject({
+        assignment: { harness: "pi", model: "openai-codex/gpt-test", effort: "high" },
+        assignmentSource: "creator",
+        maxTurnBudgetUsd: 3,
+      });
+      expect((await new ApprovalStore(home.root).show(queued!.approvalId)).grant?.uses).toBe(0);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("marks a claimed release with no execution record ambiguous and never retries it", async () => {
     const home = makeOrgHome({ approvals: true });
+    writePlannerRoles(home.root);
     const appsFile = fixtureApps("orchestrator");
     mkdirSync(join(home.root, "repos", "site"), { recursive: true });
     let calls = 0;
@@ -226,6 +356,68 @@ describe("queueReleaseApprovals", () => {
         failureCause: "ambiguous_release_result",
         nextAction: "reconcile",
       });
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("never resumes an existing running release record or duplicates its command", async () => {
+    const home = makeOrgHome({ approvals: true });
+    const appsFile = fixtureApps("orchestrator");
+    mkdirSync(join(home.root, "repos", "site"), { recursive: true });
+    let calls = 0;
+    try {
+      const [queued] = await queueReleaseApprovals(home.root, "site", [
+        mergedItem({ releaseTrigger: { kind: "deploy", command: "./deploy.sh", owner: "orchestrator" } }),
+      ]);
+      const store = new ApprovalStore(home.root);
+      await store.decide(queued!.approvalId, { decision: "approved" });
+      await store.beginExecution(
+        queued!.approvalId,
+        "orchestrator/release",
+        new Date("2026-07-18T00:00:00.000Z"),
+      );
+      mkdirSync(join(home.root, "releases"), { recursive: true });
+      writeFileSync(
+        join(home.root, "releases", `${queued!.approvalId}.json`),
+        `${JSON.stringify({
+          schemaVersion: 1,
+          approvalId: queued!.approvalId,
+          app: "site",
+          ticketRef: "#7",
+          owner: "orchestrator",
+          command: "./deploy.sh",
+          status: "running",
+          startedAt: "2026-07-18T00:00:00.000Z",
+        }, null, 2)}\n`,
+        "utf8",
+      );
+
+      const execute = () => executeApprovedReleases({
+        stateHome: home.root,
+        orgHome: home.root,
+        appsFile,
+        now: () => new Date("2026-07-18T00:01:00.000Z"),
+        commandRunner: async () => {
+          calls += 1;
+          return { exitCode: 0, stdout: "duplicate", stderr: "" };
+        },
+      });
+      const first = await execute();
+      const second = await execute();
+
+      expect(first).toMatchObject([{ status: "skipped", approvalId: queued!.approvalId }]);
+      expect(first[0]?.summary).toContain("ambiguous running record");
+      expect(second).toMatchObject([{ status: "skipped", approvalId: queued!.approvalId }]);
+      expect(calls).toBe(0);
+      expect((await store.show(queued!.approvalId)).item.execution).toMatchObject({
+        state: "ambiguous",
+        failureCause: "ambiguous_release_result",
+      });
+      expect(await readCurrentEpisodePlan(
+        home.root,
+        approvedReleaseEpisodeId("site", queued!.approvalId),
+      )).toBeUndefined();
     } finally {
       home.cleanup();
     }
@@ -273,6 +465,7 @@ describe("release grant matching cannot be widened by agent free text (A-005 / P
     };
     const home = makeOrgHome({ approvals: { decided: { rel: decided }, grants: { "grant-rel": grant } } });
     mkdirSync(join(home.root, "repos", "site"), { recursive: true });
+    writePlannerRoles(home.root);
     return { home, action };
   }
 
@@ -352,6 +545,22 @@ describe("release grant matching cannot be widened by agent free text (A-005 / P
   });
 });
 
+function writePlannerRoles(root: string): void {
+  writeFileSync(
+    join(root, "roles.yaml"),
+    `roles:\n  planner:\n    runtime: codex\n    model: planner-test\n    effort: medium\n    delegation: {allow: []}\n    triggers: []\n    outputs: [episode-plan]\n    max_turn_budget_usd: 1\n`,
+    "utf8",
+  );
+}
+
+function fixedSreRolesYaml(): string {
+  return `roles:\n  planner:\n    runtime: codex\n    model: planner-test\n    effort: medium\n    delegation: {allow: []}\n    triggers: []\n    outputs: [episode-plan]\n    max_turn_budget_usd: 1\n  sre:\n    runtime: codex\n    model: gpt-test\n    effort: medium\n    delegation: {allow: []}\n    triggers: []\n    outputs: [incident-notes]\n    max_turn_budget_usd: 5\n`;
+}
+
+function adaptiveSreRolesYaml(): string {
+  return `roles:\n  planner:\n    runtime: codex\n    model: planner-test\n    effort: medium\n    delegation: {allow: []}\n    triggers: []\n    outputs: [episode-plan]\n    max_turn_budget_usd: 1\n  sre:\n    runtime: codex\n    model: fixed-test\n    effort: medium\n    adaptive_assignments:\n      - id: release-pi\n        harness: pi\n        model: openai-codex/gpt-test\n        efforts: [high]\n        provider_family: openai\n        capability_ref: pi/v1\n        qualification_ref: qualification:test-release-pi\n        conservative_estimate:\n          max_turn_cost_usd: 3\n          source: qualification:test-release-price\n    delegation: {allow: []}\n    triggers: []\n    outputs: [incident-notes]\n    max_turn_budget_usd: 5\n`;
+}
+
 function fixtureApps(owner: "orchestrator" | "sre"): AppsFile {
   return {
     org: { name: "Fixture", maxConcurrentTurns: 2 },
@@ -368,12 +577,15 @@ function fixtureApps(owner: "orchestrator" | "sre"): AppsFile {
   };
 }
 
-function completedResult(summary: string): TurnResult {
+function completedResult(
+  summary: string,
+  runtime: TurnResult["session"]["runtime"] = "codex",
+): TurnResult {
   return {
     status: "completed",
     summary,
     artifacts: [],
-    session: { runtime: "codex", id: "release-thread" },
+    session: { runtime, id: "release-thread" },
     usage: { tokensIn: 1, tokensOut: 1, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
     escalations: [],
   };

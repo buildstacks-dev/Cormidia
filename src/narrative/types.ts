@@ -7,6 +7,8 @@
 // sources (runs/) are retention-swept at 30 days while the ids live 180–365;
 // a pure-hyperlink narrative would decay into dead links within a month.
 
+import type { TurnAssignmentSource } from "../runtime/types.js";
+
 export const NARRATIVE_SCHEMA_VERSION = 1 as const;
 
 export type StoryKind = "planning" | "ticket" | "trace";
@@ -29,6 +31,11 @@ export interface NarrativeMoment {
   pass: string;
   role: string;
   model?: string;
+  /** Accepted EpisodePlan provenance. Optional so retained pre-plan captures
+   *  remain valid and render without invented attribution. */
+  plan_version?: number;
+  plan_step_id?: string;
+  assignment_source?: TurnAssignmentSource;
   status: string;
   headline: string;
   quote?: NarrativeQuote;

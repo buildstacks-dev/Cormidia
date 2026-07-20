@@ -1,11 +1,53 @@
 // The runtime contract. Everything above this layer (loop, org) sees only
 // these types — never a provider SDK. See research/2026-07-03_runtime-layer.md.
 
+import type { RuntimeCapability } from "./capabilities.js";
+
 export type RuntimeKind = "claude" | "codex" | "pi";
 
 // Generic across providers; each adapter maps to its native knob
 // (Anthropic effort, OpenAI reasoning effort, pi thinking level).
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+
+/**
+ * One indivisible execution choice for a provider turn.
+ *
+ * `harness` is deliberately named at the planning boundary even though the
+ * rest of the runtime layer historically calls the same value `runtime`.
+ * Keeping all three fields together prevents a caller from selecting a model
+ * and inferring (or silently substituting) its harness later.
+ */
+export interface TurnAssignment {
+  harness: RuntimeKind;
+  model: string;
+  effort: Effort;
+}
+
+/** Durable provenance for the atomic tuple used by a provider turn. */
+export type TurnAssignmentSource = "configured" | "episode_planner" | "creator";
+
+export type AssignmentPricing =
+  | { kind: "catalog_ref"; ref: string }
+  | {
+      kind: "conservative_estimate";
+      maxTurnCostUsd: number;
+      sourceRef: string;
+    };
+
+/** An org-approved adaptive candidate declared locally on a role. */
+export interface AdaptiveAssignmentCandidate {
+  /** Stable, role-local identifier used by app narrowing and plan evidence. */
+  id: string;
+  harness: RuntimeKind;
+  model: string;
+  /** Explicitly supported efforts for this exact harness/model pair. */
+  efforts: Effort[];
+  /** Provider ownership, independent of harness (pi may target OpenAI). */
+  providerFamily: string;
+  capabilityRef: string;
+  qualificationRef: string;
+  pricing: AssignmentPricing;
+}
 
 export interface Trigger {
   schedule?: string;
@@ -22,6 +64,10 @@ export interface RoleConfig {
   runtime: RuntimeKind;
   model: string;
   effort: Effort;
+  /** Optional org-approved choices for adaptive assignment. The configured
+   * fixed tuple above remains separate and is always available as the
+   * reserved `configured` candidate. */
+  adaptiveAssignments?: AdaptiveAssignmentCandidate[];
   /** Intra-turn fan-out the harness may perform. Cross-provider mixing is
    *  never intra-turn — it is an org-level flow between roles. */
   delegation: { allow: string[] };
@@ -63,6 +109,25 @@ export interface ContextBundle {
    * runtime. Legacy/test bundles may omit it and are reported as explicitly
    * unattributed components rather than silently guessed. */
   components?: ContextComponent[];
+  /** Auditable execution facts exposed to the turn. These describe the
+   * selected adapter only; they do not grant tools or permissions. The
+   * orchestration boundary resolves capabilities and adapters only validate
+   * and render them. Optional for legacy callers while plan-aware execution
+   * is migrated. */
+  execution?: TurnExecutionFacts;
+}
+
+export interface TurnExecutionFacts {
+  /** Role responsibility remains authoritative regardless of harness. */
+  role: string;
+  assignment: TurnAssignment;
+  /** Canonical non-unsupported projection of the selected harness profile. */
+  resolvedCapabilities: RuntimeCapability[];
+  /** Profile surfaces that deterministic policy requires for this turn. */
+  requiredCapabilities: RuntimeCapability[];
+  /** Existing role-bound delegation policy, advertised but never granted by
+   * this context object. Adapter/gate enforcement remains authoritative. */
+  roleDelegation: { allow: string[] };
 }
 
 export interface ContextComponent {
@@ -76,6 +141,10 @@ export interface ContextComponent {
 
 export interface TurnRequest {
   role: RoleConfig;
+  /** Exact atomic execution choice. Optional only for legacy/test callers;
+   * adapters resolve omission to the role's configured fixed tuple. New
+   * orchestration paths must persist and provide this value explicitly. */
+  assignment?: TurnAssignment;
   /** Target repo checkout / worktree the turn operates in. */
   workdir: string;
   /** The ticket / task prompt. */

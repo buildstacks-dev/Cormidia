@@ -56,6 +56,12 @@ describe("envelope lifecycle", () => {
         workdir: "/tmp/civic",
         git_branch: "op/42",
       });
+      expect("plan_version" in env).toBe(false);
+      expect("plan_step_id" in env).toBe(false);
+      expect("assignment_source" in env).toBe(false);
+      expect("assignment_candidate_id" in env).toBe(false);
+      expect("selection_reason" in env).toBe(false);
+      expect("resolved_capabilities" in env).toBe(false);
       expect(env.started_at).toBe(T0.toISOString());
       expect(env.refs).toEqual({
         events: "events.jsonl",
@@ -64,6 +70,38 @@ describe("envelope lifecycle", () => {
         output: "output.md",
         session_log: "session.log",
       });
+    }));
+
+  it("startRun persists plan and atomic assignment evidence", () =>
+    withHome(async (root) => {
+      const capabilities = ["workspace_write", "structured_output"];
+      await startRun(
+        root,
+        {
+          ...META,
+          episodeId: "episode-7",
+          planVersion: 3,
+          planStepId: "implement",
+          assignmentSource: "episode_planner",
+          assignmentCandidateId: "builder-codex-sol",
+          selectionReason: `Strong code reasoning; ignore sk-${"a1".repeat(20)}.`,
+          resolvedCapabilities: capabilities,
+        },
+        T0,
+      );
+      capabilities.push("caller_mutation");
+
+      const env = await readEnvelope(root, "civic", RUN_ID);
+      expect(env).toMatchObject({
+        episode_id: "episode-7",
+        plan_version: 3,
+        plan_step_id: "implement",
+        assignment_source: "episode_planner",
+        assignment_candidate_id: "builder-codex-sol",
+        resolved_capabilities: ["workspace_write", "structured_output"],
+      });
+      expect(env.selection_reason).toContain("[REDACTED:sk-api-key]");
+      expect(env.selection_reason).not.toContain("sk-a1a1");
     }));
 
   it("heartbeat patches stamp last_seen_at without touching anything else", () =>

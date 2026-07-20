@@ -12,7 +12,6 @@ import type { GhIssue, GhOps } from "./github.js";
 import { GhCliOps } from "./github.js";
 import {
   advanceGates,
-  advanceProvisionSetup,
   advanceReviewing,
   advanceShipping,
   branchNameForIssue,
@@ -20,17 +19,11 @@ import {
   criterionTestMapFromContractText,
   itemFromIssue,
   parseAcceptanceCriteria,
-  dependencyRelevantPackageJson,
   rearmDependents,
-  runBuilderPipeline,
-  runReviewPipeline,
-  runShipCheckPipeline,
-  type ExecutionJournalTarget,
   type ReviewAuthorization,
 } from "./loop.js";
 import {
   parkedDigestComment,
-  hashTicketBody,
   listTicketClaimStates,
   readTicketClaimState,
   rehydrateTicketState,
@@ -51,33 +44,32 @@ import {
   resolveRemoteDefaultBranch,
   type BaseRevision,
 } from "./default-branch.js";
-import { runEnvPreflight } from "./preflight.js";
-import type { LoopRunlog } from "./loop-runlog.js";
 import type { PipelinesFile } from "./pipelines.js";
 import type { Policy } from "./policy.js";
-import { loadPolicy, matchedDimensions, resolveTier } from "./policy.js";
+import { loadPolicy } from "./policy.js";
 import type { GateCommands } from "./qgates.js";
 import {
-  admitEpisode,
   episodeIdFor,
   readRouteRecord,
-  reassessEpisode,
   type EpisodeTerminal,
 } from "./efficiency.js";
 import {
-  authorizeRoutePasses,
+  episodeIntentHash,
+  episodePlanHash,
+  readCurrentEpisodePlan,
+  stableHash,
+  type CreatorEpisodeScope,
+  type EpisodeIntent,
+  type EpisodePlan,
+} from "./episode-plan.js";
+import {
+  EPISODE_PLAN_ROUTE_POLICY_VERSION,
+  routeAdmissionForEpisodePlan,
+} from "./episode-route.js";
+import {
   decideExecutionRoute,
-  executionBoundsFor,
-  nextRouteAfterUnexpectedFinding,
   type RouteDecision,
 } from "./route-policy.js";
-import {
-  initializeExecutionJournal,
-  invalidateExecutionFrom,
-  readExecutionJournal,
-  recordExecutionBoundary,
-  resumeExecutionJournal,
-} from "./execution-journal.js";
 import { parseDependsOn, parseScope, selectReadyTickets, type SchedulableTicket } from "./scheduling.js";
 import type { LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
 
@@ -87,6 +79,11 @@ export interface LoopPlanItem {
   phase: LoopItem["phase"];
   tier: LoopItem["tier"];
 }
+
+/** Cross-claim recovery is a lifecycle/circuit-breaker bound, not workflow
+ * selection. Keep it constant so a legacy `op:tier-*` label cannot grant or
+ * remove retries after the accepted EpisodePlan becomes authoritative. */
+const DEFAULT_TICKET_CLAIM_ATTEMPTS = 3;
 
 export interface LoopDriverOptions {
   app: string;
@@ -162,6 +159,14 @@ export interface LoopEngineOptions {
   /** Cooperative cancellation for all provider stages in this tick. */
   signal?: AbortSignal;
   parentTaskId?: string;
+  /** Org-owned planning boundary. Required on every provider-backed ticket
+   * tick; it must persist and route-admit the accepted EpisodePlan before the
+   * loop mutates GitHub or creates a worktree. */
+  planTicket?: TicketEpisodePlanner;
+  /** Org-owned adapter from typed ticket operations to the trustworthy loop
+   * mechanics. The loop never falls back to the legacy static pass graph when
+   * an execution engine is present. */
+  executeTicketPlan?: TicketEpisodeExecutor;
   /** Organizational owner records the final ticket disposition. The loop
    * supplies the admitted episode id and terminal item, but does not invent
    * an org outcome. */
@@ -173,6 +178,70 @@ export interface LoopEngineOptions {
     nextStep?: string;
     now: Date;
   }) => Promise<void>;
+}
+
+/** Immutable ticket facts handed upward to the org-owned EpisodePlanner.
+ * The loop deliberately supplies facts rather than a guessed workflow or a
+ * quick/standard/deep answer. The callback must durably persist and route-
+ * admit the accepted plan before returning. */
+export interface TicketEpisodePlanningRequest {
+  root: string;
+  episodeId: string;
+  app: string;
+  targetRepo: string;
+  localRepo: string;
+  base: BaseRevision;
+  ticket: {
+    issueNumber: number;
+    ticketRef: string;
+    title: string;
+    body: string;
+    labels: string[];
+  };
+  /** Explicit envelope supplied by the human/agent that created this episode.
+   * Ordinary GitHub title/body/labels never populate it implicitly. */
+  creatorScope?: CreatorEpisodeScope;
+}
+
+export interface AcceptedTicketEpisodePlan {
+  intent: EpisodeIntent;
+  plan: EpisodePlan;
+}
+
+export type TicketEpisodePlanner = (
+  request: TicketEpisodePlanningRequest,
+) => Promise<AcceptedTicketEpisodePlan>;
+
+export interface TicketEpisodeExecutionRequest {
+  request: TicketEpisodePlanningRequest;
+  accepted: AcceptedTicketEpisodePlan;
+  item: LoopItem;
+  /** Claim saga boundary invoked immediately before each provider step. */
+  beforeProviderTurn: () => Promise<void>;
+}
+
+export type TicketEpisodeExecutor = (
+  request: TicketEpisodeExecutionRequest,
+) => Promise<LoopItem>;
+
+export type TicketEpisodePlanningBoundaryErrorCode =
+  | "error_ticket_episode_planner_missing"
+  | "error_ticket_episode_executor_missing"
+  | "error_ticket_episode_identity_mismatch"
+  | "error_ticket_episode_plan_not_persisted"
+  | "error_ticket_episode_plan_mismatch"
+  | "error_ticket_episode_route_not_admitted"
+  | "error_ticket_episode_route_mismatch";
+
+export class TicketEpisodePlanningBoundaryError extends Error {
+  constructor(
+    readonly code: TicketEpisodePlanningBoundaryErrorCode,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "TicketEpisodePlanningBoundaryError";
+  }
 }
 
 export interface LoopDriverResult {
@@ -218,6 +287,125 @@ export function planLoopTick(
       phase: item.phase,
       tier: item.tier,
     }));
+}
+
+/**
+ * Org/loop seam for ticket migration to EpisodePlan execution.
+ *
+ * This function performs no runtime construction and no GitHub mutation. The
+ * injected org-layer planner must return only after it has persisted the exact
+ * accepted intent/plan and admitted the plan-derived route. A caller can
+ * therefore place this boundary before `claimTicket`; missing, forged, or
+ * merely in-memory plans fail before the delivery runtime factory is reached.
+ *
+ * The current ticket state machine still needs a separate adapter that binds
+ * typed plan steps to its contract/build/gate/review/ship semantics. Keeping
+ * that adapter out of this boundary is intentional: accepting a plan must not
+ * quietly authorize the pre-existing static pass graph.
+ */
+export async function requireAcceptedTicketEpisodePlan(input: {
+  request: TicketEpisodePlanningRequest;
+  planner?: TicketEpisodePlanner;
+}): Promise<AcceptedTicketEpisodePlan> {
+  if (input.planner === undefined) {
+    throw new TicketEpisodePlanningBoundaryError(
+      "error_ticket_episode_planner_missing",
+      `ticket episode ${input.request.episodeId} requires an injected EpisodePlanner or explicit creator scope`,
+    );
+  }
+  const expectedEpisodeId = episodeIdFor({
+    app: input.request.app,
+    ticket: input.request.ticket.ticketRef,
+    traceId: input.request.ticket.ticketRef,
+  });
+  if (
+    input.request.episodeId !== expectedEpisodeId ||
+    input.request.ticket.ticketRef !== `#${input.request.ticket.issueNumber}`
+  ) {
+    throw new TicketEpisodePlanningBoundaryError(
+      "error_ticket_episode_identity_mismatch",
+      `ticket planning request identity does not resolve to ${expectedEpisodeId}`,
+    );
+  }
+
+  const accepted = await input.planner(structuredClone(input.request));
+  if (
+    accepted.intent.episodeId !== expectedEpisodeId ||
+    accepted.plan.episodeId !== expectedEpisodeId ||
+    accepted.intent.app !== input.request.app ||
+    accepted.plan.intentHash !== episodeIntentHash(accepted.intent)
+  ) {
+    throw new TicketEpisodePlanningBoundaryError(
+      "error_ticket_episode_identity_mismatch",
+      `EpisodePlanner returned authority for a different ticket episode`,
+    );
+  }
+
+  const persisted = await readCurrentEpisodePlan(
+    input.request.root,
+    expectedEpisodeId,
+  );
+  if (persisted === undefined) {
+    throw new TicketEpisodePlanningBoundaryError(
+      "error_ticket_episode_plan_not_persisted",
+      `EpisodePlanner returned before persisting ${expectedEpisodeId}`,
+    );
+  }
+  if (
+    episodePlanHash(persisted) !== episodePlanHash(accepted.plan) ||
+    persisted.version !== accepted.plan.version
+  ) {
+    throw new TicketEpisodePlanningBoundaryError(
+      "error_ticket_episode_plan_mismatch",
+      `current durable plan for ${expectedEpisodeId} differs from the accepted plan`,
+    );
+  }
+
+  let route: Awaited<ReturnType<typeof readRouteRecord>>;
+  try {
+    route = await readRouteRecord(input.request.root, expectedEpisodeId);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new TicketEpisodePlanningBoundaryError(
+        "error_ticket_episode_route_not_admitted",
+        `accepted plan for ${expectedEpisodeId} has no durable derived route`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+  const expectedRoute = routeAdmissionForEpisodePlan({
+    root: input.request.root,
+    intent: accepted.intent,
+    plan: persisted,
+    now: new Date(route.admitted_at),
+  });
+  const authorizationKey = (pass: (typeof route.authorized_passes)[number]): string =>
+    `${pass.pipeline}\0${pass.pass}\0${pass.role}\0${pass.runtime}\0${pass.model}\0${pass.effort}`;
+  const actualAuthorizations = [...route.authorized_passes].sort((left, right) =>
+    authorizationKey(left).localeCompare(authorizationKey(right)),
+  );
+  const expectedAuthorizations = [...expectedRoute.passes].sort((left, right) =>
+    authorizationKey(left).localeCompare(authorizationKey(right)),
+  );
+  if (
+    route.app !== input.request.app ||
+    route.policy_version !== EPISODE_PLAN_ROUTE_POLICY_VERSION ||
+    route.planned_route !== persisted.derivedSafetyRoute.label ||
+    route.current_route !== persisted.derivedSafetyRoute.label ||
+    route.execution_bounds !== null ||
+    stableHash(route.factors) !== stableHash(expectedRoute.factors) ||
+    stableHash(actualAuthorizations) !== stableHash(expectedAuthorizations)
+  ) {
+    throw new TicketEpisodePlanningBoundaryError(
+      "error_ticket_episode_route_mismatch",
+      `durable route for ${expectedEpisodeId} is not the exact projection of EpisodePlan v${persisted.version}`,
+    );
+  }
+  return {
+    intent: structuredClone(accepted.intent),
+    plan: structuredClone(persisted),
+  };
 }
 
 /** Resolve which of the given dependency issue numbers are MERGED — not merely
@@ -320,6 +508,42 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     const issue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
     if (issue === undefined) continue;
 
+    // Workflow authority is established before the first ticket mutation.
+    // Apparent simplicity, tier, title, and labels never imply a bypass; the
+    // org-owned planner may skip its provider turn only for an explicit,
+    // validated creator scope.
+    const ticketEpisodeId = episodeIdFor({
+      app: options.app,
+      ticket: `#${issue.number}`,
+      traceId: `#${issue.number}`,
+    });
+    const planningRequest: TicketEpisodePlanningRequest | undefined =
+      options.engine === undefined
+        ? undefined
+        : {
+            root: options.engine.runlogRoot,
+            episodeId: ticketEpisodeId,
+            app: options.app,
+            targetRepo: options.repo,
+            localRepo: options.localRepo,
+            base: options.base,
+            ticket: {
+              issueNumber: issue.number,
+              ticketRef: `#${issue.number}`,
+              title: issue.title,
+              body: issue.body,
+              labels: [...issue.labels],
+            },
+          };
+    const acceptedTicketPlan = planningRequest === undefined
+      ? undefined
+      : await requireAcceptedTicketEpisodePlan({
+          request: planningRequest,
+          ...(options.engine?.planTicket === undefined
+            ? {}
+            : { planner: options.engine.planTicket }),
+        });
+
     // Cross-claim accounting + rehydration (Stage 2) — engine path only; the
     // injector path is the simulated M5 state machine and stays blank-slate.
     let rehydrated: RehydratedState | undefined;
@@ -330,7 +554,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         { issueNumber: issue.number, body: issue.body },
         { gh: options.gh, branch },
       );
-      const defaultAllowance = options.maxClaims ?? executionBoundsFor(planned.tier).claimAttempts;
+      const defaultAllowance = options.maxClaims ?? DEFAULT_TICKET_CLAIM_ATTEMPTS;
       const begun = await beginTicketClaim({
         root: options.engine.runlogRoot,
         app: options.app,
@@ -416,199 +640,85 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     }
     await options.claimFault?.("after_pass_selection", issue.number);
     if (options.engine !== undefined) {
-      item = await admitTicketEpisode(options, item);
       await options.claimFault?.("after_episode_lock", issue.number);
-      // Provision the worktree's dependencies BEFORE the first implement pass.
-      // createWorktree provisions an empty tree, and the builder's mandatory
-      // "baseline before changes" check runs at the start of the implement
-      // pass — without deps it fails every greenfield ticket regardless of
-      // ticket quality (L1-02 / L-003). runGates keeps its own post-implement
-      // setup re-run; this is the earlier run a fresh worktree needs. A setup
-      // failure returns the ticket loudly here, so no doomed build turn runs.
-      if (lease?.continuation === undefined) {
-        item = await advanceProvisionSetup(item, {
-          gh: options.gh,
-          commands: gateCommandsForWorktree(options.commands, item.worktree),
-          runlog: gateRunlog(options, item),
-        });
+      if (planningRequest === undefined || acceptedTicketPlan === undefined) {
+        throw new TicketEpisodePlanningBoundaryError(
+          "error_ticket_episode_plan_not_persisted",
+          `ticket episode ${ticketEpisodeId} has no accepted execution authority`,
+        );
       }
-    }
-    if (options.engine === undefined) {
-      item = await (options.afterClaim?.(item) ?? item);
-    }
-
-    const criteria = parseAcceptanceCriteria(item.body);
-    let criterionTests = item.criterionTests ?? criterionTestMapFromContractText(item.contract);
-    let guard = 0;
-    await options.claimFault?.("before_pipeline_start", issue.number);
-    while (!["merged", "returned", "blocked"].includes(item.phase)) {
-      if (guard++ > 12) {
-        throw new Error(`loop driver exceeded phase guard for ${item.ticketRef}`);
+      if (options.engine.executeTicketPlan === undefined) {
+        throw new TicketEpisodePlanningBoundaryError(
+          "error_ticket_episode_executor_missing",
+          `ticket episode ${ticketEpisodeId} requires an injected plan-DAG executor`,
+        );
       }
-
-      if (item.phase === "building") {
-        if (options.engine !== undefined) {
-          if (item.findings.length > 0) {
-            item = await reassessTicketEpisode(options, item, "unexpected review finding");
-          } else if (item.rebaseNote !== undefined) {
-            item = await reassessTicketEpisode(options, item, "merge conflict invalidated the implementation");
-          }
-          // Token-free environment preflight before the first provider turn
-          // (Stage 3, P6): a $0 probe must catch what previously took a $7
-          // model turn to discover. Failure returns the ticket with the probe
-          // evidence — no pass starts.
-          const preflight = await runEnvPreflight(
-            item.worktree ?? options.localRepo,
-            gateCommandsForWorktree(options.commands, item.worktree),
-            { ...(options.engine.networkAccess === true ? { networkAccess: true } : {}) },
-          );
-          if (!preflight.ok) {
-            await options.gh.commentIssue(
-              item.issueNumber,
-              [
-                "## Environment preflight failed",
-                "",
-                "No model turn was started. Probes found:",
-                ...preflight.problems.map((p) => `- ${p}`),
-              ].join("\n"),
-            );
-            await options.gh.swapLabel(item.issueNumber, "op:building", "op:returned");
-            item = {
-              ...item,
-              labels: item.labels.map((l) => (l === "op:building" ? "op:returned" : l)),
-              phase: "returned",
-            };
-            continue;
-          }
-          item = await runBuilderPipeline(item, {
-            ...enginePhaseOptions(options, item.worktree, item),
-            pipelineName:
-              item.cycles > 0 || item.findings.length > 0 || item.rebaseNote !== undefined
-                ? "fix"
-                : "build",
+      item = await options.engine.executeTicketPlan({
+        request: planningRequest,
+        accepted: acceptedTicketPlan,
+        item,
+        beforeProviderTurn: async () => {
+          if (lease === undefined) return;
+          await markTicketProviderStarted({
+            root: options.engine!.runlogRoot,
+            app: options.app,
+            issueNumber: issue.number,
+            claimId: lease.claimId,
           });
-          criterionTests = item.criterionTests ?? criterionTests;
-          if (item.phase !== "gates") continue;
+        },
+      });
+    }
+    if (options.engine === undefined) item = await (options.afterClaim?.(item) ?? item);
+    await options.claimFault?.("before_pipeline_start", issue.number);
+    // Provider-backed execution is exclusively plan-DAG-driven above. This
+    // phase loop remains only as the provider-free state-machine harness used
+    // by deterministic tests and mechanical simulations.
+    if (options.engine === undefined) {
+      const criteria = parseAcceptanceCriteria(item.body);
+      const criterionTests = item.criterionTests ?? criterionTestMapFromContractText(item.contract);
+      let guard = 0;
+      while (!["merged", "returned", "blocked"].includes(item.phase)) {
+        if (guard++ > 12) {
+          throw new Error(`loop driver exceeded phase guard for ${item.ticketRef}`);
         }
 
-        item = await advanceGates(item, {
-          gh: options.gh,
-          policy: options.policy,
-          commands: gateCommandsForWorktree(options.commands, item.worktree),
-          base: options.base,
-          criteria,
-          criterionTests,
-          ...(options.engine !== undefined
-            ? {
-                remediate: (current, result) =>
-                  reassessTicketEpisode(options, current, "unexpected quality-gate finding").then((reassessed) =>
-                    runBuilderPipeline(reassessed, {
-                      ...enginePhaseOptions(options, reassessed.worktree, reassessed),
-                      pipelineName: "fix",
-                      gateResult: result,
-                    }),
-                  ),
-                maxRemediationAttempts: executionBoundsFor(item.tier).repairAttempts,
-                runlog: gateRunlog(options, item),
-                journal: journalTarget(options, item),
-              }
-            : {}),
-        });
-        continue;
-      }
+        if (item.phase === "building" || item.phase === "gates") {
+          item = await advanceGates(item, {
+            gh: options.gh,
+            policy: options.policy,
+            commands: gateCommandsForWorktree(options.commands, item.worktree),
+            base: options.base,
+            criteria,
+            criterionTests,
+          });
+          continue;
+        }
 
-      if (item.phase === "gates") {
-        item = await advanceGates(item, {
-          gh: options.gh,
-          policy: options.policy,
-          commands: gateCommandsForWorktree(options.commands, item.worktree),
-          base: options.base,
-          criteria,
-          criterionTests,
-          ...(options.engine !== undefined
-            ? {
-                remediate: (current, result) =>
-                  reassessTicketEpisode(options, current, "unexpected quality-gate finding").then((reassessed) =>
-                    runBuilderPipeline(reassessed, {
-                      ...enginePhaseOptions(options, reassessed.worktree, reassessed),
-                      pipelineName: "fix",
-                      gateResult: result,
-                    }),
-                  ),
-                maxRemediationAttempts: executionBoundsFor(item.tier).repairAttempts,
-                runlog: gateRunlog(options, item),
-                journal: journalTarget(options, item),
-              }
-            : {}),
-        });
-        continue;
-      }
-
-      if (item.phase === "reviewing") {
-        if (options.engine !== undefined) {
-          item = await reassessForObservedWorktreeRisk(options, item);
-          const journal = await readExecutionJournal(
-            journalTarget(options, item).root,
-            journalTarget(options, item).episodeId,
-          );
-          if (journal?.next_boundary === "approvals") {
-            item = await advanceReviewing(item, {
-              gh: options.gh,
-              ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
-              journal: journalTarget(options, item),
-            });
-          } else {
-            item = await runReviewPipeline(item, enginePhaseOptions(options, item.worktree, item));
-          }
-        } else {
+        if (item.phase === "reviewing") {
           await options.injectReview?.(item);
           item = await advanceReviewing(item, {
             gh: options.gh,
             ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
           });
+          continue;
         }
-        continue;
-      }
 
-      if (item.phase === "shipping") {
-        if (options.engine !== undefined) {
-          item = await runShipCheckPipeline(item, enginePhaseOptions(options, item.worktree, item));
-          if (item.phase !== "shipping") continue;
+        if (item.phase === "shipping") {
+          item = await advanceShipping(item, {
+            gh: options.gh,
+            localRepo: options.localRepo,
+            policy: options.policy,
+            commands: gateCommandsForWorktree(options.commands, item.worktree),
+            base: options.base,
+            criteria,
+            criterionTests,
+            ...(options.release !== undefined ? { release: options.release } : {}),
+          });
+          continue;
         }
-        item = await advanceShipping(item, {
-          gh: options.gh,
-          localRepo: options.localRepo,
-          policy: options.policy,
-          commands: gateCommandsForWorktree(options.commands, item.worktree),
-          base: options.base,
-          criteria,
-          criterionTests,
-          ...(options.engine !== undefined ? { journal: journalTarget(options, item) } : {}),
-          ...(options.release !== undefined ? { release: options.release } : {}),
-        });
-        continue;
-      }
 
-      break;
-    }
-    if (options.engine === undefined && item.phase === "reviewing") {
-      await options.injectReview?.(item);
-      item = await advanceReviewing(item, {
-        gh: options.gh,
-        ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
-      });
-    }
-    if (options.engine === undefined && item.phase === "shipping") {
-      item = await advanceShipping(item, {
-        gh: options.gh,
-        localRepo: options.localRepo,
-        policy: options.policy,
-        commands: gateCommandsForWorktree(options.commands, item.worktree),
-        base: options.base,
-        criteria,
-        criterionTests,
-        ...(options.release !== undefined ? { release: options.release } : {}),
-      });
+        break;
+      }
     }
     // L-007: when a ticket merges, the merge transition owns promoting any
     // now-unblocked dependents to op:ready. Best-effort — the merge is already
@@ -670,7 +780,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             ? `Review the preserved run/worktree, then use: \`${rearmCommand({
                 app: options.app,
                 issueNumber: issue.number,
-                allowance: state.claimAllowance ?? (options.maxClaims ?? executionBoundsFor(planned.tier).claimAttempts),
+                allowance: state.claimAllowance ?? (options.maxClaims ?? DEFAULT_TICKET_CLAIM_ATTEMPTS),
               })}\``
             : "The next loop tick can claim this ticket normally; no claim allowance was consumed.",
         ].join("\n"),
@@ -753,280 +863,10 @@ async function loadRequiredPolicy(path: string): Promise<Policy> {
   return loadPolicy(path);
 }
 
-/** Gate-phase run record target (docs/loop.md §9): the state machine's gate
- *  events land under the engine's runlog home, correlated on the item's turn
- *  id. Only available in engine mode — the pure state-machine path has no
- *  runlog home. */
-function gateRunlog(options: LoopDriverOptions, item: LoopItem): LoopRunlog {
-  const engine = options.engine;
-  if (engine === undefined) throw new Error("loop driver: engine options missing");
-  return {
-    root: engine.runlogRoot,
-    app: options.app,
-    ticket: item.ticketRef,
-    traceId: item.turnId ?? `${item.ticketRef}-gates`,
-    episodeId: episodeIdFor({
-      app: options.app,
-      ticket: item.ticketRef,
-      traceId: item.turnId ?? `${item.ticketRef}-gates`,
-    }),
-    ...(engine.context?.authority !== undefined
-      ? {
-          authority: {
-            profile: engine.context.authority.profile,
-            version: engine.context.authority.version,
-            sha256: engine.context.authority.sha256,
-            sources: [...engine.context.authority.sources],
-          },
-        }
-      : {}),
-    ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
-  };
-}
-
-function enginePhaseOptions(options: LoopDriverOptions, worktree?: string, item?: LoopItem) {
-  const engine = options.engine;
-  if (engine === undefined) throw new Error("loop driver: engine options missing");
-  const decision = item === undefined ? undefined : routeDecisionForItem(item);
-  return {
-    gh: options.gh,
-    pipelines: engine.pipelines,
-    roles: engine.roles,
-    runtimeFor: engine.runtimeFor,
-    promptsDir: engine.promptsDir,
-    runlogRoot: engine.runlogRoot,
-    app: options.app,
-    policy: options.policy,
-    commands: gateCommandsForWorktree(options.commands, worktree),
-    base: options.base,
-    hooks: engine.hooks,
-    ...(engine.gateForRole !== undefined ? { gateForRole: engine.gateForRole } : {}),
-    ...(engine.context !== undefined ? { context: engine.context } : {}),
-    ...(engine.contextFor !== undefined ? { contextFor: engine.contextFor } : {}),
-    ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
-    ...(engine.networkAccess === true ? { networkAccess: true } : {}),
-    ...(engine.telemetry !== undefined ? { telemetry: engine.telemetry } : {}),
-    ...(engine.signal !== undefined ? { signal: engine.signal } : {}),
-    ...(engine.parentTaskId !== undefined ? { parentTaskId: engine.parentTaskId } : {}),
-    ...(item !== undefined ? { maxReviewCycles: executionBoundsFor(item.tier).reviewCycles } : {}),
-    ...(item?.continuation !== undefined ? { continuation: item.continuation } : {}),
-    ...(item !== undefined
-      ? {
-          beforeProviderTurn: async () => {
-            const state = readTicketClaimState(engine.runlogRoot, options.app, item.issueNumber);
-            if (state.active === undefined) {
-              throw new Error(`claim recovery: ${options.app}#${item.issueNumber} has no active claim lease`);
-            }
-            await markTicketProviderStarted({
-              root: engine.runlogRoot,
-              app: options.app,
-              issueNumber: item.issueNumber,
-              claimId: state.active.claimId,
-              now: engine.clock?.() ?? new Date(),
-            });
-          },
-        }
-      : {}),
-    episode: {
-      id: episodeIdFor({
-        app: options.app,
-        ...(item !== undefined ? { ticket: item.ticketRef } : {}),
-        traceId: item?.turnId ?? item?.ticketRef ?? "unknown",
-      }),
-      ...(item !== undefined ? { route: item.tier } : {}),
-      ...(decision !== undefined
-        ? {
-            policyVersion: decision.policyVersion,
-            factors: decision.factors,
-            authorizedPasses: authorizeRoutePasses({
-              decision,
-              pipelines: engine.pipelines.pipelines,
-              roles: engine.roles,
-            }),
-          }
-        : {}),
-      ...(item?.tier === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
-      finalize: false,
-    },
-    ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
-  };
-}
-
-async function admitTicketEpisode(options: LoopDriverOptions, item: LoopItem): Promise<LoopItem> {
-  const engine = options.engine;
-  if (engine === undefined) return item;
-  const episodeId = episodeIdFor({
-    app: options.app,
-    ticket: item.ticketRef,
-    traceId: item.turnId ?? item.ticketRef,
-  });
-  let effective = item;
-  try {
-    const existing = await readRouteRecord(engine.runlogRoot, episodeId);
-    if (existing.current_route !== "deterministic") effective = { ...item, tier: existing.current_route };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-  const decision = routeDecisionForItem(effective);
-  const passes = authorizeRoutePasses({
-    decision,
-    pipelines: engine.pipelines.pipelines,
-    roles: engine.roles,
-  });
-  await admitEpisode({
-    root: engine.runlogRoot,
-    episodeId,
-    app: options.app,
-    route: decision.route,
-    policyVersion: decision.policyVersion,
-    factors: decision.factors,
-    passes,
-    now: engine.clock?.() ?? new Date(),
-    ...(effective.tier === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
-  });
-  await initializeExecutionJournal({
-    root: engine.runlogRoot,
-    episodeId,
-    app: options.app,
-    ticketRef: item.ticketRef,
-    now: engine.clock?.() ?? new Date(),
-  });
-  const journal = await readExecutionJournal(engine.runlogRoot, episodeId);
-  if (!journal?.stages.some((stage) => stage.boundary === "route" && stage.status === "completed")) {
-    await recordExecutionBoundary({
-      root: engine.runlogRoot,
-      episodeId,
-      boundary: "route",
-      artifact: decision,
-      now: engine.clock?.() ?? new Date(),
-    });
-  }
-  const resume = await resumeExecutionJournal({
-    root: engine.runlogRoot,
-    episodeId,
-    artifacts: {
-      ...(effective.contract !== undefined
-        ? {
-            contract: {
-              ticketBodyHash: hashTicketBody(effective.body),
-              contract: effective.contract,
-            },
-          }
-        : {}),
-      ...(effective.worktree !== undefined
-        ? { implementation: { head: git(effective.worktree, "rev-parse", "HEAD") } }
-        : {}),
-    },
-    now: engine.clock?.() ?? new Date(),
-  });
-  if (["ready", "building", "gates", "reviewing", "shipping"].includes(effective.phase)) {
-    if (["push", "gates", "pr"].includes(resume.nextBoundary ?? "")) {
-      effective = { ...effective, phase: "gates" };
-    } else if (["findings", "approvals"].includes(resume.nextBoundary ?? "") && effective.prNumber !== undefined) {
-      effective = { ...effective, phase: "reviewing" };
-    } else if (["merge", "release"].includes(resume.nextBoundary ?? "") && effective.prNumber !== undefined) {
-      effective = { ...effective, phase: "shipping" };
-    }
-  }
-  return effective;
-}
-
-async function reassessTicketEpisode(
-  options: LoopDriverOptions,
-  item: LoopItem,
-  reason: string,
-): Promise<LoopItem> {
-  const engine = options.engine;
-  if (engine === undefined) return item;
-  const target = journalTarget(options, item);
-  const record = await readRouteRecord(target.root, target.episodeId);
-  if (record === undefined) throw new Error(`loop reassessment: missing route record ${target.episodeId}`);
-  const current = record.current_route === "deterministic" ? "quick" : record.current_route;
-  const next = nextRouteAfterUnexpectedFinding(current);
-  const journal = await readExecutionJournal(target.root, target.episodeId);
-  if (journal?.stages.some((stage) => stage.boundary === "implementation" && stage.status === "completed")) {
-    await invalidateExecutionFrom({
-      root: target.root,
-      episodeId: target.episodeId,
-      boundary: "implementation",
-      reason,
-      now: engine.clock?.() ?? new Date(),
-    });
-  }
-  if (next === current) return { ...item, tier: next };
-  const reassessed = { ...item, tier: next };
-  const decision = routeDecisionForItem(reassessed);
-  await reassessEpisode({
-    root: target.root,
-    episodeId: target.episodeId,
-    toRoute: next,
-    factor: {
-      kind: "uncertainty",
-      evidence: reason,
-      policy_rule: "unexpected_finding",
-    },
-    authorizedPasses: authorizeRoutePasses({
-      decision,
-      pipelines: engine.pipelines.pipelines,
-      roles: engine.roles,
-    }),
-    now: engine.clock?.() ?? new Date(),
-    ...(next === "deep" ? { budgetOverrides: { input_tokens: 8_000_000 } } : {}),
-  });
-  return reassessed;
-}
-
-async function reassessForObservedWorktreeRisk(
-  options: LoopDriverOptions,
-  item: LoopItem,
-): Promise<LoopItem> {
-  const engine = options.engine;
-  if (engine === undefined || item.worktree === undefined) return item;
-  const baseRef = options.base.ref;
-  const changedFiles = git(item.worktree, "diff", "--name-only", baseRef, "HEAD")
-    .split("\n")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const risk = resolveTier(options.policy, changedFiles);
-  // Content-gate package.json for the security dimension: a bare
-  // metadata/test-glob edit must not escalate standard → deep; a
-  // dependency/run-script change must (L1-05).
-  const dimensions = matchedDimensions(options.policy, changedFiles, {
-    dependencyRelevantPackageJson: dependencyRelevantPackageJson(item.worktree, baseRef, "HEAD", changedFiles),
-  });
-  if (risk !== "high" && !dimensions.includes("security")) return item;
-  const target = journalTarget(options, item);
-  const record = await readRouteRecord(target.root, target.episodeId);
-  if (record.current_route === "deep") return { ...item, tier: "deep" };
-  const reassessed = { ...item, tier: "deep" as const };
-  const decision = routeDecisionForItem(reassessed);
-  await reassessEpisode({
-    root: target.root,
-    episodeId: target.episodeId,
-    toRoute: "deep",
-    factor: {
-      kind: "sensitive_domain",
-      evidence: `observed changed paths resolved risk=${risk}; dimensions=${dimensions.join(",") || "none"}`,
-      policy_rule: "observed_worktree_risk",
-    },
-    authorizedPasses: authorizeRoutePasses({
-      decision,
-      pipelines: engine.pipelines.pipelines,
-      roles: engine.roles,
-    }),
-    budgetOverrides: { input_tokens: 8_000_000 },
-    now: engine.clock?.() ?? new Date(),
-  });
-  return reassessed;
-}
-
-/** Reconstruct the structured route decision for a claimed ticket. The
- *  `sensitiveDomains` are read back from the ticket's labels (the orchestrator
- *  attaches `domain:<d>` labels at plan publication — see
- *  `applySensitiveDomainFloor`), which is what lets the route policy's
- *  sensitive-domain deep floor fire. Throws if the tier label and the
- *  structured decision disagree — a domain label therefore requires the
- *  ticket to already be `op:tier-deep`. */
+/** Historical, non-authoritative compatibility projection for legacy ticket
+ *  artifacts and their tests. EpisodePlan validation is the sole workflow and
+ *  safety authority for live ticket execution; this helper must not be used to
+ *  admit, mutate, or execute a route. */
 export function routeDecisionForItem(item: LoopItem): RouteDecision {
   const sensitiveDomains = item.labels
     .filter((label) => /auth|security|secret|privacy|payment|data/.test(label))
@@ -1074,20 +914,6 @@ export function routeDecisionForItem(item: LoopItem): RouteDecision {
     );
   }
   return decision;
-}
-
-function journalTarget(options: LoopDriverOptions, item: LoopItem): ExecutionJournalTarget {
-  const engine = options.engine;
-  if (engine === undefined) throw new Error("loop driver: engine options missing");
-  return {
-    root: engine.runlogRoot,
-    episodeId: episodeIdFor({
-      app: options.app,
-      ticket: item.ticketRef,
-      traceId: item.turnId ?? item.ticketRef,
-    }),
-    ...(engine.clock !== undefined ? { clock: engine.clock } : {}),
-  };
 }
 
 function terminalDisposition(item: LoopItem): {

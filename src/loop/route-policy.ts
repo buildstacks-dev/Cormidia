@@ -1,4 +1,4 @@
-import type { Effort, RoleConfig } from "../runtime/types.js";
+import type { RoleConfig } from "../runtime/types.js";
 import type { AdmissionFactor, AuthorizedPass, EfficiencyRoute } from "./efficiency.js";
 import type { PassConfig, PipelineConfig, TicketTier } from "./pipelines.js";
 
@@ -66,9 +66,6 @@ const ROUTE_RANK: Record<EfficiencyRoute, number> = {
   standard: 1,
   deep: 2,
 };
-
-const EFFORT_RANK: Record<Effort, number> = { low: 0, medium: 1, high: 2, xhigh: 3, max: 4 };
-const ROUTE_MAX_EFFORT: Record<TicketTier, Effort> = { quick: "low", standard: "medium", deep: "high" };
 
 export function decideExecutionRoute(input: RouteRiskProfile): RouteDecision {
   const profile = normalizeProfile(input);
@@ -151,8 +148,12 @@ export function authorizeRoutePasses(input: {
         pass: pass.id,
         role: role.name,
         runtime: role.runtime,
-        model: pass.model ?? role.model,
-        effort: selectedEffort(pass.effort ?? role.effort, input.decision.route),
+        // Legacy route projection now preserves fixed assignment semantics:
+        // workflow labels cannot downshift or partially override an atomic
+        // harness/model/effort tuple. EpisodePlan is the only live adaptive
+        // assignment authority.
+        model: role.model,
+        effort: role.effort,
         factor_rules: [rule],
       });
     }
@@ -235,9 +236,4 @@ function passFactorRule(pipeline: string, pass: PassConfig, decision: RouteDecis
     return decision.factors.find((factor) => ["release_depth", "reversibility_depth", "blast_radius_depth"].includes(factor.policy_rule))?.policy_rule;
   }
   return undefined;
-}
-
-function selectedEffort(configured: Effort, route: TicketTier): Effort {
-  const cap = ROUTE_MAX_EFFORT[route];
-  return EFFORT_RANK[configured] <= EFFORT_RANK[cap] ? configured : cap;
 }

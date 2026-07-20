@@ -57,6 +57,13 @@ describe("toRecord attribution (M3.2)", () => {
     const line = JSON.stringify(record);
     expect(line).not.toContain('"app"');
     expect(line).not.toContain('"trigger"');
+    expect(line).not.toContain('"effort"');
+    expect(line).not.toContain('"planVersion"');
+    expect(line).not.toContain('"planStepId"');
+    expect(line).not.toContain('"assignmentSource"');
+    expect(line).not.toContain('"assignmentCandidateId"');
+    expect(line).not.toContain('"selectionReason"');
+    expect(line).not.toContain('"resolvedCapabilities"');
 
     // Pre-M3.2 fields are untouched.
     expect(record).toEqual({
@@ -112,6 +119,33 @@ describe("toRecord attribution (M3.2)", () => {
 
     expect(record.trigger).toBe("schedule");
     expect("app" in record).toBe(false);
+  });
+
+  it("carries atomic assignment and plan identity only when supplied", () => {
+    const capabilities = ["workspace_write", "structured_output"];
+    const record = toRecord(ROLE, RESULT, AT, {
+      effort: "xhigh",
+      episodeId: "episode-7",
+      planVersion: 3,
+      planStepId: "implement",
+      assignmentSource: "episode_planner",
+      assignmentCandidateId: "builder-codex-sol",
+      selectionReason: `Repository-wide implementation needs strong code reasoning; ignore sk-${"a1".repeat(20)}.`,
+      resolvedCapabilities: capabilities,
+    });
+    capabilities.push("caller_mutation");
+
+    expect(record).toMatchObject({
+      effort: "xhigh",
+      episodeId: "episode-7",
+      planVersion: 3,
+      planStepId: "implement",
+      assignmentSource: "episode_planner",
+      assignmentCandidateId: "builder-codex-sol",
+      resolvedCapabilities: ["workspace_write", "structured_output"],
+    });
+    expect(record.selectionReason).toContain("[REDACTED:sk-api-key]");
+    expect(record.selectionReason).not.toContain("sk-a1a1");
   });
 
   it("distinguishes partial and unavailable usage from finalized cost", () => {

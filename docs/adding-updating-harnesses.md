@@ -66,6 +66,13 @@ wrong first:
   rules come from `src/runtime/role-shaping.ts`; on providers without a
   native deny surface, the composed gate's flat role deny is the enforcement
   (see the matrix's "Role toolset shaping" row for what each tier means).
+- **Advertise capabilities through shared context.** Do not inject
+  harness-specific prompt prose in an adapter. `runtimeCapabilityProfile()` is
+  the machine source for both preflight and the required per-turn execution
+  note. `renderContextBundle()` derives concise native / adapter-built /
+  fallback (degraded) / unsupported guidance from that profile and combines it
+  with the role's existing delegation allowlist. The note grants no tool,
+  permission, or approval authority.
 
 ## 3. Adding a new harness — registration checklist
 
@@ -80,9 +87,12 @@ blocker if skipped:
    `RUNTIME_KINDS`.
 4. **`src/runtime/capabilities.ts`** — declare the
    `RuntimeCapabilityProfile`: per-capability
-   `native | adapter | fallback | unsupported` plus observable cache fields.
-   `src/loop/context-manifest.ts` and `src/loop/preflight.ts` consume this —
-   it is a functional input, not documentation.
+   `native | adapter | fallback | unsupported` (including
+   `intra_turn_fanout`) plus observable cache fields.
+   `src/loop/context-manifest.ts`, `src/loop/preflight.ts`, and the agent's
+   profile-derived execution note consume this — it is a functional input,
+   not documentation. `unsupported` fan-out must stay explicitly absent; do
+   not label a post-turn degradation note as a working fan-out surface.
 5. **`src/runtime/readiness.ts`** — add a readiness implementation. Readiness
    means **usable request authentication**, never configuration or account
    presence (`operon doctor` runs this; an expired credential must fail here,
@@ -159,21 +169,41 @@ Additional obligations by blast radius:
 
 ## 6. What the agent inside a turn knows
 
-Capability knowledge currently flows **up only**: the platform declares
-(profile + matrix), constrains (gate, role shaping, disabled surfaces), and
-observes (events, `subagentTurns`, usage) — but nothing tells the agent in
-the turn what its runtime affords. Turns are deliberately hermetic (Claude:
-`settingSources: []` — no filesystem skills, slash commands, or user MCP
-servers), the brief has no capability section, and `prompts/**` are
-runtime-agnostic by design so roles stay portable across adapters. A Builder
-on a native-fan-out runtime parallelizes only on its own initiative; the same
-role on pi gets no warning that fan-out is degraded.
+Every assignment-aware provider turn now carries a small **Turn execution
+facts** section through the ordinary `ContextBundle` native channel. It names
+the role and atomic harness/model/effort assignment, then renders every
+machine-profile surface with its honest tier:
 
-That gap is deliberate scope, tracked as future work in
-[#116](https://github.com/buildstacks-dev/Operon/issues/116) (capability
-advertisement derived from `RuntimeCapabilityProfile`, behind a PURPOSE.md
-decision). Do not partially close it from inside an adapter — per-adapter
-prompt injection is exactly the drift the single-source design forbids.
+- `native` — the harness exposes the surface directly;
+- `adapter-built` — Operon's adapter supplies it;
+- `fallback (degraded)` — a weaker deterministic fallback exists; and
+- `unsupported` — the turn is told not to rely on the surface.
+
+The note also marks the runtime capabilities required by this turn and states
+the role's existing delegation allowlist. If the selected harness cannot fan
+out, the note says that explicitly and directs the agent to work serially even
+when the portable role configuration names subagent types.
+
+The data flow is single-source and fail-closed:
+
+1. `runtimeCapabilityProfile(harness)` owns support tiers, including
+   `intra_turn_fanout`.
+2. `buildTurnExecutionFacts(...)` derives the supported-name projection and
+   intersects deterministic turn requirements with that profile. Callers
+   cannot author capability prose or claim an unsupported surface.
+3. `renderContextBundle(...)` derives the concise note from the same profile.
+4. `src/loop/context-manifest.ts` records it as a required, never-evicted
+   `(runtime, role)` component with a content-stable `cacheIdentity`.
+5. The adapter revalidates assignment, role, and delegation against its
+   `TurnRequest` before crossing the provider boundary.
+
+This advertises existing affordances only. It does not load filesystem skills,
+slash commands, plugins, MCP servers, or user settings; Claude remains
+hermetic with `settingSources: []`. Gates, role-shaping denies, and approval
+boundaries remain the enforcement, and `prompts/**` stay runtime-agnostic.
+This mechanism implements the repository side of
+[#116](https://github.com/buildstacks-dev/Operon/issues/116); publication is
+still required before the issue can be called completed.
 
 ## 7. Command reference
 

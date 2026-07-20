@@ -22,7 +22,16 @@ import {
   type ExtensionFactory,
   type ResourceLoader,
 } from "@earendil-works/pi-coding-agent";
-import type { Artifact, GateEscalation, Runtime, TurnHooks, TurnRequest, TurnResult } from "../types.js";
+import type {
+  Artifact,
+  Effort,
+  GateEscalation,
+  Runtime,
+  TurnHooks,
+  TurnRequest,
+  TurnResult,
+} from "../types.js";
+import { resolveTurnRequestAssignment } from "../assignment.js";
 import { renderContextBundle, writeMaskedWorktreeFile } from "../worktree-context.js";
 import { createPiGateExtension } from "./pi-gate.js";
 
@@ -86,6 +95,7 @@ export class PiRuntime implements Runtime {
   }
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
+    const assignment = resolveTurnRequestAssignment(req, this.kind);
     if (req.session !== undefined && req.session.runtime !== "pi") {
       throw new Error(
         `PiRuntime cannot resume a "${req.session.runtime}" session - ` +
@@ -106,9 +116,9 @@ export class PiRuntime implements Runtime {
       (req.session === undefined
         ? SessionManager.create(req.workdir)
         : SessionManager.open(req.session.id, undefined, req.workdir));
-    const model = resolvePiModel(this.modelRegistry, req.role.model);
+    const model = resolvePiModel(this.modelRegistry, assignment.model);
     if (model === undefined) {
-      throw new Error(`PiRuntime: model not found in pi registry: ${req.role.model}`);
+      throw new Error(`PiRuntime: model not found in pi registry: ${assignment.model}`);
     }
 
     const { session } = await this.createAgentSessionFn({
@@ -117,7 +127,7 @@ export class PiRuntime implements Runtime {
       authStorage: this.authStorage,
       modelRegistry: this.modelRegistry,
       model,
-      thinkingLevel: mapPiThinkingLevel(req.role.effort),
+      thinkingLevel: mapPiThinkingLevel(assignment.effort),
       resourceLoader,
       sessionManager,
       tools: this.tools,
@@ -300,8 +310,11 @@ export function resolvePiModel(registry: ModelRegistry, requested: string): PiMo
   }) as PiModel | undefined;
 }
 
-export function mapPiThinkingLevel(effort: TurnRequest["role"]["effort"]): PiThinkingLevel {
-  return effort === "max" ? "xhigh" : effort;
+export function mapPiThinkingLevel(effort: Effort): PiThinkingLevel {
+  if (effort === "max") {
+    throw new Error("PiRuntime: effort max is unsupported; no effort alias is allowed");
+  }
+  return effort;
 }
 
 function budgetOverrunNote(sessionRef: string, costUsd: number, req: TurnRequest): Artifact {

@@ -37,6 +37,13 @@ import {
   type PlanningReversibility,
   type PlanningWorkLifecycle,
 } from "../org/planning-depth.js";
+import {
+  discoverPlanningStageCheckout,
+  formatPlanningStage,
+  formatPlanningStageEvidence,
+  resolvePlanningStage,
+  type PlanningStageResolution,
+} from "../org/planning-stage.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
@@ -134,7 +141,8 @@ export async function cmdPlan(args: string[]): Promise<number> {
       }
       console.log(`plan dry-run: ${app.name}`);
       console.log(`goal: ${goal}`);
-      console.log(`stage: ${preview.stage}`);
+      console.log(`stage: ${formatPlanningStage(preview.stageResolution)}`);
+      console.log(`stage basis: ${formatPlanningStageEvidence(preview.stageResolution)}`);
       console.log(`assignment mode: ${preview.episode.assignmentMode}`);
       console.log(`planning path: ${preview.episode.planningPath}`);
       if (creatorScope !== undefined) {
@@ -159,6 +167,9 @@ export async function cmdPlan(args: string[]): Promise<number> {
         `required safety facts: ${preview.episode.requiredSafetyFacts.map((fact) => fact.kind).join(", ") || "none"}`,
       );
       console.log(`source checkout: ${preview.sourceCheckout}`);
+      if (preview.stageEvidenceCheckout !== preview.sourceCheckout) {
+        console.log(`stage evidence checkout: ${preview.stageEvidenceCheckout}`);
+      }
       for (const source of parsed.sources) {
         console.log(`planning source (${source.requirement ?? "required"}): ${source.path}`);
       }
@@ -191,7 +202,14 @@ export async function cmdPlan(args: string[]): Promise<number> {
     }
     console.log(`plan (${result.status}): ${result.summary}`);
     if (result.plan !== undefined) {
-      console.log(`stage: ${result.plan.stage}`);
+      console.log(
+        `stage: ${result.stageResolution === undefined
+          ? result.plan.stage
+          : formatPlanningStage(result.stageResolution)}`,
+      );
+      if (result.stageResolution !== undefined) {
+        console.log(`stage basis: ${formatPlanningStageEvidence(result.stageResolution)}`);
+      }
       console.log(`why this many tickets: ${result.plan.ticketCountRationale}`);
       console.log(`release disposition: ${result.plan.releaseDisposition}`);
       console.log(`release kind: ${result.plan.releaseKind}`);
@@ -454,7 +472,9 @@ interface AutoPlanningPreviewResult {
   app: string;
   goal: string;
   stage: "bootstrap" | "growth" | "mature";
+  stageResolution: PlanningStageResolution;
   sourceCheckout: string;
+  stageEvidenceCheckout: string;
   planningSources: PlanningSourceRequest[];
   parentTaskId: string | null;
   budget: {
@@ -480,11 +500,23 @@ async function previewAutoPlanningRequest(input: {
   parentTaskId: string | undefined;
 }): Promise<AutoPlanningPreviewResult> {
   const goal = input.goal;
-  const stage = input.parsed.stage ??
-    (input.app.status === "onboarding" ? "bootstrap" : "mature");
   const sourceCheckout = resolve(
     input.parsed.workdir ?? join(input.stateHome, "repos", input.app.name),
   );
+  const stageCheckout = discoverPlanningStageCheckout({
+    app: input.app,
+    orgHome: input.orgHome,
+    stateHome: input.stateHome,
+    ...(input.parsed.workdir === undefined
+      ? {}
+      : { explicitWorkdir: input.parsed.workdir }),
+  });
+  const stageResolution = resolvePlanningStage({
+    ...(input.parsed.stage === undefined ? {} : { requestedStage: input.parsed.stage }),
+    checkout: stageCheckout.checkout,
+    checkoutSource: stageCheckout.source,
+  });
+  const stage = stageResolution.stage;
   const roles = (await loadRoles(join(input.orgHome, "roles.yaml"))).roles;
   const planner = roles.find((role) => role.name === "planner");
   if (planner === undefined) throw new Error("plan: roles.yaml has no planner role");
@@ -523,10 +555,12 @@ async function previewAutoPlanningRequest(input: {
     app: input.app.name,
     goal,
     stage,
+    stageResolution,
     requestedPlanningFacts,
     planningSources,
     creatorScope: input.creatorScope ?? null,
     sourceCheckout,
+    stageEvidenceCheckout: stageCheckout.checkout,
     parentTaskId: input.parentTaskId ?? null,
     budget: {
       monthlyUsd: budget.budgetUsd,
@@ -551,7 +585,9 @@ async function previewAutoPlanningRequest(input: {
       appStage: stage,
       repositoryFacts: {
         sourceCheckout,
+        stageEvidenceCheckout: stageCheckout.checkout,
         inspection: "deferred_until_provider_backed_plan",
+        planningStageResolution: jsonPreviewValue(stageResolution),
       },
       requestedConstraints: {
         workflowAuthority: "accepted_episode_plan_only",
@@ -601,7 +637,9 @@ async function previewAutoPlanningRequest(input: {
     app: input.app.name,
     goal,
     stage,
+    stageResolution,
     sourceCheckout,
+    stageEvidenceCheckout: stageCheckout.checkout,
     planningSources,
     parentTaskId: input.parentTaskId ?? null,
     budget: {

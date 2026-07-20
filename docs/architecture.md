@@ -1235,8 +1235,19 @@ take the deterministic normalization path, without persisting it.
 The public `operon episode explain <episode-id>` command exposes the durable
 explanation read-only. `operon plan --explain-route` and `--auto --dry-run`
 expose a provisional token-free intent/candidate/safety preview, including
-current ledger spend while live repository/source inspection remains deferred,
-and explicitly leave
+current ledger spend. Product stage is resolved by one deterministic boundary
+shared with live planning: an explicit `--stage` wins; otherwise at most five
+reachable commits and no reachable tags means bootstrap, at least fifty commits
+plus three reachable tags means mature, and the broad middle means growth. The
+greenfield seed strengthens only the low-history bootstrap reason and never
+pins a repository after it grows. App lifecycle (`onboarding|live|paused`) is
+not maturity evidence. Missing local Git evidence produces an auditable,
+conservative bootstrap fallback. Preview and live inspect the same already-local
+checkout before live clone synchronization so creating a managed clone cannot
+silently change the previewed stage. Both text and JSON expose explicit versus
+inferred provenance, the stable reason, and bounded commit/tag/seed evidence;
+the same record is hashed into and persisted with `EpisodeIntent`. Other live
+repository/source inspection remains deferred, and previews explicitly leave
 the exact provider-authored plan null. They are evidence of what EpisodePlanner
 may choose from, never evidence that its turn may be skipped.
 

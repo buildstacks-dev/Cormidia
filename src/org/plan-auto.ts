@@ -123,6 +123,12 @@ import {
   type ResolvedPlanningSources,
 } from "./planning-inputs.js";
 import type { PlanningDepthInput } from "./planning-depth.js";
+import {
+  discoverPlanningStageCheckout,
+  persistedPlanningStageResolution,
+  resolvePlanningStage,
+  type PlanningStageResolution,
+} from "./planning-stage.js";
 import { loadRoles } from "./roles.js";
 import { ensureManagedClone, withAppGitLock } from "./turn-runner.js";
 
@@ -216,13 +222,13 @@ export interface AutoPlanResult {
   episodePlan?: EpisodePlan;
   planningTurnSkipped?: boolean;
   planningExecution?: EpisodePlanExecutionResult;
+  /** Exact explicit/inferred/persisted stage decision used by this episode. */
+  stageResolution?: PlanningStageResolution;
 }
 
 export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanResult> {
   const clock = options.now ?? (() => new Date());
   const startedAt = clock();
-  const stage: ProjectStage =
-    options.stage ?? (options.app.status === "onboarding" ? "bootstrap" : "mature");
 
   const rolesFile = await loadRoles(join(options.orgHome, "roles.yaml"));
   const planner = rolesFile.roles.find((role) => role.name === "planner");
@@ -252,6 +258,34 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   const episodeId = options.episodeId ??
     `trace:${options.app.name}:product-plan:${startedAt.getTime()}`;
   const traceId = `plan-${options.app.name}-${fingerprint(episodeId).slice(0, 12)}`;
+  const existingIntent = await readPersistedEpisodeIntent(options.stateHome, episodeId);
+  if (existingIntent !== undefined && !isProjectStage(existingIntent.appStage)) {
+    throw new Error(
+      `product-planning episode ${episodeId} has unsupported persisted stage ` +
+        `"${existingIntent.appStage}"`,
+    );
+  }
+  const stageCheckout = discoverPlanningStageCheckout({
+    app: options.app,
+    orgHome: options.orgHome,
+    stateHome: options.stateHome,
+    ...(options.workdir === undefined ? {} : { explicitWorkdir: options.workdir }),
+  });
+  // Resolve before live clone synchronization. A dry-run and the immediately
+  // following live command therefore see the same already-local evidence (or
+  // the same explicit bootstrap fallback) instead of silently changing stage
+  // merely because live execution created the managed clone.
+  const stageResolution = existingIntent === undefined
+    ? resolvePlanningStage({
+        ...(options.stage === undefined ? {} : { requestedStage: options.stage }),
+        checkout: stageCheckout.checkout,
+        checkoutSource: stageCheckout.source,
+      })
+    : persistedPlanningStageResolution({
+        stage: existingIntent.appStage as ProjectStage,
+        stored: existingIntent.repositoryFacts["planningStageResolution"],
+      });
+  const stage = stageResolution.stage;
   const snapshot = await withAppGitLock(options.stateHome, options.app.name, async () => {
     const source = options.workdir !== undefined
       ? validateSourceCheckout(options.workdir)
@@ -266,8 +300,6 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   const consumedSources = resolvedSources === undefined
     ? undefined
     : consumedPlanningSourceManifest(resolvedSources.manifest);
-
-  const existingIntent = await readPersistedEpisodeIntent(options.stateHome, episodeId);
   const priorAdmission = await readPlannerAdmission(options.stateHome, episodeId);
   const limits = options.plannerLimits ??
     (priorAdmission === undefined
@@ -290,10 +322,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         : "remaining app budget cannot cover both the bounded EpisodePlanner admission " +
           "and one delivery-planning turn",
       episodeId,
+      stageResolution,
     };
   }
 
-  const triggerPayloadHash = stableHash({
+  const legacyTriggerIdentity = {
     app: options.app.name,
     goal: options.goal,
     stage,
@@ -301,13 +334,19 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     sourceManifestSha256: resolvedSources?.manifest.manifest_sha256 ?? null,
     creatorScope: options.creatorScope ?? null,
     catalog: planningCatalogForIntent(),
+  };
+  const legacyTriggerPayloadHash = stableHash(legacyTriggerIdentity);
+  const triggerPayloadHash = stableHash({
+    ...legacyTriggerIdentity,
+    stageResolution,
   });
   if (
     existingIntent !== undefined &&
     (existingIntent.app !== options.app.name ||
       existingIntent.goal !== options.goal ||
-      existingIntent.appStage !== stage ||
-      existingIntent.trigger.payloadHash !== triggerPayloadHash)
+      (options.stage !== undefined && options.stage !== stage) ||
+      (existingIntent.trigger.payloadHash !== triggerPayloadHash &&
+        existingIntent.trigger.payloadHash !== legacyTriggerPayloadHash))
   ) {
     throw new Error(`product-planning episode ${episodeId} resume facts differ from persisted intent`);
   }
@@ -333,6 +372,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
           `EpisodePlanner boot assignment is unavailable: ${boot?.status ?? "missing readiness evidence"}` +
           (boot?.detail === undefined ? "" : ` — ${boot.detail}`),
         episodeId,
+        stageResolution,
       };
     }
   }
@@ -348,7 +388,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     goal: options.goal,
     lifecycle: options.planning?.workLifecycle ?? "bounded-goal",
     appStage: stage,
-    repositoryFacts: repositoryFacts(snapshot),
+    repositoryFacts: repositoryFacts(
+      snapshot,
+      stageResolution,
+      stageCheckout.checkout,
+    ),
     requestedConstraints: {
       workflowAuthority: "accepted_episode_plan_only",
       publicationAuthority: "deterministic_orchestrator",
@@ -400,6 +444,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
           "EpisodePlanner was not invoked",
         problems: assessment.issues.map((entry) => `${entry.code}: ${entry.message}`),
         episodeId,
+        stageResolution,
         ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
       };
     }
@@ -408,6 +453,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     } catch (error) {
       return failedResult(error, {
         episodeId,
+        stageResolution,
         ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
       });
     }
@@ -444,6 +490,8 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     options,
     snapshot,
     stage,
+    stageResolution,
+    stageEvidenceCheckout: stageCheckout.checkout,
     budget,
   });
   const sourceBrief = resolvedSources === undefined
@@ -475,6 +523,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   } catch (error) {
     return failedResult(error, {
       episodeId,
+      stageResolution,
       ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
     });
   }
@@ -549,6 +598,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   } catch (error) {
     return failedResult(error, {
       episodeId,
+      stageResolution,
       episodePlan: prepared.plan,
       planningTurnSkipped: prepared.planningTurnSkipped,
       ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
@@ -556,9 +606,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   }
 
   const resultBase: Pick<AutoPlanResult,
-    "episodeId" | "episodePlan" | "planningTurnSkipped" | "planningExecution" | "planningSources"
+    "episodeId" | "episodePlan" | "planningTurnSkipped" | "planningExecution" |
+      "planningSources" | "stageResolution"
   > = {
     episodeId,
+    stageResolution,
     episodePlan: prepared.plan,
     planningTurnSkipped: prepared.planningTurnSkipped,
     planningExecution: execution,
@@ -1201,7 +1253,11 @@ function planningCatalogForIntent(): JsonValue {
     .sort((left, right) => left.operation.localeCompare(right.operation));
 }
 
-function repositoryFacts(snapshot: PlanningSnapshot): Record<string, JsonValue> {
+function repositoryFacts(
+  snapshot: PlanningSnapshot,
+  stageResolution: PlanningStageResolution,
+  stageEvidenceCheckout: string,
+): Record<string, JsonValue> {
   const entries = readdirSync(snapshot.path)
     .filter((name) => name !== ".git")
     .sort()
@@ -1220,6 +1276,8 @@ function repositoryFacts(snapshot: PlanningSnapshot): Record<string, JsonValue> 
     sourceBranch: snapshot.sourceBranch,
     sourceHead: snapshot.sourceHead,
     planningSnapshot: snapshot.path,
+    stageEvidenceCheckout,
+    planningStageResolution: jsonValue(stageResolution, "planning stage resolution"),
     topLevelEntries: entries,
     docsPresent: ["README.md", "docs"]
       .filter((path) => existsSync(join(snapshot.path, path))),
@@ -1231,9 +1289,15 @@ async function productPlanningBrief(input: {
   options: AutoPlanOptions;
   snapshot: PlanningSnapshot;
   stage: ProjectStage;
+  stageResolution: PlanningStageResolution;
+  stageEvidenceCheckout: string;
   budget: BudgetRow;
 }): Promise<string> {
-  const facts = repositoryFacts(input.snapshot);
+  const facts = repositoryFacts(
+    input.snapshot,
+    input.stageResolution,
+    input.stageEvidenceCheckout,
+  );
   return [
     `# ${input.stage} product plan request: ${input.options.app.name}`,
     "",
@@ -1366,6 +1430,10 @@ function jsonValue(value: unknown, name: string): JsonValue {
   } catch (error) {
     throw new Error(`${name} must be JSON-serializable`, { cause: error });
   }
+}
+
+function isProjectStage(value: unknown): value is ProjectStage {
+  return value === "bootstrap" || value === "growth" || value === "mature";
 }
 
 /** Native structured output returns bare JSON; a degraded adapter may wrap it

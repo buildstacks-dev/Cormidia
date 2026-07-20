@@ -408,12 +408,42 @@ describe("cmdPlan", () => {
       "dry-run",
     );
     const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain("stage: bootstrap (inferred)");
+    expect(out).toContain("stage basis: low_history_no_releases");
     expect(out).toContain("assignment mode: fixed");
     expect(out).toContain("planning path: episode_planner_provider_turn");
     expect(out).toContain("cannot claim the exact provider-authored EpisodePlan");
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
     expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
     expect(git(app, ["status", "--porcelain=v2", "--branch"])).toBe(before);
+  });
+
+  it("marks an operator-supplied stage as explicit in human output", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const stateHome = makeDir("operon-plan-explicit-stage-");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "plan the bounded growth milestone",
+      "--stage",
+      "growth",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain("stage: growth (explicit)");
+    expect(out).toContain("stage basis: operator_supplied");
   });
 
   it("loads JSON and YAML creator-scope transports through the same strict schema", async () => {
@@ -683,6 +713,12 @@ describe("cmdPlan", () => {
     expect(code).toBe(0);
     const output = log.mock.calls.map((call) => call.join(" ")).join("\n");
     const parsed = JSON.parse(output) as {
+      stage: string;
+      stageResolution: {
+        source: string;
+        reason: string;
+        evidence: { reachableCommitCount: number; reachableTagCount: number };
+      };
       episode: {
         planningPath: string;
         exactProviderAuthoredPlan: unknown;
@@ -690,6 +726,12 @@ describe("cmdPlan", () => {
       };
       effects: unknown[];
     };
+    expect(parsed.stage).toBe("bootstrap");
+    expect(parsed.stageResolution).toMatchObject({
+      source: "repository_evidence",
+      reason: "low_history_no_releases",
+      evidence: { reachableCommitCount: 1, reachableTagCount: 0 },
+    });
     expect(parsed.episode.planningPath).toBe("episode_planner_provider_turn");
     expect(parsed.episode.exactProviderAuthoredPlan).toBeNull();
     expect(parsed.episode.creatorScope.executionReady).toBe(false);

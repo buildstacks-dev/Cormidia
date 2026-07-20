@@ -28,6 +28,10 @@ import type {
 } from "../src/runtime/types.js";
 import { makeBareWithClone, type BareCloneFixture } from "./fixtures/gitRepo.js";
 import { FakeGhOps } from "./support/fakeGhOps.js";
+import {
+  discoverPlanningStageCheckout,
+  resolvePlanningStage,
+} from "../src/org/planning-stage.js";
 
 const NOW = new Date("2026-07-19T09:00:00.000Z");
 const EPISODE_PROMPT = "Return exactly one strict EpisodePlan JSON object.";
@@ -155,6 +159,15 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
     expect(runtime.calls[1]!.req.verdictSchema?.["title"]).toBe("TicketPlan");
     expect(runtime.calls[0]!.req.assignment).toEqual(runtime.calls[1]!.req.assignment);
     expect(result.published).toHaveLength(1);
+    expect(plannerPayload(runtime.calls[0]!.req.task).intent.repositoryFacts)
+      .toMatchObject({
+        planningStageResolution: {
+          stage: "bootstrap",
+          source: "repository_evidence",
+          reason: "low_history_no_releases",
+          evidence: { reachableCommitCount: 2, reachableTagCount: 0 },
+        },
+      });
 
     const intent = result.episodeId === undefined
       ? undefined
@@ -253,6 +266,7 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
       app,
       appsFile,
       goal: "Choose and decompose the next milestone",
+      stage: "mature",
       workdir: pair.clone.root,
       publish: false,
       runtimeFor: () => runtime,
@@ -261,6 +275,11 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
     });
 
     expect(result.status, result.summary).toBe("completed");
+    expect(result.stageResolution).toMatchObject({
+      stage: "mature",
+      source: "explicit",
+      reason: "operator_supplied",
+    });
     expect(runtime.calls).toHaveLength(3);
     expect(runtime.calls.slice(1).map((call) =>
       /Operation: (plan\/[a-z-]+)/.exec(call.req.task)?.[1])).toEqual([
@@ -294,6 +313,42 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
     expect(result.planningTurnSkipped).toBe(false);
     expect(runtime.calls[0]!.req.task).toContain("[episode_planner_input]");
     expect(runtime.calls).toHaveLength(2);
+  });
+
+  it("keeps preview and live stage equal when live creates an absent managed clone", async () => {
+    const { app, appsFile } = fixture("live");
+    const previewCheckout = discoverPlanningStageCheckout({
+      app,
+      orgHome: process.cwd(),
+      stateHome,
+    });
+    const previewResolution = resolvePlanningStage({
+      checkout: previewCheckout.checkout,
+      checkoutSource: previewCheckout.source,
+    });
+    expect(previewResolution).toMatchObject({
+      stage: "bootstrap",
+      source: "conservative_fallback",
+      reason: "repository_evidence_unavailable",
+    });
+
+    const runtime = new ProductPlanningRuntime();
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: "Plan the first bounded milestone",
+      publish: false,
+      runtimeFor: () => runtime,
+      episodePlannerPromptText: EPISODE_PROMPT,
+      now: () => NOW,
+    });
+
+    expect(result.status, result.summary).toBe("completed");
+    expect(result.stageResolution).toEqual(previewResolution);
+    expect(result.plan?.stage).toBe("bootstrap");
+    expect(existsSync(join(stateHome, "repos", app.name, ".git"))).toBe(true);
   });
 
   it("skips only the dedicated planner for an explicit execution-ready creator scope", async () => {

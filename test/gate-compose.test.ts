@@ -29,10 +29,14 @@ describe("grant-aware gate composition", () => {
       });
 
       expect(gate(ACTION)).toEqual({ allow: true });
-      expect(gate(ACTION)).toMatchObject({ allow: false, escalate: true });
+      expect(gate(ACTION)).toMatchObject({
+        allow: false,
+        escalate: false,
+        reason: expect.stringContaining("approvals disposition g1"),
+      });
       const grant = JSON.parse(await import("node:fs/promises").then((fs) => fs.readFile(home.paths.grant("grant-g1"), "utf8"))) as { uses: number };
       expect(grant.uses).toBe(0);
-      expect((await store.listPending()).map((item) => item.id)).toHaveLength(1);
+      expect((await store.listPending()).map((item) => item.id)).toHaveLength(0);
     } finally {
       home.cleanup();
     }

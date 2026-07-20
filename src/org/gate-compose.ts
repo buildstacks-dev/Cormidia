@@ -42,8 +42,57 @@ export function composeGate(
       now,
     });
     if (grant !== undefined) {
-      store.consumeGrantSync(grant.grantId, now);
+      if (grant.scope === undefined) {
+        const claim = store.claimActorRetryGrantSync(
+          grant.grantId,
+          actorRetryActor(context.role, context.turnId),
+          now,
+        );
+        if (claim.status !== "claimed") {
+          const execution = claim.item.execution;
+          return {
+            allow: false,
+            reason:
+              claim.status === "not-actor-retry"
+                ? `approval ${claim.item.id} is owned by ${execution?.executor ?? "a sanctioned executor"}; ` +
+                  `run \`operon dispatch\` or inspect \`operon approvals status\``
+                : `approval ${claim.item.id} actor retry is ${execution?.state ?? "untracked"}; ` +
+                  `resolve it with \`operon approvals disposition ${claim.item.id} ` +
+                  `(--executed|--failed|--retry) --reason <text> --confirm ${claim.item.id}\``,
+            escalate: false,
+          };
+        }
+      } else {
+        // A1 scoped grants are standing, bounded permissions whose per-action
+        // uses remain the append-only execution audit. They do not identify
+        // one exact action and therefore cannot occupy the content-bound
+        // single-action execution record repaired by ISSUE-011.
+        store.consumeGrantSync(grant.grantId, now);
+      }
       return { allow: true };
+    }
+
+    if (rule !== undefined) {
+      const stalled = store.findStalledActorRetryEquivalentSync({
+        app: context.app,
+        role: context.role,
+        rule,
+        action,
+        ...(context.turnId !== undefined ? { turnId: context.turnId } : {}),
+        ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
+        now,
+      });
+      if (stalled !== undefined) {
+        return {
+          allow: false,
+          reason:
+            `approval ${stalled.id} actor retry is ${stalled.execution?.state ?? "untracked"}; ` +
+            `no new approval was raised. Reconcile it with ` +
+            `\`operon approvals disposition ${stalled.id} (--executed|--failed|--retry) ` +
+            `--reason <text> --confirm ${stalled.id}\``,
+          escalate: false,
+        };
+      }
     }
 
     // Role shaping: a forbidden act is denied flat — no escalation, no
@@ -107,6 +156,10 @@ export function composeGate(
     }
     return decision;
   };
+}
+
+export function actorRetryActor(role: string, turnId: string | undefined): string {
+  return `actor-retry/${role}/${turnId ?? "untracked"}`;
 }
 
 function ruleFromReason(reason: string): string {

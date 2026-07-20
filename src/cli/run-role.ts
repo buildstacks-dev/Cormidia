@@ -1,5 +1,5 @@
 // `operon run-role <role> [--app <app>] [--turn <id>] [--template <path>]
-// [--assignment <candidate-id>@<effort>] [--dry-run]`.
+// [--assignment <candidate-id>@<effort>] [--allow-network] [--dry-run]`.
 // --dry-run uses the loop-layer transport only to print the assembled brief
 // and constructs no Runtime. A live standalone invocation is an explicit
 // episode creator: it persists one creator-scoped EpisodePlan step before the
@@ -31,10 +31,12 @@ export async function cmdRunRole(args: string[]): Promise<number> {
   let dryRun = false;
   let parentTaskInput: string | undefined;
   let assignmentSelector: string | undefined;
+  let networkAccess = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--allow-network") networkAccess = true;
     else if (arg === "--app") app = needValue(args, ++i, "--app");
     else if (arg === "--turn") turnId = needValue(args, ++i, "--turn");
     else if (arg === "--template") templatePath = needValue(args, ++i, "--template");
@@ -76,6 +78,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
       ...(assignmentSelector === undefined ? {} : { assignmentSelector }),
       ...(templatePath === undefined ? {} : { templatePath }),
       ...(parentTaskId === undefined ? {} : { parentTaskId }),
+      networkAccess,
     });
     const cancellation = installProcessCancellation();
     const result = await runDispatchedTurn({
@@ -88,9 +91,10 @@ export async function cmdRunRole(args: string[]): Promise<number> {
       signal: cancellation.signal,
       ...(parentTaskId !== undefined ? { parentTaskId } : {}),
       ...(prepared.creatorScope === undefined ? {} : { creatorScope: prepared.creatorScope }),
+      ...(networkAccess ? { networkAccess: true } : {}),
     }).finally(() => cancellation.dispose());
     console.log(`${turnId}: ${result.status} — ${result.summary}`);
-    return cancellation.exitCode ?? (result.status === "failed" ? 1 : 0);
+    return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
   }
 
   let resolvedWorkdir = workdir ?? process.cwd();
@@ -124,6 +128,7 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     dryRun: true,
     workdir: resolvedWorkdir,
     ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+    ...(networkAccess ? { networkAccess: true } : {}),
   });
   console.log(result.brief);
   // The brief references the context by count; a live turn passes the full

@@ -22,13 +22,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { ToolAction } from "../runtime/types.js";
+import type { ToolAction, TurnEvent } from "../runtime/types.js";
 import {
   normalizeSemanticAction,
   type CriticalActionEvidence,
   type SemanticAction,
 } from "../runtime/gate.js";
-import { withFileLock } from "../runtime/file-lock.js";
+import { withFileLock, withFileLockSync } from "../runtime/file-lock.js";
 
 export type ApprovalDecision = "approved" | "denied";
 export type ApprovalStatus = "pending" | ApprovalDecision;
@@ -47,6 +47,11 @@ export interface ApprovalExecution {
   remoteRef?: string;
   failureCause?: string;
   nextAction: "dispatch" | "actor_retry" | "reconcile" | "retry_with_disposition" | "none";
+}
+
+export interface ActorRetryGrantClaim {
+  status: "claimed" | "blocked" | "not-actor-retry";
+  item: ApprovalItem;
 }
 
 export interface ApprovalAction {
@@ -282,6 +287,20 @@ export class ApprovalStore {
     return this.readDecided();
   }
 
+  /** Actor work in these states must be reconciled before another provider
+   * turn for the same app/role starts. This is the token-free circuit breaker
+   * that prevents repeated expensive turns while an approved effect remains
+   * unacknowledged. */
+  async listActorRetryStalls(input: { app: string; role: string }): Promise<ApprovalItem[]> {
+    return (await this.listDecided()).filter(
+      (item) =>
+        item.app === input.app &&
+        item.role === input.role &&
+        item.execution?.executor === "actor-retry" &&
+        actorRetryNeedsReconciliation(item.execution),
+    );
+  }
+
   /** Diagnostic read that does not materialize an empty approvals tree. */
   async listDecidedReadOnly(): Promise<ApprovalItem[]> {
     if (!existsSync(this.decidedDir())) return [];
@@ -403,6 +422,7 @@ export class ApprovalStore {
         } satisfies ApprovalLogEvent);
       }
     }
+    await this.reconcileLegacyActorRetryStates();
   }
 
   findMatchingGrantSync(input: {
@@ -461,26 +481,71 @@ export class ApprovalStore {
   }
 
   /** A1: immediate revocation. A revoked grant never matches again; the log
-   *  records the act. */
+   *  records the act. Revoking an unused grant also terminalizes its approved
+   *  execution record. A consumed single-use grant cannot be retroactively
+   *  revoked: its outcome must be reconciled explicitly instead. */
   revokeGrantSync(grantId: string, now: Date = new Date()): ApprovalGrant {
     this.ensureDirsSync();
     const path = this.grantPath(grantId);
-    const grant = readJsonSync<ApprovalGrant>(path);
-    const next: ApprovalGrant = { ...grant, uses: 0, revokedAt: now.toISOString() };
-    writeJsonSync(path, next);
-    appendJsonLineSync(this.logPath(), {
-      type: "grant-revoked",
-      id: next.approvalId,
-      grantId: next.grantId,
-      at: now.toISOString(),
-    } satisfies ApprovalLogEvent);
-    return next;
+    const initial = readJsonSync<ApprovalGrant>(path);
+    return this.withExecutionLockSync(initial.approvalId, () => {
+      const grant = readJsonSync<ApprovalGrant>(path);
+      if (grant.revokedAt !== undefined) return grant;
+      const item = readJsonSync<ApprovalItem>(this.decidedPath(grant.approvalId));
+      if (grant.scope === undefined && grant.consumedAt !== undefined) {
+        throw new Error(
+          `approval grant ${grantId} was already consumed; reconcile approval ${grant.approvalId} with ` +
+            `\`operon approvals disposition ${grant.approvalId} (--executed|--failed) ` +
+            `--reason <text> --confirm ${grant.approvalId}\``,
+        );
+      }
+
+      // `consumedAt` is the current grant-use marker. Once a multi-use grant
+      // is revoked, the append-only grant-consumed rows retain its prior uses;
+      // the grant file carries only the current revoked state, never the
+      // consumed+revoked contradiction from ISSUE-011.
+      const { consumedAt: _consumedAt, ...grantBase } = grant;
+      const next: ApprovalGrant = {
+        ...grantBase,
+        uses: 0,
+        revokedAt: now.toISOString(),
+      };
+      writeJsonAtomicSync(path, next);
+      appendJsonLineSync(this.logPath(), {
+        type: "grant-revoked",
+        id: next.approvalId,
+        grantId: next.grantId,
+        at: now.toISOString(),
+      } satisfies ApprovalLogEvent);
+
+      if (grant.scope === undefined && item.execution?.state === "approved") {
+        const terminal: ApprovalItem = {
+          ...item,
+          execution: {
+            ...item.execution,
+            state: "failed",
+            actor: "human/operator",
+            finishedAt: now.toISOString(),
+            result: "approval grant revoked before execution",
+            failureCause: "grant_revoked",
+            nextAction: "none",
+          },
+        };
+        writeJsonAtomicSync(this.decidedPath(item.id), terminal);
+        this.appendExecutionTransitionSync(item, terminal, "human/operator", now);
+      }
+      return next;
+    });
   }
 
   consumeGrantSync(grantId: string, now: Date = new Date()): ApprovalGrant {
     this.ensureDirsSync();
     const path = this.grantPath(grantId);
     const grant = readJsonSync<ApprovalGrant>(path);
+    if (grant.revokedAt !== undefined) throw new Error(`approval grant ${grantId} is revoked`);
+    if (new Date(grant.expiresAt).getTime() <= now.getTime()) {
+      throw new Error(`approval grant ${grantId} is expired`);
+    }
     if (grant.uses <= 0) throw new Error(`approval grant ${grantId} has no remaining uses`);
     const next: ApprovalGrant = {
       ...grant,
@@ -495,6 +560,102 @@ export class ApprovalStore {
       at: now.toISOString(),
     } satisfies ApprovalLogEvent);
     return next;
+  }
+
+  /** Synchronous because every Runtime GateFn is synchronous. The approval
+   * item advances to `executing` BEFORE the single-use grant is consumed, so
+   * a crash can strand only a visible/reconcilable attempt — never a consumed
+   * grant whose durable execution still claims TRY 0. The per-item O_EXCL lock
+   * is shared with async delivery transitions through the same lock path. */
+  claimActorRetryGrantSync(
+    grantId: string,
+    actor: string,
+    now: Date = new Date(),
+  ): ActorRetryGrantClaim {
+    this.ensureDirsSync();
+    const initialGrant = readJsonSync<ApprovalGrant>(this.grantPath(grantId));
+    return this.withExecutionLockSync(initialGrant.approvalId, () => {
+      const grant = readJsonSync<ApprovalGrant>(this.grantPath(grantId));
+      const item = readJsonSync<ApprovalItem>(this.decidedPath(grant.approvalId));
+      if (item.execution?.executor !== "actor-retry") {
+        return { status: "not-actor-retry", item };
+      }
+      if (item.execution.state !== "approved") {
+        return { status: "blocked", item };
+      }
+      if (
+        grant.revokedAt !== undefined ||
+        grant.uses <= 0 ||
+        new Date(grant.expiresAt).getTime() <= now.getTime()
+      ) {
+        return { status: "blocked", item };
+      }
+
+      const {
+        finishedAt: _finishedAt,
+        result: _result,
+        remoteRef: _remoteRef,
+        failureCause: _failureCause,
+        ...executionBase
+      } = item.execution;
+      const claimed: ApprovalItem = {
+        ...item,
+        execution: {
+          ...executionBase,
+          state: "executing",
+          attempts: item.execution.attempts + 1,
+          actor,
+          attemptedAt: now.toISOString(),
+          nextAction: "reconcile",
+        },
+      };
+      writeJsonAtomicSync(this.decidedPath(item.id), claimed);
+      this.appendExecutionTransitionSync(item, claimed, actor, now);
+      this.consumeGrantSync(grantId, now);
+      return { status: "claimed", item: claimed };
+    });
+  }
+
+  /** Terminalize every actor-retry claim made by one provider turn. Only an
+   * exact action identity carrying an explicit adapter outcome acknowledges
+   * success/failure. Pre-execution/no-outcome events are ambiguous by design;
+   * provider prose is never execution evidence. */
+  async settleActorRetryExecutions(input: {
+    actor: string;
+    events: readonly TurnEvent[];
+    now?: Date;
+  }): Promise<ApprovalItem[]> {
+    const now = input.now ?? new Date();
+    const items = (await this.listDecided()).filter(
+      (item) =>
+        item.execution?.executor === "actor-retry" &&
+        item.execution.state === "executing" &&
+        item.execution.actor === input.actor,
+    );
+    const settled: ApprovalItem[] = [];
+    for (const item of items) {
+      const outcomes = explicitOutcomesFor(item.action, input.events);
+      const explicit = outcomes.length > 0 && outcomes.every((value) => value === outcomes[0])
+        ? outcomes[0]
+        : undefined;
+      settled.push(await this.finishExecution({
+        id: item.id,
+        state: explicit === true ? "executed" : explicit === false ? "failed" : "ambiguous",
+        actor: input.actor,
+        result: explicit === true
+          ? "provider reported exact tool execution success"
+          : explicit === false
+            ? "provider reported exact tool execution failure"
+            : "provider returned no unambiguous outcome for the exact approved action",
+        ...(explicit === false
+          ? { failureCause: "actor_tool_failed" }
+          : explicit === undefined
+            ? { failureCause: "actor_outcome_unacknowledged" }
+            : {}),
+        now,
+      }));
+    }
+    return settled;
   }
 
   /** Claim an approved action for a sanctioned later executor. The decided
@@ -575,7 +736,10 @@ export class ApprovalStore {
 
   /** Human disposition for an ambiguous/failed action. `retry` is explicit,
    * content-bound re-arming; it restores one use only on the still-live grant.
-   * Expired/revoked grants require a fresh approval instead. */
+   * Expired/revoked grants require a fresh approval instead. Exact confirmed
+   * `executed`/`failed` dispositions may also terminalize a legacy `approved`
+   * or crash-stuck `executing` actor record; `retry` remains forbidden from
+   * those states because an in-flight remote effect cannot be retried safely. */
   async dispositionExecution(input: {
     id: string;
     disposition: "executed" | "failed" | "retry";
@@ -588,8 +752,16 @@ export class ApprovalStore {
     return this.withExecutionLock(input.id, async () => {
       const item = await this.readItem(input.id);
       const current = item.execution;
-      if (current === undefined || !["ambiguous", "failed"].includes(current.state)) {
-        throw new Error(`approval ${input.id} execution is not ambiguous or failed`);
+      const terminalDisposition = input.disposition === "executed" || input.disposition === "failed";
+      const supported = current !== undefined && (
+        ["ambiguous", "failed"].includes(current.state) ||
+        (terminalDisposition && ["approved", "executing"].includes(current.state))
+      );
+      if (!supported || current === undefined) {
+        throw new Error(
+          `approval ${input.id} execution cannot accept ${input.disposition} from ` +
+            `${current?.state ?? "untracked"}`,
+        );
       }
       let state: ApprovalExecutionState = input.disposition === "retry" ? "approved" : input.disposition;
       let nextAction: ApprovalExecution["nextAction"] = "none";
@@ -602,20 +774,57 @@ export class ApprovalStore {
           throw new Error(`approval ${input.id} grant is expired or revoked; raise a fresh approval`);
         }
         writeJsonSync(this.grantPath(item.grantId), { ...grant, uses: 1, consumedAt: undefined });
+      } else if (item.grantId !== undefined) {
+        const grant = readJsonSync<ApprovalGrant>(this.grantPath(item.grantId));
+        if (
+          grant.scope === undefined &&
+          grant.uses > 0 &&
+          grant.consumedAt === undefined &&
+          grant.revokedAt === undefined
+        ) {
+          writeJsonAtomicSync(this.grantPath(item.grantId), {
+            ...grant,
+            uses: 0,
+            revokedAt: now.toISOString(),
+          });
+          appendJsonLineSync(this.logPath(), {
+            type: "grant-revoked",
+            id: item.id,
+            grantId: grant.grantId,
+            at: now.toISOString(),
+          } satisfies ApprovalLogEvent);
+        }
       }
+      const grant = item.grantId === undefined || !existsSync(this.grantPath(item.grantId))
+        ? undefined
+        : readJsonSync<ApprovalGrant>(this.grantPath(item.grantId));
+      const attempts = current.state === "approved" && grant?.consumedAt !== undefined
+        ? Math.max(1, current.attempts)
+        : current.attempts;
+      const attemptedAt = current.attemptedAt ?? grant?.consumedAt;
+      const {
+        failureCause: _failureCause,
+        remoteRef: _remoteRef,
+        ...executionBase
+      } = current;
       const next: ApprovalItem = {
         ...item,
         execution: {
-          ...current,
+          ...executionBase,
           state,
+          attempts,
           actor: input.actor,
+          ...(attemptedAt !== undefined ? { attemptedAt } : {}),
           finishedAt: now.toISOString(),
           result: input.reason,
           ...(input.disposition === "failed"
             ? { failureCause: "human_disposition" }
-            : current.failureCause !== undefined
+            : input.disposition === "retry" && current.failureCause !== undefined
               ? { failureCause: current.failureCause }
               : {}),
+          ...(input.disposition === "executed" && current.remoteRef !== undefined
+            ? { remoteRef: current.remoteRef }
+            : {}),
           nextAction,
         },
       };
@@ -676,6 +885,23 @@ export class ApprovalStore {
       );
   }
 
+  findStalledActorRetryEquivalentSync(input: RaiseApprovalInput): ApprovalItem | undefined {
+    this.ensureDirsSync();
+    const hash = actionHash(input.action);
+    return readdirSync(this.decidedDir())
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => readJsonSync<ApprovalItem>(join(this.decidedDir(), file)))
+      .find((item) =>
+        item.app === input.app &&
+        item.role === input.role &&
+        item.rule === input.rule &&
+        item.ticketRef === input.ticketRef &&
+        actionHash(item.action) === hash &&
+        item.execution?.executor === "actor-retry" &&
+        actorRetryNeedsReconciliation(item.execution),
+      );
+  }
+
   recordDeniedRecurrenceSync(item: ApprovalItem, action: ToolAction, now: Date): void {
     this.ensureDirsSync();
     appendJsonLineSync(this.logPath(), {
@@ -722,6 +948,65 @@ export class ApprovalStore {
     if (existsSync(this.pendingPath(id))) return readJson<ApprovalItem>(this.pendingPath(id));
     if (existsSync(this.decidedPath(id))) return readJson<ApprovalItem>(this.decidedPath(id));
     throw new Error(`approval ${id} not found`);
+  }
+
+  /** Repair the pre-ISSUE-011 state where composeGate consumed a grant but
+   * never began its actor execution. The consumed timestamp becomes durable
+   * attempt evidence and the outcome is ambiguous (never guessed from prose).
+   * A later revoke remains current grant state; the prior consume is retained
+   * in log.jsonl and on execution.attemptedAt, not as contradictory live grant
+   * fields. */
+  private async reconcileLegacyActorRetryStates(): Promise<void> {
+    const candidates = await this.readDecided();
+    for (const candidate of candidates) {
+      if (
+        candidate.execution?.executor !== "actor-retry" ||
+        candidate.execution.state !== "approved" ||
+        candidate.grantId === undefined ||
+        !existsSync(this.grantPath(candidate.grantId))
+      ) {
+        continue;
+      }
+      await this.withExecutionLock(candidate.id, async () => {
+        const item = readJsonSync<ApprovalItem>(this.decidedPath(candidate.id));
+        if (item.execution?.executor !== "actor-retry" || item.execution.state !== "approved") {
+          return;
+        }
+        if (item.grantId === undefined || !existsSync(this.grantPath(item.grantId))) return;
+        const grant = readJsonSync<ApprovalGrant>(this.grantPath(item.grantId));
+        const consumedAt = grant.scope === undefined ? grant.consumedAt : undefined;
+        if (consumedAt === undefined && grant.revokedAt === undefined) return;
+
+        if (grant.consumedAt !== undefined && grant.revokedAt !== undefined) {
+          const { consumedAt: _consumedAt, ...normalized } = grant;
+          await writeJsonAtomic(this.grantPath(grant.grantId), normalized);
+        }
+
+        const attempted = consumedAt !== undefined;
+        const actor = attempted ? "actor-retry/legacy" : "human/operator";
+        const finishedAt = grant.revokedAt ?? consumedAt ?? grant.createdAt;
+        const next: ApprovalItem = {
+          ...item,
+          execution: {
+            ...item.execution,
+            state: attempted ? "ambiguous" : "failed",
+            attempts: attempted ? Math.max(1, item.execution.attempts) : item.execution.attempts,
+            actor,
+            ...(consumedAt !== undefined ? { attemptedAt: consumedAt } : {}),
+            finishedAt,
+            result: attempted
+              ? "legacy actor retry consumed its grant without an acknowledged outcome"
+              : "approval grant was revoked before actor execution",
+            failureCause: attempted
+              ? "legacy_actor_outcome_unacknowledged"
+              : "grant_revoked",
+            nextAction: attempted ? "reconcile" : "none",
+          },
+        };
+        await writeJsonAtomic(this.decidedPath(item.id), next);
+        await this.appendExecutionTransition(item, next, actor, new Date(finishedAt));
+      });
+    }
   }
 
   private async moveToDecided(item: ApprovalItem): Promise<void> {
@@ -789,6 +1074,14 @@ export class ApprovalStore {
     );
   }
 
+  private withExecutionLockSync<T>(id: string, fn: () => T): T {
+    return withFileLockSync(
+      this.executionLockPath(id),
+      { staleMs: EXECUTION_LOCK_STALE_MS },
+      fn,
+    );
+  }
+
   private async appendExecutionTransition(
     before: ApprovalItem,
     after: ApprovalItem,
@@ -799,6 +1092,27 @@ export class ApprovalStore {
     const to = after.execution?.state;
     if (from === undefined || to === undefined || from === to) return;
     await appendJsonLine(this.logPath(), {
+      type: "execution-transition",
+      id: after.id,
+      at: now.toISOString(),
+      from,
+      to,
+      actor,
+      ...(after.execution?.failureCause !== undefined ? { cause: after.execution.failureCause } : {}),
+      ...(after.execution?.remoteRef !== undefined ? { remoteRef: after.execution.remoteRef } : {}),
+    } satisfies ApprovalLogEvent);
+  }
+
+  private appendExecutionTransitionSync(
+    before: ApprovalItem,
+    after: ApprovalItem,
+    actor: string,
+    now: Date,
+  ): void {
+    const from = before.execution?.state;
+    const to = after.execution?.state;
+    if (from === undefined || to === undefined || from === to) return;
+    appendJsonLineSync(this.logPath(), {
       type: "execution-transition",
       id: after.id,
       at: now.toISOString(),
@@ -1064,6 +1378,17 @@ function writeJsonSync(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+function writeJsonAtomicSync(path: string, value: unknown): void {
+  const tmp = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    renameSync(tmp, path);
+  } catch (error) {
+    rmSync(tmp, { force: true });
+    throw error;
+  }
+}
+
 async function appendJsonLine(path: string, value: unknown): Promise<void> {
   await appendFile(path, `${JSON.stringify(value)}\n`, "utf8");
 }
@@ -1078,4 +1403,29 @@ async function readJsonLines<T>(path: string): Promise<T[]> {
     .split("\n")
     .filter((line) => line.trim().length > 0)
     .map((line) => JSON.parse(line) as T);
+}
+
+function explicitOutcomesFor(action: ApprovalAction, events: readonly TurnEvent[]): boolean[] {
+  const expected = actionHash(action);
+  const outcomes: boolean[] = [];
+  for (const event of events) {
+    if (
+      event.type !== "tool_use" ||
+      event.name === undefined ||
+      event.args === undefined ||
+      event.success === undefined
+    ) {
+      continue;
+    }
+    if (actionHash({ tool: event.name, input: event.args }) === expected) {
+      outcomes.push(event.success);
+    }
+  }
+  return outcomes;
+}
+
+function actorRetryNeedsReconciliation(execution: ApprovalExecution): boolean {
+  return execution.state === "executing" ||
+    execution.state === "ambiguous" ||
+    (execution.state === "failed" && execution.nextAction !== "none");
 }

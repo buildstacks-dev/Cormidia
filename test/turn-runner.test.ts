@@ -65,6 +65,157 @@ const BLOCKED: TurnResult = {
 };
 
 describe("dispatched turn runner", () => {
+  it("stops before clone/runtime construction when an actor retry needs disposition", async () => {
+    const home = makeOrgHome({ approvals: true, state: true });
+    const app: AppEntry = {
+      name: "alpha",
+      repo: "/repo-must-not-be-opened",
+      status: "live",
+      budgetUsdMonth: 100,
+      cadence: {},
+    };
+    const appsFile: AppsFile = {
+      org: { name: "test", maxConcurrentTurns: 1 },
+      defaults: { budgetUsdMonth: 100 },
+      apps: [app],
+    };
+    const action = { tool: "bash", input: { command: "cat .env" } };
+    const store = new ApprovalStore(home.root, { idSource: () => "stalled-actor" });
+    let runtimeConstructions = 0;
+    try {
+      await store.raise({
+        app: app.name,
+        role: ROLE.name,
+        turnId: "old-turn",
+        rule: "secrets-or-auth",
+        action,
+      });
+      await store.decide("stalled-actor", { decision: "approved" });
+      store.claimActorRetryGrantSync("grant-stalled-actor", "actor-retry/support/old-turn");
+      await store.settleActorRetryExecutions({
+        actor: "actor-retry/support/old-turn",
+        events: [{
+          type: "tool_use",
+          name: "bash",
+          detail: "exact tool failure",
+          args: action.input,
+          success: false,
+        }],
+      });
+
+      const result = await runDispatchedTurn({
+        role: ROLE,
+        app,
+        appsFile,
+        turnId: "new-turn",
+        runtimeHome: home.root,
+        orgRoot: process.cwd(),
+        runtimeFor: () => {
+          runtimeConstructions += 1;
+          throw new Error("runtime must not be constructed");
+        },
+      });
+
+      expect(result).toMatchObject({
+        status: "blocked_on_gate",
+        summary: expect.stringContaining("no provider turn was started"),
+      });
+      expect(result.summary).toContain("approvals disposition stalled-actor");
+      expect(runtimeConstructions).toBe(0);
+      expect(JSON.parse(
+        readFileSync(join(home.root, "state", "turns", "new-turn.json"), "utf8"),
+      )).toMatchObject({ phase: "blocked_on_gate" });
+
+      await store.dispositionExecution({
+        id: "stalled-actor",
+        disposition: "failed",
+        reason: "confirmed no external effect; do not retry",
+        actor: "human/operator",
+      });
+      expect(await store.listActorRetryStalls({ app: app.name, role: ROLE.name })).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("reports a provider turn blocked when an approved actor retry has no acknowledged outcome", async () => {
+    const pair = makeBareWithClone();
+    const home = makeOrgHome({ approvals: true, state: true });
+    const app: AppEntry = {
+      name: "alpha",
+      repo: pair.bare.root,
+      status: "live",
+      budgetUsdMonth: 100,
+      cadence: {},
+    };
+    const appsFile: AppsFile = {
+      org: { name: "test", maxConcurrentTurns: 1 },
+      defaults: { budgetUsdMonth: 100 },
+      apps: [app],
+    };
+    const action = { tool: "bash", input: { command: "cat .env" } };
+    const store = new ApprovalStore(home.root, { idSource: () => "approved-retry" });
+    const runtime: Runtime = {
+      kind: "claude",
+      async runTurn(_request, hooks) {
+        expect(hooks.gate(action)).toEqual({ allow: true });
+        hooks.onEvent?.({
+          type: "tool_use",
+          name: "bash",
+          detail: "adapter reported only the pre-execution attempt",
+          args: action.input,
+        });
+        return {
+          status: "completed",
+          summary: "provider prose claimed completion",
+          artifacts: [],
+          session: { runtime: "claude", id: "actor-retry-session" },
+          usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
+          escalations: [],
+        };
+      },
+    };
+    try {
+      await store.raise({
+        app: app.name,
+        role: ROLE.name,
+        turnId: "original-blocked-turn",
+        rule: "secrets-or-auth",
+        action,
+      });
+      await store.decide("approved-retry", { decision: "approved" });
+
+      const result = await runDispatchedTurn({
+        role: ROLE,
+        app,
+        appsFile,
+        turnId: "retry-turn",
+        runtimeHome: home.root,
+        orgRoot: process.cwd(),
+        runtimeFor: () => runtime,
+        creatorScope: genericSupportScope(),
+      });
+
+      expect(result).toMatchObject({
+        status: "blocked_on_gate",
+        summary: expect.stringContaining("cannot be reported complete until this effect is reconciled"),
+      });
+      expect((await store.show("approved-retry")).item.execution).toMatchObject({
+        state: "ambiguous",
+        attempts: 1,
+        actor: "actor-retry/support/retry-turn",
+        failureCause: "actor_outcome_unacknowledged",
+        nextAction: "reconcile",
+      });
+      expect(JSON.parse(
+        readFileSync(join(home.root, "state", "turns", "retry-turn.json"), "utf8"),
+      )).toMatchObject({ phase: "blocked_on_gate" });
+    } finally {
+      home.cleanup();
+      pair.cleanup();
+    }
+  });
+
   it("propagates cancellation into the active pipeline and journals a terminal cancelled phase", async () => {
     const pair = makeBareWithClone();
     const home = makeOrgHome({ approvals: true, state: true });

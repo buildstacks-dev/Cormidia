@@ -12,6 +12,15 @@
 // depend on this leaf.
 
 import { randomUUID } from "node:crypto";
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { mkdir, open, readFile, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 
@@ -61,6 +70,16 @@ export interface FileLockOptions {
   retryMinMs?: number;
   retryMaxMs?: number;
   clock?: FileLockClock;
+}
+
+/** Synchronous callers (notably Runtime GateFn) cannot wait without blocking
+ * the provider adapter. They therefore make one safe acquisition attempt,
+ * reclaiming a dead/stale holder under the same policy as the async primitive,
+ * and otherwise fail fast with FileLockBusyError. */
+export interface FileLockSyncOptions {
+  staleMs: number;
+  /** Injectable wall time for deterministic stale-age tests. */
+  now?: () => number;
 }
 
 /** Acquire the lock at `lockPath`, returning the ownership token to release
@@ -129,6 +148,60 @@ export async function withFileLock<T>(
   }
 }
 
+/** Synchronous O_EXCL acquisition for code paths whose contract is itself
+ * synchronous. A live holder is never broken or waited out; contention is
+ * surfaced immediately so the caller can deny/retry safely. */
+export function acquireFileLockSync(
+  lockPath: string,
+  options: FileLockSyncOptions,
+): FileLockToken {
+  const now = options.now ?? Date.now;
+  const token: FileLockToken = { pid: process.pid, nonce: randomUUID() };
+  mkdirSync(dirname(lockPath), { recursive: true });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = openSync(lockPath, "wx");
+      try {
+        const payload: FileLockPayload = { ...token, at: new Date(now()).toISOString() };
+        writeFileSync(fd, `${JSON.stringify(payload)}\n`, "utf8");
+      } finally {
+        closeSync(fd);
+      }
+      return token;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (attempt === 0 && reclaimIfStaleSync(lockPath, now(), options.staleMs)) continue;
+      throw new FileLockBusyError(lockPath);
+    }
+  }
+  throw new FileLockBusyError(lockPath);
+}
+
+/** Synchronous nonce-verified release. */
+export function releaseFileLockSync(lockPath: string, token: FileLockToken): void {
+  try {
+    const payload = JSON.parse(readFileSync(lockPath, "utf8")) as Partial<FileLockPayload>;
+    if (payload.nonce !== token.nonce) return;
+  } catch {
+    return;
+  }
+  rmSync(lockPath, { force: true });
+}
+
+/** Synchronous RAII shape over the shared lock policy. */
+export function withFileLockSync<T>(
+  lockPath: string,
+  options: FileLockSyncOptions,
+  fn: () => T,
+): T {
+  const token = acquireFileLockSync(lockPath, options);
+  try {
+    return fn();
+  } finally {
+    releaseFileLockSync(lockPath, token);
+  }
+}
+
 /** True iff the lock was reclaimed (removed). Reclaims a holder proven dead, or
  *  a lock aged past the stale window when its pid is unreadable/inconclusive —
  *  and NEVER a proven-live holder. A vanished/unreadable path is "retry the
@@ -170,6 +243,37 @@ async function reclaimIfStale(lockPath: string, nowMs: number, staleMs: number):
     return true;
   }
   return false;
+}
+
+/** Synchronous twin of reclaimIfStale for Runtime GateFn callers. */
+function reclaimIfStaleSync(lockPath: string, nowMs: number, staleMs: number): boolean {
+  let contents: string;
+  let mtimeMs: number;
+  try {
+    contents = readFileSync(lockPath, "utf8");
+    mtimeMs = statSync(lockPath).mtimeMs;
+  } catch {
+    return false;
+  }
+  let pid: number | undefined;
+  let atMs: number | undefined;
+  try {
+    const payload = JSON.parse(contents) as Partial<FileLockPayload>;
+    if (typeof payload.pid === "number") pid = payload.pid;
+    if (typeof payload.at === "string") atMs = new Date(payload.at).getTime();
+  } catch {
+    // Torn/partial write — use mtime for the age check.
+  }
+  const ageMs = atMs !== undefined && Number.isFinite(atMs) ? nowMs - atMs : Date.now() - mtimeMs;
+  const old = ageMs > staleMs;
+  if (pid === undefined || !Number.isInteger(pid) || pid <= 0) {
+    if (!old) return false;
+    rmSync(lockPath, { force: true });
+    return true;
+  }
+  if (!holderIsStale(pid, old)) return false;
+  rmSync(lockPath, { force: true });
+  return true;
 }
 
 /** Whether a lock owned by `pid` is reclaimable. A live pid (probe succeeds, or

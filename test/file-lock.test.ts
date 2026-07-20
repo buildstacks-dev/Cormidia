@@ -16,8 +16,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   FileLockBusyError,
   acquireFileLock,
+  acquireFileLockSync,
   releaseFileLock,
+  releaseFileLockSync,
   withFileLock,
+  withFileLockSync,
   type FileLockClock,
   type FileLockOptions,
 } from "../src/runtime/file-lock.js";
@@ -104,5 +107,46 @@ describe("FileLock primitive (F-008)", () => {
     };
     const token = await acquireFileLock(path, { ...OPTIONS, clock });
     expect(JSON.parse(readFileSync(path, "utf8")).nonce).toBe(token.nonce);
+  });
+
+  it("offers the same never-break-live and nonce-release guarantees synchronously", () => {
+    const path = lockPath();
+    const token = acquireFileLockSync(path, { staleMs: 30_000 });
+    const held = readFileSync(path, "utf8");
+
+    expect(() => acquireFileLockSync(path, { staleMs: 30_000 })).toThrow(FileLockBusyError);
+    expect(readFileSync(path, "utf8")).toBe(held);
+
+    releaseFileLockSync(path, { pid: process.pid, nonce: "stale-owner" });
+    expect(readFileSync(path, "utf8")).toBe(held);
+    releaseFileLockSync(path, token);
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it("reclaims a provably dead synchronous holder and releases through RAII", () => {
+    const path = lockPath();
+    mkdirSync(join(dir, "sub"), { recursive: true });
+    const deadPid = spawnSync(process.execPath, ["-e", ""]).pid;
+    writeFileSync(path, JSON.stringify({ pid: deadPid, nonce: "dead", at: new Date().toISOString() }) + "\n");
+
+    const value = withFileLockSync(path, { staleMs: 30_000 }, () => {
+      expect(JSON.parse(readFileSync(path, "utf8")).nonce).not.toBe("dead");
+      return 42;
+    });
+    expect(value).toBe(42);
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it("reclaims an aged synchronous lock whose holder identity is inconclusive", () => {
+    const path = lockPath();
+    mkdirSync(join(dir, "sub"), { recursive: true });
+    writeFileSync(path, JSON.stringify({ at: "2026-07-10T00:00:00.000Z" }) + "\n");
+
+    const token = acquireFileLockSync(path, {
+      staleMs: 30_000,
+      now: () => new Date("2026-07-10T00:01:00.000Z").getTime(),
+    });
+    expect(JSON.parse(readFileSync(path, "utf8")).nonce).toBe(token.nonce);
+    releaseFileLockSync(path, token);
   });
 });

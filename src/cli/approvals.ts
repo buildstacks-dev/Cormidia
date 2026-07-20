@@ -69,6 +69,11 @@ export async function cmdApprovals(args: string[]): Promise<number> {
 
   const pending = await store.listPending();
   printTable(pending, parsed.now);
+  const outstanding = (await store.listDecided()).filter(isOutstandingExecution);
+  if (outstanding.length > 0) {
+    console.log("\nAPPROVED BUT NOT TERMINALLY ACKNOWLEDGED");
+    printExecutionTable(outstanding, "outstanding execution record(s)");
+  }
   return 0;
 }
 
@@ -295,7 +300,10 @@ function printTable(items: readonly ApprovalItem[], now: Date): void {
   console.log(`${items.length} pending`);
 }
 
-function printExecutionTable(items: readonly ApprovalItem[]): void {
+function printExecutionTable(
+  items: readonly ApprovalItem[],
+  countLabel = "execution record(s)",
+): void {
   console.log("ID                       APP                  STATE       TRY ACTOR                    NEXT");
   for (const item of items) {
     console.log([
@@ -307,12 +315,25 @@ function printExecutionTable(items: readonly ApprovalItem[]): void {
       item.execution?.nextAction ?? "-",
     ].join(" "));
     if (item.execution?.result !== undefined) console.log(`  result: ${item.execution.result}`);
+    if (item.execution?.state === "approved" && item.grantId !== undefined) {
+      console.log(
+        `  unused grant: ${item.grantId}; revoke with ` +
+          `operon approvals revoke ${item.grantId} --confirm ${item.grantId}`,
+      );
+    }
     if (item.execution?.failureCause !== undefined) console.log(`  cause: ${item.execution.failureCause}`);
     if (item.execution?.remoteRef !== undefined) console.log(`  remote: ${item.execution.remoteRef}`);
     if (item.execution?.attemptedAt !== undefined) console.log(`  attempted: ${item.execution.attemptedAt}`);
     if (item.execution?.finishedAt !== undefined) console.log(`  finished: ${item.execution.finishedAt}`);
   }
-  console.log(`${items.length} execution record(s)`);
+  console.log(`${items.length} ${countLabel}`);
+}
+
+function isOutstandingExecution(item: ApprovalItem): boolean {
+  const execution = item.execution;
+  if (execution === undefined || execution.state === "executed") return false;
+  if (execution.state === "failed" && execution.nextAction === "none") return false;
+  return true;
 }
 
 function formatFullItem(item: ApprovalItem): string {

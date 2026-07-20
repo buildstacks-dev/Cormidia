@@ -30,6 +30,17 @@ describe("approvals execution CLI", () => {
     try {
       const pending = await store.raise({ app: "service", role: "sre", rule: "external-publishing", action, now });
       await store.decide(pending.id, { decision: "approved", reason: "approved", now });
+
+      expect(await cmdApprovals(homeArgs)).toBe(0);
+      const listed = log.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(listed).toContain("0 pending");
+      expect(listed).toContain("APPROVED BUT NOT TERMINALLY ACKNOWLEDGED");
+      expect(listed).toContain(pending.id);
+      expect(listed).toContain("approved");
+      expect(listed).toContain(`approvals revoke grant-${pending.id} --confirm grant-${pending.id}`);
+      expect(listed).toContain("1 outstanding execution record(s)");
+      log.mockClear();
+
       await store.beginExecution(pending.id, "orchestrator/dispatch", now);
       await store.finishExecution({
         id: pending.id,

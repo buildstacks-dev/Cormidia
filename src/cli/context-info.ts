@@ -60,7 +60,7 @@ const CAPABILITIES = [
   { command: "dispatch", writes: true, spendsTokens: true, summary: "run one scheduler tick; --dry-run is token-free" },
   { command: "episode explain", writes: false, spendsTokens: false, summary: "explain a durable EpisodePlan, execution status, and each exact harness/model/effort assignment" },
   { command: "scheduler", writes: true, spendsTokens: false, summary: "preview/install/status/uninstall the exact org-scoped host scheduler; status is read-only" },
-  { command: "run-role", writes: true, spendsTokens: true, summary: "run one role turn; --dry-run is token-free" },
+  { command: "run-role", writes: true, spendsTokens: true, summary: "run one role turn; --dry-run is token-free; network is denied unless --allow-network" },
   { command: "approvals", writes: true, spendsTokens: false, summary: "inspect or decide durable critical-operation requests" },
   { command: "budget", writes: false, spendsTokens: false, summary: "summarize monthly spend and budget pauses" },
   { command: "status", writes: false, spendsTokens: false, summary: "show recent run status" },

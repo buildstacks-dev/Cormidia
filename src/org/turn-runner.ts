@@ -24,6 +24,7 @@ import type {
   Runtime,
   Trigger,
   TurnAssignment,
+  TurnEvent,
   TurnHooks,
   TurnResult,
   TurnUsage,
@@ -79,7 +80,7 @@ import {
   type ParseResult,
   type VerdictTypes,
 } from "../loop/verdicts.js";
-import { ApprovalStore } from "./approvals.js";
+import { ApprovalStore, type ApprovalItem } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
@@ -174,6 +175,9 @@ export interface RunDispatchedTurnOptions {
   /** Explicit human CLI entry into the M6 scheduled protocol. The journal
    * stays manual for telemetry; only this named pipeline may be overridden. */
   pipelineOverride?: "learning-distill";
+  /** Explicit per-invocation egress admission. Omitted/false keeps every
+   * provider TurnRequest offline by default. */
+  networkAccess?: boolean;
 }
 
 export interface RunDispatchedTurnResult {
@@ -191,6 +195,8 @@ export async function runDispatchedTurn(
       process.env.OPERON_STATE_HOME ??
       join(homedir(), ".operon", options.appsFile.org.name),
   );
+  const store = new ApprovalStore(runtimeHome);
+  const actorEvents: TurnEvent[] = [];
   await ensureTurnLock(runtimeHome, options.app.name, options.role.name, options.turnId, clock());
   const heartbeat = setInterval(() => {
     void heartbeatLock(runtimeHome, options.app.name, options.role.name).catch(() => {});
@@ -217,6 +223,31 @@ export async function runDispatchedTurn(
       pid: process.pid,
     });
 
+    await store.reconcile();
+    const actorRetryStalls = await store.listActorRetryStalls({
+      app: options.app.name,
+      role: options.role.name,
+    });
+    if (actorRetryStalls.length > 0) {
+      const stall = actorRetryStalls[0]!;
+      const summary = actorRetryReconciliationSummary(stall, false);
+      await writeJournalPatch(runtimeHome, options.turnId, {
+        role: options.role.name,
+        app: options.app.name,
+        phase: "blocked_on_gate",
+        message: summary,
+      });
+      await recordSchedulerReceipt(
+        runtimeHome,
+        orgRoot,
+        options.appsFile.org.name,
+        options.turnId,
+        summary,
+        clock(),
+      ).catch(() => {});
+      return { status: "blocked_on_gate", summary };
+    }
+
     const clone = await withAppGitLock(runtimeHome, options.app.name, () =>
       ensureManagedClone(options.app, runtimeHome),
     );
@@ -225,8 +256,7 @@ export async function runDispatchedTurn(
       stateHome: runtimeHome,
       turnId: options.turnId,
     });
-    const store = new ApprovalStore(runtimeHome);
-    const hooks = {
+    const hooks: TurnHooks = {
       gate: composeGate(defaultGate, store, {
         app: options.app.name,
         role: options.role.name,
@@ -235,6 +265,7 @@ export async function runDispatchedTurn(
         orgHome: orgRoot,
         now: clock,
       }),
+      onEvent: (event) => actorEvents.push(event),
     };
 
     await writeJournalPatch(runtimeHome, options.turnId, {
@@ -310,6 +341,22 @@ export async function runDispatchedTurn(
       });
     }
 
+    const actorSettlements = await settleActorRetriesForTurn(
+      store,
+      options.app.name,
+      options.turnId,
+      actorEvents,
+      clock(),
+    );
+    const unresolvedActorRetry = actorSettlements.find(actorRetryIsUnresolved);
+    if (unresolvedActorRetry !== undefined) {
+      result = {
+        ...result,
+        status: "blocked_on_gate",
+        summary: actorRetryReconciliationSummary(unresolvedActorRetry, true),
+      };
+    }
+
     await writeJournalPatch(runtimeHome, options.turnId, {
       role: options.role.name,
       app: options.app.name,
@@ -353,20 +400,33 @@ export async function runDispatchedTurn(
     }
     return { status: result.status, summary: result.summary };
   } catch (error) {
-    const pending = await new ApprovalStore(runtimeHome).listPending();
-    const blocked = pending.some((item) => item.turnId === options.turnId);
+    const actorSettlements = await settleActorRetriesForTurn(
+      store,
+      options.app.name,
+      options.turnId,
+      actorEvents,
+      clock(),
+    ).catch(() => [] as ApprovalItem[]);
+    const pending = await store.listPending();
+    const actorRetryStall = actorSettlements.find(actorRetryIsUnresolved) ??
+      (await store.listActorRetryStalls({ app: options.app.name, role: options.role.name }))
+        .find((item) => item.execution?.actor?.endsWith(`/${options.turnId}`) === true);
+    const blocked = pending.some((item) => item.turnId === options.turnId) || actorRetryStall !== undefined;
     const stopped = options.signal?.aborted === true;
     const stop = stopped ? stopDescriptor(options.signal?.reason) : undefined;
+    const failureSummary = actorRetryStall === undefined
+      ? (error instanceof Error ? error.message : String(error))
+      : actorRetryReconciliationSummary(actorRetryStall, true);
     await writeJournalPatch(runtimeHome, options.turnId, {
       role: options.role.name,
       app: options.app.name,
       phase: stop?.status ?? (blocked ? "blocked_on_gate" : "failed"),
-      message: stop?.reason ?? (error instanceof Error ? error.message : String(error)),
+      message: stop?.reason ?? failureSummary,
     });
     const status: TurnResult["status"] = stop?.status ?? (blocked ? "blocked_on_gate" : "failed");
     const result = zeroResult(
       status,
-      stop?.reason ?? (error instanceof Error ? error.message : String(error)),
+      stop?.reason ?? failureSummary,
       options.role,
     );
     await recordSchedulerReceipt(runtimeHome, orgRoot, options.appsFile.org.name, options.turnId, result.summary, clock()).catch(() => {});
@@ -378,6 +438,52 @@ export async function runDispatchedTurn(
     clearInterval(heartbeat);
     await releaseLock(runtimeHome, options.app.name, options.role.name);
   }
+}
+
+async function settleActorRetriesForTurn(
+  store: ApprovalStore,
+  app: string,
+  turnId: string,
+  events: readonly TurnEvent[],
+  now: Date,
+): Promise<ApprovalItem[]> {
+  const actors = new Set(
+    (await store.listDecided())
+      .filter((item) =>
+        item.app === app &&
+        item.execution?.executor === "actor-retry" &&
+        item.execution.state === "executing" &&
+        item.execution.actor?.endsWith(`/${turnId}`) === true
+      )
+      .map((item) => item.execution!.actor!),
+  );
+  const settled: ApprovalItem[] = [];
+  for (const actor of actors) {
+    settled.push(...await store.settleActorRetryExecutions({ actor, events, now }));
+  }
+  return settled;
+}
+
+function actorRetryIsUnresolved(item: ApprovalItem): boolean {
+  return item.execution?.state === "executing" ||
+    item.execution?.state === "ambiguous" ||
+    (item.execution?.state === "failed" && item.execution.nextAction !== "none");
+}
+
+function actorRetryReconciliationSummary(
+  item: ApprovalItem,
+  providerStarted: boolean,
+): string {
+  const execution = item.execution!;
+  return (
+    `approval ${item.id} actor retry is ${execution.state} after ${execution.attempts} attempt(s); ` +
+    (providerStarted
+      ? "the provider turn cannot be reported complete until this effect is reconciled. "
+      : "no provider turn was started. ") +
+    `Reconcile with ` +
+    `\`operon approvals disposition ${item.id} (--executed|--failed) ` +
+    `--reason <text> --confirm ${item.id}\`.`
+  );
 }
 
 const GENERIC_EPISODE_PLANNER_POLICY_VERSION = "generic-dispatched-turn/episode-planner-v1";
@@ -429,6 +535,17 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
   });
   const learningAnchor = journalEpisodeAnchor(options.app.name, options.journal, options.turnId);
   const episodeId = genericEfficiencyEpisodeId(options.app.name, options.journal, options.turnId);
+  const persistedIntent = await readPersistedEpisodeIntent(options.runtimeHome, episodeId);
+  if (
+    persistedIntent !== undefined &&
+    (persistedIntent.requestedConstraints["networkAccess"] === true) !==
+      (options.networkAccess === true)
+  ) {
+    throw new Error(
+      `generic episode ${episodeId} requested network access ` +
+        `${options.networkAccess === true ? "allowed" : "denied"}, which conflicts with its persisted intent`,
+    );
+  }
   const runtimeForAssignment = exactRuntimeFactory(options);
   const gateForRole = (role: RoleConfig): TurnHooks["gate"] =>
     composeGate(defaultGate, options.store, {
@@ -480,7 +597,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
         kind: learningAnchor.source.kind,
         ref: learningAnchor.source.ref,
       },
-      networkAccess: false,
+      networkAccess: options.networkAccess === true,
     },
     hardBudget: {
       maxProviderTurns: GENERIC_EPISODE_MAX_PROVIDER_TURNS,
@@ -561,7 +678,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
       promptText,
       context: plannerContext,
       workdir: options.localRepo,
-      hooks: { gate: gateForRole(plannerRole) },
+      hooks: { ...options.hooks, gate: gateForRole(plannerRole) },
       runtimeForAssignment,
       policyVersion: GENERIC_EPISODE_PLANNER_POLICY_VERSION,
       limits: plannerLimits,
@@ -573,6 +690,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
         : {}),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+      ...(options.networkAccess === true ? { networkAccess: true } : {}),
     },
     execution: {
       workdir: options.localRepo,
@@ -590,6 +708,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
       now: clock,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+      ...(options.networkAccess === true ? { networkAccess: true } : {}),
     },
   });
   return genericExecutionResult(orchestrated.execution, orchestrated.intent.episodeId, options.role);

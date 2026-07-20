@@ -16,6 +16,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { runRole } from "../../src/loop/runRole.js";
 import { runPaths } from "../../src/runtime/runlog/paths.js";
 import { FakeRuntime } from "../../src/runtime/testing/fakeRuntime.js";
+import { ApprovalStore } from "../../src/org/approvals.js";
+import { initOrgHome } from "../../src/org/home.js";
 import type { RoleConfig, TurnResult } from "../../src/runtime/types.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
 
@@ -66,7 +68,15 @@ describe("runRole", () => {
     expect(result.brief).toContain("[ticket]");
     expect(result.brief).toContain("Manual role turn: planner");
     expect(result.brief).toContain("Working directory: /some/workdir");
+    expect(result.brief).toContain("Network access: denied by default");
     expect(result.brief).not.toContain("not wired into manual turns");
+
+    const networkPreview = await runRole({
+      role: PLANNER,
+      dryRun: true,
+      networkAccess: true,
+    });
+    expect(networkPreview.brief).toContain("Network access: allowed by explicit --allow-network");
   });
 
   it("live run calls the runtime exactly once with the brief in task and leaves a run record", async () => {
@@ -82,6 +92,7 @@ describe("runRole", () => {
         runlogRoot: home.root,
         runtimeFor: () => fake,
         hooks: { gate: () => ({ allow: true }) },
+        networkAccess: true,
         clock: () => new Date(Date.UTC(2026, 6, 5, 9, 30, 15)),
       });
 
@@ -89,6 +100,7 @@ describe("runRole", () => {
       expect(fake.calls.length).toBe(1);
       expect(fake.calls[0]?.req.task).toBe(result.brief); // no template → brief-only task
       expect(fake.calls[0]?.req.session).toBeUndefined(); // fresh session
+      expect(fake.calls[0]?.req.networkAccess).toBe(true);
 
       const runId = result.record?.runId as string;
       const paths = runPaths(home.root, "civic", runId);
@@ -203,6 +215,75 @@ describe("run-role CLI", () => {
     );
     expect(stdout).toContain("[ticket]");
     expect(stdout).toContain("Manual role turn: planner");
+    expect(stdout).toContain("Network access: denied by default");
+  });
+
+  it("--allow-network is reflected faithfully in the token-free brief", async () => {
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      [
+        "--import", TSX_LOADER, CLI_PATH, "run-role", "planner", "--dry-run",
+        "--allow-network", "--org-home", REPO_ROOT,
+      ],
+      { cwd: REPO_ROOT },
+    );
+    expect(stdout).toContain("Network access: allowed by explicit --allow-network");
+  });
+
+  it("a live blocked_on_gate outcome exits nonzero before constructing a provider", async () => {
+    const root = mkdtempSync(join(tmpdir(), "runrole-blocked-cli-"));
+    tempDirs.push(root);
+    const orgHome = join(root, "org");
+    const stateHome = join(root, "state-home");
+    await initOrgHome({
+      target: orgHome,
+      name: "runrole-blocked",
+      stateHome,
+      homeDir: join(root, "operator-home"),
+    });
+    writeFileSync(join(orgHome, "apps.yaml"), [
+      "schema_version: 1",
+      "org:",
+      "  name: runrole-blocked",
+      "  max_concurrent_turns: 1",
+      "defaults:",
+      "  budget_usd_month: 100",
+      "apps:",
+      "  alpha:",
+      "    repo: /repo-must-not-be-opened",
+      "    status: live",
+      "    budget_usd_month: 100",
+      "    cadence: {}",
+      "",
+    ].join("\n"), "utf8");
+    const store = new ApprovalStore(stateHome, { idSource: () => "cli-stall" });
+    const action = { tool: "bash", input: { command: "cat .env" } };
+    await store.raise({ app: "alpha", role: "support", rule: "secrets-or-auth", action });
+    await store.decide("cli-stall", { decision: "approved" });
+    store.claimActorRetryGrantSync("grant-cli-stall", "actor-retry/support/old-turn");
+    await store.settleActorRetryExecutions({
+      actor: "actor-retry/support/old-turn",
+      events: [{
+        type: "tool_use",
+        name: "bash",
+        detail: "exact failure",
+        args: action.input,
+        success: false,
+      }],
+    });
+
+    await expect(execFileAsync(
+      process.execPath,
+      [
+        "--import", TSX_LOADER, CLI_PATH, "run-role", "support",
+        "--app", "alpha", "--turn", "cli-blocked",
+        "--org-home", orgHome, "--state-home", stateHome,
+      ],
+      { cwd: REPO_ROOT },
+    )).rejects.toMatchObject({
+      code: 1,
+      stdout: expect.stringContaining("cli-blocked: blocked_on_gate"),
+    });
   });
 
   it("unknown role exits non-zero with a clear message", async () => {

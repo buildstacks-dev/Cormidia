@@ -154,6 +154,7 @@ operon scheduler install --json                       # preview, zero writes
 operon scheduler status --json                        # read-only health
 operon scheduler uninstall --json                     # preview, zero writes
 operon run-role <role> --app <app> --dry-run
+operon run-role <role> --app <app> --dry-run --allow-network # explicit per-invocation egress preview
 operon status
 operon budget
 operon analyze
@@ -229,8 +230,13 @@ Repository/source inspection owned by the live snapshot remains clearly
 deferred. The previews deliberately return
 `exactProviderAuthoredPlan: null`; only the live EpisodePlanner call can design
 that workflow. `operon episode explain <episode-id>` exposes the read-only
-durable plan, assignment rationale, route, and execution status. Live forms
-can spend tokens and touch GitHub:
+durable plan, assignment rationale, route, and execution status.
+
+`run-role` denies network access by default. `--allow-network` admits egress
+for that invocation only, appears in the token-free brief, and is bound into
+the durable creator scope so a resumed turn cannot silently change it.
+
+Live forms can spend tokens and touch GitHub:
 
 ```bash
 operon plan <app> --auto --goal "<bounded goal>"

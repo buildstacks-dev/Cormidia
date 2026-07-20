@@ -58,6 +58,8 @@ export interface RunRoleRequest {
   /** Explicit route admission for bounded evaluator/manual probes. Ordinary
    * callers omit it and retain the historical standard route. */
   route?: "quick" | "standard" | "deep";
+  /** Explicit per-invocation egress admission. Omitted/false is denied. */
+  networkAccess?: boolean;
   /** Caller-owned ceiling needed to admit routes with deliberately unset
    * standing authority (currently deep input tokens). */
   routeBudgetOverrides?: Partial<RouteBudget>;
@@ -81,6 +83,9 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
             `Goal: run one ${request.role.name} turn, invoked directly by the human operator`,
             `(operon run-role). There is no ticket behind this turn.`,
             `App: ${request.app ?? "(none — org-level turn)"}`,
+            request.networkAccess === true
+              ? "Network access: allowed by explicit --allow-network."
+              : "Network access: denied by default; pass --allow-network only when this turn requires outbound access.",
             "",
             request.context === undefined
               ? "Runtime context: no app context supplied; this brief carries the invocation only."
@@ -136,6 +141,7 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
     ...(request.telemetry !== undefined ? { telemetry: request.telemetry } : {}),
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
     ...(request.parentTaskId !== undefined ? { parentTaskId: request.parentTaskId } : {}),
+    ...(request.networkAccess === true ? { networkAccess: true } : {}),
     ...(request.contextBudgetBytes !== undefined ? { contextBudgetBytes: request.contextBudgetBytes } : {}),
     ...(request.route !== undefined || request.routeBudgetOverrides !== undefined
       ? {

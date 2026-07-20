@@ -574,7 +574,11 @@ schedules (oldest due first).
 `operon run-role … --turn <id>` as a detached process, so the 5-minute
 timer never kills a long turn. `run-role` is thereby also the manual
 entrypoint (roadmap item 2) — the dispatcher is just the thing that calls
-it on time.
+it on time. Provider egress is denied by default. A manual invocation may
+admit it with `--allow-network`; that boolean is shown by `--dry-run`, bound
+into the creator scope, and copied to only that episode's `TurnRequest`s.
+Resume rejects a different value instead of silently widening or narrowing
+the persisted invocation.
 
 
 
@@ -585,8 +589,9 @@ it on time.
 ### One role invocation
 
 ```
-dispatch → journal(assembling) → context assembly (§5)
+dispatch → journal(assembling) → unresolved actor-retry check (§4)
         → worktree acquire
+        → context assembly (§5)
         → journal(running)    → adapter.runTurn(req, {gate, onEvent})
         → journal(collecting) → collect artifacts, escalations, usage
         → telemetry append · scorecard events · memory-write check
@@ -824,7 +829,20 @@ Item schema:
    and next action. GitHub actions reconcile by a stable remote marker; an
    ambiguous result is never blindly retried. Only a reasoned, exact `operon
    approvals disposition <id> ... --confirm <id>` may resolve or re-arm it.
-   Generic provider calls stay `actor-retry` and continue from artifacts.
+   Generic provider calls stay `actor-retry`; they are never replayed by a
+   generic orchestrator executor. For an exact single-use actor grant, the
+   synchronous gate advances the item to `executing` before it consumes the
+   grant. The turn runner accepts only an exact action-identity `TurnEvent`
+   with an explicit adapter `success: true|false` as acknowledgement; prose or
+   a pre-execution event yields `ambiguous`. Failed/ambiguous actor work makes
+   that role invocation `blocked_on_gate`, and a later invocation for the same
+   app/role stops before clone or Runtime construction with the exact
+   disposition command. An unused approved grant remains visible and may be
+   revoked. Scoped multi-use grants retain their per-use audit because they do
+   not identify one exact action. Reconciliation upgrades the legacy
+   consumed-at/attempts-zero record to one ambiguous attempt and removes a
+   contradictory live `consumedAt`+`revokedAt` pair without discarding its
+   append-only history.
 6. Grants expire (default TTL 24 h), count uses against their cap, and are
   revocable; grant mint, each use, exhaustion, and revocation all go to
    `log.jsonl`.
@@ -834,7 +852,8 @@ Item schema:
 ### CLI
 
 ```
-operon approvals              count + one-line-per-item table (app-tagged)
+operon approvals              pending table plus approved executions that
+                              still need acknowledgement (app-tagged)
 operon approvals review       one-by-one: full item, then [a]pprove (with
                               optional scope: `a ticket [path]` / `a app
                               [path]`) / [d]eny (reason required) / [s]kip;

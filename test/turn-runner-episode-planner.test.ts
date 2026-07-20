@@ -164,7 +164,8 @@ describe("generic dispatched-turn EpisodePlanner boundary", () => {
 
     const result = await runDispatchedTurn({
       ...fixture.options,
-      creatorScope: completeCreatorScope(fixture.turnId),
+      creatorScope: completeCreatorScope(fixture.turnId, true),
+      networkAccess: true,
       episodePlannerLimits: LIMITS,
       runtimeForAssignment: runtimeFactory({
         calls,
@@ -177,6 +178,7 @@ describe("generic dispatched-turn EpisodePlanner boundary", () => {
     expect(result.status).toBe("completed");
     expect(calls.map((call) => call.role)).toEqual(["support"]);
     expect(calls[0]?.planExistedBeforeCall).toBe(true);
+    expect(calls[0]?.request.networkAccess).toBe(true);
     expect((await readCurrentEpisodePlan(fixture.state.root, fixture.episodeId)))
       .toMatchObject({
         planningSource: "creator_scope",
@@ -400,10 +402,11 @@ function incompleteCreatorScope(turnId: string): CreatorEpisodeScope {
   };
 }
 
-function completeCreatorScope(turnId: string): CreatorEpisodeScope {
+function completeCreatorScope(turnId: string, networkAccess = false): CreatorEpisodeScope {
   return {
     ...incompleteCreatorScope(turnId),
     planningDisposition: "execution_ready",
+    declaredConstraints: { networkAccess },
     steps: [supportStep()],
   };
 }

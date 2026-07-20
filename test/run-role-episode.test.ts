@@ -103,6 +103,9 @@ describe("standalone run-role EpisodePlan boundary", () => {
         }),
       ]);
       expect(scope.steps?.[0]).not.toHaveProperty("assignment");
+      expect(scope.declaredConstraints).toMatchObject({
+        standaloneRunRole: { networkAccess: false },
+      });
 
       const intent = intentFor(FIXED_APP, roles, scope, "manual-support");
       const policy = createEpisodePlanningPolicy(FIXED_APP, { intent, roles });
@@ -204,7 +207,11 @@ describe("standalone run-role EpisodePlan boundary", () => {
         roles,
         role: SUPPORT,
         turnId: "resume-support",
+        networkAccess: true,
         now: () => NOW,
+      });
+      expect(first.creatorScope?.declaredConstraints).toMatchObject({
+        standaloneRunRole: { networkAccess: true },
       });
       expect(first.creatorScope?.provenance).toMatchObject({
         source: "human",
@@ -221,10 +228,19 @@ describe("standalone run-role EpisodePlan boundary", () => {
         role: SUPPORT,
         turnId: "resume-support",
         templatePath: "/this/template/does/not-exist.md",
+        networkAccess: true,
         now: () => new Date("2026-07-20T18:00:00.000Z"),
       });
       expect(resumed.reusedPersistedIntent).toBe(true);
       expect(resumed.creatorScope).toEqual(first.creatorScope);
+
+      await expect(prepareStandaloneRunRoleScope({
+        stateHome: home.root,
+        app: FIXED_APP,
+        roles,
+        role: SUPPORT,
+        turnId: "resume-support",
+      })).rejects.toThrow(/requested network access denied conflicts with the persisted episode intent/);
     } finally {
       home.cleanup();
     }
@@ -279,7 +295,10 @@ function intentFor(
     repositoryFacts: { fixture: true },
     requestedConstraints: {
       dispatchRole: "support",
-      networkAccess: false,
+      networkAccess: creatorScope.declaredConstraints["standaloneRunRole"] !== null &&
+        typeof creatorScope.declaredConstraints["standaloneRunRole"] === "object" &&
+        !Array.isArray(creatorScope.declaredConstraints["standaloneRunRole"]) &&
+        creatorScope.declaredConstraints["standaloneRunRole"]!["networkAccess"] === true,
     },
     hardBudget: {
       maxProviderTurns: 1,

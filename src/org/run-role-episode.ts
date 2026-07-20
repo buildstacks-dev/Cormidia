@@ -37,6 +37,7 @@ export interface PrepareStandaloneRunRoleScopeOptions {
   assignmentSelector?: string;
   templatePath?: string;
   parentTaskId?: string;
+  networkAccess?: boolean;
   now?: () => Date;
 }
 
@@ -83,6 +84,7 @@ export async function prepareStandaloneRunRoleScope(
       );
     }
     assertRequestedSelectionMatchesPersisted(options.assignmentSelector, persistedIntent.creatorScope);
+    assertRequestedNetworkMatchesPersisted(options.networkAccess === true, persistedIntent.creatorScope);
     return {
       journal,
       route,
@@ -106,6 +108,7 @@ export async function prepareStandaloneRunRoleScope(
     ...(options.assignmentSelector === undefined
       ? {}
       : { assignmentSelector: options.assignmentSelector }),
+    networkAccess: options.networkAccess === true,
     ...(template === undefined ? {} : { template }),
   });
   return { journal, route, creatorScope, reusedPersistedIntent: false };
@@ -118,6 +121,7 @@ export interface BuildStandaloneRunRoleScopeOptions {
   turnId: string;
   provenance: CreatorScopeProvenance;
   assignmentSelector?: string;
+  networkAccess?: boolean;
   template?: {
     text: string;
     sha256: string;
@@ -185,7 +189,7 @@ export function buildStandaloneRunRoleScope(
     standaloneRunRole: {
       role: options.role.name,
       providerTurns: 1,
-      networkAccess: false,
+      networkAccess: options.networkAccess === true,
       assignmentSelector: options.assignmentSelector ?? null,
       templateSha256: options.template?.sha256 ?? null,
     },
@@ -355,6 +359,20 @@ function assertRequestedSelectionMatchesPersisted(
   if (persisted !== requested) {
     throw new Error(
       `run-role: --assignment ${JSON.stringify(requested)} conflicts with the persisted episode intent`,
+    );
+  }
+}
+
+function assertRequestedNetworkMatchesPersisted(
+  requested: boolean,
+  scope: CreatorEpisodeScope | undefined,
+): void {
+  const standalone = scope?.declaredConstraints["standaloneRunRole"];
+  const persisted = isRecord(standalone) && standalone["networkAccess"] === true;
+  if (persisted !== requested) {
+    throw new Error(
+      `run-role: requested network access ${requested ? "allowed" : "denied"} ` +
+        "conflicts with the persisted episode intent",
     );
   }
 }

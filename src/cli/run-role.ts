@@ -12,7 +12,7 @@ import { loadRoles } from "../org/roles.js";
 import { runRole } from "../loop/runRole.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { assembleContext } from "../org/context.js";
-import { runDispatchedTurn } from "../org/turn-runner.js";
+import { runDispatchedTurn, turnWorktreeIdentity } from "../org/turn-runner.js";
 import type { ContextBundle, RoleConfig } from "../runtime/types.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -69,7 +69,7 @@ export async function cmdRunRole(
   if (workdir !== undefined) {
     throw new Error(
       "run-role: --workdir is not supported; preview reads a discovered registered checkout " +
-        "and live execution uses the org-managed app clone",
+        "and live execution uses the route-selected org-managed checkout",
     );
   }
 
@@ -122,6 +122,11 @@ export async function cmdRunRole(
     orgRoot: homes.orgHome,
     runtimeHome: homes.stateHome,
   });
+  const managedWorkdir = join(homes.stateHome, "repos", appEntry.name);
+  const standaloneWorktree = prepared.creatorScope?.planningDisposition === "execution_ready" &&
+    prepared.creatorScope.workKind === "standalone-role-turn"
+    ? turnWorktreeIdentity(homes.stateHome, appEntry.name, turnId)
+    : undefined;
   const context: ContextBundle = (
     await assembleContext({
       orgHome: homes.orgHome,
@@ -149,7 +154,9 @@ export async function cmdRunRole(
     role,
     turnId,
     previewWorkdir: resolvedWorkdir,
-    managedWorkdir: join(homes.stateHome, "repos", appEntry.name),
+    managedWorkdir,
+    liveWorkdir: standaloneWorktree?.path ?? managedWorkdir,
+    ...(standaloneWorktree === undefined ? {} : { liveBranch: standaloneWorktree.branch }),
   });
   console.log(result.brief);
   // The brief references the context by count; a live turn passes the full
@@ -188,6 +195,8 @@ function printPreview(options: {
   turnId: string;
   previewWorkdir: string;
   managedWorkdir: string;
+  liveWorkdir: string;
+  liveBranch?: string;
 }): void {
   const { prepared } = options;
   console.log("[run-role preview]");
@@ -205,8 +214,13 @@ function printPreview(options: {
       : `Ticket context: ${prepared.journal.ticketRef} comes from the durable journal, not from --turn.`,
   );
   console.log(`Preview context checkout (read-only): ${options.previewWorkdir}`);
-  console.log(`Live execution checkout (managed): ${options.managedWorkdir}`);
-  console.log("Workdir contract: --workdir is unsupported; live synchronizes the registered app's managed clone.");
+  console.log(`Managed synchronization checkout: ${options.managedWorkdir}`);
+  console.log(`Live execution checkout: ${options.liveWorkdir}`);
+  if (options.liveBranch !== undefined) console.log(`Live execution branch: ${options.liveBranch}`);
+  console.log(
+    "Workdir contract: --workdir is unsupported; live synchronizes the registered app's managed clone " +
+      "and isolates explicit standalone turns in a durable per-turn worktree.",
+  );
 
   const scope = prepared.creatorScope;
   if (scope === undefined) {

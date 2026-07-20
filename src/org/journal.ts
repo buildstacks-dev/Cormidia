@@ -26,6 +26,18 @@ export interface TurnEvent {
   payload: Record<string, unknown>;
 }
 
+/** Durable, operator-facing evidence for a provider stop that left useful
+ * work in an isolated checkout. It deliberately records state and a read-only
+ * inspection command; recovery never stages or commits provider output. */
+export interface TurnRecoveryEvidence {
+  reasonCode: string;
+  path: string;
+  branch: string;
+  dirty: boolean;
+  statusEntries: number;
+  recoveryCommand: string;
+}
+
 export interface TurnJournal {
   turnId: string;
   role: string;
@@ -45,10 +57,13 @@ export interface TurnJournal {
   wallClockCapMs?: number;
   session?: SessionHandle;
   worktree?: string;
+  worktreeBranch?: string;
   ticketRef?: string;
   escalationIds?: string[];
   pid?: number;
   message?: string;
+  errorCode?: string;
+  recovery?: TurnRecoveryEvidence;
 }
 
 export type RecoveryDecision =
@@ -82,10 +97,13 @@ export async function writeJournalPatch(
     ...(existing?.wallClockCapMs !== undefined ? { wallClockCapMs: existing.wallClockCapMs } : {}),
     ...(existing?.session !== undefined ? { session: existing.session } : {}),
     ...(existing?.worktree !== undefined ? { worktree: existing.worktree } : {}),
+    ...(existing?.worktreeBranch !== undefined ? { worktreeBranch: existing.worktreeBranch } : {}),
     ...(existing?.ticketRef !== undefined ? { ticketRef: existing.ticketRef } : {}),
     ...(existing?.escalationIds !== undefined ? { escalationIds: existing.escalationIds } : {}),
     ...(existing?.pid !== undefined ? { pid: existing.pid } : {}),
     ...(existing?.message !== undefined ? { message: existing.message } : {}),
+    ...(existing?.errorCode !== undefined ? { errorCode: existing.errorCode } : {}),
+    ...(existing?.recovery !== undefined ? { recovery: existing.recovery } : {}),
     ...patch,
     turnId,
     role: patch.role,

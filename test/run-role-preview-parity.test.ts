@@ -65,6 +65,11 @@ describe("run-role preview/live parity", () => {
     expect(output).toContain(`template:sha256:${hash}`);
     expect(output).toContain("Provenance: human operon-cli");
     expect(output).toContain("Execution scope: execution_ready standalone-role-turn; 1 bounded step(s)");
+    expect(output).toContain(`Managed synchronization checkout: ${join(fixture.stateHome, "repos", "alpha")}`);
+    expect(output).toContain(
+      `Live execution checkout: ${join(fixture.stateHome, "worktrees", "alpha", "turn-manual-preview-008-")}`,
+    );
+    expect(output).toContain("Live execution branch: op/turn-manual-preview-008-");
     expect(output).toContain("Change only the greeting and prove it with the named unit test.");
     expect(output).toContain("Network access: allowed by explicit --allow-network");
     expect(output).toContain("Live readiness exclusions: provider authentication/readiness");

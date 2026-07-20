@@ -607,8 +607,10 @@ mutable template. Scheduled/event dispatch journals already name a governed
 pipeline or ticket protocol, so those routes may omit the standalone template
 and reject CLI template/assignment overrides instead of ignoring them.
 `--workdir` is unsupported: preview reads a discovered registered checkout;
-live always synchronizes and executes in the org-managed clone. Provider egress
-is denied by default. A manual invocation may admit it with
+live always synchronizes the org-managed clone, then an explicit standalone
+creator scope executes in a durable per-turn worktree cut from that exact
+resolved base. Provider egress is denied by default. A manual invocation may
+admit it with
 `--allow-network`; that boolean is shown by `--dry-run`, bound into the creator
 scope, and copied to only that episode's `TurnRequest`s. Resume rejects a
 different value instead of silently widening or narrowing the persisted
@@ -634,14 +636,17 @@ dispatch → journal(assembling) → unresolved actor-retry check (§4)
 
 The journal `state/turns/<turnId>.json` is written synchronously at every
 phase transition — it is the crash-recovery source of truth:
-`{turnId, role, app, trigger, phase, attempt, session?, worktree?, ticketRef?, escalationIds?, startedAt, updatedAt}`.
+`{turnId, role, app, trigger, phase, attempt, session?, worktree?, worktreeBranch?, ticketRef?, escalationIds?, errorCode?, recovery?, startedAt, updatedAt}`.
 
 **Legacy role-invocation budget.** The adapter tracks running cost from SDK usage events;
 crossing `max_turn_budget_usd` aborts the turn gracefully → status `failed`
-with an incident note artifact (roles.yaml: "overrun = incident note, not
-silent spend"). It remains a safety backstop while episode route admission and
-pre-provider-turn remaining-budget enforcement are implemented; it is not a
-second canonical route budget.
+with the exact `error_max_budget_usd` code and an incident note artifact
+(roles.yaml: "overrun = incident note, not silent spend"). A standalone turn's
+recovery evidence names its isolated path and branch, reports whether the worktree
+is dirty, and gives a read-only inspection command. Operon does not automatically
+stage or commit arbitrary provider output at this boundary. It remains a safety
+backstop while episode route admission and pre-provider-turn remaining-budget
+enforcement are implemented; it is not a second canonical route budget.
 
 ### Worktrees
 
@@ -661,10 +666,14 @@ dead or it has aged past the window, and a live holder held past the max wait
 fails the waiter (typed busy, next tick retries) rather than running a second
 `git reset --hard` on the same checkout.
 - Loop items get branch `op/<issue>-<slug>` and keep the same worktree across
-build → review → fix cycles; it is removed after merge/return. Non-loop
-turns (Planner digest, SRE sweep) get a throwaway worktree on a detached
-checkout of main, removed at turn end.
-- Turns never run in `repos/<app>` itself, and never on `main`.
+build → review → fix cycles; it is removed after merge/return. Explicit
+standalone `run-role` turns get a collision-resistant `op/turn-<slug>-<hash>`
+branch and durable worktree. Reusing the same invocation identity rediscovers
+that worktree without resetting or deleting uncommitted work. Governed
+scheduled/event routes retain their existing protocol-specific checkout policy.
+- Standalone provider turns never run in `repos/<app>` itself. The managed clone
+remains on its resolved remote default and clean while the isolated worktree may
+retain inspected WIP after a failed turn.
 
 
 

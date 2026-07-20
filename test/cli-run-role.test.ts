@@ -46,7 +46,7 @@ describe("run-role flag parsing", () => {
       "--org-home", "/__operon_cli_run_role_test_missing_org__",
     ])).rejects.toThrow(
       "run-role: --workdir is not supported; preview reads a discovered registered checkout " +
-        "and live execution uses the org-managed app clone",
+        "and live execution uses the route-selected org-managed checkout",
     );
   });
 });

@@ -116,7 +116,12 @@ import { journalEpisodeAnchor } from "./learning/episodes.js";
 import { readLearningEvents } from "./learning/events.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import { acquireLock, heartbeatLock, readLockOrUndefined, releaseLock } from "./locks.js";
-import { readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
+import {
+  readJournal,
+  writeJournalPatch,
+  type TurnJournal,
+  type TurnRecoveryEvidence,
+} from "./journal.js";
 import { loadRoles } from "./roles.js";
 import { appendScorecardEvent } from "./scorecards.js";
 import { createTicketEpisodeRuntime } from "./ticket-episode-runtime.js";
@@ -183,6 +188,8 @@ export interface RunDispatchedTurnOptions {
 export interface RunDispatchedTurnResult {
   status: TurnResult["status"];
   summary: string;
+  errorCode?: string;
+  recovery?: TurnRecoveryEvidence;
 }
 
 export async function runDispatchedTurn(
@@ -202,6 +209,7 @@ export async function runDispatchedTurn(
     void heartbeatLock(runtimeHome, options.app.name, options.role.name).catch(() => {});
   }, 30_000);
   heartbeat.unref?.();
+  let isolatedWorktree: TurnWorktree | undefined;
 
   try {
     const journal = existsSync(join(runtimeHome, "state", "turns", `${options.turnId}.json`))
@@ -248,10 +256,28 @@ export async function runDispatchedTurn(
       return { status: "blocked_on_gate", summary };
     }
 
-    const clone = await withAppGitLock(runtimeHome, options.app.name, () =>
-      ensureManagedClone(options.app, runtimeHome),
-    );
-    const localRepo = clone.path;
+    // Route is an authority decision, so resolve it before selecting an
+    // execution checkout. Only the explicit standalone creator scope gets a
+    // durable per-turn branch; governed ticket and scheduled/event routes keep
+    // their existing checkout ownership.
+    const route =
+      options.pipelineOverride !== undefined
+        ? ({ kind: "pipeline", pipeline: options.pipelineOverride } as const)
+        : resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
+    const checkout = await withAppGitLock(runtimeHome, options.app.name, async () => {
+      const clone = await ensureManagedClone(options.app, runtimeHome);
+      const worktree = usesStandaloneTurnWorktree(route, options.creatorScope)
+        ? createTurnWorktree(clone.path, runtimeHome, options.app.name, options.turnId, clone.base)
+        : undefined;
+      return {
+        clone,
+        localRepo: worktree?.path ?? clone.path,
+        worktree,
+      };
+    });
+    isolatedWorktree = checkout.worktree;
+    const clone = checkout.clone;
+    const localRepo = checkout.localRepo;
     const context = await buildContext(orgRoot, localRepo, options.app.name, options.role, journal, {
       stateHome: runtimeHome,
       turnId: options.turnId,
@@ -274,12 +300,8 @@ export async function runDispatchedTurn(
       phase: "running",
       passStartedAt: clock().toISOString(),
       worktree: localRepo,
+      ...(isolatedWorktree === undefined ? {} : { worktreeBranch: isolatedWorktree.branch }),
     });
-
-    const route =
-      options.pipelineOverride !== undefined
-        ? ({ kind: "pipeline", pipeline: options.pipelineOverride } as const)
-        : resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
 
     // Every executor-routed provider invocation settles its own ledger row;
     // the dispatcher journal remains the role-invocation lifecycle record.
@@ -356,6 +378,10 @@ export async function runDispatchedTurn(
         summary: actorRetryReconciliationSummary(unresolvedActorRetry, true),
       };
     }
+    const recovery = isolatedWorktree !== undefined && result.errorCode === "error_max_budget_usd"
+      ? inspectBudgetStopRecovery(isolatedWorktree)
+      : undefined;
+    if (recovery !== undefined) result = appendBudgetStopRecovery(result, recovery);
 
     await writeJournalPatch(runtimeHome, options.turnId, {
       role: options.role.name,
@@ -384,7 +410,9 @@ export async function runDispatchedTurn(
       app: options.app.name,
       phase: journalPhaseForStatus(result.status),
       session: result.session,
-      ...(result.status === "cancelled" || result.status === "timed_out"
+      ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
+      ...(recovery === undefined ? {} : { recovery }),
+      ...(result.status === "cancelled" || result.status === "timed_out" || recovery !== undefined
         ? { message: result.summary }
         : {}),
     });
@@ -398,7 +426,12 @@ export async function runDispatchedTurn(
         message: `scheduler terminal receipt failed: ${error instanceof Error ? error.message : String(error)}`,
       }, clock());
     }
-    return { status: result.status, summary: result.summary };
+    return {
+      status: result.status,
+      summary: result.summary,
+      ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
+      ...(recovery === undefined ? {} : { recovery }),
+    };
   } catch (error) {
     const actorSettlements = await settleActorRetriesForTurn(
       store,
@@ -489,6 +522,15 @@ function actorRetryReconciliationSummary(
 const GENERIC_EPISODE_PLANNER_POLICY_VERSION = "generic-dispatched-turn/episode-planner-v1";
 const GENERIC_EPISODE_MAX_PROVIDER_TURNS = 8;
 const GENERIC_TRIGGER_PAYLOAD_MAX_BYTES = 32 * 1024;
+
+function usesStandaloneTurnWorktree(
+  route: ReturnType<typeof resolveTriggerRoute>,
+  creatorScope: CreatorEpisodeScope | undefined,
+): boolean {
+  return route.kind === "skip" &&
+    creatorScope?.planningDisposition === "execution_ready" &&
+    creatorScope.workKind === "standalone-role-turn";
+}
 
 async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
   runtimeHome: string;
@@ -902,7 +944,10 @@ function genericExecutionResult(
     (execution.status === "completed"
       ? `episode ${episodeId} completed accepted plan v${execution.planVersion}`
       : `episode ${episodeId} stopped with ${execution.status}`);
-  return zeroResult(status, summary, role);
+  const result = zeroResult(status, summary, role);
+  return execution.reasonCode === undefined
+    ? result
+    : { ...result, errorCode: execution.reasonCode };
 }
 
 async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
@@ -2243,19 +2288,127 @@ export async function ensureManagedClone(app: AppEntry, runtimeHome: string): Pr
   };
 }
 
+export interface TurnWorktree {
+  path: string;
+  branch: string;
+}
+
+/** Pure identity used by both live checkout selection and CLI preview. The
+ * bounded slug is readable; the stable 128-bit suffix prevents two valid
+ * invocation ids that sanitize alike from sharing a ref or path. */
+export function turnWorktreeIdentity(
+  runtimeHome: string,
+  app: string,
+  turnId: string,
+): TurnWorktree {
+  const readable = turnId
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "invocation";
+  const suffix = stableHash({ app, turnId }).slice(0, 32);
+  const leaf = `turn-${readable}-${suffix}`;
+  return {
+    branch: `op/${leaf}`,
+    path: join(runtimeHome, "worktrees", app, leaf),
+  };
+}
+
+/** Register or rediscover the standalone turn's durable worktree. Existing
+ * branch/path state is authoritative WIP: never reset, clean, delete, or move
+ * it merely because the remote default advanced between invocations. */
 export function createTurnWorktree(
   localRepo: string,
   runtimeHome: string,
   app: string,
   turnId: string,
   base: BaseRevision,
-): string {
+): TurnWorktree {
   const root = join(runtimeHome, "worktrees", app);
   mkdirSync(root, { recursive: true });
-  const branch = `op/turn-${turnId}`;
-  const path = join(root, branch.replace(/[^A-Za-z0-9._-]+/g, "-"));
-  if (!existsSync(path)) git(localRepo, "worktree", "add", "-b", branch, path, base.ref);
-  return path;
+  const identity = turnWorktreeIdentity(runtimeHome, app, turnId);
+  if (existsSync(identity.path)) {
+    assertTurnWorktree(identity);
+    return identity;
+  }
+
+  const registered = registeredWorktreeForBranch(localRepo, identity.branch);
+  if (registered !== undefined) {
+    const resumed = { path: registered, branch: identity.branch };
+    assertTurnWorktree(resumed);
+    return resumed;
+  }
+
+  if (git(localRepo, "branch", "--list", identity.branch) !== "") {
+    git(localRepo, "worktree", "add", identity.path, identity.branch);
+  } else {
+    git(localRepo, "worktree", "add", "-b", identity.branch, identity.path, base.ref);
+  }
+  assertTurnWorktree(identity);
+  return identity;
+}
+
+function registeredWorktreeForBranch(localRepo: string, branch: string): string | undefined {
+  const target = `refs/heads/${branch}`;
+  let worktree: string | undefined;
+  for (const field of git(localRepo, "worktree", "list", "--porcelain", "-z").split("\0")) {
+    if (field.startsWith("worktree ")) worktree = field.slice("worktree ".length);
+    else if (field === `branch ${target}`) return worktree;
+  }
+  return undefined;
+}
+
+function assertTurnWorktree(worktree: TurnWorktree): void {
+  if (!existsSync(join(worktree.path, ".git"))) {
+    throw new Error(
+      `turn worktree ${worktree.path} for ${worktree.branch} is missing its git registration; ` +
+        "inspect it manually before retrying",
+    );
+  }
+  const actualBranch = git(worktree.path, "symbolic-ref", "--quiet", "--short", "HEAD");
+  if (actualBranch !== worktree.branch) {
+    throw new Error(
+      `turn worktree ${worktree.path} is on ${actualBranch}, expected ${worktree.branch}; ` +
+        "refusing to reset or delete possible WIP",
+    );
+  }
+}
+
+function inspectBudgetStopRecovery(worktree: TurnWorktree): TurnRecoveryEvidence {
+  const status = git(worktree.path, "status", "--porcelain=v1", "--untracked-files=all");
+  const statusEntries = status === "" ? 0 : status.split("\n").length;
+  return {
+    reasonCode: "error_max_budget_usd",
+    path: worktree.path,
+    branch: worktree.branch,
+    dirty: statusEntries > 0,
+    statusEntries,
+    recoveryCommand: `git -C ${shellQuote(worktree.path)} status --short`,
+  };
+}
+
+function appendBudgetStopRecovery(
+  result: TurnResult,
+  recovery: TurnRecoveryEvidence,
+): TurnResult {
+  const state = recovery.dirty
+    ? `dirty with ${recovery.statusEntries} status entr${recovery.statusEntries === 1 ? "y" : "ies"}`
+    : "clean with 0 status entries";
+  const detail =
+    `Budget-stop recovery: isolated worktree ${recovery.path} on branch ${recovery.branch} is ${state}. ` +
+    "No automatic recovery staging, commit, or push was performed. " +
+    `Inspect/recover with: ${recovery.recoveryCommand}`;
+  return {
+    ...result,
+    summary: `${result.summary}; ${detail}`,
+    artifacts: [
+      ...result.artifacts,
+      { kind: "file", ref: recovery.path, summary: detail },
+    ],
+  };
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
 async function buildContext(

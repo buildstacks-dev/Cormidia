@@ -38,6 +38,8 @@ describe("run-role flag parsing", () => {
       "--dry-run",
       "--assignment",
       "candidate@high",
+      "--org-home",
+      "/__operon_cli_run_role_test_missing_org__",
     ])).rejects.toThrow(
       "run-role: --assignment is only valid for a live adaptive episode",
     );

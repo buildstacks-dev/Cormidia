@@ -83,6 +83,10 @@ changes, so no `operon update`, relink, or rebuild is needed. A packed or
 published installation uses the packaged `src/operon.cjs` preflight launcher and
 then runs the compiled `dist/cli.js` binary. Both launchers report a removed
 working directory before ESM resolution with one actionable Operon error.
+Rerunning `pnpm link:local` is idempotent and upgrades the former
+`scripts/operon-local.mjs` link only when it belongs to that same checkout;
+files, directories, and links owned by another checkout remain untouched and
+are refused.
 
 These four locations are intentionally different:
 

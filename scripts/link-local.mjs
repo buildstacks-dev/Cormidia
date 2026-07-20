@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
-import { chmod, lstat, mkdir, readlink, rm, symlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { chmod, lstat, mkdir, readlink, rename, rm, symlink } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const binarySource = join(packageRoot, "src", "operon-local.cjs");
+const legacyBinarySources = [join(packageRoot, "scripts", "operon-local.mjs")];
 const binDir = resolve(process.env.OPERON_BIN_DIR ?? join(homedir(), ".local", "bin"));
 const binaryTarget = join(binDir, "operon");
 const codexHome = resolve(process.env.CODEX_HOME ?? join(homedir(), ".codex"));
@@ -20,9 +22,14 @@ const skillTargets = [
 ];
 
 await chmod(binarySource, 0o755);
-await linkExact(binarySource, binaryTarget, "file");
+const binaryLinkAction = await linkExact(binarySource, binaryTarget, "file", {
+  migrateFrom: legacyBinarySources,
+});
 for (const [, target] of skillTargets) await linkExact(skillSource, target, "dir");
 
+if (binaryLinkAction === "migrated") {
+  console.log(`operon binary link migrated from the legacy same-checkout launcher: ${binaryTarget}`);
+}
 console.log(`operon binary linked: ${binaryTarget} -> ${binarySource}`);
 for (const [provider, target] of skillTargets) {
   console.log(`Operon skill linked (${provider}): ${target} -> ${skillSource}`);
@@ -32,15 +39,67 @@ if (!process.env.PATH?.split(":").includes(binDir)) {
   console.log(`Add ${binDir} to PATH, then run: operon --version`);
 }
 
-async function linkExact(source, target, kind) {
+async function linkExact(source, target, kind, options = {}) {
   await mkdir(dirname(target), { recursive: true });
+
+  let info;
   try {
-    const info = await lstat(target);
-    if (info.isSymbolicLink() && resolve(dirname(target), await readlink(target)) === resolve(source)) return;
-    throw new Error(`refusing to replace existing path: ${target}`);
+    info = await lstat(target);
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
+    await symlink(source, target, kind);
+    return "created";
   }
-  await rm(target, { force: true, recursive: kind === "dir" });
-  await symlink(source, target, kind);
+
+  if (!info.isSymbolicLink()) throw refusal(target);
+
+  const rawLink = await readlink(target);
+  const resolvedLink = resolve(dirname(target), rawLink);
+  if (resolvedLink === resolve(source)) return "current";
+
+  const ownedLegacySource = options.migrateFrom?.some((candidate) => resolvedLink === resolve(candidate));
+  if (!ownedLegacySource) throw refusal(target);
+
+  await migrateOwnedSymlink(source, target, kind, { info, rawLink });
+  return "migrated";
+}
+
+async function migrateOwnedSymlink(source, target, kind, observed) {
+  const temporaryTarget = join(
+    dirname(target),
+    `.${basename(target)}.operon-link-${process.pid}-${randomUUID()}`,
+  );
+
+  try {
+    await symlink(source, temporaryTarget, kind);
+
+    // Recheck the exact directory entry immediately before replacement. This
+    // prevents a concurrently changed or foreign path from inheriting the
+    // one-time migration permission granted to the observed legacy link.
+    let currentInfo;
+    let currentLink;
+    try {
+      currentInfo = await lstat(target);
+      currentLink = currentInfo.isSymbolicLink() ? await readlink(target) : undefined;
+    } catch (error) {
+      if (error?.code === "ENOENT" || error?.code === "EINVAL") throw refusal(target);
+      throw error;
+    }
+    if (
+      !currentInfo.isSymbolicLink() ||
+      currentInfo.dev !== observed.info.dev ||
+      currentInfo.ino !== observed.info.ino ||
+      currentLink !== observed.rawLink
+    ) {
+      throw refusal(target);
+    }
+
+    await rename(temporaryTarget, target);
+  } finally {
+    await rm(temporaryTarget, { force: true });
+  }
+}
+
+function refusal(target) {
+  return new Error(`refusing to replace existing path: ${target}`);
 }

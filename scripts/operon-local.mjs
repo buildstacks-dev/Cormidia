@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-// Source-backed local launcher. `pnpm link:local` puts a symlink to this file
-// on PATH, so the next `operon` invocation reads the latest TypeScript source
-// without a rebuild or relink.
+// Source-backed local launcher. `pnpm link:local` puts a symlink to the
+// pre-ESM guard in `src/operon-local.cjs` on PATH; that guard imports this file,
+// so the next `operon` invocation reads the latest TypeScript source without a
+// rebuild or relink.
 
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";

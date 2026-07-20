@@ -48,7 +48,8 @@ Usage:
   operon context [--json]  show resolved paths and registered apps
   operon capabilities [--json]
                            show the installed command/capability surface
-  operon roles [path]      validate roles.yaml and print the org chart
+  operon roles [path] [--json]
+                           validate roles.yaml and print the org chart with effective turn budgets
   operon apps [path]       validate apps.yaml and print the app registry
   operon app reset <app> [--execute --confirm <app>] [--force] [--archive-root <path>]
                            archive and clean one app's Operon-managed state;
@@ -138,7 +139,7 @@ const HOME_HELP = `\n\nLocation flags:\n  --org-home <path>    committed org con
 
 const HELP = {
   org: `Usage:\n  operon org init <local-path> --name <name> [--state-home <path>] [--authority delegated-operator|conservative|custom] [--authority-file <path>] [--authority-by <identity>] [--dry-run] [--json]\n  operon org show [--json]\n  operon org use <local-path> [--state-home <path>] [--json]\n  operon org upgrade [--authority preserve|delegated-operator|conservative|custom] [--authority-file <path> --authority-by <identity>] [--archive-root <path>] [--execute] [--json]\n\nInit executes by default for compatibility. --dry-run is a token-free, zero-write preflight showing resolved homes, every generated destination, authority summary, and the complete packaged role chart; collisions return a blocked plan. Existing real directories may be populated without changing unrelated entries, but no generated path is overwritten.\n\nUpgrade defaults to a non-mutating schema diff. It adds missing packaged surfaces only, requires an explicit authority choice when AUTHORITY.md is absent, archives every changed prior byte with checksums, and runs post-upgrade doctor validation. Existing human-ratified surfaces are never overwritten.\n\nNew orgs get one versioned AUTHORITY.md. The default delegated-operator profile automates ordinary reversible work while publication/deployment, secrets, cloud/DNS/infrastructure, irreversible data loss, required human merge, and material product decisions remain human-gated. Custom requires both --authority-file and an attributable --authority-by identity.\n\nOrg home stores committed roles, apps, pipelines, prompts, taste, authority, and curated memory.\nState home stores local clones, worktrees, locks, approvals, telemetry, and run logs.`,
-  roles: `Usage: operon roles [roles.yaml-path]${HOME_HELP}`,
+  roles: `Usage: operon roles [roles.yaml-path] [--json]${HOME_HELP}`,
   apps: `Usage: operon apps [apps.yaml-path]${HOME_HELP}`,
   app: `Usage:\n  operon app reset <app-name> [--dry-run] [--execute --confirm <app-name>] [--force] [--archive-root <path>] [--json]\n  operon app verify <app-name> [--json]\n  operon app promote <app-name> --to live [--dry-run|--execute] [--json]${HOME_HELP}\n\nReset defaults to a typed non-mutating plan. Execution preserves normalized non-secret answers and checksums before cleanup. --force bypasses only stale running envelopes (no heartbeat for 10 minutes); it never overrides active runs, journals, locks, or pending approvals. Verify is token-free and proves registry/config, remote/default ancestry, managed HEAD, authority, checks, approvals/locks, and static runtime readiness without constructing an adapter. Promote defaults to a non-mutating plan and resumes its journal safely after every transaction boundary.`,
   pipelines: `Usage: operon pipelines [pipelines.yaml-path]${HOME_HELP}`,

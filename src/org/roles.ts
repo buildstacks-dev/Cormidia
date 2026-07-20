@@ -25,6 +25,16 @@ import { runtimeCapabilityProfile } from "../runtime/capabilities.js";
 export interface RolesFile {
   defaults: { maxTurnBudgetUsd: number };
   roles: RoleConfig[];
+  roleTurnBudgets: RoleTurnBudget[];
+}
+
+/** The effective hard cap plus the configuration provenance needed by
+ * operator-facing summaries. Keep this separate from RoleConfig: runtimes
+ * consume the resolved cap, while inheritance is a roles.yaml concern. */
+export interface RoleTurnBudget {
+  name: string;
+  effectiveTurnBudgetUsd: number;
+  turnBudgetInherited: boolean;
 }
 
 export interface ApprovedAssignmentCandidate {
@@ -72,11 +82,18 @@ export async function loadRoles(path: string): Promise<RolesFile> {
   }
 
   const roles: RoleConfig[] = [];
+  const roleTurnBudgets: RoleTurnBudget[] = [];
   for (const [name, specUnknown] of Object.entries(rolesRaw as Record<string, unknown>)) {
-    roles.push(parseRole(name, specUnknown, defaults.maxTurnBudgetUsd, path));
+    const parsed = parseRole(name, specUnknown, defaults.maxTurnBudgetUsd, path);
+    roles.push(parsed.role);
+    roleTurnBudgets.push({
+      name,
+      effectiveTurnBudgetUsd: parsed.role.maxTurnBudgetUsd,
+      turnBudgetInherited: parsed.turnBudgetInherited,
+    });
   }
   if (roles.length === 0) throw new Error(`${path}: no roles defined`);
-  return { defaults, roles };
+  return { defaults, roles, roleTurnBudgets };
 }
 
 function parseRole(
@@ -84,7 +101,7 @@ function parseRole(
   specUnknown: unknown,
   defaultBudget: number,
   path: string,
-): RoleConfig {
+): { role: RoleConfig; turnBudgetInherited: boolean } {
   const err = (msg: string) => new Error(`${path}: role "${name}": ${msg}`);
   if (!specUnknown || typeof specUnknown !== "object") throw err("not a mapping");
   const spec = specUnknown as Record<string, unknown>;
@@ -111,6 +128,10 @@ function parseRole(
     `${path}: role "${name}": configured assignment`,
   );
 
+  const turnBudgetInherited = !Object.prototype.hasOwnProperty.call(
+    spec,
+    "max_turn_budget_usd",
+  );
   const maxTurnBudgetUsd = positiveNumberOr(
     spec["max_turn_budget_usd"],
     defaultBudget,
@@ -147,15 +168,18 @@ function parseRole(
     : [];
 
   return {
-    name,
-    runtime: fixedAssignment.harness,
-    model: fixedAssignment.model,
-    effort: fixedAssignment.effort,
-    ...(adaptiveAssignments === undefined ? {} : { adaptiveAssignments }),
-    delegation: { allow },
-    triggers,
-    outputs,
-    maxTurnBudgetUsd,
+    role: {
+      name,
+      runtime: fixedAssignment.harness,
+      model: fixedAssignment.model,
+      effort: fixedAssignment.effort,
+      ...(adaptiveAssignments === undefined ? {} : { adaptiveAssignments }),
+      delegation: { allow },
+      triggers,
+      outputs,
+      maxTurnBudgetUsd,
+    },
+    turnBudgetInherited,
   };
 }
 

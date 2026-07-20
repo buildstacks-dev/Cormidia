@@ -50,6 +50,44 @@ describe("roles.yaml", () => {
     }
   });
 
+  it("preserves budget inheritance when an explicit cap equals the default", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "operon-role-budget-source-"));
+    const path = join(directory, "roles.yaml");
+    const role = (maxTurnBudgetUsd?: number) => ({
+      runtime: "codex",
+      model: "gpt-5.6-sol",
+      effort: "high",
+      delegation: { allow: [] },
+      triggers: [{ event: "ticket-ready" }],
+      outputs: ["pr"],
+      ...(maxTurnBudgetUsd === undefined ? {} : { max_turn_budget_usd: maxTurnBudgetUsd }),
+    });
+    try {
+      await writeFile(
+        path,
+        stringify({
+          defaults: { max_turn_budget_usd: 5 },
+          roles: {
+            inherited: role(),
+            "explicit-same": role(5),
+            "explicit-higher": role(15),
+          },
+        }),
+        "utf8",
+      );
+
+      const loaded = await loadRoles(path);
+      expect(loaded.roles.map((item) => item.maxTurnBudgetUsd)).toEqual([5, 5, 15]);
+      expect(loaded.roleTurnBudgets).toEqual([
+        { name: "inherited", effectiveTurnBudgetUsd: 5, turnBudgetInherited: true },
+        { name: "explicit-same", effectiveTurnBudgetUsd: 5, turnBudgetInherited: false },
+        { name: "explicit-higher", effectiveTurnBudgetUsd: 15, turnBudgetInherited: false },
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("builder and reviewer stay on different providers", async () => {
     const { roles } = await loadRoles(ROLES_PATH);
     const builder = roles.find((r) => r.name === "builder");

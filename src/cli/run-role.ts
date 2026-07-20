@@ -45,6 +45,9 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
   if (name === undefined) throw new Error("run-role: role name required — operon run-role <role>");
+  if (dryRun && assignmentSelector !== undefined) {
+    throw new Error("run-role: --assignment is only valid for a live adaptive episode");
+  }
 
   const homes = await resolveOperonHomes(common);
   const parentTaskId = await resolveParentTaskId(homes.stateHome, parentTaskInput);
@@ -88,10 +91,6 @@ export async function cmdRunRole(args: string[]): Promise<number> {
     }).finally(() => cancellation.dispose());
     console.log(`${turnId}: ${result.status} — ${result.summary}`);
     return cancellation.exitCode ?? (result.status === "failed" ? 1 : 0);
-  }
-
-  if (assignmentSelector !== undefined) {
-    throw new Error("run-role: --assignment is only valid for a live adaptive episode");
   }
 
   let resolvedWorkdir = workdir ?? process.cwd();

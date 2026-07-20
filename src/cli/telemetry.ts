@@ -31,6 +31,12 @@ import {
 import { readTurnRecords, settlementIdentity, type TurnRecord } from "../runtime/telemetry.js";
 import { listParentTasks, type ParentTaskRecord } from "../org/parent-task.js";
 import { resolveOperonHomes } from "../org/home.js";
+import { readReportDetails } from "../report/detail-source.js";
+import { buildEfficiencyReport } from "../report/efficiency.js";
+import { earliestLedgerDay, readLedgerRange } from "../report/ledger-source.js";
+import { duplicateFacts } from "../report/project.js";
+import { normalizeReportRange } from "../report/range.js";
+import type { ReportEfficiencyV1, ReportEvidenceMetricV1 } from "../report/types.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdTelemetry(args: string[]): Promise<number> {
@@ -41,7 +47,20 @@ export async function cmdTelemetry(args: string[]): Promise<number> {
   const rows = await readStatusRows(stateHome, parsed.app !== undefined ? { app: parsed.app } : {});
   const parentTasks = await listParentTasks(stateHome);
   const ledger = await readTurnRecords(stateHome);
-  const report = buildReport(rows, parentTasks, parsed.app ?? null, parsed.date ?? null, ledger);
+  const invariantEvidence = await buildTelemetryInvariantEvidence(
+    stateHome,
+    rows,
+    parsed.app,
+    parsed.date,
+  );
+  const report = buildReport(
+    rows,
+    parentTasks,
+    parsed.app ?? null,
+    parsed.date ?? null,
+    ledger,
+    invariantEvidence,
+  );
 
   if (parsed.html !== undefined) {
     const target = resolve(parsed.html);
@@ -156,6 +175,9 @@ interface TelemetryReport {
   running: PassView[];
   totals: { byRole: TotalLine[]; byModel: TotalLine[]; byTicket: TotalLine[] };
   completionIntegrity: CompletionIntegrity;
+  /** The canonical Report evidence projection. Telemetry retains its forensic
+   * completion fields, but must not invent a competing integrity answer. */
+  invariantEvidence: ReportEfficiencyV1;
   parentTasks: ParentTaskView[];
 }
 
@@ -191,7 +213,8 @@ function buildReport(
   taskRecords: ParentTaskRecord[],
   app: string | null,
   date: string | null,
-  ledgerRows: readonly TurnRecord[] = [],
+  ledgerRows: readonly TurnRecord[],
+  invariantEvidence: ReportEfficiencyV1,
 ): TelemetryReport {
   const views = rows
     .filter((row) => date === null || row.startedAt.slice(0, 10) === date)
@@ -274,8 +297,44 @@ function buildReport(
     running: views.filter((view) => view.running),
     totals: { byRole: [...byRole.values()], byModel: [...byModel.values()], byTicket: [...byTicket.values()] },
     completionIntegrity: completionIntegrity(views, [...tickets.values()], parentTasks),
+    invariantEvidence,
     parentTasks,
   };
+}
+
+async function buildTelemetryInvariantEvidence(
+  stateHome: string,
+  rows: readonly StatusRow[],
+  app: string | undefined,
+  date: string | undefined,
+): Promise<ReportEfficiencyV1> {
+  const now = new Date();
+  const earliestLedger = await earliestLedgerDay(stateHome);
+  const earliestRun = rows
+    .map((row) => row.startedAt.slice(0, 10))
+    .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day))
+    .sort()[0];
+  const earliest = [earliestLedger, earliestRun]
+    .filter((day): day is string => day !== undefined)
+    .sort()[0];
+  const range = normalizeReportRange(
+    date === undefined
+      ? { period: "all" }
+      : { since: date, until: date },
+    now,
+    earliest,
+  );
+  const ledger = await readLedgerRange(stateHome, range, now);
+  const scopedRows = ledger.rows.filter(({ record }) => app === undefined || record.app === app);
+  const details = await readReportDetails(stateHome, scopedRows, range, app);
+  return buildEfficiencyReport({
+    stateHome,
+    rows: scopedRows,
+    details,
+    range,
+    ...(app === undefined ? {} : { app }),
+    duplicateKeys: duplicateFacts(scopedRows).keys,
+  });
 }
 
 function toPassView(row: StatusRow): PassView {
@@ -570,7 +629,12 @@ function renderTerminal(report: TelemetryReport): string {
   lines.push(
     "",
     "COMPLETION INTEGRITY",
-    `  required stages: ${report.completionIntegrity.requiredStages}`,
+    `  shared Report projection: ${invariantEvidenceStatus(report.invariantEvidence)}`,
+    `  terminal integrity: ${formatEvidenceMetric(report.invariantEvidence.metrics.terminal_integrity)}`,
+    `  execution-step terminal integrity: ${formatEvidenceMetric(report.invariantEvidence.metrics.execution_step_terminal_integrity)}`,
+    `  ledger coverage: ${formatEvidenceMetric(report.invariantEvidence.metrics.ledger_coverage)}`,
+    `  productive provider turns: ${formatEvidenceMetric(report.invariantEvidence.metrics.productive_pass_ratio)}`,
+    `  trace-declared stages only: ${report.completionIntegrity.requiredStages}`,
     `  interrupted runs: ${report.completionIntegrity.interruptedRuns.join(", ") || "none"}`,
     `  inconsistent workdirs: ${report.completionIntegrity.inconsistentWorkdirs.join(", ") || "none observed"}`,
     `  stale envelopes: ${report.completionIntegrity.staleEnvelopes.join(", ") || "none"}`,
@@ -660,6 +724,7 @@ function reportToJson(report: TelemetryReport): unknown {
       manual_fallback: report.completionIntegrity.manualFallback,
       pr_state: report.completionIntegrity.prState,
     },
+    invariant_evidence: report.invariantEvidence,
   };
 }
 
@@ -990,7 +1055,12 @@ function evidenceLink(
 function renderCompletionIntegrity(report: TelemetryReport): string {
   const integrity = report.completionIntegrity;
   return `<section><h2>Completion integrity</h2><dl class="integrity">
-<dt>Did every selected stage run?</dt><dd>${esc(integrity.requiredStages)}</dd>
+<dt>Shared Report invariant projection</dt><dd>${esc(invariantEvidenceStatus(report.invariantEvidence))}</dd>
+<dt>Terminal integrity</dt><dd>${esc(formatEvidenceMetric(report.invariantEvidence.metrics.terminal_integrity))}</dd>
+<dt>Execution-step terminal integrity</dt><dd>${esc(formatEvidenceMetric(report.invariantEvidence.metrics.execution_step_terminal_integrity))}</dd>
+<dt>Ledger coverage</dt><dd>${esc(formatEvidenceMetric(report.invariantEvidence.metrics.ledger_coverage))}</dd>
+<dt>Productive provider turns</dt><dd>${esc(formatEvidenceMetric(report.invariantEvidence.metrics.productive_pass_ratio))}</dd>
+<dt>Trace-declared stages only (narrow forensic check)</dt><dd>${esc(integrity.requiredStages)}</dd>
 <dt>Interrupted / still-running passes</dt><dd>${esc(integrity.interruptedRuns.join(", ") || "none")}</dd>
 <dt>Unexpected workdir changes within a trace</dt><dd>${esc(integrity.inconsistentWorkdirs.join(", ") || "none observed")}</dd>
 <dt>Stale envelopes</dt><dd>${esc(integrity.staleEnvelopes.join(", ") || "none")}</dd>
@@ -999,6 +1069,20 @@ function renderCompletionIntegrity(report: TelemetryReport): string {
 <dt>Manual/external fallback</dt><dd>${esc(integrity.manualFallback)}</dd>
 <dt>PR approval / merge / issue-close state</dt><dd>${esc(integrity.prState)}</dd>
 </dl></section>`;
+}
+
+function invariantEvidenceStatus(
+  evidence: ReportEfficiencyV1,
+): ReportEvidenceMetricV1["status"] {
+  return Object.values(evidence.metrics).every((metric) => metric.status === "valid")
+    ? "valid"
+    : "invalid_measurement";
+}
+
+function formatEvidenceMetric(metric: ReportEvidenceMetricV1): string {
+  const value = metric.value === null ? "unavailable" : `${(metric.value * 100).toFixed(1)}%`;
+  return `${metric.status}; ${metric.numerator}/${metric.denominator} (${value}); ` +
+    `${metric.missing_inputs.length} missing input(s), ${metric.excluded_ids.length} excluded`;
 }
 
 function renderRunningSection(report: TelemetryReport): string {

@@ -1437,6 +1437,7 @@ async function runPass(
       errorCode: verdictOutcome.ok
         ? result.errorCode ?? "error_turn_failed"
         : verdictOutcome.errorCode,
+      detail: { reason: result.summary },
     });
   } else if (status === "cancelled" || status === "timed_out") {
     await events.append({
@@ -1448,7 +1449,9 @@ async function runPass(
   } else {
     await events.append({
       type: "pass.completed",
-      ...(result.status === "blocked_on_gate" ? { detail: { outcome: "blocked_on_gate" } } : {}),
+      ...(result.status === "blocked_on_gate"
+        ? { detail: { outcome: "blocked_on_gate", reason: result.summary } }
+        : {}),
     });
   }
   await events.append({ type: "run.completed" });
@@ -1460,11 +1463,17 @@ async function runPass(
       status,
       verdictSummary: result.summary,
       ...(verdictOutcome.ok
-        ? result.status !== "completed" && result.errorCode !== undefined
-          ? { errorCode: result.errorCode }
-          : {}
+        ? status === "failed"
+          ? { errorCode: result.errorCode ?? "error_turn_failed" }
+          : status === "cancelled"
+            ? { errorCode: result.errorCode ?? "error_cancelled" }
+            : status === "timed_out"
+              ? { errorCode: result.errorCode ?? ERROR_WALL_CLOCK_EXCEEDED }
+              : result.status !== "completed" && result.errorCode !== undefined
+                ? { errorCode: result.errorCode }
+                : {}
         : { errorCode: verdictOutcome.errorCode }),
-      ...(status === "cancelled" || status === "timed_out" ? { reason: result.summary } : {}),
+      ...(status === "completed" ? {} : { reason: result.summary }),
     },
     clock(),
   );

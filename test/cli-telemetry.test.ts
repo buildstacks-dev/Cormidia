@@ -6,7 +6,7 @@
 // Uses makeOrgHome to seed run records; no network, auth, real org state, or
 // wall-clock time is required.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cmdTelemetry } from "../src/cli/telemetry.js";
@@ -23,6 +23,8 @@ interface EnvOverrides {
   previews?: Record<string, string>;
   lastSeenAt?: string;
   planningRoute?: Record<string, unknown>;
+  episodeId?: string;
+  tracePlan?: { required_passes: string[]; skipped_passes: Array<{ pass: string; reason: string }> };
 }
 
 function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
@@ -30,6 +32,7 @@ function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
     schema_version: 1,
     run_id: runId,
     trace_id: over.trace ?? "turn-1",
+    ...(over.episodeId !== undefined ? { episode_id: over.episodeId } : {}),
     app: "alpha",
     ...(over.ticket !== undefined ? { ticket: over.ticket } : {}),
     pipeline: "build",
@@ -44,6 +47,7 @@ function env(runId: string, started: string, over: EnvOverrides = {}): unknown {
     usage: over.usage ?? { tokens_in: 100, tokens_out: 20, cost_usd: 0.1 },
     ...(over.previews !== undefined ? { previews: over.previews } : {}),
     ...(over.planningRoute !== undefined ? { planning_route: over.planningRoute } : {}),
+    ...(over.tracePlan !== undefined ? { trace_plan: over.tracePlan } : {}),
     refs: { events: "events.jsonl", brief: "brief.md", output: "output.md" },
   };
 }
@@ -306,6 +310,99 @@ describe("cmdTelemetry --json", () => {
         passes: 2,
         escalations: 0,
       });
+    } finally {
+      home.cleanup();
+    }
+  });
+});
+
+describe("cmdTelemetry shared invariant evidence", () => {
+  it("keeps forensic completion fields but cannot report clean when Report evidence is invalid", async () => {
+    const episodeId = "episode:missing-durable-evidence";
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            run1: {
+              envelope: env("run1", "2026-07-04T10:00:00Z", {
+                episodeId,
+                tracePlan: { required_passes: ["implement"], skipped_passes: [] },
+              }),
+              events: [{ event: "pass.completed", severity: "info" }],
+            },
+          },
+        },
+      },
+    });
+    try {
+      mkdirSync(join(home.root, "telemetry"), { recursive: true });
+      writeFileSync(join(home.root, "telemetry", "2026-07-04.jsonl"), `${JSON.stringify({
+        at: "2026-07-04T10:00:01.000Z",
+        role: "builder",
+        runtime: "codex",
+        model: "model-a",
+        status: "completed",
+        tokensIn: 100,
+        tokensOut: 20,
+        costUsd: 0.1,
+        usageQuality: "complete",
+        subagentTurns: 0,
+        wallClockMs: 60_000,
+        escalations: 0,
+        app: "alpha",
+        runId: "run1",
+        episodeId,
+        traceId: "turn-1",
+        pipeline: "build",
+        pass: "implement",
+        // Deliberately legacy: no providerTurnId/executionStepId. Report must
+        // reject productive-turn and settlement measurements rather than let
+        // telemetry's trace-only stage check stand in for invariant evidence.
+      })}\n`);
+
+      const terminal = await run(["--home", home.root, "--app", "alpha"]);
+      expect(terminal.out).toContain("shared Report projection: invalid_measurement");
+      expect(terminal.out).toContain("productive provider turns: invalid_measurement");
+      expect(terminal.out).toContain("trace-declared stages only: complete");
+
+      const json = JSON.parse((await run([
+        "--home",
+        home.root,
+        "--app",
+        "alpha",
+        "--json",
+      ])).out) as {
+        completion_integrity: { required_stages: string };
+        invariant_evidence: {
+          metrics: {
+            terminal_integrity: { status: string };
+            ledger_coverage: { status: string };
+            productive_pass_ratio: { status: string; missing_inputs: string[] };
+          };
+          issues: {
+            missing_route_episode_ids: string[];
+            missing_execution_step_run_ids: string[];
+          };
+        };
+      };
+      expect(json.completion_integrity.required_stages).toBe("complete");
+      expect(json.invariant_evidence.metrics).toMatchObject({
+        terminal_integrity: { status: "invalid_measurement" },
+        ledger_coverage: { status: "invalid_measurement" },
+        productive_pass_ratio: { status: "invalid_measurement" },
+      });
+      expect(json.invariant_evidence.metrics.productive_pass_ratio.missing_inputs[0])
+        .toContain("productive fingerprint classification missing");
+      expect(json.invariant_evidence.issues.missing_route_episode_ids).toContain(episodeId);
+      expect(json.invariant_evidence.issues.missing_execution_step_run_ids).toContain("alpha/run1");
+
+      const target = join(home.root, "invariant-telemetry.html");
+      await run(["--home", home.root, "--app", "alpha", "--html", target]);
+      const html = readFileSync(target, "utf8");
+      expect(html).toContain("Shared Report invariant projection");
+      expect(html).toContain("invalid_measurement");
+      expect(html).toContain("Productive provider turns");
+      expect(html).toContain("Trace-declared stages only (narrow forensic check)");
     } finally {
       home.cleanup();
     }

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EPISODE_PLAN_PROPOSAL_SCHEMA,
@@ -19,10 +19,15 @@ import {
 } from "../src/loop/planner-admission.js";
 import { buildEpisodeIntent } from "../src/org/episode-planner/policy.js";
 import { prepareEpisodePlanWithRuntime } from "../src/org/episode-planner/runtime.js";
+import { cmdTelemetry } from "../src/cli/telemetry.js";
+import { renderStoryMarkdown } from "../src/narrative/render.js";
+import { foldAppStories } from "../src/narrative/story.js";
 import type { AppEntry } from "../src/org/apps.js";
 import { FakeRuntime } from "../src/runtime/testing/fakeRuntime.js";
 import { readEnvelope } from "../src/runtime/runlog/envelope.js";
+import { readEvents } from "../src/runtime/runlog/events.js";
 import { runPaths } from "../src/runtime/runlog/paths.js";
+import { formatStatusRows, readStatusRows } from "../src/runtime/runlog/status.js";
 import { readTurnRecords } from "../src/runtime/telemetry.js";
 import type {
   ContextBundle,
@@ -155,8 +160,9 @@ describe("provider-backed EpisodePlanner", () => {
   it("uses one bounded structural repair with deterministic diagnostics", async () => {
     home = makeOrgHome();
     const intent = makeIntent();
+    const invalidRawOutput = JSON.stringify({ schemaVersion: 99 });
     const runtime = new FakeRuntime([
-      { result: completed(JSON.stringify({ schemaVersion: 99 })) },
+      { result: completed(invalidRawOutput) },
       { result: completed(JSON.stringify(proposal(intent))) },
     ], "codex");
 
@@ -175,9 +181,102 @@ describe("provider-backed EpisodePlanner", () => {
       EPISODE_PLAN_PROPOSAL_SCHEMA,
       EPISODE_PLAN_PROPOSAL_SCHEMA,
     ]);
-    expect((await readExecutionSteps(home.root, intent.episodeId)).map((step) => step.operation))
-      .toEqual(["episode-planner/plan", "episode-planner/repair"]);
-    expect(await readTurnRecords(home.root)).toHaveLength(2);
+    const steps = await readExecutionSteps(home.root, intent.episodeId);
+    expect(steps.map((step) => ({
+      operation: step.operation,
+      status: step.status,
+      errorCode: step.error_code,
+    }))).toEqual([
+      {
+        operation: "episode-planner/plan",
+        status: "failed",
+        errorCode: "plan_structure_invalid",
+      },
+      {
+        operation: "episode-planner/repair",
+        status: "completed",
+        errorCode: null,
+      },
+    ]);
+    expect(steps[0]!.reason).toContain("$.schemaVersion");
+    const rejectedEnvelope = await readEnvelope(home.root, "fixture", steps[0]!.run_id);
+    expect(rejectedEnvelope).toMatchObject({
+      status: "failed",
+      error_code: "plan_structure_invalid",
+      terminal_reason: expect.stringContaining("$.schemaVersion"),
+    });
+    expect(await readFile(runPaths(home.root, "fixture", steps[0]!.run_id).output, "utf8"))
+      .toBe(invalidRawOutput);
+    expect(await readEvents(home.root, "fixture", steps[0]!.run_id)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: "pass.failed",
+          severity: "error",
+          error_code: "plan_structure_invalid",
+          detail: { reason: expect.stringContaining("$.schemaVersion") },
+        }),
+      ]),
+    );
+    expect((await readTurnRecords(home.root)).map((record) => record.status))
+      .toEqual(["failed", "completed"]);
+
+    const statusRows = await readStatusRows(home.root, { app: "fixture" });
+    expect(statusRows.find((row) => row.runId === steps[0]!.run_id)?.status)
+      .toBe("failed(plan_structure_invalid)");
+    expect(formatStatusRows(statusRows)).toContain("failed(plan_structure_invalid)");
+  });
+
+  it("reports a terminally rejected plan as failed across status, narrative, and telemetry", async () => {
+    home = makeOrgHome();
+    const intent = makeIntent();
+    const runtime = new FakeRuntime([
+      { result: completed(JSON.stringify({ schemaVersion: 99 })) },
+      { result: completed(JSON.stringify({ schemaVersion: 98 })) },
+    ], "codex");
+
+    await expect(prepareEpisodePlanWithRuntime({
+      ...baseOptions(home.root, intent),
+      runtimeForAssignment: () => runtime,
+    })).rejects.toMatchObject({
+      code: "error_episode_planner_failed",
+      attempts: 2,
+      issues: expect.arrayContaining([
+        expect.objectContaining({ code: "plan_structure_invalid" }),
+      ]),
+    });
+
+    const steps = await readExecutionSteps(home.root, intent.episodeId);
+    expect(steps).toHaveLength(2);
+    expect(steps.every((step) =>
+      step.status === "failed" && step.error_code === "plan_structure_invalid"
+    )).toBe(true);
+    const statusRows = await readStatusRows(home.root, { app: "fixture" });
+    expect(statusRows).toHaveLength(2);
+    expect(statusRows.every((row) => row.status === "failed(plan_structure_invalid)"))
+      .toBe(true);
+    expect(formatStatusRows(statusRows)).toContain("failed(plan_structure_invalid)");
+
+    const narrative = await foldAppStories(home.root, "fixture");
+    expect(narrative.problems).toEqual([]);
+    expect(narrative.stories).toHaveLength(1);
+    expect(narrative.stories[0]).toMatchObject({
+      status: "failed",
+      moments: expect.arrayContaining([
+        expect.objectContaining({ run_id: steps[0]!.run_id, status: "failed" }),
+        expect.objectContaining({ run_id: steps[1]!.run_id, status: "failed" }),
+      ]),
+    });
+    expect(renderStoryMarkdown(narrative.stories[0]!)).toContain("Status: **failed**");
+
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      expect(await cmdTelemetry(["--home", home.root, "--app", "fixture"])).toBe(0);
+      const telemetry = log.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(telemetry).toContain("failed(plan_structure_invalid)");
+      expect(telemetry).toContain("productive provider turns: valid; 0/2 (0.0%)");
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it("does not buy a repair turn when validation supplies no actionable defect", async () => {
@@ -280,6 +379,82 @@ describe("provider-backed EpisodePlanner", () => {
     expect(idempotent.plan).toEqual(resumed.plan);
     expect(runtime.calls).toHaveLength(1);
     expect(await readTurnRecords(home.root)).toHaveLength(1);
+  });
+
+  it("reclassifies a recovered legacy completed receipt before finalizing its running envelope", async () => {
+    home = makeOrgHome();
+    const intent = makeIntent();
+    const invalidRawOutput = JSON.stringify({ schemaVersion: 99 });
+    const runtime = new FakeRuntime([
+      { result: completed(invalidRawOutput) },
+      { result: completed(JSON.stringify(proposal(intent))) },
+    ], "codex");
+    let crash = true;
+    const options = {
+      ...baseOptions(home.root, intent),
+      runtimeForAssignment: () => runtime,
+      afterAttemptFinalized: () => {
+        if (crash) {
+          crash = false;
+          throw new Error("simulated old crash before plan validation");
+        }
+      },
+    };
+
+    await expect(prepareEpisodePlanWithRuntime(options))
+      .rejects.toThrow("simulated old crash before plan validation");
+    const [first] = await readExecutionSteps(home.root, intent.episodeId);
+    expect(first?.status).toBe("failed");
+    await rewriteAsLegacyCompletedReceipt(home, intent, first!, invalidRawOutput, false);
+
+    const resumed = await prepareEpisodePlanWithRuntime(options);
+    expect(resumed.plannerAttempts).toBe(2);
+    expect(runtime.calls).toHaveLength(2);
+    // The old receipt is immutable, but the still-running envelope and its
+    // settlement consume the deterministic validation result before either
+    // can repeat the false completed state.
+    expect((await readExecutionSteps(home.root, intent.episodeId))[0]?.status).toBe("completed");
+    expect(await readEnvelope(home.root, "fixture", first!.run_id)).toMatchObject({
+      status: "failed",
+      error_code: "plan_structure_invalid",
+      terminal_reason: expect.stringContaining("$.schemaVersion"),
+    });
+    expect((await readTurnRecords(home.root)).map((record) => record.status))
+      .toEqual(["failed", "completed"]);
+  });
+
+  it("does not rewrite an already-terminal legacy completed envelope while requiring its repair", async () => {
+    home = makeOrgHome();
+    const intent = makeIntent();
+    const invalidRawOutput = JSON.stringify({ schemaVersion: 99 });
+    const runtime = new FakeRuntime([
+      { result: completed(invalidRawOutput) },
+      { result: completed(JSON.stringify(proposal(intent))) },
+    ], "codex");
+    let crash = true;
+    const options = {
+      ...baseOptions(home.root, intent),
+      runtimeForAssignment: () => runtime,
+      afterAttemptFinalized: () => {
+        if (crash) {
+          crash = false;
+          throw new Error("simulated old terminalization gap");
+        }
+      },
+    };
+
+    await expect(prepareEpisodePlanWithRuntime(options))
+      .rejects.toThrow("simulated old terminalization gap");
+    const [first] = await readExecutionSteps(home.root, intent.episodeId);
+    await rewriteAsLegacyCompletedReceipt(home, intent, first!, invalidRawOutput, true);
+
+    const resumed = await prepareEpisodePlanWithRuntime(options);
+    expect(resumed.plannerAttempts).toBe(2);
+    expect(runtime.calls).toHaveLength(2);
+    expect((await readExecutionSteps(home.root, intent.episodeId))[0]?.status).toBe("completed");
+    expect((await readEnvelope(home.root, "fixture", first!.run_id)).status).toBe("completed");
+    expect((await readTurnRecords(home.root)).map((record) => record.status))
+      .toEqual(["completed", "completed"]);
   });
 
   it("fails closed when returned session evidence names a different harness", async () => {
@@ -505,6 +680,32 @@ function creatorScope(): CreatorEpisodeScope {
     safetyFacts: [],
     steps: [providerStep()],
   };
+}
+
+async function rewriteAsLegacyCompletedReceipt(
+  home: OrgHomeFixture,
+  intent: EpisodeIntent,
+  step: { execution_step_id: string; run_id: string },
+  rawOutput: string,
+  terminalEnvelope: boolean,
+): Promise<void> {
+  const stepPath = home.paths.executionStep(intent.episodeId, step.execution_step_id);
+  const durableStep = JSON.parse(await readFile(stepPath, "utf8")) as Record<string, unknown>;
+  durableStep["status"] = "completed";
+  durableStep["error_code"] = null;
+  durableStep["reason"] = rawOutput;
+  durableStep["productive"] = false;
+  await writeFile(stepPath, `${JSON.stringify(durableStep, null, 2)}\n`, "utf8");
+
+  if (!terminalEnvelope) return;
+  const envelopePath = runPaths(home.root, "fixture", step.run_id).envelope;
+  const envelope = JSON.parse(await readFile(envelopePath, "utf8")) as Record<string, unknown>;
+  envelope["status"] = "completed";
+  envelope["finished_at"] = NOW.toISOString();
+  envelope["verdict_summary"] = rawOutput;
+  delete envelope["error_code"];
+  delete envelope["terminal_reason"];
+  await writeFile(envelopePath, `${JSON.stringify(envelope, null, 2)}\n`, "utf8");
 }
 
 function completed(summary: string): TurnResult {

@@ -861,6 +861,16 @@ describe("executePipeline", () => {
       const run = await executePipeline(h.options);
       // The second pass ended blocked — it consumed budget too (Defect B).
       expect(run.aborted).toBe(true);
+      const blockedEnvelope = await readEnvelope(
+        h.options.runlog.root,
+        "civic",
+        run.passes[1]!.runId,
+      );
+      expect(blockedEnvelope).toMatchObject({
+        status: "blocked",
+        error_code: "error_route_budget_exhausted",
+        terminal_reason: expect.stringContaining("stopped after build/implement"),
+      });
 
       const raw = readFileSync(
         `${h.options.runlog.root}/telemetry/2026-07-05.jsonl`,
@@ -1318,11 +1328,19 @@ describe("executePipeline", () => {
 
       const runId = result.passes[0]?.runId as string;
       const envelope = await readEnvelope(h.options.runlog.root, "civic", runId);
-      expect(envelope.status).toBe("failed");
+      expect(envelope).toMatchObject({
+        status: "failed",
+        error_code: "error_turn_failed",
+        terminal_reason: "contract dies",
+      });
       const events = await readEvents(h.options.runlog.root, "civic", runId);
-      expect(events.some((e) => e.event === "pass.failed" && e.error_code === "error_turn_failed")).toBe(
-        true,
-      );
+      expect(events).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          event: "pass.failed",
+          error_code: "error_turn_failed",
+          detail: { reason: "contract dies" },
+        }),
+      ]));
     } finally {
       h.cleanup();
     }

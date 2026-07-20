@@ -7,6 +7,7 @@ import {
 import {
   deriveEpisodeSafetyRoute,
   EpisodePlanValidationError,
+  EPISODE_PLAN_REASON_CODES,
   EPISODE_PLAN_PROPOSAL_SCHEMA,
   assertEpisodePlanValid,
   assessCreatorScope,
@@ -122,6 +123,8 @@ const DEFAULT_REQUIRED_CAPABILITIES = [
 const EPISODE_PLANNER_TOOL_DENIAL =
   "EpisodePlanner is confined to the bounded intent and context manifest; tool calls are not authorized";
 
+const EPISODE_PLAN_REASON_CODE_SET = new Set<string>(EPISODE_PLAN_REASON_CODES);
+
 export interface ProviderEpisodePlannerOptions {
   root: string;
   app: AppEntry;
@@ -189,7 +192,14 @@ interface PlannerExecutedAttemptOutput {
   rawOutput: string;
   result: TurnResult;
   step: ExecutionStepRecord;
+  evaluation?: PlannerOutputEvaluation;
 }
+
+type PlannerOutputEvaluation =
+  | { kind: "accepted"; plan: EpisodePlan }
+  | { kind: "rejected"; diagnostics: EpisodePlanIssue[] };
+
+type PlannerOutputEvaluator = (rawOutput: string) => EpisodePlan;
 
 type PlannerAttemptOutput =
   | PlannerExecutedAttemptOutput
@@ -316,6 +326,12 @@ export async function prepareEpisodePlanWithRuntime(
       plannerRole,
       requiredCapabilities,
       request,
+      (rawOutput) => evaluateInitialPlannerOutput(
+        rawOutput,
+        options,
+        policy,
+        proposalCreatedAt,
+      ),
       now,
     );
     if ("acceptedPlan" in outcome) {
@@ -335,7 +351,14 @@ export async function prepareEpisodePlanWithRuntime(
         await terminalAttemptCount(options),
       );
     }
-    if (outcome.result.status !== "completed") {
+    if (outcome.evaluation?.kind === "rejected") {
+      diagnostics = outcome.evaluation.diagnostics;
+      if (attempt === 2 || !hasActionableRepairDiagnostic(diagnostics)) {
+        throw new EpisodePlannerFailedError(attempt, diagnostics);
+      }
+      continue;
+    }
+    if (outcome.result.status !== "completed" || outcome.evaluation === undefined) {
       throw new EpisodePlannerFailedError(attempt, [{
         code: "plan_structure_invalid",
         message:
@@ -343,48 +366,21 @@ export async function prepareEpisodePlanWithRuntime(
           outcome.result.summary,
       }]);
     }
-
-    try {
-      const proposal = parsePlannerOutput(outcome.rawOutput);
-      if (proposal.createdAt !== proposalCreatedAt) {
-        throw new EpisodePlanValidationError([{
-          code: "plan_created_at_invalid",
-          message: `createdAt must echo the orchestrator timestamp ${proposalCreatedAt}`,
-        }]);
-      }
-      const materialized = materializeEpisodePlanAssignments(
-        proposal,
-        policy.materialization,
-      );
-      const plan: EpisodePlan = {
-        ...materialized,
-        derivedSafetyRoute: deriveEpisodeSafetyRoute(
-          materialized.steps,
-          options.intent.requiredSafetyFacts,
-        ),
-      };
-      assertEpisodePlanValid(plan, options.intent, policy.validation);
-      options.validateAcceptedPlan?.(structuredClone(plan));
-      await persistAcceptedEpisodePlannerPlan({
-        root: options.root,
-        plan,
-        intent: options.intent,
-        policy: policy.validation,
-        now: now(),
-      });
-      return {
-        plan,
-        intentHash,
-        planningTurnSkipped: false,
-        plannerAttempts: attempt,
-        creatorScopeAssessment,
-      };
-    } catch (error) {
-      diagnostics = diagnosticsFrom(error);
-      if (attempt === 2 || !hasActionableRepairDiagnostic(diagnostics)) {
-        throw new EpisodePlannerFailedError(attempt, diagnostics);
-      }
-    }
+    const plan = outcome.evaluation.plan;
+    await persistAcceptedEpisodePlannerPlan({
+      root: options.root,
+      plan,
+      intent: options.intent,
+      policy: policy.validation,
+      now: now(),
+    });
+    return {
+      plan,
+      intentHash,
+      planningTurnSkipped: false,
+      plannerAttempts: attempt,
+      creatorScopeAssessment,
+    };
   }
   throw new EpisodePlannerFailedError(2, diagnostics);
 }
@@ -447,9 +443,24 @@ export function createProviderEpisodePlanRevisionProposer(
         plannerRole,
         requiredCapabilities,
         plannerRequest,
+        (rawOutput) => evaluateRevisionPlannerOutput(
+          rawOutput,
+          options,
+          policy,
+          request,
+          proposalCreatedAt,
+          completedStepIds,
+        ),
         options.now ?? (() => new Date()),
       );
-      if (outcome.result.status !== "completed") {
+      if (outcome.evaluation?.kind === "rejected") {
+        diagnostics = outcome.evaluation.diagnostics;
+        if (attempt === 2 || !hasActionableRepairDiagnostic(diagnostics)) {
+          throw new EpisodePlannerFailedError(attempt, diagnostics);
+        }
+        continue;
+      }
+      if (outcome.result.status !== "completed" || outcome.evaluation === undefined) {
         throw new EpisodePlannerFailedError(attempt, [{
           code: "plan_structure_invalid",
           message:
@@ -457,46 +468,7 @@ export function createProviderEpisodePlanRevisionProposer(
             outcome.result.summary,
         }]);
       }
-
-      try {
-        const proposal = parsePlannerOutput(outcome.rawOutput);
-        assertRevisionProposalIdentity(proposal, request, proposalCreatedAt);
-        const materialized = materializeEpisodePlanAssignments(
-          proposal,
-          policy.materialization,
-        );
-        const plan: EpisodePlan = {
-          ...materialized,
-          derivedSafetyRoute: deriveEpisodeSafetyRoute(
-            materialized.steps,
-            request.intent.requiredSafetyFacts,
-          ),
-        };
-        assertEpisodePlanValid(plan, request.intent, policy.validation);
-        const revisionIssues = [
-          ...validateForwardOnlyRevision(
-            request.previousPlan,
-            plan,
-            completedStepIds,
-          ),
-          ...validateUnavailableAssignmentRevision(
-            request.previousPlan,
-            plan,
-            request.replan,
-            completedStepIds,
-          ),
-        ];
-        if (revisionIssues.length > 0) {
-          throw new EpisodePlanValidationError(revisionIssues);
-        }
-        options.validateAcceptedPlan?.(structuredClone(plan));
-        return { plan, policy: policy.validation };
-      } catch (error) {
-        diagnostics = diagnosticsFrom(error);
-        if (attempt === 2 || !hasActionableRepairDiagnostic(diagnostics)) {
-          throw new EpisodePlannerFailedError(attempt, diagnostics);
-        }
-      }
+      return { plan: outcome.evaluation.plan, policy: policy.validation };
     }
     throw new EpisodePlannerFailedError(2, diagnostics);
   };
@@ -507,6 +479,7 @@ async function runPlannerAttempt(
   plannerRole: RoleConfig,
   requiredCapabilities: RuntimeCapability[],
   request: EpisodePlannerProposalRequest,
+  evaluateOutput: PlannerOutputEvaluator,
   now: () => Date,
 ): Promise<PlannerAttemptOutput> {
   const brief = renderEpisodePlannerBrief(request);
@@ -540,7 +513,7 @@ async function runPlannerAttempt(
     return { acceptedPlan: decision.plan };
   }
   if (decision.kind === "resume_terminal") {
-    return recoverTerminalAttempt(options, plannerRole, decision, now);
+    return recoverTerminalAttempt(options, plannerRole, decision, evaluateOutput, now);
   }
   return executeStartedAttempt(
     options,
@@ -551,6 +524,7 @@ async function runPlannerAttempt(
     attemptName,
     runId,
     decision,
+    evaluateOutput,
     now,
   );
 }
@@ -560,6 +534,7 @@ async function runRevisionPlannerAttempt(
   plannerRole: RoleConfig,
   requiredCapabilities: RuntimeCapability[],
   request: EpisodePlannerRevisionRequest,
+  evaluateOutput: PlannerOutputEvaluator,
   now: () => Date,
 ): Promise<PlannerExecutedAttemptOutput> {
   validateRevisionPlannerLimits(options.limits, plannerRole, request.attempt);
@@ -597,6 +572,7 @@ async function runRevisionPlannerAttempt(
       options,
       plannerRole,
       { attempt: request.attempt, step: terminal },
+      evaluateOutput,
       now,
       attemptName,
       true,
@@ -664,6 +640,7 @@ async function runRevisionPlannerAttempt(
         started,
         maxTurnBudgetUsd: options.limits.perAttempt.equivalentCostUsd,
       },
+      evaluateOutput,
       now,
       (input) => finalizeProviderStep({
         root: options.root,
@@ -711,6 +688,7 @@ async function executeStartedAttempt(
   attemptName: string,
   runId: string,
   decision: StartedPlannerAttempt,
+  evaluateOutput: PlannerOutputEvaluator,
   now: () => Date,
   finalizeAttempt: (input: {
     started: StartedProviderStep;
@@ -882,12 +860,20 @@ async function executeStartedAttempt(
     result = failedResult(error, assignment, request.attempt, latestProgress);
   }
   await checkpointWrites;
-  await writeOutput(options.root, options.app.name, runId, result.summary);
+  const rawOutput = result.summary;
+  let evaluation: PlannerOutputEvaluation | undefined;
+  if (result.status === "completed") {
+    evaluation = evaluatePlannerOutput(rawOutput, evaluateOutput);
+    if (evaluation.kind === "rejected") {
+      result = rejectedPlannerResult(result, evaluation.diagnostics);
+    }
+  }
+  await writeOutput(options.root, options.app.name, runId, rawOutput);
   await updateEnvelope(options.root, options.app.name, runId, {
     usage: toEnvelopeUsage(result.usage),
     session: sessionEvidence(result.session),
     ...(result.artifacts.length === 0 ? {} : { artifacts: result.artifacts }),
-    previews: { task, output: result.summary },
+    previews: { task, output: rawOutput },
     ...(toolCalls === 0 ? {} : { tool_counts: { provider: toolCalls } }),
   });
   for (const escalation of result.escalations) {
@@ -940,13 +926,19 @@ async function executeStartedAttempt(
     now,
     strictSettlement,
   );
-  return { rawOutput: result.summary, result, step };
+  return {
+    rawOutput,
+    result,
+    step,
+    ...(evaluation === undefined ? {} : { evaluation }),
+  };
 }
 
 async function recoverTerminalAttempt(
   options: ProviderEpisodePlannerOptions,
   plannerRole: RoleConfig,
   decision: TerminalPlannerAttempt,
+  evaluateOutput: PlannerOutputEvaluator,
   now: () => Date,
   pass = decision.attempt === 1 ? "plan" : "repair",
   strictSettlement = false,
@@ -965,7 +957,19 @@ async function recoverTerminalAttempt(
   const outputPath = runPaths(options.root, options.app.name, step.run_id).output;
   if (existsSync(outputPath)) rawOutput = await readFile(outputPath, "utf8");
   else await writeOutput(options.root, options.app.name, step.run_id, rawOutput);
-  const result = resultFromTerminal(step);
+  const terminalResult = resultFromTerminal(step);
+  const evaluation = shouldEvaluateRecoveredPlannerOutput(terminalResult)
+    ? evaluatePlannerOutput(rawOutput, evaluateOutput)
+    : undefined;
+  // A terminal provider receipt may predate its envelope finalization. Apply
+  // deterministic plan rejection before that remaining durable work so a
+  // recovered crash cannot recreate the old completed-on-invalid-output bug.
+  // Already-terminal legacy envelopes remain immutable and are only diagnosed
+  // by `evaluation`; this recovery path never rewrites terminal evidence.
+  const result = envelope.status === "running" && evaluation?.kind === "rejected" &&
+      terminalResult.status === "completed"
+    ? rejectedPlannerResult(terminalResult, evaluation.diagnostics)
+    : terminalResult;
   if (envelope.status === "running") {
     await updateEnvelope(options.root, options.app.name, step.run_id, {
       usage: toEnvelopeUsage(result.usage),
@@ -974,7 +978,12 @@ async function recoverTerminalAttempt(
     await finalizePlannerRun(options, result, step.run_id, events, now);
   }
   await settlePlannerTurn(options, plannerRole, result, step, events, strictSettlement);
-  return { rawOutput, result, step };
+  return {
+    rawOutput,
+    result,
+    step,
+    ...(evaluation === undefined ? {} : { evaluation }),
+  };
 }
 
 async function finishRunAndSettle(
@@ -1080,6 +1089,7 @@ async function finalizePlannerRun(
     type: terminalEvent,
     ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
     ...(status === "completed" ? {} : { severity: "error" }),
+    ...(status === "completed" ? {} : { detail: { reason: result.summary } }),
   });
   await events.append({ type: "run.completed" });
   await finalizeRun(options.root, options.app.name, runId, {
@@ -1126,6 +1136,112 @@ function resultFromTerminal(step: ExecutionStepRecord): TurnResult {
     usage: step.usage ?? unavailableUsage(),
     escalations: [],
   };
+}
+
+function evaluateInitialPlannerOutput(
+  rawOutput: string,
+  options: ProviderEpisodePlannerOptions,
+  policy: EpisodePlanningPolicy,
+  proposalCreatedAt: string,
+): EpisodePlan {
+  const proposal = parsePlannerOutput(rawOutput);
+  if (proposal.createdAt !== proposalCreatedAt) {
+    throw new EpisodePlanValidationError([{
+      code: "plan_created_at_invalid",
+      message: `createdAt must echo the orchestrator timestamp ${proposalCreatedAt}`,
+    }]);
+  }
+  const materialized = materializeEpisodePlanAssignments(
+    proposal,
+    policy.materialization,
+  );
+  const plan: EpisodePlan = {
+    ...materialized,
+    derivedSafetyRoute: deriveEpisodeSafetyRoute(
+      materialized.steps,
+      options.intent.requiredSafetyFacts,
+    ),
+  };
+  assertEpisodePlanValid(plan, options.intent, policy.validation);
+  options.validateAcceptedPlan?.(structuredClone(plan));
+  return plan;
+}
+
+function evaluateRevisionPlannerOutput(
+  rawOutput: string,
+  options: ProviderEpisodePlannerOptions,
+  policy: EpisodePlanningPolicy,
+  request: EpisodePlanRevisionProposalRequest,
+  proposalCreatedAt: string,
+  completedStepIds: readonly string[],
+): EpisodePlan {
+  const proposal = parsePlannerOutput(rawOutput);
+  assertRevisionProposalIdentity(proposal, request, proposalCreatedAt);
+  const materialized = materializeEpisodePlanAssignments(
+    proposal,
+    policy.materialization,
+  );
+  const plan: EpisodePlan = {
+    ...materialized,
+    derivedSafetyRoute: deriveEpisodeSafetyRoute(
+      materialized.steps,
+      request.intent.requiredSafetyFacts,
+    ),
+  };
+  assertEpisodePlanValid(plan, request.intent, policy.validation);
+  const revisionIssues = [
+    ...validateForwardOnlyRevision(
+      request.previousPlan,
+      plan,
+      completedStepIds,
+    ),
+    ...validateUnavailableAssignmentRevision(
+      request.previousPlan,
+      plan,
+      request.replan,
+      completedStepIds,
+    ),
+  ];
+  if (revisionIssues.length > 0) {
+    throw new EpisodePlanValidationError(revisionIssues);
+  }
+  options.validateAcceptedPlan?.(structuredClone(plan));
+  return plan;
+}
+
+function evaluatePlannerOutput(
+  rawOutput: string,
+  evaluateOutput: PlannerOutputEvaluator,
+): PlannerOutputEvaluation {
+  try {
+    return { kind: "accepted", plan: evaluateOutput(rawOutput) };
+  } catch (error) {
+    return { kind: "rejected", diagnostics: diagnosticsFrom(error) };
+  }
+}
+
+function rejectedPlannerResult(
+  result: TurnResult,
+  diagnostics: readonly EpisodePlanIssue[],
+): TurnResult {
+  const primary = diagnostics[0] ?? {
+    code: "plan_structure_invalid" as const,
+    message: "EpisodePlanner output did not satisfy the plan contract",
+  };
+  return {
+    ...result,
+    status: "failed",
+    errorCode: primary.code,
+    summary: diagnostics
+      .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+      .join("; "),
+    artifacts: [],
+  };
+}
+
+function shouldEvaluateRecoveredPlannerOutput(result: TurnResult): boolean {
+  return result.status === "completed" ||
+    (result.errorCode !== undefined && EPISODE_PLAN_REASON_CODE_SET.has(result.errorCode));
 }
 
 function parsePlannerOutput(raw: string) {

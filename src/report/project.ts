@@ -316,7 +316,7 @@ function buildAppRows(appsFile: AppsFile, budgets: Awaited<ReturnType<typeof rol
   });
 }
 
-function duplicateFacts(rows: LedgerRowSource[]): { rows: number; keys: string[]; tokens: number; cost: number } {
+export function duplicateFacts(rows: LedgerRowSource[]): { rows: number; keys: string[]; tokens: number; cost: number } {
   const seen = new Set<string>();
   const keys = new Set<string>();
   let duplicates = 0;

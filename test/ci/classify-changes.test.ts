@@ -73,7 +73,14 @@ describe("Observer and Reports changes add their required lane", () => {
   it("admits the observer lane for packaging, home resolution and onboarding surfaces", () => {
     // AGENTS.md: "Packaging, home resolution, CLI discovery, or onboarding
     // changes: also run pnpm smoke:onboarding and npm pack --dry-run".
-    for (const path of ["src/org/home.ts", "src/cli.ts", "scripts/smoke-onboarding.mjs", "agent-skills/operon/SKILL.md"]) {
+    for (const path of [
+      "src/org/home.ts",
+      "src/cli.ts",
+      "src/operon.cjs",
+      "src/operon-local.cjs",
+      "scripts/smoke-onboarding.mjs",
+      "agent-skills/operon/SKILL.md",
+    ]) {
       expect(decide([path]), path).toMatchObject({ core: true, observe: true });
     }
   });

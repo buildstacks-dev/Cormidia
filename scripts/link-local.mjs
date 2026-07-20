@@ -6,7 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
-const binarySource = join(packageRoot, "scripts", "operon-local.mjs");
+const binarySource = join(packageRoot, "src", "operon-local.cjs");
 const binDir = resolve(process.env.OPERON_BIN_DIR ?? join(homedir(), ".local", "bin"));
 const binaryTarget = join(binDir, "operon");
 const codexHome = resolve(process.env.CODEX_HOME ?? join(homedir(), ".codex"));

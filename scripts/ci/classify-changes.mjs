@@ -84,6 +84,8 @@ function isObservePath(path) {
     path === "src/org/home.ts" ||
     path === "src/cli.ts" ||
     path.startsWith("agent-skills/") ||
+    path === "src/operon.cjs" ||
+    path === "src/operon-local.cjs" ||
     path === "scripts/smoke-onboarding.mjs" ||
     path === "scripts/link-local.mjs" ||
     path === "scripts/operon-local.mjs" ||

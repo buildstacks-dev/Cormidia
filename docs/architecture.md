@@ -209,8 +209,10 @@ home from the current working directory.
 ### Package root (installed Operon implementation)
 
 ```
-dist/                    compiled package CLI (`operon` bin)
-src/                     source tree in a development checkout
+src/operon.cjs           packaged pre-ESM cwd guard (`operon` bin)
+src/operon-local.cjs     source-backed pre-ESM cwd guard
+dist/                    compiled package CLI behind the preflight
+src/**/*.ts              TypeScript source in a development checkout
 TASTE.md                 org-init template, not an active org instance
 roles.yaml               org-init template
 pipelines.yaml           org-init template
@@ -219,10 +221,13 @@ taste/                   org-init role craft templates
 agent-skills/operon/     packaged coding-agent operating guide
 ```
 
-`pnpm link:local` creates a source-backed launcher, so a development checkout's
-next `operon` invocation reads the latest TypeScript source. Packed installs
-use `dist/cli.js`. Both modes resolve templates relative to the installed
-package, never relative to the caller's current directory.
+`pnpm link:local` creates a source-backed pre-ESM launcher, so a development
+checkout's next `operon` invocation reads the latest TypeScript source. Packed
+installs use the parallel `src/operon.cjs` launcher before loading
+`dist/cli.js`. Both absolute CommonJS entries check `process.cwd()` before any
+ESM import, reject a removed caller directory with one actionable line, and
+resolve templates relative to the installed package rather than the caller's
+current directory.
 
 ### Org home (required, committed separately)
 

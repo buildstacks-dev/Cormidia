@@ -5,9 +5,11 @@
   "description": "Org runtime: a standing team of AI agents developing a product via a private GitHub repo, human-gated on critical ops only",
   "type": "module",
   "bin": {
-    "operon": "./dist/cli.js"
+    "operon": "./src/operon.cjs"
   },
   "files": [
+    "src/operon.cjs",
+    "src/operon-local.cjs",
     "dist/**/*.js",
     "agent-skills/operon/",
     "config/launchd/",

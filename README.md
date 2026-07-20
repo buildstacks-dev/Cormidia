@@ -80,7 +80,9 @@ and pi (`$PI_CODING_AGENT_DIR/skills/operon`), using each provider's default
 home when its override is unset. Add `~/.local/bin` to `PATH` if necessary. The
 local command is source-backed: the next invocation reads the latest source
 changes, so no `operon update`, relink, or rebuild is needed. A packed or
-published installation instead runs the compiled `dist/cli.js` binary.
+published installation uses the packaged `src/operon.cjs` preflight launcher and
+then runs the compiled `dist/cli.js` binary. Both launchers report a removed
+working directory before ESM resolution with one actionable Operon error.
 
 These four locations are intentionally different:
 

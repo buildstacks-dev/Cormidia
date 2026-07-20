@@ -83,12 +83,22 @@ export function createLoopGateForRole(
     });
 }
 
-export async function cmdLoop(args: string[]): Promise<number> {
-  const common = extractHomeFlags(args, "loop");
-  args = common.rest;
-  if (args[0] === "rearm") {
-    return cmdClaimRearm(args.slice(1), await resolveOperonHomes(common));
-  }
+export interface ParsedLoopRunArgs {
+  appName?: string;
+  once: boolean;
+  follow: boolean;
+  dryRun: boolean;
+  repoDir?: string;
+  worktreeRoot?: string;
+  allowNetwork: boolean;
+  parentTaskInput?: string;
+  explainEpisode?: string;
+  resumeEpisode?: string;
+}
+
+/** Pure parser shared by the executable loop and generated-guidance
+ * conformance tests. It performs no GitHub read and constructs no runtime. */
+export function parseLoopRunArgs(args: string[]): ParsedLoopRunArgs {
   let appName: string | undefined;
   let once = false;
   let follow = false;
@@ -126,6 +136,39 @@ export async function cmdLoop(args: string[]): Promise<number> {
       throw new Error(`loop: unknown flag "${arg}"`);
     }
   }
+
+  return {
+    once,
+    follow,
+    dryRun,
+    allowNetwork,
+    ...(appName !== undefined ? { appName } : {}),
+    ...(repoDir !== undefined ? { repoDir } : {}),
+    ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),
+    ...(parentTaskInput !== undefined ? { parentTaskInput } : {}),
+    ...(explainEpisode !== undefined ? { explainEpisode } : {}),
+    ...(resumeEpisode !== undefined ? { resumeEpisode } : {}),
+  };
+}
+
+export async function cmdLoop(args: string[]): Promise<number> {
+  const common = extractHomeFlags(args, "loop");
+  args = common.rest;
+  if (args[0] === "rearm") {
+    return cmdClaimRearm(args.slice(1), await resolveOperonHomes(common));
+  }
+  const parsed = parseLoopRunArgs(args);
+  const {
+    appName,
+    dryRun,
+    repoDir,
+    worktreeRoot,
+    allowNetwork,
+    parentTaskInput,
+    explainEpisode,
+    resumeEpisode,
+  } = parsed;
+  let { once, follow } = parsed;
 
   const homes = await resolveOperonHomes(common);
   if (explainEpisode !== undefined) {

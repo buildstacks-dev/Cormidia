@@ -200,7 +200,12 @@ stack-neutral product docs and Operon artifacts: no framework, runtime, package
 manager, application skeleton, or gate command is inferred from `--goal`.
 Required test/lint gates remain explicitly pending and fail closed until the
 first implementation configures meaningful stack-specific commands. Dry-run
-text and JSON report the selected template, exact paths, and gate state.
+text and JSON report the selected template, exact paths (including the
+generated `.operon/LABELS.md` reference), and gate state. The generated next
+steps install the canonical state/tier/priority/domain labels idempotently
+before creating the first issue, then preview the supported
+`plan --auto --goal ... --source docs/VISION.md --source
+docs/REQUIREMENTS.md` form token-free before its live form.
 For `bare`, run only the generated stack-and-gates establishment issue through
 the loop first; it reloads commands from the Builder worktree before gates.
 Verify and preview promotion only after that issue merges with real checks.
@@ -212,7 +217,7 @@ Onboarding claims follow an evidence ladder:
 | --- | --- |
 | Generated | Local app/org artifacts exist; no registry, remote, runtime, or schedule claim follows. |
 | Registered | The org registry and app-owned config agree; the app remains onboarding. |
-| Runtime-ready | Deterministic verification proves refs, ancestry, managed clone, authority/config hashes, app checks, locks/approvals, and required adapters. |
+| Runtime-ready | Deterministic verification proves refs, ancestry, canonical GitHub labels (explicitly not applicable for local/file remotes), managed clone, authority/config hashes, app checks, locks/approvals, and required adapters. |
 | Live | Human-selected registry policy permits ordinary manual/dispatch work; a scheduler is not implied. |
 | Autonomously scheduled | The correct org-scoped scheduler is installed, healthy, and emits attributable due/executed/skipped/blocked evidence. |
 

@@ -6,6 +6,10 @@ import { existsSync } from "node:fs";
 import { appendFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import {
+  CANONICAL_LABELS,
+  type CanonicalLabelKind,
+} from "../loop/plan-tickets.js";
+import {
   appArtifactFiles,
   bootstrapRun,
   parseAnswers,
@@ -95,6 +99,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   const scaffold = generatedFiles(template, appName, options.repoSlug, goal);
   const bootstrapFiles = appArtifactFiles(answers, allRoles);
   const operonSeedFiles = [
+    ".operon/LABELS.md",
     ".operon/bootstrap/initial-issue.md",
     ".operon/bootstrap/next-commands.md",
     ".operon/planning/0001-greenfield-seed.md",
@@ -344,14 +349,18 @@ function generatedOperonSeedFiles(
 ): GeneratedFile[] {
   return [
     {
+      rel: ".operon/LABELS.md",
+      content: labelsMd(),
+    },
+    {
       rel: ".operon/bootstrap/initial-issue.md",
       content: template === "bare" ? bareInitialIssueMd(appName, goal) : initialIssueMd(appName, goal),
     },
     {
       rel: ".operon/bootstrap/next-commands.md",
       content: template === "bare"
-        ? bareNextCommandsMd(appName, repoSlug, targetDir)
-        : nextCommandsMd(appName, repoSlug, targetDir),
+        ? bareNextCommandsMd(appName, repoSlug, goal, targetDir)
+        : nextCommandsMd(appName, repoSlug, goal, targetDir),
     },
     {
       rel: ".operon/planning/0001-greenfield-seed.md",
@@ -449,6 +458,7 @@ vacuous green checks.
 - GitHub repo slug: \`${repoSlug}\`
 - App charter: \`.operon/TASTE.md\`
 - App registry entry: \`.operon/config.yaml\`
+- GitHub label contract: \`.operon/LABELS.md\`
 - Initial issue body: \`.operon/bootstrap/initial-issue.md\`
 - Planner seed: \`.operon/planning/0001-greenfield-seed.md\`
 
@@ -518,6 +528,7 @@ The local server builds the app and serves it at http://localhost:4173.
 - GitHub repo slug: \`${repoSlug}\`
 - App charter: \`.operon/TASTE.md\`
 - App registry entry: \`.operon/config.yaml\`
+- GitHub label contract: \`.operon/LABELS.md\`
 - Initial issue body: \`.operon/bootstrap/initial-issue.md\`
 - Planner seed: \`.operon/planning/0001-greenfield-seed.md\`
 
@@ -1094,53 +1105,194 @@ Seed goal:
 `;
 }
 
-function bareNextCommandsMd(appName: string, repoSlug: string, targetDir: string): string {
-  const commandLead = "Run these from the generated app repo after reviewing the scaffold.";
-  const bareLead = `The bare template's generated initial issue is the stack-and-gates
+function bareNextCommandsMd(
+  appName: string,
+  repoSlug: string,
+  goal: string,
+  targetDir: string,
+): string {
+  return `# Next Commands
+
+The bare template's generated initial issue is the stack-and-gates
 establishment path. Keep it as the only ready product-work issue until it
 merges: the loop reloads gate commands from the Builder worktree before gates,
 so that issue can introduce the first real commands without certifying the
 empty scaffold.
 
-Do not run operon app verify or operon app promote before that issue merges.
-Verification intentionally fails while test/lint commands are absent, and
-promotion requires a passing verification. Do not substitute placeholder,
+Do not run \`operon app verify\` or \`operon app promote\` before that issue
+merges. Verification intentionally fails while test/lint commands are absent,
+and promotion requires a passing verification. Do not substitute placeholder,
 no-op, or zero-test commands.
 
-${commandLead}`;
-  const shared = nextCommandsMd(appName, repoSlug, targetDir)
-    .replace(commandLead, bareLead)
-    .trimEnd();
-  return `${shared}
+## Create The Repository And First Issue
+
+Run these from the generated app repo after reviewing the scaffold. Label setup
+is idempotent: \`--force\` creates missing labels and converges existing label
+color and description. The full vocabulary is documented in
+\`.operon/LABELS.md\`.
+
+\`\`\`bash
+${repositoryBootstrapCommands(appName, repoSlug)}
+\`\`\`
+
+## Run The Stack-And-Gates Issue
+
+\`\`\`bash
+operon loop --app ${shellQuote(appName)} --once
+\`\`\`
 
 ## After The Stack-And-Gates Issue Merges
 
-Run operon app verify ${appName}. Preview promotion only after verification is
-ready; the merged stack-specific tests and lint/static analysis, not the empty
-scaffold, are the evidence that may make the app runtime-ready.
+Verify the merged stack-specific checks before planning more product work:
+
+\`\`\`bash
+operon app verify ${shellQuote(appName)}
+\`\`\`
+
+The first planning command is a token-free preview. Review it before running
+the second, live planning command. The required product-truth sources are
+resolved relative to the exact \`--workdir\` checkout, so these commands work
+from any current directory.
+
+\`\`\`bash
+${planningCommands(appName, goal, targetDir)}
+\`\`\`
 `;
 }
 
-function nextCommandsMd(appName: string, repoSlug: string, targetDir: string): string {
+function nextCommandsMd(
+  appName: string,
+  repoSlug: string,
+  goal: string,
+  targetDir: string,
+): string {
   return `# Next Commands
 
-Run these from the generated app repo after reviewing the scaffold.
+## Create The Repository And First Issue
+
+Run these from the generated app repo after reviewing the scaffold. Label setup
+is idempotent: \`--force\` creates missing labels and converges existing label
+color and description. The full vocabulary is documented in
+\`.operon/LABELS.md\`.
 
 \`\`\`bash
-git init
-git add .
-git commit -m "Bootstrap ${appName}"
-gh repo create ${repoSlug} --private --source . --remote origin --push
-gh issue create --repo ${repoSlug} --title "Build first usable product slice" --label op:ready --label p2 --body-file .operon/bootstrap/initial-issue.md
+${repositoryBootstrapCommands(appName, repoSlug)}
 \`\`\`
 
-Then run these from any directory:
+## Plan The First Milestone
+
+The first planning command is a token-free preview. Review it before running
+the second, live planning command. The required product-truth sources are
+resolved relative to the exact \`--workdir\` checkout, so these commands work
+from any current directory.
 
 \`\`\`bash
-operon plan ${appName} --topic "Refine the greenfield PRD and decompose the first milestone" --workdir ${targetDir}
-operon loop --app ${appName} --once
+${planningCommands(appName, goal, targetDir)}
 \`\`\`
 `;
+}
+
+function repositoryBootstrapCommands(appName: string, repoSlug: string): string {
+  const labelCommands = CANONICAL_LABELS.map((label) =>
+    [
+      "gh label create",
+      shellQuote(label.name),
+      "--color",
+      shellQuote(label.color),
+      "--description",
+      shellQuote(label.description),
+      "--force",
+      "--repo",
+      shellQuote(repoSlug),
+    ].join(" ")
+  );
+  return [
+    "git init",
+    "git add .",
+    `git commit -m ${shellQuote(`Bootstrap ${appName}`)}`,
+    `gh repo create ${shellQuote(repoSlug)} --private --source . --remote origin --push`,
+    ...labelCommands,
+    [
+      "gh issue create",
+      "--repo",
+      shellQuote(repoSlug),
+      "--title",
+      shellQuote("Build first usable product slice"),
+      "--label",
+      shellQuote("op:ready"),
+      "--label",
+      shellQuote("p2"),
+      "--body-file",
+      shellQuote(".operon/bootstrap/initial-issue.md"),
+    ].join(" "),
+  ].join("\n");
+}
+
+function planningCommands(appName: string, goal: string, targetDir: string): string {
+  const plan = [
+    "operon plan",
+    shellQuote(appName),
+    "--auto",
+    "--goal",
+    shellQuote(goal),
+    "--source",
+    shellQuote("docs/VISION.md"),
+    "--source",
+    shellQuote("docs/REQUIREMENTS.md"),
+    "--workdir",
+    shellQuote(targetDir),
+  ].join(" ");
+  return [
+    `${plan} --dry-run`,
+    "# If you copied and reviewed another design source into this repo, add --source '<path>' to both plan commands.",
+    plan,
+    `operon loop --app ${shellQuote(appName)} --once`,
+  ].join("\n");
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function labelsMd(): string {
+  const headings: Record<CanonicalLabelKind, string> = {
+    state: "Workflow State",
+    tier: "Derived Tier",
+    priority: "Priority",
+    domain: "Sensitive Domain",
+  };
+  const sections = (["state", "tier", "priority", "domain"] as const).map((kind) => {
+    const rows = CANONICAL_LABELS
+      .filter((label) => label.kind === kind)
+      .map((label) =>
+        `| \`${label.name}\` | \`#${label.color}\` | ${markdownCell(label.description)} | ` +
+          `${markdownCell(label.appliedBy)} | ${markdownCell(label.operatorResponse)} |`
+      )
+      .join("\n");
+    return `## ${headings[kind]}
+
+| Label | Color | Meaning | Applied by | Operator response |
+| --- | --- | --- | --- | --- |
+${rows}`;
+  });
+  return `# Operon GitHub Labels
+
+This file is generated from Operon's canonical label contract. The idempotent
+\`gh label create --force\` commands in
+\`.operon/bootstrap/next-commands.md\` install exactly these definitions before
+the first issue is created.
+
+An open Operon issue should carry at most one workflow-state label. Tier labels
+are durable reporting and safety metadata; the accepted EpisodePlan remains
+the live workflow authority. Do not invent additional \`op:*\` states or remove
+risk labels to bypass a plan or gate.
+
+${sections.join("\n\n")}
+`;
+}
+
+function markdownCell(value: string): string {
+  return value.replaceAll("|", "\\|").replaceAll("\n", " ");
 }
 
 function planningSeedMd(appName: string, goal: string): string {

@@ -150,10 +150,21 @@ export class FakeGhOps implements GhOps {
   }
 
   readonly repoLabels = new Set<string>();
+  readonly repoLabelDefinitions = new Map<string, { name: string; color: string; description: string }>();
 
   async ensureLabel(input: { name: string; color: string; description: string }): Promise<void> {
     this.log("ensureLabel", { name: input.name });
     this.repoLabels.add(input.name);
+    this.repoLabelDefinitions.set(input.name, { ...input });
+  }
+
+  async listLabels(): Promise<Array<{ name: string; color: string; description: string }>> {
+    this.log("listLabels", {});
+    return [...this.repoLabels]
+      .sort((left, right) => left.localeCompare(right))
+      .map((name) => ({
+        ...(this.repoLabelDefinitions.get(name) ?? { name, color: "", description: "" }),
+      }));
   }
 
   async listIssues(options: ListIssueOptions = {}): Promise<GhIssue[]> {

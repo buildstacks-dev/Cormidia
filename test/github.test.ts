@@ -42,6 +42,61 @@ const prJson = JSON.stringify({
 });
 
 describe("GhCliOps", () => {
+  it("creates labels idempotently with the locally documented --force surface", async () => {
+    const { exec, calls } = execFrom(() => ({ stdout: "", stderr: "", exitCode: 0 }));
+    const gh = new GhCliOps("o/r", exec);
+
+    await gh.ensureLabel({
+      name: "op:ready",
+      color: "0e8a16",
+      description: "Ready for the build loop to claim",
+    });
+
+    expect(calls).toEqual([{
+      args: [
+        "label",
+        "create",
+        "op:ready",
+        "--repo",
+        "o/r",
+        "--color",
+        "0e8a16",
+        "--description",
+        "Ready for the build loop to claim",
+        "--force",
+      ],
+    }]);
+  });
+
+  it("lists and parses exact repository label definitions through one bounded read", async () => {
+    const { exec, calls } = execFrom(() => ({
+      stdout: JSON.stringify([
+        { name: "op:ready", color: "0E8A16", description: "Ready for the build loop to claim" },
+        { name: "stock", color: "ededed", description: null },
+      ]),
+      stderr: "",
+      exitCode: 0,
+    }));
+    const gh = new GhCliOps("o/r", exec);
+
+    await expect(gh.listLabels()).resolves.toEqual([
+      { name: "op:ready", color: "0E8A16", description: "Ready for the build loop to claim" },
+      { name: "stock", color: "ededed", description: "" },
+    ]);
+    expect(calls).toEqual([{
+      args: [
+        "label",
+        "list",
+        "--repo",
+        "o/r",
+        "--limit",
+        "100",
+        "--json",
+        "name,color,description",
+      ],
+    }]);
+  });
+
   it("swapLabel is one gh issue edit call with add+remove flags", async () => {
     const { exec, calls } = execFrom(() => ({ stdout: "", stderr: "", exitCode: 0 }));
     const gh = new GhCliOps("o/r", exec);

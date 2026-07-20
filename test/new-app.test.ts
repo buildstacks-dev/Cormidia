@@ -189,6 +189,7 @@ describe("createNewApp", () => {
       "docs/ARCHITECTURE.md",
       "docs/RUNBOOK.md",
       "docs/TESTING.md",
+      ".operon/LABELS.md",
       ".operon/bootstrap/initial-issue.md",
       ".operon/bootstrap/next-commands.md",
       ".operon/planning/0001-greenfield-seed.md",
@@ -200,7 +201,7 @@ describe("createNewApp", () => {
     expect(guidance).toContain("meaningful stack-specific");
     expect(guidance).toContain("did not infer a stack from the goal");
     expect(guidance).toContain("Keep it as the only ready product-work issue until it");
-    expect(guidance).toContain("Do not run operon app verify or operon app promote before that issue merges");
+    expect(guidance).toContain("Do not run `operon app verify` or `operon app promote` before that issue");
 
     // The safe first-ticket path is real, not merely prose: the loop keeps the
     // initially empty command set, then reloads the Builder worktree before

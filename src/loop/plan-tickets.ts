@@ -37,30 +37,162 @@ export function domainLabelName(domain: SensitiveDomain): string {
   return `domain:${domain}`;
 }
 
+export type CanonicalLabelKind = "state" | "tier" | "priority" | "domain";
+
+export interface CanonicalLabelDefinition {
+  name: string;
+  color: string;
+  description: string;
+  kind: CanonicalLabelKind;
+  /** The deterministic actor or boundary that normally attaches the label. */
+  appliedBy: string;
+  /** The human response expected when the label is visible in GitHub. */
+  operatorResponse: string;
+}
+
 /** Labels publication guarantees exist on the target repo before any issue
  *  is created — the episode's first claim failed because `op:building` did
  *  not exist. */
-export const CANONICAL_LABELS: readonly { name: string; color: string; description: string }[] = [
-  { name: "op:ready", color: "0e8a16", description: "Ready for the build loop to claim" },
-  { name: "op:building", color: "fbca04", description: "Claimed by a build turn" },
-  { name: "op:in-review", color: "1d76db", description: "PR open, review in progress" },
-  { name: "op:returned", color: "d93f0b", description: "Returned for human/planner triage" },
-  { name: "op:blocked", color: "b60205", description: "Waiting on a critical-op approval" },
-  { name: "op:tier-quick", color: "c2e0c6", description: "Derived quick reporting/safety label" },
-  { name: "op:tier-standard", color: "bfdadc", description: "Derived standard reporting/safety label" },
-  { name: "op:tier-deep", color: "d4c5f9", description: "Derived deep reporting/safety label" },
-  { name: "p1", color: "e11d21", description: "Priority 1" },
-  { name: "p2", color: "eb6420", description: "Priority 2" },
-  { name: "p3", color: "fef2c0", description: "Priority 3" },
+export const CANONICAL_LABELS: readonly CanonicalLabelDefinition[] = [
+  {
+    name: "op:ready",
+    color: "0e8a16",
+    description: "Ready for the build loop to claim",
+    kind: "state",
+    appliedBy: "Planner publication, dependency rearming, or the operator's reviewed first issue",
+    operatorResponse: "Leave it for the loop to claim; do not add another Operon state label",
+  },
+  {
+    name: "op:building",
+    color: "fbca04",
+    description: "Claimed by a build turn",
+    kind: "state",
+    appliedBy: "The build loop when it durably claims an op:ready issue",
+    operatorResponse: "Inspect the durable run if it stalls; do not manually rearm the label",
+  },
+  {
+    name: "op:in-review",
+    color: "1d76db",
+    description: "PR open, review in progress",
+    kind: "state",
+    appliedBy: "The build loop after Builder output and mechanical gates produce a PR",
+    operatorResponse: "Let review and ship gates continue; inspect the linked PR if progress stops",
+  },
+  {
+    name: "op:returned",
+    color: "d93f0b",
+    description: "Returned for human/planner triage",
+    kind: "state",
+    appliedBy: "The loop after a bounded failure, exhausted correction allowance, or triage finding",
+    operatorResponse: "Read the retained evidence; use operon loop rearm with a reason and allowance to resume",
+  },
+  {
+    name: "op:blocked",
+    color: "b60205",
+    description: "Waiting on a critical-op approval",
+    kind: "state",
+    appliedBy: "The loop when the exact durable continuation is waiting on critical-op approval",
+    operatorResponse: "Review operon approvals; do not bypass the decision by editing labels",
+  },
+  {
+    name: "op:tier-quick",
+    color: "c2e0c6",
+    description: "Derived quick reporting/safety label",
+    kind: "tier",
+    appliedBy: "Planner publication after deterministic plan projection",
+    operatorResponse: "Treat it as reporting metadata; the accepted EpisodePlan remains workflow authority",
+  },
+  {
+    name: "op:tier-standard",
+    color: "bfdadc",
+    description: "Derived standard reporting/safety label",
+    kind: "tier",
+    appliedBy: "Planner publication after deterministic plan projection",
+    operatorResponse: "Treat it as reporting metadata; the accepted EpisodePlan remains workflow authority",
+  },
+  {
+    name: "op:tier-deep",
+    color: "d4c5f9",
+    description: "Derived deep reporting/safety label",
+    kind: "tier",
+    appliedBy: "Planner publication or the deterministic sensitive-domain floor",
+    operatorResponse: "Preserve the risk signal and inspect the EpisodePlan; do not lower it to bypass safeguards",
+  },
+  {
+    name: "p1",
+    color: "e11d21",
+    description: "Priority 1",
+    kind: "priority",
+    appliedBy: "Planner publication, or an operator making an explicit priority decision",
+    operatorResponse: "Expect selection before eligible p2/p3 work; change only when priority genuinely changes",
+  },
+  {
+    name: "p2",
+    color: "eb6420",
+    description: "Priority 2",
+    kind: "priority",
+    appliedBy: "Planner publication, or the generated reviewed first-issue command",
+    operatorResponse: "Treat as normal priority and leave ordering to the dependency-aware scheduler",
+  },
+  {
+    name: "p3",
+    color: "fef2c0",
+    description: "Priority 3",
+    kind: "priority",
+    appliedBy: "Planner publication, or an operator making an explicit priority decision",
+    operatorResponse: "Expect eligible p1/p2 work to run first; raise only with an explicit reprioritization",
+  },
   // Sensitive-domain labels — attached by the orchestrator when a ticket's own
   // content names a risk domain, so the route policy's sensitive-domain deep
   // floor can fire (see SENSITIVE_DOMAINS / applySensitiveDomainFloor).
-  { name: "domain:auth", color: "5319e7", description: "Touches authn/authz surfaces" },
-  { name: "domain:security", color: "5319e7", description: "Touches security-sensitive surfaces" },
-  { name: "domain:secret", color: "5319e7", description: "Touches secret/credential handling" },
-  { name: "domain:privacy", color: "5319e7", description: "Touches privacy-sensitive handling" },
-  { name: "domain:payment", color: "5319e7", description: "Touches payment surfaces" },
-  { name: "domain:data", color: "5319e7", description: "Touches user-data storage/handling" },
+  {
+    name: "domain:auth",
+    color: "5319e7",
+    description: "Touches authn/authz surfaces",
+    kind: "domain",
+    appliedBy: "Planner publication when the ticket's own content names the auth domain",
+    operatorResponse: "Preserve the label and verify the accepted plan covers authentication and authorization risk",
+  },
+  {
+    name: "domain:security",
+    color: "5319e7",
+    description: "Touches security-sensitive surfaces",
+    kind: "domain",
+    appliedBy: "Planner publication when the ticket's own content names the security domain",
+    operatorResponse: "Preserve the label and verify the accepted plan carries the required security review",
+  },
+  {
+    name: "domain:secret",
+    color: "5319e7",
+    description: "Touches secret/credential handling",
+    kind: "domain",
+    appliedBy: "Planner publication when the ticket's own content names the secret domain",
+    operatorResponse: "Preserve the label; confirm secret handling and redaction evidence before delivery",
+  },
+  {
+    name: "domain:privacy",
+    color: "5319e7",
+    description: "Touches privacy-sensitive handling",
+    kind: "domain",
+    appliedBy: "Planner publication when the ticket's own content names the privacy domain",
+    operatorResponse: "Preserve the label; confirm the plan covers privacy constraints and evidence",
+  },
+  {
+    name: "domain:payment",
+    color: "5319e7",
+    description: "Touches payment surfaces",
+    kind: "domain",
+    appliedBy: "Planner publication when the ticket's own content names the payment domain",
+    operatorResponse: "Preserve the label; confirm payment risk, rollback, and review are represented in the plan",
+  },
+  {
+    name: "domain:data",
+    color: "5319e7",
+    description: "Touches user-data storage/handling",
+    kind: "domain",
+    appliedBy: "Planner publication when the ticket's own content names the data domain",
+    operatorResponse: "Preserve the label; confirm user-data safety, migration, and rollback facts are covered",
+  },
 ];
 
 // ---------------------------------------------------------------------------

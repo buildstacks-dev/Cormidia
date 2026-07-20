@@ -107,23 +107,44 @@ async function verify(
   homesFlags: { orgHome?: string; stateHome?: string },
   options: AppCommandOptions,
 ): Promise<number> {
-  let json = false;
-  for (const arg of args) {
-    if (arg === "--json") json = true;
-    else throw new Error(`app verify: unknown flag "${arg}"`);
-  }
+  const parsed = parseAppVerifyArgs([appName, ...args]);
+  appName = parsed.appName;
+  const { json } = parsed;
   const homes = await resolveOperonHomes(homesFlags);
+  const app = homes.appsFile.apps.find((entry) => entry.name === appName);
+  if (app === undefined) throw new Error(`app verify: unknown app "${appName}"`);
   const report = await verifyApp({
     orgHome: homes.orgHome,
     stateHome: homes.stateHome,
     appName,
     synchronize: true,
     writeReadiness: true,
+    githubFactory: options.ghFactory ?? ((repo) => new GhCliOps(repo)),
     ...(options.readinessProbe !== undefined ? { readinessProbe: options.readinessProbe } : {}),
   });
   if (json) console.log(stableJson(report).trimEnd());
   else printVerification(report);
   return report.status === "ready" ? 0 : 2;
+}
+
+export interface ParsedAppVerifyArgs {
+  appName: string;
+  json: boolean;
+}
+
+/** Pure parser shared by the executable verify command and generated-guidance
+ * conformance tests. It performs no GitHub or runtime-readiness probe. */
+export function parseAppVerifyArgs(args: string[]): ParsedAppVerifyArgs {
+  const [appName, ...rest] = args;
+  if (appName === undefined || appName.startsWith("--")) {
+    throw new Error("app verify: <app-name> is required");
+  }
+  let json = false;
+  for (const arg of rest) {
+    if (arg === "--json") json = true;
+    else throw new Error(`app verify: unknown flag "${arg}"`);
+  }
+  return { appName, json };
 }
 
 async function promote(
@@ -145,11 +166,14 @@ async function promote(
   }
   if (to !== "live") throw new Error("app promote: --to live is required");
   const homes = await resolveOperonHomes(homesFlags);
+  const app = homes.appsFile.apps.find((entry) => entry.name === appName);
+  if (app === undefined) throw new Error(`app promote: unknown app "${appName}"`);
   const input = {
     orgHome: homes.orgHome,
     stateHome: homes.stateHome,
     appName,
     to: "live" as const,
+    githubFactory: options.ghFactory ?? ((repo) => new GhCliOps(repo)),
     ...(options.readinessProbe !== undefined ? { readinessProbe: options.readinessProbe } : {}),
   };
   const plan = await planAppPromotion(input);

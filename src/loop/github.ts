@@ -108,6 +108,9 @@ export interface GhOps {
   /** Idempotently create-or-update a repo label — the loop's label contract
    *  must exist before the first `op:ready -> op:building` swap. */
   ensureLabel(input: EnsureLabelInput): Promise<void>;
+  /** Read the repository label definitions for token-free onboarding
+   *  verification. */
+  listLabels(): Promise<EnsureLabelInput[]>;
   /** All comments on the issue, oldest first — the durable artifacts
    *  (contract, review verdicts, fix resolutions) that rehydration reads back
    *  on a re-claim (proportionality-review Stage 2). */
@@ -364,6 +367,21 @@ export class GhCliOps implements GhOps {
       input.description,
       "--force",
     ]);
+  }
+
+  async listLabels(): Promise<EnsureLabelInput[]> {
+    const raw = await this.runJson([
+      "label",
+      "list",
+      "--repo",
+      this.repo,
+      "--limit",
+      "100",
+      "--json",
+      "name,color,description",
+    ]);
+    if (!Array.isArray(raw)) throw new Error("gh label list returned a non-array response");
+    return raw.map((value, index) => parseLabelDefinition(value, index));
   }
 
   async listIssueComments(issueNumber: number): Promise<GhIssueComment[]> {
@@ -656,6 +674,16 @@ function defaultGhExec(args: readonly string[], input?: string): Promise<GhExecR
 function parseIssueList(raw: unknown): GhIssue[] {
   if (!Array.isArray(raw)) throw new Error("gh issue list output is not a list");
   return raw.map(parseIssue);
+}
+
+function parseLabelDefinition(raw: unknown, index: number): EnsureLabelInput {
+  const where = `gh label list output[${index}]`;
+  const record = asRecord(raw, where);
+  return {
+    name: stringField(record, "name", where),
+    color: stringField(record, "color", where),
+    description: stringField(record, "description", where, ""),
+  };
 }
 
 function parseIssue(raw: unknown): GhIssue {

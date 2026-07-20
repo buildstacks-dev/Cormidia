@@ -83,6 +83,9 @@ class InjectedReviewGhOps implements GhOps {
   ensureLabel(...args: Parameters<GhOps["ensureLabel"]>) {
     return this.inner.ensureLabel(...args);
   }
+  listLabels() {
+    return this.inner.listLabels();
+  }
   listIssueComments(...args: Parameters<GhOps["listIssueComments"]>) {
     return this.inner.listIssueComments(...args);
   }

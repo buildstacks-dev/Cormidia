@@ -8,6 +8,8 @@ import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/
 import { basename, dirname, join, resolve } from "node:path";
 import { parse, parseDocument } from "yaml";
 import { loadGateCommands } from "../loop/driver.js";
+import type { GhOps } from "../loop/github.js";
+import { CANONICAL_LABELS } from "../loop/plan-tickets.js";
 import type { RuntimeKind } from "../runtime/types.js";
 import {
   probeRuntimeReadiness,
@@ -120,6 +122,12 @@ export interface VerifyAppOptions {
   configOnly?: boolean;
   /** Forwarded to the readiness probe (per-runtime deadline). */
   readinessTimeoutMs?: number;
+  /** Optional bounded GitHub read used by the public CLI to verify the
+   * canonical label contract. Offline lifecycle callers may omit it. */
+  github?: Pick<GhOps, "listLabels">;
+  /** Lazy production seam. It is invoked only when the lifecycle record's
+   * actual remote is GitHub, so local/file remotes remain supported. */
+  githubFactory?: (repo: string) => Pick<GhOps, "listLabels">;
   fault?: LifecycleFaultHook;
 }
 
@@ -380,6 +388,34 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
   checks.push(record.repo === app.repo
     ? pass("registry-record", "registry and lifecycle record identify the same repository")
     : fail("registry-record", `registry repo ${app.repo} differs from lifecycle record ${record.repo}`));
+
+  const github = options.github ?? (
+    isGithubRemoteForSlug(record.remote_url, app.repo)
+      ? options.githubFactory?.(app.repo)
+      : undefined
+  );
+  if (github !== undefined) {
+    try {
+      checks.push(canonicalLabelsCheck(await github.listLabels()));
+    } catch (error) {
+      checks.push(blocked(
+        "canonical-labels",
+        message(error),
+        "restore GitHub access, then run the idempotent label commands in .operon/bootstrap/next-commands.md",
+      ));
+    }
+  } else if (isGithubRemoteForSlug(record.remote_url, app.repo)) {
+    checks.push(blocked(
+      "canonical-labels",
+      "GitHub label inspection was not configured for this verification caller",
+      "rerun through operon app verify, which supplies the bounded GitHub label reader",
+    ));
+  } else {
+    checks.push(pass(
+      "canonical-labels",
+      `not applicable: ${record.remote_url} is a non-GitHub remote, so no GitHub labels are required`,
+    ));
+  }
 
   try {
     await options.fault?.("before_git_fetch");
@@ -897,6 +933,12 @@ function isGithubSlug(value: string): boolean {
   return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
 }
 
+function isGithubRemoteForSlug(remoteUrl: string, slug: string): boolean {
+  const match = /^(?:https?:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i
+    .exec(remoteUrl);
+  return match !== null && `${match[1]}/${match[2]}`.toLowerCase() === slug.toLowerCase();
+}
+
 function githubRemoteForSlug(slug: string): string {
   return `https://github.com/${slug}.git`;
 }
@@ -1219,6 +1261,38 @@ function comparableApp(app: AppEntry): unknown {
     execution: normalizeAppExecution(app.execution),
     release: app.release ?? null,
   };
+}
+
+function canonicalLabelsCheck(
+  actual: readonly { name: string; color: string; description: string }[],
+): LifecycleCheck {
+  const byName = new Map(actual.map((label) => [label.name, label]));
+  const missing = CANONICAL_LABELS
+    .filter((expected) => !byName.has(expected.name))
+    .map((expected) => expected.name);
+  const drifted = CANONICAL_LABELS.flatMap((expected) => {
+    const found = byName.get(expected.name);
+    if (found === undefined) return [];
+    return found.color.toLowerCase() === expected.color.toLowerCase() &&
+      found.description === expected.description
+      ? []
+      : [expected.name];
+  });
+  if (missing.length === 0 && drifted.length === 0) {
+    return pass(
+      "canonical-labels",
+      `all ${CANONICAL_LABELS.length} canonical GitHub label definitions are installed`,
+    );
+  }
+  const problems = [
+    ...(missing.length > 0 ? [`missing: ${missing.join(", ")}`] : []),
+    ...(drifted.length > 0 ? [`definition drift: ${drifted.join(", ")}`] : []),
+  ];
+  return blocked(
+    "canonical-labels",
+    problems.join("; "),
+    "run the idempotent gh label create --force commands in .operon/bootstrap/next-commands.md",
+  );
 }
 
 function cadenceForAnswers(answers: BootstrapAnswers, allRoles: string[]) {

@@ -306,11 +306,16 @@ not used as a substitute app identity.
 
 `operon app verify <app>` performs bounded Git/ref reads, deterministically
 recreates or synchronizes the managed clone only after the onboarding commit
-is reachable, validates registry/config and authority/config hashes, parses
-generated artifacts, installs the app's dependencies via its `setup_command`
-and then runs declared app tests/lint, checks approvals and role locks, and
-proves the configured adapter packages/models without constructing a runtime
-or provider process. The setup step runs first in the managed clone, mirroring
+is reachable, validates registry/config and authority/config hashes, and, for
+a GitHub remote, reads the repository label definitions once and compares them
+to the canonical plan-ticket contract. Missing or drifted canonical labels
+block readiness with the generated idempotent setup command as remediation;
+local/file remotes report that check explicitly not applicable and construct no
+GitHub client. Verify then parses generated artifacts, installs the app's
+dependencies via its `setup_command` and runs declared app tests/lint, checks
+approvals and role locks, and proves the configured adapter packages/models
+without constructing a runtime or provider process. The setup step runs first
+in the managed clone, mirroring
 the build loop's provision-time setup gate: a fresh clone has no `node_modules`,
 so a real npm scaffold's test command (`npm run build && node --test …`, needing
 `tsc` from devDependencies) would otherwise fail purely for lack of dependencies
@@ -354,6 +359,7 @@ commit or side effect.
 .operon/
   TASTE.md               app charter ("what this product is; what good means")
   AUTHORITY.md           session-readable org snapshot + app-only narrowing
+  LABELS.md              generated canonical GitHub label reference
   config.yaml            this app's registry entry (same schema as apps.yaml)
   policy.yaml            app-owned quality-gate policy emitted by bootstrap
   memory/<role>/         per-(role, app) domain bundles
@@ -1334,8 +1340,9 @@ operon new-app "marketplace for dummy products" \
 `new-app` is deterministic and local. It creates a separate target app repo
 skeleton, starter product truth (`docs/VISION.md`, `docs/REQUIREMENTS.md`),
 starter architecture/runbook/testing docs, an initial GitHub issue body under
-`.operon/bootstrap/`, and a Planner seed under `.operon/planning/`. The
-explicit template selects the rest:
+`.operon/bootstrap/`, a canonical label reference at `.operon/LABELS.md`, and
+a Planner seed under `.operon/planning/`. The explicit template selects the
+rest:
 
 - `typescript-node` is the backward-compatible default. It emits the existing
   npm + strict TypeScript web shell and configures executable setup, test, and
@@ -1363,8 +1370,12 @@ correctly fails while required commands are absent.
 `new-app` does not create a GitHub repo, push code, publish marketing content,
 or run the Planner. Those are explicit follow-up operations recorded in the
 generated `.operon/bootstrap/next-commands.md`: create the private repo, push
-the scaffold, create the initial `op:ready` issue, optionally run
-`operon plan <app> --auto --goal ...`, then run the normal loop.
+the scaffold, idempotently converge every canonical state/tier/priority/domain
+label with `gh label create --force`, and only then create the initial
+`op:ready` issue. Planning guidance uses the supplied greenfield goal exactly,
+requires `docs/VISION.md` and `docs/REQUIREMENTS.md` as checkout-relative
+sources, previews token-free first, then gives the live
+`operon plan <app> --auto --goal ...` form before the normal loop.
 
 Once the scaffold is pushed, `operon app verify <app>` synthesizes the app's
 lifecycle record from the pushed remote (see "Token-free app verification and

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cmdApp } from "../../src/cli/app.js";
 import { cmdBootstrap } from "../../src/cli/bootstrap.js";
 import { cmdOrg } from "../../src/cli/org.js";
+import { CANONICAL_LABELS } from "../../src/loop/plan-tickets.js";
 import { joinExistingOrg } from "../../src/org/apps.js";
 import { parseAnswers } from "../../src/org/bootstrap.js";
 import { storeOnboardingAnswers } from "../../src/org/onboarding-answers.js";
@@ -34,6 +35,7 @@ describe("token-free lifecycle public CLI", () => {
     write(world.stateHome, "runs/sparse/stale/envelope.json", envelope("running"));
     write(world.stateHome, "approvals/pending/eval-only.json", `${JSON.stringify({ id: "eval-only", app: "sparse" })}\n`);
     const gh = new FakeGhOps({ repo: "local/sparse" });
+    for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
     const homeFlags = ["--org-home", world.orgHome, "--state-home", world.stateHome];
 
     const refusal = await captureJson(() => cmdApp(["reset", "sparse", ...homeFlags, "--json"], { ghFactory: () => gh }));
@@ -85,7 +87,7 @@ describe("token-free lifecycle public CLI", () => {
     // contacts a real adapter and its JSON stays byte-stable. In production the
     // seam is unset and verify runs the real `probeRuntimeReadiness` that
     // `operon doctor` uses (B-LIVE-04).
-    const cliOptions = { readinessProbe: READY_RUNTIME_PROBE };
+    const cliOptions = { readinessProbe: READY_RUNTIME_PROBE, ghFactory: () => gh };
     const unreachable = await captureJson(() => cmdApp(["verify", "sparse", ...homeFlags, "--json"], cliOptions));
     expect(unreachable.code).toBe(2);
     expect((unreachable.json as { status: string; provider: ProviderZeros })).toMatchObject({ status: "blocked", provider: ZERO_PROVIDER });

@@ -40,7 +40,7 @@ import {
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
-  const parsed = parseArgs(common.rest);
+  const parsed = parsePlanArgs(common.rest);
   const creatorScope = parsed.creatorScopePath === undefined
     ? undefined
     : await loadCreatorEpisodeScopeFile(parsed.creatorScopePath);
@@ -254,7 +254,7 @@ export function formatPlanTicketSummary(
       : "");
 }
 
-interface ParsedPlanArgs {
+export interface ParsedPlanArgs {
   app: string;
   topic?: string;
   dryRun: boolean;
@@ -279,7 +279,9 @@ interface ParsedPlanArgs {
   creatorScopePath?: string;
 }
 
-function parseArgs(args: string[]): ParsedPlanArgs {
+/** Pure parser shared by the executable command and generated-guidance
+ * conformance tests. It resolves no homes and constructs no runtime. */
+export function parsePlanArgs(args: string[]): ParsedPlanArgs {
   const app = args[0];
   if (!app || app.startsWith("--")) {
     throw new Error(

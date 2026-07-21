@@ -163,6 +163,34 @@ export async function bindCliInvocationStateHome(
   state.begun = true;
 }
 
+/** The state home this invocation's audit row is bound to, if any. A cross-org
+ * lifecycle command needs to tell "nothing is journaling yet" apart from
+ * "already bound to the invoking org", because rebinding is a refusal. */
+export function currentCliInvocationStateHome(): string | undefined {
+  return storage.getStore()?.stateHome;
+}
+
+/**
+ * Drop this invocation's durable binding because the command removed the state
+ * home it was bound to. Writing the terminal row afterwards re-creates
+ * `<state>/invocations/*.jsonl` and `<state>/state/invocation-journal` inside
+ * the tree the operator just retired, so `org list` and `doctor` immediately
+ * report the archived org as a live orphan again.
+ *
+ * This is not evidence loss: a command that removes a state home is required
+ * to have archived it first, so the running row is preserved inside that
+ * verified archive along with the archive's own manifest. Returns whether the
+ * binding was actually dropped — it is a no-op when the removed tree is not
+ * the one this invocation is journaling to.
+ */
+export function releaseCliInvocationStateHome(stateHome: string): boolean {
+  const state = storage.getStore();
+  if (state === undefined || state.stateHome !== resolve(stateHome)) return false;
+  delete state.stateHome;
+  state.begun = false;
+  return true;
+}
+
 export function reportCliInvocation(result: CliInvocationResult): void {
   const state = storage.getStore();
   if (state === undefined) return;
@@ -286,4 +314,5 @@ function valueAfter(args: readonly string[], flag: string): string | undefined {
 /** Explicit policy anchor for docs/tests: a command with neither an explicit
  * nor a validated active state home cannot create a durable org-scoped row. */
 export const NO_STATE_HOME_AUDIT_POLICY =
-  "help/version/no-command and commands with no explicit or safely resolved state home are not journaled";
+  "help/version/no-command and commands with no explicit or safely resolved state home are not journaled; " +
+  "a command that removes its own audit state home releases the binding so the terminal row cannot recreate it";

@@ -7,9 +7,13 @@
 // Offline only: temp directories, an explicit pointer path, no network, no
 // installed org, no provider.
 
+import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cmdOrg } from "../src/cli/org.js";
 import { readActiveOrgPointer } from "../src/org/home.js";
@@ -266,6 +270,161 @@ describe("operon org archive", () => {
       readFileSync(join(latest.archive_path, "state", "runs", "leftover.json"), "utf8"),
     ).toBe('{"kept":true}\n');
   });
+});
+
+// ---------------------------------------------------------------------------
+// The real top-level CLI
+//
+// Every test above calls cmdOrg() directly, and src/cli/invocation-audit.ts
+// documents that outside the top-level CLI scope both the audit binding and
+// the terminal-row write are no-ops. That is precisely where `org archive`
+// broke: the audit binds the ACTIVE org's state home before dispatch, so a
+// unit-level call can never see the cross-org refusal or the terminal row
+// being written back into the tree the command just removed. These drive
+// src/cli.ts in a subprocess so the audit interaction is actually exercised.
+// ---------------------------------------------------------------------------
+
+const execFileAsync = promisify(execFile);
+const CLI_PATH = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+const TSX_LOADER = createRequire(import.meta.url).resolve("tsx");
+
+interface CliResult {
+  stdout: string;
+  stderr: string;
+  code: number;
+}
+
+async function runCli(fx: Fixture, args: string[]): Promise<CliResult> {
+  const neutralCwd = join(fx.root, "neutral");
+  mkdirSync(neutralCwd, { recursive: true });
+  const env: NodeJS.ProcessEnv = { ...process.env, HOME: fx.homeDir };
+  // The active pointer under HOME is the only org selection these exercise.
+  delete env["OPERON_ORG_HOME"];
+  delete env["OPERON_STATE_HOME"];
+  delete env["OPERON_HOME"];
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      process.execPath,
+      ["--import", TSX_LOADER, CLI_PATH, ...args],
+      { cwd: neutralCwd, env },
+    );
+    return { stdout, stderr, code: 0 };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number };
+    return { stdout: failure.stdout ?? "", stderr: failure.stderr ?? "", code: failure.code ?? 1 };
+  }
+}
+
+function invocationRows(stateHome: string): Array<Record<string, unknown>> {
+  const ledger = join(stateHome, "invocations", `${new Date().toISOString().slice(0, 10)}.jsonl`);
+  if (!existsSync(ledger)) return [];
+  return readFileSync(ledger, "utf8")
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+describe("operon org archive through the real CLI entrypoint", () => {
+  it("retires a NON-ACTIVE org, in preview and on execute", async () => {
+    // ENH-001's whole use case: retiring accumulated orgs that are, by
+    // definition, not the active one. The command-level audit has already
+    // bound the ACTIVE org's state home by the time `org archive` runs, so
+    // re-binding the target's refused the command outright.
+    const fx = await fixture();
+    await makeOrg(fx, "alpha");
+    await makeOrg(fx, "beta");
+    const alphaState = fx.stateHome("alpha");
+    const betaState = fx.stateHome("beta");
+
+    const preview = await runCli(fx, ["org", "archive", "alpha"]);
+    expect(preview.stderr).not.toContain("invocation audit state home changed");
+    expect(preview.code).toBe(0);
+    expect(preview.stdout).toContain("Org archive plan: alpha");
+    expect(existsSync(alphaState)).toBe(true);
+
+    const executed = await runCli(fx, ["org", "archive", "alpha", "--execute", "--confirm", "alpha"]);
+    expect(executed.stderr).not.toContain("invocation audit state home changed");
+    expect(executed.code).toBe(0);
+    expect(executed.stdout).toContain("Org archived: alpha");
+    expect(existsSync(alphaState)).toBe(false);
+
+    // beta stays active and untouched, and the retirement is journaled in the
+    // ledger that survives it rather than in the tree that was removed.
+    expect((await readActiveOrgPointer(fx.pointerPath)).stateHome).toBe(betaState);
+    const rows = invocationRows(betaState).filter((row) => row["subcommand"] === "archive");
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    const terminal = rows.filter((row) => row["finishedAt"] !== undefined);
+    expect(terminal.map((row) => row["outcome"])).toContain("org-archived");
+    expect(terminal.every((row) => row["exitCode"] === 0)).toBe(true);
+    expect((terminal.at(-1)?.["provenance"] as Record<string, string>).archivedOrg).toBe("alpha");
+  }, 60_000);
+
+  it("does not resurrect the state home when the ACTIVE org is archived", async () => {
+    // The terminal audit row used to be written back into the just-removed
+    // path, recreating <state>/invocations and <state>/state/invocation-journal
+    // so `org list` re-reported the archived org as an orphan and `doctor`
+    // WARNed to archive it again.
+    const fx = await fixture();
+    await makeOrg(fx, "beta");
+    await makeOrg(fx, "alpha");
+    const alphaState = fx.stateHome("alpha");
+    expect((await readActiveOrgPointer(fx.pointerPath)).stateHome).toBe(alphaState);
+
+    const executed = await runCli(fx, ["org", "archive", "alpha", "--execute", "--confirm", "alpha"]);
+    expect(executed.code).toBe(0);
+    expect(existsSync(alphaState)).toBe(false);
+    expect(existsSync(join(alphaState, "invocations"))).toBe(false);
+    expect(existsSync(join(alphaState, "state", "invocation-journal"))).toBe(false);
+    expect(existsSync(fx.pointerPath)).toBe(false);
+
+    // The org stays retired on every later read-only surface.
+    await captureOrg(fx, ["use", fx.orgHome("beta")]);
+    const listed = await runCli(fx, ["org", "list"]);
+    expect(listed.code).toBe(0);
+    expect(listed.stdout).not.toContain("alpha");
+    expect(listed.stdout).toContain("beta");
+
+    const doctor = await runCli(fx, ["doctor", "--config-only", "--json"]);
+    expect(doctor.stdout).not.toContain("orgs/alpha");
+  }, 60_000);
+
+  it("makes doctor's own orphan remediation work end to end", async () => {
+    // doctor tells the operator to `operon org archive <name>` for an orphan,
+    // and an orphan is by definition never the active org — so the printed
+    // remediation was guaranteed to hit the cross-org refusal.
+    const fx = await fixture();
+    await makeOrg(fx, "alpha");
+    const orphanState = fx.stateHome("orphaned");
+    mkdirSync(join(orphanState, "runs"), { recursive: true });
+    writeFileSync(join(orphanState, "runs", "leftover.json"), '{"kept":true}\n', "utf8");
+
+    const beforeJson = await runCli(fx, ["doctor", "--config-only", "--json"]);
+    const orphanRow = (JSON.parse(beforeJson.stdout) as {
+      orgs: Array<{ name: string; orphan: boolean }>;
+    }).orgs.find((org) => org.name === "orphaned");
+    expect(orphanRow?.orphan).toBe(true);
+
+    const before = await runCli(fx, ["doctor", "--config-only"]);
+    expect(before.stdout).toContain("orgs/orphaned");
+    const remediation = /retire it with "operon ([^"]+)"/.exec(before.stdout);
+    expect(remediation?.[1]).toBe("org archive orphaned");
+
+    // Run exactly the command doctor printed.
+    const printed = await runCli(fx, remediation![1]!.split(" "));
+    expect(printed.stderr).not.toContain("invocation audit state home changed");
+    expect(printed.code).toBe(0);
+    expect(printed.stdout).toContain("Org archive plan: orphaned");
+
+    const retired = await runCli(fx, [
+      ...remediation![1]!.split(" "), "--execute", "--confirm", "orphaned",
+    ]);
+    expect(retired.code).toBe(0);
+    expect(existsSync(orphanState)).toBe(false);
+
+    const after = await runCli(fx, ["doctor", "--config-only"]);
+    expect(after.stdout).not.toContain("orgs/orphaned");
+    expect(existsSync(fx.stateHome("alpha"))).toBe(true);
+  }, 60_000);
 });
 
 async function runOrg(fx: Fixture, args: string[], expected = 0): Promise<void> {

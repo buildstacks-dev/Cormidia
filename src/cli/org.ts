@@ -33,7 +33,12 @@ import {
   planOrgArchive,
   recordOrgBacklink,
 } from "../org/org-archive.js";
-import { bindCliInvocationStateHome, reportCliInvocation } from "./invocation-audit.js";
+import {
+  bindCliInvocationStateHome,
+  currentCliInvocationStateHome,
+  releaseCliInvocationStateHome,
+  reportCliInvocation,
+} from "./invocation-audit.js";
 
 export interface OrgCommandOptions {
   homeDir?: string;
@@ -106,23 +111,36 @@ async function archive(args: string[], options: OrgCommandOptions): Promise<numb
     ...(archiveRoot === undefined ? {} : { archiveRoot }),
   };
 
+  // `org archive` is the one cross-org lifecycle command: it runs inside the
+  // invoking (normally active) org's audit scope and retires a DIFFERENT org.
+  // It must not rebind the audit to the target. Rebinding refuses as an
+  // ambiguous state-home change — which made every non-active org, the entire
+  // point of ENH-001, impossible to retire — and on --execute it would bind
+  // the audit to the exact tree the command is about to remove. The retirement
+  // belongs in a ledger that outlives it, named by `provenance.archivedOrg`.
   if (!execute) {
     const plan = await planOrgArchive(planOptions);
-    await bindCliInvocationStateHome(plan.org.stateHome, { org });
+    // A preview removes nothing, so when this invocation has no ledger at all
+    // (no active org) the previewed org's own state home is a safe audit home.
+    if (currentCliInvocationStateHome() === undefined) {
+      await bindCliInvocationStateHome(plan.org.stateHome, { org });
+    }
     if (json) console.log(stableJson(plan).trimEnd());
     else console.log(formatOrgArchivePlan(plan));
     reportCliInvocation({
-      org,
       dryRun: true,
+      provenance: { archivedOrg: org },
       outcome: plan.blockers.length === 0 ? "org-archive-preview-ready" : "org-archive-preview-blocked",
     });
     return plan.blockers.length === 0 ? 0 : 2;
   }
 
-  const preview = await planOrgArchive(planOptions);
-  await bindCliInvocationStateHome(preview.org.stateHome, { org });
   const result = await executeOrgArchive({ ...planOptions, confirm: confirm! });
-  reportCliInvocation({ org, outcome: "org-archived" });
+  // The archived state home is gone. If it was this invocation's audit home —
+  // the operator retired the org they were working in — the terminal row must
+  // not resurrect it. The running row is inside the verified archive.
+  releaseCliInvocationStateHome(result.plan.org.stateHome);
+  reportCliInvocation({ outcome: "org-archived", provenance: { archivedOrg: org } });
   if (json) {
     console.log(stableJson({
       schema_version: 1,

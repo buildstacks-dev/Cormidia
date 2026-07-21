@@ -149,6 +149,12 @@ checkout) or any GitHub repository, branch, or ticket. Never run `--execute`
 unless the human explicitly asked to retire that named org and has read the
 plan.
 
+Archiving works for any discoverable org, active or not. The retirement is
+recorded in the invoking org's invocation ledger, named by
+`provenance.archivedOrg`; when the archived org was the one you were working
+in, that record is the archive itself, so the retired state home stays
+retired.
+
 ## Change a role's model, effort, or budget
 
 `roles.yaml` is a human-ratified surface. Preview the change, then hand the
@@ -162,6 +168,12 @@ The preview validates the resulting harness/model/effort tuple against what the
 adapter can execute and writes nothing. Execution additionally requires an
 attributable `--by <identity>` and a `--reason`, and it is journaled — so it is
 the human's decision to record, not yours to make.
+
+Execution edits only the scalars you named, as a byte splice: every comment,
+blank line, key order, and flow sequence in the ratified file is preserved, so
+the human's diff is the size of the change. The plan also states whether the
+resulting model id was proven against the harness's own roster, or names why
+that harness publishes none — read that line before handing the diff over.
 
 ## Upgrade, verify, and promote without providers
 

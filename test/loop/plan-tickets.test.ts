@@ -9,14 +9,18 @@ import { describe, expect, it } from "vitest";
 import {
   CANONICAL_LABELS,
   applySensitiveDomainFloor,
+  decideTicketBudget,
   finalizePlanForPublication,
+  isTicketBudgetOnlyRefusal,
   publishPlanProjection,
   publishTickets,
   renderTicketBody,
   sensitiveDomainsForTicket,
+  ticketPlanDigest,
   validatePlan,
   type PlanProvenance,
   type PlanTicket,
+  type TicketBudgetRatification,
   type TicketPlan,
   parsePlannedBy,
   parseReleaseKind,
@@ -66,6 +70,13 @@ describe("validatePlan", () => {
     expect(result.problems.some((p) => p.includes("budget of 3"))).toBe(true);
   });
 
+  it("names the ratification verb that actually exists, not an unreachable remedy (ENH-011)", () => {
+    const result = validatePlan(plan({ tickets: Array.from({ length: 8 }, () => ticket()) }));
+    expect(result.problems.some((p) => p.includes("operon plan ratify-ticket-budget"))).toBe(true);
+    // The refusal must also refuse to recommend the dishonest lever.
+    expect(result.problems.some((p) => p.includes("--stage"))).toBe(true);
+  });
+
   it("rejects deep-tier tickets at bootstrap stage (tier follows surface, not ceremony)", () => {
     const result = validatePlan(plan({ tickets: [ticket({ tier: "op:tier-deep" })] }));
     expect(result.ok).toBe(false);
@@ -97,6 +108,102 @@ describe("validatePlan", () => {
     expect(result.problems.some((p) => p.includes("depends on itself"))).toBe(true);
     expect(result.problems.some((p) => p.includes("out of range"))).toBe(true);
     expect(result.problems.some((p) => p.includes("no dependency-free ticket"))).toBe(true);
+  });
+});
+
+describe("ticket-budget ratification (ENH-011)", () => {
+  const oversized = (count = 8): TicketPlan =>
+    plan({ tickets: Array.from({ length: count }, () => ticket()) });
+
+  function ratificationFor(
+    target: TicketPlan,
+    overrides: Partial<TicketBudgetRatification> = {},
+  ): TicketBudgetRatification {
+    return {
+      stage: target.stage,
+      ratifiedTicketCount: target.tickets.length,
+      decompositionId: ticketPlanDigest(target),
+      actor: "operator@example.com",
+      reason: "reviewed the full-site decomposition and accept all 8 tickets",
+      ratifiedAt: "2026-07-21T10:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("admits exactly the ratified decomposition and nothing else", () => {
+    const target = oversized();
+    expect(validatePlan(target).ok).toBe(false);
+    expect(validatePlan(target, ratificationFor(target))).toEqual({ ok: true, problems: [] });
+    expect(decideTicketBudget(target, ratificationFor(target))).toEqual({ stageBudget: 3, budget: 8 });
+    expect(finalizePlanForPublication(target, ratificationFor(target)).tickets).toHaveLength(8);
+  });
+
+  // Adversarial near-miss: the ratification is bound to ONE decomposition
+  // digest, so it must not carry over to a different plan of the same size,
+  // the same goal, or the same stage. If it did, it would be exactly the
+  // silent standing bypass the fix forbids.
+  it("refuses a ratification minted against a DIFFERENT decomposition", () => {
+    const reviewed = oversized();
+    const substituted = plan({
+      tickets: Array.from({ length: 8 }, (_unused, index) =>
+        ticket(index === 0 ? { title: "Quietly swapped ticket" } : {})),
+    });
+    expect(ticketPlanDigest(substituted)).not.toBe(ticketPlanDigest(reviewed));
+    const result = validatePlan(substituted, ratificationFor(reviewed));
+    expect(result.ok).toBe(false);
+    expect(result.problems[0]).toContain("ticket-budget ratification does not apply");
+    expect(result.problems.some((p) => p.includes("budget of 3"))).toBe(true);
+    expect(() => finalizePlanForPublication(substituted, ratificationFor(reviewed)))
+      .toThrow(/ratification does not apply/);
+  });
+
+  it("is order-insensitive but content-sensitive: re-serialization keeps the digest, one criterion changes it", () => {
+    const target = oversized();
+    const reserialized = JSON.parse(
+      JSON.stringify({ tickets: target.tickets, stage: target.stage, releaseKind: target.releaseKind, releaseDisposition: target.releaseDisposition, ticketCountRationale: target.ticketCountRationale }),
+    ) as TicketPlan;
+    expect(ticketPlanDigest(reserialized)).toBe(ticketPlanDigest(target));
+    const edited = { ...target, tickets: target.tickets.map((entry, index) =>
+      index === 3 ? { ...entry, acceptanceCriteria: [...entry.acceptanceCriteria, "and one more"] } : entry) };
+    expect(ticketPlanDigest(edited)).not.toBe(ticketPlanDigest(target));
+  });
+
+  it("refuses an unattributable, undated, understated, or wrong-stage ratification", () => {
+    const target = oversized();
+    for (const [label, override] of [
+      ["actor", { actor: "   " }],
+      ["reason", { reason: "" }],
+      ["time", { ratifiedAt: "not-a-time" }],
+      ["count", { ratifiedTicketCount: 2 }],
+      ["stage", { stage: "growth" as const }],
+    ] satisfies Array<[string, Partial<TicketBudgetRatification>]>) {
+      const result = validatePlan(target, ratificationFor(target, override));
+      expect(result.ok, label).toBe(false);
+      expect(result.problems[0], label).toContain("ticket-budget ratification does not apply");
+    }
+  });
+
+  it("never lowers a budget: a ratification below the stage default cannot shrink it", () => {
+    const inBudget = plan({ tickets: [ticket(), ticket()] });
+    expect(decideTicketBudget(inBudget, ratificationFor(inBudget)).budget).toBe(3);
+  });
+
+  it("offers ratification only for a budget-ONLY refusal", () => {
+    expect(isTicketBudgetOnlyRefusal(oversized())).toBe(true);
+    expect(isTicketBudgetOnlyRefusal(plan())).toBe(false);
+    // Adversarial near-miss: oversized AND structurally broken. Raising the
+    // budget would not make it publishable, so a human must never be invited
+    // to ratify it.
+    const alsoBroken = plan({
+      tickets: Array.from({ length: 8 }, (_unused, index) =>
+        ticket(index === 0 ? { acceptanceCriteria: ["works"] } : {})),
+    });
+    expect(isTicketBudgetOnlyRefusal(alsoBroken)).toBe(false);
+    const deepAtBootstrap = plan({
+      tickets: Array.from({ length: 8 }, (_unused, index) =>
+        ticket(index === 2 ? { tier: "op:tier-deep" } : {})),
+    });
+    expect(isTicketBudgetOnlyRefusal(deepAtBootstrap)).toBe(false);
   });
 });
 

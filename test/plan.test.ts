@@ -22,7 +22,8 @@ import {
   loadCreatorEpisodeScopeFile,
 } from "../src/cli/plan.js";
 import type { RoleConfig } from "../src/runtime/types.js";
-import type { PlanTicket } from "../src/loop/plan-tickets.js";
+import type { PlanTicket, TicketPlan } from "../src/loop/plan-tickets.js";
+import { recordRefusedDecomposition } from "../src/org/ticket-budget-ratification.js";
 import type { CreatorEpisodeScope } from "../src/loop/episode-plan.js";
 
 const tempDirs: string[] = [];
@@ -416,6 +417,231 @@ describe("cmdPlan", () => {
     expect(existsSync(join(stateHome, "runs"))).toBe(false);
     expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
     expect(git(app, ["status", "--porcelain=v2", "--branch"])).toBe(before);
+  });
+
+  // ENH-011: the ticket-count ceiling used to be invisible until a provider
+  // turn had already been bought and refused — the dry-run reported the money
+  // budget and said nothing about a ticket budget.
+  it("dry-run reports the stage ticket budget and whether the requested band fits, token-free", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const stateHome = makeDir("operon-plan-ticket-budget-");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const code = await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "the complete site, design spec steps 1-9",
+      "--expected-tickets",
+      "7+",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain("ticket budget: 3 (bootstrap)");
+    expect(out).toContain("ticket budget fit: exceeds");
+    expect(out).toContain("operon plan ratify-ticket-budget");
+    // Genuinely token-free: no run record, no ledger row, no episode state.
+    expect(existsSync(join(stateHome, "runs"))).toBe(false);
+    expect(existsSync(join(stateHome, "telemetry"))).toBe(false);
+    expect(existsSync(join(stateHome, "efficiency"))).toBe(false);
+  });
+
+  // Adversarial near-miss: a band that fits must NOT be reported as a
+  // problem, or the warning becomes noise operators learn to ignore.
+  it("dry-run reports a fitting band as within budget and stays silent about ratification", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const stateHome = makeDir("operon-plan-ticket-budget-fit-");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "one bounded slice",
+      "--expected-tickets",
+      "1-2",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain("ticket budget: 3 (bootstrap)");
+    expect(out).toContain("ticket budget fit: within");
+    expect(out).not.toContain("ratify-ticket-budget");
+  });
+
+  it("dry-run and --explain-route surface a preserved decomposition awaiting ratification", async () => {
+    const orgHome = makeOrgHome();
+    const app = makeGitApp();
+    const stateHome = makeDir("operon-plan-pending-ratification-");
+    const plan: TicketPlan = {
+      stage: "bootstrap",
+      ticketCountRationale: "Nine design-spec steps collapse into eight shippable slices.",
+      releaseDisposition: "Deploys through the configured CI handoff after merge.",
+      releaseKind: "deploy",
+      tickets: Array.from({ length: 8 }, (_unused, index) => ({
+        title: `Step ${index + 1}`,
+        tier: "op:tier-standard" as const,
+        priority: "p1" as const,
+        dependsOn: [],
+        executionGroup: "g1",
+        fileScope: ["src/**"],
+        goal: "A deployable slice.",
+        context: "Greenfield repository.",
+        acceptanceCriteria: ["pnpm test exits 0"],
+        outOfScope: "Analytics.",
+        notesForBuilder: "Keep dependencies boring.",
+      })),
+    };
+    const record = await recordRefusedDecomposition({
+      stateHome,
+      app: "operon-sandbox-alpha",
+      goal: "the complete site",
+      stage: "bootstrap",
+      plan,
+      problems: ["8 tickets exceed the bootstrap budget of 3"],
+      provenance: { episode_id: "e", run_id: "r", trace_id: "t" },
+      now: new Date("2026-07-21T09:00:00.000Z"),
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await cmdPlan([
+      "operon-sandbox-alpha",
+      "--auto",
+      "--goal",
+      "the complete site",
+      "--dry-run",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+    const dryRun = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(dryRun).toContain(`refused decomposition awaiting ratification: ${record.decomposition_id}`);
+    expect(dryRun).toContain("--to-budget 8");
+
+    log.mockClear();
+    await cmdPlan([
+      "operon-sandbox-alpha",
+      "--explain-route",
+      "--goal",
+      "the complete site",
+      "--workdir",
+      app,
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+    const route = JSON.parse(log.mock.calls.map((call) => call.join(" ")).join("\n")) as {
+      ticketBudget: { budget: number; pendingRatifications: Array<{ decompositionId: string }> };
+    };
+    expect(route.ticketBudget.budget).toBe(3);
+    expect(route.ticketBudget.pendingRatifications.map((entry) => entry.decompositionId))
+      .toEqual([record.decomposition_id]);
+  });
+
+  it("routes `plan ratify-ticket-budget` through the plan dispatch and previews without touching GitHub", async () => {
+    const orgHome = makeOrgHome();
+    const stateHome = makeDir("operon-plan-ratify-dispatch-");
+    const plan: TicketPlan = {
+      stage: "bootstrap",
+      ticketCountRationale: "Nine design-spec steps collapse into eight shippable slices.",
+      releaseDisposition: "Deploys through the configured CI handoff after merge.",
+      releaseKind: "deploy",
+      tickets: Array.from({ length: 8 }, (_unused, index) => ({
+        title: `Step ${index + 1}`,
+        tier: "op:tier-standard" as const,
+        priority: "p1" as const,
+        dependsOn: [],
+        executionGroup: "g1",
+        fileScope: ["src/**"],
+        goal: "A deployable slice.",
+        context: "Greenfield repository.",
+        acceptanceCriteria: ["pnpm test exits 0"],
+        outOfScope: "Analytics.",
+        notesForBuilder: "Keep dependencies boring.",
+      })),
+    };
+    const record = await recordRefusedDecomposition({
+      stateHome,
+      app: "operon-sandbox-alpha",
+      goal: "the complete site",
+      stage: "bootstrap",
+      plan,
+      problems: [],
+      provenance: { episode_id: "e", run_id: "r", trace_id: "t" },
+      now: new Date("2026-07-21T09:00:00.000Z"),
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const code = await cmdPlan([
+      "ratify-ticket-budget",
+      "--app",
+      "operon-sandbox-alpha",
+      "--decomposition",
+      record.decomposition_id,
+      "--actor",
+      "operator@example.com",
+      "--reason",
+      "reviewed all eight",
+      "--from-budget",
+      "3",
+      "--to-budget",
+      "8",
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ]);
+
+    expect(code).toBe(0);
+    const out = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(out).toContain(`PREVIEW operon-sandbox-alpha@${record.decomposition_id}`);
+    expect(out).toContain("bootstrap ticket budget 3->8");
+    expect(existsSync(join(stateHome, "lifecycle"))).toBe(false);
+  });
+
+  // Adversarial near-miss: the decomposition id is an untrusted path segment.
+  it("refuses a traversal-shaped decomposition id", async () => {
+    const orgHome = makeOrgHome();
+    const stateHome = makeDir("operon-plan-ratify-traversal-");
+    await expect(cmdPlan([
+      "ratify-ticket-budget",
+      "--app",
+      "operon-sandbox-alpha",
+      "--decomposition",
+      "../../etc/passwd",
+      "--actor",
+      "operator@example.com",
+      "--reason",
+      "nope",
+      "--from-budget",
+      "3",
+      "--to-budget",
+      "8",
+      "--org-home",
+      orgHome,
+      "--state-home",
+      stateHome,
+    ])).rejects.toThrow(/unsafe path segment/);
   });
 
   it("marks an operator-supplied stage as explicit in human output", async () => {

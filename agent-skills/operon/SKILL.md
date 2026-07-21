@@ -179,6 +179,25 @@ inputs and `--optional-source <file-or-dir>` only when deterministic
 truncation or exclusion is acceptable. Required source failures stop before a
 provider turn; successful tickets publish hashes/refs rather than source bytes.
 
+Each stage caps how many tickets one plan may publish (bootstrap 3, growth 5,
+mature 7). The token-free `plan --dry-run` and `plan --explain-route` previews
+report that cap and whether a requested `--expected-tickets` band can fit it,
+before anything is spent. When a decomposition is refused for that cap alone it
+is preserved verbatim, and the remedy is the human-gated verb — never
+`--stage`, which asserts repository maturity and must stay honest:
+
+```bash
+operon plan ratify-ticket-budget --app <app> --decomposition <id> \
+  --actor <identity> --reason "<why>" --from-budget <stage-budget> --to-budget <ticket-count>
+operon plan ratify-ticket-budget --app <app> --decomposition <id> ... --execute --confirm <app>@<id>
+```
+
+It previews by default, `--to-budget` must equal that decomposition's own
+ticket count, and executing publishes exactly those preserved tickets with no
+provider turn. A ratification applies to one decomposition digest only; it is
+never a standing budget override. Ask the user before executing one — it is
+their decision to record, not yours.
+
 Creator-scope JSON/YAML must match the strict `CreatorEpisodeScope` contract,
 including `planningDisposition: execution_ready`, creator provenance,
 objective and exclusions, acceptance criteria, expected artifacts, declared

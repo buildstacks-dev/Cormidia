@@ -97,6 +97,11 @@ pinned resolve records with `bundle_lineage` (`resolved/`), episode-sticky
 canary assignments (`canary/assignments/`), and the publisher's
 crash-resumable journal (`publish-journal/`); `runs/learning-replay/` is the
 reserved replay namespace (reconciled for spend, excluded from capture).
+`planning/<app>/refused-decompositions/` preserves a decomposition refused for
+the stage ticket budget alone so `operon plan ratify-ticket-budget` can admit
+it without a replan, and `lifecycle/apps/<app>/` holds the never-swept human
+decisions (lifecycle record, config-ratification journal, ticket-budget
+ratifications);
 `scheduler/installation.json` and `scheduler/evidence/{invocations,decisions,alerts}/`
 hold scheduler ownership, exact-once ticks, route decisions, and local alerts;
 `standing-roles/<app>/{artifacts,planner-feeds}/` holds source-bound draft-only
@@ -306,6 +311,11 @@ cluster stops forming — the coverage gap that let this ship green (#142).
   no inferred readiness) ·
   `pnpm dev plan <app> --explain-route --goal "<text>" [--stage …]` (token-free
   route preview; rejects `--auto` — the two forms are mutually exclusive) ·
+  `pnpm dev plan ratify-ticket-budget --app <app> --decomposition <id> --actor
+  <identity> --reason "<why>" --from-budget N --to-budget N [--no-publish]
+  [--execute --confirm <app>@<id>]` (human-gated: records one attributable
+  decision to admit one preserved oversized decomposition, then publishes it
+  token-free; preview by default) ·
   `pnpm dev loop --app <app> --once --dry-run` · `pnpm dev loop
   --explain-context <episode-id>` · `pnpm dev loop --resume-episode
   <episode-id>` · `pnpm dev loop rearm --app <app> --ticket <number> --reason

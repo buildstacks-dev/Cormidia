@@ -19,6 +19,18 @@ export type PlanningWorkLifecycle = "existing-ticket" | "bounded-goal" | "milest
  * explicit CreatorEpisodeScope contract in episode-plan.ts. */
 export type PlanningDisposition = "direct-execution" | "shape-ticket" | "plan-milestone" | "plan-strategy";
 
+/** The ticket-count range each requested band actually covers. This is what
+ *  makes the token-free planning preview able to say whether the requested
+ *  decomposition can possibly fit the stage ticket budget BEFORE a provider
+ *  turn is spent (ENH-011). `max: null` is the open-ended `7+` band. */
+export function expectedTicketBandRange(
+  band: ExpectedTicketBand,
+): { min: number; max: number | null } {
+  if (band === "1-2") return { min: 1, max: 2 };
+  if (band === "3-6") return { min: 3, max: 6 };
+  return { min: 7, max: null };
+}
+
 export interface PlanningDepthInput {
   goal: string;
   stage: "bootstrap" | "growth" | "mature";

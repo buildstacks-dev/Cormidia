@@ -807,6 +807,16 @@ These four rules are why a dead turn never leaves the repo half-done:
 Decided 2026-07-04: CLI queue, one-by-one review, approve or
 deny-with-reason, persisted audit trail, app-tagged, single queue.
 
+The classifier reads Operon's own command line as an effect surface, not just
+third-party tools: `operon app reset`/`prune-runs` are
+`destructive-or-irreversible`, `operon org init|use|upgrade` is
+`protocol-self-edit`, `operon plan ratify-ticket-budget` and `operon bootstrap
+publish` are `external-publishing`, and `operon approvals
+review|revoke|disposition` is `approval-store-tamper` — self-approval by CLI is
+still self-approval. Read-only invocations (`roles`, `apps`, `status`,
+`doctor`, `budget`, `context`, `episode explain`, `approvals show|status`)
+stay routine.
+
 ### Storage (`~/.operon/<org>/approvals/`)
 
 ```
@@ -829,6 +839,9 @@ Item schema:
 {
   "id": "20260704T193201Z-8k2f",
   "app": "civic", "role": "builder", "turnId": "…", "ticketRef": "#42",
+  "workdir": "/…/worktrees/civic/op-42",  // sandbox cwd the action was raised
+                                          // from; the context a later
+                                          // orchestrator execution runs in
   "rule": "secrets-or-auth",              // gate rule that fired
   "action": { "tool": "Bash", "input": "…", "description": "…" },
   "classification": {                     // effect fields only; no prose
@@ -839,7 +852,7 @@ Item schema:
   "raisedAt": "…", "status": "approved",
   "execution": {
     "state": "approved",                  // not evidence the effect happened
-    "executor": "actor-retry | durable-github | release",
+    "executor": "orchestrator-command | durable-github | release | actor-retry",
     "idempotencyKey": "…", "attempts": 0, "nextAction": "dispatch"
   }
 }
@@ -894,14 +907,51 @@ Item schema:
    provider-global-memory) never reach the queue at all: the composed gate
    denies them flat with standing guidance, and on Claude the adapter
    removes them from the tool surface itself (`src/runtime/role-shaping.ts`).
-5. For `durable-github` and `release` items, a later dispatch claims the exact
-   action and advances `approved → executing → executed | failed | ambiguous`.
+5. For `durable-github`, `release`, and `orchestrator-command` items, a later
+   dispatch claims the exact action and advances `approved → executing →
+   executed | failed | ambiguous`. `operon dispatch` reconciles the store
+   before it executes anything, so a record homed on an executor nobody can
+   reach is re-homed by the same command that then runs it.
    The record includes attempt, actor, result, failure cause, remote reference,
    and next action. GitHub actions reconcile by a stable remote marker; an
    ambiguous result is never blindly retried. Only a reasoned, exact `operon
    approvals disposition <id> ... --confirm <id>` may resolve or re-arm it.
-   Generic provider calls stay `actor-retry`; they are never replayed by a
-   generic orchestrator executor. For an exact single-use actor grant, the
+   An approved SHELL action is `orchestrator-command`
+   (`src/org/approval-command.ts`): `operon dispatch` runs the exact recorded
+   command string — never a reconstruction — in the recorded `workdir`, or in
+   the app's managed clone when the record carries none. A recorded workdir
+   that no longer exists is refused rather than substituted, and the recorded
+   workdir is the sandbox cwd of the raising turn — for a builder ticket pass
+   that is the per-ticket worktree, not the managed clone. A generic command
+   has no remote idempotency marker, so an interrupted or timed-out execution
+   becomes durably `ambiguous` and waits for a human disposition; it is never
+   re-run.
+
+   Three boundaries make orchestrator execution narrower than the approval
+   itself. **Rule allowlist**: only `external-publishing`, `outbound-network`
+   and `destructive-or-irreversible` are ever homed on the orchestrator
+   (`ORCHESTRATOR_EXECUTABLE_RULES`). Approving an action is not authorizing
+   the orchestrator to enact it on the human's behalf, and the rules left out
+   are the ones whose effect lands on the org's own control plane — the review
+   boundary, the protocol surfaces, the approval store, the scorecards, a
+   learning publish — which `NEVER_SCOPEABLE_RULES` already treats as
+   boundaries an agent must never enact. **Literal binding**: the decision
+   records `commandSha256` over the RAW command on the grant, a separate file
+   from the decided record, because `actionHash` is computed over
+   `unwrapCommand(...)` and so ignores a `sudo `/`command `/`env VAR=val `
+   prefix; without the separate binding, editing a decided record to add such
+   a prefix kept its grant and changed what ran. A grant with no recorded
+   binding requires the literal to be byte-identical to the identity it does
+   cover. **Scope, not validity**: an app absent from the apps.yaml a
+   particular dispatch was given is reported and left approved, never
+   terminalized. This exists because `actor-retry` alone is not a mechanism: it needs
+   the raising turn to ask again, and run 3 showed the sandbox answering the
+   actor "rejected by user" while the grant sat granted, leaving four approvals
+   at `attempts: 0` with nothing able to spend them (ISSUE-020).
+   `orchestrator-command` stays actor-claimable — a live turn re-attempting its
+   own approved command still wins the single-use grant and the orchestrator
+   then finds nothing to do — while `durable-github` and `release` remain
+   orchestrator-only. For an exact single-use actor grant, the
    synchronous gate advances the item to `executing` before it consumes the
    grant. The turn runner accepts only an exact action-identity `TurnEvent`
    with an explicit adapter `success: true|false` as acknowledgement; prose or

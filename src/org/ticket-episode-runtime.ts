@@ -178,7 +178,12 @@ export interface TicketEpisodeRuntimeOptions {
   creatorScopeForTicket?: (
     request: TicketEpisodePlanningRequest,
   ) => CreatorEpisodeScope | undefined | Promise<CreatorEpisodeScope | undefined>;
-  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
+  /** The turn's gate, built per role AND per sandbox cwd. The cwd is passed
+   *  by the executor that actually runs the pass, because a builder ticket
+   *  pass runs in the per-ticket worktree while the caller that wires this
+   *  callback only knows the managed clone — and an approval raised in one
+   *  tree must never be executed in the other. */
+  gateForRole?: (role: RoleConfig, workdir?: string) => TurnHooks["gate"];
   approval?: TicketEpisodeApprovalHandler;
   authorization?: ReviewAuthorization;
   release?: ReleaseConfig;

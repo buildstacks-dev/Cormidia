@@ -103,14 +103,22 @@ export function createLoopGateForRole(
   turnId: string,
   orgHome?: string,
   store: ApprovalStore = new ApprovalStore(stateHome),
-): (role: RoleConfig) => GateFn {
-  return (role) =>
-    composeGate(defaultGate, store, {
+  workdir?: string,
+): (role: RoleConfig, passWorkdir?: string) => GateFn {
+  return (role, passWorkdir) => {
+    // The executor running the pass knows its sandbox cwd; this call site only
+    // knows the managed clone. A builder ticket pass runs in the per-ticket
+    // worktree, so preferring the caller's cwd is what makes the recorded
+    // approval workdir the tree the action was actually raised from.
+    const cwd = passWorkdir ?? workdir;
+    return composeGate(defaultGate, store, {
       app,
       role: role.name,
       turnId,
       ...(orgHome !== undefined ? { orgHome } : {}),
+      ...(cwd !== undefined ? { workdir: cwd } : {}),
     });
+  };
 }
 
 export interface ParsedLoopRunArgs {
@@ -326,6 +334,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         turnId,
         homes.orgHome,
         approvalStore,
+        localRepo,
       );
       const budgetRows = await enforceBudgetOverlay(homes.stateHome, appsFile);
       const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);

@@ -116,15 +116,28 @@ export function modelServedByCatalog(
   return colon > 0 && served.has(`${model.slice(0, colon)}/${model.slice(colon + 1)}`);
 }
 
-/** Operator-facing one-liner naming what was and was not proven. */
+/**
+ * Operator-facing one-liner naming what was and was not proven.
+ *
+ * Three outcomes, three sentences. This used to assert "is served by" whenever
+ * a roster merely existed, without consulting `modelServedByCatalog` — so an
+ * unlisted pi id printed "is served by the pi adapter" directly above
+ * "BLOCKED model_not_served" in the same block. The lookup decides the claim.
+ */
 export function describeModelCatalogCheck(
   catalog: RuntimeModelCatalog,
   model: string,
 ): string {
   if (!catalog.available) {
     return (
-      `model catalog: ${model} NOT VERIFIED against the ${catalog.runtime} adapter — ` +
-      `${catalog.reason}`
+      `model catalog: WARNING ${model} is NOT VERIFIED against the ${catalog.runtime} adapter — ` +
+      `${catalog.reason}; the id is first proven inside a live paid turn`
+    );
+  }
+  if (!modelServedByCatalog(catalog, model)) {
+    return (
+      `model catalog: ${model} is NOT served by the ${catalog.runtime} adapter ` +
+      `(${catalog.models.length} models in ${catalog.source})`
     );
   }
   return (

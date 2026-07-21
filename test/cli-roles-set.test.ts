@@ -13,9 +13,16 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cmdRoles } from "../src/cli/roles.js";
 import { initOrgHome } from "../src/org/home.js";
-import { applyRoleAssignmentChange, roleAssignmentJournalPath } from "../src/org/role-assignment.js";
 import {
+  applyRoleAssignmentChange,
+  formatRoleAssignmentPlan,
+  roleAssignmentJournalPath,
+} from "../src/org/role-assignment.js";
+import {
+  describeModelCatalogCheck,
+  modelServedByCatalog,
   readRuntimeModelCatalog,
+  type RuntimeModelCatalog,
   type RuntimeModelCatalogReader,
 } from "../src/runtime/model-catalog.js";
 import { loadRoles } from "../src/org/roles.js";
@@ -294,9 +301,12 @@ describe("operon roles set", () => {
       0,
     );
     expect(output).toContain(
-      "model catalog: claude-opus-4-9-imaginary NOT VERIFIED against the claude adapter",
+      "model catalog: WARNING claude-opus-4-9-imaginary is NOT VERIFIED against the claude adapter",
     );
     expect(output).toContain("only readable by launching the Claude CLI transport");
+    expect(output).toContain(
+      "WARNING: claude-opus-4-9-imaginary cannot be checked before it is applied",
+    );
 
     for (const runtime of ["claude", "codex"] as const) {
       const catalog = await readRuntimeModelCatalog(runtime);
@@ -370,6 +380,94 @@ describe("operon roles set", () => {
     expect(plan.executed).toBe(false);
     expect(plan.blockers[0]?.code).toBe("invalid_turn_budget");
     expect(readFileSync(rolesPath, "utf8")).toBe(before);
+  });
+
+  it("never claims an id is served by a roster that does not list it", async () => {
+    // Round-3 defect 5. describeModelCatalogCheck asserted "is served by the
+    // <runtime> adapter" whenever the roster was merely AVAILABLE, without
+    // ever consulting modelServedByCatalog — so one output block stated both
+    // "totally/not-a-real-model-xyz is served by the pi adapter" and
+    // "BLOCKED model_not_served". One of those two sentences was false.
+    const catalog: RuntimeModelCatalog = {
+      runtime: "pi",
+      available: true,
+      source: "/fixture/models.json",
+      models: ["openai/gpt-5.6-sol"],
+    };
+    expect(modelServedByCatalog(catalog, "totally/not-a-real-model-xyz")).toBe(false);
+    const described = describeModelCatalogCheck(catalog, "totally/not-a-real-model-xyz");
+    expect(described).toContain(
+      "model catalog: totally/not-a-real-model-xyz is NOT served by the pi adapter",
+    );
+    expect(described).not.toContain("totally/not-a-real-model-xyz is served by");
+    expect(describeModelCatalogCheck(catalog, "openai/gpt-5.6-sol")).toContain(
+      "model catalog: openai/gpt-5.6-sol is served by the pi adapter",
+    );
+
+    // The same two sentences, in the block an operator actually reads.
+    const { orgHome, stateHome } = await fixture();
+    const plan = await applyRoleAssignmentChange({
+      orgHome,
+      stateHome,
+      role: "support",
+      edit: { runtime: "pi", model: "totally/not-a-real-model-xyz" },
+      readModelCatalog: async (runtime) =>
+        runtime === "pi"
+          ? { runtime, available: true, source: "/fixture/models.json", models: ["openai/gpt-5.6-sol"] }
+          : { runtime, available: false, reason: "fixture: no offline roster" },
+    });
+    const rendered = formatRoleAssignmentPlan(plan);
+    expect(rendered).toContain("BLOCKED model_not_served");
+    expect(rendered).toContain("totally/not-a-real-model-xyz is NOT served by the pi adapter");
+    expect(rendered).not.toContain("totally/not-a-real-model-xyz is served by");
+  });
+
+  it("records and shouts the unverified case where no token-free roster exists", async () => {
+    // Round-3 defect 6. Hard enforcement exists only for pi, because pi is the
+    // only harness with a token-free roster. That asymmetry is real, but it
+    // must not be silent: the unproven id is warned about on stdout, again on
+    // stderr (so a --json consumer cannot miss it), and recorded in the
+    // journal so an applied-but-unproven change is as durable as the change.
+    const { orgHome, stateHome, rolesPath } = await fixture();
+
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    let output: string;
+    try {
+      output = await captureRoles(
+        ["set", "planner", "--model", "claude-opus-3-retired-xyz",
+          "--reason", "retire the old tier", "--by", "bikram@example.invalid", "--execute",
+          "--org-home", orgHome, "--state-home", stateHome],
+        0,
+      );
+      expect(error.mock.calls.map((call) => call.join(" ")).join("\n")).toContain(
+        "operon roles set: WARNING — planner now runs claude/claude-opus-3-retired-xyz, " +
+          "an id no token-free roster could verify",
+      );
+    } finally {
+      error.mockRestore();
+    }
+    expect(output).toContain("APPLIED roles set planner");
+    expect(output).toContain(
+      "model catalog: WARNING claude-opus-3-retired-xyz is NOT VERIFIED against the claude adapter",
+    );
+    expect(output).toContain("WARNING: applied an UNVERIFIED model id");
+    expect((await loadRoles(rolesPath)).roles.find((role) => role.name === "planner")).toMatchObject({
+      model: "claude-opus-3-retired-xyz",
+    });
+
+    const journal = readFileSync(roleAssignmentJournalPath(stateHome), "utf8")
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(journal.length).toBe(1);
+    expect(journal[0]!["model_catalog"]).toMatchObject({
+      runtime: "claude",
+      model: "claude-opus-3-retired-xyz",
+      verified: false,
+    });
+    expect(String((journal[0]!["model_catalog"] as { reason: string }).reason)).toContain(
+      "ships no offline model roster",
+    );
   });
 });
 

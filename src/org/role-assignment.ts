@@ -314,6 +314,7 @@ export async function applyRoleAssignmentChange(
     before,
     after,
     changes: base.changes,
+    ...(base.modelCatalog === undefined ? {} : { model_catalog: base.modelCatalog }),
     roles_sha256_before: base.rolesSha256Before,
     roles_sha256_after: base.rolesSha256After,
   });
@@ -330,6 +331,10 @@ export interface RoleAssignmentJournalEntry {
   before: RoleAssignmentSnapshot;
   after: RoleAssignmentSnapshot;
   changes: RoleAssignmentFieldChange[];
+  /** What the harness roster proved, or why it could prove nothing. An
+   *  applied-but-unproven model id has to be as durable as the change it
+   *  describes; reading it back off the terminal was not evidence. */
+  model_catalog?: RoleAssignmentModelCatalogCheck;
   roles_sha256_before?: string;
   roles_sha256_after?: string;
 }
@@ -340,6 +345,29 @@ async function appendRoleAssignmentJournal(
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await appendFile(path, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+/**
+ * True when this change is what puts a model id nothing could verify into the
+ * ratified file: the harness publishes no token-free roster AND this command
+ * is the one setting the harness/model pair.
+ *
+ * ENH-004 catches "a model string the adapter does not serve" wherever a
+ * roster exists, and pi is currently the only harness that publishes one. The
+ * asymmetry is real and cannot be closed from a config edit — so it is said
+ * out loud, in one predicate both the text and the CLI surface read, at the
+ * moment the unprovable id is actually introduced. Restating it on every
+ * effort-only edit of a long-settled role would train the operator to skip it.
+ */
+export function isUnverifiedModelIdChange(plan: RoleAssignmentChangePlan): boolean {
+  if (
+    plan.modelCatalog === undefined ||
+    plan.modelCatalog.verified ||
+    plan.modelCatalog.reason === undefined
+  ) {
+    return false;
+  }
+  return plan.changes.some((change) => change.field === "model" || change.field === "runtime");
 }
 
 /** Human-readable before/after, for the text surface. */
@@ -358,6 +386,16 @@ export function formatRoleAssignmentPlan(plan: RoleAssignmentChangePlan): string
   }
   if (plan.capabilityNote !== undefined) lines.push(`  ${plan.capabilityNote}`);
   if (plan.modelCatalogNote !== undefined) lines.push(`  ${plan.modelCatalogNote}`);
+  if (isUnverifiedModelIdChange(plan) && plan.modelCatalog !== undefined) {
+    lines.push(
+      plan.executed
+        ? `  WARNING: applied an UNVERIFIED model id — nothing has proven ${plan.modelCatalog.runtime} ` +
+          `serves ${plan.modelCatalog.model}; prove it with \`operon doctor\` before the next turn ` +
+          "spends on it"
+        : `  WARNING: ${plan.modelCatalog.model} cannot be checked before it is applied; ` +
+          `\`operon doctor\` probes the ${plan.modelCatalog.runtime} adapter and is what proves it`,
+    );
+  }
   for (const blocker of plan.blockers) lines.push(`  BLOCKED ${blocker.code}: ${blocker.detail}`);
   if (plan.blockers.length === 0 && !plan.executed) {
     lines.push(

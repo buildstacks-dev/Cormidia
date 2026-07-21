@@ -8,6 +8,7 @@ import { extractHomeFlags } from "./home-flags.js";
 import {
   applyRoleAssignmentChange,
   formatRoleAssignmentPlan,
+  isUnverifiedModelIdChange,
   type RoleAssignmentEdit,
 } from "../org/role-assignment.js";
 import { TURN_ASSIGNMENT_EFFORTS, TURN_ASSIGNMENT_HARNESSES } from "../runtime/assignment.js";
@@ -143,6 +144,18 @@ export async function cmdRolesSet(args: string[] = []): Promise<number> {
   });
   if (json) console.log(JSON.stringify(plan, null, 2));
   else console.log(formatRoleAssignmentPlan(plan));
+  // A harness with a token-free roster refuses an id it will not serve before
+  // anything is written. A harness without one cannot, so the operator is told
+  // on stderr as well — the --json consumer would otherwise have to know to go
+  // looking for modelCatalog.verified to learn that nothing checked this id.
+  if (plan.executed && isUnverifiedModelIdChange(plan) && plan.modelCatalog !== undefined) {
+    console.error(
+      `operon roles set: WARNING — ${plan.role} now runs ` +
+        `${plan.modelCatalog.runtime}/${plan.modelCatalog.model}, an id no token-free roster ` +
+        `could verify (${plan.modelCatalog.reason}). Run \`operon doctor\` to probe the adapter ` +
+        "before the next turn spends on it.",
+    );
+  }
   return plan.blockers.length === 0 ? 0 : 1;
 }
 

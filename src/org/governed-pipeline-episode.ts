@@ -375,7 +375,12 @@ interface GovernedPipelineOrchestrationBase extends GovernedPipelineScopeOptions
   runtimeForAssignment?: (assignment: TurnAssignment, role: RoleConfig) => Runtime;
   assignmentReadinessProbe?: RuntimeReadinessProbe;
   assignmentReadinessTimeoutMs?: number;
-  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
+  /** The turn's gate, built per role AND per sandbox cwd. The cwd is passed
+   *  by the executor that actually runs the pass, because a builder ticket
+   *  pass runs in the per-ticket worktree while the caller that wires this
+   *  callback only knows the managed clone — and an approval raised in one
+   *  tree must never be executed in the other. */
+  gateForRole?: (role: RoleConfig, workdir?: string) => TurnHooks["gate"];
   parentTaskId?: string;
   signal?: AbortSignal;
   networkAccess?: boolean;
@@ -453,7 +458,12 @@ interface GovernedPipelineExecutionTransportOptions {
   hooks: TurnHooks;
   runtimeForAssignment: (assignment: TurnAssignment, role: RoleConfig) => Runtime;
   delivery: GovernedPipelineDeliveryHooks;
-  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
+  /** The turn's gate, built per role AND per sandbox cwd. The cwd is passed
+   *  by the executor that actually runs the pass, because a builder ticket
+   *  pass runs in the per-ticket worktree while the caller that wires this
+   *  callback only knows the managed clone — and an approval raised in one
+   *  tree must never be executed in the other. */
+  gateForRole?: (role: RoleConfig, workdir?: string) => TurnHooks["gate"];
   parentTaskId?: string;
   signal?: AbortSignal;
   networkAccess?: boolean;
@@ -909,7 +919,7 @@ async function recoverGovernedVerdictPersistence(
       assignment: { ...input.step.assignment },
       hooks: {
         ...options.hooks,
-        gate: options.gateForRole?.(input.role) ?? options.hooks.gate,
+        gate: options.gateForRole?.(input.role, options.workdir) ?? options.hooks.gate,
       },
       workdir: options.workdir,
       context: await options.delivery.contextForStep(input),

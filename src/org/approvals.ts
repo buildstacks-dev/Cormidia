@@ -35,9 +35,25 @@ export type ApprovalStatus = "pending" | ApprovalDecision;
 export type ApprovalExecutionState = "approved" | "executing" | "executed" | "failed" | "ambiguous";
 export type ApprovalLifecycleState = "pending" | "denied" | ApprovalExecutionState;
 
+/** Who is responsible for turning an approved decision into the effect.
+ *  `actor-retry` is the only one that depends on a provider turn re-attempting
+ *  the action, and it is the one that stranded four run-3 approvals at
+ *  `attempts: 0` (ISSUE-020): the sandbox answered the actor "rejected by
+ *  user" while the grant sat granted, and nothing can make a finished turn
+ *  retry. `orchestrator-command` is the durable answer for a recorded shell
+ *  action — `operon dispatch` runs the exact recorded command from the durable
+ *  record. It remains actor-claimable (see claimActorRetryGrantSync): a live
+ *  actor that legitimately re-attempts still wins the race and the orchestrator
+ *  then finds nothing to do. */
+export type ApprovalExecutor =
+  | "durable-github"
+  | "release"
+  | "orchestrator-command"
+  | "actor-retry";
+
 export interface ApprovalExecution {
   state: ApprovalExecutionState;
-  executor: "durable-github" | "release" | "actor-retry";
+  executor: ApprovalExecutor;
   idempotencyKey: string;
   attempts: number;
   actor?: string;
@@ -68,6 +84,13 @@ export interface ApprovalItem {
   ticketRef?: string;
   rule: string;
   action: ApprovalAction;
+  /** The working directory the action was raised from — the sandbox cwd of the
+   * turn that asked. Recorded so a later orchestrator execution runs the exact
+   * approved command in the exact context it was approved for, instead of
+   * guessing a checkout. Absent on records raised before this field existed and
+   * on call sites with no local checkout; the executor then falls back to the
+   * app's orchestrator-owned managed clone and never to a guess. */
+  workdir?: string;
   /** Structured audit evidence for the rule match. It contains only
    * effect-bearing fields, never comment/review/search/heredoc prose. */
   classification?: CriticalActionEvidence;
@@ -107,6 +130,20 @@ export interface ApprovalGrant {
   uses: number;
   createdAt: string;
   consumedAt?: string;
+  /** SHA-256 of the RAW approved command string, recorded at decision time on
+   *  a single-use grant for a shell action. `actionHash` binds the SEMANTIC
+   *  identity, which is computed over `unwrapCommand(...)` and therefore
+   *  deliberately ignores a `sudo `/`command `/`env VAR=val ` prefix — two
+   *  different literals can share one identity. That is right for
+   *  classification and wrong for execution: an orchestrator that runs the
+   *  literal with its own credentials must run exactly the bytes the human
+   *  read. A post-decision edit of the decided record that prepends
+   *  `env INJECTED=pwned ` keeps the identity and so kept its grant; this hash
+   *  lives in a separately written file and does not. Absent on scoped grants
+   *  (they intentionally cover many commands) and on grants minted before this
+   *  field, which fall back to a stricter literal check — see
+   *  `commandBindingProblem` in approval-command.ts. */
+  commandSha256?: string;
   /** A1: present on multi-use rule+path-scoped grants. */
   scope?: GrantScope;
   /** Set by `operon approvals revoke` — a revoked grant never matches. */
@@ -167,6 +204,41 @@ export const NEVER_SCOPEABLE_RULES: readonly string[] = [
   "learning-publish",
 ];
 
+/**
+ * Rules whose approved shell action the ORCHESTRATOR may execute itself.
+ *
+ * Approving an action and authorizing the orchestrator to enact it are two
+ * different grants. A human tapping "approve" on `gh pr merge --admin` is
+ * saying "this agent may do this"; it is not saying "the orchestrator should
+ * merge on my behalf with its own credentials, outside any sandbox". The
+ * difference matters most exactly where the effect lands on the org's own
+ * control plane — `self-merge-or-approve` is the review boundary,
+ * `protocol-self-edit` is roles/pipelines/prompts, `approval-store-tamper` and
+ * `scorecard-tamper` are the gate's own roots of trust, and `learning-publish`
+ * is one content-bound publish transaction. `NEVER_SCOPEABLE_RULES` and the
+ * self-merge rule already treat those as boundaries an agent must never enact;
+ * mechanically enacting them from dispatch would walk around that from the
+ * other side.
+ *
+ * So this list is closed and outward-effect only: a publication, a network
+ * call, or a delete the human read in `operon approvals show`. Anything not
+ * listed — including a rule added later — stays with the executor it had, and
+ * the human retains `operon approvals disposition`. `production-deploy` is
+ * absent because it has its own A4 release executor, and `secrets-or-auth`
+ * because running a credential-bearing command under the orchestrator's
+ * ambient environment is a materially different act from the agent running it
+ * in its sandbox.
+ */
+export const ORCHESTRATOR_EXECUTABLE_RULES: readonly string[] = [
+  "external-publishing",
+  "outbound-network",
+  "destructive-or-irreversible",
+];
+
+export function isOrchestratorExecutableRule(rule: string): boolean {
+  return ORCHESTRATOR_EXECUTABLE_RULES.includes(rule);
+}
+
 const DEFAULT_SCOPED_MAX_USES = 20;
 
 export type ApprovalLogEvent =
@@ -193,6 +265,14 @@ export type ApprovalLogEvent =
       cause?: string;
       remoteRef?: string;
     }
+  | {
+      type: "executor-rehomed";
+      id: string;
+      at: string;
+      from: ApprovalExecutor;
+      to: ApprovalExecutor;
+      reason: string;
+    }
   | { type: "deduplicated"; id: string; at: string; actionHash: string; priorStatus: "pending" | "denied" };
 
 export interface RaiseApprovalInput {
@@ -202,6 +282,8 @@ export interface RaiseApprovalInput {
   action: ToolAction;
   turnId?: string;
   ticketRef?: string;
+  /** Sandbox cwd of the raising turn (see ApprovalItem.workdir). */
+  workdir?: string;
   justification?: string;
   classification?: CriticalActionEvidence;
   now?: Date;
@@ -296,7 +378,8 @@ export class ApprovalStore {
       (item) =>
         item.app === input.app &&
         item.role === input.role &&
-        item.execution?.executor === "actor-retry" &&
+        isActorClaimable(item.execution?.executor) &&
+        item.execution !== undefined &&
         actorRetryNeedsReconciliation(item.execution),
     );
   }
@@ -386,7 +469,7 @@ export class ApprovalStore {
     return decided;
   }
 
-  async reconcile(): Promise<void> {
+  async reconcile(now: Date = new Date()): Promise<void> {
     await this.ensureDirs();
     const log = await this.readLog();
     const decisions = log.filter((e): e is Extract<ApprovalLogEvent, { type: "decided" }> => {
@@ -423,6 +506,60 @@ export class ApprovalStore {
       }
     }
     await this.reconcileLegacyActorRetryStates();
+    await this.reconcileUnreachableActorRetryHoming(now);
+  }
+
+  /** Re-home an approved-but-unexecuted shell action from `actor-retry` to
+   * `orchestrator-command` (ISSUE-020).
+   *
+   * `actor-retry` requires the provider turn that raised the op to ask again.
+   * Run 3 showed that is not a mechanism anyone can rely on: the sandbox
+   * answered the actor "rejected by user" while the grant sat granted, and a
+   * finished turn cannot be re-run at all — the grant is born unconsumable and
+   * the operator's only remaining move is to mark an approved op failed. The
+   * repair is durable, not cosmetic: the record now names an executor that
+   * exists.
+   *
+   * Deliberately narrow. Only a decided, still-`approved` record whose action
+   * is a recorded shell command moves; nothing in flight or terminal changes
+   * owner, no other executor is touched, and the action, its identity, and its
+   * grant are untouched — so the human's decision still authorizes exactly what
+   * they approved. A live actor can still claim it (isActorClaimable), so
+   * re-homing never takes an op away from a turn that can genuinely run it. */
+  private async reconcileUnreachableActorRetryHoming(now: Date): Promise<void> {
+    for (const candidate of await this.readDecided()) {
+      if (
+        candidate.decision !== "approved" ||
+        candidate.execution?.executor !== "actor-retry" ||
+        candidate.execution.state !== "approved" ||
+        approvedCommand(candidate.action) === undefined ||
+        // An approval is not an authorization for the orchestrator to enact
+        // the org's own control-plane boundaries on the human's behalf.
+        !isOrchestratorExecutableRule(candidate.rule)
+      ) {
+        continue;
+      }
+      await this.withExecutionLock(candidate.id, async () => {
+        const item = readJsonSync<ApprovalItem>(this.decidedPath(candidate.id));
+        if (item.execution?.executor !== "actor-retry" || item.execution.state !== "approved") return;
+        const reason =
+          "actor-retry cannot be reached for an approved shell action; the orchestrator executes " +
+          "the recorded command on the next dispatch";
+        const next: ApprovalItem = {
+          ...item,
+          execution: { ...item.execution, executor: "orchestrator-command", nextAction: "dispatch" },
+        };
+        await writeJsonAtomic(this.decidedPath(item.id), next);
+        await appendJsonLine(this.logPath(), {
+          type: "executor-rehomed",
+          id: item.id,
+          at: now.toISOString(),
+          from: "actor-retry",
+          to: "orchestrator-command",
+          reason,
+        } satisfies ApprovalLogEvent);
+      });
+    }
   }
 
   findMatchingGrantSync(input: {
@@ -577,10 +714,11 @@ export class ApprovalStore {
     return this.withExecutionLockSync(initialGrant.approvalId, () => {
       const grant = readJsonSync<ApprovalGrant>(this.grantPath(grantId));
       const item = readJsonSync<ApprovalItem>(this.decidedPath(grant.approvalId));
-      if (item.execution?.executor !== "actor-retry") {
+      const execution = item.execution;
+      if (execution === undefined || !isActorClaimable(execution.executor)) {
         return { status: "not-actor-retry", item };
       }
-      if (item.execution.state !== "approved") {
+      if (execution.state !== "approved") {
         return { status: "blocked", item };
       }
       if (
@@ -597,13 +735,13 @@ export class ApprovalStore {
         remoteRef: _remoteRef,
         failureCause: _failureCause,
         ...executionBase
-      } = item.execution;
+      } = execution;
       const claimed: ApprovalItem = {
         ...item,
         execution: {
           ...executionBase,
           state: "executing",
-          attempts: item.execution.attempts + 1,
+          attempts: execution.attempts + 1,
           actor,
           attemptedAt: now.toISOString(),
           nextAction: "reconcile",
@@ -628,8 +766,8 @@ export class ApprovalStore {
     const now = input.now ?? new Date();
     const items = (await this.listDecided()).filter(
       (item) =>
-        item.execution?.executor === "actor-retry" &&
-        item.execution.state === "executing" &&
+        isActorClaimable(item.execution?.executor) &&
+        item.execution?.state === "executing" &&
         item.execution.actor === input.actor,
     );
     const settled: ApprovalItem[] = [];
@@ -897,7 +1035,8 @@ export class ApprovalStore {
         item.rule === input.rule &&
         item.ticketRef === input.ticketRef &&
         actionHash(item.action) === hash &&
-        item.execution?.executor === "actor-retry" &&
+        isActorClaimable(item.execution?.executor) &&
+        item.execution !== undefined &&
         actorRetryNeedsReconciliation(item.execution),
       );
   }
@@ -940,6 +1079,7 @@ export class ApprovalStore {
     if (input.classification !== undefined) item.classification = input.classification;
     if (input.turnId !== undefined) item.turnId = input.turnId;
     if (input.ticketRef !== undefined) item.ticketRef = input.ticketRef;
+    if (input.workdir !== undefined) item.workdir = input.workdir;
     if (input.justification !== undefined) item.justification = input.justification;
     return item;
   }
@@ -960,8 +1100,8 @@ export class ApprovalStore {
     const candidates = await this.readDecided();
     for (const candidate of candidates) {
       if (
-        candidate.execution?.executor !== "actor-retry" ||
-        candidate.execution.state !== "approved" ||
+        !isActorClaimable(candidate.execution?.executor) ||
+        candidate.execution?.state !== "approved" ||
         candidate.grantId === undefined ||
         !existsSync(this.grantPath(candidate.grantId))
       ) {
@@ -969,7 +1109,7 @@ export class ApprovalStore {
       }
       await this.withExecutionLock(candidate.id, async () => {
         const item = readJsonSync<ApprovalItem>(this.decidedPath(candidate.id));
-        if (item.execution?.executor !== "actor-retry" || item.execution.state !== "approved") {
+        if (!isActorClaimable(item.execution?.executor) || item.execution?.state !== "approved") {
           return;
         }
         if (item.grantId === undefined || !existsSync(this.grantPath(item.grantId))) return;
@@ -1145,7 +1285,9 @@ function initialExecution(item: ApprovalItem): ApprovalExecution {
     ? "release" as const
     : item.action.tool === "operon.github.issue.create" || item.action.tool === "operon.github.issue.comment"
       ? "durable-github" as const
-      : "actor-retry" as const;
+      : approvedCommand(item.action) !== undefined && isOrchestratorExecutableRule(item.rule)
+        ? "orchestrator-command" as const
+        : "actor-retry" as const;
   return {
     state: "approved",
     executor,
@@ -1153,6 +1295,52 @@ function initialExecution(item: ApprovalItem): ApprovalExecution {
     attempts: 0,
     nextAction: executor === "actor-retry" ? "actor_retry" : "dispatch",
   };
+}
+
+/** Tool names whose action IS a shell command string. Kept exact and closed:
+ *  an approval authorizes one recorded action, so the executor must recognize
+ *  the action shape it can reproduce byte-for-byte and refuse everything
+ *  else. */
+const SHELL_TOOLS: ReadonlySet<string> = new Set([
+  "bash", "shell", "sh", "zsh", "terminal", "exec", "exec_command",
+]);
+
+/** The exact command an approved shell action authorizes, or undefined when
+ *  the action is not one. This is the ONLY thing an `orchestrator-command`
+ *  execution may run: no rewriting, no re-quoting, no substitution — the same
+ *  string the human read in `operon approvals show`. */
+export function approvedCommand(action: ApprovalAction | ToolAction): string | undefined {
+  if (!SHELL_TOOLS.has(action.tool.trim().toLowerCase())) return undefined;
+  const input = action.input;
+  if (input === null || typeof input !== "object" || Array.isArray(input)) return undefined;
+  const record = input as Record<string, unknown>;
+  const command = typeof record["command"] === "string"
+    ? record["command"]
+    : typeof record["cmd"] === "string"
+      ? record["cmd"]
+      : undefined;
+  return command === undefined || command.trim() === "" ? undefined : command;
+}
+
+/** SHA-256 over the raw command bytes. Deliberately NOT `actionHash`: this is
+ *  the EXECUTION identity (what will actually run), not the AUTHORIZATION
+ *  identity (what the rules and grants reason about). Keeping them separate is
+ *  the point — the semantic projection folds away wrapper prefixes so a
+ *  classifier cannot be dodged by adding one, and that same folding must never
+ *  let a later edit change what the orchestrator runs. */
+export function commandIdentityHash(command: string): string {
+  return createHash("sha256").update(command, "utf8").digest("hex");
+}
+
+/** Executors a provider turn may still claim through the gate. An
+ *  `orchestrator-command` approval authorizes the agent's own recorded
+ *  command, so a live actor re-attempting it is exactly the approved effect
+ *  and must not be denied — it simply beats the orchestrator to the single-use
+ *  grant. `durable-github` and `release` stay orchestrator-only: those carry
+ *  typed content-bound deliveries and the A4 release episode, which an agent
+ *  must never enact itself. */
+function isActorClaimable(executor: ApprovalExecutor | undefined): boolean {
+  return executor === "actor-retry" || executor === "orchestrator-command";
 }
 
 /** Action-identity format version. The identity `actionHash` computes is the
@@ -1283,12 +1471,16 @@ function mintGrant(
   scope?: { kind: "ticket" | "app"; pathContains?: string },
   maxUses?: number,
 ): ApprovalGrant {
+  // Only an exact single-use grant can carry a literal binding: a scoped grant
+  // exists precisely to cover more than one command.
+  const literal = scope === undefined ? approvedCommand(item.action) : undefined;
   return {
     grantId: `grant-${item.id}`,
     approvalId: item.id,
     app: item.app,
     role: item.role,
     actionHash: actionHash(item.action),
+    ...(literal !== undefined ? { commandSha256: commandIdentityHash(literal) } : {}),
     identityVersion: ACTION_IDENTITY_VERSION,
     expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
     uses: scope !== undefined ? maxUses ?? DEFAULT_SCOPED_MAX_USES : 1,

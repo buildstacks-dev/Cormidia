@@ -30,13 +30,14 @@ import {
   formatOrgArchivePlan,
   formatOrgList,
   listOrgs,
+  orgRetirementLedgerHome,
   planOrgArchive,
   recordOrgBacklink,
 } from "../org/org-archive.js";
 import {
   bindCliInvocationStateHome,
   currentCliInvocationStateHome,
-  releaseCliInvocationStateHome,
+  redirectCliInvocationLedger,
   reportCliInvocation,
 } from "./invocation-audit.js";
 
@@ -118,13 +119,17 @@ async function archive(args: string[], options: OrgCommandOptions): Promise<numb
   // point of ENH-001, impossible to retire — and on --execute it would bind
   // the audit to the exact tree the command is about to remove. The retirement
   // belongs in a ledger that outlives it, named by `provenance.archivedOrg`.
+  const plan = await planOrgArchive(planOptions);
+  // With no invoking org — the state directly after retiring the active one —
+  // there is no ledger at all, and the org named here is the wrong place to
+  // start one: a preview must write nothing into the org it only describes,
+  // and an execution would be seeding audit state in a tree it is about to
+  // remove. Both journal into the retirement ledger instead, so the row is
+  // still written and the removed path stays removed.
+  if (currentCliInvocationStateHome() === undefined) {
+    await bindCliInvocationStateHome(orgRetirementLedgerHome(plan.archiveRoot), { org });
+  }
   if (!execute) {
-    const plan = await planOrgArchive(planOptions);
-    // A preview removes nothing, so when this invocation has no ledger at all
-    // (no active org) the previewed org's own state home is a safe audit home.
-    if (currentCliInvocationStateHome() === undefined) {
-      await bindCliInvocationStateHome(plan.org.stateHome, { org });
-    }
     if (json) console.log(stableJson(plan).trimEnd());
     else console.log(formatOrgArchivePlan(plan));
     reportCliInvocation({
@@ -138,9 +143,23 @@ async function archive(args: string[], options: OrgCommandOptions): Promise<numb
   const result = await executeOrgArchive({ ...planOptions, confirm: confirm! });
   // The archived state home is gone. If it was this invocation's audit home —
   // the operator retired the org they were working in — the terminal row must
-  // not resurrect it. The running row is inside the verified archive.
-  releaseCliInvocationStateHome(result.plan.org.stateHome);
-  reportCliInvocation({ outcome: "org-archived", provenance: { archivedOrg: org } });
+  // land somewhere that outlives it, not back inside the removed path. The
+  // running row already written there is preserved in the verified archive.
+  const ledgerHome = orgRetirementLedgerHome(result.plan.archiveRoot);
+  const redirected = await redirectCliInvocationLedger(result.plan.org.stateHome, ledgerHome);
+  reportCliInvocation({
+    outcome: "org-archived",
+    provenance: {
+      archivedOrg: org,
+      archivePath: result.archivePath,
+      ...(redirected
+        ? {
+            auditLedger: ledgerHome,
+            auditLedgerReason: "this command removed the state home it was journaling to",
+          }
+        : {}),
+    },
+  });
   if (json) {
     console.log(stableJson({
       schema_version: 1,
@@ -398,7 +417,12 @@ async function use(args: string[], options: OrgCommandOptions): Promise<number> 
   const pointerPath = options.pointerPath ?? join(homeDir, ".operon", "config");
   const selectedStateHome = resolve(stateHome ?? join(homeDir, ".operon", appsFile.org.name));
   await bindCliInvocationStateHome(selectedStateHome, { org: appsFile.org.name });
-  await writeActiveOrgPointer(pointerPath, resolvedOrgHome, stateHome);
+  // Record the state home this selection actually resolved to, not only the
+  // flag. A pointer carrying org_home alone forces every later reader to
+  // re-derive it, and the ones that did not — `org list`'s active marker,
+  // `org archive`'s pointer clearing — disagreed with the state home the
+  // command was really using, which is how a retired org came back.
+  await writeActiveOrgPointer(pointerPath, resolvedOrgHome, selectedStateHome);
   const homes = await resolveOperonHomes({
     orgHome: resolvedOrgHome,
     stateHome: selectedStateHome,

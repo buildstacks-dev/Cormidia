@@ -19,7 +19,7 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { loadApps } from "./apps.js";
-import { readActiveOrgPointer, writeActiveOrgPointer } from "./home.js";
+import { resolveActiveOrgSelection, writeActiveOrgPointer } from "./home.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
   assertDirectoryNoSymlink,
@@ -122,7 +122,10 @@ export interface ListOrgsOptions {
 export async function listOrgs(options: ListOrgsOptions): Promise<DiscoveredOrg[]> {
   const pointerPath = resolve(options.pointerPath);
   const root = dirname(pointerPath);
-  const pointer = await readActiveOrgPointer(pointerPath);
+  // Not `pointer.state_home` raw: a pointer that records only an org home
+  // still selects a state home, and reading it raw made the active org look
+  // inactive to every surface here.
+  const pointer = await resolveActiveOrgSelection(pointerPath);
   const activeStateHome = pointer.stateHome === undefined ? undefined : resolve(pointer.stateHome);
   const candidates = new Map<string, string>();
   if (existsSync(root)) {
@@ -193,21 +196,25 @@ export interface PlanOrgArchiveOptions {
 
 export async function planOrgArchive(options: PlanOrgArchiveOptions): Promise<OrgArchivePlan> {
   const pointerPath = resolve(options.pointerPath);
+  const archiveRoot = resolve(options.archiveRoot ?? join(dirname(pointerPath), "archives"));
   const orgs = await listOrgs({ pointerPath });
   const org = orgs.find((entry) => entry.name === options.org);
   if (org === undefined) {
+    // Re-running a retirement is the ordinary case, not a typo: say which it
+    // is. An org with no state home left and an archive on disk is finished.
+    const prior = join(archiveRoot, `${safeSegment(options.org)}-org-latest.json`);
     throw new Error(
       `org archive: unknown org ${JSON.stringify(options.org)}; ` +
-        `operon org list shows: ${orgs.map((entry) => entry.name).join(", ") || "none"}`,
+        `operon org list shows: ${orgs.map((entry) => entry.name).join(", ") || "none"}` +
+        (existsSync(prior)
+          ? `. It has no local state home left and was already archived; see ${prior}`
+          : ""),
     );
   }
-  const archiveRoot = resolve(options.archiveRoot ?? join(dirname(pointerPath), "archives"));
   if (isInside(archiveRoot, org.stateHome)) {
     throw new Error("org archive: --archive-root must be outside the archived state home");
   }
-  const archiveId = `${safeSegment(org.name)}-org-archive-${sha256(
-    stableJson({ name: org.name, stateHome: org.stateHome, orgHome: org.orgHome }),
-  ).slice(0, 16)}`;
+  const { archiveId, archivePath } = allocateArchivePath(archiveRoot, archiveBaseId(org));
 
   const blockers: LifecycleBlocker[] = [];
   for (const blocker of await activeWorkBlockers(org.stateHome)) blockers.push(blocker);
@@ -218,7 +225,7 @@ export async function planOrgArchive(options: PlanOrgArchiveOptions): Promise<Or
     org,
     archiveRoot,
     archiveId,
-    archivePath: join(archiveRoot, archiveId),
+    archivePath,
     removes: [org.stateHome],
     leavesIntact: [
       ...(org.orgHome === null
@@ -268,8 +275,15 @@ export async function executeOrgArchive(
     );
   }
 
-  const staged = `${plan.archivePath}.partial`;
   await mkdir(plan.archiveRoot, { recursive: true });
+  // Re-allocate now that the archive root exists: the plan's id was chosen
+  // against whatever was on disk when it was previewed, and the same org
+  // archived twice from the same paths hashes to the same base id.
+  const { archiveId, archivePath } = allocateArchivePath(
+    plan.archiveRoot,
+    archiveBaseId(plan.org),
+  );
+  const staged = `${archivePath}.partial`;
   await rm(staged, { recursive: true, force: true });
   await mkdir(staged, { recursive: true });
   let manifestSha256: string;
@@ -291,7 +305,7 @@ export async function executeOrgArchive(
     const manifest = stableJson({
       schema_version: ORG_ARCHIVE_SCHEMA_VERSION,
       kind: "org-archive",
-      archive_id: plan.archiveId,
+      archive_id: archiveId,
       org: plan.org.name,
       org_home: plan.org.orgHome,
       state_home: plan.org.stateHome,
@@ -304,7 +318,19 @@ export async function executeOrgArchive(
 
     // Prove the archive reproduces the state home before anything is removed.
     await assertArchiveCoversStateHome(plan.org.stateHome, join(staged, "state"));
-    await rename(staged, plan.archivePath);
+    try {
+      await rename(staged, archivePath);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOTEMPTY" || code === "EEXIST" || code === "EPERM") {
+        throw new Error(
+          `org archive: ${archivePath} already exists, so nothing was archived or removed and ` +
+            `${plan.org.stateHome} is untouched; move or delete that archive directory, or ` +
+            "re-run with --archive-root <path> to archive somewhere else",
+        );
+      }
+      throw error;
+    }
   } catch (error) {
     await rm(staged, { recursive: true, force: true });
     throw error;
@@ -320,12 +346,16 @@ export async function executeOrgArchive(
       schema_version: ORG_ARCHIVE_SCHEMA_VERSION,
       kind: "org-archive-latest",
       org: plan.org.name,
-      archive_id: plan.archiveId,
-      archive_path: plan.archivePath,
+      archive_id: archiveId,
+      archive_path: archivePath,
       manifest_sha256: manifestSha256,
     }),
   );
-  return { plan: { ...plan, executed: true }, archivePath: plan.archivePath, manifestSha256 };
+  return {
+    plan: { ...plan, archiveId, archivePath, executed: true },
+    archivePath,
+    manifestSha256,
+  };
 }
 
 /** Re-point the pointer at another discoverable org, used by tests and by an
@@ -551,6 +581,53 @@ export async function readOrgArchiveManifest(
   const manifestPath = join(target, "manifest.json");
   await assertRegularFile(manifestPath, "org archive manifest");
   return JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+}
+
+/** Content identity of the retirement: same org, same paths, same base id. */
+function archiveBaseId(org: Pick<DiscoveredOrg, "name" | "stateHome" | "orgHome">): string {
+  return `${safeSegment(org.name)}-org-archive-${sha256(
+    stableJson({ name: org.name, stateHome: org.stateHome, orgHome: org.orgHome }),
+  ).slice(0, 16)}`;
+}
+
+/**
+ * The base id is deterministic, so archiving the same org from the same paths
+ * twice — routine once a state home has been recreated — targets a directory
+ * that already holds the first archive. Renaming onto it failed with a raw
+ * `ENOTEMPTY` and no remediation. Later retirements get a numbered sibling
+ * instead; the earlier archive is never written into or replaced.
+ */
+function allocateArchivePath(
+  archiveRoot: string,
+  baseId: string,
+): { archiveId: string; archivePath: string } {
+  for (let attempt = 1; attempt <= 999; attempt++) {
+    const archiveId = attempt === 1 ? baseId : `${baseId}-${attempt}`;
+    const archivePath = join(archiveRoot, archiveId);
+    if (!existsSync(archivePath)) return { archiveId, archivePath };
+  }
+  throw new Error(
+    `org archive: ${join(archiveRoot, baseId)} and its 998 numbered siblings all exist; ` +
+      "move that archive history aside, or re-run with --archive-root <path>",
+  );
+}
+
+/**
+ * Where the terminal audit row of a command that removes its own audit target
+ * goes. `org archive --execute` deletes the state home its invocation is
+ * journaling to, and writing the terminal row back into that path recreated
+ * `<state>/invocations/` and `<state>/state/invocation-journal` — so the org
+ * `org list` and `doctor` had just been told was retired came back as an
+ * orphan on the very next command.
+ *
+ * Dropping the row instead would trade one defect for another: every command
+ * is audited. The row belongs in a ledger that outlives the org, and the
+ * retirement's own durable home is the archive root, outside every state home
+ * by construction (`planOrgArchive` refuses an archive root inside the tree it
+ * archives).
+ */
+export function orgRetirementLedgerHome(archiveRoot: string): string {
+  return join(resolve(archiveRoot), "retirement-ledger");
 }
 
 function safeSegment(value: string): string {

@@ -8,7 +8,15 @@
 // installed org, no provider.
 
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,6 +28,7 @@ import { readActiveOrgPointer } from "../src/org/home.js";
 import {
   listOrgs,
   orgBacklinkPath,
+  orgRetirementLedgerHome,
   planOrgArchive,
   readOrgArchiveManifest,
 } from "../src/org/org-archive.js";
@@ -424,6 +433,155 @@ describe("operon org archive through the real CLI entrypoint", () => {
     const after = await runCli(fx, ["doctor", "--config-only"]);
     expect(after.stdout).not.toContain("orgs/orphaned");
     expect(existsSync(fx.stateHome("alpha"))).toBe(true);
+  }, 60_000);
+
+  it("keeps the org archived when `org use` selected it without --state-home", async () => {
+    // Round-3 defect 3. `org use <path>` wrote an active pointer carrying only
+    // org_home, so every consumer that read `pointer.state_home` disagreed
+    // with the state home the CLI was actually using: `org list` never marked
+    // the org active, `planOrgArchive` set clearsActivePointer false, the
+    // pointer survived the retirement, and the next command re-derived the
+    // removed path and re-created it. This is the mechanism under "the
+    // archived org comes back", so it is asserted at the pointer AND at the
+    // post-condition.
+    const fx = await fixture();
+    await makeOrg(fx, "alpha");
+    await makeOrg(fx, "beta");
+    const alphaState = fx.stateHome("alpha");
+
+    const selected = await runCli(fx, ["org", "use", fx.orgHome("alpha")]);
+    expect(selected.code).toBe(0);
+    expect(readFileSync(fx.pointerPath, "utf8")).toContain(`state_home: ${alphaState}`);
+    expect(await readActiveOrgPointer(fx.pointerPath)).toEqual({
+      orgHome: fx.orgHome("alpha"),
+      stateHome: alphaState,
+    });
+
+    const listed = await runCli(fx, ["org", "list"]);
+    expect(listed.stdout).toContain("* alpha");
+
+    const executed = await runCli(fx, ["org", "archive", "alpha", "--execute", "--confirm", "alpha"]);
+    expect(executed.code).toBe(0);
+    expect(existsSync(alphaState)).toBe(false);
+    expect(existsSync(fx.pointerPath)).toBe(false);
+
+    // The post-condition is absolute: it does not come back on any later
+    // command, including the two that re-report orphans.
+    for (const args of [["doctor", "--config-only"], ["org", "list"], ["org", "list", "--json"]]) {
+      await runCli(fx, args);
+      expect(existsSync(alphaState)).toBe(false);
+    }
+    const afterList = await runCli(fx, ["org", "list"]);
+    expect(afterList.stdout).not.toContain("alpha");
+    expect(existsSync(fx.stateHome("beta"))).toBe(true);
+  }, 60_000);
+
+  it("writes the terminal audit row of a self-destroying archive to the retirement ledger", async () => {
+    // Round-3 defect 1. Every command is audited, so the fix for "the terminal
+    // row re-creates the tree the command just removed" is not to skip the
+    // row: it moves to a ledger that outlives the org. The retirement ledger
+    // is under the archive root, which planOrgArchive already guarantees is
+    // outside the archived state home.
+    const fx = await fixture();
+    await makeOrg(fx, "alpha");
+    const alphaState = fx.stateHome("alpha");
+    const ledger = orgRetirementLedgerHome(join(fx.homeDir, ".operon", "archives"));
+
+    const executed = await runCli(fx, ["org", "archive", "alpha", "--execute", "--confirm", "alpha"]);
+    expect(executed.code).toBe(0);
+    expect(existsSync(alphaState)).toBe(false);
+
+    const rows = invocationRows(ledger).filter((row) => row["finishedAt"] !== undefined);
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toMatchObject({ command: "org", subcommand: "archive", outcome: "org-archived", exitCode: 0 });
+    const provenance = rows[0]!["provenance"] as Record<string, string>;
+    expect(provenance["archivedOrg"]).toBe("alpha");
+    expect(provenance["auditLedger"]).toBe(ledger);
+    expect(provenance["auditLedgerReason"]).toContain("removed the state home it was journaling to");
+    // The row landed outside the retired tree, not inside a re-created one.
+    expect(existsSync(alphaState)).toBe(false);
+  }, 60_000);
+
+  it("archives the same org twice from the same paths without an ENOTEMPTY", async () => {
+    // Round-3 defect 4. archiveId is a deterministic sha256 over
+    // {name, stateHome, orgHome} and the staged directory was renamed onto it
+    // with no collision handling, so the second retirement of a recreated
+    // state home died with a raw Node errno and archived nothing.
+    const fx = await fixture();
+    await makeOrg(fx, "alpha");
+    const ghost = fx.stateHome("ghost");
+    const archiveRoot = join(fx.homeDir, ".operon", "archives");
+
+    mkdirSync(join(ghost, "runs"), { recursive: true });
+    writeFileSync(join(ghost, "runs", "x.json"), '{"pass":1}\n', "utf8");
+    const first = await runCli(fx, ["org", "archive", "ghost", "--execute", "--confirm", "ghost"]);
+    expect(first.code).toBe(0);
+
+    mkdirSync(join(ghost, "runs"), { recursive: true });
+    writeFileSync(join(ghost, "runs", "x.json"), '{"pass":2}\n', "utf8");
+    const second = await runCli(fx, ["org", "archive", "ghost", "--execute", "--confirm", "ghost"]);
+    expect(second.stderr).not.toContain("ENOTEMPTY");
+    expect(second.code).toBe(0);
+    expect(existsSync(ghost)).toBe(false);
+
+    // Two archives, and the first one's bytes are still the first one's.
+    const archives = readdirSync(archiveRoot)
+      .filter((entry) => entry.startsWith("ghost-org-archive-"))
+      .sort();
+    expect(archives.length).toBe(2);
+    expect(archives[1]).toBe(`${archives[0]}-2`);
+    expect(readFileSync(join(archiveRoot, archives[0]!, "state", "runs", "x.json"), "utf8"))
+      .toBe('{"pass":1}\n');
+    expect(readFileSync(join(archiveRoot, archives[1]!, "state", "runs", "x.json"), "utf8"))
+      .toBe('{"pass":2}\n');
+
+    // And a third attempt with nothing left to archive is an actionable
+    // message that names the archive, not a bare "unknown org".
+    const third = await runCli(fx, ["org", "archive", "ghost", "--execute", "--confirm", "ghost"]);
+    expect(third.code).not.toBe(0);
+    expect(third.stderr).toContain("was already archived");
+    expect(third.stderr).toContain(join(archiveRoot, "ghost-org-latest.json"));
+  }, 60_000);
+
+  it("still names orphan state homes, and retires one, when no active org resolves", async () => {
+    // Round-3 defect 2. Retiring the active org is exactly when no active org
+    // resolves — and doctor stopped enumerating orgs entirely in that state,
+    // so the operator lost the only surface that names what is left on the
+    // machine. The remediation doctor prints must also run verbatim there,
+    // and a preview must not seed audit state inside the org it previews.
+    const fx = await fixture();
+    await makeOrg(fx, "alpha");
+    const orphanState = fx.stateHome("orphaned");
+    mkdirSync(join(orphanState, "runs"), { recursive: true });
+    writeFileSync(join(orphanState, "runs", "leftover.json"), '{"kept":true}\n', "utf8");
+
+    await runCli(fx, ["org", "archive", "alpha", "--execute", "--confirm", "alpha"]);
+    expect(existsSync(fx.pointerPath)).toBe(false);
+
+    const doctor = await runCli(fx, ["doctor", "--config-only"]);
+    expect(doctor.stdout).toContain("active org      FAIL");
+    expect(doctor.stdout).toContain("orgs/orphaned");
+    const remediation = /retire it with "operon ([^"]+)"/.exec(doctor.stdout);
+    expect(remediation?.[1]).toBe("org archive orphaned");
+
+    const preview = await runCli(fx, remediation![1]!.split(" "));
+    expect(preview.code).toBe(0);
+    expect(preview.stdout).toContain("Org archive plan: orphaned");
+    // The preview journals into the retirement ledger, never into the org it
+    // is only describing.
+    expect(existsSync(join(orphanState, "invocations"))).toBe(false);
+    expect(existsSync(join(orphanState, "state", "invocation-journal"))).toBe(false);
+    expect(
+      invocationRows(orgRetirementLedgerHome(join(fx.homeDir, ".operon", "archives"))).length,
+    ).toBeGreaterThan(0);
+
+    const retired = await runCli(fx, [
+      ...remediation![1]!.split(" "), "--execute", "--confirm", "orphaned",
+    ]);
+    expect(retired.code).toBe(0);
+    expect(existsSync(orphanState)).toBe(false);
+    const after = await runCli(fx, ["doctor", "--config-only"]);
+    expect(after.stdout).not.toContain("orgs/orphaned");
   }, 60_000);
 });
 

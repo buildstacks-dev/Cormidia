@@ -171,23 +171,52 @@ export function currentCliInvocationStateHome(): string | undefined {
 }
 
 /**
- * Drop this invocation's durable binding because the command removed the state
- * home it was bound to. Writing the terminal row afterwards re-creates
+ * Move this invocation's audit binding off a state home the command has just
+ * removed and onto a ledger that outlives it.
+ *
+ * Writing the terminal row back into the removed path re-creates
  * `<state>/invocations/*.jsonl` and `<state>/state/invocation-journal` inside
  * the tree the operator just retired, so `org list` and `doctor` immediately
- * report the archived org as a live orphan again.
+ * report the archived org as a live orphan again. Dropping the row instead
+ * would silently exempt exactly the most destructive commands from the audit
+ * every other command pays. So the row moves rather than vanishing: the caller
+ * names a durable ledger outside the removed tree, this re-opens the same
+ * stable invocation identity there (so a crash between the removal and the
+ * terminal row still leaves running evidence), and the terminal row lands
+ * there when the command returns.
  *
- * This is not evidence loss: a command that removes a state home is required
- * to have archived it first, so the running row is preserved inside that
- * verified archive along with the archive's own manifest. Returns whether the
- * binding was actually dropped — it is a no-op when the removed tree is not
- * the one this invocation is journaling to.
+ * The running row already written inside the removed state home is not lost
+ * either: a command that removes a state home is required to have archived it
+ * first, so that row is preserved in the verified archive.
+ *
+ * Returns whether the binding actually moved — a no-op when the removed tree
+ * is not the one this invocation is journaling to (the ordinary cross-org
+ * case, where the invoking org's ledger is the right home for the row).
  */
-export function releaseCliInvocationStateHome(stateHome: string): boolean {
+export async function redirectCliInvocationLedger(
+  removedStateHome: string,
+  ledgerHome: string,
+): Promise<boolean> {
   const state = storage.getStore();
-  if (state === undefined || state.stateHome !== resolve(stateHome)) return false;
-  delete state.stateHome;
+  if (state === undefined || state.stateHome !== resolve(removedStateHome)) return false;
+  const destination = resolve(ledgerHome);
+  const running: RunningCliInvocation = {
+    schema_version: 2,
+    at: state.startedAt.toISOString(),
+    kind: "cli",
+    invocationId: state.invocationId,
+    command: state.command,
+    ...(state.subcommand === undefined ? {} : { subcommand: state.subcommand }),
+    argv: state.argv,
+    ...(state.org === undefined ? {} : { org: state.org }),
+    ...(state.app === undefined ? {} : { app: state.app }),
+    dryRun: state.dryRun,
+    ...(state.parentTaskId === undefined ? {} : { parentTaskId: state.parentTaskId }),
+  };
+  state.stateHome = destination;
   state.begun = false;
+  await beginCliInvocation(destination, running);
+  state.begun = true;
   return true;
 }
 
@@ -315,4 +344,5 @@ function valueAfter(args: readonly string[], flag: string): string | undefined {
  * nor a validated active state home cannot create a durable org-scoped row. */
 export const NO_STATE_HOME_AUDIT_POLICY =
   "help/version/no-command and commands with no explicit or safely resolved state home are not journaled; " +
-  "a command that removes its own audit state home releases the binding so the terminal row cannot recreate it";
+  "a command that removes its own audit state home redirects its terminal row to a durable ledger outside " +
+  "that tree, so the row is still written and cannot recreate the removed state home";

@@ -146,9 +146,18 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   // ENH-001: a state home whose org home cannot be resolved is invisible to
   // every other surface. `org list` enumerates them; doctor names them so the
   // condition is noticed without being looked for.
-  const discoveredOrgs = homes === undefined
-    ? []
-    : await listOrgs({ pointerPath: homes.pointerPath, includeUsage: false }).catch(() => []);
+  //
+  // Enumerated from the pointer's own directory, not from a resolved active
+  // org: retiring the active org is precisely when no active org resolves, and
+  // that is the moment an operator most needs to be told what state homes are
+  // still on this machine.
+  const orgsPointerPath = homes?.pointerPath
+    ?? options.pointerPath
+    ?? join(options.homeDir ?? homedir(), ".operon", "config");
+  const discoveredOrgs = await listOrgs({
+    pointerPath: orgsPointerPath,
+    includeUsage: false,
+  }).catch(() => []);
   const orphans: CheckRow[] = discoveredOrgs
     .filter((org) => org.orphan || org.orgHomeMissing)
     .map((org) => ({

@@ -456,14 +456,16 @@ describe("ticket EpisodePlanner execution adapter", () => {
       const runtime = makeTicketRuntime(
         fixture,
         calls,
-        JSON.stringify({
-          status: "done",
-          blockedEntry: null,
-          resolutions: [
-            { outcome: "fixed", location: "src/parser.ts:42", note: "commit ab12cd3, test/parser.test.ts" },
-            { outcome: "rebutted", location: "docs/spec.md:9", note: "documented behavior, see docs/spec.md" },
-          ],
-        }),
+        (request) => isContractTurn(request)
+          ? CONTRACT_VERDICT
+          : JSON.stringify({
+              status: "done",
+              blockedEntry: null,
+              resolutions: [
+                { outcome: "fixed", location: "src/parser.ts:42", note: "commit ab12cd3, test/parser.test.ts" },
+                { outcome: "rebutted", location: "docs/spec.md:9", note: "documented behavior, see docs/spec.md" },
+              ],
+            }),
       );
 
       const item = await runtime.executeTicketPlan({
@@ -473,21 +475,24 @@ describe("ticket EpisodePlanner execution adapter", () => {
         beforeProviderTurn: async () => undefined,
       });
 
-      // One paid turn, with the catalog's own pipeline/pass/template triple.
-      expect(calls).toHaveLength(1);
-      expect(calls[0]?.request.role.name).toBe("builder");
-      expect(calls[0]?.request.task).toContain("Operation: fix/fix");
-      expect(calls[0]?.request.task).toContain("Governed pipeline/pass: fix/fix");
-      expect(calls[0]?.request.task).toContain("Access: write");
+      // The seeded contract ancestor runs first, then exactly one fix turn
+      // with the catalog's own pipeline/pass/template triple. Nothing else
+      // runs: the fix pass is one paid turn, not a retry loop.
+      expect(calls.map((call) => isContractTurn(call.request))).toEqual([true, false]);
+      const fixCall = calls[1]!;
+      expect(fixCall.request.role.name).toBe("builder");
+      expect(fixCall.request.task).toContain("Operation: fix/fix");
+      expect(fixCall.request.task).toContain("Governed pipeline/pass: fix/fix");
+      expect(fixCall.request.task).toContain("Access: write");
       // ISSUE-012 asserted nothing could bind a ticket to a builder turn. The
       // ticket route binds the ref, the title, and the acceptance criteria into
       // every builder step's brief.
-      expect(calls[0]?.request.task).toContain("Ticket: #7 Fix a bounded parser bug");
-      expect(calls[0]?.request.task).toContain("parser regression is covered");
+      expect(fixCall.request.task).toContain("Ticket: #7 Fix a bounded parser bug");
+      expect(fixCall.request.task).toContain("parser regression is covered");
       // The template resolved to real prompt bytes — the undefined-template
       // TypeError ISSUE-016 reported cannot recur silently.
-      expect(calls[0]?.request.task).toContain("Return the typed verdict.");
-      expect(calls[0]?.request.verdictSchema).toMatchObject({ title: "BuildVerdict" });
+      expect(fixCall.request.task).toContain("Return the typed verdict.");
+      expect(fixCall.request.verdictSchema).toMatchObject({ title: "BuildVerdict" });
 
       // The build verdict parsed and the fix step completed. The plan's later
       // deterministic gate step is out of this test's scope, so assert the fix
@@ -539,7 +544,9 @@ describe("ticket EpisodePlanner execution adapter", () => {
       const runtime = makeTicketRuntime(
         fixture,
         calls,
-        JSON.stringify({ status: "done", blockedEntry: null, resolutions: null }),
+        (request) => isContractTurn(request)
+          ? CONTRACT_VERDICT
+          : JSON.stringify({ status: "done", blockedEntry: null, resolutions: null }),
       );
 
       await runtime.executeTicketPlan({
@@ -549,7 +556,9 @@ describe("ticket EpisodePlanner execution adapter", () => {
         beforeProviderTurn: async () => undefined,
       });
 
-      expect(calls).toHaveLength(1);
+      // The seeded contract ancestor, then exactly one fix turn — the null
+      // resolutions complete the pass rather than provoking another turn.
+      expect(calls.map((call) => isContractTurn(call.request))).toEqual([true, false]);
       const journal = await readEpisodePlanExecutionJournal(
         fixture.state.root,
         fixture.accepted.plan.episodeId,

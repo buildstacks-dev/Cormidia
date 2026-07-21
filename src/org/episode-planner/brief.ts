@@ -1,6 +1,7 @@
 import { SECRET_PATTERNS } from "../../runtime/secret-patterns.js";
 import {
   EPISODE_PLAN_PROPOSAL_SCHEMA,
+  episodePlanProposalSchemaForOperations,
   episodeIntentHash,
 } from "../../loop/episode-plan.js";
 import type { EpisodePlan } from "../../loop/episode-plan.js";
@@ -26,6 +27,9 @@ const DETERMINISTIC_PROPOSAL_CONTRACT = {
 export function renderEpisodePlannerBrief(
   request: EpisodePlannerProposalRequest,
 ): string {
+  const proposalSchema = request.providerOperations === undefined
+    ? EPISODE_PLAN_PROPOSAL_SCHEMA
+    : episodePlanProposalSchemaForOperations(request.providerOperations);
   const diagnostics = request.validationDiagnostics
     .map((entry) => ({
       code: entry.code,
@@ -57,7 +61,10 @@ export function renderEpisodePlannerBrief(
     // fallback, and native adapter regressions must remain diagnosable rather
     // than asking the planner to guess a hidden shape. Keep the canonical
     // schema in the bounded input as well as on TurnRequest.verdictSchema.
-    proposalSchema: EPISODE_PLAN_PROPOSAL_SCHEMA,
+    proposalSchema,
+    ...(request.providerOperations === undefined
+      ? {}
+      : { providerOperationRegistry: [...new Set(request.providerOperations)].sort() }),
     deterministicProposalContract: DETERMINISTIC_PROPOSAL_CONTRACT,
     intent: request.intent,
     validationDiagnostics: diagnostics,
@@ -99,6 +106,7 @@ export function renderEpisodePlannerBrief(
 
 export interface EpisodePlannerRevisionRequest {
   intent: EpisodePlannerProposalRequest["intent"];
+  providerOperations?: readonly string[];
   previousPlan: EpisodePlan;
   replan: EpisodeReplanRecord;
   attempt: 1 | 2;
@@ -112,6 +120,9 @@ export interface EpisodePlannerRevisionRequest {
 export function renderEpisodePlannerRevisionBrief(
   request: EpisodePlannerRevisionRequest,
 ): string {
+  const proposalSchema = request.providerOperations === undefined
+    ? EPISODE_PLAN_PROPOSAL_SCHEMA
+    : episodePlanProposalSchemaForOperations(request.providerOperations);
   const diagnostics = request.validationDiagnostics
     .map((entry) => ({
       code: entry.code,
@@ -139,7 +150,10 @@ export function renderEpisodePlannerRevisionBrief(
       planningSource: request.previousPlan.planningSource,
       createdAt: request.proposalCreatedAt,
     },
-    proposalSchema: EPISODE_PLAN_PROPOSAL_SCHEMA,
+    proposalSchema,
+    ...(request.providerOperations === undefined
+      ? {}
+      : { providerOperationRegistry: [...new Set(request.providerOperations)].sort() }),
     deterministicProposalContract: DETERMINISTIC_PROPOSAL_CONTRACT,
     immutableIntent: request.intent,
     previousAcceptedPlan: request.previousPlan,

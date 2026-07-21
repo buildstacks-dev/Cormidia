@@ -110,6 +110,9 @@ export const TICKET_PROVIDER_OPERATION_CATALOG = {
 } as const satisfies Record<string, TicketProviderOperationDefinition>;
 
 export type TicketProviderOperation = keyof typeof TICKET_PROVIDER_OPERATION_CATALOG;
+export const TICKET_PROVIDER_OPERATIONS = Object.keys(
+  TICKET_PROVIDER_OPERATION_CATALOG,
+).sort() as TicketProviderOperation[];
 
 export const TICKET_MECHANICAL_GATE_CATALOG = {
   "ticket/provision": { handler: "provision" },
@@ -189,7 +192,8 @@ export function validateTicketEpisodePlan(plan: TicketPlanLike): TicketEpisodePl
       if (definition === undefined) {
         issues.push(ticketIssue(
           "ticket_provider_operation_unknown",
-          `provider operation ${step.operation} is not in the ticket operation catalog`,
+          `unknown provider operation ${JSON.stringify(step.operation)}; ` +
+            `valid operations are: ${TICKET_PROVIDER_OPERATIONS.join(", ")}`,
           step.id,
         ));
       } else if (step.role !== definition.role) {

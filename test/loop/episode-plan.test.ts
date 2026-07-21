@@ -431,6 +431,28 @@ describe("EpisodePlan core", () => {
     expect(episodeIntentHash(intent)).not.toBe(episodeIntentHash({ ...intent, assignmentMode: "adaptive" }));
   });
 
+  it("rejects an unknown registered-domain operation before producing a plan hash", () => {
+    const intent = makeIntent();
+    const plan = makePlan(intent, "fixed");
+    provider(plan, "build").operation = "build/implement-typo";
+
+    const result = validateEpisodePlan(plan, intent, {
+      ...makePolicy("fixed"),
+      knownProviderOperations: ["build/contract", "build/implement", "review/verify"],
+    });
+
+    expect(result.planHash).toBeUndefined();
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "plan_operation_unknown",
+        stepId: "build",
+        message:
+          'unknown provider operation "build/implement-typo"; valid operations are: ' +
+          "build/contract, build/implement, review/verify",
+      }),
+    ]));
+  });
+
   it("strictly parses proposals, permits only the pre-materialization assignment omission, and rejects unknown fields", () => {
     const intent = makeIntent();
     const fixed = makeProposal(intent, "episode_planner", "fixed");

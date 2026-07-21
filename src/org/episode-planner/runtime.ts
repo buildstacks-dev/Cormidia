@@ -9,6 +9,7 @@ import {
   EpisodePlanValidationError,
   EPISODE_PLAN_REASON_CODES,
   EPISODE_PLAN_PROPOSAL_SCHEMA,
+  episodePlanProposalSchemaForOperations,
   assertEpisodePlanValid,
   assessCreatorScope,
   episodeIntentHash,
@@ -110,6 +111,8 @@ import {
 } from "./policy.js";
 
 export const EPISODE_PLANNER_PIPELINE = "episode-planner" as const;
+export const EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR =
+  "error_episode_planner_acceptance_internal" as const;
 export const MAX_EPISODE_PLANNER_PROMPT_BYTES = 64 * 1024;
 export const MAX_EPISODE_PLANNER_CONTEXT_BYTES = 640 * 1024;
 
@@ -130,6 +133,9 @@ export interface ProviderEpisodePlannerOptions {
   app: AppEntry;
   roles: readonly RoleConfig[];
   intent: EpisodeIntent;
+  /** Domain-owned provider operation registry. When present it becomes both
+   * a structured-output enum and an acceptance policy constraint. */
+  providerOperations?: readonly string[];
   /** Human-ratified planner protocol supplied by the caller. This module does
    * not own or mutate the protected prompt surface. */
   promptText: string;
@@ -188,6 +194,27 @@ export class EpisodePlannerRevisionDeferredError extends Error {
   }
 }
 
+class EpisodePlannerAcceptanceInternalError extends Error {
+  readonly code = EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR;
+  readonly detail: string;
+
+  constructor(error: Error) {
+    super(`EpisodePlanner plan acceptance failed internally: ${error.message}`, { cause: error });
+    this.name = "EpisodePlannerAcceptanceInternalError";
+    this.detail = error.message;
+  }
+}
+
+class EpisodePlannerAttemptFailedError extends Error {
+  readonly code: string;
+
+  constructor(label: string, attempt: number, result: TurnResult) {
+    super(`${label} attempt ${attempt} ended ${result.status}: ${result.summary}`);
+    this.name = "EpisodePlannerAttemptFailedError";
+    this.code = result.errorCode ?? "error_episode_planner_attempt_failed";
+  }
+}
+
 interface PlannerExecutedAttemptOutput {
   rawOutput: string;
   result: TurnResult;
@@ -197,7 +224,8 @@ interface PlannerExecutedAttemptOutput {
 
 type PlannerOutputEvaluation =
   | { kind: "accepted"; plan: EpisodePlan }
-  | { kind: "rejected"; diagnostics: EpisodePlanIssue[] };
+  | { kind: "rejected"; diagnostics: EpisodePlanIssue[] }
+  | { kind: "internal_error"; error: Error };
 
 type PlannerOutputEvaluator = (rawOutput: string) => EpisodePlan;
 
@@ -282,6 +310,9 @@ export async function prepareEpisodePlanWithRuntime(
       ...(options.safetyFloorMapping === undefined
         ? {}
         : { safetyFloorMapping: options.safetyFloorMapping }),
+      ...(options.providerOperations === undefined
+        ? {}
+        : { providerOperations: options.providerOperations }),
       ...(options.validateAcceptedPlan === undefined
         ? {}
         : { validateAcceptedPlan: options.validateAcceptedPlan }),
@@ -318,6 +349,9 @@ export async function prepareEpisodePlanWithRuntime(
     const request: EpisodePlannerProposalRequest = {
       intent: structuredClone(options.intent),
       attempt,
+      ...(options.providerOperations === undefined
+        ? {}
+        : { providerOperations: [...options.providerOperations] }),
       proposalCreatedAt,
       validationDiagnostics: structuredClone(diagnostics),
     };
@@ -358,6 +392,9 @@ export async function prepareEpisodePlanWithRuntime(
       }
       continue;
     }
+    if (outcome.evaluation?.kind === "internal_error") {
+      throw new EpisodePlannerAcceptanceInternalError(outcome.evaluation.error);
+    }
     if (outcome.evaluation?.kind === "accepted") {
       const plan = outcome.evaluation.plan;
       await persistAcceptedEpisodePlannerPlan({
@@ -375,17 +412,9 @@ export async function prepareEpisodePlanWithRuntime(
       );
     }
     if (outcome.result.status !== "completed" || outcome.evaluation === undefined) {
-      throw new EpisodePlannerFailedError(attempt, [{
-        code: "plan_structure_invalid",
-        message:
-          `EpisodePlanner attempt ${attempt} ended ${outcome.result.status}: ` +
-          outcome.result.summary,
-      }]);
+      throw new EpisodePlannerAttemptFailedError("EpisodePlanner", attempt, outcome.result);
     }
-    throw new EpisodePlannerFailedError(attempt, [{
-      code: "plan_structure_invalid",
-      message: `EpisodePlanner attempt ${attempt} has no accepted or rejected evaluation`,
-    }]);
+    throw new EpisodePlannerAttemptFailedError("EpisodePlanner", attempt, outcome.result);
   }
   throw new EpisodePlannerFailedError(2, diagnostics);
 }
@@ -437,6 +466,9 @@ export function createProviderEpisodePlanRevisionProposer(
     for (const attempt of [1, 2] as const) {
       const plannerRequest: EpisodePlannerRevisionRequest = {
         intent: structuredClone(request.intent),
+        ...(options.providerOperations === undefined
+          ? {}
+          : { providerOperations: [...options.providerOperations] }),
         previousPlan: structuredClone(request.previousPlan),
         replan: structuredClone(request.replan),
         attempt,
@@ -465,21 +497,24 @@ export function createProviderEpisodePlanRevisionProposer(
         }
         continue;
       }
+      if (outcome.evaluation?.kind === "internal_error") {
+        throw new EpisodePlannerAcceptanceInternalError(outcome.evaluation.error);
+      }
       if (outcome.evaluation?.kind === "accepted") {
         return { plan: outcome.evaluation.plan, policy: policy.validation };
       }
       if (outcome.result.status !== "completed" || outcome.evaluation === undefined) {
-        throw new EpisodePlannerFailedError(attempt, [{
-          code: "plan_structure_invalid",
-          message:
-            `EpisodePlanner revision attempt ${attempt} ended ${outcome.result.status}: ` +
-            outcome.result.summary,
-        }]);
+        throw new EpisodePlannerAttemptFailedError(
+          "EpisodePlanner revision",
+          attempt,
+          outcome.result,
+        );
       }
-      throw new EpisodePlannerFailedError(attempt, [{
-        code: "plan_structure_invalid",
-        message: `EpisodePlanner revision attempt ${attempt} has no accepted or rejected evaluation`,
-      }]);
+      throw new EpisodePlannerAttemptFailedError(
+        "EpisodePlanner revision",
+        attempt,
+        outcome.result,
+      );
     }
     throw new EpisodePlannerFailedError(2, diagnostics);
   };
@@ -719,6 +754,9 @@ async function executeStartedAttempt(
   strictSettlement = false,
 ): Promise<PlannerExecutedAttemptOutput> {
   const { assignment, planMetadata, started } = decision;
+  const proposalSchema = options.providerOperations === undefined
+    ? structuredClone(EPISODE_PLAN_PROPOSAL_SCHEMA) as Record<string, unknown>
+    : episodePlanProposalSchemaForOperations(options.providerOperations);
   const executionFacts = buildTurnExecutionFacts(
     assignment,
     plannerRole,
@@ -822,6 +860,7 @@ async function executeStartedAttempt(
   };
 
   let result: TurnResult;
+  let executionError: Error | undefined;
   try {
     // Admission, started receipt, context manifest, and exact input are all
     // durable before this construction boundary.
@@ -843,7 +882,7 @@ async function executeStartedAttempt(
         workdir: options.workdir,
         task,
         context: contextManifest.context,
-        verdictSchema: structuredClone(EPISODE_PLAN_PROPOSAL_SCHEMA) as Record<string, unknown>,
+        verdictSchema: proposalSchema,
         ...(options.maxTurns === undefined ? {} : { maxTurns: options.maxTurns }),
       },
       hooks: turnHooks,
@@ -867,6 +906,7 @@ async function executeStartedAttempt(
       };
     }
   } catch (error) {
+    executionError = normalizeError(error);
     result = failedResult(error, assignment, request.attempt, latestProgress);
   }
   await checkpointWrites;
@@ -876,6 +916,8 @@ async function executeStartedAttempt(
     evaluation = evaluatePlannerOutput(rawOutput, evaluateOutput);
     if (evaluation.kind === "rejected") {
       result = rejectedPlannerResult(result, evaluation.diagnostics);
+    } else if (evaluation.kind === "internal_error") {
+      result = internalPlannerResult(result, evaluation.error);
     }
   }
   await writeOutput(options.root, options.app.name, runId, rawOutput);
@@ -922,6 +964,7 @@ async function executeStartedAttempt(
         events,
         now,
         strictSettlement,
+        evaluation?.kind === "internal_error" ? evaluation.error : executionError,
       );
     }
     throw error;
@@ -935,6 +978,7 @@ async function executeStartedAttempt(
     events,
     now,
     strictSettlement,
+    evaluation?.kind === "internal_error" ? evaluation.error : executionError,
   );
   return {
     rawOutput,
@@ -976,16 +1020,26 @@ async function recoverTerminalAttempt(
   // recovered crash cannot recreate the old completed-on-invalid-output bug.
   // Already-terminal legacy envelopes remain immutable and are only diagnosed
   // by `evaluation`; this recovery path never rewrites terminal evidence.
-  const result = envelope.status === "running" && evaluation?.kind === "rejected" &&
-      terminalResult.status === "completed"
-    ? rejectedPlannerResult(terminalResult, evaluation.diagnostics)
+  const result = envelope.status === "running" && terminalResult.status === "completed"
+    ? evaluation?.kind === "rejected"
+      ? rejectedPlannerResult(terminalResult, evaluation.diagnostics)
+      : evaluation?.kind === "internal_error"
+        ? internalPlannerResult(terminalResult, evaluation.error)
+        : terminalResult
     : terminalResult;
   if (envelope.status === "running") {
     await updateEnvelope(options.root, options.app.name, step.run_id, {
       usage: toEnvelopeUsage(result.usage),
       previews: { output: rawOutput },
     });
-    await finalizePlannerRun(options, result, step.run_id, events, now);
+    await finalizePlannerRun(
+      options,
+      result,
+      step.run_id,
+      events,
+      now,
+      evaluation?.kind === "internal_error" ? evaluation.error : undefined,
+    );
   }
   await settlePlannerTurn(options, plannerRole, result, step, events, strictSettlement);
   return {
@@ -1004,9 +1058,10 @@ async function finishRunAndSettle(
   events: EventWriter,
   now: () => Date,
   strictSettlement = false,
+  internalError?: Error,
 ): Promise<void> {
   await settlePlannerTurn(options, plannerRole, result, step, events, strictSettlement);
-  await finalizePlannerRun(options, result, step.run_id, events, now);
+  await finalizePlannerRun(options, result, step.run_id, events, now, internalError);
 }
 
 async function settlePlannerTurn(
@@ -1089,6 +1144,7 @@ async function finalizePlannerRun(
   runId: string,
   events: EventWriter,
   now: () => Date,
+  internalError?: Error,
 ): Promise<void> {
   const status = envelopeStatus(result.status);
   const terminalEvent =
@@ -1099,7 +1155,19 @@ async function finalizePlannerRun(
     type: terminalEvent,
     ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
     ...(status === "completed" ? {} : { severity: "error" }),
-    ...(status === "completed" ? {} : { detail: { reason: result.summary } }),
+    ...(status === "completed"
+      ? {}
+      : {
+          detail: {
+            reason: result.summary,
+            ...(internalError === undefined
+              ? {}
+              : {
+                  detail: internalError.message,
+                  stack: internalError.stack ?? `${internalError.name}: ${internalError.message}`,
+                }),
+          },
+        }),
   });
   await events.append({ type: "run.completed" });
   await finalizeRun(options.root, options.app.name, runId, {
@@ -1226,7 +1294,10 @@ function evaluatePlannerOutput(
   try {
     return { kind: "accepted", plan: evaluateOutput(rawOutput) };
   } catch (error) {
-    return { kind: "rejected", diagnostics: diagnosticsFrom(error) };
+    const diagnostics = diagnosticsFrom(error);
+    return diagnostics === undefined
+      ? { kind: "internal_error", error: normalizeError(error) }
+      : { kind: "rejected", diagnostics };
   }
 }
 
@@ -1249,8 +1320,19 @@ function rejectedPlannerResult(
   };
 }
 
+function internalPlannerResult(result: TurnResult, error: Error): TurnResult {
+  return {
+    ...result,
+    status: "failed",
+    errorCode: EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR,
+    summary: `EpisodePlanner plan acceptance failed internally: ${error.message}`,
+    artifacts: [],
+  };
+}
+
 function shouldEvaluateRecoveredPlannerOutput(result: TurnResult): boolean {
   return result.status === "completed" ||
+    result.errorCode === EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR ||
     (result.errorCode !== undefined && EPISODE_PLAN_REASON_CODE_SET.has(result.errorCode));
 }
 
@@ -1271,7 +1353,7 @@ function parsePlannerOutput(raw: string) {
   return parseNormalizedProposedEpisodePlan(value);
 }
 
-function diagnosticsFrom(error: unknown): EpisodePlanIssue[] {
+function diagnosticsFrom(error: unknown): EpisodePlanIssue[] | undefined {
   if (error instanceof EpisodePlanValidationError) {
     return error.issues.map((issue) => ({ ...issue }));
   }
@@ -1288,10 +1370,11 @@ function diagnosticsFrom(error: unknown): EpisodePlanIssue[] {
       received: "policy-invalid proposal",
     }));
   }
-  return [{
-    code: "plan_structure_invalid",
-    message: error instanceof Error ? error.message : String(error),
-  }];
+  return undefined;
+}
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function hasIssueArray(error: unknown): error is {
@@ -1355,16 +1438,21 @@ function assertRevisionProposalIdentity(
         "the typed replan journal records the revision author",
     });
   }
-  if (
-    fingerprint(proposal.creatorProvenance) !==
-      fingerprint(request.previousPlan.creatorProvenance)
-  ) {
+  if (!optionalFingerprintsEqual(
+    proposal.creatorProvenance,
+    request.previousPlan.creatorProvenance,
+  )) {
     issues.push({
       code: "plan_creator_provenance_mismatch",
       message: "revision must preserve creator provenance exactly",
     });
   }
   if (issues.length > 0) throw new EpisodePlanValidationError(issues);
+}
+
+function optionalFingerprintsEqual(left: unknown, right: unknown): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return fingerprint(left) === fingerprint(right);
 }
 
 function validateUnavailableAssignmentRevision(
@@ -1452,6 +1540,9 @@ function planningPolicy(
     intent: options.intent,
     roles: options.roles,
     assignmentAuthority,
+    ...(options.providerOperations === undefined
+      ? {}
+      : { providerOperations: options.providerOperations }),
     ...(options.workflowTemplates === undefined
       ? {}
       : { workflowTemplates: options.workflowTemplates }),

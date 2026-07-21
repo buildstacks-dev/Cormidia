@@ -197,6 +197,39 @@ export const EPISODE_PLAN_PROPOSAL_SCHEMA = {
   },
 } as const satisfies Record<string, unknown>;
 
+/** Bind the provider-facing structured-output contract to the domain's
+ * code-owned operation registry. The base schema remains available for
+ * generic episodes whose operation vocabulary is intentionally open. */
+export function episodePlanProposalSchemaForOperations(
+  providerOperations: readonly string[],
+): Record<string, unknown> {
+  const operations = [...new Set(providerOperations)].sort();
+  if (operations.length === 0) {
+    throw new TypeError("EpisodePlanner provider operation registry must not be empty");
+  }
+  for (const operation of operations) {
+    if (!machineReadableOperation(operation)) {
+      throw new TypeError(`invalid EpisodePlanner provider operation ${operation}`);
+    }
+  }
+  const schema = structuredClone(EPISODE_PLAN_PROPOSAL_SCHEMA) as Record<string, unknown>;
+  const properties = schema["properties"] as Record<string, unknown>;
+  const steps = properties["steps"] as Record<string, unknown>;
+  const items = steps["items"] as Record<string, unknown>;
+  const alternatives = items["oneOf"] as Array<Record<string, unknown>>;
+  const provider = alternatives.find((alternative) => {
+    const stepProperties = alternative["properties"] as Record<string, unknown> | undefined;
+    const kind = stepProperties?.["kind"] as Record<string, unknown> | undefined;
+    return kind?.["const"] === "provider_turn";
+  });
+  if (provider === undefined) {
+    throw new Error("EpisodePlan proposal schema has no provider_turn alternative");
+  }
+  const providerProperties = provider["properties"] as Record<string, unknown>;
+  providerProperties["operation"] = { type: "string", enum: operations };
+  return schema;
+}
+
 export type JsonValue =
   | null
   | boolean
@@ -411,6 +444,7 @@ export const EPISODE_PLAN_REASON_CODES = [
   "plan_step_unreachable",
   "plan_role_unknown",
   "plan_operation_invalid",
+  "plan_operation_unknown",
   "plan_assignment_invalid",
   "plan_assignment_not_allowed",
   "plan_assignment_catalog_duplicate",
@@ -500,6 +534,9 @@ export interface EpisodePlanValidationPolicy extends AssignmentMaterializationPo
   isKnownRole(role: string): boolean;
   capabilitiesFor(role: string, assignment: TurnAssignment): readonly string[];
   requiredTerminalOutputIds: readonly string[];
+  /** Closed domain operation vocabulary. Omitted only for generic episodes
+   * whose provider step is itself the executable protocol. */
+  knownProviderOperations?: readonly string[];
   /** Provider ownership floors validate the proposed graph. They never add a
    * turn or substitute another organizational role. */
   requiredProviderRoles?: readonly string[];
@@ -1513,6 +1550,16 @@ function validateProviderStep(
 ): void {
   if (!machineReadableOperation(step.operation)) {
     issues.push(issue("plan_operation_invalid", "provider operation must be a stable machine-readable identifier", step.id));
+  } else if (
+    policy.knownProviderOperations !== undefined &&
+    !policy.knownProviderOperations.includes(step.operation)
+  ) {
+    const known = [...new Set(policy.knownProviderOperations)].sort();
+    issues.push(issue(
+      "plan_operation_unknown",
+      `unknown provider operation ${JSON.stringify(step.operation)}; valid operations are: ${known.join(", ")}`,
+      step.id,
+    ));
   }
   if (!policy.isKnownRole(step.role)) issues.push(issue("plan_role_unknown", `unknown role ${step.role}`, step.id));
   let assignment: TurnAssignment;

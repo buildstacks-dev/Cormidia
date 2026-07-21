@@ -240,6 +240,15 @@ planner-authored structural failure gets at most one bounded repair. Creator
 scope that omits non-authoritative planning details invokes EpisodePlanner;
 contradictory authoritative scope fails closed.
 
+Closed workflow domains also supply one code-owned provider-operation
+registry. Operon injects its sorted operation IDs into both the initial and
+revision planner context and structured-output schema, then validates the same
+registry before plan hashing or template resolution. An unknown operation is
+a named plan-contract error that includes the valid IDs. An orchestrator
+exception during acceptance is instead an internal failure with its own error
+code and stack evidence; `plan_structure_invalid` is reserved for actual
+schema/plan-contract defects.
+
 The accepted plan is persisted atomically before delivery. Only then does
 `episode-route.ts` derive the compatibility route and exact authorized provider
 steps. Quick/standard/deep is a plan-complexity/safety label. It cannot add a

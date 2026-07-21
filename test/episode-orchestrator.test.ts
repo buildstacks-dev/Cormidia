@@ -642,6 +642,70 @@ describe("EpisodePlanner org orchestrator", () => {
       .toHaveLength(2);
   });
 
+  it("revises an EpisodePlanner-authored plan with absent creator provenance", async () => {
+    const home = makeOrgHome();
+    homes.push(home);
+    const app = fixtureApp("fixed");
+    const configuredRoles = roles();
+    const episodeId = "ticket:orchestrator:revision-without-creator-provenance";
+    const facts = episodeFacts(episodeId);
+    const intent = buildEpisodeIntent({ ...facts, app, roles: configuredRoles });
+    const initial = proposal(intent);
+    const revision: ProposedEpisodePlan = {
+      ...structuredClone(initial),
+      version: 2,
+      summary: "Retry the registered implementation after retained gate evidence",
+    };
+    const plannerRuntime = new FakeRuntime([{
+      result: completed(JSON.stringify(initial), "codex"),
+    }, {
+      result: completed(JSON.stringify(revision), "codex"),
+    }], "codex");
+    const provider = vi.fn()
+      .mockResolvedValueOnce({
+        status: "failed" as const,
+        reasonCode: "ticket_quality_gate_failed",
+        summary: "focused gate failed",
+      })
+      .mockResolvedValueOnce({
+        status: "completed" as const,
+        artifact: { patch: "repaired" },
+      });
+
+    const result = await orchestrateEpisode({
+      root: home.root,
+      app,
+      roles: configuredRoles,
+      facts,
+      mode: "execute",
+      planner: plannerInput(home.root, () => plannerRuntime),
+      execution: {
+        workdir: home.root,
+        hooks: { gate: () => ({ allow: true }) },
+        runtimeForAssignment: () => new FakeRuntime([], "codex"),
+        contextForProviderStep: () => CONTEXT,
+        provider,
+        mechanical: async (step) => ({ status: "completed", artifact: { gate: step.gate } }),
+        approval: async (step) => ({ status: "completed", artifact: { approval: step.actionRef } }),
+        telemetry: { orgDir: home.root, trigger: "manual" },
+        now: () => NOW,
+      },
+    });
+
+    expect(result.execution).toMatchObject({
+      status: "running",
+      planVersion: 2,
+      nextStepId: "build",
+      replan: { status: "accepted", revisionVersion: 2 },
+    });
+    expect(plannerRuntime.calls).toHaveLength(2);
+    expect(provider).toHaveBeenCalledOnce();
+    expect(await readCurrentEpisodePlan(home.root, episodeId)).toMatchObject({
+      version: 2,
+      planningSource: "episode_planner",
+    });
+  });
+
   it("rejects a valid revision before pointer advance when its future work no longer fits", async () => {
     const home = makeOrgHome();
     homes.push(home);

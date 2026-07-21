@@ -59,6 +59,8 @@ export interface EpisodeIntentFacts {
 export interface EpisodePlanningPolicyOptions {
   intent: EpisodeIntent;
   roles: readonly RoleConfig[];
+  /** Domain-owned provider operations that an accepted plan may execute. */
+  providerOperations?: readonly string[];
   /** A persisted accepted plan remains authorized by its immutable intent.
    * This mode is only for resume/revision validation; new plans must join the
    * current org/app configuration before persistence. */
@@ -270,6 +272,9 @@ export function createEpisodePlanningPolicy(
       return uniqueSorted(metadata.capabilities);
     },
     requiredTerminalOutputIds: requiredOutputs,
+    ...(options.providerOperations === undefined
+      ? {}
+      : { knownProviderOperations: [...new Set(options.providerOperations)].sort() }),
     requiredProviderRoles,
     requiredGateKinds,
     requiredApprovalKinds,

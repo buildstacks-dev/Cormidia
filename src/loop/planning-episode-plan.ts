@@ -75,6 +75,9 @@ export const PLANNING_PROVIDER_OPERATION_CATALOG = {
 } as const satisfies Record<string, PlanningProviderOperationDefinition>;
 
 export type PlanningProviderOperation = keyof typeof PLANNING_PROVIDER_OPERATION_CATALOG;
+export const PLANNING_PROVIDER_OPERATIONS = Object.keys(
+  PLANNING_PROVIDER_OPERATION_CATALOG,
+).sort() as PlanningProviderOperation[];
 
 export const PLANNING_EPISODE_PLAN_REASON_CODES = [
   "planning_provider_operation_unknown",

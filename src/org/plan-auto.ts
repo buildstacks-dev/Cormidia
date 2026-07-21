@@ -44,6 +44,7 @@ import {
   planningPipelineForOperation,
   planningProviderOperation,
   PLANNING_PROVIDER_OPERATION_CATALOG,
+  PLANNING_PROVIDER_OPERATIONS,
   type PlanningProviderOperationDefinition,
 } from "../loop/planning-episode-plan.js";
 import { loadPipelines, type PipelinesFile, type PipelineConfig } from "../loop/pipelines.js";
@@ -509,6 +510,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       hooks,
       runtimeForAssignment,
       policyVersion: PRODUCT_PLANNING_EPISODE_POLICY_VERSION,
+      providerOperations: PLANNING_PROVIDER_OPERATIONS,
       limits,
       safetyFloorMapping: PRODUCT_PLANNING_SUBJECT_SAFETY_MAPPING,
       validateAcceptedPlan: (plan) => assertPlanningEpisodePlanValid(plan, stage),
@@ -550,6 +552,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         hooks,
         runtimeForAssignment,
         policyVersion: PRODUCT_PLANNING_EPISODE_POLICY_VERSION,
+        providerOperations: PLANNING_PROVIDER_OPERATIONS,
         limits,
         safetyFloorMapping: PRODUCT_PLANNING_SUBJECT_SAFETY_MAPPING,
         validateAcceptedPlan: (plan) => assertPlanningEpisodePlanValid(plan, stage),

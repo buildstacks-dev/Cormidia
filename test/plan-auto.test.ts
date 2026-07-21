@@ -572,7 +572,10 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
     // One proposal plus the one bounded repair; no delivery call.
     expect(runtime.calls).toHaveLength(2);
     expect(runtime.calls.every((call) => call.req.task.includes("[episode_planner_input]"))).toBe(true);
-    expect(result.problems?.join(" ")).toContain("planning_provider_operation_unknown");
+    expect(result.problems?.join(" ")).toContain("plan_operation_unknown");
+    expect(result.problems?.join(" ")).toContain(
+      "valid operations are: plan/arbitrate, plan/bootstrap, plan/decompose, plan/product-a, plan/product-b, plan/vision",
+    );
   });
 
   it("fails an invalid terminal TicketPlan without a hidden provider reformat turn", async () => {

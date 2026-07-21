@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EPISODE_PLAN_PROPOSAL_SCHEMA,
   EpisodePlanValidationError,
+  episodePlanProposalSchemaForOperations,
   episodeIntentHash,
   readCurrentEpisodePlan,
   type CreatorEpisodeScope,
@@ -18,7 +19,10 @@ import {
   type PlannerAdmissionLimits,
 } from "../src/loop/planner-admission.js";
 import { buildEpisodeIntent } from "../src/org/episode-planner/policy.js";
-import { prepareEpisodePlanWithRuntime } from "../src/org/episode-planner/runtime.js";
+import {
+  EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR,
+  prepareEpisodePlanWithRuntime,
+} from "../src/org/episode-planner/runtime.js";
 import { cmdTelemetry } from "../src/cli/telemetry.js";
 import { renderStoryMarkdown } from "../src/narrative/render.js";
 import { foldAppStories } from "../src/narrative/story.js";
@@ -166,6 +170,7 @@ describe("provider-backed EpisodePlanner", () => {
 
     const prepared = await prepareEpisodePlanWithRuntime({
       ...baseOptions(home.root, intent),
+      providerOperations: ["build/implement", "build/contract"],
       runtimeForAssignment: () => runtime,
     });
 
@@ -175,9 +180,13 @@ describe("provider-backed EpisodePlanner", () => {
     expect(runtime.calls[1]!.req.task).toContain('"path": "$.schemaVersion"');
     expect(runtime.calls[1]!.req.task).toContain('"constraint": "const"');
     expect(runtime.calls[1]!.req.task).toContain('"attempt": 2');
+    const operationSchema = episodePlanProposalSchemaForOperations([
+      "build/implement",
+      "build/contract",
+    ]);
     expect(runtime.calls.map((call) => call.req.verdictSchema)).toEqual([
-      EPISODE_PLAN_PROPOSAL_SCHEMA,
-      EPISODE_PLAN_PROPOSAL_SCHEMA,
+      operationSchema,
+      operationSchema,
     ]);
     const steps = await readExecutionSteps(home.root, intent.episodeId);
     expect(steps.map((step) => ({
@@ -222,6 +231,42 @@ describe("provider-backed EpisodePlanner", () => {
     expect(statusRows.find((row) => row.runId === steps[0]!.run_id)?.status)
       .toBe("failed(plan_structure_invalid)");
     expect(formatStatusRows(statusRows)).toContain("failed(plan_structure_invalid)");
+  });
+
+  it("rejects a genuinely unknown operation with the valid registry before acceptance", async () => {
+    home = makeOrgHome();
+    const intent = makeIntent();
+    const invalid = proposal(intent);
+    const step = invalid.steps[0];
+    if (step?.kind !== "provider_turn") throw new Error("fixture provider step disappeared");
+    step.operation = "build/implement-typo";
+    const runtime = new FakeRuntime([
+      { result: completed(JSON.stringify(invalid)) },
+      { result: completed(JSON.stringify(invalid)) },
+    ], "codex");
+
+    await expect(prepareEpisodePlanWithRuntime({
+      ...baseOptions(home.root, intent),
+      providerOperations: ["build/contract", "build/implement"],
+      runtimeForAssignment: () => runtime,
+    })).rejects.toMatchObject({
+      code: "error_episode_planner_failed",
+      issues: [expect.objectContaining({
+        code: "plan_operation_unknown",
+        stepId: "build",
+        message:
+          'unknown provider operation "build/implement-typo"; valid operations are: ' +
+          "build/contract, build/implement",
+      })],
+    });
+
+    expect(runtime.calls).toHaveLength(2);
+    expect((await readExecutionSteps(home.root, intent.episodeId)).map((record) =>
+      [record.status, record.error_code]
+    )).toEqual([
+      ["failed", "plan_operation_unknown"],
+      ["failed", "plan_operation_unknown"],
+    ]);
   });
 
   it("reports a terminally rejected plan as failed across status, narrative, and telemetry", async () => {
@@ -467,7 +512,7 @@ describe("provider-backed EpisodePlanner", () => {
     await expect(prepareEpisodePlanWithRuntime({
       ...baseOptions(home.root, intent),
       runtimeForAssignment: () => runtime,
-    })).rejects.toMatchObject({ code: "error_episode_planner_failed" });
+    })).rejects.toMatchObject({ code: "error_episode_planner_assignment_mismatch" });
 
     expect(await readCurrentEpisodePlan(home.root, intent.episodeId)).toBeUndefined();
     expect(await readExecutionSteps(home.root, intent.episodeId)).toEqual([
@@ -477,6 +522,47 @@ describe("provider-backed EpisodePlanner", () => {
         error_code: "error_episode_planner_assignment_mismatch",
       }),
     ]);
+  });
+
+  it("records acceptance exceptions as internal failures with stack evidence and does not repair them", async () => {
+    home = makeOrgHome();
+    const intent = makeIntent();
+    const runtime = new FakeRuntime([{
+      result: completed(JSON.stringify(proposal(intent))),
+    }], "codex");
+
+    await expect(prepareEpisodePlanWithRuntime({
+      ...baseOptions(home.root, intent),
+      runtimeForAssignment: () => runtime,
+      validateAcceptedPlan: () => {
+        throw new TypeError("simulated acceptance invariant failure");
+      },
+    })).rejects.toMatchObject({
+      code: EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR,
+      detail: "simulated acceptance invariant failure",
+    });
+
+    expect(runtime.calls).toHaveLength(1);
+    const [step] = await readExecutionSteps(home.root, intent.episodeId);
+    expect(step).toMatchObject({
+      status: "failed",
+      error_code: EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR,
+    });
+    expect(await readEnvelope(home.root, intent.app, step!.run_id)).toMatchObject({
+      status: "failed",
+      error_code: EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR,
+      terminal_reason: expect.stringContaining("simulated acceptance invariant failure"),
+    });
+    expect(await readEvents(home.root, intent.app, step!.run_id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "pass.failed",
+        error_code: EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR,
+        detail: expect.objectContaining({
+          detail: "simulated acceptance invariant failure",
+          stack: expect.stringContaining("TypeError: simulated acceptance invariant failure"),
+        }),
+      }),
+    ]));
   });
 
   it("aborts at the admitted per-attempt active-time ceiling", async () => {

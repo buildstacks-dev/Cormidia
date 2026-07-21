@@ -29,6 +29,9 @@ import {
 export interface EpisodePlannerProposalRequest {
   intent: EpisodeIntent;
   attempt: 1 | 2;
+  /** Closed domain vocabulary used by both the prompt schema and acceptance
+   * policy. Omitted only by intentionally-open generic episodes. */
+  providerOperations?: readonly string[];
   /** Orchestrator-owned timestamp the proposal must echo as `createdAt`. */
   proposalCreatedAt: string;
   /** Empty on the first call. On repair this contains concise deterministic
@@ -45,6 +48,7 @@ export interface PrepareEpisodePlanOptions {
   app: AppEntry;
   roles: readonly RoleConfig[];
   intent: EpisodeIntent;
+  providerOperations?: readonly string[];
   propose?: EpisodePlannerProposer;
   now?: () => Date;
   workflowTemplates?: EpisodePlanningPolicyOptions["workflowTemplates"];
@@ -99,6 +103,9 @@ export async function prepareEpisodePlan(
   const policy = createEpisodePlanningPolicy(options.app, {
     intent: options.intent,
     roles: options.roles,
+    ...(options.providerOperations === undefined
+      ? {}
+      : { providerOperations: options.providerOperations }),
     ...(options.workflowTemplates === undefined
       ? {}
       : { workflowTemplates: options.workflowTemplates }),
@@ -164,6 +171,9 @@ export async function prepareEpisodePlan(
       const raw = await options.propose({
         intent: structuredClone(options.intent),
         attempt,
+        ...(options.providerOperations === undefined
+          ? {}
+          : { providerOperations: [...options.providerOperations] }),
         proposalCreatedAt,
         validationDiagnostics: structuredClone(diagnostics),
       });
@@ -188,7 +198,9 @@ export async function prepareEpisodePlan(
         creatorScopeAssessment,
       };
     } catch (error) {
-      diagnostics = diagnosticsFrom(error);
+      const contractDiagnostics = diagnosticsFrom(error);
+      if (contractDiagnostics === undefined) throw error;
+      diagnostics = contractDiagnostics;
       if (attempt === 2) throw new EpisodePlannerFailedError(attempt, diagnostics);
     }
   }
@@ -285,14 +297,29 @@ export function hasAuthoritativeCreatorScopeConflict(
   return issues.some((entry) => contradictions.has(entry.code));
 }
 
-function diagnosticsFrom(error: unknown): EpisodePlanIssue[] {
+function diagnosticsFrom(error: unknown): EpisodePlanIssue[] | undefined {
   if (error instanceof EpisodePlanValidationError) {
     return error.issues.map((entry) => ({ ...entry }));
   }
-  return [{
+  if (!hasIssueArray(error)) return undefined;
+  return error.issues.map((entry) => ({
     code: "plan_structure_invalid",
-    message: error instanceof Error ? error.message : String(error),
-  }];
+    message: `${entry.code}: ${entry.message}`,
+    ...(entry.stepId === undefined ? {} : { stepId: entry.stepId }),
+  }));
+}
+
+function hasIssueArray(error: unknown): error is {
+  issues: Array<{ code: string; message: string; stepId?: string }>;
+} {
+  if (error === null || typeof error !== "object" || !("issues" in error)) return false;
+  const issues = (error as { issues?: unknown }).issues;
+  return Array.isArray(issues) && issues.length > 0 && issues.every((entry) =>
+    entry !== null && typeof entry === "object" &&
+    typeof (entry as { code?: unknown }).code === "string" &&
+    typeof (entry as { message?: unknown }).message === "string" &&
+    ((entry as { stepId?: unknown }).stepId === undefined ||
+      typeof (entry as { stepId?: unknown }).stepId === "string"));
 }
 
 function parseProviderValue(value: unknown): unknown {

@@ -51,6 +51,7 @@ import {
   ticketProviderOperation,
   TICKET_MECHANICAL_GATE_CATALOG,
   TICKET_PROVIDER_OPERATION_CATALOG,
+  TICKET_PROVIDER_OPERATIONS,
   type TicketMechanicalGateKind,
   type TicketProviderOperationDefinition,
 } from "../loop/ticket-episode-plan.js";
@@ -254,6 +255,7 @@ async function planTicketEpisode(
       hooks: plannerHooks(options, plannerRole),
       runtimeForAssignment: options.runtimeForAssignment,
       policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
+      providerOperations: TICKET_PROVIDER_OPERATIONS,
       limits: plannerLimits,
       independentReview: {
         subjectRoles: ["builder"],
@@ -454,6 +456,7 @@ async function executeTicketEpisode(
       hooks: plannerHooks(options, plannerRole),
       runtimeForAssignment: options.runtimeForAssignment,
       policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
+      providerOperations: TICKET_PROVIDER_OPERATIONS,
       limits: plannerLimits,
       independentReview: {
         subjectRoles: ["builder"],

@@ -408,6 +408,72 @@ describe("run-2 reviewer heredoc regression", () => {
   });
 });
 
+// The org runtime's OWN command line is an effect surface. `operon app reset
+// --execute` removes an app's managed state and closes its tracked GitHub
+// work, `operon org upgrade --execute` rewrites the ratified org surfaces, and
+// `operon plan ratify-ticket-budget --execute` publishes GitHub issues — and
+// all of them classified ROUTINE while `rm -rf`, `echo > roles.yaml` and
+// `gh issue create` with the same effects were critical. An agent that can
+// shell out can reach every one of them.
+describe("the operon CLI's own human-gated verbs reach the boundary", () => {
+  const GATED: { command: string; rule: string }[] = [
+    { command: "operon app reset civic --execute --confirm civic", rule: "destructive-or-irreversible" },
+    { command: "operon prune-runs --execute", rule: "destructive-or-irreversible" },
+    { command: "operon org upgrade --execute", rule: "protocol-self-edit" },
+    { command: "operon org init /tmp/new-org --name pirate", rule: "protocol-self-edit" },
+    { command: "operon plan ratify-ticket-budget --app civic --execute", rule: "external-publishing" },
+    { command: "operon bootstrap publish civic --execute", rule: "external-publishing" },
+    { command: "operon approvals review 20260721T100740Z-95ev --approve", rule: "approval-store-tamper" },
+    { command: "operon approvals revoke grant-1 --confirm grant-1", rule: "approval-store-tamper" },
+  ];
+
+  for (const { command, rule } of GATED) {
+    it(`critical (${rule}): ${command}`, () => {
+      expect(classify(bash(command))).toEqual({ cls: "critical", rule });
+      expect(defaultGate(bash(command))).toMatchObject({ allow: false, escalate: true });
+    });
+
+    it(`critical (${rule}) through the zsh -lc wrapper: ${command}`, () => {
+      expect(classify(bash(`/bin/zsh -lc '${command}'`))).toEqual({ cls: "critical", rule });
+    });
+  }
+
+  it("leaves ordinary read-only operon invocations routine", () => {
+    // The point is the boundary, not friction on inspection.
+    for (const command of [
+      "operon roles",
+      "operon apps --json",
+      "operon status",
+      "operon doctor",
+      "operon budget",
+      "operon context",
+      "operon episode explain ep-1",
+      "operon telemetry",
+      "operon report",
+      "operon dispatch --dry-run",
+      "operon approvals status",
+      "operon approvals show 20260721T100740Z-95ev",
+    ]) {
+      expect(classify(bash(command))).toEqual({ cls: "routine" });
+    }
+  });
+
+  it("keeps the verb visible in the projection instead of only its flags", () => {
+    // The projection collapsed every invocation to `operon` plus its flags, so
+    // `operon app reset --execute` and `operon roles` were the same action.
+    expect(actionEffectFields(bash("operon app reset civic --execute")).executables)
+      .toEqual(expect.arrayContaining(["operon", "operon app reset civic"]));
+    expect(actionEffectFields(bash("operon roles")).executables).toEqual(["operon", "operon roles"]);
+  });
+
+  it("sees the verb through a package runner", () => {
+    expect(classify(bash("npx operon app reset civic --execute")))
+      .toEqual({ cls: "critical", rule: "destructive-or-irreversible" });
+    expect(classify(bash("pnpm operon prune-runs --execute")))
+      .toEqual({ cls: "critical", rule: "destructive-or-irreversible" });
+  });
+});
+
 describe("critical-ops gate (default policy)", () => {
   for (const { action, rule } of CRITICAL_CASES) {
     it(`denies + escalates: ${rule} — ${JSON.stringify(action.input).slice(0, 60)}`, () => {

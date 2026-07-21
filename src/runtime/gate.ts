@@ -176,6 +176,33 @@ export function semanticActionText(action: ToolAction): string {
 const asText = (a: ToolAction): string => semanticActionText(a);
 const effectText = (a: ToolAction): string => asText(a);
 
+/**
+ * The org runtime's OWN command line is an effect surface, and its
+ * human-gated verbs were invisible here: `operon app reset --execute` removes
+ * an app's managed state and closes its tracked GitHub work, `operon org
+ * upgrade --execute` rewrites the ratified org surfaces, and `operon plan
+ * ratify-ticket-budget --execute` publishes GitHub issues — all three
+ * classified routine, while `rm -rf`, an `echo > roles.yaml` and a
+ * `gh issue create` with exactly those effects are critical. An agent that can
+ * shell out can reach them, so each verb is routed to the rule its EFFECT
+ * belongs to rather than to a new catch-all: the executor allowlist, the
+ * never-scopeable list and role shaping all key off the rule name.
+ *
+ * Read-only invocations (`operon roles`, `status`, `doctor`, `budget`,
+ * `context`, `episode explain`, a `--dry-run`) are deliberately absent: the
+ * point is the boundary, not friction on inspection.
+ */
+const OPERON_VERB = {
+  /** Rewrites or re-points the org's ratified protocol surfaces. */
+  protocolWrite: /\boperon\s+org\s+(?:upgrade|init|use)\b/,
+  /** Archives and removes managed state, or deletes durable run records. */
+  destructive: /\boperon\s+(?:app\s+reset|prune-runs)\b/,
+  /** Publishes to GitHub: bootstrap draft PRs, ratified ticket issues. */
+  publish: /\boperon\s+(?:plan\s+ratify-ticket-budget|bootstrap\s+publish)\b/,
+  /** Decides, revokes or dispositions approvals — the gate's root of trust. */
+  approvalWrite: /\boperon\s+approvals\s+(?:review|revoke|disposition)\b/,
+} as const;
+
 /** v0 heuristics. Deliberately over-broad: false positives cost a human tap,
  *  false negatives cost an incident. Tighten with calibration data. */
 export const CRITICAL_RULES: CriticalRule[] = [
@@ -208,6 +235,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
         return true;
       }
       if (/\bgit\s+push\s+(?:--force(?:-with-lease)?|-f)\b/.test(t)) return true;
+      if (OPERON_VERB.destructive.test(t)) return true;
       const fields = actionEffectFields(a);
       if (!fields.executables.includes("rm")) return false;
       return fields.targets.some((target) =>
@@ -255,6 +283,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
       return (
         /\bnpm\s+publish\b|\b(?:sendmail|mail|tweet)\b/.test(t) ||
         /\bgh\s+(?:issue\s+(?:create|comment)|pr\s+(?:create|comment)|release\s+create)\b/.test(t) ||
+        OPERON_VERB.publish.test(t) ||
         a.tool.toLowerCase() === "operon.github.issue.create" ||
         a.tool.toLowerCase() === "operon.github.issue.comment"
       );
@@ -305,7 +334,13 @@ export const CRITICAL_RULES: CriticalRule[] = [
   },
   {
     name: "protocol-self-edit", // agents don't rewrite their own rules
-    matches: (a) => isWrite(a) && isProtocolSurface(asText(a)),
+    matches: (a) => {
+      const t = asText(a);
+      // `operon org upgrade|init|use` writes/re-points those same surfaces
+      // through the org runtime's own CLI, where no file path appears in the
+      // action for isProtocolSurface to see.
+      return OPERON_VERB.protocolWrite.test(t) || (isWrite(a) && isProtocolSurface(t));
+    },
   },
   {
     name: "scorecard-tamper", // scorecards are orchestrator-written only, never
@@ -340,7 +375,14 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // blocks this today; the gate must classify these writes as critical so
     // the boundary holds on every adapter. Reads stay routine.
     name: "approval-store-tamper",
-    matches: (a) => isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(asText(a)),
+    matches: (a) => {
+      const t = asText(a);
+      // Deciding an approval from inside a turn is self-approval by CLI: the
+      // same forged grant, reached through the supported command instead of a
+      // file write.
+      return OPERON_VERB.approvalWrite.test(t) ||
+        (isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(t));
+    },
   },
 ];
 
@@ -681,7 +723,12 @@ function relevantArguments(executable: string, args: string[]): { verb: string; 
   if (FILE_ARGUMENT_TOOLS.has(executable)) {
     return { verb: "", targets: args.filter((arg) => !arg.startsWith("-") && arg !== "-") };
   }
-  if (["kubectl", "doctl", "npm", "pnpm", "helm", "terraform", "docker", "gcloud", "aws", "curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"].includes(executable)) {
+  // `operon` and `npx` are multiplexers too. Without the verb, every `operon`
+  // invocation projected to the bare executable plus its flags, so
+  // `operon app reset --execute` and `operon roles` were the same action to
+  // every rule — which is how the CLI's own human-gated verbs classified
+  // routine while the shell equivalents of the same effects did not.
+  if (["kubectl", "doctl", "npm", "pnpm", "npx", "operon", "helm", "terraform", "docker", "gcloud", "aws", "curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"].includes(executable)) {
     return {
       verb: leadingSubcommands(args).join(" "),
       targets: args.filter(looksLikePathOrUrl),

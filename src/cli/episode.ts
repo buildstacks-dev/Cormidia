@@ -1,9 +1,17 @@
-import { explainEpisode } from "../org/episode-planner/orchestrator.js";
+import {
+  explainEpisode,
+  type EpisodeExplanation,
+  type ExplainedEpisodeStep,
+} from "../org/episode-planner/orchestrator.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 /** Read-only durable EpisodePlan explanation. Planning and delivery remain at
- * the owning entry point; this command never constructs a runtime. */
+ * the owning entry point; this command never constructs a runtime.
+ *
+ * The explainer is total: degraded evidence is rendered and annotated rather
+ * than aborting the whole report (ISSUE-025). An incomplete explanation is
+ * still a failure for automation, so it exits non-zero. */
 export async function cmdEpisode(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "episode");
   const [verb, episodeId, ...rest] = common.rest;
@@ -19,25 +27,67 @@ export async function cmdEpisode(args: string[]): Promise<number> {
   const explanation = await explainEpisode(homes.stateHome, episodeId);
   if (json) {
     console.log(JSON.stringify(explanation, null, 2));
-    return 0;
+    return explanation.complete ? 0 : 1;
   }
+  renderExplanation(explanation);
+  return explanation.complete ? 0 : 1;
+}
+
+function renderExplanation(explanation: EpisodeExplanation): void {
   console.log(`episode: ${explanation.episodeId}`);
-  console.log(`plan: v${explanation.plan.version} ${explanation.planningSource}`);
-  console.log(`workflow: ${explanation.plan.workflowClass}`);
-  console.log(`budget: $${explanation.plan.estimatedBudget.totalBudgetUsd.toFixed(2)} estimated`);
-  console.log(`safety route: ${explanation.plan.derivedSafetyRoute.label}`);
-  for (const step of explanation.steps) {
-    if (step.kind === "provider_turn") {
+  console.log(`evidence: ${explanation.evidenceDir}`);
+  const plan = explanation.plan;
+  if (plan === null) {
+    console.log("plan: none (no accepted durable EpisodePlan)");
+  } else {
+    console.log(`plan: v${plan.version} ${explanation.planningSource}`);
+    console.log(`workflow: ${plan.workflowClass}`);
+    console.log(`budget: $${plan.estimatedBudget.totalBudgetUsd.toFixed(2)} estimated`);
+    console.log(`safety route: ${plan.derivedSafetyRoute.label}`);
+  }
+  const route = explanation.route;
+  if (route !== null) {
+    const terminal = route.terminal === null ? "active" : `terminal ${route.terminal.status}`;
+    console.log(`route: ${route.current_route} ${terminal}`);
+  }
+  if (explanation.journal !== null) {
+    console.log(`execution: ${explanation.journal.status}`);
+  }
+  for (const step of explanation.steps) console.log(renderStep(step));
+  if (explanation.executionSteps.length > 0) {
+    console.log(`durable execution steps (${explanation.executionSteps.length}):`);
+    for (const record of explanation.executionSteps) {
+      const assignment = record.assignment === null
+        ? record.kind
+        : `${record.assignment.harness}/${record.assignment.model}/${record.assignment.effort}`;
+      const planRef = record.planStepId === null
+        ? ""
+        : ` plan v${record.planVersion ?? "?"}/${record.planStepId}`;
       console.log(
-        `${step.id}: ${step.status} provider ${step.role} ` +
-          `${step.assignment.harness}/${step.assignment.model}/${step.assignment.effort} ` +
-          `[${step.assignmentSource}] — ${step.selectionReason}`,
+        `  ${record.startedAt} ${record.status} ${record.operation} ${assignment}${planRef}`,
       );
-    } else if (step.kind === "mechanical_gate") {
-      console.log(`${step.id}: ${step.status} mechanical gate ${step.gate}`);
-    } else {
-      console.log(`${step.id}: ${step.status} approval ${step.approvalKind} (${step.actionRef})`);
     }
   }
-  return 0;
+  if (explanation.problems.length > 0) {
+    console.log(`incomplete explanation (${explanation.problems.length} unresolved):`);
+    for (const problem of explanation.problems) {
+      const where = problem.stepId === null ? "" : ` [${problem.stepId}]`;
+      console.log(`  ${problem.code}${where}: ${problem.message}`);
+    }
+  }
+}
+
+function renderStep(step: ExplainedEpisodeStep): string {
+  if (step.kind === "mechanical_gate") {
+    return `${step.id}: ${step.status} mechanical gate ${step.gate}`;
+  }
+  if (step.kind === "approval") {
+    return `${step.id}: ${step.status} approval ${step.approvalKind} (${step.actionRef})`;
+  }
+  const annotation = step.authorizationDetail === null
+    ? ""
+    : ` (assignment ${step.authorizationStatus}: ${step.authorizationDetail})`;
+  return `${step.id}: ${step.status} provider ${step.role} ` +
+    `${step.assignment.harness}/${step.assignment.model}/${step.assignment.effort} ` +
+    `[${step.assignmentSource}] — ${step.selectionReason}${annotation}`;
 }

@@ -620,7 +620,7 @@ function analyzeSegment(
     variables.set(name.toLowerCase(), assignment.slice(equals + 1));
     cursor++;
   }
-  while (["sudo", "command", "builtin", "nohup"].includes(baseExecutable(argv[cursor] ?? ""))) cursor++;
+  while (["sudo", "command", "builtin", "nohup", "exec"].includes(baseExecutable(argv[cursor] ?? ""))) cursor++;
   if (baseExecutable(argv[cursor] ?? "") === "env") {
     cursor++;
     while (cursor < argv.length && (argv[cursor]!.startsWith("-") || isAssignment(argv[cursor]))) {
@@ -635,8 +635,8 @@ function analyzeSegment(
     }
   }
   // `env KEY=value command kubectl ...` is the common nested-wrapper form;
-  // peel command/builtin/nohup again after env consumed its assignments.
-  while (["sudo", "command", "builtin", "nohup"].includes(baseExecutable(argv[cursor] ?? ""))) cursor++;
+  // peel command/builtin/nohup/exec again after env consumed its assignments.
+  while (["sudo", "command", "builtin", "nohup", "exec"].includes(baseExecutable(argv[cursor] ?? ""))) cursor++;
   if (baseExecutable(argv[cursor] ?? "") === "xargs") {
     cursor++;
     while (cursor < argv.length && argv[cursor]!.startsWith("-")) cursor++;

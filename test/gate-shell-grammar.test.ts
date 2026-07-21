@@ -265,6 +265,16 @@ describe("a critical op after a ;;-terminated case statement still classifies", 
     expect(actionEffectFields(bash(dispatch)).executables).toEqual(["echo"]);
   });
 
+  it("looks through an `exec` prefix, which replaces the shell with the command", () => {
+    // `exec gh pr create --fill` really runs gh; `sudo`/`command`/`builtin`/
+    // `nohup`/`env` were already peeled and `exec` was the one left behind, so
+    // the projection reported an executable named `exec`.
+    expect(classify(bash("exec gh pr create --fill")))
+      .toEqual({ cls: "critical", rule: "external-publishing" });
+    expect(actionEffectFields(bash("exec gh pr create --fill")).executables)
+      .toEqual(["gh", "gh pr create"]);
+  });
+
   it("recovers at the next line instead of skipping to end of script", () => {
     // `esac` is not the only way the skip can be left armed forever. A
     // `case`-shaped line the SHELL does not read as a case statement — here a

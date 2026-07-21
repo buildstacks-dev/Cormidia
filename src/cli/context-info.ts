@@ -48,6 +48,7 @@ const CAPABILITIES = [
   { command: "org use", writes: true, spendsTokens: false, summary: "select an existing complete org home" },
   { command: "org upgrade", writes: true, spendsTokens: false, summary: "preview/apply an additive archived org migration with post-upgrade doctor" },
   { command: "roles", writes: false, spendsTokens: false, summary: "validate and list the active org's roles" },
+  { command: "roles set", writes: true, spendsTokens: false, summary: "preview a role's harness/model/effort/turn-budget change; --execute is journaled and requires an attributable --by identity" },
   { command: "apps", writes: false, spendsTokens: false, summary: "validate and list registered apps" },
   { command: "app reset", writes: true, spendsTokens: false, summary: "archive and remove one app's Operon-managed state and tracked GitHub work after explicit confirmation" },
   { command: "app verify", writes: true, spendsTokens: false, summary: "verify and converge lifecycle readiness without constructing a provider runtime" },
@@ -81,7 +82,7 @@ const CAPABILITIES = [
  * `--json`; compound commands may still have interactive text-only forms. */
 const JSON_COMMANDS = new Set<string>([
   "org init", "org show", "org use", "org upgrade",
-  "roles", "apps", "app reset", "app verify", "app promote", "pipelines",
+  "roles", "roles set", "apps", "app reset", "app verify", "app promote", "pipelines",
   "bootstrap", "new-app", "plan", "episode explain", "scheduler",
   "approvals", "budget", "status", "analyze", "telemetry", "report",
   "narrative", "task", "learn", "doctor", "context",

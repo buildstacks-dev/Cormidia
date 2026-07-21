@@ -69,3 +69,30 @@ export function withNonInteractiveEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEn
 export function withDependencyBuildPolicy(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return { ...base, ...DEPENDENCY_BUILD_POLICY_ENV };
 }
+
+/**
+ * Environment for running an app's OWN declared commands — `setup_command`,
+ * `test_command`, `lint_command` — outside a provider turn.
+ *
+ * The build loop's quality gates and `operon app verify`'s app-checks run the
+ * same commands against the same tree for the same purpose, so they must run
+ * them the same way. They did not: ISSUE-031 had `pnpm install --frozen-lockfile`
+ * pass the gates (which carried the ISSUE-029 build policy) and fail
+ * verification minutes later on the merged repo (which did not), with a
+ * remediation telling the operator to "fix `setup_command`" — a correct command.
+ * Worse, the un-policied install re-created the exact ISSUE-029 placeholder in
+ * the managed clone.
+ *
+ * One owner, so the next invariant cannot be added to only one of them.
+ * `CI: "1"` is the Stage 3 value both paths already used — deliberately the
+ * numeric form, not `NON_INTERACTIVE_ENV`'s `"true"`, to preserve the gate
+ * subprocess's existing contract.
+ */
+export function appCommandEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    CI: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    ...DEPENDENCY_BUILD_POLICY_ENV,
+  };
+}

@@ -37,6 +37,7 @@ import { resolveAuthority } from "./authority.js";
 import { resolveAppAssignments } from "./execution-assignments.js";
 import { loadRoles } from "./roles.js";
 import { resolveRemoteDefaultBranch } from "../loop/default-branch.js";
+import { appCommandEnv } from "../runtime/non-interactive-env.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
   type LifecycleCheck,
@@ -1378,7 +1379,7 @@ function runDeclaredChecks(root: string): LifecycleCheck[] {
   if (commands.setupCommand !== undefined && commands.setupCommand !== "") {
     const setup = spawnSync("/bin/sh", ["-lc", commands.setupCommand], {
       cwd: root,
-      env: { ...process.env, CI: "1", GIT_TERMINAL_PROMPT: "0" },
+      env: appCommandEnv(),
       encoding: "utf8",
       timeout: 300_000,
       stdio: ["ignore", "pipe", "pipe"],
@@ -1404,7 +1405,7 @@ function runDeclaredChecks(root: string): LifecycleCheck[] {
     ran += 1;
     const result = spawnSync("/bin/sh", ["-lc", command], {
       cwd: root,
-      env: { ...process.env, CI: "1", GIT_TERMINAL_PROMPT: "0" },
+      env: appCommandEnv(),
       encoding: "utf8",
       timeout: 120_000,
       stdio: ["ignore", "pipe", "pipe"],

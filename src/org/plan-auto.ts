@@ -464,6 +464,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       app: options.app.name,
       role: planner.name,
       turnId: traceId,
+      workdir: localRepo,
       now: clock,
     }),
   };

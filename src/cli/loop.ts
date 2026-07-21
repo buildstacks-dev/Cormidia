@@ -103,6 +103,7 @@ export function createLoopGateForRole(
   turnId: string,
   orgHome?: string,
   store: ApprovalStore = new ApprovalStore(stateHome),
+  workdir?: string,
 ): (role: RoleConfig) => GateFn {
   return (role) =>
     composeGate(defaultGate, store, {
@@ -110,6 +111,7 @@ export function createLoopGateForRole(
       role: role.name,
       turnId,
       ...(orgHome !== undefined ? { orgHome } : {}),
+      ...(workdir !== undefined ? { workdir } : {}),
     });
 }
 
@@ -326,6 +328,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         turnId,
         homes.orgHome,
         approvalStore,
+        localRepo,
       );
       const budgetRows = await enforceBudgetOverlay(homes.stateHome, appsFile);
       const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);

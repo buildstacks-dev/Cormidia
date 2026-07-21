@@ -1,0 +1,208 @@
+{
+  "20260721T091511Z--ci4": {
+    "id": "20260721T091511Z--ci4",
+    "app": "sonnet4-buildstack-dev",
+    "role": "builder",
+    "rule": "outbound-network",
+    "action": {
+      "tool": "bash",
+      "input": {
+        "command": "/bin/zsh -lc 'pnpm preview --host 127.0.0.1 > /tmp/buildstacks-ticket2-preview.log 2>&1 &\nTASK_PREVIEW_PID=$!\necho \"$TASK_PREVIEW_PID\"\nfor attempt in 1 2 3 4 5; do\n  if curl --fail --silent http://127.0.0.1:4321/ > /dev/null; then\n    break\n  fi\n  sleep 1\ndone\ncurl --fail --silent --output /dev/null --write-out '\"'%{http_code}\\\\n' http://127.0.0.1:4321/\""
+      }
+    },
+    "raisedAt": "2026-07-21T09:15:11.670Z",
+    "status": "approved",
+    "classification": {
+      "schemaVersion": 1,
+      "rule": "outbound-network",
+      "reason": "critical action matched outbound-network",
+      "matchedAction": {
+        "tool": "bash",
+        "operation": "write",
+        "executables": [
+          "break",
+          "curl",
+          "curl /dev/null %{http_code}\\n http://127.0.0.1:4321/",
+          "do",
+          "done",
+          "echo",
+          "fi",
+          "for",
+          "if",
+          "if --fail --silent",
+          "pnpm",
+          "pnpm preview 127.0.0.1 1",
+          "sleep",
+          "then"
+        ],
+        "targets": [
+          "&",
+          "/dev/null",
+          "/tmp/buildstacks-ticket2-preview.log",
+          "127.0.0.1",
+          "http://127.0.0.1:4321/"
+        ],
+        "redirections": [
+          "&",
+          "/tmp/buildstacks-ticket2-preview.log"
+        ],
+        "environment": [
+          "TASK_PREVIEW_PID"
+        ],
+        "destination": null,
+        "effect": null
+      }
+    },
+    "turnId": "loop-sonnet4-buildstack-dev-1784624440988",
+    "justification": "critical op (outbound-network) requires human approval",
+    "decision": "approved",
+    "decidedAt": "2026-07-21T09:16:06.749Z",
+    "execution": {
+      "state": "approved",
+      "executor": "actor-retry",
+      "idempotencyKey": "approval:20260721T091511Z--ci4:9229e6fc310391af61747fe1e9d6e547a269934af1d2dbfcc8f8eac8c3938288",
+      "attempts": 0,
+      "nextAction": "actor_retry"
+    },
+    "grantId": "grant-20260721T091511Z--ci4"
+  },
+  "20260721T091647Z-_w60": {
+    "id": "20260721T091647Z-_w60",
+    "app": "sonnet4-buildstack-dev",
+    "role": "builder",
+    "rule": "destructive-or-irreversible",
+    "action": {
+      "tool": "bash",
+      "input": {
+        "command": "/bin/zsh -lc 'rm -rf -- /Users/bikram/.operon/Buildstacks/worktrees/sonnet4-buildstack-dev/op-2-establish-astro-stack-quality-gates-and-first-pr/.pnpm-store\nrm -- /Users/bikram/.operon/Buildstacks/worktrees/sonnet4-buildstack-dev/op-2-establish-astro-stack-quality-gates-and-first-pr/pnpm-workspace.yaml\ngit status --short\ngit diff --check\ngit ls-files --others --exclude-standard | sort'"
+      }
+    },
+    "raisedAt": "2026-07-21T09:16:47.654Z",
+    "status": "approved",
+    "classification": {
+      "schemaVersion": 1,
+      "rule": "destructive-or-irreversible",
+      "reason": "critical action matched destructive-or-irreversible",
+      "matchedAction": {
+        "tool": "bash",
+        "operation": "write",
+        "executables": [
+          "git",
+          "git diff",
+          "git ls-files",
+          "git status",
+          "rm",
+          "sort"
+        ],
+        "targets": [
+          "/Users/bikram/.operon/Buildstacks/worktrees/sonnet4-buildstack-dev/op-2-establish-astro-stack-quality-gates-and-first-pr/.pnpm-store",
+          "/Users/bikram/.operon/Buildstacks/worktrees/sonnet4-buildstack-dev/op-2-establish-astro-stack-quality-gates-and-first-pr/pnpm-workspace.yaml"
+        ],
+        "redirections": [],
+        "environment": [],
+        "destination": null,
+        "effect": null
+      }
+    },
+    "turnId": "loop-sonnet4-buildstack-dev-1784624440988",
+    "justification": "critical op (destructive-or-irreversible) requires human approval",
+    "decision": "approved",
+    "decidedAt": "2026-07-21T09:20:52.381Z",
+    "execution": {
+      "state": "approved",
+      "executor": "actor-retry",
+      "idempotencyKey": "approval:20260721T091647Z-_w60:0cd5b70f7a84a7ab696a16311bd1acde7e07cd07510ed6cca3c9db7b071a3af2",
+      "attempts": 0,
+      "nextAction": "actor_retry"
+    },
+    "grantId": "grant-20260721T091647Z-_w60"
+  },
+  "20260721T100714Z-94wx": {
+    "id": "20260721T100714Z-94wx",
+    "app": "sonnet4-buildstack-dev",
+    "role": "builder",
+    "rule": "external-publishing",
+    "action": {
+      "tool": "bash",
+      "input": {
+        "command": "/bin/zsh -lc 'gh pr create --base master --head op/10-feeds-seo-artifacts-and-ci-workflow --title \"#10: Add feeds, SEO artifacts, and CI\" --body \"## Summary\n\n- generate rss.xml from every published blog collection entry with canonical links and publication dates\n- add a Base-layout 404 page, favicon, and a 1200x630 default Open Graph image wired through shared page metadata\n- add pull-request-only setup, lint, build, and behavior-test CI with regression coverage for RSS, SEO output, 404, and sitemap generation\n\n## Verification\n\n- pnpm lint — 0 errors, 0 warnings, 0 hints\n- pnpm test:behavior — 25 tests passed, 0 failed\n\nNo deployment job or infrastructure target is included.\n\nCloses #10\"'"
+      }
+    },
+    "raisedAt": "2026-07-21T10:07:14.831Z",
+    "status": "approved",
+    "classification": {
+      "schemaVersion": 1,
+      "rule": "external-publishing",
+      "reason": "critical action matched external-publishing",
+      "matchedAction": {
+        "tool": "bash",
+        "operation": "execute",
+        "executables": [
+          "gh",
+          "gh pr create"
+        ],
+        "targets": [],
+        "redirections": [],
+        "environment": [],
+        "destination": null,
+        "effect": null
+      }
+    },
+    "turnId": "loop-sonnet4-buildstack-dev-1784627678794",
+    "justification": "critical op (external-publishing) requires human approval",
+    "decision": "approved",
+    "decidedAt": "2026-07-21T10:07:43.006Z",
+    "execution": {
+      "state": "approved",
+      "executor": "actor-retry",
+      "idempotencyKey": "approval:20260721T100714Z-94wx:8ab47225f43b9cc360e9ed0148319ed74d696f9d36d6c3d3dadb974daae29fa1",
+      "attempts": 0,
+      "nextAction": "actor_retry"
+    },
+    "grantId": "grant-20260721T100714Z-94wx"
+  },
+  "20260721T100740Z-95ev": {
+    "id": "20260721T100740Z-95ev",
+    "app": "sonnet4-buildstack-dev",
+    "role": "builder",
+    "rule": "external-publishing",
+    "action": {
+      "tool": "bash",
+      "input": {
+        "command": "/bin/zsh -lc 'gh pr create --base master --head op/10-feeds-seo-artifacts-and-ci-workflow --fill'"
+      }
+    },
+    "raisedAt": "2026-07-21T10:07:40.637Z",
+    "status": "approved",
+    "classification": {
+      "schemaVersion": 1,
+      "rule": "external-publishing",
+      "reason": "critical action matched external-publishing",
+      "matchedAction": {
+        "tool": "bash",
+        "operation": "execute",
+        "executables": [
+          "gh",
+          "gh pr create"
+        ],
+        "targets": [],
+        "redirections": [],
+        "environment": [],
+        "destination": null,
+        "effect": null
+      }
+    },
+    "turnId": "loop-sonnet4-buildstack-dev-1784627678794",
+    "justification": "critical op (external-publishing) requires human approval",
+    "decision": "approved",
+    "decidedAt": "2026-07-21T10:07:53.783Z",
+    "execution": {
+      "state": "approved",
+      "executor": "actor-retry",
+      "idempotencyKey": "approval:20260721T100740Z-95ev:8eb27f5358d3fe7c230a4a4359f3560f9585870ce000936934b137ec9fa8d5d8",
+      "attempts": 0,
+      "nextAction": "actor_retry"
+    },
+    "grantId": "grant-20260721T100740Z-95ev"
+  }
+}

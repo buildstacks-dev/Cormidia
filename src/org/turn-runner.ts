@@ -294,6 +294,7 @@ export async function runDispatchedTurn(
         turnId: options.turnId,
         ...(journal.event !== undefined ? { ticketRef: `event:${journal.event.key}` } : {}),
         orgHome: orgRoot,
+        workdir: localRepo,
         now: clock,
       }),
       onEvent: (event) => actorEvents.push(event),
@@ -489,7 +490,12 @@ async function settleActorRetriesForTurn(
     (await store.listDecided())
       .filter((item) =>
         item.app === app &&
-        item.execution?.executor === "actor-retry" &&
+        // `orchestrator-command` approvals stay actor-claimable (ISSUE-020), so
+        // a turn that consumed one through the gate must settle it here too —
+        // otherwise its claim would sit `executing` forever and the loop's
+        // circuit breaker would block every later turn for this app/role.
+        (item.execution?.executor === "actor-retry" ||
+          item.execution?.executor === "orchestrator-command") &&
         item.execution.state === "executing" &&
         item.execution.actor?.endsWith(`/${turnId}`) === true
       )
@@ -603,6 +609,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
         ? { ticketRef: `event:${options.journal.event.key}` }
         : {}),
       orgHome: options.orgRoot,
+      workdir: options.localRepo,
       now: clock,
     });
   // Rebuild every per-step context from the same loaded RoleConfig that owns
@@ -1060,6 +1067,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
         ? {}
         : { ticketRef: `event:${options.journal.event.key}` }),
       orgHome: options.orgRoot,
+      workdir: options.localRepo,
       now: clock,
     });
   const contexts = new Map<string, ContextBundle>();
@@ -1812,6 +1820,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
         ? {}
         : { ticketRef: options.journal.ticketRef }),
       orgHome: options.orgRoot,
+      workdir: options.localRepo,
       now: clock,
     });
   const plannerContext = await buildContext(

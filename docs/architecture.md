@@ -829,6 +829,9 @@ Item schema:
 {
   "id": "20260704T193201Z-8k2f",
   "app": "civic", "role": "builder", "turnId": "…", "ticketRef": "#42",
+  "workdir": "/…/worktrees/civic/op-42",  // sandbox cwd the action was raised
+                                          // from; the context a later
+                                          // orchestrator execution runs in
   "rule": "secrets-or-auth",              // gate rule that fired
   "action": { "tool": "Bash", "input": "…", "description": "…" },
   "classification": {                     // effect fields only; no prose
@@ -839,7 +842,7 @@ Item schema:
   "raisedAt": "…", "status": "approved",
   "execution": {
     "state": "approved",                  // not evidence the effect happened
-    "executor": "actor-retry | durable-github | release",
+    "executor": "orchestrator-command | durable-github | release | actor-retry",
     "idempotencyKey": "…", "attempts": 0, "nextAction": "dispatch"
   }
 }
@@ -894,14 +897,28 @@ Item schema:
    provider-global-memory) never reach the queue at all: the composed gate
    denies them flat with standing guidance, and on Claude the adapter
    removes them from the tool surface itself (`src/runtime/role-shaping.ts`).
-5. For `durable-github` and `release` items, a later dispatch claims the exact
-   action and advances `approved → executing → executed | failed | ambiguous`.
+5. For `durable-github`, `release`, and `orchestrator-command` items, a later
+   dispatch claims the exact action and advances `approved → executing →
+   executed | failed | ambiguous`.
    The record includes attempt, actor, result, failure cause, remote reference,
    and next action. GitHub actions reconcile by a stable remote marker; an
    ambiguous result is never blindly retried. Only a reasoned, exact `operon
    approvals disposition <id> ... --confirm <id>` may resolve or re-arm it.
-   Generic provider calls stay `actor-retry`; they are never replayed by a
-   generic orchestrator executor. For an exact single-use actor grant, the
+   An approved SHELL action is `orchestrator-command`
+   (`src/org/approval-command.ts`): `operon dispatch` runs the exact recorded
+   command string — never a reconstruction — in the recorded `workdir`, or in
+   the app's managed clone when the record carries none. A recorded workdir
+   that no longer exists is refused rather than substituted. A generic command
+   has no remote idempotency marker, so an interrupted or timed-out execution
+   becomes durably `ambiguous` and waits for a human disposition; it is never
+   re-run. This exists because `actor-retry` alone is not a mechanism: it needs
+   the raising turn to ask again, and run 3 showed the sandbox answering the
+   actor "rejected by user" while the grant sat granted, leaving four approvals
+   at `attempts: 0` with nothing able to spend them (ISSUE-020).
+   `orchestrator-command` stays actor-claimable — a live turn re-attempting its
+   own approved command still wins the single-use grant and the orchestrator
+   then finds nothing to do — while `durable-github` and `release` remain
+   orchestrator-only. For an exact single-use actor grant, the
    synchronous gate advances the item to `executing` before it consumes the
    grant. The turn runner accepts only an exact action-identity `TurnEvent`
    with an explicit adapter `success: true|false` as acknowledgement; prose or

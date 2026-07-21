@@ -358,9 +358,15 @@ function printExecutionTable(
     ].join(" "));
     if (item.execution?.result !== undefined) console.log(`  result: ${item.execution.result}`);
     if (item.execution?.state === "approved" && item.grantId !== undefined) {
+      // The operator approved this because they wanted it to happen, so the
+      // first thing they are told must be how it happens (ISSUE-020). `revoke`
+      // is the change-of-mind path, not the default next step.
       console.log(
-        `  unused grant: ${item.grantId}; revoke with ` +
-          `operon approvals revoke ${item.grantId} --confirm ${item.grantId}`,
+        item.execution.nextAction === "dispatch"
+          ? `  waiting for execution: run \`operon dispatch\` (grant ${item.grantId}; ` +
+            `revoke with operon approvals revoke ${item.grantId} --confirm ${item.grantId})`
+          : `  unused grant: ${item.grantId}; only the raising turn can consume it — ` +
+            `revoke with operon approvals revoke ${item.grantId} --confirm ${item.grantId}`,
       );
     }
     if (item.execution?.failureCause !== undefined) console.log(`  cause: ${item.execution.failureCause}`);

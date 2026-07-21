@@ -19,6 +19,11 @@ export interface GateContext {
   ticketRef?: string;
   /** Org home for durable denial lessons (A5); lessons are skipped without it. */
   orgHome?: string;
+  /** The turn's local checkout — the cwd the gated action would run in. It is
+   *  persisted on the approval item so a later orchestrator execution runs the
+   *  approved command in the context it was approved for rather than a guessed
+   *  one (ISSUE-020). Omitted where the caller has no checkout. */
+  workdir?: string;
   now?: () => Date;
 }
 
@@ -149,6 +154,7 @@ export function composeGate(
         action,
         ...(context.turnId !== undefined ? { turnId: context.turnId } : {}),
         ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
+        ...(context.workdir !== undefined ? { workdir: context.workdir } : {}),
         justification: decision.reason,
         ...(classification.cls === "critical" ? { classification: classification.evidence } : {}),
         now,

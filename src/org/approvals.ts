@@ -204,6 +204,41 @@ export const NEVER_SCOPEABLE_RULES: readonly string[] = [
   "learning-publish",
 ];
 
+/**
+ * Rules whose approved shell action the ORCHESTRATOR may execute itself.
+ *
+ * Approving an action and authorizing the orchestrator to enact it are two
+ * different grants. A human tapping "approve" on `gh pr merge --admin` is
+ * saying "this agent may do this"; it is not saying "the orchestrator should
+ * merge on my behalf with its own credentials, outside any sandbox". The
+ * difference matters most exactly where the effect lands on the org's own
+ * control plane — `self-merge-or-approve` is the review boundary,
+ * `protocol-self-edit` is roles/pipelines/prompts, `approval-store-tamper` and
+ * `scorecard-tamper` are the gate's own roots of trust, and `learning-publish`
+ * is one content-bound publish transaction. `NEVER_SCOPEABLE_RULES` and the
+ * self-merge rule already treat those as boundaries an agent must never enact;
+ * mechanically enacting them from dispatch would walk around that from the
+ * other side.
+ *
+ * So this list is closed and outward-effect only: a publication, a network
+ * call, or a delete the human read in `operon approvals show`. Anything not
+ * listed — including a rule added later — stays with the executor it had, and
+ * the human retains `operon approvals disposition`. `production-deploy` is
+ * absent because it has its own A4 release executor, and `secrets-or-auth`
+ * because running a credential-bearing command under the orchestrator's
+ * ambient environment is a materially different act from the agent running it
+ * in its sandbox.
+ */
+export const ORCHESTRATOR_EXECUTABLE_RULES: readonly string[] = [
+  "external-publishing",
+  "outbound-network",
+  "destructive-or-irreversible",
+];
+
+export function isOrchestratorExecutableRule(rule: string): boolean {
+  return ORCHESTRATOR_EXECUTABLE_RULES.includes(rule);
+}
+
 const DEFAULT_SCOPED_MAX_USES = 20;
 
 export type ApprovalLogEvent =
@@ -497,7 +532,10 @@ export class ApprovalStore {
         candidate.decision !== "approved" ||
         candidate.execution?.executor !== "actor-retry" ||
         candidate.execution.state !== "approved" ||
-        approvedCommand(candidate.action) === undefined
+        approvedCommand(candidate.action) === undefined ||
+        // An approval is not an authorization for the orchestrator to enact
+        // the org's own control-plane boundaries on the human's behalf.
+        !isOrchestratorExecutableRule(candidate.rule)
       ) {
         continue;
       }
@@ -1247,7 +1285,7 @@ function initialExecution(item: ApprovalItem): ApprovalExecution {
     ? "release" as const
     : item.action.tool === "operon.github.issue.create" || item.action.tool === "operon.github.issue.comment"
       ? "durable-github" as const
-      : approvedCommand(item.action) !== undefined
+      : approvedCommand(item.action) !== undefined && isOrchestratorExecutableRule(item.rule)
         ? "orchestrator-command" as const
         : "actor-retry" as const;
   return {

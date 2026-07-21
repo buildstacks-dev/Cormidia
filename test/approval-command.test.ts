@@ -21,6 +21,8 @@ import {
   actionHash,
   ApprovalStore,
   commandIdentityHash,
+  isOrchestratorExecutableRule,
+  ORCHESTRATOR_EXECUTABLE_RULES,
   type ApprovalItem,
   type ApprovalLogEvent,
 } from "../src/org/approvals.js";
@@ -489,6 +491,115 @@ describe("execution is bound to the approved action", () => {
         runner: run.runner,
       })).toEqual([]);
       expect(run.calls).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+});
+
+// Approving an action and authorizing the ORCHESTRATOR to enact it are two
+// different grants. A human approving `gh pr merge --admin` is saying "this
+// agent may do this" — not "merge on my behalf, with your own credentials,
+// outside any sandbox". `NEVER_SCOPEABLE_RULES` and the self-merge rule already
+// treat the review boundary and the org's protocol surfaces as things an agent
+// must never enact; enacting them mechanically from dispatch would walk around
+// that from the other side.
+describe("orchestrator execution is restricted to an explicit rule allowlist", () => {
+  const BOUNDARY_RULES = [
+    "self-merge-or-approve",
+    "protocol-self-edit",
+    "approval-store-tamper",
+    "scorecard-tamper",
+    "learning-publish",
+    "secrets-or-auth",
+  ];
+
+  it("names only outward-effect rules", () => {
+    expect([...ORCHESTRATOR_EXECUTABLE_RULES].sort()).toEqual([
+      "destructive-or-irreversible",
+      "external-publishing",
+      "outbound-network",
+    ]);
+    for (const rule of BOUNDARY_RULES) {
+      expect(isOrchestratorExecutableRule(rule)).toBe(false);
+    }
+    // The captured run-3 records are all covered, so the allowlist does not
+    // undo the repair it guards.
+    for (const item of Object.values(RUN3_DECIDED)) {
+      expect(isOrchestratorExecutableRule(item.rule)).toBe(true);
+    }
+  });
+
+  for (const rule of BOUNDARY_RULES) {
+    it(`never mints or re-homes an orchestrator executor for ${rule}`, async () => {
+      const home = makeOrgHome({ approvals: true });
+      makeCheckout(home.root, "repos", APP);
+      try {
+        const store = new ApprovalStore(home.root, { idSource: () => "boundary-1" });
+        await store.raise({
+          app: APP,
+          role: "builder",
+          rule,
+          action: { tool: "bash", input: { command: "gh pr merge 10 --squash --admin" } },
+          now: NOW,
+        });
+        await store.decide("boundary-1", { decision: "approved", now: NOW });
+        expect(readItem(home, "boundary-1").execution?.executor).toBe("actor-retry");
+
+        // The ISSUE-020 re-homing must not reach it either.
+        await store.reconcile(NOW);
+        expect(readItem(home, "boundary-1").execution?.executor).toBe("actor-retry");
+
+        const run = recorder();
+        expect(await executeApprovedCommands({
+          stateHome: home.root,
+          appsFile: APPS,
+          now: () => NOW,
+          runner: run.runner,
+        })).toEqual([]);
+        expect(run.calls).toEqual([]);
+      } finally {
+        home.cleanup();
+      }
+    });
+  }
+
+  it("refuses to run a boundary rule already homed on the orchestrator, without terminalizing it", async () => {
+    const home = makeOrgHome({ approvals: true });
+    makeCheckout(home.root, "repos", APP);
+    try {
+      const store = new ApprovalStore(home.root, { idSource: () => "boundary-2" });
+      await store.raise({
+        app: APP,
+        role: "builder",
+        rule: "self-merge-or-approve",
+        action: { tool: "bash", input: { command: "gh pr merge 10 --squash --admin" } },
+        now: NOW,
+      });
+      await store.decide("boundary-2", { decision: "approved", now: NOW });
+      const decided = readItem(home, "boundary-2");
+      writeFileSync(
+        home.paths.approvalsDecided("boundary-2"),
+        `${JSON.stringify(
+          { ...decided, execution: { ...decided.execution!, executor: "orchestrator-command", nextAction: "dispatch" } },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+
+      const run = recorder();
+      const outcomes = await executeApprovedCommands({
+        stateHome: home.root,
+        appsFile: APPS,
+        now: () => NOW,
+        runner: run.runner,
+      });
+      expect(run.calls).toEqual([]);
+      expect(outcomes).toEqual([expect.objectContaining({ approvalId: "boundary-2", status: "skipped" })]);
+      expect(outcomes[0]!.summary).toContain("self-merge-or-approve");
+      // The human's decision is still good; only the enactor was wrong.
+      expect(readItem(home, "boundary-2").execution).toMatchObject({ state: "approved" });
     } finally {
       home.cleanup();
     }

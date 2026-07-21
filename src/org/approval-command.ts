@@ -40,6 +40,7 @@ import {
   approvedCommand,
   ApprovalStore,
   commandIdentityHash,
+  isOrchestratorExecutableRule,
   type ApprovalGrant,
   type ApprovalItem,
 } from "./approvals.js";
@@ -191,6 +192,23 @@ export async function executeApprovedCommands(
     }
 
     // state === "approved": this dispatch owns the attempt.
+    if (!isOrchestratorExecutableRule(item.rule)) {
+      // Defence in depth for a record that reached this executor without going
+      // through the checks in initialExecution/reconcile — a hand-edited or
+      // pre-allowlist record. Never terminalize it: the decision is still good,
+      // it is only the *enactor* that is wrong.
+      outcomes.push({
+        approvalId: item.id,
+        app: item.app,
+        status: "skipped",
+        summary:
+          `approval ${item.id} is rule "${item.rule}", which the orchestrator never enacts on a ` +
+          `human's behalf; approving the action did not authorize that. Close it with ` +
+          `\`operon approvals disposition ${item.id} (--executed|--failed|--retry) --reason <text> ` +
+          `--confirm ${item.id}\``,
+      });
+      continue;
+    }
     const app = options.appsFile.apps.find((entry) => entry.name === item.app);
     const command = approvedCommand(item.action);
     if (app === undefined || command === undefined) {

@@ -38,16 +38,33 @@ export async function cmdApprovals(args: string[]): Promise<number> {
   if (parsed.subcommand === "revoke") {
     if (parsed.id === undefined) throw new Error("approvals revoke: grant id required");
     const revoked = store.revokeGrantSync(parsed.id, parsed.now);
-    console.log(`revoked ${revoked.grantId} (approval ${revoked.approvalId})`);
+    if (parsed.json) {
+      console.log(JSON.stringify({ schema_version: 1, kind: "approval-revocation", revoked }, null, 2));
+    } else {
+      console.log(`revoked ${revoked.grantId} (approval ${revoked.approvalId})`);
+    }
     return 0;
   }
 
   if (parsed.subcommand === "review") {
+    if (parsed.json) throw new Error("approvals review: --json is unavailable for interactive decisions");
     return reviewQueue(store, homes.orgHome, stateHome, parsed.batch);
   }
 
   if (parsed.subcommand === "status") {
-    printExecutionTable((await store.listDecided()).filter((item) => item.execution !== undefined));
+    const executions = (await store.listDecided()).filter((item) => item.execution !== undefined);
+    if (parsed.json) {
+      console.log(JSON.stringify({
+        schema_version: 1,
+        kind: "approvals",
+        view: "status",
+        stateHome,
+        executionCount: executions.length,
+        executions: executions.map(approvalView),
+      }, null, 2));
+    } else {
+      printExecutionTable(executions);
+    }
     return 0;
   }
 
@@ -63,13 +80,34 @@ export async function cmdApprovals(args: string[]): Promise<number> {
       actor: "human/operator",
       now: parsed.now,
     });
-    console.log(`approval ${item.id} execution ${item.execution?.state ?? "untracked"}: ${item.execution?.nextAction ?? "none"}`);
+    if (parsed.json) {
+      console.log(JSON.stringify({
+        schema_version: 1,
+        kind: "approval-disposition",
+        item: approvalView(item),
+      }, null, 2));
+    } else {
+      console.log(`approval ${item.id} execution ${item.execution?.state ?? "untracked"}: ${item.execution?.nextAction ?? "none"}`);
+    }
     return 0;
   }
 
   const pending = await store.listPending();
-  printTable(pending, parsed.now);
   const outstanding = (await store.listDecided()).filter(isOutstandingExecution);
+  if (parsed.json) {
+    console.log(JSON.stringify({
+      schema_version: 1,
+      kind: "approvals",
+      view: "list",
+      stateHome,
+      pendingCount: pending.length,
+      pending,
+      outstandingCount: outstanding.length,
+      outstanding: outstanding.map(approvalView),
+    }, null, 2));
+    return 0;
+  }
+  printTable(pending, parsed.now);
   if (outstanding.length > 0) {
     console.log("\nAPPROVED BUT NOT TERMINALLY ACKNOWLEDGED");
     printExecutionTable(outstanding, "outstanding execution record(s)");
@@ -85,6 +123,7 @@ interface ParsedArgs {
   disposition?: "executed" | "failed" | "retry";
   reason?: string;
   confirm?: string;
+  json: boolean;
 }
 
 function parseArgs(args: string[]): ParsedArgs {
@@ -95,10 +134,12 @@ function parseArgs(args: string[]): ParsedArgs {
   let disposition: ParsedArgs["disposition"];
   let reason: string | undefined;
   let confirm: string | undefined;
+  let json = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--now") now = new Date(needValue(args, ++i, "--now"));
+    else if (arg === "--json") json = true;
     else if (arg === "--batch") batch = true;
     else if (arg === "--reason") reason = needValue(args, ++i, "--reason");
     else if (arg === "--confirm") confirm = needValue(args, ++i, "--confirm");
@@ -124,6 +165,7 @@ function parseArgs(args: string[]): ParsedArgs {
   return {
     subcommand,
     batch,
+    json,
     ...(id !== undefined ? { id } : {}),
     now,
     ...(disposition !== undefined ? { disposition } : {}),
@@ -334,6 +376,10 @@ function isOutstandingExecution(item: ApprovalItem): boolean {
   if (execution === undefined || execution.state === "executed") return false;
   if (execution.state === "failed" && execution.nextAction === "none") return false;
   return true;
+}
+
+function approvalView(item: ApprovalItem): ApprovalItem & { lifecycleState: string } {
+  return { ...item, lifecycleState: approvalLifecycleState(item) };
 }
 
 function formatFullItem(item: ApprovalItem): string {

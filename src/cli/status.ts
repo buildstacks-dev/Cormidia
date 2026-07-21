@@ -14,44 +14,81 @@ export async function cmdStatus(args: string[]): Promise<number> {
     ...(parsed.app !== undefined ? { app: parsed.app } : {}),
     ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
   });
-  console.log(formatStatusRows(rows));
   const approvals = (await new ApprovalStore(stateHome).listDecidedReadOnly())
     .filter((item) => item.execution !== undefined)
     .filter((item) => parsed.app === undefined || item.app === parsed.app);
-  if (approvals.length > 0) {
-    console.log("\nAPPROVAL DELIVERY");
-    for (const item of approvals) {
-      console.log(
-        `${item.id} ${item.app} ${approvalLifecycleState(item)} ` +
-        `attempt=${item.execution!.attempts} actor=${item.execution!.actor ?? "-"} ` +
-        `at=${item.execution!.attemptedAt ?? "-"} result=${item.execution!.result ?? "-"} ` +
-        `cause=${item.execution!.failureCause ?? "-"} next=${item.execution!.nextAction}`,
-      );
-    }
-  }
-  const claimStates = listTicketClaimStates(stateHome, parsed.app).filter((entry) => {
+  const approvalDelivery = approvals.map((item) => ({
+    id: item.id,
+    app: item.app,
+    state: approvalLifecycleState(item),
+    attempts: item.execution!.attempts,
+    actor: item.execution!.actor ?? null,
+    attemptedAt: item.execution!.attemptedAt ?? null,
+    result: item.execution!.result ?? null,
+    failureCause: item.execution!.failureCause ?? null,
+    nextAction: item.execution!.nextAction,
+  }));
+  const claimRecovery = listTicketClaimStates(stateHome, parsed.app).filter((entry) => {
     const latest = entry.state.events?.at(-1);
     return entry.state.active !== undefined || entry.state.continuation !== undefined ||
       latest?.kind === "automatic_recovery" || latest?.kind === "manual_rearm";
+  }).map((entry) => {
+    const state = entry.state;
+    const latest = state.events?.at(-1);
+    const mode = state.active !== undefined
+      ? `active:${state.active.phase}`
+      : state.continuation !== undefined
+        ? `approval:${state.continuation.status}`
+        : latest?.kind ?? "idle";
+    const needsExplicitRearm = latest?.detail.includes("explicit") === true;
+    const allowance = state.claimAllowance ?? state.claims;
+    return {
+      app: entry.app,
+      issueNumber: entry.issueNumber,
+      mode,
+      claims: state.claims,
+      allowance: state.claimAllowance ?? null,
+      next: latest?.detail ?? "inspect ticket state",
+      rearmCommand: needsExplicitRearm
+        ? rearmCommand({ app: entry.app, issueNumber: entry.issueNumber, allowance })
+        : null,
+    };
   });
-  if (claimStates.length > 0) {
-    console.log("\nCLAIM RECOVERY");
-    for (const entry of claimStates) {
-      const state = entry.state;
-      const latest = state.events?.at(-1);
-      const mode = state.active !== undefined
-        ? `active:${state.active.phase}`
-        : state.continuation !== undefined
-          ? `approval:${state.continuation.status}`
-          : latest?.kind ?? "idle";
+  const report = {
+    schema_version: 1,
+    kind: "status",
+    stateHome,
+    filters: { app: parsed.app ?? null, limit: parsed.limit ?? null },
+    runCount: rows.length,
+    runs: rows,
+    approvalDelivery,
+    claimRecovery,
+  } as const;
+  if (parsed.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return 0;
+  }
+
+  console.log(formatStatusRows(report.runs));
+  if (report.approvalDelivery.length > 0) {
+    console.log("\nAPPROVAL DELIVERY");
+    for (const item of report.approvalDelivery) {
       console.log(
-        `${entry.app}#${entry.issueNumber} ${mode} claims=${state.claims} ` +
-        `allowance=${state.claimAllowance ?? "route-policy"} next=${latest?.detail ?? "inspect ticket state"}`,
+        `${item.id} ${item.app} ${item.state} ` +
+        `attempt=${item.attempts} actor=${item.actor ?? "-"} ` +
+        `at=${item.attemptedAt ?? "-"} result=${item.result ?? "-"} ` +
+        `cause=${item.failureCause ?? "-"} next=${item.nextAction}`,
       );
-      if (latest?.detail.includes("explicit") === true) {
-        const allowance = state.claimAllowance ?? state.claims;
-        console.log(`  ${rearmCommand({ app: entry.app, issueNumber: entry.issueNumber, allowance })}`);
-      }
+    }
+  }
+  if (report.claimRecovery.length > 0) {
+    console.log("\nCLAIM RECOVERY");
+    for (const entry of report.claimRecovery) {
+      console.log(
+        `${entry.app}#${entry.issueNumber} ${entry.mode} claims=${entry.claims} ` +
+        `allowance=${entry.allowance ?? "route-policy"} next=${entry.next}`,
+      );
+      if (entry.rearmCommand !== null) console.log(`  ${entry.rearmCommand}`);
     }
   }
   return 0;
@@ -60,14 +97,16 @@ export async function cmdStatus(args: string[]): Promise<number> {
 interface ParsedStatusArgs {
   app?: string;
   limit?: number;
+  json: boolean;
 }
 
 function parseArgs(args: string[]): ParsedStatusArgs {
-  const out: ParsedStatusArgs = {};
+  const out: ParsedStatusArgs = { json: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--app") out.app = needValue(args, ++i, "--app");
     else if (arg === "--limit") out.limit = parseLimit(needValue(args, ++i, "--limit"));
+    else if (arg === "--json") out.json = true;
     else throw new Error(`status: unknown argument "${arg}"`);
   }
   return out;

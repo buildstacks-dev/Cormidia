@@ -8,11 +8,23 @@ export async function cmdAnalyze(args: string[]): Promise<number> {
   const parsed = parseArgs(common.rest);
   const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
   const rows = await analyzeRunlogs(stateHome, parsed.app !== undefined ? { app: parsed.app } : {});
-  if (rows.length === 0) {
+  const report = {
+    schema_version: 1,
+    kind: "analyze",
+    stateHome,
+    app: parsed.app ?? null,
+    anomalyCount: rows.length,
+    anomalies: rows,
+  } as const;
+  if (parsed.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return 0;
+  }
+  if (report.anomalyCount === 0) {
     console.log("No anomaly flags.");
     return 0;
   }
-  for (const row of rows) {
+  for (const row of report.anomalies) {
     console.log(
       `${row.app} ${row.runId} ${row.pipeline}/${row.pass} ${row.flag}: ${row.detail} -> ${row.recommendation}`,
     );
@@ -22,13 +34,15 @@ export async function cmdAnalyze(args: string[]): Promise<number> {
 
 interface ParsedAnalyzeArgs {
   app?: string;
+  json: boolean;
 }
 
 function parseArgs(args: string[]): ParsedAnalyzeArgs {
-  const out: ParsedAnalyzeArgs = {};
+  const out: ParsedAnalyzeArgs = { json: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--app") out.app = needValue(args, ++i, "--app");
+    else if (arg === "--json") out.json = true;
     else throw new Error(`analyze: unknown argument "${arg}"`);
   }
   return out;

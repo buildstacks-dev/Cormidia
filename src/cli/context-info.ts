@@ -77,15 +77,30 @@ const CAPABILITIES = [
   { command: "context", writes: false, spendsTokens: false, summary: "show resolved paths, authority provenance, and registered apps" },
 ] as const;
 
+/** A command is marked true when at least one documented invocation accepts
+ * `--json`; compound commands may still have interactive text-only forms. */
+const JSON_COMMANDS = new Set<string>([
+  "org init", "org show", "org use", "org upgrade",
+  "roles", "apps", "app reset", "app verify", "app promote", "pipelines",
+  "bootstrap", "new-app", "plan", "episode explain", "scheduler",
+  "approvals", "budget", "status", "analyze", "telemetry", "report",
+  "narrative", "task", "learn", "doctor", "context",
+]);
+
 export async function cmdCapabilities(args: string[]): Promise<number> {
   const json = consumeJsonOnly(args, "capabilities");
-  const data = { version: await packageVersion(), commands: CAPABILITIES };
+  const commands = CAPABILITIES.map((row) => ({
+    ...row,
+    supportsJson: JSON_COMMANDS.has(row.command),
+  }));
+  const data = { version: await packageVersion(), commands };
   if (json) console.log(JSON.stringify(data, null, 2));
   else {
     console.log(`Operon ${data.version} capabilities:`);
     for (const row of data.commands) {
       const risk = row.spendsTokens ? "live/token-spending" : row.writes ? "local write" : "read-only";
-      console.log(`  ${row.command.padEnd(12)} ${risk.padEnd(20)} ${row.summary}`);
+      const output = row.supportsJson ? "json" : "text-only";
+      console.log(`  ${row.command.padEnd(12)} ${risk.padEnd(20)} ${output.padEnd(10)} ${row.summary}`);
     }
   }
   return 0;

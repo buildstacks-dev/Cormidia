@@ -151,9 +151,16 @@ plan.
 
 Archiving works for any discoverable org, active or not. The retirement is
 recorded in the invoking org's invocation ledger, named by
-`provenance.archivedOrg`; when the archived org was the one you were working
-in, that record is the archive itself, so the retired state home stays
-retired.
+`provenance.archivedOrg`. When the archived org is the one you were working in,
+that ledger is being deleted, so the terminal row goes to
+`<archive-root>/retirement-ledger` instead — the row is still written, and it
+is written outside the tree that was removed. After `--execute` returns the
+state home does not exist and nothing re-creates it: check with `operon org
+list` and `operon doctor`, both of which will now report no active org.
+
+Retiring the same org twice from the same paths is normal after a recovery, and
+is safe: the second archive lands in a numbered sibling directory and the first
+one's bytes are never touched.
 
 ## Change a role's model, effort, or budget
 
@@ -174,6 +181,13 @@ blank line, key order, and flow sequence in the ratified file is preserved, so
 the human's diff is the size of the change. The plan also states whether the
 resulting model id was proven against the harness's own roster, or names why
 that harness publishes none — read that line before handing the diff over.
+
+Only pi publishes a roster Operon can read without a credential, so only a pi
+model id is refused here when the harness will not serve it. Setting a model or
+runtime on `claude` or `codex` prints an UNVERIFIED warning on stdout and
+stderr and records the same fact in the journal, because nothing short of a
+live turn can check the id. Treat that warning as a real one: hand the human
+the diff, and run `operon doctor` before the role's next turn spends on it.
 
 ## Upgrade, verify, and promote without providers
 

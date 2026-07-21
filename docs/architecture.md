@@ -432,7 +432,9 @@ runs/<app>/<runId>/      L1–L3 per-pass runlogs: envelope, events, brief,
                          exact prompt, output, activity log (not a full
                          transcript; docs/loop.md §9)
 telemetry/<day>.jsonl    org cost ledger (src/runtime/telemetry.ts orgDir)
-invocations/<day>.jsonl  one record per loop/dispatch invocation
+invocations/<day>.jsonl  one terminal row per CLI command plus distinct
+                         internal release-execution rows
+state/invocation-journal/ pre-command intent and idempotent append recovery
 tickets/<app>/<issue>.json  cross-process ticket claim state (docs/loop.md §7.1)
 scorecards/<app>/<role>.jsonl  raw scorecard events (§6)
 learning/**              learning-loop capture/episode/activation state;
@@ -623,7 +625,8 @@ non-empty bounded `--template` in both dry-run and live forms. Both forms enter
 the same read-only journal/route/durable-intent/template/assignment/scope
 inspection first. The dry-run reports the template hash and summary,
 provenance, objective, execution-ready creator scope, and atomic assignment,
-then stops with zero provider turns and zero state writes. Live persists the
+then stops with zero provider turns and no workflow-state writes beyond the
+command audit row. Live persists the
 already-inspected manual journal before provider entry. Provider readiness,
 budget/approval outcomes, managed-clone synchronization, and mutable external
 state are explicit preview exclusions.

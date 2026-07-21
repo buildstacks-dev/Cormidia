@@ -261,6 +261,10 @@ export interface LoopDriverResult {
   lines: string[];
   items: LoopItem[];
   scorecardEvents: ScorecardEvent[];
+  /** Plan-only selection count. Preview deliberately returns no claimed
+   * items, so this separate typed fact prevents audit/reporting from calling
+   * a would-claim preview an empty queue. */
+  itemsPreviewed?: number;
   /** Set when budgetGuard refused the tick before any claim. */
   budgetRefusal?: string;
   /** Terminal episodes found under a false op:ready projection and repaired
@@ -589,7 +593,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         ));
       }
     }
-    return { lines, items: [], scorecardEvents: [] };
+    return { lines, items: [], scorecardEvents: [], itemsPreviewed: plan.length };
   }
 
   const items: LoopItem[] = [];

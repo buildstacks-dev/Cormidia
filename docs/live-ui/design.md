@@ -146,7 +146,7 @@ The UI must use these terms precisely.
 | Parent task | The broader outcome delegated by a human/outer agent | `tasks/<taskId>/task.json` and prompt |
 | Trace | One selected pipeline execution, potentially containing several passes | correlated run envelopes |
 | Pass | One provider turn by one role in one app | `runs/<app>/<runId>/` |
-| Invocation | One loop, dispatch, or release orchestration call | `invocations/<date>.jsonl` |
+| Invocation | One CLI command or distinct internal release execution | `invocations/<date>.jsonl` |
 | Approval item | A critical operation waiting for a human decision | `approvals/` |
 
 ### 4.1 Onboarding is a separate lifecycle
@@ -804,7 +804,7 @@ The historical page also shows completion integrity:
 | `brief.md`, `prompt.md`, `output.md`, `session.log` | explicit local forensic evidence | verbatim L3; never preload into overview |
 | Ticket journals/worktrees | recovery and phase evidence | supporting process-owned state; do not override GitHub labels |
 | `telemetry/<date>.jsonl` | settled per-turn cost and budget attribution | ledger truth after settlement; run envelope may show partial checkpoint first |
-| `invocations/<date>.jsonl` | loop/dispatch/release orchestration | invocation history, not provider-turn history |
+| `invocations/<date>.jsonl` | CLI commands plus distinct internal release execution | invocation history, not provider-turn history |
 | `locks/` | active role/app ownership | fresh lock is supporting liveness; pass heartbeat is still shown separately |
 | `state/schedule.json` and event state | due/fired/pending activity | scheduler-owned operational state |
 | `state/events/inbox/` | company-lifecycle intake | pending until consumed for all subscribers |

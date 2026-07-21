@@ -8,6 +8,7 @@ import {
   type NewAppTemplate,
 } from "../org/new-app.js";
 import { ORG_HOME_DEFINITION, resolveOperonHomes, STATE_HOME_DEFINITION } from "../org/home.js";
+import { reportCliInvocation } from "./invocation-audit.js";
 
 export async function cmdNewApp(args: string[]): Promise<number> {
   const parsed = parseArgs(args);
@@ -25,6 +26,13 @@ export async function cmdNewApp(args: string[]): Promise<number> {
     supportChannels: parsed.supportChannels,
     marketingChannels: parsed.marketingChannels,
     dryRun: parsed.dryRun,
+  });
+  reportCliInvocation({
+    org: homes.appsFile.org.name,
+    app: result.appName,
+    dryRun: result.dryRun,
+    outcome: result.dryRun ? "new-app-preview-ready" : "app-created-and-registered",
+    provenance: { template: result.template },
   });
 
   if (parsed.json) {
@@ -54,7 +62,7 @@ export async function cmdNewApp(args: string[]): Promise<number> {
     for (const path of result.stateCreated) console.log(`  ${path}`);
   }
   if (result.dryRun) {
-    console.log("\n(dry-run: nothing written)");
+    console.log("\n(dry-run: no app/org artifacts written; invocation audit only)");
   } else {
     console.log(
       "\nnext: review the scaffold, create/push the private GitHub repo, then " +

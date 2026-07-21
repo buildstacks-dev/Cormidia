@@ -4,7 +4,7 @@
 // Uses subprocesses and temp dirs with local repo files; no network, auth, real
 // org state, or wall-clock dependence is expected.
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -72,6 +72,15 @@ async function runCliFrom(
     const err = e as { stdout?: string; stderr?: string; code?: number };
     return { stdout: err.stdout ?? "", stderr: err.stderr ?? "", code: err.code ?? 1 };
   }
+}
+
+function invocationRows(stateHome = STATE_HOME): Array<Record<string, unknown>> {
+  const day = new Date().toISOString().slice(0, 10);
+  const ledger = join(stateHome, "invocations", `${day}.jsonl`);
+  if (!existsSync(ledger)) return [];
+  return readFileSync(ledger, "utf8").trim().split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
 describe("cli dispatch", () => {
@@ -144,9 +153,19 @@ describe("cli dispatch", () => {
   });
 
   it("--help prints usage to stdout and exits 0", async () => {
+    const before = invocationRows().length;
     const { stdout, code } = await runCli(["--help"]);
     expect(stdout).toContain("Usage:");
     expect(code).toBe(0);
+    expect(invocationRows()).toHaveLength(before);
+  });
+
+  it("command help follows the explicit no-audit policy", async () => {
+    const before = invocationRows().length;
+    const result = await runCli(["roles", "--help"]);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Audit note:");
+    expect(invocationRows()).toHaveLength(before);
   });
 
   it("roles subcommand still validates roles.yaml", async () => {
@@ -188,6 +207,20 @@ describe("cli dispatch", () => {
       expect(existsSync(join(current, "roles.yaml"))).toBe(true);
       expect(existsSync(join(home, ".operon", "dot-org"))).toBe(true);
       expect(existsSync(join(home, ".operon", "config"))).toBe(true);
+      const initRows = invocationRows(join(home, ".operon", "dot-org"));
+      expect(initRows).toHaveLength(1);
+      expect(initRows).toContainEqual(
+        expect.objectContaining({
+          schema_version: 2,
+          kind: "cli",
+          command: "org",
+          subcommand: "init",
+          org: "dot-org",
+          outcome: "org-created-and-selected",
+          exitCode: 0,
+          provenance: { authorityProfile: "delegated-operator" },
+        }),
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -205,6 +238,8 @@ describe("cli dispatch", () => {
     expect(parsed.commands).toContainEqual(expect.objectContaining({
       command: "observe",
       writes: false,
+      auditWrites: true,
+      writesMeaning: "domain_or_workflow",
       spendsTokens: false,
     }));
   });
@@ -225,7 +260,7 @@ describe("cli dispatch", () => {
     expect(help.code).toBe(0);
     expect(help.stdout).toContain("operon scheduler install");
     expect(help.stdout).toContain("--execute --confirm <exact-org-or-scheduler-id>");
-    expect(help.stdout).toContain("preview without writes");
+    expect(help.stdout).toContain("preview without scheduler/manager writes");
 
     const capabilities = await runCli(["capabilities", "--json"]);
     const parsed = JSON.parse(capabilities.stdout) as { commands: Array<Record<string, unknown>> };
@@ -240,7 +275,7 @@ describe("cli dispatch", () => {
     );
     expect(help.stdout).toContain("it is not a GitHub ticket number and does not bind a ticket");
     expect(help.stdout).toContain("--workdir is not supported");
-    expect(help.stdout).toContain("zero provider/runtime turns and zero state writes");
+    expect(help.stdout).toContain("zero provider/runtime turns and no workflow-state writes beyond the command audit row");
     expect(help.stdout).not.toContain("[--workdir <path>]");
   });
 
@@ -285,6 +320,14 @@ describe("cli dispatch", () => {
       expect(stdout).toContain("package.json");
       expect(stdout).toContain(".operon/bootstrap/initial-issue.md");
       expect(existsSync(target)).toBe(false);
+      expect(invocationRows()).toContainEqual(expect.objectContaining({
+        kind: "cli",
+        command: "new-app",
+        app: "marketplace",
+        dryRun: true,
+        outcome: "new-app-preview-ready",
+        provenance: { template: "typescript-node" },
+      }));
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }
@@ -375,6 +418,118 @@ describe("cli dispatch", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("--template must be one of typescript-node|bare");
     expect(existsSync(target)).toBe(false);
+    expect(invocationRows()).toContainEqual(expect.objectContaining({
+      kind: "cli",
+      command: "new-app",
+      app: "invalid-template",
+      dryRun: true,
+      exitCode: 1,
+    }));
+  });
+
+  it("journals read commands, parser failures, and secret-redacted argv exactly once", async () => {
+    const before = invocationRows().length;
+    expect((await runCli(["roles"])).code).toBe(0);
+    const failed = await runCli([
+      "context",
+      "--api-key",
+      "sk-12345678901234567890",
+    ]);
+    expect(failed.code).toBe(1);
+
+    const added = invocationRows().slice(before);
+    expect(added).toHaveLength(2);
+    expect(added[0]).toMatchObject({
+      schema_version: 2,
+      kind: "cli",
+      command: "roles",
+      outcome: "completed",
+      exitCode: 0,
+    });
+    expect(added[1]).toMatchObject({
+      schema_version: 2,
+      kind: "cli",
+      command: "context",
+      exitCode: 1,
+      argv: ["context", "--api-key", "[REDACTED:argv-value]"],
+    });
+    expect(new Set(added.map((row) => row["invocationId"])).size).toBe(2);
+    expect(JSON.stringify(added)).not.toContain("sk-12345678901234567890");
+  });
+
+  it("does not create an explicit org-init state target before plan validation", async () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-cli-invalid-init-audit-"));
+    const state = join(root, "arbitrary-state");
+    const target = join(root, "org");
+    try {
+      const result = await runCliFrom(
+        ["org", "init", target, "--name", "!!!", "--state-home", state, "--dry-run"],
+        NEUTRAL_CWD,
+        join(root, "home"),
+      );
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("--name must contain a letter or number");
+      expect(existsSync(state)).toBe(false);
+      expect(existsSync(target)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("org-init dry-run validates before binding and writes only its documented audit exception", async () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-cli-init-preview-audit-"));
+    const state = join(root, "state");
+    const target = join(root, "org");
+    const home = join(root, "home");
+    try {
+      const result = await runCliFrom(
+        ["org", "init", target, "--name", "preview-org", "--state-home", state, "--dry-run"],
+        NEUTRAL_CWD,
+        home,
+      );
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.stdout).toContain("A dispatched CLI writes only its invocation audit row");
+      expect(existsSync(target)).toBe(false);
+      expect(existsSync(join(home, ".operon", "config"))).toBe(false);
+      expect(invocationRows(state)).toContainEqual(expect.objectContaining({
+        command: "org",
+        subcommand: "init",
+        dryRun: true,
+        outcome: "org-init-preview-ready",
+        provenance: { authorityProfile: "delegated-operator" },
+      }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("a command with no explicit or valid active state home cannot fabricate an audit destination", async () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-cli-no-audit-home-"));
+    try {
+      const result = await runCliFrom(["context"], NEUTRAL_CWD, root);
+      expect(result.code).toBe(1);
+      expect(existsSync(join(root, ".operon"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not attribute an explicit standalone state home to the active org pointer", async () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-cli-standalone-audit-"));
+    const state = join(root, "state");
+    try {
+      const result = await runCliFrom(
+        ["roles", join(process.cwd(), "roles.yaml"), "--state-home", state],
+        NEUTRAL_CWD,
+        USER_HOME,
+      );
+      expect(result.code, result.stderr).toBe(0);
+      const [row] = invocationRows(state);
+      expect(row).toMatchObject({ command: "roles", exitCode: 0 });
+      expect(row).not.toHaveProperty("org");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("doctor resolves the active org from a neutral cwd", async () => {
@@ -390,22 +545,16 @@ describe("cli dispatch", () => {
     expect(stderr).toContain("--app <app> is required");
   });
 
-  it("dispatch --dry-run appends an invocation ledger row like loop does", async () => {
+  it("dispatch --dry-run appends one command-level invocation row", async () => {
+    const before = invocationRows().length;
     const { stdout, code } = await runCli(["dispatch", "--dry-run"]);
     expect(code).toBe(0);
     expect(stdout).toContain("dispatch: spawned=");
 
-    const day = new Date().toISOString().slice(0, 10);
-    const ledger = join(STATE_HOME, "invocations", `${day}.jsonl`);
-    expect(existsSync(ledger)).toBe(true);
-    const rows = (await import("node:fs/promises").then(({ readFile }) => readFile(ledger, "utf8")))
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
-    const dispatchRows = rows.filter((row) => row["kind"] === "dispatch");
-    expect(dispatchRows.length).toBeGreaterThan(0);
-    expect(dispatchRows.at(-1)).toMatchObject({ kind: "dispatch", dryRun: true });
-    expect(typeof dispatchRows.at(-1)?.["wallClockMs"]).toBe("number");
-    expect(typeof dispatchRows.at(-1)?.["outcome"]).toBe("string");
+    const added = invocationRows().slice(before);
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ kind: "cli", command: "dispatch", dryRun: true });
+    expect(typeof added[0]?.["wallClockMs"]).toBe("number");
+    expect(typeof added[0]?.["outcome"]).toBe("string");
   });
 });

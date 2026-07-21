@@ -27,7 +27,6 @@ import {
 import { createExistingTicketApprovalHandler } from "../org/ticket-episode-approval.js";
 import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
-import { recordInvocation } from "../runtime/telemetry.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation, waitForDelay } from "./process-signal.js";
@@ -36,9 +35,14 @@ import { explainContext } from "../loop/context-manifest.js";
 import { resumeExecutionJournal } from "../loop/execution-journal.js";
 import { cmdClaimRearm } from "./claim-rearm.js";
 import { resolveReviewAuthorizationSecret } from "../org/review-authorization-secret.js";
+import { reportCliInvocation } from "./invocation-audit.js";
 
-export function loopInvocationOutcome(result: LoopDriverResult): string {
+export function loopInvocationOutcome(result: LoopDriverResult, dryRun = false): string {
   if (result.budgetRefusal !== undefined) return `budget-refused: ${result.budgetRefusal}`;
+  if (dryRun) {
+    const previewed = result.itemsPreviewed ?? 0;
+    return previewed > 0 ? `would-claim: ${previewed}` : "no-ready-tickets";
+  }
   return [
     ...(result.terminalEpisodeRefusals ?? []).map(
       (refusal) =>
@@ -276,6 +280,9 @@ export async function cmdLoop(args: string[]): Promise<number> {
   let sawBudgetRefusal = false;
   let sawTerminalEpisodeRefusal = false;
   let accumulatedLoopExitCode: 0 | 1 = 0;
+  let itemsClaimed = 0;
+  let itemsPreviewed = 0;
+  const invocationOutcomes: string[] = [];
   const cancellation = dryRun ? undefined : installProcessCancellation();
 
   async function tick(): Promise<void> {
@@ -283,7 +290,6 @@ export async function cmdLoop(args: string[]): Promise<number> {
     // emits scorecard events for items with a turnId (loop.ts), and this is the
     // attribution/dedupe key the org scorecard ledger records under.
     const turnId = `loop-${selectedApp.name}-${Date.now()}`;
-    const tickStarted = Date.now();
     let liveEngine: NonNullable<Parameters<typeof runLoopOnce>[0]["engine"]> | undefined;
     let ticketInspection: NonNullable<Parameters<typeof runLoopOnce>[0]["ticketInspection"]> | undefined;
     if (dryRun) {
@@ -477,24 +483,12 @@ export async function cmdLoop(args: string[]): Promise<number> {
     if (result.budgetRefusal !== undefined) sawBudgetRefusal = true;
     if ((result.terminalEpisodeRefusals?.length ?? 0) > 0) sawTerminalEpisodeRefusal = true;
     if (loopDriverExitCode(result) !== 0) accumulatedLoopExitCode = 1;
+    itemsClaimed += result.items.length;
+    itemsPreviewed += result.itemsPreviewed ?? 0;
+    invocationOutcomes.push(loopInvocationOutcome(result, dryRun));
     if (result.lines.length === 0 && result.items.length === 0) {
       console.log(`loop: no ready tickets for ${selectedApp.name}`);
     }
-    // One durable row per orchestrator invocation (telemetry doc §6): the
-    // 2026-07-10 review could not even recover how many times the loop ran.
-    // Successful dry-runs retain that established audit row. A deterministic
-    // intent mismatch throws inside runLoopOnce above, before this boundary,
-    // so the failed preview neither claims GitHub work nor records success.
-    await recordInvocation(homes.stateHome, {
-      at: new Date().toISOString(),
-      kind: "loop",
-      app: selectedApp.name,
-      ...(dryRun ? { dryRun: true } : {}),
-      itemsClaimed: result.items.length,
-      outcome: loopInvocationOutcome(result),
-      wallClockMs: Date.now() - tickStarted,
-      ...(parentTaskId !== undefined ? { parentTaskId } : {}),
-    });
   }
 
   try {
@@ -516,7 +510,16 @@ export async function cmdLoop(args: string[]): Promise<number> {
   } finally {
     cancellation?.dispose();
   }
-  return cancellation?.exitCode ?? accumulatedLoopExitCode;
+  const exitCode = cancellation?.exitCode ?? accumulatedLoopExitCode;
+  reportCliInvocation({
+    app: selectedApp.name,
+    dryRun,
+    itemsClaimed,
+    itemsPreviewed,
+    outcome: invocationOutcomes.join("; ") || (exitCode === 0 ? "completed" : `failed: exit ${exitCode}`),
+    ...(parentTaskId === undefined ? {} : { parentTaskId }),
+  });
+  return exitCode;
 }
 
 function needValue(args: string[], index: number, flag: string): string {

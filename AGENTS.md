@@ -86,7 +86,9 @@ can only lag, never lead — rebuilt from the ledger when absent);
 episode route, route-bounded execution journal, terminal provider/mechanical
 execution steps, and component-hashed context manifest/delta projections;
 `invocations/<date>.jsonl`
-records each loop/dispatch invocation; `tasks/<taskId>/` holds the broader
+records one terminal row per dispatched CLI command (with distinct internal
+release-execution rows); `state/invocation-journal/` holds pre-command intent
+and idempotent append recovery; `tasks/<taskId>/` holds the broader
 delegated-task record plus exact outer prompt (child envelopes and ledger
 rows carry `parent_task_id`); `learning/` holds the capture
 projection (`events/`), rebuildable episode records (`episodes/`),

@@ -121,7 +121,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
         "safe AGENTS.md/CLAUDE.md authority blocks, " +
         ".operon/memory/<role>/INDEX.md (with answers)",
     );
-    console.log("(nothing written — --scan-only)");
+    console.log("(nothing written to bootstrap artifacts — --scan-only; dispatched CLI invocation audit only)");
     return 0;
   }
 

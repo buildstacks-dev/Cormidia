@@ -162,8 +162,13 @@ describe("queueReleaseApprovals", () => {
         actor: "orchestrator/release",
         nextAction: "none",
       });
-      expect(readFileSync(join(home.root, "invocations", new Date().toISOString().slice(0, 10) + ".jsonl"), "utf8"))
-        .toContain('"kind":"release"');
+      const invocationRows = readFileSync(
+        join(home.root, "invocations", new Date().toISOString().slice(0, 10) + ".jsonl"),
+        "utf8",
+      ).trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
+      expect(invocationRows).toContainEqual(expect.objectContaining({ kind: "release" }));
+      expect(invocationRows.filter((row) => row["kind"] === "release")).toHaveLength(1);
+      expect(invocationRows[0]).not.toHaveProperty("command");
     } finally {
       home.cleanup();
     }

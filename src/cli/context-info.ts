@@ -92,6 +92,8 @@ export async function cmdCapabilities(args: string[]): Promise<number> {
   const commands = CAPABILITIES.map((row) => ({
     ...row,
     supportsJson: JSON_COMMANDS.has(row.command),
+    auditWrites: true as const,
+    writesMeaning: "domain_or_workflow" as const,
   }));
   const data = { version: await packageVersion(), commands };
   if (json) console.log(JSON.stringify(data, null, 2));

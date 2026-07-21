@@ -20,6 +20,10 @@ import type {
   UsageQuality,
 } from "./types.js";
 import { scrubSecrets } from "./runlog/redact.js";
+export {
+  recordInvocation,
+  type InvocationRecord,
+} from "./invocation-ledger.js";
 
 /** Which trigger kind fired a turn — derived from `Trigger` so the two can
  *  never drift apart. Manual turns record `"manual"` (architecture.md §8). */
@@ -502,26 +506,4 @@ export async function readTurnRecords(orgDir: string): Promise<TurnRecord[]> {
     }
   }
   return rows;
-}
-
-/** One row per orchestrator invocation (`operon loop`, dispatch ticks), so
- *  orchestrator activity is reconstructable, not only agent activity
- *  (telemetry doc §6). Lives in its own sibling directory: every existing
- *  reader of telemetry/*.jsonl assumes TurnRecord rows. */
-export interface InvocationRecord {
-  at: string; // ISO timestamp
-  kind: "loop" | "dispatch" | "release";
-  app?: string;
-  dryRun?: boolean;
-  itemsClaimed?: number;
-  outcome: string;
-  wallClockMs: number;
-  parentTaskId?: string;
-}
-
-export async function recordInvocation(orgDir: string, record: InvocationRecord): Promise<void> {
-  const day = record.at.slice(0, 10);
-  const path = join(orgDir, "invocations", `${day}.jsonl`);
-  await mkdir(dirname(path), { recursive: true });
-  await appendFile(path, JSON.stringify(record) + "\n", "utf8");
 }

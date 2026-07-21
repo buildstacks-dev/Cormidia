@@ -1,4 +1,5 @@
 import { NoActiveOrgError } from "../org/home.js";
+import { reportCliInvocationFailure } from "./invocation-audit.js";
 
 export interface JsonCliFailureEnvelope {
   schema_version: 1;
@@ -93,6 +94,7 @@ export async function runJsonCliCommand(
     }
     return code;
   } catch (error) {
+    reportCliInvocationFailure(error);
     restore();
     originalLog(JSON.stringify(jsonCliFailure(error, command), null, 2));
     return 1;

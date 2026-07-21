@@ -41,6 +41,23 @@ describe("manual loop terminal-refusal projection", () => {
     expect(loopDriverExitCode(idle)).toBe(0);
     expect(loopInvocationOutcome(idle)).toBe("no-ready-tickets");
   });
+
+  it("reports dry-run ready selection as would-claim, distinct from an empty queue", () => {
+    const ready: LoopDriverResult = {
+      lines: ["#1 Ready: ready -> claim"],
+      items: [],
+      scorecardEvents: [],
+      itemsPreviewed: 1,
+    };
+    const empty: LoopDriverResult = {
+      lines: [],
+      items: [],
+      scorecardEvents: [],
+      itemsPreviewed: 0,
+    };
+    expect(loopInvocationOutcome(ready, true)).toBe("would-claim: 1");
+    expect(loopInvocationOutcome(empty, true)).toBe("no-ready-tickets");
+  });
 });
 
 // Regression: `operon loop` used to drop every scorecard event the driver

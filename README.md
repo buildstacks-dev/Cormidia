@@ -107,13 +107,14 @@ operon doctor
 operon context
 ```
 
-`org init --dry-run` is a token-free, zero-write preflight: it resolves the org,
+`org init --dry-run` is a token-free, zero-domain-write preflight: it resolves the org,
 state, and pointer paths; lists every generated destination; and shows the
 authority summary plus complete packaged role chart. Without `--dry-run`, init
 keeps its execute-by-default compatibility. It creates an absent directory or
 safely populates an existing real directory while preserving unrelated entries;
 an existing org, generated-path collision, or symlink blocks before target
-mutation and nothing is overwritten.
+mutation and nothing is overwritten. Once the proposed state home has passed
+that validation, the command-level invocation audit is the sole preview write.
 
 Successful init creates a complete org home from packaged templates, including
 a versioned `AUTHORITY.md`, creates the
@@ -125,6 +126,20 @@ reversible work while Operon's critical-operation gates remain mandatory;
 choose `--authority conservative` or `--authority custom --authority-file
 <path> --authority-by <identity>` during onboarding to narrow or replace the
 human grant explicitly.
+
+Every dispatched CLI command whose state home is explicit or safely resolved
+writes one terminal command row under `invocations/`, including read-only
+commands, previews, parser failures, and pre-provider refusals. Rows carry a
+stable invocation id, command/subcommand, secret-redacted argv, dry-run flag,
+outcome/exit code/duration, and resolved org/app when known. Intent is persisted
+first under `state/invocation-journal/`; terminal append is idempotent, and the
+next command reconciles a terminal journal or a running journal whose process
+is proven dead as `interrupted`. A live process's running journal is never
+guessed terminal and remains inspectable. This audit write is the sole
+exception to preview/read-only "no state writes" claims. Help, version, the
+no-command usage banner, and commands with neither an explicit nor a safely
+resolved state home have no org-scoped destination and are deliberately not
+journaled.
 
 ## Commands
 
@@ -173,9 +188,9 @@ operon plan <app> --dry-run
 operon loop --app <app> --once --dry-run
 operon loop rearm --app <app> --ticket <n> --reason "reviewed" --actor <identity> --from-allowance 3 --to-allowance 4 # preview
 operon dispatch --dry-run
-operon scheduler install --json                       # preview, zero writes
+operon scheduler install --json                       # preview, audit row only
 operon scheduler status --json                        # read-only health
-operon scheduler uninstall --json                     # preview, zero writes
+operon scheduler uninstall --json                     # preview, audit row only
 operon run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run
 operon run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run --allow-network # explicit per-invocation egress preview
 operon status
@@ -201,7 +216,8 @@ the active org and writes app-owned files under `.operon/`, plus one marked,
 idempotent authority pointer composed into root `AGENTS.md` and `CLAUDE.md`.
 Existing instruction content is preserved. Its opening output explains the app repo, org home, and
 state home before anything is written. A non-interactive run requires
-`--answers` or `--answers-from` and otherwise writes nothing. Normalized
+`--answers` or `--answers-from` and otherwise writes no bootstrap artifacts
+(the universal command audit row still records the refusal). Normalized
 non-secret answers are retained in isolated state and reset archives;
 `--answers-from <app>` resolves the app's latest default reset archive.
 Generated YAML/authority metadata and text formatting are validated before
@@ -280,7 +296,7 @@ invocation identity, bounded template, and assignment semantics. `--turn` is a
 trace/session identity, not a GitHub ticket number or ticket binding. The
 preview reads and hashes the template, validates the execution-ready creator
 scope, reports its provenance/objective/atomic assignment, constructs no
-provider runtime, and writes no state. Provider readiness, live budget and
+provider runtime, and writes no workflow state beyond its command audit row. Provider readiness, live budget and
 approval outcomes, managed-clone synchronization, and later external-state
 changes remain explicit exclusions. `--workdir` is intentionally unsupported:
 preview reads a discovered registered checkout, while live execution
@@ -609,7 +625,10 @@ narrative/<app>/          # human-level causal timeline (#129): one captured
 efficiency/episodes/<hash>/ # EpisodeIntent + immutable plan-vN records/current
                             # pointer + plan-DAG journal + derived route +
                             # terminal execution steps + context projection
-invocations/<date>.jsonl  # one row per orchestrator invocation (loop + dispatch)
+invocations/<date>.jsonl  # one terminal row per CLI command; internal release
+                          # executions remain separate kind:release rows
+state/invocation-journal/ # pre-command intent + terminal append recovery;
+                          # a later command reconciles dead-process/terminal rows
 scheduler/installation.json # owned definition/install record
 scheduler/evidence/       # exact-once invocation, decision, and local-alert JSON
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds

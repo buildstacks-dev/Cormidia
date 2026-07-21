@@ -183,7 +183,7 @@ async function promote(
       console.log(`App promotion plan: ${appName} ${plan.from} -> live`);
       console.log(`Verification: ${plan.verification.status}`);
       for (const change of plan.changes) console.log(`  - ${change}`);
-      console.log("No changes made. Add --execute after reviewing this plan.");
+      console.log("No changes made to app lifecycle (dispatched CLI: invocation audit only). Add --execute after reviewing this plan.");
     }
     return plan.executable ? 0 : 2;
   }
@@ -225,7 +225,7 @@ function printPlan(plan: AppResetPlan, execute: boolean, force: boolean): void {
   }
   if (!execute) {
     console.log(
-      `No changes made. To execute: operon app reset ${plan.app.name} --execute --confirm ${plan.app.name}` +
+      `No changes made to app state (dispatched CLI: invocation audit only). To execute: operon app reset ${plan.app.name} --execute --confirm ${plan.app.name}` +
         (plan.staleRuns.length > 0 ? " --force" : ""),
     );
   }

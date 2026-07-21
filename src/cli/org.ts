@@ -24,6 +24,7 @@ import {
 } from "../org/authority.js";
 import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
 import { stableJson } from "../org/lifecycle.js";
+import { bindCliInvocationStateHome, reportCliInvocation } from "./invocation-audit.js";
 
 export interface OrgCommandOptions {
   homeDir?: string;
@@ -109,7 +110,7 @@ function printUpgradePlan(plan: Awaited<ReturnType<typeof planOrgUpgrade>>): voi
   console.log(`Authority: ${plan.authority.choice}`);
   for (const change of plan.changes) console.log(`  ${change.action}: ${change.path} — ${change.detail}`);
   for (const blocker of plan.blockers) console.log(`  blocked: ${blocker.code} — ${blocker.remediation}`);
-  console.log("No changes made. Add --execute after reviewing this plan.");
+  console.log("No org upgrade changes made. The invocation audit row is still recorded.");
 }
 
 async function init(args: string[], options: OrgCommandOptions): Promise<number> {
@@ -161,13 +162,26 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
     ...(authorityCustomText !== undefined ? { authorityCustomText } : {}),
     ...(authorityBy !== undefined ? { authorityGrantedBy: authorityBy } : {}),
   });
+  // org init has no pre-existing active state home. Bind its exact planned
+  // target before the first domain mutation so creation itself has provenance.
+  await bindCliInvocationStateHome(plan.preview.state_home, { org: name });
   if (dryRun) {
     if (json) console.log(stableJson(plan.preview).trimEnd());
     else printInitPlan(plan.preview);
+    reportCliInvocation({
+      dryRun: true,
+      outcome: plan.preview.executable ? "org-init-preview-ready" : "org-init-preview-blocked",
+      provenance: { authorityProfile },
+    });
     return plan.preview.executable ? 0 : 2;
   }
 
   const result = await executeOrgInit(plan);
+  reportCliInvocation({
+    org: result.appsFile.org.name,
+    outcome: "org-created-and-selected",
+    provenance: { authorityProfile },
+  });
   printHomes(result, json, "created and selected");
   if (!json) {
     console.log("Next: run `operon doctor`, then onboard an app with `operon bootstrap <local-repo-path>`.");
@@ -215,7 +229,7 @@ function printInitPlan(plan: InitOrgHomePlanPreview): void {
     console.log(`Blocked: ${blocker.code} — ${blocker.detail}`);
     console.log(`  ${blocker.remediation}`);
   }
-  console.log("No changes made. Remove --dry-run to create and select this org.");
+  console.log("No changes made to org/config. A dispatched CLI writes only its invocation audit row.");
 }
 
 function renderTriggers(triggers: InitOrgHomePlanPreview["roles"][number]["triggers"]): string {
@@ -263,10 +277,12 @@ async function use(args: string[], options: OrgCommandOptions): Promise<number> 
   const appsFile = await loadApps(join(resolvedOrgHome, "apps.yaml"));
   const homeDir = options.homeDir ?? homedir();
   const pointerPath = options.pointerPath ?? join(homeDir, ".operon", "config");
+  const selectedStateHome = resolve(stateHome ?? join(homeDir, ".operon", appsFile.org.name));
+  await bindCliInvocationStateHome(selectedStateHome, { org: appsFile.org.name });
   await writeActiveOrgPointer(pointerPath, resolvedOrgHome, stateHome);
   const homes = await resolveOperonHomes({
     orgHome: resolvedOrgHome,
-    ...(stateHome !== undefined ? { stateHome } : {}),
+    stateHome: selectedStateHome,
     homeDir,
     pointerPath,
   });
@@ -276,6 +292,7 @@ async function use(args: string[], options: OrgCommandOptions): Promise<number> 
     json,
     "selected",
   );
+  reportCliInvocation({ org: appsFile.org.name, outcome: "org-selected" });
   return 0;
 }
 

@@ -38,7 +38,7 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
-import { withDependencyBuildPolicy } from "../runtime/non-interactive-env.js";
+import { appCommandEnv } from "../runtime/non-interactive-env.js";
 import { asGlobal, SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import { gatesForTier, type GateName, type Policy, type RiskTier } from "./policy.js";
 import { describeSetupArtifacts, scanSetupArtifacts, type SetupArtifact } from "./setup-artifacts.js";
@@ -850,7 +850,7 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<Shel
       // so the deny-by-default dependency build policy has to be here too, not
       // only in the provider sandbox (ISSUE-029). CI stays "1" — the Stage 3
       // value this gate has always used — and wins over the overlay.
-      env: { ...withDependencyBuildPolicy(process.env), CI: "1" },
+      env: appCommandEnv(),
     });
 
     const tail = new TailBuffer(MAX_CAPTURE_BYTES);

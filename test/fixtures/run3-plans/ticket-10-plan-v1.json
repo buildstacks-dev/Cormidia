@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "episodeId": "ticket:sonnet4-buildstack-dev:#10",
+  "version": 1,
+  "intentHash": "71c2c0d1afefeb7d7183166ebbaeea139126fe90f1612fd5a235fad1595583c9",
+  "summary": "Deliver ticket #10 (feeds, SEO artifacts, and build-and-test CI) via a single build pipeline: contract then implement RSS/404/OG/favicon/CI plus named behavior tests, gate lint and the behavior suite while opening the PR, obtain one independent reviewer verification, authorize on that lens, and ship. No deploy job or infrastructure change is in scope.",
+  "workflowClass": "ticket-build-verify-ship",
+  "planningSource": "episode_planner",
+  "steps": [
+    {
+      "kind": "mechanical_gate",
+      "id": "provision",
+      "objective": "Provision the ticket workspace and branch from origin/master for ticket #10.",
+      "dependsOn": [],
+      "inputRefs": [],
+      "expectedOutputs": [
+        {
+          "id": "workspace",
+          "kind": "workspace",
+          "required": true
+        }
+      ],
+      "gate": "ticket/provision"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "contract",
+      "objective": "Produce the delivery contract for #10: enumerate how @astrojs/rss feed, src/pages/404.astro, favicon + default OG image referenced from BaseHead.astro, .github/workflows/ci.yml (setup+lint+behavior tests, no deploy), and named behavior tests will satisfy AC1-AC5 while preserving the existing sitemap-index.xml.",
+      "dependsOn": [
+        "provision"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:workspace",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "build-contract",
+          "kind": "contract",
+          "required": true
+        }
+      ],
+      "operation": "build/contract",
+      "role": "builder",
+      "requiredCapabilities": [
+        "tool_gate",
+        "structured_verdict"
+      ],
+      "maxTurnBudgetUsd": 50,
+      "selectionReason": "Builder is the configured owner of the build pipeline's contract pass; a bounded contract fixes AC-to-artifact mapping before code for this multi-artifact ticket.",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "implement",
+      "objective": "Implement the contract: generate rss.xml from the blog collection, add the Base-layout 404 page, add favicon and default OG image wired through BaseHead so every page emits og:title/og:description/og:image, add build-and-test-only CI, and add named behavior tests asserting RSS covers every published post and that dist/ contains the 404 page and OG tags; open the PR.",
+      "dependsOn": [
+        "contract"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:build-contract",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "delivery",
+          "kind": "pr",
+          "required": true
+        }
+      ],
+      "operation": "build/implement",
+      "role": "builder",
+      "requiredCapabilities": [
+        "tool_gate",
+        "session_resume"
+      ],
+      "maxTurnBudgetUsd": 50,
+      "selectionReason": "Builder is the configured implementer with write access; a single implement pass delivers the coherent feeds/SEO/CI slice and its behavior tests.",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "gates_and_pr",
+      "objective": "Run the configured mechanical gates (lint and the behavior test suite) against the delivered revision and finalize the pull request.",
+      "dependsOn": [
+        "implement"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:delivery",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "gate-report",
+          "kind": "gate-report",
+          "required": true
+        }
+      ],
+      "gate": "ticket/gates-and-pr"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "verify",
+      "objective": "Independently verify the exact delivered revision against AC1-AC5: RSS correctness and coverage, 404 via Base layout, favicon/OG referencing and per-page OG tags, build-and-test-only CI with no deploy job, sitemap-index.xml still emitted and not duplicated, and that the named behavior tests genuinely assert the claimed properties.",
+      "dependsOn": [
+        "gates_and_pr"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:delivery",
+          "required": true
+        },
+        {
+          "ref": "plan-output:gate-report",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "verify-review",
+          "kind": "review",
+          "required": true
+        }
+      ],
+      "operation": "review/verify",
+      "role": "reviewer",
+      "requiredCapabilities": [
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "maxTurnBudgetUsd": 50,
+      "selectionReason": "Reviewer is a provider family independent of the builder, satisfying the required independent_review safety fact; the verify lens is the sufficient review for a static-site feeds/SEO/CI change with no auth, secrets, migration, or deployment surface.",
+      "assignment": {
+        "harness": "claude",
+        "model": "claude-opus-4-8",
+        "effort": "xhigh"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "review_authorization",
+      "objective": "Confirm every review lens (verify) for the gated revision has passed and authorize the revision for ship.",
+      "dependsOn": [
+        "verify"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:verify-review",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "review-authorization",
+          "kind": "authorization",
+          "required": true
+        }
+      ],
+      "gate": "ticket/review-authorization"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "ship",
+      "objective": "Ship the authorized revision for ticket #10 (merge preparation only; no infrastructure deployment).",
+      "dependsOn": [
+        "review_authorization"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:review-authorization",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "ship-report",
+          "kind": "ship-report",
+          "required": true
+        }
+      ],
+      "gate": "ticket/ship"
+    }
+  ],
+  "estimatedBudget": {
+    "providerTurns": 3,
+    "providerTurnBudgetUsd": 150,
+    "mechanicalOverheadUsd": 0,
+    "totalBudgetUsd": 150
+  },
+  "derivedSafetyRoute": {
+    "label": "standard",
+    "reasons": [
+      "derived-from-3-provider-turns",
+      "safety:independent_review"
+    ],
+    "gateStepIds": [
+      "gates_and_pr",
+      "provision",
+      "review_authorization",
+      "ship"
+    ],
+    "approvalStepIds": []
+  },
+  "createdAt": "2026-07-21T09:54:39.731Z"
+}

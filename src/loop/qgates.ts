@@ -339,10 +339,28 @@ export function runCompletenessGate(
     failures.push("no parseable acceptance criteria on the ticket");
   }
 
-  for (const criterion of criteria) {
-    const tests = criterionTests[criterion.id] ?? [];
-    if (tests.filter((test) => test.trim() !== "").length === 0) {
-      failures.push(`criterion ${criterion.id} has no covering test in the contract mapping`);
+  // Two failures wear the same words but have opposite remediations
+  // (ISSUE-024). An absent mapping is a PLANNING defect — the plan scheduled
+  // no contract pass, so the mapping the gate scores against was never
+  // produced and no amount of builder work can satisfy it. A criterion
+  // uncovered *within* an existing mapping is a BUILD defect. Reporting the
+  // first as N per-criterion "no covering test" lines sent operators to tell
+  // a builder to write tests it had already written.
+  if (Object.keys(criterionTests).length === 0) {
+    if (criteria.length > 0) {
+      failures.push(
+        `no contract mapping exists for this ticket, so none of its ${criteria.length} ` +
+          `acceptance criteria (${criteria.map((criterion) => criterion.id).join(", ")}) ` +
+          "can be scored: this is a planning defect (no build/contract pass produced a " +
+          "criterion→test mapping), not missing builder tests",
+      );
+    }
+  } else {
+    for (const criterion of criteria) {
+      const tests = criterionTests[criterion.id] ?? [];
+      if (tests.filter((test) => test.trim() !== "").length === 0) {
+        failures.push(`criterion ${criterion.id} has no covering test in the contract mapping`);
+      }
     }
   }
 

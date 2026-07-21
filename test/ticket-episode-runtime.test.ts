@@ -83,6 +83,22 @@ const POLICY: Policy = {
   dimensionGlobs: {},
   remediation: { maxAttempts: 3 },
 };
+/** Minimal valid contract verdict. Every ticket plan that writes to the
+ * worktree now needs a `build/contract` step: `ticket/gates-and-pr` scores the
+ * completeness gate against the criterion→test mapping only that pass
+ * produces, so a plan without it is unsatisfiable (ISSUE-024). */
+const CONTRACT_VERDICT = JSON.stringify({
+  files: ["src/parser.ts"],
+  approach: "Make the bounded parser correction.",
+  tests: [{ criterionId: "AC1", tests: ["pnpm test parser"] }],
+  risks: "Localized parser behavior only.",
+  complexity: "low",
+});
+
+function isContractTurn(request: TurnRequest): boolean {
+  return request.task.includes("Operation: build/contract");
+}
+
 const RUN2_BLOCKED_VERDICT = readFileSync(
   new URL("./fixtures/run2/blocked-build-verdict.json", import.meta.url),
   "utf8",
@@ -250,7 +266,9 @@ describe("ticket EpisodePlanner execution adapter", () => {
                 notReviewed: ["unrelated application paths"],
               },
             })
-          : JSON.stringify({ status: "done" }),
+          : isContractTurn(request)
+            ? CONTRACT_VERDICT
+            : JSON.stringify({ status: "done" }),
         () => { actorTerminated = true; },
       );
 
@@ -292,7 +310,10 @@ describe("ticket EpisodePlanner execution adapter", () => {
         ok: true,
         verdict: { verdict: "approve", findings: [] },
       });
-      expect(gh.issueComments.get(7)).toHaveLength(1);
+      // The seeded contract pass posts its own contract comment; the reviewer
+      // verdict comment must still be published exactly once.
+      expect((gh.issueComments.get(7) ?? []).filter((body) =>
+        body.includes("Structured review verdict"))).toHaveLength(1);
 
       expect(recovered).toMatchObject({
         phase: "shipping",
@@ -338,7 +359,9 @@ describe("ticket EpisodePlanner execution adapter", () => {
                 notReviewed: [],
               },
             })
-          : JSON.stringify({ status: "done" }),
+          : isContractTurn(request)
+            ? CONTRACT_VERDICT
+            : JSON.stringify({ status: "done" }),
       );
 
       const item = await runtime.executeTicketPlan({
@@ -364,7 +387,11 @@ describe("ticket EpisodePlanner execution adapter", () => {
     const fixture = await setup("implement", "build/implement", true, true, true);
     try {
       const calls: ObservedCall[] = [];
-      const runtime = makeTicketRuntime(fixture, calls, RUN2_BLOCKED_VERDICT);
+      const runtime = makeTicketRuntime(
+        fixture,
+        calls,
+        (request) => isContractTurn(request) ? CONTRACT_VERDICT : RUN2_BLOCKED_VERDICT,
+      );
       const item = await runtime.executeTicketPlan({
         request: fixture.request,
         accepted: fixture.accepted,
@@ -372,7 +399,8 @@ describe("ticket EpisodePlanner execution adapter", () => {
         beforeProviderTurn: async () => undefined,
       });
 
-      expect(calls).toHaveLength(1);
+      // The seeded contract ancestor runs first, then the blocked implement turn.
+      expect(calls).toHaveLength(2);
       expect(item.phase).toBe("returned");
       const rows = await readStatusRows(fixture.state.root, { app: "fixture" });
       const implement = rows.find((row) => row.pass === "implement");
@@ -399,7 +427,9 @@ describe("ticket EpisodePlanner execution adapter", () => {
       const telemetryText = telemetryLines.join("\n");
       expect(telemetryText).toMatch(/episode-plan-dag\/implement\s+blocked/);
       expect(telemetryText).toContain("terminal integrity: valid; 0/1 (0.0%)");
-      expect(telemetryText).toContain("productive provider turns: valid; 0/1 (0.0%)");
+      // Two provider turns ran (the seeded contract ancestor and the blocked
+      // implement turn); neither is productive because the episode failed.
+      expect(telemetryText).toContain("productive provider turns: valid; 0/2 (0.0%)");
       expect(telemetryText).toContain("trace-declared stages only: incomplete");
       expect(telemetryText).not.toContain("trace-declared stages only: complete");
 
@@ -649,16 +679,19 @@ async function setup(
   const repo = makeBareWithClone();
   if (needsPrompt) {
     // The template comes from the operation catalog, exactly as the executor
-    // resolves it. A review topology also needs the implement step's template.
+    // resolves it. Every write topology now carries a seeded build/contract
+    // ancestor (the gate-input rule requires one), and a review topology also
+    // needs the implement step's template.
     const catalogTemplate = ticketProviderOperation(operation)?.template;
-    const prompts = [
+    const prompts = [...new Set([
       ...(catalogTemplate === undefined || catalogTemplate === null
-        ? [join(org.root, "prompts", "build", "contract.md")]
+        ? []
         : [join(org.root, "prompts", ...catalogTemplate.split("/"))]),
+      join(org.root, "prompts", "build", "contract.md"),
       ...(operation === "review/verify"
         ? [join(org.root, "prompts", "build", "implement.md")]
         : []),
-    ];
+    ])];
     for (const prompt of prompts) {
       mkdirSync(dirname(prompt), { recursive: true });
       writeFileSync(prompt, "Return the typed verdict.");
@@ -677,10 +710,16 @@ async function setup(
     execution: { assignmentMode: "fixed", allowedAssignments: {} },
   };
   const step = providerStep(stepId, operation);
+  // A seeded ticket/gates-and-pr needs its contract ancestor unless the step
+  // under test is itself the contract pass.
+  const seededContract: ProviderTurnStep[] = operation === "build/contract"
+    ? []
+    : [{ ...providerStep("contract", "build/contract"), dependsOn: ["provision"] }];
   const steps: EpisodeStep[] = validWriteTopology
     ? [
         mechanicalStep("provision", "ticket/provision", []),
-        { ...step, dependsOn: ["provision"] },
+        ...seededContract,
+        { ...step, dependsOn: seededContract.length === 0 ? ["provision"] : ["contract"] },
         mechanicalStep("gates", "ticket/gates-and-pr", [stepId]),
       ]
     : [step];
@@ -838,10 +877,15 @@ function authority(inputSteps: EpisodeStep[]): AcceptedTicketEpisodePlan {
       inputSteps[0].role === "reviewer"
     ? inputSteps[0]
     : undefined;
-  const implementation: ProviderTurnStep = {
-    ...providerStep("implement", "build/implement"),
+  const contract: ProviderTurnStep = {
+    ...providerStep("contract", "build/contract"),
     dependsOn: ["provision"],
     inputRefs: [{ ref: "plan-output:worktree", required: true }],
+  };
+  const implementation: ProviderTurnStep = {
+    ...providerStep("implement", "build/implement"),
+    dependsOn: [contract.id],
+    inputRefs: [{ ref: `plan-output:${contract.expectedOutputs[0]!.id}`, required: true }],
   };
   const reviewedStep: ProviderTurnStep | undefined = reviewStep === undefined
     ? undefined
@@ -862,6 +906,7 @@ function authority(inputSteps: EpisodeStep[]): AcceptedTicketEpisodePlan {
           expectedOutputs: [{ id: "worktree", kind: "provisioned-worktree", required: true }],
           gate: "ticket/provision",
         },
+        contract,
         implementation,
         {
           kind: "mechanical_gate",

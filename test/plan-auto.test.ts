@@ -32,6 +32,10 @@ import {
   discoverPlanningStageCheckout,
   resolvePlanningStage,
 } from "../src/org/planning-stage.js";
+import {
+  listRefusedDecompositions,
+  readRefusedDecomposition,
+} from "../src/org/ticket-budget-ratification.js";
 
 const NOW = new Date("2026-07-19T09:00:00.000Z");
 const EPISODE_PROMPT = "Return exactly one strict EpisodePlan JSON object.";
@@ -604,6 +608,81 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
     expect(runtime.calls).toHaveLength(3);
     expect(runtime.calls.filter((call) => call.req.task.includes("[episode_planner_input]")))
       .toHaveLength(2);
+  });
+
+  // ENH-011: a budget refusal used to discard the decomposition the planner
+  // was already paid for ($2.03, in the reported run), so ratifying meant
+  // buying a different plan. The exact decomposition is preserved instead,
+  // and the failure names the command that admits it.
+  it("preserves a budget-only refused decomposition and names the ratification command", async () => {
+    const { app, appsFile } = fixture();
+    const oversized = JSON.stringify({
+      ...(JSON.parse(BOOTSTRAP_PLAN) as Record<string, unknown>),
+      ticketCountRationale: "Nine design-spec steps collapse into eight shippable slices.",
+      tickets: Array.from({ length: 8 }, (_unused, index) => ({
+        ...((JSON.parse(BOOTSTRAP_PLAN) as { tickets: Array<Record<string, unknown>> }).tickets[0]!),
+        title: `Step ${index + 1}`,
+      })),
+    });
+    const runtime = new ProductPlanningRuntime(minimalWorkflow, () => oversized);
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: "The complete site, design spec sections 1-9",
+      workdir: pair.clone.root,
+      publish: false,
+      runtimeFor: () => runtime,
+      episodePlannerPromptText: EPISODE_PROMPT,
+      now: () => NOW,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.problems?.some((problem) => problem.includes("budget of 3"))).toBe(true);
+    const refused = result.refusedDecomposition;
+    expect(refused).toBeDefined();
+    expect(refused).toMatchObject({ stage: "bootstrap", stageTicketBudget: 3, ticketCount: 8 });
+    expect(refused!.ratifyCommand).toContain("operon plan ratify-ticket-budget --app greenfield");
+    expect(refused!.ratifyCommand).toContain(`--decomposition ${refused!.decompositionId}`);
+    expect(refused!.ratifyCommand).toContain("--to-budget 8");
+
+    const record = await readRefusedDecomposition(stateHome, "greenfield", refused!.decompositionId);
+    expect(record?.plan.tickets).toHaveLength(8);
+    expect(record?.goal).toBe("The complete site, design spec sections 1-9");
+    expect(record?.provenance.episode_id).toBe(result.episodeId);
+  });
+
+  // Adversarial near-miss: an oversized plan that is ALSO structurally broken
+  // must not be preserved. Ratifying it would not make it publishable, so
+  // offering it as a ratifiable decomposition would be a lie.
+  it("does not preserve a decomposition refused for anything other than the budget", async () => {
+    const { app, appsFile } = fixture();
+    const alsoBroken = JSON.stringify({
+      ...(JSON.parse(BOOTSTRAP_PLAN) as Record<string, unknown>),
+      tickets: Array.from({ length: 8 }, (_unused, index) => ({
+        ...((JSON.parse(BOOTSTRAP_PLAN) as { tickets: Array<Record<string, unknown>> }).tickets[0]!),
+        title: `Step ${index + 1}`,
+        ...(index === 0 ? { acceptanceCriteria: ["works"] } : {}),
+      })),
+    });
+    const runtime = new ProductPlanningRuntime(minimalWorkflow, () => alsoBroken);
+    const result = await runAutoPlan({
+      orgHome: process.cwd(),
+      stateHome,
+      app,
+      appsFile,
+      goal: "The complete site",
+      workdir: pair.clone.root,
+      publish: false,
+      runtimeFor: () => runtime,
+      episodePlannerPromptText: EPISODE_PROMPT,
+      now: () => NOW,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.refusedDecomposition).toBeUndefined();
+    expect(await listRefusedDecompositions(stateHome, "greenfield")).toEqual([]);
   });
 
   it("preserves source bytes in bounded planner/delivery input, durable manifests, and hash-only ticket provenance", async () => {

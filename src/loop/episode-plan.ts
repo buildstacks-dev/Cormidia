@@ -199,9 +199,14 @@ export const EPISODE_PLAN_PROPOSAL_SCHEMA = {
 
 /** Bind the provider-facing structured-output contract to the domain's
  * code-owned operation registry. The base schema remains available for
- * generic episodes whose operation vocabulary is intentionally open. */
+ * generic episodes whose operation vocabulary is intentionally open.
+ *
+ * `mechanicalGates`, when supplied, closes the gate vocabulary the same way:
+ * a mechanical gate the executor has no handler for is unrepresentable rather
+ * than merely rejected after generation. */
 export function episodePlanProposalSchemaForOperations(
   providerOperations: readonly string[],
+  options: { mechanicalGates?: readonly string[] } = {},
 ): Record<string, unknown> {
   const operations = [...new Set(providerOperations)].sort();
   if (operations.length === 0) {
@@ -210,6 +215,19 @@ export function episodePlanProposalSchemaForOperations(
   for (const operation of operations) {
     if (!machineReadableOperation(operation)) {
       throw new TypeError(`invalid EpisodePlanner provider operation ${operation}`);
+    }
+  }
+  const gates = options.mechanicalGates === undefined
+    ? undefined
+    : [...new Set(options.mechanicalGates)].sort();
+  if (gates !== undefined) {
+    if (gates.length === 0) {
+      throw new TypeError("EpisodePlanner mechanical gate registry must not be empty");
+    }
+    for (const gate of gates) {
+      if (!machineReadableOperation(gate)) {
+        throw new TypeError(`invalid EpisodePlanner mechanical gate ${gate}`);
+      }
     }
   }
   const schema = structuredClone(EPISODE_PLAN_PROPOSAL_SCHEMA) as Record<string, unknown>;
@@ -227,7 +245,96 @@ export function episodePlanProposalSchemaForOperations(
   }
   const providerProperties = provider["properties"] as Record<string, unknown>;
   providerProperties["operation"] = { type: "string", enum: operations };
+  if (gates !== undefined) {
+    const mechanical = alternatives.find((alternative) => {
+      const stepProperties = alternative["properties"] as Record<string, unknown> | undefined;
+      const kind = stepProperties?.["kind"] as Record<string, unknown> | undefined;
+      return kind?.["const"] === "mechanical_gate";
+    });
+    if (mechanical === undefined) {
+      throw new Error("EpisodePlan proposal schema has no mechanical_gate alternative");
+    }
+    const mechanicalProperties = mechanical["properties"] as Record<string, unknown>;
+    mechanicalProperties["gate"] = { type: "string", enum: gates };
+  }
   return schema;
+}
+
+/** Stable identity of one rejection, used to compare a repair against the
+ * proposal it was asked to repair. Step ids are deliberately excluded: a
+ * repair that renames a step has not fixed the rule it broke. */
+export function episodePlanViolationKey(issue: EpisodePlanIssue): string {
+  return `${issue.code}::${issue.rule ?? issue.constraint ?? issue.message}`;
+}
+
+export type RepairProgress = "reduced" | "unchanged" | "regressive";
+
+export interface RepairRegressionAssessment {
+  progress: RepairProgress;
+  /** Violations present in the repair that its input did not have. */
+  introduced: EpisodePlanIssue[];
+  /** Violation keys the repair genuinely resolved. */
+  resolved: string[];
+}
+
+/**
+ * A repair must violate a **strict subset** of what its input violated. Run 3
+ * produced the opposite: attempt 1 ordered the review lens before
+ * `ticket/review-authorization` and the repair inverted it, returning a plan
+ * with two defects instead of one (ISSUE-023). Naming that explicitly stops
+ * the second failure from reading as an unrelated fresh defect.
+ */
+export function assessRepairRegression(
+  priorIssues: readonly EpisodePlanIssue[],
+  repairedIssues: readonly EpisodePlanIssue[],
+): RepairRegressionAssessment {
+  const priorKeys = new Set(priorIssues.map(episodePlanViolationKey));
+  const repairedKeys = new Set(repairedIssues.map(episodePlanViolationKey));
+  const introduced: EpisodePlanIssue[] = [];
+  const seen = new Set<string>();
+  for (const issue of repairedIssues) {
+    const key = episodePlanViolationKey(issue);
+    if (priorKeys.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    introduced.push({ ...issue });
+  }
+  const resolved = [...priorKeys].filter((key) => !repairedKeys.has(key)).sort();
+  if (introduced.length > 0) return { progress: "regressive", introduced, resolved };
+  return {
+    progress: resolved.length > 0 ? "reduced" : "unchanged",
+    introduced,
+    resolved,
+  };
+}
+
+/**
+ * Diagnostics for a terminal repair failure, with a leading typed issue when
+ * the repair regressed. The original diagnostics are preserved verbatim after
+ * it — the annotation adds attribution, it never replaces evidence.
+ */
+export function annotateRepairRegression(
+  priorIssues: readonly EpisodePlanIssue[],
+  repairedIssues: readonly EpisodePlanIssue[],
+): EpisodePlanIssue[] {
+  const assessment = assessRepairRegression(priorIssues, repairedIssues);
+  const repaired = repairedIssues.map((issue) => ({ ...issue }));
+  if (assessment.progress !== "regressive") return repaired;
+  const introduced = assessment.introduced
+    .map((issue) => `${issue.code}: ${issue.message}`)
+    .join("; ");
+  return [
+    {
+      code: "plan_repair_regressive",
+      message:
+        `the repair introduced ${assessment.introduced.length} violation(s) its input did not ` +
+        `have (${introduced}); a repair must violate a strict subset of the original violations ` +
+        "and preserve every invariant the rejected proposal already satisfied",
+      expected: "a strict subset of the rejected proposal's violations",
+      received: `${assessment.introduced.length} newly introduced violation(s)`,
+      constraint: "non_regressive_repair",
+    },
+    ...repaired,
+  ];
 }
 
 export type JsonValue =
@@ -499,6 +606,7 @@ export const EPISODE_PLAN_REASON_CODES = [
   "plan_revision_completed_step_missing",
   "plan_revision_completed_step_changed",
   "plan_revision_unknown_completed_step",
+  "plan_repair_regressive",
 ] as const;
 
 export type EpisodePlanReasonCode = (typeof EPISODE_PLAN_REASON_CODES)[number];
@@ -516,6 +624,10 @@ export interface EpisodePlanIssue {
   expected?: string;
   /** Concise description of the rejected value; never an unbounded dump. */
   received?: string;
+  /** Stable id of the domain invariant this violation belongs to. It is the
+   * identity a repair pass is measured against: a repair must violate a
+   * strict subset of the rules its input violated (ISSUE-023). */
+  rule?: string;
 }
 
 export interface EpisodePlanValidationResult {
@@ -2668,7 +2780,10 @@ function exactKeys(record: Record<string, unknown>, allowed: readonly string[], 
   return Object.keys(record).every((key) => allowedSet.has(key)) && required.every((key) => Object.hasOwn(record, key));
 }
 
-function isEpisodePlan(value: unknown): value is EpisodePlan {
+/** Strict shape guard for an already-accepted, persisted plan. Exported so a
+ * captured `plan-v<n>.json` can be fed verbatim to the acceptance validators
+ * without a test-local re-implementation of the durable shape. */
+export function isEpisodePlan(value: unknown): value is EpisodePlan {
   if (!isRecord(value) || value["schemaVersion"] !== EPISODE_PLAN_SCHEMA_VERSION) return false;
   if (!nonEmpty(value["episodeId"]) || !Number.isSafeInteger(value["version"]) ||
       typeof value["intentHash"] !== "string" || !HASH.test(value["intentHash"]) ||

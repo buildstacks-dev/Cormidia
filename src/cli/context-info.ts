@@ -58,10 +58,11 @@ const CAPABILITIES = [
   { command: "pipelines", writes: false, spendsTokens: false, summary: "validate and list pass pipelines" },
   { command: "bootstrap", writes: true, spendsTokens: false, summary: "onboard an existing local app repo" },
   { command: "new-app", writes: true, spendsTokens: false, summary: "create and onboard a greenfield app repo" },
-  { command: "plan", writes: true, spendsTokens: true, summary: "run plan-aware work with --auto or an explicit --creator-scope/--execution-ready bypass; --dry-run is token-free" },
+  { command: "plan", writes: true, spendsTokens: true, summary: "run plan-aware work with --auto or an explicit --creator-scope/--execution-ready bypass; --dry-run is token-free and reports the stage ticket budget" },
+  { command: "plan ratify-ticket-budget", writes: true, spendsTokens: false, summary: "record an attributable human decision to admit one preserved oversized decomposition and publish it token-free; preview by default, exact --confirm to execute" },
   { command: "loop", writes: true, spendsTokens: true, summary: "advance ready GitHub tickets; --dry-run is token-free" },
   { command: "dispatch", writes: true, spendsTokens: true, summary: "run one scheduler tick; --dry-run is token-free" },
-  { command: "episode explain", writes: false, spendsTokens: false, summary: "explain a durable EpisodePlan, execution status, and each exact harness/model/effort assignment" },
+  { command: "episode explain", writes: false, spendsTokens: false, summary: "explain a durable EpisodePlan, execution status, and each exact harness/model/effort assignment; degrades and exits non-zero rather than suppressing the report" },
   { command: "scheduler", writes: true, spendsTokens: false, summary: "preview/install/status/uninstall the exact org-scoped host scheduler; status is read-only" },
   { command: "run-role", writes: true, spendsTokens: true, summary: "run one role turn; --dry-run is token-free; network is denied unless --allow-network" },
   { command: "approvals", writes: true, spendsTokens: false, summary: "inspect or decide durable critical-operation requests" },
@@ -85,7 +86,8 @@ const CAPABILITIES = [
 const JSON_COMMANDS = new Set<string>([
   "org init", "org show", "org use", "org list", "org archive", "org upgrade",
   "roles", "roles set", "apps", "app reset", "app verify", "app promote", "pipelines",
-  "bootstrap", "new-app", "plan", "episode explain", "scheduler",
+  "bootstrap", "new-app", "plan", "plan ratify-ticket-budget",
+  "episode explain", "scheduler",
   "approvals", "budget", "status", "analyze", "telemetry", "report",
   "narrative", "task", "learn", "doctor", "context",
 ]);

@@ -1,0 +1,541 @@
+{
+  "episodeId": "ticket:sonnet4-buildstack-dev:#9",
+  "app": "sonnet4-buildstack-dev",
+  "assignmentMode": "fixed",
+  "trigger": {
+    "kind": "github_issue",
+    "sourceRef": "buildstacks-dev/sonnet4-buildstack-dev#9",
+    "payloadHash": "94da4e2428fea50b4643766392e5721d034d2f62fffad0868f44348e36ecc858"
+  },
+  "goal": "Deliver #9: Projects pages (/projects index + /projects/[slug] detail)",
+  "lifecycle": "existing-ticket",
+  "appStage": "live",
+  "repositoryFacts": {
+    "checkout": "sonnet4-buildstack-dev",
+    "head": "561773bf19b763ff6b833f36ac09e1dd24804ed6",
+    "branch": "master",
+    "baseRef": "origin/master",
+    "defaultBranch": "master",
+    "worktreeFingerprint": "1fd5c31860d50fe4df7d9f15e2df35394f8576790db562910f92ec3183bb5066",
+    "trackedFileCount": 58,
+    "trackedInventorySha256": "75be0ec2f138c0af5929659f68ed319d427e0fefe678585a1c28f98818a7807e",
+    "trackedExtensions": {
+      ".astro": 12,
+      ".css": 2,
+      ".html": 1,
+      ".json": 2,
+      ".md": 27,
+      ".mjs": 7,
+      ".ts": 2,
+      ".yaml": 3,
+      "(none)": 2
+    },
+    "manifests": {
+      "package.json": true,
+      "pnpm-lock.yaml": true,
+      "yarn.lock": false,
+      "package-lock.json": false,
+      "Cargo.toml": false,
+      "go.mod": false,
+      "pyproject.toml": false,
+      "requirements.txt": false,
+      "Gemfile": false
+    },
+    "package": {
+      "status": "valid",
+      "packageManager": "pnpm@11.10.0",
+      "scriptNames": [
+        "build",
+        "dev",
+        "lint",
+        "preview",
+        "test:behavior"
+      ],
+      "scriptNamesTruncated": false
+    }
+  },
+  "changeFacts": {
+    "dirty": false,
+    "changedPathCount": 0,
+    "changedPathsTruncated": false,
+    "changedPaths": [],
+    "changeInventorySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "requestedConstraints": {
+    "ticket": {
+      "ref": "#9",
+      "title": "Projects pages (/projects index + /projects/[slug] detail)",
+      "body": "## Goal\n\nAdd the projects routes to buildstacks.dev per `docs/design/buildstacks-design-spec.md` §3, §5 and §11 step 6.\n\n## Context\n\nThe `projects` content collection already exists in `src/content/config.ts` with\ntwo entries (`operon`, `responsible-citizen`), seeded by #4. The Base layout,\nHeader, Footer, BaseHead, and design tokens are all in place from #2.\n\n## Acceptance Criteria\n\n- [ ] AC1: `/projects` renders an index of project cards from the `projects` collection, matching the prototype's card aesthetic.\n- [ ] AC2: `/projects/[slug]` renders a project detail page with the project body and an outbound GitHub CTA.\n- [ ] AC3: Both routes are fully static and ship zero client JavaScript.\n- [ ] AC4: A named behavior test asserts the index lists every collection entry and that a detail page renders its title and GitHub link.\n- [ ] AC5: `pnpm lint` (astro check) stays at 0 errors.\n\n## Notes\n\nReuse `ProjectCard.astro`. Do not modify the blog routes.\n",
+      "labels": [
+        "op:ready",
+        "p1"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC1",
+          "text": "AC1: `/projects` renders an index of project cards from the `projects` collection, matching the prototype's card aesthetic.",
+          "checked": false
+        },
+        {
+          "id": "AC2",
+          "text": "AC2: `/projects/[slug]` renders a project detail page with the project body and an outbound GitHub CTA.",
+          "checked": false
+        },
+        {
+          "id": "AC3",
+          "text": "AC3: Both routes are fully static and ship zero client JavaScript.",
+          "checked": false
+        },
+        {
+          "id": "AC4",
+          "text": "AC4: A named behavior test asserts the index lists every collection entry and that a detail page renders its title and GitHub link.",
+          "checked": false
+        },
+        {
+          "id": "AC5",
+          "text": "AC5: `pnpm lint` (astro check) stays at 0 errors.",
+          "checked": false
+        }
+      ]
+    },
+    "baseRevision": {
+      "ref": "origin/master",
+      "defaultBranch": "master"
+    },
+    "ticketExecutionCatalog": {
+      "providerOperations": [
+        {
+          "operation": "ticket/diagnose",
+          "role": "builder",
+          "execution": "diagnostic_brief",
+          "pipeline": null,
+          "pass": null,
+          "template": null,
+          "verdictKind": null,
+          "worktreeAccess": "read"
+        },
+        {
+          "operation": "build/contract",
+          "role": "builder",
+          "execution": "pipeline_pass",
+          "pipeline": "build",
+          "pass": "contract",
+          "template": "build/contract.md",
+          "verdictKind": "contract",
+          "worktreeAccess": "read"
+        },
+        {
+          "operation": "build/implement",
+          "role": "builder",
+          "execution": "pipeline_pass",
+          "pipeline": "build",
+          "pass": "implement",
+          "template": "build/implement.md",
+          "verdictKind": "build",
+          "worktreeAccess": "write"
+        },
+        {
+          "operation": "fix/fix",
+          "role": "builder",
+          "execution": "pipeline_pass",
+          "pipeline": "fix",
+          "pass": "fix",
+          "template": "build/fix.md",
+          "verdictKind": "build",
+          "worktreeAccess": "write"
+        },
+        {
+          "operation": "review/verify",
+          "role": "reviewer",
+          "execution": "pipeline_pass",
+          "pipeline": "review",
+          "pass": "verify",
+          "template": "review/verify.md",
+          "verdictKind": "review",
+          "worktreeAccess": "read"
+        },
+        {
+          "operation": "review/security-deep",
+          "role": "reviewer",
+          "execution": "pipeline_pass",
+          "pipeline": "review",
+          "pass": "security-deep",
+          "template": "review/security.md",
+          "verdictKind": "review",
+          "worktreeAccess": "read"
+        },
+        {
+          "operation": "review/perf-scale",
+          "role": "reviewer",
+          "execution": "pipeline_pass",
+          "pipeline": "review",
+          "pass": "perf-scale",
+          "template": "review/perf.md",
+          "verdictKind": "review",
+          "worktreeAccess": "read"
+        },
+        {
+          "operation": "ship/ship-check",
+          "role": "reviewer",
+          "execution": "pipeline_pass",
+          "pipeline": "ship",
+          "pass": "ship-check",
+          "template": "ship/check.md",
+          "verdictKind": "review",
+          "worktreeAccess": "read"
+        }
+      ],
+      "mechanicalGates": [
+        {
+          "gate": "ticket/provision",
+          "handler": "provision"
+        },
+        {
+          "gate": "ticket/gates-and-pr",
+          "handler": "gates_and_pr"
+        },
+        {
+          "gate": "ticket/security",
+          "handler": "security_evidence"
+        },
+        {
+          "gate": "ticket/data-integrity",
+          "handler": "data_integrity_evidence"
+        },
+        {
+          "gate": "ticket/rollback",
+          "handler": "rollback_evidence"
+        },
+        {
+          "gate": "ticket/performance",
+          "handler": "performance_evidence"
+        },
+        {
+          "gate": "ticket/review-authorization",
+          "handler": "review_authorization"
+        },
+        {
+          "gate": "ticket/ship",
+          "handler": "ship"
+        },
+        {
+          "gate": "release/handoff",
+          "handler": "release_handoff"
+        }
+      ],
+      "planOutputRefPrefix": "plan-output:",
+      "providerTransportPipeline": "episode-plan-dag"
+    },
+    "workflowAuthority": "accepted_episode_plan_only",
+    "implicitRemediation": false
+  },
+  "hardBudget": {
+    "maxProviderTurns": 12,
+    "maxEquivalentCostUsd": 931.0480435,
+    "maxMechanicalOverheadUsd": 931.0480435,
+    "maxActiveTimeMs": 7200000,
+    "maxHumanDecisions": 2
+  },
+  "availableRoles": [
+    {
+      "role": "builder",
+      "responsibility": "Own bounded diagnosis, contract, implementation, and fixes for this ticket",
+      "requiredCapabilities": [],
+      "expectedOutputs": [
+        "pr"
+      ],
+      "configuredAssignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      }
+    },
+    {
+      "role": "distiller",
+      "responsibility": "Configured distiller responsibility",
+      "requiredCapabilities": [],
+      "expectedOutputs": [
+        "learning-candidates"
+      ],
+      "configuredAssignment": {
+        "harness": "claude",
+        "model": "claude-sonnet-5",
+        "effort": "medium"
+      }
+    },
+    {
+      "role": "learning-reviewer",
+      "responsibility": "Configured learning-reviewer responsibility",
+      "requiredCapabilities": [],
+      "expectedOutputs": [
+        "compaction-report",
+        "learning-review-verdicts"
+      ],
+      "configuredAssignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      }
+    },
+    {
+      "role": "marketing",
+      "responsibility": "Configured marketing responsibility",
+      "requiredCapabilities": [],
+      "expectedOutputs": [
+        "adoption-digest",
+        "changelog",
+        "launch-post-drafts",
+        "positioning-notes"
+      ],
+      "configuredAssignment": {
+        "harness": "claude",
+        "model": "claude-sonnet-5",
+        "effort": "high"
+      }
+    },
+    {
+      "role": "planner",
+      "responsibility": "Design the smallest sufficient ticket workflow from the code-owned operation catalog",
+      "requiredCapabilities": [],
+      "expectedOutputs": [
+        "priorities",
+        "roadmap-notes",
+        "tickets"
+      ],
+      "configuredAssignment": {
+        "harness": "claude",
+        "model": "claude-opus-4-8",
+        "effort": "high"
+      }
+    },
+    {
+      "role": "reviewer",
+      "responsibility": "Independently verify the exact delivered revision and release readiness",
+      "requiredCapabilities": [],
+      "expectedOutputs": [
+        "merge-verdict",
+        "review"
+      ],
+      "configuredAssignment": {
+        "harness": "claude",
+        "model": "claude-opus-4-8",
+        "effort": "xhigh"
+      }
+    },
+    {
+      "role": "sre",
+      "responsibility": "Configured sre responsibility",
+      "requiredCapabilities": [],
+      "expectedOutputs": [
+        "fixes",
+        "incident-notes",
+        "infra-prs"
+      ],
+      "configuredAssignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "medium"
+      }
+    },
+    {
+      "role": "support",
+      "responsibility": "Configured support responsibility",
+      "requiredCapabilities": [],
+      "expectedOutputs": [
+        "feedback-digest",
+        "reply-drafts"
+      ],
+      "configuredAssignment": {
+        "harness": "claude",
+        "model": "claude-sonnet-5",
+        "effort": "medium"
+      }
+    }
+  ],
+  "allowedAssignments": [
+    {
+      "candidateId": "configured",
+      "role": "builder",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "providerFamily": "openai",
+      "capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "qualificationRef": "configured-role-assignment:builder",
+      "priceRef": "role.max_turn_budget_usd",
+      "maxTurnCostUsd": 50,
+      "available": true
+    },
+    {
+      "candidateId": "configured",
+      "role": "distiller",
+      "assignment": {
+        "harness": "claude",
+        "model": "claude-sonnet-5",
+        "effort": "medium"
+      },
+      "providerFamily": "anthropic",
+      "capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "qualificationRef": "configured-role-assignment:distiller",
+      "priceRef": "role.max_turn_budget_usd",
+      "maxTurnCostUsd": 5,
+      "available": true
+    },
+    {
+      "candidateId": "configured",
+      "role": "learning-reviewer",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "providerFamily": "openai",
+      "capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "qualificationRef": "configured-role-assignment:learning-reviewer",
+      "priceRef": "role.max_turn_budget_usd",
+      "maxTurnCostUsd": 5,
+      "available": true
+    },
+    {
+      "candidateId": "configured",
+      "role": "marketing",
+      "assignment": {
+        "harness": "claude",
+        "model": "claude-sonnet-5",
+        "effort": "high"
+      },
+      "providerFamily": "anthropic",
+      "capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "qualificationRef": "configured-role-assignment:marketing",
+      "priceRef": "role.max_turn_budget_usd",
+      "maxTurnCostUsd": 5,
+      "available": true
+    },
+    {
+      "candidateId": "configured",
+      "role": "planner",
+      "assignment": {
+        "harness": "claude",
+        "model": "claude-opus-4-8",
+        "effort": "high"
+      },
+      "providerFamily": "anthropic",
+      "capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "qualificationRef": "configured-role-assignment:planner",
+      "priceRef": "role.max_turn_budget_usd",
+      "maxTurnCostUsd": 5,
+      "available": true
+    },
+    {
+      "candidateId": "configured",
+      "role": "reviewer",
+      "assignment": {
+        "harness": "claude",
+        "model": "claude-opus-4-8",
+        "effort": "xhigh"
+      },
+      "providerFamily": "anthropic",
+      "capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "qualificationRef": "configured-role-assignment:reviewer",
+      "priceRef": "role.max_turn_budget_usd",
+      "maxTurnCostUsd": 50,
+      "available": true
+    },
+    {
+      "candidateId": "configured",
+      "role": "sre",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "medium"
+      },
+      "providerFamily": "openai",
+      "capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "qualificationRef": "configured-role-assignment:sre",
+      "priceRef": "role.max_turn_budget_usd",
+      "maxTurnCostUsd": 5,
+      "available": true
+    },
+    {
+      "candidateId": "configured",
+      "role": "support",
+      "assignment": {
+        "harness": "claude",
+        "model": "claude-sonnet-5",
+        "effort": "medium"
+      },
+      "providerFamily": "anthropic",
+      "capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "qualificationRef": "configured-role-assignment:support",
+      "priceRef": "role.max_turn_budget_usd",
+      "maxTurnCostUsd": 5,
+      "available": true
+    }
+  ],
+  "requiredSafetyFacts": [
+    {
+      "kind": "independent_review",
+      "evidenceRefs": [
+        "ticket:independent-delivery-review"
+      ]
+    }
+  ]
+}

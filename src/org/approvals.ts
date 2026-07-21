@@ -130,6 +130,20 @@ export interface ApprovalGrant {
   uses: number;
   createdAt: string;
   consumedAt?: string;
+  /** SHA-256 of the RAW approved command string, recorded at decision time on
+   *  a single-use grant for a shell action. `actionHash` binds the SEMANTIC
+   *  identity, which is computed over `unwrapCommand(...)` and therefore
+   *  deliberately ignores a `sudo `/`command `/`env VAR=val ` prefix — two
+   *  different literals can share one identity. That is right for
+   *  classification and wrong for execution: an orchestrator that runs the
+   *  literal with its own credentials must run exactly the bytes the human
+   *  read. A post-decision edit of the decided record that prepends
+   *  `env INJECTED=pwned ` keeps the identity and so kept its grant; this hash
+   *  lives in a separately written file and does not. Absent on scoped grants
+   *  (they intentionally cover many commands) and on grants minted before this
+   *  field, which fall back to a stricter literal check — see
+   *  `commandBindingProblem` in approval-command.ts. */
+  commandSha256?: string;
   /** A1: present on multi-use rule+path-scoped grants. */
   scope?: GrantScope;
   /** Set by `operon approvals revoke` — a revoked grant never matches. */
@@ -1270,6 +1284,16 @@ export function approvedCommand(action: ApprovalAction | ToolAction): string | u
   return command === undefined || command.trim() === "" ? undefined : command;
 }
 
+/** SHA-256 over the raw command bytes. Deliberately NOT `actionHash`: this is
+ *  the EXECUTION identity (what will actually run), not the AUTHORIZATION
+ *  identity (what the rules and grants reason about). Keeping them separate is
+ *  the point — the semantic projection folds away wrapper prefixes so a
+ *  classifier cannot be dodged by adding one, and that same folding must never
+ *  let a later edit change what the orchestrator runs. */
+export function commandIdentityHash(command: string): string {
+  return createHash("sha256").update(command, "utf8").digest("hex");
+}
+
 /** Executors a provider turn may still claim through the gate. An
  *  `orchestrator-command` approval authorizes the agent's own recorded
  *  command, so a live actor re-attempting it is exactly the approved effect
@@ -1409,12 +1433,16 @@ function mintGrant(
   scope?: { kind: "ticket" | "app"; pathContains?: string },
   maxUses?: number,
 ): ApprovalGrant {
+  // Only an exact single-use grant can carry a literal binding: a scoped grant
+  // exists precisely to cover more than one command.
+  const literal = scope === undefined ? approvedCommand(item.action) : undefined;
   return {
     grantId: `grant-${item.id}`,
     approvalId: item.id,
     app: item.app,
     role: item.role,
     actionHash: actionHash(item.action),
+    ...(literal !== undefined ? { commandSha256: commandIdentityHash(literal) } : {}),
     identityVersion: ACTION_IDENTITY_VERSION,
     expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
     uses: scope !== undefined ? maxUses ?? DEFAULT_SCOPED_MAX_USES : 1,

@@ -20,6 +20,7 @@ import {
 import {
   actionHash,
   ApprovalStore,
+  commandIdentityHash,
   type ApprovalItem,
   type ApprovalLogEvent,
 } from "../src/org/approvals.js";
@@ -275,6 +276,160 @@ describe("execution is bound to the approved action", () => {
         state: "failed",
         failureCause: "grant_unavailable",
       });
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  // The identity a grant is bound to is computed over `unwrapCommand(...)`,
+  // which folds away `sudo `, `command `, `env VAR=val `, a `/usr/bin/env`
+  // path and percent-encoding. That is right for classification — a wrapper
+  // prefix must not hide a critical op from the rules — and was harmless while
+  // an approval only told a provider turn to re-attempt inside its sandbox.
+  // Now the orchestrator runs the recorded string itself, with its own
+  // credentials and no sandbox, so a fold that lets two literals share one
+  // identity became a way to edit a decided record AFTER the human decided and
+  // still ride its grant.
+  const APPROVED_COMMAND = "bash -c 'gh pr create --fill'";
+  const COLLIDING_EDITS: { why: string; command: string }[] = [
+    { why: "an injected environment variable", command: "env INJECTED=pwned bash -c 'gh pr create --fill'" },
+    { why: "an injected LD_PRELOAD", command: "/usr/bin/env LD_PRELOAD=/tmp/evil.so bash -c 'gh pr create --fill'" },
+    { why: "an injected sudo", command: "sudo bash -c 'gh pr create --fill'" },
+    { why: "stacked wrappers", command: "sudo env A=1 command sudo bash -c 'gh pr create --fill'" },
+  ];
+
+  /** One approved shell action, decided normally, with its execution context
+   *  present. `legacyGrant` strips the recorded command binding to model a
+   *  grant minted before that field existed — the shape every captured run-3
+   *  grant has. */
+  async function decidedShellApproval(
+    home: OrgHomeFixture,
+    command: string,
+    options: { legacyGrant?: boolean } = {},
+  ): Promise<ApprovalStore> {
+    const store = new ApprovalStore(home.root, { idSource: () => "shell-1" });
+    await store.raise({
+      app: APP,
+      role: "builder",
+      rule: "external-publishing",
+      action: { tool: "bash", input: { command } },
+      now: NOW,
+    });
+    await store.decide("shell-1", { decision: "approved", now: NOW });
+    if (options.legacyGrant === true) {
+      const path = join(home.root, "approvals", "grants", "grant-shell-1.json");
+      const { commandSha256: _dropped, ...legacy } = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+      writeFileSync(path, `${JSON.stringify(legacy, null, 2)}\n`, "utf8");
+    }
+    return store;
+  }
+
+  function tamper(home: OrgHomeFixture, command: string): void {
+    const decided = readItem(home, "shell-1");
+    writeFileSync(
+      home.paths.approvalsDecided("shell-1"),
+      `${JSON.stringify({ ...decided, action: { ...decided.action, input: { command } } }, null, 2)}\n`,
+      "utf8",
+    );
+  }
+
+  for (const { why, command } of COLLIDING_EDITS) {
+    it(`refuses ${why} added to the record after the decision`, async () => {
+      const home = makeOrgHome({ approvals: true });
+      makeCheckout(home.root, "repos", APP);
+      try {
+        await decidedShellApproval(home, APPROVED_COMMAND);
+        // The edit is invisible to the authorization identity: this is exactly
+        // why matching the grant cannot be the only check.
+        expect(actionHash({ tool: "bash", input: { command } }))
+          .toBe(actionHash({ tool: "bash", input: { command: APPROVED_COMMAND } }));
+        tamper(home, command);
+
+        const run = recorder();
+        const outcomes = await executeApprovedCommands({
+          stateHome: home.root,
+          appsFile: APPS,
+          now: () => NOW,
+          runner: run.runner,
+        });
+
+        expect(run.calls).toEqual([]);
+        expect(outcomes).toEqual([expect.objectContaining({
+          approvalId: "shell-1",
+          status: "failed",
+          cause: "command_binding_mismatch",
+        })]);
+        expect(readItem(home, "shell-1").execution).toMatchObject({
+          state: "failed",
+          failureCause: "command_binding_mismatch",
+        });
+        // A refused execution spends nothing.
+        const grant = (await new ApprovalStore(home.root).show("shell-1")).grant!;
+        expect(grant.uses).toBe(1);
+        expect(grant.consumedAt).toBeUndefined();
+      } finally {
+        home.cleanup();
+      }
+    });
+  }
+
+  it("records the approved command bytes on the grant at decision time", async () => {
+    const home = makeOrgHome({ approvals: true });
+    try {
+      const store = await decidedShellApproval(home, APPROVED_COMMAND);
+      const grant = (await store.show("shell-1")).grant!;
+      expect(grant.commandSha256).toBe(commandIdentityHash(APPROVED_COMMAND));
+      // Separate question from the semantic identity, kept in a separate field.
+      expect(grant.commandSha256).not.toBe(grant.actionHash);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("refuses a post-decision edit even on a grant with no recorded binding", async () => {
+    // Every captured run-3 grant predates the binding field. Such a grant falls
+    // back to demanding the literal be byte-identical to the identity it does
+    // cover, so an injected prefix is still refused rather than run.
+    const home = makeOrgHome({ approvals: true });
+    makeCheckout(home.root, "repos", APP);
+    try {
+      await decidedShellApproval(home, APPROVED_COMMAND, { legacyGrant: true });
+      tamper(home, "env INJECTED=pwned bash -c 'gh pr create --fill'");
+      const run = recorder();
+      const outcomes = await executeApprovedCommands({
+        stateHome: home.root,
+        appsFile: APPS,
+        now: () => NOW,
+        runner: run.runner,
+      });
+      expect(run.calls).toEqual([]);
+      expect(outcomes).toEqual([expect.objectContaining({
+        approvalId: "shell-1",
+        cause: "command_binding_mismatch",
+      })]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("still runs a wrapper-prefixed command the human actually approved", async () => {
+    // The binding is a byte comparison against what was decided, not a ban on
+    // prefixes: `sudo`/`env` in the approved bytes IS the approved command, and
+    // the recorded hash is what tells the two cases apart.
+    const home = makeOrgHome({ approvals: true });
+    const clone = makeCheckout(home.root, "repos", APP);
+    const command = "sudo bash -c 'npm publish --access public'";
+    try {
+      await decidedShellApproval(home, command);
+      const run = recorder();
+      const outcomes = await executeApprovedCommands({
+        stateHome: home.root,
+        appsFile: APPS,
+        now: () => NOW,
+        runner: run.runner,
+      });
+      expect(run.calls).toEqual([{ command, cwd: clone }]);
+      expect(outcomes).toEqual([expect.objectContaining({ approvalId: "shell-1", status: "executed" })]);
     } finally {
       home.cleanup();
     }

@@ -34,10 +34,13 @@ import { existsSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
 import { withNonInteractiveEnv } from "../runtime/non-interactive-env.js";
+import { normalizeSemanticAction } from "../runtime/gate.js";
 import {
   actionHash,
   approvedCommand,
   ApprovalStore,
+  commandIdentityHash,
+  type ApprovalGrant,
   type ApprovalItem,
 } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
@@ -52,6 +55,7 @@ export type ApprovalCommandFailureCause =
   | "invalid_action"
   | "execution_context_unavailable"
   | "grant_unavailable"
+  | "command_binding_mismatch"
   | "command_failed"
   | "command_start_failed"
   | "ambiguous_command_result";
@@ -238,6 +242,14 @@ export async function executeApprovedCommands(
       ));
       continue;
     }
+    // An approval authorizes exactly what was approved. The grant matched on
+    // the SEMANTIC identity; this asks the separate question of whether the
+    // literal about to run is still the one the human decided on.
+    const drift = commandBindingProblem(command, item, grant);
+    if (drift !== undefined) {
+      outcomes.push(await terminalFailure(store, item, "command_binding_mismatch", drift, clock));
+      continue;
+    }
     store.consumeGrantSync(grant.grantId, clock());
 
     let result: ApprovedCommandResult;
@@ -330,6 +342,50 @@ export async function executeApprovedCommands(
     });
   }
   return outcomes;
+}
+
+/**
+ * Refuse anything but the exact approved literal, or describe why.
+ *
+ * `actionHash` — the key the grant is bound to — is computed over
+ * `unwrapCommand(...)`, which folds away a leading `sudo `, `command ` and
+ * `env VAR=val `. That folding is correct for CLASSIFICATION (a wrapper prefix
+ * must not hide a critical op from the rules) and is a hole for EXECUTION: an
+ * edit of the decided record that prepends `env INJECTED=pwned ` leaves the
+ * identity, and therefore the grant match, untouched. It was harmless while
+ * approvals only told a provider turn to re-attempt inside its sandbox; now the
+ * orchestrator runs the string itself, with its own credentials and no sandbox.
+ *
+ * Two independent bindings, in preference order:
+ *
+ *  1. `grant.commandSha256` — written at decision time into the grant file,
+ *     which is a SEPARATE artifact from the decided record. Editing only the
+ *     record no longer matches. This path allows a legitimately approved
+ *     `sudo ...`/`env ...` command, because the human approved those bytes.
+ *  2. No recorded hash (a grant minted before the field, or a scoped grant that
+ *     covers many commands by design): fall back to demanding the literal be
+ *     byte-identical to the semantic identity the grant DOES cover. Any
+ *     injected prefix makes the two differ, so the tamper is still refused;
+ *     the cost is that a legitimate wrapper-prefixed legacy approval is
+ *     refused rather than run, which is the fail-closed direction.
+ */
+function commandBindingProblem(
+  command: string,
+  item: ApprovalItem,
+  grant: ApprovalGrant,
+): string | undefined {
+  if (grant.commandSha256 !== undefined) {
+    return commandIdentityHash(command) === grant.commandSha256
+      ? undefined
+      : `the recorded command no longer matches the one approved as ${item.id} ` +
+        `(grant ${grant.grantId} binds a different command); nothing was executed`;
+  }
+  const identity = normalizeSemanticAction(item.action).command;
+  if (identity !== null && identity === command) return undefined;
+  return (
+    `approval ${item.id} carries no recorded command binding, and the command to run is not ` +
+    `byte-identical to the action identity its grant authorizes; nothing was executed`
+  );
 }
 
 /**

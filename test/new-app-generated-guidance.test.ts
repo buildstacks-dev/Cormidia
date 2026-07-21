@@ -159,8 +159,13 @@ describe("generated new-app onboarding guidance", () => {
 
         ## Run The Stack-And-Gates Issue
 
+        This first Builder invocation must select a stack and establish a real
+        dependency manifest in a fresh worktree, so it explicitly permits outbound
+        network access. The grant applies only to this invocation; omit it later unless
+        the accepted work itself requires egress.
+
         \`\`\`bash
-        operon loop --app 'bare-product' --once
+        operon loop --app 'bare-product' --once --allow-network
         \`\`\`
 
         ## After The Stack-And-Gates Issue Merges
@@ -324,6 +329,32 @@ describe("generated new-app onboarding guidance", () => {
       }
       expect(operonCommands.some((words) => words.includes("--topic"))).toBe(false);
     }
+  });
+
+  it("grants network only to the bare template's first stack-establishment loop", async () => {
+    const typed = await generate("typescript-node");
+    const bare = await generate("bare");
+    const typedLoops = bashCommands(typed.guidance)
+      .map(shellWords)
+      .filter((words) => words[0] === "operon" && words[1] === "loop");
+    const bareLoops = bashCommands(bare.guidance)
+      .map(shellWords)
+      .filter((words) => words[0] === "operon" && words[1] === "loop");
+
+    expect(typedLoops).toHaveLength(1);
+    expect(typedLoops[0]).not.toContain("--allow-network");
+    expect(bareLoops).toHaveLength(2);
+    expect(parseLoopRunArgs(bareLoops[0]!.slice(2))).toMatchObject({
+      appName: bare.appName,
+      once: true,
+      allowNetwork: true,
+    });
+    expect(parseLoopRunArgs(bareLoops[1]!.slice(2))).toMatchObject({
+      appName: bare.appName,
+      once: true,
+      allowNetwork: false,
+    });
+    expect(bare.guidance).toContain("The grant applies only to this invocation");
   });
 
   it("lists LABELS.md in a non-writing dry run for both templates", async () => {

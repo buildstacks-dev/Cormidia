@@ -100,14 +100,27 @@ export interface OrchestratedEpisode {
   execution: EpisodePlanExecutionResult | null;
 }
 
+export interface InspectEpisodeInvocationOptions {
+  root: string;
+  app: AppEntry;
+  roles: readonly RoleConfig[];
+  facts: EpisodeOrchestrationFacts;
+}
+
+export interface EpisodeInvocationInspection {
+  persistedIntent: EpisodeIntent | undefined;
+  persistedPlan: EpisodePlan | undefined;
+}
+
 /**
- * The single org-layer episode entry boundary. It always constructs the same
- * bounded intent and enters the same planner/creator-scope decision. The
- * accepted plan is route-admitted before plan-only return or delivery.
+ * Read-only counterpart to the live orchestration entry boundary. It joins
+ * the caller's deterministic facts to any durable intent/plan and applies the
+ * exact same immutable-resume checks without probing readiness, constructing
+ * a provider, or writing state.
  */
-export async function orchestrateEpisode(
-  options: OrchestrateEpisodeOptions,
-): Promise<OrchestratedEpisode> {
+export async function inspectEpisodeInvocation(
+  options: InspectEpisodeInvocationOptions,
+): Promise<EpisodeInvocationInspection> {
   const persistedIntent = await readPersistedEpisodeIntent(
     options.root,
     options.facts.episodeId,
@@ -121,7 +134,28 @@ export async function orchestrateEpisode(
       app: options.app,
       roles: options.roles,
     });
+  } else if (persistedIntent !== undefined) {
+    persistedInvocationIntent(options, persistedIntent);
   }
+  return {
+    persistedIntent: persistedIntent === undefined
+      ? undefined
+      : structuredClone(persistedIntent),
+    persistedPlan: persistedPlan === undefined
+      ? undefined
+      : structuredClone(persistedPlan),
+  };
+}
+
+/**
+ * The single org-layer episode entry boundary. It always constructs the same
+ * bounded intent and enters the same planner/creator-scope decision. The
+ * accepted plan is route-admitted before plan-only return or delivery.
+ */
+export async function orchestrateEpisode(
+  options: OrchestrateEpisodeOptions,
+): Promise<OrchestratedEpisode> {
+  const { persistedIntent, persistedPlan } = await inspectEpisodeInvocation(options);
   const assignmentMode = persistedPlan === undefined
     ? normalizeAppExecution(options.app.execution).assignmentMode
     : persistedIntent!.assignmentMode;
@@ -226,7 +260,7 @@ async function requireAdaptiveReadiness(
 /** Keep temporal readiness from changing the immutable intent on resume.
  * Other invocation facts still have to reproduce the persisted hash exactly. */
 function persistedInvocationIntent(
-  options: OrchestrateEpisodeOptions,
+  options: InspectEpisodeInvocationOptions,
   persisted: EpisodeIntent,
 ): EpisodeIntent {
   const persistedAvailability = new Map(

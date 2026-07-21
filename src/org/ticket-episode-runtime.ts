@@ -61,9 +61,12 @@ import {
   createProviderEpisodePlanRevisionProposer,
 } from "./episode-planner/runtime.js";
 import {
+  inspectEpisodeInvocation,
   orchestrateEpisode,
   previewEpisode,
+  type EpisodeOrchestrationFacts,
 } from "./episode-planner/orchestrator.js";
+import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
 import type { EpisodeSafetyFloorMapping } from "./episode-planner/policy.js";
 import { inspectEpisodeRepository } from "./episode-planner/repository-facts.js";
 import type { AppEntry } from "./apps.js";
@@ -188,6 +191,25 @@ export interface TicketEpisodeRuntime {
   executeTicketPlan: TicketEpisodeExecutor;
 }
 
+export interface TicketEpisodeInspectionOptions {
+  root: string;
+  app: AppEntry;
+  roles: readonly RoleConfig[];
+  remainingBudgetUsd: number;
+  hardBudget?: Partial<BudgetCeiling>;
+  plannerLimits?: PlannerAdmissionLimits;
+  creatorScopeForTicket?: (
+    request: TicketEpisodePlanningRequest,
+  ) => CreatorEpisodeScope | undefined | Promise<CreatorEpisodeScope | undefined>;
+}
+
+export interface TicketEpisodeInvocationInspection {
+  facts: EpisodeOrchestrationFacts;
+  intent: ReturnType<typeof previewEpisode>["intent"];
+  planningPath: ReturnType<typeof previewEpisode>["planningPath"];
+  plannerLimits: PlannerAdmissionLimits;
+}
+
 /**
  * Construct the two org-owned callbacks consumed by the provider-backed loop.
  * Both autonomous dispatch and `operon loop` use this factory so ticket
@@ -207,9 +229,67 @@ async function planTicketEpisode(
   options: TicketEpisodeRuntimeOptions,
   request: TicketEpisodePlanningRequest,
 ): Promise<AcceptedTicketEpisodePlan> {
+  const clock = options.now ?? (() => new Date());
+  const inspected = await inspectTicketEpisodeInvocation(options, request);
+  const plannerRole = requireRole(options.roles, "planner");
+  const plannerLimits = inspected.plannerLimits;
+  const promptText = inspected.planningPath === "creator_scope_normalization"
+    ? "Creator scope normalization path: no provider prompt is executed."
+    : await resolvePlannerPrompt(options);
+  const result = await orchestrateEpisode({
+    root: options.root,
+    app: options.app,
+    roles: options.roles,
+    mode: "plan_only",
+    ...(options.assignmentReadinessProbe === undefined
+      ? {}
+      : { assignmentReadinessProbe: options.assignmentReadinessProbe }),
+    ...(options.assignmentReadinessTimeoutMs === undefined
+      ? {}
+      : { assignmentReadinessTimeoutMs: options.assignmentReadinessTimeoutMs }),
+    facts: inspected.facts,
+    planner: {
+      promptText,
+      context: options.plannerContext,
+      workdir: request.localRepo,
+      hooks: plannerHooks(options, plannerRole),
+      runtimeForAssignment: options.runtimeForAssignment,
+      policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
+      limits: plannerLimits,
+      independentReview: {
+        subjectRoles: ["builder"],
+        reviewerRoles: ["reviewer"],
+      },
+      safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
+      validateAcceptedPlan: assertTicketEpisodePlanValid,
+      traceId: `${request.ticket.ticketRef}:episode-planner`,
+      ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
+      ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.networkAccess === true ? { networkAccess: true } : {}),
+      now: clock,
+    },
+  });
+  assertTicketEpisodePlanValid(result.prepared.plan);
+  return {
+    intent: structuredClone(result.intent),
+    plan: structuredClone(result.prepared.plan),
+  };
+}
+
+/**
+ * Build and validate the deterministic ticket invocation facts used by the
+ * live EpisodePlanner boundary. A persisted episode keeps its original hard
+ * budget: current ledger spend is admission state, not a reason to rewrite an
+ * immutable episode ceiling on every resume.
+ */
+export async function inspectTicketEpisodeInvocation(
+  options: TicketEpisodeInspectionOptions,
+  request: TicketEpisodePlanningRequest,
+): Promise<TicketEpisodeInvocationInspection> {
+  assertInspectionOptions(options);
   assertRequest(options, request);
   assertBoundedTicket(request);
-  const clock = options.now ?? (() => new Date());
   const plannerRole = requireRole(options.roles, "planner");
   const repository = inspectEpisodeRepository({
     workdir: request.localRepo,
@@ -224,7 +304,10 @@ async function planTicketEpisode(
     throw new Error("ticket episode has conflicting creator-scope envelopes");
   }
   const creatorScope = resolvedCreatorScope ?? request.creatorScope;
-  let hardBudget = ticketHardBudget(options, 0);
+  const persistedIntent = await readPersistedEpisodeIntent(options.root, request.episodeId);
+  let hardBudget = persistedIntent === undefined
+    ? ticketHardBudget(options, 0)
+    : structuredClone(persistedIntent.hardBudget);
   const catalog = ticketPlanningCatalog();
   const plannerLimits = options.plannerLimits ?? defaultPlannerLimits(
     plannerRole,
@@ -300,66 +383,38 @@ async function planTicketEpisode(
   });
   if (preview.planningPath === "episode_planner_provider_turn") {
     assertPlannerFitsCombinedBudget(plannerLimits, options.remainingBudgetUsd);
-    hardBudget = ticketHardBudget(
-      options,
-      plannerLimits.aggregate.equivalentCostUsd,
-    );
-    facts = { ...facts, hardBudget };
-    preview = previewEpisode({
-      app: options.app,
-      roles: options.roles,
-      facts,
-      planner: {
-        limits: plannerLimits,
-        independentReview: {
-          subjectRoles: ["builder"],
-          reviewerRoles: ["reviewer"],
+    if (persistedIntent === undefined) {
+      hardBudget = ticketHardBudget(
+        options,
+        plannerLimits.aggregate.equivalentCostUsd,
+      );
+      facts = { ...facts, hardBudget };
+      preview = previewEpisode({
+        app: options.app,
+        roles: options.roles,
+        facts,
+        planner: {
+          limits: plannerLimits,
+          independentReview: {
+            subjectRoles: ["builder"],
+            reviewerRoles: ["reviewer"],
+          },
+          safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
         },
-        safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
-      },
-    });
+      });
+    }
   }
-  const promptText = preview.planningPath === "creator_scope_normalization"
-    ? "Creator scope normalization path: no provider prompt is executed."
-    : await resolvePlannerPrompt(options);
-  const result = await orchestrateEpisode({
+  const episodeInspection = await inspectEpisodeInvocation({
     root: options.root,
     app: options.app,
     roles: options.roles,
-    mode: "plan_only",
-    ...(options.assignmentReadinessProbe === undefined
-      ? {}
-      : { assignmentReadinessProbe: options.assignmentReadinessProbe }),
-    ...(options.assignmentReadinessTimeoutMs === undefined
-      ? {}
-      : { assignmentReadinessTimeoutMs: options.assignmentReadinessTimeoutMs }),
     facts,
-    planner: {
-      promptText,
-      context: options.plannerContext,
-      workdir: request.localRepo,
-      hooks: plannerHooks(options, plannerRole),
-      runtimeForAssignment: options.runtimeForAssignment,
-      policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
-      limits: plannerLimits,
-      independentReview: {
-        subjectRoles: ["builder"],
-        reviewerRoles: ["reviewer"],
-      },
-      safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
-      validateAcceptedPlan: assertTicketEpisodePlanValid,
-      traceId: `${request.ticket.ticketRef}:episode-planner`,
-      ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
-      ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-      ...(options.networkAccess === true ? { networkAccess: true } : {}),
-      now: clock,
-    },
   });
-  assertTicketEpisodePlanValid(result.prepared.plan);
   return {
-    intent: structuredClone(result.intent),
-    plan: structuredClone(result.prepared.plan),
+    facts: structuredClone(facts),
+    intent: structuredClone(episodeInspection.persistedIntent ?? preview.intent),
+    planningPath: preview.planningPath,
+    plannerLimits: structuredClone(plannerLimits),
   };
 }
 
@@ -1537,7 +1592,7 @@ function mergeTicketSafetyFacts(
 }
 
 function ticketHardBudget(
-  options: TicketEpisodeRuntimeOptions,
+  options: TicketEpisodeInspectionOptions,
   plannerReserveUsd: number,
 ): BudgetCeiling {
   const remaining = Math.max(0, options.remainingBudgetUsd - plannerReserveUsd);
@@ -1645,6 +1700,13 @@ function assertFactoryOptions(options: TicketEpisodeRuntimeOptions): void {
   if (resolve(options.root).length === 0 || resolve(options.orgRoot).length === 0) {
     throw new Error("ticket episode runtime roots are required");
   }
+  assertInspectionOptions(options);
+}
+
+function assertInspectionOptions(options: TicketEpisodeInspectionOptions): void {
+  if (resolve(options.root).length === 0) {
+    throw new Error("ticket episode inspection root is required");
+  }
   if (options.roles.length === 0) throw new Error("ticket episode runtime requires roles");
   requireRole(options.roles, "planner");
   requireRole(options.roles, "builder");
@@ -1655,7 +1717,7 @@ function assertFactoryOptions(options: TicketEpisodeRuntimeOptions): void {
 }
 
 function assertRequest(
-  options: TicketEpisodeRuntimeOptions,
+  options: Pick<TicketEpisodeInspectionOptions, "root" | "app">,
   request: TicketEpisodePlanningRequest,
 ): void {
   if (resolve(request.root) !== resolve(options.root)) {

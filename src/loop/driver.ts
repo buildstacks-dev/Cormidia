@@ -95,6 +95,13 @@ export interface LoopDriverOptions {
   commands: GateCommands;
   maxConcurrent?: number;
   planOnly?: boolean;
+  /** Org-owned read-only parity boundary for plan-only ticks. It validates
+   * any durable EpisodeIntent against the exact ticket/repository facts the
+   * live planner will receive, without constructing an execution engine. */
+  ticketInspection?: {
+    root: string;
+    inspect: TicketEpisodeInspector;
+  };
   /** Active dispatch turn id; stamped onto claimed items so merge-time
    *  scorecard events dedupe and attribute correctly. */
   turnId?: string;
@@ -211,6 +218,10 @@ export interface AcceptedTicketEpisodePlan {
 export type TicketEpisodePlanner = (
   request: TicketEpisodePlanningRequest,
 ) => Promise<AcceptedTicketEpisodePlan>;
+
+export type TicketEpisodeInspector = (
+  request: TicketEpisodePlanningRequest,
+) => Promise<void>;
 
 export interface TicketEpisodeExecutionRequest {
   request: TicketEpisodePlanningRequest;
@@ -447,6 +458,32 @@ async function resolveMergedDependencyIds(
   return merged;
 }
 
+function ticketEpisodePlanningRequest(
+  options: Pick<LoopDriverOptions, "app" | "repo" | "localRepo" | "base">,
+  issue: GhIssue,
+  root: string,
+): TicketEpisodePlanningRequest {
+  return {
+    root,
+    episodeId: episodeIdFor({
+      app: options.app,
+      ticket: `#${issue.number}`,
+      traceId: `#${issue.number}`,
+    }),
+    app: options.app,
+    targetRepo: options.repo,
+    localRepo: options.localRepo,
+    base: options.base,
+    ticket: {
+      issueNumber: issue.number,
+      ticketRef: `#${issue.number}`,
+      title: issue.title,
+      body: issue.body,
+      labels: [...issue.labels],
+    },
+  };
+}
+
 export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDriverResult> {
   const maxConcurrent = options.maxConcurrent ?? 1;
   const lines: string[] = [];
@@ -501,7 +538,20 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   const mergedDependencyIds = await resolveMergedDependencyIds(options.gh, unresolvedDepIds);
   const plan = planLoopTick(readyIssues, options.repo, maxConcurrent, mergedDependencyIds);
   lines.push(...plan.map((item) => `#${item.issueNumber} ${item.title}: ready -> claim`));
-  if (options.planOnly) return { lines, items: [], scorecardEvents: [] };
+  if (options.planOnly) {
+    if (options.ticketInspection !== undefined) {
+      for (const planned of plan) {
+        const issue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
+        if (issue === undefined) continue;
+        await options.ticketInspection.inspect(ticketEpisodePlanningRequest(
+          options,
+          issue,
+          options.ticketInspection.root,
+        ));
+      }
+    }
+    return { lines, items: [], scorecardEvents: [] };
+  }
 
   const items: LoopItem[] = [];
   for (const planned of plan) {
@@ -520,21 +570,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     const planningRequest: TicketEpisodePlanningRequest | undefined =
       options.engine === undefined
         ? undefined
-        : {
-            root: options.engine.runlogRoot,
-            episodeId: ticketEpisodeId,
-            app: options.app,
-            targetRepo: options.repo,
-            localRepo: options.localRepo,
-            base: options.base,
-            ticket: {
-              issueNumber: issue.number,
-              ticketRef: `#${issue.number}`,
-              title: issue.title,
-              body: issue.body,
-              labels: [...issue.labels],
-            },
-          };
+        : ticketEpisodePlanningRequest(options, issue, options.engine.runlogRoot);
     const acceptedTicketPlan = planningRequest === undefined
       ? undefined
       : await requireAcceptedTicketEpisodePlan({

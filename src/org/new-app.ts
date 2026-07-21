@@ -1137,8 +1137,13 @@ ${repositoryBootstrapCommands(appName, repoSlug)}
 
 ## Run The Stack-And-Gates Issue
 
+This first Builder invocation must select a stack and establish a real
+dependency manifest in a fresh worktree, so it explicitly permits outbound
+network access. The grant applies only to this invocation; omit it later unless
+the accepted work itself requires egress.
+
 \`\`\`bash
-operon loop --app ${shellQuote(appName)} --once
+operon loop --app ${shellQuote(appName)} --once --allow-network
 \`\`\`
 
 ## After The Stack-And-Gates Issue Merges

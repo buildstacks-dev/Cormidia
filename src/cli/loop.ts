@@ -15,8 +15,11 @@ import { assembleContext, createEpisodeContextResolver } from "../org/context.js
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
-import { enforceBudgetOverlay, isBudgetBlocking } from "../org/budget.js";
-import { createTicketEpisodeRuntime } from "../org/ticket-episode-runtime.js";
+import { enforceBudgetOverlay, isBudgetBlocking, rollupBudgets } from "../org/budget.js";
+import {
+  createTicketEpisodeRuntime,
+  inspectTicketEpisodeInvocation,
+} from "../org/ticket-episode-runtime.js";
 import { createExistingTicketApprovalHandler } from "../org/ticket-episode-approval.js";
 import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
@@ -250,6 +253,29 @@ export async function cmdLoop(args: string[]): Promise<number> {
     const turnId = `loop-${selectedApp.name}-${Date.now()}`;
     const tickStarted = Date.now();
     let liveEngine: NonNullable<Parameters<typeof runLoopOnce>[0]["engine"]> | undefined;
+    let ticketInspection: NonNullable<Parameters<typeof runLoopOnce>[0]["ticketInspection"]> | undefined;
+    if (dryRun) {
+      // Preview must not call the mutating budget overlay. The read-only
+      // rollup yields the same current remainder used to build live ticket
+      // facts, while persisted episodes retain their original hard ceiling.
+      const budgetRows = await rollupBudgets(homes.stateHome, appsFile);
+      const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);
+      if (budgetRow === undefined) {
+        throw new Error(`loop: could not resolve the app budget for ${selectedApp.name}`);
+      }
+      const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
+      ticketInspection = {
+        root: homes.stateHome,
+        inspect: async (request) => {
+          await inspectTicketEpisodeInvocation({
+            root: homes.stateHome,
+            app: selectedApp,
+            roles: rolesFile.roles,
+            remainingBudgetUsd,
+          }, request);
+        },
+      };
+    }
     if (!dryRun) {
       const plannerRole = roles["planner"];
       if (plannerRole === undefined) {
@@ -389,6 +415,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       turnId,
       base: inputs.base,
       planOnly: dryRun,
+      ...(ticketInspection === undefined ? {} : { ticketInspection }),
       ...(selectedApp.release !== undefined ? { release: selectedApp.release } : {}),
       // Merge authorization: the self-approval fallback must carry an HMAC tag
       // signed with this operator secret (never repo-visible). Without it, the
@@ -421,6 +448,9 @@ export async function cmdLoop(args: string[]): Promise<number> {
     }
     // One durable row per orchestrator invocation (telemetry doc §6): the
     // 2026-07-10 review could not even recover how many times the loop ran.
+    // Successful dry-runs retain that established audit row. A deterministic
+    // intent mismatch throws inside runLoopOnce above, before this boundary,
+    // so the failed preview neither claims GitHub work nor records success.
     await recordInvocation(homes.stateHome, {
       at: new Date().toISOString(),
       kind: "loop",

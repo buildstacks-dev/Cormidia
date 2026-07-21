@@ -220,7 +220,10 @@ before creating the first issue, then preview the supported
 `plan --auto --goal ... --source docs/VISION.md --source
 docs/REQUIREMENTS.md` form token-free before its live form.
 For `bare`, run only the generated stack-and-gates establishment issue through
-the loop first; it reloads commands from the Builder worktree before gates.
+the loop first; its generated command grants network access for that one
+stack-selection/dependency-manifest invocation, and the loop reloads commands
+from the Builder worktree before gates. Omit the grant from later invocations
+unless their accepted work requires egress.
 Verify and preview promotion only after that issue merges with real checks.
 Neither command creates or publishes a GitHub repo.
 

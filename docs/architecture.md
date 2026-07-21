@@ -1388,9 +1388,12 @@ channel-presence gating can fire those roles.
 For `bare`, the generated initial issue is a deliberately narrow bootstrap
 exception to the usual ready-work posture: the manual loop may build the first
 stack and gate commands because gate resolution reloads the Builder worktree
-immediately before quality gates. Keep that as the only ready product-work
-issue. Run `app verify` and preview promotion only after it merges; verification
-correctly fails while required commands are absent.
+immediately before quality gates. Its first generated loop command explicitly
+grants network access for stack selection and dependency-manifest creation in
+the fresh worktree; that grant is per invocation, not a standing app policy.
+Keep that as the only ready product-work issue. Run `app verify` and preview
+promotion only after it merges; verification correctly fails while required
+commands are absent.
 
 `new-app` does not create a GitHub repo, push code, publish marketing content,
 or run the Planner. Those are explicit follow-up operations recorded in the

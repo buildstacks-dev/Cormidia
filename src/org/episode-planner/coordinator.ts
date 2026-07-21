@@ -5,7 +5,7 @@ import {
   deriveEpisodeSafetyRoute,
   episodeIntentHash,
   materializeEpisodePlanAssignments,
-  parseProposedEpisodePlan,
+  parseNormalizedProposedEpisodePlan,
   persistEpisodeIntent as persistImmutableEpisodeIntent,
   persistEpisodePlan,
   readPersistedEpisodeIntent as readImmutableEpisodeIntent,
@@ -167,7 +167,7 @@ export async function prepareEpisodePlan(
         proposalCreatedAt,
         validationDiagnostics: structuredClone(diagnostics),
       });
-      const proposal = parseProposedEpisodePlan(parseProviderValue(raw));
+      const proposal = parseNormalizedProposedEpisodePlan(parseProviderValue(raw));
       const plan = acceptProposal(
         proposal,
         options.intent,

@@ -16,6 +16,7 @@ import {
   parseCreatorEpisodeScope,
   parseEpisodeIntent,
   persistEpisodePlan,
+  parseNormalizedProposedEpisodePlan,
   parseProposedEpisodePlan,
   readCurrentEpisodePlan,
   selectReadyEpisodeSteps,
@@ -285,6 +286,70 @@ describe("EpisodePlan core", () => {
     );
   });
 
+  it("normalizes only code-owned overhead and exact qualified output aliases", () => {
+    const intent = makeIntent();
+    const observedShape = makeProposal(intent, "episode_planner", "fixed");
+    observedShape.estimatedBudget = {
+      providerTurns: 2,
+      providerTurnBudgetUsd: 4,
+      mechanicalOverheadUsd: 2,
+      totalBudgetUsd: 6,
+    };
+    observedShape.steps[1]!.inputRefs = [
+      { ref: "plan-output:build.patch", required: true },
+    ];
+
+    const normalized = parseNormalizedProposedEpisodePlan(observedShape);
+    expect(normalized.estimatedBudget).toEqual({
+      providerTurns: 2,
+      providerTurnBudgetUsd: 4,
+      mechanicalOverheadUsd: 0,
+      totalBudgetUsd: 4,
+    });
+    expect(normalized.steps[1]!.inputRefs).toEqual([
+      { ref: "plan-output:patch", required: true },
+    ]);
+    const plan = materializeEpisodePlanAssignments(normalized, makePolicy("fixed"));
+    expect(validateEpisodePlan(plan, intent, makePolicy("fixed"))).toMatchObject({
+      ok: true,
+      issues: [],
+    });
+  });
+
+  it("still rejects inconsistent turn arithmetic and misqualified output aliases", () => {
+    const intent = makeIntent();
+    const inconsistent = makeProposal(intent, "episode_planner", "fixed");
+    inconsistent.estimatedBudget = {
+      providerTurns: 2,
+      providerTurnBudgetUsd: 3,
+      mechanicalOverheadUsd: 2,
+      totalBudgetUsd: 5,
+    };
+    const inconsistentPlan = materializeEpisodePlanAssignments(
+      parseNormalizedProposedEpisodePlan(inconsistent),
+      makePolicy("fixed"),
+    );
+    expect(issueCodes(
+      validateEpisodePlan(inconsistentPlan, intent, makePolicy("fixed")).issues,
+    )).toContain("plan_budget_arithmetic_invalid");
+
+    const futureProducer = makeProposal(intent, "episode_planner", "fixed");
+    futureProducer.steps[0]!.inputRefs = [
+      { ref: "plan-output:review.accepted", required: true },
+    ];
+    const futureProducerPlan = materializeEpisodePlanAssignments(
+      parseNormalizedProposedEpisodePlan(futureProducer),
+      makePolicy("fixed"),
+    );
+    expect(validateEpisodePlan(
+      futureProducerPlan,
+      intent,
+      makePolicy("fixed"),
+    ).issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "plan_output_ref_invalid", stepId: "build" }),
+    ]));
+  });
+
   it("enforces typed deterministic safety gates and approvals without adding provider turns", () => {
     const intent = makeIntent();
     const plan = makePlan(intent, "fixed");
@@ -376,6 +441,9 @@ describe("EpisodePlan core", () => {
     expect(EPISODE_PLAN_PROPOSAL_SCHEMA).toMatchObject({
       additionalProperties: false,
       properties: {
+        estimatedBudget: {
+          properties: { mechanicalOverheadUsd: { const: 0 } },
+        },
         steps: {
           minItems: 1,
           items: {

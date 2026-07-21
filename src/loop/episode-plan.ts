@@ -49,11 +49,20 @@ export interface SafetyFact {
 const STEP_ID_PATTERN = "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$";
 const OPERATION_PATTERN = "^[a-z][a-z0-9]*(?:[-_/][a-z0-9]+)*$";
 const HASH_PATTERN = "^[a-f0-9]{64}$";
+const PLAN_OUTPUT_REF_PREFIX = "plan-output:";
 const PLANNED_INPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["ref", "required"],
-  properties: { ref: { type: "string", minLength: 1 }, required: { type: "boolean" } },
+  properties: {
+    ref: {
+      type: "string",
+      minLength: 1,
+      description:
+        "Plan outputs use plan-output:<output-id>; the output must have exactly one dependency-ancestor producer.",
+    },
+    required: { type: "boolean" },
+  },
 } as const;
 const PLANNED_OUTPUT_SCHEMA = {
   type: "object",
@@ -162,8 +171,15 @@ export const EPISODE_PLAN_PROPOSAL_SCHEMA = {
       properties: {
         providerTurns: { type: "integer", minimum: 0 },
         providerTurnBudgetUsd: { type: "number", minimum: 0 },
-        mechanicalOverheadUsd: { type: "number", minimum: 0 },
-        totalBudgetUsd: { type: "number", minimum: 0 },
+        mechanicalOverheadUsd: {
+          const: 0,
+          description: "Mechanical gates and approvals construct no provider runtime and have zero equivalent cost.",
+        },
+        totalBudgetUsd: {
+          type: "number",
+          minimum: 0,
+          description: "Must equal providerTurnBudgetUsd because mechanicalOverheadUsd is zero.",
+        },
       },
     },
     derivedSafetyRoute: {
@@ -404,6 +420,7 @@ export const EPISODE_PLAN_REASON_CODES = [
   "plan_turn_budget_exceeds_assignment",
   "plan_expected_output_invalid",
   "plan_expected_output_duplicate",
+  "plan_output_ref_invalid",
   "plan_terminal_output_missing",
   "plan_terminal_output_not_terminal",
   "plan_budget_arithmetic_invalid",
@@ -590,6 +607,71 @@ export function parseProposedEpisodePlan(value: unknown): ProposedEpisodePlan {
     }]);
   }
   return structuredClone(value);
+}
+
+/** Provider proposals contain two code-owned projections: local mechanical
+ * work has zero equivalent-provider cost, and plan-output references are
+ * stored by their globally unique output id. Normalize only values whose
+ * provider-authored relationship is internally consistent. Everything else
+ * remains untouched so the strict schema and semantic validators reject it.
+ *
+ * The qualified aliases are retained solely as a deterministic compatibility
+ * seam for already-settled provider output. A qualifier is discarded only
+ * when that exact step declares that exact output; dependency ancestry and
+ * unique ownership are still enforced by validateGraph below. */
+export function parseNormalizedProposedEpisodePlan(value: unknown): ProposedEpisodePlan {
+  return parseProposedEpisodePlan(normalizeProviderProposal(value));
+}
+
+function normalizeProviderProposal(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const normalized = structuredClone(value);
+  const steps = normalized["steps"];
+  if (Array.isArray(steps)) normalizePlanOutputRefs(steps);
+
+  const estimate = normalized["estimatedBudget"];
+  if (isRecord(estimate)) {
+    const providerBudget = estimate["providerTurnBudgetUsd"];
+    const mechanicalOverhead = estimate["mechanicalOverheadUsd"];
+    const total = estimate["totalBudgetUsd"];
+    if (
+      typeof providerBudget === "number" && finiteNonNegative(providerBudget) &&
+      typeof mechanicalOverhead === "number" && finiteNonNegative(mechanicalOverhead) &&
+      typeof total === "number" && finiteNonNegative(total) &&
+      near(total, providerBudget + mechanicalOverhead)
+    ) {
+      estimate["mechanicalOverheadUsd"] = 0;
+      estimate["totalBudgetUsd"] = providerBudget;
+    }
+  }
+  return normalized;
+}
+
+function normalizePlanOutputRefs(steps: unknown[]): void {
+  const declared = new Map<string, Set<string>>();
+  for (const value of steps) {
+    if (!isRecord(value) || typeof value["id"] !== "string") continue;
+    const outputs = value["expectedOutputs"];
+    if (!Array.isArray(outputs)) continue;
+    declared.set(value["id"], new Set(outputs.flatMap((output) =>
+      isRecord(output) && typeof output["id"] === "string" ? [output["id"]] : []
+    )));
+  }
+  for (const value of steps) {
+    if (!isRecord(value) || !Array.isArray(value["inputRefs"])) continue;
+    for (const input of value["inputRefs"]) {
+      if (!isRecord(input) || typeof input["ref"] !== "string") continue;
+      const ref = input["ref"];
+      if (!ref.startsWith(PLAN_OUTPUT_REF_PREFIX)) continue;
+      const qualified = /^([a-z][a-z0-9]*(?:[-_][a-z0-9]+)*)[.:]([a-z][a-z0-9]*(?:[-_][a-z0-9]+)*)$/
+        .exec(ref.slice(PLAN_OUTPUT_REF_PREFIX.length));
+      if (qualified === null) continue;
+      const [, producerId, outputId] = qualified;
+      if (declared.get(producerId!)?.has(outputId!) === true) {
+        input["ref"] = `${PLAN_OUTPUT_REF_PREFIX}${outputId}`;
+      }
+    }
+  }
 }
 
 /** Strict episode-envelope boundary. Incomplete values remain representable
@@ -1621,6 +1703,35 @@ function validateGraph(
       dependents.set(dependency, current);
     }
   }
+  const ancestors = dependencyAncestorResolver(byId);
+  for (const step of steps) {
+    for (const input of step.inputRefs) {
+      if (!input.ref.startsWith(PLAN_OUTPUT_REF_PREFIX)) continue;
+      const outputId = input.ref.slice(PLAN_OUTPUT_REF_PREFIX.length);
+      if (!STEP_ID.test(outputId)) {
+        issues.push(issue(
+          "plan_output_ref_invalid",
+          `${input.ref} must use ${PLAN_OUTPUT_REF_PREFIX}<output-id>`,
+          step.id,
+        ));
+        continue;
+      }
+      const owner = outputOwners.get(outputId);
+      if (owner === undefined) {
+        issues.push(issue(
+          "plan_output_ref_invalid",
+          `${input.ref} does not resolve to a declared plan output`,
+          step.id,
+        ));
+      } else if (!ancestors(step.id).has(owner)) {
+        issues.push(issue(
+          "plan_output_ref_invalid",
+          `${input.ref} is not produced by a dependency ancestor of ${step.id}`,
+          step.id,
+        ));
+      }
+    }
+  }
   const terminals = steps.filter((step) => (dependents.get(step.id)?.length ?? 0) === 0);
   const terminalIds = new Set(terminals.map((step) => step.id));
   const terminalOutputOwners = new Map<string, string>();
@@ -1679,6 +1790,27 @@ function validateGraph(
     }
   }
   return dedupeIssues(issues);
+}
+
+function dependencyAncestorResolver(
+  byId: ReadonlyMap<string, ProposedEpisodeStep | EpisodeStep>,
+): (stepId: string) => ReadonlySet<string> {
+  const cache = new Map<string, ReadonlySet<string>>();
+  const resolve = (stepId: string, visiting = new Set<string>()): ReadonlySet<string> => {
+    const cached = cache.get(stepId);
+    if (cached !== undefined) return cached;
+    if (visiting.has(stepId)) return new Set();
+    const nested = new Set(visiting).add(stepId);
+    const result = new Set<string>();
+    for (const dependency of byId.get(stepId)?.dependsOn ?? []) {
+      if (!byId.has(dependency)) continue;
+      result.add(dependency);
+      for (const ancestor of resolve(dependency, nested)) result.add(ancestor);
+    }
+    cache.set(stepId, result);
+    return result;
+  };
+  return (stepId) => resolve(stepId);
 }
 
 function validateBudget(plan: EpisodePlan, ceiling: BudgetCeiling, issues: EpisodePlanIssue[]): void {

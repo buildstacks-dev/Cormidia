@@ -9,6 +9,19 @@ import type { EpisodePlannerProposalRequest } from "./coordinator.js";
 
 export const MAX_EPISODE_PLANNER_BRIEF_BYTES = 512 * 1024;
 
+const DETERMINISTIC_PROPOSAL_CONTRACT = {
+  mechanicalOverheadUsd: 0,
+  totalBudgetFormula: "providerTurnBudgetUsd + mechanicalOverheadUsd",
+  planOutputReferences: {
+    format: "plan-output:<output-id>",
+    example: "plan-output:build-contract",
+    requirements: [
+      "output-id is declared by exactly one expectedOutputs entry",
+      "the producing step is a transitive dependency ancestor of the consuming step",
+    ],
+  },
+} as const;
+
 /** Exact bounded data envelope consumed by the human-ratified planner prompt. */
 export function renderEpisodePlannerBrief(
   request: EpisodePlannerProposalRequest,
@@ -45,6 +58,7 @@ export function renderEpisodePlannerBrief(
     // than asking the planner to guess a hidden shape. Keep the canonical
     // schema in the bounded input as well as on TurnRequest.verdictSchema.
     proposalSchema: EPISODE_PLAN_PROPOSAL_SCHEMA,
+    deterministicProposalContract: DETERMINISTIC_PROPOSAL_CONTRACT,
     intent: request.intent,
     validationDiagnostics: diagnostics,
     deterministicSafetyFloor: {
@@ -126,6 +140,7 @@ export function renderEpisodePlannerRevisionBrief(
       createdAt: request.proposalCreatedAt,
     },
     proposalSchema: EPISODE_PLAN_PROPOSAL_SCHEMA,
+    deterministicProposalContract: DETERMINISTIC_PROPOSAL_CONTRACT,
     immutableIntent: request.intent,
     previousAcceptedPlan: request.previousPlan,
     materialEvent: request.replan,

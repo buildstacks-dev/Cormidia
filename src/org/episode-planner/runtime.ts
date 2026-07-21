@@ -13,7 +13,7 @@ import {
   assessCreatorScope,
   episodeIntentHash,
   materializeEpisodePlanAssignments,
-  parseProposedEpisodePlan,
+  parseNormalizedProposedEpisodePlan,
   readCurrentEpisodePlan,
   validateForwardOnlyRevision,
   type CreatorScopeAssessment,
@@ -358,6 +358,22 @@ export async function prepareEpisodePlanWithRuntime(
       }
       continue;
     }
+    if (outcome.evaluation?.kind === "accepted") {
+      const plan = outcome.evaluation.plan;
+      await persistAcceptedEpisodePlannerPlan({
+        root: options.root,
+        plan,
+        intent: options.intent,
+        policy: policy.validation,
+        now: now(),
+      });
+      await settleAcceptedPlannerAttempts(options, plannerRole, now);
+      return preparedResult(
+        plan,
+        creatorScopeAssessment,
+        await terminalAttemptCount(options),
+      );
+    }
     if (outcome.result.status !== "completed" || outcome.evaluation === undefined) {
       throw new EpisodePlannerFailedError(attempt, [{
         code: "plan_structure_invalid",
@@ -366,21 +382,10 @@ export async function prepareEpisodePlanWithRuntime(
           outcome.result.summary,
       }]);
     }
-    const plan = outcome.evaluation.plan;
-    await persistAcceptedEpisodePlannerPlan({
-      root: options.root,
-      plan,
-      intent: options.intent,
-      policy: policy.validation,
-      now: now(),
-    });
-    return {
-      plan,
-      intentHash,
-      planningTurnSkipped: false,
-      plannerAttempts: attempt,
-      creatorScopeAssessment,
-    };
+    throw new EpisodePlannerFailedError(attempt, [{
+      code: "plan_structure_invalid",
+      message: `EpisodePlanner attempt ${attempt} has no accepted or rejected evaluation`,
+    }]);
   }
   throw new EpisodePlannerFailedError(2, diagnostics);
 }
@@ -460,6 +465,9 @@ export function createProviderEpisodePlanRevisionProposer(
         }
         continue;
       }
+      if (outcome.evaluation?.kind === "accepted") {
+        return { plan: outcome.evaluation.plan, policy: policy.validation };
+      }
       if (outcome.result.status !== "completed" || outcome.evaluation === undefined) {
         throw new EpisodePlannerFailedError(attempt, [{
           code: "plan_structure_invalid",
@@ -468,7 +476,10 @@ export function createProviderEpisodePlanRevisionProposer(
             outcome.result.summary,
         }]);
       }
-      return { plan: outcome.evaluation.plan, policy: policy.validation };
+      throw new EpisodePlannerFailedError(attempt, [{
+        code: "plan_structure_invalid",
+        message: `EpisodePlanner revision attempt ${attempt} has no accepted or rejected evaluation`,
+      }]);
     }
     throw new EpisodePlannerFailedError(2, diagnostics);
   };
@@ -1258,7 +1269,7 @@ function parsePlannerOutput(raw: string) {
       received: "invalid JSON text",
     }]);
   }
-  return parseProposedEpisodePlan(value);
+  return parseNormalizedProposedEpisodePlan(value);
 }
 
 function diagnosticsFrom(error: unknown): EpisodePlanIssue[] {

@@ -21,6 +21,7 @@ import type {
   TurnAssignment,
   TurnResult,
 } from "../runtime/types.js";
+import { runPaths } from "../runtime/runlog/paths.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import {
   admitEpisode,
@@ -44,7 +45,12 @@ import {
   type StartedProviderStep,
 } from "./efficiency.js";
 import {
+  EPISODE_PLAN_REASON_CODES,
+  assertEpisodePlanValid,
+  deriveEpisodeSafetyRoute,
   episodePlanHash,
+  materializeEpisodePlanAssignments,
+  parseNormalizedProposedEpisodePlan,
   persistEpisodePlan,
   readCurrentEpisodePlan,
   readCurrentEpisodePlanPointer,
@@ -67,6 +73,7 @@ export const EPISODE_PLANNER_OPERATION = "episode-planner/plan" as const;
 export const EPISODE_PLANNER_REPAIR_OPERATION = "episode-planner/repair" as const;
 
 const HASH = /^[a-f0-9]{64}$/;
+const EPISODE_PLAN_REASON_CODE_SET = new Set<string>(EPISODE_PLAN_REASON_CODES);
 const LOCK_OPTIONS = {
   staleMs: 30_000,
   maxWaitMs: 35_000,
@@ -555,7 +562,7 @@ export async function persistAcceptedEpisodePlannerPlan(input: {
     );
   }
   await withPlannerLock(input.root, input.plan.episodeId, async () => {
-    await assertPlanAcceptanceReady(input.root, input.plan, input.intent);
+    await assertPlanAcceptanceReady(input.root, input.plan, input.intent, input.policy);
     await claimPlanPublication(input.root, input.plan.episodeId, expected, input.now);
   });
 
@@ -591,7 +598,7 @@ export async function persistAcceptedEpisodePlannerPlan(input: {
         "EpisodePlanner plan publication claim changed before acceptance",
       );
     }
-    await assertPlanAcceptanceReady(input.root, input.plan, input.intent);
+    await assertPlanAcceptanceReady(input.root, input.plan, input.intent, input.policy);
     const current = await readCurrentEpisodePlan(input.root, input.plan.episodeId);
     if (
       current === undefined ||
@@ -681,10 +688,15 @@ export async function admitPlannedEpisodeRoute(
         );
       }
       const terminal = await plannerTerminalSteps(input.root, admission);
-      if (!terminal.some((step) => step.status === "completed")) {
+      const accepted = await readOptionalJson(
+        plannerPlanAcceptancePath(input.root, input.episodeId),
+      );
+      const acceptedCurrent = isPlanAcceptanceRecord(accepted, input.episodeId) &&
+        accepted.plan_version === plan.version && accepted.plan_hash === planHash;
+      if (!terminal.some((step) => step.status === "completed") && !acceptedCurrent) {
         throw new PlannerAdmissionError(
           "error_episode_planner_plan_missing",
-          "EpisodePlanner route admission requires a completed planner attempt",
+          "EpisodePlanner route admission requires completed evidence or a matching accepted-plan marker",
         );
       }
       plannerConsumed = { ...status.settled };
@@ -1120,6 +1132,7 @@ async function assertPlanAcceptanceReady(
   root: string,
   plan: EpisodePlan,
   intent: EpisodeIntent,
+  policy: EpisodePlanValidationPolicy,
 ): Promise<void> {
   const admission = await requirePlannerAdmission(root, plan.episodeId);
   assertAdmissionApp(admission, intent.app);
@@ -1138,12 +1151,53 @@ async function assertPlanAcceptanceReady(
     );
   }
   const terminal = await plannerTerminalSteps(root, admission);
-  if (!terminal.some((step) => step.status === "completed")) {
+  if (!await plannerEvidenceBacksPlan(root, terminal, plan, intent, policy)) {
     throw new PlannerAdmissionError(
       "error_episode_planner_plan_missing",
-      "an EpisodePlanner-authored plan requires a completed planner provider attempt",
+      "an EpisodePlanner-authored plan requires a completed attempt or exact revalidated terminal output",
     );
   }
+}
+
+/** A deterministic parser/validator repair may make already-settled provider
+ * bytes valid without changing what the provider said. Preserve the original
+ * failed step, envelope, and ledger row; acceptance is authorized only when
+ * those exact output bytes now materialize to the exact validated plan. */
+async function plannerEvidenceBacksPlan(
+  root: string,
+  terminal: readonly ExecutionStepRecord[],
+  plan: EpisodePlan,
+  intent: EpisodeIntent,
+  policy: EpisodePlanValidationPolicy,
+): Promise<boolean> {
+  if (terminal.some((step) => step.status === "completed")) return true;
+  for (const step of terminal) {
+    if (
+      step.status !== "failed" ||
+      step.error_code === null ||
+      !EPISODE_PLAN_REASON_CODE_SET.has(step.error_code)
+    ) {
+      continue;
+    }
+    try {
+      const raw = await readFile(runPaths(root, intent.app, step.run_id).output, "utf8");
+      const proposal = parseNormalizedProposedEpisodePlan(JSON.parse(raw) as unknown);
+      const materialized = materializeEpisodePlanAssignments(proposal, policy);
+      const candidate: EpisodePlan = {
+        ...materialized,
+        derivedSafetyRoute: deriveEpisodeSafetyRoute(
+          materialized.steps,
+          intent.requiredSafetyFacts,
+        ),
+      };
+      assertEpisodePlanValid(candidate, intent, policy);
+      if (episodePlanHash(candidate) === episodePlanHash(plan)) return true;
+    } catch {
+      // The caller reports the actionable validation error. This durable
+      // admission boundary only answers whether exact evidence backs `plan`.
+    }
+  }
+  return false;
 }
 
 async function claimPlanPublication(

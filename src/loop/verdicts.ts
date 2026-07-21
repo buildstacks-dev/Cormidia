@@ -91,10 +91,13 @@ export interface BlockedEntry {
   assessment: string;
 }
 
+export const FINDING_RESOLUTION_OUTCOMES = ["fixed", "rebutted"] as const;
+export type FindingResolutionOutcome = (typeof FINDING_RESOLUTION_OUTCOMES)[number];
+
 /** A fix pass's per-finding disposition (proportionality-review Stage 2 —
  *  findings stay open until individually fixed or rebutted, durably). */
 export interface FindingResolution {
-  outcome: "fixed" | "rebutted";
+  outcome: FindingResolutionOutcome;
   /** The finding's `file:line` location, verbatim from the finding line. */
   location: string;
   /** Evidence: the proving commit/test for fixed, the reason for rebutted. */
@@ -757,6 +760,30 @@ const REVIEW_AUDIT_SCHEMA: VerdictSchema = {
   },
 };
 
+const FINDING_RESOLUTION_SCHEMA: VerdictSchema = {
+  title: "FindingResolution",
+  description:
+    "One fix-pass disposition — line grammar: `- fixed|rebutted <location> -- " +
+    "<evidence>` (prompts/build/fix.md). The orchestrator posts these to the " +
+    "durable findings ledger, so a finding without one stays open.",
+  type: "object",
+  additionalProperties: false,
+  required: ["outcome", "location", "note"],
+  properties: {
+    outcome: { type: "string", enum: FINDING_RESOLUTION_OUTCOMES },
+    location: {
+      type: "string",
+      minLength: 1,
+      description: "the finding's location, verbatim from the finding line",
+    },
+    note: {
+      type: "string",
+      minLength: 1,
+      description: "evidence: the proving commit/test for fixed, the reason for rebutted",
+    },
+  },
+};
+
 const BLOCKED_ENTRY_SCHEMA: VerdictSchema = {
   title: "BlockedEntry",
   description:
@@ -913,13 +940,21 @@ export const VERDICT_SCHEMAS: Readonly<Record<VerdictKind, VerdictSchema>> = {
     title: "BuildVerdict",
     description:
       "Implement/fix pass outcome: done (full suite green, self-check passed) " +
-      "or blocked with the four-part entry (prompts/build/implement.md).",
+      "or blocked with the four-part entry (prompts/build/implement.md). A fix " +
+      "pass additionally carries one resolution per finding it was given " +
+      "(prompts/build/fix.md); an implement pass omits the list.",
     type: "object",
     additionalProperties: false,
     required: ["status"],
     properties: {
       status: { type: "string", enum: ["done", "blocked"] },
       blockedEntry: BLOCKED_ENTRY_SCHEMA,
+      resolutions: {
+        type: "array",
+        items: FINDING_RESOLUTION_SCHEMA,
+        description:
+          "fix passes only: one fixed/rebutted disposition per finding, in the order given",
+      },
     },
   },
   review: {
@@ -1046,6 +1081,36 @@ function schemaErrors(schema: VerdictSchema, value: unknown, path: string): stri
   return errors;
 }
 
+/** Drop the `null`s a native strict-output transport emits for absent optional
+ *  fields. `schemaErrors` already treats them as absent, but the VALUE was
+ *  passed through unchanged, so a parsed verdict could carry `resolutions: null`
+ *  or `blockedEntry: null` where its TypeScript type promises `undefined`.
+ *  Consumers legitimately branch on `!== undefined` and then dereference, so
+ *  the transport's convention became a null-dereference in orchestrator code.
+ *  Normalizing here keeps the two transports' outputs identical. */
+function normalizeStrictNulls(schema: VerdictSchema, value: unknown): unknown {
+  if (schema.enum !== undefined) return value;
+  if (schema.type === "array") {
+    if (!Array.isArray(value) || schema.items === undefined) return value;
+    return value.map((item) => normalizeStrictNulls(schema.items!, item));
+  }
+  if (schema.type !== "object") return value;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  const props = schema.properties ?? {};
+  const required = schema.required ?? [];
+  const normalized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    const node = props[key];
+    if (node === undefined) {
+      normalized[key] = child;
+      continue;
+    }
+    if (child === null && !required.includes(key)) continue;
+    normalized[key] = normalizeStrictNulls(node, child);
+  }
+  return normalized;
+}
+
 /** Validate a native-structured-output verdict (parsed JSON) against its
  *  kind's schema, plus the same consistency rules the text parser enforces.
  *  Same ParseResult shape as parseVerdict — both transports converge. */
@@ -1062,12 +1127,13 @@ export function validateVerdict<K extends VerdictKind>(
   }
   const errors = schemaErrors(schema, value, kind);
   if (errors.length > 0) return failure(kind, errors.join("; "));
+  const normalized = normalizeStrictNulls(schema, value);
   if (kind === "contract") {
-    const problem = contractTestsProblem((value as ContractVerdict).tests);
+    const problem = contractTestsProblem((normalized as ContractVerdict).tests);
     if (problem !== undefined) return failure(kind, problem);
   }
   if (kind === "review") {
-    const rv = value as ReviewVerdict;
+    const rv = normalized as ReviewVerdict;
     if (rv.verdict === "approve" && rv.findings.length > 0) {
       return failure(
         kind,
@@ -1079,7 +1145,7 @@ export function validateVerdict<K extends VerdictKind>(
       return failure(kind, `verdict says findings but the findings list is empty`);
     }
   }
-  return { ok: true, verdict: value as VerdictTypes[K] };
+  return { ok: true, verdict: normalized as VerdictTypes[K] };
 }
 
 function contractTestsProblem(entries: readonly ContractCriterionTests[]): string | undefined {

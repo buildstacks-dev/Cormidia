@@ -14,13 +14,20 @@ describe("toCodexStrictSchema", () => {
       VERDICT_SCHEMAS.build as unknown as Record<string, unknown>,
     );
 
-    expect(strict["required"]).toEqual(["status", "blockedEntry"]);
+    expect(strict["required"]).toEqual(["status", "blockedEntry", "resolutions"]);
     expect(strict["additionalProperties"]).toBe(false);
     const props = strict["properties"] as Record<string, Record<string, unknown>>;
     // status was required -> stays a plain string enum.
     expect(props["status"]!["type"]).toBe("string");
     // blockedEntry was optional -> becomes nullable (type union with "null").
     expect(props["blockedEntry"]!["type"]).toEqual(["object", "null"]);
+    // resolutions is the fix pass's only distinguishing output; it must survive
+    // strict conversion as an expressible (nullable) array, or `fix/fix` cannot
+    // report a single finding disposition through a structured-output runtime.
+    expect(props["resolutions"]!["type"]).toEqual(["array", "null"]);
+    const resolution = props["resolutions"]!["items"] as Record<string, unknown>;
+    expect(resolution["additionalProperties"]).toBe(false);
+    expect(resolution["required"]).toEqual(["outcome", "location", "note"]);
   });
 
   it("recurses: the nested blockedEntry object also lists all its keys in required", () => {

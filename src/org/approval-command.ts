@@ -388,9 +388,9 @@ async function terminalFailure(
   summary: string,
   clock: () => Date,
 ): Promise<ApprovalCommandOutcome> {
-  if (item.execution?.state === "approved") {
-    await store.beginExecution(item.id, ORCHESTRATOR_COMMAND_ACTOR, clock());
-  }
+  // Claim first when this failure was found before the claim; a no-op when the
+  // caller already holds it (beginExecution only advances from `approved`).
+  await store.beginExecution(item.id, ORCHESTRATOR_COMMAND_ACTOR, clock());
   await store.finishExecution({
     id: item.id,
     state: "failed",

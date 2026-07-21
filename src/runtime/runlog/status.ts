@@ -6,6 +6,11 @@ import { join } from "node:path";
 import { readEvents } from "./events.js";
 import { classifyEnvelopeUsage } from "./envelope.js";
 import { truncatePreview } from "./redact.js";
+import {
+  formatDurableVerdictDigest,
+  summarizeDurableVerdict,
+  type DurableVerdictDigest,
+} from "../../loop/verdicts.js";
 import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
 import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
 
@@ -43,6 +48,11 @@ export interface StatusRow {
   lastSeenAt?: string;
   /** Redacted at write time; structured JSON is complete, prose is bounded. */
   verdictSummary?: string;
+  /** ENH-010: the same verdict projected for a human. Present only when
+   *  `verdictSummary` is a structured verdict; the raw record stays
+   *  authoritative. A durable "approve, no findings" is only auditable if the
+   *  rationale and evidence reach the operator's default surface. */
+  verdictDigest?: DurableVerdictDigest;
   previews?: Record<string, string>;
   terminalReason?: string;
   session?: SessionEvidence;
@@ -110,6 +120,7 @@ export async function readStatusRows(
         startedAt: envelope.started_at,
         ...(envelope.last_seen_at !== undefined ? { lastSeenAt: envelope.last_seen_at } : {}),
         ...(envelope.verdict_summary !== undefined ? { verdictSummary: envelope.verdict_summary } : {}),
+        ...(verdictDigestFor(envelope.verdict_summary)),
         ...(envelope.previews !== undefined ? { previews: envelope.previews } : {}),
         ...(envelope.terminal_reason !== undefined ? { terminalReason: envelope.terminal_reason } : {}),
         ...(envelope.session !== undefined ? { session: envelope.session } : {}),
@@ -153,13 +164,41 @@ export function formatStatusRows(rows: readonly StatusRow[]): string {
     .filter((row) => terminalAttentionStatus(row.status))
     .map((row) =>
       `  ${row.runId} ${row.pipeline}/${row.pass} ${row.status} — ` +
-      truncatePreview(row.terminalReason ?? row.verdictSummary ?? "No terminal reason recorded", 240)
+      truncatePreview(
+        row.terminalReason ??
+          (row.verdictDigest === undefined
+            ? row.verdictSummary
+            : formatDurableVerdictDigest(row.verdictDigest).replace(/\n/g, " · ")) ??
+          "No terminal reason recorded",
+        240,
+      )
     );
+  // ENH-010: a judgment surfaces here whether or not it needs attention. An
+  // approving reviewer verdict is the one an operator most needs to audit, and
+  // it never appears above because an approved pass is not terminal.
+  const verdicts = rows
+    .filter((row) => row.verdictDigest !== undefined)
+    .flatMap((row) => [
+      `  ${row.runId} ${row.pipeline}/${row.pass} (${row.role}) — ${row.verdictDigest!.headline}`,
+      ...formatDurableVerdictDigest(row.verdictDigest!)
+        .split("\n")
+        .slice(1)
+        .map((line) => `    ${truncatePreview(line, 240)}`),
+    ]);
   return [
     header,
     ...lines,
     ...(attention.length === 0 ? [] : ["", "TERMINAL ATTENTION", ...attention]),
+    ...(verdicts.length === 0 ? [] : ["", "VERDICTS", ...verdicts]),
   ].join("\n");
+}
+
+function verdictDigestFor(
+  verdictSummary: string | undefined,
+): { verdictDigest?: DurableVerdictDigest } {
+  if (verdictSummary === undefined) return {};
+  const digest = summarizeDurableVerdict(verdictSummary);
+  return digest === undefined ? {} : { verdictDigest: digest };
 }
 
 function terminalAttentionStatus(status: string): boolean {

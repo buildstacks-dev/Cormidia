@@ -1258,7 +1258,18 @@ explicit creator-scope preview instead proves whether the supplied scope can
 take the deterministic normalization path, without persisting it.
 
 The public `operon episode explain <episode-id>` command exposes the durable
-explanation read-only. `operon plan --explain-route` and `--auto --dry-run`
+explanation read-only. Because it is the primary operator diagnostic it is
+total: missing, corrupt, or internally inconsistent evidence is annotated in
+`problems[]` and rendered inline, never thrown, so an episode with only a
+route record still explains its route and durable execution steps. Every
+durable read is named by the printed `evidenceDir`, so operators are not
+forced to reverse-engineer the state-home layout. `complete: false` means at
+least one artifact could not be resolved, and the command exits non-zero.
+Provider-step assignments resolve against the route authorization that
+actually paid for the step: after a plan revision, a step that already
+completed is deliberately not re-authorized at the new version, so its
+explanation reports `authorized_at_prior_plan_version` rather than claiming it
+is unauthorized. `operon plan --explain-route` and `--auto --dry-run`
 expose a provisional token-free intent/candidate/safety preview, including
 current ledger spend. Product stage is resolved by one deterministic boundary
 shared with live planning: an explicit `--stage` wins; otherwise at most five

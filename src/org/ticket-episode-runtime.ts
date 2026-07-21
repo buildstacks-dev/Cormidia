@@ -127,7 +127,6 @@ export const TICKET_EPISODE_PLANNER_POLICY_VERSION =
 
 const MAX_TICKET_BODY_BYTES = 128 * 1024;
 const MAX_TICKET_PROVIDER_TURNS = 12;
-const DEFAULT_PLANNER_INPUT_TOKENS = 64_000;
 const DEFAULT_PLANNER_ACTIVE_TIME_MS = 5 * 60_000;
 const TICKET_SAFETY_FLOOR_MAPPING = {
   gateKinds: {
@@ -1617,7 +1616,6 @@ function ticketHardBudget(
       requested.maxMechanicalOverheadUsd ?? remaining,
       remaining,
     ),
-    maxInputTokens: requested.maxInputTokens ?? 512_000,
     maxActiveTimeMs: requested.maxActiveTimeMs ?? 2 * 60 * 60_000,
     maxHumanDecisions: requested.maxHumanDecisions ?? 2,
   };
@@ -1638,13 +1636,11 @@ function defaultPlannerLimits(
   return {
     maxAttempts,
     perAttempt: {
-      inputTokens: DEFAULT_PLANNER_INPUT_TOKENS,
       equivalentCostUsd: perAttemptCost,
       activeTimeMs: DEFAULT_PLANNER_ACTIVE_TIME_MS,
     },
     aggregate: {
       providerTurns: maxAttempts,
-      inputTokens: DEFAULT_PLANNER_INPUT_TOKENS * maxAttempts,
       equivalentCostUsd: perAttemptCost * maxAttempts,
       activeTimeMs: DEFAULT_PLANNER_ACTIVE_TIME_MS * maxAttempts,
     },

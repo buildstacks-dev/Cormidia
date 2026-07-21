@@ -631,7 +631,6 @@ async function runRevisionPlannerAttempt(
     inputFingerprint,
     now: now(),
     next: {
-      inputTokens: options.limits.perAttempt.inputTokens,
       costUsd: options.limits.perAttempt.equivalentCostUsd,
       activeTimeMs: options.limits.perAttempt.activeTimeMs,
     },
@@ -1418,7 +1417,6 @@ function validateRevisionPlannerLimits(
     );
   }
   const values = [
-    limits.perAttempt.inputTokens,
     limits.perAttempt.equivalentCostUsd,
     limits.perAttempt.activeTimeMs,
   ];
@@ -1431,7 +1429,6 @@ function validateRevisionPlannerLimits(
     );
   }
   const aggregateChecks = [
-    ["input tokens", limits.perAttempt.inputTokens * attempt, limits.aggregate.inputTokens],
     [
       "equivalent cost",
       limits.perAttempt.equivalentCostUsd * attempt,

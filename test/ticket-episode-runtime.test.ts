@@ -216,13 +216,11 @@ describe("ticket EpisodePlanner execution adapter", () => {
         plannerLimits: {
           maxAttempts: 1,
           perAttempt: {
-            inputTokens: 1_000,
             equivalentCostUsd: 0.5,
             activeTimeMs: 1_000,
           },
           aggregate: {
             providerTurns: 1,
-            inputTokens: 1_000,
             equivalentCostUsd: 0.5,
             activeTimeMs: 1_000,
           },

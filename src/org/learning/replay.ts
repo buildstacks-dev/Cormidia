@@ -373,7 +373,6 @@ interface ReplayPlanDefinition {
     maxProviderTurns: number;
     maxEquivalentCostUsd: number;
     maxMechanicalOverheadUsd: number;
-    maxInputTokens: number;
     maxActiveTimeMs: number;
     maxHumanDecisions: number;
   };
@@ -672,7 +671,6 @@ function buildReplayDefinition(input: {
       maxProviderTurns,
       maxEquivalentCostUsd,
       maxMechanicalOverheadUsd: 0,
-      maxInputTokens: maxProviderTurns * 500_000,
       maxActiveTimeMs: 45 * 60_000,
       maxHumanDecisions: 0,
     },
@@ -952,7 +950,6 @@ async function executeReplayProviderStep(
         budgetOverrides: {
           provider_turns: input.intent.hardBudget.maxProviderTurns,
           equivalent_cost_usd: input.intent.hardBudget.maxEquivalentCostUsd,
-          input_tokens: input.intent.hardBudget.maxInputTokens!,
           active_time_ms: input.intent.hardBudget.maxActiveTimeMs!,
           human_decisions: input.intent.hardBudget.maxHumanDecisions!,
         },

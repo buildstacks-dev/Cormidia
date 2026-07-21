@@ -242,11 +242,15 @@ export interface TriggerDescriptor {
   payloadHash?: string;
 }
 
+/** No input-token ceiling. Input tokens are a byproduct of context assembly
+ * and caching, not a budget: a cached re-read inflated the same counter a
+ * ceiling was meant to restrain, so the bound refused honest work while
+ * measuring nothing anyone had authorized. Money, turns, wall-clock, and
+ * human decisions are the real bounds and all derive from configuration. */
 export interface BudgetCeiling {
   maxProviderTurns: number;
   maxEquivalentCostUsd: number;
   maxMechanicalOverheadUsd?: number;
-  maxInputTokens?: number;
   maxActiveTimeMs?: number;
   maxHumanDecisions?: number;
 }
@@ -1833,7 +1837,6 @@ function validateBudget(plan: EpisodePlan, ceiling: BudgetCeiling, issues: Episo
   if (!arithmeticValid) issues.push(issue("plan_budget_arithmetic_invalid", "estimated budget does not equal the plan's exact turn budgets plus overhead"));
   const optionalCeilings = [
     ceiling.maxMechanicalOverheadUsd,
-    ceiling.maxInputTokens,
     ceiling.maxActiveTimeMs,
     ceiling.maxHumanDecisions,
   ].filter((value): value is number => value !== undefined);
@@ -2186,6 +2189,9 @@ function isTriggerDescriptor(value: unknown): value is TriggerDescriptor {
 }
 
 function isBudgetCeilingStrict(value: unknown): value is BudgetCeiling {
+  // `maxInputTokens` stays in the accepted key set so intents persisted before
+  // the ceiling was removed still parse. It is read by nothing and enforced
+  // nowhere; new intents never write it.
   if (!isRecord(value) || !exactKeys(
     value,
     [
@@ -2196,7 +2202,7 @@ function isBudgetCeilingStrict(value: unknown): value is BudgetCeiling {
   )) return false;
   if (!Number.isSafeInteger(value["maxProviderTurns"]) || (value["maxProviderTurns"] as number) < 0 ||
       typeof value["maxEquivalentCostUsd"] !== "number" || !finiteNonNegative(value["maxEquivalentCostUsd"])) return false;
-  return ["maxMechanicalOverheadUsd", "maxInputTokens", "maxActiveTimeMs", "maxHumanDecisions"]
+  return ["maxMechanicalOverheadUsd", "maxActiveTimeMs", "maxHumanDecisions"]
     .every((key) => value[key] === undefined ||
       (typeof value[key] === "number" && finiteNonNegative(value[key] as number)));
 }

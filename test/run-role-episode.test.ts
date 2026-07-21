@@ -370,7 +370,6 @@ function intentFor(
       maxProviderTurns: 1,
       maxEquivalentCostUsd: 10,
       maxMechanicalOverheadUsd: 0,
-      maxInputTokens: 64_000,
       maxActiveTimeMs: 300_000,
       maxHumanDecisions: 0,
     },

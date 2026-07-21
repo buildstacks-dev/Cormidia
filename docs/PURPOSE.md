@@ -233,12 +233,31 @@ config file, not a fork.
   `I-LIVE-01` passes. `docs/efficiency.md` → Phase 6 qualification scope is the
   canonical boundary.
 
-- **Phase 6 deep-route input-token ceiling** (ratified 2026-07-14). Every
-  Phase 6 episode whose final authorized route is `deep` has a hard
-  4,000,000-input-token admission ceiling, including deep delivery,
-  planning-deep, and approval-semantics episodes. The ceiling is not standing
-  spend authority and does not change the ratified model-turn, equivalent-cost,
-  active-time, or human-decision caps.
+- **Input tokens are not a budget dimension** (ratified 2026-07-20; retracts
+  the Phase 6 deep-route input-token ceiling ratified 2026-07-14). Work is
+  bounded by equivalent cost, provider turns, active time, and human
+  decisions — every one of which derives from configured app and role budgets.
+  Input-token ceilings are removed from admission, from route budgets, from
+  planner admission, and from campaign manifests.
+
+  The retracted decision gave Phase 6 `deep` episodes a hard 4,000,000-token
+  admission ceiling. It is withdrawn because the dimension does not measure
+  what a ceiling on it implies. Input tokens are a byproduct of context
+  assembly and caching: a cached re-read costs roughly a tenth of a fresh
+  token yet inflated the same counter, so the bound tightened fastest exactly
+  when work was cheapest. No operator could set it — the ceiling existed only
+  as constants in source (512,000 on the ticket route, 256,000 on standalone
+  turns, 0/2,000,000/4,000,000 across route tiers, 8,000,000 in the pipeline),
+  with no `roles.yaml`, `apps.yaml`, or CLI surface anywhere.
+
+  It was withdrawn after a live onboarding run deadlocked on it: a single
+  builder turn consumed 2,893,441 input tokens (1,399,040 of them cache reads)
+  against a 512,000 episode ceiling. Admission had reserved dollars only and
+  never checked the dimension on the way in, so the ceiling first took effect
+  when it refused the recovery replan — leaving the episode with no surfaced
+  continuation. Ordinary caps behaved correctly throughout; only the
+  unconfigurable one failed. Campaign manifests retain `route_budget_overrides`
+  as an accepted-but-ignored key so historical evidence still validates.
 
 - **Phase 6 paired-learning qualification and activation boundary** (ratified
   2026-07-14). Phase 6 uses a predeclared, content-hashed T1 treatment only on

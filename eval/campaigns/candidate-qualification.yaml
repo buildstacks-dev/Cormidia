@@ -75,9 +75,6 @@ assignments:
 price_catalog_id: prices/2026-07-15-v1
 randomization_seed: operon-qualification-20260712
 github: { owner: REPLACE_ME, repo_pattern: operon-eval-* }
-route_budget_overrides:
-  deep:
-    input_tokens: 4000000
 spend:
   campaign_max_usd: 375
   case_max_usd: { planning/quality/v1: 40, context/delta/v1: 30, quick/ignore-config/v1: 8, standard/slug-options/v1: 15, deep/auth-migration/v1: 40, continuation/matrix/v1: 40, approval/semantics/v1: 40, learning/closure/v1: 24, soak/virtual-seven-day/v1: 1, roles/standing/v1: 30 }

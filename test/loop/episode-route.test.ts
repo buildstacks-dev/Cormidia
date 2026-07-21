@@ -44,7 +44,6 @@ describe("EpisodePlan route projection", () => {
       budgetOverrides: {
         provider_turns: 4,
         equivalent_cost_usd: 9,
-        input_tokens: 100_000,
       },
     });
     expect(projected.passes).toEqual([expect.objectContaining({
@@ -117,7 +116,6 @@ function makeIntent(): EpisodeIntent {
     hardBudget: {
       maxProviderTurns: 4,
       maxEquivalentCostUsd: 9,
-      maxInputTokens: 100_000,
     },
     availableRoles: [{
       role: "builder",

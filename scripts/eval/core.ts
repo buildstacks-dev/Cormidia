@@ -108,7 +108,6 @@ export interface CampaignManifest {
   github: { owner: string; repo_pattern: string };
   /** Qualification-only explicit admission ceiling for routes whose product
    * policy deliberately has no standing input-token authority. */
-  route_budget_overrides?: { deep?: { input_tokens: number } };
   spend: { campaign_max_usd: number; case_max_usd: Record<string, number> };
   infrastructure_retries: number;
   exclusions: string[];
@@ -318,38 +317,12 @@ export function validateCampaign(value: unknown): string[] {
       errors.push("github.repo_pattern must begin operon-eval- and contain no traversal");
     }
   }
-  const routeBudgetOverrides = v.route_budget_overrides === undefined
-    ? undefined
-    : record(v.route_budget_overrides);
-  if (v.route_budget_overrides !== undefined && routeBudgetOverrides === undefined) {
-    errors.push("route_budget_overrides must be an object");
-  }
-  if (routeBudgetOverrides) {
-    exactKeys(routeBudgetOverrides, ["deep"], errors, "route_budget_overrides");
-    const deep = routeBudgetOverrides.deep === undefined ? undefined : record(routeBudgetOverrides.deep);
-    if (routeBudgetOverrides.deep !== undefined && deep === undefined) errors.push("route_budget_overrides.deep must be an object");
-    if (deep) {
-      exactKeys(deep, ["input_tokens"], errors, "route_budget_overrides.deep");
-      if (!Number.isInteger(deep.input_tokens) || (deep.input_tokens as number) <= 0) {
-        errors.push("route_budget_overrides.deep.input_tokens must be a positive integer");
-      }
-    }
-  }
   const spend = record(v.spend);
   if (spend) {
     positiveNumber(spend, "campaign_max_usd", errors, "spend");
     objectField(spend, "case_max_usd", errors, "spend");
   }
   const cases = Array.isArray(v.cases) ? v.cases : [];
-  const requiresDeepInputAuthority = cases.some((raw) => {
-    const item = record(raw);
-    return item?.case_id === "deep/auth-migration/v1" ||
-      item?.case_id === "approval/semantics/v1" ||
-      (item?.case_id === "planning/quality/v1" && Array.isArray(item.repetition_ids) && item.repetition_ids.includes("goal-deep"));
-  });
-  if (requiresDeepInputAuthority && record(routeBudgetOverrides?.deep)?.input_tokens === undefined) {
-    errors.push("deep and approval cases require route_budget_overrides.deep.input_tokens");
-  }
   const repetitionKeys = new Set<string>();
   for (const [index, raw] of cases.entries()) {
     const item = record(raw); if (!item) { errors.push(`cases[${index}] must be an object`); continue; }
@@ -453,7 +426,6 @@ export function validateCampaign(value: unknown): string[] {
       { role: "marketing", runtime: "pi", model: "openai-codex/gpt-5.6-sol", effort: "medium", capability_ref: "pi/v1" },
     ];
     if (canonicalJson(v.assignments) !== canonicalJson(expectedAssignments)) errors.push("focused-admission profile must use the exact Phase 6 builder, reviewer, SRE, Support, and Marketing assignments");
-    if (record(routeBudgetOverrides?.deep)?.input_tokens !== 4_000_000) errors.push("focused-admission profile must retain the four-million-token deep-route ceiling");
     if (spend?.campaign_max_usd !== 118 || canonicalJson(record(spend?.case_max_usd)) !== canonicalJson({ "quick/ignore-config/v1": 8, "deep/auth-migration/v1": 40, "approval/semantics/v1": 40, "roles/standing/v1": 30 })) errors.push("focused-admission profile must retain the $118 campaign and exact $8/$40/$40/$30 case ceilings");
     if (v.infrastructure_retries !== 1) errors.push("focused-admission profile must retain one typed infrastructure retry");
   }
@@ -726,11 +698,9 @@ export function qualify(campaign: CampaignManifest, campaignSha256: string, resu
       const turnCap = planned === "quick" ? 3 : planned === "standard" ? 5 : planned === "deep" ? 8 : planned === "mechanical" ? 0 : Infinity;
       if (!result.case_id.startsWith("soak/realtime-") && (finite(route?.model_turns) ?? Infinity) > turnCap) { reasons.push(`qualification route turn bound miss ${result.case_id}::${result.repetition_id}`); qualificationMiss = true; }
       if (planned !== "mechanical" && !result.case_id.startsWith("soak/realtime-")) {
-        const inputCap = planned === "quick" ? 2_000_000 : planned === "standard" ? 4_000_000 : planned === "deep" ? campaign.route_budget_overrides?.deep?.input_tokens ?? -1 : -1;
         const routeCostCap = planned === "quick" ? 8 : planned === "standard" ? 15 : planned === "deep" ? 40 : -1;
         const activeCap = planned === "quick" ? 20 * 60_000 : planned === "standard" ? 45 * 60_000 : planned === "deep" ? 90 * 60_000 : -1;
         const humanCap = planned === "quick" ? 1 : planned === "deep" ? 5 : null;
-        if (inputCap <= 0 || (finite(tokens?.input) ?? Infinity) > inputCap) { reasons.push(`qualification route input-token bound miss ${result.case_id}::${result.repetition_id}`); qualificationMiss = true; }
         if (routeCostCap <= 0 || (finite(cost?.equivalent_usd) ?? Infinity) > routeCostCap) { reasons.push(`qualification route cost bound miss ${result.case_id}::${result.repetition_id}`); qualificationMiss = true; }
         if (activeCap <= 0 || (finite(latency?.active_ms) ?? Infinity) > activeCap) { reasons.push(`qualification route active-time bound miss ${result.case_id}::${result.repetition_id}`); qualificationMiss = true; }
         if (humanCap !== null && (finite(human?.decisions) ?? Infinity) > humanCap) { reasons.push(`qualification route human-decision bound miss ${result.case_id}::${result.repetition_id}`); qualificationMiss = true; }

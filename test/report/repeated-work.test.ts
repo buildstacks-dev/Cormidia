@@ -280,7 +280,7 @@ function route(): RouteRecord {
     final_route: "standard",
     factors: [],
     authorized_passes: [],
-    budget: { provider_turns: 10, input_tokens: 1_000_000, equivalent_cost_usd: 100, active_time_ms: 3_600_000, human_decisions: null },
+    budget: { provider_turns: 10, equivalent_cost_usd: 100, active_time_ms: 3_600_000, human_decisions: null },
     execution_bounds: null,
     reassessments: [],
     terminal: { status: "completed", at: `${DAY}T08:30:00.000Z`, reason: "done", final_route: "standard", next_step: null },

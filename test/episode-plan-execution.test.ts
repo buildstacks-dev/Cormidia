@@ -44,7 +44,6 @@ describe("accepted EpisodePlan execution", () => {
       hardBudget: {
         maxProviderTurns: 2,
         maxEquivalentCostUsd: 5,
-        maxInputTokens: 100_000,
         maxActiveTimeMs: 60_000,
       },
       requiredSafetyFacts: [],
@@ -146,7 +145,6 @@ describe("accepted EpisodePlan execution", () => {
       hardBudget: {
         maxProviderTurns: 2,
         maxEquivalentCostUsd: 4,
-        maxInputTokens: 100_000,
         maxActiveTimeMs: 60_000,
       },
       requiredSafetyFacts: [],
@@ -400,7 +398,6 @@ describe("accepted EpisodePlan execution", () => {
       hardBudget: {
         maxProviderTurns: 2,
         maxEquivalentCostUsd: 4,
-        maxInputTokens: 100_000,
         maxActiveTimeMs: 60_000,
       },
       requiredSafetyFacts: [],

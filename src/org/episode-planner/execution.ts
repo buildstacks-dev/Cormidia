@@ -646,9 +646,6 @@ async function executeProviderStep(
       budgetOverrides: {
         provider_turns: options.intent.hardBudget.maxProviderTurns,
         equivalent_cost_usd: options.intent.hardBudget.maxEquivalentCostUsd,
-        ...(options.intent.hardBudget.maxInputTokens === undefined
-          ? {}
-          : { input_tokens: options.intent.hardBudget.maxInputTokens }),
         ...(options.intent.hardBudget.maxActiveTimeMs === undefined
           ? {}
           : { active_time_ms: options.intent.hardBudget.maxActiveTimeMs }),

@@ -720,7 +720,6 @@ function releaseEpisodeFacts(
       maxProviderTurns: item.role === "sre" ? 1 : 0,
       maxEquivalentCostUsd: definition.providerBudgetUsd,
       maxMechanicalOverheadUsd: 0,
-      maxInputTokens: item.role === "sre" ? 256_000 : 0,
       maxActiveTimeMs: item.role === "sre" ? 30 * 60_000 : 60_000,
       maxHumanDecisions: 1,
     },
@@ -970,10 +969,9 @@ function unusedReleasePlannerLimits(roleBudgetUsd: number) {
   const equivalentCostUsd = Math.min(roleBudgetUsd, 0.01);
   return {
     maxAttempts: 1,
-    perAttempt: { inputTokens: 1, equivalentCostUsd, activeTimeMs: 1 },
+    perAttempt: { equivalentCostUsd, activeTimeMs: 1 },
     aggregate: {
       providerTurns: 1,
-      inputTokens: 1,
       equivalentCostUsd,
       activeTimeMs: 1,
     },

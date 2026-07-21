@@ -124,9 +124,6 @@ function hardBudgetProjection(intent: EpisodeIntent): Partial<RouteBudget> {
     provider_turns: intent.hardBudget.maxProviderTurns,
     equivalent_cost_usd: intent.hardBudget.maxEquivalentCostUsd,
   };
-  if (intent.hardBudget.maxInputTokens !== undefined) {
-    budget.input_tokens = intent.hardBudget.maxInputTokens;
-  }
   if (intent.hardBudget.maxActiveTimeMs !== undefined) {
     budget.active_time_ms = intent.hardBudget.maxActiveTimeMs;
   }

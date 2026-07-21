@@ -682,7 +682,6 @@ async function acceptedEpisode(
     hardBudget: {
       maxProviderTurns: 2,
       maxEquivalentCostUsd: 5,
-      maxInputTokens: 100_000,
       maxActiveTimeMs: 20 * 60_000,
     },
     requiredSafetyFacts: [],

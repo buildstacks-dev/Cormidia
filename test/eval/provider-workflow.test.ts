@@ -177,7 +177,7 @@ it("F-CONT-04 persists unavailable interrupted-turn usage as invalid missing evi
 it("A-SPEC-03 expires only a contract-authoring change ban before the delivery implementation pass", async () => {
   const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-contract-scope-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
   const base = fixtureCampaign("contract-scope-fixture");
-  const campaign = { ...base, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d2"] }], route_budget_overrides: { deep: { input_tokens: 4_000_000 } }, spend: { campaign_max_usd: 10, case_max_usd: { "deep/auth-migration/v1": 10 } } };
+  const campaign = { ...base, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d2"] }], spend: { campaign_max_usd: 10, case_max_usd: { "deep/auth-migration/v1": 10 } } };
   const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let calls = 0;
   const result = await executeLiveCampaign({ root, manifestPath, maxUsd: 10, evalRoot: join(root, ".eval-artifacts/contract-scope-fixture/world"), visibleGate: () => true, hiddenGrader: () => true, runtimeFactory: (role) => ({ kind: role.runtime, runTurn: async (request) => {
     calls += 1;
@@ -212,7 +212,7 @@ it("A-SPEC-03 expires only a contract-authoring change ban before the delivery i
 it("D-LIVE-03 keeps a completed implementation red when a declared visible command fails and never retries the merit miss", async () => {
   const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-visible-command-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
   const base = fixtureCampaign("visible-command-fixture");
-  const campaign = { ...base, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d2"] }], route_budget_overrides: { deep: { input_tokens: 4_000_000 } }, spend: { campaign_max_usd: 10, case_max_usd: { "deep/auth-migration/v1": 10 } } };
+  const campaign = { ...base, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d2"] }], spend: { campaign_max_usd: 10, case_max_usd: { "deep/auth-migration/v1": 10 } } };
   const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let calls = 0; let visibleCalls = 0;
   const result = await executeLiveCampaign({
     root,
@@ -245,7 +245,6 @@ it("J-STAT-02 focused admission and final qualification stop after the first ter
     ...base,
     profile: "focused-admission",
     cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d1"] }, { case_id: "approval/semantics/v1", repetition_ids: ["mixed-da"] }],
-    route_budget_overrides: { deep: { input_tokens: 4_000_000 } },
     spend: { campaign_max_usd: 80, case_max_usd: { "deep/auth-migration/v1": 40, "approval/semantics/v1": 40 } },
     infrastructure_retries: 0,
     stop_rules: [...base.stop_rules, "qualification_impossible_stops_campaign"],
@@ -266,7 +265,7 @@ it("J-STAT-02 focused admission and final qualification stop after the first ter
 it("J-STAT-02 fail-fast also stops on a pristine harness failure before constructing a provider", async () => {
   const root = mkdtempSync(join(tmpdir(), "operon-eval-provider-harness-fail-fast-")); roots.push(root); cpSync(join(process.cwd(), "eval"), join(root, "eval"), { recursive: true });
   const base = fixtureCampaign("harness-fail-fast-fixture");
-  const campaign = { ...base, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d1"] }, { case_id: "approval/semantics/v1", repetition_ids: ["mixed-da"] }], route_budget_overrides: { deep: { input_tokens: 4_000_000 } }, spend: { campaign_max_usd: 80, case_max_usd: { "deep/auth-migration/v1": 40, "approval/semantics/v1": 40 } }, stop_rules: [...base.stop_rules, "qualification_impossible_stops_campaign"] } as const;
+  const campaign = { ...base, cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["mixed-d1"] }, { case_id: "approval/semantics/v1", repetition_ids: ["mixed-da"] }], spend: { campaign_max_usd: 80, case_max_usd: { "deep/auth-migration/v1": 40, "approval/semantics/v1": 40 } }, stop_rules: [...base.stop_rules, "qualification_impossible_stops_campaign"] } as const;
   const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); let constructions = 0;
   const result = await executeLiveCampaign({ root, manifestPath, maxUsd: 80, evalRoot: join(root, ".eval-artifacts/harness-fail-fast-fixture/world"), visibleGate: () => false, runtimeFactory: () => { constructions += 1; throw new Error("provider_must_not_construct"); } });
   expect(result.attempts).toHaveLength(1);
@@ -363,7 +362,7 @@ it("Phase 6 specialized provider cases use blinded actor inputs and verifier-own
   ];
   const qualificationTemplate = loadYamlFile(join(process.cwd(), "eval/campaigns/candidate-qualification.yaml")) as CampaignManifest;
   const learningTreatment = qualificationTemplate.learning_treatment!;
-  const campaign = { ...base, cases, assignments, learning_treatment: learningTreatment, learning_efficacy: qualificationTemplate.learning_efficacy, route_budget_overrides: { deep: { input_tokens: 4_000_000 } }, spend: { campaign_max_usd: 100, case_max_usd: Object.fromEntries(cases.map((item) => [item.case_id, item.case_id.startsWith("approval/") ? 40 : 10])) } };
+  const campaign = { ...base, cases, assignments, learning_treatment: learningTreatment, learning_efficacy: qualificationTemplate.learning_efficacy, spend: { campaign_max_usd: 100, case_max_usd: Object.fromEntries(cases.map((item) => [item.case_id, item.case_id.startsWith("approval/") ? 40 : 10])) } };
   const manifestPath = join(root, "campaign.yaml"); writeFileSync(manifestPath, stringify(campaign)); const learningWorkdirs: string[] = []; const learningContexts: string[][] = [];
   const runtimeFactory = (role: RoleConfig): Runtime => ({ kind: role.runtime, runTurn: async (request, hooks): Promise<TurnResult> => {
     if (request.task.includes("plan-of-record.json")) {

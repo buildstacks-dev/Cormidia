@@ -55,10 +55,9 @@ describe("eval campaign and evidence core", () => {
       cases: [{ case_id: "deep/auth-migration/v1", repetition_ids: ["d1"] }],
       spend: { ...c.spend, case_max_usd: { "deep/auth-migration/v1": 1 } },
     };
-    expect(validateCampaign(deep)).toContain("deep and approval cases require route_budget_overrides.deep.input_tokens");
-    expect(validateCampaign({ ...deep, route_budget_overrides: { deep: { input_tokens: 4_000_000 } } })).toEqual([]);
-    expect(validateCampaign({ ...deep, route_budget_overrides: { deep: { input_tokens: 0 } } })).toContain("route_budget_overrides.deep.input_tokens must be a positive integer");
-    expect(validateCampaign({ ...c, cases: [{ case_id: "planning/quality/v1", repetition_ids: ["goal-deep"] }], spend: { ...c.spend, case_max_usd: { "planning/quality/v1": 1 } } })).toContain("deep and approval cases require route_budget_overrides.deep.input_tokens");
+    // Deep cases carry no input-token authority: the dimension was removed as a
+    // budget. They validate on cost, turns, and time alone.
+    expect(validateCampaign(deep)).toEqual([]);
   });
   it("H-EVAL-01 qualification learning blocks require an exact predeclared T1 treatment binding", () => {
     const template = loadYamlFile("eval/campaigns/candidate-qualification.yaml") as CampaignManifest;

@@ -322,7 +322,6 @@ function fixtureCampaign(developmentAuthorization: NonNullable<CampaignManifest[
     price_catalog_id: "prices/2026-07-15-v1",
     randomization_seed: "fixture",
     github: { owner: "buildstacks-dev", repo_pattern: "operon-eval-*" },
-    route_budget_overrides: { deep: { input_tokens: 4_000_000 } },
     spend: { campaign_max_usd: 40, case_max_usd: { "deep/auth-migration/v1": 40 } },
     infrastructure_retries: 0,
     exclusions: [],

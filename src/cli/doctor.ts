@@ -29,6 +29,7 @@ import {
   inspectManagedClones,
   type ManagedCloneHealth,
 } from "../org/managed-clone-health.js";
+import { listOrgs } from "../org/org-archive.js";
 
 export interface DoctorOptions extends OperonHomeOptions {
   launchAgentsDir?: string;
@@ -142,7 +143,24 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
     ...describeManagedClone(health),
   }));
 
-  const ok = ![...adapters, ...config, state, scheduler, ...clones].some(
+  // ENH-001: a state home whose org home cannot be resolved is invisible to
+  // every other surface. `org list` enumerates them; doctor names them so the
+  // condition is noticed without being looked for.
+  const discoveredOrgs = homes === undefined
+    ? []
+    : await listOrgs({ pointerPath: homes.pointerPath }).catch(() => []);
+  const orphans: CheckRow[] = discoveredOrgs
+    .filter((org) => org.orphan || org.orgHomeMissing)
+    .map((org) => ({
+      name: `orgs/${org.name}`,
+      status: "WARN" as const,
+      detail: org.orphan
+        ? `${org.stateHome} has no recorded org home; retire it with "operon org archive ${org.name}"`
+        : `${org.stateHome} points at a missing org home ${org.orgHome}; re-select it with ` +
+          `"operon org use <path>" or retire it with "operon org archive ${org.name}"`,
+    }));
+
+  const ok = ![...adapters, ...config, state, scheduler, ...clones, ...orphans].some(
     (row) => row.status === "FAIL",
   );
   if (options.json === true) {
@@ -165,6 +183,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
           config,
           state,
           managedClones,
+          orgs: discoveredOrgs,
           scheduler,
           schedulerStatus,
         },
@@ -185,6 +204,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   printRows("config", config);
   printRows("state", [state]);
   if (clones.length > 0) printRows("managed clones", clones);
+  if (orphans.length > 0) printRows("orgs", orphans);
   printRows("scheduler", [scheduler]);
   if (schedulerStatus?.definition.installed === true) console.log(`  ${manager.backend} installed; inspect/repair with: operon scheduler status`);
   else if (homes) console.log(`  ${manager.backend} not installed; preview with: operon scheduler install --backend ${manager.backend}`);

@@ -1,4 +1,5 @@
-// `operon org init|show|use` — explicit organization-home lifecycle.
+// `operon org init|show|use|list|archive|upgrade` — explicit organization-home
+// lifecycle.
 
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -24,6 +25,14 @@ import {
 } from "../org/authority.js";
 import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
 import { stableJson } from "../org/lifecycle.js";
+import {
+  executeOrgArchive,
+  formatOrgArchivePlan,
+  formatOrgList,
+  listOrgs,
+  planOrgArchive,
+  recordOrgBacklink,
+} from "../org/org-archive.js";
 import { bindCliInvocationStateHome, reportCliInvocation } from "./invocation-audit.js";
 
 export interface OrgCommandOptions {
@@ -38,7 +47,96 @@ export async function cmdOrg(args: string[], options: OrgCommandOptions = {}): P
   if (subcommand === "show") return show(args.slice(1), options);
   if (subcommand === "use") return use(args.slice(1), options);
   if (subcommand === "upgrade") return upgrade(args.slice(1), options);
-  throw new Error('org: expected "init", "show", "use", or "upgrade" — run `operon org --help`');
+  if (subcommand === "list") return list(args.slice(1), options);
+  if (subcommand === "archive") return archive(args.slice(1), options);
+  throw new Error(
+    'org: expected "init", "show", "use", "list", "archive", or "upgrade" — run `operon org --help`',
+  );
+}
+
+function activePointerPath(options: OrgCommandOptions): string {
+  return options.pointerPath ?? join(options.homeDir ?? homedir(), ".operon", "config");
+}
+
+async function list(args: string[], options: OrgCommandOptions): Promise<number> {
+  let json = false;
+  for (const arg of args) {
+    if (arg === "--json") json = true;
+    else throw new Error(`org list: unknown argument "${arg}"`);
+  }
+  const pointerPath = activePointerPath(options);
+  const orgs = await listOrgs({ pointerPath });
+  if (json) {
+    console.log(stableJson({ schema_version: 1, kind: "org-list", pointerPath, orgs }).trimEnd());
+  } else {
+    console.log(formatOrgList(orgs));
+  }
+  return 0;
+}
+
+async function archive(args: string[], options: OrgCommandOptions): Promise<number> {
+  const org = args[0];
+  if (org === undefined || org.startsWith("--")) {
+    throw new Error("org archive: org name required — operon org archive <org> (see operon org list)");
+  }
+  let execute = false;
+  let dryRun = false;
+  let confirm: string | undefined;
+  let archiveRoot: string | undefined;
+  let json = false;
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--execute") execute = true;
+    else if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--confirm") confirm = needValue(args, ++i, "--confirm");
+    else if (arg === "--archive-root") archiveRoot = needValue(args, ++i, "--archive-root");
+    else if (arg === "--json") json = true;
+    else throw new Error(`org archive: unknown argument "${arg}"`);
+  }
+  if (execute && dryRun) {
+    throw new Error("org archive: choose either --dry-run or --execute, not both");
+  }
+  if (execute && confirm !== org) {
+    throw new Error(`org archive: --execute requires --confirm ${org}`);
+  }
+  const pointerPath = activePointerPath(options);
+  const planOptions = {
+    pointerPath,
+    org,
+    ...(archiveRoot === undefined ? {} : { archiveRoot }),
+  };
+
+  if (!execute) {
+    const plan = await planOrgArchive(planOptions);
+    await bindCliInvocationStateHome(plan.org.stateHome, { org });
+    if (json) console.log(stableJson(plan).trimEnd());
+    else console.log(formatOrgArchivePlan(plan));
+    reportCliInvocation({
+      org,
+      dryRun: true,
+      outcome: plan.blockers.length === 0 ? "org-archive-preview-ready" : "org-archive-preview-blocked",
+    });
+    return plan.blockers.length === 0 ? 0 : 2;
+  }
+
+  const preview = await planOrgArchive(planOptions);
+  await bindCliInvocationStateHome(preview.org.stateHome, { org });
+  const result = await executeOrgArchive({ ...planOptions, confirm: confirm! });
+  reportCliInvocation({ org, outcome: "org-archived" });
+  if (json) {
+    console.log(stableJson({
+      schema_version: 1,
+      kind: "org-archive-result",
+      org,
+      archive_path: result.archivePath,
+      manifest_sha256: result.manifestSha256,
+      plan: result.plan,
+    }).trimEnd());
+  } else {
+    console.log(formatOrgArchivePlan(result.plan));
+    console.log(`  manifest sha256: ${result.manifestSha256}`);
+  }
+  return 0;
 }
 
 async function upgrade(args: string[], options: OrgCommandOptions): Promise<number> {
@@ -177,6 +275,9 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
   }
 
   const result = await executeOrgInit(plan);
+  // Keep the org home discoverable from its state home, so `operon org list`
+  // and `operon org archive` still work after the active pointer moves on.
+  await recordOrgBacklink(result.stateHome, result.orgHome);
   reportCliInvocation({
     org: result.appsFile.org.name,
     outcome: "org-created-and-selected",
@@ -286,6 +387,7 @@ async function use(args: string[], options: OrgCommandOptions): Promise<number> 
     homeDir,
     pointerPath,
   });
+  await recordOrgBacklink(homes.stateHome, homes.orgHome);
   const authority = await resolveAuthority({ orgHome: homes.orgHome });
   printHomes(
     { ...homes, appsFile, authority, authorityPreview: previewFor(authority.profile) },

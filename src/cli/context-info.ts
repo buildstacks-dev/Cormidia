@@ -46,6 +46,8 @@ const CAPABILITIES = [
   { command: "org init", writes: true, spendsTokens: false, summary: "preview with --dry-run or safely create/populate and select an org home" },
   { command: "org show", writes: false, spendsTokens: false, summary: "show resolved package, org, and state homes" },
   { command: "org use", writes: true, spendsTokens: false, summary: "select an existing complete org home" },
+  { command: "org list", writes: false, spendsTokens: false, summary: "enumerate every discoverable org home, state home, footprint, app count, and last activity" },
+  { command: "org archive", writes: true, spendsTokens: false, summary: "preview or archive-then-remove one org's local state after explicit confirmation; never touches the org home or GitHub" },
   { command: "org upgrade", writes: true, spendsTokens: false, summary: "preview/apply an additive archived org migration with post-upgrade doctor" },
   { command: "roles", writes: false, spendsTokens: false, summary: "validate and list the active org's roles" },
   { command: "roles set", writes: true, spendsTokens: false, summary: "preview a role's harness/model/effort/turn-budget change; --execute is journaled and requires an attributable --by identity" },
@@ -81,7 +83,7 @@ const CAPABILITIES = [
 /** A command is marked true when at least one documented invocation accepts
  * `--json`; compound commands may still have interactive text-only forms. */
 const JSON_COMMANDS = new Set<string>([
-  "org init", "org show", "org use", "org upgrade",
+  "org init", "org show", "org use", "org list", "org archive", "org upgrade",
   "roles", "roles set", "apps", "app reset", "app verify", "app promote", "pipelines",
   "bootstrap", "new-app", "plan", "episode explain", "scheduler",
   "approvals", "budget", "status", "analyze", "telemetry", "report",

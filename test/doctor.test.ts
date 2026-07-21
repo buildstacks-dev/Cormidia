@@ -206,6 +206,43 @@ describe("doctor precondition checks", () => {
     }
   });
 
+  // ENH-001: `~/.operon/operon` held 17MB of state with no corresponding org
+  // home and no command would have surfaced it.
+  it("flags a state home whose org home cannot be resolved", async () => {
+    const home = mkdtempSync(join(tmpdir(), "operon-doctor-orphan-"));
+    const pointerPath = join(home, ".operon", "config");
+    const stateHome = join(home, ".operon", "active");
+    const orphan = join(home, ".operon", "orphaned");
+    mkdirSync(stateHome, { recursive: true });
+    mkdirSync(join(orphan, "runs"), { recursive: true });
+    writeFileSync(join(orphan, "runs", "leftover.json"), "{}\n", "utf8");
+    mkdirSync(join(home, ".operon"), { recursive: true });
+    writeFileSync(pointerPath, `org_home: ${REPO_ROOT}\nstate_home: ${stateHome}\n`, "utf8");
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const code = await cmdDoctor({
+        orgHome: REPO_ROOT,
+        stateHome,
+        pointerPath,
+        launchAgentsDir: join(home, "LaunchAgents"),
+        configOnly: true,
+      });
+      const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(output).toContain("orgs:");
+      expect(output).toContain("orgs/orphaned");
+      expect(output).toContain("has no recorded org home");
+      expect(output).toContain("operon org archive orphaned");
+      // The active state home resolves through the pointer, so it is not an
+      // orphan and must not be reported as one.
+      expect(output).not.toContain("orgs/active");
+      // Orphan state is a condition to surface, not an installation failure.
+      expect(code).toBe(0);
+    } finally {
+      spy.mockRestore();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   it("reports a clean clone as OK and an uncloned app as not-yet-cloned", async () => {
     // Adversarial near-miss: the warning must key on actual working-tree
     // state, not on the directory merely existing.

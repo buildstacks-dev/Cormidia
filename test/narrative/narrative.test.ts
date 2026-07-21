@@ -203,6 +203,86 @@ describe("narrative fold", () => {
     expect(verify.quote!.text).not.toContain("sk-ant-api03");
   });
 
+  // ENH-010: the reviewer's judgment must be readable in the story it belongs
+  // to. Quoting the raw structured record gave an operator a JSON blob cut off
+  // mid-key, which is not an audit trail.
+  it("quotes a structured review verdict as its rationale, evidence, and excluded scope", async () => {
+    seedFixture();
+    seedRun(
+      "20260713-000003-build-standard-verify",
+      envelope({
+        run_id: "20260713-000003-build-standard-verify",
+        episode_id: TICKET_EPISODE,
+        ticket: "#41",
+        pass: "verify",
+        role: "reviewer",
+        started_at: "2026-07-13T00:10:00.000Z",
+        finished_at: "2026-07-13T00:15:00.000Z",
+        verdict_summary: JSON.stringify({
+          verdict: "approve",
+          findings: [],
+          review: {
+            rationale: "Re-ran every gate against the exact delivered revision.",
+            evidence: [{ claim: "AC3", evidence: "mutating the built HTML makes the assertion throw" }],
+            notReviewed: ["deploy"],
+          },
+        }),
+      }),
+    );
+    const { stories } = await foldAppStories(stateHome, APP);
+    const verify = stories
+      .find((s) => s.story_id === TICKET_EPISODE)!
+      .moments.find((m) => m.run_id === "20260713-000003-build-standard-verify")!;
+    expect(verify.quote!.text).toContain("review approve — 0 finding(s)");
+    expect(verify.quote!.text).toContain("rationale: Re-ran every gate against the exact delivered revision.");
+    expect(verify.quote!.text).toContain("AC3 => mutating the built HTML makes the assertion throw");
+    expect(verify.quote!.text).toContain("not reviewed: deploy");
+    expect(verify.quote!.text).not.toContain("\"notReviewed\"");
+  });
+
+  it("still re-scrubs a structured verdict and leaves prose verdicts verbatim", async () => {
+    // Adversarial near-miss: the digest is rendered BEFORE boundQuote, so the
+    // capture-time scrub must still run over the projected text, and a prose
+    // verdict must not be reshaped by a projection that does not apply to it.
+    seedFixture();
+    seedRun(
+      "20260713-000004-build-standard-verify",
+      envelope({
+        run_id: "20260713-000004-build-standard-verify",
+        episode_id: TICKET_EPISODE,
+        ticket: "#41",
+        pass: "verify",
+        started_at: "2026-07-13T00:20:00.000Z",
+        finished_at: "2026-07-13T00:21:00.000Z",
+        verdict_summary: JSON.stringify({
+          verdict: "findings",
+          findings: [{
+            category: "security",
+            severity: "critical",
+            location: "src/a.ts:1",
+            description: "leaks sk-ant-api03-cccccccccccccccccccccccc in a log line",
+            action: "redact it",
+          }],
+          review: {
+            rationale: "One critical finding blocks merge.",
+            evidence: [{ claim: "log line", evidence: "src/a.ts:1" }],
+            notReviewed: [],
+          },
+        }),
+      }),
+    );
+    const { stories } = await foldAppStories(stateHome, APP);
+    const moments = stories.find((s) => s.story_id === TICKET_EPISODE)!.moments;
+    const structured = moments.find((m) => m.run_id === "20260713-000004-build-standard-verify")!;
+    expect(structured.quote!.text).toContain("review findings — 1 finding(s)");
+    expect(structured.quote!.text).not.toContain("sk-ant-api03");
+    // The prose verdict seeded by the base fixture is untouched.
+    const prose = stories
+      .find((s) => s.story_id === PLAN_EPISODE)!
+      .moments.find((m) => m.run_id === PLAN_RUN)!;
+    expect(prose.quote!.text).toBe("quick plan validated: one scaffold ticket");
+  });
+
   it("a partial fold (earliest sources swept) never regresses captured story fields (review fix)", async () => {
     seedFixture();
     const first = await foldAppStories(stateHome, APP);

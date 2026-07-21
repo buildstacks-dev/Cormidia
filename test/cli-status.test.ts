@@ -229,4 +229,95 @@ describe("runlog status", () => {
       home.cleanup();
     }
   });
+  // ENH-010: the reviewer's durable verdict is the most expensive judgment the
+  // org buys. "approve, no findings" is indistinguishable from a reviewer that
+  // did nothing unless its rationale and evidence reach the default surface.
+  it("surfaces a structured review verdict's rationale and scope, not just its label", async () => {
+    const verdict = JSON.stringify({
+      verdict: "approve",
+      findings: [],
+      review: {
+        rationale: "Verified the delivered revision 03e6e75 against AC1-AC5.",
+        evidence: [
+          { claim: "AC3 non-vacuous test_command", evidence: "mutating the built HTML makes it throw" },
+          { claim: "full suite", evidence: "7 passed, 0 failed (exit 0)" },
+        ],
+        notReviewed: ["/blog", "deploy"],
+      },
+    });
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            verify: {
+              envelope: {
+                ...(env("verify", "2026-07-21T04:44:00Z", "completed") as Record<string, unknown>),
+                role: "reviewer",
+                pass: "verify",
+                verdict_summary: verdict,
+              },
+              events: [],
+            },
+          },
+        },
+      },
+    });
+    try {
+      const rows = await readStatusRows(home.root, { app: "alpha" });
+      expect(rows[0]?.verdictDigest).toMatchObject({
+        kind: "review",
+        headline: "review approve — 0 finding(s), 2 evidence item(s), 2 area(s) not reviewed",
+        rationale: "Verified the delivered revision 03e6e75 against AC1-AC5.",
+        notReviewed: ["/blog", "deploy"],
+      });
+      // The raw durable record is untouched and still authoritative.
+      expect(rows[0]?.verdictSummary).toBe(verdict);
+
+      const text = formatStatusRows(rows);
+      expect(text).toContain("VERDICTS");
+      expect(text).toContain("build/verify (reviewer) — review approve — 0 finding(s)");
+      expect(text).toContain("rationale: Verified the delivered revision 03e6e75 against AC1-AC5.");
+      expect(text).toContain("AC3 non-vacuous test_command => mutating the built HTML makes it throw");
+      expect(text).toContain("not reviewed: /blog; deploy");
+      // An approving pass is not terminal, so it must not be reported as one.
+      expect(text).not.toContain("TERMINAL ATTENTION");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("leaves a prose verdict and a non-verdict envelope entirely alone", async () => {
+    // Adversarial near-miss: the digest is a projection of a STRUCTURED verdict.
+    // Prose verdicts and arbitrary JSON must not be reshaped or invented.
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: {
+            prose: {
+              envelope: {
+                ...(env("prose", "2026-07-21T04:00:00Z", "completed") as Record<string, unknown>),
+                verdict_summary: "Verdict: done",
+              },
+              events: [],
+            },
+            other: {
+              envelope: {
+                ...(env("other", "2026-07-21T03:00:00Z", "completed") as Record<string, unknown>),
+                verdict_summary: JSON.stringify({ candidates: [] }),
+              },
+              events: [],
+            },
+            none: { envelope: env("none", "2026-07-21T02:00:00Z", "completed"), events: [] },
+          },
+        },
+      },
+    });
+    try {
+      const rows = await readStatusRows(home.root, { app: "alpha" });
+      for (const row of rows) expect(row.verdictDigest).toBeUndefined();
+      expect(formatStatusRows(rows)).not.toContain("VERDICTS");
+    } finally {
+      home.cleanup();
+    }
+  });
 });

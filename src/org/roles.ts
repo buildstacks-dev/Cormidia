@@ -64,7 +64,16 @@ export interface ApprovedTurnAssignment {
 }
 
 export async function loadRoles(path: string): Promise<RolesFile> {
-  const raw = parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  return parseRolesText(await readFile(path, "utf8"), path);
+}
+
+/**
+ * Same validation as `loadRoles`, over text the caller already holds. A write
+ * path must be able to prove a candidate roles.yaml parses to a valid org
+ * chart BEFORE it replaces the ratified file on disk.
+ */
+export function parseRolesText(text: string, path: string): RolesFile {
+  const raw = parse(text) as Record<string, unknown>;
   if (!raw || typeof raw !== "object") throw new Error(`${path}: not a YAML mapping`);
 
   const defaultsRaw = (raw["defaults"] ?? {}) as Record<string, unknown>;

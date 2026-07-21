@@ -91,10 +91,13 @@ export interface BlockedEntry {
   assessment: string;
 }
 
+export const FINDING_RESOLUTION_OUTCOMES = ["fixed", "rebutted"] as const;
+export type FindingResolutionOutcome = (typeof FINDING_RESOLUTION_OUTCOMES)[number];
+
 /** A fix pass's per-finding disposition (proportionality-review Stage 2 —
  *  findings stay open until individually fixed or rebutted, durably). */
 export interface FindingResolution {
-  outcome: "fixed" | "rebutted";
+  outcome: FindingResolutionOutcome;
   /** The finding's `file:line` location, verbatim from the finding line. */
   location: string;
   /** Evidence: the proving commit/test for fixed, the reason for rebutted. */
@@ -757,6 +760,30 @@ const REVIEW_AUDIT_SCHEMA: VerdictSchema = {
   },
 };
 
+const FINDING_RESOLUTION_SCHEMA: VerdictSchema = {
+  title: "FindingResolution",
+  description:
+    "One fix-pass disposition — line grammar: `- fixed|rebutted <location> -- " +
+    "<evidence>` (prompts/build/fix.md). The orchestrator posts these to the " +
+    "durable findings ledger, so a finding without one stays open.",
+  type: "object",
+  additionalProperties: false,
+  required: ["outcome", "location", "note"],
+  properties: {
+    outcome: { type: "string", enum: FINDING_RESOLUTION_OUTCOMES },
+    location: {
+      type: "string",
+      minLength: 1,
+      description: "the finding's location, verbatim from the finding line",
+    },
+    note: {
+      type: "string",
+      minLength: 1,
+      description: "evidence: the proving commit/test for fixed, the reason for rebutted",
+    },
+  },
+};
+
 const BLOCKED_ENTRY_SCHEMA: VerdictSchema = {
   title: "BlockedEntry",
   description:
@@ -913,13 +940,21 @@ export const VERDICT_SCHEMAS: Readonly<Record<VerdictKind, VerdictSchema>> = {
     title: "BuildVerdict",
     description:
       "Implement/fix pass outcome: done (full suite green, self-check passed) " +
-      "or blocked with the four-part entry (prompts/build/implement.md).",
+      "or blocked with the four-part entry (prompts/build/implement.md). A fix " +
+      "pass additionally carries one resolution per finding it was given " +
+      "(prompts/build/fix.md); an implement pass omits the list.",
     type: "object",
     additionalProperties: false,
     required: ["status"],
     properties: {
       status: { type: "string", enum: ["done", "blocked"] },
       blockedEntry: BLOCKED_ENTRY_SCHEMA,
+      resolutions: {
+        type: "array",
+        items: FINDING_RESOLUTION_SCHEMA,
+        description:
+          "fix passes only: one fixed/rebutted disposition per finding, in the order given",
+      },
     },
   },
   review: {
@@ -1046,6 +1081,36 @@ function schemaErrors(schema: VerdictSchema, value: unknown, path: string): stri
   return errors;
 }
 
+/** Drop the `null`s a native strict-output transport emits for absent optional
+ *  fields. `schemaErrors` already treats them as absent, but the VALUE was
+ *  passed through unchanged, so a parsed verdict could carry `resolutions: null`
+ *  or `blockedEntry: null` where its TypeScript type promises `undefined`.
+ *  Consumers legitimately branch on `!== undefined` and then dereference, so
+ *  the transport's convention became a null-dereference in orchestrator code.
+ *  Normalizing here keeps the two transports' outputs identical. */
+function normalizeStrictNulls(schema: VerdictSchema, value: unknown): unknown {
+  if (schema.enum !== undefined) return value;
+  if (schema.type === "array") {
+    if (!Array.isArray(value) || schema.items === undefined) return value;
+    return value.map((item) => normalizeStrictNulls(schema.items!, item));
+  }
+  if (schema.type !== "object") return value;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  const props = schema.properties ?? {};
+  const required = schema.required ?? [];
+  const normalized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    const node = props[key];
+    if (node === undefined) {
+      normalized[key] = child;
+      continue;
+    }
+    if (child === null && !required.includes(key)) continue;
+    normalized[key] = normalizeStrictNulls(node, child);
+  }
+  return normalized;
+}
+
 /** Validate a native-structured-output verdict (parsed JSON) against its
  *  kind's schema, plus the same consistency rules the text parser enforces.
  *  Same ParseResult shape as parseVerdict — both transports converge. */
@@ -1062,12 +1127,13 @@ export function validateVerdict<K extends VerdictKind>(
   }
   const errors = schemaErrors(schema, value, kind);
   if (errors.length > 0) return failure(kind, errors.join("; "));
+  const normalized = normalizeStrictNulls(schema, value);
   if (kind === "contract") {
-    const problem = contractTestsProblem((value as ContractVerdict).tests);
+    const problem = contractTestsProblem((normalized as ContractVerdict).tests);
     if (problem !== undefined) return failure(kind, problem);
   }
   if (kind === "review") {
-    const rv = value as ReviewVerdict;
+    const rv = normalized as ReviewVerdict;
     if (rv.verdict === "approve" && rv.findings.length > 0) {
       return failure(
         kind,
@@ -1079,7 +1145,7 @@ export function validateVerdict<K extends VerdictKind>(
       return failure(kind, `verdict says findings but the findings list is empty`);
     }
   }
-  return { ok: true, verdict: value as VerdictTypes[K] };
+  return { ok: true, verdict: normalized as VerdictTypes[K] };
 }
 
 function contractTestsProblem(entries: readonly ContractCriterionTests[]): string | undefined {
@@ -1095,4 +1161,137 @@ function contractTestsProblem(entries: readonly ContractCriterionTests[]): strin
     }
   }
   return entries.length === 0 ? "Tests mapping contains no criterion entries" : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Durable verdict digest (ENH-010)
+// ---------------------------------------------------------------------------
+
+/** One reviewer/builder judgment, projected for a human surface. */
+export interface DurableVerdictDigest {
+  kind: "review" | "build" | "contract";
+  /** One line: the conclusion, with its load-bearing counts. */
+  headline: string;
+  /** Why, when the verdict carries a rationale. */
+  rationale?: string;
+  /** `claim => evidence` pairs, in the order the reviewer gave them. */
+  evidence: string[];
+  /** Scope the reviewer deliberately excluded. `[]` explicitly means none. */
+  notReviewed: string[];
+  /** Findings / resolutions / criteria, one compact line each. */
+  details: string[];
+}
+
+/**
+ * Project a durable verdict record — `envelope.verdict_summary` or a run's
+ * `output.md` — into human-readable lines. Returns undefined for anything that
+ * is not a structured verdict, so callers keep their existing prose fallback.
+ *
+ * Pure and total: it never throws, never reads state, and never re-validates.
+ * A durable record predates the current schema by design, so this reads
+ * defensively rather than asserting a shape.
+ */
+export function summarizeDurableVerdict(text: string): DurableVerdictDigest | undefined {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{")) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return undefined;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+  const record = parsed as Record<string, unknown>;
+  if (typeof record["verdict"] === "string" && Array.isArray(record["findings"])) {
+    return reviewDigest(record);
+  }
+  if (record["status"] === "done" || record["status"] === "blocked") return buildDigest(record);
+  if (Array.isArray(record["files"]) && typeof record["approach"] === "string") {
+    return contractDigest(record);
+  }
+  return undefined;
+}
+
+/** The digest as plain lines, for a text surface that has no structure. */
+export function formatDurableVerdictDigest(digest: DurableVerdictDigest): string {
+  return [
+    digest.headline,
+    ...(digest.rationale === undefined ? [] : [`rationale: ${digest.rationale}`]),
+    ...(digest.evidence.length === 0 ? [] : [`evidence: ${digest.evidence.join("; ")}`]),
+    ...(digest.details.length === 0 ? [] : [`detail: ${digest.details.join("; ")}`]),
+    ...(digest.notReviewed.length === 0 ? [] : [`not reviewed: ${digest.notReviewed.join("; ")}`]),
+  ].join("\n");
+}
+
+function reviewDigest(record: Record<string, unknown>): DurableVerdictDigest {
+  const findings = (record["findings"] as unknown[]).filter(isRecord);
+  const audit = isRecord(record["review"]) ? record["review"] : undefined;
+  const evidence = (Array.isArray(audit?.["evidence"]) ? audit["evidence"] : [])
+    .filter(isRecord)
+    .map((entry) => `${text(entry["claim"])} => ${text(entry["evidence"])}`)
+    .filter((entry) => entry !== " => ");
+  const notReviewed = (Array.isArray(audit?.["notReviewed"]) ? audit["notReviewed"] : [])
+    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  const rationale = typeof audit?.["rationale"] === "string" && audit["rationale"].trim().length > 0
+    ? audit["rationale"].trim()
+    : undefined;
+  return {
+    kind: "review",
+    headline:
+      `review ${text(record["verdict"])} — ${findings.length} finding(s), ` +
+      `${evidence.length} evidence item(s), ${notReviewed.length} area(s) not reviewed`,
+    ...(rationale === undefined ? {} : { rationale }),
+    evidence,
+    notReviewed,
+    details: findings.map((finding) =>
+      `${text(finding["category"])}/${text(finding["severity"])} ${text(finding["location"])}: ` +
+      `${text(finding["description"])}`
+    ),
+  };
+}
+
+function buildDigest(record: Record<string, unknown>): DurableVerdictDigest {
+  const resolutions = (Array.isArray(record["resolutions"]) ? record["resolutions"] : [])
+    .filter(isRecord)
+    .map((entry) => `${text(entry["outcome"])} ${text(entry["location"])} -- ${text(entry["note"])}`);
+  const blocked = isRecord(record["blockedEntry"]) ? record["blockedEntry"] : undefined;
+  return {
+    kind: "build",
+    headline: `build ${text(record["status"])} — ${resolutions.length} resolution(s)`,
+    ...(blocked === undefined ? {} : { rationale: text(blocked["assessment"]) }),
+    evidence: blocked === undefined ? [] : [`error => ${text(blocked["error"])}`],
+    notReviewed: [],
+    details: resolutions,
+  };
+}
+
+function contractDigest(record: Record<string, unknown>): DurableVerdictDigest {
+  const files = (record["files"] as unknown[]).filter((entry): entry is string =>
+    typeof entry === "string"
+  );
+  const tests = (Array.isArray(record["tests"]) ? record["tests"] : []).filter(isRecord);
+  return {
+    kind: "contract",
+    headline:
+      `contract — ${files.length} file(s), ${tests.length} criterion mapping(s), ` +
+      `complexity ${text(record["complexity"])}`,
+    ...(typeof record["approach"] === "string" ? { rationale: record["approach"].trim() } : {}),
+    evidence: tests.map((entry) =>
+      `${text(entry["criterionId"])} => ${
+        (Array.isArray(entry["tests"]) ? entry["tests"] : [])
+          .filter((name): name is string => typeof name === "string")
+          .join(", ")
+      }`
+    ),
+    notReviewed: [],
+    details: files,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }

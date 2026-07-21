@@ -48,6 +48,10 @@ import {
   createTicketEpisodeRuntime,
   type TicketEpisodeRuntime,
 } from "../src/org/ticket-episode-runtime.js";
+import {
+  TICKET_PROVIDER_OPERATIONS,
+  ticketProviderOperation,
+} from "../src/loop/ticket-episode-plan.js";
 import type { AppEntry } from "../src/org/apps.js";
 import { makeBareWithClone } from "./fixtures/gitRepo.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
@@ -442,6 +446,177 @@ describe("ticket EpisodePlanner execution adapter", () => {
     }
   });
 
+  // ISSUE-016 residual. `fix/fix` was reachable in an accepted plan but had
+  // never been executed offline. It is executed here end to end, through the
+  // same catalog-driven template resolution that the run-2 revision crashed on.
+  it("executes the registered fix/fix operation end to end and publishes its resolutions", async () => {
+    const fixture = await setup("fix", "fix/fix", true, true, true);
+    try {
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(
+        fixture,
+        calls,
+        (request) => isContractTurn(request)
+          ? CONTRACT_VERDICT
+          : JSON.stringify({
+              status: "done",
+              blockedEntry: null,
+              resolutions: [
+                { outcome: "fixed", location: "src/parser.ts:42", note: "commit ab12cd3, test/parser.test.ts" },
+                { outcome: "rebutted", location: "docs/spec.md:9", note: "documented behavior, see docs/spec.md" },
+              ],
+            }),
+      );
+
+      const item = await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      });
+
+      // The seeded contract ancestor runs first, then exactly one fix turn
+      // with the catalog's own pipeline/pass/template triple. Nothing else
+      // runs: the fix pass is one paid turn, not a retry loop.
+      expect(calls.map((call) => isContractTurn(call.request))).toEqual([true, false]);
+      const fixCall = calls[1]!;
+      expect(fixCall.request.role.name).toBe("builder");
+      expect(fixCall.request.task).toContain("Operation: fix/fix");
+      expect(fixCall.request.task).toContain("Governed pipeline/pass: fix/fix");
+      expect(fixCall.request.task).toContain("Access: write");
+      // ISSUE-012 asserted nothing could bind a ticket to a builder turn. The
+      // ticket route binds the ref, the title, and the acceptance criteria into
+      // every builder step's brief.
+      expect(fixCall.request.task).toContain("Ticket: #7 Fix a bounded parser bug");
+      expect(fixCall.request.task).toContain("parser regression is covered");
+      // The template resolved to real prompt bytes — the undefined-template
+      // TypeError ISSUE-016 reported cannot recur silently.
+      expect(fixCall.request.task).toContain("Return the typed verdict.");
+      expect(fixCall.request.verdictSchema).toMatchObject({ title: "BuildVerdict" });
+
+      // The build verdict parsed and the fix step completed. The plan's later
+      // deterministic gate step is out of this test's scope, so assert the fix
+      // step's own durable evidence rather than the whole-plan status.
+      const journal = await readEpisodePlanExecutionJournal(
+        fixture.state.root,
+        fixture.accepted.plan.episodeId,
+      );
+      expect(journal?.events.some((event) =>
+        event.kind === "step_completed" && event.step_id === "fix"
+      )).toBe(true);
+      expect(journal?.blocked_step_id).not.toBe("fix");
+      const fixOutput = JSON.parse(readFileSync(
+        join(
+          efficiencyEpisodeDir(fixture.state.root, fixture.accepted.plan.episodeId),
+          "ticket-step-outputs",
+          "v1",
+          `${hashedFileStem("fix")}.json`,
+        ),
+        "utf8",
+      )) as { status: string; payload: { providerOutput: string } };
+      expect(fixOutput.status).toBe("completed");
+      expect(JSON.parse(fixOutput.payload.providerOutput)).toMatchObject({ status: "done" });
+
+      // The resolutions reached the durable findings ledger. This is the only
+      // behaviour that distinguishes fix/fix from build/implement.
+      const comments = fixture.gh.issueComments.get(7) ?? [];
+      const resolutionComment = comments.find((body) => body.includes("fixed src/parser.ts:42"));
+      expect(resolutionComment).toBeDefined();
+      expect(resolutionComment).toContain("- rebutted docs/spec.md:9 -- documented behavior, see docs/spec.md");
+
+      const rows = await readStatusRows(fixture.state.root, { app: "fixture" });
+      const fixRow = rows.find((row) => row.pass === "fix");
+      expect(fixRow).toMatchObject({ status: "completed" });
+      expect(JSON.parse(fixRow!.verdictSummary!)).toMatchObject({ status: "done" });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("completes a fix/fix turn whose strict-mode verdict carries explicit nulls", async () => {
+    // Codex strict structured outputs must emit every declared property, so a
+    // fix pass with nothing to resolve returns `resolutions: null`. Passing
+    // that null through made `resolutions !== undefined` true and threw a raw
+    // TypeError inside the comment renderer — the ISSUE-016 failure shape.
+    const fixture = await setup("fix", "fix/fix", true, true, true);
+    try {
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(
+        fixture,
+        calls,
+        (request) => isContractTurn(request)
+          ? CONTRACT_VERDICT
+          : JSON.stringify({ status: "done", blockedEntry: null, resolutions: null }),
+      );
+
+      await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      });
+
+      // The seeded contract ancestor, then exactly one fix turn — the null
+      // resolutions complete the pass rather than provoking another turn.
+      expect(calls.map((call) => isContractTurn(call.request))).toEqual([true, false]);
+      const journal = await readEpisodePlanExecutionJournal(
+        fixture.state.root,
+        fixture.accepted.plan.episodeId,
+      );
+      expect(journal?.events.some((event) =>
+        event.kind === "step_completed" && event.step_id === "fix"
+      )).toBe(true);
+      // No resolutions means no findings-ledger comment, not a crash.
+      const comments = fixture.gh.issueComments.get(7) ?? [];
+      expect(comments.some((body) => body.includes("Fix resolutions"))).toBe(false);
+      expect(JSON.stringify(journal)).not.toContain("is not a function");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("refuses an unregistered operation before constructing a provider", async () => {
+    // Adversarial near-miss for ISSUE-016: the exact invented names run 2 saw.
+    // They must be rejected as typed operation-binding failures, never reach a
+    // template lookup, and never surface as a raw Node TypeError.
+    for (const invented of ["ticket/repair", "build/diagnose"]) {
+      expect(TICKET_PROVIDER_OPERATIONS).not.toContain(invented);
+      const fixture = await setup("fix", invented, true, true, false);
+      try {
+        const runtimeForAssignment = vi.fn((): Runtime => ({
+          kind: "codex",
+          async runTurn(): Promise<TurnResult> {
+            throw new Error("no provider may be constructed for an unregistered operation");
+          },
+        }));
+        const runtime = createTicketEpisodeRuntime({
+          ...fixture.runtimeOptions,
+          runtimeForAssignment,
+        });
+        const failure = await runtime.executeTicketPlan({
+          request: fixture.request,
+          accepted: fixture.accepted,
+          item: fixture.item,
+          beforeProviderTurn: async () => undefined,
+        }).then(
+          () => undefined,
+          (error: unknown) => error as Error & { code?: string },
+        );
+
+        expect(runtimeForAssignment).not.toHaveBeenCalled();
+        expect(failure).toBeDefined();
+        expect(failure!.code).toBe("error_ticket_episode_plan_invalid");
+        expect(failure!.message).toContain("ticket_provider_operation_unknown");
+        expect(failure!.message).toContain(invented);
+        // The valid set is named, and no Node TypeError leaks through.
+        expect(failure!.message).toContain("fix/fix");
+        expect(failure!.message).not.toContain("must be of type string or an instance of Buffer");
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
   it("rejects a planner allowance that leaves no delivery budget before runtime construction", async () => {
     const fixture = await setup("budget", "ticket/diagnose", false, false);
     try {
@@ -512,18 +687,20 @@ async function setup(
   const org = makeOrgHome();
   const repo = makeBareWithClone();
   if (needsPrompt) {
-    const prompts = operation === "review/verify"
-      ? [
-          join(org.root, "prompts", "build", "contract.md"),
-          join(org.root, "prompts", "build", "implement.md"),
-          join(org.root, "prompts", "review", "verify.md"),
-        ]
-      : operation === "build/implement"
-        ? [
-            join(org.root, "prompts", "build", "contract.md"),
-            join(org.root, "prompts", "build", "implement.md"),
-          ]
-        : [join(org.root, "prompts", "build", "contract.md")];
+    // The template comes from the operation catalog, exactly as the executor
+    // resolves it. Every write topology now carries a seeded build/contract
+    // ancestor (the gate-input rule requires one), and a review topology also
+    // needs the implement step's template.
+    const catalogTemplate = ticketProviderOperation(operation)?.template;
+    const prompts = [...new Set([
+      ...(catalogTemplate === undefined || catalogTemplate === null
+        ? []
+        : [join(org.root, "prompts", ...catalogTemplate.split("/"))]),
+      join(org.root, "prompts", "build", "contract.md"),
+      ...(operation === "review/verify"
+        ? [join(org.root, "prompts", "build", "implement.md")]
+        : []),
+    ])];
     for (const prompt of prompts) {
       mkdirSync(dirname(prompt), { recursive: true });
       writeFileSync(prompt, "Return the typed verdict.");

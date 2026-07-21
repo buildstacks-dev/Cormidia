@@ -449,6 +449,11 @@ describe("ticket EpisodePlanner execution adapter", () => {
       expect(calls[0]?.request.task).toContain("Operation: fix/fix");
       expect(calls[0]?.request.task).toContain("Governed pipeline/pass: fix/fix");
       expect(calls[0]?.request.task).toContain("Access: write");
+      // ISSUE-012 asserted nothing could bind a ticket to a builder turn. The
+      // ticket route binds the ref, the title, and the acceptance criteria into
+      // every builder step's brief.
+      expect(calls[0]?.request.task).toContain("Ticket: #7 Fix a bounded parser bug");
+      expect(calls[0]?.request.task).toContain("parser regression is covered");
       // The template resolved to real prompt bytes — the undefined-template
       // TypeError ISSUE-016 reported cannot recur silently.
       expect(calls[0]?.request.task).toContain("Return the typed verdict.");

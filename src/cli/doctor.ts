@@ -24,6 +24,11 @@ import { extractHomeFlags } from "./home-flags.js";
 import { resolveAuthority } from "../org/authority.js";
 import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
 import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
+import {
+  describeManagedClone,
+  inspectManagedClones,
+  type ManagedCloneHealth,
+} from "../org/managed-clone-health.js";
 
 export interface DoctorOptions extends OperonHomeOptions {
   launchAgentsDir?: string;
@@ -126,7 +131,20 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
       : { name: "state home", status: "WARN", detail: `${homes.stateHome} (created on first write)` }
     : { name: "state home", status: "FAIL", detail: "unresolved until an active org is selected" };
 
-  const ok = ![...adapters, ...config, state, scheduler].some((row) => row.status === "FAIL");
+  // ISSUE-010: a budget-stopped or crashed turn can leave uncommitted work in
+  // the org-managed clone, and the next turn silently inherits it. This is a
+  // local read of state doctor already owns; it never fetches or mutates.
+  const managedClones: ManagedCloneHealth[] = homes === undefined
+    ? []
+    : inspectManagedClones(homes.stateHome, homes.appsFile.apps.map((entry) => entry.name));
+  const clones: CheckRow[] = managedClones.map((health) => ({
+    name: `repos/${health.app}`,
+    ...describeManagedClone(health),
+  }));
+
+  const ok = ![...adapters, ...config, state, scheduler, ...clones].some(
+    (row) => row.status === "FAIL",
+  );
   if (options.json === true) {
     console.log(
       JSON.stringify(
@@ -146,6 +164,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
           readinessMode: options.configOnly === true ? "config_only" : "live_nonbillable",
           config,
           state,
+          managedClones,
           scheduler,
           schedulerStatus,
         },
@@ -165,6 +184,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   }
   printRows("config", config);
   printRows("state", [state]);
+  if (clones.length > 0) printRows("managed clones", clones);
   printRows("scheduler", [scheduler]);
   if (schedulerStatus?.definition.installed === true) console.log(`  ${manager.backend} installed; inspect/repair with: operon scheduler status`);
   else if (homes) console.log(`  ${manager.backend} not installed; preview with: operon scheduler install --backend ${manager.backend}`);

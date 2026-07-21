@@ -73,7 +73,7 @@ const CAPABILITIES = [
   { command: "retro", writes: true, spendsTokens: false, summary: "write an evidence-based org retro" },
   { command: "learn", writes: true, spendsTokens: true, summary: "learning loop: inspect/show/report and `distill --dry-run` are token-free; experiment run and actionable `distill` windows spend learning-budgeted tokens; governed activation remains human-operated" },
   { command: "prune-runs", writes: true, spendsTokens: false, summary: "delete finalized run data beyond retention" },
-  { command: "doctor", writes: false, spendsTokens: false, summary: "validate installation and active org configuration" },
+  { command: "doctor", writes: false, spendsTokens: false, summary: "validate installation, active org configuration, and managed-clone working trees" },
   { command: "context", writes: false, spendsTokens: false, summary: "show resolved paths, authority provenance, and registered apps" },
 ] as const;
 

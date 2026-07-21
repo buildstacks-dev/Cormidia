@@ -776,7 +776,7 @@ describe("loop driver", () => {
     }
   });
 
-  it("loadGateCommands reads commands from the sole registry-style app entry", () => {
+  it("refuses gate commands nested under the app entry with exact canonical paths", () => {
     const root = mkdtempSync(join(tmpdir(), "operon-driver-"));
     try {
       mkdirSync(join(root, ".operon"));
@@ -797,11 +797,9 @@ describe("loop driver", () => {
         "utf8",
       );
 
-      expect(loadGateCommands(root)).toEqual({
-        setupCommand: "pnpm install --frozen-lockfile",
-        testCommand: "pnpm test",
-        lintCommand: "pnpm lint",
-      });
+      expect(() => loadGateCommands(root)).toThrow(
+        /apps\.fixture\.test_command.*apps\.fixture\.lint_command.*apps\.fixture\.commands\.install.*top level.*siblings of "apps".*never under "apps\.<name>"/,
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -837,6 +835,34 @@ describe("loop driver", () => {
         testCommand: "npm test",
         lintCommand: "npm run lint",
       });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a built worktree's nested gate keys before any quality gate can bless them", () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-"));
+    try {
+      mkdirSync(join(root, ".operon"));
+      writeFileSync(
+        join(root, ".operon", "config.yaml"),
+        [
+          "schema_version: 1",
+          "apps:",
+          "  fixture:",
+          "    repo: owner/fixture",
+          "    status: onboarding",
+          "    setup_command: pnpm install --frozen-lockfile",
+          "    test_command: pnpm test",
+          "    lint_command: pnpm lint",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      expect(() => gateCommandsForWorktree({ testCommand: "stale test" }, root)).toThrow(
+        /declare "setup_command", "test_command", "lint_command" at the top level/,
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

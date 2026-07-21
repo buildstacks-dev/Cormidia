@@ -931,11 +931,11 @@ ${answers.good}
 `;
 }
 
-/** The app's registry entry — same schema as apps.yaml (architecture §1),
- * so it round-trips through src/org/apps.ts loadApps. `critical_ops` and
- * `channels` ride inside the app entry (app-specific by definition); the
- * registry parser ignores what it doesn't know, the gate-extension loader
- * (M7) will read them. */
+/** The app's registry mirror plus checkout-level extensions. `apps.<name>`
+ * uses the same app-entry schema as apps.yaml and round-trips through
+ * src/org/apps.ts loadApps. Gate commands are separate top-level keys because
+ * they describe this checkout; they are never fields of `apps.<name>`.
+ * `critical_ops` and `channels` remain inside the app entry. */
 function configYaml(
   appName: string,
   repoSlug: string,
@@ -965,7 +965,7 @@ function configYaml(
   if (answers.channels.marketing !== undefined) channels["marketing"] = answers.channels.marketing;
   if (Object.keys(channels).length > 0) entry["channels"] = channels;
 
-  const header = `# .operon/config.yaml — this app's registry entry, same schema as apps.yaml
+  const header = `# .operon/config.yaml — app registry mirror plus checkout-level policy
 # (docs/architecture.md §1, §9). Emitted by \`operon bootstrap\` from the
 # questionnaire answers. Human-ratified surface: changes land via proposal
 # PR; agent writes are gate-critical. schema_version is the public contract
@@ -984,6 +984,9 @@ function configYaml(
 #   app has one. A milestone whose plan requires deploy/package fails the
 #   ship gate unless this declares it, e.g.:
 #   release: { kind: deploy, command: gh workflow run deploy.yml, owner: orchestrator }
+# setup_command/test_command/lint_command/e2e_test_command: checkout-level
+#   quality gates. These keys are top-level siblings of apps, never fields
+#   under apps.<name>.
 
 `;
 

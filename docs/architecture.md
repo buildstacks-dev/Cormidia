@@ -337,9 +337,11 @@ and the app-check gates could never reach `ready` (E2E-01). An unconfigured
 failure is a typed `app-check-setup` **blocked** check with remediation and
 short-circuits the dependent tests/lint so their would-be failures never
 masquerade as the cause. Verify resolves the setup command the same way every
-gate command is resolved (`loadGateCommands`), which now reads a `setup_command`
-written either inside the sole app entry or at the top level of
-`.operon/config.yaml` — the shape `operon new-app` emits (W0-ADJ-04). It writes
+gate command is resolved (`loadGateCommands`). Gate commands are canonical only
+at the top level of `.operon/config.yaml` (siblings of `apps`, never under
+`apps.<name>`), which is the shape `operon new-app` emits. Both the schema
+validator and gate loader reject nested keys with the exact canonical path, so
+a build cannot execute commands from config that verification rejects. It writes
 a stable readiness projection and a terminal mechanical execution step; provider
 factories, processes, turns, and settlements remain zero.
 
@@ -356,6 +358,16 @@ status `blocked`/`invalid` and remediation — never a raw `ENOENT` or unhandled
 exception. When no onboarding pointer exists (an app onboarded before this
 path), verify falls back to the registered GitHub slug so re-running
 `operon app verify` recovers an app already stuck in the broken state.
+After schema, registry mirror, effective authority, and formatting validation,
+a real verify also accepts a changed config only when its exact bytes come from
+the fetched remote default branch and managed HEAD equals that commit. It uses
+one raw-byte hash derivation for both record writes and comparisons, records the
+commit that supplied those bytes, and keeps an atomic crash-resumable journal
+with the previous and accepted hash/commit. Promotion preview is read-only: it
+reports the exact `operon app verify` remediation and never changes the pin.
+Arbitrary managed-working-tree bytes therefore cannot become lifecycle
+authority, while a reviewed config change merged to the remote default branch
+converges without weakening drift detection.
 
 `operon app promote <app> --to live` is a non-mutating plan unless
 `--execute` is present. Execution is admitted only from passing verification,
@@ -373,7 +385,7 @@ commit or side effect.
   TASTE.md               app charter ("what this product is; what good means")
   AUTHORITY.md           session-readable org snapshot + app-only narrowing
   LABELS.md              generated canonical GitHub label reference
-  config.yaml            this app's registry entry (same schema as apps.yaml)
+  config.yaml            app-entry registry mirror + top-level checkout gates
   policy.yaml            app-owned quality-gate policy emitted by bootstrap
   memory/<role>/         per-(role, app) domain bundles
   onboarding-report.md   deterministic setup/documentation inventory
@@ -1149,8 +1161,10 @@ EpisodePlanner. In `fixed`, each planned role turn resolves the role's existing
 configured tuple. In `adaptive`, role-local org-approved candidates are
 required, and `allowed_assignments` may narrow their IDs per app but cannot
 invent or widen a tuple. The Planner boot turn remains its configured fixed
-tuple in both modes. The committed org-home entry and the app repo's mirrored
-`.operon/config.yaml` use the same schema and must normalize identically.
+tuple in both modes. The committed org-home entry and `.operon/config.yaml`'s
+`apps.<name>` mirror use the same app-entry schema and must normalize
+identically. Checkout gate commands are `.operon/config.yaml` top-level
+extensions, not app-entry fields.
 
 An org-approved role candidate keeps the harness and exact model inseparable,
 lists every supported effort explicitly, and binds the operational evidence

@@ -153,6 +153,21 @@ apps:
 `))).rejects.toThrow(/app "civic": unknown field\(s\): executon/);
   });
 
+  it("rejects nested gate commands with actionable top-level .operon paths", async () => {
+    await expect(loadApps(appsFile(`
+org: {name: operon}
+apps:
+  civic:
+    repo: owner/civic
+    status: onboarding
+    setup_command: pnpm install --frozen-lockfile
+    test_command: pnpm test
+    lint_command: pnpm lint
+`))).rejects.toThrow(
+      /"apps\.civic\.setup_command".*declare "setup_command", "test_command", "lint_command" at the top level of \.operon\/config\.yaml.*siblings of "apps"/,
+    );
+  });
+
   it("rejects duplicate, empty, and non-canonical assignment IDs", async () => {
     const config = (ids: string) => appsFile(`
 org: {name: operon}

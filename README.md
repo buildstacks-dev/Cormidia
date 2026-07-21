@@ -399,7 +399,12 @@ operon app promote <app> --to live --execute --json
 Upgrade is additive, archive-backed, and followed by org/authority validation.
 Verification proves remote/default ancestry, managed HEAD, registry/config and
 authority hashes, app checks, approvals/locks, and static adapter/model
-readiness without starting a runtime. Promotion mutates app/registry status
+readiness without starting a runtime. Gate commands in `.operon/config.yaml`
+are top-level keys (siblings of `apps`, never under `apps.<name>`). A real
+verify accepts a valid changed config only from the fetched remote default
+branch, records its exact hash and commit in a crash-resumable lifecycle
+journal, and gives promotion preview an actionable `app verify` remediation
+without mutating the record. Promotion mutates app/registry status
 only after verification and resumes exactly once across config, commit, push,
 and registry boundaries. All lifecycle JSON is canonically key-sorted.
 

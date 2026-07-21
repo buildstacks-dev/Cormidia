@@ -81,7 +81,20 @@ export interface AppLifecycleRecord {
   managed_clone: string;
   authority_sha256: string;
   config_sha256: string;
+  /** Commit on the fetched remote default branch whose config bytes produced
+   * `config_sha256`. Legacy records omit this until the next real verify. */
+  config_commit?: string;
   answers_sha256: string;
+}
+
+interface ConfigRatificationJournal {
+  schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
+  kind: "app-config-ratification";
+  transaction_id: string;
+  app: string;
+  phase: "intent" | "complete";
+  previous: { config_sha256: string; config_commit: string | null };
+  accepted: { config_sha256: string; config_commit: string };
 }
 
 export interface RecoveredBootstrapResult extends BootstrapRunResult {
@@ -129,6 +142,9 @@ export interface VerifyAppOptions {
    * actual remote is GitHub, so local/file remotes remain supported. */
   githubFactory?: (repo: string) => Pick<GhOps, "listLabels">;
   fault?: LifecycleFaultHook;
+  /** Internal recursion seam: executeAppPromotion already owns the same app
+   * lifecycle lock when it performs its final verification. */
+  operationLockHeld?: boolean;
 }
 
 export interface AppVerification {
@@ -144,6 +160,7 @@ export interface AppVerification {
   managed_head: string | null;
   authority_sha256: string;
   config_sha256: string | null;
+  config_commit: string | null;
   checks: LifecycleCheck[];
   provider: { factories: 0; processes: 0; turns: 0; settlements: 0 };
   readiness_path: string;
@@ -334,7 +351,8 @@ async function bootstrapFromRecoveredAnswersLocked(
       onboarding_commit: onboardingCommit,
       managed_clone: managedClone,
       authority_sha256: `sha256:${authority.sha256}`,
-      config_sha256: `sha256:${sha256(configBytes)}`,
+      config_sha256: configSha256(configBytes),
+      config_commit: configCommitAt(managedClone, onboardingCommit),
       answers_sha256: answersHash,
     };
     await writeLifecycleFileAtomic(recordPath, stableJson(record));
@@ -367,6 +385,15 @@ async function bootstrapFromRecoveredAnswersLocked(
 }
 
 export async function verifyApp(options: VerifyAppOptions): Promise<AppVerification> {
+  if (options.synchronize !== false && options.operationLockHeld !== true) {
+    const stateHome = resolve(options.stateHome);
+    const release = await acquireLifecycleOperationLock(stateHome, options.appName, "app verify");
+    try {
+      return await verifyApp({ ...options, operationLockHeld: true });
+    } finally {
+      await release();
+    }
+  }
   const orgHome = resolve(options.orgHome);
   const stateHome = resolve(options.stateHome);
   const apps = await loadApps(join(orgHome, "apps.yaml"));
@@ -384,6 +411,7 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
   let remoteHead: string | null = null;
   let managedHead: string | null = null;
   let configHash: string | null = null;
+  let configCommit: string | null = null;
 
   checks.push(record.repo === app.repo
     ? pass("registry-record", "registry and lifecycle record identify the same repository")
@@ -476,9 +504,19 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
     try {
       await assertRegularFile(configPath, "app config");
       const configBytes = await readFile(configPath);
-      configHash = `sha256:${sha256(configBytes)}`;
-      if (configHash !== record.config_sha256) {
-        throw new Error(`config hash ${configHash} differs from lifecycle record ${record.config_sha256}`);
+      configHash = configSha256(configBytes);
+      const remoteAligned = remoteHead !== null && managedHead === remoteHead;
+      if (remoteHead !== null && managedHead === remoteHead) {
+        configCommit = configCommitAt(record.managed_clone, remoteHead);
+        const committedHash = configSha256(configBytesAtCommit(record.managed_clone, remoteHead));
+        if (committedHash !== configHash) {
+          throw new ConfigVerificationError(
+            `working-tree config hash ${configHash} differs from fetched ${record.default_branch} config ${committedHash}`,
+            "discard or commit the working-tree drift through the reviewed remote-default-branch path, then rerun `operon app verify`",
+          );
+        }
+      } else {
+        configCommit = record.config_commit ?? null;
       }
       const config = await loadApps(configPath);
       const configApp = config.apps.find((entry) => entry.name === app.name);
@@ -486,24 +524,77 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
       if (stableJson(comparableApp(configApp)) !== stableJson(comparableApp(app))) {
         throw new Error("registry and app config differ");
       }
-      checks.push(pass("registry-config", "registry and app-owned config agree"));
       const authority = await resolveAuthority({ orgHome, appWorkdir: record.managed_clone });
       const effectiveHash = `sha256:${authority.sha256}`;
       if (effectiveHash !== record.authority_sha256) throw new Error(`authority hash ${effectiveHash} differs from onboarding ${record.authority_sha256}`);
-      checks.push(pass("authority-hash", `effective authority ${effectiveHash}`));
       await validateFormatting(record.managed_clone);
+      if (record.config_sha256 !== configHash || (remoteAligned && record.config_commit !== configCommit)) {
+        if (!remoteAligned) {
+          throw new ConfigVerificationError(
+            `config hash ${configHash} differs from lifecycle record ${record.config_sha256}, but the fetched remote default branch is not synchronized`,
+            "resolve the managed-head/remote checks, then rerun `operon app verify` to accept only committed remote-default bytes",
+          );
+        }
+        if (options.synchronize === false) {
+          throw new ConfigVerificationError(
+            `fetched ${record.default_branch} config ${configHash} at ${configCommit} differs from lifecycle record ` +
+              `${record.config_sha256} at ${record.config_commit ?? "unknown commit"}`,
+            "run `operon app verify` to validate and accept the content-bound remote-default config before promotion",
+          );
+        }
+        if (configCommit === null) {
+          throw new Error("app verify: synchronized config has no committed revision");
+        }
+        const accepted = await acceptRemoteDefaultConfig({
+          stateHome,
+          record,
+          configSha256: configHash,
+          configCommit,
+          ...(options.fault === undefined ? {} : { fault: options.fault }),
+        });
+        record.config_sha256 = accepted.config_sha256;
+        record.config_commit = accepted.config_commit;
+        checks.push(pass(
+          "registry-config",
+          `registry and app-owned config agree; accepted remote-default config ${configHash} at ${configCommit}`,
+        ));
+      } else {
+        if (options.synchronize !== false && configCommit !== null) {
+          await reconcileAcceptedConfigJournal(stateHome, record, configHash, configCommit);
+        }
+        checks.push(pass(
+          "registry-config",
+          `registry and app-owned config agree at ${configCommit ?? "the recorded legacy revision"}`,
+        ));
+      }
+      checks.push(pass("authority-hash", `effective authority ${effectiveHash}`));
       checks.push(pass("artifact-format", "generated YAML/Markdown parse and formatting checks pass"));
     } catch (error) {
-      checks.push(fail("registry-config", message(error)));
+      checks.push(fail(
+        "registry-config",
+        message(error),
+        error instanceof ConfigVerificationError
+          ? error.remediation
+          : "fix the named .operon/config.yaml schema, registry, authority, or formatting mismatch and rerun `operon app verify`",
+      ));
     }
   }
 
   const activity = await appActivityChecks(stateHome, app.name);
   checks.push(...activity);
-  if (options.runChecks !== false && existsSync(join(record.managed_clone, ".git")) && remoteHead === managedHead) {
+  const registryConfigValid = checks.some((check) => check.id === "registry-config" && check.status === "pass");
+  if (options.runChecks !== false && existsSync(join(record.managed_clone, ".git")) && remoteHead === managedHead && registryConfigValid) {
     checks.push(...runDeclaredChecks(record.managed_clone));
   } else if (options.runChecks !== false) {
-    checks.push(blocked("app-checks", "app checks require a synchronized managed clone", "resolve ref/clone blockers and rerun"));
+    checks.push(blocked(
+      "app-checks",
+      registryConfigValid
+        ? "app checks require a synchronized managed clone"
+        : "app checks were not run because registry-config is invalid",
+      registryConfigValid
+        ? "resolve ref/clone blockers and rerun"
+        : "fix registry-config first, then rerun `operon app verify`",
+    ));
   } else {
     const priorPath = join(stateHome, "lifecycle", "readiness", `${app.name}.json`);
     try {
@@ -546,6 +637,7 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
     managed_head: managedHead,
     authority_sha256: record.authority_sha256,
     config_sha256: configHash,
+    config_commit: configCommit,
     checks,
     provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
     readiness_path: readinessPath,
@@ -686,11 +778,18 @@ export async function executeAppPromotion(
       journal = await patchPromotionJournal(journalPath, journal, { phase: "registry_updated" });
     }
     const configBytes = await readFile(configPath);
+    if (journal.promotion_commit === null) throw new Error("app promote: missing promotion commit after registry update");
     await writeLifecycleFileAtomic(lifecycleRecordPath(stateHome, options.appName), stableJson({
       ...record,
-      config_sha256: `sha256:${sha256(configBytes)}`,
+      config_sha256: configSha256(configBytes),
+      config_commit: journal.promotion_commit,
     } satisfies AppLifecycleRecord));
-    const finalVerification = await verifyApp({ ...options, synchronize: true, writeReadiness: true });
+    const finalVerification = await verifyApp({
+      ...options,
+      synchronize: true,
+      writeReadiness: true,
+      operationLockHeld: true,
+    });
     if (finalVerification.status !== "ready" || finalVerification.registry_status !== "live") {
       throw new Error(
         `app promote: post-transaction verification ${finalVerification.status}: ` +
@@ -724,7 +823,8 @@ export async function readLifecycleRecord(stateHome: string, app: string): Promi
     typeof value.default_branch !== "string" ||
     typeof value.default_base !== "string" ||
     typeof value.onboarding_commit !== "string" ||
-    typeof value.managed_clone !== "string"
+    typeof value.managed_clone !== "string" ||
+    (value.config_commit !== undefined && !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(value.config_commit))
   ) throw new Error(`app verify: invalid lifecycle record ${path}`);
   if (resolve(value.managed_clone) !== join(resolve(stateHome), "repos", app)) throw new Error("app verify: managed clone path escapes app state");
   return value as AppLifecycleRecord;
@@ -746,7 +846,11 @@ async function resolveLifecycleRecordForVerify(
   const path = lifecycleRecordPath(stateHome, app.name);
   if (existsSync(path)) {
     try {
-      return { ok: true, record: await readLifecycleRecord(stateHome, app.name) };
+      const record = await readLifecycleRecord(stateHome, app.name);
+      if (!/^sha256:[a-f0-9]{64}$/.test(record.config_sha256)) {
+        throw new Error(`app verify: invalid lifecycle config hash ${path}`);
+      }
+      return { ok: true, record };
     } catch (error) {
       return { ok: false, check: fail("lifecycle-record", message(error)) };
     }
@@ -836,7 +940,8 @@ async function synthesizeLifecycleRecord(
     onboarding_commit: onboardingCommit,
     managed_clone: managedClone,
     authority_sha256: `sha256:${authority.sha256}`,
-    config_sha256: `sha256:${sha256(configBytes)}`,
+    config_sha256: configSha256(configBytes),
+    config_commit: configCommitAt(managedClone, "HEAD"),
     answers_sha256: await onboardingAnswersHash(stateHome, app.name),
   };
   await writeLifecycleFileAtomic(lifecycleRecordPath(stateHome, app.name), stableJson(record));
@@ -896,6 +1001,173 @@ function onboardingSourceSnapshot(checkout: string | null): AppLifecycleRecord["
   if (checkout === null) return { path: "", branch: "", head: "", status_sha256: `sha256:${sha256("")}` };
   const snap = gitSnapshot(checkout);
   return { path: checkout, branch: snap.branch, head: snap.head, status_sha256: `sha256:${sha256(snap.status)}` };
+}
+
+class ConfigVerificationError extends Error {
+  constructor(message: string, readonly remediation: string) {
+    super(message);
+    this.name = "ConfigVerificationError";
+  }
+}
+
+function configSha256(bytes: string | Buffer): string {
+  return `sha256:${sha256(bytes)}`;
+}
+
+function configBytesAtCommit(root: string, revision: string): Buffer {
+  return execFileSync("git", ["show", `${revision}:.operon/config.yaml`], {
+    cwd: root,
+    env: GIT_ENV,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+function configCommitAt(root: string, revision: string): string {
+  const commit = git(root, "log", "-1", "--format=%H", revision, "--", ".operon/config.yaml");
+  if (commit === "") {
+    throw new Error(`app config has no committed revision reachable from ${revision}`);
+  }
+  return commit;
+}
+
+function findConfigCommitByHash(root: string, revision: string, hash: string): string | null {
+  const history = git(root, "log", "--format=%H", revision, "--", ".operon/config.yaml");
+  for (const commit of history.split("\n").filter((line) => line.length > 0)) {
+    if (configSha256(configBytesAtCommit(root, commit)) === hash) return commit;
+  }
+  return null;
+}
+
+function configRatificationDir(stateHome: string, app: string): string {
+  assertSafeSegment(app, "app lifecycle");
+  return join(resolve(stateHome), "lifecycle", "apps", app, "config-ratifications");
+}
+
+function parseConfigRatificationJournal(text: string, path: string): ConfigRatificationJournal {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`app verify: corrupt config-ratification journal ${path}: ${message(error)}`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`app verify: corrupt config-ratification journal ${path}`);
+  }
+  const journal = value as Partial<ConfigRatificationJournal>;
+  if (
+    journal.schema_version !== LIFECYCLE_SCHEMA_VERSION ||
+    journal.kind !== "app-config-ratification" ||
+    typeof journal.transaction_id !== "string" ||
+    typeof journal.app !== "string" ||
+    (journal.phase !== "intent" && journal.phase !== "complete") ||
+    !journal.previous ||
+    typeof journal.previous.config_sha256 !== "string" ||
+    !(journal.previous.config_commit === null || typeof journal.previous.config_commit === "string") ||
+    !journal.accepted ||
+    typeof journal.accepted.config_sha256 !== "string" ||
+    typeof journal.accepted.config_commit !== "string"
+  ) {
+    throw new Error(`app verify: corrupt config-ratification journal ${path}`);
+  }
+  return journal as ConfigRatificationJournal;
+}
+
+async function acceptRemoteDefaultConfig(input: {
+  stateHome: string;
+  record: AppLifecycleRecord;
+  configSha256: string;
+  configCommit: string;
+  fault?: LifecycleFaultHook;
+}): Promise<ConfigRatificationJournal["accepted"]> {
+  const previousCommit = input.record.config_commit ?? findConfigCommitByHash(
+    input.record.managed_clone,
+    input.configCommit,
+    input.record.config_sha256,
+  );
+  const previous = {
+    config_sha256: input.record.config_sha256,
+    config_commit: previousCommit,
+  };
+  const accepted = {
+    config_sha256: input.configSha256,
+    config_commit: input.configCommit,
+  };
+  const transactionId = `config-${sha256(stableJson({ app: input.record.app, previous, accepted })).slice(0, 20)}`;
+  const path = join(configRatificationDir(input.stateHome, input.record.app), `${transactionId}.json`);
+  let journal: ConfigRatificationJournal;
+  if (existsSync(path)) {
+    await assertRegularFile(path, "config-ratification journal");
+    journal = parseConfigRatificationJournal(await readFile(path, "utf8"), path);
+    if (
+      journal.transaction_id !== transactionId ||
+      journal.app !== input.record.app ||
+      stableJson(journal.previous) !== stableJson(previous) ||
+      stableJson(journal.accepted) !== stableJson(accepted)
+    ) {
+      throw new Error(`app verify: config-ratification journal identity mismatch ${path}`);
+    }
+  } else {
+    journal = {
+      schema_version: LIFECYCLE_SCHEMA_VERSION,
+      kind: "app-config-ratification",
+      transaction_id: transactionId,
+      app: input.record.app,
+      phase: "intent",
+      previous,
+      accepted,
+    };
+    await writeLifecycleFileAtomic(path, stableJson(journal));
+  }
+  await input.fault?.("after_config_ratification_intent");
+
+  const current = await readLifecycleRecord(input.stateHome, input.record.app);
+  const currentIsAccepted = current.config_sha256 === accepted.config_sha256 &&
+    current.config_commit === accepted.config_commit;
+  if (!currentIsAccepted) {
+    if (current.config_sha256 !== previous.config_sha256) {
+      throw new Error(
+        `app verify: lifecycle config changed concurrently from ${previous.config_sha256} to ${current.config_sha256}; rerun verification`,
+      );
+    }
+    await writeLifecycleFileAtomic(lifecycleRecordPath(input.stateHome, input.record.app), stableJson({
+      ...current,
+      config_sha256: accepted.config_sha256,
+      config_commit: accepted.config_commit,
+    } satisfies AppLifecycleRecord));
+    await input.fault?.("after_config_ratification_record");
+  }
+
+  if (journal.phase !== "complete") {
+    journal = { ...journal, phase: "complete" };
+    await writeLifecycleFileAtomic(path, stableJson(journal));
+  }
+  await input.fault?.("after_config_ratification_complete");
+  return accepted;
+}
+
+async function reconcileAcceptedConfigJournal(
+  stateHome: string,
+  record: AppLifecycleRecord,
+  configHash: string,
+  configCommit: string,
+): Promise<void> {
+  const dir = configRatificationDir(stateHome, record.app);
+  if (!existsSync(dir)) return;
+  for (const file of (await readdir(dir)).filter((name) => name.endsWith(".json")).sort()) {
+    const path = join(dir, file);
+    await assertRegularFile(path, "config-ratification journal");
+    const journal = parseConfigRatificationJournal(await readFile(path, "utf8"), path);
+    if (journal.app !== record.app) {
+      throw new Error(`app verify: foreign config-ratification journal ${path}`);
+    }
+    if (
+      journal.phase === "intent" &&
+      journal.accepted.config_sha256 === configHash &&
+      journal.accepted.config_commit === configCommit
+    ) {
+      await writeLifecycleFileAtomic(path, stableJson({ ...journal, phase: "complete" } satisfies ConfigRatificationJournal));
+    }
+  }
 }
 
 async function onboardingAnswersHash(stateHome: string, app: string): Promise<string> {
@@ -964,6 +1236,7 @@ async function unverifiableReport(
     managed_head: null,
     authority_sha256: "",
     config_sha256: null,
+    config_commit: null,
     checks: [check],
     provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
     readiness_path: readinessPath,
@@ -1003,6 +1276,11 @@ async function validateGeneratedArtifacts(root: string, app: string, repo: strin
 async function validateFormatting(root: string): Promise<void> {
   const configPath = join(root, ".operon", "config.yaml");
   await loadApps(configPath);
+  const configText = await readFile(configPath, "utf8");
+  if (!configText.endsWith("\n")) throw new Error("app config lacks a final newline");
+  if (configText.split("\n").some((line) => /[ \t]+$/.test(line))) {
+    throw new Error("app config has trailing whitespace");
+  }
   parse(await readFile(join(root, ".operon", "policy.yaml"), "utf8"));
   git(root, "diff", "--check");
 }
@@ -1344,7 +1622,9 @@ function gitIsAncestor(root: string, ancestor: string, descendant: string): bool
 }
 
 function pass(id: string, detail: string): LifecycleCheck { return { id, status: "pass", detail }; }
-function fail(id: string, detail: string): LifecycleCheck { return { id, status: "fail", detail }; }
+function fail(id: string, detail: string, remediation?: string): LifecycleCheck {
+  return { id, status: "fail", detail, ...(remediation === undefined ? {} : { remediation }) };
+}
 function blocked(id: string, detail: string, remediation: string): LifecycleCheck { return { id, status: "blocked", detail, remediation }; }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 

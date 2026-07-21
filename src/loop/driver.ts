@@ -49,6 +49,7 @@ import type { PipelinesFile } from "./pipelines.js";
 import type { Policy } from "./policy.js";
 import { loadPolicy } from "./policy.js";
 import type { GateCommands } from "./qgates.js";
+import { assertCanonicalGateCommandPlacement } from "./gate-config.js";
 import {
   episodeIdFor,
   readRouteRecord,
@@ -1024,25 +1025,15 @@ export function loadGateCommands(repoDir: string): GateCommands {
   const configPath = join(repoDir, ".operon", "config.yaml");
   if (existsSync(configPath)) {
     const raw = parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
-    const nestedApps = asRecord(raw["apps"]);
-    const appEntries = nestedApps === undefined ? [] : Object.values(nestedApps);
-    const soleApp = appEntries.length === 1 ? asRecord(appEntries[0]) : undefined;
-    // A gate command may sit inside the sole app entry OR at the top level of
-    // `.operon/config.yaml`. `new-app`'s appendGateCommands writes TOP-LEVEL
-    // `setup_command`/`test_command`/`lint_command`, while a hand-written config
-    // may nest them under the single app; read the app entry first, then fall
-    // back to the top level, so neither placement is silently dead config
-    // (W0-ADJ-04). With no app entry (or several), only the top level is read —
-    // unchanged from before. Within a source, an explicit `*_command` still
-    // wins over the `commands.<x>` map, preserving the prior precedence.
-    const sources = soleApp !== undefined ? [soleApp, raw] : [raw];
+    assertCanonicalGateCommandPlacement(raw, configPath);
+    // Gate commands are checkout-level policy and therefore come only from the
+    // document top level. Within that canonical location, an explicit
+    // `*_command` still wins over the legacy `commands.<x>` spelling.
     const resolveCommand = (explicitKey: string, mapKey: string): string | undefined => {
-      for (const source of sources) {
-        const explicit = source[explicitKey];
-        if (typeof explicit === "string") return explicit;
-        const nested = asRecord(source["commands"])?.[mapKey];
-        if (typeof nested === "string") return nested;
-      }
+      const explicit = raw[explicitKey];
+      if (typeof explicit === "string") return explicit;
+      const nested = asRecord(raw["commands"])?.[mapKey];
+      if (typeof nested === "string") return nested;
       return undefined;
     };
 

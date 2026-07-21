@@ -11,6 +11,7 @@ import { parse, parseDocument, stringify } from "yaml";
 import type { RoleConfig, Trigger } from "../runtime/types.js";
 import { isAssignmentCandidateId } from "../runtime/assignment.js";
 import { ASSIGNMENT_MODES, type AssignmentMode } from "../loop/episode-plan.js";
+import { assertCanonicalGateCommandPlacement } from "../loop/gate-config.js";
 import { RELEASE_KINDS, RELEASE_OWNERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner } from "../loop/types.js";
 import { writeFileAtomic } from "./atomic.js";
 import {
@@ -122,6 +123,7 @@ export interface UpdateAppStatusResult {
 export async function loadApps(path: string): Promise<AppsFile> {
   const raw = parse(await readFile(path, "utf8")) as Record<string, unknown>;
   if (!raw || typeof raw !== "object") throw new Error(`${path}: not a YAML mapping`);
+  assertCanonicalGateCommandPlacement(raw, path);
 
   const orgRaw = raw["org"];
   if (!orgRaw || typeof orgRaw !== "object") {

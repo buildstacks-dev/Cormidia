@@ -282,12 +282,14 @@ async function appendGateCommands(targetDir: string, template: NewAppTemplate): 
 # Required test and lint gates fail closed while these keys are absent. The
 # first implementation must replace these examples with meaningful commands
 # for its explicitly selected stack; do not use no-op or zero-test commands.
+# These are TOP-LEVEL keys (siblings of \`apps\`), never \`apps.<name>\` fields.
 # setup_command: <optional stack-specific setup command>
 # test_command: <meaningful stack-specific test command>
 # lint_command: <meaningful stack-specific lint or static-analysis command>
 `
     : `
-# Gate commands used by Operon's loop in fresh worktrees.
+# Gate commands used by Operon's loop in fresh worktrees. These are TOP-LEVEL
+# keys (siblings of \`apps\`), never \`apps.<name>\` fields.
 setup_command: npm install
 test_command: npm test
 lint_command: npm run lint
@@ -446,8 +448,9 @@ The first implementation work must:
 - select and document the stack in \`docs/ARCHITECTURE.md\`;
 - add the stack's real source, manifest, and local commands;
 - add meaningful automated tests and lint or static analysis; and
-- set \`test_command\` and \`lint_command\` (plus \`setup_command\` when needed)
-  in \`.operon/config.yaml\`.
+- set top-level \`test_command\` and \`lint_command\` (plus top-level
+  \`setup_command\` when needed) in \`.operon/config.yaml\`; these keys are
+  siblings of \`apps\`, never fields under \`apps.<name>\`.
 
 Those required gate commands are intentionally absent. Operon treats them as
 unconfigured failures, so this empty scaffold cannot certify itself with
@@ -913,8 +916,9 @@ free-form goal text.
 
 \`.operon/config.yaml\` intentionally has no \`test_command\` or \`lint_command\`.
 Operon's required gates therefore fail closed until the first implementation
-adds meaningful stack-specific commands. Add \`setup_command\` only when a fresh
-worktree needs a deterministic setup step.
+adds meaningful stack-specific commands. Gate commands are top-level keys,
+siblings of \`apps\`; never put them under \`apps.<name>\`. Add
+\`setup_command\` only when a fresh worktree needs a deterministic setup step.
 `;
 }
 
@@ -929,7 +933,8 @@ the stack.
 
 ## Quality Gates — Pending
 
-The first implementation must add real commands to \`.operon/config.yaml\`:
+The first implementation must add real commands as top-level keys in
+\`.operon/config.yaml\` (siblings of \`apps\`, never under \`apps.<name>\`):
 
 \`\`\`yaml
 setup_command: <optional stack-specific setup command>
@@ -964,8 +969,9 @@ The first implementation must:
 - choose the stack's test and lint/static-analysis tools;
 - add at least one named behavior test for the first product slice;
 - prove that the test command fails when that behavior is broken;
-- configure \`test_command\` and \`lint_command\` in
-  \`.operon/config.yaml\`; and
+- configure top-level \`test_command\` and \`lint_command\` in
+  \`.operon/config.yaml\` as siblings of \`apps\`, never under
+  \`apps.<name>\`; and
 - replace this file with the exact local and CI workflow.
 
 Acceptance criteria in GitHub issues should map to named tests or a documented
@@ -1060,8 +1066,8 @@ remain unconfigured and fail closed until this work establishes them.
 
 - [ ] AC1: The selected stack and rationale are recorded in docs/ARCHITECTURE.md.
 - [ ] AC2: The stack's real manifest, source layout, and local workflow replace the pending guidance.
-- [ ] AC3: .operon/config.yaml declares a meaningful stack-specific \`test_command\` that runs at least one named behavior test and fails when the behavior breaks.
-- [ ] AC4: .operon/config.yaml declares a meaningful stack-specific \`lint_command\` (and \`setup_command\` when fresh worktrees need it).
+- [ ] AC3: .operon/config.yaml declares a meaningful stack-specific top-level \`test_command\` (a sibling of \`apps\`, never under \`apps.<name>\`) that runs at least one named behavior test and fails when the behavior breaks.
+- [ ] AC4: .operon/config.yaml declares a meaningful stack-specific top-level \`lint_command\` (and top-level \`setup_command\` when fresh worktrees need it).
 - [ ] AC5: The first product workflow has an observable result and docs explain how to run it.
 
 ## Suggested Implementation Notes
@@ -1069,6 +1075,7 @@ remain unconfigured and fail closed until this work establishes them.
 - Choose the stack from product requirements and reviewed sources, not from a scaffold assumption.
 - Keep the first PR narrow enough to prove one end-to-end slice.
 - Do not use placeholder, no-op, or zero-test commands to satisfy the gates.
+- Parse YAML when testing this contract; do not assert indentation with a text regex.
 - If the Planner needs to split this, keep stack selection and meaningful gates in the first implementation dependency.
 `;
 }

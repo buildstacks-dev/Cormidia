@@ -1,0 +1,48 @@
+# .operon/config.yaml — this app's registry entry, same schema as apps.yaml
+# (docs/architecture.md §1, §9). Emitted by `operon bootstrap` from the
+# questionnaire answers. Human-ratified surface: changes land via proposal
+# PR; agent writes are gate-critical. schema_version is the public contract
+# marker (§1 containment invariant).
+#
+# cadence: role -> trigger overrides. An entry REPLACES the role's
+#   roles.yaml triggers; an EMPTY list disables the role for this app —
+#   roles left un-enabled in the questionnaire appear here as [].
+# critical_ops: app-specific extensions to the org gate's rule set
+#   (§9 step 2: deploy commands, publish targets, secret locations).
+# channels: what Support/Marketing watch and draft for, when enabled.
+# execution.assignment_mode: fixed (configured tuple) or adaptive (one of the
+#   org-approved candidate IDs, optionally narrowed per role). Assignment mode
+#   changes assignment selection only; it never disables episode planning.
+# release: the app's declared release mechanism (A4) — omitted until the
+#   app has one. A milestone whose plan requires deploy/package fails the
+#   ship gate unless this declares it, e.g.:
+#   release: { kind: deploy, command: gh workflow run deploy.yml, owner: orchestrator }
+
+schema_version: 1
+org:
+  name: sonnet3-buildstack-dev
+  max_concurrent_turns: 2
+defaults:
+  budget_usd_month: 1000
+apps:
+  sonnet3-buildstack-dev:
+    repo: buildstacks-dev/sonnet3-buildstack-dev
+    status: onboarding
+    budget_usd_month: 1000
+    cadence:
+      support: []
+      marketing: []
+      distiller: []
+      learning-reviewer: []
+    execution:
+      assignment_mode: fixed
+    critical_ops:
+      deploy_commands: []
+      publish_targets: []
+      secret_locations:
+        - .env
+        - .env.local
+
+setup_command: pnpm install --frozen-lockfile
+test_command: pnpm test
+lint_command: pnpm lint

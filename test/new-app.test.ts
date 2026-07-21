@@ -199,6 +199,9 @@ describe("createNewApp", () => {
     expect(guidance).not.toContain("npm run lint");
     expect(guidance).not.toContain("src/domain.ts");
     expect(guidance).toContain("meaningful stack-specific");
+    expect(guidance).toContain("siblings of `apps`");
+    expect(guidance).toContain("never under `apps.<name>`");
+    expect(guidance).toContain("do not assert indentation with a text regex");
     expect(guidance).toContain("did not infer a stack from the goal");
     expect(guidance).toContain("Keep it as the only ready product-work issue until it");
     expect(guidance).toContain("Do not run `operon app verify` or `operon app promote` before that issue");

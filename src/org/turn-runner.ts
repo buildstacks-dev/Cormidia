@@ -645,7 +645,6 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
       maxProviderTurns: GENERIC_EPISODE_MAX_PROVIDER_TURNS,
       maxEquivalentCostUsd: remainingBudgetUsd,
       maxMechanicalOverheadUsd: remainingBudgetUsd,
-      maxInputTokens: 256_000,
       maxActiveTimeMs: 60 * 60 * 1_000,
       maxHumanDecisions: 2,
     },
@@ -672,9 +671,6 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
   const plannerReserveTurns = deterministicPreview.plannerBoot.providerTurnRequired
     ? plannerLimits.aggregate.providerTurns
     : 0;
-  const plannerReserveInputTokens = deterministicPreview.plannerBoot.providerTurnRequired
-    ? plannerLimits.aggregate.inputTokens
-    : 0;
   const plannerReserveActiveTimeMs = deterministicPreview.plannerBoot.providerTurnRequired
     ? plannerLimits.aggregate.activeTimeMs
     : 0;
@@ -696,10 +692,6 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
       ),
       maxEquivalentCostUsd: deliveryBudgetUsd,
       maxMechanicalOverheadUsd: deliveryBudgetUsd,
-      maxInputTokens: Math.max(
-        0,
-        (provisionalFacts.hardBudget.maxInputTokens ?? 0) - plannerReserveInputTokens,
-      ),
       maxActiveTimeMs: Math.max(
         0,
         (provisionalFacts.hardBudget.maxActiveTimeMs ?? 0) - plannerReserveActiveTimeMs,
@@ -824,13 +816,11 @@ function defaultGenericPlannerLimits(
   return {
     maxAttempts,
     perAttempt: {
-      inputTokens: 64_000,
       equivalentCostUsd,
       activeTimeMs: 5 * 60 * 1_000,
     },
     aggregate: {
       providerTurns: maxAttempts,
-      inputTokens: 128_000,
       equivalentCostUsd: equivalentCostUsd * maxAttempts,
       activeTimeMs: 10 * 60 * 1_000,
     },
@@ -1049,7 +1039,6 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
           maxProviderTurns: selectedPasses.length,
           maxEquivalentCostUsd: remainingBudgetUsd,
           maxMechanicalOverheadUsd: 0,
-          maxInputTokens: 256_000,
           maxActiveTimeMs: 60 * 60 * 1_000,
           maxHumanDecisions: 0,
         },
@@ -1574,7 +1563,6 @@ async function executeM6Pipeline<K extends "learning-distill" | "learning-review
           maxProviderTurns: selectedPasses.length,
           maxEquivalentCostUsd: Math.max(0, budget.budgetUsd - budget.spentUsd),
           maxMechanicalOverheadUsd: 0,
-          maxInputTokens: 256_000,
           maxActiveTimeMs: 60 * 60 * 1_000,
           maxHumanDecisions: 0,
         },

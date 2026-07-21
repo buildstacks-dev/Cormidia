@@ -347,10 +347,10 @@ fingerprints, ordered cases/repetitions, runtime/model/effort assignments,
 capability claims, price catalog, randomization seed, side-effect allowlists,
 retry/exclusion rules, evidence paths, spend caps, and stop rules before its
 first provider turn. Manifest mutation after start invalidates the campaign.
-Provider-backed deep and approval qualification cases additionally pin a
-positive input-token admission ceiling; the Phase 6 candidate template uses
-4,000,000 tokens. This supplies authority where the ordinary deep route is
-deliberately unset, and is a ceiling rather than a target or spend grant.
+Input tokens are not among the pinned bounds: they are a byproduct of context
+assembly and caching rather than a budget, and were retired as an admission
+dimension on 2026-07-20 (docs/PURPOSE.md → Decided). Campaigns are bounded by
+equivalent cost, provider turns, active time, and human decisions.
 
 Attempt outcomes are `passed`, `product_miss`, `safety_stop`, `budget_stop`,
 `infra_invalid`, `harness_error`, and `not_run`. Campaign outcomes are

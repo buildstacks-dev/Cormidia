@@ -52,13 +52,11 @@ const BUILDER_ASSIGNMENT: TurnAssignment = {
 const LIMITS: PlannerAdmissionLimits = {
   maxAttempts: 2,
   perAttempt: {
-    inputTokens: 100,
     equivalentCostUsd: 0.5,
     activeTimeMs: 1_000,
   },
   aggregate: {
     providerTurns: 2,
-    inputTokens: 200,
     equivalentCostUsd: 1,
     activeTimeMs: 2_000,
   },
@@ -505,7 +503,6 @@ describe("provider-backed EpisodePlanner", () => {
       perAttempt: { ...LIMITS.perAttempt, activeTimeMs: 10 },
       aggregate: {
         providerTurns: 1,
-        inputTokens: LIMITS.perAttempt.inputTokens,
         equivalentCostUsd: LIMITS.perAttempt.equivalentCostUsd,
         activeTimeMs: 10,
       },

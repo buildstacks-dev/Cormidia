@@ -217,9 +217,6 @@ export async function executeLiveCampaign(options: LiveExecutionOptions): Promis
           const run = await runRole({
             ...request,
             route,
-            ...(route === "deep" && campaign.route_budget_overrides?.deep !== undefined
-              ? { routeBudgetOverrides: campaign.route_budget_overrides.deep }
-              : {}),
           });
           const after = artifactFingerprint(workdir);
           if (run.record) phaseObservations.push({ kind, result: run.record.result, before, after });

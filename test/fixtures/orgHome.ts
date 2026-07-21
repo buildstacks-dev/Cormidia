@@ -403,7 +403,6 @@ function minimalRoute(episodeId: string, app: string): RouteRecord {
     authorized_passes: [],
     budget: {
       provider_turns: 5,
-      input_tokens: 4_000_000,
       equivalent_cost_usd: 15,
       active_time_ms: 45 * 60_000,
       human_decisions: null,

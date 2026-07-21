@@ -54,7 +54,6 @@ describe("Phase 3 token-free preflight/admission", () => {
           },
         };
       },
-      (options) => { options.episode = { route: "deep" }; },
       (options) => { options.episode = { route: "quick", budgetOverrides: { provider_turns: 0 } }; },
       (options) => { options.episode = { route: "quick", artifactExpectations: [{ path: "artifact.txt", sha256: "0".repeat(64), reason: "continuation commit" }] }; },
       (options) => { options.episode = { route: "quick", authorizedPasses: [] }; },

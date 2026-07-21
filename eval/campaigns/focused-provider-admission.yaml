@@ -22,9 +22,6 @@ assignments:
 price_catalog_id: prices/2026-07-15-v1
 randomization_seed: operon-focused-admission-20260716
 github: { owner: REPLACE_ME, repo_pattern: operon-eval-* }
-route_budget_overrides:
-  deep:
-    input_tokens: 4000000
 spend:
   campaign_max_usd: 118
   case_max_usd: { quick/ignore-config/v1: 8, deep/auth-migration/v1: 40, approval/semantics/v1: 40, roles/standing/v1: 30 }

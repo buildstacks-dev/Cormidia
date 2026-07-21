@@ -138,7 +138,6 @@ export const PRODUCT_PLANNING_EPISODE_POLICY_VERSION =
 const AUTO_PLAN_SOURCE_BUDGET_BYTES = 128 * 1024;
 const MAX_PRODUCT_PLANNING_PROVIDER_TURNS =
   Object.keys(PLANNING_PROVIDER_OPERATION_CATALOG).length;
-const DEFAULT_PLANNER_INPUT_TOKENS = 64_000;
 const DEFAULT_PLANNER_ACTIVE_TIME_MS = 5 * 60_000;
 const BASELINE_PROVIDER_CAPABILITIES = [
   "tool_gate",
@@ -413,7 +412,6 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       maxProviderTurns: MAX_PRODUCT_PLANNING_PROVIDER_TURNS,
       maxEquivalentCostUsd: deliveryBudgetUsd,
       maxMechanicalOverheadUsd: 0,
-      maxInputTokens: 2_000_000,
       maxActiveTimeMs: 30 * 60_000,
       maxHumanDecisions: 0,
     },
@@ -793,9 +791,7 @@ async function executePlanningProviderStep(
           route: planRouteLabel(input.plan),
           authorizedPasses: [authorization],
           finalize: false,
-          budgetOverrides: { input_tokens: DEFAULT_PLANNER_INPUT_TOKENS },
           nextTurnEstimate: {
-            inputTokens: DEFAULT_PLANNER_INPUT_TOKENS,
             costUsd: input.step.maxTurnBudgetUsd,
             activeTimeMs: DEFAULT_PLANNER_ACTIVE_TIME_MS,
           },
@@ -1203,13 +1199,11 @@ function defaultPlannerLimits(
   return {
     maxAttempts,
     perAttempt: {
-      inputTokens: DEFAULT_PLANNER_INPUT_TOKENS,
       equivalentCostUsd: perAttemptCost,
       activeTimeMs: DEFAULT_PLANNER_ACTIVE_TIME_MS,
     },
     aggregate: {
       providerTurns: maxAttempts,
-      inputTokens: DEFAULT_PLANNER_INPUT_TOKENS * maxAttempts,
       equivalentCostUsd: perAttemptCost * maxAttempts,
       activeTimeMs: DEFAULT_PLANNER_ACTIVE_TIME_MS * maxAttempts,
     },
@@ -1220,13 +1214,11 @@ function limitsFromAdmission(admission: PlannerAdmissionRecord): PlannerAdmissio
   return {
     maxAttempts: admission.budget.max_attempts,
     perAttempt: {
-      inputTokens: admission.budget.per_attempt.input_tokens,
       equivalentCostUsd: admission.budget.per_attempt.equivalent_cost_usd,
       activeTimeMs: admission.budget.per_attempt.active_time_ms,
     },
     aggregate: {
       providerTurns: admission.budget.aggregate.provider_turns,
-      inputTokens: admission.budget.aggregate.input_tokens,
       equivalentCostUsd: admission.budget.aggregate.equivalent_cost_usd,
       activeTimeMs: admission.budget.aggregate.active_time_ms,
     },

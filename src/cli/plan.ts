@@ -602,7 +602,6 @@ async function previewAutoPlanningRequest(input: {
         maxProviderTurns: Object.keys(PLANNING_PROVIDER_OPERATION_CATALOG).length,
         maxEquivalentCostUsd: deliveryBudgetUsd,
         maxMechanicalOverheadUsd: 0,
-        maxInputTokens: 2_000_000,
         maxActiveTimeMs: 30 * 60_000,
         maxHumanDecisions: 0,
       },
@@ -619,13 +618,11 @@ async function previewAutoPlanningRequest(input: {
       limits: {
         maxAttempts: 2,
         perAttempt: {
-          inputTokens: 64_000,
           equivalentCostUsd: perAttemptCost,
           activeTimeMs: 5 * 60_000,
         },
         aggregate: {
           providerTurns: 2,
-          inputTokens: 128_000,
           equivalentCostUsd: plannerReserveUsd,
           activeTimeMs: 10 * 60_000,
         },

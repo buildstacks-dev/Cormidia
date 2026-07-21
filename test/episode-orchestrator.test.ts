@@ -57,13 +57,11 @@ const ADAPTIVE_FALLBACK: TurnAssignment = {
 const LIMITS: PlannerAdmissionLimits = {
   maxAttempts: 2,
   perAttempt: {
-    inputTokens: 100,
     equivalentCostUsd: 0.5,
     activeTimeMs: 2_000,
   },
   aggregate: {
     providerTurns: 2,
-    inputTokens: 200,
     equivalentCostUsd: 1,
     activeTimeMs: 4_000,
   },
@@ -656,7 +654,6 @@ describe("EpisodePlanner org orchestrator", () => {
       hardBudget: {
         maxProviderTurns: 2,
         maxEquivalentCostUsd: 5,
-        maxInputTokens: 10_000,
         maxActiveTimeMs: 30_000,
       },
     };
@@ -898,7 +895,6 @@ function episodeFacts(
     hardBudget: {
       maxProviderTurns: 4,
       maxEquivalentCostUsd: 5,
-      maxInputTokens: 10_000,
       maxActiveTimeMs: 30_000,
     },
     requiredSafetyFacts: [],

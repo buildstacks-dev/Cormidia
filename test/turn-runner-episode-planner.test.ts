@@ -30,13 +30,11 @@ const PROMPT = "Return exactly one strict EpisodePlan JSON object.";
 const LIMITS: PlannerAdmissionLimits = {
   maxAttempts: 2,
   perAttempt: {
-    inputTokens: 1_000,
     equivalentCostUsd: 0.5,
     activeTimeMs: 5_000,
   },
   aggregate: {
     providerTurns: 2,
-    inputTokens: 2_000,
     equivalentCostUsd: 1,
     activeTimeMs: 10_000,
   },

@@ -139,9 +139,6 @@ export function runPipelinePreflight(input: PipelinePreflightInput): PipelinePre
   }
 
   const budget = { ...ROUTE_BUDGETS[input.route], ...(input.budgetOverrides ?? {}) };
-  if (input.route === "deep" && budget.input_tokens === null) {
-    problems.push("deep route has no declared input-token budget");
-  }
   for (const [name, value] of [
     ["provider_turns", budget.provider_turns],
     ["equivalent_cost_usd", budget.equivalent_cost_usd],

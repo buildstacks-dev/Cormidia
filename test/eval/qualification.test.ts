@@ -63,11 +63,10 @@ it("J-REL-01 enforces the immutable 5-clean/10-mixed route and budget distributi
   const failed = qualify(campaign, hashManifest(campaign), results, qualificationEvidence(campaign, results)); expect(failed.outcome).toBe("not_qualified"); expect(failed.reasons).toContain("qualification clean route bound miss quick/ignore-config/v1::clean-q1");
 });
 
-it("J-REL-01 enforces input-token, cost, active-time, and human load for the final admitted route", () => {
+it("J-REL-01 enforces cost, active-time, and human load for the final admitted route", () => {
   const campaign = loadYamlFile("eval/campaigns/candidate-qualification.yaml") as CampaignManifest;
   const makeResults = () => campaign.cases.flatMap((item) => item.repetition_ids.map((repetition) => campaignAttempt(campaign, item.case_id, repetition)));
   for (const [field, mutate, expected] of [
-    ["tokens", (result: AttemptResult) => { (result.metrics.tokens as Record<string, unknown>).input = 2_000_001; }, "qualification route input-token bound miss"],
     ["cost", (result: AttemptResult) => { (result.metrics.cost as Record<string, unknown>).equivalent_usd = 8.01; }, "qualification route cost bound miss"],
     ["active", (result: AttemptResult) => { (result.metrics.latency as Record<string, unknown>).active_ms = 20 * 60_000 + 1; (result.metrics.latency as Record<string, unknown>).elapsed_ms = 20 * 60_000 + 1; }, "qualification route active-time bound miss"],
     ["human", (result: AttemptResult) => { (result.metrics.human_load as Record<string, unknown>).decisions = 2; }, "qualification route human-decision bound miss"],

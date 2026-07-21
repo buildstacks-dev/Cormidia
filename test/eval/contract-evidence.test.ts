@@ -134,7 +134,6 @@ function makeFixture(options: { writeProjection?: boolean } = {}): Fixture {
   if (template.blocks !== undefined) campaign.blocks = structuredClone(template.blocks);
   campaign.cases = structuredClone(template.cases);
   campaign.assignments = structuredClone(template.assignments);
-  if (template.route_budget_overrides !== undefined) campaign.route_budget_overrides = structuredClone(template.route_budget_overrides);
   campaign.randomization_seed = template.randomization_seed;
   campaign.spend = structuredClone(template.spend);
   const bundle = join(root, "research/evals/campaigns/candidate-fixture");

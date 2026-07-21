@@ -82,7 +82,6 @@ const LOCK_OPTIONS = {
 } as const;
 
 export interface PlannerAttemptCeiling {
-  inputTokens: number;
   equivalentCostUsd: number;
   activeTimeMs: number;
 }
@@ -101,7 +100,6 @@ export interface PlannerAdmissionLimits {
 }
 
 interface PersistedPlannerAttemptCeiling {
-  input_tokens: number;
   equivalent_cost_usd: number;
   active_time_ms: number;
 }
@@ -149,7 +147,6 @@ interface PlannerPlanPublicationRecord {
 
 export interface PlannerBudgetQuantity {
   providerTurns: number;
-  inputTokens: number;
   equivalentCostUsd: number;
   activeTimeMs: number;
 }
@@ -398,7 +395,6 @@ export async function beginEpisodePlannerAttempt(input: {
       input_fingerprint: input.inputFingerprint,
       context_manifest_ref: "context-manifest.json",
       reservation: {
-        input_tokens: admission.budget.per_attempt.input_tokens,
         equivalent_cost_usd: admission.budget.per_attempt.equivalent_cost_usd,
         active_time_ms: admission.budget.per_attempt.active_time_ms,
       },
@@ -416,7 +412,6 @@ export async function beginEpisodePlannerAttempt(input: {
       );
     }
     const reservation = {
-      inputTokens: admission.budget.per_attempt.input_tokens,
       equivalentCostUsd: admission.budget.per_attempt.equivalent_cost_usd,
       activeTimeMs: admission.budget.per_attempt.active_time_ms,
     };
@@ -746,11 +741,9 @@ export async function admitPlannedEpisodeRoute(
         ? `route allows ${budget.provider_turns} provider turns but planning plus the accepted plan require ${requiredTurns}`
         : requiredCost > budget.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
           ? `route allows $${budget.equivalent_cost_usd} but planning plus the accepted plan require $${requiredCost}`
-          : budget.input_tokens !== null && counters.input_tokens > budget.input_tokens
-            ? `planner consumed ${counters.input_tokens} input tokens but route allows ${budget.input_tokens}`
-            : counters.active_time_ms > budget.active_time_ms
-              ? `planner consumed ${counters.active_time_ms}ms but route allows ${budget.active_time_ms}ms`
-              : undefined;
+          : counters.active_time_ms > budget.active_time_ms
+            ? `planner consumed ${counters.active_time_ms}ms but route allows ${budget.active_time_ms}ms`
+            : undefined;
     if (conflict !== undefined) {
       throw new PlannerAdmissionError(
         "error_episode_planner_derived_route_budget",
@@ -764,7 +757,6 @@ export async function admitPlannedEpisodeRoute(
           route,
           consumedBeforeRoute: {
             providerTurns: counters.provider_turns,
-            inputTokens: counters.input_tokens,
             equivalentCostUsd: counters.equivalent_cost_usd,
             activeTimeMs: counters.active_time_ms,
           },
@@ -929,13 +921,9 @@ async function plannerBudgetStatusInternal(
         unmeasuredAttempts.push(attempt);
         continue;
       }
-      settled.inputTokens += usage.tokensIn;
       settled.equivalentCostUsd += usage.costUsd;
       settled.activeTimeMs += usage.wallClockMs;
       const ceiling = admission.budget.per_attempt;
-      if (usage.tokensIn > ceiling.input_tokens) {
-        limitViolations.push(`attempt ${attempt} input tokens ${usage.tokensIn} exceed ${ceiling.input_tokens}`);
-      }
       if (usage.costUsd > ceiling.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD) {
         limitViolations.push(`attempt ${attempt} cost $${usage.costUsd} exceeds $${ceiling.equivalent_cost_usd}`);
       }
@@ -948,16 +936,12 @@ async function plannerBudgetStatusInternal(
     if (receipt === undefined) continue;
     pendingAttempts.push(attempt);
     reserved.providerTurns += 1;
-    reserved.inputTokens += receipt.reservation!.input_tokens;
     reserved.equivalentCostUsd += receipt.reservation!.equivalent_cost_usd;
     reserved.activeTimeMs += receipt.reservation!.active_time_ms;
   }
   const aggregate = admission.budget.aggregate;
   if (settled.providerTurns + reserved.providerTurns > aggregate.provider_turns) {
     limitViolations.push("aggregate provider-turn ceiling exceeded");
-  }
-  if (settled.inputTokens + reserved.inputTokens > aggregate.input_tokens) {
-    limitViolations.push("aggregate input-token ceiling exceeded");
   }
   if (
     settled.equivalentCostUsd + reserved.equivalentCostUsd >
@@ -973,7 +957,6 @@ async function plannerBudgetStatusInternal(
     reserved,
     remaining: {
       providerTurns: aggregate.provider_turns - settled.providerTurns - reserved.providerTurns,
-      inputTokens: aggregate.input_tokens - settled.inputTokens - reserved.inputTokens,
       equivalentCostUsd:
         aggregate.equivalent_cost_usd - settled.equivalentCostUsd - reserved.equivalentCostUsd,
       activeTimeMs: aggregate.active_time_ms - settled.activeTimeMs - reserved.activeTimeMs,
@@ -1046,7 +1029,6 @@ async function readPlannerAttemptReceipt(
   const ceiling = admission.budget.per_attempt;
   if (
     reservation === undefined ||
-    reservation.input_tokens !== ceiling.input_tokens ||
     reservation.equivalent_cost_usd !== ceiling.equivalent_cost_usd ||
     reservation.active_time_ms !== ceiling.active_time_ms
   ) {
@@ -1101,7 +1083,6 @@ function assertAttemptFits(
   const ceiling = admission.budget.per_attempt;
   const fits =
     status.remaining.providerTurns >= 1 &&
-    status.remaining.inputTokens >= ceiling.input_tokens &&
     status.remaining.equivalentCostUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD >=
       ceiling.equivalent_cost_usd &&
     status.remaining.activeTimeMs >= ceiling.active_time_ms;
@@ -1348,7 +1329,7 @@ function validatePlannerLimits(
   if (value.perAttempt.equivalentCostUsd > roleMaxTurnBudgetUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD) {
     throw new TypeError("EpisodePlanner per-attempt cost exceeds the fixed Planner role cap");
   }
-  for (const field of ["inputTokens", "equivalentCostUsd", "activeTimeMs"] as const) {
+  for (const field of ["equivalentCostUsd", "activeTimeMs"] as const) {
     if (value.aggregate[field] < value.perAttempt[field]) {
       throw new TypeError(`EpisodePlanner aggregate ${field} cannot admit the first attempt`);
     }
@@ -1364,9 +1345,6 @@ function validatePlannerLimits(
 }
 
 function validateAttemptCeiling(value: PlannerAttemptCeiling, label: string): void {
-  if (!Number.isSafeInteger(value.inputTokens) || value.inputTokens <= 0) {
-    throw new TypeError(`${label} inputTokens must be a positive safe integer`);
-  }
   if (!finitePositive(value.equivalentCostUsd)) {
     throw new TypeError(`${label} equivalentCostUsd must be finite and positive`);
   }
@@ -1379,13 +1357,11 @@ function persistedLimits(value: PlannerAdmissionLimits): PlannerAdmissionRecord[
   return {
     max_attempts: value.maxAttempts,
     per_attempt: {
-      input_tokens: value.perAttempt.inputTokens,
       equivalent_cost_usd: value.perAttempt.equivalentCostUsd,
       active_time_ms: value.perAttempt.activeTimeMs,
     },
     aggregate: {
       provider_turns: value.aggregate.providerTurns,
-      input_tokens: value.aggregate.inputTokens,
       equivalent_cost_usd: value.aggregate.equivalentCostUsd,
       active_time_ms: value.aggregate.activeTimeMs,
     },
@@ -1468,10 +1444,9 @@ function persistedRecordLimits(value: Record<string, unknown>): PlannerAdmission
   }
   if (
     !hasOnlyKeys(value.budget, ["max_attempts", "per_attempt", "aggregate"]) ||
-    !hasOnlyKeys(value.budget.per_attempt, ["input_tokens", "equivalent_cost_usd", "active_time_ms"]) ||
-    !hasOnlyKeys(value.budget.aggregate, [
+    !hasBudgetKeys(value.budget.per_attempt, ["equivalent_cost_usd", "active_time_ms"]) ||
+    !hasBudgetKeys(value.budget.aggregate, [
       "provider_turns",
-      "input_tokens",
       "equivalent_cost_usd",
       "active_time_ms",
     ])
@@ -1481,13 +1456,11 @@ function persistedRecordLimits(value: Record<string, unknown>): PlannerAdmission
   return {
     maxAttempts: value.budget.max_attempts as number,
     perAttempt: {
-      inputTokens: value.budget.per_attempt.input_tokens as number,
       equivalentCostUsd: value.budget.per_attempt.equivalent_cost_usd as number,
       activeTimeMs: value.budget.per_attempt.active_time_ms as number,
     },
     aggregate: {
       providerTurns: value.budget.aggregate.provider_turns as number,
-      inputTokens: value.budget.aggregate.input_tokens as number,
       equivalentCostUsd: value.budget.aggregate.equivalent_cost_usd as number,
       activeTimeMs: value.budget.aggregate.active_time_ms as number,
     },
@@ -1559,7 +1532,7 @@ async function readOptionalJson(path: string): Promise<unknown | undefined> {
 }
 
 function zeroQuantity(): PlannerBudgetQuantity {
-  return { providerTurns: 0, inputTokens: 0, equivalentCostUsd: 0, activeTimeMs: 0 };
+  return { providerTurns: 0, equivalentCostUsd: 0, activeTimeMs: 0 };
 }
 
 function validUsageNumber(value: unknown): value is number {
@@ -1603,4 +1576,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
   const keys = Object.keys(value);
   return keys.length === allowed.length && keys.every((key) => allowed.includes(key));
+}
+
+/** Budget sub-objects must carry exactly the live dimensions, except that a
+ * stale `input_tokens` is tolerated so admissions persisted before the ceiling
+ * was removed still parse. Nothing reads it and nothing writes it again. */
+function hasBudgetKeys(value: Record<string, unknown>, required: readonly string[]): boolean {
+  const keys = Object.keys(value);
+  return required.every((key) => keys.includes(key)) &&
+    keys.every((key) => required.includes(key) || key === "input_tokens");
 }

@@ -113,6 +113,66 @@ describe("efficiency route admission", () => {
     expect(constructed).toBe(true);
   });
 
+  it("admits a turn whose input dwarfs any former token ceiling", async () => {
+    // Regression: a builder turn once consumed 2,893,441 input tokens (1,399,040
+    // of them cache reads) against a hardcoded 512,000 episode ceiling nobody
+    // could configure. Admission reserved dollars only, so the ceiling went
+    // unenforced until it refused the recovery replan and deadlocked the
+    // episode. Input tokens are no longer a budget dimension at all.
+    home = makeOrgHome();
+    const episodeId = "episode:no-input-ceiling";
+    await admitEpisode({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      route: "deep",
+      policyVersion: "test/v1",
+      factors: [FACTOR],
+      passes: [PASS],
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+    const route = await readRouteRecord(home.root, episodeId);
+    expect(route.budget).not.toHaveProperty("input_tokens");
+
+    const started = await beginProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "run-huge-input",
+      ordinal: 1,
+      operation: "build/implement",
+      role: ROLE,
+      inputFingerprint: "huge-input",
+      next: { costUsd: 3, activeTimeMs: 60_000 },
+      now: new Date("2026-07-13T00:00:00.000Z"),
+    });
+    await finalizeProviderStep({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "run-huge-input",
+      started,
+      operation: "build/implement",
+      role: ROLE,
+      result: result({ tokensIn: 2_893_441, tokensOut: 25_353, costUsd: 3, wallClockMs: 60_000 }),
+      finishedAt: new Date("2026-07-13T00:10:00.000Z"),
+      contextManifestRef: "context-manifest.json",
+    });
+
+    const counters = await deriveEpisodeCounters(home.root, episodeId);
+    expect(counters.input_tokens).toBe(2_893_441);
+
+    // The next turn is admitted on cost, turns, and time — never refused for
+    // having consumed more input than some constant anticipated.
+    const next = await checkProviderBudget({
+      root: home.root,
+      episodeId,
+      next: { costUsd: 3, activeTimeMs: 60_000 },
+    });
+    expect(next.allowed).toBe(true);
+    expect(next.reason).toBeUndefined();
+  });
+
   it("B-ADM-02 rejects an additional pass not mapped to a recorded factor rule", async () => {
     home = makeOrgHome();
     await expect(admitEpisode({
@@ -492,7 +552,7 @@ describe("efficiency route admission", () => {
     });
     await expect(checkProviderBudget({ root: home.root, episodeId })).resolves.toMatchObject({
       allowed: false,
-      remaining: { provider_turns: 0, input_tokens: 0, equivalent_cost_usd: 0 },
+      remaining: { provider_turns: 0, equivalent_cost_usd: 0 },
       reason: "provider-turn budget exhausted",
     });
   });
@@ -643,7 +703,7 @@ describe("efficiency route admission", () => {
         operation: "build/implement",
         role: ROLE,
         inputFingerprint: `cost-input-${index}`,
-        next: { inputTokens: 750_000, costUsd: 3, activeTimeMs: 5 * 60_000 },
+        next: { costUsd: 3, activeTimeMs: 5 * 60_000 },
         now: new Date("2026-07-13T00:00:00.000Z"),
       })),
     );
@@ -652,7 +712,6 @@ describe("efficiency route admission", () => {
     await expect(checkProviderBudget({ root: home.root, episodeId })).resolves.toMatchObject({
       counters: {
         provider_turns: 2,
-        input_tokens: 1_500_000,
         equivalent_cost_usd: 6,
         active_time_ms: 10 * 60_000,
       },

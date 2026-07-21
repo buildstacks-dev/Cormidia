@@ -194,7 +194,6 @@ describe("capture → efficiency projector seam", () => {
           [episodeId]: {
             route: { budget: {
               provider_turns: 5,
-              input_tokens: 4_000_000,
               equivalent_cost_usd: 2,
               active_time_ms: 45 * 60_000,
               human_decisions: null,

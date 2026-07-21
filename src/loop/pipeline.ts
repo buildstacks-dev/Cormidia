@@ -170,7 +170,7 @@ export interface ExecutePipelineOptions {
     authorizedPasses?: AuthorizedPass[];
     budgetOverrides?: Partial<RouteBudget>;
     finalize?: boolean;
-    nextTurnEstimate?: { inputTokens?: number; costUsd?: number; activeTimeMs?: number };
+    nextTurnEstimate?: { costUsd?: number; activeTimeMs?: number };
     artifactExpectations?: PipelineArtifactExpectation[];
   };
   /** Token-free static adapter capability contract. Tests/isolated hosts may
@@ -486,9 +486,7 @@ async function admitPipelineEpisode(
     now,
     ...(options.episode?.budgetOverrides !== undefined
       ? { budgetOverrides: options.episode.budgetOverrides }
-      : route === "deep"
-        ? { budgetOverrides: { input_tokens: 8_000_000 } }
-        : {}),
+      : {}),
   });
 }
 

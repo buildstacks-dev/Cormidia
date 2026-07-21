@@ -1325,10 +1325,9 @@ function unusedPlannerLimits(roleBudgetUsd: number) {
   const equivalentCostUsd = Math.min(roleBudgetUsd, 0.01);
   return {
     maxAttempts: 1,
-    perAttempt: { inputTokens: 1, equivalentCostUsd, activeTimeMs: 1 },
+    perAttempt: { equivalentCostUsd, activeTimeMs: 1 },
     aggregate: {
       providerTurns: 1,
-      inputTokens: 1,
       equivalentCostUsd,
       activeTimeMs: 1,
     },

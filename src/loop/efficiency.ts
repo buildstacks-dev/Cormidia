@@ -42,9 +42,12 @@ const ROUTE_MUTATION_LOCK_OPTIONS = {
 } as const;
 export type EfficiencyRoute = "deterministic" | TicketTier;
 
+/** Input tokens are deliberately absent. They were never a budget: they are a
+ * byproduct of context assembly and caching, so a cached re-read inflated the
+ * same number a ceiling was meant to restrain. Work is bounded by money, turns,
+ * wall-clock, and human decisions — all of which scale from configuration. */
 export interface RouteBudget {
   provider_turns: number;
-  input_tokens: number | null;
   equivalent_cost_usd: number;
   active_time_ms: number;
   human_decisions: number | null;
@@ -53,28 +56,24 @@ export interface RouteBudget {
 export const ROUTE_BUDGETS: Readonly<Record<EfficiencyRoute, RouteBudget>> = {
   deterministic: {
     provider_turns: 0,
-    input_tokens: 0,
     equivalent_cost_usd: 0,
     active_time_ms: 5 * 60_000,
     human_decisions: null,
   },
   quick: {
     provider_turns: 3,
-    input_tokens: 2_000_000,
     equivalent_cost_usd: 8,
     active_time_ms: 20 * 60_000,
     human_decisions: 1,
   },
   standard: {
     provider_turns: 5,
-    input_tokens: 4_000_000,
     equivalent_cost_usd: 15,
     active_time_ms: 45 * 60_000,
     human_decisions: null,
   },
   deep: {
     provider_turns: 8,
-    input_tokens: null,
     equivalent_cost_usd: 40,
     active_time_ms: 90 * 60_000,
     human_decisions: 5,
@@ -254,7 +253,6 @@ export interface StartedProviderStep {
   assignment?: TurnAssignment;
   planMetadata?: ProviderStepPlanMetadata;
   reservation: {
-    inputTokens: number;
     equivalentCostUsd: number;
     activeTimeMs: number;
   };
@@ -294,7 +292,6 @@ export interface StartedProviderReceipt {
   /** Conservative allowance reserved before runtime construction. Older
    * in-flight receipts that omit it block further admission as unmeasured. */
   reservation?: {
-    input_tokens: number;
     equivalent_cost_usd: number;
     active_time_ms: number;
   };
@@ -435,9 +432,6 @@ async function admitEpisodeLocked(input: RouteAdmissionInput): Promise<RouteReco
     }
   }
   const budget = { ...ROUTE_BUDGETS[input.route], ...input.budgetOverrides };
-  if (input.route === "deep" && budget.input_tokens === null) {
-    throw new Error(`efficiency admission for ${input.episodeId}: deep input budget must be declared`);
-  }
   const record: RouteRecord = {
     schema_version: EFFICIENCY_SCHEMA_VERSION,
     episode_id: input.episodeId,
@@ -507,9 +501,6 @@ async function reassessEpisodeLocked(input: {
   assertMonotonicRoute(record.current_route, input.toRoute);
   const counters = await deriveEpisodeCounters(input.root, input.episodeId);
   const budget = { ...ROUTE_BUDGETS[input.toRoute], ...input.budgetOverrides };
-  if (input.toRoute === "deep" && budget.input_tokens === null) {
-    throw new Error(`episode ${input.episodeId}: deep input budget must be declared`);
-  }
   const reassessment: RouteReassessment = {
     reassessment_id: sha256(
       `${input.episodeId}\0${record.reassessments.length}\0${input.toRoute}\0${input.factor.policy_rule}`,
@@ -581,7 +572,7 @@ async function finalizeEpisodeLocked(input: {
 export async function checkProviderBudget(input: {
   root: string;
   episodeId: string;
-  next?: { inputTokens?: number; costUsd?: number; activeTimeMs?: number };
+  next?: { costUsd?: number; activeTimeMs?: number };
 }): Promise<BudgetCheck> {
   const route = await readRouteRecord(input.root, input.episodeId);
   const counters = await deriveEpisodeCounters(input.root, input.episodeId);
@@ -593,10 +584,6 @@ export async function checkProviderBudget(input: {
     0,
   );
   counters.provider_turns += pending.receipts.length + pending.corrupt.length;
-  counters.input_tokens += pending.receipts.reduce(
-    (sum, receipt) => sum + (receipt.reservation?.input_tokens ?? 0),
-    0,
-  );
   counters.equivalent_cost_usd += reservedUsd;
   counters.active_time_ms += pending.receipts.reduce(
     (sum, receipt) => sum + (receipt.reservation?.active_time_ms ?? 0),
@@ -657,19 +644,16 @@ export async function remainingExecutionAllowance(
 function budgetCheck(
   route: RouteRecord,
   counters: EpisodeCounters,
-  next: { inputTokens?: number; costUsd?: number; activeTimeMs?: number } = {},
+  next: { costUsd?: number; activeTimeMs?: number } = {},
   exposure: { settledUsd: number; reservedUsd: number } = {
     settledUsd: counters.equivalent_cost_usd,
     reservedUsd: 0,
   },
 ): BudgetCheck {
-  assertNonNegativeFinite("declared input-token allowance", next.inputTokens);
   assertNonNegativeFinite("declared equivalent-cost allowance", next.costUsd);
   assertNonNegativeFinite("declared active-time allowance", next.activeTimeMs);
   const remaining: RouteBudget = {
     provider_turns: route.budget.provider_turns - counters.provider_turns,
-    input_tokens:
-      route.budget.input_tokens === null ? null : route.budget.input_tokens - counters.input_tokens,
     equivalent_cost_usd: route.budget.equivalent_cost_usd - counters.equivalent_cost_usd,
     active_time_ms: route.budget.active_time_ms - counters.active_time_ms,
     human_decisions:
@@ -680,12 +664,10 @@ function budgetCheck(
   const refusal =
     remaining.provider_turns < 1
       ? "provider-turn budget exhausted"
-      : remaining.input_tokens !== null && (next.inputTokens ?? 0) > remaining.input_tokens
-        ? "declared input-token allowance is insufficient"
-        : remaining.equivalent_cost_usd <= EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
-          ? "equivalent-cost budget exhausted"
-          : (next.costUsd ?? 0) >
-              remaining.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+      : remaining.equivalent_cost_usd <= EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+        ? "equivalent-cost budget exhausted"
+        : (next.costUsd ?? 0) >
+            remaining.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
           ? "declared equivalent-cost allowance is insufficient"
           : (next.activeTimeMs ?? 0) > remaining.active_time_ms
             ? "declared active-time allowance is insufficient"
@@ -728,7 +710,7 @@ export async function beginProviderStep(input: {
   settlementAttribution?: ProviderStepSettlementAttribution;
   inputFingerprint: string;
   now: Date;
-  next?: { inputTokens?: number; costUsd?: number; activeTimeMs?: number };
+  next?: { costUsd?: number; activeTimeMs?: number };
 }): Promise<StartedProviderStep> {
   const assignment = input.assignment === undefined
     ? fixedAssignmentFromRole(input.role)
@@ -765,7 +747,6 @@ export async function beginProviderStep(input: {
       throw new ProviderBudgetRefusalError(input.episodeId, input.operation, budget);
     }
     const reservation = {
-      inputTokens: input.next?.inputTokens ?? 0,
       equivalentCostUsd:
         input.next?.costUsd ??
         Math.min(input.role.maxTurnBudgetUsd, Math.max(0, budget.remaining.equivalent_cost_usd)),
@@ -814,7 +795,6 @@ export async function beginProviderStep(input: {
       input_fingerprint: input.inputFingerprint,
       context_manifest_ref: "context-manifest.json",
       reservation: {
-        input_tokens: reservation.inputTokens,
         equivalent_cost_usd: reservation.equivalentCostUsd,
         active_time_ms: reservation.activeTimeMs,
       },
@@ -1657,9 +1637,6 @@ async function admitPlanRouteRevision(
     );
   }
   const requestedBudget = { ...ROUTE_BUDGETS[input.route], ...input.budgetOverrides };
-  if (input.route === "deep" && requestedBudget.input_tokens === null) {
-    throw new Error(`efficiency admission for ${input.episodeId}: deep input budget must be declared`);
-  }
   const requestedBounds = input.executionBounds !== undefined
     ? input.executionBounds
     : input.route === "deterministic"
@@ -1795,7 +1772,6 @@ function samePassSet(left: AuthorizedPass[], right: AuthorizedPass[]): boolean {
 
 function routeBudgetsEqual(left: RouteBudget, right: RouteBudget): boolean {
   return left.provider_turns === right.provider_turns &&
-    left.input_tokens === right.input_tokens &&
     left.equivalent_cost_usd === right.equivalent_cost_usd &&
     left.active_time_ms === right.active_time_ms &&
     left.human_decisions === right.human_decisions;
@@ -1806,7 +1782,6 @@ function assertRouteBudgetMonotonic(previous: RouteBudget, next: RouteBudget, ep
     next.provider_turns < previous.provider_turns ||
     next.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD < previous.equivalent_cost_usd ||
     next.active_time_ms < previous.active_time_ms ||
-    nullableBudgetDecreased(previous.input_tokens, next.input_tokens) ||
     nullableBudgetDecreased(previous.human_decisions, next.human_decisions);
   if (decreased) {
     throw new Error(`efficiency admission conflict for ${episodeId}: a plan revision cannot reduce route budget authority`);

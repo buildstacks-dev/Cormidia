@@ -188,7 +188,6 @@ describe("Buildstacks onboarding EpisodePlanner regression", () => {
       passes: authorizedPasses(resumed.plan, intent, factor),
       budgetOverrides: {
         provider_turns: intent.hardBudget.maxProviderTurns,
-        input_tokens: intent.hardBudget.maxInputTokens!,
         equivalent_cost_usd: intent.hardBudget.maxEquivalentCostUsd,
         active_time_ms: intent.hardBudget.maxActiveTimeMs!,
         human_decisions: intent.hardBudget.maxHumanDecisions!,
@@ -198,7 +197,6 @@ describe("Buildstacks onboarding EpisodePlanner regression", () => {
     });
     expect(admitted.consumedBeforeRoute).toEqual({
       providerTurns: 2,
-      inputTokens: 200,
       equivalentCostUsd: 0.2,
       activeTimeMs: 0,
     });
@@ -242,13 +240,11 @@ function onboardingOptions(
     limits: {
       maxAttempts: 2,
       perAttempt: {
-        inputTokens: 100_000,
         equivalentCostUsd: 1,
         activeTimeMs: 60_000,
       },
       aggregate: {
         providerTurns: 2,
-        inputTokens: 200_000,
         equivalentCostUsd: 2,
         activeTimeMs: 120_000,
       },

@@ -75,13 +75,11 @@ const BOOT_ASSIGNMENT: TurnAssignment = {
 const LIMITS: PlannerAdmissionLimits = {
   maxAttempts: 2,
   perAttempt: {
-    inputTokens: 100,
     equivalentCostUsd: 1,
     activeTimeMs: 1_000,
   },
   aggregate: {
     providerTurns: 2,
-    inputTokens: 200,
     equivalentCostUsd: 2,
     activeTimeMs: 2_000,
   },
@@ -125,8 +123,8 @@ describe("EpisodePlanner pre-route admission", () => {
       boot_assignment: BOOT_ASSIGNMENT,
       budget: {
         max_attempts: 2,
-        per_attempt: { input_tokens: 100, equivalent_cost_usd: 1, active_time_ms: 1_000 },
-        aggregate: { provider_turns: 2, input_tokens: 200, equivalent_cost_usd: 2, active_time_ms: 2_000 },
+        per_attempt: { equivalent_cost_usd: 1, active_time_ms: 1_000 },
+        aggregate: { provider_turns: 2, equivalent_cost_usd: 2, active_time_ms: 2_000 },
       },
     });
     expect(turnAssignmentsEqual(record.boot_assignment, BOOT_ASSIGNMENT)).toBe(true);
@@ -197,7 +195,7 @@ describe("EpisodePlanner pre-route admission", () => {
       step: { execution_step_id: terminal.execution_step_id, provider_turn_id: terminal.provider_turn_id },
     });
     expect(await readPlannerBudgetStatus(home.root, episodeId)).toMatchObject({
-      settled: { providerTurns: 1, inputTokens: 50, equivalentCostUsd: 0.25, activeTimeMs: 500 },
+      settled: { providerTurns: 1, equivalentCostUsd: 0.25, activeTimeMs: 500 },
       reserved: { providerTurns: 0, equivalentCostUsd: 0 },
       terminalAttempts: [1],
       pendingAttempts: [],
@@ -210,7 +208,7 @@ describe("EpisodePlanner pre-route admission", () => {
       attempt: 2,
       assignment: BOOT_ASSIGNMENT,
       started: {
-        reservation: { inputTokens: 100, equivalentCostUsd: 1, activeTimeMs: 1_000 },
+        reservation: { equivalentCostUsd: 1, activeTimeMs: 1_000 },
       },
     });
   });
@@ -350,13 +348,12 @@ describe("EpisodePlanner pre-route admission", () => {
     });
     expect(admitted.consumedBeforeRoute).toEqual({
       providerTurns: 1,
-      inputTokens: 50,
       equivalentCostUsd: 0.25,
       activeTimeMs: 500,
     });
     expect(await checkProviderBudget({ root: home.root, episodeId })).toMatchObject({
       allowed: true,
-      counters: { provider_turns: 1, input_tokens: 50, equivalent_cost_usd: 0.25 },
+      counters: { provider_turns: 1, equivalent_cost_usd: 0.25 },
       remaining: { provider_turns: 2, equivalent_cost_usd: 7.75 },
     });
 

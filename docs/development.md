@@ -156,7 +156,7 @@ pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstac
 ```
 
 Pass `--authorization "$AUTH"` to the GitHub and live entrypoints as well. The
-candidate retains every Phase 6 assignment, case, threshold, deep-token ceiling,
+candidate retains every Phase 6 assignment, case, threshold,
 AB/BA/AB learning order, safety rule, accounting requirement, and the one typed
 infrastructure retry. Promotion still requires contract-specific evidence from
 a qualified candidate; retained admission evidence cannot promote anything.

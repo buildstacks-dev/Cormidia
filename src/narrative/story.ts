@@ -224,10 +224,13 @@ function isTerminal(envelopes: RunEnvelope[]): boolean {
 function storyStatus(envelopes: RunEnvelope[], journalStatus?: string): StoryStatus {
   if (!isTerminal(envelopes)) return "in_progress";
   if (journalStatus === "running") return "in_progress";
-  if (envelopes.some((e) => e.status === "failed" || e.status === "timed_out")) return "failed";
-  if (envelopes.every((e) => e.status === "completed" || e.status === "blocked" || e.status === "cancelled")) {
-    return envelopes.some((e) => e.status === "completed") ? "completed" : "failed";
-  }
+  if (envelopes.some((e) =>
+    e.status === "failed" ||
+    e.status === "blocked" ||
+    e.status === "cancelled" ||
+    e.status === "timed_out"
+  )) return "failed";
+  if (envelopes.every((e) => e.status === "completed")) return "completed";
   return "unknown";
 }
 

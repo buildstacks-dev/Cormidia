@@ -17,6 +17,10 @@ import { makeOrgHome } from "./fixtures/orgHome.js";
 
 const T0 = new Date(Date.UTC(2026, 6, 5, 9, 30, 15));
 const RUN_ID = "20260705-093015-build-implement";
+const RUN2_BLOCKED_VERDICT = readFileSync(
+  new URL("./fixtures/run2/blocked-build-verdict.json", import.meta.url),
+  "utf8",
+).trimEnd();
 
 const META = {
   runId: RUN_ID,
@@ -238,6 +242,27 @@ describe("envelope lifecycle", () => {
       expect(raw).toContain('"brief": "brief.md"'); // reference…
       expect(raw).not.toContain("UNIQUE-BRIEF-MARKER"); // …never content
       expect(raw).not.toContain("SESSION-MARKER");
+    }));
+
+  it("round-trips the complete run-2 structured blocked verdict as parseable JSON", () =>
+    withHome(async (root) => {
+      await startRun(root, META, T0);
+      await finalizeRun(
+        root,
+        "civic",
+        RUN_ID,
+        { status: "blocked", verdictSummary: RUN2_BLOCKED_VERDICT },
+        new Date(T0.getTime() + 90_000),
+      );
+
+      const envelope = await readEnvelope(root, "civic", RUN_ID);
+      expect(envelope.status).toBe("blocked");
+      expect(envelope.verdict_summary).toBeDefined();
+      expect(envelope.verdict_summary!.length).toBeGreaterThan(120);
+      expect(JSON.parse(envelope.verdict_summary!)).toEqual(JSON.parse(RUN2_BLOCKED_VERDICT));
+      expect(JSON.parse(envelope.verdict_summary!).blockedEntry.assessment).toContain(
+        "pnpm install --frozen-lockfile, pnpm test, and pnpm check",
+      );
     }));
 
   it("infra failure carries error_code; update after finalize throws", () =>

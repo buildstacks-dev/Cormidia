@@ -1,7 +1,8 @@
 // L1 envelope lifecycle (build plan M2.5; docs/loop.md §9).
 //
 // One envelope.json per executed pass: ids, status, timings, token/cost
-// rollups, gate results, tool counts, truncated previews — and REFERENCES
+// rollups, gate results, tool counts, durable verdict material, truncated
+// previews — and REFERENCES
 // to the L3 files, never their content (the predecessor's wf_*.json
 // monolith lesson). Dashboards read L1+L2 only, so everything preview-like
 // passes through redaction here, unconditionally.
@@ -107,7 +108,12 @@ export interface RunEnvelope {
   /** tool name → call count. Never args (§9) — those live hashed in L2. */
   tool_counts?: Record<string, number>;
   gate_results?: GateResultEntry[];
-  /** Truncated + scrubbed, ~120 chars. */
+  /**
+   * Redacted durable verdict material. Structured JSON verdicts remain
+   * complete, valid JSON strings; prose-only legacy summaries remain bounded
+   * previews. This distinction keeps machine-readable truth out of the
+   * presentation-only truncation path.
+   */
   verdict_summary?: string;
   /** Named previews (task, output, …) — truncated + scrubbed, always. */
   previews?: Record<string, string>;
@@ -368,7 +374,7 @@ export async function finalizeRun(
   envelope.wall_clock_ms = now.getTime() - new Date(envelope.started_at).getTime();
   if (outcome.usage !== undefined) envelope.usage = outcome.usage;
   if (outcome.verdictSummary !== undefined) {
-    envelope.verdict_summary = truncatePreview(scrubSecrets(outcome.verdictSummary));
+    envelope.verdict_summary = durableVerdictSummary(outcome.verdictSummary);
   }
   if (outcome.errorCode !== undefined) envelope.error_code = outcome.errorCode;
   if (outcome.reason !== undefined) envelope.terminal_reason = scrubSecrets(outcome.reason);
@@ -380,6 +386,50 @@ export async function finalizeRun(
 
   await writeEnvelope(runPaths(root, app, runId).envelope, envelope);
   return envelope;
+}
+
+/**
+ * Preserve a structured verdict as complete JSON while retaining the legacy
+ * bounded-summary behavior for prose verdicts. Redaction is applied to parsed
+ * string values instead of raw JSON bytes so even a multi-line secret match
+ * cannot consume a closing quote/brace and leave corrupt durable material.
+ */
+function durableVerdictSummary(text: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    return truncatePreview(scrubSecrets(text));
+  }
+
+  const stored = JSON.stringify(scrubJsonStrings(parsed));
+  if (stored === undefined) {
+    throw new Error("runlog: structured verdict cannot be serialized");
+  }
+  // Write-time invariant: never commit structured verdict material that a
+  // reader cannot parse. Keep this explicit even though JSON.stringify owns
+  // serialization, so future storage changes cannot silently reintroduce
+  // prefix truncation.
+  try {
+    JSON.parse(stored);
+  } catch (error) {
+    throw new Error("runlog: structured verdict did not survive JSON serialization", {
+      cause: error,
+    });
+  }
+  return stored;
+}
+
+function scrubJsonStrings(value: unknown): unknown {
+  if (typeof value === "string") return scrubSecrets(value);
+  if (Array.isArray(value)) return value.map(scrubJsonStrings);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, entry]) => [scrubSecrets(key), scrubJsonStrings(entry)]),
+    );
+  }
+  return value;
 }
 
 export async function readEnvelope(

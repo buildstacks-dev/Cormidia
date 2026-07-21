@@ -759,8 +759,8 @@ for, never a rewrite.
 ```
 ~/.operon/<org>/runs/<app>/<runId>/
   envelope.json     L1 — one per pass: ids, status, timings, token/cost
-                    rollups, gate results, verdict summary, tool counts
-                    (see the tool-telemetry note below), truncated
+                    rollups, gate results, redacted durable verdict material,
+                    tool counts (see the tool-telemetry note below), truncated
                     previews, runtime/model/effort, actual workdir, branch,
                     and git HEAD at pass start (git_head — the learning loop's replay seed, absent for
                     non-git workdirs and pre-M2 runs); REFERENCES to
@@ -837,10 +837,17 @@ codes and durations.
 - **Infra and merit never conflate** (the doc's sharpest lesson: "infra
 failures looked like merit failures until you read verify stats"). A
 pass that *errors* is `failed` with an `error_code`; a pass that
-*concludes findings/blocked* is a merit outcome. Dashboards, retro, and
-scorecards read them as different populations.
+*concludes findings/blocked* is a merit outcome. A parsed build verdict with
+`status: blocked` therefore finalizes its envelope as `blocked` even though the
+provider transport itself returned normally. Structured JSON in
+`verdict_summary` remains complete and parseable after redaction; only prose
+summaries and the separate `previews` map use the presentation-size cap.
+Dashboards, retro, and scorecards read infra and merit as different populations.
 - **Dashboards read L1+L2 only.** `operon status` / `operon analyze` never
-parse transcripts; previews are truncated (~120 chars), args hashed.
+parse transcripts; previews are truncated (~120 chars), args hashed. Status
+adds a bounded `TERMINAL ATTENTION` line for failed, blocked, cancelled, and
+timed-out rows using the persisted terminal diagnostic, so the reason is
+visible without opening the run directory.
 - **Redaction is a precondition for export** and applies to L1/L2 always:
 no full prompts, no tool args, no secrets — the quality-gate secret
 regexes double as a log scrubber. L3 stays local, retention =

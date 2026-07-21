@@ -5,6 +5,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readEvents } from "./events.js";
 import { classifyEnvelopeUsage } from "./envelope.js";
+import { truncatePreview } from "./redact.js";
 import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
 import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
 
@@ -40,7 +41,7 @@ export interface StatusRow {
   /** Heartbeat stamp (Stage 3) — present while (and after) the executor's
    *  30s heartbeat ran, so a reader can tell live from stalled. */
   lastSeenAt?: string;
-  /** Truncated + scrubbed at write time (envelope.ts) — safe to display. */
+  /** Redacted at write time; structured JSON is complete, prose is bounded. */
   verdictSummary?: string;
   previews?: Record<string, string>;
   terminalReason?: string;
@@ -148,7 +149,22 @@ export function formatStatusRows(rows: readonly StatusRow[]): string {
       String(row.escalations).padStart(5),
     ].join(" ");
   });
-  return [header, ...lines].join("\n");
+  const attention = rows
+    .filter((row) => terminalAttentionStatus(row.status))
+    .map((row) =>
+      `  ${row.runId} ${row.pipeline}/${row.pass} ${row.status} — ` +
+      truncatePreview(row.terminalReason ?? row.verdictSummary ?? "No terminal reason recorded", 240)
+    );
+  return [
+    header,
+    ...lines,
+    ...(attention.length === 0 ? [] : ["", "TERMINAL ATTENTION", ...attention]),
+  ].join("\n");
+}
+
+function terminalAttentionStatus(status: string): boolean {
+  return status === "blocked" || status === "cancelled" || status === "timed_out" ||
+    status.startsWith("failed(");
 }
 
 function formatStatusCost(row: StatusRow): string {

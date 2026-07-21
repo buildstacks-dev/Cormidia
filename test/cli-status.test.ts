@@ -59,6 +59,27 @@ describe("runlog status", () => {
     }
   });
 
+  it("puts a terminal diagnostic directly below the status table", async () => {
+    const blocked = env("run1", "2026-07-04T10:00:00Z", "blocked") as Record<string, unknown>;
+    blocked["terminal_reason"] = "The implementation is blocked: duplicated mapping key in roles.yaml";
+    const home = makeOrgHome({
+      runs: {
+        records: {
+          alpha: { run1: { envelope: blocked, events: [] } },
+        },
+      },
+    });
+    try {
+      const text = formatStatusRows(await readStatusRows(home.root));
+      expect(text).toContain("TERMINAL ATTENTION");
+      expect(text).toContain(
+        "run1 build/implement blocked — The implementation is blocked: duplicated mapping key in roles.yaml",
+      );
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("surfaces a corrupt envelope as a visible row but skips an in-progress run", async () => {
     const home = makeOrgHome({
       runs: {

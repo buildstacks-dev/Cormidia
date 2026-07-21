@@ -706,7 +706,12 @@ export async function runBuilderPipeline(
       } else if (kind === "build") {
         buildVerdict = outcome.verdict as BuildVerdict;
       }
-      return { ok: true };
+      return {
+        ok: true,
+        ...(kind === "build" && (outcome.verdict as BuildVerdict).status === "blocked"
+          ? { terminalStatus: "blocked" as const }
+          : {}),
+      };
     },
   });
 

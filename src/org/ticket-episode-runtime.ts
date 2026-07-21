@@ -627,7 +627,13 @@ async function executeTicketProviderStep(
                   type: "verdict.recorded",
                   detail: { kind: definition.verdictKind ?? "none", retry_count: 0 },
                 });
-                return { ok: true };
+                return {
+                  ok: true,
+                  ...(definition.verdictKind === "build" &&
+                    (parsed.verdict as BuildVerdict).status === "blocked"
+                    ? { terminalStatus: "blocked" as const }
+                    : {}),
+                };
               },
             }),
         beforeProviderTurn: async () => input.input.beforeProviderTurn(),

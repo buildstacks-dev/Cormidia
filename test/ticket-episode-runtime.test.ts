@@ -28,6 +28,8 @@ import {
   type EpisodeIntent,
   type EpisodePlan,
   type EpisodePlanValidationPolicy,
+  type EpisodeStep,
+  type MechanicalGateStep,
   type ProviderTurnStep,
 } from "../src/loop/episode-plan.js";
 import { routeAdmissionForEpisodePlan } from "../src/loop/episode-route.js";
@@ -39,6 +41,9 @@ import { resolvedRuntimeCapabilities } from "../src/runtime/capabilities.js";
 import { hashedFileStem } from "../src/runtime/runlog/paths.js";
 import { readEpisodePlanExecutionJournal } from "../src/loop/episode-plan-executor.js";
 import { efficiencyEpisodeDir } from "../src/loop/efficiency.js";
+import { formatStatusRows, readStatusRows } from "../src/runtime/runlog/status.js";
+import { foldAppStories } from "../src/narrative/story.js";
+import { cmdTelemetry } from "../src/cli/telemetry.js";
 import {
   createTicketEpisodeRuntime,
   type TicketEpisodeRuntime,
@@ -74,6 +79,10 @@ const POLICY: Policy = {
   dimensionGlobs: {},
   remediation: { maxAttempts: 3 },
 };
+const RUN2_BLOCKED_VERDICT = readFileSync(
+  new URL("./fixtures/run2/blocked-build-verdict.json", import.meta.url),
+  "utf8",
+).trimEnd();
 
 describe("ticket EpisodePlanner execution adapter", () => {
   it("executes one provider call with the exact accepted assignment and role authority", async () => {
@@ -347,6 +356,62 @@ describe("ticket EpisodePlanner execution adapter", () => {
     }
   });
 
+  it("reports the exact run-2 typed blocked verdict as blocked/failed across durable surfaces", async () => {
+    const fixture = await setup("implement", "build/implement", true, true, true);
+    try {
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(fixture, calls, RUN2_BLOCKED_VERDICT);
+      const item = await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      });
+
+      expect(calls).toHaveLength(1);
+      expect(item.phase).toBe("returned");
+      const rows = await readStatusRows(fixture.state.root, { app: "fixture" });
+      const implement = rows.find((row) => row.pass === "implement");
+      expect(implement).toMatchObject({ status: "blocked" });
+      expect(JSON.parse(implement!.verdictSummary!)).toEqual(JSON.parse(RUN2_BLOCKED_VERDICT));
+      const statusText = formatStatusRows(rows);
+      expect(statusText).toMatch(/episode-plan-dag\/implement\s+blocked/);
+      expect(statusText).toContain("TERMINAL ATTENTION");
+      expect(statusText).toContain("duplicated mapping key");
+
+      const telemetryLines: string[] = [];
+      const log = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+        telemetryLines.push(args.map(String).join(" "));
+      });
+      try {
+        expect(await cmdTelemetry([
+          "--org-home", fixture.org.root,
+          "--state-home", fixture.state.root,
+          "--app", "fixture",
+        ])).toBe(0);
+      } finally {
+        log.mockRestore();
+      }
+      const telemetryText = telemetryLines.join("\n");
+      expect(telemetryText).toMatch(/episode-plan-dag\/implement\s+blocked/);
+      expect(telemetryText).toContain("terminal integrity: valid; 0/1 (0.0%)");
+      expect(telemetryText).toContain("productive provider turns: valid; 0/1 (0.0%)");
+      expect(telemetryText).toContain("trace-declared stages only: incomplete");
+      expect(telemetryText).not.toContain("trace-declared stages only: complete");
+
+      const narrative = await foldAppStories(fixture.state.root, "fixture");
+      const story = narrative.stories.find(
+        (candidate) => candidate.story_id === fixture.accepted.plan.episodeId,
+      );
+      expect(story).toMatchObject({ status: "failed" });
+      expect(story?.moments.find((moment) => moment.pass === "implement")).toMatchObject({
+        status: "blocked",
+      });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("rejects a planner allowance that leaves no delivery budget before runtime construction", async () => {
     const fixture = await setup("budget", "ticket/diagnose", false, false);
     try {
@@ -411,6 +476,7 @@ async function setup(
   operation: string,
   needsPrompt = false,
   persist = true,
+  validWriteTopology = false,
 ): Promise<Fixture> {
   const state = makeOrgHome();
   const org = makeOrgHome();
@@ -421,7 +487,9 @@ async function setup(
           join(org.root, "prompts", "build", "implement.md"),
           join(org.root, "prompts", "review", "verify.md"),
         ]
-      : [join(org.root, "prompts", "build", "contract.md")];
+      : operation === "build/implement"
+        ? [join(org.root, "prompts", "build", "implement.md")]
+        : [join(org.root, "prompts", "build", "contract.md")];
     for (const prompt of prompts) {
       mkdirSync(dirname(prompt), { recursive: true });
       writeFileSync(prompt, "Return the typed verdict.");
@@ -440,7 +508,14 @@ async function setup(
     execution: { assignmentMode: "fixed", allowedAssignments: {} },
   };
   const step = providerStep(stepId, operation);
-  const accepted = authority(step);
+  const steps: EpisodeStep[] = validWriteTopology
+    ? [
+        mechanicalStep("provision", "ticket/provision", []),
+        { ...step, dependsOn: ["provision"] },
+        mechanicalStep("gates", "ticket/gates-and-pr", [stepId]),
+      ]
+    : [step];
+  const accepted = authority(steps);
   if (persist) {
     await persistEpisodePlan({
       root: state.root,
@@ -589,22 +664,26 @@ function providerStep(stepId: string, operation: string): ProviderTurnStep {
   };
 }
 
-function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
-  const isReview = step.role === "reviewer";
-  const implementation = {
+function authority(inputSteps: EpisodeStep[]): AcceptedTicketEpisodePlan {
+  const reviewStep = inputSteps.length === 1 && inputSteps[0]?.kind === "provider_turn" &&
+      inputSteps[0].role === "reviewer"
+    ? inputSteps[0]
+    : undefined;
+  const implementation: ProviderTurnStep = {
     ...providerStep("implement", "build/implement"),
     dependsOn: ["provision"],
     inputRefs: [{ ref: "plan-output:worktree", required: true }],
   };
-  const reviewedStep: ProviderTurnStep = isReview
-    ? {
-        ...step,
+  const reviewedStep: ProviderTurnStep | undefined = reviewStep === undefined
+    ? undefined
+    : {
+        ...reviewStep,
         dependsOn: ["gates"],
         inputRefs: [{ ref: "plan-output:pr", required: true }],
-      }
-    : step;
-  const steps: EpisodePlan["steps"] = isReview
-    ? [
+      };
+  const steps: EpisodeStep[] = reviewedStep === undefined
+    ? inputSteps
+    : [
         {
           kind: "mechanical_gate",
           id: "provision",
@@ -634,12 +713,20 @@ function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
           expectedOutputs: [{ id: "review-authorization", kind: "review-authorization", required: true }],
           gate: "ticket/review-authorization",
         },
-      ]
-    : [step];
-  const creatorSteps = steps.map((candidate) => Object.fromEntries(
-    Object.entries(candidate).filter(([key]) => key !== "assignmentSource"),
-  )) as NonNullable<CreatorEpisodeScope["steps"]>;
-  const selectedRoles = isReview ? [BUILDER, REVIEWER] : [BUILDER];
+      ];
+  const creatorSteps = steps.map((step) => Object.fromEntries(
+    Object.entries(step).filter(([key]) => key !== "assignmentSource"),
+  ) as NonNullable<CreatorEpisodeScope["steps"]>[number]);
+  const providerSteps = steps.filter((step): step is ProviderTurnStep => step.kind === "provider_turn");
+  const selectedRoles = [...new Set(providerSteps.map((step) => step.role))].map((name) => {
+    const selected = ROLES.find((roleConfig) => roleConfig.name === name);
+    if (selected === undefined) throw new Error(`missing test role ${name}`);
+    return selected;
+  });
+  const providerBudgetUsd = providerSteps.reduce(
+    (sum, providerStep) => sum + providerStep.maxTurnBudgetUsd,
+    0,
+  );
   const provenance = {
     source: "agent" as const,
     creatorId: "parent-episode-planner",
@@ -653,7 +740,8 @@ function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
     inScope: ["bounded ticket evidence"],
     outOfScope: ["unrelated product work"],
     acceptanceCriteria: ["the planned step produces its required evidence"],
-    expectedArtifacts: steps.flatMap((candidate) => candidate.expectedOutputs.map((output) => ({ ...output }))),
+    expectedArtifacts: steps.flatMap((step) =>
+      step.expectedOutputs.map((output) => ({ ...output }))),
     declaredConstraints: { network: false },
     safetyFacts: [],
     steps: creatorSteps,
@@ -669,8 +757,8 @@ function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
     repositoryFacts: { baseRef: "refs/remotes/origin/main" },
     requestedConstraints: { network: false },
     hardBudget: {
-      maxProviderTurns: isReview ? 2 : 1,
-      maxEquivalentCostUsd: isReview ? 4 : 2,
+      maxProviderTurns: providerSteps.length,
+      maxEquivalentCostUsd: providerBudgetUsd,
       maxMechanicalOverheadUsd: 0,
     },
     availableRoles: selectedRoles.map((selectedRole) => ({
@@ -718,15 +806,31 @@ function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
     creatorProvenance: provenance,
     steps,
     estimatedBudget: {
-      providerTurns: isReview ? 2 : 1,
-      providerTurnBudgetUsd: isReview ? 4 : 2,
+      providerTurns: providerSteps.length,
+      providerTurnBudgetUsd: providerBudgetUsd,
       mechanicalOverheadUsd: 0,
-      totalBudgetUsd: isReview ? 4 : 2,
+      totalBudgetUsd: providerBudgetUsd,
     },
     derivedSafetyRoute: deriveEpisodeSafetyRoute(steps, []),
     createdAt: NOW.toISOString(),
   };
   return { intent, plan };
+}
+
+function mechanicalStep(
+  id: string,
+  gate: string,
+  dependsOn: string[],
+): MechanicalGateStep {
+  return {
+    kind: "mechanical_gate",
+    id,
+    gate,
+    objective: `Execute ${gate}`,
+    dependsOn,
+    inputRefs: [],
+    expectedOutputs: [{ id: `${id}-evidence`, kind: "evidence", required: true }],
+  };
 }
 
 function validationPolicy(): EpisodePlanValidationPolicy {

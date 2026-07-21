@@ -260,7 +260,12 @@ export interface VerdictRecordContext {
 }
 
 export type VerdictRecordOutcome =
-  | { ok: true; extraUsage?: TurnUsage }
+  | {
+      ok: true;
+      extraUsage?: TurnUsage;
+      /** Parsed merit outcome that is distinct from provider completion. */
+      terminalStatus?: "blocked";
+    }
   | { ok: false; errorCode: string; error: Error };
 
 export interface PassRunRecord {
@@ -1418,7 +1423,9 @@ async function runPass(
     }
   }
 
-  const status = verdictOutcome.ok ? envelopeStatus(result) : "failed";
+  const status = verdictOutcome.ok
+    ? verdictOutcome.terminalStatus ?? envelopeStatus(result)
+    : "failed";
   if (status === "completed" && options.inputManifest !== undefined && inputManifestRef !== undefined) {
     await writeLoopFileAtomic(
       join(runPaths(root, app, runId).dir, inputManifestRef),
@@ -1447,8 +1454,13 @@ async function runPass(
   } else {
     await events.append({
       type: "pass.completed",
-      ...(result.status === "blocked_on_gate"
-        ? { detail: { outcome: "blocked_on_gate", reason: result.summary } }
+      ...(status === "blocked" || result.status === "blocked_on_gate"
+        ? {
+            detail: {
+              outcome: status === "blocked" ? "blocked_verdict" : "blocked_on_gate",
+              reason: result.summary,
+            },
+          }
         : {}),
     });
   }

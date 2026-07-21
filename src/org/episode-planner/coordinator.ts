@@ -1,5 +1,6 @@
 import {
   EpisodePlanValidationError,
+  annotateRepairRegression,
   assessCreatorScope,
   assertEpisodePlanValid,
   deriveEpisodeSafetyRoute,
@@ -32,6 +33,12 @@ export interface EpisodePlannerProposalRequest {
   /** Closed domain vocabulary used by both the prompt schema and acceptance
    * policy. Omitted only by intentionally-open generic episodes. */
   providerOperations?: readonly string[];
+  /** Closed mechanical-gate vocabulary, same contract as the operation
+   * registry: a gate with no executor handler becomes unrepresentable. */
+  mechanicalGates?: readonly string[];
+  /** Machine-readable statement of the domain's plan topology rules — the
+   * contract validation enforces, stated before generation (ISSUE-023). */
+  topologyContract?: Readonly<Record<string, unknown>>;
   /** Orchestrator-owned timestamp the proposal must echo as `createdAt`. */
   proposalCreatedAt: string;
   /** Empty on the first call. On repair this contains concise deterministic
@@ -49,6 +56,8 @@ export interface PrepareEpisodePlanOptions {
   roles: readonly RoleConfig[];
   intent: EpisodeIntent;
   providerOperations?: readonly string[];
+  mechanicalGates?: readonly string[];
+  topologyContract?: Readonly<Record<string, unknown>>;
   propose?: EpisodePlannerProposer;
   now?: () => Date;
   workflowTemplates?: EpisodePlanningPolicyOptions["workflowTemplates"];
@@ -167,6 +176,7 @@ export async function prepareEpisodePlan(
   let diagnostics: EpisodePlanIssue[] = [];
   const proposalCreatedAt = now().toISOString();
   for (const attempt of [1, 2] as const) {
+    const priorDiagnostics = diagnostics;
     try {
       const raw = await options.propose({
         intent: structuredClone(options.intent),
@@ -174,6 +184,12 @@ export async function prepareEpisodePlan(
         ...(options.providerOperations === undefined
           ? {}
           : { providerOperations: [...options.providerOperations] }),
+        ...(options.mechanicalGates === undefined
+          ? {}
+          : { mechanicalGates: [...options.mechanicalGates] }),
+        ...(options.topologyContract === undefined
+          ? {}
+          : { topologyContract: options.topologyContract }),
         proposalCreatedAt,
         validationDiagnostics: structuredClone(diagnostics),
       });
@@ -201,7 +217,15 @@ export async function prepareEpisodePlan(
       const contractDiagnostics = diagnosticsFrom(error);
       if (contractDiagnostics === undefined) throw error;
       diagnostics = contractDiagnostics;
-      if (attempt === 2) throw new EpisodePlannerFailedError(attempt, diagnostics);
+      if (attempt === 2) {
+        // A repair that fixes one violation while introducing another is
+        // worse than no repair; name that rather than reporting the second
+        // failure as if it were unrelated (ISSUE-023).
+        throw new EpisodePlannerFailedError(
+          attempt,
+          annotateRepairRegression(priorDiagnostics, diagnostics),
+        );
+      }
     }
   }
   throw new EpisodePlannerFailedError(2, diagnostics);
@@ -303,14 +327,18 @@ function diagnosticsFrom(error: unknown): EpisodePlanIssue[] | undefined {
   }
   if (!hasIssueArray(error)) return undefined;
   return error.issues.map((entry) => ({
-    code: "plan_structure_invalid",
+    code: "plan_structure_invalid" as const,
     message: `${entry.code}: ${entry.message}`,
     ...(entry.stepId === undefined ? {} : { stepId: entry.stepId }),
+    // Domain rejections stay machine-readable so the repair brief can list
+    // exactly which invariants were violated and which must be preserved.
+    constraint: entry.code,
+    ...(entry.rule === undefined ? {} : { rule: entry.rule }),
   }));
 }
 
 function hasIssueArray(error: unknown): error is {
-  issues: Array<{ code: string; message: string; stepId?: string }>;
+  issues: Array<{ code: string; message: string; stepId?: string; rule?: string }>;
 } {
   if (error === null || typeof error !== "object" || !("issues" in error)) return false;
   const issues = (error as { issues?: unknown }).issues;

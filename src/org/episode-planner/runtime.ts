@@ -9,6 +9,7 @@ import {
   EpisodePlanValidationError,
   EPISODE_PLAN_REASON_CODES,
   EPISODE_PLAN_PROPOSAL_SCHEMA,
+  annotateRepairRegression,
   episodePlanProposalSchemaForOperations,
   assertEpisodePlanValid,
   assessCreatorScope,
@@ -136,6 +137,12 @@ export interface ProviderEpisodePlannerOptions {
   /** Domain-owned provider operation registry. When present it becomes both
    * a structured-output enum and an acceptance policy constraint. */
   providerOperations?: readonly string[];
+  /** Domain-owned mechanical-gate registry. Same contract as the operation
+   * registry: an unhandled gate becomes unrepresentable, not merely rejected. */
+  mechanicalGates?: readonly string[];
+  /** Closed machine-readable topology contract rendered into the bounded
+   * brief so the planner is taught the rules validation enforces. */
+  topologyContract?: Readonly<Record<string, unknown>>;
   /** Human-ratified planner protocol supplied by the caller. This module does
    * not own or mutate the protected prompt surface. */
   promptText: string;
@@ -313,6 +320,12 @@ export async function prepareEpisodePlanWithRuntime(
       ...(options.providerOperations === undefined
         ? {}
         : { providerOperations: options.providerOperations }),
+      ...(options.mechanicalGates === undefined
+        ? {}
+        : { mechanicalGates: options.mechanicalGates }),
+      ...(options.topologyContract === undefined
+        ? {}
+        : { topologyContract: options.topologyContract }),
       ...(options.validateAcceptedPlan === undefined
         ? {}
         : { validateAcceptedPlan: options.validateAcceptedPlan }),
@@ -346,12 +359,19 @@ export async function prepareEpisodePlanWithRuntime(
   const proposalCreatedAt = admission.admitted_at;
 
   for (const attempt of [1, 2] as const) {
+    const priorDiagnostics = diagnostics;
     const request: EpisodePlannerProposalRequest = {
       intent: structuredClone(options.intent),
       attempt,
       ...(options.providerOperations === undefined
         ? {}
         : { providerOperations: [...options.providerOperations] }),
+      ...(options.mechanicalGates === undefined
+        ? {}
+        : { mechanicalGates: [...options.mechanicalGates] }),
+      ...(options.topologyContract === undefined
+        ? {}
+        : { topologyContract: options.topologyContract }),
       proposalCreatedAt,
       validationDiagnostics: structuredClone(diagnostics),
     };
@@ -388,7 +408,12 @@ export async function prepareEpisodePlanWithRuntime(
     if (outcome.evaluation?.kind === "rejected") {
       diagnostics = outcome.evaluation.diagnostics;
       if (attempt === 2 || !hasActionableRepairDiagnostic(diagnostics)) {
-        throw new EpisodePlannerFailedError(attempt, diagnostics);
+        throw new EpisodePlannerFailedError(
+          attempt,
+          attempt === 2
+            ? annotateRepairRegression(priorDiagnostics, diagnostics)
+            : diagnostics,
+        );
       }
       continue;
     }
@@ -464,11 +489,18 @@ export function createProviderEpisodePlanRevisionProposer(
     let diagnostics: EpisodePlanIssue[] = [];
 
     for (const attempt of [1, 2] as const) {
+      const priorDiagnostics = diagnostics;
       const plannerRequest: EpisodePlannerRevisionRequest = {
         intent: structuredClone(request.intent),
         ...(options.providerOperations === undefined
           ? {}
           : { providerOperations: [...options.providerOperations] }),
+        ...(options.mechanicalGates === undefined
+          ? {}
+          : { mechanicalGates: [...options.mechanicalGates] }),
+        ...(options.topologyContract === undefined
+          ? {}
+          : { topologyContract: options.topologyContract }),
         previousPlan: structuredClone(request.previousPlan),
         replan: structuredClone(request.replan),
         attempt,
@@ -493,7 +525,12 @@ export function createProviderEpisodePlanRevisionProposer(
       if (outcome.evaluation?.kind === "rejected") {
         diagnostics = outcome.evaluation.diagnostics;
         if (attempt === 2 || !hasActionableRepairDiagnostic(diagnostics)) {
-          throw new EpisodePlannerFailedError(attempt, diagnostics);
+          throw new EpisodePlannerFailedError(
+            attempt,
+            attempt === 2
+              ? annotateRepairRegression(priorDiagnostics, diagnostics)
+              : diagnostics,
+          );
         }
         continue;
       }
@@ -756,7 +793,10 @@ async function executeStartedAttempt(
   const { assignment, planMetadata, started } = decision;
   const proposalSchema = options.providerOperations === undefined
     ? structuredClone(EPISODE_PLAN_PROPOSAL_SCHEMA) as Record<string, unknown>
-    : episodePlanProposalSchemaForOperations(options.providerOperations);
+    : episodePlanProposalSchemaForOperations(
+      options.providerOperations,
+      options.mechanicalGates === undefined ? {} : { mechanicalGates: options.mechanicalGates },
+    );
   const executionFacts = buildTurnExecutionFacts(
     assignment,
     plannerRole,
@@ -1366,6 +1406,9 @@ function diagnosticsFrom(error: unknown): EpisodePlanIssue[] | undefined {
         ? "$"
         : `$.steps[id=${JSON.stringify(entry.stepId)}]`,
       constraint: entry.code,
+      // The violated invariant's stable id, when the domain names one. It is
+      // what the repair brief lists as violated versus already satisfied.
+      ...(entry.rule === undefined ? {} : { rule: entry.rule }),
       expected: entry.message,
       received: "policy-invalid proposal",
     }));
@@ -1378,7 +1421,7 @@ function normalizeError(error: unknown): Error {
 }
 
 function hasIssueArray(error: unknown): error is {
-  issues: Array<{ code: string; message: string; stepId?: string }>;
+  issues: Array<{ code: string; message: string; stepId?: string; rule?: string }>;
 } {
   if (error === null || typeof error !== "object" || !("issues" in error)) return false;
   const issues = (error as { issues?: unknown }).issues;

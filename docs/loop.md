@@ -249,6 +249,31 @@ exception during acceptance is instead an internal failure with its own error
 code and stack evidence; `plan_structure_invalid` is reserved for actual
 schema/plan-contract defects.
 
+The same domains supply a **mechanical-gate registry and topology contract**
+on the identical terms: the gate vocabulary becomes a structured-output enum,
+and `TICKET_EPISODE_TOPOLOGY_CONTRACT` — every enumerated topology rule with a
+stable id, each gate's `requiredPlanInputs`, and a canonical reference topology
+taken from an accepted plan — is rendered into the bounded brief. Validation is
+the backstop, never the teacher: a rule the validator enforces but the contract
+does not state is a defect in the contract (`ticket-episode-plan.ts`).
+
+Gate input-availability is part of that contract and a pure graph property.
+Each mechanical gate declares the durable inputs its handler reads but never
+produces; acceptance proves an ancestor step in the same plan produces each of
+them, and reports `ticket_gate_input_unavailable` naming the missing operation
+when it cannot. Concretely, `ticket/gates-and-pr` and `ticket/ship` score the
+`completeness` gate against the criterion→test mapping only `build/contract`
+publishes, so a plan holding either gate without a `build/contract` ancestor is
+unsatisfiable and is rejected before provisioning rather than after a paid
+builder turn.
+
+A repair must be **non-regressive**: its violation set must be a strict subset
+of the violations of the proposal it repairs. The repair brief therefore
+carries the invariants the rejected proposal already satisfied, not only the
+error list, and a repair that introduces a new violation is reported as
+`plan_repair_regressive` with the newly introduced violations named, ahead of
+(never instead of) the original diagnostics.
+
 The accepted plan is persisted atomically before delivery. Only then does
 `episode-route.ts` derive the compatibility route and exact authorized provider
 steps. Quick/standard/deep is a plan-complexity/safety label. It cannot add a
@@ -469,7 +494,12 @@ therefore a first-class artifact with named owners at every step:
   authority — the human helps define "done", not just approve the diff.
 - The Builder's contract pass maps **each criterion to named tests**; the
   completeness gate (table above) fails — not warns — when a ticket has no
-  parseable criteria or a criterion has no covering test.
+  parseable criteria or a criterion has no covering test. The gate distinguishes
+  the two failures that wear the same words: an **absent** mapping is a planning
+  defect (no `build/contract` pass produced one, so nothing can be scored and no
+  builder work can fix it), while a criterion uncovered **within** an existing
+  mapping is a build defect. Plan acceptance now rejects the planning defect
+  outright, so the gate should only ever report the build one.
 - Criteria are never summarized out of briefs (§3) and never edited by the
   Builder; a criterion that proves wrong bounces the ticket to the Planner.
   Checkbox state is written once, by the orchestrator, when the ticket

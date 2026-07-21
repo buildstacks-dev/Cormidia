@@ -67,6 +67,21 @@ const LIMITS: PlannerAdmissionLimits = {
 };
 const CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
 
+/** Shaped exactly like `TicketEpisodePlanValidationError`: a domain rejection
+ * carrying reason code, message, step id, and the violated rule's stable id. */
+function ticketRejection(rule: string): Error & { issues: unknown[] } {
+  const error = new Error(`ticket_topology_invalid: violated ${rule}`) as Error & {
+    issues: unknown[];
+  };
+  error.issues = [{
+    code: "ticket_topology_invalid",
+    message: `violated ${rule}`,
+    stepId: "build",
+    rule,
+  }];
+  return error;
+}
+
 describe("provider-backed EpisodePlanner", () => {
   let home: OrgHomeFixture;
   afterEach(() => home?.cleanup());
@@ -352,6 +367,50 @@ describe("provider-backed EpisodePlanner", () => {
     expect((await readExecutionSteps(home.root, intent.episodeId)).map((step) => step.operation))
       .toEqual(["episode-planner/plan"]);
     expect(await readTurnRecords(home.root)).toHaveLength(1);
+  });
+
+  // ISSUE-023: a domain topology rejection names a step and a rule, so it is
+  // actionable and must buy the bounded repair turn — and when that repair
+  // breaks an invariant its input satisfied, the failure must say so rather
+  // than read as an unrelated fresh defect.
+  it("buys a repair for a domain topology rejection and names a regressive repair", async () => {
+    home = makeOrgHome();
+    const intent = makeIntent();
+    const runtime = new FakeRuntime([
+      { result: completed(JSON.stringify(proposal(intent))) },
+      { result: completed(JSON.stringify(proposal(intent))) },
+    ], "codex");
+    let attempt = 0;
+
+    await expect(prepareEpisodePlanWithRuntime({
+      ...baseOptions(home.root, intent),
+      runtimeForAssignment: () => runtime,
+      validateAcceptedPlan: () => {
+        attempt += 1;
+        throw ticketRejection(attempt === 1
+          ? "ship_follows_every_ship_check"
+          : "review_authorization_joins_review_lenses");
+      },
+    })).rejects.toMatchObject({
+      code: "error_episode_planner_failed",
+      attempts: 2,
+      issues: [
+        expect.objectContaining({
+          code: "plan_repair_regressive",
+          constraint: "non_regressive_repair",
+        }),
+        expect.objectContaining({
+          code: "plan_structure_invalid",
+          constraint: "ticket_topology_invalid",
+          rule: "review_authorization_joins_review_lenses",
+        }),
+      ],
+    });
+
+    // The repair turn was genuinely bought, and the repair brief was told which
+    // invariants the rejected proposal already satisfied.
+    expect(runtime.calls).toHaveLength(2);
+    expect(runtime.calls[1]!.req.task).toContain('"rule": "ship_follows_every_ship_check"');
   });
 
   it("confines planner attempts to the bounded manifest and denies every tool without network access", async () => {

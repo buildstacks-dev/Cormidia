@@ -75,11 +75,49 @@ describe("runCompletenessGate", () => {
     expect(result.outputTail).toContain("unresolved finding F1");
   });
 
-  it("criterion with no covering test in the contract mapping fails", () => {
+  // ISSUE-024: these two failures used to print the same words. An absent
+  // mapping is a PLANNING defect (no build/contract pass was scheduled, so the
+  // gate has nothing to score); a criterion uncovered inside an existing
+  // mapping is a BUILD defect. Their remediations are opposite, so the gate
+  // must not describe the first as the second — that sent operators to ask a
+  // builder for tests it had already written. Both still fail.
+  it("an absent contract mapping fails as a planning defect, not as missing tests", () => {
     const result = runCompletenessGate(checkedCriteria, [], {});
 
     expect(result.status).toBe("fail");
-    expect(result.outputTail).toContain("criterion AC1 has no covering test");
+    expect(result.outputTail).toContain("no contract mapping exists for this ticket");
+    expect(result.outputTail).toContain("build/contract");
+    expect(result.outputTail).toContain("AC1");
+    expect(result.outputTail).not.toContain("has no covering test");
+    // One aggregated planning-defect line, not one misattributed line per criterion.
+    expect(result.failures).toHaveLength(1);
+  });
+
+  it("a criterion uncovered within an existing mapping still fails as a build defect", () => {
+    const result = runCompletenessGate(
+      [...checkedCriteria, { id: "AC2", text: "the edge case is covered", checked: false }],
+      [],
+      coveringTests,
+    );
+
+    expect(result.status).toBe("fail");
+    expect(result.outputTail).toContain("criterion AC2 has no covering test in the contract mapping");
+    expect(result.outputTail).not.toContain("no contract mapping exists");
+    expect(result.failures).toEqual([
+      "criterion AC2 has no covering test in the contract mapping",
+    ]);
+  });
+
+  // Adversarial near-miss: the mapping exists but its only entry is blank.
+  // That is still a build defect — a contract pass ran — and must not be
+  // relabelled as a planning defect.
+  it("an empty test list inside a present mapping stays a build defect", () => {
+    const result = runCompletenessGate(checkedCriteria, [], { AC1: ["   "] });
+
+    expect(result.status).toBe("fail");
+    expect(result.failures).toEqual([
+      "criterion AC1 has no covering test in the contract mapping",
+    ]);
   });
 });
 

@@ -23,20 +23,67 @@ const DETERMINISTIC_PROPOSAL_CONTRACT = {
   },
 } as const;
 
-/** Exact bounded data envelope consumed by the human-ratified planner prompt. */
-export function renderEpisodePlannerBrief(
-  request: EpisodePlannerProposalRequest,
-): string {
-  const proposalSchema = request.providerOperations === undefined
-    ? EPISODE_PLAN_PROPOSAL_SCHEMA
-    : episodePlanProposalSchemaForOperations(request.providerOperations);
-  const diagnostics = request.validationDiagnostics
+/** Closed domain topology contract supplied by the caller. It is data the
+ * planner is given before it generates, not prose the prompt has to carry. */
+export type EpisodePlanTopologyContract = Readonly<Record<string, unknown>>;
+
+interface TopologyRuleLike {
+  id: string;
+  statement: string;
+}
+
+function topologyRules(
+  contract: EpisodePlanTopologyContract | undefined,
+): TopologyRuleLike[] {
+  const declared = contract?.["topologyRules"];
+  if (!Array.isArray(declared)) return [];
+  return declared.filter((entry): entry is TopologyRuleLike =>
+    entry !== null && typeof entry === "object" &&
+    typeof (entry as { id?: unknown }).id === "string" &&
+    typeof (entry as { statement?: unknown }).statement === "string");
+}
+
+/**
+ * A repair pass that receives only the error list optimizes for the reported
+ * errors and regresses everything else — run 3's repair inverted a review
+ * ordering its input had right (ISSUE-023). Hand it the invariants the
+ * rejected proposal already satisfied, and require it to keep them.
+ */
+function repairContract(
+  contract: EpisodePlanTopologyContract | undefined,
+  diagnostics: readonly { readonly rule?: string; readonly constraint?: string }[],
+): Record<string, unknown> | undefined {
+  const rules = topologyRules(contract);
+  if (rules.length === 0 || diagnostics.length === 0) return undefined;
+  const reported = new Set<string>();
+  for (const entry of diagnostics) {
+    if (entry.rule !== undefined) reported.add(entry.rule);
+    if (entry.constraint !== undefined) reported.add(entry.constraint);
+  }
+  const violated = rules.filter((rule) => reported.has(rule.id));
+  const preserved = rules.filter((rule) => !reported.has(rule.id));
+  return {
+    mustBeNonRegressive: true,
+    rule:
+      "the repaired plan must violate a strict subset of the reported violations; " +
+      "introducing a violation of any invariant listed in invariantsAlreadySatisfied " +
+      "rejects the repair as regressive",
+    violatedInvariants: violated.map((rule) => rule.id),
+    invariantsAlreadySatisfied: preserved.map((rule) => rule.id),
+  };
+}
+
+function renderDiagnostics(
+  entries: EpisodePlannerProposalRequest["validationDiagnostics"],
+): Array<{ code: string; message: string; rule?: string; constraint?: string; stepId?: string }> {
+  return entries
     .map((entry) => ({
       code: entry.code,
       message: entry.message,
       ...(entry.stepId === undefined ? {} : { stepId: entry.stepId }),
       ...(entry.path === undefined ? {} : { path: entry.path }),
       ...(entry.constraint === undefined ? {} : { constraint: entry.constraint }),
+      ...(entry.rule === undefined ? {} : { rule: entry.rule }),
       ...(entry.expected === undefined ? {} : { expected: entry.expected }),
       ...(entry.received === undefined ? {} : { received: entry.received }),
     }))
@@ -44,6 +91,20 @@ export function renderEpisodePlannerBrief(
       left.code.localeCompare(right.code) ||
       (left.stepId ?? "").localeCompare(right.stepId ?? "") ||
       left.message.localeCompare(right.message));
+}
+
+/** Exact bounded data envelope consumed by the human-ratified planner prompt. */
+export function renderEpisodePlannerBrief(
+  request: EpisodePlannerProposalRequest,
+): string {
+  const proposalSchema = request.providerOperations === undefined
+    ? EPISODE_PLAN_PROPOSAL_SCHEMA
+    : episodePlanProposalSchemaForOperations(
+      request.providerOperations,
+      request.mechanicalGates === undefined ? {} : { mechanicalGates: request.mechanicalGates },
+    );
+  const diagnostics = renderDiagnostics(request.validationDiagnostics);
+  const repair = repairContract(request.topologyContract, diagnostics);
   const payload = {
     schemaVersion: 1,
     kind: "episode-planner-input",
@@ -65,7 +126,14 @@ export function renderEpisodePlannerBrief(
     ...(request.providerOperations === undefined
       ? {}
       : { providerOperationRegistry: [...new Set(request.providerOperations)].sort() }),
+    ...(request.mechanicalGates === undefined
+      ? {}
+      : { mechanicalGateRegistry: [...new Set(request.mechanicalGates)].sort() }),
     deterministicProposalContract: DETERMINISTIC_PROPOSAL_CONTRACT,
+    ...(request.topologyContract === undefined
+      ? {}
+      : { topologyContract: request.topologyContract }),
+    ...(repair === undefined ? {} : { repairContract: repair }),
     intent: request.intent,
     validationDiagnostics: diagnostics,
     deterministicSafetyFloor: {
@@ -107,6 +175,8 @@ export function renderEpisodePlannerBrief(
 export interface EpisodePlannerRevisionRequest {
   intent: EpisodePlannerProposalRequest["intent"];
   providerOperations?: readonly string[];
+  mechanicalGates?: readonly string[];
+  topologyContract?: EpisodePlanTopologyContract;
   previousPlan: EpisodePlan;
   replan: EpisodeReplanRecord;
   attempt: 1 | 2;
@@ -122,21 +192,12 @@ export function renderEpisodePlannerRevisionBrief(
 ): string {
   const proposalSchema = request.providerOperations === undefined
     ? EPISODE_PLAN_PROPOSAL_SCHEMA
-    : episodePlanProposalSchemaForOperations(request.providerOperations);
-  const diagnostics = request.validationDiagnostics
-    .map((entry) => ({
-      code: entry.code,
-      message: entry.message,
-      ...(entry.stepId === undefined ? {} : { stepId: entry.stepId }),
-      ...(entry.path === undefined ? {} : { path: entry.path }),
-      ...(entry.constraint === undefined ? {} : { constraint: entry.constraint }),
-      ...(entry.expected === undefined ? {} : { expected: entry.expected }),
-      ...(entry.received === undefined ? {} : { received: entry.received }),
-    }))
-    .sort((left, right) =>
-      left.code.localeCompare(right.code) ||
-      (left.stepId ?? "").localeCompare(right.stepId ?? "") ||
-      left.message.localeCompare(right.message));
+    : episodePlanProposalSchemaForOperations(
+      request.providerOperations,
+      request.mechanicalGates === undefined ? {} : { mechanicalGates: request.mechanicalGates },
+    );
+  const diagnostics = renderDiagnostics(request.validationDiagnostics);
+  const repair = repairContract(request.topologyContract, diagnostics);
   const payload = {
     schemaVersion: 1,
     kind: "episode-planner-revision-input",
@@ -154,7 +215,14 @@ export function renderEpisodePlannerRevisionBrief(
     ...(request.providerOperations === undefined
       ? {}
       : { providerOperationRegistry: [...new Set(request.providerOperations)].sort() }),
+    ...(request.mechanicalGates === undefined
+      ? {}
+      : { mechanicalGateRegistry: [...new Set(request.mechanicalGates)].sort() }),
     deterministicProposalContract: DETERMINISTIC_PROPOSAL_CONTRACT,
+    ...(request.topologyContract === undefined
+      ? {}
+      : { topologyContract: request.topologyContract }),
+    ...(repair === undefined ? {} : { repairContract: repair }),
     immutableIntent: request.intent,
     previousAcceptedPlan: request.previousPlan,
     materialEvent: request.replan,

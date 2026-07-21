@@ -1,0 +1,217 @@
+{
+  "schemaVersion": 1,
+  "episodeId": "ticket:sonnet4-buildstack-dev:#2",
+  "version": 1,
+  "intentHash": "564221eb4249d6eeb6dab99062978447c972c93e7d0ac713299f7f7c04ba68ab",
+  "summary": "Establish the Astro + MDX (pnpm, Node 20+) stack, non-vacuous stack-specific test and lint gates, and one observable product slice for sonnet4-buildstack-dev via a builder contract+implement pass, then an independent reviewer verification before ship. Linear DAG with a required terminal ship output repairs the prior unreachable-step and missing-terminal defects.",
+  "workflowClass": "feature-build",
+  "planningSource": "episode_planner",
+  "steps": [
+    {
+      "kind": "mechanical_gate",
+      "id": "provision",
+      "objective": "Provision the ticket worktree and branch from origin/master so implementation work has an isolated workspace.",
+      "dependsOn": [],
+      "inputRefs": [],
+      "expectedOutputs": [
+        {
+          "id": "workspace",
+          "kind": "provisioned-worktree",
+          "required": true
+        }
+      ],
+      "gate": "ticket/provision"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "contract",
+      "objective": "Record the Astro + MDX (pnpm, Node 20+) stack decision and its source in docs/ARCHITECTURE.md and specify the meaningful stack-specific test_command, lint_command, and setup_command contract satisfying AC1, AC3, and AC4.",
+      "dependsOn": [
+        "provision"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:workspace",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "build-contract",
+          "kind": "contract",
+          "required": true
+        }
+      ],
+      "operation": "build/contract",
+      "role": "builder",
+      "requiredCapabilities": [
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "maxTurnBudgetUsd": 10,
+      "selectionReason": "Builder owns contract definition; a contract pass locks the already-decided stack and the non-vacuous gate design (AC3/AC4) before implementation to avoid placeholder gates.",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "implement",
+      "objective": "Implement the Astro manifest, source layout, local workflow, wired-up meaningful test and lint gates in .operon/config.yaml, and one observable product slice with docs on how to run it, satisfying AC2 through AC5.",
+      "dependsOn": [
+        "contract"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:build-contract",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "implementation",
+          "kind": "pr",
+          "required": true
+        }
+      ],
+      "operation": "build/implement",
+      "role": "builder",
+      "requiredCapabilities": [
+        "structured_verdict",
+        "tool_gate"
+      ],
+      "maxTurnBudgetUsd": 40,
+      "selectionReason": "Builder holds the write-access implement pass to deliver the single end-to-end slice and configure real gates in one narrow PR.",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "gates_and_pr",
+      "objective": "Run the configured stack gates against the implementation and open the pull request with evidence.",
+      "dependsOn": [
+        "implement"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:implementation",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "pr",
+          "kind": "pull-request",
+          "required": true
+        }
+      ],
+      "gate": "ticket/gates-and-pr"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "verify",
+      "objective": "Independently verify the delivered revision against all five acceptance criteria, confirming gates are meaningful and the product slice is observable.",
+      "dependsOn": [
+        "gates_and_pr"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:pr",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "review-verdict",
+          "kind": "review",
+          "required": true
+        }
+      ],
+      "operation": "review/verify",
+      "role": "reviewer",
+      "requiredCapabilities": [
+        "structured_verdict"
+      ],
+      "maxTurnBudgetUsd": 40,
+      "selectionReason": "Reviewer provides the required independent_review safety fact by verifying the exact delivered revision distinct from the builder.",
+      "assignment": {
+        "harness": "claude",
+        "model": "claude-opus-4-8",
+        "effort": "xhigh"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "review_authorization",
+      "objective": "Confirm the independent review verdict authorizes progression to ship.",
+      "dependsOn": [
+        "verify"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:review-verdict",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "review-authorized",
+          "kind": "review-authorization",
+          "required": true
+        }
+      ],
+      "gate": "ticket/review-authorization"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "ship",
+      "objective": "Finalize the ticket delivery once independent review authorizes it, producing the terminal merge verdict.",
+      "dependsOn": [
+        "review_authorization"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:review-authorized",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "shipped",
+          "kind": "merge-verdict",
+          "required": true
+        }
+      ],
+      "gate": "ticket/ship"
+    }
+  ],
+  "estimatedBudget": {
+    "providerTurns": 3,
+    "providerTurnBudgetUsd": 90,
+    "mechanicalOverheadUsd": 0,
+    "totalBudgetUsd": 90
+  },
+  "derivedSafetyRoute": {
+    "label": "standard",
+    "reasons": [
+      "derived-from-3-provider-turns",
+      "safety:independent_review"
+    ],
+    "gateStepIds": [
+      "gates_and_pr",
+      "provision",
+      "review_authorization",
+      "ship"
+    ],
+    "approvalStepIds": []
+  },
+  "createdAt": "2026-07-21T09:00:41.804Z"
+}

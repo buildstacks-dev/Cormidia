@@ -22,6 +22,7 @@ import type {
   TurnUsage,
 } from "../types.js";
 import { resolveTurnRequestAssignment } from "../assignment.js";
+import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { renderContextBundle } from "../worktree-context.js";
 import { toolUseEvent } from "../tool-events.js";
 import { codexAppServerArgs, startCodexGateBridge } from "./codex-gate-bridge.js";
@@ -270,7 +271,7 @@ export class CodexRuntime implements Runtime {
     const gateBridge = await startCodexGateBridge(req.workdir, hooks, escalations);
     const client = this.clientFactory({
       args: codexAppServerArgs(),
-      env: { ...(this.appServerEnv ?? process.env), ...gateBridge.env },
+      env: { ...withNonInteractiveEnv(this.appServerEnv ?? process.env), ...gateBridge.env },
     });
     const state: CodexTurnState = {
       threadId: req.session?.id ?? `pending-${startTime}`,

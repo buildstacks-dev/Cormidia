@@ -14,6 +14,7 @@ import {
   normalizeCodexApprovalActions,
   toCodexStrictSchema,
   type CodexAppServerClient,
+  type CodexAppServerLaunchOptions,
   type CodexServerMessage,
   type JsonRpcId,
 } from "../../src/runtime/adapters/codex.js";
@@ -299,6 +300,33 @@ describe("CodexRuntime (App Server mocked)", () => {
     });
     expect(result.session).toEqual({ runtime: "codex", id: "thread-1" });
     expect(result.usage).toMatchObject({ tokensIn: 12, tokensInUncached: 10, cacheReadTokens: 2, tokensOut: 8 });
+  });
+
+  it("gives App Server and its sandbox a canonical non-interactive environment", async () => {
+    const client = new FakeCodexClient({ result: makeResult("done") });
+    let launch: CodexAppServerLaunchOptions | undefined;
+
+    await new CodexRuntime({
+      appServerEnv: {
+        PATH: "/provider/bin",
+        CI: "false",
+        OPERON_CAMPAIGN_MARKER: "keep-me",
+      },
+      clientFactory: (options) => {
+        launch = options;
+        return client;
+      },
+    }).runTurn(makeReq(), { gate: defaultGate });
+
+    expect(launch?.env).toMatchObject({
+      PATH: "/provider/bin",
+      OPERON_CAMPAIGN_MARKER: "keep-me",
+      CI: "true",
+      NPM_CONFIG_YES: "true",
+      DEBIAN_FRONTEND: "noninteractive",
+      GIT_TERMINAL_PROMPT: "0",
+      OPERON_CODEX_GATE_SOCKET: expect.any(String),
+    });
   });
 
   it("attaches the EpisodePlan schema to the App Server turn request", async () => {

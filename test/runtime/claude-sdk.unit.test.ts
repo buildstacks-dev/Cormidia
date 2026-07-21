@@ -115,6 +115,29 @@ describe("ClaudeRuntime (SDK mocked)", () => {
     expect(captured.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]).toBeTypeOf("function");
   });
 
+  it("gives the provider sandbox a canonical non-interactive environment", async () => {
+    const { captured, queryFn } = scriptedQuery([initMsg("s1"), successMsg("s1")]);
+    await new ClaudeRuntime({
+      queryFn,
+      baseOptions: {
+        env: {
+          PATH: "/provider/bin",
+          CI: "false",
+          OPERON_CAMPAIGN_MARKER: "keep-me",
+        },
+      },
+    }).runTurn(makeReq(), { gate: defaultGate });
+
+    expect(captured.options?.env).toMatchObject({
+      PATH: "/provider/bin",
+      OPERON_CAMPAIGN_MARKER: "keep-me",
+      CI: "true",
+      NPM_CONFIG_YES: "true",
+      DEBIAN_FRONTEND: "noninteractive",
+      GIT_TERMINAL_PROMPT: "0",
+    });
+  });
+
   it("maps TurnRequest.maxTurns to the SDK option", async () => {
     const { captured, queryFn } = scriptedQuery([initMsg("s1"), successMsg("s1")]);
     await new ClaudeRuntime({ queryFn }).runTurn(makeReq({ maxTurns: 7 }), {

@@ -191,6 +191,14 @@ reconciliation carries that measured partial usage into the terminal step and
 ledger settlement. It records usage as unavailable only when no measured
 checkpoint exists; unknown usage is never silently treated as measured zero.
 
+Every adapter gives its headless provider harness and shell commands the same
+non-interactive environment overlay: `CI=true`, `NPM_CONFIG_YES=true`,
+`DEBIAN_FRONTEND=noninteractive`, and `GIT_TERMINAL_PROMPT=0`. The overlay
+replaces conflicting interactive values while preserving unrelated caller-
+supplied environment such as provider authentication and campaign scratch
+paths. Claude and Codex inherit it at harness launch; pi applies it to the
+embedded Bash tool's spawn environment.
+
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
 effective gate for a turn (default rules + grant lookup, §4) and passes it
 down through `TurnHooks`. The runtime layer never imports approval storage.

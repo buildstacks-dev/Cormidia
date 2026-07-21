@@ -13,6 +13,7 @@ import * as path from "node:path";
 import {
   AuthStorage,
   createAgentSession,
+  createBashTool,
   DefaultResourceLoader,
   getAgentDir,
   ModelRegistry,
@@ -32,6 +33,7 @@ import type {
   TurnResult,
 } from "../types.js";
 import { resolveTurnRequestAssignment } from "../assignment.js";
+import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { renderContextBundle, writeMaskedWorktreeFile } from "../worktree-context.js";
 import { createPiGateExtension } from "./pi-gate.js";
 
@@ -131,6 +133,14 @@ export class PiRuntime implements Runtime {
       resourceLoader,
       sessionManager,
       tools: this.tools,
+      customTools: [
+        createBashTool(req.workdir, {
+          spawnHook: (context) => ({
+            ...context,
+            env: withNonInteractiveEnv(context.env),
+          }),
+        }),
+      ],
     });
     hooks.onProgress?.({ session: { runtime: "pi", id: session.sessionFile ?? session.sessionId } });
 

@@ -54,6 +54,7 @@ import type {
   TurnUsage,
 } from "../types.js";
 import { resolveTurnRequestAssignment } from "../assignment.js";
+import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { claudeDenyRulesForRole } from "../role-shaping.js";
 import { toolUseEvent } from "../tool-events.js";
 import { renderContextBundle } from "../worktree-context.js";
@@ -274,6 +275,7 @@ export class ClaudeRuntime implements Runtime {
     const options: SdkOptions = {
       ...this.baseOptions,
       ...(settings !== undefined ? { settings } : {}),
+      env: withNonInteractiveEnv(this.baseOptions.env ?? process.env),
       model: assignment.model,
       effort: assignment.effort,
       cwd: req.workdir,

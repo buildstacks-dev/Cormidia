@@ -107,6 +107,41 @@ describe("PiRuntime (SDK mocked)", () => {
     expect(result.summary).toBe("done");
   });
 
+  it("gives pi bash commands the canonical non-interactive environment", async () => {
+    const repo = await makeWorkingRepo();
+    const captures: Array<CreateAgentSessionOptions> = [];
+    const runtime = makePiRuntime([{ result: makeResult("done") }], captures);
+
+    await runtime.runTurn(
+      {
+        role: PI_ROLE,
+        workdir: repo.root,
+        task: "do the thing",
+        context: { taste: [], memoryExcerpts: [] },
+      },
+      { gate: defaultGate },
+    );
+
+    const bash = captures[0]?.customTools?.find((tool) => tool.name === "bash");
+    expect(bash).toBeDefined();
+    const result = await bash!.execute(
+      "env-probe",
+      { command: "/usr/bin/env" },
+      undefined,
+      undefined,
+      {} as never,
+    );
+    const output = result.content
+      .filter((item): item is Extract<(typeof result.content)[number], { type: "text" }> => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    expect(output).toContain("CI=true");
+    expect(output).toContain("NPM_CONFIG_YES=true");
+    expect(output).toContain("DEBIAN_FRONTEND=noninteractive");
+    expect(output).toContain("GIT_TERMINAL_PROMPT=0");
+  });
+
   it("rejects another harness and unsupported max effort before creating a session", async () => {
     const repo = await makeWorkingRepo();
     const captures: Array<CreateAgentSessionOptions> = [];

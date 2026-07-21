@@ -31,6 +31,7 @@ import { resolveParentTaskId } from "../org/parent-task.js";
 import { explainContext } from "../loop/context-manifest.js";
 import { resumeExecutionJournal } from "../loop/execution-journal.js";
 import { cmdClaimRearm } from "./claim-rearm.js";
+import { resolveReviewAuthorizationSecret } from "../org/review-authorization-secret.js";
 
 /**
  * Persist the scorecard events one loop tick produced into the org scorecard
@@ -218,6 +219,12 @@ export async function cmdLoop(args: string[]): Promise<number> {
 
   const localRepo = repoDir ?? join(homes.stateHome, "repos", selectedApp.name);
   const worktrees = worktreeRoot ?? join(homes.stateHome, "worktrees", selectedApp.name);
+  const selfApprovalSecret = await resolveReviewAuthorizationSecret(homes.stateHome, {
+    ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
+      ? {}
+      : { environmentSecret: process.env["OPERON_SELF_APPROVAL_SECRET"] }),
+    dryRun,
+  });
   const inputs = await defaultLoopInputs(selectedApp.repo, localRepo, {
     ...(repoDir !== undefined
       ? {
@@ -231,6 +238,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
           ),
         }
       : {}),
+    ...(selfApprovalSecret === undefined ? {} : { selfApprovalSecret }),
   });
   const rolesFile = await loadRoles(rolesPath);
   const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
@@ -343,11 +351,11 @@ export async function cmdLoop(args: string[]): Promise<number> {
           app: selectedApp.name,
           roleNames: rolesFile.roles.map((role) => role.name),
         }),
-        ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
+        ...(selfApprovalSecret === undefined
           ? {}
           : {
               authorization: {
-                selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"],
+                selfApprovalSecret,
               },
             }),
         ...(selectedApp.release === undefined ? {} : { release: selectedApp.release }),
@@ -421,8 +429,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
       // signed with this operator secret (never repo-visible). Without it, the
       // single-account fallback is not trusted — the loop fails closed rather
       // than accepting a forgeable static marker.
-      ...(process.env["OPERON_SELF_APPROVAL_SECRET"] !== undefined
-        ? { authorization: { selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"] } }
+      ...(selfApprovalSecret !== undefined
+        ? { authorization: { selfApprovalSecret } }
         : {}),
       ...(liveEngine === undefined ? {} : { engine: liveEngine }),
     });

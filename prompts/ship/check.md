@@ -33,14 +33,15 @@ to look thorough.
 
 ## Output
 
-Findings in the standard grammar (category per the concern — usually
-`architecture` or `scope`):
+Return only the structured review verdict requested by the runtime. Set
+`verdict` to `approve` only with an empty `findings` array; otherwise use
+`findings`. Each finding supplies `category` (usually `architecture` or
+`scope`), `severity`, `location`, `description`, and `action`. The required
+`review` object supplies a non-empty `rationale`, one or more concrete
+`{ "claim", "evidence" }` entries, and an explicit `notReviewed` array (empty
+only when nothing was excluded). Findings send the ticket back through fix,
+so every finding must name concrete harm, not a preference.
 
-```
-- category/severity file:line -- description -> action
-```
-
-Verdict: `approve` or `findings`, double-entered as a real GitHub review
-(APPROVE / REQUEST_CHANGES). Findings send the ticket back through fix —
-so every finding must be worth that cycle at this late stage: name the
-concrete harm, not a preference.
+Do not call `gh`, post comments or reviews, write a review-body file, or retry
+publication. The orchestrator publishes this typed verdict once, bound to the
+exact reviewed commit, after your turn has terminated.

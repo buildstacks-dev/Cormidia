@@ -106,6 +106,24 @@ describe("root pipelines.yaml", () => {
     expect(getPipeline(file, "ship").passes[0]?.role).toBe("reviewer");
   });
 
+  it("review prompts emit audit verdicts and leave GitHub publication to the orchestrator", async () => {
+    for (const template of [
+      "review/verify.md",
+      "review/security.md",
+      "review/perf.md",
+      "ship/check.md",
+    ]) {
+      const prompt = await readFile(join(ROOT, "prompts", template), "utf8");
+      expect(prompt).toContain("rationale");
+      expect(prompt).toContain("evidence");
+      expect(prompt).toContain("notReviewed");
+      expect(prompt).toContain("The orchestrator publishes this typed verdict once");
+      expect(prompt).toContain("Do not call `gh`");
+      expect(prompt).not.toContain("double-entered");
+      expect(prompt).not.toContain("double-enter it");
+    }
+  });
+
   it("plan: competing PMs share a parallel group before decomposer", async () => {
     const plan = getPipeline(await loadRoot(), "plan");
     expect(plan.passes.map((p) => p.id)).toEqual([

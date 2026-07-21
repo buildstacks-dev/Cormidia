@@ -35,14 +35,16 @@ The verify pass already applied the cheap lens; your job is the deep one.
 
 ## Output
 
-Findings in the standard grammar, category `security`:
+Return only the structured review verdict requested by the runtime. Set
+`verdict` to `approve` only with an empty `findings` array; otherwise use
+`findings`. Every finding uses category `security` and supplies `severity`,
+`location`, `description` naming the attack path, and `action` naming the
+defense. The required `review` object supplies a non-empty `rationale`, one or
+more concrete `{ "claim", "evidence" }` entries, and an explicit
+`notReviewed` array (empty only when nothing was excluded).
 
-```
-- security/severity file:line -- description -> action
-```
-
-The description names the attack path; the action names the defense.
-
-Verdict: `approve` (no findings stand) or `findings`, double-entered as a
-real GitHub review (APPROVE / REQUEST_CHANGES). An approved security-deep
-pass is the org's statement that this change is safe to run in production.
+Do not call `gh`, post comments or reviews, write a review-body file, or retry
+publication. The orchestrator publishes this typed verdict once, bound to the
+exact reviewed commit, after your turn has terminated. An approved
+security-deep pass is the org's statement that this change is safe to run in
+production.

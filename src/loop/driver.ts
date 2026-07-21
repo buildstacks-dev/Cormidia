@@ -833,6 +833,9 @@ export interface DefaultLoopInputOptions {
   supplied?: boolean;
   /** Required for supplied input: Operon-owned clone used for ticket branches. */
   snapshotDir?: string;
+  /** One orchestrator-resolved value shared by review publication and merge
+   * authorization. It is never resolved from process state in this leaf. */
+  selfApprovalSecret?: string;
 }
 
 export async function defaultLoopInputs(
@@ -871,7 +874,7 @@ export async function defaultLoopInputs(
     base = ensureClone(repoSlug, repoDir);
   }
   return {
-    gh: new GhCliOps(repoSlug, undefined, process.env["OPERON_SELF_APPROVAL_SECRET"]),
+    gh: new GhCliOps(repoSlug, undefined, options.selfApprovalSecret),
     localRepo,
     base,
     policy: await loadRequiredPolicy(join(localRepo, ".operon", "policy.yaml")),

@@ -75,7 +75,18 @@ const CONTRACT = [
 ].join("\n");
 
 const DONE = "Verdict: done";
-const APPROVE = "Verdict: approve";
+const APPROVE = [
+  "Verdict: approve",
+  "",
+  "## Review rationale",
+  "The exact diff satisfies the fixture ticket.",
+  "",
+  "## Evidence",
+  "- fixture behavior => the named test passes at the reviewed head",
+  "",
+  "## Not reviewed",
+  "- None.",
+].join("\n");
 
 const ROLES: Record<string, RoleConfig> = {
   planner: role("planner"),

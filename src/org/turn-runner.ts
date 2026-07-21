@@ -126,6 +126,7 @@ import { loadRoles } from "./roles.js";
 import { appendScorecardEvent } from "./scorecards.js";
 import { createTicketEpisodeRuntime } from "./ticket-episode-runtime.js";
 import { createExistingTicketApprovalHandler } from "./ticket-episode-approval.js";
+import { resolveReviewAuthorizationSecret } from "./review-authorization-secret.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
 import {
   mergeEpisodeSafetyFacts,
@@ -1781,7 +1782,15 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     promptsDir: join(options.orgRoot, "prompts"),
   });
   const policy = await loadPolicy(join(options.localRepo, ".operon", "policy.yaml"));
-  const gh = options.gh ?? new GhCliOps(options.app.repo);
+  const selfApprovalSecret = await resolveReviewAuthorizationSecret(options.runtimeHome, {
+    ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
+      ? {}
+      : { environmentSecret: process.env["OPERON_SELF_APPROVAL_SECRET"] }),
+  });
+  if (selfApprovalSecret === undefined) {
+    throw new Error("review authorization secret resolution unexpectedly returned no live secret");
+  }
+  const gh = options.gh ?? new GhCliOps(options.app.repo, undefined, selfApprovalSecret);
   const commands = loadGateCommands(options.localRepo);
   const budgetRows = await rollupBudgets(options.runtimeHome, options.appsFile, clock());
   const budgetRow = budgetRows.find((row) => row.app === options.app.name);
@@ -1850,13 +1859,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     ...(options.episodePlannerLimits === undefined
       ? {}
       : { plannerLimits: options.episodePlannerLimits }),
-    ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
-      ? {}
-      : {
-          authorization: {
-            selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"],
-          },
-        }),
+    authorization: { selfApprovalSecret },
     ...(options.app.release === undefined ? {} : { release: options.app.release }),
     telemetry: options.telemetry,
     ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
@@ -1874,13 +1877,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     base: options.base,
     maxConcurrent: 1,
     turnId: options.turnId,
-    ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
-      ? {}
-      : {
-          authorization: {
-            selfApprovalSecret: process.env["OPERON_SELF_APPROVAL_SECRET"],
-          },
-        }),
+    authorization: { selfApprovalSecret },
     ...(options.app.release !== undefined ? { release: options.app.release } : {}),
     engine: {
       pipelines,

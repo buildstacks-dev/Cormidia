@@ -267,6 +267,34 @@ describe("GhCliOps", () => {
     expect(verifiedSelfApprovalMarker(review.body, "any-secret", 7, "abc123")).toBe(false);
   });
 
+  it("fences review publication on the orchestrator's exact expected commit", async () => {
+    const { exec, calls } = execFrom((args) => {
+      if (args[0] === "pr" && args[1] === "view") {
+        return { stdout: prJson, stderr: "", exitCode: 0 };
+      }
+      if (args[0] === "pr" && args[1] === "review") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      throw new Error(`unexpected ${args.join(" ")}`);
+    });
+    const gh = new GhCliOps("o/r", exec);
+
+    await expect(gh.createReview(7, {
+      state: "approve",
+      body: "Verdict: approve",
+      expectedCommit: "def456",
+    })).rejects.toThrow(/expected head def456, got abc123/);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args.slice(0, 3)).toEqual(["pr", "view", "7"]);
+
+    await expect(gh.createReview(7, {
+      state: "approve",
+      body: "Verdict: approve",
+      expectedCommit: "abc123",
+    })).resolves.toMatchObject({ state: "APPROVED", commitId: "abc123" });
+    expect(calls.at(-1)?.args).toContain("--approve");
+  });
+
   it("falls back to a comment review when GitHub rejects same-account changes requests", async () => {
     const { exec, calls } = execFrom((args) => {
       if (args[0] === "pr" && args[1] === "review" && args.includes("--request-changes")) {

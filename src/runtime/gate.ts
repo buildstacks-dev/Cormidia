@@ -485,13 +485,16 @@ const FILE_ARGUMENT_TOOLS = new Set([
 function analyzeShell(raw: string, depth = 0): ShellEffects {
   if (depth > 4) return { executables: [], targets: [], redirections: [], environment: [] };
   const unwrapped = unwrapCommand(raw);
-  const nested = extractCommandSubstitutions(unwrapped)
+  // Heredoc payload is data, including any Markdown backticks or illustrative
+  // `$()` fragments. Remove it before every executable-intent projection, not
+  // only before the top-level tokenizer (ISSUE-019).
+  const withoutHeredocs = stripHeredocBodies(unwrapped);
+  const nested = extractCommandSubstitutions(withoutHeredocs)
     .map((command) => analyzeShell(command, depth + 1));
-  const executableMessages = [...unwrapped.matchAll(MESSAGE_FLAG_ARG)]
+  const executableMessages = [...withoutHeredocs.matchAll(MESSAGE_FLAG_ARG)]
     .map((match) => match[1] ?? "")
     .filter(hasExecutableEffect)
     .map((value) => analyzeShell(unquote(value).replace(/\$\{IFS\}/gi, " "), depth + 1));
-  const withoutHeredocs = stripHeredocBodies(unwrapped);
   const command = stripShellComments(withoutMessageArgs(withoutHeredocs)).replace(/\$\{IFS\}/gi, " ");
   const tokens = tokenizeShell(command);
   const effects: ShellEffects = { executables: [], targets: [], redirections: [], environment: [] };
@@ -649,7 +652,7 @@ function relevantArguments(executable: string, args: string[]): { verb: string; 
     return { verb: executable === "sed" && args.includes("-i") ? "-i" : "", targets: positional.slice(1) };
   }
   if (FILE_ARGUMENT_TOOLS.has(executable)) {
-    return { verb: executable, targets: args.filter((arg) => !arg.startsWith("-") && arg !== "-") };
+    return { verb: "", targets: args.filter((arg) => !arg.startsWith("-") && arg !== "-") };
   }
   if (["kubectl", "doctl", "npm", "pnpm", "helm", "terraform", "docker", "gcloud", "aws", "curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"].includes(executable)) {
     return {

@@ -464,10 +464,12 @@ The offline commands above need nothing. The live commands need:
   adapter calibration verifies exact availability before qualification.)
 - **`gh` auth + `GH_SANDBOX_REPO=<owner/repo>`** for the `e2e:sandbox` scripts,
   which create and merge one disposable issue/PR against a private repo.
-- **`OPERON_SELF_APPROVAL_SECRET`** so the loop can authorize its own merge in a
-  single-token setup. It is the HMAC key behind the self-approval marker the merge
-  gate checks; without it the loop cannot sign a merge authorization and the merge
-  is withheld as a critical op.
+- **No self-approval variable is required by default.** Live loop/dispatch
+  execution race-safely creates an owner-only HMAC key at
+  `<stateHome>/state/self-approval-secret`; it is resolved by the orchestrator
+  and never placed in provider context or environment. Set
+  `OPERON_SELF_APPROVAL_SECRET` only as an explicit compatibility override.
+  A corrupt, linked, or weakly-permissioned state key fails closed.
 
 Environment variables are loaded per project from `.env` / `.env.local` at the
 git root; there is no `.env.example` yet — the variables above are the full set.
@@ -610,6 +612,8 @@ approvals/                # content-bound decisions, grants, execution state,
                           # attempt/result acknowledgement, transition audit
 tickets/<app>/<issue>.json # atomic provisional/paid claim, approval continuation,
                           # re-arm transaction, and lifecycle telemetry
+state/self-approval-secret # owner-only orchestrator HMAC key for exact-commit
+                           # same-account review authorization (never prompt data)
 learning/events/<date>/   # learning-loop capture: gate outcomes, pass verdicts,
                           # human observations, episode lifecycle, late outcomes
 learning/episodes/        # EpisodeRecord projection over runs + ledger +

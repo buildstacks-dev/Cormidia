@@ -64,7 +64,18 @@ const BRIEF = [
   "**Complexity:** low",
   "",
 ].join("\n");
-const APPROVE = "Verdict: approve";
+const APPROVE = [
+  "Verdict: approve",
+  "",
+  "## Review rationale",
+  "The exact replay diff satisfies the fixture ticket.",
+  "",
+  "## Evidence",
+  "- replay behavior => the named replay test passes at the reviewed head",
+  "",
+  "## Not reviewed",
+  "- None.",
+].join("\n");
 const FINDING =
   "- testing/major src/x.ts:1 -- missing regression coverage -> add the test\nVerdict: findings";
 

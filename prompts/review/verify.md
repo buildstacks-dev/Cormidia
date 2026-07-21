@@ -29,24 +29,30 @@ found.
 
 ## Output
 
-Findings, one per line, in exactly this grammar:
+Return only the structured review verdict requested by the runtime:
 
+```json
+{
+  "verdict": "approve",
+  "findings": [],
+  "review": {
+    "rationale": "Why the evidence supports this verdict.",
+    "evidence": [{ "claim": "What was checked", "evidence": "The concrete code, diff, or test result" }],
+    "notReviewed": []
+  }
+}
 ```
-- category/severity file:line -- description -> action
-```
 
-- **category:** `architecture` | `testing` | `security` | `style` | `scope`
-- **severity:** `critical` | `major` | `minor`
-- **description:** what is wrong, specifically — quote the code, not vibes
-- **action:** what would resolve it — concrete enough that the fix pass can
-  act without guessing
+`verdict` is `approve` only when `findings` is empty; otherwise it is
+`findings`. Each finding supplies `category` (`architecture` | `testing` |
+`security` | `style` | `scope`), `severity` (`critical` | `major` | `minor`),
+`location`, `description`, and `action`. Evidence must be non-empty even for
+approval. `notReviewed` explicitly names deliberately excluded scope; use an
+empty array only when nothing was excluded.
 
-Verdict: `approve` (the list is empty) or `findings` (anything stands —
-every finding, whatever its severity, must be resolved or rebutted before
-merge; the completeness gate enforces exactly that).
-Then double-enter it as a real GitHub review — APPROVE or REQUEST_CHANGES
-with the findings in the review body. The GitHub review is the state the
-orchestrator acts on; a verdict without it does not exist.
+Do not call `gh`, post comments or reviews, write a review-body file, or retry
+publication. The orchestrator publishes this typed verdict once, bound to the
+exact reviewed commit, after your turn has terminated.
 
 Do not pad the list. Three real findings beat ten stylistic ones — every
 finding you emit, the builder must resolve or rebut.

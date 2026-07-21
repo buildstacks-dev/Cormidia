@@ -75,7 +75,18 @@ const CONTRACT = [
   "",
 ].join("\n");
 
-const APPROVE = "Verdict: approve";
+const APPROVE = [
+  "Verdict: approve",
+  "",
+  "## Review rationale",
+  "The exact diff and named fixture tests satisfy the ticket.",
+  "",
+  "## Evidence",
+  "- acceptance criteria => the named fixture behavior test passes at the reviewed head",
+  "",
+  "## Not reviewed",
+  "- None.",
+].join("\n");
 const FINDING = "- testing/major test/change.test.ts:1 -- missing coverage -> add the regression\nVerdict: findings";
 const DONE = "Verdict: done";
 

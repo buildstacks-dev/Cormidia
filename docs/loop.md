@@ -487,7 +487,10 @@ type ContractVerdict = { files: string[]; approach: string;
                          risks: string; complexity: "low"|"medium"|"high" };
 type BuildVerdict    = { status: "done"|"blocked"; blockedEntry?: BlockedEntry };
 type ReviewVerdict   = { verdict: "approve"|"findings";
-                         findings: Finding[] };
+                         findings: Finding[];
+                         review: { rationale: string;
+                                   evidence: { claim: string; evidence: string }[];
+                                   notReviewed: string[] } };
 type Finding         = { category: "architecture"|"testing"|"security"|"style"|"scope";
                          severity: "critical"|"major"|"minor";
                          location: string; description: string; action: string };
@@ -510,9 +513,16 @@ a real `runTurn`, so its spend is **folded into the pass's usage rollup**
 (`sumTurnUsage` in src/loop/pipeline.ts) — `analyze`/`status` never undercount
 the retry.
 - **No side effect keys off prose.** Merge requires: GitHub APPROVE review
-present ∧ freshness ∧ mechanical gates green. The reviewer's verdict is
-double-entered — structured verdict *and* a real GitHub review — and the
-GitHub state is authoritative. A real `APPROVED` review authorizes a merge
+present ∧ freshness ∧ mechanical gates green. The reviewer emits only the
+typed verdict: non-empty rationale and claim/evidence pairs make an approval
+auditable, while `notReviewed` records deliberately excluded scope. After the
+provider turn has terminated, the orchestrator deterministically renders and
+publishes that verdict as the real GitHub review. The delivery marker binds
+the execution id, provider run, verdict content, and exact reviewed commit;
+recovery re-lists GitHub and accepts exactly one matching remote effect, so a
+crash cannot duplicate publication and a concurrent push fails closed. The
+reviewer never invokes `gh`, writes a review-body file, or retries delivery.
+A real `APPROVED` review authorizes a merge
 only if it is an *independent* review: `latestActionableReview` →
 `isIndependentApproval` (src/loop/loop.ts) rejects an APPROVE authored by the
 builder/PR identity (`authorization.builderIdentity`) and, when a reviewer
@@ -524,9 +534,13 @@ Operon has a separate bot/app identity, `GhCliOps` falls back only for that
 exact error to a real COMMENTED PR review carrying the
 `<!-- operon:self-approval-fallback sig=… -->` marker. That marker is **not**
 a static string anyone can post: it carries an HMAC over the PR number **and
-the reviewed commit** (`headRefOid`) signed with an operator secret
-(`OPERON_SELF_APPROVAL_SECRET`, `authorization.selfApprovalSecret`) that the
-sandboxed agent cannot read. Binding the commit is what defeats replay (A-001):
+the reviewed commit** (`headRefOid`) signed with an orchestrator-only secret.
+By default Operon race-safely creates and validates that key at
+`<stateHome>/state/self-approval-secret` (regular owner-only file, never prompt
+context or provider environment); `OPERON_SELF_APPROVAL_SECRET` remains an
+explicit compatibility override. One resolved value is passed to both
+`GhCliOps` signing and `authorization.selfApprovalSecret` verification.
+Binding the commit is what defeats replay (A-001):
 the marker is published into a world-readable review, so a prompt-injected
 builder can copy it, push arbitrary code, and post it again — but the loop
 recomputes the HMAC against the review's own `commit_id`, which GitHub stamps to
@@ -536,10 +550,10 @@ commit (`verifiedSelfApprovalMarker` in src/loop/github.ts, a `timingSafeEqual`
 check), the review clears the same author-independence gate as a real APPROVE
 (`isMarkedSelfApproval` mirrors `isIndependentApproval`), *and* the body is a
 structured `Verdict: approve`, and still enforces commit freshness against the
-branch head. With no secret configured, or an unresolved reviewed commit, the
-loop fails closed — a bare marker is never trusted. (Threading the secret to the
-agent's own environment would re-open the forgery, so it must stay
-orchestrator-only.)
+branch head. A corrupt, linked, or weakly-permissioned state key, a missing key
+on a read-only preview, or an unresolved reviewed commit fails closed — a bare
+marker is never trusted. (Threading the secret to the agent's own environment
+would re-open the forgery, so it must stay orchestrator-only.)
 
 
 

@@ -871,12 +871,14 @@ export async function runReviewPipeline(
   const body = renderReviewBody(verdicts);
   await options.gh.commentIssue(item.issueNumber, `## Structured review verdict\n\n${body}`);
   const findings = verdicts.flatMap((entry) => entry.verdict.findings);
+  const reviewedHead = headSha(requireField(item, "worktree"));
   await options.gh.createReview(prNumber, {
     state: findings.length > 0 ? "request_changes" : "approve",
     body,
+    expectedCommit: reviewedHead,
   });
   await journalBoundary(journal, "findings", {
-    reviewedHead: headSha(requireField(item, "worktree")),
+    reviewedHead,
     findings,
     passes: verdicts.map((entry) => entry.pass),
   });
@@ -986,9 +988,11 @@ export async function runShipCheckPipeline(
 
   const body = renderReviewBody(verdicts);
   await options.gh.commentIssue(item.issueNumber, `## Ship-check verdict\n\n${body}`);
+  const reviewedHead = headSha(requireField(item, "worktree"));
   await options.gh.createReview(requireField(item, "prNumber"), {
     state: hasFindings(verdicts) ? "request_changes" : "approve",
     body,
+    expectedCommit: reviewedHead,
   });
 
   if (!hasFindings(verdicts)) return item;
@@ -1595,12 +1599,26 @@ export function renderBuildBlockedComment(verdict: BuildVerdict): string {
 /** Stable review rendering shared by both ticket executors. */
 export function renderReviewBody(entries: readonly { pass: string; verdict: ReviewVerdict }[]): string {
   const findings = entries.flatMap((entry) => entry.verdict.findings);
+  const notReviewed = entries.flatMap((entry) =>
+    entry.verdict.review.notReviewed.map((scope) => `${entry.pass}: ${scope}`),
+  );
   const lines = [
-    ...findings.map(findingLine),
     `Verdict: ${findings.length === 0 ? "approve" : "findings"}`,
     "",
     "Passes:",
     ...entries.map((entry) => `- ${entry.pass}: ${entry.verdict.verdict}`),
+    ...(findings.length === 0 ? [] : ["", "Findings:", ...findings.map(findingLine)]),
+    "",
+    "## Review rationale",
+    ...entries.map((entry) => `- ${entry.pass}: ${entry.verdict.review.rationale}`),
+    "",
+    "## Evidence",
+    ...entries.flatMap((entry) => entry.verdict.review.evidence.map((evidence) =>
+      `- [${entry.pass}] ${evidence.claim} => ${evidence.evidence}`,
+    )),
+    "",
+    "## Not reviewed",
+    ...(notReviewed.length === 0 ? ["- None."] : notReviewed.map((scope) => `- ${scope}`)),
   ];
   return lines.join("\n");
 }
@@ -1767,7 +1785,7 @@ function unstructuredReviewFinding(body: string): Finding {
   };
 }
 
-function latestActionableReview(
+export function latestActionableReview(
   reviews: readonly GhReview[],
   prNumber: number,
   auth?: ReviewAuthorization,
@@ -1821,7 +1839,12 @@ function isMarkedSelfApproval(
     return false;
   }
   const parsed = parseVerdict("review", review.body);
-  return parsed.ok && parsed.verdict.verdict === "approve";
+  if (parsed.ok) return parsed.verdict.verdict === "approve";
+  // Compatibility for HMAC-authorized reviews published before the audit
+  // payload became required. Authority comes from the commit-bound HMAC, not
+  // this text; new orchestrator publications always carry the full audit.
+  return /^\s*Verdict:\s*`?approve`?\s*$/m.test(review.body) &&
+    !/^\s*-\s+(?:architecture|testing|security|style|scope)\//im.test(review.body);
 }
 
 function createWorktree(

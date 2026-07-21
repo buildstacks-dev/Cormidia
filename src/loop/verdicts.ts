@@ -116,6 +116,18 @@ export interface BuildVerdict {
 export interface ReviewVerdict {
   verdict: "approve" | "findings";
   findings: Finding[];
+  /** Auditable judgment retained with the typed verdict and rendered into the
+   * orchestrator-owned GitHub review. An empty findings list is not evidence
+   * by itself. */
+  review: {
+    rationale: string;
+    evidence: {
+      claim: string;
+      evidence: string;
+    }[];
+    /** Deliberately excluded scope. An empty list explicitly means none. */
+    notReviewed: string[];
+  };
 }
 
 /** M6 distiller output. The org layer supplies evidence and owns ids/hashes;
@@ -505,7 +517,75 @@ function parseReview(text: string): ParseResult<"review"> {
         `"- category/severity file:line -- description -> action"`,
     );
   }
-  return { ok: true, verdict: { verdict, findings } };
+  const audit = parseReviewAudit(text, verdict, findings);
+  if (!audit.ok) return audit;
+  return { ok: true, verdict: { verdict, findings, review: audit.review } };
+}
+
+const REVIEW_AUDIT_KEYS = ["Review rationale", "Evidence", "Not reviewed"] as const;
+const REVIEW_EVIDENCE_LINE = /^\s*-\s+(.+?)\s+(?:=>|⇒)\s+(.+?)\s*$/;
+
+function parseReviewAudit(
+  text: string,
+  verdict: ReviewVerdict["verdict"],
+  findings: readonly Finding[],
+):
+  | { ok: true; review: ReviewVerdict["review"] }
+  | ParseFailure {
+  const sections = extractSections(text, REVIEW_AUDIT_KEYS);
+  const present = REVIEW_AUDIT_KEYS.filter((key) => sections.has(key));
+  if (present.length === 0 && verdict === "findings") {
+    // Historical findings already carry concrete location, defect, and action
+    // evidence. Preserve their rehydratability without allowing a new
+    // approve/no-findings result to collapse back to an unexplained assertion.
+    return {
+      ok: true,
+      review: {
+        rationale: `The review found ${findings.length} actionable finding(s).`,
+        evidence: findings.map((finding) => ({
+          claim: `${finding.category}/${finding.severity} at ${finding.location}`,
+          evidence: `${finding.description}; required action: ${finding.action}`,
+        })),
+        notReviewed: [],
+      },
+    };
+  }
+  if (present.length < REVIEW_AUDIT_KEYS.length) {
+    const missing = REVIEW_AUDIT_KEYS.filter((key) => !sections.has(key));
+    return failure(
+      "review",
+      `review audit incomplete — missing ${missing.map((key) => `## ${key}`).join(", ")}; ` +
+        "approve requires non-empty rationale/evidence and explicit not-reviewed scope",
+    );
+  }
+  const rationale = sections.get("Review rationale")!.trim();
+  if (rationale.length === 0) {
+    return failure("review", "review rationale is empty");
+  }
+  const evidence: ReviewVerdict["review"]["evidence"] = [];
+  for (const line of sections.get("Evidence")!.split("\n")) {
+    if (line.trim().length === 0) continue;
+    const match = REVIEW_EVIDENCE_LINE.exec(line);
+    if (match === null) {
+      return failure(
+        "review",
+        `malformed review evidence ${JSON.stringify(line.trim())} — expected ` +
+          '"- claim => concrete evidence"',
+      );
+    }
+    evidence.push({ claim: match[1]!.trim(), evidence: match[2]!.trim() });
+  }
+  if (evidence.length === 0) {
+    return failure("review", "review evidence contains no entries");
+  }
+  const rawNotReviewed = sections.get("Not reviewed")!
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-*]\s+/, "").trim())
+    .filter(Boolean);
+  const notReviewed = rawNotReviewed.length === 1 && /^(?:none|nothing)\.?$/i.test(rawNotReviewed[0]!)
+    ? []
+    : rawNotReviewed;
+  return { ok: true, review: { rationale, evidence, notReviewed } };
 }
 
 // ---------------------------------------------------------------------------
@@ -619,6 +699,7 @@ export type VerdictSchema = {
   readonly additionalProperties?: boolean;
   readonly items?: VerdictSchema;
   readonly minItems?: number;
+  readonly minLength?: number;
   readonly minimum?: number;
   readonly maximum?: number;
 };
@@ -639,6 +720,40 @@ const FINDING_SCHEMA: VerdictSchema = {
     location: { type: "string", description: "file:line (or file) the finding anchors to" },
     description: { type: "string", description: "what is wrong, specifically" },
     action: { type: "string", description: "what would resolve it" },
+  },
+};
+
+const REVIEW_AUDIT_SCHEMA: VerdictSchema = {
+  title: "ReviewAudit",
+  description:
+    "Auditable review rationale, concrete claim/evidence pairs, and explicit deliberately-unreviewed scope.",
+  type: "object",
+  additionalProperties: false,
+  required: ["rationale", "evidence", "notReviewed"],
+  properties: {
+    rationale: {
+      type: "string",
+      minLength: 1,
+      description: "non-empty explanation for the verdict",
+    },
+    evidence: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["claim", "evidence"],
+        properties: {
+          claim: { type: "string", minLength: 1 },
+          evidence: { type: "string", minLength: 1 },
+        },
+      },
+    },
+    notReviewed: {
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      description: "deliberately excluded scope; [] explicitly means none",
+    },
   },
 };
 
@@ -815,10 +930,11 @@ export const VERDICT_SCHEMAS: Readonly<Record<VerdictKind, VerdictSchema>> = {
       "authoritative for merge (docs/loop.md §6).",
     type: "object",
     additionalProperties: false,
-    required: ["verdict", "findings"],
+    required: ["verdict", "findings", "review"],
     properties: {
       verdict: { type: "string", enum: ["approve", "findings"] },
       findings: { type: "array", items: FINDING_SCHEMA },
+      review: REVIEW_AUDIT_SCHEMA,
     },
   },
   "learning-distill": {
@@ -863,6 +979,8 @@ function schemaErrors(schema: VerdictSchema, value: unknown, path: string): stri
     case "string":
       if (typeof value !== "string") {
         errors.push(`${path}: expected string, got ${typeName(value)}`);
+      } else if (schema.minLength !== undefined && value.trim().length < schema.minLength) {
+        errors.push(`${path}: expected at least ${schema.minLength} non-whitespace character(s)`);
       }
       break;
     case "boolean":

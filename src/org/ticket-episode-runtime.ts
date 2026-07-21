@@ -35,9 +35,10 @@ import {
   renderBuildBlockedComment,
   renderContractComment,
   renderReviewBody,
+  latestActionableReview,
   type ReviewAuthorization,
 } from "../loop/loop.js";
-import type { GhOps } from "../loop/github.js";
+import type { GhOps, GhReview } from "../loop/github.js";
 import type { Policy } from "../loop/policy.js";
 import type { GateCommands } from "../loop/qgates.js";
 import type { LoopItem, ReleaseConfig } from "../loop/types.js";
@@ -894,21 +895,44 @@ async function applyProviderOutcome(
   }
   if (definition.verdictKind === "review") {
     const review = verdict as ReviewVerdict;
-    const body = `${renderReviewBody([{ pass: input.step.id, verdict: review }])}\n\n${marker}`;
     const prNumber = requirePrNumber(input.item);
+    const reviewedCommit = (await input.options.gh.readPR(prNumber)).headRefOid;
+    if (reviewedCommit === undefined) {
+      throw new Error(`cannot publish ${definition.operation}: PR #${prNumber} head is unresolved`);
+    }
+    const reviewMarker = ticketReviewMarker(
+      input.context,
+      evidence.record.run_id,
+      reviewedCommit,
+      review,
+    );
+    const body = `${reviewMarker}\n\n${renderReviewBody([{ pass: input.step.id, verdict: review }])}`;
     await ensureIssueComment(
       input.options.gh,
       input.item.issueNumber,
-      marker,
+      reviewMarker,
       `${definition.operation === "ship/ship-check" ? "## Ship-check verdict" : "## Structured review verdict"}\n\n${body}`,
     );
-    await ensureReview(
+    const published = await ensureReview(
       input.options.gh,
       prNumber,
-      marker,
+      reviewMarker,
       review.findings.length === 0 ? "approve" : "request_changes",
       body,
+      reviewedCommit,
     );
+    if (review.findings.length === 0) {
+      const authorized = latestActionableReview(
+        [published],
+        prNumber,
+        input.options.authorization,
+      );
+      if (authorized?.state !== "APPROVED" || authorized.commitId !== reviewedCommit) {
+        throw new Error(
+          `${definition.operation} review was published but did not authorize exact commit ${reviewedCommit}`,
+        );
+      }
+    }
     if (review.findings.length > 0) {
       const returned = await returnTicket(input.options.gh, {
         ...input.item,
@@ -1520,6 +1544,21 @@ function ticketStepMarker(execution: EpisodeStepExecutionContext): string {
   return `<!-- operon:ticket-episode-step execution-id=${execution.executionId} plan-version=${execution.planVersion} step-id=${execution.stepId} -->`;
 }
 
+function ticketReviewMarker(
+  execution: EpisodeStepExecutionContext,
+  providerRunId: string,
+  reviewedCommit: string,
+  verdict: ReviewVerdict,
+): string {
+  const contentSha256 = stableHash({
+    executionId: execution.executionId,
+    providerRunId,
+    reviewedCommit,
+    verdict,
+  });
+  return `<!-- operon:ticket-review execution-id=${execution.executionId} reviewed-commit=${reviewedCommit} content-sha256=${contentSha256} -->`;
+}
+
 async function ensureIssueComment(
   gh: GhOps,
   issueNumber: number,
@@ -1537,10 +1576,45 @@ async function ensureReview(
   marker: string,
   state: "approve" | "request_changes",
   body: string,
-): Promise<void> {
+  expectedCommit: string,
+): Promise<GhReview> {
   const reviews = await gh.listReviews(prNumber);
-  if (reviews.some((review) => review.body.includes(marker))) return;
-  await gh.createReview(prNumber, { state, body });
+  const existing = reviews.filter((review) => review.body.includes(marker));
+  if (existing.length > 1) {
+    throw new Error(`review delivery ${marker} is duplicated on PR #${prNumber}`);
+  }
+  if (existing.length === 0) {
+    await gh.createReview(prNumber, { state, body, expectedCommit });
+  }
+  // The create call can only acknowledge what the client attempted. Re-read
+  // GitHub's review record so a concurrent head advance is caught from the
+  // commit GitHub actually stamped, never a synthesized expected commit.
+  const delivered = (await gh.listReviews(prNumber)).filter((review) =>
+    review.body.includes(marker),
+  );
+  if (delivered.length !== 1) {
+    throw new Error(
+      `review delivery ${marker} has ${delivered.length} remote effects on PR #${prNumber}; expected exactly one`,
+    );
+  }
+  const review = delivered[0]!;
+  if (review.commitId !== expectedCommit) {
+    throw new Error(
+      `review delivery on PR #${prNumber} is bound to ${review.commitId ?? "an unresolved commit"}, expected ${expectedCommit}`,
+    );
+  }
+  if (!publishedReviewBodyMatches(review.body, body)) {
+    throw new Error(`review delivery on PR #${prNumber} does not match its content-bound verdict`);
+  }
+  return review;
+}
+
+function publishedReviewBodyMatches(actual: string, expected: string): boolean {
+  if (actual === expected) return true;
+  const prefix = expected.trimEnd();
+  if (!actual.startsWith(prefix)) return false;
+  const suffix = actual.slice(prefix.length);
+  return /^\n\n<!-- operon:self-(?:approval|changes-requested)-fallback(?: sig=[a-f0-9]{64})? -->\n$/.test(suffix);
 }
 
 async function returnTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {

@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { defaultGate } from "../src/runtime/gate.js";
 import type {
@@ -11,6 +11,11 @@ import type {
   TurnResult,
 } from "../src/runtime/types.js";
 import { baseRevisionForBranch } from "../src/loop/default-branch.js";
+import {
+  selfApprovalMarker,
+  type CreateReviewInput,
+  type GhReview,
+} from "../src/loop/github.js";
 import type {
   AcceptedTicketEpisodePlan,
   TicketEpisodePlanningRequest,
@@ -29,6 +34,7 @@ import { routeAdmissionForEpisodePlan } from "../src/loop/episode-route.js";
 import { admitPlannedEpisodeRoute } from "../src/loop/planner-admission.js";
 import type { Policy } from "../src/loop/policy.js";
 import type { LoopItem } from "../src/loop/types.js";
+import { parseVerdict } from "../src/loop/verdicts.js";
 import { resolvedRuntimeCapabilities } from "../src/runtime/capabilities.js";
 import { hashedFileStem } from "../src/runtime/runlog/paths.js";
 import { readEpisodePlanExecutionJournal } from "../src/loop/episode-plan-executor.js";
@@ -200,6 +206,147 @@ describe("ticket EpisodePlanner execution adapter", () => {
     }
   });
 
+  it("publishes a completed reviewer verdict once, then authorizes the exact remote review commit", async () => {
+    const fixture = await setup("verify", "review/verify", true);
+    try {
+      let actorTerminated = false;
+      const gh = new FailAfterReviewPublishGh(
+        () => actorTerminated,
+        { cloneRoot: fixture.repo.clone.root, issues: [ticketSeed()] },
+      );
+      fixture.replaceGh(gh);
+      fixture.item = {
+        ...fixture.item,
+        body: "## Goal\nFix a bounded parser bug.\n",
+        branch: "main",
+      };
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(
+        fixture,
+        calls,
+        (request) => request.role.name === "reviewer"
+          ? JSON.stringify({
+              verdict: "approve",
+              findings: [],
+              review: {
+                rationale: "The exact delivered diff satisfies the bounded parser ticket.",
+                evidence: [{
+                  claim: "AC1 parser regression",
+                  evidence: "the named parser regression test passes at the reviewed head",
+                }],
+                notReviewed: ["unrelated application paths"],
+              },
+            })
+          : JSON.stringify({ status: "done" }),
+        () => { actorTerminated = true; },
+      );
+
+      await expect(runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      })).rejects.toMatchObject({ code: "error_episode_plan_step_interrupted" });
+      expect(calls.filter((call) => call.requestRole.name === "reviewer")).toHaveLength(1);
+      expect(gh.reviewPublicationCount).toBe(1);
+      expect(gh.actorWasTerminatedAtPublication).toBe(true);
+      const [pr] = await gh.listPRsForBranch("main");
+      if (pr === undefined) throw new Error("expected the seeded gates step to create a PR");
+
+      const recovered = await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: {
+          ...fixture.item,
+          labels: ["op:in-review"],
+          phase: "reviewing",
+          prNumber: pr.number,
+        },
+        beforeProviderTurn: async () => {
+          throw new Error("the completed reviewer must not restart during delivery recovery");
+        },
+      });
+      expect(calls.filter((call) => call.requestRole.name === "reviewer")).toHaveLength(1);
+      expect(gh.reviewPublicationCount).toBe(1);
+      const reviews = await gh.listReviews(pr.number);
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]).toMatchObject({ state: "APPROVED", commitId: pr.headRefOid });
+      expect(reviews[0]?.body).toContain("## Review rationale");
+      expect(reviews[0]?.body).toContain("## Evidence");
+      expect(reviews[0]?.body).toContain("## Not reviewed");
+      expect(reviews[0]?.body).toContain("unrelated application paths");
+      expect(parseVerdict("review", reviews[0]!.body)).toMatchObject({
+        ok: true,
+        verdict: { verdict: "approve", findings: [] },
+      });
+      expect(gh.issueComments.get(7)).toHaveLength(1);
+
+      expect(recovered).toMatchObject({
+        phase: "shipping",
+        approvedCommitId: pr.headRefOid,
+      });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("authorizes a same-account comment fallback only from its relisted remote commit", async () => {
+    const fixture = await setup("verify", "review/verify", true);
+    try {
+      const secret = "fixture-review-authorization-secret";
+      const gh = new SelfCommentReviewGh(secret, {
+        cloneRoot: fixture.repo.clone.root,
+        issues: [ticketSeed()],
+      });
+      fixture.replaceGh(gh);
+      fixture.runtimeOptions = {
+        ...fixture.runtimeOptions,
+        authorization: { selfApprovalSecret: secret },
+      };
+      fixture.item = {
+        ...fixture.item,
+        body: "## Goal\nFix a bounded parser bug.\n",
+        branch: "main",
+      };
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(
+        fixture,
+        calls,
+        (request) => request.role.name === "reviewer"
+          ? JSON.stringify({
+              verdict: "approve",
+              findings: [],
+              review: {
+                rationale: "The exact delivered diff satisfies the bounded parser ticket.",
+                evidence: [{
+                  claim: "AC1 parser regression",
+                  evidence: "the named parser regression test passes at the reviewed head",
+                }],
+                notReviewed: [],
+              },
+            })
+          : JSON.stringify({ status: "done" }),
+      );
+
+      const item = await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      });
+      const [pr] = await gh.listPRsForBranch("main");
+      if (pr === undefined) throw new Error("expected the seeded gates step to create a PR");
+      const reviews = await gh.listReviews(pr.number);
+
+      expect(gh.syntheticCreateResultCommit).not.toBe(pr.headRefOid);
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]).toMatchObject({ state: "COMMENTED", commitId: pr.headRefOid });
+      expect(item).toMatchObject({ phase: "shipping", approvedCommitId: pr.headRefOid });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("rejects a planner allowance that leaves no delivery budget before runtime construction", async () => {
     const fixture = await setup("budget", "ticket/diagnose", false, false);
     try {
@@ -269,8 +416,16 @@ async function setup(
   const org = makeOrgHome();
   const repo = makeBareWithClone();
   if (needsPrompt) {
-    mkdirSync(join(org.root, "prompts", "build"), { recursive: true });
-    writeFileSync(join(org.root, "prompts", "build", "contract.md"), "Return the contract verdict.");
+    const prompts = operation === "review/verify"
+      ? [
+          join(org.root, "prompts", "build", "implement.md"),
+          join(org.root, "prompts", "review", "verify.md"),
+        ]
+      : [join(org.root, "prompts", "build", "contract.md")];
+    for (const prompt of prompts) {
+      mkdirSync(dirname(prompt), { recursive: true });
+      writeFileSync(prompt, "Return the typed verdict.");
+    }
   }
   let gh = new FakeGhOps({
     cloneRoot: repo.clone.root,
@@ -373,7 +528,8 @@ async function setup(
 function makeTicketRuntime(
   fixture: Fixture,
   calls: ObservedCall[],
-  summary: string,
+  summary: string | ((request: TurnRequest) => string),
+  onActorTerminated?: () => void,
 ): TicketEpisodeRuntime {
   return createTicketEpisodeRuntime({
     ...fixture.runtimeOptions,
@@ -389,35 +545,42 @@ function makeTicketRuntime(
           requestRole: structuredClone(request.role),
           request,
         });
-        return {
-          status: "completed",
-          summary,
-          artifacts: [],
-          session: { runtime: assignment.harness, id: `session-${calls.length}` },
-          usage: {
-            tokensIn: 10,
-            tokensOut: 5,
-            costUsd: 0.01,
-            subagentTurns: 0,
-            wallClockMs: 5,
-          },
-          escalations: [],
-        };
+        try {
+          return {
+            status: "completed",
+            summary: typeof summary === "string" ? summary : summary(request),
+            artifacts: [],
+            session: { runtime: assignment.harness, id: `session-${calls.length}` },
+            usage: {
+              tokensIn: 10,
+              tokensOut: 5,
+              costUsd: 0.01,
+              subagentTurns: 0,
+              wallClockMs: 5,
+            },
+            escalations: [],
+          };
+        } finally {
+          onActorTerminated?.();
+        }
       },
     }),
   });
 }
 
 function providerStep(stepId: string, operation: string): ProviderTurnStep {
+  const review = operation.startsWith("review/") || operation.startsWith("ship/");
   return {
     kind: "provider_turn",
     operation,
     id: stepId,
-    role: "builder",
+    role: review ? "reviewer" : "builder",
     objective: `Execute ${operation}`,
     dependsOn: [],
     requiredCapabilities: ["tool_gate"],
-    assignment: ASSIGNMENT,
+    assignment: review
+      ? { harness: REVIEWER.runtime, model: REVIEWER.model, effort: REVIEWER.effort }
+      : ASSIGNMENT,
     assignmentSource: "configured",
     inputRefs: [{ ref: "github:#7", required: true }],
     expectedOutputs: [{ id: `${stepId}-evidence`, kind: "evidence", required: true }],
@@ -427,9 +590,56 @@ function providerStep(stepId: string, operation: string): ProviderTurnStep {
 }
 
 function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
-  const creatorStep = Object.fromEntries(
-    Object.entries(step).filter(([key]) => key !== "assignmentSource"),
-  ) as NonNullable<CreatorEpisodeScope["steps"]>[number];
+  const isReview = step.role === "reviewer";
+  const implementation = {
+    ...providerStep("implement", "build/implement"),
+    dependsOn: ["provision"],
+    inputRefs: [{ ref: "plan-output:worktree", required: true }],
+  };
+  const reviewedStep: ProviderTurnStep = isReview
+    ? {
+        ...step,
+        dependsOn: ["gates"],
+        inputRefs: [{ ref: "plan-output:pr", required: true }],
+      }
+    : step;
+  const steps: EpisodePlan["steps"] = isReview
+    ? [
+        {
+          kind: "mechanical_gate",
+          id: "provision",
+          objective: "Confirm the isolated worktree is provisioned.",
+          dependsOn: [],
+          inputRefs: [{ ref: "github:#7", required: true }],
+          expectedOutputs: [{ id: "worktree", kind: "provisioned-worktree", required: true }],
+          gate: "ticket/provision",
+        },
+        implementation,
+        {
+          kind: "mechanical_gate",
+          id: "gates",
+          objective: "Run deterministic gates and create the pull request.",
+          dependsOn: [implementation.id],
+          inputRefs: [{ ref: `plan-output:${implementation.expectedOutputs[0]!.id}`, required: true }],
+          expectedOutputs: [{ id: "pr", kind: "pr", required: true }],
+          gate: "ticket/gates-and-pr",
+        },
+        reviewedStep,
+        {
+          kind: "mechanical_gate",
+          id: "review-auth",
+          objective: "Authorize the exact published review revision.",
+          dependsOn: [reviewedStep.id],
+          inputRefs: [{ ref: `plan-output:${reviewedStep.expectedOutputs[0]!.id}`, required: true }],
+          expectedOutputs: [{ id: "review-authorization", kind: "review-authorization", required: true }],
+          gate: "ticket/review-authorization",
+        },
+      ]
+    : [step];
+  const creatorSteps = steps.map((candidate) => Object.fromEntries(
+    Object.entries(candidate).filter(([key]) => key !== "assignmentSource"),
+  )) as NonNullable<CreatorEpisodeScope["steps"]>;
+  const selectedRoles = isReview ? [BUILDER, REVIEWER] : [BUILDER];
   const provenance = {
     source: "agent" as const,
     creatorId: "parent-episode-planner",
@@ -443,10 +653,10 @@ function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
     inScope: ["bounded ticket evidence"],
     outOfScope: ["unrelated product work"],
     acceptanceCriteria: ["the planned step produces its required evidence"],
-    expectedArtifacts: step.expectedOutputs.map((output) => ({ ...output })),
+    expectedArtifacts: steps.flatMap((candidate) => candidate.expectedOutputs.map((output) => ({ ...output }))),
     declaredConstraints: { network: false },
     safetyFacts: [],
-    steps: [{ ...creatorStep }],
+    steps: creatorSteps,
   };
   const intent: EpisodeIntent = {
     episodeId: "ticket:fixture:#7",
@@ -459,28 +669,41 @@ function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
     repositoryFacts: { baseRef: "refs/remotes/origin/main" },
     requestedConstraints: { network: false },
     hardBudget: {
-      maxProviderTurns: 1,
-      maxEquivalentCostUsd: 2,
+      maxProviderTurns: isReview ? 2 : 1,
+      maxEquivalentCostUsd: isReview ? 4 : 2,
       maxMechanicalOverheadUsd: 0,
     },
-    availableRoles: [{
-      role: "builder",
-      responsibility: "Implement or diagnose the bounded ticket",
+    availableRoles: selectedRoles.map((selectedRole) => ({
+      role: selectedRole.name,
+      responsibility: selectedRole.name === "reviewer"
+        ? "Independently review the bounded ticket"
+        : "Implement or diagnose the bounded ticket",
       requiredCapabilities: ["tool_gate"],
-      expectedOutputs: ["patch"],
-      configuredAssignment: ASSIGNMENT,
-    }],
-    allowedAssignments: [{
-      candidateId: "configured",
-      role: "builder",
-      assignment: ASSIGNMENT,
-      providerFamily: "openai",
-      capabilities: resolvedRuntimeCapabilities("codex"),
-      qualificationRef: "configured-role-assignment:builder",
-      priceRef: "role.max_turn_budget_usd",
-      maxTurnCostUsd: 2,
-      available: true,
-    }],
+      expectedOutputs: selectedRole.name === "reviewer" ? ["review"] : ["patch"],
+      configuredAssignment: {
+        harness: selectedRole.runtime,
+        model: selectedRole.model,
+        effort: selectedRole.effort,
+      },
+    })),
+    allowedAssignments: selectedRoles.map((selectedRole) => {
+      const assignment = {
+        harness: selectedRole.runtime,
+        model: selectedRole.model,
+        effort: selectedRole.effort,
+      };
+      return {
+        candidateId: "configured",
+        role: selectedRole.name,
+        assignment,
+        providerFamily: assignment.harness === "claude" ? "anthropic" as const : "openai" as const,
+        capabilities: resolvedRuntimeCapabilities(assignment.harness),
+        qualificationRef: `configured-role-assignment:${selectedRole.name}`,
+        priceRef: "role.max_turn_budget_usd",
+        maxTurnCostUsd: 2,
+        available: true,
+      };
+    }),
     requiredSafetyFacts: [],
     creatorScope,
   };
@@ -493,14 +716,14 @@ function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
     workflowClass: "bounded-ticket-test",
     planningSource: "creator_scope",
     creatorProvenance: provenance,
-    steps: [step],
+    steps,
     estimatedBudget: {
-      providerTurns: 1,
-      providerTurnBudgetUsd: 2,
+      providerTurns: isReview ? 2 : 1,
+      providerTurnBudgetUsd: isReview ? 4 : 2,
       mechanicalOverheadUsd: 0,
-      totalBudgetUsd: 2,
+      totalBudgetUsd: isReview ? 4 : 2,
     },
-    derivedSafetyRoute: deriveEpisodeSafetyRoute([step], []),
+    derivedSafetyRoute: deriveEpisodeSafetyRoute(steps, []),
     createdAt: NOW.toISOString(),
   };
   return { intent, plan };
@@ -509,11 +732,23 @@ function authority(step: ProviderTurnStep): AcceptedTicketEpisodePlan {
 function validationPolicy(): EpisodePlanValidationPolicy {
   return {
     mode: "fixed",
-    configuredAssignmentFor: (name) => name === "builder" ? ASSIGNMENT : undefined,
-    isAssignmentAllowed: (name, assignment) =>
-      name === "builder" && JSON.stringify(assignment) === JSON.stringify(ASSIGNMENT),
-    isKnownRole: (name) => name === "builder",
-    capabilitiesFor: () => resolvedRuntimeCapabilities("codex"),
+    configuredAssignmentFor: (name) => {
+      if (name === "builder") return ASSIGNMENT;
+      if (name === "reviewer") {
+        return { harness: REVIEWER.runtime, model: REVIEWER.model, effort: REVIEWER.effort };
+      }
+      return undefined;
+    },
+    isAssignmentAllowed: (name, assignment) => {
+      const configured = name === "builder"
+        ? ASSIGNMENT
+        : name === "reviewer"
+          ? { harness: REVIEWER.runtime, model: REVIEWER.model, effort: REVIEWER.effort }
+          : undefined;
+      return configured !== undefined && JSON.stringify(assignment) === JSON.stringify(configured);
+    },
+    isKnownRole: (name) => name === "builder" || name === "reviewer",
+    capabilitiesFor: (_name, assignment) => resolvedRuntimeCapabilities(assignment.harness),
     requiredTerminalOutputIds: [],
   };
 }
@@ -556,5 +791,72 @@ class FailFirstCommentGh extends FakeGhOps {
       throw new Error("injected crash after provider terminal evidence");
     }
     await super.commentIssue(issueNumber, body);
+  }
+}
+
+class FailAfterReviewPublishGh extends FakeGhOps {
+  private failRemoteReconciliation = true;
+  reviewPublicationCount = 0;
+  actorWasTerminatedAtPublication = false;
+
+  constructor(
+    private readonly actorTerminated: () => boolean,
+    options: ConstructorParameters<typeof FakeGhOps>[0],
+  ) {
+    super(options);
+  }
+
+  override async createReview(
+    prNumber: number,
+    input: CreateReviewInput,
+    author?: string,
+  ): Promise<GhReview> {
+    this.reviewPublicationCount += 1;
+    this.actorWasTerminatedAtPublication = this.actorTerminated();
+    return super.createReview(prNumber, input, author);
+  }
+
+  override async listReviews(prNumber: number): Promise<GhReview[]> {
+    if (this.reviewPublicationCount > 0 && this.failRemoteReconciliation) {
+      this.failRemoteReconciliation = false;
+      throw new Error("injected crash after remote review publication");
+    }
+    return super.listReviews(prNumber);
+  }
+}
+
+class SelfCommentReviewGh extends FakeGhOps {
+  readonly syntheticCreateResultCommit = "synthetic-client-acknowledgement";
+
+  constructor(
+    private readonly secret: string,
+    options: ConstructorParameters<typeof FakeGhOps>[0],
+  ) {
+    super(options);
+  }
+
+  override async createReview(
+    prNumber: number,
+    input: CreateReviewInput,
+    author?: string,
+  ): Promise<GhReview> {
+    if (input.state !== "approve") return super.createReview(prNumber, input, author);
+    const pr = await this.readPR(prNumber);
+    if (pr.headRefOid === undefined) throw new Error("test PR head must resolve");
+    const body = `${input.body.trimEnd()}\n\n${selfApprovalMarker(
+      this.secret,
+      prNumber,
+      pr.headRefOid,
+    )}\n`;
+    const remote = await super.createReview(
+      prNumber,
+      {
+        state: "comment",
+        body,
+        ...(input.expectedCommit === undefined ? {} : { expectedCommit: input.expectedCommit }),
+      },
+      author,
+    );
+    return { ...remote, commitId: this.syntheticCreateResultCommit };
   }
 }

@@ -64,6 +64,19 @@ const BLOCKED: TurnResult = {
   escalations: [],
 };
 
+const APPROVE = [
+  "Verdict: approve",
+  "",
+  "## Review rationale",
+  "The exact diff satisfies the fixture ticket.",
+  "",
+  "## Evidence",
+  "- fixture behavior => the named test passes at the reviewed head",
+  "",
+  "## Not reviewed",
+  "- None.",
+].join("\n");
+
 describe("dispatched turn runner", () => {
   it("stops before clone/runtime construction when an actor retry needs disposition", async () => {
     const home = makeOrgHome({ approvals: true, state: true });
@@ -816,7 +829,7 @@ describe("dispatched turn runner", () => {
       {
         result: {
           status: "completed",
-          summary: "Verdict: approve",
+          summary: APPROVE,
           artifacts: [],
           session: { runtime: "claude", id: "review" },
           usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
@@ -826,7 +839,7 @@ describe("dispatched turn runner", () => {
       {
         result: {
           status: "completed",
-          summary: "Verdict: approve",
+          summary: APPROVE,
           artifacts: [],
           session: { runtime: "claude", id: "tail-1" },
           usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
@@ -836,7 +849,7 @@ describe("dispatched turn runner", () => {
       {
         result: {
           status: "completed",
-          summary: "Verdict: approve",
+          summary: APPROVE,
           artifacts: [],
           session: { runtime: "claude", id: "tail-2" },
           usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
@@ -846,7 +859,7 @@ describe("dispatched turn runner", () => {
       {
         result: {
           status: "completed",
-          summary: "Verdict: approve",
+          summary: APPROVE,
           artifacts: [],
           session: { runtime: "claude", id: "tail-3" },
           usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
@@ -856,7 +869,7 @@ describe("dispatched turn runner", () => {
       {
         result: {
           status: "completed",
-          summary: "Verdict: approve",
+          summary: APPROVE,
           artifacts: [],
           session: { runtime: "claude", id: "ship-2" },
           usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },
@@ -866,7 +879,7 @@ describe("dispatched turn runner", () => {
       {
         result: {
           status: "completed",
-          summary: "Verdict: approve",
+          summary: APPROVE,
           artifacts: [],
           session: { runtime: "claude", id: "ship" },
           usage: { tokensIn: 10, tokensOut: 5, costUsd: 0.01, subagentTurns: 0, wallClockMs: 10 },

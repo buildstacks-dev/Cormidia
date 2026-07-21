@@ -244,6 +244,11 @@ export class FakeGhOps implements GhOps {
   async createReview(prNumber: number, input: CreateReviewInput, author?: string): Promise<GhReview> {
     this.log("createReview", { prNumber, state: input.state });
     const pr = this.requirePr(prNumber);
+    if (input.expectedCommit !== undefined && pr.headRefOid !== input.expectedCommit) {
+      throw new Error(
+        `refusing to publish review for PR #${prNumber}: expected head ${input.expectedCommit}, got ${pr.headRefOid ?? "unresolved"}`,
+      );
+    }
     const review: GhReview = {
       state:
         input.state === "approve"
@@ -335,7 +340,12 @@ export class FakeGhOps implements GhOps {
       try {
         return git(this.cloneRoot, "rev-parse", `origin/${ref}`);
       } catch {
-        return undefined;
+        try {
+          const row = git(this.cloneRoot, "ls-remote", "origin", `refs/heads/${ref}`);
+          return row === "" ? undefined : row.split(/\s+/)[0];
+        } catch {
+          return undefined;
+        }
       }
     }
   }

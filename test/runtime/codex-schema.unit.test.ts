@@ -45,7 +45,7 @@ describe("toCodexStrictSchema", () => {
     const review = toCodexStrictSchema(
       VERDICT_SCHEMAS.review as unknown as Record<string, unknown>,
     );
-    expect(review["required"]).toEqual(["verdict", "findings"]);
+    expect(review["required"]).toEqual(["verdict", "findings", "review"]);
     // findings items (Finding) recurse to a fully-required strict object.
     const reviewProps = review["properties"] as Record<string, Record<string, unknown>>;
     const items = reviewProps["findings"]!["items"] as Record<string, unknown>;
@@ -57,6 +57,8 @@ describe("toCodexStrictSchema", () => {
       "description",
       "action",
     ]);
+    const audit = reviewProps["review"]!;
+    expect(audit["required"]).toEqual(["rationale", "evidence", "notReviewed"]);
   });
 
   it("does not mutate the input schema", () => {

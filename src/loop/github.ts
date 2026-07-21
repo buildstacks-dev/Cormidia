@@ -59,6 +59,9 @@ export interface CreatePrInput {
 export interface CreateReviewInput {
   state: "approve" | "request_changes" | "comment";
   body: string;
+  /** Content-bound delivery fence. The adapter refuses to publish if the PR
+   * head no longer equals the commit the orchestrator reviewed. */
+  expectedCommit?: string;
 }
 
 export interface SquashMergeInput {
@@ -481,6 +484,15 @@ export class GhCliOps implements GhOps {
   }
 
   async createReview(prNumber: number, input: CreateReviewInput): Promise<GhReview> {
+    let reviewedCommit = input.expectedCommit;
+    if (input.expectedCommit !== undefined) {
+      const current = (await this.readPR(prNumber)).headRefOid;
+      if (current !== input.expectedCommit) {
+        throw new Error(
+          `refusing to publish review for PR #${prNumber}: expected head ${input.expectedCommit}, got ${current ?? "unresolved"}`,
+        );
+      }
+    }
     const flag =
       input.state === "approve"
         ? "--approve"
@@ -499,7 +511,11 @@ export class GhCliOps implements GhOps {
           ["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"],
           body,
         );
-        return { state: "COMMENTED", body };
+        return {
+          state: "COMMENTED",
+          body,
+          ...(reviewedCommit === undefined ? {} : { commitId: reviewedCommit }),
+        };
       }
       if (input.state !== "approve" || !isSelfApprovalError(error)) throw error;
       // Bind the marker to the exact commit under review so it cannot be
@@ -521,17 +537,20 @@ export class GhCliOps implements GhOps {
       // re-reading the head after posting: the
       // marker must commit to a head BEFORE the review exists, or the binding
       // is meaningless.
-      const headOid =
-        this.selfApprovalSecret !== undefined
-          ? (await this.readPR(prNumber)).headRefOid
-          : undefined;
-      const marker = selfApprovalMarker(this.selfApprovalSecret, prNumber, headOid);
+      if (reviewedCommit === undefined && this.selfApprovalSecret !== undefined) {
+        reviewedCommit = (await this.readPR(prNumber)).headRefOid;
+      }
+      const marker = selfApprovalMarker(this.selfApprovalSecret, prNumber, reviewedCommit);
       const body = `${input.body.trimEnd()}\n\n${marker}\n`;
       await this.run(
         ["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"],
         body,
       );
-      return { state: "COMMENTED", body };
+      return {
+        state: "COMMENTED",
+        body,
+        ...(reviewedCommit === undefined ? {} : { commitId: reviewedCommit }),
+      };
     }
     return {
       state:
@@ -541,6 +560,7 @@ export class GhCliOps implements GhOps {
             ? "CHANGES_REQUESTED"
             : "COMMENTED",
       body: input.body,
+      ...(reviewedCommit === undefined ? {} : { commitId: reviewedCommit }),
     };
   }
 

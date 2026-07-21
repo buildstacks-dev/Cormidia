@@ -34,6 +34,19 @@ function expectFail<T extends { ok: boolean }>(
   expect(result.ok).toBe(false);
 }
 
+const REVIEW_AUDIT = [
+  "## Review rationale",
+  "The diff and named tests satisfy the ticket.",
+  "## Evidence",
+  "- acceptance criteria => parser regression test passes against the changed path",
+  "## Not reviewed",
+  "- None.",
+].join("\n");
+
+function approvedReviewText(verdict = "Verdict: approve", prefix = ""): string {
+  return [prefix, verdict, REVIEW_AUDIT].filter(Boolean).join("\n\n");
+}
+
 // ---------------------------------------------------------------------------
 // review parser
 // ---------------------------------------------------------------------------
@@ -99,13 +112,24 @@ describe("review verdict parser", () => {
   });
 
   it("approve with no findings parses", () => {
-    const r = parseVerdict("review", "All criteria hold.\n\nVerdict: approve");
+    const r = parseVerdict("review", approvedReviewText("Verdict: approve", "All criteria hold."));
     expectOk(r);
-    expect(r.verdict).toEqual({ verdict: "approve", findings: [] });
+    expect(r.verdict).toMatchObject({
+      verdict: "approve",
+      findings: [],
+      review: {
+        rationale: "The diff and named tests satisfy the ticket.",
+        evidence: [{
+          claim: "acceptance criteria",
+          evidence: "parser regression test passes against the changed path",
+        }],
+        notReviewed: [],
+      },
+    });
   });
 
   it("accepts backticked verdict values (the templates' own typesetting)", () => {
-    const r = parseVerdict("review", "Verdict: `approve`");
+    const r = parseVerdict("review", approvedReviewText("Verdict: `approve`"));
     expectOk(r);
     expect(r.verdict.verdict).toBe("approve");
   });
@@ -117,7 +141,7 @@ describe("review verdict parser", () => {
       "**Verdict:** approve",
       "Verdict: approve",
     ]) {
-      const r = parseVerdict("review", text);
+      const r = parseVerdict("review", approvedReviewText(text));
       expectOk(r);
       expect(r.verdict.verdict).toBe("approve");
     }
@@ -126,10 +150,19 @@ describe("review verdict parser", () => {
   it("prose bullets with slashes are not findings", () => {
     const r = parseVerdict(
       "review",
-      ["- src/loop/verdicts.ts looks fine", "- docs/loop.md matches", "Verdict: approve"].join("\n"),
+      approvedReviewText(
+        "Verdict: approve",
+        ["- src/loop/verdicts.ts looks fine", "- docs/loop.md matches"].join("\n"),
+      ),
     );
     expectOk(r);
-    expect(r.verdict).toEqual({ verdict: "approve", findings: [] });
+    expect(r.verdict).toMatchObject({ verdict: "approve", findings: [] });
+  });
+
+  it("rejects an unexplained approval with no auditable evidence", () => {
+    const r = parseVerdict("review", "Verdict: approve");
+    expectFail(r);
+    expect(r.reason).toContain("review audit incomplete");
   });
 
   it("perf category is rejected with redirect guidance (M2.2 decision: no perf category)", () => {
@@ -418,9 +451,9 @@ describe("parseWithRetry", () => {
     const calls: string[] = [];
     const verdict = await parseWithRetry("review", "looks good to me!", (reason) => {
       calls.push(reason);
-      return "Verdict: approve";
+      return approvedReviewText();
     });
-    expect(verdict).toEqual({ verdict: "approve", findings: [] });
+    expect(verdict).toMatchObject({ verdict: "approve", findings: [] });
     expect(calls).toHaveLength(1);
     expect(calls[0]).toContain("no verdict found");
   });
@@ -477,6 +510,11 @@ describe("verdict schemas", () => {
         action: "y",
       },
     ],
+    review: {
+      rationale: "The changed authentication path leaks a token.",
+      evidence: [{ claim: "failure logging", evidence: "src/auth.ts:1 emits the token" }],
+      notReviewed: ["unrelated authorization paths"],
+    },
   };
 
   it("schemas validate a sample of each verdict kind", () => {
@@ -484,7 +522,15 @@ describe("verdict schemas", () => {
     expectOk(validateVerdict("build", buildDone));
     expectOk(validateVerdict("build", buildBlocked));
     expectOk(validateVerdict("review", reviewSample));
-    expectOk(validateVerdict("review", { verdict: "approve", findings: [] }));
+    expectOk(validateVerdict("review", {
+      verdict: "approve",
+      findings: [],
+      review: {
+        rationale: "All acceptance criteria have concrete evidence.",
+        evidence: [{ claim: "AC1", evidence: "named test passes" }],
+        notReviewed: [],
+      },
+    }));
   });
 
   it("accepts an explicit null on an optional field (native strict-output convention)", () => {
@@ -504,6 +550,7 @@ describe("verdict schemas", () => {
     const r = validateVerdict("review", {
       verdict: "findings",
       findings: [{ ...reviewSample.findings[0]!, category: "perf" }],
+      review: reviewSample.review,
     });
     expectFail(r);
     expect(r.reason).toContain("architecture | testing | security | style | scope");
@@ -529,9 +576,17 @@ describe("verdict schemas", () => {
   });
 
   it("enforces the approve/findings consistency rule on structured output too", () => {
-    const approveWithFindings = { verdict: "approve", findings: reviewSample.findings };
+    const approveWithFindings = {
+      verdict: "approve",
+      findings: reviewSample.findings,
+      review: reviewSample.review,
+    };
     expectFail(validateVerdict("review", approveWithFindings));
-    expectFail(validateVerdict("review", { verdict: "findings", findings: [] }));
+    expectFail(validateVerdict("review", {
+      verdict: "findings",
+      findings: [],
+      review: reviewSample.review,
+    }));
   });
 
   it("schemas plug into TurnRequest.verdictSchema (M1.4 reconciliation surface)", () => {

@@ -5,11 +5,22 @@
 // Uses inline ToolAction cases only; no filesystem state, network, auth, or
 // wall-clock time is required.
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { classify, classifyWithEvidence, defaultGate } from "../src/runtime/gate.js";
+import {
+  actionEffectFields,
+  classify,
+  classifyWithEvidence,
+  defaultGate,
+} from "../src/runtime/gate.js";
 import type { ToolAction } from "../src/runtime/types.js";
 
 const bash = (command: string): ToolAction => ({ tool: "bash", input: { command } });
+
+const RUN2_REVIEW_HEREDOC = JSON.parse(readFileSync(
+  new URL("./fixtures/gate/run2-review-heredoc.json", import.meta.url),
+  "utf8",
+)) as ToolAction;
 
 const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
   { action: bash("doctl apps create-deployment 1a2b"), rule: "production-deploy" },
@@ -365,6 +376,22 @@ const ROUTINE_CASES: ToolAction[] = [
   },
   { tool: "StructuredOutput", input: { plan: "npm publish then force-push" } },
 ];
+
+describe("run-2 reviewer heredoc regression", () => {
+  it("treats the exact review prose as data and retains only cat, echo, and wc effects", () => {
+    expect(actionEffectFields(RUN2_REVIEW_HEREDOC)).toEqual({
+      tool: "bash",
+      operation: "write",
+      executables: ["cat", "echo", "wc"],
+      targets: ["/tmp/review-body.md"],
+      redirections: ["/tmp/review-body.md"],
+      environment: [],
+      destination: null,
+      effect: null,
+    });
+    expect(classify(RUN2_REVIEW_HEREDOC)).toEqual({ cls: "routine" });
+  });
+});
 
 describe("critical-ops gate (default policy)", () => {
   for (const { action, rule } of CRITICAL_CASES) {

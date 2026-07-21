@@ -137,10 +137,10 @@ describe("roles.yaml", () => {
         capabilityRef: "codex/v1",
         pricing: {
           kind: "conservative_estimate",
-          maxTurnCostUsd: 15,
+          maxTurnCostUsd: 50,
           sourceRef: "role.max_turn_budget_usd",
         },
-        maxTurnCostUsd: 15,
+        maxTurnCostUsd: 50,
       },
     ]);
     expect(resolveApprovedTurnAssignments(builder).map((item) => item.assignment)).toEqual([

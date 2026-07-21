@@ -33,10 +33,14 @@ roles:
     runtime: codex              # DELIBERATELY a different provider than reviewer —
     model: gpt-5.6-sol          # current exact flagship snapshot; no moving alias
     effort: high                # build quality over token cost — the Reviewer gate
-    max_turn_budget_usd: 15     # a frontier builder implementing a real ticket in
+    max_turn_budget_usd: 50     # a frontier builder implementing a real ticket in
                                 # one turn (contract-sized context + tool loop)
                                 # routinely exceeds the $5 default; caps bound
-                                # spend, they don't downgrade the model
+                                # spend, they don't downgrade the model.
+                                # Raised from $15 on 2026-07-20: a real builder
+                                # turn was killed mid-work 65 tool calls in,
+                                # abandoning the slice. A cap should bound a
+                                # runaway, not guillotine honest progress.
     delegation:                 # stays as the second line of defense
       allow: [explore, test-fanout]
     triggers:
@@ -47,8 +51,10 @@ roles:
     runtime: claude             # DELIBERATELY a different provider than builder —
     model: claude-opus-4-8      # uncorrelated blind spots; the single most important
     effort: xhigh               # pairing decision in this file
-    max_turn_budget_usd: 15     # xhigh adversarial review of a real diff needs
-                                # more than the $5 default; bounded, not downgraded
+    max_turn_budget_usd: 50     # xhigh adversarial review of a real diff needs
+                                # more than the $5 default; bounded, not
+                                # downgraded. Raised from $15 on 2026-07-20
+                                # alongside the builder cap.
     delegation:
       allow: [adversarial-verify]   # N independent verifiers per finding before reporting
     triggers:

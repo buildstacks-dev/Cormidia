@@ -24,6 +24,11 @@
 //   every provider step is already settled in the ledger.
 // - `tasks/` records are deleted only when the task record proves a terminal
 //   status and end time.
+// - `planning/<app>/refused-decompositions/` ages by the record's own
+//   `refused_at`, with the same identity binding as narrative/tasks. The
+//   human decision it feeds (`lifecycle/apps/<app>/ticket-budget-ratifications/`)
+//   is never swept and embeds the accepted plan, so nothing a human decided
+//   can age out. `lifecycle/` as a whole remains outside every sweep.
 // - `learning/` is NEVER swept except the date-keyed capture projection
 //   `learning/events/<date>/` (whose own header anticipates retention). The
 //   durable learning archives (`episodes/`, `capsules/`, `fingerprints/`,
@@ -84,6 +89,13 @@ export interface StateRetentionPolicy {
    *  other subtrees feed, and its captures preserve quotes whose sources
    *  are swept in 30 days. */
   narrativeDays: number;
+  /** `planning/<app>/refused-decompositions/` — decompositions preserved for
+   *  a possible human ticket-budget ratification (ENH-011). Provider-derived
+   *  evidence awaiting a decision, not the decision itself: the ratification
+   *  record it feeds lives under `lifecycle/` and is never swept, and it
+   *  embeds the accepted plan, so ageing a stale refusal loses nothing a
+   *  human decided. */
+  refusedDecompositionDays: number;
 }
 
 export const DEFAULT_STATE_RETENTION: StateRetentionPolicy = {
@@ -96,6 +108,7 @@ export const DEFAULT_STATE_RETENTION: StateRetentionPolicy = {
   schedulerEvidenceDays: 365,
   sweepRecordDays: 90,
   narrativeDays: 1825,
+  refusedDecompositionDays: 90,
 };
 
 /** Resolve the windows actually applied: the ledger and every projection must
@@ -138,6 +151,7 @@ export interface StateSweepResult {
   scheduler_evidence: SubtreeSweep;
   sweep_records: SubtreeSweep;
   narrative: SubtreeSweep;
+  refused_decompositions: SubtreeSweep;
   /** Per-subtree failures. A failed subtree keeps its files and is retried by
    *  a later sweep; it never aborts the others. */
   errors: string[];
@@ -166,6 +180,7 @@ export async function sweepStateRetention(
     scheduler_evidence: { pruned: 0, kept: 0 },
     sweep_records: { pruned: 0, kept: 0 },
     narrative: { pruned: 0, kept: 0 },
+    refused_decompositions: { pruned: 0, kept: 0 },
     errors: [],
   };
   const subtree = async (name: keyof StateSweepResult & string, run: () => Promise<SubtreeSweep>): Promise<void> => {
@@ -191,7 +206,61 @@ export async function sweepStateRetention(
   await subtree("telemetry", () => sweepTelemetry(root, cutoff(windows.telemetryDays), now));
   await subtree("sweep_records", () => sweepDateFiles(sweepRecordDir(root), cutoff(windows.sweepRecordDays), ".json"));
   await subtree("narrative", () => sweepNarrative(root, cutoff(windows.narrativeDays)));
+  await subtree(
+    "refused_decompositions",
+    () => sweepRefusedDecompositions(root, cutoff(windows.refusedDecompositionDays)),
+  );
   return result;
+}
+
+/** `planning/<app>/refused-decompositions/<id>.json` ages by the record's own
+ *  `refused_at`, with the same identity binding sweepNarrative and sweepTasks
+ *  use: only a v1 record whose app and decomposition id actually map to the
+ *  file it sits in is deletable. A torn or foreign file is kept, fail safe.
+ *  A refusal that a human has already ratified is deletable on the same
+ *  window: the ratification record under `lifecycle/` (never swept) embeds
+ *  the accepted plan verbatim, so no decided evidence is lost. */
+async function sweepRefusedDecompositions(
+  stateHome: string,
+  cutoffMs: number,
+): Promise<SubtreeSweep> {
+  const out: SubtreeSweep = { pruned: 0, kept: 0 };
+  const root = join(stateHome, "planning");
+  for (const app of await listDirNames(root)) {
+    const dir = join(root, app, "refused-decompositions");
+    if (!existsSync(dir)) continue;
+    for (const name of (await readdir(dir)).filter((file) => file.endsWith(".json")).sort()) {
+      let record: {
+        schema_version?: unknown;
+        kind?: unknown;
+        app?: unknown;
+        decomposition_id?: unknown;
+        refused_at?: unknown;
+      };
+      try {
+        record = JSON.parse(await readFile(join(dir, name), "utf8")) as typeof record;
+      } catch {
+        out.kept += 1;
+        continue;
+      }
+      const aged =
+        record.schema_version === 1 &&
+        record.kind === "refused-ticket-decomposition" &&
+        record.app === app &&
+        typeof record.decomposition_id === "string" &&
+        `${record.decomposition_id}.json` === name &&
+        typeof record.refused_at === "string" &&
+        !Number.isNaN(Date.parse(record.refused_at)) &&
+        Date.parse(record.refused_at) < cutoffMs;
+      if (aged) {
+        await rm(join(dir, name), { force: true });
+        out.pruned += 1;
+      } else {
+        out.kept += 1;
+      }
+    }
+  }
+  return out;
 }
 
 /** `narrative/<app>/<slug>.{json,md}` story pairs age by the capture's OWN

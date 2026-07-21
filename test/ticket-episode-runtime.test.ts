@@ -493,6 +493,44 @@ describe("ticket EpisodePlanner execution adapter", () => {
     }
   });
 
+  it("completes a fix/fix turn whose strict-mode verdict carries explicit nulls", async () => {
+    // Codex strict structured outputs must emit every declared property, so a
+    // fix pass with nothing to resolve returns `resolutions: null`. Passing
+    // that null through made `resolutions !== undefined` true and threw a raw
+    // TypeError inside the comment renderer — the ISSUE-016 failure shape.
+    const fixture = await setup("fix", "fix/fix", true, true, true);
+    try {
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(
+        fixture,
+        calls,
+        JSON.stringify({ status: "done", blockedEntry: null, resolutions: null }),
+      );
+
+      await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      });
+
+      expect(calls).toHaveLength(1);
+      const journal = await readEpisodePlanExecutionJournal(
+        fixture.state.root,
+        fixture.accepted.plan.episodeId,
+      );
+      expect(journal?.events.some((event) =>
+        event.kind === "step_completed" && event.step_id === "fix"
+      )).toBe(true);
+      // No resolutions means no findings-ledger comment, not a crash.
+      const comments = fixture.gh.issueComments.get(7) ?? [];
+      expect(comments.some((body) => body.includes("Fix resolutions"))).toBe(false);
+      expect(JSON.stringify(journal)).not.toContain("is not a function");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("refuses an unregistered operation before constructing a provider", async () => {
     // Adversarial near-miss for ISSUE-016: the exact invented names run 2 saw.
     // They must be rejected as typed operation-binding failures, never reach a

@@ -209,18 +209,31 @@ export async function executeApprovedCommands(
       });
       continue;
     }
-    const app = options.appsFile.apps.find((entry) => entry.name === item.app);
     const command = approvedCommand(item.action);
-    if (app === undefined || command === undefined) {
+    if (command === undefined) {
       outcomes.push(await terminalFailure(
         store,
         item,
         "invalid_action",
-        app === undefined
-          ? `approved action names app "${item.app}", which is not in apps.yaml`
-          : `approved action ${item.id} is not a recorded shell command`,
+        `approved action ${item.id} is not a recorded shell command`,
         clock,
       ));
+      continue;
+    }
+    const app = options.appsFile.apps.find((entry) => entry.name === item.app);
+    if (app === undefined) {
+      // Scope, not validity. `operon dispatch --apps <subset>` is an ordinary
+      // way to run one app's tick, and an app being out of scope for THIS
+      // invocation says nothing about the approval. Terminalizing it here would
+      // burn a good human decision and demand a disposition to re-arm it.
+      outcomes.push({
+        approvalId: item.id,
+        app: item.app,
+        status: "skipped",
+        summary:
+          `approved action names app "${item.app}", which this dispatch's apps.yaml does not ` +
+          `cover; it stays approved and waits for a dispatch that does`,
+      });
       continue;
     }
     const context = resolveExecutionContext(options.stateHome, item, app);

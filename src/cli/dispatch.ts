@@ -4,6 +4,7 @@ import { loadApps } from "../org/apps.js";
 import { executeApprovedReleases } from "../org/release.js";
 import { executeApprovedCommands } from "../org/approval-command.js";
 import { executeApprovedDeliveries } from "../org/approval-delivery.js";
+import { ApprovalStore } from "../org/approvals.js";
 import { resolveOperonHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { reportCliInvocation } from "./invocation-audit.js";
@@ -26,6 +27,13 @@ export async function cmdDispatch(args: string[]): Promise<number> {
   const effectiveApps = appsPath ? resolve(appsPath) : join(homes.orgHome, "apps.yaml");
   const effectiveRoles = rolesPath ? resolve(rolesPath) : join(homes.orgHome, "roles.yaml");
   const appsFile = await loadApps(effectiveApps);
+  // Reconcile BEFORE anything tries to execute. Re-homing an unreachable
+  // `actor-retry` record onto the orchestrator happens there (ISSUE-020), and
+  // only `operon approvals` and a provider turn were calling it — so an
+  // operator who ran `operon dispatch` alone against the run-3 queue got
+  // exactly what run 3 already had: four records at attempts=0 /
+  // nextAction=actor_retry and nothing executed. A dry run stays read-only.
+  if (!dryRun) await new ApprovalStore(homes.stateHome).reconcile();
   const deliveries = dryRun
     ? []
     : await executeApprovedDeliveries({

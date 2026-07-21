@@ -11,7 +11,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   executeApprovedCommands,
   ORCHESTRATOR_COMMAND_ACTOR,
@@ -27,6 +27,8 @@ import {
   type ApprovalLogEvent,
 } from "../src/org/approvals.js";
 import type { AppsFile } from "../src/org/apps.js";
+import { cmdDispatch } from "../src/cli/dispatch.js";
+import { initOrgHome } from "../src/org/home.js";
 import { composeGate } from "../src/org/gate-compose.js";
 import { defaultGate } from "../src/runtime/gate.js";
 import { makeOrgHome, type OrgHomeFixture } from "./fixtures/orgHome.js";
@@ -600,6 +602,123 @@ describe("orchestrator execution is restricted to an explicit rule allowlist", (
       expect(outcomes[0]!.summary).toContain("self-merge-or-approve");
       // The human's decision is still good; only the enactor was wrong.
       expect(readItem(home, "boundary-2").execution).toMatchObject({ state: "approved" });
+    } finally {
+      home.cleanup();
+    }
+  });
+});
+
+// An app merely not being in scope for THIS dispatch invocation says nothing
+// about the human's decision. `operon dispatch --apps <subset>` is an ordinary
+// way to run one app's tick.
+// `operon dispatch` is the surface that runs approved commands, and it was the
+// one surface that never reconciled. Only src/cli/approvals.ts and the turn
+// runner called reconcile(), so an operator who ran dispatch alone against the
+// run-3 queue got exactly what run 3 already had: four records still homed on
+// an executor that cannot be reached, attempts=0, and nothing executed.
+describe("operon dispatch re-homes the records nobody else reached", () => {
+  it("reconciles before executing, so a pre-existing actor-retry record is reachable", async () => {
+    const home = seedRun3();
+    // The org home must live outside the state home, as it does in a real
+    // install.
+    const orgSide = makeOrgHome({});
+    const orgHome = join(orgSide.root, "org");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await initOrgHome({
+        target: orgHome,
+        name: "run3-dispatch",
+        stateHome: home.root,
+        homeDir: join(orgSide.root, "operator-home"),
+      });
+      for (const id of Object.keys(RUN3_DECIDED)) {
+        expect(readItem(home, id).execution).toMatchObject({
+          executor: "actor-retry",
+          nextAction: "actor_retry",
+          attempts: 0,
+        });
+      }
+
+      await cmdDispatch(["--org-home", orgHome, "--state-home", home.root]);
+
+      for (const id of Object.keys(RUN3_DECIDED)) {
+        // Re-homed by dispatch itself — no `operon approvals` run in between.
+        expect(readItem(home, id).execution).toMatchObject({
+          executor: "orchestrator-command",
+          state: "approved",
+        });
+      }
+      // The org this dispatch was pointed at has no such app, so the records
+      // are reported and left alone rather than run or terminalized.
+      const printed = log.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(printed).toContain("approved-command");
+    } finally {
+      log.mockRestore();
+      orgSide.cleanup();
+      home.cleanup();
+    }
+  });
+});
+
+describe("a dispatch that does not cover the app leaves the record alone", () => {
+  const OTHER_APP: AppsFile = { ...APPS, apps: [{ ...APPS.apps[0]!, name: "some-other-app" }] };
+
+  it("skips instead of terminalizing, and a later covering dispatch still runs it", async () => {
+    const home = seedRun3();
+    const clone = makeCheckout(home.root, "repos", APP);
+    try {
+      await new ApprovalStore(home.root).reconcile(NOW);
+      const run = recorder();
+      const narrow = await executeApprovedCommands({
+        stateHome: home.root,
+        appsFile: OTHER_APP,
+        now: () => NOW,
+        runner: run.runner,
+      });
+      expect(run.calls).toEqual([]);
+      expect(narrow).toHaveLength(4);
+      expect(narrow.every((entry) => entry.status === "skipped")).toBe(true);
+      expect(narrow[0]!.summary).toContain("does not cover");
+      for (const id of Object.keys(RUN3_DECIDED)) {
+        // Still approved and still executable — no disposition needed to re-arm.
+        expect(readItem(home, id).execution).toMatchObject({ state: "approved", attempts: 0 });
+      }
+
+      const wide = await executeApprovedCommands({
+        stateHome: home.root,
+        appsFile: APPS,
+        now: () => NOW,
+        runner: run.runner,
+      });
+      expect(wide.every((entry) => entry.status === "executed")).toBe(true);
+      expect(run.calls).toHaveLength(4);
+      expect(run.calls.every((call) => call.cwd === clone)).toBe(true);
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("still refuses an action that is not a shell command at all", async () => {
+    // The genuinely invalid case keeps its terminal cause; only the scope case
+    // moved off it.
+    const home = seedRun3();
+    makeCheckout(home.root, "repos", APP);
+    try {
+      await new ApprovalStore(home.root).reconcile(NOW);
+      const decided = readItem(home, PR_CREATE_ID);
+      writeFileSync(
+        home.paths.approvalsDecided(PR_CREATE_ID),
+        `${JSON.stringify({ ...decided, action: { tool: "bash", input: { command: "   " } } }, null, 2)}\n`,
+        "utf8",
+      );
+      const outcomes = await executeApprovedCommands({
+        stateHome: home.root,
+        appsFile: APPS,
+        now: () => NOW,
+        runner: recorder().runner,
+      });
+      expect(outcomes.find((entry) => entry.approvalId === PR_CREATE_ID))
+        .toMatchObject({ status: "failed", cause: "invalid_action" });
     } finally {
       home.cleanup();
     }

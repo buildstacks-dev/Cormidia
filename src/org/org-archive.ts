@@ -99,11 +99,20 @@ export interface DiscoveredOrg {
   fileCount: number;
   /** Newest mtime under the state home, or null for an empty tree. */
   lastActivityAt: string | null;
+  /** False when footprint/activity were deliberately not measured. */
+  usageMeasured: boolean;
 }
 
 export interface ListOrgsOptions {
   /** Defaults to the active-pointer path (`~/.operon/config`). */
   pointerPath: string;
+  /**
+   * Walk each state home to measure footprint and last activity. Defaults to
+   * true (`org list` reports both). A caller that only needs identity — such
+   * as doctor's orphan check — passes false so enumeration stays O(orgs)
+   * instead of O(every file in every state home).
+   */
+  includeUsage?: boolean;
 }
 
 /**
@@ -133,7 +142,9 @@ export async function listOrgs(options: ListOrgsOptions): Promise<DiscoveredOrg[
     const recorded = active && pointer.orgHome !== undefined
       ? resolve(pointer.orgHome)
       : await readOrgBacklink(stateHome);
-    const usage = await treeUsage(stateHome);
+    const usage = options.includeUsage === false
+      ? { bytes: 0, files: 0, newestMtime: null }
+      : await treeUsage(stateHome);
     discovered.push({
       name,
       stateHome,
@@ -145,6 +156,7 @@ export async function listOrgs(options: ListOrgsOptions): Promise<DiscoveredOrg[
       footprintBytes: usage.bytes,
       fileCount: usage.files,
       lastActivityAt: usage.newestMtime === null ? null : usage.newestMtime.toISOString(),
+      usageMeasured: options.includeUsage !== false,
     });
   }
   return discovered;

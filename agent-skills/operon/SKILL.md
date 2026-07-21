@@ -122,6 +122,47 @@ with `operon bootstrap <local-repo> --answers <answers.json>` after a reset.
 `--force` is limited to stale running envelopes (no heartbeat for ten minutes)
 and never overrides a fresh run, journal, lock, or pending approval.
 
+## Retire a whole org
+
+`operon org list` enumerates every org discoverable from `~/.operon`, with its
+state home, org home, footprint, app count, and last activity. An org whose org
+home is not recorded shows as an orphan; `operon doctor` reports the same.
+
+```bash
+operon org list --json
+operon org archive <org-name>
+```
+
+The plan reports the state home it would remove, the archive destination, and
+anything that makes retirement unsafe (a held role lock, an undecided approval,
+an interrupted lifecycle transaction). Execution requires the exact token:
+
+```bash
+operon org archive <org-name> --execute --confirm <org-name>
+```
+
+It writes one verified archive outside the state home, re-reads every archived
+byte against the source, and only then removes the state home; a verification
+failure removes nothing. It clears the active pointer when that org was active.
+It never touches the org home (usually a git repository and often a human
+checkout) or any GitHub repository, branch, or ticket. Never run `--execute`
+unless the human explicitly asked to retire that named org and has read the
+plan.
+
+## Change a role's model, effort, or budget
+
+`roles.yaml` is a human-ratified surface. Preview the change, then hand the
+diff to the human:
+
+```bash
+operon roles set <role> --effort xhigh --turn-budget 15 --json
+```
+
+The preview validates the resulting harness/model/effort tuple against what the
+adapter can execute and writes nothing. Execution additionally requires an
+attributable `--by <identity>` and a `--reason`, and it is journaled — so it is
+the human's decision to record, not yours to make.
+
 ## Upgrade, verify, and promote without providers
 
 Preview every lifecycle mutation first:

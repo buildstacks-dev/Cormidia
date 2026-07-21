@@ -78,6 +78,15 @@ describe("operon org list", () => {
     expect(alpha.appCount).toBe(0);
     expect(alpha.footprintBytes).toBeGreaterThan(0);
     expect(alpha.fileCount).toBeGreaterThan(0);
+    expect(alpha.usageMeasured).toBe(true);
+
+    // Identity-only enumeration skips the tree walk entirely, so doctor never
+    // pays O(every file in every state home) to answer an orphan question.
+    const cheap = await listOrgs({ pointerPath: fx.pointerPath, includeUsage: false });
+    expect(cheap.map((org) => org.name)).toEqual(["alpha", "beta"]);
+    expect(cheap.every((org) => org.usageMeasured === false)).toBe(true);
+    expect(cheap.every((org) => org.footprintBytes === 0 && org.lastActivityAt === null)).toBe(true);
+    expect(cheap.find((org) => org.name === "alpha")?.orgHome).toBe(fx.orgHome("alpha"));
 
     const text = await captureOrg(fx, ["list"]);
     expect(text).toContain("* beta");

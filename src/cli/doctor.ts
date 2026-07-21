@@ -148,7 +148,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   // condition is noticed without being looked for.
   const discoveredOrgs = homes === undefined
     ? []
-    : await listOrgs({ pointerPath: homes.pointerPath }).catch(() => []);
+    : await listOrgs({ pointerPath: homes.pointerPath, includeUsage: false }).catch(() => []);
   const orphans: CheckRow[] = discoveredOrgs
     .filter((org) => org.orphan || org.orgHomeMissing)
     .map((org) => ({

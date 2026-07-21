@@ -193,11 +193,30 @@ checkpoint exists; unknown usage is never silently treated as measured zero.
 
 Every adapter gives its headless provider harness and shell commands the same
 non-interactive environment overlay: `CI=true`, `NPM_CONFIG_YES=true`,
-`DEBIAN_FRONTEND=noninteractive`, and `GIT_TERMINAL_PROMPT=0`. The overlay
+`DEBIAN_FRONTEND=noninteractive`, `GIT_TERMINAL_PROMPT=0`, and
+`PNPM_CONFIG_IGNORE_SCRIPTS=true`. The overlay
 replaces conflicting interactive values while preserving unrelated caller-
 supplied environment such as provider authentication and campaign scratch
 paths. Claude and Codex inherit it at harness launch; pi applies it to the
 embedded Bash tool's spawn environment.
+
+`PNPM_CONFIG_IGNORE_SCRIPTS` is the **dependency build policy**, and it is a
+separate mechanism from the four non-interactive values, not a fifth flavour of
+them. A headless sandbox stops a package manager from *prompting*; it does not
+stop pnpm 11 from *writing the question it would have prompted about into the
+repo*. Denied a build decision it cannot ask for, pnpm appends an `allowBuilds:`
+block whose values are the literal string `set this to true or false`, then
+fails. An agent that answers by appending its own `allowBuilds:` block produces a
+duplicate YAML mapping key, and every later pnpm invocation — including the ones
+that would repair the file — dies at parse time. Denying builds is also the safer
+default in its own right: a dependency that silently runs an install script is
+the more dangerous outcome, so the policy is deny-first and a ticket that needs a
+build opts in explicitly through the app's `setup_command`. The same policy is
+applied to the quality-gate subprocess (`src/loop/qgates.ts`), which is where a
+fresh worktree's first install actually runs. `src/loop/setup-artifacts.ts` is
+the backstop for the paths that opt out: it fails the setup gate with the real
+cause and the consolidation remedy rather than letting a placeholder become an
+opaque parser error several attempts later.
 
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
 effective gate for a turn (default rules + grant lookup, §4) and passes it

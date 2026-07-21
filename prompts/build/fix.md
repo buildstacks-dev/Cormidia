@@ -30,6 +30,9 @@ unaddressed finding blocks merge no matter how good the rest of the work is.
 5. **Bounded attempts.** At most 3 mechanical fix attempts per failure. A
    finding you cannot resolve or honestly rebut within them is a design
    problem: report blocked immediately — never thrash, never paper over.
+   An attempt whose first command fails with the *identical* error as the
+   previous attempt made no progress: stop there and report blocked with
+   that error verbatim rather than spending the rest of the budget on it.
 
 ## Output
 

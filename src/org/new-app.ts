@@ -919,6 +919,20 @@ Operon's required gates therefore fail closed until the first implementation
 adds meaningful stack-specific commands. Gate commands are top-level keys,
 siblings of \`apps\`; never put them under \`apps.<name>\`. Add
 \`setup_command\` only when a fresh worktree needs a deterministic setup step.
+
+## Dependency Build Scripts
+
+Operon runs every install with dependency build (postinstall) scripts **denied**
+by default — a package that silently runs an install script is the more
+dangerous default, and pnpm answers an unanswerable build question by writing a
+placeholder into \`pnpm-workspace.yaml\` rather than by asking. If a dependency
+genuinely needs its install script (a native binary download, for example), opt
+in **explicitly and narrowly** in \`setup_command\`: commit the decision as an
+\`allowBuilds\` entry and add \`--no-ignore-scripts\` to the install, for example
+\`pnpm install --frozen-lockfile --no-ignore-scripts\`. Never answer a
+\`set this to true or false\` placeholder by appending a second \`allowBuilds:\`
+block — YAML forbids duplicate mapping keys, and the result is a file the
+package manager can no longer parse, including on the run that would fix it.
 `;
 }
 

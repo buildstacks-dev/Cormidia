@@ -64,6 +64,9 @@ bounce-by-status; selective re-review of unchanged work.
 - Implementation-contract pass before code (files/approach/tests/risks).
 - Bounded everything: 3 mechanical fix attempts in-pass, remediation cap 3,
 review cycles cap, per-pass turn cap; blocked-with-evidence escalation.
+Bounds are also ended early by *lack of progress*: a remediation attempt whose
+gate run reproduces the previous attempt's failure identity exactly escalates
+immediately rather than spending the remaining attempts on the same error.
 - Per-run artifact logging (prompt/output/session log/meta), activity log,
 cost attribution, anomaly flags.
 - Decomposer discipline: atomic/testable/scoped/ordered tickets, binary
@@ -461,7 +464,15 @@ scan; low: tests+completeness).
   org's most expensive seat (Opus, xhigh); never spend those tokens on
    code that fails `pnpm test` mechanically. Gate failure → **remediate**:
    re-dispatch a fix pass with verbatim gate output in the brief, up to
-   `max_attempts`, then blocked.
+   `max_attempts`, then blocked. A gate run that fails with *exactly* the
+   previous attempt's `remediation.failureIdentity` — the hash over the failing
+   gates' verbatim evidence, duration excluded — sets `remediation.noProgress`,
+   clears `canRetry`, and escalates with the real cause instead of buying
+   attempts that would reproduce it (ISSUE-029: three builder attempts and
+   $10.24 spent on one byte-identical pnpm parse error). The bar is identical
+   error *identity*, never merely "failed again": a failure carrying no evidence
+   at all (a bare non-zero exit with no output) has no identity and never
+   triggers it, and any change in the evidence retries normally.
 2. **At ship, twice** — once when the item reaches ship (blocks wasting the
   optional ship-check pass) and once immediately before the squash-merge
    (catches anything that moved in between). The predecessor's double-run,

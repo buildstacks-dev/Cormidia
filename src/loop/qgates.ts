@@ -35,6 +35,7 @@
 // review-freshness, and the tier orchestrator `runGates`.
 
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import { withDependencyBuildPolicy } from "../runtime/non-interactive-env.js";
@@ -149,6 +150,15 @@ export interface GateRunResult {
     attemptsRemaining: number;
     canRetry: boolean;
     exhausted: boolean;
+    /** Stable identity of THIS run's failure set — pass it back as
+     *  `previousFailureIdentity` on the next attempt. `undefined` when the run
+     *  passed, or when the failures carry no evidence to compare (see
+     *  `gateFailureIdentity`). */
+    failureIdentity?: string;
+    /** True when this attempt failed with exactly the identity the previous
+     *  attempt failed with: the remediation made no progress, so spending the
+     *  remaining budget on it would only reproduce the same error. */
+    noProgress: boolean;
   };
 }
 
@@ -158,6 +168,10 @@ export interface RunGatesOptions {
   criterionTests: CriterionTestMap;
   /** Number of remediation attempts already used; persistence is caller-owned. */
   currentAttempt?: number;
+  /** `remediation.failureIdentity` from the previous attempt, when there was
+   *  one. Supplying it enables no-progress detection; omitting it keeps the
+   *  bounded-attempt behavior exactly as before. */
+  previousFailureIdentity?: string;
   process?: ProcessGateOpts;
   diff?: DiffRange;
 }
@@ -527,18 +541,83 @@ export async function runGates(
   const maxAttempts = options.policy.remediation.maxAttempts;
   const currentAttempt = Math.max(0, Math.trunc(options.currentAttempt ?? 0));
   const exhausted = failed && currentAttempt >= maxAttempts;
+  const failureIdentity = gateFailureIdentity(results);
+  const noProgress =
+    failed &&
+    failureIdentity !== undefined &&
+    options.previousFailureIdentity !== undefined &&
+    failureIdentity === options.previousFailureIdentity;
   return {
     tier,
-    status: failed ? (exhausted ? "blocked" : "fail") : "pass",
+    status: failed ? (exhausted || noProgress ? "blocked" : "fail") : "pass",
     results,
     remediation: {
       currentAttempt,
       maxAttempts,
       attemptsRemaining: Math.max(0, maxAttempts - currentAttempt),
-      canRetry: failed && !exhausted,
+      canRetry: failed && !exhausted && !noProgress,
       exhausted,
+      ...(failureIdentity !== undefined ? { failureIdentity } : {}),
+      noProgress,
     },
   };
+}
+
+/**
+ * Stable identity of a failing gate run — the input to no-progress detection
+ * (ISSUE-029).
+ *
+ * Bounded retry exists to let a fix attempt make progress. When the first thing
+ * the next attempt does fails with *exactly* the error the last attempt failed
+ * with, no progress was made, and every remaining attempt will reproduce it. In
+ * run 4 that pattern spent three builder attempts and $10.24 on a
+ * `[ERROR] duplicated mapping key (4:1)` that was byte-identical every time.
+ *
+ * The bar is deliberately high — identical error *identity*, never merely
+ * "failed again":
+ *
+ * - The identity is a hash over the failing gates' verbatim evidence (gate, exit
+ *   code, timeout flag, detail, output tail, structured failures/matches). Real
+ *   remediation almost always moves at least one byte of that; a flaky test that
+ *   fails differently, or the same suite failing at a different assertion, is a
+ *   different identity and retries normally.
+ * - A failure carrying **no** evidence — a bare non-zero exit with no output —
+ *   has no identity at all, and `undefined` never matches. "exit 1, silent" is
+ *   the same string for unrelated causes; treating it as proof of no progress
+ *   would cut a legitimate retry budget short.
+ *
+ * Duration is excluded: wall-clock varies run to run and says nothing about
+ * whether the failure is the same failure.
+ */
+export function gateFailureIdentity(results: readonly GateResult[]): string | undefined {
+  const failing = results.filter((result) => result.status === "fail");
+  if (failing.length === 0) return undefined;
+  if (!failing.every(hasFailureEvidence)) return undefined;
+
+  const canonical = failing
+    .map((result) =>
+      JSON.stringify({
+        gate: result.gate,
+        exitCode: result.exitCode ?? null,
+        timedOut: result.timedOut === true,
+        detail: result.detail,
+        outputTail: result.outputTail ?? "",
+        failures: result.failures ?? [],
+        matches: (result.matches ?? []).map((match) => `${match.file}:${match.line}:${match.pattern}`),
+      }),
+    )
+    .sort()
+    .join("\n");
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+function hasFailureEvidence(result: GateResult): boolean {
+  return (
+    result.timedOut === true ||
+    (result.outputTail !== undefined && result.outputTail.trim() !== "") ||
+    (result.failures !== undefined && result.failures.length > 0) ||
+    (result.matches !== undefined && result.matches.length > 0)
+  );
 }
 
 async function runScheduledGate(

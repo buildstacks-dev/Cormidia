@@ -995,6 +995,7 @@ function gatePass(): GateRunResult {
       attemptsRemaining: 3,
       canRetry: false,
       exhausted: false,
+      noProgress: false,
     },
   };
 }

@@ -327,10 +327,14 @@ export async function advanceGates(
   let current = { ...item, phase: "gates" as LoopPhase };
   const gateResults = [...current.gateResults];
   const rec = options.runlog !== undefined ? await openPhaseRun(options.runlog, "gates", "quality-gates") : undefined;
+  // Identity of the previous attempt's failure, for no-progress detection
+  // (ISSUE-029). Undefined on the first pass through the loop.
+  let previousFailureIdentity: string | undefined;
 
   while (true) {
     if (rec !== undefined) await rec.events.append({ type: "gate.started", detail: { attempt: current.remediationAttempts } });
-    const result = await runGateSet(current, options);
+    const result = await runGateSet(current, options, previousFailureIdentity);
+    previousFailureIdentity = result.remediation.failureIdentity;
     gateResults.push(result);
     await recordGateResult(rec, result);
 
@@ -376,13 +380,29 @@ export async function advanceGates(
       continue;
     }
 
-    const comment = blockedWithEvidenceComment("quality gates exhausted", result);
+    // ISSUE-029: an attempt that reproduced the previous attempt's error
+    // *exactly* made no progress, and the attempts still on the clock would only
+    // reproduce it again. Escalate now, with the real cause, instead of paying
+    // for the repetition. `remediation.noProgress` already cleared `canRetry`,
+    // so this only changes what the operator is told and what is journalled.
+    const noProgress = result.remediation.noProgress;
+    const reason = noProgress
+      ? `no progress: attempt ${current.remediationAttempts} failed with the identical error as the ` +
+        "attempt before it, so the remaining repair attempts were not spent"
+      : "quality gates exhausted";
+    const comment = blockedWithEvidenceComment(reason, result);
     await options.gh.commentIssue(current.issueNumber, comment);
     const fromLabel = stateLabelForPhase(current.phase);
     await options.gh.swapLabel(current.issueNumber, fromLabel, "op:returned");
     await rec?.transition(fromLabel, "op:returned");
     await rec?.finalize("blocked");
-    await journalStop(options.journal, "cap_stop", `quality-gate repair cap exhausted at ${current.remediationAttempts}`);
+    await journalStop(
+      options.journal,
+      "cap_stop",
+      noProgress
+        ? `quality-gate repair made no progress at attempt ${current.remediationAttempts}: identical failure identity ${result.remediation.failureIdentity?.slice(0, 12)}`
+        : `quality-gate repair cap exhausted at ${current.remediationAttempts}`,
+    );
     return {
       ...current,
       labels: replaceLabel(current.labels, fromLabel, "op:returned"),
@@ -1679,7 +1699,11 @@ function traceIdFor(item: LoopItem, pipeline: string, clock: (() => Date) | unde
   return `${stamp}-${pipeline}-${item.issueNumber}`;
 }
 
-async function runGateSet(item: LoopItem, options: GatePhaseOptions): Promise<GateRunResult> {
+async function runGateSet(
+  item: LoopItem,
+  options: GatePhaseOptions,
+  previousFailureIdentity?: string,
+): Promise<GateRunResult> {
   const worktree = requireField(item, "worktree");
   const baseRef = options.base.ref;
   const headRef = options.headRef ?? "HEAD";
@@ -1699,6 +1723,7 @@ async function runGateSet(item: LoopItem, options: GatePhaseOptions): Promise<Ga
       commands: options.commands,
       criterionTests: options.criterionTests,
       currentAttempt: item.remediationAttempts,
+      ...(previousFailureIdentity !== undefined ? { previousFailureIdentity } : {}),
       ...(options.process !== undefined ? { process: options.process } : {}),
       diff: { baseRef, headRef },
     },
@@ -1761,7 +1786,7 @@ function blockedWithEvidenceComment(reason: string, result: GateRunResult): stri
     output,
     "",
     "**Attempted:**",
-    `${result.remediation.maxAttempts} bounded remediation attempt(s).`,
+    `${result.remediation.currentAttempt} of ${result.remediation.maxAttempts} bounded remediation attempt(s).`,
     "",
     "**Result:**",
     reason,

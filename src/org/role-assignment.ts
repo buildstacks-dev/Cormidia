@@ -14,7 +14,16 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { isDocument, isMap, parseDocument, type Document } from "yaml";
+import {
+  isDocument,
+  isMap,
+  isScalar,
+  parseDocument,
+  stringify,
+  type Document,
+  type Pair,
+  type YAMLMap,
+} from "yaml";
 import {
   TURN_ASSIGNMENT_EFFORTS,
   validateTurnAssignment,
@@ -23,6 +32,12 @@ import {
   resolvedRuntimeCapabilities,
   runtimeCapabilityProfile,
 } from "../runtime/capabilities.js";
+import {
+  describeModelCatalogCheck,
+  modelServedByCatalog,
+  readRuntimeModelCatalog,
+  type RuntimeModelCatalogReader,
+} from "../runtime/model-catalog.js";
 import type { Effort, RuntimeKind } from "../runtime/types.js";
 import { parseRolesText, type RolesFile } from "./roles.js";
 import { sha256, writeLifecycleFileAtomic } from "./lifecycle.js";
@@ -63,11 +78,28 @@ export interface RoleAssignmentBlocker {
     | "no_effective_change"
     | "invalid_assignment"
     | "invalid_turn_budget"
+    | "model_not_served"
     | "unratified_execution"
     | "missing_reason"
     | "roles_file_missing"
-    | "role_entry_not_a_mapping";
+    | "role_entry_not_a_mapping"
+    | "role_field_not_a_scalar";
   detail: string;
+}
+
+/** The recorded outcome of the harness-roster check, without the roster
+ *  itself: a pi registry lists thousands of ids and the journal wants the
+ *  decision, not the catalog. */
+export interface RoleAssignmentModelCatalogCheck {
+  runtime: RuntimeKind;
+  model: string;
+  /** True only when a roster existed AND it lists this id. */
+  verified: boolean;
+  /** Where the roster came from, when there was one. */
+  source?: string;
+  modelCount?: number;
+  /** Why the harness publishes no token-free roster, when it does not. */
+  reason?: string;
 }
 
 export interface RoleAssignmentChangePlan {
@@ -80,6 +112,10 @@ export interface RoleAssignmentChangePlan {
   changes: RoleAssignmentFieldChange[];
   /** Adapter facts the new tuple was checked against, for the operator. */
   capabilityNote?: string;
+  /** Whether the resulting model id was proven against the harness roster. */
+  modelCatalog?: RoleAssignmentModelCatalogCheck;
+  /** Operator-facing rendering of `modelCatalog`, proven or explicitly not. */
+  modelCatalogNote?: string;
   blockers: RoleAssignmentBlocker[];
   executed: boolean;
   reason: string | null;
@@ -99,6 +135,8 @@ export interface ApplyRoleAssignmentOptions {
   by?: string;
   execute?: boolean;
   now?: () => Date;
+  /** Override the harness roster lookup. Tests inject a deterministic one. */
+  readModelCatalog?: RuntimeModelCatalogReader;
 }
 
 /**
@@ -211,6 +249,31 @@ export async function applyRoleAssignmentChange(
       detail: "the requested values already match the configured role",
     });
   }
+
+  // ENH-004: "a model string the adapter does not serve" must not be deferred
+  // to dispatch inside a paid turn. Where the harness publishes a token-free
+  // roster this refuses before the ratified file is touched; where it does not,
+  // the plan says so out loud instead of implying the id was checked.
+  const catalog = await (options.readModelCatalog ?? readRuntimeModelCatalog)(after.runtime);
+  const served = modelServedByCatalog(catalog, after.model);
+  base.modelCatalog = {
+    runtime: after.runtime,
+    model: after.model,
+    verified: catalog.available && served,
+    ...(catalog.available
+      ? { source: catalog.source, modelCount: catalog.models.length }
+      : { reason: catalog.reason }),
+  };
+  base.modelCatalogNote = describeModelCatalogCheck(catalog, after.model);
+  if (!served && catalog.available) {
+    return blocked(base, {
+      code: "model_not_served",
+      detail:
+        `${after.runtime} does not serve model ${JSON.stringify(after.model)}; ` +
+        `its roster (${catalog.source}, ${catalog.models.length} models) has no such id`,
+    });
+  }
+
   if (options.execute !== true) return base;
 
   // The ratification boundary. An unattributable caller gets the proposal
@@ -231,7 +294,7 @@ export async function applyRoleAssignmentChange(
     });
   }
 
-  const rendered = renderRolesWithRole(text, rolesPath, options.role, after);
+  const rendered = renderRolesWithRole(text, rolesPath, options.role, base.changes);
   if (typeof rendered !== "string") return blocked(base, rendered);
   // Prove the candidate parses to a valid org chart with exactly the intended
   // role before it replaces the ratified file.
@@ -294,6 +357,7 @@ export function formatRoleAssignmentPlan(plan: RoleAssignmentChangePlan): string
     lines.push(`  ${change.field}: ${change.from} -> ${change.to}`);
   }
   if (plan.capabilityNote !== undefined) lines.push(`  ${plan.capabilityNote}`);
+  if (plan.modelCatalogNote !== undefined) lines.push(`  ${plan.modelCatalogNote}`);
   for (const blocker of plan.blockers) lines.push(`  BLOCKED ${blocker.code}: ${blocker.detail}`);
   if (plan.blockers.length === 0 && !plan.executed) {
     lines.push(
@@ -337,15 +401,33 @@ function fieldChanges(
   return changes;
 }
 
+/** The scalar keys this command owns, in the order roles.yaml declares them.
+ *  Used only to anchor a key that has to be inserted. */
+const ROLE_SCALAR_KEYS = ["runtime", "model", "effort", "max_turn_budget_usd"] as const;
+
+interface TextSplice {
+  start: number;
+  end: number;
+  text: string;
+}
+
 /**
- * Rewrite exactly the touched scalars through the YAML document model, so
- * every surrounding comment, key order, and unrelated value survives.
+ * Rewrite exactly the scalars that changed, as byte splices over the original
+ * file — never by re-emitting the YAML document.
+ *
+ * roles.yaml is a human-ratified org-runtime surface whose comments carry the
+ * org's actual reasoning. Re-emitting it from the document model rewrites the
+ * whole file: flow sequences in untouched roles are respaced, and a multi-line
+ * trailing comment block is re-anchored underneath the key it documented. Both
+ * make every later human diff unreadable and detach rationale from what it
+ * explains. Splicing leaves every byte outside the named scalars untouched, so
+ * a two-scalar edit is a two-line diff.
  */
 function renderRolesWithRole(
   text: string,
   rolesPath: string,
   role: string,
-  after: RoleAssignmentSnapshot,
+  changes: readonly RoleAssignmentFieldChange[],
 ): string | RoleAssignmentBlocker {
   const doc: Document = parseDocument(text);
   if (!isDocument(doc) || doc.errors.length > 0) {
@@ -361,13 +443,136 @@ function renderRolesWithRole(
       detail: `${rolesPath}: roles.${role} is not a mapping`,
     };
   }
-  doc.setIn(["roles", role, "runtime"], after.runtime);
-  doc.setIn(["roles", role, "model"], after.model);
-  doc.setIn(["roles", role, "effort"], after.effort);
-  if (after.turnBudgetInherited) doc.deleteIn(["roles", role, "max_turn_budget_usd"]);
-  else doc.setIn(["roles", role, "max_turn_budget_usd"], after.maxTurnBudgetUsd);
-  const rendered = String(doc);
-  return rendered.endsWith("\n") ? rendered : `${rendered}\n`;
+
+  const splices: TextSplice[] = [];
+  for (const change of changes) {
+    const value = renderScalarValue(change.to);
+    if (value === undefined) {
+      return {
+        code: "role_field_not_a_scalar",
+        detail:
+          `${rolesPath}: roles.${role}.${change.field} value ${JSON.stringify(String(change.to))} ` +
+          "does not render as a single-line YAML scalar",
+      };
+    }
+    const node = entry.get(change.field, true);
+    if (node === undefined || node === null) {
+      const insertion = insertScalarLine(text, entry, change.field, value);
+      if (insertion === undefined) {
+        return {
+          code: "role_field_not_a_scalar",
+          detail:
+            `${rolesPath}: cannot add roles.${role}.${change.field} without rewriting the file; ` +
+            "add the key by hand so the surrounding comments stay where you put them",
+        };
+      }
+      splices.push(insertion);
+      continue;
+    }
+    const range = scalarRange(node);
+    if (range === undefined) {
+      return {
+        code: "role_field_not_a_scalar",
+        detail: `${rolesPath}: roles.${role}.${change.field} is not a plain scalar`,
+      };
+    }
+    splices.push(alignedSplice(text, range[0], range[1], value));
+  }
+
+  const applied = applySplices(text, splices);
+  if (applied === undefined) {
+    return {
+      code: "role_field_not_a_scalar",
+      detail: `${rolesPath}: roles.${role} edits overlap; nothing was rewritten`,
+    };
+  }
+  return applied.endsWith("\n") ? applied : `${applied}\n`;
+}
+
+/** The new value, exactly as YAML would emit it on one line. */
+function renderScalarValue(value: string | number): string | undefined {
+  const rendered = stringify(value, { lineWidth: 0 }).replace(/\n$/, "");
+  return rendered.length === 0 || rendered.includes("\n") ? undefined : rendered;
+}
+
+/**
+ * Replace a scalar in place, keeping any trailing comment in its original
+ * column. The packaged chart aligns comment blocks under their first line;
+ * shifting the `#` by one character would visually detach every continuation
+ * line below it.
+ */
+function alignedSplice(text: string, start: number, end: number, value: string): TextSplice {
+  const rest = text.slice(end, lineEndFrom(text, end));
+  const gap = /^( +)#/.exec(rest);
+  if (gap === null) return { start, end, text: value };
+  const column = end - start + gap[1]!.length;
+  return { start, end: end + gap[1]!.length, text: value + " ".repeat(Math.max(1, column - value.length)) };
+}
+
+/**
+ * Place a key the role does not declare yet on its own line, directly after
+ * the nearest preceding sibling this command owns (and after that sibling's
+ * own trailing comment block, so nothing is split apart).
+ */
+function insertScalarLine(
+  text: string,
+  entry: YAMLMap,
+  key: string,
+  value: string,
+): TextSplice | undefined {
+  const position = ROLE_SCALAR_KEYS.indexOf(key as (typeof ROLE_SCALAR_KEYS)[number]);
+  if (position < 0) return undefined;
+  for (let index = position - 1; index >= 0; index--) {
+    const pair = findPair(entry, ROLE_SCALAR_KEYS[index]!);
+    const keyStart = pair === undefined ? undefined : scalarRange(pair.key)?.[0];
+    const at = pair === undefined ? undefined : pairEnd(pair);
+    if (keyStart === undefined || at === undefined) continue;
+    const indent = indentOf(text, keyStart);
+    if (indent === undefined) continue;
+    const prefix = at === 0 || text[at - 1] === "\n" ? "" : "\n";
+    return { start: at, end: at, text: `${prefix}${indent}${key}: ${value}\n` };
+  }
+  return undefined;
+}
+
+function findPair(entry: YAMLMap, key: string): Pair | undefined {
+  return (entry.items as Pair[]).find(
+    (item) => isScalar(item.key) && item.key.value === key,
+  );
+}
+
+function scalarRange(node: unknown): readonly [number, number, number] | undefined {
+  if (!isScalar(node)) return undefined;
+  return node.range ?? undefined;
+}
+
+/** End of a key/value pair, past any comment block bound to its value. */
+function pairEnd(pair: Pair): number | undefined {
+  return scalarRange(pair.value)?.[2] ?? scalarRange(pair.key)?.[2];
+}
+
+/** The pure-space indentation of the line `index` sits on. */
+function indentOf(text: string, index: number): string | undefined {
+  const lineStart = text.lastIndexOf("\n", Math.max(0, index - 1)) + 1;
+  const prefix = text.slice(lineStart, index);
+  return /^ *$/.test(prefix) ? prefix : undefined;
+}
+
+function lineEndFrom(text: string, index: number): number {
+  const newline = text.indexOf("\n", index);
+  return newline === -1 ? text.length : newline;
+}
+
+function applySplices(text: string, splices: readonly TextSplice[]): string | undefined {
+  const ordered = [...splices].sort((a, b) => a.start - b.start);
+  for (let index = 1; index < ordered.length; index++) {
+    if (ordered[index]!.start < ordered[index - 1]!.end) return undefined;
+  }
+  let result = text;
+  for (const splice of [...ordered].reverse()) {
+    result = result.slice(0, splice.start) + splice.text + result.slice(splice.end);
+  }
+  return result;
 }
 
 function assertRenderedRole(

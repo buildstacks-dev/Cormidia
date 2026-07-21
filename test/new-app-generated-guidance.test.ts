@@ -217,7 +217,7 @@ describe("generated new-app onboarding guidance", () => {
       | \`op:ready\` | \`#0e8a16\` | Ready for the build loop to claim | Planner publication, dependency rearming, or the operator's reviewed first issue | Leave it for the loop to claim; do not add another Operon state label |
       | \`op:building\` | \`#fbca04\` | Claimed by a build turn | The build loop when it durably claims an op:ready issue | Inspect the durable run if it stalls; do not manually rearm the label |
       | \`op:in-review\` | \`#1d76db\` | PR open, review in progress | The build loop after Builder output and mechanical gates produce a PR | Let review and ship gates continue; inspect the linked PR if progress stops |
-      | \`op:returned\` | \`#d93f0b\` | Returned for human/planner triage | The loop after a bounded failure, exhausted correction allowance, or triage finding | Read the retained evidence; use operon loop rearm with a reason and allowance to resume |
+      | \`op:returned\` | \`#d93f0b\` | Returned for human/planner triage | The loop after a bounded failure, exhausted correction allowance, or triage finding | Read the retained evidence; use operon loop rearm only for a non-terminal episode, or create a new ticket if terminal |
       | \`op:blocked\` | \`#b60205\` | Waiting on a critical-op approval | The loop when the exact durable continuation is waiting on critical-op approval | Review operon approvals; do not bypass the decision by editing labels |
 
       ## Derived Tier

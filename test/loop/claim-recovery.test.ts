@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -13,6 +13,13 @@ import {
   recoverClaimException,
   recoverInterruptedClaims,
 } from "../../src/loop/claim-recovery.js";
+import {
+  admitEpisode,
+  efficiencyEpisodeDir,
+  episodeIdFor,
+  finalizeEpisode,
+  routeRecordPath,
+} from "../../src/loop/efficiency.js";
 import { readTicketClaimState, writeTicketClaimState } from "../../src/loop/rehydrate.js";
 import type { LoopContinuation, LoopItem } from "../../src/loop/types.js";
 import { FakeGhOps } from "../support/fakeGhOps.js";
@@ -255,6 +262,78 @@ describe("claim recovery saga", () => {
     await executeTicketRearm(recoveryInput);
     expect((await gh.readIssue(7)).labels).toContain("op:ready");
     expect(readTicketClaimState(root, "app", 7).rearms?.at(-1)?.status).toBe("completed");
+  });
+
+  it("refuses to rearm a terminal episode before mutating allowance, records, or labels", async () => {
+    const gh = world("op:returned");
+    const originalState = { claims: 3, outcomes: ["claim 3: ended returned"], claimAllowance: 3 };
+    writeTicketClaimState(root, "app", 7, originalState);
+    const episodeId = episodeIdFor({ app: "app", ticket: "#7", traceId: "#7" });
+    await admitEpisode({
+      root,
+      episodeId,
+      app: "app",
+      route: "deterministic",
+      policyVersion: "terminal-rearm-fixture/v1",
+      factors: [{
+        kind: "evidence_quality",
+        evidence: "seed a finalized ticket episode",
+        policy_rule: "terminal_rearm_fixture",
+      }],
+      passes: [],
+      executionBounds: null,
+      now: new Date("2026-07-21T04:25:19.661Z"),
+    });
+    await finalizeEpisode({
+      root,
+      episodeId,
+      status: "interrupted",
+      reason: "#7 returned for human triage",
+      nextStep: "create a new ticket",
+      now: new Date("2026-07-21T04:36:39.465Z"),
+    });
+    const labelsBefore = [...(await gh.readIssue(7)).labels];
+
+    await expect(executeTicketRearm({
+      root,
+      app: "app",
+      issueNumber: 7,
+      reason: "reviewed provider ambiguity",
+      actor: "human@example.com",
+      priorAllowance: 3,
+      intendedAllowance: 4,
+      gh,
+    })).rejects.toThrow(
+      "rearm cannot resume terminal episodes. Leave the ticket parked at op:returned and create a new ticket",
+    );
+
+    expect(readTicketClaimState(root, "app", 7)).toEqual(originalState);
+    expect((await gh.readIssue(7)).labels).toEqual(labelsBefore);
+  });
+
+  it("fails closed on corrupt route evidence while an absent route remains rearmable", async () => {
+    const gh = world("op:returned");
+    const originalState = { claims: 3, outcomes: [], claimAllowance: 3 };
+    writeTicketClaimState(root, "app", 7, originalState);
+    const input = {
+      root,
+      app: "app",
+      issueNumber: 7,
+      reason: "reviewed provider ambiguity",
+      actor: "human@example.com",
+      priorAllowance: 3,
+      intendedAllowance: 4,
+      gh,
+    };
+
+    await expect(planTicketRearm(input)).resolves.toMatchObject({ replay: false });
+
+    const episodeId = episodeIdFor({ app: "app", ticket: "#7", traceId: "#7" });
+    mkdirSync(efficiencyEpisodeDir(root, episodeId), { recursive: true });
+    writeFileSync(routeRecordPath(root, episodeId), '{"schema_version":1,"episode_id":"wrong"}\n', "utf8");
+    await expect(executeTicketRearm(input)).rejects.toThrow(`invalid efficiency route record for ${episodeId}`);
+    expect(readTicketClaimState(root, "app", 7)).toEqual(originalState);
+    expect((await gh.readIssue(7)).labels).toContain("op:returned");
   });
 
   it("refuses label-only misuse and stale allowance changes", async () => {

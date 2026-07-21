@@ -34,6 +34,7 @@ import {
   finishTicketClaim,
   markTicketClaimed,
   markTicketProviderStarted,
+  readTerminalTicketEpisode,
   rearmCommand,
   recoverClaimException,
   recoverInterruptedClaims,
@@ -517,11 +518,32 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       };
     }
   }
-  const readyIssues = await options.gh.listIssues({
+  const fetchedReadyIssues = await options.gh.listIssues({
     labels: ["op:ready"],
     state: "open",
     limit: maxConcurrent * 3,
   });
+  const readyIssues: GhIssue[] = [];
+  for (const issue of fetchedReadyIssues) {
+    if (options.engine !== undefined && options.planOnly !== true) {
+      const terminalEpisode = await readTerminalTicketEpisode({
+        root: options.engine.runlogRoot,
+        app: options.app,
+        issueNumber: issue.number,
+      });
+      if (terminalEpisode !== undefined) {
+        await options.gh.swapLabel(issue.number, "op:ready", "op:returned");
+        lines.push(
+          `ERROR #${issue.number} ${issue.title}: refused claim because episode ` +
+            `${terminalEpisode.episodeId} is terminal (${terminalEpisode.terminal.status}: ` +
+            `${terminalEpisode.terminal.reason}); repaired op:ready -> op:returned. ` +
+            "Rearm cannot resume a terminal episode; create a new ticket for further work.",
+        );
+        continue;
+      }
+    }
+    readyIssues.push(issue);
+  }
   // A merged dependency lives OUTSIDE this open op:ready set: a merge CLOSES the
   // issue and strips its op:ready label, so it is never fetched here. Resolve
   // the exact dependency ids the fetched candidates reference but that are

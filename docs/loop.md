@@ -704,9 +704,15 @@ claim-lifecycle events.
   ... --actor ... --from-allowance ... --to-allowance ...` transaction.
   Preview is the default; execution binds the app, ticket, reason, actor, old
   allowance, new allowance, and prior label in a replay-safe prepared/completed
-  record. A label-only `op:ready` edit cannot change the durable cap. The
-  `CLAIM RECOVERY` block in `operon status` explains the stopped boundary and
-  next action. The episode's human
+  record. Rearm applies only while the episode route is still open: a terminal
+  route is immutable, so the command refuses before changing the allowance,
+  rearm record, or label and directs the operator to leave the old ticket
+  parked and create a new ticket. A live tick also repairs a stale or malicious
+  terminal+`op:ready` projection back to `op:returned` before acquiring a
+  claim, emitting an explicit error instead of endlessly claiming and
+  auto-releasing it. A label-only `op:ready` edit cannot change the durable
+  cap. The `CLAIM RECOVERY` block in `operon status` explains the stopped
+  boundary and next action. The episode's human
   performed all twenty re-arms by hand; this is the stop that was missing.
 
 ## 8. Parallelism — tickets, not tasks

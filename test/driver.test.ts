@@ -21,6 +21,7 @@ import {
   type TicketEpisodePlanner,
 } from "../src/loop/driver.js";
 import { baseRevisionForBranch } from "../src/loop/default-branch.js";
+import { admitEpisode, episodeIdFor, finalizeEpisode } from "../src/loop/efficiency.js";
 import {
   deriveEpisodeSafetyRoute,
   episodeIntentHash,
@@ -34,7 +35,11 @@ import {
 import { routeAdmissionForEpisodePlan } from "../src/loop/episode-route.js";
 import { admitPlannedEpisodeRoute } from "../src/loop/planner-admission.js";
 import { branchNameForIssue, dependencyRelevantPackageJson } from "../src/loop/loop.js";
-import { readTicketClaimState, writeTicketClaimState } from "../src/loop/rehydrate.js";
+import {
+  readTicketClaimState,
+  writeTicketClaimState,
+  type TicketClaimState,
+} from "../src/loop/rehydrate.js";
 import { loadPipelines } from "../src/loop/pipelines.js";
 import { resolvedRuntimeCapabilities } from "../src/runtime/capabilities.js";
 import type { RoleConfig, TurnAssignment } from "../src/runtime/types.js";
@@ -548,6 +553,90 @@ describe("loop driver", () => {
     // The seeded ticket must still be op:ready — a refused tick never claims.
     const issues = await gh.listIssues({ labels: ["op:ready"], state: "open", limit: 10 });
     expect(issues).toHaveLength(1);
+  });
+
+  it("parks a terminal episode that was incorrectly labelled op:ready without claiming it", async () => {
+    const root = mkdtempSync(join(tmpdir(), "operon-driver-terminal-ready-"));
+    const gh = new FakeGhOps({
+      issues: [{ number: 1, title: "Terminal ticket", body: issueBody, labels: ["op:ready", "p2"] }],
+    });
+    const originalState: TicketClaimState = {
+      claims: 1,
+      outcomes: ["claim 1: ended returned"],
+      claimAllowance: 6,
+      rearms: [{
+        rearmId: "legacy-broken-rearm",
+        app: "fixture",
+        issueNumber: 1,
+        reason: "legacy rearm did not inspect the terminal episode",
+        actor: "operator@example.com",
+        priorAllowance: 3,
+        intendedAllowance: 6,
+        priorLabel: "op:returned",
+        status: "completed",
+        preparedAt: "2026-07-21T04:41:39.756Z",
+        completedAt: "2026-07-21T04:41:39.756Z",
+      }],
+    };
+    writeTicketClaimState(root, "fixture", 1, originalState);
+    const episodeId = episodeIdFor({ app: "fixture", ticket: "#1", traceId: "#1" });
+    await admitEpisode({
+      root,
+      episodeId,
+      app: "fixture",
+      route: "deterministic",
+      policyVersion: "terminal-ready-fixture/v1",
+      factors: [{
+        kind: "evidence_quality",
+        evidence: "seed a finalized ticket episode",
+        policy_rule: "terminal_ready_fixture",
+      }],
+      passes: [],
+      executionBounds: null,
+      now: new Date("2026-07-21T04:25:19.661Z"),
+    });
+    await finalizeEpisode({
+      root,
+      episodeId,
+      status: "interrupted",
+      reason: "#1 returned for human triage",
+      nextStep: "create a new ticket",
+      now: new Date("2026-07-21T04:36:39.465Z"),
+    });
+
+    try {
+      const result = await runLoopOnce({
+        app: "fixture",
+        repo: "fixture/repo",
+        gh,
+        localRepo: "/tmp/not-used",
+        worktreeRoot: "/tmp/not-used-worktrees",
+        base: baseRevisionForBranch("main"),
+        policy: DEFAULT_LOOP_POLICY,
+        commands: {},
+        engine: {
+          pipelines: { pipelines: [] } as never,
+          roles: {},
+          runtimeFor: () => {
+            throw new Error("terminal ticket must stop before runtime construction");
+          },
+          promptsDir: "/tmp/not-used-prompts",
+          runlogRoot: root,
+          hooks: { gate: () => ({ allow: true }) },
+        },
+      });
+
+      expect(result.items).toEqual([]);
+      expect(result.lines).toEqual([
+        expect.stringContaining(
+          "ERROR #1 Terminal ticket: refused claim because episode ticket:fixture:#1 is terminal",
+        ),
+      ]);
+      expect((await gh.readIssue(1)).labels).toEqual(["p2", "op:returned"]);
+      expect(readTicketClaimState(root, "fixture", 1)).toEqual(originalState);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("parks a ticket at the claim cap with an evidence digest instead of claiming it", async () => {

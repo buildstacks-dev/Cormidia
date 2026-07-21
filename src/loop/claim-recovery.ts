@@ -7,7 +7,14 @@
 // of truth; labels are a recoverable projection of it.
 
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { withFileLock } from "../runtime/file-lock.js";
+import {
+  episodeIdFor,
+  readRouteRecord,
+  routeRecordPath,
+  type EpisodeTerminal,
+} from "./efficiency.js";
 import type { GhIssue, GhOps } from "./github.js";
 import {
   readTicketClaimState,
@@ -59,6 +66,30 @@ export interface RearmPlan {
   intendedAllowance: number;
   priorLabel: "op:blocked" | "op:returned";
   replay: boolean;
+}
+
+export interface TerminalTicketEpisode {
+  episodeId: string;
+  terminal: EpisodeTerminal;
+}
+
+/** A ticket may retain a parked GitHub label after its efficiency episode has
+ * already finalized. Claim allowance cannot reopen that route: a new episode
+ * identity is required, and treating label/allowance mutation as recovery
+ * would make op:ready lie about executable work. */
+export async function readTerminalTicketEpisode(input: {
+  root: string;
+  app: string;
+  issueNumber: number;
+}): Promise<TerminalTicketEpisode | undefined> {
+  const episodeId = episodeIdFor({
+    app: input.app,
+    ticket: `#${input.issueNumber}`,
+    traceId: `#${input.issueNumber}`,
+  });
+  if (!existsSync(routeRecordPath(input.root, episodeId))) return undefined;
+  const route = await readRouteRecord(input.root, episodeId);
+  return route.terminal === null ? undefined : { episodeId, terminal: route.terminal };
 }
 
 export function effectiveClaimAllowance(state: TicketClaimState, defaultAllowance: number): number {
@@ -346,6 +377,15 @@ export async function recoverInterruptedClaims(input: {
 
 export async function planTicketRearm(input: RearmTicketInput): Promise<RearmPlan> {
   validateRearmInput(input);
+  const terminalEpisode = await readTerminalTicketEpisode(input);
+  if (terminalEpisode !== undefined) {
+    throw new Error(
+      `loop rearm: cannot rearm ${input.app}#${input.issueNumber}: episode ` +
+        `${terminalEpisode.episodeId} is terminal (${terminalEpisode.terminal.status}: ` +
+        `${terminalEpisode.terminal.reason}); rearm cannot resume terminal episodes. ` +
+        "Leave the ticket parked at op:returned and create a new ticket for further work.",
+    );
+  }
   const state = readTicketClaimState(input.root, input.app, input.issueNumber);
   const issue = await input.gh.readIssue(input.issueNumber);
   const priorLabel = issue.labels.includes("op:blocked")

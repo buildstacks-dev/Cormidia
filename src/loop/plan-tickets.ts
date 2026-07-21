@@ -84,7 +84,8 @@ export const CANONICAL_LABELS: readonly CanonicalLabelDefinition[] = [
     description: "Returned for human/planner triage",
     kind: "state",
     appliedBy: "The loop after a bounded failure, exhausted correction allowance, or triage finding",
-    operatorResponse: "Read the retained evidence; use operon loop rearm with a reason and allowance to resume",
+    operatorResponse:
+      "Read the retained evidence; use operon loop rearm only for a non-terminal episode, or create a new ticket if terminal",
   },
   {
     name: "op:blocked",

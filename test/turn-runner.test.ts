@@ -9,7 +9,12 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { runDispatchedTurn, withAppGitLock } from "../src/org/turn-runner.js";
+import {
+  classifyBuilderTicketLoopResult,
+  runDispatchedTurn,
+  withAppGitLock,
+} from "../src/org/turn-runner.js";
+import type { LoopDriverResult } from "../src/loop/driver.js";
 import { writeJournalPatch } from "../src/org/journal.js";
 import { ApprovalStore } from "../src/org/approvals.js";
 import { readScorecards } from "../src/org/scorecards.js";
@@ -76,6 +81,30 @@ const APPROVE = [
   "## Not reviewed",
   "- None.",
 ].join("\n");
+
+describe("dispatched builder terminal-refusal projection", () => {
+  it("reports blocked_on_gate instead of a completed idle turn", () => {
+    const loopResult: LoopDriverResult = {
+      lines: ["ERROR #1 terminal episode"],
+      items: [],
+      scorecardEvents: [],
+      terminalEpisodeRefusals: [{
+        issueNumber: 1,
+        episodeId: "ticket:alpha:#1",
+        status: "interrupted",
+        reason: "#1 returned for human triage",
+      }],
+    };
+
+    expect(classifyBuilderTicketLoopResult(loopResult, BUILDER)).toMatchObject({
+      status: "blocked_on_gate",
+      summary: expect.stringContaining(
+        "refused terminal episode(s) #1 (ticket:alpha:#1); repaired each ticket to op:returned",
+      ),
+      usage: { costUsd: 0 },
+    });
+  });
+});
 
 describe("dispatched turn runner", () => {
   it("stops before clone/runtime construction when an actor retry needs disposition", async () => {

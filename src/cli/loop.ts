@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import type { GateFn, RoleConfig, TurnAssignment } from "../runtime/types.js";
 import { getRuntime } from "../runtime/registry.js";
-import { defaultLoopInputs, runLoopOnce } from "../loop/driver.js";
+import {
+  defaultLoopInputs,
+  runLoopOnce,
+  type LoopDriverResult,
+} from "../loop/driver.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
 import { loadPipelines } from "../loop/pipelines.js";
 import { finalizeEpisode } from "../loop/efficiency.js";
@@ -32,6 +36,24 @@ import { explainContext } from "../loop/context-manifest.js";
 import { resumeExecutionJournal } from "../loop/execution-journal.js";
 import { cmdClaimRearm } from "./claim-rearm.js";
 import { resolveReviewAuthorizationSecret } from "../org/review-authorization-secret.js";
+
+export function loopInvocationOutcome(result: LoopDriverResult): string {
+  if (result.budgetRefusal !== undefined) return `budget-refused: ${result.budgetRefusal}`;
+  return [
+    ...(result.terminalEpisodeRefusals ?? []).map(
+      (refusal) =>
+        `terminal-episode-refused: #${refusal.issueNumber}=${refusal.episodeId} ` +
+        `(${refusal.status}: ${refusal.reason}); repaired to op:returned`,
+    ),
+    ...result.items.map((item) => `${item.ticketRef}=${item.phase}`),
+  ].join(", ") || "no-ready-tickets";
+}
+
+export function loopDriverExitCode(result: LoopDriverResult): 0 | 1 {
+  return result.budgetRefusal !== undefined || (result.terminalEpisodeRefusals?.length ?? 0) > 0
+    ? 1
+    : 0;
+}
 
 /**
  * Persist the scorecard events one loop tick produced into the org scorecard
@@ -252,6 +274,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
   });
 
   let sawBudgetRefusal = false;
+  let sawTerminalEpisodeRefusal = false;
+  let accumulatedLoopExitCode: 0 | 1 = 0;
   const cancellation = dryRun ? undefined : installProcessCancellation();
 
   async function tick(): Promise<void> {
@@ -451,6 +475,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
       console.log(`${item.ticketRef}: ${item.phase}`);
     }
     if (result.budgetRefusal !== undefined) sawBudgetRefusal = true;
+    if ((result.terminalEpisodeRefusals?.length ?? 0) > 0) sawTerminalEpisodeRefusal = true;
+    if (loopDriverExitCode(result) !== 0) accumulatedLoopExitCode = 1;
     if (result.lines.length === 0 && result.items.length === 0) {
       console.log(`loop: no ready tickets for ${selectedApp.name}`);
     }
@@ -465,10 +491,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       app: selectedApp.name,
       ...(dryRun ? { dryRun: true } : {}),
       itemsClaimed: result.items.length,
-      outcome:
-        result.budgetRefusal !== undefined
-          ? `budget-refused: ${result.budgetRefusal}`
-          : result.items.map((item) => `${item.ticketRef}=${item.phase}`).join(", ") || "no-ready-tickets",
+      outcome: loopInvocationOutcome(result),
       wallClockMs: Date.now() - tickStarted,
       ...(parentTaskId !== undefined ? { parentTaskId } : {}),
     });
@@ -476,10 +499,16 @@ export async function cmdLoop(args: string[]): Promise<number> {
 
   try {
     await tick();
-    // A refused tick ends follow mode too: an exhausted monthly cap will not
-    // clear on a 30-second cadence, and spinning would append a refusal row
-    // every tick until the month reset.
-    while (follow && !sawBudgetRefusal && cancellation?.signal.aborted !== true) {
+    // A refused tick ends follow mode too. An exhausted monthly cap will not
+    // clear on a 30-second cadence; a terminal ticket was repaired to a parked
+    // state and requires a new ticket. Continuing would hide either stop
+    // behind a later idle tick.
+    while (
+      follow &&
+      !sawBudgetRefusal &&
+      !sawTerminalEpisodeRefusal &&
+      cancellation?.signal.aborted !== true
+    ) {
       await waitForDelay(30_000, cancellation?.signal);
       if (cancellation?.exitCode !== undefined) break;
       await tick();
@@ -487,7 +516,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
   } finally {
     cancellation?.dispose();
   }
-  return cancellation?.exitCode ?? (sawBudgetRefusal ? 1 : 0);
+  return cancellation?.exitCode ?? accumulatedLoopExitCode;
 }
 
 function needValue(args: string[], index: number, flag: string): string {

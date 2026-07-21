@@ -710,8 +710,10 @@ claim-lifecycle events.
   parked and create a new ticket. A live tick also repairs a stale or malicious
   terminal+`op:ready` projection back to `op:returned` before acquiring a
   claim, emitting an explicit error instead of endlessly claiming and
-  auto-releasing it. A label-only `op:ready` edit cannot change the durable
-  cap. The `CLAIM RECOVERY` block in `operon status` explains the stopped
+  auto-releasing it. The manual command exits nonzero and records a distinct
+  invocation outcome; dispatch reports `blocked_on_gate`, never completed
+  idleness. A label-only `op:ready` edit cannot change the durable cap. The
+  `CLAIM RECOVERY` block in `operon status` explains the stopped
   boundary and next action. The episode's human
   performed all twenty re-arms by hand; this is the stop that was missing.
 

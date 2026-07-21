@@ -5,12 +5,43 @@
 // real org state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
-import { createLoopGateForRole, persistLoopScorecards } from "../src/cli/loop.js";
+import {
+  createLoopGateForRole,
+  loopDriverExitCode,
+  loopInvocationOutcome,
+  persistLoopScorecards,
+} from "../src/cli/loop.js";
+import type { LoopDriverResult } from "../src/loop/driver.js";
 import { ApprovalStore } from "../src/org/approvals.js";
 import { readScorecards } from "../src/org/scorecards.js";
 import type { ScorecardEvent as LoopScorecardEvent } from "../src/loop/types.js";
 import type { RoleConfig } from "../src/runtime/types.js";
 import { makeOrgHome } from "./fixtures/orgHome.js";
+
+describe("manual loop terminal-refusal projection", () => {
+  it("returns exit 1 and records a distinct invocation outcome", () => {
+    const result: LoopDriverResult = {
+      lines: ["ERROR #1 terminal episode"],
+      items: [],
+      scorecardEvents: [],
+      terminalEpisodeRefusals: [{
+        issueNumber: 1,
+        episodeId: "ticket:alpha:#1",
+        status: "interrupted",
+        reason: "#1 returned for human triage",
+      }],
+    };
+
+    expect(loopDriverExitCode(result)).toBe(1);
+    expect(loopInvocationOutcome(result)).toBe(
+      "terminal-episode-refused: #1=ticket:alpha:#1 " +
+        "(interrupted: #1 returned for human triage); repaired to op:returned",
+    );
+    const idle: LoopDriverResult = { lines: [], items: [], scorecardEvents: [] };
+    expect(loopDriverExitCode(idle)).toBe(0);
+    expect(loopInvocationOutcome(idle)).toBe("no-ready-tickets");
+  });
+});
 
 // Regression: `operon loop` used to drop every scorecard event the driver
 // returned, so `operon retro` was blind to the real build loop. Persisting them

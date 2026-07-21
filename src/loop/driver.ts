@@ -262,6 +262,15 @@ export interface LoopDriverResult {
   scorecardEvents: ScorecardEvent[];
   /** Set when budgetGuard refused the tick before any claim. */
   budgetRefusal?: string;
+  /** Terminal episodes found under a false op:ready projection and repaired
+   * to op:returned before any claim. Callers must surface this as a failed or
+   * blocked tick, never healthy idleness. */
+  terminalEpisodeRefusals?: Array<{
+    issueNumber: number;
+    episodeId: string;
+    status: EpisodeTerminal["status"];
+    reason: string;
+  }>;
 }
 
 export function planLoopTick(
@@ -488,6 +497,7 @@ function ticketEpisodePlanningRequest(
 export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDriverResult> {
   const maxConcurrent = options.maxConcurrent ?? 1;
   const lines: string[] = [];
+  const terminalEpisodeRefusals: NonNullable<LoopDriverResult["terminalEpisodeRefusals"]> = [];
   if (options.engine !== undefined && options.planOnly !== true) {
     const entries = listTicketClaimStates(options.engine.runlogRoot, options.app).map((entry) => ({
       issueNumber: entry.issueNumber,
@@ -533,6 +543,12 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       });
       if (terminalEpisode !== undefined) {
         await options.gh.swapLabel(issue.number, "op:ready", "op:returned");
+        terminalEpisodeRefusals.push({
+          issueNumber: issue.number,
+          episodeId: terminalEpisode.episodeId,
+          status: terminalEpisode.terminal.status,
+          reason: terminalEpisode.terminal.reason,
+        });
         lines.push(
           `ERROR #${issue.number} ${issue.title}: refused claim because episode ` +
             `${terminalEpisode.episodeId} is terminal (${terminalEpisode.terminal.status}: ` +
@@ -846,7 +862,12 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       lines.push(recovery);
     }
   }
-  return { lines, items, scorecardEvents: items.flatMap((item) => item.scorecardEvents ?? []) };
+  return {
+    lines,
+    items,
+    scorecardEvents: items.flatMap((item) => item.scorecardEvents ?? []),
+    ...(terminalEpisodeRefusals.length === 0 ? {} : { terminalEpisodeRefusals }),
+  };
 }
 
 export interface DefaultLoopInputOptions {

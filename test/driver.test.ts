@@ -627,6 +627,12 @@ describe("loop driver", () => {
       });
 
       expect(result.items).toEqual([]);
+      expect(result.terminalEpisodeRefusals).toEqual([{
+        issueNumber: 1,
+        episodeId,
+        status: "interrupted",
+        reason: "#1 returned for human triage",
+      }]);
       expect(result.lines).toEqual([
         expect.stringContaining(
           "ERROR #1 Terminal ticket: refused claim because episode ticket:fixture:#1 is terminal",

@@ -29,7 +29,11 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
-import { loadGateCommands, runLoopOnce } from "../loop/driver.js";
+import {
+  loadGateCommands,
+  runLoopOnce,
+  type LoopDriverResult,
+} from "../loop/driver.js";
 import {
   baseRevisionForBranch,
   resolveRemoteDefaultBranch,
@@ -1950,19 +1954,38 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       options.now?.() ?? new Date(),
     );
   }
+  return classifyBuilderTicketLoopResult(result, options.role);
+}
+
+export function classifyBuilderTicketLoopResult(
+  result: LoopDriverResult,
+  role: RoleConfig,
+): TurnResult {
   if (result.budgetRefusal !== undefined) {
     // The tick never claimed — say so. "completed / no-ready-ticket" would
     // hide an exhausted cap behind an idle-looking turn.
     return zeroResult(
       "blocked_on_gate",
       `builder ticket turn refused by budget preflight: ${result.budgetRefusal}`,
-      options.role,
+      role,
+    );
+  }
+  const terminalEpisodeRefusals = result.terminalEpisodeRefusals ?? [];
+  if (terminalEpisodeRefusals.length > 0) {
+    const refused = terminalEpisodeRefusals
+      .map((entry) => `#${entry.issueNumber} (${entry.episodeId})`)
+      .join(", ");
+    return zeroResult(
+      "blocked_on_gate",
+      `builder ticket turn refused terminal episode(s) ${refused}; ` +
+        "repaired each ticket to op:returned before claim; create a new ticket for further work",
+      role,
     );
   }
   const phase = result.items[0]?.phase;
-  if (phase === "merged") return zeroResult("completed", "builder ticket turn merged one ticket", options.role);
-  if (phase === "blocked") return zeroResult("blocked_on_gate", "builder ticket turn blocked on gate", options.role);
-  return zeroResult("completed", `builder ticket turn completed with phase ${phase ?? "no-ready-ticket"}`, options.role);
+  if (phase === "merged") return zeroResult("completed", "builder ticket turn merged one ticket", role);
+  if (phase === "blocked") return zeroResult("blocked_on_gate", "builder ticket turn blocked on gate", role);
+  return zeroResult("completed", `builder ticket turn completed with phase ${phase ?? "no-ready-ticket"}`, role);
 }
 
 function protocolBrief(input: {

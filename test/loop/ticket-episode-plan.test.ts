@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProposedEpisodeStep } from "../../src/loop/episode-plan.js";
 import {
+  TICKET_EPISODE_TOPOLOGY_CONTRACT,
   TICKET_MECHANICAL_GATE_CATALOG,
   TICKET_PROVIDER_OPERATION_CATALOG,
   assertTicketEpisodePlanValid,
@@ -73,6 +74,16 @@ describe("ticket EpisodePlan operation catalog", () => {
       },
     });
     expect(ticketProviderOperation("planner/invented")).toBeUndefined();
+    expect(TICKET_PROVIDER_OPERATION_CATALOG["fix/fix"]).toEqual({
+      operation: "fix/fix",
+      role: "builder",
+      execution: "pipeline_pass",
+      pipeline: "fix",
+      pass: "fix",
+      template: "build/fix.md",
+      verdictKind: "build",
+      worktreeAccess: "write",
+    });
     expect(Object.keys(TICKET_MECHANICAL_GATE_CATALOG)).toEqual([
       "ticket/provision",
       "ticket/gates-and-pr",
@@ -204,6 +215,92 @@ describe("ticket EpisodePlan operation catalog", () => {
         expect.objectContaining({ code: "ticket_topology_invalid", stepId: id }),
       ]));
     }
+  });
+
+  // ISSUE-024: the gate handler reads durable evidence it does not produce.
+  // This is the check that costs nothing at acceptance and $18.61 of stranded
+  // builder work when it is missing.
+  describe("mechanical gate input availability", () => {
+    it("rejects every declared gate input that no ancestor step produces", () => {
+      for (const [gateKind, definition] of Object.entries(TICKET_MECHANICAL_GATE_CATALOG)) {
+        for (const requirement of definition.requiredPlanInputs) {
+          const steps = validSteps();
+          // Break the requirement without breaking anything else: the producing
+          // operation stays a builder turn on the same edge, with the same id.
+          const producer = steps.find((step) =>
+            step.kind === "provider_turn" && step.operation === requirement.producedBy
+          );
+          if (producer?.kind !== "provider_turn") {
+            throw new Error(`validSteps() has no ${requirement.producedBy} step`);
+          }
+          producer.operation = "ticket/diagnose";
+          const consumers = steps.filter((step) =>
+            step.kind === "mechanical_gate" && step.gate === gateKind
+          );
+          expect(consumers.length).toBeGreaterThan(0);
+
+          const issues = validateTicketEpisodePlan({ steps }).issues;
+          for (const consumer of consumers) {
+            expect(issues).toEqual(expect.arrayContaining([
+              expect.objectContaining({
+                code: "ticket_gate_input_unavailable",
+                rule: "gate_inputs_produced_by_ancestor",
+                stepId: consumer.id,
+                message: expect.stringContaining(requirement.producedBy),
+              }),
+            ]));
+          }
+        }
+      }
+    });
+
+    it("names build/contract for both gates that score the completeness mapping", () => {
+      const steps = validSteps().filter((step) => step.id !== "contract");
+      provider(steps, "implement").dependsOn = ["provision"];
+      provider(steps, "implement").inputRefs = [];
+
+      const missing = validateTicketEpisodePlan({ steps }).issues
+        .filter((issue) => issue.code === "ticket_gate_input_unavailable");
+      expect(missing.map((issue) => issue.stepId)).toEqual(["gates", "ship"]);
+      expect(missing[0]!.message).toContain(
+        "add a build/contract provider step before it",
+      );
+    });
+
+    // Adversarial near-miss: a plan whose only defect is that its contract step
+    // sits downstream of the gate that consumes the mapping.
+    it("rejects a contract step scheduled after the gate that reads its mapping", () => {
+      const steps = validSteps();
+      provider(steps, "contract").dependsOn = ["gates"];
+      provider(steps, "implement").dependsOn = ["provision"];
+      provider(steps, "implement").inputRefs = [];
+
+      expect(validateTicketEpisodePlan({ steps }).issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "ticket_gate_input_unavailable",
+          stepId: "gates",
+        }),
+      ]));
+    });
+
+    // Anti-drift: a requirement the planner is never told about is the exact
+    // failure mode ISSUE-023 describes. Every enforced requirement must be in
+    // the contract the brief ships.
+    it("teaches every enforced gate requirement in the rendered topology contract", () => {
+      const taught = new Map(
+        TICKET_EPISODE_TOPOLOGY_CONTRACT.mechanicalGateRegistry.map((entry) =>
+          [entry.gate, entry.requiredPlanInputs.map((input) => input.producedBy)]),
+      );
+      for (const [gateKind, definition] of Object.entries(TICKET_MECHANICAL_GATE_CATALOG)) {
+        expect(taught.get(gateKind))
+          .toEqual(definition.requiredPlanInputs.map((input) => input.producedBy));
+        for (const requirement of definition.requiredPlanInputs) {
+          expect(ticketProviderOperation(requirement.producedBy)).toBeDefined();
+        }
+      }
+      expect(TICKET_EPISODE_TOPOLOGY_CONTRACT.providerOperationRegistry.map((entry) =>
+        entry.operation)).toEqual(Object.keys(TICKET_PROVIDER_OPERATION_CATALOG).sort());
+    });
   });
 });
 

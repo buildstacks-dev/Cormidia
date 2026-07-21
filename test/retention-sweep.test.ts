@@ -275,6 +275,53 @@ describe("tasks/, invocations/, and learning/events/ retention", () => {
     }
   });
 
+  // ENH-011: a preserved refused decomposition is provider-derived evidence
+  // awaiting a human decision, so it ages; the decision it feeds lives under
+  // lifecycle/ and is never swept.
+  it("prunes aged refused decompositions by their own refused_at, keeps torn/foreign/recent ones, and never touches lifecycle ratifications", async () => {
+    const home = makeOrgHome();
+    try {
+      const dir = join(home.root, "planning", "greenfield", "refused-decompositions");
+      mkdirSync(dir, { recursive: true });
+      const record = (id: string, refusedAt: string): string =>
+        JSON.stringify({
+          schema_version: 1,
+          kind: "refused-ticket-decomposition",
+          decomposition_id: id,
+          app: "greenfield",
+          goal: "g",
+          stage: "bootstrap",
+          stage_ticket_budget: 3,
+          ticket_count: 8,
+          refused_at: refusedAt,
+          problems: [],
+          provenance: { episode_id: "e", run_id: "r", trace_id: "t" },
+          plan: { stage: "bootstrap", ticketCountRationale: "r", releaseDisposition: "d", releaseKind: "deploy", tickets: [] },
+        });
+      writeFileSync(join(dir, "aaaaaaaaaaaaaaaaaaaaaaaa.json"), record("aaaaaaaaaaaaaaaaaaaaaaaa", "2020-01-01T00:00:00.000Z"));
+      writeFileSync(join(dir, "bbbbbbbbbbbbbbbbbbbbbbbb.json"), record("bbbbbbbbbbbbbbbbbbbbbbbb", "2026-07-15T00:00:00.000Z"));
+      writeFileSync(join(dir, "torn.json"), "{\"schema_version\":1");
+      // Foreign record whose decomposition_id does not map to its filename:
+      // aged content, kept by the identity binding (sweepTasks model).
+      writeFileSync(join(dir, "foreign-copy.json"), record("aaaaaaaaaaaaaaaaaaaaaaaa", "2020-01-01T00:00:00.000Z"));
+      const ratification = join(home.root, "lifecycle", "apps", "greenfield", "ticket-budget-ratifications");
+      mkdirSync(ratification, { recursive: true });
+      writeFileSync(join(ratification, "aaaaaaaaaaaaaaaaaaaaaaaa.json"), "{\"ratified_at\":\"2019-01-01T00:00:00.000Z\"}");
+
+      const result = await sweepStateRetention(home.root, NOW);
+
+      expect(result.refused_decompositions).toMatchObject({ pruned: 1, kept: 3 });
+      expect(existsSync(join(dir, "aaaaaaaaaaaaaaaaaaaaaaaa.json"))).toBe(false);
+      expect(existsSync(join(dir, "bbbbbbbbbbbbbbbbbbbbbbbb.json"))).toBe(true);
+      expect(existsSync(join(dir, "torn.json"))).toBe(true);
+      expect(existsSync(join(dir, "foreign-copy.json"))).toBe(true);
+      // The human decision outlives everything, at any age.
+      expect(existsSync(join(ratification, "aaaaaaaaaaaaaaaaaaaaaaaa.json"))).toBe(true);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("ages orphaned narrative .md and quarantined .corrupt files by mtime — nothing escapes the window (#129)", async () => {
     const home = makeOrgHome();
     try {

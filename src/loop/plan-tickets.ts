@@ -8,6 +8,7 @@
 // them — no agent-authored `gh` side effects, no invented taxonomy, and never
 // decomposition for its own sake (P1/P2).
 
+import { createHash } from "node:crypto";
 import type { GhOps } from "./github.js";
 import { RELEASE_KINDS, type ReleaseKind } from "./types.js";
 
@@ -256,6 +257,112 @@ export const TICKET_BUDGETS: Record<ProjectStage, number> = {
   mature: 7,
 };
 
+/** One durable, attributable human decision to admit ONE oversized
+ *  decomposition (ENH-011). The refusal below has always prescribed "explicit
+ *  human ratification"; this is the shape that decision takes, and
+ *  `operon plan ratify-ticket-budget` is the verb that records it.
+ *
+ *  It is deliberately NOT a standing override and NOT a flag that skips the
+ *  check. It names the exact stage, the exact ticket count a human read and
+ *  accepted, and the content digest of the exact decomposition it was granted
+ *  against. A later plan — even one the same planner produced for the same
+ *  goal — has a different digest and is refused again. That is what keeps the
+ *  ratified path narrower than the dishonest one (`--stage growth`), which
+ *  raises the budget for every future plan by falsifying repository maturity. */
+export interface TicketBudgetRatification {
+  /** Stage whose default budget this decision raises. */
+  stage: ProjectStage;
+  /** Exact ticket count the human read and accepted. */
+  ratifiedTicketCount: number;
+  /** `ticketPlanDigest` of the exact decomposition that was read. */
+  decompositionId: string;
+  /** Who decided. Never inferred, never defaulted. */
+  actor: string;
+  /** Why. Never inferred, never defaulted. */
+  reason: string;
+  /** When, as an ISO-8601 instant. */
+  ratifiedAt: string;
+}
+
+/** Stable content identity of a decomposition — the digest a ratification
+ *  binds to. Object key order is canonicalized so a re-serialized identical
+ *  plan keeps its identity, while any content change (one ticket, one
+ *  acceptance criterion) mints a new one and voids the prior decision. */
+export function ticketPlanDigest(plan: TicketPlan): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalPlanValue(plan)), "utf8")
+    .digest("hex")
+    .slice(0, 24);
+}
+
+function canonicalPlanValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalPlanValue);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, canonicalPlanValue(item)]),
+    );
+  }
+  return value;
+}
+
+export interface TicketBudgetDecision {
+  /** The stage default from TICKET_BUDGETS. */
+  stageBudget: number;
+  /** The budget actually enforced for this plan. */
+  budget: number;
+  /** Set when a ratification WAS supplied but does not apply. Fail closed:
+   *  the stage default is enforced and the mismatch is reported, never
+   *  silently ignored. */
+  ratificationProblem?: string;
+}
+
+/** Resolve the ticket budget for one plan. This is the ONE place a ratified
+ *  budget can raise the stage default, and it only ever does so for the exact
+ *  attributable decomposition the ratification names. */
+export function decideTicketBudget(
+  plan: TicketPlan,
+  ratification?: TicketBudgetRatification,
+): TicketBudgetDecision {
+  const stageBudget = TICKET_BUDGETS[plan.stage];
+  if (ratification === undefined) return { stageBudget, budget: stageBudget };
+  const digest = ticketPlanDigest(plan);
+  const problems: string[] = [];
+  if (ratification.stage !== plan.stage) {
+    problems.push(
+      `ratified stage "${String(ratification.stage)}" is not this plan's stage "${plan.stage}"`,
+    );
+  }
+  if (ratification.decompositionId !== digest) {
+    problems.push(
+      `ratified decomposition ${ratification.decompositionId} is not this decomposition (${digest})`,
+    );
+  }
+  if (
+    !Number.isSafeInteger(ratification.ratifiedTicketCount) ||
+    ratification.ratifiedTicketCount < stageBudget
+  ) {
+    problems.push(
+      `ratified ticket count ${String(ratification.ratifiedTicketCount)} is not an integer at or above ` +
+        `the ${plan.stage} budget of ${stageBudget}`,
+    );
+  }
+  if (typeof ratification.actor !== "string" || ratification.actor.trim().length === 0) {
+    problems.push("ratification names no attributable actor");
+  }
+  if (typeof ratification.reason !== "string" || ratification.reason.trim().length === 0) {
+    problems.push("ratification records no reason");
+  }
+  if (typeof ratification.ratifiedAt !== "string" || Number.isNaN(Date.parse(ratification.ratifiedAt))) {
+    problems.push("ratification records no valid decision time");
+  }
+  if (problems.length > 0) {
+    return { stageBudget, budget: stageBudget, ratificationProblem: problems.join("; ") };
+  }
+  return { stageBudget, budget: Math.max(stageBudget, ratification.ratifiedTicketCount) };
+}
+
 /** JSON schema for adapters with native structured output (TurnRequest.verdictSchema). */
 export const PLAN_SCHEMA: Record<string, unknown> = {
   title: "TicketPlan",
@@ -313,14 +420,43 @@ export interface PlanValidation {
   problems: string[];
 }
 
-export function validatePlan(plan: TicketPlan): PlanValidation {
+/** Validate a plan against its stage budget, or against an exact human
+ *  ratification of THIS decomposition when one is supplied. A supplied-but-
+ *  inapplicable ratification is itself a problem: it must never silently
+ *  degrade into "no ratification". */
+export function validatePlan(
+  plan: TicketPlan,
+  ratification?: TicketBudgetRatification,
+): PlanValidation {
+  const decision = decideTicketBudget(plan, ratification);
+  const problems = planProblems(plan, decision.budget);
+  if (decision.ratificationProblem !== undefined) {
+    problems.unshift(`ticket-budget ratification does not apply: ${decision.ratificationProblem}`);
+  }
+  return { ok: problems.length === 0, problems };
+}
+
+/** True when the ONLY thing standing between this decomposition and
+ *  publication is the stage ticket budget — the exact case
+ *  `operon plan ratify-ticket-budget` exists for. A plan that is also
+ *  structurally invalid is never offered for ratification. */
+export function isTicketBudgetOnlyRefusal(plan: TicketPlan): boolean {
+  const stageBudget = TICKET_BUDGETS[plan.stage];
+  if (plan.tickets.length <= stageBudget) return false;
+  return (
+    planProblems(plan, stageBudget).length > 0 &&
+    planProblems(plan, plan.tickets.length).length === 0
+  );
+}
+
+function planProblems(plan: TicketPlan, budget: number): string[] {
   const problems: string[] = [];
-  const budget = TICKET_BUDGETS[plan.stage];
   if (plan.tickets.length === 0) problems.push("plan has no tickets");
   if (plan.tickets.length > budget) {
     problems.push(
       `${plan.tickets.length} tickets exceed the ${plan.stage} budget of ${budget} — ` +
-        `decompose less, not more (P1); more requires explicit human ratification, not a bigger plan`,
+        "decompose less, not more (P1); more requires explicit human ratification of this exact " +
+        "decomposition (operon plan ratify-ticket-budget), not a bigger plan and not a falsified --stage",
     );
   }
   if (plan.ticketCountRationale.trim().length === 0) {
@@ -368,7 +504,7 @@ export function validatePlan(plan: TicketPlan): PlanValidation {
     problems.push("no dependency-free ticket — nothing could ever be claimed");
   }
 
-  return { ok: problems.length === 0, problems };
+  return problems;
 }
 
 // ---------------------------------------------------------------------------
@@ -603,9 +739,14 @@ export function applySensitiveDomainFloor(plan: TicketPlan): TicketPublication[]
   });
 }
 
-/** Validate and freeze every deterministic publication transform once. */
-export function finalizePlanForPublication(plan: TicketPlan): FinalPlanProjection {
-  const validation = validatePlan(plan);
+/** Validate and freeze every deterministic publication transform once. An
+ *  exact `ratification` is the only way an oversized decomposition reaches
+ *  publication, and it must name this decomposition's own digest. */
+export function finalizePlanForPublication(
+  plan: TicketPlan,
+  ratification?: TicketBudgetRatification,
+): FinalPlanProjection {
+  const validation = validatePlan(plan, ratification);
   if (!validation.ok) {
     throw new Error(`finalizePlanForPublication: plan failed validation:\n- ${validation.problems.join("\n- ")}`);
   }

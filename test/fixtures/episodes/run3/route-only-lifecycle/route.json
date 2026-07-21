@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "episode_id": "lifecycle:sonnet4-buildstack-dev:9b66e5d4560b23acb99f",
+  "app": "sonnet4-buildstack-dev",
+  "policy_version": "lifecycle/v1",
+  "admitted_at": "2026-07-21T09:21:43.635Z",
+  "planned_route": "deterministic",
+  "current_route": "deterministic",
+  "final_route": "deterministic",
+  "factors": [
+    {
+      "kind": "evidence_quality",
+      "evidence": "deterministic lifecycle operation app verify",
+      "policy_rule": "deterministic_lifecycle"
+    }
+  ],
+  "authorized_passes": [],
+  "budget": {
+    "provider_turns": 0,
+    "equivalent_cost_usd": 0,
+    "active_time_ms": 300000,
+    "human_decisions": null
+  },
+  "execution_bounds": null,
+  "reassessments": [],
+  "terminal": {
+    "at": "2026-07-21T09:21:43.637Z",
+    "status": "completed",
+    "reason": "synthesized lifecycle record for sonnet4-buildstack-dev at 45f64ce5153fe7986baff3f0a0efd23c4c579d89",
+    "final_route": "deterministic",
+    "next_step": null
+  }
+}

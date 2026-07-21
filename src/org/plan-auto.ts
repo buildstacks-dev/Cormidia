@@ -50,6 +50,7 @@ import {
 import { loadPipelines, type PipelinesFile, type PipelineConfig } from "../loop/pipelines.js";
 import {
   finalizePlanForPublication,
+  isTicketBudgetOnlyRefusal,
   PLAN_SCHEMA,
   publishPlanProjection,
   validatePlan,
@@ -60,6 +61,11 @@ import {
   type PublishedTicket,
   type TicketPlan,
 } from "../loop/plan-tickets.js";
+import {
+  ratifyTicketBudgetCommand,
+  recordRefusedDecomposition,
+  refusedDecompositionPath,
+} from "./ticket-budget-ratification.js";
 import {
   readPublishedTicketsRecord,
   writePublishedTicketsRecord,
@@ -224,6 +230,21 @@ export interface AutoPlanResult {
   planningExecution?: EpisodePlanExecutionResult;
   /** Exact explicit/inferred/persisted stage decision used by this episode. */
   stageResolution?: PlanningStageResolution;
+  /** Present when the ONLY refusal was the stage ticket budget. The
+   * decomposition the planner already paid for is preserved verbatim, so
+   * ratification resumes from it instead of buying a different plan
+   * (ENH-011). */
+  refusedDecomposition?: RefusedDecompositionSummary;
+}
+
+export interface RefusedDecompositionSummary {
+  decompositionId: string;
+  stage: ProjectStage;
+  stageTicketBudget: number;
+  ticketCount: number;
+  path: string;
+  /** The exact ratification command — the remedy the refusal names. */
+  ratifyCommand: string;
 }
 
 export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanResult> {
@@ -629,6 +650,18 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     const output = terminal === undefined
       ? undefined
       : await readPlanningStepOutput(options.stateHome, prepared.plan, terminal.id);
+    // A budget-only refusal used to throw away the decomposition the planner
+    // was already paid for, so ratifying meant buying a different plan. Keep
+    // it, and hand the operator the exact command that admits it (ENH-011).
+    const refusedDecomposition = await preserveRefusedDecomposition({
+      options,
+      stage,
+      output,
+      traceId,
+      episodeId,
+      consumedSources,
+      now: clock,
+    });
     return {
       status: output?.providerStatus === "cancelled"
         ? "cancelled"
@@ -638,6 +671,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       summary: execution.summary ??
         `accepted product-planning workflow stopped at ${execution.nextStepId ?? "an unknown step"}`,
       ...(output?.problems.length ? { problems: output.problems } : {}),
+      ...(refusedDecomposition === undefined ? {} : { refusedDecomposition }),
       ...resultBase,
     };
   }
@@ -734,6 +768,65 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     published,
     ...resultBase,
   };
+}
+
+/** Persist the refused decomposition when — and only when — the stage ticket
+ * budget is the sole reason it cannot be published. Everything else stays a
+ * plain failure: a structurally invalid plan is not something a human should
+ * be invited to ratify, and preservation must never look like acceptance.
+ * Preservation is best-effort evidence: it never converts a planning failure
+ * into a different failure. */
+async function preserveRefusedDecomposition(input: {
+  options: AutoPlanOptions;
+  stage: ProjectStage;
+  output: PlanningStepOutputRecord | undefined;
+  traceId: string;
+  episodeId: string;
+  consumedSources: PlanningSourceManifest | undefined;
+  now: () => Date;
+}): Promise<RefusedDecompositionSummary | undefined> {
+  const plan = input.output?.ticketPlan;
+  if (plan === undefined || input.output === undefined) return undefined;
+  if (plan.stage !== input.stage) return undefined;
+  if (!isTicketBudgetOnlyRefusal(plan)) return undefined;
+  try {
+    const record = await recordRefusedDecomposition({
+      stateHome: input.options.stateHome,
+      app: input.options.app.name,
+      goal: input.options.goal,
+      stage: input.stage,
+      plan,
+      problems: input.output.problems,
+      provenance: {
+        episode_id: input.episodeId,
+        run_id: input.output.runId,
+        trace_id: input.traceId,
+      },
+      ...(input.consumedSources === undefined
+        ? {}
+        : { planningSources: planningSourceTicketEvidence(input.consumedSources) }),
+      now: input.now(),
+    });
+    return {
+      decompositionId: record.decomposition_id,
+      stage: record.stage,
+      stageTicketBudget: record.stage_ticket_budget,
+      ticketCount: record.ticket_count,
+      path: refusedDecompositionPath(
+        input.options.stateHome,
+        input.options.app.name,
+        record.decomposition_id,
+      ),
+      ratifyCommand: ratifyTicketBudgetCommand({
+        app: input.options.app.name,
+        decompositionId: record.decomposition_id,
+        stageBudget: record.stage_ticket_budget,
+        ticketCount: record.ticket_count,
+      }),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 interface PlanningProviderExecutionInput {

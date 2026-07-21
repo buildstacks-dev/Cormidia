@@ -866,6 +866,7 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
   let sawLoopIn = false;
   let caseDepth = 0;
   let casePattern = false;
+  let patternSawWord = false;
   const flush = (): void => {
     if (segment.length > 0) commands.push(segment);
     segment = [];
@@ -874,8 +875,31 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
 
   for (const token of tokens) {
     if (casePattern) {
-      // `pattern|other)` is a match list, not a command.
-      if (token.kind === "control" && token.text === ")") casePattern = false;
+      // `pattern|other)` is a match list, not a command. Two escapes matter as
+      // much as the `)`, because the skip is BLIND and a blind classifier is a
+      // safety hole, not a false-negative curiosity:
+      //   1. `esac` closes the statement without any `)`. The `;;` ending the
+      //      last arm re-arms the skip, so without this every command after
+      //      the `esac` — `gh pr create`, `kubectl apply`, `rm -rf` — would be
+      //      invisible for the rest of the script.
+      //   2. An unquoted pattern list cannot span a newline, so a newline
+      //      after a pattern word (and not after a `|` continuation) means the
+      //      text is not a match list at all. Give up and re-read it as a
+      //      command: over-detecting is the safe direction, staying blind is
+      //      not.
+      if (token.kind === "word" && !token.quoted && token.text === "esac") {
+        casePattern = false;
+        if (caseDepth > 0) caseDepth--;
+        flush();
+        continue;
+      }
+      if (token.kind === "control" && token.text === ")") { casePattern = false; continue; }
+      if (token.kind === "control" && token.text === "|") { patternSawWord = false; continue; }
+      if (token.kind === "control" && token.text === "\n" && patternSawWord) {
+        casePattern = false;
+        continue;
+      }
+      if (token.kind === "word") patternSawWord = true;
       continue;
     }
     if (mode === "loop-header") {
@@ -901,6 +925,7 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
       if (token.kind === "word" && !token.quoted && token.text === "in") {
         mode = "normal";
         casePattern = true;
+        patternSawWord = false;
       }
       continue;
     }
@@ -910,7 +935,7 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
     }
     if (token.kind === "control") {
       flush();
-      if (token.text === ";;" && caseDepth > 0) casePattern = true;
+      if (token.text === ";;" && caseDepth > 0) { casePattern = true; patternSawWord = false; }
       continue;
     }
     if (token.kind === "redirect") {

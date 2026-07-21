@@ -37,8 +37,10 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
+import { withDependencyBuildPolicy } from "../runtime/non-interactive-env.js";
 import { asGlobal, SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import { gatesForTier, type GateName, type Policy, type RiskTier } from "./policy.js";
+import { describeSetupArtifacts, scanSetupArtifacts, type SetupArtifact } from "./setup-artifacts.js";
 
 /** Every gate the engine can report on: the policy-schedulable set plus
  *  `review-freshness`, which always runs (policy.ts rejects configuring it;
@@ -71,6 +73,10 @@ export interface GateResult {
   matches?: SecretMatch[];
   /** Machine-readable data-gate failures (completeness / freshness). */
   failures?: string[];
+  /** Set when the failure's remedy is not "fix the command that ran".
+   *  `unresolved-setup-artifact`: a tool left the worktree in a state it cannot
+   *  itself repair (ISSUE-029) — the remedy is in `outputTail`, per artifact. */
+  cause?: "unresolved-setup-artifact";
   /** Wall-clock subprocess time; 0 for unconfigured/skipped gates. */
   durationMs: number;
 }
@@ -183,22 +189,75 @@ const MAX_CAPTURE_BYTES = 256 * 1024;
 // ---------------------------------------------------------------------------
 
 /** Run the app's setup/install command in the worktree; exit 0 passes.
- *  Returns `undefined` when no `setup_command` is configured — an unconfigured
- *  setup step is simply absent, never a failure and never reported (unlike the
- *  tests/lint gates, which fail loudly when unconfigured). */
+ *  Returns `undefined` when no `setup_command` is configured **and** the tree is
+ *  clean — an unconfigured setup step is simply absent, never a failure and
+ *  never reported (unlike the tests/lint gates, which fail loudly when
+ *  unconfigured).
+ *
+ *  ISSUE-029: the tree is checked for unresolved setup artifacts both before and
+ *  after the command. Before, because a worktree carrying a duplicated
+ *  `allowBuilds` key disables the very tool the setup command invokes — running
+ *  it would only reproduce `[ERROR] duplicated mapping key (4:1)` with no
+ *  diagnosis. After, because the *install itself* is what writes the placeholder,
+ *  so a run that started clean can finish dirty. Either way the gate reports the
+ *  real cause and the consolidation remedy, naming the file, instead of handing
+ *  a raw parser error to a remediation pass. An unconfigured setup command does
+ *  not exempt the tree: a corrupt tree is a setup failure whether or not this app
+ *  configured an install step. */
 export async function runSetupGate(
   worktree: string,
   commands: GateCommands,
   opts: ProcessGateOpts = {},
 ): Promise<GateResult | undefined> {
+  const started = Date.now();
+  const before = scanSetupArtifacts(worktree);
+  if (before.length > 0) {
+    return setupArtifactFailure(before, "before", Date.now() - started, commands.setupCommand);
+  }
+
   if (commands.setupCommand === undefined || commands.setupCommand === "") return undefined;
-  return runProcessGate(worktree, opts, {
+
+  const result = await runProcessGate(worktree, opts, {
     gate: "setup",
     command: commands.setupCommand,
     configKey: "setup_command",
     unconfigured: "skip",
     defaultTimeoutMs: DEFAULT_TIMEOUTS_MS.setup,
   });
+
+  const after = scanSetupArtifacts(worktree);
+  if (after.length === 0) return result;
+  const diagnosed = setupArtifactFailure(after, "after", result.durationMs, commands.setupCommand);
+  // The command's own output stays verbatim underneath the diagnosis: the tail
+  // is the evidence a remediation brief quotes, and dropping it would hide what
+  // the tool actually printed.
+  return {
+    ...diagnosed,
+    ...(result.exitCode !== undefined ? { exitCode: result.exitCode } : {}),
+    ...(result.timedOut === true ? { timedOut: true } : {}),
+    ...(result.outputTail !== undefined
+      ? { outputTail: `${diagnosed.outputTail}\n\n--- setup command output ---\n${result.outputTail}` }
+      : {}),
+  };
+}
+
+function setupArtifactFailure(
+  artifacts: readonly SetupArtifact[],
+  when: "before" | "after",
+  durationMs: number,
+  command: string | undefined,
+): GateResult {
+  const { detail, evidence } = describeSetupArtifacts(artifacts, when);
+  return {
+    gate: "setup",
+    status: "fail",
+    detail,
+    ...(command !== undefined && command !== "" ? { command } : {}),
+    outputTail: evidence,
+    failures: artifacts.map((artifact) => `${artifact.file}:${artifact.line} ${artifact.cause}`),
+    cause: "unresolved-setup-artifact",
+    durationMs,
+  };
 }
 
 /** Run the app's test command in the worktree; exit 0 passes. Unconfigured
@@ -707,7 +766,12 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<Shel
       // on (or fail for lack of) a TTY. pnpm refuses to replace an existing
       // modules dir without CI=1 — that refusal cost a full remediation turn
       // in the 2026-07-10 episode (proportionality-review Stage 3).
-      env: { ...process.env, CI: "1" },
+      //
+      // The setup gate is where the FIRST install of a fresh worktree happens,
+      // so the deny-by-default dependency build policy has to be here too, not
+      // only in the provider sandbox (ISSUE-029). CI stays "1" — the Stage 3
+      // value this gate has always used — and wins over the overlay.
+      env: { ...withDependencyBuildPolicy(process.env), CI: "1" },
     });
 
     const tail = new TailBuffer(MAX_CAPTURE_BYTES);

@@ -472,6 +472,11 @@ export async function advanceProvisionSetup(
  *  (Stage 3): the operator sees the exact command and its output tail. */
 function provisionSetupFailedComment(result: GateResult): string {
   const tail = result.outputTail ?? result.failures?.join("\n") ?? "";
+  // ISSUE-029: a tool that left an unresolved placeholder or a duplicated
+  // mapping key in the tree is not a bad `setup_command` — the command may be
+  // perfect and still be unrunnable. Saying "fix setup_command" there sends the
+  // reader to the wrong file; the per-artifact remedy above names the right one.
+  const unresolvedArtifact = result.cause === "unresolved-setup-artifact";
   return [
     "## Blocked with evidence — setup failed at worktree provision",
     "",
@@ -482,13 +487,27 @@ function provisionSetupFailedComment(result: GateResult): string {
     ...(tail !== "" ? ["", tail] : []),
     "",
     "**Result:**",
-    "The app's `setup_command` (dependency install) failed in the fresh worktree",
-    "before any implementation pass ran — no build turn was spent. The builder's",
-    "baseline check could only fail for lack of dependencies.",
-    "",
-    "**Assessment:**",
-    "Fix `setup_command` in `.operon/config.yaml` (or the environment it needs)",
-    "and re-arm the ticket.",
+    ...(unresolvedArtifact
+      ? [
+          "A tool left the worktree in a state it cannot itself repair, so setup",
+          "could not run and no implementation pass started — no build turn was",
+          "spent. Every later invocation of that tool fails at parse time, including",
+          "the ones that would fix the file.",
+          "",
+          "**Assessment:**",
+          "Apply the remedy named above against the exact file named above, then",
+          "re-arm the ticket. Do not add a second block answering the placeholder —",
+          "that is what produced the duplicate key.",
+        ]
+      : [
+          "The app's `setup_command` (dependency install) failed in the fresh worktree",
+          "before any implementation pass ran — no build turn was spent. The builder's",
+          "baseline check could only fail for lack of dependencies.",
+          "",
+          "**Assessment:**",
+          "Fix `setup_command` in `.operon/config.yaml` (or the environment it needs)",
+          "and re-arm the ticket.",
+        ]),
     "",
   ].join("\n");
 }

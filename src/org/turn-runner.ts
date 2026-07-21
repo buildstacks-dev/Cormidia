@@ -600,7 +600,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
     );
   }
   const runtimeForAssignment = exactRuntimeFactory(options);
-  const gateForRole = (role: RoleConfig): TurnHooks["gate"] =>
+  const gateForRole = (role: RoleConfig, workdir?: string): TurnHooks["gate"] =>
     composeGate(defaultGate, options.store, {
       app: options.app.name,
       role: role.name,
@@ -609,7 +609,11 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
         ? { ticketRef: `event:${options.journal.event.key}` }
         : {}),
       orgHome: options.orgRoot,
-      workdir: options.localRepo,
+      // The pass executor passes the cwd it will actually run in (a builder
+      // ticket pass runs in the per-ticket worktree). Falling back to the
+      // managed clone would record a tree the turn never touched, and the
+      // approved command would later run against the wrong files.
+      workdir: workdir ?? options.localRepo,
       now: clock,
     });
   // Rebuild every per-step context from the same loaded RoleConfig that owns
@@ -1058,7 +1062,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     : governedFactsFromPersistedIntent(persistedIntent);
   const store = new ApprovalStore(options.runtimeHome);
   const clock = options.now ?? (() => new Date());
-  const gateForRole = (role: RoleConfig): TurnHooks["gate"] =>
+  const gateForRole = (role: RoleConfig, workdir?: string): TurnHooks["gate"] =>
     composeGate(defaultGate, store, {
       app: options.app.name,
       role: role.name,
@@ -1067,7 +1071,11 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
         ? {}
         : { ticketRef: `event:${options.journal.event.key}` }),
       orgHome: options.orgRoot,
-      workdir: options.localRepo,
+      // The pass executor passes the cwd it will actually run in (a builder
+      // ticket pass runs in the per-ticket worktree). Falling back to the
+      // managed clone would record a tree the turn never touched, and the
+      // approved command would later run against the wrong files.
+      workdir: workdir ?? options.localRepo,
       now: clock,
     });
   const contexts = new Map<string, ContextBundle>();
@@ -1811,7 +1819,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   }
   const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
   const runtimeForAssignment = exactRuntimeFactory(options);
-  const gateForRole = (role: RoleConfig): TurnHooks["gate"] =>
+  const gateForRole = (role: RoleConfig, workdir?: string): TurnHooks["gate"] =>
     composeGate(defaultGate, options.store, {
       app: options.app.name,
       role: role.name,
@@ -1820,7 +1828,11 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
         ? {}
         : { ticketRef: options.journal.ticketRef }),
       orgHome: options.orgRoot,
-      workdir: options.localRepo,
+      // The pass executor passes the cwd it will actually run in (a builder
+      // ticket pass runs in the per-ticket worktree). Falling back to the
+      // managed clone would record a tree the turn never touched, and the
+      // approved command would later run against the wrong files.
+      workdir: workdir ?? options.localRepo,
       now: clock,
     });
   const plannerContext = await buildContext(

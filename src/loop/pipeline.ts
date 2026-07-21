@@ -142,7 +142,12 @@ export interface ExecutePipelineOptions {
   /** Optional role-aware gate factory. Manual build-loop ticks use this to
    *  compose the critical-op gate with the durable approval store for the
    *  actual role running each pass. */
-  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
+  /** The turn's gate, built per role AND per sandbox cwd. The cwd is passed
+   *  by the executor that actually runs the pass, because a builder ticket
+   *  pass runs in the per-ticket worktree while the caller that wires this
+   *  callback only knows the managed clone — and an approval raised in one
+   *  tree must never be executed in the other. */
+  gateForRole?: (role: RoleConfig, workdir?: string) => TurnHooks["gate"];
   runlog: RunlogTarget;
   /** Stable caller-owned identity for a durable outer step. A retry may reuse
    * it only after reconciling prior terminal/pending evidence. */
@@ -984,7 +989,11 @@ async function runPass(
   let providerToolCalls = 0;
   let toolCallAllowance: number | null = null;
   const passHooks: TurnHooks = {
-    gate: options.gateForRole?.(role) ?? options.hooks.gate,
+    // The pass runs in options.workdir — for a builder ticket pass that is
+    // the per-ticket worktree, not the managed clone. The gate records this
+    // cwd on any approval it raises, so a later orchestrator execution runs
+    // in the tree the human approved the action for.
+    gate: options.gateForRole?.(role, options.workdir) ?? options.hooks.gate,
     onEvent: (e) => {
       markAdapterStarted();
       sessionLog(e);

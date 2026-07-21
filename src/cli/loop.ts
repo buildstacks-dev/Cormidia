@@ -104,15 +104,21 @@ export function createLoopGateForRole(
   orgHome?: string,
   store: ApprovalStore = new ApprovalStore(stateHome),
   workdir?: string,
-): (role: RoleConfig) => GateFn {
-  return (role) =>
-    composeGate(defaultGate, store, {
+): (role: RoleConfig, passWorkdir?: string) => GateFn {
+  return (role, passWorkdir) => {
+    // The executor running the pass knows its sandbox cwd; this call site only
+    // knows the managed clone. A builder ticket pass runs in the per-ticket
+    // worktree, so preferring the caller's cwd is what makes the recorded
+    // approval workdir the tree the action was actually raised from.
+    const cwd = passWorkdir ?? workdir;
+    return composeGate(defaultGate, store, {
       app,
       role: role.name,
       turnId,
       ...(orgHome !== undefined ? { orgHome } : {}),
-      ...(workdir !== undefined ? { workdir } : {}),
+      ...(cwd !== undefined ? { workdir: cwd } : {}),
     });
+  };
 }
 
 export interface ParsedLoopRunArgs {

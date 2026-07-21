@@ -149,7 +149,12 @@ export interface LoopEngineOptions {
   runlogRoot: string;
   hooks: TurnHooks;
   /** Role-aware critical-op gate for durable approval composition. */
-  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
+  /** The turn's gate, built per role AND per sandbox cwd. The cwd is passed
+   *  by the executor that actually runs the pass, because a builder ticket
+   *  pass runs in the per-ticket worktree while the caller that wires this
+   *  callback only knows the managed clone — and an approval raised in one
+   *  tree must never be executed in the other. */
+  gateForRole?: (role: RoleConfig, workdir?: string) => TurnHooks["gate"];
   context?: ContextBundle;
   /** Per-episode governed context (learning-loop M5): see
    *  LoopPipelineOptions.contextFor. */

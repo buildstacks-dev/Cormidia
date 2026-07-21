@@ -208,6 +208,20 @@ discarding diagnostics without manufacturing a `protocol-self-edit` request.
 Every other redirect remains material and fail-closed, and a real protocol
 write in the same compound command still triggers the rule.
 
+An action's `operation` follows what its programs DO, never the fact that it
+named a file. A command whose every program is a read-only utility (`wc`,
+`cat`, `head`, `stat`, `grep`, `sed`/`awk` without an in-place flag, `find`
+without `-delete`/`-exec`, the reporting `git` subcommands) is a **read**
+whichever paths it names, so surveying `AGENTS.md` and `.operon/config.yaml` —
+the literal first instruction a bare-template builder receives — costs no human
+decision. Recording a **write** requires a write-shaped signal: an output
+redirection, an in-place flag, a mutating verb (`rm`, `mv`, `cp`, `install`,
+`chmod`, `truncate`, `ln`, `tee`), an editor or patch tool, `find -exec`, a
+non-reporting `git` subcommand, or a write-capable tool call. Where the
+projection cannot tell — an unresolvable redirect destination, a `find` action,
+a command nested past the projection's depth — it fails closed and records a
+write: over-approval costs a tap, under-detection costs the boundary.
+
 ## 1. On-disk layout
 
 Four explicit paths, one rule: **durable, curated artifacts live in git;

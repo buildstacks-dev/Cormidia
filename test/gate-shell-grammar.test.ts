@@ -25,6 +25,25 @@ const RUN3_PREVIEW_LOOP = JSON.parse(readFileSync(
   "utf8",
 )) as ToolAction;
 
+/** The exact action from the run-4 approval record `20260721T201156Z-wgi-`
+ *  (copied out of ~/.operon so this suite is offline). `wc -l` counts lines and
+ *  mutates nothing, yet the classifier recorded `operation: "write"`, put the
+ *  protected paths in `targets`, and raised `protocol-self-edit` — the one rule
+ *  the orchestrator may never discharge mechanically. That terminalized the
+ *  first ticket of a fresh `bare` app after ~$4 of completed builder work,
+ *  twice in a row. */
+const RUN4_WC_SURVEY = JSON.parse(readFileSync(
+  new URL("./fixtures/gate/run4-wc-survey.json", import.meta.url),
+  "utf8",
+)) as ToolAction;
+
+/** The same survey without the `/bin/zsh -lc '…'` wrapper. Both forms had to
+ *  be captured: the wrapper's closing quote is what defeated the literal
+ *  `/dev/null` sink exemption, so only the wrapped form actually escalated —
+ *  a repair verified on the bare form alone would have proved nothing. */
+const RUN4_WC_SURVEY_BARE =
+  "wc -l AGENTS.md CLAUDE.md README.md docs/*.md docs/design/* .operon/config.yaml .operon/TASTE.md 2>/dev/null";
+
 const RESERVED_WORDS = [
   "if", "then", "elif", "else", "fi", "for", "while", "until", "do", "done",
   "case", "esac", "in", "select", "function", "break", "continue", "{", "}",
@@ -283,5 +302,187 @@ describe("a critical op after a ;;-terminated case statement still classifies", 
     // a newline unquoted, so the skip now ends there.
     const heredoc = "cat <<'EOF' > /dev/null\ncase a in\nEOF\ngh pr create --fill";
     expect(classify(bash(heredoc))).toEqual({ cls: "critical", rule: "external-publishing" });
+  });
+});
+
+// ISSUE-027. The parse above is correct — `executables: ["wc"]`, the `-lc`
+// wrapper peeled — and the defect sits one layer up, in how `operation` is
+// inferred from it. It was inferred from the SHAPE of the command (does a `>`
+// appear anywhere in the raw string? does it name files?) rather than from what
+// its programs do, so a line count over the scaffold was recorded as a write,
+// its protected paths landed in `targets`, and `protocol-self-edit` matched.
+//
+// Both directions are load-bearing, and the write direction more so: the
+// previous repair round on this file was refuted for removing a false positive
+// by removing true positives with it. Naming a path may not imply mutating it;
+// a redirection, an in-place flag, a mutating verb, an editor or a patch tool
+// must still escalate, bare and inside the `/bin/zsh -lc '…'` wrapper alike.
+describe("a read-only utility that names a protocol surface is a read", () => {
+  it("classifies the captured run-4 survey routine, wrapper and all", () => {
+    expect(classify(RUN4_WC_SURVEY)).toEqual({ cls: "routine" });
+    expect(classify(bash(RUN4_WC_SURVEY_BARE))).toEqual({ cls: "routine" });
+  });
+
+  it("records the survey as a read while keeping every path as evidence", () => {
+    // The repair is in the OPERATION, not in the projection: the paths must
+    // still be there — a scoped grant and an operator's escalation both read
+    // them — they simply no longer imply mutation. Was: operation "write".
+    expect(actionEffectFields(RUN4_WC_SURVEY)).toEqual({
+      tool: "bash",
+      operation: "read",
+      executables: ["wc"],
+      targets: [
+        ".operon/TASTE.md",
+        ".operon/config.yaml",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md",
+        "docs/*.md",
+        "docs/design/*",
+      ],
+      redirections: [],
+      environment: [],
+      destination: null,
+      effect: null,
+    });
+  });
+
+  const ROUTINE_READS = [
+    "cat .operon/config.yaml",
+    "head -20 AGENTS.md",
+    "grep -n foo .operon/TASTE.md",
+    "git diff -- AGENTS.md",
+    "stat .operon/config.yaml",
+    "wc -l .operon/config.yaml",
+    "tail -5 roles.yaml",
+    "ls -la prompts/build",
+    "diff AGENTS.md README.md",
+    "cksum .operon/TASTE.md",
+    "find . -name 'AGENTS.md'",
+    "sed -n '1,40p' AGENTS.md",
+    "awk '{print NF}' pipelines.yaml",
+    "git log --oneline -- roles.yaml",
+    "git show HEAD:apps.yaml",
+  ];
+
+  for (const command of ROUTINE_READS) {
+    it(`routine: ${command}`, () => {
+      expect(classify(bash(command))).toEqual({ cls: "routine" });
+      expect(classify(bash(`/bin/zsh -lc '${command}'`))).toEqual({ cls: "routine" });
+      expect(actionEffectFields(bash(command)).operation).toBe("read");
+    });
+  }
+});
+
+describe("every write-shaped signal on a protocol surface still escalates", () => {
+  const PROTOCOL_WRITES = [
+    // A redirection — the signal the old raw-text scan was reaching for.
+    "echo x > .operon/config.yaml",
+    "cat x > AGENTS.md",
+    "cat /tmp/new >> roles.yaml",
+    // An in-place flag: the program is read-only until the flag is present.
+    "sed -i '' s/a/b/ AGENTS.md",
+    "perl -i -pe s/a/b/ AGENTS.md",
+    "awk -i inplace '{print}' pipelines.yaml",
+    "sort -o AGENTS.md AGENTS.md",
+    // A mutating verb, with no redirection anywhere.
+    "rm .operon/TASTE.md",
+    "mv a AGENTS.md",
+    "cp /tmp/evil.md roles.yaml",
+    "tee .operon/config.yaml < /dev/null",
+    "install -m 644 /tmp/x AGENTS.md",
+    "chmod 600 .operon/config.yaml",
+    "chown nobody apps.yaml",
+    "ln -sf /tmp/evil AGENTS.md",
+    // An editor / patch tool.
+    "patch AGENTS.md < p.diff",
+    "ed AGENTS.md",
+    // `find` can do anything it matches: `-delete` and `-exec` are writes.
+    "find . -name 'AGENTS.md' -delete",
+    "find . -name 'roles.yaml' -exec cp /tmp/evil {} ;",
+  ];
+
+  for (const command of PROTOCOL_WRITES) {
+    it(`critical (protocol-self-edit): ${command}`, () => {
+      expect(classify(bash(command))).toEqual({ cls: "critical", rule: "protocol-self-edit" });
+      expect(actionEffectFields(bash(command)).operation).toBe("write");
+    });
+
+    it(`critical (protocol-self-edit) inside the zsh -lc wrapper: ${command}`, () => {
+      // The wrapper is the shape every adapter actually emits, and it is where
+      // the false positive lived — so the true positives are re-proved through
+      // exactly the same seam rather than only at the top level.
+      expect(classify(bash(`/bin/zsh -lc '${command}'`)))
+        .toEqual({ cls: "critical", rule: "protocol-self-edit" });
+    });
+  }
+
+  it("separates git's reads from git's writes over the same pathspec", () => {
+    // Same shape, same file, opposite effect. `git diff -- AGENTS.md` prints;
+    // `git checkout -- AGENTS.md` overwrites the working copy — and it used to
+    // reach the rules with NO path at all, because only the read subcommands
+    // projected their pathspec.
+    expect(classify(bash("git diff -- AGENTS.md"))).toEqual({ cls: "routine" });
+    expect(classify(bash("git checkout -- AGENTS.md")))
+      .toEqual({ cls: "critical", rule: "protocol-self-edit" });
+    expect(classify(bash("git restore -- .operon/config.yaml")))
+      .toEqual({ cls: "critical", rule: "protocol-self-edit" });
+    expect(classify(bash("git show HEAD -- roles.yaml"))).toEqual({ cls: "routine" });
+  });
+
+  it("routes a write whose verb belongs to an earlier rule to that rule", () => {
+    // `truncate` is a write AND a named irreversible operation. Rule order
+    // decides, and destructive-or-irreversible comes first — the point is that
+    // it is still gated, not which of the two rules claims it.
+    expect(classify(bash("truncate -s 0 apps.yaml")))
+      .toEqual({ cls: "critical", rule: "destructive-or-irreversible" });
+    expect(actionEffectFields(bash("truncate -s 0 apps.yaml")).operation).toBe("write");
+  });
+
+  it("does not let a read-only program launder a write in the same command", () => {
+    // The read-only set is a statement about ONE program, never about the
+    // command it sits in: one write-shaped signal anywhere makes the action a
+    // write, whichever benign utilities surround it.
+    for (const command of [
+      "wc -l AGENTS.md && rm .operon/TASTE.md",
+      "wc -l AGENTS.md; echo hacked > roles.yaml",
+      "cat AGENTS.md | tee AGENTS.md.bak > AGENTS.md",
+      "for f in AGENTS.md; do sed -i '' s/a/b/ \"$f\"; done",
+      "if wc -l AGENTS.md; then cp /tmp/evil.md AGENTS.md; fi",
+      "/bin/zsh -lc 'stat .operon/config.yaml && rm .operon/config.yaml'",
+    ]) {
+      expect(classify(bash(command)), command).toEqual({ cls: "critical", rule: "protocol-self-edit" });
+    }
+  });
+
+  it("keeps an unresolvable redirect destination fail-closed", () => {
+    // A read-only program plus a destination the projection cannot name is the
+    // exact shape a laundering attempt would take. `/dev/null` is the one
+    // known-harmless sink, and only when it is spelled completely.
+    expect(classify(bash("wc -l AGENTS.md 2>$ERROR_LOG")))
+      .toEqual({ cls: "critical", rule: "protocol-self-edit" });
+    expect(classify(bash("wc -l AGENTS.md 2>$(printf /dev/null)")))
+      .toEqual({ cls: "critical", rule: "protocol-self-edit" });
+    expect(classify(bash("wc -l AGENTS.md 2>\"/dev/null")))
+      .toEqual({ cls: "critical", rule: "protocol-self-edit" });
+  });
+
+  it("still protects the other write-gated surfaces, not only the protocol one", () => {
+    // isWrite feeds five rules. A repair that fixed protocol-self-edit alone
+    // and blinded the scorecard, learning, approval-store and provider-memory
+    // rules would be the same defect wearing a different name.
+    expect(classify(bash("sed -i '' s/a/b/ scorecards/civic/builder.jsonl")))
+      .toEqual({ cls: "critical", rule: "scorecard-tamper" });
+    expect(classify(bash("rm learning/policy.yaml")))
+      .toEqual({ cls: "critical", rule: "learning-surface-tamper" });
+    expect(classify(bash("cp /tmp/forged.json ~/.operon/acme/approvals/grants/g.json")))
+      .toEqual({ cls: "critical", rule: "approval-store-tamper" });
+    expect(classify(bash("tee -a ~/.claude/CLAUDE.md < /tmp/x")))
+      .toEqual({ cls: "critical", rule: "provider-global-memory" });
+    // …and reading each of them stays routine.
+    expect(classify(bash("wc -l scorecards/civic/builder.jsonl"))).toEqual({ cls: "routine" });
+    expect(classify(bash("head -1 learning/policy.yaml"))).toEqual({ cls: "routine" });
+    expect(classify(bash("cat ~/.operon/acme/approvals/grants/g.json"))).toEqual({ cls: "routine" });
+    expect(classify(bash("stat ~/.claude/CLAUDE.md"))).toEqual({ cls: "routine" });
   });
 });

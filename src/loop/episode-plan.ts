@@ -352,6 +352,22 @@ export interface CreatorScopeProvenance {
   evidenceRefs: string[];
 }
 
+export type PlanRepairScalar = null | boolean | number | string;
+
+/** Code-owned audit evidence for deterministic repairs applied to settled
+ * provider bytes before strict validation. Providers cannot author this field:
+ * it is absent from the closed proposal schema and attached only after the
+ * normalized proposal has passed that schema. */
+export interface PlanNormalizationProvenance {
+  schemaVersion: 1;
+  repairs: Array<{
+    kind: "undeclared_scalar_property_removed";
+    path: string;
+    property: string;
+    value: PlanRepairScalar;
+  }>;
+}
+
 /**
  * `planningDisposition` is the explicit, auditable bypass decision. Merely
  * supplying fields that happen to look complete never sets it.
@@ -517,6 +533,7 @@ export interface EpisodePlan {
   workflowClass: string;
   planningSource: "episode_planner" | "creator_scope";
   creatorProvenance?: CreatorScopeProvenance;
+  normalizationProvenance?: PlanNormalizationProvenance;
   steps: EpisodeStep[];
   estimatedBudget: EpisodeBudgetEstimate;
   derivedSafetyRoute: DerivedSafetyRoute;
@@ -538,6 +555,7 @@ export const EPISODE_PLAN_REASON_CODES = [
   "plan_summary_required",
   "plan_workflow_class_required",
   "plan_created_at_invalid",
+  "plan_normalization_provenance_invalid",
   "plan_creator_scope_not_execution_ready",
   "plan_creator_provenance_mismatch",
   "plan_unexpected_creator_provenance",
@@ -773,12 +791,29 @@ export function parseProposedEpisodePlan(value: unknown): ProposedEpisodePlan {
  * when that exact step declares that exact output; dependency ancestry and
  * unique ownership are still enforced by validateGraph below. */
 export function parseNormalizedProposedEpisodePlan(value: unknown): ProposedEpisodePlan {
-  return parseProposedEpisodePlan(normalizeProviderProposal(value));
+  const normalized = normalizeProviderProposal(value);
+  const proposal = parseProposedEpisodePlan(normalized.value);
+  if (normalized.repairs.length === 0) return proposal;
+  return {
+    ...proposal,
+    normalizationProvenance: {
+      schemaVersion: 1,
+      repairs: normalized.repairs,
+    },
+  };
 }
 
-function normalizeProviderProposal(value: unknown): unknown {
-  if (!isRecord(value)) return value;
+function normalizeProviderProposal(value: unknown): {
+  value: unknown;
+  repairs: PlanNormalizationProvenance["repairs"];
+} {
+  if (!isRecord(value)) return { value, repairs: [] };
   const normalized = structuredClone(value);
+  const repairs = stripUndeclaredScalarProperties(
+    normalized,
+    EPISODE_PLAN_PROPOSAL_SCHEMA as Record<string, unknown>,
+    value,
+  );
   const steps = normalized["steps"];
   if (Array.isArray(steps)) normalizePlanOutputRefs(steps);
 
@@ -797,7 +832,100 @@ function normalizeProviderProposal(value: unknown): unknown {
       estimate["totalBudgetUsd"] = providerBudget;
     }
   }
-  return normalized;
+  return { value: normalized, repairs };
+}
+
+/** Remove only a schema-undeclared scalar whose name/value is not referenced
+ * anywhere else in the proposal. Objects and arrays retain their full strict
+ * rejection semantics: they may contain intended structure that cannot be
+ * discarded mechanically. */
+function stripUndeclaredScalarProperties(
+  value: unknown,
+  schema: Record<string, unknown>,
+  referenceRoot: unknown,
+): PlanNormalizationProvenance["repairs"] {
+  const repairs: PlanNormalizationProvenance["repairs"] = [];
+  const visit = (node: unknown, nodeSchema: Record<string, unknown>, path: string): void => {
+    const oneOf = nodeSchema["oneOf"];
+    if (Array.isArray(oneOf)) {
+      const selected = discriminatedAlternative(node, oneOf.filter(isRecord));
+      if (selected !== undefined) visit(node, selected, path);
+      return;
+    }
+    const type = nodeSchema["type"];
+    if (type === "object" && isRecord(node)) {
+      const properties = isRecord(nodeSchema["properties"])
+        ? nodeSchema["properties"]
+        : {};
+      if (nodeSchema["additionalProperties"] === false) {
+        for (const key of Object.keys(node)) {
+          if (Object.hasOwn(properties, key)) continue;
+          const propertyValue = node[key];
+          const property = propertyPath(path, key);
+          if (
+            isRepairScalar(propertyValue) &&
+            !scalarPropertyReferenced(referenceRoot, key, propertyValue, property)
+          ) {
+            delete node[key];
+            repairs.push({
+              kind: "undeclared_scalar_property_removed",
+              path: property,
+              property: key,
+              value: propertyValue,
+            });
+          }
+        }
+      }
+      for (const [key, childSchema] of Object.entries(properties)) {
+        if (Object.hasOwn(node, key) && isRecord(childSchema)) {
+          visit(node[key], childSchema, propertyPath(path, key));
+        }
+      }
+      return;
+    }
+    if (type === "array" && Array.isArray(node) && isRecord(nodeSchema["items"])) {
+      node.forEach((entry, index) => visit(entry, nodeSchema["items"] as Record<string, unknown>, `${path}[${index}]`));
+    }
+  };
+  visit(value, schema, "$");
+  return repairs.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function isRepairScalar(value: unknown): value is PlanRepairScalar {
+  return value === null || typeof value === "string" || typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value));
+}
+
+function scalarPropertyReferenced(
+  root: unknown,
+  property: string,
+  value: PlanRepairScalar,
+  excludedPath: string,
+): boolean {
+  const candidates = [property, ...(typeof value === "string" && value !== "" ? [value] : [])];
+  const seen = new Set<object>();
+  const visit = (node: unknown, path: string): boolean => {
+    if (Array.isArray(node)) {
+      if (seen.has(node)) return false;
+      seen.add(node);
+      return node.some((entry, index) => visit(entry, `${path}[${index}]`));
+    }
+    if (!isRecord(node)) return false;
+    if (seen.has(node)) return false;
+    seen.add(node);
+    for (const [key, entry] of Object.entries(node)) {
+      const entryPath = propertyPath(path, key);
+      if (entryPath === excludedPath) continue;
+      if (candidates.some((candidate) => key.includes(candidate))) return true;
+      if (
+        typeof entry === "string" &&
+        candidates.some((candidate) => entry.includes(candidate))
+      ) return true;
+      if (visit(entry, entryPath)) return true;
+    }
+    return false;
+  };
+  return visit(root, "$");
 }
 
 function normalizePlanOutputRefs(steps: unknown[]): void {
@@ -1094,6 +1222,7 @@ export function validateEpisodePlan(
   if (!nonEmpty(plan.summary)) issues.push(issue("plan_summary_required", "plan summary is required"));
   if (!nonEmpty(plan.workflowClass)) issues.push(issue("plan_workflow_class_required", "workflow class is required"));
   if (!validTimestamp(plan.createdAt)) issues.push(issue("plan_created_at_invalid", "createdAt must be an ISO-8601 timestamp"));
+  validateNormalizationProvenance(plan.normalizationProvenance, issues);
   validatePlanningSource(plan, intent, issues);
   validateIntentAssignmentCatalog(intent, policy, issues);
   if (!Array.isArray(intent.requiredSafetyFacts) || intent.requiredSafetyFacts.some((fact) => !validSafetyFact(fact))) {
@@ -1650,6 +1779,19 @@ function validatePlanningSource(plan: EpisodePlan, intent: EpisodeIntent, issues
   }
   if (plan.creatorProvenance !== undefined) {
     issues.push(issue("plan_unexpected_creator_provenance", "EpisodePlanner-authored plans cannot claim creator-scope provenance"));
+  }
+}
+
+function validateNormalizationProvenance(
+  provenance: PlanNormalizationProvenance | undefined,
+  issues: EpisodePlanIssue[],
+): void {
+  if (provenance === undefined) return;
+  if (!isNormalizationProvenanceStrict(provenance)) {
+    issues.push(issue(
+      "plan_normalization_provenance_invalid",
+      "plan normalization provenance must contain only typed code-owned scalar-removal records",
+    ));
   }
 }
 
@@ -2775,6 +2917,25 @@ function isCreatorProvenanceStrict(value: unknown): value is CreatorScopeProvena
     typeof value["createdAt"] === "string" && validTimestamp(value["createdAt"]) && stringArray(value["evidenceRefs"]);
 }
 
+function isNormalizationProvenanceStrict(
+  value: unknown,
+): value is PlanNormalizationProvenance {
+  if (!isRecord(value) || !exactKeys(
+    value,
+    ["schemaVersion", "repairs"],
+    ["schemaVersion", "repairs"],
+  ) || value["schemaVersion"] !== 1 || !Array.isArray(value["repairs"]) ||
+      value["repairs"].length === 0) return false;
+  return value["repairs"].every((repair) =>
+    isRecord(repair) && exactKeys(
+      repair,
+      ["kind", "path", "property", "value"],
+      ["kind", "path", "property", "value"],
+    ) && repair["kind"] === "undeclared_scalar_property_removed" &&
+    nonEmpty(repair["path"]) && nonEmpty(repair["property"]) &&
+    isRepairScalar(repair["value"]));
+}
+
 function exactKeys(record: Record<string, unknown>, allowed: readonly string[], required: readonly string[]): boolean {
   const allowedSet = new Set(allowed);
   return Object.keys(record).every((key) => allowedSet.has(key)) && required.every((key) => Object.hasOwn(record, key));
@@ -2793,7 +2954,9 @@ export function isEpisodePlan(value: unknown): value is EpisodePlan {
       !isBudgetEstimate(value["estimatedBudget"]) || !isSafetyRoute(value["derivedSafetyRoute"]) ||
       typeof value["createdAt"] !== "string") return false;
   const provenance = value["creatorProvenance"];
-  return provenance === undefined || isCreatorProvenance(provenance);
+  const normalization = value["normalizationProvenance"];
+  return (provenance === undefined || isCreatorProvenance(provenance)) &&
+    (normalization === undefined || isNormalizationProvenanceStrict(normalization));
 }
 
 function isEpisodeStep(value: unknown): value is EpisodeStep {

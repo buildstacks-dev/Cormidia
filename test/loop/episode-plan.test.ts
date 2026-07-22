@@ -316,6 +316,68 @@ describe("EpisodePlan core", () => {
     });
   });
 
+  it("strips an unreferenced undeclared scalar and records code-owned plan provenance", () => {
+    const intent = makeIntent();
+    const observed = makeProposal(intent, "episode_planner", "fixed") as unknown as {
+      steps: Array<Record<string, unknown>>;
+    };
+    observed.steps[0]!["kind_note_ignore"] = null;
+
+    const normalized = parseNormalizedProposedEpisodePlan(observed);
+    expect(normalized.steps[0]).not.toHaveProperty("kind_note_ignore");
+    expect(normalized.normalizationProvenance).toEqual({
+      schemaVersion: 1,
+      repairs: [{
+        kind: "undeclared_scalar_property_removed",
+        path: "$.steps[0].kind_note_ignore",
+        property: "kind_note_ignore",
+        value: null,
+      }],
+    });
+
+    const plan = materializeEpisodePlanAssignments(normalized, makePolicy("fixed"));
+    expect(validateEpisodePlan(plan, intent, makePolicy("fixed"))).toMatchObject({
+      ok: true,
+      issues: [],
+    });
+  });
+
+  it("keeps rejecting an undeclared non-scalar instead of discarding structure", () => {
+    const intent = makeIntent();
+    const observed = makeProposal(intent, "episode_planner", "fixed") as unknown as {
+      steps: Array<Record<string, unknown>>;
+    };
+    observed.steps[0]!["kind_note"] = { rationale: "not mechanically discardable" };
+
+    expect(() => parseNormalizedProposedEpisodePlan(observed)).toThrowError(
+      EpisodePlanValidationError,
+    );
+    try {
+      parseNormalizedProposedEpisodePlan(observed);
+    } catch (error) {
+      expect(error).toMatchObject({
+        issues: [expect.objectContaining({
+          code: "plan_structure_invalid",
+          path: "$.steps[0].kind_note",
+          constraint: "additionalProperties",
+          received: "object(1 keys)",
+        })],
+      });
+    }
+  });
+
+  it("keeps rejecting an undeclared scalar that another field references", () => {
+    const intent = makeIntent();
+    const observed = makeProposal(intent, "episode_planner", "fixed") as unknown as {
+      steps: Array<Record<string, unknown>>;
+    };
+    observed.steps[0]!["kind_note"] = "patch";
+
+    expect(() => parseNormalizedProposedEpisodePlan(observed)).toThrowError(
+      EpisodePlanValidationError,
+    );
+  });
+
   it("still rejects inconsistent turn arithmetic and misqualified output aliases", () => {
     const intent = makeIntent();
     const inconsistent = makeProposal(intent, "episode_planner", "fixed");

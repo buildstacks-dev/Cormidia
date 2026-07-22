@@ -1,13 +1,12 @@
 # Learning Loop - Design Document
 
 **Status:** v0.8 - ratified 2026-07-11 (`docs/PURPOSE.md` → Decided → Learning
-loop design); revised per the consolidated design feedback of 2026-07-10
-(`archive/2026-07-10_feedback.md`)  
+loop design)
 **Build status:** M1–M6 plus the Phase 4 closed-loop efficiency extension are
 built (2026-07-14); where this document and the code diverge, the code and
 `AGENTS.md` are authoritative
 **Date:** 2026-07-11  
-**Companions:** `learning-loop-spec.md` (schemas), `learning-loop-milestones.md` (release plan)
+**Companions:** `learning-loop-spec.md` (schemas)
 
 Learning efficacy, capture, episode identity, and later-comparable outcome
 claims use `docs/efficiency.md` as their canonical measurement contract. This
@@ -883,7 +882,7 @@ The resolver sits directly on Operon's most expensive surface. The rules in
 
 ## 13. Bootstrap
 
-Cold start is phased along the milestones (`learning-loop-milestones.md`):
+Cold start is phased:
 
 **M1 - Capture and human review.** Event and episode capture, the human
 correction workflow, gate-protected learning surfaces, and closure of the

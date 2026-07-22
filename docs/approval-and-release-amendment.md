@@ -3,9 +3,9 @@
 Status: ratified 2026-07-10 (docs/PURPOSE.md → Decided) and implemented —
 A1 scoped grants (`src/org/approvals.ts`), A2 approve-and-rearm, A3 batch
 review, A4 release handoff (`src/org/release.ts` + ship-gate P7 + approved
-command execution), and A5 durable denial lessons are all live. Companion to `docs/proportionality-review.md`
-§5 Stage 5; supersedes, where stated, parts of PURPOSE's 2026-07-04/06
-approval decisions.
+command execution), and A5 durable denial lessons are all live. Companion to
+the 2026-07-10 proportionality Stage 5 work; supersedes, where stated, parts
+of PURPOSE's 2026-07-04/06 approval decisions.
 
 Approval efficiency and human-decision accounting use the canonical
 definitions in `docs/efficiency.md`: approval precision and recurrence are
@@ -158,7 +158,7 @@ Every human denial reason is persisted as Operon-owned role memory for the
 is never re-litigated eight times. Lessons are curated memory (existing OKF
 rules apply: evidence attached, wrong lessons deleted).
 
-## Answers to proportionality-review §6 (operator questions)
+## Answers to historical Stage 5 operator questions
 
 1. **Ticket budgets:** bootstrap ≤ 3 (default 1), growth ≤ 5, mature ≤ 7
    per milestone — enforced by plan validation (Stage 4, landed).

@@ -32,8 +32,6 @@ const ALLOWED_PROMOTION_PATHS = new Set([
   "docs/benchmark-runbook.md",
   "docs/testing-journey.md",
   "docs/capability-matrix.md",
-  "docs/efficiency-transformation/highly-efficient-organization-transformation.md",
-  "docs/efficiency-transformation/highly-efficient-organization-test-eval-transformation.md",
   EVALUATOR_REPAIR_AUTHORIZATION_PATH,
 ]);
 const PHASE6_CONTRACT_IDS = new Set([

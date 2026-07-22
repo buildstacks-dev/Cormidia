@@ -1,5 +1,5 @@
 // Tests the runs/-to-ledger reconciliation in src/org/budget.ts (Stage 1 of
-// docs/proportionality-review.md; telemetry doc Defect B item 4).
+// the 2026-07-10 proportionality campaign; telemetry doc Defect B item 4).
 // Covers envelope back-fill, run_id idempotency, no-usage skips, escalation
 // recovery from L2 events, unmeasured counting, and the rollup matching the
 // envelope sum to the cent.

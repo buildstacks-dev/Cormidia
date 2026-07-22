@@ -1,4 +1,4 @@
-// Ticket-lifetime state from durable artifacts (proportionality-review §5
+// Ticket-lifetime state from durable artifacts (proportionality campaign
 // Stage 2). Every re-claim used to rebuild its loop item from labels alone —
 // contract, findings, cycles, and attempt counters reset to zero, so 21
 // claims produced 20 identical contract passes. The durable data was on the

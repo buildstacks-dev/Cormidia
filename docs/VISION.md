@@ -1,9 +1,7 @@
 # Vision
 
-*Ratified 2026-07-13 by the
-[Phase 0 doctrine decision](efficiency-transformation/phase0-doctrine-ratification-proposal.md).
-`docs/PURPOSE.md` is the high-level decision log; `docs/efficiency.md` is the
-canonical operating and measurement contract.*
+*Ratified 2026-07-13. `docs/PURPOSE.md` is the high-level decision log;
+`docs/efficiency.md` is the canonical operating and measurement contract.*
 
 One human should be able to direct a small portfolio of software products at
 the quality bar of an excellent engineering organization without becoming its

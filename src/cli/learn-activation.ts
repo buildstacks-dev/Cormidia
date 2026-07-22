@@ -1,5 +1,5 @@
 // `operon learn` M4 verbs — the manual governed-activation surface
-// (docs/learning-loop/learning-loop-milestones.md M4): review, publish,
+// (docs/learning-loop/learning-loop-design.md § Bootstrap M4): review, publish,
 // resolve, disable, rollback, provisional. Split from learn.ts so the M1-M3
 // capture/episode window and the M4 write path stay separately readable;
 // learn.ts dispatches here.

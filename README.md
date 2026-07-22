@@ -785,8 +785,7 @@ Operon is build-complete and proven live: real Planner/Builder/Reviewer turns
 take GitHub issues from `op:ready` through quality gates, PR, cross-provider
 review, and squash-merge on real repos — most recently `operon-sandbox-delta`
 ("Ledgerette"), onboarded from scratch, where the loop fixed and merged both
-planted bugs unaided. A proportionality campaign (2026-07-10,
-[`docs/proportionality-review.md`](docs/proportionality-review.md)) then
+planted bugs unaided. A 2026-07-10 proportionality campaign then
 rebuilt the org's economics end to end: per-pass ledger settlement with
 enforced budget caps, durable continuation from artifacts, honest stops with
 token-free environment preflight, one-pass proportional bootstrap planning

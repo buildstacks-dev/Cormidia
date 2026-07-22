@@ -228,7 +228,7 @@ export interface TurnResult {
   escalations: GateEscalation[];
   /** Stable machine code for a failed turn (e.g. "error_max_budget_usd") —
    *  budget exhaustion must never masquerade as a generic failure or a
-   *  secrets/auth escalation (proportionality-review Stage 3). Absent on
+   *  secrets/auth escalation (proportionality campaign Stage 3). Absent on
    *  success and on failures with no more specific cause. */
   errorCode?: string;
 }

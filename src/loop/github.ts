@@ -116,7 +116,7 @@ export interface GhOps {
   listLabels(): Promise<EnsureLabelInput[]>;
   /** All comments on the issue, oldest first — the durable artifacts
    *  (contract, review verdicts, fix resolutions) that rehydration reads back
-   *  on a re-claim (proportionality-review Stage 2). */
+   *  on a re-claim (proportionality campaign Stage 2). */
   listIssueComments(issueNumber: number): Promise<GhIssueComment[]>;
   listIssues(options?: ListIssueOptions): Promise<GhIssue[]>;
   readIssue(issueNumber: number): Promise<GhIssue>;

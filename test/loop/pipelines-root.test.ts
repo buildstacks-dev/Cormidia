@@ -35,7 +35,7 @@ describe("root pipelines.yaml", () => {
       "review",
       "fix",
       "ship",
-      // Stage 4 (proportionality-review): a new app's first milestone plans
+      // Stage 4 (proportionality campaign): a new app's first milestone plans
       // through ONE pass, not five — deliberate intent change landing in the
       // same proposal PR that added the pipeline.
       "plan-bootstrap",

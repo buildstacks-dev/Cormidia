@@ -1,10 +1,9 @@
 # Learning Loop - Spec Sheet
 
 **Status:** v0.8 - ratified 2026-07-11 (`docs/PURPOSE.md` → Decided → Learning
-loop design); revised per the consolidated design feedback of 2026-07-10
-(`archive/2026-07-10_feedback.md`)  
+loop design)
 **Build status:** built through M5 (PR #52, 2026-07-11); where this document and the code diverge, the code and `AGENTS.md` are authoritative  
-**Companions:** `learning-loop-design.md`, `learning-loop-milestones.md`
+**Companions:** `learning-loop-design.md`
 
 Episode identity, learning-capture coverage, and outcome-accountable efficacy
 use the canonical definitions and missingness rules in `docs/efficiency.md`.
@@ -711,9 +710,8 @@ reject
 
 Declared **before results are observed**. Required for efficacy-claiming
 candidates and T2/T3 activation (waivable by a human, recorded on the
-approval); optional otherwise. The examples in the archived feedback
-(`archive/2026-07-10_feedback.md` §10) illustrate policy values; thresholds
-are per-experiment declarations, not universal constants.
+approval); optional otherwise. The example below illustrates policy values;
+thresholds are per-experiment declarations, not universal constants.
 
 ```yaml
 experiment_id: exp_builder-test-mapping_01

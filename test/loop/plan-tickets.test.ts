@@ -1,5 +1,5 @@
 // Tests schema-validated, orchestrator-published planning tickets in
-// src/loop/plan-tickets.ts (Stage 4 of docs/proportionality-review.md).
+// src/loop/plan-tickets.ts (Stage 4 of the 2026-07-10 proportionality campaign).
 // Covers stage ticket budgets, tier calibration, criterion quality,
 // dependency sanity, body rendering the loop's own parsers read back, label
 // guarantees, ready-labeling, and forward-dependency back-fill.

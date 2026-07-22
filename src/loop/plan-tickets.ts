@@ -1,5 +1,5 @@
 // Schema-validated, orchestrator-published planning tickets (Stage 4 of
-// docs/proportionality-review.md). The 2026-07-10 episode's Planner invented
+// the 2026-07-10 proportionality campaign). The 2026-07-10 episode's Planner invented
 // a label taxonomy the loop does not implement, wiped 19 issue bodies with an
 // agent-authored shell loop, and produced a 19-ticket serial graph for a
 // personal website. Under this module the Planner emits a typed plan; the

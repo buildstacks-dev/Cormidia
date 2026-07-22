@@ -1,12 +1,11 @@
 # Stage 7 benchmark runbook — the buildstacks-class bootstrap replay
 
 The comparable benchmark required by PURPOSE's sandbox-before-production
-rule and `docs/proportionality-review.md` §5 Stage 7. Everything below is
-measured by the Stage 1 telemetry; nothing is anecdotal.
+rule (historical Stage 7 of the 2026-07-10 proportionality campaign).
+Everything below is measured by Stage 1 telemetry; nothing is anecdotal.
 
-**Status:** targets met 2026-07-11 by benchmark round 2 (results recorded
-in `docs/proportionality-review.md` §7); this runbook remains the
-procedure for re-runs.
+**Status:** targets met 2026-07-11 by benchmark round 2; this runbook remains
+the procedure for re-runs.
 
 This historical Stage 7 procedure is no longer the qualification contract by
 itself. New comparable campaigns use `docs/efficiency.md` and `eval/README.md`:
@@ -227,7 +226,7 @@ operon approvals   # decision count; expect ≤ 5, ideally 0-1
   human's only allowed touches are approval decisions (counted) and the
   commands above.
 - A missed target is not massaged — it becomes the next round of
-  `docs/proportionality-review.md`.
+  efficiency work under `docs/efficiency.md`.
 - No attempt is deleted or replaced. A typed infrastructure retry links to the
   original; merit failures are never rerun under the same attempt id.
 - Production is read-only confirmation and never threshold/prompt calibration.
@@ -243,4 +242,4 @@ operon approvals   # decision count; expect ≤ 5, ideally 0-1
   dated note in `research/`.
 - PR #8 (Stage 4) merged 2026-07-10 on exactly this step-3 live pass —
   the plan run IS its exit criterion. Benchmark rounds and their analyses
-  are recorded in `docs/proportionality-review.md` §7.
+  remain in git history from the 2026-07-10 proportionality campaign.

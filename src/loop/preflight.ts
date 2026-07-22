@@ -1,4 +1,4 @@
-// Token-free environment preflight (proportionality-review Stage 3, P6).
+// Token-free environment preflight (proportionality campaign Stage 3, P6).
 // Three environment failures in the 2026-07-10 episode were each discovered
 // INSIDE a multi-dollar model turn: registry access blocked by the offline
 // sandbox, pnpm refusing a non-TTY install, and missing network grants after

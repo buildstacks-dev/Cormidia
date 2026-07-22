@@ -3,7 +3,7 @@
 Plan the FIRST milestone of a new product: the smallest independently
 shippable thing that puts an observable product in front of its owner.
 This is a one-pass plan for a pre-users project — proportionality is the
-whole point (docs/proportionality-review.md P1/P2).
+whole point (`docs/efficiency.md`).
 
 ## Protocol
 

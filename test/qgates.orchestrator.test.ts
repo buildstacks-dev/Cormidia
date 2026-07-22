@@ -47,7 +47,7 @@ const passCommand = `${shellQuote(process.execPath)} -e ${shellQuote("process.ex
 describe("runCompletenessGate", () => {
   it("unchecked criterion with a covering test passes — checkbox state is not gate input", () => {
     // No process participant may write issue-body checkboxes before merge
-    // (docs/proportionality-review.md §7): publication renders them
+    // (the 2026-07-10 proportionality campaign §7): publication renders them
     // unchecked and the Builder never edits criteria, so requiring checked
     // boxes would fail every orchestrator-published ticket.
     const result = runCompletenessGate(

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Seed the Stage 7 benchmark fixture (docs/proportionality-review.md §5;
+# Seed the Stage 7 benchmark fixture (the 2026-07-10 proportionality campaign §5;
 # fixture decision: docs/approval-and-release-amendment.md — a disposable
 # repository per run, created from pinned inputs, no state bleed).
 #

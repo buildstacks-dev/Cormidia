@@ -94,7 +94,7 @@ export interface BlockedEntry {
 export const FINDING_RESOLUTION_OUTCOMES = ["fixed", "rebutted"] as const;
 export type FindingResolutionOutcome = (typeof FINDING_RESOLUTION_OUTCOMES)[number];
 
-/** A fix pass's per-finding disposition (proportionality-review Stage 2 —
+/** A fix pass's per-finding disposition (proportionality campaign Stage 2 —
  *  findings stay open until individually fixed or rebutted, durably). */
 export interface FindingResolution {
   outcome: FindingResolutionOutcome;

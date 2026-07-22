@@ -844,7 +844,7 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<Shel
       // Gates always run non-interactively: package managers must never wait
       // on (or fail for lack of) a TTY. pnpm refuses to replace an existing
       // modules dir without CI=1 — that refusal cost a full remediation turn
-      // in the 2026-07-10 episode (proportionality-review Stage 3).
+      // in the 2026-07-10 episode (proportionality campaign Stage 3).
       //
       // The setup gate is where the FIRST install of a fresh worktree happens,
       // so the deny-by-default dependency build policy has to be here too, not

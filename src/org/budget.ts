@@ -1,5 +1,5 @@
 // Monthly budget rollup and auto-pause overlay (architecture.md §7), plus the
-// runs/-to-ledger reconciliation (proportionality-review Stage 1): the run
+// runs/-to-ledger reconciliation (proportionality campaign Stage 1): the run
 // envelopes are the source of truth for what a pass actually cost; the ledger
 // is the rollup every budget/retro/scorecard reader consumes. Reconcile walks
 // the envelopes and back-fills any pass the ledger missed, keyed on run_id.

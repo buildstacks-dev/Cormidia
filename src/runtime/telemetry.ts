@@ -1,7 +1,7 @@
 // Per-turn cost telemetry (docs/PURPOSE.md: silent fan-out must show up in budget
 // reports). Appends one JSONL record per turn under .org/telemetry/.
 //
-// Settlement model (proportionality-review Stage 1 / telemetry doc Defect B):
+// Settlement model (proportionality campaign Stage 1 / telemetry doc Defect B):
 // the unit of cost settlement is one provider turn — one Runtime.runTurn call,
 // which for pipeline work means one pass. The pass executor settles each pass
 // into this ledger keyed on run_id; turn-level records written by the org

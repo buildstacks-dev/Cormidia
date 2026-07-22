@@ -710,9 +710,8 @@ reject
 
 Declared **before results are observed**. Required for efficacy-claiming
 candidates and T2/T3 activation (waivable by a human, recorded on the
-approval); optional otherwise. The examples in the archived feedback
-(`archive/2026-07-10_feedback.md` §10) illustrate policy values; thresholds
-are per-experiment declarations, not universal constants.
+approval); optional otherwise. The example below illustrates policy values;
+thresholds are per-experiment declarations, not universal constants.
 
 ```yaml
 experiment_id: exp_builder-test-mapping_01

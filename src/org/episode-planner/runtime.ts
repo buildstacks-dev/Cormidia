@@ -18,6 +18,7 @@ import {
   parseNormalizedProposedEpisodePlan,
   readCurrentEpisodePlan,
   validateForwardOnlyRevision,
+  validateInitialPlanSupersessions,
   type CreatorScopeAssessment,
   type EpisodeIntent,
   type EpisodePlan,
@@ -1281,6 +1282,10 @@ function evaluateInitialPlannerOutput(
     ),
   };
   assertEpisodePlanValid(plan, options.intent, policy.validation);
+  const supersessionIssues = validateInitialPlanSupersessions(plan);
+  if (supersessionIssues.length > 0) {
+    throw new EpisodePlanValidationError(supersessionIssues);
+  }
   options.validateAcceptedPlan?.(structuredClone(plan));
   return plan;
 }

@@ -141,6 +141,14 @@ describe("EpisodePlanner bounded brief", () => {
         "build/implement",
       ]);
     }
+    expect(revision["revisionRules"]).toMatchObject({
+      completedStepsAreImmutable: true,
+      completedContractSupersession: {
+        fieldOnNewContractStep: "supersedes",
+        targetOperation: "build/contract",
+        originalStepRemainsByteIdentical: true,
+      },
+    });
   });
 });
 

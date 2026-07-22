@@ -42,19 +42,23 @@ describe("efficiency metric oracles", () => {
     ])).toBe(20_000);
   });
 
-  it("B-MET-02 fingerprints tracked and untracked content, not only Git status labels", () => {
+  it("B-MET-02 fingerprints tracked changes while ignoring disposable build output", () => {
     const repo = makeWorkingRepo();
     try {
+      repo.commit("chore: ignore generated site", { ".gitignore": "dist/\n" });
       const clean = worktreeFingerprint(repo.root);
+      repo.writeFiles({ "dist/index.html": "<h1>verified build</h1>\n" });
+      const ignoredBuild = worktreeFingerprint(repo.root);
+      repo.writeFiles({ "review-notes.txt": "untracked reviewer scratch\n" });
+      const untrackedScratch = worktreeFingerprint(repo.root);
       repo.writeFiles({ "package.json": '{"name":"first"}\n' });
       const firstTracked = worktreeFingerprint(repo.root);
       repo.writeFiles({ "package.json": '{"name":"second"}\n' });
       const secondTracked = worktreeFingerprint(repo.root);
-      repo.writeFiles({ "untracked.txt": "first\n" });
-      const firstUntracked = worktreeFingerprint(repo.root);
-      repo.writeFiles({ "untracked.txt": "second\n" });
-      const secondUntracked = worktreeFingerprint(repo.root);
-      expect(new Set([clean, firstTracked, secondTracked, firstUntracked, secondUntracked]).size).toBe(5);
+      expect(ignoredBuild).toBe(clean);
+      expect(untrackedScratch).toBe(clean);
+      expect(firstTracked).not.toBe(clean);
+      expect(secondTracked).not.toBe(firstTracked);
     } finally {
       repo.cleanup();
     }

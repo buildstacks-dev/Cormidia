@@ -229,6 +229,15 @@ export function renderEpisodePlannerRevisionBrief(
     validationDiagnostics: diagnostics,
     revisionRules: {
       completedStepsAreImmutable: true,
+      completedContractSupersession: {
+        allowed: true,
+        fieldOnNewContractStep: "supersedes",
+        targetOperation: "build/contract",
+        replacementOperation: "build/contract",
+        originalStepRemainsByteIdentical: true,
+        replacementDirectlyDependsOnOriginal: true,
+        dependentFutureWorkMustUseReplacement: true,
+      },
       futureWorkOnly: true,
       preserveCreatorProvenance:
         request.previousPlan.planningSource === "creator_scope",

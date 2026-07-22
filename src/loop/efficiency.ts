@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, readFileSync, readlinkSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { lstat, mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -1282,20 +1282,12 @@ export function fingerprint(value: unknown): string {
   return sha256(stableJson(value));
 }
 
-/** Content fingerprint of the authoritative git worktree state, including
- * tracked and untracked path/status changes. Unknown is explicit. */
+/** Content fingerprint of the authoritative tracked git state. Read-only
+ * provider work may create ignored or other untracked build artifacts while
+ * verifying the product; those files are not evidence of source mutation.
+ * Unknown is explicit. */
 export function worktreeFingerprint(workdir: string): string | undefined {
   try {
-    const status = execFileSync(
-      "git",
-      ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-      {
-        cwd: workdir,
-        stdio: ["ignore", "pipe", "ignore"],
-        timeout: 5_000,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-      },
-    );
     const head = execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: workdir,
       stdio: ["ignore", "pipe", "ignore"],
@@ -1309,21 +1301,7 @@ export function worktreeFingerprint(workdir: string): string | undefined {
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
       maxBuffer: 64 * 1024 * 1024,
     });
-    const untracked = execFileSync("git", ["ls-files", "--others", "--exclude-standard", "-z"], {
-      cwd: workdir,
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: 5_000,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    }).toString("utf8").split("\0").filter(Boolean).sort();
-    const hash = createHash("sha256").update(head).update(status).update(trackedDiff);
-    for (const relativePath of untracked) {
-      const path = join(workdir, relativePath);
-      const info = lstatSync(path);
-      hash.update("\0untracked\0").update(relativePath).update("\0");
-      if (info.isSymbolicLink()) hash.update("symlink\0").update(readlinkSync(path));
-      else hash.update("file\0").update(readFileSync(path));
-    }
-    return hash.digest("hex");
+    return createHash("sha256").update(head).update(trackedDiff).digest("hex");
   } catch {
     return undefined;
   }

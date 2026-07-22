@@ -541,6 +541,16 @@ describe("EpisodePlan core", () => {
     const adaptive = makeProposal({ ...intent, assignmentMode: "adaptive" }, "episode_planner", "adaptive");
     expect(parseProposedEpisodePlan(adaptive)).toEqual(adaptive);
 
+    const revisionContract = structuredClone(fixed);
+    const revisionStep = revisionContract.steps[0];
+    if (revisionStep?.kind !== "provider_turn") throw new Error("fixture provider step disappeared");
+    revisionStep.operation = "build/contract";
+    revisionStep.supersedes = "completed-contract";
+    expect(parseProposedEpisodePlan(revisionContract).steps[0]).toHaveProperty(
+      "supersedes",
+      "completed-contract",
+    );
+
     const unknown = { ...structuredClone(fixed), runtime: "codex" };
     expect(() => parseProposedEpisodePlan(unknown)).toThrowError(EpisodePlanValidationError);
     try {
@@ -681,6 +691,20 @@ describe("EpisodePlan core", () => {
     await expect(persistEpisodePlan({ root: home.root, plan: v1, intent, policy })).resolves.toEqual(pointer);
   });
 
+  it("rejects supersession claims on an initial plan with no completed history", async () => {
+    const home = track(homes, makeOrgHome());
+    const intent = makeIntent();
+    const policy = makePolicy("fixed");
+    const plan = makePlan(intent, "fixed");
+    provider(plan, "build").supersedes = "prior-contract";
+
+    await expect(persistEpisodePlan({ root: home.root, plan, intent, policy }))
+      .rejects.toMatchObject({
+        code: "error_episode_plan_invalid",
+        issues: [{ code: "plan_supersession_invalid", stepId: "build" }],
+      });
+  });
+
   it("requires typed replan authority for forward revisions and preserves completed steps byte-for-byte", async () => {
     const home = track(homes, makeOrgHome());
     const intent = makeIntent();
@@ -754,6 +778,111 @@ describe("EpisodePlan core", () => {
         issues: [{ code: "plan_revision_completed_step_changed", stepId: "build" }],
       });
     expect((await readCurrentEpisodePlan(home.root, intent.episodeId))?.version).toBe(2);
+  });
+
+  it("supersedes a completed contract with a new contract while preserving immutable evidence", async () => {
+    const home = track(homes, makeOrgHome());
+    const intent = makeIntent();
+    const policy = makePolicy("fixed");
+    const v1 = makePlan(intent, "fixed");
+    const build = provider(v1, "build");
+    const contract = {
+      ...structuredClone(build),
+      id: "contract",
+      operation: "build/contract",
+      objective: "Establish the original build contract",
+      dependsOn: [],
+      inputRefs: [{ ref: "ticket", required: true }],
+      expectedOutputs: [
+        { id: "contract-v1", kind: "contract", required: true },
+        { id: "criterion-map-v1", kind: "criterion_test_contract_mapping", required: true },
+      ],
+      selectionReason: "Bind acceptance criteria before implementation",
+    };
+    build.dependsOn = [contract.id];
+    build.inputRefs = [{ ref: "plan-output:contract-v1", required: true }];
+    v1.steps.unshift(contract);
+    v1.estimatedBudget = estimateEpisodePlanBudget(v1.steps, 0);
+    v1.derivedSafetyRoute = deriveEpisodeSafetyRoute(v1.steps, intent.requiredSafetyFacts);
+    expect(validateEpisodePlan(v1, intent, policy)).toMatchObject({ ok: true, issues: [] });
+    await persistEpisodePlan({ root: home.root, plan: v1, intent, policy });
+    await executeEpisodePlan({
+      root: home.root,
+      plan: v1,
+      maxSteps: 1,
+      handlers: {
+        provider: async (step) => ({ status: "completed", artifact: { providerStepId: step.id } }),
+        mechanical: async (step) => ({ status: "completed", artifact: { gate: step.gate } }),
+        approval: async (step) => ({ status: "completed", artifact: { approval: step.actionRef } }),
+      },
+    });
+
+    const v2 = structuredClone(v1);
+    v2.version = 2;
+    v2.createdAt = "2026-07-19T16:02:00.000Z";
+    v2.summary = "Replace the disproven contract, then re-authorize dependent work";
+    const replacement = {
+      ...structuredClone(contract),
+      id: "contract-v2",
+      objective: "Establish a corrected build contract",
+      dependsOn: [contract.id],
+      inputRefs: [{ ref: "plan-output:contract-v1", required: true }],
+      expectedOutputs: [
+        { id: "contract-v2", kind: "contract", required: true },
+        { id: "criterion-map-v2", kind: "criterion_test_contract_mapping", required: true },
+      ],
+      supersedes: contract.id,
+    };
+    v2.steps.splice(1, 0, replacement);
+    provider(v2, "build").dependsOn = [replacement.id];
+    provider(v2, "build").inputRefs = [{ ref: "plan-output:contract-v2", required: true }];
+    v2.estimatedBudget = estimateEpisodePlanBudget(v2.steps, 0);
+    v2.derivedSafetyRoute = deriveEpisodeSafetyRoute(v2.steps, intent.requiredSafetyFacts);
+
+    expect(validateEpisodePlan(v2, intent, policy)).toMatchObject({ ok: true, issues: [] });
+    expect(validateForwardOnlyRevision(v1, v2, [contract.id])).toEqual([]);
+
+    const inPlaceMutation = structuredClone(v2);
+    provider(inPlaceMutation, contract.id).objective = "Rewrite the completed contract in place";
+    expect(validateForwardOnlyRevision(v1, inPlaceMutation, [contract.id])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "plan_revision_completed_step_changed",
+          stepId: contract.id,
+        }),
+      ]),
+    );
+
+    await requestEpisodeReplan({
+      root: home.root,
+      episodeId: intent.episodeId,
+      trigger: replanTrigger("contract-supersession", 1, [contract.id, build.id]),
+    });
+    await publishEpisodePlanRevision({
+      root: home.root,
+      requestId: "contract-supersession",
+      plan: v2,
+      intent,
+      policy,
+    });
+
+    const calls: string[] = [];
+    const completed = await executeEpisodePlan({
+      root: home.root,
+      plan: v2,
+      handlers: {
+        provider: async (step) => {
+          calls.push(step.id);
+          return { status: "completed", artifact: { providerStepId: step.id } };
+        },
+        mechanical: async (step) => ({ status: "completed", artifact: { gate: step.gate } }),
+        approval: async (step) => ({ status: "completed", artifact: { approval: step.actionRef } }),
+      },
+    });
+    expect(completed.status).toBe("completed");
+    expect(calls).toEqual(["contract-v2", "build", "review"]);
+    expect(calls).not.toContain(contract.id);
+    expect(provider(v2, contract.id)).toEqual(contract);
   });
 
   it("lets exactly one divergent concurrent first writer win", async () => {

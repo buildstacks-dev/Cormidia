@@ -126,6 +126,12 @@ export const EPISODE_PLAN_PROPOSAL_SCHEMA = {
               operation: { type: "string", pattern: OPERATION_PATTERN },
               role: { type: "string", minLength: 1 },
               requiredCapabilities: { type: "array", items: { type: "string", minLength: 1 } },
+              supersedes: {
+                type: "string",
+                pattern: STEP_ID_PATTERN,
+                description:
+                  "Revision-only: identifies one immutable completed build/contract step replaced by this new build/contract step.",
+              },
               assignment: {
                 type: "object",
                 additionalProperties: false,
@@ -475,6 +481,9 @@ export interface ProviderTurnStep extends EpisodeStepBase {
   operation: string;
   role: string;
   requiredCapabilities: string[];
+  /** Revision-only edge from a new build/contract step to the immutable
+   * completed build/contract evidence it replaces. */
+  supersedes?: string;
   assignment: TurnAssignment;
   assignmentSource: TurnAssignmentSource;
   maxTurnBudgetUsd: number;
@@ -500,6 +509,7 @@ export interface ProposedProviderTurnStep extends EpisodeStepBase {
   operation: string;
   role: string;
   requiredCapabilities: string[];
+  supersedes?: string;
   assignment?: TurnAssignment;
   maxTurnBudgetUsd: number;
   selectionReason: string;
@@ -624,6 +634,7 @@ export const EPISODE_PLAN_REASON_CODES = [
   "plan_revision_completed_step_missing",
   "plan_revision_completed_step_changed",
   "plan_revision_unknown_completed_step",
+  "plan_supersession_invalid",
   "plan_repair_regressive",
 ] as const;
 
@@ -1304,6 +1315,79 @@ export function validateForwardOnlyRevision(
       issues.push(issue("plan_revision_completed_step_changed", `completed step ${stepId} is immutable`, stepId));
     }
   }
+  issues.push(...validateRevisionContractSupersessions(
+    priorById,
+    next,
+    new Set(completedStepIds),
+  ));
+  return issues;
+}
+
+/** Supersession has meaning only relative to an immutable prior plan and its
+ * durable completion set. Initial plans must never predeclare or manufacture
+ * that history. */
+export function validateInitialPlanSupersessions(plan: EpisodePlan): EpisodePlanIssue[] {
+  return plan.steps.flatMap((step) =>
+    step.kind === "provider_turn" && step.supersedes !== undefined
+      ? [issue(
+          "plan_supersession_invalid",
+          `initial plan step ${step.id} cannot supersede prior work`,
+          step.id,
+        )]
+      : []);
+}
+
+function validateRevisionContractSupersessions(
+  priorById: ReadonlyMap<string, EpisodeStep>,
+  next: EpisodePlan,
+  completedStepIds: ReadonlySet<string>,
+): EpisodePlanIssue[] {
+  const issues: EpisodePlanIssue[] = [];
+  const claimedTargets = new Map<string, string>();
+  for (const step of next.steps) {
+    if (step.kind !== "provider_turn" || step.supersedes === undefined) continue;
+    const priorSameId = priorById.get(step.id);
+    if (priorSameId !== undefined && stableHash(priorSameId) === stableHash(step)) {
+      claimedTargets.set(step.supersedes, step.id);
+      continue;
+    }
+    const invalid = (message: string): void => {
+      issues.push(issue("plan_supersession_invalid", message, step.id));
+    };
+    if (priorSameId !== undefined) {
+      invalid(`superseding contract ${step.id} must be a new revision step`);
+    }
+    const priorTarget = priorById.get(step.supersedes);
+    if (
+      priorTarget?.kind !== "provider_turn" ||
+      priorTarget.operation !== "build/contract"
+    ) {
+      invalid(
+        `superseding contract ${step.id} must identify a prior build/contract step`,
+      );
+    }
+    if (!completedStepIds.has(step.supersedes)) {
+      invalid(
+        `superseding contract ${step.id} may replace only completed step ${step.supersedes}`,
+      );
+    }
+    if (step.operation !== "build/contract") {
+      invalid(`only a new build/contract step may supersede a completed contract`);
+    }
+    if (!step.dependsOn.includes(step.supersedes)) {
+      invalid(
+        `superseding contract ${step.id} must depend on immutable contract ${step.supersedes}`,
+      );
+    }
+    const priorClaim = claimedTargets.get(step.supersedes);
+    if (priorClaim !== undefined && priorClaim !== step.id) {
+      invalid(
+        `completed contract ${step.supersedes} is already superseded by ${priorClaim}`,
+      );
+    } else {
+      claimedTargets.set(step.supersedes, step.id);
+    }
+  }
   return issues;
 }
 
@@ -1494,6 +1578,10 @@ async function persistEpisodePlanLocked(input: {
   const validationPolicy = immutableIntentPolicy(input.policy, validationIntent);
   const planHash = assertEpisodePlanValid(input.plan, validationIntent, validationPolicy);
   if (authority === undefined) {
+    const supersessionIssues = validateInitialPlanSupersessions(input.plan);
+    if (supersessionIssues.length > 0) {
+      throw new EpisodePlanValidationError(supersessionIssues);
+    }
     if (current !== undefined && current.version !== 1) {
       throw new EpisodePlanPersistenceError(
         "error_episode_plan_pointer_conflict",
@@ -1802,6 +1890,16 @@ function validateProviderStep(
   policy: EpisodePlanValidationPolicy,
   issues: EpisodePlanIssue[],
 ): void {
+  if (
+    step.supersedes !== undefined &&
+    (typeof step.supersedes !== "string" || !STEP_ID.test(step.supersedes))
+  ) {
+    issues.push(issue(
+      "plan_supersession_invalid",
+      "superseded step must be a stable step id",
+      step.id,
+    ));
+  }
   if (!machineReadableOperation(step.operation)) {
     issues.push(issue("plan_operation_invalid", "provider operation must be a stable machine-readable identifier", step.id));
   } else if (
@@ -2863,12 +2961,16 @@ function isProposedEpisodeStep(value: unknown): value is ProposedEpisodeStep {
   }
   if (value["kind"] !== "provider_turn" || !exactKeys(
     value,
-    [...commonRequired, "operation", "role", "requiredCapabilities", "assignment", "maxTurnBudgetUsd", "selectionReason"],
+    [...commonRequired, "operation", "role", "requiredCapabilities", "supersedes", "assignment", "maxTurnBudgetUsd", "selectionReason"],
     [...commonRequired, "operation", "role", "requiredCapabilities", "maxTurnBudgetUsd", "selectionReason"],
   )) return false;
   if (!machineReadableOperation(value["operation"]) || !nonEmpty(value["role"]) || !stringArray(value["requiredCapabilities"]) ||
       typeof value["maxTurnBudgetUsd"] !== "number" || !finiteNonNegative(value["maxTurnBudgetUsd"]) ||
       value["maxTurnBudgetUsd"] === 0 || !nonEmpty(value["selectionReason"])) return false;
+  if (
+    value["supersedes"] !== undefined &&
+    (typeof value["supersedes"] !== "string" || !STEP_ID.test(value["supersedes"]))
+  ) return false;
   if (value["assignment"] === undefined) return true;
   try {
     validateTurnAssignment(value["assignment"]);
@@ -2980,7 +3082,7 @@ function isEpisodeStep(value: unknown): value is EpisodeStep {
     value,
     [
       ...commonRequired, "operation", "role", "requiredCapabilities", "assignment",
-      "assignmentSource", "maxTurnBudgetUsd", "selectionReason",
+      "assignmentSource", "supersedes", "maxTurnBudgetUsd", "selectionReason",
     ],
     [
       ...commonRequired, "operation", "role", "requiredCapabilities", "assignment",
@@ -2994,6 +3096,8 @@ function isEpisodeStep(value: unknown): value is EpisodeStep {
   }
   return machineReadableOperation(value["operation"]) && nonEmpty(value["role"]) && stringArray(value["requiredCapabilities"]) &&
     (["configured", "episode_planner", "creator"] as const).includes(value["assignmentSource"] as "configured") &&
+    (value["supersedes"] === undefined ||
+      (typeof value["supersedes"] === "string" && STEP_ID.test(value["supersedes"]))) &&
     typeof value["maxTurnBudgetUsd"] === "number" && nonEmpty(value["selectionReason"]);
 }
 

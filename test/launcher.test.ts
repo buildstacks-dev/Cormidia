@@ -95,7 +95,7 @@ describe("Operon pre-ESM launchers", () => {
     });
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toBe("0.1.0\n");
+    expect(result.stdout).toBe("0.1.1\n");
   });
 
   it("preserves argument bytes and the compiled CLI exit code in packaged layout", () => {

@@ -16,3 +16,6 @@ bench-report.html
 
 # Playwright output from pnpm test:observe-browser
 test-results/
+
+# Temp files
+TODO.md

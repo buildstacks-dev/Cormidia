@@ -179,12 +179,14 @@ operon bootstrap <local-repo> --scan-only
 operon bootstrap <local-repo>                    # interactive terminal questionnaire
 operon bootstrap <local-repo> --answers answers.json
 operon bootstrap <local-repo> --answers-from <archive-or-app> --json
+operon bootstrap publish <app> --json             # preview; --execute opens draft PRs only
 operon org upgrade --authority delegated-operator --json
 operon app verify <app> --json
 operon app promote <app> --to live --json         # non-mutating plan
 operon new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
 operon new-app docs-site --target-dir ../docs-site --repo owner/docs-site --goal "Publish product documentation" --template bare --dry-run --json
 operon plan <app> --dry-run
+operon plan ratify-ticket-budget --app <app> --decomposition <id> --actor <identity> --reason "<why>" --from-budget N --to-budget N # preview; human-gated
 operon loop --app <app> --once --dry-run
 operon loop rearm --app <app> --ticket <n> --reason "reviewed" --actor <identity> --from-allowance 3 --to-allowance 4 # preview
 operon dispatch --dry-run
@@ -826,9 +828,14 @@ degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
   `plan --creator-scope <json-or-yaml> --execution-ready` for an explicitly
   complete creator-authored bypass. The manual `--dry-run` form remains as a
   token-free current-worktree/context preview.
-- **Bootstrap publication remains manual.** A safe, draft-PR-only publication
-  workflow with exact staging and dry-run semantics is tracked in
-  [issue #61](https://github.com/buildstacks-dev/Operon/issues/61).
+- **Bootstrap publication is draft-PR-only.** `operon bootstrap publish <app>`
+  previews by default; `--execute` stages only bootstrap-owned paths, cuts
+  `op/bootstrap-<app>` from each remote's resolved default branch, and opens
+  draft pull requests — it never merges or marks ready, is idempotent on
+  retry, and refuses when unrelated staged changes, a merge in progress, or a
+  detached HEAD make the scope ambiguous. Marking ready and merging stay
+  human ([issue #61](https://github.com/buildstacks-dev/Operon/issues/61),
+  closed 2026-07-18).
 - **Codex App-Server read bypass:** under the `untrusted` approval policy the
   App Server auto-runs trusted read-only commands (`cat`, `ls`) without an
   approval request, so those reads do not reach the gate hook. Tracked in

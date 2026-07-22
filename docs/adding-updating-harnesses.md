@@ -107,9 +107,9 @@ blocker if skipped:
    The builder ≠ reviewer cross-provider pairing in `test/roles.test.ts` is
    a design decision — if it fails, the roles change is wrong, not the test.
 9. **`research/`** — record the dated live-conformance result (see §5).
-10. **AGENTS.md** — update the Map row for `src/runtime/` and the runtime
-    dependency list if a new package was added (a new dependency is a
-    decision, not a convenience — TASTE.md §3).
+10. **AGENTS.md** — update `src/runtime/AGENTS.md` (the local rules file)
+    and the root AGENTS.md dependency list if a new package was added (a new
+    dependency is a decision, not a convenience — TASTE.md §3).
 
 ## 4. What proves a harness — the three test tiers
 

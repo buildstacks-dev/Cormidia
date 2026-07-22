@@ -156,7 +156,12 @@ describe("read-command JSON contract", () => {
       expect(parsed.commands.find((entry) => entry.command === command)?.supportsJson).toBe(true);
     }
     expect(parsed.commands.find((entry) => entry.command === "loop")?.supportsJson).toBe(false);
-  });
+    // Seven real CLI subprocess spawns (six `--help` plus `capabilities
+    // --json`). CI runs `test:offline` with `--testTimeout=15000`, and on a
+    // shared two-worker runner this test lands just over it — it failed at
+    // 15021ms while passing locally. The budget is a resource bound, not an
+    // assertion: every contract check above is unchanged.
+  }, 60_000);
 
   it("keeps configuration immutable and all generated state inside the explicit fixture", () => {
     expect(readFileSync(join(ORG_HOME, "apps.yaml"), "utf8")).toBe(

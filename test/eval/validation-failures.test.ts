@@ -27,9 +27,9 @@ describe("eval:validate fail-closed traceability", () => {
     const root = makeRoot(); const path = join(root, "eval/benchmarks.yaml"); const value = parse(readFileSync(path, "utf8")) as { families: Array<{ id: string }> }; value.families = value.families.filter((item) => item.id !== "LIFE-LEGACY-001"); writeFileSync(path, stringify(value));
     const result = run(root); expect(result.status).not.toBe(0); expect(result.report.failures.join("\n")).toContain("missing benchmark family LIFE-LEGACY-001");
   });
-  it("fails for an orphaned source requirement removed from the contract inventory", () => {
+  it("fails when the contract inventory size drifts from the ratified count", () => {
     const root = makeRoot(); const path = join(root, "eval/contracts.yaml"); const value = parse(readFileSync(path, "utf8")) as { contracts: Array<{ id: string }> }; value.contracts = value.contracts.filter((item) => item.id !== "B-ADM-01"); writeFileSync(path, stringify(value));
-    const result = run(root); expect(result.status).not.toBe(0); expect(result.report.failures.join("\n")).toContain("source requirement missing from inventory B-ADM-01");
+    const result = run(root); expect(result.status).not.toBe(0); expect(result.report.failures.join("\n")).toContain("contracts must contain exactly 84 records");
   });
   it("fails when pinned grader content changes without a new manifest hash", () => {
     const root = makeRoot(); const path = join(root, "eval/graders/route-corpus/reference/grader-evidence.json"); writeFileSync(path, `${readFileSync(path, "utf8")}\n`);
@@ -82,7 +82,6 @@ function makeRoot(): string {
     "test/settlement/property.test.ts",
     "test/scheduler/lifecycle.test.ts",
     "test/scheduler/virtual-soak.test.ts",
-    "docs/efficiency-transformation",
   ]) { const target = join(root, path); mkdirSync(dirname(target), { recursive: true }); cpSync(join(repo, path), target, { recursive: true }); }
   return root;
 }

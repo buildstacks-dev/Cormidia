@@ -105,7 +105,7 @@ machinery. On conflict this summary wins — fix that file.
 - Platform state: `docs/status.md` · decisions: `docs/PURPOSE.md` · code wiki: `docs/wiki.html` (open in a browser)
 - Architecture: `docs/architecture.md` · build loop: `docs/loop.md` · testing map: `docs/testing.md` · sandbox-app journey: `docs/testing-journey.md`
 - Scheduler contract: `docs/scheduler.md` · event payloads: `docs/event-schemas.md` · approvals/release boundary: `docs/approval-and-release-amendment.md`
-- Learning loop: `docs/learning-loop/` · efficiency boundary: `docs/efficiency.md` · benchmarks: `docs/benchmark-runbook.md` · proportionality: `docs/proportionality-review.md`
+- Learning loop: `docs/learning-loop/` · efficiency boundary: `docs/efficiency.md` · benchmarks: `docs/benchmark-runbook.md`
 - Adapters: `docs/capability-matrix.md` · `docs/adding-updating-harnesses.md` · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`
 - Live UI / Reports / Narrative contracts: `docs/live-ui/design.md` · `docs/reporting/design.md` · `docs/narrative/design.md`
 - Predecessor orchestrator (read-only prior art; "the predecessor" in docs): `scratchpad-gitignore/claude-loop-teams/`

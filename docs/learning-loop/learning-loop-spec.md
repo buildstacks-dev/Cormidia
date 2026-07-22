@@ -1,10 +1,9 @@
 # Learning Loop - Spec Sheet
 
 **Status:** v0.8 - ratified 2026-07-11 (`docs/PURPOSE.md` → Decided → Learning
-loop design); revised per the consolidated design feedback of 2026-07-10
-(`archive/2026-07-10_feedback.md`)  
+loop design)
 **Build status:** built through M5 (PR #52, 2026-07-11); where this document and the code diverge, the code and `AGENTS.md` are authoritative  
-**Companions:** `learning-loop-design.md`, `learning-loop-milestones.md`
+**Companions:** `learning-loop-design.md`
 
 Episode identity, learning-capture coverage, and outcome-accountable efficacy
 use the canonical definitions and missingness rules in `docs/efficiency.md`.

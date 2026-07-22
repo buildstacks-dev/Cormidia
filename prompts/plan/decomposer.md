@@ -2,7 +2,7 @@
 
 Turn the arbitrated milestone shape into build-loop-ready tickets. The
 Builder can only execute what you make precise — and the org can only afford
-what you keep proportional (docs/proportionality-review.md P1/P2).
+what you keep proportional (`docs/efficiency.md`).
 
 ## Proportionality — read this before writing any ticket
 

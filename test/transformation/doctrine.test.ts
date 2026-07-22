@@ -12,15 +12,14 @@ const vision = readFileSync(join(root, "docs/VISION.md"), "utf8");
 const architecture = readFileSync(join(root, "docs/architecture.md"), "utf8");
 const loop = readFileSync(join(root, "docs/loop.md"), "utf8");
 const readme = readFileSync(join(root, "README.md"), "utf8");
-const phaseZeroDecision = readFileSync(join(root, "docs/efficiency-transformation/phase0-doctrine-ratification-proposal.md"), "utf8");
-
 describe("ratified efficiency doctrine", () => {
   it("A-DOC-01 gives normative identities and measurements one canonical definition", () => {
     expect(efficiency.match(/<!-- efficiency-contract:start -->/g)).toHaveLength(1);
     for (const term of ["episode", "role invocation", "pass", "provider turn", "execution step", "mechanical step", "attempt", "active wall time", "Readiness states", "planned_route", "current_route", "final_route"]) {
       expect(efficiency.toLowerCase()).toContain(term.toLowerCase());
     }
-    expect(phaseZeroDecision).toContain("Status | Ratified as written");
+    expect(efficiency).toMatch(/Organization-wide operating doctrine ratified 2026-07-13/);
+    expect(purpose).toContain("organization-wide operating doctrine ratified");
     for (const [name, text] of [["PURPOSE", purpose], ["VISION", vision], ["README", readme], ["architecture", architecture], ["loop", loop]] as const) {
       expect(text, `${name} must link the canonical authority`).toContain("docs/efficiency.md");
       expect(identityConflicts(text), name).toEqual([]);

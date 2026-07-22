@@ -1,5 +1,5 @@
 // Tests ticket-lifetime rehydration in src/loop/rehydrate.ts (Stage 2 of
-// docs/proportionality-review.md).
+// the 2026-07-10 proportionality campaign).
 // Covers contract marker/hash reuse and invalidation, the findings ledger
 // (raise/resolve/reopen/silent-drop semantics), review-cycle counting, open-PR
 // detection, cross-claim state persistence, and the parked digest.

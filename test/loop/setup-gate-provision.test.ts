@@ -1,4 +1,4 @@
-// Regression for L1-02 / L-003 (review/fix-backlog.md, review/live-campaign-crossref-2026-07-17.md):
+// Regression for L1-02 / L-003 (2026-07-16 architecture review + live-campaign):
 // the setup/install gate must run at worktree PROVISION, before the builder's
 // first implement pass — not only in the post-implement gates runner. On a
 // fresh worktree with no vendored node_modules, the builder's mandatory

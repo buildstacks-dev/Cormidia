@@ -282,10 +282,8 @@ config file, not a fork.
 - **Efficiency doctrine and evaluation semantics** (evaluation semantics
   ratified 2026-07-12; organization-wide operating doctrine ratified
   2026-07-13; operator outcome in `docs/VISION.md`, canonical contract in
-  `docs/efficiency.md`, Phase 0 decision record in
-  `docs/efficiency-transformation/phase0-doctrine-ratification-proposal.md`,
-  and T0 eval decision in
-  `docs/efficiency-transformation/t0-eval-ratification-proposal.md`).
+  `docs/efficiency.md`, executable requirement inventory in
+  `eval/contracts.yaml`).
   Efficiency is a correctness property and never weakens safety, independent
   review, evidence, or critical-operation governance. Provider accounting and
   execution have distinct identities: every provider turn settles exactly
@@ -528,10 +526,8 @@ config file, not a fork.
   (A5) denial reasons persist as curated role memory so no denial is
   re-litigated. Agents gain no unilateral power anywhere in this amendment —
   every widening is a human act at decision time.
-- **Learning loop design** (ratified 2026-07-11; full design, schemas, and
-  release plan in `docs/learning-loop/` — design/spec/milestones; the
-  2026-07-10 review feedback that drove the v0.8 revision is archived at
-  `docs/learning-loop/archive/2026-07-10_feedback.md`). Operon's governed
+- **Learning loop design** (ratified 2026-07-11; full design and schemas in
+  `docs/learning-loop/`). Operon's governed
   self-improvement system: agents stop writing active memory directly and
   emit candidates instead; a distiller routes evidence to the
   lowest-authority useful destination (OKF concept, skill draft, protocol

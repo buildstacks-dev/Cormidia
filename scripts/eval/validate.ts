@@ -26,10 +26,6 @@ const requirementIds = new Set(contracts.map((item) => item.id));
 scanYaml(join(root, "eval/development-authorizations"), (path, value) => {
   for (const error of validateDevelopmentAuthorization(value)) failures.push(`${path}: ${error}`);
 });
-const sourceContract = readFileSync(join(root, "docs/efficiency-transformation/highly-efficient-organization-test-eval-transformation.md"), "utf8");
-const sourceRequirementIds = new Set([...sourceContract.matchAll(/`([A-J]-(?:[A-Z]+-)*\d{2})`/g)].map((match) => match[1]!));
-for (const id of sourceRequirementIds) if (!requirementIds.has(id)) failures.push(`contracts.yaml: source requirement missing from inventory ${id}`);
-for (const id of requirementIds) if (!sourceRequirementIds.has(id)) failures.push(`contracts.yaml: inventory requirement absent from source document ${id}`);
 const casesByRequirement = new Map<string, string[]>();
 const casesById = new Map<string, { path: string; value: Record<string, unknown> }>();
 const caseGraderPaths = new Set<string>();

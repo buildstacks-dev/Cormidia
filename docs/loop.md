@@ -442,7 +442,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
 | security         | regex scan of changed files against the canonical list in `src/runtime/secret-patterns.ts`: `sk-…`/`ghp_…`/`github_pat_…` keys, AWS key ids, Stripe/Slack/Google/npm tokens, Slack webhook URLs, JWTs, URL userinfo credentials, `-----BEGIN PRIVATE KEY-----`, and generic key/token/password assignments incl. snake_case forms (`GITHUB_TOKEN=…`, `aws_secret_access_key = …`); binaries skipped |
-| completeness     | criteria present and parseable; every criterion has a covering test in the contract mapping; no unresolved findings on the PR. Checkbox state is gate *output*, not input: the orchestrator renders all boxes checked at merge (no process participant may write them earlier — see docs/proportionality-review.md §7) |
+| completeness     | criteria present and parseable; every criterion has a covering test in the contract mapping; no unresolved findings on the PR. Checkbox state is gate *output*, not input: the orchestrator renders all boxes checked at merge (no process participant may write them earlier) |
 | review-freshness | branch HEAD == the APPROVE review's `commit_id` (GitHub-native); always runs regardless of tier                                                                |
 
 
@@ -677,7 +677,7 @@ Completion detection is **state-based, never string-based**: the tick reads
 labels, PR/review state, and gate results — the predecessor's
 completion-detection philosophy with GitHub as the state store.
 
-### 7.1 Continuation from durable artifacts (proportionality-review Stage 2)
+### 7.1 Continuation from durable artifacts (proportionality Stage 2)
 
 A re-claim is **not** a blank slate. Before claiming, the driver rehydrates
 ticket-lifetime state from the artifacts previous turns left behind

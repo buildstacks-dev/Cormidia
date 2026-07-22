@@ -22,7 +22,7 @@ published exactly 1 ticket, canonical labels (`op:ready`,
 ends-at-merge release disposition. $0.71, 163 s, settled once into the
 ledger. PR #8 squash-merged on this pass.
 
-## Stage 7 benchmark — round 1 result (full analysis: docs/proportionality-review.md §7)
+## Stage 7 benchmark — round 1 result (full analysis: the 2026-07-10 proportionality campaign §7)
 
 Returned ticket: the completeness gate demanded checked acceptance boxes —
 a state channel no process participant may write. 6 passes, $19.00,
@@ -66,7 +66,7 @@ typed verdict channel (PR #13) carried both review outcomes. All five
 targets met: 6 passes vs ≤ 8, $6.83 vs ≤ $40, 0 decisions vs ≤ 5, ~11 min
 active vs ≤ 90, 1 merged PR vs 1. PR #12 (completeness reads process-owned
 state) squash-merged on this proof. Full table:
-`docs/proportionality-review.md` §7, round 2.
+`the 2026-07-10 proportionality campaign` §7, round 2.
 
 ## Codex adapter: `error_auth` classification — live re-run (2026-07-11)
 

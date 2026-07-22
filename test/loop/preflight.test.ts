@@ -1,5 +1,5 @@
 // Tests the token-free environment preflight in src/loop/preflight.ts
-// (Stage 3 of docs/proportionality-review.md, principle P6).
+// (Stage 3 of the 2026-07-10 proportionality campaign, principle P6).
 // Covers command-binary resolution, env-prefix skipping, the offline-install
 // trap, and the all-clear path. The registry probe is network-gated and not
 // exercised here; no network, auth, or org state is required.

@@ -406,7 +406,7 @@ export function runCompletenessGate(
   // participant may write issue-body checkboxes before merge (the Builder
   // never edits criteria, publication renders them unchecked), so requiring
   // them would fail every orchestrator-published ticket
-  // (docs/proportionality-review.md §7). advanceShipping renders the boxes
+  // (the 2026-07-10 proportionality campaign §7). advanceShipping renders the boxes
   // checked at merge — gate output, not gate input.
   if (criteria.length === 0) {
     failures.push("no parseable acceptance criteria on the ticket");

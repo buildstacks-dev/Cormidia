@@ -6,10 +6,10 @@ home*
 
 This document defines Operon's route, budget, measurement, variance, and
 qualification semantics. Other documents link here and must not carry a
-divergent numeric budget table. The operating-doctrine ratification record is
-`docs/efficiency-transformation/phase0-doctrine-ratification-proposal.md`; the
-earlier evaluation-semantics record is
-`docs/efficiency-transformation/t0-eval-ratification-proposal.md`.
+divergent numeric budget table. Ratification lives in `docs/PURPOSE.md`
+(Decided → Efficiency doctrine and evaluation semantics); this file is the
+canonical operating and measurement contract. The executable requirement
+inventory is `eval/contracts.yaml`.
 
 <!-- efficiency-contract:start -->
 
@@ -374,10 +374,10 @@ a standing grant, the environment switch and exact confirmation are accident
 guards supplied by the developer; the grant's cumulative lineage ceiling is
 the human authority.
 
-The baseline cap was amended from the initial $125 recommendation by the
-ratified `docs/efficiency-transformation/t4-baseline-cap-amendment.md`. Its
-Claude Max and ChatGPT Pro dollar values are equivalent-cost indicators rather
-than incremental API billing; per-case route bounds did not change.
+The baseline cap was amended from the initial $125 recommendation (ratified
+2026-07-12). Claude Max and ChatGPT Pro dollar values are equivalent-cost
+indicators rather than incremental API billing; per-case route bounds did not
+change.
 
 ## Development qualification execution
 

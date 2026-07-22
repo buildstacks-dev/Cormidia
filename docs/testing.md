@@ -1,9 +1,12 @@
 # Testing: what runs, when, and why
 
-Reference companion to AGENTS.md → Testing expectations. **AGENTS.md holds the
-rules** (what you must run for a given change); this file holds the **map** (what
-each command covers, what CI does with it, and why the integrity machinery
-exists). If the two disagree, AGENTS.md wins and this file is stale — fix it.
+Reference companion to AGENTS.md → Testing expectations. **Root AGENTS.md holds
+the summary table; [Required runs by changed path](#required-runs-by-changed-path)
+below is the full per-path rulebook**, and the rest of this file is the **map**
+(what each command covers, what CI does with it, and why the integrity machinery
+exists). If they disagree, root AGENTS.md wins and this file is stale — fix it.
+The nested AGENTS.md files in `src/runtime/`, `src/observe/`, `src/report/`,
+and `eval/` restate the local subset for agents working in those trees.
 
 Everything on this page is **token-free**. No command here constructs a provider
 runtime or spends money. The provider-spending commands are listed in
@@ -59,6 +62,79 @@ planner. A token-free preview test must assert that it exposes intent,
 candidates, safety facts, and the expected planning path while leaving the
 exact provider-authored plan `null`. An explain test reads only a persisted
 plan and journal; it does not reconstruct workflow from route/tier history.
+
+## Required runs by changed path
+
+The per-path rulebook (moved from root AGENTS.md 2026-07-21).
+
+- Any `src/` change: `pnpm test && pnpm typecheck` (seconds).
+- `src/observe/**` or `src/cli/observe.ts` changes: also run `pnpm
+  test:observe-browser`, `pnpm build`, `pnpm smoke:onboarding`, and `npm pack
+  --dry-run`; server tests must use a real ephemeral loopback port and cover
+  capability/security headers, SSE replay/resync, corrupt/torn/legacy state,
+  traversal/symlink rejection, and observer-shutdown independence. (Local
+  detail: `src/observe/AGENTS.md`.)
+- `src/report/**`, `src/cli/report.ts`, or Reports-mode changes: run the same
+  browser/build/smoke/pack checks; semantic tests must pin UTC boundaries,
+  ledger corruption/concurrency, accounting quality and duplicates,
+  deterministic session identity, budget agreement, CSP/L3 exclusion,
+  pagination resync, immutable app scope, and read-only behavior. (Local
+  detail: `src/report/AGENTS.md`.)
+- Packaging, home resolution, CLI discovery, or onboarding changes: also run
+  `pnpm smoke:onboarding` and `npm pack --dry-run`; the smoke must use a
+  neutral cwd and temporary provider homes so it cannot depend on the source
+  repo as an implicit org or touch real installed skills.
+- Changes under `eval/**`, `scripts/eval/**`, or transformation eval fixtures:
+  run `pnpm eval:validate`, `pnpm test:transformation`, `pnpm
+  eval:deterministic`, the complete `pnpm test`, and `pnpm typecheck`.
+  `test:transformation:strict` must pass the current scope after the nine
+  Phase 6 provider-evidence promotions;
+  `test:transformation:future-soak-strict` must independently fail only for
+  `I-LIVE-01`. The canonical boundary is `docs/efficiency.md` → Phase 6
+  qualification scope. Never run `eval:github` or `eval:live` merely because
+  these files changed, and never execute `eval:soak` merely because soak
+  files changed. The provider-quality, first-failure, and
+  one-decisive-campaign invariants live in `eval/AGENTS.md` → Invariants and
+  `docs/development.md`.
+- Changes that affect app onboarding, `apps.yaml`, bootstrap, planning, or
+  loop behavior must also be exercised against the live sandbox apps, not
+  only unit tests. Current targets: `~/Build/operon-sandbox-alpha`,
+  `~/Build/operon-sandbox-beta`, `~/Build/operon-sandbox-gamma`, and
+  `~/Build/operon-sandbox-delta` (Ledgerette — the from-scratch onboarding +
+  loop proof). Run the relevant bootstrap/plan/loop smoke plus each sandbox
+  app's own available checks (alpha: `npm test && npm run lint`; beta:
+  `npm test`; gamma: `npm test && npm run lint` plus the role smokes; delta:
+  `npm test && npm run lint` — its `.operon/config.yaml` sets the
+  `setup_command` the `setup` gate runs) and report the exact
+  commands/results.
+- Scheduler lifecycle, dispatch-evidence, or scheduler-health changes must run
+  the production-backed `test/scheduler/` suite under temporary HOME, TMPDIR,
+  org, state, app, and definition trees with an injected manager. Never
+  invoke a real launchd/systemd mutation in tests. The seven-day virtual soak
+  must use fake clocks, include restart/fault/isolation cases, and prove
+  exact provider settlement plus zero mechanical-runtime construction. L6
+  execution remains separately authorized; ordinary changes may run preview
+  only.
+- M5 loop-state-machine changes should also run the disposable GitHub e2e
+  when `gh` auth and `GH_SANDBOX_REPO` are available:
+  `pnpm e2e:sandbox:setup` twice for idempotency, then `pnpm e2e:sandbox`.
+- `gate.ts` changes: add cases to `test/gate.test.ts` for every new rule —
+  both the critical side and a routine near-miss.
+- Adapter changes (`src/runtime/adapters/**`): also run `pnpm test:live` and
+  record the dated result in `research/` — the live conformance run is the
+  only proof the subagent-gate claim still holds.
+- `roles.yaml` changes: `pnpm dev roles` must print cleanly; tests stay green.
+- `pipelines.yaml` / `prompts/**` changes: `pnpm dev pipelines` must print
+  cleanly; `test/loop/pipelines-root.test.ts` pins the selection semantics
+  (which passes each tier/trigger runs) — an intent change must change that
+  test deliberately, via the same proposal PR.
+- CI admission-rule changes (`scripts/ci/**`, `.github/workflows/**`): add a
+  case to `test/ci/classify-changes.test.ts` for every rule change — these
+  files select which tests run, so they are part of the executable suite (see
+  [CI lanes](#ci-lanes)).
+- New tests: reuse the composable fixtures `test/fixtures/orgHome.ts` and
+  `test/fixtures/fakeClock.ts` instead of a new ad-hoc mkdtemp scaffold.
+- Docs-only changes: nothing to run.
 
 ## When CI runs at all
 

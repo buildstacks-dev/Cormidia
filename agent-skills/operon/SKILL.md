@@ -122,6 +122,73 @@ with `operon bootstrap <local-repo> --answers <answers.json>` after a reset.
 `--force` is limited to stale running envelopes (no heartbeat for ten minutes)
 and never overrides a fresh run, journal, lock, or pending approval.
 
+## Retire a whole org
+
+`operon org list` enumerates every org discoverable from `~/.operon`, with its
+state home, org home, footprint, app count, and last activity. An org whose org
+home is not recorded shows as an orphan; `operon doctor` reports the same.
+
+```bash
+operon org list --json
+operon org archive <org-name>
+```
+
+The plan reports the state home it would remove, the archive destination, and
+anything that makes retirement unsafe (a held role lock, an undecided approval,
+an interrupted lifecycle transaction). Execution requires the exact token:
+
+```bash
+operon org archive <org-name> --execute --confirm <org-name>
+```
+
+It writes one verified archive outside the state home, re-reads every archived
+byte against the source, and only then removes the state home; a verification
+failure removes nothing. It clears the active pointer when that org was active.
+It never touches the org home (usually a git repository and often a human
+checkout) or any GitHub repository, branch, or ticket. Never run `--execute`
+unless the human explicitly asked to retire that named org and has read the
+plan.
+
+Archiving works for any discoverable org, active or not. The retirement is
+recorded in the invoking org's invocation ledger, named by
+`provenance.archivedOrg`. When the archived org is the one you were working in,
+that ledger is being deleted, so the terminal row goes to
+`<archive-root>/retirement-ledger` instead — the row is still written, and it
+is written outside the tree that was removed. After `--execute` returns the
+state home does not exist and nothing re-creates it: check with `operon org
+list` and `operon doctor`, both of which will now report no active org.
+
+Retiring the same org twice from the same paths is normal after a recovery, and
+is safe: the second archive lands in a numbered sibling directory and the first
+one's bytes are never touched.
+
+## Change a role's model, effort, or budget
+
+`roles.yaml` is a human-ratified surface. Preview the change, then hand the
+diff to the human:
+
+```bash
+operon roles set <role> --effort xhigh --turn-budget 15 --json
+```
+
+The preview validates the resulting harness/model/effort tuple against what the
+adapter can execute and writes nothing. Execution additionally requires an
+attributable `--by <identity>` and a `--reason`, and it is journaled — so it is
+the human's decision to record, not yours to make.
+
+Execution edits only the scalars you named, as a byte splice: every comment,
+blank line, key order, and flow sequence in the ratified file is preserved, so
+the human's diff is the size of the change. The plan also states whether the
+resulting model id was proven against the harness's own roster, or names why
+that harness publishes none — read that line before handing the diff over.
+
+Only pi publishes a roster Operon can read without a credential, so only a pi
+model id is refused here when the harness will not serve it. Setting a model or
+runtime on `claude` or `codex` prints an UNVERIFIED warning on stdout and
+stderr and records the same fact in the journal, because nothing short of a
+live turn can check the id. Treat that warning as a real one: hand the human
+the diff, and run `operon doctor` before the role's next turn spends on it.
+
 ## Upgrade, verify, and promote without providers
 
 Preview every lifecycle mutation first:
@@ -178,6 +245,25 @@ Use repeatable `--source <file-or-dir>` for required design/product-truth
 inputs and `--optional-source <file-or-dir>` only when deterministic
 truncation or exclusion is acceptable. Required source failures stop before a
 provider turn; successful tickets publish hashes/refs rather than source bytes.
+
+Each stage caps how many tickets one plan may publish (bootstrap 3, growth 5,
+mature 7). The token-free `plan --dry-run` and `plan --explain-route` previews
+report that cap and whether a requested `--expected-tickets` band can fit it,
+before anything is spent. When a decomposition is refused for that cap alone it
+is preserved verbatim, and the remedy is the human-gated verb — never
+`--stage`, which asserts repository maturity and must stay honest:
+
+```bash
+operon plan ratify-ticket-budget --app <app> --decomposition <id> \
+  --actor <identity> --reason "<why>" --from-budget <stage-budget> --to-budget <ticket-count>
+operon plan ratify-ticket-budget --app <app> --decomposition <id> ... --execute --confirm <app>@<id>
+```
+
+It previews by default, `--to-budget` must equal that decomposition's own
+ticket count, and executing publishes exactly those preserved tickets with no
+provider turn. A ratification applies to one decomposition digest only; it is
+never a standing budget override. Ask the user before executing one — it is
+their decision to record, not yours.
 
 Creator-scope JSON/YAML must match the strict `CreatorEpisodeScope` contract,
 including `planningDisposition: execution_ready`, creator provenance,

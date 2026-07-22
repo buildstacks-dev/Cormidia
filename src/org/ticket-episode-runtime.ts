@@ -50,7 +50,9 @@ import {
   assertTicketEpisodePlanValid,
   isTicketMechanicalGateKind,
   ticketProviderOperation,
+  TICKET_EPISODE_TOPOLOGY_CONTRACT,
   TICKET_MECHANICAL_GATE_CATALOG,
+  TICKET_MECHANICAL_GATE_KINDS,
   TICKET_PROVIDER_OPERATION_CATALOG,
   TICKET_PROVIDER_OPERATIONS,
   type TicketMechanicalGateKind,
@@ -176,7 +178,12 @@ export interface TicketEpisodeRuntimeOptions {
   creatorScopeForTicket?: (
     request: TicketEpisodePlanningRequest,
   ) => CreatorEpisodeScope | undefined | Promise<CreatorEpisodeScope | undefined>;
-  gateForRole?: (role: RoleConfig) => TurnHooks["gate"];
+  /** The turn's gate, built per role AND per sandbox cwd. The cwd is passed
+   *  by the executor that actually runs the pass, because a builder ticket
+   *  pass runs in the per-ticket worktree while the caller that wires this
+   *  callback only knows the managed clone — and an approval raised in one
+   *  tree must never be executed in the other. */
+  gateForRole?: (role: RoleConfig, workdir?: string) => TurnHooks["gate"];
   approval?: TicketEpisodeApprovalHandler;
   authorization?: ReviewAuthorization;
   release?: ReleaseConfig;
@@ -257,6 +264,8 @@ async function planTicketEpisode(
       runtimeForAssignment: options.runtimeForAssignment,
       policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
       providerOperations: TICKET_PROVIDER_OPERATIONS,
+      mechanicalGates: TICKET_MECHANICAL_GATE_KINDS,
+      topologyContract: TICKET_EPISODE_TOPOLOGY_CONTRACT,
       limits: plannerLimits,
       independentReview: {
         subjectRoles: ["builder"],
@@ -458,6 +467,8 @@ async function executeTicketEpisode(
       runtimeForAssignment: options.runtimeForAssignment,
       policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
       providerOperations: TICKET_PROVIDER_OPERATIONS,
+      mechanicalGates: TICKET_MECHANICAL_GATE_KINDS,
+      topologyContract: TICKET_EPISODE_TOPOLOGY_CONTRACT,
       limits: plannerLimits,
       independentReview: {
         subjectRoles: ["builder"],
@@ -1652,6 +1663,14 @@ function ticketPlanningCatalog(): JsonValue {
     mechanicalGates: Object.entries(TICKET_MECHANICAL_GATE_CATALOG).map(([gate, entry]) => ({
       gate,
       handler: entry.handler,
+      // Durable inputs the handler reads but never produces. A plan holding
+      // the gate without an ancestor producing them is unsatisfiable, so the
+      // executable catalog states them alongside the handler (ISSUE-024).
+      requiredPlanInputs: entry.requiredPlanInputs.map((requirement) => ({
+        input: requirement.input,
+        producedBy: requirement.producedBy,
+        consumedBy: requirement.consumedBy,
+      })),
     })),
     planOutputRefPrefix: "plan-output:",
     providerTransportPipeline: EPISODE_PLAN_EXECUTION_PIPELINE,

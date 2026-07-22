@@ -35,10 +35,13 @@
 // review-freshness, and the tier orchestrator `runGates`.
 
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
+import { appCommandEnv } from "../runtime/non-interactive-env.js";
 import { asGlobal, SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import { gatesForTier, type GateName, type Policy, type RiskTier } from "./policy.js";
+import { describeSetupArtifacts, scanSetupArtifacts, type SetupArtifact } from "./setup-artifacts.js";
 
 /** Every gate the engine can report on: the policy-schedulable set plus
  *  `review-freshness`, which always runs (policy.ts rejects configuring it;
@@ -71,6 +74,10 @@ export interface GateResult {
   matches?: SecretMatch[];
   /** Machine-readable data-gate failures (completeness / freshness). */
   failures?: string[];
+  /** Set when the failure's remedy is not "fix the command that ran".
+   *  `unresolved-setup-artifact`: a tool left the worktree in a state it cannot
+   *  itself repair (ISSUE-029) — the remedy is in `outputTail`, per artifact. */
+  cause?: "unresolved-setup-artifact";
   /** Wall-clock subprocess time; 0 for unconfigured/skipped gates. */
   durationMs: number;
 }
@@ -143,6 +150,15 @@ export interface GateRunResult {
     attemptsRemaining: number;
     canRetry: boolean;
     exhausted: boolean;
+    /** Stable identity of THIS run's failure set — pass it back as
+     *  `previousFailureIdentity` on the next attempt. `undefined` when the run
+     *  passed, or when the failures carry no evidence to compare (see
+     *  `gateFailureIdentity`). */
+    failureIdentity?: string;
+    /** True when this attempt failed with exactly the identity the previous
+     *  attempt failed with: the remediation made no progress, so spending the
+     *  remaining budget on it would only reproduce the same error. */
+    noProgress: boolean;
   };
 }
 
@@ -152,6 +168,10 @@ export interface RunGatesOptions {
   criterionTests: CriterionTestMap;
   /** Number of remediation attempts already used; persistence is caller-owned. */
   currentAttempt?: number;
+  /** `remediation.failureIdentity` from the previous attempt, when there was
+   *  one. Supplying it enables no-progress detection; omitting it keeps the
+   *  bounded-attempt behavior exactly as before. */
+  previousFailureIdentity?: string;
   process?: ProcessGateOpts;
   diff?: DiffRange;
 }
@@ -183,22 +203,75 @@ const MAX_CAPTURE_BYTES = 256 * 1024;
 // ---------------------------------------------------------------------------
 
 /** Run the app's setup/install command in the worktree; exit 0 passes.
- *  Returns `undefined` when no `setup_command` is configured — an unconfigured
- *  setup step is simply absent, never a failure and never reported (unlike the
- *  tests/lint gates, which fail loudly when unconfigured). */
+ *  Returns `undefined` when no `setup_command` is configured **and** the tree is
+ *  clean — an unconfigured setup step is simply absent, never a failure and
+ *  never reported (unlike the tests/lint gates, which fail loudly when
+ *  unconfigured).
+ *
+ *  ISSUE-029: the tree is checked for unresolved setup artifacts both before and
+ *  after the command. Before, because a worktree carrying a duplicated
+ *  `allowBuilds` key disables the very tool the setup command invokes — running
+ *  it would only reproduce `[ERROR] duplicated mapping key (4:1)` with no
+ *  diagnosis. After, because the *install itself* is what writes the placeholder,
+ *  so a run that started clean can finish dirty. Either way the gate reports the
+ *  real cause and the consolidation remedy, naming the file, instead of handing
+ *  a raw parser error to a remediation pass. An unconfigured setup command does
+ *  not exempt the tree: a corrupt tree is a setup failure whether or not this app
+ *  configured an install step. */
 export async function runSetupGate(
   worktree: string,
   commands: GateCommands,
   opts: ProcessGateOpts = {},
 ): Promise<GateResult | undefined> {
+  const started = Date.now();
+  const before = scanSetupArtifacts(worktree);
+  if (before.length > 0) {
+    return setupArtifactFailure(before, "before", Date.now() - started, commands.setupCommand);
+  }
+
   if (commands.setupCommand === undefined || commands.setupCommand === "") return undefined;
-  return runProcessGate(worktree, opts, {
+
+  const result = await runProcessGate(worktree, opts, {
     gate: "setup",
     command: commands.setupCommand,
     configKey: "setup_command",
     unconfigured: "skip",
     defaultTimeoutMs: DEFAULT_TIMEOUTS_MS.setup,
   });
+
+  const after = scanSetupArtifacts(worktree);
+  if (after.length === 0) return result;
+  const diagnosed = setupArtifactFailure(after, "after", result.durationMs, commands.setupCommand);
+  // The command's own output stays verbatim underneath the diagnosis: the tail
+  // is the evidence a remediation brief quotes, and dropping it would hide what
+  // the tool actually printed.
+  return {
+    ...diagnosed,
+    ...(result.exitCode !== undefined ? { exitCode: result.exitCode } : {}),
+    ...(result.timedOut === true ? { timedOut: true } : {}),
+    ...(result.outputTail !== undefined
+      ? { outputTail: `${diagnosed.outputTail}\n\n--- setup command output ---\n${result.outputTail}` }
+      : {}),
+  };
+}
+
+function setupArtifactFailure(
+  artifacts: readonly SetupArtifact[],
+  when: "before" | "after",
+  durationMs: number,
+  command: string | undefined,
+): GateResult {
+  const { detail, evidence } = describeSetupArtifacts(artifacts, when);
+  return {
+    gate: "setup",
+    status: "fail",
+    detail,
+    ...(command !== undefined && command !== "" ? { command } : {}),
+    outputTail: evidence,
+    failures: artifacts.map((artifact) => `${artifact.file}:${artifact.line} ${artifact.cause}`),
+    cause: "unresolved-setup-artifact",
+    durationMs,
+  };
 }
 
 /** Run the app's test command in the worktree; exit 0 passes. Unconfigured
@@ -339,10 +412,28 @@ export function runCompletenessGate(
     failures.push("no parseable acceptance criteria on the ticket");
   }
 
-  for (const criterion of criteria) {
-    const tests = criterionTests[criterion.id] ?? [];
-    if (tests.filter((test) => test.trim() !== "").length === 0) {
-      failures.push(`criterion ${criterion.id} has no covering test in the contract mapping`);
+  // Two failures wear the same words but have opposite remediations
+  // (ISSUE-024). An absent mapping is a PLANNING defect — the plan scheduled
+  // no contract pass, so the mapping the gate scores against was never
+  // produced and no amount of builder work can satisfy it. A criterion
+  // uncovered *within* an existing mapping is a BUILD defect. Reporting the
+  // first as N per-criterion "no covering test" lines sent operators to tell
+  // a builder to write tests it had already written.
+  if (Object.keys(criterionTests).length === 0) {
+    if (criteria.length > 0) {
+      failures.push(
+        `no contract mapping exists for this ticket, so none of its ${criteria.length} ` +
+          `acceptance criteria (${criteria.map((criterion) => criterion.id).join(", ")}) ` +
+          "can be scored: this is a planning defect (no build/contract pass produced a " +
+          "criterion→test mapping), not missing builder tests",
+      );
+    }
+  } else {
+    for (const criterion of criteria) {
+      const tests = criterionTests[criterion.id] ?? [];
+      if (tests.filter((test) => test.trim() !== "").length === 0) {
+        failures.push(`criterion ${criterion.id} has no covering test in the contract mapping`);
+      }
     }
   }
 
@@ -450,18 +541,83 @@ export async function runGates(
   const maxAttempts = options.policy.remediation.maxAttempts;
   const currentAttempt = Math.max(0, Math.trunc(options.currentAttempt ?? 0));
   const exhausted = failed && currentAttempt >= maxAttempts;
+  const failureIdentity = gateFailureIdentity(results);
+  const noProgress =
+    failed &&
+    failureIdentity !== undefined &&
+    options.previousFailureIdentity !== undefined &&
+    failureIdentity === options.previousFailureIdentity;
   return {
     tier,
-    status: failed ? (exhausted ? "blocked" : "fail") : "pass",
+    status: failed ? (exhausted || noProgress ? "blocked" : "fail") : "pass",
     results,
     remediation: {
       currentAttempt,
       maxAttempts,
       attemptsRemaining: Math.max(0, maxAttempts - currentAttempt),
-      canRetry: failed && !exhausted,
+      canRetry: failed && !exhausted && !noProgress,
       exhausted,
+      ...(failureIdentity !== undefined ? { failureIdentity } : {}),
+      noProgress,
     },
   };
+}
+
+/**
+ * Stable identity of a failing gate run — the input to no-progress detection
+ * (ISSUE-029).
+ *
+ * Bounded retry exists to let a fix attempt make progress. When the first thing
+ * the next attempt does fails with *exactly* the error the last attempt failed
+ * with, no progress was made, and every remaining attempt will reproduce it. In
+ * run 4 that pattern spent three builder attempts and $10.24 on a
+ * `[ERROR] duplicated mapping key (4:1)` that was byte-identical every time.
+ *
+ * The bar is deliberately high — identical error *identity*, never merely
+ * "failed again":
+ *
+ * - The identity is a hash over the failing gates' verbatim evidence (gate, exit
+ *   code, timeout flag, detail, output tail, structured failures/matches). Real
+ *   remediation almost always moves at least one byte of that; a flaky test that
+ *   fails differently, or the same suite failing at a different assertion, is a
+ *   different identity and retries normally.
+ * - A failure carrying **no** evidence — a bare non-zero exit with no output —
+ *   has no identity at all, and `undefined` never matches. "exit 1, silent" is
+ *   the same string for unrelated causes; treating it as proof of no progress
+ *   would cut a legitimate retry budget short.
+ *
+ * Duration is excluded: wall-clock varies run to run and says nothing about
+ * whether the failure is the same failure.
+ */
+export function gateFailureIdentity(results: readonly GateResult[]): string | undefined {
+  const failing = results.filter((result) => result.status === "fail");
+  if (failing.length === 0) return undefined;
+  if (!failing.every(hasFailureEvidence)) return undefined;
+
+  const canonical = failing
+    .map((result) =>
+      JSON.stringify({
+        gate: result.gate,
+        exitCode: result.exitCode ?? null,
+        timedOut: result.timedOut === true,
+        detail: result.detail,
+        outputTail: result.outputTail ?? "",
+        failures: result.failures ?? [],
+        matches: (result.matches ?? []).map((match) => `${match.file}:${match.line}:${match.pattern}`),
+      }),
+    )
+    .sort()
+    .join("\n");
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+function hasFailureEvidence(result: GateResult): boolean {
+  return (
+    result.timedOut === true ||
+    (result.outputTail !== undefined && result.outputTail.trim() !== "") ||
+    (result.failures !== undefined && result.failures.length > 0) ||
+    (result.matches !== undefined && result.matches.length > 0)
+  );
 }
 
 async function runScheduledGate(
@@ -689,7 +845,12 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<Shel
       // on (or fail for lack of) a TTY. pnpm refuses to replace an existing
       // modules dir without CI=1 — that refusal cost a full remediation turn
       // in the 2026-07-10 episode (proportionality-review Stage 3).
-      env: { ...process.env, CI: "1" },
+      //
+      // The setup gate is where the FIRST install of a fresh worktree happens,
+      // so the deny-by-default dependency build policy has to be here too, not
+      // only in the provider sandbox (ISSUE-029). CI stays "1" — the Stage 3
+      // value this gate has always used — and wins over the overlay.
+      env: appCommandEnv(),
     });
 
     const tail = new TailBuffer(MAX_CAPTURE_BYTES);

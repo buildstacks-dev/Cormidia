@@ -29,10 +29,15 @@ settles once into the org ledger where budget caps are enforced; the approval
 boundary supports action-aware classification, scoped grants, role toolset
 shaping (forbidden acts unrepresentable on Claude, flat-denied everywhere),
 durable denial lessons, and a persisted decision/execution lifecycle. A later
-dispatch executes only typed content-bound GitHub deliveries plus the A4
-release handoff, records acknowledgement, reconciles stable idempotency markers,
-and never blindly retries ambiguity (`src/org/approval-delivery.ts`,
-`src/org/release.ts`). `operon-sandbox-delta`
+dispatch executes the approved action from the durable record — typed
+content-bound GitHub deliveries, the A4 release handoff, and the exact recorded
+shell command in its recorded working directory — records acknowledgement,
+reconciles stable idempotency markers, and never blindly retries ambiguity
+(`src/org/approval-delivery.ts`, `src/org/release.ts`,
+`src/org/approval-command.ts`). Approval is not a licence to run arbitrary
+shell: execution is bound to the recorded action's identity and its single-use
+grant, and an approval whose command no longer matches its grant runs nothing.
+`operon-sandbox-delta`
 ("Ledgerette") is the from-scratch onboarding + loop proof; buildstacks.dev
 is onboarded as a production app in `status: onboarding`. Run `pnpm test`
 for the current offline suite. Known limitations live in README.md → Known
@@ -97,6 +102,11 @@ pinned resolve records with `bundle_lineage` (`resolved/`), episode-sticky
 canary assignments (`canary/assignments/`), and the publisher's
 crash-resumable journal (`publish-journal/`); `runs/learning-replay/` is the
 reserved replay namespace (reconciled for spend, excluded from capture).
+`planning/<app>/refused-decompositions/` preserves a decomposition refused for
+the stage ticket budget alone so `operon plan ratify-ticket-budget` can admit
+it without a replan, and `lifecycle/apps/<app>/` holds the never-swept human
+decisions (lifecycle record, config-ratification journal, ticket-budget
+ratifications);
 `scheduler/installation.json` and `scheduler/evidence/{invocations,decisions,alerts}/`
 hold scheduler ownership, exact-once ticks, route decisions, and local alerts;
 `standing-roles/<app>/{artifacts,planner-feeds}/` holds source-bound draft-only
@@ -173,7 +183,7 @@ cluster stops forming — the coverage gap that let this ship green (#142).
 | `docs/learning-loop/` | Learning-loop design suite (v0.8, 2026-07-11): governed self-improvement — design, spec, milestones, control/data-flow diagrams; superseded review feedback under `archive/` |
 | `src/runtime/` | Runtime contract: `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, `secret-patterns.ts` (the ONE secret-regex list — redaction and qgates both import it), `file-lock.ts` (the shared O_EXCL + pid/nonce ownership-token + liveness/stale-reclamation lock primitive — the app git-clone lock is a configuration of it; the settlement and turn locks are the model but not yet re-expressed onto it), adapters (Claude Agent SDK, Codex App Server, pi SDK) |
 | `src/loop/` | Build loop: pass executor, briefs, quality gates, typed verdicts, GitHub ops, ticket scheduler, M5 ticket state machine, M6 real pipeline integration (design in `docs/loop.md`), and `default-branch.ts` (the ONE default-branch resolver — loop, turn runner, planner, and bootstrap all import it — plus the `BaseRevision` every execution path carries) |
-| `src/org/` | Standing-org layer: roles/apps loaders, token-free upgrade/reset/recovery/verify/promote lifecycle, bootstrap, `bootstrap-publish.ts` (coordinated draft-PR publication of bootstrap-owned app + org changes), co-planning, scheduler, approvals, budget overlays, trigger routing, context, memory, scorecards, retro |
+| `src/org/` | Standing-org layer: roles/apps loaders, token-free upgrade/reset/recovery/verify/promote lifecycle, bootstrap, `bootstrap-publish.ts` (coordinated draft-PR publication of bootstrap-owned app + org changes), co-planning, scheduler, approvals (`approvals.ts` store, `approval-delivery.ts` typed GitHub deliveries, `approval-command.ts` recorded-shell execution), budget overlays, trigger routing, context, memory, scorecards, retro |
 | `src/observe/` | Presentation-only Live UI: versioned projection, URL-stable live/historical session selection, source health, bounded read-only GitHub polling, loopback HTTP/SSE, allowlisted local evidence, and embedded framework-free assets |
 | `src/report/` | Presentation-only Reporting V1: diagnostic daily-ledger/range readers, direct run/task enrichment, deterministic sessions, usage/budget projections, portable HTML, and lazy bounded server cache; also hosts `time-policy.ts`, the ONE timestamp-display policy shared with the Observer (it lives here because nothing may import `src/observe`) |
 | `src/narrative/` | Presentation-only Narrative V1 (`operon narrative`): deterministic, token-free causal timeline — one captured story per episode + per-app INDEX.md under state-home `narrative/`, quote-at-capture with secret scrubbing, merge-never-lose across retention sweeps. `docs/narrative/design.md` is its authoritative contract |
@@ -306,6 +316,11 @@ cluster stops forming — the coverage gap that let this ship green (#142).
   no inferred readiness) ·
   `pnpm dev plan <app> --explain-route --goal "<text>" [--stage …]` (token-free
   route preview; rejects `--auto` — the two forms are mutually exclusive) ·
+  `pnpm dev plan ratify-ticket-budget --app <app> --decomposition <id> --actor
+  <identity> --reason "<why>" --from-budget N --to-budget N [--no-publish]
+  [--execute --confirm <app>@<id>]` (human-gated: records one attributable
+  decision to admit one preserved oversized decomposition, then publishes it
+  token-free; preview by default) ·
   `pnpm dev loop --app <app> --once --dry-run` · `pnpm dev loop
   --explain-context <episode-id>` · `pnpm dev loop --resume-episode
   <episode-id>` · `pnpm dev loop rearm --app <app> --ticket <number> --reason

@@ -17,6 +17,7 @@ import {
   MOMENT_QUOTE_MAX,
   ORIGIN_QUOTE_MAX,
 } from "./sources.js";
+import { formatDurableVerdictDigest, summarizeDurableVerdict } from "../loop/verdicts.js";
 import {
   NARRATIVE_SCHEMA_VERSION,
   type NarrativeMoment,
@@ -91,10 +92,18 @@ async function foldStory(
     // Every quote path re-scrubs at capture time — verdict_summary was
     // scrubbed at write time, but with whatever pattern list existed THEN,
     // and captures outlive their sources by years.
-    const quote =
-      envelope.verdict_summary !== undefined && envelope.verdict_summary.trim() !== ""
-        ? boundQuote(`runs/${app}/${envelope.run_id}/envelope.json`, envelope.verdict_summary, MOMENT_QUOTE_MAX)
-        : await readRunQuote(stateHome, app, envelope.run_id, "output.md");
+    //
+    // A structured verdict is quoted as its human digest (ENH-010): the raw
+    // record stays authoritative in the run directory, but a narrative moment
+    // whose quote is a JSON blob truncated mid-key tells an operator nothing
+    // about what the reviewer actually concluded.
+    const verdictQuote = envelope.verdict_summary !== undefined &&
+        envelope.verdict_summary.trim() !== ""
+      ? formatVerdictQuote(envelope.verdict_summary)
+      : undefined;
+    const quote = verdictQuote !== undefined
+      ? boundQuote(`runs/${app}/${envelope.run_id}/envelope.json`, verdictQuote, MOMENT_QUOTE_MAX)
+      : await readRunQuote(stateHome, app, envelope.run_id, "output.md");
     moments.push({
       at: envelope.started_at,
       run_id: envelope.run_id,
@@ -248,4 +257,11 @@ function findPublicationRecord(
     if (record.published.some((t) => t.issue_number === issue)) return record;
   }
   return undefined;
+}
+
+/** Prefer the human projection of a structured verdict; fall back to the raw
+ *  durable text for prose verdicts and pre-structured records. */
+function formatVerdictQuote(verdictSummary: string): string {
+  const digest = summarizeDurableVerdict(verdictSummary);
+  return digest === undefined ? verdictSummary : formatDurableVerdictDigest(digest);
 }

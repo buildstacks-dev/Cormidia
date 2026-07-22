@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 1,
+  "episodeId": "ticket:sonnet4-buildstack-dev:#4",
+  "version": 2,
+  "intentHash": "b5704c0b857146346ae5b2c4c318f81c7ef2340395f8ce23d0c9077d90d830a1",
+  "summary": "Revise plan for ticket #4 after the gates_and_pr quality gate failed on plan v1. Preserve the completed provision and implement steps, insert an explicit builder fix pass to clear the failing pnpm build, pnpm lint (astro check), and node --test tests/blog.test.mjs gates, then re-run gates and open the PR, independently verify the delivered revision, authorize, and ship the merge-only release.",
+  "workflowClass": "ticket-build-review-ship",
+  "planningSource": "episode_planner",
+  "steps": [
+    {
+      "kind": "mechanical_gate",
+      "id": "provision",
+      "objective": "Provision the ticket workspace and branch for #4 before any write operation.",
+      "dependsOn": [],
+      "inputRefs": [],
+      "expectedOutputs": [
+        {
+          "id": "workspace",
+          "kind": "workspace",
+          "required": true
+        }
+      ],
+      "gate": "ticket/provision"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "implement",
+      "objective": "Implement the blog and projects content collections, typed src/content/config.ts, seeded posts and projects, Post layout, /blog index and /blog/[slug] routes, Shiki dual-theme config, reading time, prev/next links, and tests/blog.test.mjs so all ten acceptance criteria pass.",
+      "dependsOn": [
+        "provision"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:workspace",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "implementation",
+          "kind": "diff",
+          "required": true
+        }
+      ],
+      "operation": "build/implement",
+      "role": "builder",
+      "requiredCapabilities": [],
+      "maxTurnBudgetUsd": 50,
+      "selectionReason": "Builder is the sole role owning bounded implementation and its expected 'pr' output; build/implement is the write pass for this well-specified feature ticket. Fixed mode: assignment resolved by orchestrator.",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "fix",
+      "objective": "Resolve the failed quality gates on the delivered revision so pnpm build, pnpm lint (astro check), and node --test tests/blog.test.mjs all exit 0 with no errors, correcting only the defects that block the gates without widening scope beyond ticket #4.",
+      "dependsOn": [
+        "implement"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:implementation",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "fix-diff",
+          "kind": "diff",
+          "required": true
+        }
+      ],
+      "operation": "fix/fix",
+      "role": "builder",
+      "requiredCapabilities": [],
+      "maxTurnBudgetUsd": 50,
+      "selectionReason": "Builder owns fixes for this ticket; fix/fix is the write pass required by the failed_gate material event to clear the failing gates_and_pr gate. Fixed mode: assignment resolved by orchestrator.",
+      "assignment": {
+        "harness": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "gates_and_pr",
+      "objective": "Re-run the stack build, lint (astro check), and node --test gates on the fixed revision and open the pull request.",
+      "dependsOn": [
+        "fix"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:fix-diff",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "pr",
+          "kind": "pr",
+          "required": true
+        }
+      ],
+      "gate": "ticket/gates-and-pr"
+    },
+    {
+      "kind": "provider_turn",
+      "id": "verify",
+      "objective": "Independently verify the exact delivered revision against ticket #4 acceptance criteria — collections schema, seeded slugs, generated dist pages, reverse-chronological ordering, Shiki dual-theme output, reading time, prev/next links, and zero client JS.",
+      "dependsOn": [
+        "gates_and_pr"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:pr",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "review-verdict",
+          "kind": "review",
+          "required": true
+        }
+      ],
+      "operation": "review/verify",
+      "role": "reviewer",
+      "requiredCapabilities": [],
+      "maxTurnBudgetUsd": 50,
+      "selectionReason": "Reviewer independently verifies the delivered revision, satisfying the required independent_review safety fact; review/verify is the verification lens that must feed review-authorization. Fixed mode: assignment resolved by orchestrator.",
+      "assignment": {
+        "harness": "claude",
+        "model": "claude-opus-4-8",
+        "effort": "xhigh"
+      },
+      "assignmentSource": "configured"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "review_authorization",
+      "objective": "Confirm the independent review passed and authorize release of the reviewed revision.",
+      "dependsOn": [
+        "verify"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:review-verdict",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "review-authorization",
+          "kind": "authorization",
+          "required": true
+        }
+      ],
+      "gate": "ticket/review-authorization"
+    },
+    {
+      "kind": "mechanical_gate",
+      "id": "ship",
+      "objective": "Merge the authorized, reviewed revision for the merge-only release of ticket #4.",
+      "dependsOn": [
+        "review_authorization"
+      ],
+      "inputRefs": [
+        {
+          "ref": "plan-output:review-authorization",
+          "required": true
+        }
+      ],
+      "expectedOutputs": [
+        {
+          "id": "release",
+          "kind": "release",
+          "required": true
+        }
+      ],
+      "gate": "ticket/ship"
+    }
+  ],
+  "estimatedBudget": {
+    "providerTurns": 3,
+    "providerTurnBudgetUsd": 150,
+    "mechanicalOverheadUsd": 0,
+    "totalBudgetUsd": 150
+  },
+  "derivedSafetyRoute": {
+    "label": "standard",
+    "reasons": [
+      "derived-from-3-provider-turns",
+      "safety:independent_review"
+    ],
+    "gateStepIds": [
+      "gates_and_pr",
+      "provision",
+      "review_authorization",
+      "ship"
+    ],
+    "approvalStepIds": []
+  },
+  "createdAt": "2026-07-21T09:47:49.257Z"
+}

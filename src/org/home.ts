@@ -891,6 +891,53 @@ export async function readActiveOrgPointer(pointerPath: string): Promise<{
   }
 }
 
+export interface ActiveOrgSelection {
+  orgHome?: string;
+  stateHome?: string;
+  /** True when `state_home` was absent and had to be derived from the org name. */
+  stateHomeDerived: boolean;
+}
+
+/**
+ * Which org home AND which state home the active pointer selects.
+ *
+ * A pointer written before `org use` recorded `state_home` carries only
+ * `org_home`, and `resolveOperonHomes` silently derives the state home from
+ * the org name — so every surface that read `pointer.state_home` directly
+ * disagreed with the state home the rest of the CLI was actually using. That
+ * is how `org list` stopped marking the active org active and `org archive`
+ * left the pointer behind, resurrecting a removed state home on the next
+ * command. Pointer-only consumers resolve the pair here instead of reading
+ * `state_home` raw; the derivation is anchored on the pointer's own directory,
+ * which is the `~/.operon/<org>` that `resolveOperonHomes` falls back to.
+ */
+export async function resolveActiveOrgSelection(
+  pointerPathIn: string,
+): Promise<ActiveOrgSelection> {
+  const pointerPath = resolve(pointerPathIn);
+  const pointer = await readActiveOrgPointer(pointerPath);
+  if (pointer.stateHome !== undefined || pointer.orgHome === undefined) {
+    return {
+      ...(pointer.orgHome === undefined ? {} : { orgHome: pointer.orgHome }),
+      ...(pointer.stateHome === undefined ? {} : { stateHome: pointer.stateHome }),
+      stateHomeDerived: false,
+    };
+  }
+  let orgName: string;
+  try {
+    orgName = (await loadApps(join(pointer.orgHome, "apps.yaml"))).org.name;
+  } catch {
+    // An unreadable org home cannot name a state home. The pointer still
+    // selects an org home, and callers report the rest as unknown.
+    return { orgHome: pointer.orgHome, stateHomeDerived: false };
+  }
+  return {
+    orgHome: pointer.orgHome,
+    stateHome: resolve(join(dirname(pointerPath), orgName)),
+    stateHomeDerived: true,
+  };
+}
+
 function sanitizeOrgName(value: string): string {
   const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   if (cleaned.length === 0) throw new Error("operon org init: --name must contain a letter or number");

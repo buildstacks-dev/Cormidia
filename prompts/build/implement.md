@@ -45,6 +45,15 @@ each other or the code, an approach that proves wrong — get **zero**:
 escalate immediately as blocked. Repetition is evidence you are past the
 mechanical case.
 
+**No progress ends the budget early.** If an attempt's first command fails
+with the *identical* error the previous attempt failed with, that attempt
+made no progress and the remaining ones will not either — stop and report
+blocked with that error verbatim. An attempt that dies before it reaches
+the thing it meant to change has not been spent well; three of them is a
+budget burned on one error message. This is the common shape when the
+environment, not the code, is broken: the tool you need in order to repair
+the tree is the tool the tree has disabled.
+
 ## Output
 
 Report exactly one verdict: `done` or `blocked`.

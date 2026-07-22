@@ -144,6 +144,17 @@ Default windows (days) and fail-safe prune rules:
 | `learning/events/<date>/` | 180 | the whole UTC day is past the window — the ONLY `learning/` child ever swept |
 | `scheduler/evidence/**` | 365 | see the health-truthfulness rules below |
 | `state/retention/sweeps/` | 90 | the sweep's own day records |
+| `narrative/<app>/` | 1825 | the capture's own `captured_at` is past the window and its `story_id`/`app` map to the file it sits in; orphaned `.md` and quarantined `.json.corrupt` bytes age by mtime |
+| `planning/<app>/refused-decompositions/` | 90 | the record's own `refused_at` is past the window and its `app`/`decomposition_id` map to the file it sits in; torn or foreign files are kept |
+
+**Human decisions are never swept.** `lifecycle/` is outside the sweep
+entirely — the app lifecycle record, the config-ratification journal, and the
+ticket-budget ratifications
+(`lifecycle/apps/<app>/ticket-budget-ratifications/`) persist for the life of
+the state home. That is what makes the 90-day window on refused decompositions
+safe: a refused decomposition is provider-derived evidence *awaiting* a
+decision, and the ratification that accepts one embeds the accepted plan
+verbatim, so ageing the refusal can never lose something a human decided.
 
 **Ledger retention respects the reconciliation window.** `operon budget
 --reconcile` can back-fill the ledger from surviving run envelopes and

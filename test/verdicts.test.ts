@@ -569,6 +569,111 @@ describe("verdict schemas", () => {
     expect(r.reason).toContain("vibe: unknown key");
   });
 
+  // ISSUE-016 residual: `fix/fix` is a registered operation whose verdictKind is
+  // `build`, and prompts/build/fix.md REQUIRES one disposition per finding. The
+  // build schema is what a structured-output runtime is handed, so a schema that
+  // cannot express `resolutions` makes the fix pass unable to report the only
+  // output that distinguishes it from `build/implement`.
+  it("accepts the fix pass's structured resolutions on a build verdict", () => {
+    const r = validateVerdict("build", {
+      status: "done",
+      blockedEntry: null,
+      resolutions: [
+        { outcome: "fixed", location: "src/a.ts:12", note: "commit abc1234, test/a.test.ts" },
+        { outcome: "rebutted", location: "ci.yml:4", note: "documented in docs/deploy.md" },
+      ],
+    });
+    expectOk(r);
+    expect(r.verdict).toMatchObject({
+      resolutions: [
+        { outcome: "fixed", location: "src/a.ts:12" },
+        { outcome: "rebutted", location: "ci.yml:4" },
+      ],
+    });
+  });
+
+  it("drops the strict-output nulls so no consumer dereferences one", () => {
+    // Codex strict mode must emit every property, so an absent optional field
+    // arrives as null. Passing that null through made `resolutions !== undefined`
+    // true with a non-array value — the fix pass's comment renderer then threw
+    // a raw TypeError, the ISSUE-016 failure shape.
+    const r = validateVerdict("build", { status: "done", blockedEntry: null, resolutions: null });
+    expectOk(r);
+    expect(r.verdict).toEqual({ status: "done" });
+    expect("resolutions" in r.verdict).toBe(false);
+    expect("blockedEntry" in r.verdict).toBe(false);
+
+    const review = validateVerdict("review", {
+      verdict: "findings",
+      findings: [{ ...reviewSample.findings[0]!, location: "src/auth.ts:1" }],
+      review: { rationale: "r", evidence: [{ claim: "c", evidence: "e" }], notReviewed: [] },
+    });
+    expectOk(review);
+    expect(review.verdict).toEqual({
+      verdict: "findings",
+      findings: reviewSample.findings,
+      review: { rationale: "r", evidence: [{ claim: "c", evidence: "e" }], notReviewed: [] },
+    });
+  });
+
+  it("keeps a null on a REQUIRED field a failure, never a silent drop", () => {
+    // Adversarial near-miss for the normalizer: dropping nulls must not become
+    // a way to satisfy a required key.
+    const r = validateVerdict("build", { status: null, resolutions: null });
+    expectFail(r);
+    expect(r.reason).toContain("status");
+  });
+
+  it("round-trips the text grammar's resolutions through the structured schema", () => {
+    // The two ingestion paths must agree: whatever parseVerdict extracts from
+    // the documented line grammar has to survive validateVerdict unchanged.
+    const parsed = parseVerdict(
+      "build",
+      [
+        "- fixed src/a.ts:12 -- commit abc1234, regression in test/a.test.ts",
+        "- rebutted ci.yml:4 — documented behavior, see docs/deploy.md",
+        "",
+        "Verdict: done",
+      ].join("\n"),
+    );
+    expectOk(parsed);
+    const revalidated = validateVerdict("build", parsed.verdict);
+    expectOk(revalidated);
+    expect(revalidated.verdict).toEqual(parsed.verdict);
+  });
+
+  it("still rejects a malformed resolution entry rather than accepting any array", () => {
+    // Adversarial near-miss: declaring `resolutions` must not become a hole in
+    // additionalProperties:false, and outcome stays a closed enum.
+    const unknownOutcome = validateVerdict("build", {
+      status: "done",
+      resolutions: [{ outcome: "waived", location: "src/a.ts:1", note: "n" }],
+    });
+    expectFail(unknownOutcome);
+    expect(unknownOutcome.reason).toContain("fixed | rebutted");
+
+    const extraKey = validateVerdict("build", {
+      status: "done",
+      resolutions: [{ outcome: "fixed", location: "src/a.ts:1", note: "n", severity: "minor" }],
+    });
+    expectFail(extraKey);
+    expect(extraKey.reason).toContain("severity: unknown key");
+
+    const missingNote = validateVerdict("build", {
+      status: "done",
+      resolutions: [{ outcome: "fixed", location: "src/a.ts:1" }],
+    });
+    expectFail(missingNote);
+    expect(missingNote.reason).toContain("note: required");
+
+    const emptyLocation = validateVerdict("build", {
+      status: "done",
+      resolutions: [{ outcome: "fixed", location: "   ", note: "n" }],
+    });
+    expectFail(emptyLocation);
+    expect(emptyLocation.reason).toContain("non-whitespace");
+  });
+
   it("rejects an empty files list (minItems)", () => {
     const r = validateVerdict("contract", { ...contractSample, files: [] });
     expectFail(r);

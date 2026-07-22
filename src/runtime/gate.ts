@@ -48,9 +48,18 @@ export interface SemanticAction {
  * write/edit payload prose is data, not an executable command: documentation
  * that says `kubectl apply` cannot become a production deploy approval. */
 export function normalizeSemanticAction(action: ToolAction): SemanticAction {
+  return semanticActionWithShell(action).semantic;
+}
+
+/** `normalizeSemanticAction` plus the shell projection it had to build to
+ *  decide the operation, so `actionEffectFields` does not parse twice. */
+function semanticActionWithShell(action: ToolAction): { semantic: SemanticAction; shell: ShellEffects | null } {
   const tool = action.tool.trim().toLowerCase();
   if (VERDICT_TOOLS.has(tool)) {
-    return { tool, operation: "return_data", command: null, paths: [], destination: "orchestrator", effect: "typed_data" };
+    return {
+      semantic: { tool, operation: "return_data", command: null, paths: [], destination: "orchestrator", effect: "typed_data" },
+      shell: null,
+    };
   }
   const input = asRecord(action.input);
   const explicitCommand =
@@ -74,18 +83,37 @@ export function normalizeSemanticAction(action: ToolAction): SemanticAction {
     .map(normalizePath)
     .filter((value, index, all) => value !== "" && all.indexOf(value) === index)
     .sort();
+  // ISSUE-027: the operation of a shell action comes from WHAT ITS PROGRAMS DO,
+  // never from the fact that it named a file. The old test was
+  // `shellWrites(command)` — a regex for a `>` anywhere in the raw string plus a
+  // handful of verbs — and it recorded `/bin/zsh -lc 'wc -l AGENTS.md …
+  // 2>/dev/null'` as a WRITE (the literal-stderr-sink exemption only fired
+  // before whitespace/EOL, so the wrapper's closing quote made a null sink look
+  // like a real redirect). `operation: "write"` plus the protocol paths in
+  // `targets` is exactly the `protocol-self-edit` predicate, so counting lines
+  // in the scaffold terminalized a fresh app's first ticket. The parsed
+  // projection below knows which programs run, which redirections are material,
+  // and which flags mutate in place — so a read stays a read and every
+  // write-shaped signal still escalates.
+  const shell = command === null ? null : analyzeShell(command);
   const operation = VERDICT_TOOLS.has(tool)
     ? "return_data" as const
-    : isDataMutationTool(tool) || (command !== null && shellWrites(command))
+    : isDataMutationTool(tool) || shell?.writes === true
       ? "write" as const
-      : /(?:^|[_-])(read|view|get)(?:$|[_-])/.test(tool)
+      : /(?:^|[_-])(read|view|get)(?:$|[_-])/.test(tool) || readsOnly(shell)
         ? "read" as const
         : command !== null || isShellTool(tool)
           ? "execute" as const
           : "unknown" as const;
   const destination = typeof input?.["destination"] === "string" ? input["destination"].trim().toLowerCase() : null;
   const effect = typeof input?.["effect"] === "string" ? input["effect"].trim().toLowerCase() : null;
-  return { tool, operation, command, paths, destination, effect };
+  return { semantic: { tool, operation, command, paths, destination, effect }, shell };
+}
+
+/** A command whose every program is a read-only utility and which carries no
+ *  write-shaped signal is a READ, whichever paths it names (ISSUE-027 rule 1). */
+function readsOnly(shell: ShellEffects | null): boolean {
+  return shell !== null && shell.ranCommand && !shell.ranOtherCommand && !shell.writes;
 }
 
 /** Strip agent-authored free-text argument VALUES — a commit message
@@ -176,6 +204,33 @@ export function semanticActionText(action: ToolAction): string {
 const asText = (a: ToolAction): string => semanticActionText(a);
 const effectText = (a: ToolAction): string => asText(a);
 
+/**
+ * The org runtime's OWN command line is an effect surface, and its
+ * human-gated verbs were invisible here: `operon app reset --execute` removes
+ * an app's managed state and closes its tracked GitHub work, `operon org
+ * upgrade --execute` rewrites the ratified org surfaces, and `operon plan
+ * ratify-ticket-budget --execute` publishes GitHub issues — all three
+ * classified routine, while `rm -rf`, an `echo > roles.yaml` and a
+ * `gh issue create` with exactly those effects are critical. An agent that can
+ * shell out can reach them, so each verb is routed to the rule its EFFECT
+ * belongs to rather than to a new catch-all: the executor allowlist, the
+ * never-scopeable list and role shaping all key off the rule name.
+ *
+ * Read-only invocations (`operon roles`, `status`, `doctor`, `budget`,
+ * `context`, `episode explain`, a `--dry-run`) are deliberately absent: the
+ * point is the boundary, not friction on inspection.
+ */
+const OPERON_VERB = {
+  /** Rewrites or re-points the org's ratified protocol surfaces. */
+  protocolWrite: /\boperon\s+org\s+(?:upgrade|init|use)\b/,
+  /** Archives and removes managed state, or deletes durable run records. */
+  destructive: /\boperon\s+(?:app\s+reset|prune-runs)\b/,
+  /** Publishes to GitHub: bootstrap draft PRs, ratified ticket issues. */
+  publish: /\boperon\s+(?:plan\s+ratify-ticket-budget|bootstrap\s+publish)\b/,
+  /** Decides, revokes or dispositions approvals — the gate's root of trust. */
+  approvalWrite: /\boperon\s+approvals\s+(?:review|revoke|disposition)\b/,
+} as const;
+
 /** v0 heuristics. Deliberately over-broad: false positives cost a human tap,
  *  false negatives cost an incident. Tighten with calibration data. */
 export const CRITICAL_RULES: CriticalRule[] = [
@@ -208,6 +263,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
         return true;
       }
       if (/\bgit\s+push\s+(?:--force(?:-with-lease)?|-f)\b/.test(t)) return true;
+      if (OPERON_VERB.destructive.test(t)) return true;
       const fields = actionEffectFields(a);
       if (!fields.executables.includes("rm")) return false;
       return fields.targets.some((target) =>
@@ -255,6 +311,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
       return (
         /\bnpm\s+publish\b|\b(?:sendmail|mail|tweet)\b/.test(t) ||
         /\bgh\s+(?:issue\s+(?:create|comment)|pr\s+(?:create|comment)|release\s+create)\b/.test(t) ||
+        OPERON_VERB.publish.test(t) ||
         a.tool.toLowerCase() === "operon.github.issue.create" ||
         a.tool.toLowerCase() === "operon.github.issue.comment"
       );
@@ -305,7 +362,13 @@ export const CRITICAL_RULES: CriticalRule[] = [
   },
   {
     name: "protocol-self-edit", // agents don't rewrite their own rules
-    matches: (a) => isWrite(a) && isProtocolSurface(asText(a)),
+    matches: (a) => {
+      const t = asText(a);
+      // `operon org upgrade|init|use` writes/re-points those same surfaces
+      // through the org runtime's own CLI, where no file path appears in the
+      // action for isProtocolSurface to see.
+      return OPERON_VERB.protocolWrite.test(t) || (isWrite(a) && isProtocolSurface(t));
+    },
   },
   {
     name: "scorecard-tamper", // scorecards are orchestrator-written only, never
@@ -340,21 +403,43 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // blocks this today; the gate must classify these writes as critical so
     // the boundary holds on every adapter. Reads stay routine.
     name: "approval-store-tamper",
-    matches: (a) => isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(asText(a)),
+    matches: (a) => {
+      const t = asText(a);
+      // Deciding an approval from inside a turn is self-approval by CLI: the
+      // same forged grant, reached through the supported command instead of a
+      // file write.
+      return OPERON_VERB.approvalWrite.test(t) ||
+        (isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(t));
+    },
   },
 ];
 
 function isWrite(a: ToolAction): boolean {
   const semantic = normalizeSemanticAction(a);
   if (semantic.operation === "write") return true;
+  // A SHELL action's write-ness is settled structurally by the projection
+  // (ISSUE-027): the parse already saw every program, every material
+  // redirection and every in-place flag, so re-deriving it from the flattened
+  // evidence text can only add false positives — the flattened text contains
+  // the command's file arguments, which is how `wc -l AGENTS.md` became a
+  // protocol self-edit. Actions with no command have nothing to parse and keep
+  // the name/path heuristics below.
+  if (semantic.command !== null) return false;
   const t = asText(a);
   // Verbs are prefix-matched (append → appends); cp/tee are whole-word to
   // avoid cpu/teed false hits. Shell redirects get their own test: the old
   // `\b>\s` alternative was unsatisfiable after whitespace (no word
   // boundary exists between a space and `>`), so `echo x > roles.yaml`
   // classified routine. `>&` fd-duplication (2>&1) is not a file write.
-  return /\b(write|edit|create|replace|append|mv|cp\b|tee\b|rm|sed -i)/.test(t) || hasMaterialRedirect(t);
+  return WRITE_VERB_NAME.test(t) || hasMaterialRedirect(t);
 }
+
+/** The legacy name heuristic: a tool or program whose NAME carries a write verb
+ *  writes. Kept verbatim (prefix-matched verbs; `cp`/`tee` whole-word) and
+ *  applied in two places — to a payload action's tool/paths in `isWrite`, and
+ *  to an otherwise-unknown shell executable in `mutatesFiles`, so
+ *  `./create-config.sh AGENTS.md` stays a write while `wc` does not. */
+const WRITE_VERB_NAME = /\b(write|edit|create|replace|append|mv|cp\b|tee\b|rm|sed -i)/;
 
 /** Exact protocol filenames, matched anywhere in the repo tree (e.g. root
  *  `roles.yaml`, an app's `.operon/TASTE.md`, a nested `apps.yaml`). */
@@ -439,11 +524,11 @@ export const defaultGate: GateFn = (action: ToolAction): GateDecision => {
  * search/message/heredoc data positions. Unknown commands contribute their
  * executable and flags, but not arbitrary prose arguments. */
 export function actionEffectFields(action: ToolAction): ActionEffectFields {
-  const semantic = normalizeSemanticAction(action);
+  const { semantic, shell } = semanticActionWithShell(action);
   const input = asRecord(action.input);
   const inputEnvironment = asRecord(input?.["env"] ?? input?.["environment"]);
   const environment = inputEnvironment === undefined ? [] : Object.keys(inputEnvironment).sort();
-  if (semantic.command === null) {
+  if (semantic.command === null || shell === null) {
     return {
       tool: semantic.tool,
       operation: semantic.operation,
@@ -455,7 +540,6 @@ export function actionEffectFields(action: ToolAction): ActionEffectFields {
       effect: semantic.effect,
     };
   }
-  const shell = analyzeShell(semantic.command);
   return {
     tool: semantic.tool,
     operation: semantic.operation,
@@ -473,17 +557,173 @@ interface ShellEffects {
   targets: string[];
   redirections: string[];
   environment: string[];
+  /** A write-shaped signal was seen: a material output redirection, a mutating
+   *  program, an in-place flag, or a destination the projection could not
+   *  resolve. Only this makes an action a WRITE (ISSUE-027 rule 2). */
+  writes: boolean;
+  /** At least one real program ran (shell grammar and inert builtins do not
+   *  count), so "every program was read-only" is a claim about something. */
+  ranCommand: boolean;
+  /** At least one program was NOT a read-only utility. */
+  ranOtherCommand: boolean;
 }
 
-const SHELL_BOUNDARIES = new Set(["|", "||", "&&", ";", "\n"]);
-const REDIRECT_TOKENS = new Set([">", ">>", "<", "<<", "<<<"]);
 const FILE_ARGUMENT_TOOLS = new Set([
   "cat", "head", "tail", "less", "more", "wc", "stat", "readlink", "realpath",
-  "rm", "mv", "cp", "tee", "touch", "chmod", "chown", "source", ".",
+  "file", "cksum", "md5", "md5sum", "shasum", "sha1sum", "sha256sum", "nl",
+  "ls", "du", "diff", "sort", "cut", "uniq",
+  "rm", "mv", "cp", "tee", "touch", "chmod", "chown", "chgrp", "install", "ln",
+  "truncate", "mkdir", "mkfifo", "rmdir", "unlink", "shred", "rsync", "patch",
+  "ed", "source", ".",
 ]);
 
+/** Utilities whose invocation READS the paths it names, whatever those paths
+ *  are (ISSUE-027 rule 1). This is the set that had to exist: the classifier
+ *  inferred `operation` from "this command has file arguments", so counting
+ *  lines in `AGENTS.md` and `.operon/config.yaml` — the literal instruction a
+ *  bare-template builder is given on its first ticket — recorded a write and
+ *  raised `protocol-self-edit`, a rule the orchestrator may never discharge
+ *  mechanically. Membership here is not a licence: a read-only program in a
+ *  command that ALSO redirects, or runs a mutating program, still writes, and
+ *  `sed`/`awk`/`sort`/`find` are read-only only while their mutating flags are
+ *  absent (see `mutatingFlag`). */
+const READ_ONLY_EXECUTABLES = new Set([
+  "awk", "basename", "cat", "cksum", "column", "comm", "cut", "diff", "dirname",
+  "du", "egrep", "fgrep", "file", "find", "grep", "head", "jq", "less", "ls",
+  "md5", "md5sum", "more", "nl", "od", "pwd", "readlink", "realpath", "rg",
+  "ripgrep", "sed", "sha1sum", "sha256sum", "shasum", "sort", "stat", "tail",
+  "tr", "uniq", "wc", "which", "xxd",
+]);
+
+/** Programs whose whole job is to change the filesystem. Naming a path with one
+ *  of these IS the write-shaped signal — no redirection required. */
+const MUTATING_EXECUTABLES = new Set([
+  "chgrp", "chmod", "chown", "cp", "dd", "ed", "install", "ln", "mkdir",
+  "mkfifo", "mv", "patch", "rm", "rmdir", "rsync", "shred", "tee", "touch",
+  "truncate", "unlink",
+]);
+
+/** `git` subcommands that only report. Every other subcommand — `commit`,
+ *  `checkout`, `restore`, `apply`, `clean`, `stash` — changes the worktree or
+ *  the repository, so it is treated as a write (fail closed, ISSUE-027 rule 3).
+ *  Shared with `gitArguments` so "which git subcommands are reads" is stated
+ *  exactly once. */
+const GIT_READ_SUBCOMMANDS = new Set([
+  "log", "show", "diff", "status", "rev-parse", "cat-file", "grep", "blame",
+  "describe", "ls-files", "ls-tree", "ls-remote", "shortlog",
+]);
+
+/** Output redirections. `<`, `<<`, `<<<` and `<&` feed a command its input:
+ *  `patch AGENTS.md < p.diff` writes because `patch` writes, and
+ *  `while read -r line; do …; done < notes.txt` writes nothing. */
+const OUTPUT_REDIRECTS = new Set([">", ">>", "&>", "&>>", ">&"]);
+
+/** True when this invocation mutates in place through a FLAG rather than a
+ *  redirection: `sed -i`, `perl -i`, `awk -i inplace`, `sort -o`, and the
+ *  `find` actions that act on what they match. `find -exec` can run anything,
+ *  so it counts as a write — the ambiguous case fails closed. */
+function mutatingFlag(executable: string, args: readonly string[]): boolean {
+  switch (executable) {
+    case "sed":
+    case "gsed":
+    case "perl":
+    case "ruby":
+      // `-i`, `-i.bak`, `-pi`, `--in-place[=SUFFIX]`.
+      return args.some((arg) => IN_PLACE_SHORT_FLAG.test(arg) || /^--in-place(?:=|$)/.test(arg));
+    case "awk":
+    case "gawk":
+    case "mawk":
+      // `awk -i inplace` loads the in-place extension.
+      return args.some((arg) => IN_PLACE_SHORT_FLAG.test(arg) || /^--include(?:=|$)/.test(arg));
+    case "sort":
+      return args.some((arg) => OUTPUT_SHORT_FLAG.test(arg) || /^--output(?:=|$)/.test(arg));
+    case "find":
+      return args.some((arg) => FIND_ACTING_PREDICATES.has(arg));
+    default:
+      return false;
+  }
+}
+
+/** A short-flag cluster carrying `-i` / `-o` (`-i`, `-i.bak`, `-pi`, `-o`).
+ *  Long options are excluded so `--include`/`--output` are matched exactly
+ *  rather than by the letter they happen to contain. */
+const IN_PLACE_SHORT_FLAG = /^-(?!-)[a-z]*i/;
+const OUTPUT_SHORT_FLAG = /^-(?!-)[a-z]*o/;
+
+/** `find` predicates that ACT on what they match rather than print it.
+ *  `-exec`/`-ok` can run anything at all, so they fail closed as writes. */
+const FIND_ACTING_PREDICATES = new Set([
+  "-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprintf", "-fls",
+]);
+
+/** Whether running `executable` with `args` changes files. Order matters: a
+ *  mutating flag beats read-only membership (`sed -i` writes), read-only
+ *  membership beats the name heuristic (`wc`, `cksum` and `readlink` must never
+ *  be read as write verbs), and only then does an unknown program fall back to
+ *  its name. */
+function mutatesFiles(executable: string, args: readonly string[]): boolean {
+  if (MUTATING_EXECUTABLES.has(executable)) return true;
+  if (mutatingFlag(executable, args)) return true;
+  if (READ_ONLY_EXECUTABLES.has(executable)) return false;
+  if (executable === "git") return !GIT_READ_SUBCOMMANDS.has(gitSubcommand(args));
+  return WRITE_VERB_NAME.test(executable);
+}
+
+/** Whether running `executable` with `args` only reads. Deliberately narrower
+ *  than `!mutatesFiles`: an unknown program is neither a proven write nor a
+ *  proven read, so it leaves the action as `execute`. */
+function readsFiles(executable: string, args: readonly string[]): boolean {
+  if (executable === "git") return GIT_READ_SUBCOMMANDS.has(gitSubcommand(args));
+  return READ_ONLY_EXECUTABLES.has(executable) && !mutatingFlag(executable, args);
+}
+
+function gitSubcommand(args: readonly string[]): string {
+  return args.find((arg) => !arg.startsWith("-")) ?? "";
+}
+
+/** Shell RESERVED WORDS. They are grammar, not programs: `if`, `then`, `for`,
+ *  `done` never name an executable, and the pre-ISSUE-019 splitter reported
+ *  seven of them as "executables" on one live command. Worse, treating them as
+ *  argv[0] SWALLOWED the real command — `if curl --fail --silent URL; then`
+ *  projected `if --fail --silent` and no `curl` at all, so an outbound-network
+ *  exfil hidden one keyword deep classified ROUTINE. Recognized only in
+ *  command position and only unquoted (`grep if src` still searches for "if").
+ *  `for`/`select`/`case`/`function` need their own header handling below. */
+const RESERVED_WORDS = new Set([
+  "if", "then", "elif", "else", "fi",
+  "while", "until", "do", "done",
+  "esac", "in",
+  "{", "}", "!", "time", "coproc",
+]);
+
+/** Shell builtins with no reachable effect of their own. They contribute no
+ *  executable to the projection; any redirection attached to them is still
+ *  captured by the redirect scan (`: > roles.yaml` remains a protocol write).
+ *  Suppressed for the same reason as reserved words: `break` is not a program,
+ *  and listing it as one both misleads the operator reading the escalation and
+ *  dilutes the evidence that names the real effect. */
+const INERT_BUILTINS = new Set([
+  "break", "continue", "return", "exit", "shift", "true", "false", ":",
+  "[", "[[", "]]", "test",
+]);
+
+function emptyShellEffects(): ShellEffects {
+  return {
+    executables: [],
+    targets: [],
+    redirections: [],
+    environment: [],
+    writes: false,
+    ranCommand: false,
+    ranOtherCommand: false,
+  };
+}
+
 function analyzeShell(raw: string, depth = 0): ShellEffects {
-  if (depth > 4) return { executables: [], targets: [], redirections: [], environment: [] };
+  // A command nested deeper than the projection follows is unanalyzed, not
+  // proven harmless: it counts as a non-read-only program so the action cannot
+  // be reported as a read.
+  if (depth > 4) return { ...emptyShellEffects(), ranCommand: true, ranOtherCommand: true };
   const unwrapped = unwrapCommand(raw);
   // Heredoc payload is data, including any Markdown backticks or illustrative
   // `$()` fragments. Remove it before every executable-intent projection, not
@@ -496,21 +736,19 @@ function analyzeShell(raw: string, depth = 0): ShellEffects {
     .filter(hasExecutableEffect)
     .map((value) => analyzeShell(unquote(value).replace(/\$\{IFS\}/gi, " "), depth + 1));
   const command = stripShellComments(withoutMessageArgs(withoutHeredocs)).replace(/\$\{IFS\}/gi, " ");
-  const tokens = tokenizeShell(command);
-  const effects: ShellEffects = { executables: [], targets: [], redirections: [], environment: [] };
+  const parsed = parseShell(lexShell(command));
+  const effects: ShellEffects = emptyShellEffects();
   const aliases = new Map<string, string>();
   const variables = new Map<string, string>();
-  let segment: string[] = [];
-  const flush = (): void => {
-    if (segment.length === 0) return;
+  for (const segment of parsed.commands) {
     analyzeSegment(segment, effects, depth, aliases, variables);
-    segment = [];
-  };
-  for (const token of tokens) {
-    if (SHELL_BOUNDARIES.has(token)) flush();
-    else segment.push(token);
   }
-  flush();
+  // A `for`/`select`/`case` word list is an OPERAND list the loop body consumes
+  // (`for f in .env ~/.ssh/id_rsa; do cat "$f"; done`), so its words are real
+  // targets. Only whitespace-free words qualify: a quoted prose word
+  // ("secrets.json is fine") is data and must never reach a rule or a scoped
+  // grant's pathContains bound (A-005).
+  effects.targets.push(...parsed.operands);
   for (const child of nested) mergeShellEffects(effects, child);
   for (const child of executableMessages) mergeShellEffects(effects, child);
   effects.executables = [...new Set(effects.executables)].sort();
@@ -521,7 +759,7 @@ function analyzeShell(raw: string, depth = 0): ShellEffects {
 }
 
 function analyzeSegment(
-  tokens: string[],
+  tokens: readonly ShellToken[],
   effects: ShellEffects,
   depth: number,
   aliases: Map<string, string>,
@@ -530,23 +768,32 @@ function analyzeSegment(
   const argv: string[] = [];
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!;
-    const redirect = REDIRECT_TOKENS.has(token)
-      ? token
-      : /^\d*(>>?|<<?|<<<)$/.test(token)
-        ? token.replace(/^\d+/, "")
-        : undefined;
-    if (redirect !== undefined) {
-      const target = tokens[++i];
-      if (target !== undefined && !REDIRECT_TOKENS.has(target)) {
-        if (target !== "/dev/null" && target !== "&1" && target !== "&2") {
-          effects.redirections.push(target);
-          effects.targets.push(target);
-        }
+    if (token.kind === "redirect") {
+      const writesOutput = OUTPUT_REDIRECTS.has(token.text);
+      const target = tokens[i + 1];
+      if (target === undefined || target.kind !== "word") {
+        // A destination the projection cannot name — a process substitution,
+        // `2>$(printf /dev/null)`, a truncated tail. Unknown is not harmless:
+        // an output redirection with an unresolved target is a write.
+        if (writesOutput) effects.writes = true;
+        continue;
       }
+      i++;
+      // `2>&1` / `>&2` duplicate a file descriptor; nothing is written to a
+      // path. `>&file` (a real file target) keeps the fail-closed direction.
+      const duplicatesFd = (token.text === ">&" || token.text === "<&") &&
+        /^-?\d*-?$/.test(target.text);
+      // The literal `/dev/null` sink is the ONE known-harmless destination, and
+      // only when it is spelled completely: a word left open by an unterminated
+      // quote (`2>"/dev/null`) is malformed input, not a proven null sink.
+      const literalNullSink = unquote(target.text) === "/dev/null" && target.malformed !== true;
+      if (duplicatesFd || literalNullSink) continue;
+      effects.redirections.push(target.text);
+      effects.targets.push(target.text);
+      if (writesOutput) effects.writes = true;
       continue;
     }
-    if (/^\d+$/.test(token) && REDIRECT_TOKENS.has(tokens[i + 1] ?? "")) continue;
-    argv.push(token);
+    argv.push(token.text);
   }
   if (argv.length === 0) return;
 
@@ -559,7 +806,7 @@ function analyzeSegment(
     variables.set(name.toLowerCase(), assignment.slice(equals + 1));
     cursor++;
   }
-  while (["sudo", "command", "builtin", "nohup"].includes(baseExecutable(argv[cursor] ?? ""))) cursor++;
+  while (["sudo", "command", "builtin", "nohup", "exec"].includes(baseExecutable(argv[cursor] ?? ""))) cursor++;
   if (baseExecutable(argv[cursor] ?? "") === "env") {
     cursor++;
     while (cursor < argv.length && (argv[cursor]!.startsWith("-") || isAssignment(argv[cursor]))) {
@@ -574,8 +821,8 @@ function analyzeSegment(
     }
   }
   // `env KEY=value command kubectl ...` is the common nested-wrapper form;
-  // peel command/builtin/nohup again after env consumed its assignments.
-  while (["sudo", "command", "builtin", "nohup"].includes(baseExecutable(argv[cursor] ?? ""))) cursor++;
+  // peel command/builtin/nohup/exec again after env consumed its assignments.
+  while (["sudo", "command", "builtin", "nohup", "exec"].includes(baseExecutable(argv[cursor] ?? ""))) cursor++;
   if (baseExecutable(argv[cursor] ?? "") === "xargs") {
     cursor++;
     while (cursor < argv.length && argv[cursor]!.startsWith("-")) cursor++;
@@ -618,8 +865,12 @@ function analyzeSegment(
     return;
   }
 
-  if (["bash", "sh", "zsh"].includes(executable)) {
-    const commandIndex = args.findIndex((arg) => arg === "-c" || arg === "-lc");
+  if (["bash", "sh", "zsh", "ksh", "dash"].includes(executable)) {
+    // Any combined flag cluster ending in `c` carries the script: `-c`, and the
+    // login/interactive forms `-lc` / `-ic` / `-lic` the adapters actually emit
+    // (`/bin/zsh -lc '<script>'` is the exact shape of every captured run-3
+    // approval). The script is a nested command, not an argument.
+    const commandIndex = args.findIndex((arg) => /^-[a-z]*c$/.test(arg));
     if (commandIndex !== -1 && args[commandIndex + 1] !== undefined) {
       mergeShellEffects(effects, analyzeShell(args[commandIndex + 1]!, depth + 1));
       return;
@@ -631,8 +882,20 @@ function analyzeSegment(
     mergeShellEffects(effects, analyzeShell(args.join(" "), depth + 1));
     return;
   }
+  // A no-effect builtin names no program. Its redirections were already
+  // captured above, so suppressing it here removes noise without removing
+  // evidence.
+  if (INERT_BUILTINS.has(executable)) return;
 
   effects.executables.push(executable);
+  // A read-only utility contributes no write signal whichever paths it names
+  // (ISSUE-027 rule 1); everything else is at least unproven, and a proven
+  // mutation makes the whole action a write (rule 2).
+  effects.ranCommand = true;
+  if (!readsFiles(executable, args)) {
+    effects.ranOtherCommand = true;
+    if (mutatesFiles(executable, args)) effects.writes = true;
+  }
   const relevant = relevantArguments(executable, args);
   effects.targets.push(...relevant.targets);
   // Render structured command verbs into the executable projection. This
@@ -647,20 +910,64 @@ function relevantArguments(executable: string, args: string[]): { verb: string; 
   }
   if (executable === "git") return gitArguments(args);
   if (executable === "gh") return ghArguments(args);
-  if (executable === "sed" || executable === "awk") {
+  // Script-then-files tools: the first positional is the PROGRAM (data — a
+  // `s/a/b/` expression is not a path), everything after it is a file operand.
+  // `perl`/`ruby` join `sed`/`awk` here because `perl -i -pe … AGENTS.md`
+  // rewrites the file it names and must reach the rules with that name.
+  if (["sed", "gsed", "awk", "gawk", "mawk", "perl", "ruby"].includes(executable)) {
     const positional = args.filter((arg) => !arg.startsWith("-"));
-    return { verb: executable === "sed" && args.includes("-i") ? "-i" : "", targets: positional.slice(1) };
+    return { verb: mutatingFlag(executable, args) ? "-i" : "", targets: positional.slice(1) };
+  }
+  // `find` carries its operands and its actions in one flag soup: the paths it
+  // names must reach the rules (`find . -name AGENTS.md -delete` is a protocol
+  // write) while `{}` and `;` are punctuation, not files.
+  if (executable === "find") {
+    return {
+      verb: args.filter((arg) => arg.startsWith("-")).join(" "),
+      targets: args.filter((arg) => !arg.startsWith("-") && looksLikePathOrUrl(arg)),
+    };
+  }
+  // `dd` names its destination in `of=`, not positionally.
+  if (executable === "dd") {
+    return {
+      verb: "",
+      targets: args.filter((arg) => /^(?:if|of)=./.test(arg)).map((arg) => arg.slice(3)),
+    };
   }
   if (FILE_ARGUMENT_TOOLS.has(executable)) {
     return { verb: "", targets: args.filter((arg) => !arg.startsWith("-") && arg !== "-") };
   }
-  if (["kubectl", "doctl", "npm", "pnpm", "helm", "terraform", "docker", "gcloud", "aws", "curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"].includes(executable)) {
+  // `operon` and `npx` are multiplexers too. Without the verb, every `operon`
+  // invocation projected to the bare executable plus its flags, so
+  // `operon app reset --execute` and `operon roles` were the same action to
+  // every rule — which is how the CLI's own human-gated verbs classified
+  // routine while the shell equivalents of the same effects did not.
+  if (["kubectl", "doctl", "npm", "pnpm", "npx", "operon", "helm", "terraform", "docker", "gcloud", "aws", "curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"].includes(executable)) {
     return {
-      verb: args.filter((arg) => !arg.startsWith("-")).slice(0, 3).join(" "),
+      verb: leadingSubcommands(args).join(" "),
       targets: args.filter(looksLikePathOrUrl),
     };
   }
   return { verb: args.filter((arg) => arg.startsWith("-")).join(" "), targets: [] };
+}
+
+/** The leading SUBCOMMAND words of a multiplexer CLI (`kubectl config
+ *  set-credentials`, `doctl apps create-deployment`, `npm publish`), stopping
+ *  at the first positional that is an OPERAND rather than a subcommand. A
+ *  subcommand is a lowercase word, optionally hyphen/colon-segmented; a host,
+ *  port, path, id, or version is not. Without the stop rule, operands rode into
+ *  the executable projection — `pnpm preview 127.0.0.1 1` in the run-3 capture
+ *  — which reads as an executable named after a host and buries the real verb.
+ *  Three words is the longest verb any rule needs. */
+function leadingSubcommands(args: string[]): string[] {
+  const out: string[] = [];
+  for (const arg of args) {
+    if (arg.startsWith("-")) continue;
+    if (!/^[a-z][a-z0-9]*(?:[-:][a-z0-9]+)*$/.test(arg)) break;
+    out.push(arg);
+    if (out.length === 3) break;
+  }
+  return out;
 }
 
 function searchArguments(args: string[]): { verb: string; targets: string[] } {
@@ -677,15 +984,19 @@ function searchArguments(args: string[]): { verb: string; targets: string[] } {
 }
 
 function gitArguments(args: string[]): { verb: string; targets: string[] } {
-  const subcommand = args.find((arg) => !arg.startsWith("-")) ?? "";
+  const subcommand = gitSubcommand(args);
   if (subcommand === "") return { verb: "", targets: [] };
-  if (["log", "show", "diff", "grep", "status"].includes(subcommand)) {
-    const delimiter = args.indexOf("--");
-    return { verb: subcommand, targets: delimiter === -1 ? [] : args.slice(delimiter + 1) };
-  }
+  // Everything after `--` is a PATHSPEC, whichever subcommand it belongs to.
+  // Only the read subcommands used to project it, so `git diff -- AGENTS.md`
+  // (a read) reached the rules with its path while `git checkout -- AGENTS.md`
+  // (which overwrites that file) reached them with no path at all and could
+  // never match protocol-self-edit.
+  const delimiter = args.indexOf("--");
+  const targets = delimiter === -1 ? [] : args.slice(delimiter + 1);
+  if (GIT_READ_SUBCOMMANDS.has(subcommand)) return { verb: subcommand, targets };
   return {
     verb: [subcommand, ...args.filter((arg) => /^(?:--force|--force-with-lease|--force-push|-f)$/.test(arg))].join(" "),
-    targets: [],
+    targets,
   };
 }
 
@@ -705,33 +1016,231 @@ function ghArguments(args: string[]): { verb: string; targets: string[] } {
   return { verb, targets };
 }
 
-function tokenizeShell(command: string): string[] {
-  const out: string[] = [];
-  let token = "";
+/** One lexed shell token. `kind` separates grammar from data so the parser
+ *  below never has to re-guess whether `>` is a redirection or a filename, and
+ *  `quoted` keeps a quoted reserved word (`grep "if" src`) from being read as
+ *  grammar. */
+interface ShellToken {
+  text: string;
+  kind: "word" | "control" | "redirect";
+  quoted: boolean;
+  /** The word ran off the end of the input inside an unterminated quote, so its
+   *  text is a guess. Only the known-harmless `/dev/null` sink cares: a
+   *  malformed word may never be treated as one. */
+  malformed?: boolean;
+}
+
+/** Operator table, longest match first. Everything the classifier needs to see
+ *  a command boundary: pipelines, `&&`/`||`/`;` sequencing, background `&`,
+ *  case `;;`, subshell parentheses, and every redirection form. */
+const SHELL_OPERATORS: readonly { text: string; kind: "control" | "redirect" }[] = [
+  { text: "&>>", kind: "redirect" },
+  { text: "<<<", kind: "redirect" },
+  { text: "<<-", kind: "redirect" },
+  { text: "&&", kind: "control" },
+  { text: "||", kind: "control" },
+  { text: ";;", kind: "control" },
+  { text: "&>", kind: "redirect" },
+  { text: ">>", kind: "redirect" },
+  { text: "<<", kind: "redirect" },
+  { text: ">&", kind: "redirect" },
+  { text: "<&", kind: "redirect" },
+  { text: "|", kind: "control" },
+  { text: "&", kind: "control" },
+  { text: ";", kind: "control" },
+  { text: "(", kind: "control" },
+  { text: ")", kind: "control" },
+  { text: ">", kind: "redirect" },
+  { text: "<", kind: "redirect" },
+];
+
+/** Lex a command into words and operators. This replaces whitespace splitting:
+ *  a token knows whether it is grammar or data, quoting is honoured, an IO
+ *  number (`2` in `2>&1`) is consumed by its redirection instead of becoming an
+ *  argument, and `$(` opens a substitution rather than producing a `$` word. */
+function lexShell(command: string): ShellToken[] {
+  const out: ShellToken[] = [];
+  let text = "";
+  let quoted = false;
+  let malformed = false;
   let quote: "'" | '"' | null = null;
-  const push = (): void => { if (token !== "") { out.push(token); token = ""; } };
+  const flushWord = (): void => {
+    if (text !== "") out.push(malformed ? { text, kind: "word", quoted, malformed } : { text, kind: "word", quoted });
+    text = "";
+    quoted = false;
+    malformed = false;
+  };
   for (let i = 0; i < command.length; i++) {
     const ch = command[i]!;
     if (quote !== null) {
       if (ch === quote) quote = null;
-      else if (ch === "\\" && quote === '"' && command[i + 1] !== undefined) token += command[++i]!;
-      else token += ch;
+      else if (ch === "\\" && quote === '"' && command[i + 1] !== undefined) text += command[++i]!;
+      else text += ch;
       continue;
     }
-    if (ch === "'" || ch === '"') { quote = ch; continue; }
-    if (ch === "\\" && command[i + 1] !== undefined) { token += command[++i]!; continue; }
-    if (/\s/.test(ch)) { push(); if (ch === "\n") out.push("\n"); continue; }
-    if (["|", "&", ";", "<", ">"].includes(ch)) {
-      push();
-      const pair = `${ch}${command[i + 1] ?? ""}`;
-      if (["||", "&&", ">>", "<<"].includes(pair)) { out.push(pair); i++; }
-      else out.push(ch);
+    if (ch === "'" || ch === '"') { quote = ch; quoted = true; continue; }
+    if (ch === "\\" && command[i + 1] !== undefined) { text += command[++i]!; continue; }
+    if (/\s/.test(ch)) {
+      flushWord();
+      if (ch === "\n") out.push({ text: "\n", kind: "control", quoted: false });
       continue;
     }
-    token += ch;
+    // A backtick substitution's body is analyzed separately
+    // (extractCommandSubstitutions); here it is only a command boundary.
+    if (ch === "`") { flushWord(); out.push({ text: "`", kind: "control", quoted: false }); continue; }
+    const operator = SHELL_OPERATORS.find((candidate) => command.startsWith(candidate.text, i));
+    if (operator !== undefined) {
+      if (operator.kind === "redirect" && !quoted && /^\d+$/.test(text)) {
+        // Leading IO number: `2>file` redirects fd 2, it does not run `2`.
+        text = "";
+      } else if (operator.text === "(" && !quoted && text.endsWith("$")) {
+        text = text.slice(0, -1);
+      }
+      flushWord();
+      out.push({ text: operator.text, kind: operator.kind, quoted: false });
+      i += operator.text.length - 1;
+      continue;
+    }
+    text += ch;
   }
-  push();
+  // An unterminated quote swallowed the rest of the input, so the word it
+  // produced is a reconstruction rather than the shell's own reading.
+  if (quote !== null) malformed = true;
+  flushWord();
   return out;
+}
+
+interface ParsedShell {
+  /** One token list per simple command, reserved words removed. */
+  commands: ShellToken[][];
+  /** `for`/`select`/`case` word-list operands (see analyzeShell). */
+  operands: string[];
+}
+
+/**
+ * Split lexed tokens into SIMPLE COMMANDS, honouring shell grammar (ISSUE-019).
+ *
+ * The pre-fix splitter had no grammar at all: every whitespace-separated token
+ * was a candidate executable, so reserved words were reported as programs and —
+ * far worse — a reserved word in argv[0] hid the real command behind it. This
+ * walk understands compound commands (`if`/`while`/`until`/`for`/`select`/
+ * `case`/`{...}`/`function`), pipelines, `&&`/`||`/`;`/`&` sequencing,
+ * subshells, and redirections, so `curl` inside an `if` condition reaches the
+ * outbound-network rule exactly as it would at the top level.
+ *
+ * Deliberately NOT a full shell parser: it does not expand anything, and every
+ * construct it does not recognize degrades to "treat these words as a command",
+ * which is the over-detecting direction.
+ */
+function parseShell(tokens: readonly ShellToken[]): ParsedShell {
+  const commands: ShellToken[][] = [];
+  const operands: string[] = [];
+  let segment: ShellToken[] = [];
+  let mode: "normal" | "loop-header" | "case-header" | "function-name" = "normal";
+  let sawLoopIn = false;
+  let caseDepth = 0;
+  let casePattern = false;
+  let patternSawWord = false;
+  const flush = (): void => {
+    if (segment.length > 0) commands.push(segment);
+    segment = [];
+  };
+  const inCommandPosition = (): boolean => !segment.some((token) => token.kind === "word");
+
+  for (const token of tokens) {
+    if (casePattern) {
+      // `pattern|other)` is a match list, not a command. Two escapes matter as
+      // much as the `)`, because the skip is BLIND and a blind classifier is a
+      // safety hole, not a false-negative curiosity:
+      //   1. `esac` closes the statement without any `)`. The `;;` ending the
+      //      last arm re-arms the skip, so without this every command after
+      //      the `esac` — `gh pr create`, `kubectl apply`, `rm -rf` — would be
+      //      invisible for the rest of the script.
+      //   2. An unquoted pattern list cannot span a newline, so a newline
+      //      after a pattern word (and not after a `|` continuation) means the
+      //      text is not a match list at all. Give up and re-read it as a
+      //      command: over-detecting is the safe direction, staying blind is
+      //      not.
+      if (token.kind === "word" && !token.quoted && token.text === "esac") {
+        casePattern = false;
+        if (caseDepth > 0) caseDepth--;
+        flush();
+        continue;
+      }
+      if (token.kind === "control" && token.text === ")") { casePattern = false; continue; }
+      if (token.kind === "control" && token.text === "|") { patternSawWord = false; continue; }
+      if (token.kind === "control" && token.text === "\n" && patternSawWord) {
+        casePattern = false;
+        continue;
+      }
+      if (token.kind === "word") patternSawWord = true;
+      continue;
+    }
+    if (mode === "loop-header") {
+      if (token.kind === "control") {
+        if (token.text === ";" || token.text === "\n") mode = "normal";
+        continue;
+      }
+      if (token.kind === "redirect") continue;
+      if (!token.quoted && token.text === "do") { mode = "normal"; continue; }
+      if (!token.quoted && token.text === "in" && !sawLoopIn) { sawLoopIn = true; continue; }
+      // Whitespace-free words only (a quoted prose word is data), and never a
+      // bare number — `for attempt in 1 2 3 4 5` is a counter, not a path.
+      if (sawLoopIn && !/\s/.test(token.text) && !/^\d+$/.test(token.text)) {
+        operands.push(token.text);
+      }
+      continue;
+    }
+    if (mode === "case-header") {
+      if (token.kind === "control") {
+        if (token.text === ";" || token.text === "\n") mode = "normal";
+        continue;
+      }
+      if (token.kind === "word" && !token.quoted && token.text === "in") {
+        mode = "normal";
+        casePattern = true;
+        patternSawWord = false;
+      }
+      continue;
+    }
+    if (mode === "function-name") {
+      if (token.kind === "word") mode = "normal";
+      continue;
+    }
+    if (token.kind === "control") {
+      flush();
+      if (token.text === ";;" && caseDepth > 0) { casePattern = true; patternSawWord = false; }
+      continue;
+    }
+    if (token.kind === "redirect") {
+      segment.push(token);
+      continue;
+    }
+    if (!token.quoted && inCommandPosition()) {
+      if (token.text === "esac") {
+        if (caseDepth > 0) caseDepth--;
+        flush();
+        continue;
+      }
+      if (RESERVED_WORDS.has(token.text)) { flush(); continue; }
+      if (token.text === "for" || token.text === "select") {
+        flush();
+        mode = "loop-header";
+        sawLoopIn = false;
+        continue;
+      }
+      if (token.text === "case") {
+        flush();
+        caseDepth++;
+        mode = "case-header";
+        continue;
+      }
+      if (token.text === "function") { flush(); mode = "function-name"; continue; }
+    }
+    segment.push(token);
+  }
+  flush();
+  return { commands, operands };
 }
 
 /** Remove shell comments without interpreting quoted `#` characters. Exported
@@ -805,6 +1314,9 @@ function mergeShellEffects(target: ShellEffects, source: ShellEffects): void {
   target.targets.push(...source.targets);
   target.redirections.push(...source.redirections);
   target.environment.push(...source.environment);
+  target.writes ||= source.writes;
+  target.ranCommand ||= source.ranCommand;
+  target.ranOtherCommand ||= source.ranOtherCommand;
 }
 
 function isAssignment(value: string | undefined): value is string {
@@ -839,17 +1351,14 @@ function isDataMutationTool(tool: string): boolean {
   return /^(?:write|edit|create|replace|append|delete|remove|move|copy)(?:$|[_-])/.test(tool);
 }
 
-function shellWrites(command: string): boolean {
-  const normalized = command.toLowerCase();
-  return hasMaterialRedirect(normalized) || /\b(?:rm|mv|cp|tee|sed\s+-i)\b/.test(normalized);
-}
-
-/** A literal `/dev/null` sink cannot mutate the protocol path merely named
- * elsewhere in a compound read command. Keep every other redirect material:
- * real targets, variables, substitutions, and malformed/ambiguous syntax all
- * remain fail-closed. Removing the null redirect before the ordinary scan also
- * preserves a real write in commands such as
- * `echo x > AGENTS.md 2>/dev/null`. */
+/** A literal `/dev/null` sink cannot mutate a path merely named elsewhere in a
+ * compound read command. Keep every other redirect material: real targets,
+ * variables, substitutions, and malformed/ambiguous syntax all remain
+ * fail-closed. Used only for actions with NO parsable command — a shell action
+ * gets the structural redirect scan in `analyzeSegment` instead, which is what
+ * ISSUE-027 turned on: this regex's sink exemption only fired before whitespace
+ * or end-of-string, so the closing quote of `/bin/zsh -lc '… 2>/dev/null'` made
+ * the null sink look like a real redirect and a `wc -l` a protocol write. */
 function hasMaterialRedirect(command: string): boolean {
   const withoutLiteralNullSinks = command.replace(
     /\d*>>?\s*(?:"\/dev\/null"|'\/dev\/null'|\/dev\/null)(?=$|[\s;|&])/g,

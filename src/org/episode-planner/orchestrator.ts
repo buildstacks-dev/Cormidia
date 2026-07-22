@@ -1,8 +1,11 @@
 import { existsSync } from "node:fs";
 import {
+  efficiencyEpisodeDir,
+  readExecutionSteps,
   readRouteRecord,
   routeRecordPath,
   type AuthorizedPass,
+  type ExecutionStepRecord,
   type RouteRecord,
 } from "../../loop/efficiency.js";
 import {
@@ -58,7 +61,9 @@ import {
 } from "./assignment-readiness.js";
 
 export const EPISODE_ORCHESTRATOR_PREVIEW_VERSION = 1 as const;
-export const EPISODE_ORCHESTRATOR_EXPLAIN_VERSION = 1 as const;
+/** v2 makes the explanation total: every field is nullable, every unresolved
+ * lookup becomes an inline annotation, and nothing throws. */
+export const EPISODE_ORCHESTRATOR_EXPLAIN_VERSION = 2 as const;
 
 export type EpisodeOrchestrationMode = "plan_only" | "execute";
 
@@ -426,6 +431,20 @@ interface ExplainedStepBase {
   status: ExplainedStepStatus;
 }
 
+/**
+ * How the durable route record explains this step's assignment.
+ *
+ * `authorized_at_prior_plan_version` is the ordinary shape after a plan
+ * revision: {@link admitPlannedEpisodeRoute} deliberately does not re-authorize
+ * (and re-budget) a step that already completed under an earlier version, so
+ * its only authorization stays filed at the version that actually paid for it.
+ */
+export type StepAuthorizationStatus =
+  | "authorized"
+  | "authorized_at_prior_plan_version"
+  | "route_missing"
+  | "unresolved";
+
 export interface ExplainedProviderStep extends ExplainedStepBase {
   kind: "provider_turn";
   operation: string;
@@ -437,6 +456,11 @@ export interface ExplainedProviderStep extends ExplainedStepBase {
   providerFamily: string | null;
   resolvedCapabilities: string[];
   routeAuthorized: boolean;
+  authorizationStatus: StepAuthorizationStatus;
+  /** Plan version the matched authorization was filed under, when resolved. */
+  authorizedPlanVersion: number | null;
+  /** Human-readable annotation whenever the status is not plain `authorized`. */
+  authorizationDetail: string | null;
 }
 
 export interface ExplainedMechanicalStep extends ExplainedStepBase {
@@ -455,52 +479,222 @@ export type ExplainedEpisodeStep =
   | ExplainedMechanicalStep
   | ExplainedApprovalStep;
 
+/** Every way durable episode evidence can be missing, unreadable, or
+ * internally inconsistent. Each one degrades the explanation; none aborts it. */
+export type EpisodeExplanationProblemCode =
+  | "episode_evidence_missing"
+  | "intent_missing"
+  | "intent_unreadable"
+  | "plan_missing"
+  | "plan_unreadable"
+  | "plan_intent_mismatch"
+  | "route_unreadable"
+  | "journal_unreadable"
+  | "execution_steps_unreadable"
+  | "step_authorization_unresolved"
+  | "step_authorization_stale";
+
+export interface EpisodeExplanationProblem {
+  code: EpisodeExplanationProblemCode;
+  message: string;
+  /** Plan step the problem is about, when it is about one. */
+  stepId: string | null;
+}
+
+/** Durable execution-step evidence, projected for a diagnostic reader. It is
+ * the only step evidence a route-only episode (deterministic lifecycle work,
+ * or an episode that never reached an accepted plan) has. */
+export interface ExplainedExecutionStep {
+  executionStepId: string;
+  kind: ExecutionStepRecord["kind"];
+  operation: string;
+  role: string | null;
+  assignment: TurnAssignment | null;
+  status: ExecutionStepRecord["status"];
+  startedAt: string;
+  finishedAt: string;
+  errorCode: string | null;
+  reason: string;
+  planVersion: number | null;
+  planStepId: string | null;
+}
+
 export interface EpisodeExplanation {
   schemaVersion: typeof EPISODE_ORCHESTRATOR_EXPLAIN_VERSION;
   episodeId: string;
-  intent: EpisodeIntent;
-  intentHash: string;
-  plan: EpisodePlan;
-  planHash: string;
+  /** Absolute directory every durable artifact below was read from. Printed so
+   * an operator never has to reverse-engineer the state-home layout. */
+  evidenceDir: string;
+  /** True only when no {@link problems} entry was recorded. */
+  complete: boolean;
+  problems: EpisodeExplanationProblem[];
+  intent: EpisodeIntent | null;
+  intentHash: string | null;
+  plan: EpisodePlan | null;
+  planHash: string | null;
   route: RouteRecord | null;
   journal: EpisodePlanExecutionJournal | null;
-  planningSource: EpisodePlan["planningSource"];
+  planningSource: EpisodePlan["planningSource"] | null;
   planningTurnSkipped: boolean;
   steps: ExplainedEpisodeStep[];
+  executionSteps: ExplainedExecutionStep[];
 }
 
-/** Read-only explanation from durable episode evidence. */
+/**
+ * Read-only explanation from durable episode evidence.
+ *
+ * This is the primary operator diagnostic, so it is total by construction: a
+ * missing, corrupt, or internally inconsistent artifact is recorded in
+ * {@link EpisodeExplanation.problems} and annotated inline, never thrown. A
+ * diagnostic that refuses to print anything when one lookup fails is the exact
+ * opposite of a diagnostic (ISSUE-025).
+ */
 export async function explainEpisode(
   root: string,
   episodeId: string,
 ): Promise<EpisodeExplanation> {
-  const intent = await readPersistedEpisodeIntent(root, episodeId);
-  if (intent === undefined) throw new Error(`episode ${episodeId} has no persisted intent`);
-  const plan = await readCurrentEpisodePlan(root, episodeId);
-  if (plan === undefined) throw new Error(`episode ${episodeId} has no accepted plan`);
-  const intentHash = episodeIntentHash(intent);
-  if (plan.intentHash !== intentHash) {
-    throw new Error(`episode ${episodeId} plan does not match its persisted intent`);
-  }
+  const problems: EpisodeExplanationProblem[] = [];
+  const fail = (
+    code: EpisodeExplanationProblemCode,
+    message: string,
+    stepId: string | null = null,
+  ): void => {
+    problems.push({ code, message, stepId });
+  };
+
+  const evidenceDir = efficiencyEpisodeDir(root, episodeId);
+  const intent = await readOrAnnotate(
+    () => readPersistedEpisodeIntent(root, episodeId),
+    (error) => fail("intent_unreadable", `persisted intent is unreadable: ${describe(error)}`),
+  );
+  const plan = await readOrAnnotate(
+    () => readCurrentEpisodePlan(root, episodeId),
+    (error) => fail("plan_unreadable", `accepted plan is unreadable: ${describe(error)}`),
+  );
   const route = existsSync(routeRecordPath(root, episodeId))
-    ? await readRouteRecord(root, episodeId)
-    : null;
+    ? await readOrAnnotate(
+        () => readRouteRecord(root, episodeId),
+        (error) => fail("route_unreadable", `route record is unreadable: ${describe(error)}`),
+      )
+    : undefined;
   const journal = existsSync(episodePlanExecutionJournalPath(root, episodeId))
-    ? await readEpisodePlanExecutionJournal(root, episodeId) ?? null
-    : null;
-  const steps = plan.steps.map((step) => explainStep(step, plan, route, journal));
+    ? await readOrAnnotate(
+        () => readEpisodePlanExecutionJournal(root, episodeId),
+        (error) => fail("journal_unreadable", `execution journal is unreadable: ${describe(error)}`),
+      )
+    : undefined;
+  const executionSteps = await readOrAnnotate(
+    () => readExecutionSteps(root, episodeId),
+    (error) =>
+      fail("execution_steps_unreadable", `durable execution steps are unreadable: ${describe(error)}`),
+  ) ?? [];
+
+  if (
+    intent === undefined && plan === undefined && route === undefined &&
+    journal === undefined && executionSteps.length === 0
+  ) {
+    fail(
+      "episode_evidence_missing",
+      `no durable evidence for episode ${episodeId} under ${evidenceDir}`,
+    );
+  } else {
+    if (intent === undefined && !problems.some((problem) => problem.code === "intent_unreadable")) {
+      fail("intent_missing", "episode has no persisted immutable intent");
+    }
+    if (plan === undefined && !problems.some((problem) => problem.code === "plan_unreadable")) {
+      fail("plan_missing", "episode has no accepted durable EpisodePlan");
+    }
+  }
+
+  const intentHash = intent === undefined ? null : episodeIntentHash(intent);
+  if (plan !== undefined && intentHash !== null && plan.intentHash !== intentHash) {
+    fail(
+      "plan_intent_mismatch",
+      `plan v${plan.version} declares intent hash ${plan.intentHash} but the persisted intent hashes to ${intentHash}`,
+    );
+  }
+
+  const steps = plan === undefined
+    ? []
+    : plan.steps.map((step) => {
+        const explained = explainStep(step, plan, route ?? null, journal ?? null);
+        if (explained.kind !== "provider_turn") return explained;
+        if (explained.authorizationStatus === "unresolved") {
+          fail(
+            "step_authorization_unresolved",
+            explained.authorizationDetail ?? "route authorization could not be resolved",
+            step.id,
+          );
+        } else if (
+          explained.authorizationStatus === "authorized_at_prior_plan_version" &&
+          explained.status !== "completed"
+        ) {
+          // Carrying a prior version forward only explains a turn that was
+          // already paid for. A step still waiting to run needs a current
+          // authorization, and executing it would refuse without one.
+          fail(
+            "step_authorization_stale",
+            explained.authorizationDetail ?? "authorization predates the current plan version",
+            step.id,
+          );
+        }
+        return explained;
+      });
+
   return {
     schemaVersion: EPISODE_ORCHESTRATOR_EXPLAIN_VERSION,
     episodeId,
-    intent,
+    evidenceDir,
+    complete: problems.length === 0,
+    problems,
+    intent: intent ?? null,
     intentHash,
-    plan,
-    planHash: episodePlanHash(plan),
-    route,
-    journal,
-    planningSource: plan.planningSource,
-    planningTurnSkipped: plan.planningSource === "creator_scope",
+    plan: plan ?? null,
+    planHash: plan === undefined ? null : episodePlanHash(plan),
+    route: route ?? null,
+    journal: journal ?? null,
+    planningSource: plan?.planningSource ?? null,
+    planningTurnSkipped: plan?.planningSource === "creator_scope",
     steps,
+    executionSteps: executionSteps.map(explainExecutionStep),
+  };
+}
+
+/** Run one durable read, converting a throw into an annotation. `undefined`
+ * therefore means "absent or unreadable", and the problem list says which. */
+async function readOrAnnotate<T>(
+  read: () => Promise<T | undefined>,
+  onError: (error: unknown) => void,
+): Promise<T | undefined> {
+  try {
+    return await read();
+  } catch (error) {
+    onError(error);
+    return undefined;
+  }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function explainExecutionStep(record: ExecutionStepRecord): ExplainedExecutionStep {
+  const assignment = record.runtime !== null && record.model !== null && record.effort !== null
+    ? { harness: record.runtime, model: record.model, effort: record.effort }
+    : null;
+  return {
+    executionStepId: record.execution_step_id,
+    kind: record.kind,
+    operation: record.operation,
+    role: record.role,
+    assignment,
+    status: record.status,
+    startedAt: record.started_at,
+    finishedAt: record.finished_at,
+    errorCode: record.error_code,
+    reason: record.reason,
+    planVersion: record.plan_version ?? null,
+    planStepId: record.plan_step_id ?? null,
   };
 }
 
@@ -526,7 +720,8 @@ function explainStep(
       actionRef: step.actionRef,
     };
   }
-  const authorization = route === null ? undefined : exactStepAuthorization(route, step, plan);
+  const resolution = resolveStepAuthorization(route, step, plan, base.status);
+  const authorization = resolution.pass;
   return {
     ...base,
     kind: step.kind,
@@ -539,17 +734,87 @@ function explainStep(
     providerFamily: authorization?.provider_family ?? null,
     resolvedCapabilities: [...(authorization?.resolved_capabilities ?? [])],
     routeAuthorized: authorization !== undefined,
+    authorizationStatus: resolution.status,
+    authorizedPlanVersion: authorization?.plan_version ?? null,
+    authorizationDetail: resolution.detail,
   };
 }
 
-function exactStepAuthorization(
-  route: RouteRecord,
+interface StepAuthorizationResolution {
+  status: StepAuthorizationStatus;
+  pass: AuthorizedPass | undefined;
+  detail: string | null;
+}
+
+/**
+ * Resolve the durable authorization that actually paid for one planned step.
+ *
+ * Matching only the *current* plan version is wrong for any revised plan: a
+ * step that completed under v1 is deliberately not re-authorized at v2
+ * (`admitPlannedEpisodeRoute` filters completed steps out of the revision's
+ * passes), so the current version has zero matches for it. Fall back to the
+ * highest earlier version whose authorization is identical in every identity
+ * field, and label the difference instead of hiding it. A revision that
+ * genuinely changed the step's role or tuple still resolves to nothing, which
+ * is exactly the case an operator needs told — and a carried-forward
+ * authorization for a step that has *not* completed is reported as stale,
+ * because only an already-paid turn can be explained by an older version.
+ */
+function resolveStepAuthorization(
+  route: RouteRecord | null,
   step: ProviderTurnStep,
   plan: EpisodePlan,
-): AuthorizedPass {
-  const matches = route.authorized_passes.filter((pass) =>
-    pass.plan_version === plan.version &&
-    pass.plan_step_id === step.id &&
+  status: ExplainedStepStatus,
+): StepAuthorizationResolution {
+  if (route === null) {
+    return {
+      status: "route_missing",
+      pass: undefined,
+      detail: "no durable route record; assignment shown from the plan only",
+    };
+  }
+  const identical = route.authorized_passes.filter((pass) => authorizesStep(pass, step));
+  const current = identical.filter((pass) => pass.plan_version === plan.version);
+  if (current.length === 1) return { status: "authorized", pass: current[0]!, detail: null };
+  if (current.length > 1) {
+    return {
+      status: "unresolved",
+      pass: undefined,
+      detail: `${current.length} matching route authorizations for plan v${plan.version}` +
+        " (expected exactly one)",
+    };
+  }
+  const prior = identical
+    .flatMap((pass) =>
+      pass.plan_version !== undefined && pass.plan_version < plan.version
+        ? [{ pass, version: pass.plan_version }]
+        : []
+    )
+    .sort((left, right) => right.version - left.version);
+  const carried = prior[0];
+  if (carried !== undefined) {
+    return {
+      status: "authorized_at_prior_plan_version",
+      pass: carried.pass,
+      detail: status === "completed"
+        ? `authorized under plan v${carried.version}; plan v${plan.version} did not ` +
+          "re-authorize an already-completed step"
+        : `authorized under plan v${carried.version} only, but the step is ${status}; ` +
+          `plan v${plan.version} must re-authorize it before it can run`,
+    };
+  }
+  return {
+    status: "unresolved",
+    pass: undefined,
+    detail: `0 matching route authorizations for plan v${plan.version}` +
+      (identical.length === 0
+        ? ""
+        : ` (${identical.length} at another version were also rejected)`),
+  };
+}
+
+function authorizesStep(pass: AuthorizedPass, step: ProviderTurnStep): boolean {
+  return pass.plan_step_id === step.id &&
     pass.pass === step.id &&
     pass.role === step.role &&
     pass.runtime === step.assignment.harness &&
@@ -559,14 +824,7 @@ function exactStepAuthorization(
     turnAssignmentsEqual(
       { harness: pass.runtime, model: pass.model, effort: pass.effort },
       step.assignment,
-    )
-  );
-  if (matches.length !== 1) {
-    throw new Error(
-      `episode ${plan.episodeId} step ${step.id} has ${matches.length} matching route authorizations`,
     );
-  }
-  return matches[0]!;
 }
 
 function explainedStepStatus(

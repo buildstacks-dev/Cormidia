@@ -5,8 +5,8 @@
 // real org state, or meaningful wall-clock dependence is required.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { devNull, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
@@ -173,4 +173,130 @@ describe("doctor precondition checks", () => {
       spy.mockRestore();
     }
   });
+  // ISSUE-010: a per-turn budget cap stopped a builder and left a complete,
+  // uncommitted migration in the org-managed clone. No command reported it, so
+  // the next turn would have inherited an undefined tree.
+  it("flags an org-managed clone with uncommitted work and names it without touching it", async () => {
+    const stateHome = mkdtempSync(join(tmpdir(), "operon-doctor-clone-"));
+    const clone = join(stateHome, "repos", "operon-sandbox-alpha");
+    seedManagedClone(clone, { "astro.config.mjs": "export default {};\n" });
+    const before = gitStatus(clone);
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const code = await cmdDoctor({
+        orgHome: REPO_ROOT,
+        stateHome,
+        launchAgentsDir: join(stateHome, "LaunchAgents"),
+        configOnly: true,
+      });
+      const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(output).toContain("managed clones");
+      expect(output).toContain("repos/operon-sandbox-alpha");
+      expect(output).toContain("uncommitted work on main");
+      expect(output).toContain("astro.config.mjs");
+      expect(output).toContain("The next managed turn inherits this tree");
+      expect(output).toContain(`git -C ${clone} status --short`);
+      // Uncommitted work is a condition to surface, never a reason to fail
+      // the installation check — and doctor must not have changed the tree.
+      expect(code).toBe(0);
+      expect(gitStatus(clone)).toBe(before);
+    } finally {
+      spy.mockRestore();
+      rmSync(stateHome, { recursive: true, force: true });
+    }
+  });
+
+  // ENH-001: `~/.operon/operon` held 17MB of state with no corresponding org
+  // home and no command would have surfaced it.
+  it("flags a state home whose org home cannot be resolved", async () => {
+    const home = mkdtempSync(join(tmpdir(), "operon-doctor-orphan-"));
+    const pointerPath = join(home, ".operon", "config");
+    const stateHome = join(home, ".operon", "active");
+    const orphan = join(home, ".operon", "orphaned");
+    mkdirSync(stateHome, { recursive: true });
+    mkdirSync(join(orphan, "runs"), { recursive: true });
+    writeFileSync(join(orphan, "runs", "leftover.json"), "{}\n", "utf8");
+    mkdirSync(join(home, ".operon"), { recursive: true });
+    writeFileSync(pointerPath, `org_home: ${REPO_ROOT}\nstate_home: ${stateHome}\n`, "utf8");
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const code = await cmdDoctor({
+        orgHome: REPO_ROOT,
+        stateHome,
+        pointerPath,
+        launchAgentsDir: join(home, "LaunchAgents"),
+        configOnly: true,
+      });
+      const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(output).toContain("orgs:");
+      expect(output).toContain("orgs/orphaned");
+      expect(output).toContain("has no recorded org home");
+      expect(output).toContain("operon org archive orphaned");
+      // The active state home resolves through the pointer, so it is not an
+      // orphan and must not be reported as one.
+      expect(output).not.toContain("orgs/active");
+      // Orphan state is a condition to surface, not an installation failure.
+      expect(code).toBe(0);
+    } finally {
+      spy.mockRestore();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a clean clone as OK and an uncloned app as not-yet-cloned", async () => {
+    // Adversarial near-miss: the warning must key on actual working-tree
+    // state, not on the directory merely existing.
+    const stateHome = mkdtempSync(join(tmpdir(), "operon-doctor-clean-"));
+    const clone = join(stateHome, "repos", "operon-sandbox-alpha");
+    seedManagedClone(clone, {});
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await cmdDoctor({
+        orgHome: REPO_ROOT,
+        stateHome,
+        launchAgentsDir: join(stateHome, "LaunchAgents"),
+        configOnly: true,
+      });
+      const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(output).toContain("repos/operon-sandbox-alpha OK   — clean on main");
+      expect(output).toContain("repos/operon-sandbox-beta OK   — not cloned yet");
+      expect(output).not.toContain("uncommitted work");
+    } finally {
+      spy.mockRestore();
+      rmSync(stateHome, { recursive: true, force: true });
+    }
+  });
 });
+
+const FIXTURE_GIT_ENV: NodeJS.ProcessEnv = {
+  ...process.env,
+  GIT_CONFIG_GLOBAL: devNull,
+  GIT_CONFIG_SYSTEM: devNull,
+  GIT_AUTHOR_NAME: "Operon Fixture",
+  GIT_AUTHOR_EMAIL: "fixture@operon.invalid",
+  GIT_COMMITTER_NAME: "Operon Fixture",
+  GIT_COMMITTER_EMAIL: "fixture@operon.invalid",
+  GIT_TERMINAL_PROMPT: "0",
+};
+
+function seedManagedClone(root: string, dirty: Record<string, string>): void {
+  mkdirSync(root, { recursive: true });
+  const run = (...args: string[]): void => {
+    execFileSync("git", args, { cwd: root, env: FIXTURE_GIT_ENV, stdio: "ignore" });
+  };
+  run("init", "--initial-branch=main");
+  writeFileSync(join(root, "README.md"), "# fixture\n");
+  run("add", "-A");
+  run("commit", "-m", "chore: init managed clone fixture");
+  for (const [name, content] of Object.entries(dirty)) {
+    writeFileSync(join(root, name), content);
+  }
+}
+
+function gitStatus(root: string): string {
+  return execFileSync("git", ["status", "--porcelain=v1", "--untracked-files=all"], {
+    cwd: root,
+    env: FIXTURE_GIT_ENV,
+    encoding: "utf8",
+  });
+}

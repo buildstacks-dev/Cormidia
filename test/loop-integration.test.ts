@@ -1414,6 +1414,7 @@ function failedGate(output: string): GateRunResult {
       attemptsRemaining: 3,
       canRetry: true,
       exhausted: false,
+      noProgress: false,
     },
   };
 }

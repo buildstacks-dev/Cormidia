@@ -193,11 +193,30 @@ checkpoint exists; unknown usage is never silently treated as measured zero.
 
 Every adapter gives its headless provider harness and shell commands the same
 non-interactive environment overlay: `CI=true`, `NPM_CONFIG_YES=true`,
-`DEBIAN_FRONTEND=noninteractive`, and `GIT_TERMINAL_PROMPT=0`. The overlay
+`DEBIAN_FRONTEND=noninteractive`, `GIT_TERMINAL_PROMPT=0`, and
+`PNPM_CONFIG_IGNORE_SCRIPTS=true`. The overlay
 replaces conflicting interactive values while preserving unrelated caller-
 supplied environment such as provider authentication and campaign scratch
 paths. Claude and Codex inherit it at harness launch; pi applies it to the
 embedded Bash tool's spawn environment.
+
+`PNPM_CONFIG_IGNORE_SCRIPTS` is the **dependency build policy**, and it is a
+separate mechanism from the four non-interactive values, not a fifth flavour of
+them. A headless sandbox stops a package manager from *prompting*; it does not
+stop pnpm 11 from *writing the question it would have prompted about into the
+repo*. Denied a build decision it cannot ask for, pnpm appends an `allowBuilds:`
+block whose values are the literal string `set this to true or false`, then
+fails. An agent that answers by appending its own `allowBuilds:` block produces a
+duplicate YAML mapping key, and every later pnpm invocation — including the ones
+that would repair the file — dies at parse time. Denying builds is also the safer
+default in its own right: a dependency that silently runs an install script is
+the more dangerous outcome, so the policy is deny-first and a ticket that needs a
+build opts in explicitly through the app's `setup_command`. The same policy is
+applied to the quality-gate subprocess (`src/loop/qgates.ts`), which is where a
+fresh worktree's first install actually runs. `src/loop/setup-artifacts.ts` is
+the backstop for the paths that opt out: it fails the setup gate with the real
+cause and the consolidation remedy rather than letting a placeholder become an
+opaque parser error several attempts later.
 
 The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
 effective gate for a turn (default rules + grant lookup, §4) and passes it
@@ -207,6 +226,20 @@ non-mutating sink. This lets a compound command read a protocol surface while
 discarding diagnostics without manufacturing a `protocol-self-edit` request.
 Every other redirect remains material and fail-closed, and a real protocol
 write in the same compound command still triggers the rule.
+
+An action's `operation` follows what its programs DO, never the fact that it
+named a file. A command whose every program is a read-only utility (`wc`,
+`cat`, `head`, `stat`, `grep`, `sed`/`awk` without an in-place flag, `find`
+without `-delete`/`-exec`, the reporting `git` subcommands) is a **read**
+whichever paths it names, so surveying `AGENTS.md` and `.operon/config.yaml` —
+the literal first instruction a bare-template builder receives — costs no human
+decision. Recording a **write** requires a write-shaped signal: an output
+redirection, an in-place flag, a mutating verb (`rm`, `mv`, `cp`, `install`,
+`chmod`, `truncate`, `ln`, `tee`), an editor or patch tool, `find -exec`, a
+non-reporting `git` subcommand, or a write-capable tool call. Where the
+projection cannot tell — an unresolvable redirect destination, a `find` action,
+a command nested past the projection's depth — it fails closed and records a
+write: over-approval costs a tap, under-detection costs the boundary.
 
 ## 1. On-disk layout
 
@@ -807,6 +840,16 @@ These four rules are why a dead turn never leaves the repo half-done:
 Decided 2026-07-04: CLI queue, one-by-one review, approve or
 deny-with-reason, persisted audit trail, app-tagged, single queue.
 
+The classifier reads Operon's own command line as an effect surface, not just
+third-party tools: `operon app reset`/`prune-runs` are
+`destructive-or-irreversible`, `operon org init|use|upgrade` is
+`protocol-self-edit`, `operon plan ratify-ticket-budget` and `operon bootstrap
+publish` are `external-publishing`, and `operon approvals
+review|revoke|disposition` is `approval-store-tamper` — self-approval by CLI is
+still self-approval. Read-only invocations (`roles`, `apps`, `status`,
+`doctor`, `budget`, `context`, `episode explain`, `approvals show|status`)
+stay routine.
+
 ### Storage (`~/.operon/<org>/approvals/`)
 
 ```
@@ -829,6 +872,9 @@ Item schema:
 {
   "id": "20260704T193201Z-8k2f",
   "app": "civic", "role": "builder", "turnId": "…", "ticketRef": "#42",
+  "workdir": "/…/worktrees/civic/op-42",  // sandbox cwd the action was raised
+                                          // from; the context a later
+                                          // orchestrator execution runs in
   "rule": "secrets-or-auth",              // gate rule that fired
   "action": { "tool": "Bash", "input": "…", "description": "…" },
   "classification": {                     // effect fields only; no prose
@@ -839,7 +885,7 @@ Item schema:
   "raisedAt": "…", "status": "approved",
   "execution": {
     "state": "approved",                  // not evidence the effect happened
-    "executor": "actor-retry | durable-github | release",
+    "executor": "orchestrator-command | durable-github | release | actor-retry",
     "idempotencyKey": "…", "attempts": 0, "nextAction": "dispatch"
   }
 }
@@ -894,14 +940,51 @@ Item schema:
    provider-global-memory) never reach the queue at all: the composed gate
    denies them flat with standing guidance, and on Claude the adapter
    removes them from the tool surface itself (`src/runtime/role-shaping.ts`).
-5. For `durable-github` and `release` items, a later dispatch claims the exact
-   action and advances `approved → executing → executed | failed | ambiguous`.
+5. For `durable-github`, `release`, and `orchestrator-command` items, a later
+   dispatch claims the exact action and advances `approved → executing →
+   executed | failed | ambiguous`. `operon dispatch` reconciles the store
+   before it executes anything, so a record homed on an executor nobody can
+   reach is re-homed by the same command that then runs it.
    The record includes attempt, actor, result, failure cause, remote reference,
    and next action. GitHub actions reconcile by a stable remote marker; an
    ambiguous result is never blindly retried. Only a reasoned, exact `operon
    approvals disposition <id> ... --confirm <id>` may resolve or re-arm it.
-   Generic provider calls stay `actor-retry`; they are never replayed by a
-   generic orchestrator executor. For an exact single-use actor grant, the
+   An approved SHELL action is `orchestrator-command`
+   (`src/org/approval-command.ts`): `operon dispatch` runs the exact recorded
+   command string — never a reconstruction — in the recorded `workdir`, or in
+   the app's managed clone when the record carries none. A recorded workdir
+   that no longer exists is refused rather than substituted, and the recorded
+   workdir is the sandbox cwd of the raising turn — for a builder ticket pass
+   that is the per-ticket worktree, not the managed clone. A generic command
+   has no remote idempotency marker, so an interrupted or timed-out execution
+   becomes durably `ambiguous` and waits for a human disposition; it is never
+   re-run.
+
+   Three boundaries make orchestrator execution narrower than the approval
+   itself. **Rule allowlist**: only `external-publishing`, `outbound-network`
+   and `destructive-or-irreversible` are ever homed on the orchestrator
+   (`ORCHESTRATOR_EXECUTABLE_RULES`). Approving an action is not authorizing
+   the orchestrator to enact it on the human's behalf, and the rules left out
+   are the ones whose effect lands on the org's own control plane — the review
+   boundary, the protocol surfaces, the approval store, the scorecards, a
+   learning publish — which `NEVER_SCOPEABLE_RULES` already treats as
+   boundaries an agent must never enact. **Literal binding**: the decision
+   records `commandSha256` over the RAW command on the grant, a separate file
+   from the decided record, because `actionHash` is computed over
+   `unwrapCommand(...)` and so ignores a `sudo `/`command `/`env VAR=val `
+   prefix; without the separate binding, editing a decided record to add such
+   a prefix kept its grant and changed what ran. A grant with no recorded
+   binding requires the literal to be byte-identical to the identity it does
+   cover. **Scope, not validity**: an app absent from the apps.yaml a
+   particular dispatch was given is reported and left approved, never
+   terminalized. This exists because `actor-retry` alone is not a mechanism: it needs
+   the raising turn to ask again, and run 3 showed the sandbox answering the
+   actor "rejected by user" while the grant sat granted, leaving four approvals
+   at `attempts: 0` with nothing able to spend them (ISSUE-020).
+   `orchestrator-command` stays actor-claimable — a live turn re-attempting its
+   own approved command still wins the single-use grant and the orchestrator
+   then finds nothing to do — while `durable-github` and `release` remain
+   orchestrator-only. For an exact single-use actor grant, the
    synchronous gate advances the item to `executing` before it consumes the
    grant. The turn runner accepts only an exact action-identity `TurnEvent`
    with an explicit adapter `success: true|false` as acknowledgement; prose or
@@ -1258,7 +1341,18 @@ explicit creator-scope preview instead proves whether the supplied scope can
 take the deterministic normalization path, without persisting it.
 
 The public `operon episode explain <episode-id>` command exposes the durable
-explanation read-only. `operon plan --explain-route` and `--auto --dry-run`
+explanation read-only. Because it is the primary operator diagnostic it is
+total: missing, corrupt, or internally inconsistent evidence is annotated in
+`problems[]` and rendered inline, never thrown, so an episode with only a
+route record still explains its route and durable execution steps. Every
+durable read is named by the printed `evidenceDir`, so operators are not
+forced to reverse-engineer the state-home layout. `complete: false` means at
+least one artifact could not be resolved, and the command exits non-zero.
+Provider-step assignments resolve against the route authorization that
+actually paid for the step: after a plan revision, a step that already
+completed is deliberately not re-authorized at the new version, so its
+explanation reports `authorized_at_prior_plan_version` rather than claiming it
+is unauthorized. `operon plan --explain-route` and `--auto --dry-run`
 expose a provisional token-free intent/candidate/safety preview, including
 current ledger spend. Product stage is resolved by one deterministic boundary
 shared with live planning: an explicit `--stage` wins; otherwise at most five

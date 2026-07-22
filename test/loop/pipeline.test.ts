@@ -24,6 +24,8 @@ import type { RoleConfig, Runtime, TurnAssignment, TurnEvent, TurnResult } from 
 import type { LoopContinuation } from "../../src/loop/types.js";
 import { FakeClock } from "../fixtures/fakeClock.js";
 import { makeOrgHome } from "../fixtures/orgHome.js";
+import { ApprovalStore } from "../../src/org/approvals.js";
+import { createLoopGateForRole } from "../../src/cli/loop.js";
 
 const FIXTURE_DIR = fileURLToPath(new URL("../fixtures/pipelines", import.meta.url));
 const PROMPTS_DIR = `${FIXTURE_DIR}/prompts`;
@@ -818,6 +820,80 @@ describe("executePipeline", () => {
       }
     } finally {
       h.cleanup();
+    }
+  });
+
+  // The gate records the cwd an approval was raised from so a later
+  // orchestrator execution runs the approved command in the tree it was
+  // approved for. A builder ticket pass runs in the PER-TICKET WORKTREE, while
+  // the call site that wires the gate factory only knows the managed clone —
+  // so the factory has to be told the cwd the pass actually uses, or every
+  // builder-raised approval records a tree the turn never touched.
+  it("builds each pass gate with the cwd the pass actually runs in", async () => {
+    const build = getPipeline(await loadFixture(), "build");
+    const seen: { role: string; workdir: string | undefined }[] = [];
+    const worktree = "/tmp/worktrees/civic/op-10";
+    const h = makeHarness(build, [scripted("contract"), scripted("implement")], {
+      workdir: worktree,
+      gateForRole: (selectedRole, passWorkdir) => {
+        seen.push({ role: selectedRole.name, workdir: passWorkdir });
+        return () => ({ allow: true });
+      },
+    });
+    try {
+      await executePipeline(h.options);
+      expect(seen).toEqual([
+        { role: "builder", workdir: worktree },
+        { role: "builder", workdir: worktree },
+      ]);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("records the worktree, not the managed clone, on an approval a builder pass raises", async () => {
+    // End to end for the same defect: `operon loop` wires the gate factory with
+    // the managed clone, the builder pass runs in the per-ticket worktree, and
+    // the durable approval is what a later `operon dispatch` executes in. If
+    // the clone is recorded, the approved command runs against a different tree
+    // than the one the human approved it in.
+    const build = getPipeline(await loadFixture(), "build");
+    const home = makeOrgHome({ approvals: true });
+    const store = new ApprovalStore(home.root);
+    const managedClone = join(home.root, "repos", "civic");
+    const worktree = join(home.root, "worktrees", "civic", "op-10");
+    mkdirSync(worktree, { recursive: true });
+    const h = makeHarness(
+      build,
+      [
+        {
+          toolActions: [{ action: { tool: "bash", input: { command: "gh pr create --fill" } } }],
+          result: turnResult("contract"),
+        },
+        scripted("implement"),
+      ],
+      {
+        workdir: worktree,
+        gateForRole: createLoopGateForRole(
+          home.root,
+          "civic",
+          "turn-1",
+          home.root,
+          store,
+          managedClone,
+        ),
+      },
+    );
+    try {
+      await executePipeline(h.options).catch(() => undefined);
+      const pending = await store.listPending();
+      expect(pending).toHaveLength(1);
+      expect(pending[0]!.rule).toBe("external-publishing");
+      expect(pending[0]!.workdir).toBe(worktree);
+      expect(pending[0]!.workdir).not.toBe(managedClone);
+    } finally {
+      h.cleanup();
+      home.cleanup();
     }
   });
 

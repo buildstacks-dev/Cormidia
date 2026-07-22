@@ -30,6 +30,7 @@ import {
 } from "../loop/planning-episode-plan.js";
 import { safetyFactsFromPlanningRequest } from "../org/episode-safety-facts.js";
 import {
+  expectedTicketBandRange,
   type ExpectedTicketBand,
   type ExternalConsequence,
   type PlanningDepth,
@@ -37,6 +38,12 @@ import {
   type PlanningReversibility,
   type PlanningWorkLifecycle,
 } from "../org/planning-depth.js";
+import { TICKET_BUDGETS, type ProjectStage } from "../loop/plan-tickets.js";
+import {
+  listRefusedDecompositions,
+  ratifyTicketBudgetCommand,
+} from "../org/ticket-budget-ratification.js";
+import { cmdPlanRatifyTicketBudget } from "./plan-ratify.js";
 import {
   discoverPlanningStageCheckout,
   formatPlanningStage,
@@ -47,6 +54,12 @@ import {
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
+  // `ratify-ticket-budget` is a subcommand rather than a flag for the same
+  // reason `bootstrap publish` is: it is a different, human-gated operation
+  // with outward-facing effects, not a modifier on a planning run (ENH-011).
+  if (common.rest[0] === "ratify-ticket-budget") {
+    return cmdPlanRatifyTicketBudget(common.rest.slice(1), await resolveOperonHomes(common));
+  }
   const parsed = parsePlanArgs(common.rest);
   const creatorScope = parsed.creatorScopePath === undefined
     ? undefined
@@ -163,6 +176,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
         `budget: $${preview.budget.remainingUsd.toFixed(2)} remaining of ` +
           `$${preview.budget.monthlyUsd.toFixed(2)} (${preview.budget.status})`,
       );
+      for (const line of formatTicketBudgetPreview(preview.ticketBudget)) console.log(line);
       console.log(
         `required safety facts: ${preview.episode.requiredSafetyFacts.map((fact) => fact.kind).join(", ") || "none"}`,
       );
@@ -219,6 +233,15 @@ export async function cmdPlan(args: string[]): Promise<number> {
       });
     }
     for (const problem of result.problems ?? []) console.log(`problem: ${problem}`);
+    if (result.refusedDecomposition !== undefined) {
+      const refused = result.refusedDecomposition;
+      console.log(
+        `refused decomposition preserved: ${refused.decompositionId} ` +
+          `(${refused.ticketCount} ticket(s) against the ${refused.stage} budget of ${refused.stageTicketBudget})`,
+      );
+      console.log(`refused decomposition record: ${refused.path}`);
+      console.log(`ratify exactly this decomposition with:\n  ${refused.ratifyCommand}`);
+    }
     if (result.planningSources !== undefined) {
       console.log(`planning-source manifest: ${result.planningSources.manifest_sha256}`);
       for (const source of result.planningSources.sources) {
@@ -259,6 +282,20 @@ export async function cmdPlan(args: string[]): Promise<number> {
   } finally {
     await cleanupPlanningWorktree(session.worktree);
   }
+}
+
+/** Text rendering of the token-free ticket-budget preview. */
+export function formatTicketBudgetPreview(preview: TicketBudgetPreview): string[] {
+  const lines = [`ticket budget: ${preview.budget} (${preview.stage})`];
+  lines.push(`ticket budget fit: ${preview.fit} — ${preview.detail}`);
+  for (const pending of preview.pendingRatifications) {
+    lines.push(
+      `refused decomposition awaiting ratification: ${pending.decompositionId} ` +
+        `(${pending.ticketCount} ticket(s), refused ${pending.refusedAt})`,
+    );
+    lines.push(`  ${pending.ratifyCommand}`);
+  }
+  return lines;
 }
 
 export function formatPlanTicketSummary(
@@ -468,6 +505,31 @@ function planningOptions(parsed: ParsedPlanArgs) {
   };
 }
 
+/** The stage ticket budget, projected into the token-free preview.
+ *
+ * Before this, the ceiling was invisible until a provider turn had already
+ * been bought and refused: `--dry-run` happily reported the money budget and
+ * said nothing about a ticket-count ceiling (ENH-011). Everything here is read
+ * from local files and pure constants — no provider is constructed. */
+export interface TicketBudgetPreview {
+  stage: ProjectStage;
+  /** Maximum tickets one plan may publish at this stage. */
+  budget: number;
+  /** The operator's requested decomposition size, when they declared one. */
+  requestedBand: ExpectedTicketBand | null;
+  /** Whether the requested band can fit the budget at all. */
+  fit: "within" | "at-risk" | "exceeds" | "undeclared";
+  detail: string;
+  /** Decompositions already refused for this budget and awaiting a human
+   *  decision — the ratification the refusal message names. */
+  pendingRatifications: Array<{
+    decompositionId: string;
+    ticketCount: number;
+    refusedAt: string;
+    ratifyCommand: string;
+  }>;
+}
+
 interface AutoPlanningPreviewResult {
   app: string;
   goal: string;
@@ -483,8 +545,62 @@ interface AutoPlanningPreviewResult {
     remainingUsd: number;
     status: "ok" | "warning";
   };
+  ticketBudget: TicketBudgetPreview;
   effects: [];
   episode: EpisodePlanningPreview;
+}
+
+/** Pure projection of the stage ticket budget against a requested band. */
+export function projectTicketBudget(input: {
+  stage: ProjectStage;
+  requestedBand: ExpectedTicketBand | undefined;
+  pending: Array<{ decompositionId: string; ticketCount: number; refusedAt: string; ratifyCommand: string }>;
+}): TicketBudgetPreview {
+  const budget = TICKET_BUDGETS[input.stage];
+  const base = `${input.stage} publishes at most ${budget} ticket(s) per plan`;
+  if (input.requestedBand === undefined) {
+    return {
+      stage: input.stage,
+      budget,
+      requestedBand: null,
+      fit: "undeclared",
+      detail: `${base}; no --expected-tickets band was declared, so fit cannot be checked before planning`,
+      pendingRatifications: input.pending,
+    };
+  }
+  const range = expectedTicketBandRange(input.requestedBand);
+  const remedy =
+    "plan a smaller milestone, or ratify the exact refused decomposition with " +
+    "`operon plan ratify-ticket-budget` — do not raise --stage, which falsifies repository maturity";
+  if (range.max !== null && range.max <= budget) {
+    return {
+      stage: input.stage,
+      budget,
+      requestedBand: input.requestedBand,
+      fit: "within",
+      detail: `${base}; the requested ${input.requestedBand} band fits`,
+      pendingRatifications: input.pending,
+    };
+  }
+  if (range.min > budget) {
+    return {
+      stage: input.stage,
+      budget,
+      requestedBand: input.requestedBand,
+      fit: "exceeds",
+      detail: `${base}; the requested ${input.requestedBand} band cannot fit — ${remedy}`,
+      pendingRatifications: input.pending,
+    };
+  }
+  return {
+    stage: input.stage,
+    budget,
+    requestedBand: input.requestedBand,
+    fit: "at-risk",
+    detail:
+      `${base}; the requested ${input.requestedBand} band may exceed it — ${remedy}`,
+    pendingRatifications: input.pending,
+  };
 }
 
 /** Token-free preview of deterministic planning inputs and authority. It does
@@ -551,6 +667,25 @@ async function previewAutoPlanningRequest(input: {
   }
   const requestedPlanningFacts = jsonPreviewValue(planningOptions(input.parsed));
   const planningSources = input.parsed.sources.map((source) => ({ ...source }));
+  const ticketBudget = projectTicketBudget({
+    stage,
+    ...(input.parsed.expectedTickets === undefined
+      ? { requestedBand: undefined }
+      : { requestedBand: input.parsed.expectedTickets }),
+    pending: (await listRefusedDecompositions(input.stateHome, input.app.name))
+      .filter((record) => record.stage === stage)
+      .map((record) => ({
+        decompositionId: record.decomposition_id,
+        ticketCount: record.ticket_count,
+        refusedAt: record.refused_at,
+        ratifyCommand: ratifyTicketBudgetCommand({
+          app: input.app.name,
+          decompositionId: record.decomposition_id,
+          stageBudget: record.stage_ticket_budget,
+          ticketCount: record.ticket_count,
+        }),
+      })),
+  });
   const requestIdentity = {
     app: input.app.name,
     goal,
@@ -645,6 +780,7 @@ async function previewAutoPlanningRequest(input: {
       remainingUsd: remainingBudgetUsd,
       status: budget.status === "warning" ? "warning" : "ok",
     },
+    ticketBudget,
     effects: [],
     episode,
   };

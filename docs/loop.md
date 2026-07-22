@@ -64,6 +64,9 @@ bounce-by-status; selective re-review of unchanged work.
 - Implementation-contract pass before code (files/approach/tests/risks).
 - Bounded everything: 3 mechanical fix attempts in-pass, remediation cap 3,
 review cycles cap, per-pass turn cap; blocked-with-evidence escalation.
+Bounds are also ended early by *lack of progress*: a remediation attempt whose
+gate run reproduces the previous attempt's failure identity exactly escalates
+immediately rather than spending the remaining attempts on the same error.
 - Per-run artifact logging (prompt/output/session log/meta), activity log,
 cost attribution, anomaly flags.
 - Decomposer discipline: atomic/testable/scoped/ordered tickets, binary
@@ -249,6 +252,31 @@ exception during acceptance is instead an internal failure with its own error
 code and stack evidence; `plan_structure_invalid` is reserved for actual
 schema/plan-contract defects.
 
+The same domains supply a **mechanical-gate registry and topology contract**
+on the identical terms: the gate vocabulary becomes a structured-output enum,
+and `TICKET_EPISODE_TOPOLOGY_CONTRACT` — every enumerated topology rule with a
+stable id, each gate's `requiredPlanInputs`, and a canonical reference topology
+taken from an accepted plan — is rendered into the bounded brief. Validation is
+the backstop, never the teacher: a rule the validator enforces but the contract
+does not state is a defect in the contract (`ticket-episode-plan.ts`).
+
+Gate input-availability is part of that contract and a pure graph property.
+Each mechanical gate declares the durable inputs its handler reads but never
+produces; acceptance proves an ancestor step in the same plan produces each of
+them, and reports `ticket_gate_input_unavailable` naming the missing operation
+when it cannot. Concretely, `ticket/gates-and-pr` and `ticket/ship` score the
+`completeness` gate against the criterion→test mapping only `build/contract`
+publishes, so a plan holding either gate without a `build/contract` ancestor is
+unsatisfiable and is rejected before provisioning rather than after a paid
+builder turn.
+
+A repair must be **non-regressive**: its violation set must be a strict subset
+of the violations of the proposal it repairs. The repair brief therefore
+carries the invariants the rejected proposal already satisfied, not only the
+error list, and a repair that introduces a new violation is reported as
+`plan_repair_regressive` with the newly introduced violations named, ahead of
+(never instead of) the original diagnostics.
+
 The accepted plan is persisted atomically before delivery. Only then does
 `episode-route.ts` derive the compatibility route and exact authorized provider
 steps. Quick/standard/deep is a plan-complexity/safety label. It cannot add a
@@ -409,7 +437,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 
 | Gate             | Mechanics (ported)                                                                                                                                             |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| setup            | run app's top-level `.operon/config.yaml` `setup_command` (a sibling of `apps`, never under `apps.<name>`; e.g. `npm ci`) in the worktree to install dependencies. It runs **at worktree provision, before the first implement pass** (`advanceProvisionSetup`, `src/loop/loop.ts`), and again **first within each post-implement gate set**, before any scheduled gate (`runGates`, `src/loop/qgates.ts`). The provision run is load-bearing: `createWorktree` provisions an empty tree, and the builder's mandatory "baseline before changes — if red, stop" check runs at the very start of the implement pass, so without deps that baseline fails for **every** greenfield ticket regardless of ticket quality (the L1-02 defect; the live operator's workaround was committing 26 MB of `node_modules`). Unconfigured = absent (no gate, never a failure). A provision-time setup failure returns the ticket loudly (blocked-with-evidence comment + `op:returned`) with no build turn spent; within a gate set a setup **failure short-circuits** the rest so the tests/lint gates don't produce misleading failures (`runSetupGate`) |
+| setup            | run app's top-level `.operon/config.yaml` `setup_command` (a sibling of `apps`, never under `apps.<name>`; e.g. `npm ci`) in the worktree to install dependencies. It runs **at worktree provision, before the first implement pass** (`advanceProvisionSetup`, `src/loop/loop.ts`), and again **first within each post-implement gate set**, before any scheduled gate (`runGates`, `src/loop/qgates.ts`). The provision run is load-bearing: `createWorktree` provisions an empty tree, and the builder's mandatory "baseline before changes — if red, stop" check runs at the very start of the implement pass, so without deps that baseline fails for **every** greenfield ticket regardless of ticket quality (the L1-02 defect; the live operator's workaround was committing 26 MB of `node_modules`). Unconfigured = absent (no gate, never a failure) **unless the tree carries an unresolved setup artifact**. A provision-time setup failure returns the ticket loudly (blocked-with-evidence comment + `op:returned`) with no build turn spent; within a gate set a setup **failure short-circuits** the rest so the tests/lint gates don't produce misleading failures (`runSetupGate`). The gate also scans the worktree's package-manager config **before and after** the command (`src/loop/setup-artifacts.ts`): an unresolved tool placeholder (pnpm's literal `set this to true or false`) or a duplicated YAML mapping key fails setup with *that* cause, naming the file and the consolidation remedy, instead of letting it surface as an opaque `[ERROR] duplicated mapping key (4:1)` several attempts later. Before, because a corrupt file disables the tool the command invokes; after, because the install is what writes the placeholder. The subprocess itself runs under the deny-by-default dependency build policy (`PNPM_CONFIG_IGNORE_SCRIPTS=true`), so on the default path the placeholder is never generated at all; a ticket that genuinely needs a dependency built opts in explicitly in its `setup_command` (`pnpm install --frozen-lockfile --no-ignore-scripts` alongside a committed `allowBuilds` decision — a CLI flag beats env config), which is precisely why the scan is kept as a backstop |
 | tests            | run app's `test_command`, exit code 0, timeout; last output lines on fail                                                                                      |
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
@@ -436,7 +464,15 @@ scan; low: tests+completeness).
   org's most expensive seat (Opus, xhigh); never spend those tokens on
    code that fails `pnpm test` mechanically. Gate failure → **remediate**:
    re-dispatch a fix pass with verbatim gate output in the brief, up to
-   `max_attempts`, then blocked.
+   `max_attempts`, then blocked. A gate run that fails with *exactly* the
+   previous attempt's `remediation.failureIdentity` — the hash over the failing
+   gates' verbatim evidence, duration excluded — sets `remediation.noProgress`,
+   clears `canRetry`, and escalates with the real cause instead of buying
+   attempts that would reproduce it (ISSUE-029: three builder attempts and
+   $10.24 spent on one byte-identical pnpm parse error). The bar is identical
+   error *identity*, never merely "failed again": a failure carrying no evidence
+   at all (a bare non-zero exit with no output) has no identity and never
+   triggers it, and any change in the evidence retries normally.
 2. **At ship, twice** — once when the item reaches ship (blocks wasting the
   optional ship-check pass) and once immediately before the squash-merge
    (catches anything that moved in between). The predecessor's double-run,
@@ -469,7 +505,12 @@ therefore a first-class artifact with named owners at every step:
   authority — the human helps define "done", not just approve the diff.
 - The Builder's contract pass maps **each criterion to named tests**; the
   completeness gate (table above) fails — not warns — when a ticket has no
-  parseable criteria or a criterion has no covering test.
+  parseable criteria or a criterion has no covering test. The gate distinguishes
+  the two failures that wear the same words: an **absent** mapping is a planning
+  defect (no `build/contract` pass produced one, so nothing can be scored and no
+  builder work can fix it), while a criterion uncovered **within** an existing
+  mapping is a build defect. Plan acceptance now rejects the planning defect
+  outright, so the gate should only ever report the build one.
 - Criteria are never summarized out of briefs (§3) and never edited by the
   Builder; a criterion that proves wrong bounces the ticket to the Planner.
   Checkbox state is written once, by the orchestrator, when the ticket

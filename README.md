@@ -289,7 +289,11 @@ deferred. The previews deliberately return
 `exactProviderAuthoredPlan: null`; ordinary auto planning needs a live
 EpisodePlanner call, while explicit creator scope is normalized and persisted
 only during live execution. `operon episode explain <episode-id>` exposes the
-read-only durable plan, assignment rationale, route, and execution status.
+read-only durable plan, assignment rationale, route, and execution status. It
+degrades instead of failing: it prints the directory it read, renders whatever
+durable evidence exists, annotates anything it could not resolve, and exits
+non-zero when the explanation is incomplete. `--json` emits the same
+explanation as one document.
 
 Fresh standalone `run-role` preview and live invocations require the same app,
 invocation identity, bounded template, and assignment semantics. `--turn` is a

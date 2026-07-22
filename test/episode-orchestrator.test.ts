@@ -288,9 +288,15 @@ describe("EpisodePlanner org orchestrator", () => {
         assignmentCandidateId: "economical",
         providerFamily: "anthropic",
         routeAuthorized: true,
+        authorizationStatus: "authorized",
+        authorizedPlanVersion: 1,
+        authorizationDetail: null,
       }],
+      complete: true,
+      problems: [],
     });
-    expect(explanation.intentHash).toBe(episodeIntentHash(explanation.intent));
+    expect(explanation.intent).not.toBeNull();
+    expect(explanation.intentHash).toBe(episodeIntentHash(explanation.intent!));
     expect(explanation.planHash).toMatch(/^[a-f0-9]{64}$/);
   });
 

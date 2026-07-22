@@ -5,7 +5,7 @@
 // app repository is touched.
 
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,7 +73,17 @@ try {
   assert(initPreview.roles?.some((role) => role.name === "planner" && role.runtime && role.model && role.effort), "org init dry-run omitted the default role chart");
   assert(initPreview.effects?.generated_destinations?.some((entry) => entry.relative_path === "prompts/build/contract.md"), "org init dry-run omitted nested generated files");
   assert(!existsSync(orgHome), "org init dry-run created the org home");
-  assert(!existsSync(stateHome), "org init dry-run created the state home");
+  // The dry-run creates NO org: no org home, no active pointer. It does write
+  // its invocation audit row, which is the documented audit exception every
+  // command help epilogue states ("Preview/read-only/no-write claims exclude
+  // this observability record") and which test/cli.test.ts pins. Assert the
+  // state home holds only that record — the strong form of the original
+  // "must not exist", which contradicted the audit contract added in 1b20244.
+  const previewStateEntries = existsSync(stateHome) ? readdirSync(stateHome).sort() : [];
+  assert(
+    previewStateEntries.every((entry) => entry === "invocations" || entry === "state"),
+    `org init dry-run wrote more than its audit row into the state home: ${previewStateEntries.join(", ")}`,
+  );
   assert(!existsSync(join(home, ".operon", "config")), "org init dry-run wrote the active pointer");
   const initialized = run(
     operon,

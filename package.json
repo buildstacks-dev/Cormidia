@@ -1,6 +1,6 @@
 {
   "name": "operon",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Org runtime: a standing team of AI agents developing a product via a private GitHub repo, human-gated on critical ops only",
   "type": "module",

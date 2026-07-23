@@ -10,7 +10,7 @@
 
 import { createHash } from "node:crypto";
 import type { GhOps } from "./github.js";
-import { RELEASE_KINDS, type ReleaseKind } from "./types.js";
+import { RELEASE_KINDS, type ReleaseConfig, type ReleaseKind } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // The label contract — the ONE list the Planner prompt, publication, setup
@@ -591,6 +591,42 @@ export function parseReleaseKind(body: string): ReleaseKind | undefined {
   const match = /^Release-kind:\s*(\S+)\s*$/m.exec(body);
   const candidate = match?.[1];
   return RELEASE_KINDS.find((kind) => kind === candidate);
+}
+
+/** A milestone's declared release version, validated to a strict `vX.Y.Z`
+ *  (optionally a `-prerelease`) shape. The strictness is load-bearing: the
+ *  value is interpolated into the git tag command Operon runs, so anything
+ *  outside this character set (which cannot carry shell metacharacters) is
+ *  rejected — a malformed version yields no release rather than an injection. */
+const RELEASE_VERSION_RE = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+export function parseReleaseVersion(body: string): string | undefined {
+  const match = /^Release-version:\s*(\S+)\s*$/m.exec(body);
+  const candidate = match?.[1];
+  return candidate !== undefined && RELEASE_VERSION_RE.test(candidate) ? candidate : undefined;
+}
+
+/** Normalize a declared version to its `vX.Y.Z` git-tag form. */
+export function releaseTagFor(version: string): string {
+  return version.startsWith("v") ? version : `v${version}`;
+}
+
+/** The executable release command for an app's mechanism given a merged
+ *  ticket body, or `undefined` when nothing runs after merge: `merge-only`,
+ *  or a `tag` mechanism whose milestone declared no valid `Release-version`.
+ *  For `trigger: tag` Operon derives a git tag push (there is no app-declared
+ *  command); for `command`/legacy it is the app's declared command. Both the
+ *  loop (which queues the release) and crash-restore (which re-validates the
+ *  durable trigger) resolve the command here so their fingerprints match. */
+export function resolveReleaseCommand(release: ReleaseConfig, body: string): string | undefined {
+  if (release.kind === "merge-only") return undefined;
+  if (release.trigger === "tag") {
+    const version = parseReleaseVersion(body);
+    if (version === undefined) return undefined;
+    const tag = releaseTagFor(version);
+    return `git tag ${tag} -m "release ${tag}" && git push origin refs/tags/${tag}`;
+  }
+  return release.command;
 }
 
 /** Minimal escaping so the space-delimited trailer round-trips ANY id:

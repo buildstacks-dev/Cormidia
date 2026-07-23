@@ -128,9 +128,29 @@ Every app declares its release mechanism in `.operon/config.yaml`:
 ```yaml
 release:
   kind: deploy | package | merge-only
-  command: <deploy command or CI workflow ref>   # required unless merge-only
   owner: orchestrator | sre
+  trigger: tag | command                          # deploy/package only; default tag
+  command: <deploy command or CI workflow ref>    # required for trigger: command
 ```
+
+**How the release fires (`trigger`):**
+
+- `tag` (default when no `command` is declared): the milestone declares a
+  `Release-version` (a `vX.Y.Z` trailer alongside `Release-kind`), and on merge
+  Operon derives a governed git tag push —
+  `git tag vX.Y.Z … && git push origin refs/tags/vX.Y.Z` — as the release
+  command. The app's deploy workflow listens on `push: tags`, so **only** the
+  approved release fires it; ordinary pushes (a PR merge, `operon app promote`)
+  never do. The declared version is validated to a strict `vX.Y.Z` shape before
+  it reaches the shell, so it cannot inject command syntax. P7 fails a tag
+  milestone that declares no valid `Release-version`.
+- `command`: the pre-tag mechanism — Operon runs the app's declared `command`
+  after merge. Inferred when a `command` is present without an explicit
+  `trigger`, so pre-trigger apps keep working unchanged.
+- `branch`: planned; rejected at config load until implemented.
+
+Because the tag push *is* a command, it flows through the identical approval,
+grant, and execution machinery below — there is no separate release path.
 
 - **orchestrator** (default): after a squash-merge of a milestone whose plan
   declared a deploy disposition, the orchestrator triggers the declared

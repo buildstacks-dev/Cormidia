@@ -811,6 +811,67 @@ describe("advanceShipping", () => {
     }
   });
 
+  it("P7: a tag-trigger app with a declared Release-version merges and returns a tag-push releaseTrigger", async () => {
+    const h = await shippingHarness("Ship Tag Deploy");
+    const deployBody = body.replace("## Goal", "Release-kind: deploy\nRelease-version: v1.4.0\n\n## Goal");
+    try {
+      const merged = await advanceShipping(
+        { ...h.item, body: deployBody },
+        {
+          gh: h.gh,
+          localRepo: h.pair.clone.root,
+          base: baseRevisionForBranch("main"),
+          policy: policy(),
+          commands: { testCommand: "true" },
+          criteria,
+          criterionTests,
+          gateRunner: async () => gatePass(),
+          release: { kind: "deploy", owner: "sre", trigger: "tag" },
+        },
+      );
+
+      expect(merged.phase).toBe("merged");
+      // The tag mechanism declares no command: Operon derives the tag push.
+      expect(merged.releaseTrigger).toEqual({
+        kind: "deploy",
+        owner: "sre",
+        command: 'git tag v1.4.0 -m "release v1.4.0" && git push origin refs/tags/v1.4.0',
+      });
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it("P7: a tag-trigger app whose milestone declares no Release-version returns the ticket, never merges", async () => {
+    const h = await shippingHarness("Ship Tag No Version");
+    const deployBody = body.replace("## Goal", "Release-kind: deploy\n\n## Goal");
+    try {
+      await h.gh.swapLabel(1, "op:building", "op:in-review");
+      const returned = await advanceShipping(
+        { ...h.item, body: deployBody },
+        {
+          gh: h.gh,
+          localRepo: h.pair.clone.root,
+          base: baseRevisionForBranch("main"),
+          policy: policy(),
+          commands: { testCommand: "true" },
+          criteria,
+          criterionTests,
+          gateRunner: async () => gatePass(),
+          release: { kind: "deploy", owner: "sre", trigger: "tag" },
+        },
+      );
+
+      expect(returned.phase).toBe("returned");
+      expect(returned.releaseTrigger).toBeUndefined();
+      expect(h.pair.bare.log("main")[0]).not.toBe("Ship Tag No Version (#1)");
+      const comments = h.gh.issueComments.get(1) ?? [];
+      expect(comments.some((c) => c.includes("Release disposition unowned"))).toBe(true);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it("P7: merge-only and legacy (no Release-kind) tickets merge without a trigger", async () => {
     const h = await shippingHarness("Ship Merge Only");
     const mergeOnlyBody = body.replace("## Goal", "Release-kind: merge-only\n\n## Goal");

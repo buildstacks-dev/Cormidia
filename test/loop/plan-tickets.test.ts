@@ -24,6 +24,9 @@ import {
   type TicketPlan,
   parsePlannedBy,
   parseReleaseKind,
+  parseReleaseVersion,
+  releaseTagFor,
+  resolveReleaseCommand,
 } from "../../src/loop/plan-tickets.js";
 import { itemFromIssue, parseAcceptanceCriteria } from "../../src/loop/loop.js";
 import { routeDecisionForItem } from "../../src/loop/driver.js";
@@ -663,5 +666,43 @@ describe("publishTickets — sensitive-domain deep floor (L0-02)", () => {
     const decision = routeDecisionForItem(itemFromIssue(issue, gh.repo));
     expect(decision.route).toBe("standard");
     expect(decision.decisionRules).not.toContain("sensitive_domain");
+  });
+});
+
+describe("release version / tag-command resolution", () => {
+  it("parses a valid Release-version trailer and rejects malformed or injecting values", () => {
+    expect(parseReleaseVersion("Release-version: v1.2.3\n")).toBe("v1.2.3");
+    expect(parseReleaseVersion("Release-version: 2.0.0-rc.1\n")).toBe("2.0.0-rc.1");
+    expect(parseReleaseVersion("no trailer here")).toBeUndefined();
+    // The value is interpolated into a shell git command: anything carrying
+    // metacharacters must be rejected, not sanitized.
+    expect(parseReleaseVersion("Release-version: v1.0.0; rm -rf /\n")).toBeUndefined();
+    expect(parseReleaseVersion("Release-version: $(whoami)\n")).toBeUndefined();
+    expect(parseReleaseVersion("Release-version: latest\n")).toBeUndefined();
+  });
+
+  it("normalizes a version to its v-prefixed tag", () => {
+    expect(releaseTagFor("1.2.3")).toBe("v1.2.3");
+    expect(releaseTagFor("v1.2.3")).toBe("v1.2.3");
+  });
+
+  it("resolves the release command per mechanism", () => {
+    const body = "Release-version: v3.1.0\n\n## Goal\n";
+    expect(
+      resolveReleaseCommand({ kind: "deploy", owner: "sre", trigger: "tag" }, body),
+    ).toBe('git tag v3.1.0 -m "release v3.1.0" && git push origin refs/tags/v3.1.0');
+    // A tag mechanism with no declared version yields no release command.
+    expect(
+      resolveReleaseCommand({ kind: "deploy", owner: "sre", trigger: "tag" }, "## Goal\n"),
+    ).toBeUndefined();
+    // A command mechanism returns the app's declared command verbatim.
+    expect(
+      resolveReleaseCommand(
+        { kind: "deploy", owner: "sre", trigger: "command", command: "gh workflow run deploy.yml" },
+        body,
+      ),
+    ).toBe("gh workflow run deploy.yml");
+    // merge-only runs nothing.
+    expect(resolveReleaseCommand({ kind: "merge-only", owner: "orchestrator" }, body)).toBeUndefined();
   });
 });

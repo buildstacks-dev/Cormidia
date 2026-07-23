@@ -19,7 +19,7 @@ roles:
   planner:
     runtime: claude
     model: claude-opus-4-8      # frontier: ticket quality determines everything downstream
-    effort: high
+    effort: xhigh
     delegation:
       allow: [research-fanout]  # parallel readers over feedback/repo/issues; no code subagents
     triggers:

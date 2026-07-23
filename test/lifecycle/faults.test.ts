@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import { join } from "node:path";
 import { parse } from "yaml";
 import { afterEach, describe, expect, it } from "vitest";
-import { bootstrapFromRecoveredAnswers, executeAppPromotion, planAppPromotion, verifyApp } from "../../src/org/app-lifecycle.js";
+import { bootstrapFromRecoveredAnswers, executeAppPromotion, planAppPromotion, PROMOTION_COMMIT_SUBJECT, verifyApp } from "../../src/org/app-lifecycle.js";
 import { joinExistingOrg, loadApps } from "../../src/org/apps.js";
 import { executeOrgUpgrade, planOrgUpgrade } from "../../src/org/org-upgrade.js";
 import { PACKAGE_ROOT } from "../../src/org/home.js";
@@ -181,7 +181,10 @@ describe("C-LIFE-02 lifecycle transaction restart boundaries", () => {
       const completed = await executeAppPromotion(input, resumedPlan);
       expect(completed.verification).toMatchObject({ status: "ready", registry_status: "live" });
       expect((await executeAppPromotion(input, await planAppPromotion(input))).status).toBe("already_live");
-      expect(world.git.bare.log("main").filter((subject) => subject === "chore: promote app to live")).toHaveLength(1);
+      // The promotion commit is workflow-inert so the default-branch push
+      // cannot start an app deploy/CI workflow (#168).
+      expect(world.git.bare.log("main").filter((subject) => subject === PROMOTION_COMMIT_SUBJECT)).toHaveLength(1);
+      expect(PROMOTION_COMMIT_SUBJECT).toContain("[skip ci]");
     });
   }
 });

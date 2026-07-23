@@ -172,6 +172,17 @@ export interface PromoteAppOptions extends VerifyAppOptions {
   execute?: boolean;
 }
 
+/** Promotion writes a lifecycle-metadata commit (status -> live), not app code.
+ *  The commit is marked workflow-inert so the default-branch push cannot start
+ *  an app's deploy or CI workflows — `app promote` must never be a hidden deploy
+ *  trigger (#168). The skip marker is honored by GitHub Actions for push events. */
+export const PROMOTION_COMMIT_SUBJECT = "chore: promote app to live [skip ci]";
+
+/** Preview line that exposes the (suppressed) external side effect of the
+ *  promotion push, so an operator sees before `--execute` that no workflow runs. */
+export const PROMOTION_WORKFLOW_INERT_NOTE =
+  "promotion commit marked [skip ci] — no app workflows run on the default-branch push";
+
 export interface AppPromotionPlan {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "app-promotion-plan";
@@ -684,7 +695,14 @@ export async function planAppPromotion(options: PromoteAppOptions): Promise<AppP
     ? parsePromotionJournal(await readFile(journalPath, "utf8"), app.name)
     : undefined;
   const idempotent = app.status === "live" && verification.status === "ready";
-  const changes = idempotent ? [] : ["app .operon/config.yaml status -> live", "org apps.yaml status -> live", "managed clone -> remote default HEAD"];
+  const changes = idempotent
+    ? []
+    : [
+        "app .operon/config.yaml status -> live",
+        "org apps.yaml status -> live",
+        "managed clone -> remote default HEAD",
+        PROMOTION_WORKFLOW_INERT_NOTE,
+      ];
   return {
     schema_version: LIFECYCLE_SCHEMA_VERSION,
     kind: "app-promotion-plan",
@@ -756,7 +774,7 @@ export async function executeAppPromotion(
       git(record.managed_clone, "diff", "--cached", "--check");
       const commitDate = nextCommitDate(record.managed_clone);
       await options.fault?.("before_commit");
-      gitWithCommitIdentity(record.managed_clone, commitDate, "commit", "--quiet", "-m", "chore: promote app to live");
+      gitWithCommitIdentity(record.managed_clone, commitDate, "commit", "--quiet", "-m", PROMOTION_COMMIT_SUBJECT);
       await options.fault?.("after_commit");
       journal = await patchPromotionJournal(journalPath, journal, { phase: "config_committed", promotion_commit: git(record.managed_clone, "rev-parse", "HEAD") });
     }

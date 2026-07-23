@@ -58,7 +58,6 @@ import {
   episodeIdFor,
   finalizeEpisode,
   fingerprint,
-  readRouteRecord,
 } from "../loop/efficiency.js";
 import type {
   ApprovalStep,
@@ -1922,14 +1921,9 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       executeTicketPlan: ticketEpisode.executeTicketPlan,
       telemetry: options.telemetry,
       onEpisodeTerminal: async (terminal) => {
-        const route = await readRouteRecord(options.runtimeHome, terminal.episodeId);
-        if (route.terminal !== null) {
-          if (route.terminal.status === terminal.status) return;
-          throw new Error(
-            `ticket episode ${terminal.episodeId} terminal status changed ` +
-              `${route.terminal.status} -> ${terminal.status}`,
-          );
-        }
+        // finalizeEpisode is the single atomic owner of terminal identity:
+        // same-status re-finalization is an idempotent no-op and a status
+        // change is a genuine conflict, decided under the route lock (#167).
         await finalizeEpisode({
           root: options.runtimeHome,
           episodeId: terminal.episodeId,

@@ -1016,6 +1016,46 @@ describe("efficiency route admission", () => {
     })).rejects.toThrow("different terminal record");
     expect(JSON.parse(await readFile(routeRecordPath(home.root, episodeId), "utf8"))).toEqual(record);
   });
+
+  it("B-ADM-06 same-status re-finalization is an idempotent no-op that keeps the first writer's record (#167)", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:dual-writer";
+    await admission(home.root, episodeId);
+    // First writer: EpisodePlan afterCompletion terminalizes the episode.
+    const first = await finalizeEpisode({
+      root: home.root,
+      episodeId,
+      status: "completed",
+      reason: "EpisodePlan v1 completed",
+      now: new Date("2026-07-13T00:02:00.000Z"),
+    });
+    expect(first.terminal).toMatchObject({ status: "completed", reason: "EpisodePlan v1 completed" });
+    const afterFirst = JSON.parse(await readFile(routeRecordPath(home.root, episodeId), "utf8"));
+
+    // Second writer: the loop driver's terminal disposition finalizes the same
+    // outcome with a differently-worded reason. This must not throw, and must
+    // not overwrite the first writer's record — the historical collision that
+    // made a successful autonomous ship exit non-zero.
+    const second = await finalizeEpisode({
+      root: home.root,
+      episodeId,
+      status: "completed",
+      reason: `ticket:fixture:#1 merged`,
+      now: new Date("2026-07-13T00:03:00.000Z"),
+    });
+    expect(second.terminal).toMatchObject({ status: "completed", reason: "EpisodePlan v1 completed" });
+    expect(JSON.parse(await readFile(routeRecordPath(home.root, episodeId), "utf8"))).toEqual(afterFirst);
+
+    // A genuine status change is still a hard conflict and names both payloads.
+    await expect(finalizeEpisode({
+      root: home.root,
+      episodeId,
+      status: "blocked",
+      reason: "late blocker",
+      now: new Date("2026-07-13T00:04:00.000Z"),
+    })).rejects.toThrow(/different terminal record.*completed.*blocked/s);
+    expect(JSON.parse(await readFile(routeRecordPath(home.root, episodeId), "utf8"))).toEqual(afterFirst);
+  });
 });
 
 async function admission(root: string, episodeId: string): Promise<void> {

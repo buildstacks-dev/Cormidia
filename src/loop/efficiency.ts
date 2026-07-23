@@ -550,12 +550,19 @@ async function finalizeEpisodeLocked(input: {
 }): Promise<RouteRecord> {
   const record = await readRouteRecord(input.root, input.episodeId);
   if (record.terminal !== null) {
-    const same =
-      record.terminal.status === input.status &&
-      record.terminal.reason === input.reason &&
-      record.terminal.next_step === (input.nextStep ?? null);
-    if (!same) throw new Error(`episode ${input.episodeId} already has a different terminal record`);
-    return record;
+    // The terminal STATUS is the episode's semantic outcome. `reason` and
+    // `next_step` are human-readable annotations that two legitimate writers
+    // — EpisodePlan `afterCompletion` and the loop driver's terminal
+    // disposition — word differently for the very same outcome (e.g.
+    // "EpisodePlan v1 completed" vs "ticket:app:#1 merged"). Same status is
+    // therefore an idempotent no-op that keeps the first writer's record; only
+    // a status change is a genuine conflict worth failing on (#167).
+    if (record.terminal.status === input.status) return record;
+    throw new Error(
+      `episode ${input.episodeId} already has a different terminal record: ` +
+        `existing ${record.terminal.status} (${record.terminal.reason}) != ` +
+        `requested ${input.status} (${input.reason})`,
+    );
   }
   const terminal: EpisodeTerminal = {
     at: input.now.toISOString(),

@@ -16,6 +16,7 @@ import { parse, stringify } from "yaml";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   planAppPromotion,
+  PROMOTION_WORKFLOW_INERT_NOTE,
   readLifecycleRecord,
   verifyApp,
 } from "../../src/org/app-lifecycle.js";
@@ -156,6 +157,8 @@ describe("remote-default config acceptance", () => {
       readinessProbe: READY_RUNTIME_PROBE,
     });
     expect(promotable.executable).toBe(true);
+    // Preview exposes the (suppressed) external side effect before --execute (#168).
+    expect(promotable.changes).toContain(PROMOTION_WORKFLOW_INERT_NOTE);
   });
 
   it("never accepts arbitrary managed-working-tree config bytes", async () => {

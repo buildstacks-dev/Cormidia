@@ -58,14 +58,14 @@ describe("operon roles set", () => {
     const before = readFileSync(rolesPath, "utf8");
 
     const output = await captureRoles(
-      ["set", "planner", "--effort", "xhigh", "--turn-budget", "15", "--org-home", orgHome, "--state-home", stateHome],
+      ["set", "planner", "--effort", "max", "--turn-budget", "15", "--org-home", orgHome, "--state-home", stateHome],
       0,
     );
 
     expect(output).toContain(`PREVIEW roles set planner — ${rolesPath}`);
-    expect(output).toContain("before: claude/claude-opus-4-8@high turn budget $5 (inherited)");
-    expect(output).toContain("after:  claude/claude-opus-4-8@xhigh turn budget $15");
-    expect(output).toContain("effort: high -> xhigh");
+    expect(output).toContain("before: claude/claude-opus-4-8@xhigh turn budget $5 (inherited)");
+    expect(output).toContain("after:  claude/claude-opus-4-8@max turn budget $15");
+    expect(output).toContain("effort: xhigh -> max");
     expect(output).toContain("max_turn_budget_usd: 5 -> 15");
     expect(output).toContain("claude adapter claude/v1: accepts low | medium | high | xhigh | max");
     expect(output).toContain("Nothing was written.");
@@ -78,7 +78,7 @@ describe("operon roles set", () => {
     const before = readFileSync(rolesPath, "utf8");
 
     const unattributed = await captureRoles(
-      ["set", "planner", "--effort", "xhigh", "--execute", "--reason", "agreed in review",
+      ["set", "planner", "--effort", "max", "--execute", "--reason", "agreed in review",
         "--org-home", orgHome, "--state-home", stateHome],
       1,
     );
@@ -86,7 +86,7 @@ describe("operon roles set", () => {
     expect(unattributed).toContain("--execute requires an attributable --by <identity>");
 
     const unreasoned = await captureRoles(
-      ["set", "planner", "--effort", "xhigh", "--execute", "--by", "bikram@example.invalid",
+      ["set", "planner", "--effort", "max", "--execute", "--by", "bikram@example.invalid",
         "--org-home", orgHome, "--state-home", stateHome],
       1,
     );
@@ -101,7 +101,7 @@ describe("operon roles set", () => {
     const before = readFileSync(rolesPath, "utf8");
 
     const output = await captureRoles(
-      ["set", "planner", "--effort", "xhigh", "--turn-budget", "15", "--execute",
+      ["set", "planner", "--effort", "max", "--turn-budget", "15", "--execute",
         "--by", "bikram@example.invalid", "--reason", "planner quality decides everything downstream",
         "--org-home", orgHome, "--state-home", stateHome],
       0,
@@ -127,11 +127,11 @@ describe("operon roles set", () => {
     expect(afterLines).toHaveLength(beforeLines.length + 1);
     const plannerAt = beforeLines.indexOf("  planner:");
     expect(plannerAt).toBeGreaterThan(0);
-    const effortAt = beforeLines.indexOf("    effort: high", plannerAt);
+    const effortAt = beforeLines.indexOf("    effort: xhigh", plannerAt);
     expect(effortAt).toBeGreaterThan(plannerAt);
 
     expect(afterLines.slice(0, effortAt)).toEqual(beforeLines.slice(0, effortAt));
-    expect(afterLines[effortAt]).toBe("    effort: xhigh");
+    expect(afterLines[effortAt]).toBe("    effort: max");
     expect(afterLines[effortAt + 1]).toBe("    max_turn_budget_usd: 15");
     expect(afterLines.slice(effortAt + 2)).toEqual(beforeLines.slice(effortAt + 1));
 
@@ -140,7 +140,7 @@ describe("operon roles set", () => {
     expect(planner).toMatchObject({
       runtime: "claude",
       model: "claude-opus-4-8",
-      effort: "xhigh",
+      effort: "max",
       maxTurnBudgetUsd: 15,
     });
     // Only the named role moved.
@@ -162,8 +162,8 @@ describe("operon roles set", () => {
       role: "planner",
       by: "bikram@example.invalid",
       reason: "planner quality decides everything downstream",
-      before: { effort: "high", maxTurnBudgetUsd: 5, turnBudgetInherited: true },
-      after: { effort: "xhigh", maxTurnBudgetUsd: 15, turnBudgetInherited: false },
+      before: { effort: "xhigh", maxTurnBudgetUsd: 5, turnBudgetInherited: true },
+      after: { effort: "max", maxTurnBudgetUsd: 15, turnBudgetInherited: false },
     });
     expect(journal[0]!["roles_sha256_before"]).not.toBe(journal[0]!["roles_sha256_after"]);
   });
@@ -343,7 +343,7 @@ describe("operon roles set", () => {
     expect(unknown).toMatch(/roles\.yaml defines: .*\bplanner\b.*\bbuilder\b/);
 
     const noop = await captureRoles(
-      ["set", "planner", "--effort", "high", "--org-home", orgHome, "--state-home", stateHome],
+      ["set", "planner", "--effort", "xhigh", "--org-home", orgHome, "--state-home", stateHome],
       1,
     );
     expect(noop).toContain("BLOCKED no_effective_change");

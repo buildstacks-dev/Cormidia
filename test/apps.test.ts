@@ -300,8 +300,9 @@ ${release}
     );
     expect(apps[0]?.release).toEqual({
       kind: "deploy",
-      command: "gh workflow run deploy.yml",
       owner: "sre",
+      trigger: "command",
+      command: "gh workflow run deploy.yml",
     });
   });
 
@@ -318,11 +319,57 @@ ${release}
     expect(apps[0]?.release).toBeUndefined();
   });
 
-  it("rejects deploy without a command", async () => {
+  it("defaults a deploy release with no command to a tag trigger", async () => {
+    const { apps } = await loadApps(
+      appsFile(base(`    release:
+      kind: deploy`)),
+    );
+    expect(apps[0]?.release).toEqual({ kind: "deploy", owner: "orchestrator", trigger: "tag" });
+  });
+
+  it("accepts an explicit tag trigger and rejects a command alongside it", async () => {
+    const { apps } = await loadApps(
+      appsFile(base(`    release:
+      kind: deploy
+      owner: sre
+      trigger: tag`)),
+    );
+    expect(apps[0]?.release).toEqual({ kind: "deploy", owner: "sre", trigger: "tag" });
     await expect(
       loadApps(appsFile(base(`    release:
-      kind: deploy`))),
-    ).rejects.toThrow(/release\.command is required for kind "deploy"/);
+      kind: deploy
+      trigger: tag
+      command: gh workflow run deploy.yml`))),
+    ).rejects.toThrow(/release\.command is not used with trigger: tag/);
+  });
+
+  it("requires a command when trigger: command is declared without one", async () => {
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: deploy
+      trigger: command`))),
+    ).rejects.toThrow(/release\.command is required for trigger "command"/);
+  });
+
+  it("rejects the planned-but-unimplemented branch trigger", async () => {
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: deploy
+      trigger: branch`))),
+    ).rejects.toThrow(/release\.trigger: branch is planned but not yet supported/);
+  });
+
+  it("rejects an unknown trigger and a trigger on merge-only", async () => {
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: deploy
+      trigger: yolo`))),
+    ).rejects.toThrow(/release\.trigger must be one of tag \| branch \| command/);
+    await expect(
+      loadApps(appsFile(base(`    release:
+      kind: merge-only
+      trigger: tag`))),
+    ).rejects.toThrow(/release\.trigger is meaningless for merge-only/);
   });
 
   it("rejects a command on merge-only", async () => {

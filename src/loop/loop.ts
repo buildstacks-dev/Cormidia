@@ -58,7 +58,7 @@ import {
 } from "./verdicts.js";
 import type { LoopItem, LoopPhase, ReleaseConfig, ScorecardEvent, TicketTier } from "./types.js";
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
-import { parseReleaseKind, STATE_LABELS } from "./plan-tickets.js";
+import { parseReleaseKind, parseReleaseVersion, resolveReleaseCommand, STATE_LABELS } from "./plan-tickets.js";
 import { parseDependsOn } from "./scheduling.js";
 import {
   recordExecutionBoundary,
@@ -1097,9 +1097,13 @@ export async function advanceShipping(
         ? `the app declares no release mechanism (no \`release:\` block in .operon/config.yaml)`
         : declared.kind !== requiredKind
           ? `the app declares \`release.kind: ${declared.kind}\`, not \`${requiredKind}\``
-          : declared.command === undefined
-            ? `the app's \`release:\` block has no command`
-            : undefined;
+          : declared.trigger === "tag"
+            ? parseReleaseVersion(item.body) === undefined
+              ? "the milestone declares no valid `Release-version` for the app's tag release"
+              : undefined
+            : declared.command === undefined
+              ? `the app's \`release:\` block has no command`
+              : undefined;
     if (problem !== undefined) {
       await options.gh.commentIssue(
         item.issueNumber,
@@ -1108,8 +1112,9 @@ export async function advanceShipping(
           "",
           `This milestone's plan declares \`Release-kind: ${requiredKind}\`, but ${problem}.`,
           "A deployable milestone with no owned mechanism is not done: declare the mechanism in",
-          "the app's `.operon/config.yaml` `release:` block (kind, command, owner) or re-plan the",
-          "milestone as merge-only. The PR is left open; no merge was attempted.",
+          "the app's `.operon/config.yaml` `release:` block (kind, owner, and a command for",
+          "`trigger: command`) or, for `trigger: tag`, a `Release-version` on the milestone —",
+          "or re-plan the milestone as merge-only. The PR is left open; no merge was attempted.",
         ].join("\n"),
       );
       await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
@@ -1183,9 +1188,13 @@ export async function advanceShipping(
   // whenever the milestone requires one; hand the org layer the data it
   // needs to queue the release as a critical op (the loop layer never
   // touches the approval store — one-way imports).
+  const releaseCommand =
+    requiredKind !== undefined && requiredKind !== "merge-only" && options.release !== undefined
+      ? resolveReleaseCommand(options.release, item.body)
+      : undefined;
   const releaseTrigger =
-    requiredKind !== undefined && requiredKind !== "merge-only" && options.release?.command !== undefined
-      ? { kind: requiredKind, command: options.release.command, owner: options.release.owner }
+    releaseCommand !== undefined && requiredKind !== undefined && options.release !== undefined
+      ? { kind: requiredKind, command: releaseCommand, owner: options.release.owner }
       : undefined;
   await journalBoundary(options.journal, "release", {
     disposition: releaseTrigger === undefined ? "merge-only" : "queued-for-scoped-approval",
@@ -1236,14 +1245,17 @@ export async function recoverAlreadyMergedTicket(
     removeWorktree(options.localRepo, item.worktree);
   }
   const requiredKind = parseReleaseKind(item.body);
-  const releaseTrigger =
+  const releaseCommand =
     requiredKind !== undefined &&
     requiredKind !== "merge-only" &&
-    options.release?.kind === requiredKind &&
-    options.release.command !== undefined
+    options.release?.kind === requiredKind
+      ? resolveReleaseCommand(options.release, item.body)
+      : undefined;
+  const releaseTrigger =
+    releaseCommand !== undefined && requiredKind !== undefined && options.release !== undefined
       ? {
           kind: requiredKind,
-          command: options.release.command,
+          command: releaseCommand,
           owner: options.release.owner,
         }
       : undefined;

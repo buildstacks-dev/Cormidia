@@ -42,6 +42,7 @@ import type { GhOps, GhReview } from "../loop/github.js";
 import type { Policy } from "../loop/policy.js";
 import type { GateCommands } from "../loop/qgates.js";
 import type { LoopItem, ReleaseConfig } from "../loop/types.js";
+import { resolveReleaseCommand } from "../loop/plan-tickets.js";
 import {
   EPISODE_PLAN_EXECUTION_PIPELINE,
   planRouteLabel,
@@ -1420,20 +1421,25 @@ function restoreItemFromStepOutput(
     ...(typeof cycles === "number" ? { cycles } : {}),
     ...(typeof remediationAttempts === "number" ? { remediationAttempts } : {}),
   };
+  // Re-derive the app's current release command the same way the loop built it
+  // (app-declared for `command`, the git tag push for `trigger: tag`) so a
+  // durable trigger only restores when it still matches the app's mechanism
+  // and the milestone's declared version.
+  const expectedCommand = release !== undefined ? resolveReleaseCommand(release, item.body) : undefined;
   if (
     releaseSnapshot !== null &&
     typeof releaseSnapshot === "object" &&
     !Array.isArray(releaseSnapshot) &&
     release !== undefined &&
-    release.command !== undefined &&
+    expectedCommand !== undefined &&
     releaseSnapshot["kind"] === release.kind &&
     releaseSnapshot["owner"] === release.owner &&
-    releaseSnapshot["commandSha256"] === fingerprint(release.command)
+    releaseSnapshot["commandSha256"] === fingerprint(expectedCommand)
   ) {
     restored.releaseTrigger = {
       kind: release.kind,
       owner: release.owner,
-      command: release.command,
+      command: expectedCommand,
     };
   }
   return restored;

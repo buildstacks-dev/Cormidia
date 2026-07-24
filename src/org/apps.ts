@@ -12,7 +12,7 @@ import type { RoleConfig, Trigger } from "../runtime/types.js";
 import { isAssignmentCandidateId } from "../runtime/assignment.js";
 import { ASSIGNMENT_MODES, type AssignmentMode } from "../loop/episode-plan.js";
 import { assertCanonicalGateCommandPlacement } from "../loop/gate-config.js";
-import { RELEASE_KINDS, RELEASE_OWNERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner } from "../loop/types.js";
+import { RELEASE_KINDS, RELEASE_OWNERS, RELEASE_TRIGGERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner, type ReleaseTriggerMode } from "../loop/types.js";
 import { writeFileAtomic } from "./atomic.js";
 import {
   loadRoles,
@@ -356,12 +356,12 @@ function parseAllowedAssignments(
 function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig | undefined {
   if (raw === undefined || raw === null) return undefined;
   if (typeof raw !== "object" || Array.isArray(raw)) {
-    throw err("release must be a mapping (kind, command, owner)");
+    throw err("release must be a mapping (kind, command, owner, trigger)");
   }
   const spec = raw as Record<string, unknown>;
   for (const key of Object.keys(spec)) {
-    if (!["kind", "command", "owner"].includes(key)) {
-      throw err(`release: unknown key "${key}" (allowed: kind, command, owner)`);
+    if (!["kind", "command", "owner", "trigger"].includes(key)) {
+      throw err(`release: unknown key "${key}" (allowed: kind, command, owner, trigger)`);
     }
   }
   const kind = spec["kind"];
@@ -369,21 +369,51 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
     throw err(`release.kind must be one of ${RELEASE_KINDS.join(" | ")}`);
   }
   const command = spec["command"];
-  if (kind === "merge-only") {
-    if (command !== undefined) {
-      throw err("release.command is meaningless for merge-only (nothing runs after merge)");
-    }
-  } else if (typeof command !== "string" || command.trim().length === 0) {
-    throw err(`release.command is required for kind "${kind}" (deploy command or CI workflow ref)`);
-  }
   const owner = spec["owner"] ?? "orchestrator";
   if (typeof owner !== "string" || !RELEASE_OWNERS.includes(owner as ReleaseOwner)) {
     throw err(`release.owner must be one of ${RELEASE_OWNERS.join(" | ")}`);
   }
+  const rawTrigger = spec["trigger"];
+  if (rawTrigger !== undefined) {
+    if (typeof rawTrigger !== "string" || !RELEASE_TRIGGERS.includes(rawTrigger as ReleaseTriggerMode)) {
+      throw err(`release.trigger must be one of ${RELEASE_TRIGGERS.join(" | ")}`);
+    }
+    if (rawTrigger === "branch") {
+      throw err("release.trigger: branch is planned but not yet supported; use tag or command");
+    }
+  }
+
+  if (kind === "merge-only") {
+    if (command !== undefined) {
+      throw err("release.command is meaningless for merge-only (nothing runs after merge)");
+    }
+    if (rawTrigger !== undefined) {
+      throw err("release.trigger is meaningless for merge-only (nothing runs after merge)");
+    }
+    return { kind, owner: owner as ReleaseOwner };
+  }
+
+  // deploy | package. An explicit trigger wins; otherwise a declared command
+  // infers `command` (back-compat for pre-trigger apps) and its absence
+  // defaults to `tag` — the mechanism Operon fires by pushing the version tag.
+  const trigger: ReleaseTriggerMode =
+    rawTrigger === "tag" || rawTrigger === "command"
+      ? rawTrigger
+      : command !== undefined
+        ? "command"
+        : "tag";
+  if (trigger === "command") {
+    if (typeof command !== "string" || command.trim().length === 0) {
+      throw err('release.command is required for trigger "command" (deploy command or CI workflow ref)');
+    }
+  } else if (command !== undefined) {
+    throw err("release.command is not used with trigger: tag (Operon pushes the version tag itself)");
+  }
   return {
     kind: kind as ReleaseKind,
-    ...(typeof command === "string" ? { command } : {}),
     owner: owner as ReleaseOwner,
+    trigger,
+    ...(typeof command === "string" ? { command } : {}),
   };
 }
 

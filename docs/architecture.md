@@ -404,9 +404,11 @@ converges without weakening drift detection.
 
 `operon app promote <app> --to live` is a non-mutating plan unless
 `--execute` is present. Execution is admitted only from passing verification,
-then uses a crash-resumable journal to commit and push the app-owned status,
-atomically update the one registry entry, refresh the lifecycle hash record,
-and verify the final live state. Commit, push, config, and registry boundaries
+then uses a crash-resumable journal to commit and push the app-owned status
+(the commit is marked `[skip ci]` so the default-branch push cannot start an
+app's deploy or CI workflows — promotion is lifecycle metadata, never a deploy
+trigger), atomically update the one registry entry, refresh the lifecycle hash
+record, and verify the final live state. Commit, push, config, and registry boundaries
 are individually rerunnable; a dead process lock is reclaimed while a live
 one fails closed. Repetition returns `already_live` without a duplicate
 commit or side effect.

@@ -986,7 +986,14 @@ Item schema:
    `orchestrator-command` stays actor-claimable — a live turn re-attempting its
    own approved command still wins the single-use grant and the orchestrator
    then finds nothing to do — while `durable-github` and `release` remain
-   orchestrator-only. For an exact single-use actor grant, the
+   orchestrator-only. Before an originating outer turn is terminalized, its
+   turn runner drains every same-turn `orchestrator-command` approval through
+   the same content-bound executor; the per-item claim increments `attempts`
+   before the command begins, and multiple decisions are each delivered once.
+   A same-turn shell approval that is still undispatched when the actor ends is
+   claimed and terminalized `failed` with
+   `actor_ended_before_dispatch`, never left `approved` at zero attempts.
+   For an exact single-use actor grant, the
    synchronous gate advances the item to `executing` before it consumes the
    grant. The turn runner accepts only an exact action-identity `TurnEvent`
    with an explicit adapter `success: true|false` as acknowledgement; prose or

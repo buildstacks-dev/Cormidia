@@ -94,6 +94,9 @@ const DEFAULT_COMMAND_TIMEOUT_MS = 10 * 60_000;
 export interface ExecuteApprovedCommandsOptions {
   stateHome: string;
   appsFile: AppsFile;
+  /** Restrict delivery to approvals raised by one still-owned outer turn.
+   * Dispatch omits this and drains the org-wide approved queue. */
+  turnId?: string;
   now?: () => Date;
   /** Injected by tests. Production spawns the recorded command verbatim. */
   runner?: (input: {
@@ -122,7 +125,10 @@ export async function executeApprovedCommands(
   const store = new ApprovalStore(options.stateHome);
   const outcomes: ApprovalCommandOutcome[] = [];
   const items = (await store.listDecided()).filter(
-    (item) => item.decision === "approved" && item.execution?.executor === "orchestrator-command",
+    (item) =>
+      item.decision === "approved" &&
+      item.execution?.executor === "orchestrator-command" &&
+      (options.turnId === undefined || item.turnId === options.turnId),
   );
 
   for (const item of items) {

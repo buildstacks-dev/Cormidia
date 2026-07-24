@@ -219,6 +219,74 @@ describe("approved commands execute from the durable record", () => {
     }
   });
 
+  it("delivers every approval from one live turn exactly once and claims before execution", async () => {
+    const home = makeOrgHome({ approvals: true });
+    const workdir = makeCheckout(home.root, "worktrees", APP, "live-turn");
+    const ids = ["same-turn-network", "same-turn-delete", "other-turn"];
+    const store = new ApprovalStore(home.root, { idSource: () => ids.shift()! });
+    const actions = [
+      { tool: "bash", input: { command: "curl http://127.0.0.1:4321/" } },
+      { tool: "bash", input: { command: "rm -rf .pnpm-store" } },
+      { tool: "bash", input: { command: "printf unrelated" } },
+    ];
+    try {
+      for (const [index, action] of actions.entries()) {
+        const raised = await store.raise({
+          app: APP,
+          role: "builder",
+          turnId: index === 2 ? "other-turn" : "live-turn",
+          workdir,
+          rule: index === 1 ? "destructive-or-irreversible" : "outbound-network",
+          action,
+          now: NOW,
+        });
+        await store.decide(raised.id, { decision: "approved", now: NOW });
+      }
+
+      const calls: string[] = [];
+      const outcomes = await executeApprovedCommands({
+        stateHome: home.root,
+        appsFile: APPS,
+        turnId: "live-turn",
+        now: () => NOW,
+        runner: async ({ command }) => {
+          const item = (await store.listDecided()).find((candidate) =>
+            (candidate.action.input as { command?: string }).command === command);
+          expect(item?.execution).toMatchObject({
+            state: "executing",
+            attempts: 1,
+            actor: ORCHESTRATOR_COMMAND_ACTOR,
+          });
+          calls.push(command);
+          return { exitCode: 0, stdout: "", stderr: "" };
+        },
+      });
+
+      expect(outcomes.map((outcome) => outcome.status)).toEqual(["executed", "executed"]);
+      expect([...calls].sort()).toEqual([
+        "curl http://127.0.0.1:4321/",
+        "rm -rf .pnpm-store",
+      ].sort());
+      expect((await store.show("same-turn-network")).item.execution)
+        .toMatchObject({ state: "executed", attempts: 1 });
+      expect((await store.show("same-turn-delete")).item.execution)
+        .toMatchObject({ state: "executed", attempts: 1 });
+      expect((await store.show("other-turn")).item.execution)
+        .toMatchObject({ state: "approved", attempts: 0 });
+      expect(await executeApprovedCommands({
+        stateHome: home.root,
+        appsFile: APPS,
+        turnId: "live-turn",
+        now: () => NOW,
+        runner: async () => {
+          throw new Error("terminal approvals must not execute twice");
+        },
+      })).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("records a non-zero exit as failed with a disposition next step", async () => {
     const home = seedRun3();
     makeCheckout(home.root, "repos", APP);

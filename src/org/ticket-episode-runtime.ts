@@ -32,9 +32,11 @@ import {
   criterionTestMapFromContract,
   parseAcceptanceCriteria,
   recoverAlreadyMergedTicket,
+  repairPrGateEvidence,
   renderBuildBlockedComment,
   renderContractComment,
   renderReviewBody,
+  isPrGateEvidenceOnlyFinding,
   latestActionableReview,
   type ReviewAuthorization,
 } from "../loop/loop.js";
@@ -1019,11 +1021,21 @@ async function applyProviderOutcome(
     return { item: { ...resumed, phase: "gates" } };
   }
   if (definition.verdictKind === "review") {
-    const review = verdict as ReviewVerdict;
+    let review = verdict as ReviewVerdict;
     const prNumber = requirePrNumber(input.item);
     const reviewedCommit = (await input.options.gh.readPR(prNumber)).headRefOid;
     if (reviewedCommit === undefined) {
       throw new Error(`cannot publish ${definition.operation}: PR #${prNumber} head is unresolved`);
+    }
+    if (
+      definition.operation === "review/verify" &&
+      review.findings.length > 0 &&
+      review.findings.every(isPrGateEvidenceOnlyFinding)
+    ) {
+      const repair = await repairPrGateEvidence(input.item, input.options.gh);
+      if (repair.satisfied && repair.headRefOid === reviewedCommit) {
+        review = resolvePrGateEvidenceFindings(review, repair.artifactReferences);
+      }
     }
     const reviewMarker = ticketReviewMarker(
       input.context,
@@ -1694,6 +1706,38 @@ function ticketReviewMarker(
     verdict,
   });
   return `<!-- operon:ticket-review execution-id=${execution.executionId} reviewed-commit=${reviewedCommit} content-sha256=${contentSha256} -->`;
+}
+
+function resolvePrGateEvidenceFindings(
+  review: ReviewVerdict,
+  artifactReferences: readonly string[],
+): ReviewVerdict {
+  const resolved = review.findings.map((finding) =>
+    `${finding.location}: ${finding.description} -> ${finding.action}`
+  );
+  return {
+    verdict: "approve",
+    findings: [],
+    review: {
+      rationale: [
+        review.review.rationale,
+        `Operon deterministically resolved ${review.findings.length} PR-evidence-only finding(s) ` +
+          "by attaching the already-green gate capture; no command reran and the reviewed commit did not change.",
+      ].join(" "),
+      evidence: [
+        ...review.review.evidence,
+        {
+          claim: "Original evidence-only findings resolved",
+          evidence: resolved.join(" | "),
+        },
+        {
+          claim: "Content-addressed green-gate evidence attached to the PR description",
+          evidence: artifactReferences.join(", "),
+        },
+      ],
+      notReviewed: review.review.notReviewed,
+    },
+  };
 }
 
 async function ensureIssueComment(

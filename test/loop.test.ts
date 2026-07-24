@@ -15,7 +15,9 @@ import {
   advanceShipping,
   checkAcceptanceBoxes,
   claimTicket,
+  isPrGateEvidenceOnlyFinding,
   pushBranch,
+  repairPrGateEvidence,
   type LoopItem,
 } from "../src/loop/loop.js";
 import { baseRevisionForBranch } from "../src/loop/default-branch.js";
@@ -269,7 +271,7 @@ describe("advanceGates", () => {
         gh,
         base: baseRevisionForBranch("main"),
         policy: policy(),
-        commands: { testCommand: "test -f pass.txt" },
+        commands: { testCommand: "printf 'green gate output\\n' && test -f pass.txt" },
         criteria,
         criterionTests,
         runlog: { root: home.root, app: "fixture", ticket: "#1", traceId: "turn-gate-1", clock: () => new Date() },
@@ -290,6 +292,8 @@ describe("advanceGates", () => {
       const envelope = await readEnvelope(home.root, "fixture", runId);
       expect(envelope.status).toBe("completed");
       expect(envelope.gate_results?.some((g) => g.gate === "tests" && g.status === "passed")).toBe(true);
+      expect(envelope.gate_results?.find((g) => g.gate === "tests")?.detail)
+        .toContain("green gate output");
     } finally {
       home.cleanup();
       pair.cleanup();
@@ -376,6 +380,136 @@ describe("advanceGates", () => {
     } finally {
       pair.cleanup();
     }
+  });
+
+  it("the initial PR pastes explicit green-gate command output as durable evidence", async () => {
+    const pair = makeBareWithClone();
+    try {
+      const evidenceBody = [
+        "## Goal",
+        "Ship a small fixture change.",
+        "",
+        "## Acceptance criteria",
+        "- [x] `pnpm test` and `pnpm lint` pass and their command output is pasted into the PR",
+        "",
+      ].join("\n");
+      const evidenceCriteria: AcceptanceCriterion[] = [
+        {
+          id: "AC1",
+          text: "`pnpm test` and `pnpm lint` pass and their command output is pasted into the PR",
+          checked: true,
+        },
+      ];
+      const gh = new FakeGhOps({
+        cloneRoot: pair.clone.root,
+        issues: [{ number: 1, title: "Gate Evidence", body: evidenceBody, labels: ["op:ready"] }],
+      });
+      const claimed = await claimTicket(await gh.readIssue(1), {
+        gh,
+        targetRepo: "fixture/repo",
+        base: baseRevisionForBranch("main"),
+        localRepo: pair.clone.root,
+        worktreeRoot: join(pair.root, "worktrees"),
+      });
+      commit(claimed.worktree as string, "feat: evidence", { "src/change.ts": "x\n" });
+
+      const reviewing = await advanceGates(claimed, {
+        gh,
+        base: baseRevisionForBranch("main"),
+        policy: {
+          ...policy(),
+          gates: {
+            high: ["tests", "lint", "completeness"],
+            medium: ["tests", "lint", "completeness"],
+            low: ["tests", "lint", "completeness"],
+          },
+        },
+        commands: {
+          testCommand: "printf '8 files, 37 tests passed\\n'",
+          lintCommand: "printf '0 errors, 0 warnings, 0 hints\\n'",
+        },
+        criteria: evidenceCriteria,
+        criterionTests: { AC1: ["quality gates and PR evidence"] },
+      });
+
+      const initial = await gh.readPR(reviewing.prNumber as number);
+      expect(initial.body).toContain("<!-- operon:gate-evidence:start -->");
+      expect(initial.body).toContain(`**Revision:** \`${initial.headRefOid}\``);
+      expect(initial.body).toContain("printf '8 files, 37 tests passed");
+      expect(initial.body).toContain("8 files, 37 tests passed");
+      expect(initial.body).toContain("printf '0 errors, 0 warnings, 0 hints");
+      expect(initial.body).toContain("0 errors, 0 warnings, 0 hints");
+      expect(initial.body.match(/\*\*Exit status:\*\* `0`/g)).toHaveLength(2);
+      expect(initial.body).toMatch(/operon-pr-gate-evidence:tests:sha256:[a-f0-9]{64}/);
+      expect(initial.body).toMatch(/operon-pr-gate-evidence:lint:sha256:[a-f0-9]{64}/);
+      expect(initial.body).not.toContain("- Quality gates passed before review.");
+
+      // A historical/mutated description is repaired from the captured green
+      // run without executing either command again or changing the PR head.
+      await gh.updatePullRequestBody(
+        initial.number,
+        initial.body.replace(
+          /<!-- operon:gate-evidence:start -->[\s\S]*<!-- operon:gate-evidence:end -->/,
+          "- Quality gates passed before review.",
+        ),
+      );
+      const repaired = await repairPrGateEvidence(reviewing, gh);
+      const after = await gh.readPR(initial.number);
+      expect(repaired).toMatchObject({
+        repaired: true,
+        satisfied: true,
+        headRefOid: initial.headRefOid,
+      });
+      expect(after.headRefOid).toBe(initial.headRefOid);
+      expect(after.body).toContain("8 files, 37 tests passed");
+      expect(gh.calls.filter((call) => call.op === "createPR")).toHaveLength(1);
+
+      await gh.updatePullRequestBody(
+        initial.number,
+        after.body.replace(
+          /<!-- operon:gate-evidence:start -->[\s\S]*<!-- operon:gate-evidence:end -->/,
+          "- Quality gates passed before review.",
+        ),
+      );
+      gh.setPrHead(initial.number, "concurrent-head-advance");
+      await expect(repairPrGateEvidence(reviewing, gh)).resolves.toMatchObject({
+        repaired: false,
+        satisfied: false,
+        headRefOid: "concurrent-head-advance",
+      });
+      expect((await gh.readPR(initial.number)).body)
+        .not.toContain("<!-- operon:gate-evidence:start -->");
+    } finally {
+      pair.cleanup();
+    }
+  });
+});
+
+describe("PR gate-evidence-only review findings", () => {
+  it("classifies the run-6 description-only finding but not source or rerun requests", () => {
+    const finding = {
+      category: "testing" as const,
+      severity: "major" as const,
+      location: "PR #11 body (Evidence section)",
+      description:
+        "The required pnpm test and pnpm lint output is absent from the PR description.",
+      action:
+        "Paste the actual terminal output of pnpm test and pnpm lint into the PR body or a PR comment.",
+    };
+    expect(isPrGateEvidenceOnlyFinding(finding)).toBe(true);
+    expect(
+      isPrGateEvidenceOnlyFinding({
+        ...finding,
+        location: "src/feature.ts:10",
+        action: "Modify code and add a test for the missing behavior.",
+      }),
+    ).toBe(false);
+    expect(
+      isPrGateEvidenceOnlyFinding({
+        ...finding,
+        action: "Re-run pnpm test and paste the new output into the PR body.",
+      }),
+    ).toBe(false);
   });
 });
 

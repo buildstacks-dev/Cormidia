@@ -385,6 +385,96 @@ describe("ticket EpisodePlanner execution adapter", () => {
     }
   });
 
+  it("deterministically discharges a PR-evidence-only review finding without a source replan", async () => {
+    const fixture = await setup("verify", "review/verify", true);
+    try {
+      fixture.item = {
+        ...fixture.item,
+        body: [
+          "## Goal",
+          "Fix a bounded parser bug.",
+          "",
+          "## Acceptance criteria",
+          "- [x] parser regression is covered and green gate output is pasted into the PR",
+          "",
+        ].join("\n"),
+        branch: "main",
+      };
+      fixture.runtimeOptions = {
+        ...fixture.runtimeOptions,
+        policy: {
+          ...POLICY,
+          gates: {
+            high: ["tests", "lint", "completeness"],
+            medium: ["tests", "lint", "completeness"],
+            low: ["tests", "lint", "completeness"],
+          },
+        },
+        commands: {
+          testCommand: "printf '37 tests passed\\n'",
+          lintCommand: "printf '0 errors, 0 warnings, 0 hints\\n'",
+        },
+      };
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(
+        fixture,
+        calls,
+        (request) => request.role.name === "reviewer"
+          ? JSON.stringify({
+              verdict: "findings",
+              findings: [{
+                category: "testing",
+                severity: "major",
+                location: "PR #1 body (Evidence section)",
+                description:
+                  "The required pnpm test and pnpm lint output is absent from the PR description.",
+                action:
+                  "Paste the actual terminal output of pnpm test and pnpm lint into the PR body or a PR comment.",
+              }],
+              review: {
+                rationale:
+                  "The implementation is correct; the only gap is missing pasted green-gate evidence.",
+                evidence: [{
+                  claim: "Implementation and tests",
+                  evidence: "the exact reviewed head satisfies the source acceptance criteria",
+                }],
+                notReviewed: [],
+              },
+            })
+          : isContractTurn(request)
+            ? CONTRACT_VERDICT
+            : JSON.stringify({ status: "done" }),
+      );
+
+      const item = await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      });
+      const [pr] = await fixture.gh.listPRsForBranch("main");
+      if (pr === undefined) throw new Error("expected the gates step to create a PR");
+      const reviews = await fixture.gh.listReviews(pr.number);
+
+      expect(item).toMatchObject({ phase: "shipping", approvedCommitId: pr.headRefOid });
+      expect(pr.body).toContain("37 tests passed");
+      expect(pr.body).toContain("0 errors, 0 warnings, 0 hints");
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]).toMatchObject({ state: "APPROVED", commitId: pr.headRefOid });
+      expect(reviews[0]?.body).toContain("deterministically resolved 1 PR-evidence-only finding");
+      expect(reviews[0]?.body).toContain("no command reran");
+      expect(calls.filter((call) => call.requestRole.name === "planner")).toHaveLength(0);
+      expect(calls.map((call) => call.requestRole.name)).toEqual([
+        "builder",
+        "builder",
+        "reviewer",
+      ]);
+      expect((await fixture.gh.readIssue(7)).labels).not.toContain("op:returned");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("reports the exact run-2 typed blocked verdict as blocked/failed across durable surfaces", async () => {
     const fixture = await setup("implement", "build/implement", true, true, true);
     try {

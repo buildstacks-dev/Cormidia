@@ -53,6 +53,9 @@ class InjectedReviewGhOps implements GhOps {
   createPR(...args: Parameters<GhOps["createPR"]>) {
     return this.inner.createPR(...args);
   }
+  updatePullRequestBody(...args: Parameters<GhOps["updatePullRequestBody"]>) {
+    return this.inner.updatePullRequestBody(...args);
+  }
   readPR(selector: number | string) {
     return this.inner.readPR(selector);
   }

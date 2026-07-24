@@ -124,6 +124,9 @@ export interface GhOps {
    *  explicit app-reset lifecycle command, never by an agent turn. */
   closeIssue(issueNumber: number): Promise<void>;
   createPR(input: CreatePrInput): Promise<GhPullRequest>;
+  /** Replace a PR description without changing its head, state, or reviews.
+   *  Used for deterministic delivery-artifact repair only. */
+  updatePullRequestBody(prNumber: number, body: string): Promise<void>;
   readPR(selector: number | string): Promise<GhPullRequest>;
   /** Enumerate PRs for an explicit operator lifecycle operation. The build
    *  loop itself deliberately uses the narrower branch lookup below. */
@@ -424,6 +427,13 @@ export class GhCliOps implements GhOps {
     const created = await this.run(args, input.body);
     const selector = created.stdout.trim().length > 0 ? created.stdout.trim() : input.head;
     return this.readPR(selector);
+  }
+
+  async updatePullRequestBody(prNumber: number, body: string): Promise<void> {
+    await this.run(
+      ["pr", "edit", String(prNumber), "--repo", this.repo, "--body-file", "-"],
+      body,
+    );
   }
 
   async readPR(selector: number | string): Promise<GhPullRequest> {

@@ -19,10 +19,10 @@
 //   lint 120s, e2e 600s). A timeout is a *distinct* failure message —
 //   "timed out after Ns", never dressed up as an exit-code failure — so a
 //   remediation brief says what actually happened.
-// - On failure the last `tailLines` lines of combined output land verbatim
-//   in `outputTail` (predecessor: last 10; default here is 50 — briefs
-//   carry gate output verbatim per loop.md §3, and 10 lines routinely cuts
-//   off the failing test's name; the brief assembler budgets downstream).
+// - On every executed gate the last `tailLines` lines of combined output land
+//   verbatim in `outputTail` (predecessor: last 10; default here is 50 —
+//   briefs carry failing gate output verbatim per loop.md §3, while successful
+//   output is retained for PR delivery evidence).
 //   Capture is byte-bounded while streaming, so a chatty suite can't balloon
 //   orchestrator memory.
 // - Dropped: the predecessor's silent PASS when tests/lint are unconfigured
@@ -66,7 +66,7 @@ export interface GateResult {
    *  signal deaths). */
   exitCode?: number;
   /** Last `tailLines` lines of combined stdout+stderr, verbatim — present
-   *  on failure whenever the process produced output. */
+   *  whenever an executed process produced output, including green gates. */
   outputTail?: string;
   /** True only when the gate's timeout killed the process. */
   timedOut?: boolean;
@@ -143,6 +143,9 @@ export type GateRunStatus = "pass" | "fail" | "blocked";
 export interface GateRunResult {
   tier: RiskTier;
   status: GateRunStatus;
+  /** Exact worktree revision evaluated by this run when the caller can resolve
+   * it. PR evidence repair must match this revision to the remote PR head. */
+  headCommitId?: string;
   results: GateResult[];
   remediation: {
     currentAttempt: number;
@@ -806,6 +809,7 @@ async function runProcessGate(
       command: spec.command,
       exitCode: 0,
       durationMs,
+      ...withTail,
     };
   }
 

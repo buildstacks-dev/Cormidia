@@ -208,6 +208,11 @@ export class FakeGhOps implements GhOps {
     return clonePr(pr);
   }
 
+  async updatePullRequestBody(prNumber: number, body: string): Promise<void> {
+    this.log("updatePullRequestBody", { prNumber, body });
+    this.requirePr(prNumber).body = body;
+  }
+
   async readPR(selector: number | string): Promise<GhPullRequest> {
     this.log("readPR", { selector });
     const pr = this.findPr(selector);

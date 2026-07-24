@@ -575,6 +575,8 @@ describe("accepted EpisodePlan provider identity and reconciliation", () => {
         errorCode: "ticket_quality_gate_failed",
         artifacts: [],
       },
+    }, {
+      result: completedResult("bounded correction completed from the captured diagnosis"),
     }], "codex");
     const runtimeForAssignment = vi.fn(() => runtime);
     const proposeRevision = vi.fn(async ({
@@ -632,9 +634,9 @@ describe("accepted EpisodePlan provider identity and reconciliation", () => {
     });
 
     expect(result).toMatchObject({
-      status: "running",
+      status: "completed",
       planVersion: 2,
-      nextStepId: "diagnose-failure",
+      nextStepId: null,
       replan: {
         kind: "failed_gate",
         status: "accepted",
@@ -642,12 +644,12 @@ describe("accepted EpisodePlan provider identity and reconciliation", () => {
       },
     });
     expect(proposeRevision).toHaveBeenCalledOnce();
-    expect(runtime.calls).toHaveLength(1);
-    expect(runtimeForAssignment).toHaveBeenCalledTimes(1);
+    expect(runtime.calls).toHaveLength(2);
+    expect(runtimeForAssignment).toHaveBeenCalledTimes(2);
     expect(await readCurrentEpisodePlan(home.root, target.intent.episodeId))
       .toMatchObject({ version: 2, intentHash: target.plan.intentHash });
     expect(await readEpisodePlanExecutionJournal(home.root, target.intent.episodeId))
-      .toMatchObject({ status: "running", current_plan_version: 2 });
+      .toMatchObject({ status: "completed", current_plan_version: 2 });
     expect(await readEpisodeReplanJournal(home.root, target.intent.episodeId))
       .toMatchObject({
         records: [{ status: "accepted", revisionVersion: 2 }],

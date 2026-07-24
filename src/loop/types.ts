@@ -1,6 +1,7 @@
 import type { Finding } from "./verdicts.js";
 import type { CriterionTestMap, GateRunResult } from "./qgates.js";
 import type { SessionHandle, TurnAssignment } from "../runtime/types.js";
+import type { EpisodeReplanEventKind } from "./episode-replan.js";
 
 export type LoopPhase =
   | "ready"
@@ -65,6 +66,13 @@ export interface ScorecardEvent {
   value: number;
 }
 
+export interface LoopEpisodeReplan {
+  kind: EpisodeReplanEventKind;
+  status: "pending" | "accepted" | "rejected";
+  revisionVersion: number | null;
+  reason: string | null;
+}
+
 export interface LoopContinuationDecision {
   approvalId: string;
   decision: "approved" | "denied";
@@ -122,6 +130,9 @@ export interface LoopItem {
   approvedCommitId?: string;
   turnId?: string;
   rebaseNote?: string;
+  /** Latest typed plan-revision disposition from this loop invocation. A
+   * rejection keeps its durable refusal reason on the ordinary loop surface. */
+  episodeReplan?: LoopEpisodeReplan;
   scorecardEvents?: ScorecardEvent[];
   /** Same-pass native-session continuation after a granted/denied approval.
    * It is persisted in ticket claim state by the driver and is consumed only

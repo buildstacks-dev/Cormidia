@@ -53,6 +53,14 @@ function renderExplanation(explanation: EpisodeExplanation): void {
   if (explanation.journal !== null) {
     console.log(`execution: ${explanation.journal.status}`);
   }
+  const latestReplan = explanation.replanJournal?.records.at(-1);
+  if (latestReplan !== undefined) {
+    console.log(
+      `replan: ${latestReplan.trigger.id} ${latestReplan.status}` +
+      (latestReplan.revisionVersion === null ? "" : ` -> v${latestReplan.revisionVersion}`) +
+      (latestReplan.reason === null ? "" : ` — ${latestReplan.reason}`),
+    );
+  }
   for (const step of explanation.steps) console.log(renderStep(step));
   if (explanation.executionSteps.length > 0) {
     console.log(`durable execution steps (${explanation.executionSteps.length}):`);

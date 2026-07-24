@@ -229,6 +229,56 @@ describe("runlog status", () => {
       home.cleanup();
     }
   });
+
+  it("CLI surfaces the latest durable EpisodePlan revision refusal reason", async () => {
+    const episodeId = "ticket:alpha:#7";
+    const home = makeOrgHome({
+      runs: true,
+      efficiency: { episodes: { [episodeId]: {} } },
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      writeFileSync(
+        join(home.paths.efficiencyEpisodeDir(episodeId), "replan-journal.json"),
+        `${JSON.stringify({
+          schemaVersion: 1,
+          episodeId,
+          maxRevisions: 2,
+          records: [{
+            trigger: {
+              id: "execution-refusal",
+              kind: "failed_gate",
+              planVersion: 1,
+              detectedAt: "2026-07-19T20:12:00.000Z",
+              summary: "quality gates failed",
+              evidenceRefs: ["plan-execution:gate"],
+              affectedStepIds: ["gates"],
+            },
+            triggerSha256: "a".repeat(64),
+            status: "rejected",
+            requestedAt: "2026-07-19T20:12:00.000Z",
+            resolvedAt: "2026-07-19T20:12:01.000Z",
+            revisionVersion: null,
+            reason: "revision proposal rejected: delivery budget has no remaining provider turn",
+          }],
+          createdAt: "2026-07-19T20:12:00.000Z",
+          updatedAt: "2026-07-19T20:12:01.000Z",
+        }, null, 2)}\n`,
+        "utf8",
+      );
+
+      expect(await cmdStatus(["--home", home.root, "--app", "alpha"])).toBe(0);
+      const text = log.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(text).toContain("EPISODE REPLANS");
+      expect(text).toContain("alpha ticket:alpha:#7 rejected failed_gate revision=-");
+      expect(text).toContain(
+        "reason=revision proposal rejected: delivery budget has no remaining provider turn",
+      );
+    } finally {
+      log.mockRestore();
+      home.cleanup();
+    }
+  });
   // ENH-010: the reviewer's durable verdict is the most expensive judgment the
   // org buys. "approve, no findings" is indistinguishable from a reviewer that
   // did nothing unless its rationale and evidence reach the default surface.

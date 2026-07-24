@@ -292,6 +292,15 @@ their artifacts, approvals, route evidence, and settlements remain linked to
 the plan version that authorized them. Adapter unavailability never triggers
 silent tuple substitution.
 
+An accepted revision continues immediately under its newly persisted
+authority. A ticket adapter may reconcile a prior blocked transport only when
+the retained typed build verdict says `done`, the revision preserves the exact
+content-hashed step, and the replan journal links that failed step to the new
+version; it then resumes the returned label and runs the remaining gates
+without another provider turn. Rejected revisions remain terminal for that
+invocation, with their durable refusal reason shown by `operon loop`, `operon
+status`, and `operon episode --explain`.
+
 
 
 ### Review dimensions — security always-on, the rest risk-selected

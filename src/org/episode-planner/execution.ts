@@ -211,9 +211,11 @@ export async function executeAcceptedEpisodePlan(
   if (replan.plan === undefined) {
     return { ...result, replan: replanHandoff(replan.record) };
   }
-  // Adopt the accepted revision and its route authority without executing a
-  // second provider/mechanical/approval side effect in this invocation.
-  const adopted = await executePlanVersion(boundOptions, replan.plan, clock, 0);
+  // The revision is already accepted durable authority. Continue it in this
+  // invocation so a valid preserve-and-continue plan cannot strand completed
+  // work behind a synthetic `running` result. Domain handlers still prove
+  // whether a prior material event can be reconciled without another turn.
+  const adopted = await executePlanVersion(boundOptions, replan.plan, clock);
   return { ...adopted, replan: replanHandoff(replan.record) };
 }
 

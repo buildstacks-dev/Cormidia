@@ -676,7 +676,8 @@ describe("accepted EpisodePlan provider identity and reconciliation", () => {
     // The withheld step is withheld cleanly: no v2 attempt was ever started,
     // so the next tick begins it as attempt 1 with no live reservation.
     expect(journal?.events.filter((event) =>
-      event.plan_version === 2 && event.step_id === "build")).toEqual([]);
+      event.plan_version === 2 && "step_id" in event && event.step_id === "build",
+    )).toEqual([]);
     expect(await readEpisodeReplanJournal(home.root, target.intent.episodeId))
       .toMatchObject({
         records: [{ status: "accepted", revisionVersion: 2 }],

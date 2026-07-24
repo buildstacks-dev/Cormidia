@@ -27,6 +27,10 @@ what you keep proportional (`docs/efficiency.md`).
 6. **Name the milestone's release disposition** (deploy / publish / release-
    ready / intentionally ends at merge) and who owns the next action. A
    deployable milestone whose required release step is unowned is unfinished.
+   For a **deploy or package** milestone, also declare a concrete
+   `Release-version` (semver `vX.Y.Z`). A tag-triggered app fixes its deploy
+   tag from this at merge time — the approval binds the exact action then — so
+   the version is a plan-time decision, never left to the release step.
 
 ## Protocol
 
@@ -72,7 +76,8 @@ File scope:
 ```
 
 Before the tickets, emit two short paragraphs: `Ticket count rationale:` and
-`Release disposition:` (see Proportionality 2 and 6).
+`Release disposition:` (see Proportionality 2 and 6). For a deploy or package
+disposition, also state `Release-version:` on its own line (semver `vX.Y.Z`).
 
 If a ticket cannot be made this concrete, do not create it as ready work.
 Emit it under `## Needs human/planner clarification` with the missing facts.

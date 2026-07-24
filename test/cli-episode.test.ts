@@ -31,7 +31,8 @@ const COMPLETE_EXPLANATION = {
   },
   planHash: "b".repeat(64),
   route: null,
-  journal: null,
+  journal: { status: "completed" },
+  replanJournal: null,
   planningSource: "episode_planner",
   planningTurnSkipped: false,
   executionSteps: [],
@@ -40,7 +41,7 @@ const COMPLETE_EXPLANATION = {
     kind: "provider_turn",
     objective: "Implement the fix",
     dependsOn: [],
-    status: "pending",
+    status: "completed",
     operation: "build/implement",
     role: "builder",
     assignment: { harness: "codex", model: "gpt-5.6-sol", effort: "high" },
@@ -89,7 +90,8 @@ describe("episode explain CLI", () => {
       "workflow: localized-bug",
       "budget: $1.25 estimated",
       "safety route: standard",
-      "build: pending provider builder codex/gpt-5.6-sol/high [episode_planner] — approved capable implementation assignment",
+      "execution: completed",
+      "build: completed provider builder codex/gpt-5.6-sol/high [episode_planner] — approved capable implementation assignment",
     ]);
   });
 
@@ -102,8 +104,10 @@ describe("episode explain CLI", () => {
         message: "0 matching route authorizations for plan v2",
         stepId: "build",
       }],
+      journal: { status: "running" },
       steps: [{
         ...structuredClone(COMPLETE_EXPLANATION.steps[0]!),
+        status: "pending",
         routeAuthorized: false,
         authorizationStatus: "unresolved",
         authorizedPlanVersion: null,
@@ -143,6 +147,7 @@ describe("episode explain CLI", () => {
       planHash: null,
       planningSource: null,
       route: { current_route: "deterministic", terminal: { status: "completed" } },
+      journal: null,
       steps: [],
       executionSteps: [{
         executionStepId: "lifecycle-abc:mechanical:1",

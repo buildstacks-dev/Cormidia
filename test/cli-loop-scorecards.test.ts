@@ -58,6 +58,38 @@ describe("manual loop terminal-refusal projection", () => {
     expect(loopInvocationOutcome(ready, true)).toBe("would-claim: 1");
     expect(loopInvocationOutcome(empty, true)).toBe("no-ready-tickets");
   });
+
+  it("keeps a durable plan-revision refusal reason on the ordinary loop outcome", () => {
+    const result: LoopDriverResult = {
+      lines: [],
+      scorecardEvents: [],
+      items: [{
+        issueNumber: 7,
+        ticketRef: "#7",
+        title: "Fix the parser",
+        body: "## Acceptance Criteria\n- [ ] parser works",
+        targetRepo: "fixture/repo",
+        labels: ["op:returned"],
+        phase: "returned",
+        tier: "standard",
+        cycles: 0,
+        remediationAttempts: 0,
+        gateResults: [],
+        findings: [],
+        episodeReplan: {
+          kind: "failed_gate",
+          status: "rejected",
+          revisionVersion: null,
+          reason: "revision proposal rejected: delivery budget has no remaining provider turn",
+        },
+      }],
+    };
+
+    expect(loopInvocationOutcome(result)).toBe(
+      "#7=returned [replan rejected: failed_gate — " +
+        "revision proposal rejected: delivery budget has no remaining provider turn]",
+    );
+  });
 });
 
 // Regression: `operon loop` used to drop every scorecard event the driver

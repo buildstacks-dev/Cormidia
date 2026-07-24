@@ -13,6 +13,10 @@ import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/t
 import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
+import {
+  preflightGitWorktreeIndex,
+  type GitIndexPreflightResult,
+} from "../runtime/git-worktree-sandbox.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
 import type { BaseRevision } from "./default-branch.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
@@ -345,7 +349,12 @@ export async function advanceGates(
         head: headSha(worktree),
       });
       await journalBoundary(options.journal, "gates", result);
-      const pr = await ensurePr(current, options.gh, options.prDraft === true, options.base);
+      const pr = await ensurePr(
+        { ...current, gateResults },
+        options.gh,
+        options.prDraft === true,
+        options.base,
+      );
       await journalBoundary(options.journal, "pr", {
         number: pr.number,
         head: headSha(worktree),
@@ -416,6 +425,8 @@ export interface ProvisionSetupOptions {
   gh: GhOps;
   commands: GateCommands;
   process?: ProcessGateOpts;
+  /** Test seam for the cheap, source-preserving linked-worktree index probe. */
+  indexPreflight?: (worktree: string) => GitIndexPreflightResult;
   /** When present, the provision-setup step gets its own run record so its
    *  `gate.started/passed/failed` events and `envelope.gate_results` land in
    *  events.jsonl BEFORE the first implement pass (docs/loop.md §5, §9). Absent
@@ -443,6 +454,41 @@ export async function advanceProvisionSetup(
   options: ProvisionSetupOptions,
 ): Promise<LoopItem> {
   const worktree = requireField(item, "worktree");
+  const indexPreflight =
+    (options.indexPreflight ?? preflightGitWorktreeIndex)(worktree);
+  if (indexPreflight.status === "fail") {
+    const fromLabel = stateLabelForPhase(item.phase);
+    const rec =
+      options.runlog !== undefined
+        ? await openPhaseRun(options.runlog, "provision", "git-index-preflight")
+        : undefined;
+    await rec?.events.append({
+      type: "gate.failed",
+      severity: "error",
+      detail: {
+        gate: "git-index-preflight",
+        ...(indexPreflight.errorCode === undefined
+          ? {}
+          : { errorCode: indexPreflight.errorCode }),
+        detail: indexPreflight.detail,
+        worktree,
+        ...(indexPreflight.gitDir === undefined ? {} : { gitDir: indexPreflight.gitDir }),
+        ...(indexPreflight.indexPath === undefined ? {} : { indexPath: indexPreflight.indexPath }),
+      },
+    });
+    await options.gh.commentIssue(
+      item.issueNumber,
+      provisionGitIndexFailedComment(worktree, indexPreflight),
+    );
+    await options.gh.swapLabel(item.issueNumber, fromLabel, "op:returned");
+    await rec?.transition(fromLabel, "op:returned");
+    await rec?.finalize("blocked");
+    return {
+      ...item,
+      labels: replaceLabel(item.labels, fromLabel, "op:returned"),
+      phase: "returned",
+    };
+  }
   const setupResult = await runSetupGate(worktree, options.commands, options.process);
   if (setupResult === undefined) return item;
 
@@ -485,6 +531,30 @@ export async function advanceProvisionSetup(
     labels: replaceLabel(item.labels, fromLabel, "op:returned"),
     phase: "returned",
   };
+}
+
+function provisionGitIndexFailedComment(
+  worktree: string,
+  result: GitIndexPreflightResult,
+): string {
+  return [
+    "## Blocked with evidence — Git index is unwritable at worktree provision",
+    "",
+    `**Error code:** \`${result.errorCode ?? "error_git_index_unwritable"}\``,
+    "",
+    result.detail,
+    "",
+    "**Result:**",
+    "The ticket was returned before any implementation provider turn started, so no",
+    "paid builder work was stranded. Operon did not stage, commit, reset, or remove",
+    "the checkout.",
+    "",
+    "**Recovery:**",
+    `Prepared work remains at \`${worktree}\`. Restore write access to the resolved`,
+    "Git administrative index, then re-arm this exact ticket; do not delete the",
+    "worktree while it contains uncommitted work.",
+    "",
+  ].join("\n");
 }
 
 /** Provision-time setup failure evidence for the returned ticket — the same
@@ -568,12 +638,12 @@ function boundTail(tail: string): string {
 
 function toGateResultEntry(gate: GateResult): GateResultEntry {
   const status = gate.status === "pass" ? "passed" : gate.status === "fail" ? "failed" : "skipped";
-  // Envelopes are L1 (export-eligible): the failing command and its bounded
-  // tail ride along, scrubbed — remediation must never need a model turn just
-  // to learn what the gate saw (Stage 3).
+  // Envelopes are L1 (export-eligible): every executed command and its bounded
+  // tail ride along, scrubbed. Failures remain remediation input; successful
+  // output is durable PR-delivery evidence.
   const parts = [gate.detail];
-  if (status === "failed" && gate.command !== undefined) parts.push(`$ ${gate.command}`);
-  if (status === "failed" && gate.outputTail !== undefined) parts.push(boundTail(gate.outputTail));
+  if (gate.command !== undefined) parts.push(`$ ${gate.command}`);
+  if (gate.outputTail !== undefined) parts.push(boundTail(gate.outputTail));
   return { gate: gate.gate, status, detail: scrubSecrets(parts.join("\n")) };
 }
 
@@ -1724,7 +1794,7 @@ async function runGateSet(
   const head = headSha(worktree);
   const reviewState = options.reviewState ?? { approvedCommitId: head, headCommitId: head };
 
-  return runGates(
+  const result = await runGates(
     riskTier,
     worktree,
     options.criteria,
@@ -1740,6 +1810,7 @@ async function runGateSet(
       diff: { baseRef, headRef },
     },
   );
+  return { ...result, headCommitId: head };
 }
 
 /** Open (or recover) the ticket's pull request. The base is the *resolved*
@@ -1752,15 +1823,53 @@ async function ensurePr(
   base: BaseRevision,
 ): Promise<GhPullRequest> {
   const branch = requireField(item, "branch");
+  const evidence = renderPrGateEvidence(item);
+  const localHead = headSha(requireField(item, "worktree"));
+  if (
+    evidence?.headCommitId !== undefined &&
+    evidence.headCommitId !== localHead
+  ) {
+    throw new Error(
+      `refusing to publish gate evidence for ${evidence.headCommitId}: ` +
+      `worktree HEAD is ${localHead}`,
+    );
+  }
   const existing = await gh.listPRsForBranch(branch, { state: "all" });
-  if (existing.length > 0) return existing[0]!;
-  return gh.createPR({
+  if (existing.length > 0) {
+    const pr = existing[0]!;
+    if (
+      evidence?.headCommitId !== undefined &&
+      evidence.headCommitId !== pr.headRefOid
+    ) {
+      throw new Error(
+        `refusing to publish gate evidence for ${evidence.headCommitId}: ` +
+        `PR #${pr.number} head is ${pr.headRefOid ?? "unresolved"}`,
+      );
+    }
+    const body = upsertPrGateEvidence(pr.body, item);
+    if (body !== pr.body) {
+      await gh.updatePullRequestBody(pr.number, body);
+      return gh.readPR(pr.number);
+    }
+    return pr;
+  }
+  const created = await gh.createPR({
     head: branch,
     base: base.defaultBranch,
     title: prTitle(item),
     body: prBody(item),
     draft,
   });
+  if (
+    evidence?.headCommitId !== undefined &&
+    created.headRefOid !== evidence.headCommitId
+  ) {
+    throw new Error(
+      `PR #${created.number} was created at ${created.headRefOid ?? "an unresolved head"}, ` +
+      `expected gated revision ${evidence.headCommitId}`,
+    );
+  }
+  return created;
 }
 
 function prTitle(item: LoopItem): string {
@@ -1768,6 +1877,7 @@ function prTitle(item: LoopItem): string {
 }
 
 function prBody(item: LoopItem): string {
+  const evidence = renderPrGateEvidence(item);
   return [
     "## What",
     `Implements ${item.ticketRef}: ${item.title}`,
@@ -1776,11 +1886,205 @@ function prBody(item: LoopItem): string {
     firstParagraph(headingSection(item.body, "Goal") ?? item.body),
     "",
     "## Evidence",
-    "- Quality gates passed before review.",
+    evidence?.body ?? "- Quality gates passed before review.",
     "",
     `Closes ${item.ticketRef}`,
     "",
   ].join("\n");
+}
+
+const PR_GATE_EVIDENCE_START = "<!-- operon:gate-evidence:start -->";
+const PR_GATE_EVIDENCE_END = "<!-- operon:gate-evidence:end -->";
+const PR_GATE_EVIDENCE_OUTPUT_BOUND = 8_000;
+
+interface RenderedPrGateEvidence {
+  body: string;
+  headCommitId?: string;
+  artifactReferences: string[];
+}
+
+/** Deterministic, content-addressed delivery evidence for the latest green
+ * gate run. The PR owns this managed block: repairing it changes no source,
+ * branch head, gate result, or review judgment. */
+function renderPrGateEvidence(item: LoopItem): RenderedPrGateEvidence | undefined {
+  const latestGreen = [...item.gateResults].reverse().find((run) => run.status === "pass");
+  const executed = latestGreen?.results.filter((gate) =>
+    gate.status === "pass" && gate.command !== undefined && gate.exitCode !== undefined
+  ) ?? [];
+  if (executed.length === 0) return undefined;
+
+  const artifactReferences: string[] = [];
+  const sections = executed.flatMap((gate) => {
+    const command = scrubSecrets(gate.command!);
+    const rawOutput = gate.outputTail ?? "";
+    const bounded = rawOutput.length <= PR_GATE_EVIDENCE_OUTPUT_BOUND
+      ? { output: rawOutput, truncated: false }
+      : {
+          output: rawOutput.slice(-PR_GATE_EVIDENCE_OUTPUT_BOUND),
+          truncated: true,
+        };
+    const output = scrubSecrets(bounded.output);
+    const artifactContent = [
+      latestGreen?.headCommitId ?? "unresolved",
+      gate.gate,
+      command,
+      String(gate.exitCode),
+      output,
+    ].join("\0");
+    const digest = createHash("sha256")
+      .update(artifactContent)
+      .digest("hex");
+    const artifact = `operon-pr-gate-evidence:${gate.gate}:sha256:${digest}`;
+    artifactReferences.push(artifact);
+    return [
+      `### ${gate.gate}`,
+      "",
+      "**Command**",
+      fencedCode("sh", command),
+      "",
+      `**Exit status:** \`${gate.exitCode}\``,
+      "",
+      `**Captured output:** bounded verbatim ${bounded.truncated ? "tail" : "capture"}`,
+      fencedCode("text", output === "" ? "(command produced no output)" : output),
+      "",
+      `**Artifact:** \`${artifact}\``,
+      "",
+    ];
+  });
+
+  return {
+    body: [
+      PR_GATE_EVIDENCE_START,
+      "The following content-addressed evidence was captured by the gate runner; secrets are redacted before publication.",
+      ...(latestGreen?.headCommitId === undefined
+        ? []
+        : ["", `**Revision:** \`${latestGreen.headCommitId}\``]),
+      "",
+      ...sections,
+      PR_GATE_EVIDENCE_END,
+    ].join("\n"),
+    ...(latestGreen?.headCommitId === undefined ? {} : { headCommitId: latestGreen.headCommitId }),
+    artifactReferences,
+  };
+}
+
+function fencedCode(language: string, text: string): string {
+  const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((match) => match[0].length));
+  const fence = "`".repeat(Math.max(3, longest + 1));
+  return `${fence}${language}\n${text}\n${fence}`;
+}
+
+function upsertPrGateEvidence(body: string, item: LoopItem): string {
+  const evidence = renderPrGateEvidence(item);
+  if (evidence === undefined) return body;
+  const start = body.indexOf(PR_GATE_EVIDENCE_START);
+  const end = body.indexOf(PR_GATE_EVIDENCE_END);
+  if (start >= 0 && end >= start) {
+    return [
+      body.slice(0, start),
+      evidence.body,
+      body.slice(end + PR_GATE_EVIDENCE_END.length),
+    ].join("");
+  }
+
+  const legacy = "## Evidence\n- Quality gates passed before review.";
+  if (body.includes(legacy)) {
+    return body.replace(legacy, `## Evidence\n${evidence.body}`);
+  }
+
+  const evidenceHeading = /^## Evidence\s*$/m.exec(body);
+  if (evidenceHeading?.index !== undefined) {
+    const insertAt = evidenceHeading.index + evidenceHeading[0].length;
+    return [
+      body.slice(0, insertAt),
+      `\n${evidence.body}`,
+      body.slice(insertAt),
+    ].join("");
+  }
+
+  const closes = /^Closes\s+#\d+\s*$/m.exec(body);
+  if (closes?.index !== undefined) {
+    return [
+      body.slice(0, closes.index),
+      `## Evidence\n${evidence.body}\n\n`,
+      body.slice(closes.index),
+    ].join("");
+  }
+  return `${body.replace(/\s*$/, "")}\n\n## Evidence\n${evidence.body}\n`;
+}
+
+export interface PrGateEvidenceRepair {
+  repaired: boolean;
+  satisfied: boolean;
+  headRefOid?: string;
+  artifactReferences: string[];
+}
+
+/** Repair an absent/stale managed PR evidence block from already-persisted
+ * green gate results. This never executes a command or changes the PR head. */
+export async function repairPrGateEvidence(
+  item: LoopItem,
+  gh: GhOps,
+): Promise<PrGateEvidenceRepair> {
+  const rendered = renderPrGateEvidence(item);
+  if (rendered === undefined || item.prNumber === undefined) {
+    return { repaired: false, satisfied: false, artifactReferences: [] };
+  }
+  const before = await gh.readPR(item.prNumber);
+  if (
+    rendered.headCommitId === undefined ||
+    before.headRefOid === undefined ||
+    rendered.headCommitId !== before.headRefOid
+  ) {
+    return {
+      repaired: false,
+      satisfied: false,
+      ...(before.headRefOid !== undefined ? { headRefOid: before.headRefOid } : {}),
+      artifactReferences: rendered.artifactReferences,
+    };
+  }
+  const body = upsertPrGateEvidence(before.body, item);
+  if (body !== before.body) await gh.updatePullRequestBody(before.number, body);
+  const after = body === before.body ? before : await gh.readPR(before.number);
+  if (after.headRefOid !== before.headRefOid) {
+    throw new Error(
+      `PR #${before.number} head changed while repairing gate evidence: ` +
+      `${before.headRefOid ?? "unresolved"} -> ${after.headRefOid ?? "unresolved"}`,
+    );
+  }
+  return {
+    repaired: body !== before.body,
+    satisfied:
+      after.body.includes(PR_GATE_EVIDENCE_START) &&
+      after.body.includes(PR_GATE_EVIDENCE_END),
+    ...(after.headRefOid !== undefined ? { headRefOid: after.headRefOid } : {}),
+    artifactReferences: rendered.artifactReferences,
+  };
+}
+
+/** Narrow classifier for a review finding whose only remedy is attaching
+ * already-captured green command output to the PR description. Any source,
+ * test, or rerun request stays on the ordinary provider-planned revision path. */
+export function isPrGateEvidenceOnlyFinding(finding: Finding): boolean {
+  const location = finding.location.toLowerCase();
+  const description = finding.description.toLowerCase();
+  const action = finding.action.toLowerCase();
+  const all = `${location} ${description} ${action}`;
+  const prSurface =
+    /\b(?:pr|pull request)\b/.test(location) &&
+    /\b(?:body|description|comment)\b/.test(location);
+  const missing = /\b(?:missing|omits?|omitted|lacks?|absent|not included|does not include)\b/.test(
+    description,
+  );
+  const evidenceAction =
+    /\b(?:paste|include|attach|add|provide)\b/.test(action) &&
+    /\b(?:output|evidence|result|results|log|logs)\b/.test(action) &&
+    /\b(?:gate|test|tests|lint|command|commands|ci)\b/.test(all);
+  const asksForExecutionOrSourceChange =
+    /\b(?:rerun|re-run|run again|source|implementation|code change|modify code|add test|fix test)\b/.test(
+      `${description} ${action}`,
+    ) || /\bsrc\//.test(all);
+  return prSurface && missing && evidenceAction && !asksForExecutionOrSourceChange;
 }
 
 function blockedWithEvidenceComment(reason: string, result: GateRunResult): string {

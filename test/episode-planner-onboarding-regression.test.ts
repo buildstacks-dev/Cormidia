@@ -196,7 +196,7 @@ describe("Buildstacks onboarding EpisodePlanner regression", () => {
       now: NOW,
     });
     expect(admitted.consumedBeforeRoute).toEqual({
-      providerTurns: 2,
+      providerTurns: 1,
       equivalentCostUsd: 0.2,
       activeTimeMs: 0,
     });

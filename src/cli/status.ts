@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import { approvalLifecycleState, ApprovalStore } from "../org/approvals.js";
 import { listTicketClaimStates } from "../loop/rehydrate.js";
 import { rearmCommand } from "../loop/claim-recovery.js";
+import { readEfficiencyEvidence } from "../loop/efficiency.js";
+import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
@@ -54,6 +56,31 @@ export async function cmdStatus(args: string[]): Promise<number> {
         : null,
     };
   });
+  const episodeReplans = (await Promise.all(
+    (await readEfficiencyEvidence(stateHome))
+      .filter((episode) =>
+        episode.route !== null &&
+        (parsed.app === undefined || episode.route.app === parsed.app))
+      .map(async (episode) => {
+        const route = episode.route!;
+        const journal = await readEpisodeReplanJournal(stateHome, route.episode_id);
+        if (journal === undefined) return undefined;
+        const latest = journal.records.at(-1);
+        if (latest === undefined) return undefined;
+        return {
+          app: route.app,
+          episodeId: route.episode_id,
+          kind: latest.trigger.kind,
+          status: latest.status,
+          revisionVersion: latest.revisionVersion,
+          reason: latest.reason,
+          updatedAt: journal.updatedAt,
+        };
+      }),
+  )).filter((entry): entry is NonNullable<typeof entry> => entry !== undefined)
+    .sort((left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt) ||
+      left.episodeId.localeCompare(right.episodeId));
   const report = {
     schema_version: 1,
     kind: "status",
@@ -63,6 +90,7 @@ export async function cmdStatus(args: string[]): Promise<number> {
     runs: rows,
     approvalDelivery,
     claimRecovery,
+    episodeReplans,
   } as const;
   if (parsed.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -89,6 +117,16 @@ export async function cmdStatus(args: string[]): Promise<number> {
         `allowance=${entry.allowance ?? "route-policy"} next=${entry.next}`,
       );
       if (entry.rearmCommand !== null) console.log(`  ${entry.rearmCommand}`);
+    }
+  }
+  if (report.episodeReplans.length > 0) {
+    console.log("\nEPISODE REPLANS");
+    for (const entry of report.episodeReplans) {
+      console.log(
+        `${entry.app} ${entry.episodeId} ${entry.status} ${entry.kind} ` +
+        `revision=${entry.revisionVersion ?? "-"} at=${entry.updatedAt} ` +
+        `reason=${entry.reason ?? "-"}`,
+      );
     }
   }
   return 0;

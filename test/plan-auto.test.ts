@@ -12,6 +12,8 @@ import {
 } from "../src/loop/episode-plan.js";
 import { readEpisodePlanExecutionJournal } from "../src/loop/episode-plan-executor.js";
 import { readCurrentEpisodePlan } from "../src/loop/episode-plan.js";
+import { readEpisodeReplanJournal } from "../src/loop/episode-replan.js";
+import { readRouteRecord } from "../src/loop/efficiency.js";
 import { parsePlannedBy, type ProjectStage } from "../src/loop/plan-tickets.js";
 import { readPublishedTicketsRecord } from "../src/loop/plan-publication-record.js";
 import {
@@ -646,6 +648,21 @@ describe("runAutoPlan EpisodePlanner product-planning path (D-PLAN-01)", () => {
     expect(refused!.ratifyCommand).toContain("operon plan ratify-ticket-budget --app greenfield");
     expect(refused!.ratifyCommand).toContain(`--decomposition ${refused!.decompositionId}`);
     expect(refused!.ratifyCommand).toContain("--to-budget 8");
+    expect(runtime.calls).toHaveLength(2);
+    expect(result.planningExecution).toMatchObject({
+      status: "refused_ticket_budget",
+      nextStepId: null,
+      reasonCode: "refused_ticket_budget",
+    });
+    expect(result.planningExecution).not.toHaveProperty("replan");
+    expect(await readEpisodeReplanJournal(stateHome, result.episodeId!)).toBeUndefined();
+    expect(await readRouteRecord(stateHome, result.episodeId!)).toMatchObject({
+      terminal: {
+        status: "failed",
+        next_step: null,
+        reason: expect.stringContaining("refused_ticket_budget"),
+      },
+    });
 
     const record = await readRefusedDecomposition(stateHome, "greenfield", refused!.decompositionId);
     expect(record?.plan.tickets).toHaveLength(8);

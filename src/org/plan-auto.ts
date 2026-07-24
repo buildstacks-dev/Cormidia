@@ -10,6 +10,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
   efficiencyEpisodeDir,
+  finalizeEpisode,
   fingerprint,
   readExecutionSteps,
   readRouteRecord,
@@ -28,6 +29,8 @@ import type {
 } from "../loop/episode-plan.js";
 import {
   assessCreatorScope,
+  episodePlanHash,
+  readEpisodePlanVersion,
   stableHash,
 } from "../loop/episode-plan.js";
 import type {
@@ -227,7 +230,7 @@ export interface AutoPlanResult {
   episodeId?: string;
   episodePlan?: EpisodePlan;
   planningTurnSkipped?: boolean;
-  planningExecution?: EpisodePlanExecutionResult;
+  planningExecution?: AutoPlanningExecutionResult;
   /** Exact explicit/inferred/persisted stage decision used by this episode. */
   stageResolution?: PlanningStageResolution;
   /** Present when the ONLY refusal was the stage ticket budget. The
@@ -236,6 +239,13 @@ export interface AutoPlanResult {
    * (ENH-011). */
   refusedDecomposition?: RefusedDecompositionSummary;
 }
+
+export type AutoPlanningExecutionResult =
+  | EpisodePlanExecutionResult
+  | (Omit<EpisodePlanExecutionResult, "status" | "reasonCode"> & {
+      status: "refused_ticket_budget";
+      reasonCode: "refused_ticket_budget";
+    });
 
 export interface RefusedDecompositionSummary {
   decompositionId: string;
@@ -585,24 +595,31 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         now: clock,
       }),
       contextForProviderStep: () => context,
-      provider: (step, stepExecution) => executePlanningProviderStep({
-        options,
-        plan: prepared.plan,
-        step,
-        execution: stepExecution,
-        planner,
-        pipelines,
-        workdir: localRepo,
-        context,
-        hooks,
-        runtimeForAssignment,
-        baseBrief,
-        sourceBrief,
-        ...(resolvedSources === undefined ? {} : { resolvedSources }),
-        ...(consumedSources === undefined ? {} : { consumedSources }),
-        stage,
-        clock,
-      }),
+      provider: async (step, stepExecution) => {
+        const executionPlan = await resolvePlanningExecutionPlan(
+          options.stateHome,
+          prepared.plan,
+          stepExecution,
+        );
+        return executePlanningProviderStep({
+          options,
+          plan: executionPlan,
+          step,
+          execution: stepExecution,
+          planner,
+          pipelines,
+          workdir: localRepo,
+          context,
+          hooks,
+          runtimeForAssignment,
+          baseBrief,
+          sourceBrief,
+          ...(resolvedSources === undefined ? {} : { resolvedSources }),
+          ...(consumedSources === undefined ? {} : { consumedSources }),
+          stage,
+          clock,
+        });
+      },
       mechanical: async (step) => ({
         status: "failed",
         reasonCode: "error_product_planning_mechanical_step_unsupported",
@@ -628,15 +645,21 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     });
   }
 
+  const executedPlan = await resolvePlanningExecutionPlan(
+    options.stateHome,
+    prepared.plan,
+    execution,
+  );
+  let planningExecution: AutoPlanningExecutionResult = execution;
   const resultBase: Pick<AutoPlanResult,
     "episodeId" | "episodePlan" | "planningTurnSkipped" | "planningExecution" |
       "planningSources" | "stageResolution"
   > = {
     episodeId,
     stageResolution,
-    episodePlan: prepared.plan,
+    episodePlan: executedPlan,
     planningTurnSkipped: prepared.planningTurnSkipped,
-    planningExecution: execution,
+    planningExecution,
     ...(resolvedSources === undefined
       ? {}
       : {
@@ -646,10 +669,10 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         }),
   };
   if (execution.status !== "completed") {
-    const terminal = terminalProviderStep(prepared.plan);
+    const terminal = terminalProviderStep(executedPlan);
     const output = terminal === undefined
       ? undefined
-      : await readPlanningStepOutput(options.stateHome, prepared.plan, terminal.id);
+      : await readPlanningStepOutput(options.stateHome, executedPlan, terminal.id);
     // A budget-only refusal used to throw away the decomposition the planner
     // was already paid for, so ratifying meant buying a different plan. Keep
     // it, and hand the operator the exact command that admits it (ENH-011).
@@ -662,13 +685,33 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       consumedSources,
       now: clock,
     });
+    const refusedTicketBudget =
+      output?.ticketPlan !== undefined && isTicketBudgetOnlyRefusal(output.ticketPlan);
+    if (refusedTicketBudget) {
+      const reason = output.problems.join("; ");
+      planningExecution = {
+        ...execution,
+        status: "refused_ticket_budget",
+        nextStepId: null,
+        reasonCode: "refused_ticket_budget",
+        summary: reason,
+      };
+      resultBase.planningExecution = planningExecution;
+      await finalizeEpisode({
+        root: options.stateHome,
+        episodeId,
+        status: "failed",
+        reason: `refused_ticket_budget: ${reason}`,
+        now: clock(),
+      });
+    }
     return {
       status: output?.providerStatus === "cancelled"
         ? "cancelled"
         : output?.providerStatus === "timed_out"
           ? "timed_out"
           : "failed",
-      summary: execution.summary ??
+      summary: planningExecution.summary ??
         `accepted product-planning workflow stopped at ${execution.nextStepId ?? "an unknown step"}`,
       ...(output?.problems.length ? { problems: output.problems } : {}),
       ...(refusedDecomposition === undefined ? {} : { refusedDecomposition }),
@@ -676,7 +719,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     };
   }
 
-  const terminal = terminalProviderStep(prepared.plan);
+  const terminal = terminalProviderStep(executedPlan);
   if (terminal === undefined) {
     return {
       status: "failed",
@@ -684,7 +727,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       ...resultBase,
     };
   }
-  const output = await readPlanningStepOutput(options.stateHome, prepared.plan, terminal.id);
+  const output = await readPlanningStepOutput(options.stateHome, executedPlan, terminal.id);
   if (output === undefined || output.status !== "completed" || output.ticketPlan === undefined) {
     return {
       status: "failed",
@@ -760,7 +803,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   return {
     status: "completed",
     summary:
-      `EpisodePlan v${prepared.plan.version} published ${published.length} ticket(s): ` +
+      `EpisodePlan v${executedPlan.version} published ${published.length} ticket(s): ` +
       published.map((ticket) => `#${ticket.issueNumber}${ticket.ready ? " (ready)" : ""}`).join(", ") +
       recordNote,
     plan: planProjection.plan,
@@ -956,14 +999,44 @@ async function executePlanningProviderStep(
     ...(ticketPlan === undefined ? {} : { ticketPlan }),
   });
   if (status === "failed") {
+    const refusedTicketBudget =
+      ticketPlan !== undefined && isTicketBudgetOnlyRefusal(ticketPlan);
     return {
       status: "failed",
-      reasonCode: "error_ticket_plan_invalid",
-      summary: `terminal TicketPlan failed validation (${problems.length} problem(s))`,
+      reasonCode: refusedTicketBudget
+        ? "refused_ticket_budget"
+        : "error_ticket_plan_invalid",
+      summary: refusedTicketBudget
+        ? `terminal TicketPlan exceeds the stage ticket budget (${problems.join("; ")})`
+        : `terminal TicketPlan failed validation (${problems.length} problem(s))`,
       artifact: persisted.artifact,
     };
   }
   return { status: "completed", artifact: persisted.artifact };
+}
+
+async function resolvePlanningExecutionPlan(
+  root: string,
+  initialPlan: EpisodePlan,
+  execution: Pick<EpisodeStepExecutionContext, "planVersion" | "planHash">,
+): Promise<EpisodePlan> {
+  if (
+    initialPlan.version === execution.planVersion &&
+    episodePlanHash(initialPlan) === execution.planHash
+  ) {
+    return initialPlan;
+  }
+  const persisted = await readEpisodePlanVersion(
+    root,
+    initialPlan.episodeId,
+    execution.planVersion,
+  );
+  if (persisted === undefined || episodePlanHash(persisted) !== execution.planHash) {
+    throw new Error(
+      `planning execution v${execution.planVersion} does not match immutable plan authority`,
+    );
+  }
+  return persisted;
 }
 
 interface PlanningProviderEvidence {

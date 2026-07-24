@@ -83,7 +83,15 @@ import {
   type ParseResult,
   type VerdictTypes,
 } from "../loop/verdicts.js";
-import { ApprovalStore, type ApprovalItem } from "./approvals.js";
+import {
+  approvedCommand,
+  ApprovalStore,
+  type ApprovalItem,
+} from "./approvals.js";
+import {
+  executeApprovedCommands,
+  type ApprovedCommandResult,
+} from "./approval-command.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
@@ -187,6 +195,13 @@ export interface RunDispatchedTurnOptions {
   /** Explicit per-invocation egress admission. Omitted/false keeps every
    * provider TurnRequest offline by default. */
   networkAccess?: boolean;
+  /** Test/embedder seam for the same-turn approved-command delivery bridge. */
+  approvalCommandRunner?: (input: {
+    command: string;
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    timeoutMs: number;
+  }) => Promise<ApprovedCommandResult>;
 }
 
 export interface RunDispatchedTurnResult {
@@ -368,6 +383,26 @@ export async function runDispatchedTurn(
       });
     }
 
+    const commandDeliveries = await executeApprovedCommands({
+      stateHome: runtimeHome,
+      appsFile: options.appsFile,
+      turnId: options.turnId,
+      ...(options.approvalCommandRunner === undefined
+        ? {}
+        : { runner: options.approvalCommandRunner }),
+      now: clock,
+    });
+    const commandFailure = commandDeliveries.find((delivery) =>
+      delivery.status === "failed" || delivery.status === "ambiguous");
+    if (commandFailure !== undefined) {
+      result = {
+        ...result,
+        status: "blocked_on_gate",
+        summary:
+          `approval ${commandFailure.approvalId} delivery ${commandFailure.status}: ` +
+          commandFailure.summary,
+      };
+    }
     const actorSettlements = await settleActorRetriesForTurn(
       store,
       options.app.name,
@@ -375,7 +410,14 @@ export async function runDispatchedTurn(
       actorEvents,
       clock(),
     );
-    const unresolvedActorRetry = actorSettlements.find(actorRetryIsUnresolved);
+    const endedBeforeDispatch = await terminalizeUndeliveredTurnApprovals(
+      store,
+      options.app.name,
+      options.turnId,
+      clock(),
+    );
+    const unresolvedActorRetry = [...actorSettlements, ...endedBeforeDispatch]
+      .find(actorRetryIsUnresolved);
     if (unresolvedActorRetry !== undefined) {
       result = {
         ...result,
@@ -445,8 +487,15 @@ export async function runDispatchedTurn(
       actorEvents,
       clock(),
     ).catch(() => [] as ApprovalItem[]);
+    const endedBeforeDispatch = await terminalizeUndeliveredTurnApprovals(
+      store,
+      options.app.name,
+      options.turnId,
+      clock(),
+    ).catch(() => [] as ApprovalItem[]);
     const pending = await store.listPending();
-    const actorRetryStall = actorSettlements.find(actorRetryIsUnresolved) ??
+    const actorRetryStall = [...actorSettlements, ...endedBeforeDispatch]
+      .find(actorRetryIsUnresolved) ??
       (await store.listActorRetryStalls({ app: options.app.name, role: options.role.name }))
         .find((item) => item.execution?.actor?.endsWith(`/${options.turnId}`) === true);
     const blocked = pending.some((item) => item.turnId === options.turnId) || actorRetryStall !== undefined;
@@ -505,6 +554,42 @@ async function settleActorRetriesForTurn(
     settled.push(...await store.settleActorRetryExecutions({ actor, events, now }));
   }
   return settled;
+}
+
+/** Close the race where a human approved an exact command while its provider
+ * turn was live, but the actor returned before either retrying the gated tool
+ * or reaching the same-turn command bridge. The claim increments TRY before
+ * this terminal result, so no approved action can end a turn at attempts=0. */
+export async function terminalizeUndeliveredTurnApprovals(
+  store: ApprovalStore,
+  app: string,
+  turnId: string,
+  now: Date,
+): Promise<ApprovalItem[]> {
+  const approved = (await store.listDecided()).filter((item) =>
+    item.app === app &&
+    item.turnId === turnId &&
+    item.decision === "approved" &&
+    item.execution?.state === "approved" &&
+    (item.execution.executor === "actor-retry" ||
+      item.execution.executor === "orchestrator-command") &&
+    approvedCommand(item.action) !== undefined);
+  const terminal: ApprovalItem[] = [];
+  for (const item of approved) {
+    const actor = `orchestrator/turn-finalizer/${turnId}`;
+    const claimed = await store.beginExecution(item.id, actor, now);
+    if (claimed === undefined) continue;
+    terminal.push(await store.finishExecution({
+      id: item.id,
+      state: "failed",
+      actor,
+      result:
+        `originating turn ${turnId} ended before the approved command could be dispatched`,
+      failureCause: "actor_ended_before_dispatch",
+      now,
+    }));
+  }
+  return terminal;
 }
 
 function actorRetryIsUnresolved(item: ApprovalItem): boolean {

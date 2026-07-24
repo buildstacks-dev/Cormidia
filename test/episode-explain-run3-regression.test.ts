@@ -81,9 +81,28 @@ describe("episode explain over captured run-3 evidence", () => {
       authorizationDetail: null,
     });
 
-    // Nothing is unknown, so the diagnostic is complete and exits clean.
-    expect(explanation.problems).toEqual([]);
-    expect(explanation.complete).toBe(true);
+    // This case's subject is cross-plan-version step AUTHORIZATION, so what it
+    // must guard is that nothing about authorization is unresolved, stale, or
+    // unreadable. It no longer asserts an empty problem list: #174 made explain
+    // report the episode's real state, and this captured episode genuinely is
+    // still running with a failed `implement` step, so it now (correctly)
+    // yields `episode_execution_incomplete` and `step_failed`.
+    const AUTHORIZATION_PROBLEM_CODES = [
+      "step_authorization_unresolved",
+      "step_authorization_stale",
+    ];
+    expect(explanation.problems.filter((problem) =>
+      AUTHORIZATION_PROBLEM_CODES.includes(problem.code) ||
+      problem.code.endsWith("_unreadable"))).toEqual([]);
+    // The problems that DO surface are exactly the execution-state pair #174
+    // requires; anything else appearing here is a new regression.
+    expect(explanation.problems.map((problem) => problem.code).sort()).toEqual([
+      "episode_execution_incomplete",
+      "step_failed",
+    ]);
+    // #174: `complete` is true only when every required step completed and no
+    // revision is active. Neither holds for this captured episode.
+    expect(explanation.complete).toBe(false);
   });
 
   it("explains a replan-free episode with every step authorized at the current version", async () => {

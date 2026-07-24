@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   checkProviderBudget,
+  deriveEpisodeCounters,
   readEfficiencyEvidence,
   readExecutionSteps,
   reconcileStaleProviderSteps,
@@ -362,6 +363,115 @@ describe("EpisodePlanner pre-route admission", () => {
     expect(await readExecutionSteps(home.root, episodeId)).toHaveLength(1);
   });
 
+  it("lets structural repair replace the failed proposal in a six-turn route without hiding actual spend", async () => {
+    home = makeOrgHome();
+    const episodeId = "episode:structural-repair-route-budget";
+    const intent = {
+      ...makeIntent(episodeId),
+      hardBudget: { maxProviderTurns: 6, maxEquivalentCostUsd: 10 },
+    };
+    await admission(home.root, episodeId, { intentHash: episodeIntentHash(intent) });
+
+    const initial = await beginAttempt(
+      home.root,
+      episodeId,
+      1,
+      "planner-invalid",
+      digest("planner-invalid"),
+    );
+    if (initial.kind !== "start") throw new Error("expected initial planner attempt");
+    await finalizeEpisodePlannerAttempt({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "planner-invalid",
+      attempt: 1,
+      plannerRole: PLANNER,
+      started: initial.started,
+      result: {
+        ...result(),
+        status: "failed",
+        summary: "proposal failed structural validation",
+        errorCode: "plan_structure_invalid",
+      },
+      finishedAt: new Date("2026-07-19T00:00:00.250Z"),
+      contextManifestRef: "context-manifest.json",
+    });
+
+    const repair = await beginAttempt(
+      home.root,
+      episodeId,
+      2,
+      "planner-repair",
+      digest("planner-repair"),
+    );
+    if (repair.kind !== "start") throw new Error("expected repair planner attempt");
+    await finalizeEpisodePlannerAttempt({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      runId: "planner-repair",
+      attempt: 2,
+      plannerRole: PLANNER,
+      started: repair.started,
+      result: result(),
+      finishedAt: new Date("2026-07-19T00:00:00.500Z"),
+      contextManifestRef: "context-manifest.json",
+    });
+
+    const plan = fiveStepPlan(intent);
+    await persistAcceptedEpisodePlannerPlan({
+      root: home.root,
+      plan,
+      intent,
+      policy: makePolicy(),
+      now: new Date("2026-07-19T00:00:01.000Z"),
+    });
+    const passes = plan.steps.map((step): AuthorizedPass => {
+      if (step.kind !== "provider_turn") throw new Error("expected provider step");
+      return {
+        ...PASS,
+        pass: step.id,
+        plan_step_id: step.id,
+        selection_reason: step.selectionReason,
+      };
+    });
+    const admitted = await admitPlannedEpisodeRoute({
+      root: home.root,
+      episodeId,
+      app: "fixture",
+      route: "deep",
+      policyVersion: "episode-plan/test-v1",
+      factors: [FACTOR],
+      passes,
+      budgetOverrides: {
+        provider_turns: 6,
+        equivalent_cost_usd: 10,
+      },
+      executionBounds: null,
+      now: new Date("2026-07-19T00:00:02.000Z"),
+    });
+
+    expect(admitted.consumedBeforeRoute).toEqual({
+      providerTurns: 1,
+      equivalentCostUsd: 0.5,
+      activeTimeMs: 500,
+    });
+    expect(await deriveEpisodeCounters(home.root, episodeId)).toMatchObject({
+      provider_turns: 2,
+      equivalent_cost_usd: 0.5,
+    });
+    expect(await readPlannerBudgetStatus(home.root, episodeId)).toMatchObject({
+      settled: { providerTurns: 2, equivalentCostUsd: 0.5 },
+      terminalAttempts: [1, 2],
+    });
+    expect(await checkProviderBudget({ root: home.root, episodeId })).toMatchObject({
+      allowed: true,
+      counters: { provider_turns: 1, equivalent_cost_usd: 0.5 },
+      remaining: { provider_turns: 5, equivalent_cost_usd: 9.5 },
+    });
+  });
+
   it("keeps immutable acceptance evidence for every accepted planner-authored version", async () => {
     home = makeOrgHome();
     const episodeId = "episode:versioned-plan-acceptance";
@@ -664,6 +774,48 @@ function makePlan(intent: EpisodeIntent): EpisodePlan {
       providerTurnBudgetUsd: 1,
       mechanicalOverheadUsd: 0,
       totalBudgetUsd: 1,
+    },
+    derivedSafetyRoute: deriveEpisodeSafetyRoute(steps, intent.requiredSafetyFacts),
+    createdAt: "2026-07-19T00:00:01.000Z",
+  };
+}
+
+function fiveStepPlan(intent: EpisodeIntent): EpisodePlan {
+  const outputIds = ["artifact-1", "artifact-2", "artifact-3", "artifact-4", "done"];
+  const steps: EpisodePlan["steps"] = outputIds.map((outputId, index) => {
+    const priorOutput = outputIds[index - 1];
+    return {
+      kind: "provider_turn",
+      operation: "episode-planner/plan",
+      id: `deliver-${index + 1}`,
+      role: PLANNER.name,
+      objective: `Produce bounded artifact ${index + 1}`,
+      dependsOn: index === 0 ? [] : [`deliver-${index}`],
+      requiredCapabilities: ["workspace-read"],
+      assignment: BOOT_ASSIGNMENT,
+      assignmentSource: "configured",
+      inputRefs: priorOutput === undefined
+        ? []
+        : [{ ref: `plan-output:${priorOutput}`, required: true }],
+      expectedOutputs: [{ id: outputId, kind: "note", required: true }],
+      maxTurnBudgetUsd: 1,
+      selectionReason: `The accepted repaired plan requires bounded step ${index + 1}`,
+    };
+  });
+  return {
+    schemaVersion: EPISODE_PLAN_SCHEMA_VERSION,
+    episodeId: intent.episodeId,
+    version: 1,
+    intentHash: episodeIntentHash(intent),
+    summary: "Five-step structurally repaired delivery",
+    workflowClass: "bounded-delivery",
+    planningSource: "episode_planner",
+    steps,
+    estimatedBudget: {
+      providerTurns: 5,
+      providerTurnBudgetUsd: 5,
+      mechanicalOverheadUsd: 0,
+      totalBudgetUsd: 5,
     },
     derivedSafetyRoute: deriveEpisodeSafetyRoute(steps, intent.requiredSafetyFacts),
     createdAt: "2026-07-19T00:00:01.000Z",

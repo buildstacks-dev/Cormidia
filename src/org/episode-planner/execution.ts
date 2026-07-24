@@ -59,6 +59,7 @@ import {
   type ApprovalStep,
   type EpisodeIntent,
   type EpisodePlan,
+  type EpisodeStep,
   type MechanicalGateStep,
   type ProviderTurnStep,
 } from "../../loop/episode-plan.js";
@@ -108,6 +109,18 @@ export interface ExecuteAcceptedEpisodePlanOptions {
     step: ProviderTurnStep,
     execution: EpisodeStepExecutionContext,
   ) => Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome>;
+  /** Domain answer to "can this provider step reach a terminal outcome from
+   * durable evidence, without spending a new turn?" Consulted only by the
+   * adopted-revision halt below: a step whose preserved prior material event
+   * can be reconciled must be entered, not withheld (#175). The generic
+   * executor already knows about its own terminal execution records; a domain
+   * that reconciles more than that (for example a blocked transport carrying a
+   * done build verdict) declares it here from the same code the step handler
+   * uses, so there is one source of truth. */
+  providerStepCompletableWithoutNewTurn?: (
+    step: ProviderTurnStep,
+    plan: EpisodePlan,
+  ) => Promise<boolean>;
   mechanical: (
     step: MechanicalGateStep,
     execution: EpisodeStepExecutionContext,
@@ -211,9 +224,23 @@ export async function executeAcceptedEpisodePlan(
   if (replan.plan === undefined) {
     return { ...result, replan: replanHandoff(replan.record) };
   }
-  // Adopt the accepted revision and its route authority without executing a
-  // second provider/mechanical/approval side effect in this invocation.
-  const adopted = await executePlanVersion(boundOptions, replan.plan, clock, 0);
+  // The revision is already accepted durable authority. Continue it in this
+  // invocation so a valid preserve-and-continue plan actually reaches its
+  // gates and PR instead of stranding completed work behind a synthetic
+  // `running` result (#175). The one step held back is the exact provider step
+  // whose failure authorized the revision: re-entering it here would spend a
+  // second turn repeating the failure that caused the replan (typically an
+  // unavailable assignment). It is held back only when it would genuinely
+  // spend that turn — a repaired step whose durable evidence can be
+  // reconciled runs now, and every never-attempted downstream step is ordinary
+  // forward progress. Anything withheld is returned as `nextStepId`.
+  const adopted = await executePlanVersion(
+    boundOptions,
+    replan.plan,
+    clock,
+    options.maxSteps,
+    replan.record.trigger.affectedStepIds,
+  );
   return { ...adopted, replan: replanHandoff(replan.record) };
 }
 
@@ -222,6 +249,9 @@ async function executePlanVersion(
   plan: EpisodePlan,
   clock: () => Date,
   maxSteps = options.maxSteps,
+  /** Set only when `plan` is a freshly adopted revision: the step ids that
+   * revision was authored to repair. Undefined means no step is withheld. */
+  repairedStepIds?: readonly string[],
 ): Promise<EpisodePlanExecutionResult> {
   const versionOptions: ExecuteAcceptedEpisodePlanOptions = { ...options, plan };
   return executeEpisodePlan({
@@ -283,6 +313,14 @@ async function executePlanVersion(
       approval: options.approval,
     },
     ...(maxSteps === undefined ? {} : { maxSteps }),
+    ...(repairedStepIds === undefined
+      ? {}
+      : {
+        haltBeforeNewProviderTurn: async (step: EpisodeStep) =>
+          step.kind === "provider_turn" &&
+          repairedStepIds.includes(step.id) &&
+          !(await completableWithoutNewProviderTurn(versionOptions, plan, step)),
+      }),
     now: clock,
   });
 }
@@ -313,6 +351,11 @@ async function requestMaterialFailureReplan(
 ): Promise<{ record: EpisodeReplanRecord; plan?: EpisodePlan } | undefined> {
   if (options.replanAuthority === "caller") return undefined;
   if (result.status !== "failed" && result.status !== "denied") return undefined;
+  // A ticket-budget refusal is a terminal policy decision about an otherwise
+  // preserved decomposition, not a failed execution assumption. Replanning
+  // here would manufacture a new accepted plan that cannot lawfully execute
+  // and would obscure the exact ratification path.
+  if (result.reasonCode === "refused_ticket_budget") return undefined;
   const journal = await readEpisodePlanExecutionJournal(
     options.root,
     options.plan.episodeId,
@@ -733,21 +776,59 @@ async function adaptiveAssignmentReadinessFailure(
   };
 }
 
+/** Durable terminal provider evidence for one step at one plan version.
+ *  Shared by the recovery path and by the adopted-revision halt predicate so
+ *  both answer "has this turn already happened?" from the same source. */
+async function terminalProviderEvidence(
+  root: string,
+  episodeId: string,
+  planVersion: number,
+  stepId: string,
+): Promise<Awaited<ReturnType<typeof readExecutionSteps>>[number] | undefined> {
+  const terminal = (await readExecutionSteps(root, episodeId))
+    .filter((record) =>
+      record.kind === "provider" &&
+      record.plan_version === planVersion &&
+      record.plan_step_id === stepId,
+    );
+  if (terminal.length > 1) {
+    throw new Error(`plan step ${stepId} has ${terminal.length} terminal provider executions`);
+  }
+  return terminal[0];
+}
+
+/** Can this provider step reach a terminal outcome without spending a new
+ *  turn? A terminal execution record for this exact plan version is always
+ *  enough; beyond that only the domain knows, because a preserved prior
+ *  material event is reconciled inside its adapter. Default: no. */
+async function completableWithoutNewProviderTurn(
+  options: ExecuteAcceptedEpisodePlanOptions,
+  plan: EpisodePlan,
+  step: ProviderTurnStep,
+): Promise<boolean> {
+  const terminal = await terminalProviderEvidence(
+    options.root,
+    plan.episodeId,
+    plan.version,
+    step.id,
+  );
+  if (terminal !== undefined) return true;
+  if (options.providerStepCompletableWithoutNewTurn === undefined) return false;
+  return options.providerStepCompletableWithoutNewTurn(step, plan);
+}
+
 async function priorProviderEvidence(
   options: ExecuteAcceptedEpisodePlanOptions,
   step: ProviderTurnStep,
   execution: EpisodeStepExecutionContext,
 ): Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome | undefined> {
-  const terminal = (await readExecutionSteps(options.root, options.plan.episodeId))
-    .filter((record) =>
-      record.kind === "provider" &&
-      record.plan_version === execution.planVersion &&
-      record.plan_step_id === step.id,
-    );
-  if (terminal.length > 1) {
-    throw new Error(`plan step ${step.id} has ${terminal.length} terminal provider executions`);
-  }
-  if (terminal[0] !== undefined) return outcomeFromEvidence(terminal[0], step);
+  const prior = await terminalProviderEvidence(
+    options.root,
+    options.plan.episodeId,
+    execution.planVersion,
+    step.id,
+  );
+  if (prior !== undefined) return outcomeFromEvidence(prior, step);
 
   const pending = (await readPendingProviderSteps(options.root, options.plan.episodeId))
     .filter((receipt) =>

@@ -200,6 +200,16 @@ supplied environment such as provider authentication and campaign scratch
 paths. Claude and Codex inherit it at harness launch; pi applies it to the
 embedded Bash tool's spawn environment.
 
+Claude and Codex sandbox source writes to the exact turn worktree. For a
+linked checkout, `src/runtime/git-worktree-sandbox.ts` additionally resolves
+Git's real per-worktree administrative directory plus only the external object,
+current-branch ref, and current-branch reflog directories required by
+`git add`/`git commit`; it does not grant the managed clone wholesale. Ticket
+provision also probes creation of the exact `index.lock` before setup or any
+paid provider turn. Failure returns the ticket with
+`error_git_index_unwritable`, preserves the checkout, and names the recovery
+path.
+
 `PNPM_CONFIG_IGNORE_SCRIPTS` is the **dependency build policy**, and it is a
 separate mechanism from the four non-interactive values, not a fifth flavour of
 them. A headless sandbox stops a package manager from *prompting*; it does not
@@ -986,7 +996,14 @@ Item schema:
    `orchestrator-command` stays actor-claimable — a live turn re-attempting its
    own approved command still wins the single-use grant and the orchestrator
    then finds nothing to do — while `durable-github` and `release` remain
-   orchestrator-only. For an exact single-use actor grant, the
+   orchestrator-only. Before an originating outer turn is terminalized, its
+   turn runner drains every same-turn `orchestrator-command` approval through
+   the same content-bound executor; the per-item claim increments `attempts`
+   before the command begins, and multiple decisions are each delivered once.
+   A same-turn shell approval that is still undispatched when the actor ends is
+   claimed and terminalized `failed` with
+   `actor_ended_before_dispatch`, never left `approved` at zero attempts.
+   For an exact single-use actor grant, the
    synchronous gate advances the item to `executing` before it consumes the
    grant. The turn runner accepts only an exact action-identity `TurnEvent`
    with an explicit adapter `success: true|false` as acknowledgement; prose or

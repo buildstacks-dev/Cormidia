@@ -277,6 +277,15 @@ error list, and a repair that introduces a new violation is reported as
 `plan_repair_regressive` with the newly introduced violations named, ahead of
 (never instead of) the original diagnostics.
 
+Initial structural repair replaces the rejected proposal for route-turn
+accounting: preview and live admission both reserve one effective
+EpisodePlanner slot, so a repaired five-provider-step plan fits a six-turn hard
+route. This does not erase or discount provider work. The proposal and repair
+remain separate terminal execution steps and settlements, and their actual
+cost, time, tokens, quality, and aggregate planner-attempt ceilings are all
+enforced. Only the route's provider-turn count treats them as one planning
+workflow result; later revision-planner turns remain additional turns.
+
 The accepted plan is persisted atomically before delivery. Only then does
 `episode-route.ts` derive the compatibility route and exact authorized provider
 steps. Quick/standard/deep is a plan-complexity/safety label. It cannot add a
@@ -291,6 +300,23 @@ share the episode lock; only future work changes, while completed steps and
 their artifacts, approvals, route evidence, and settlements remain linked to
 the plan version that authorized them. Adapter unavailability never triggers
 silent tuple substitution.
+
+An accepted revision continues immediately under its newly persisted
+authority: its mechanical gates, approvals, and never-attempted downstream
+steps all run in the same invocation, so a valid preserve-and-continue plan
+reaches its gates and PR instead of stranding paid work. The one step held
+back is the exact step whose failure authorized the revision — re-entering it
+here would spend a second provider turn repeating the failure that caused the
+replan (typically an unavailable assignment), so it is returned as the queued
+next step. It is held back only when it would genuinely spend that turn: a
+repaired step whose durable evidence already settles it runs now. A ticket
+adapter may reconcile a prior blocked transport only when the retained typed
+build verdict says `done`, the revision preserves the exact content-hashed
+step, and the replan journal links that failed step to the new version; it
+then resumes the returned label and runs the remaining gates without another
+provider turn. Rejected revisions remain terminal for that invocation, with
+their durable refusal reason shown by `operon loop`, `operon status`, and
+`operon episode --explain`.
 
 
 
@@ -438,7 +464,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 | Gate             | Mechanics (ported)                                                                                                                                             |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | setup            | run app's top-level `.operon/config.yaml` `setup_command` (a sibling of `apps`, never under `apps.<name>`; e.g. `npm ci`) in the worktree to install dependencies. It runs **at worktree provision, before the first implement pass** (`advanceProvisionSetup`, `src/loop/loop.ts`), and again **first within each post-implement gate set**, before any scheduled gate (`runGates`, `src/loop/qgates.ts`). The provision run is load-bearing: `createWorktree` provisions an empty tree, and the builder's mandatory "baseline before changes — if red, stop" check runs at the very start of the implement pass, so without deps that baseline fails for **every** greenfield ticket regardless of ticket quality (the L1-02 defect; the live operator's workaround was committing 26 MB of `node_modules`). Unconfigured = absent (no gate, never a failure) **unless the tree carries an unresolved setup artifact**. A provision-time setup failure returns the ticket loudly (blocked-with-evidence comment + `op:returned`) with no build turn spent; within a gate set a setup **failure short-circuits** the rest so the tests/lint gates don't produce misleading failures (`runSetupGate`). The gate also scans the worktree's package-manager config **before and after** the command (`src/loop/setup-artifacts.ts`): an unresolved tool placeholder (pnpm's literal `set this to true or false`) or a duplicated YAML mapping key fails setup with *that* cause, naming the file and the consolidation remedy, instead of letting it surface as an opaque `[ERROR] duplicated mapping key (4:1)` several attempts later. Before, because a corrupt file disables the tool the command invokes; after, because the install is what writes the placeholder. The subprocess itself runs under the deny-by-default dependency build policy (`PNPM_CONFIG_IGNORE_SCRIPTS=true`), so on the default path the placeholder is never generated at all; a ticket that genuinely needs a dependency built opts in explicitly in its `setup_command` (`pnpm install --frozen-lockfile --no-ignore-scripts` alongside a committed `allowBuilds` decision — a CLI flag beats env config), which is precisely why the scan is kept as a backstop |
-| tests            | run app's `test_command`, exit code 0, timeout; last output lines on fail                                                                                      |
+| tests            | run app's `test_command`, exit code 0, timeout; retain the last output lines on every executed result                                                         |
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
 | security         | regex scan of changed files against the canonical list in `src/runtime/secret-patterns.ts`: `sk-…`/`ghp_…`/`github_pat_…` keys, AWS key ids, Stripe/Slack/Google/npm tokens, Slack webhook URLs, JWTs, URL userinfo credentials, `-----BEGIN PRIVATE KEY-----`, and generic key/token/password assignments incl. snake_case forms (`GITHUB_TOKEN=…`, `aws_secret_access_key = …`); binaries skipped |
@@ -454,8 +480,11 @@ scan; low: tests+completeness).
 
 **Where gates run:**
 
-0. **At worktree provision, before the first implement pass** — only the
-   `setup` gate (`advanceProvisionSetup`). A fresh worktree has no
+0. **At worktree provision, before the first implement pass** — the Git-index
+   preflight and `setup` gate (`advanceProvisionSetup`). The preflight touches
+   only the resolved per-worktree `index.lock`; if that path is unwritable, the
+   ticket returns with a specific diagnostic and the checkout remains intact
+   before any provider spend. A fresh worktree has no
    dependencies, so this must precede the builder's baseline check; a failure
    returns the ticket with evidence before any build turn is spent. The
    post-implement gate set re-runs `setup` (idempotent), so this adds an
@@ -473,6 +502,32 @@ scan; low: tests+completeness).
    error *identity*, never merely "failed again": a failure carrying no evidence
    at all (a bare non-zero exit with no output) has no identity and never
    triggers it, and any change in the evidence retries normally.
+
+Green process-gate output is delivery evidence, not disposable console noise.
+Each executed gate retains its byte- and line-bounded combined output tail,
+including on exit 0. The first PR description receives an
+`operon:gate-evidence` managed block with the command, exit status, verbatim
+captured output, exact evaluated revision, and a content-addressed artifact
+identifier. Publication
+scrubs the canonical secret patterns, and the PR renderer applies an additional
+8,000-character per-gate bound; the local gate capture remains bounded to the
+newest 256 KiB and 50 lines by default. The exportable run envelope also keeps
+the scrubbed command and a 2,000-character output tail, so a process crash does
+not turn a prior green result into an unsupported claim.
+
+An absent or stale managed block is repaired by editing only the PR
+description from the already-captured green result. No gate is rerun and the
+repair fails closed unless the evaluated revision, worktree HEAD, and PR head
+remain identical. A `review/verify` finding is
+mechanically discharged only when *every* finding identifies the PR
+body/description/comment, says captured gate output is absent, and asks only to
+attach that output. Requests to rerun a command or change source/tests stay on
+the ordinary provider-planned revision path. After a qualifying repair at the
+unchanged reviewed commit, the published review records the original findings,
+the content-addressed evidence references, and the deterministic resolution;
+this permits review authorization without inventing a source revision for a
+description-only defect.
+
 2. **At ship, twice** — once when the item reaches ship (blocks wasting the
   optional ship-check pass) and once immediately before the squash-merge
    (catches anything that moved in between). The predecessor's double-run,

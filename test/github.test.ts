@@ -154,6 +154,18 @@ describe("GhCliOps", () => {
     ]);
   });
 
+  it("updates only the PR body through stdin", async () => {
+    const { exec, calls } = execFrom(() => ({ stdout: "", stderr: "", exitCode: 0 }));
+    const gh = new GhCliOps("o/r", exec);
+
+    await gh.updatePullRequestBody(7, "## Evidence\ncaptured output");
+
+    expect(calls).toEqual([{
+      args: ["pr", "edit", "7", "--repo", "o/r", "--body-file", "-"],
+      input: "## Evidence\ncaptured output",
+    }]);
+  });
+
   it("listPRsForBranch and squashMerge parse --json PR output", async () => {
     const { exec, calls } = execFrom((args) => {
       if (args[0] === "pr" && args[1] === "list") {

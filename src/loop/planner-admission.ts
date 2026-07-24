@@ -26,7 +26,7 @@ import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import {
   admitEpisode,
   checkProviderBudget,
-  deriveEpisodeCounters,
+  deriveRouteBudgetCounters,
   EFFICIENCY_SCHEMA_VERSION,
   EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD,
   efficiencyEpisodeDir,
@@ -612,8 +612,9 @@ export async function persistAcceptedEpisodePlannerPlan(input: {
 }
 
 /** Admit the derived delivery route only after one validated durable plan
- * exists. Existing planner execution steps stay in the same episode journal,
- * so ordinary route counters include them exactly once. */
+ * exists. Existing planner attempts stay in the same episode journal with
+ * their actual settlements; structural repair replaces the invalid proposal
+ * for the provider-turn route slot only. */
 export async function admitPlannedEpisodeRoute(
   input: RouteAdmissionInput,
 ): Promise<{ route: RouteRecord; consumedBeforeRoute: PlannerBudgetQuantity }> {
@@ -725,7 +726,7 @@ export async function admitPlannedEpisodeRoute(
         );
       }
     }
-    const counters = await deriveEpisodeCounters(input.root, input.episodeId);
+    const counters = await deriveRouteBudgetCounters(input.root, input.episodeId);
     if (counters.partial_or_unavailable_steps.length > 0) {
       throw new PlannerAdmissionError(
         "error_episode_planner_budget_unmeasured",

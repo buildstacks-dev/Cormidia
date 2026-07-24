@@ -218,6 +218,16 @@ export interface ExecuteEpisodePlanOptions {
   afterCompletion?: (input: { plan: EpisodePlan; planHash: string }) => Promise<void>;
   /** Limits provider/mechanical/approval handler calls in this invocation. */
   maxSteps?: number;
+  /** Asked before a provider step is STARTED; returning true stops the
+   * invocation and returns `running` with that step queued as `nextStepId`.
+   * An adopted revision uses this: its accepted plan must reach gates and PR
+   * in the same invocation (#175), but it must not spend a second provider
+   * turn re-entering the exact step whose failure authorized the revision —
+   * that failure is often an unavailable assignment. The predicate owns the
+   * whole policy, including whether a step merely replays durable evidence
+   * (not a new turn) and which steps the revision repairs. Steps already
+   * started stay recoverable; only an unstarted one is withheld. */
+  haltBeforeNewProviderTurn?: (step: EpisodeStep) => Promise<boolean>;
   now?: () => Date;
   lockOptions?: FileLockOptions;
 }
@@ -375,6 +385,14 @@ async function executeLocked(
     const step = active === undefined
       ? nextStep(journal, options.plan, completed)
       : currentStepForActive(options.plan, planHash, active, completed);
+    if (
+      options.haltBeforeNewProviderTurn !== undefined &&
+      active === undefined &&
+      step.kind === "provider_turn" &&
+      await options.haltBeforeNewProviderTurn(step)
+    ) {
+      return result(journal, options.plan, planHash, step.id, lastStepId);
+    }
     const handler = handlerFor(step, options.handlers);
     let started = active;
     if (started === undefined) {

@@ -16,6 +16,11 @@ import {
   type EpisodePlanExecutionResult,
 } from "../../loop/episode-plan-executor.js";
 import {
+  episodeReplanJournalPath,
+  readEpisodeReplanJournal,
+  type EpisodeReplanJournal,
+} from "../../loop/episode-replan.js";
+import {
   episodeIntentHash,
   episodePlanHash,
   readCurrentEpisodePlan,
@@ -490,7 +495,13 @@ export type EpisodeExplanationProblemCode =
   | "plan_intent_mismatch"
   | "route_unreadable"
   | "journal_unreadable"
+  | "replan_journal_unreadable"
   | "execution_steps_unreadable"
+  | "episode_execution_missing"
+  | "episode_execution_incomplete"
+  | "step_failed"
+  | "step_waiting_approval"
+  | "step_denied"
   | "step_authorization_unresolved"
   | "step_authorization_stale";
 
@@ -534,6 +545,7 @@ export interface EpisodeExplanation {
   planHash: string | null;
   route: RouteRecord | null;
   journal: EpisodePlanExecutionJournal | null;
+  replanJournal: EpisodeReplanJournal | null;
   planningSource: EpisodePlan["planningSource"] | null;
   planningTurnSkipped: boolean;
   steps: ExplainedEpisodeStep[];
@@ -581,6 +593,16 @@ export async function explainEpisode(
     ? await readOrAnnotate(
         () => readEpisodePlanExecutionJournal(root, episodeId),
         (error) => fail("journal_unreadable", `execution journal is unreadable: ${describe(error)}`),
+      )
+    : undefined;
+  const replanJournal = existsSync(episodeReplanJournalPath(root, episodeId))
+    ? await readOrAnnotate(
+        () => readEpisodeReplanJournal(root, episodeId),
+        (error) =>
+          fail(
+            "replan_journal_unreadable",
+            `replan journal is unreadable: ${describe(error)}`,
+          ),
       )
     : undefined;
   const executionSteps = await readOrAnnotate(
@@ -640,12 +662,63 @@ export async function explainEpisode(
         }
         return explained;
       });
+  if (plan !== undefined) {
+    if (journal === undefined) {
+      fail(
+        "episode_execution_missing",
+        `accepted plan v${plan.version} has no durable execution journal`,
+      );
+    } else if (
+      journal.status !== "completed" ||
+      steps.some((step) => step.status !== "completed")
+    ) {
+      const latestReplan = replanJournal?.records.at(-1);
+      const recovery = latestReplan === undefined
+        ? journal.current_plan_version > 1
+          ? `; plan revision v${journal.current_plan_version} is active`
+          : ""
+        : `; replan ${latestReplan.trigger.id} is ${latestReplan.status}` +
+          (latestReplan.reason === null ? "" : ` (${latestReplan.reason})`);
+      fail(
+        "episode_execution_incomplete",
+        `execution is ${journal.status}; ` +
+          `${steps.filter((step) => step.status === "completed").length}/${steps.length} ` +
+          `accepted-plan steps are complete${recovery}`,
+      );
+      for (const step of steps) {
+        if (
+          step.status !== "failed" &&
+          step.status !== "waiting_approval" &&
+          step.status !== "denied"
+        ) continue;
+        const event = latestTerminalEvent(journal, step.id);
+        const detail = event === undefined
+          ? `step ${step.id} is ${step.status}`
+          : event.kind === "step_failed" || event.kind === "approval_denied" ||
+              event.kind === "approval_pending"
+            ? `${event.reason_code}: ${event.summary}`
+            : `step ${step.id} is ${step.status}`;
+        fail(
+          step.status === "failed"
+            ? "step_failed"
+            : step.status === "waiting_approval"
+              ? "step_waiting_approval"
+              : "step_denied",
+          detail,
+          step.id,
+        );
+      }
+    }
+  }
 
   return {
     schemaVersion: EPISODE_ORCHESTRATOR_EXPLAIN_VERSION,
     episodeId,
     evidenceDir,
-    complete: problems.length === 0,
+    complete: problems.length === 0 &&
+      (plan === undefined ||
+        (journal?.status === "completed" &&
+          steps.every((step) => step.status === "completed"))),
     problems,
     intent: intent ?? null,
     intentHash,
@@ -653,11 +726,25 @@ export async function explainEpisode(
     planHash: plan === undefined ? null : episodePlanHash(plan),
     route: route ?? null,
     journal: journal ?? null,
+    replanJournal: replanJournal ?? null,
     planningSource: plan?.planningSource ?? null,
     planningTurnSkipped: plan?.planningSource === "creator_scope",
     steps,
     executionSteps: executionSteps.map(explainExecutionStep),
   };
+}
+
+function latestTerminalEvent(
+  journal: EpisodePlanExecutionJournal,
+  stepId: string,
+): EpisodePlanExecutionEvent | undefined {
+  return journal.events.findLast((event) =>
+    "step_id" in event &&
+    event.step_id === stepId &&
+    (event.kind === "step_failed" ||
+      event.kind === "approval_pending" ||
+      event.kind === "approval_denied"),
+  );
 }
 
 /** Run one durable read, converting a throw into an annotation. `undefined`

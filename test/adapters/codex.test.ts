@@ -6,6 +6,7 @@
 // Codex server, org state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
+import { dirname, join } from "node:path";
 import { runConformanceSuite } from "../conformance/harness.js";
 import type { ScriptedTurn } from "../../src/runtime/testing/fakeRuntime.js";
 import {
@@ -22,6 +23,7 @@ import { EPISODE_PLAN_PROPOSAL_SCHEMA } from "../../src/loop/episode-plan.js";
 import { defaultGate } from "../../src/runtime/gate.js";
 import { buildTurnExecutionFacts } from "../../src/runtime/assignment.js";
 import type { RoleConfig, ToolAction, TurnEvent, TurnRequest, TurnResult } from "../../src/runtime/types.js";
+import { makeBareWithClone } from "../fixtures/gitRepo.js";
 
 const CODEX_ROLE: RoleConfig = {
   name: "builder",
@@ -300,6 +302,43 @@ describe("CodexRuntime (App Server mocked)", () => {
     });
     expect(result.session).toEqual({ runtime: "codex", id: "thread-1" });
     expect(result.usage).toMatchObject({ tokensIn: 12, tokensInUncached: 10, cacheReadTokens: 2, tokensOut: 8 });
+  });
+
+  it("declares a linked worktree's actual and common Git directories writable", async () => {
+    const pair = makeBareWithClone();
+    try {
+      const worktree = join(pair.root, "ticket-worktree");
+      pair.clone.git("worktree", "add", "-b", "op/codex-sandbox-roots", worktree, "main");
+      const gitDir = pair.clone.git("-C", worktree, "rev-parse", "--absolute-git-dir");
+      const objectsDir = pair.clone.git("-C", worktree, "rev-parse", "--git-path", "objects");
+      const branchRef = pair.clone.git("-C", worktree, "symbolic-ref", "HEAD");
+      const branchRefDir = dirname(
+        pair.clone.git("-C", worktree, "rev-parse", "--git-path", branchRef),
+      );
+      const branchReflogDir = dirname(
+        pair.clone.git("-C", worktree, "rev-parse", "--git-path", `logs/${branchRef}`),
+      );
+      const client = new FakeCodexClient({ result: makeResult("done") });
+
+      await new CodexRuntime({ clientFactory: () => client }).runTurn(
+        makeReq({ workdir: worktree }),
+        { gate: defaultGate },
+      );
+
+      expect(client.requests[2]?.params).toMatchObject({
+        sandboxPolicy: {
+          writableRoots: [
+            worktree,
+            gitDir,
+            objectsDir,
+            branchRefDir,
+            branchReflogDir,
+          ],
+        },
+      });
+    } finally {
+      pair.cleanup();
+    }
   });
 
   it("gives App Server and its sandbox a canonical non-interactive environment", async () => {

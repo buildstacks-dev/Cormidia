@@ -29,6 +29,7 @@ const USER_HOME = join(FIXTURE_ROOT, "user-home");
 const NEUTRAL_CWD = join(FIXTURE_ROOT, "neutral");
 
 const REPLANNED = "ticket:sonnet4-buildstack-dev:#2";
+const COMPLETED = "ticket:sonnet4-buildstack-dev:#9";
 const ROUTE_ONLY = "lifecycle:sonnet4-buildstack-dev:9b66e5d4560b23acb99f";
 
 beforeAll(() => {
@@ -42,6 +43,11 @@ beforeAll(() => {
   cpSync(
     join(FIXTURE_DIR, "replanned-ticket-2"),
     efficiencyEpisodeDir(STATE_HOME, REPLANNED),
+    { recursive: true },
+  );
+  cpSync(
+    join(FIXTURE_DIR, "replan-free-ticket-9"),
+    efficiencyEpisodeDir(STATE_HOME, COMPLETED),
     { recursive: true },
   );
   cpSync(
@@ -74,32 +80,38 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 const homes = ["--org-home", ORG_HOME, "--state-home", STATE_HOME];
 
 describe("operon episode explain end to end", () => {
-  it("explains the exact replanned episode that produced ISSUE-025 and exits zero", async () => {
+  it("reports the exact failed, actively revising episode as incomplete", async () => {
     const result = await runCli(["episode", "explain", REPLANNED, ...homes]);
 
-    expect(result.code, result.stderr).toBe(0);
+    expect(result.code, result.stderr).toBe(1);
     // The reported symptom, verbatim, must be gone.
     expect(result.stdout).not.toContain("has 0 matching route authorizations");
     expect(result.stdout).toContain("plan: v2 episode_planner");
     expect(result.stdout).toContain("safety route:");
+    expect(result.stdout).toContain("execution: running");
     expect(result.stdout).toContain("contract: completed provider builder codex/gpt-5.6-sol/high");
     expect(result.stdout).toContain("assignment authorized_at_prior_plan_version");
-    expect(result.stdout).toContain("implement: ");
-    expect(result.stdout).toContain("verify: ");
+    expect(result.stdout).toContain("implement: failed");
+    expect(result.stdout).toContain("episode_execution_incomplete");
+    expect(result.stdout).toContain("step_failed [implement]");
     expect(result.stdout).toContain(efficiencyEpisodeDir(STATE_HOME, REPLANNED));
   });
 
   it("emits one parseable JSON document for the same episode", async () => {
     const result = await runCli(["episode", "explain", REPLANNED, ...homes, "--json"]);
 
-    expect(result.code, result.stderr).toBe(0);
+    expect(result.code, result.stderr).toBe(1);
     const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
     expect(parsed).toMatchObject({
       schemaVersion: 2,
       episodeId: REPLANNED,
-      complete: true,
-      problems: [],
+      complete: false,
     });
+    expect((parsed["problems"] as Array<{ code: string; stepId: string | null }>))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "episode_execution_incomplete", stepId: null }),
+        expect.objectContaining({ code: "step_failed", stepId: "implement" }),
+      ]));
     expect(parsed["steps"]).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: "contract",
@@ -107,6 +119,19 @@ describe("operon episode explain end to end", () => {
         authorizedPlanVersion: 1,
       }),
     ]));
+  });
+
+  it("keeps a genuinely completed episode terminal and problem-free", async () => {
+    const result = await runCli(["episode", "explain", COMPLETED, ...homes, "--json"]);
+
+    expect(result.code, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 2,
+      episodeId: COMPLETED,
+      complete: true,
+      problems: [],
+      journal: { status: "completed" },
+    });
   });
 
   it("renders a degraded route-only episode and exits non-zero", async () => {

@@ -43,6 +43,21 @@ describe("runTestsGate", () => {
     expect(result.detail).toContain("passed");
   });
 
+  it("retains bounded successful output for delivery evidence", async () => {
+    const result = await runTestsGate(
+      repoRoot,
+      { testCommand: node("console.log('37 tests passed')") },
+      { tailLines: 5 },
+    );
+
+    expect(result).toMatchObject({
+      gate: "tests",
+      status: "pass",
+      exitCode: 0,
+      outputTail: "37 tests passed",
+    });
+  });
+
   it("runs gate commands with CI=1 so installs never wait on a TTY (Stage 3)", async () => {
     const result = await runTestsGate(repoRoot, {
       testCommand: node('process.exit(process.env.CI === "1" ? 0 : 1)'),

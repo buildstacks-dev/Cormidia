@@ -110,6 +110,7 @@ describe("read-command JSON contract", () => {
       expect(parsed["runs"]).toEqual([]);
       expect(parsed["approvalDelivery"]).toEqual([]);
       expect(parsed["claimRecovery"]).toEqual([]);
+      expect(parsed["episodeReplans"]).toEqual([]);
     } else if (parsed["kind"] === "budget") {
       expect(Array.isArray(parsed["apps"])).toBe(true);
       expect(parsed).toHaveProperty("learning");

@@ -32,9 +32,11 @@ import {
   criterionTestMapFromContract,
   parseAcceptanceCriteria,
   recoverAlreadyMergedTicket,
+  repairPrGateEvidence,
   renderBuildBlockedComment,
   renderContractComment,
   renderReviewBody,
+  isPrGateEvidenceOnlyFinding,
   latestActionableReview,
   type ReviewAuthorization,
 } from "../loop/loop.js";
@@ -88,6 +90,7 @@ import {
 import {
   episodeIntentHash,
   episodePlanHash,
+  readEpisodePlanVersion,
   stableHash,
   type BudgetCeiling,
   type CreatorEpisodeScope,
@@ -97,6 +100,7 @@ import {
   type ProviderTurnStep,
   type SafetyFact,
 } from "../loop/episode-plan.js";
+import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
 import type {
   EpisodeStepCompletedOutcome,
   EpisodeStepExecutionContext,
@@ -492,11 +496,33 @@ async function executeTicketEpisode(
         role,
       }) ?? options.plannerContext;
     },
+    // Asked before an adopted revision would re-enter the exact step it was
+    // authored to repair. The ticket domain can settle such a step from a
+    // preserved prior material event, so it answers from the same evidence
+    // code the handler below uses instead of spending a second turn (#175).
+    // Evidence that fails its own integrity checks is not "completable": the
+    // step is withheld here and enters normally on the next tick, where the
+    // executor turns the same error into that step's typed failure.
+    providerStepCompletableWithoutNewTurn: async (step, plan) => {
+      const definition = ticketProviderOperation(step.operation);
+      if (definition === undefined || definition.role !== step.role) return false;
+      try {
+        return (await completableProviderEvidence({ options, plan, step }, definition)) !== undefined;
+      } catch {
+        return false;
+      }
+    },
     provider: async (step, context) => {
+      const plan = await ticketExecutionPlan(
+        options.root,
+        input.accepted.plan.episodeId,
+        context,
+      );
       const outcome = await executeTicketProviderStep({
         options,
         input,
         item,
+        plan,
         step,
         context,
       });
@@ -504,10 +530,16 @@ async function executeTicketEpisode(
       return outcome.outcome;
     },
     mechanical: async (step, context) => {
+      const plan = await ticketExecutionPlan(
+        options.root,
+        input.accepted.plan.episodeId,
+        context,
+      );
       const outcome = await executeTicketMechanicalStep({
         options,
         input,
         item,
+        plan,
         step,
         context,
       });
@@ -536,17 +568,51 @@ async function executeTicketEpisode(
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
     now: clock,
   });
+  if (execution.replan !== undefined) {
+    item = {
+      ...item,
+      episodeReplan: {
+        kind: execution.replan.kind,
+        status: execution.replan.status,
+        revisionVersion: execution.replan.revisionVersion,
+        reason: execution.replan.reason,
+      },
+    };
+  }
   if (execution.status !== "completed" && !isTerminalTicketPhase(item.phase)) {
     item = await returnTicket(options.gh, item);
   }
   return item;
 }
 
-interface TicketProviderExecutionInput {
+async function ticketExecutionPlan(
+  root: string,
+  episodeId: string,
+  context: EpisodeStepExecutionContext,
+): Promise<EpisodePlan> {
+  const plan = await readEpisodePlanVersion(root, episodeId, context.planVersion);
+  if (plan === undefined || episodePlanHash(plan) !== context.planHash) {
+    throw new Error(
+      `ticket execution ${context.executionId} cannot resolve its immutable plan v${context.planVersion}`,
+    );
+  }
+  return plan;
+}
+
+/** Everything needed to resolve one planned provider step's durable evidence.
+ *  Deliberately narrower than a step execution: the adopted-revision halt asks
+ *  the same evidence question before any execution context exists. `plan` is
+ *  the immutable plan the step belongs to, so `plan.version` is the version
+ *  the evidence must be bound to. */
+interface TicketProviderEvidenceInput {
   options: TicketEpisodeRuntimeOptions;
+  plan: EpisodePlan;
+  step: ProviderTurnStep;
+}
+
+interface TicketProviderExecutionInput extends TicketProviderEvidenceInput {
   input: TicketEpisodeExecutionRequest;
   item: LoopItem;
-  step: ProviderTurnStep;
   context: EpisodeStepExecutionContext;
 }
 
@@ -567,8 +633,7 @@ async function executeTicketProviderStep(
     );
   }
   const role = requireRole(input.options.roles, input.step.role);
-  const prior = await ticketProviderEvidence(input, definition);
-  let evidence = prior;
+  let evidence = await completableProviderEvidence(input, definition);
   if (evidence === undefined) {
     const routeAuthority = await exactProviderAuthorization(input, role);
     const context = await providerContext(input, role);
@@ -586,7 +651,7 @@ async function executeTicketProviderStep(
     try {
       await executePipeline({
         pipeline,
-        selection: { tier: planRouteLabel(input.input.accepted.plan) },
+        selection: { tier: planRouteLabel(input.plan) },
         roles: { [role.name]: role },
         runtimeFor: (selected) =>
           input.options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
@@ -606,13 +671,13 @@ async function executeTicketProviderStep(
           traceId: input.context.executionId,
         },
         runIdForPass: () => ticketProviderRunId(
-          input.input.accepted.plan,
+          input.plan,
           input.step,
           input.context,
         ),
         episode: {
-          id: input.input.accepted.plan.episodeId,
-          route: planRouteLabel(input.input.accepted.plan),
+          id: input.plan.episodeId,
+          route: planRouteLabel(input.plan),
           authorizedPasses: [routeAuthority.pass],
           budgetOverrides: routeAuthority.budget,
           finalize: false,
@@ -672,7 +737,10 @@ async function executeTicketProviderStep(
     }
   }
 
-  if (evidence.record.status !== "completed") {
+  if (
+    evidence.record.status !== "completed" &&
+    evidence.reconciledFromPlanVersion === undefined
+  ) {
     return failedTicketProvider(
       input,
       evidence.record.error_code ?? "error_ticket_provider_turn_failed",
@@ -714,7 +782,7 @@ async function executeTicketProviderStep(
   const applied = await applyProviderOutcome(input, definition, evidence, verdict);
   const output = await persistTicketStepOutput({
     root: input.options.root,
-    plan: input.input.accepted.plan,
+    plan: input.plan,
     step: input.step,
     execution: input.context,
     status: applied.failure === undefined ? "completed" : "failed",
@@ -723,6 +791,9 @@ async function executeTicketProviderStep(
       runId: evidence.record.run_id,
       providerExecutionStepId: evidence.record.execution_step_id,
       providerOutput: evidence.output,
+      ...(evidence.reconciledFromPlanVersion === undefined
+        ? {}
+        : { reconciledFromPlanVersion: evidence.reconciledFromPlanVersion }),
       verdict: verdict as JsonValue | undefined,
       item: itemOutput(applied.item),
       ...(applied.failure === undefined ? {} : applied.failure),
@@ -745,18 +816,33 @@ async function executeTicketProviderStep(
 interface ProviderEvidence {
   record: ExecutionStepRecord;
   output: string;
+  /** A prior transport terminal said blocked, but its content-bound build
+   * verdict said done and the accepted revision preserved the exact step. */
+  reconciledFromPlanVersion?: number;
+}
+
+/** Durable evidence that completes this provider step without spending a new
+ *  turn: this plan version's own terminal record, or a preserved prior blocked
+ *  transport whose content-bound build verdict said done. Single source of
+ *  truth for both the step handler and the adopted-revision halt (#175). */
+async function completableProviderEvidence(
+  input: TicketProviderEvidenceInput,
+  definition: TicketProviderOperationDefinition,
+): Promise<ProviderEvidence | undefined> {
+  return await ticketProviderEvidence(input, definition)
+    ?? await reconciledDoneBuildEvidence(input, definition);
 }
 
 async function ticketProviderEvidence(
-  input: TicketProviderExecutionInput,
+  input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence | undefined> {
   const terminal = (await readExecutionSteps(
     input.options.root,
-    input.input.accepted.plan.episodeId,
+    input.plan.episodeId,
   )).filter((record) =>
     record.kind === "provider" &&
-    record.plan_version === input.context.planVersion &&
+    record.plan_version === input.plan.version &&
     record.plan_step_id === input.step.id,
   );
   if (terminal.length > 1) {
@@ -765,6 +851,60 @@ async function ticketProviderEvidence(
   const record = terminal[0];
   if (record === undefined) return undefined;
   assertProviderEvidenceMatches(input, definition, record);
+  return { record, output: await providerOutput(input, record) };
+}
+
+async function reconciledDoneBuildEvidence(
+  input: TicketProviderEvidenceInput,
+  definition: TicketProviderOperationDefinition,
+): Promise<ProviderEvidence | undefined> {
+  if (input.plan.version <= 1 || definition.verdictKind !== "build") return undefined;
+  const journal = await readEpisodeReplanJournal(input.options.root, input.plan.episodeId);
+  const accepted = journal?.records.findLast((record) =>
+    record.status === "accepted" &&
+    record.revisionVersion === input.plan.version &&
+    record.trigger.affectedStepIds.includes(input.step.id));
+  if (accepted === undefined) return undefined;
+  const priorPlan = await readEpisodePlanVersion(
+    input.options.root,
+    input.plan.episodeId,
+    accepted.trigger.planVersion,
+  );
+  const priorStep = priorPlan?.steps.find((step): step is ProviderTurnStep =>
+    step.kind === "provider_turn" && step.id === input.step.id);
+  if (priorStep === undefined || stableHash(priorStep) !== stableHash(input.step)) return undefined;
+  const terminal = (await readExecutionSteps(input.options.root, input.plan.episodeId))
+    .filter((record) =>
+      record.kind === "provider" &&
+      record.plan_version === accepted.trigger.planVersion &&
+      record.plan_step_id === input.step.id);
+  if (terminal.length > 1) {
+    throw new Error(
+      `ticket plan step ${input.step.id} has multiple prior terminal provider records`,
+    );
+  }
+  const record = terminal[0];
+  if (record === undefined || record.status !== "blocked") return undefined;
+  assertProviderEvidenceMatches(input, definition, record, accepted.trigger.planVersion);
+  const output = await providerOutput(input, record);
+  let verdict: BuildVerdict;
+  try {
+    verdict = parseStoredVerdict("build", output);
+  } catch {
+    return undefined;
+  }
+  if (verdict.status !== "done") return undefined;
+  return {
+    record,
+    output,
+    reconciledFromPlanVersion: accepted.trigger.planVersion,
+  };
+}
+
+async function providerOutput(
+  input: TicketProviderEvidenceInput,
+  record: ExecutionStepRecord,
+): Promise<string> {
   let output: string;
   try {
     output = await readFile(
@@ -777,11 +917,11 @@ async function ticketProviderEvidence(
       { cause: error },
     );
   }
-  return { record, output };
+  return output;
 }
 
 async function requireTicketProviderEvidence(
-  input: TicketProviderExecutionInput,
+  input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence> {
   const evidence = await ticketProviderEvidence(input, definition);
@@ -792,9 +932,10 @@ async function requireTicketProviderEvidence(
 }
 
 function assertProviderEvidenceMatches(
-  input: TicketProviderExecutionInput,
+  input: TicketProviderEvidenceInput,
   _definition: TicketProviderOperationDefinition,
   record: ExecutionStepRecord,
+  expectedPlanVersion = input.plan.version,
 ): void {
   if (
     record.role !== input.step.role ||
@@ -807,7 +948,7 @@ function assertProviderEvidenceMatches(
       input.step.assignment,
     ) ||
     record.assignment_source !== input.step.assignmentSource ||
-    record.plan_version !== input.context.planVersion ||
+    record.plan_version !== expectedPlanVersion ||
     record.plan_step_id !== input.step.id
   ) {
     throw new Error(`terminal provider evidence for ${input.step.id} differs from the accepted plan`);
@@ -818,7 +959,7 @@ async function exactProviderAuthorization(
   input: TicketProviderExecutionInput,
   role: RoleConfig,
 ): Promise<{ pass: AuthorizedPass; budget: RouteBudget }> {
-  const route = await readRouteRecord(input.options.root, input.input.accepted.plan.episodeId);
+  const route = await readRouteRecord(input.options.root, input.plan.episodeId);
   const matches = route.authorized_passes.filter((pass) =>
     pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
     pass.pass === input.step.id &&
@@ -909,14 +1050,27 @@ async function applyProviderOutcome(
         },
       };
     }
-    return { item: { ...input.item, phase: "gates" } };
+    const resumed = evidence.reconciledFromPlanVersion === undefined
+      ? input.item
+      : await resumeReconciledTicket(input.options.gh, input.item);
+    return { item: { ...resumed, phase: "gates" } };
   }
   if (definition.verdictKind === "review") {
-    const review = verdict as ReviewVerdict;
+    let review = verdict as ReviewVerdict;
     const prNumber = requirePrNumber(input.item);
     const reviewedCommit = (await input.options.gh.readPR(prNumber)).headRefOid;
     if (reviewedCommit === undefined) {
       throw new Error(`cannot publish ${definition.operation}: PR #${prNumber} head is unresolved`);
+    }
+    if (
+      definition.operation === "review/verify" &&
+      review.findings.length > 0 &&
+      review.findings.every(isPrGateEvidenceOnlyFinding)
+    ) {
+      const repair = await repairPrGateEvidence(input.item, input.options.gh);
+      if (repair.satisfied && repair.headRefOid === reviewedCommit) {
+        review = resolvePrGateEvidenceFindings(review, repair.artifactReferences);
+      }
     }
     const reviewMarker = ticketReviewMarker(
       input.context,
@@ -983,7 +1137,7 @@ async function failedTicketProvider(
   const item = await returnTicket(input.options.gh, input.item);
   const artifact = await persistTicketStepOutput({
     root: input.options.root,
-    plan: input.input.accepted.plan,
+    plan: input.plan,
     step: input.step,
     execution: input.context,
     status: "failed",
@@ -1011,6 +1165,7 @@ async function executeTicketMechanicalStep(input: {
   options: TicketEpisodeRuntimeOptions;
   input: TicketEpisodeExecutionRequest;
   item: LoopItem;
+  plan: EpisodePlan;
   step: MechanicalGateStep;
   context: EpisodeStepExecutionContext;
 }): Promise<TicketStepResult> {
@@ -1027,7 +1182,7 @@ async function executeTicketMechanicalStep(input: {
   }
   const priorOutput = await readTicketStepOutput({
     root: input.options.root,
-    plan: input.input.accepted.plan,
+    plan: input.plan,
     step: input.step,
     execution: input.context,
   });
@@ -1037,7 +1192,12 @@ async function executeTicketMechanicalStep(input: {
       priorOutput,
       input.options.release,
     );
-    const artifact = ticketStepOutputArtifact(input.options.root, input.input.accepted.plan, input.step, priorOutput);
+    const artifact = ticketStepOutputArtifact(
+      input.options.root,
+      input.plan,
+      input.step,
+      priorOutput,
+    );
     if (priorOutput.status === "completed") {
       return { item: restored, outcome: { status: "completed", artifact } };
     }
@@ -1056,7 +1216,7 @@ async function executeTicketMechanicalStep(input: {
     app: input.options.app.name,
     ticket: input.item.ticketRef,
     traceId: input.context.executionId,
-    episodeId: input.input.accepted.plan.episodeId,
+    episodeId: input.plan.episodeId,
     ...(input.options.now === undefined ? {} : { clock: input.options.now }),
   };
   const recovered = await recoverTicketMechanicalBoundary(input);
@@ -1163,7 +1323,7 @@ async function executeTicketMechanicalStep(input: {
   }
   const output = await persistTicketStepOutput({
     root: input.options.root,
-    plan: input.input.accepted.plan,
+    plan: input.plan,
     step: input.step,
     execution: input.context,
     status: failure === undefined ? "completed" : "failed",
@@ -1191,6 +1351,7 @@ async function recoverTicketMechanicalBoundary(input: {
   options: TicketEpisodeRuntimeOptions;
   input: TicketEpisodeExecutionRequest;
   item: LoopItem;
+  plan: EpisodePlan;
   step: MechanicalGateStep;
   context: EpisodeStepExecutionContext;
 }): Promise<{
@@ -1529,7 +1690,7 @@ async function requiredPlanOutputs(
     if (!ref.ref.startsWith("plan-output:")) continue;
     const output = await readPlanOutput(
       input.options.root,
-      input.input.accepted.plan,
+      input.plan,
       ref.ref.slice("plan-output:".length),
     );
     const rendered = JSON.stringify(output);
@@ -1580,6 +1741,38 @@ function ticketReviewMarker(
     verdict,
   });
   return `<!-- operon:ticket-review execution-id=${execution.executionId} reviewed-commit=${reviewedCommit} content-sha256=${contentSha256} -->`;
+}
+
+function resolvePrGateEvidenceFindings(
+  review: ReviewVerdict,
+  artifactReferences: readonly string[],
+): ReviewVerdict {
+  const resolved = review.findings.map((finding) =>
+    `${finding.location}: ${finding.description} -> ${finding.action}`
+  );
+  return {
+    verdict: "approve",
+    findings: [],
+    review: {
+      rationale: [
+        review.review.rationale,
+        `Operon deterministically resolved ${review.findings.length} PR-evidence-only finding(s) ` +
+          "by attaching the already-green gate capture; no command reran and the reviewed commit did not change.",
+      ].join(" "),
+      evidence: [
+        ...review.review.evidence,
+        {
+          claim: "Original evidence-only findings resolved",
+          evidence: resolved.join(" | "),
+        },
+        {
+          claim: "Content-addressed green-gate evidence attached to the PR description",
+          evidence: artifactReferences.join(", "),
+        },
+      ],
+      notReviewed: review.review.notReviewed,
+    },
+  };
 }
 
 async function ensureIssueComment(
@@ -1652,6 +1845,25 @@ async function returnTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
   }
   const labels = (await gh.readIssue(item.issueNumber)).labels;
   return { ...item, labels, phase: "returned" };
+}
+
+async function resumeReconciledTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
+  if (item.phase === "merged" || item.phase === "blocked") {
+    throw new Error(
+      `accepted revision cannot resume terminal ticket ${item.ticketRef} from ${item.phase}`,
+    );
+  }
+  const durable = await gh.readIssue(item.issueNumber);
+  if (durable.labels.includes("op:returned")) {
+    await gh.swapLabel(item.issueNumber, "op:returned", "op:building");
+  } else if (!durable.labels.includes("op:building")) {
+    throw new Error(
+      `accepted revision cannot resume ticket ${item.ticketRef} from labels ` +
+      durable.labels.join(", "),
+    );
+  }
+  const labels = (await gh.readIssue(item.issueNumber)).labels;
+  return { ...item, labels, phase: "building" };
 }
 
 function ticketPlanningCatalog(): JsonValue {

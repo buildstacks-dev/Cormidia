@@ -49,7 +49,8 @@ export function loopInvocationOutcome(result: LoopDriverResult, dryRun = false):
         `terminal-episode-refused: #${refusal.issueNumber}=${refusal.episodeId} ` +
         `(${refusal.status}: ${refusal.reason}); repaired to op:returned`,
     ),
-    ...result.items.map((item) => `${item.ticketRef}=${item.phase}`),
+    ...result.items.map((item) =>
+      `${item.ticketRef}=${item.phase}${episodeReplanOutcome(item)}`),
   ].join(", ") || "no-ready-tickets";
 }
 
@@ -487,7 +488,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
     }
     for (const line of result.lines) console.log(line);
     for (const item of result.items) {
-      console.log(`${item.ticketRef}: ${item.phase}`);
+      console.log(`${item.ticketRef}: ${item.phase}${episodeReplanOutcome(item)}`);
     }
     if (result.budgetRefusal !== undefined) sawBudgetRefusal = true;
     if ((result.terminalEpisodeRefusals?.length ?? 0) > 0) sawTerminalEpisodeRefusal = true;
@@ -529,6 +530,14 @@ export async function cmdLoop(args: string[]): Promise<number> {
     ...(parentTaskId === undefined ? {} : { parentTaskId }),
   });
   return exitCode;
+}
+
+function episodeReplanOutcome(item: LoopDriverResult["items"][number]): string {
+  const replan = item.episodeReplan;
+  if (replan === undefined) return "";
+  const revision = replan.revisionVersion === null ? "" : ` v${replan.revisionVersion}`;
+  const reason = replan.reason === null ? "" : ` — ${replan.reason}`;
+  return ` [replan ${replan.status}${revision}: ${replan.kind}${reason}]`;
 }
 
 function needValue(args: string[], index: number, flag: string): string {

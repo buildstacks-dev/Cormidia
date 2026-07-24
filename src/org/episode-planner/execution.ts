@@ -315,6 +315,11 @@ async function requestMaterialFailureReplan(
 ): Promise<{ record: EpisodeReplanRecord; plan?: EpisodePlan } | undefined> {
   if (options.replanAuthority === "caller") return undefined;
   if (result.status !== "failed" && result.status !== "denied") return undefined;
+  // A ticket-budget refusal is a terminal policy decision about an otherwise
+  // preserved decomposition, not a failed execution assumption. Replanning
+  // here would manufacture a new accepted plan that cannot lawfully execute
+  // and would obscure the exact ratification path.
+  if (result.reasonCode === "refused_ticket_budget") return undefined;
   const journal = await readEpisodePlanExecutionJournal(
     options.root,
     options.plan.episodeId,

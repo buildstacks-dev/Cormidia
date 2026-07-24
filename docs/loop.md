@@ -277,6 +277,15 @@ error list, and a repair that introduces a new violation is reported as
 `plan_repair_regressive` with the newly introduced violations named, ahead of
 (never instead of) the original diagnostics.
 
+Initial structural repair replaces the rejected proposal for route-turn
+accounting: preview and live admission both reserve one effective
+EpisodePlanner slot, so a repaired five-provider-step plan fits a six-turn hard
+route. This does not erase or discount provider work. The proposal and repair
+remain separate terminal execution steps and settlements, and their actual
+cost, time, tokens, quality, and aggregate planner-attempt ceilings are all
+enforced. Only the route's provider-turn count treats them as one planning
+workflow result; later revision-planner turns remain additional turns.
+
 The accepted plan is persisted atomically before delivery. Only then does
 `episode-route.ts` derive the compatibility route and exact authorized provider
 steps. Quick/standard/deep is a plan-complexity/safety label. It cannot add a

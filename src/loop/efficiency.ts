@@ -499,7 +499,7 @@ async function reassessEpisodeLocked(input: {
   const record = await readRouteRecord(input.root, input.episodeId);
   if (record.terminal !== null) throw new Error(`episode ${input.episodeId} is terminal`);
   assertMonotonicRoute(record.current_route, input.toRoute);
-  const counters = await deriveEpisodeCounters(input.root, input.episodeId);
+  const counters = await deriveRouteBudgetCounters(input.root, input.episodeId);
   const budget = { ...ROUTE_BUDGETS[input.toRoute], ...input.budgetOverrides };
   const reassessment: RouteReassessment = {
     reassessment_id: sha256(
@@ -582,7 +582,7 @@ export async function checkProviderBudget(input: {
   next?: { costUsd?: number; activeTimeMs?: number };
 }): Promise<BudgetCheck> {
   const route = await readRouteRecord(input.root, input.episodeId);
-  const counters = await deriveEpisodeCounters(input.root, input.episodeId);
+  const counters = await deriveRouteBudgetCounters(input.root, input.episodeId);
   const terminalUnmeasured = [...counters.partial_or_unavailable_steps];
   const settledUsd = counters.equivalent_cost_usd;
   const pending = await pendingProviderReservations(input.root, input.episodeId);
@@ -1232,6 +1232,38 @@ export async function deriveEpisodeCounters(root: string, episodeId: string): Pr
   };
 }
 
+/** Counters used specifically for route admission and enforcement.
+ *
+ * EpisodePlanner structural repair is one bounded planning workflow: the
+ * invalid proposal is replaced by its repair before any route is selected.
+ * Both attempts remain separate provider settlements and both retain their
+ * actual cost, time, token, and quality evidence. Only the provider-turn route
+ * slot treats the initial `episode-planner:attempt:N` sequence as one effective
+ * planning result, matching the preview calculation that reserves one planner
+ * slot before the accepted delivery graph.
+ */
+export async function deriveRouteBudgetCounters(
+  root: string,
+  episodeId: string,
+): Promise<EpisodeCounters> {
+  const steps = await readExecutionSteps(root, episodeId);
+  const counters = await deriveEpisodeCounters(root, episodeId);
+  const provider = steps.filter((step) => step.kind === "provider");
+  const initialPlanner = provider.filter((step) =>
+    /^episode-planner:attempt:\d+$/.test(step.execution_step_id)
+  );
+  if (initialPlanner.length === 0) return counters;
+  const otherProviderTurnIds = new Set(
+    provider
+      .filter((step) => !/^episode-planner:attempt:\d+$/.test(step.execution_step_id))
+      .map((step) => step.provider_turn_id),
+  );
+  return {
+    ...counters,
+    provider_turns: otherProviderTurnIds.size + 1,
+  };
+}
+
 export function unionDurationMs(intervals: Array<{ start: string; end: string }>): number {
   const sorted = intervals
     .map(({ start, end }) => [new Date(start).getTime(), new Date(end).getTime()] as const)
@@ -1692,7 +1724,7 @@ async function admitPlanRouteRevision(
   assertRouteBudgetMonotonic(existing.budget, requestedBudget, input.episodeId);
   const factors = mergeAdmissionFactors(existing.factors, input.factors);
   assertAuthorizedPassFactors(requestedPasses, factors, input.episodeId);
-  const counters = await deriveEpisodeCounters(input.root, input.episodeId);
+  const counters = await deriveRouteBudgetCounters(input.root, input.episodeId);
   const revisionFactor = input.factors[0];
   if (revisionFactor === undefined) {
     throw new Error(`efficiency admission for ${input.episodeId} requires an explicit plan revision factor`);

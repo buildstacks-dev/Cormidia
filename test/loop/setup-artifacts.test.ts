@@ -18,7 +18,7 @@
 // captured file from the blocked run, byte for byte, copied read-only from
 // ~/.operon/Buildstacks/worktrees/sonnet5-buildstack-dev/op-3-…/.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
@@ -262,6 +262,54 @@ describe("runSetupGate diagnosis", () => {
 });
 
 describe("advanceProvisionSetup on a corrupted worktree", () => {
+  it("returns before setup or a paid build turn when the Git index preflight fails", async () => {
+    const gh = new FakeGhOps({
+      issues: [{ number: 6, title: "Index guard", body: "## Goal\n\nShip it.\n", labels: ["op:building"] }],
+    });
+    const root = worktree();
+    const setupMarker = join(root, "setup-must-not-run");
+    const returned = await advanceProvisionSetup(
+      {
+        issueNumber: 6,
+        ticketRef: "#6",
+        title: "Index guard",
+        body: "## Goal\n\nShip it.\n",
+        targetRepo: "fixture/repo",
+        labels: ["op:building"],
+        phase: "building",
+        tier: "standard",
+        cycles: 0,
+        remediationAttempts: 0,
+        gateResults: [],
+        findings: [],
+        worktree: root,
+        branch: "op/6-index-guard",
+      },
+      {
+        gh,
+        commands: {
+          setupCommand: node(`require("node:fs").writeFileSync(${JSON.stringify(setupMarker)}, "ran")`),
+        },
+        indexPreflight: () => ({
+          status: "fail",
+          gitDir: join(root, ".git"),
+          indexPath: join(root, ".git", "index"),
+          errorCode: "error_git_index_unwritable",
+          detail: `Git index preflight cannot create ${join(root, ".git", "index.lock")}. ` +
+            `The worktree is preserved at ${root}.`,
+        }),
+      },
+    );
+
+    expect(returned.phase).toBe("returned");
+    expect(existsSync(root)).toBe(true);
+    expect(existsSync(setupMarker)).toBe(false);
+    const comment = gh.issueComments.get(6)?.[0] ?? "";
+    expect(comment).toContain("error_git_index_unwritable");
+    expect(comment).toContain("before any implementation provider turn started");
+    expect(comment).toContain(root);
+  });
+
   it("returns the ticket before any build turn, naming the file and the remedy", async () => {
     const gh = new FakeGhOps({
       issues: [{ number: 7, title: "Establish stack", body: "## Goal\n\nShip it.\n", labels: ["op:building"] }],

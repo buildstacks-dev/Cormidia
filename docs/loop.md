@@ -472,8 +472,11 @@ scan; low: tests+completeness).
 
 **Where gates run:**
 
-0. **At worktree provision, before the first implement pass** — only the
-   `setup` gate (`advanceProvisionSetup`). A fresh worktree has no
+0. **At worktree provision, before the first implement pass** — the Git-index
+   preflight and `setup` gate (`advanceProvisionSetup`). The preflight touches
+   only the resolved per-worktree `index.lock`; if that path is unwritable, the
+   ticket returns with a specific diagnostic and the checkout remains intact
+   before any provider spend. A fresh worktree has no
    dependencies, so this must precede the builder's baseline check; a failure
    returns the ticket with evidence before any build turn is spent. The
    post-implement gate set re-runs `setup` (idempotent), so this adds an

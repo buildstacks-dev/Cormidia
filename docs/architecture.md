@@ -200,6 +200,16 @@ supplied environment such as provider authentication and campaign scratch
 paths. Claude and Codex inherit it at harness launch; pi applies it to the
 embedded Bash tool's spawn environment.
 
+Claude and Codex sandbox source writes to the exact turn worktree. For a
+linked checkout, `src/runtime/git-worktree-sandbox.ts` additionally resolves
+Git's real per-worktree administrative directory plus only the external object,
+current-branch ref, and current-branch reflog directories required by
+`git add`/`git commit`; it does not grant the managed clone wholesale. Ticket
+provision also probes creation of the exact `index.lock` before setup or any
+paid provider turn. Failure returns the ticket with
+`error_git_index_unwritable`, preserves the checkout, and names the recovery
+path.
+
 `PNPM_CONFIG_IGNORE_SCRIPTS` is the **dependency build policy**, and it is a
 separate mechanism from the four non-interactive values, not a fifth flavour of
 them. A headless sandbox stops a package manager from *prompting*; it does not

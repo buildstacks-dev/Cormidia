@@ -13,6 +13,10 @@ import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/t
 import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
+import {
+  preflightGitWorktreeIndex,
+  type GitIndexPreflightResult,
+} from "../runtime/git-worktree-sandbox.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
 import type { BaseRevision } from "./default-branch.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
@@ -416,6 +420,8 @@ export interface ProvisionSetupOptions {
   gh: GhOps;
   commands: GateCommands;
   process?: ProcessGateOpts;
+  /** Test seam for the cheap, source-preserving linked-worktree index probe. */
+  indexPreflight?: (worktree: string) => GitIndexPreflightResult;
   /** When present, the provision-setup step gets its own run record so its
    *  `gate.started/passed/failed` events and `envelope.gate_results` land in
    *  events.jsonl BEFORE the first implement pass (docs/loop.md §5, §9). Absent
@@ -443,6 +449,41 @@ export async function advanceProvisionSetup(
   options: ProvisionSetupOptions,
 ): Promise<LoopItem> {
   const worktree = requireField(item, "worktree");
+  const indexPreflight =
+    (options.indexPreflight ?? preflightGitWorktreeIndex)(worktree);
+  if (indexPreflight.status === "fail") {
+    const fromLabel = stateLabelForPhase(item.phase);
+    const rec =
+      options.runlog !== undefined
+        ? await openPhaseRun(options.runlog, "provision", "git-index-preflight")
+        : undefined;
+    await rec?.events.append({
+      type: "gate.failed",
+      severity: "error",
+      detail: {
+        gate: "git-index-preflight",
+        ...(indexPreflight.errorCode === undefined
+          ? {}
+          : { errorCode: indexPreflight.errorCode }),
+        detail: indexPreflight.detail,
+        worktree,
+        ...(indexPreflight.gitDir === undefined ? {} : { gitDir: indexPreflight.gitDir }),
+        ...(indexPreflight.indexPath === undefined ? {} : { indexPath: indexPreflight.indexPath }),
+      },
+    });
+    await options.gh.commentIssue(
+      item.issueNumber,
+      provisionGitIndexFailedComment(worktree, indexPreflight),
+    );
+    await options.gh.swapLabel(item.issueNumber, fromLabel, "op:returned");
+    await rec?.transition(fromLabel, "op:returned");
+    await rec?.finalize("blocked");
+    return {
+      ...item,
+      labels: replaceLabel(item.labels, fromLabel, "op:returned"),
+      phase: "returned",
+    };
+  }
   const setupResult = await runSetupGate(worktree, options.commands, options.process);
   if (setupResult === undefined) return item;
 
@@ -485,6 +526,30 @@ export async function advanceProvisionSetup(
     labels: replaceLabel(item.labels, fromLabel, "op:returned"),
     phase: "returned",
   };
+}
+
+function provisionGitIndexFailedComment(
+  worktree: string,
+  result: GitIndexPreflightResult,
+): string {
+  return [
+    "## Blocked with evidence — Git index is unwritable at worktree provision",
+    "",
+    `**Error code:** \`${result.errorCode ?? "error_git_index_unwritable"}\``,
+    "",
+    result.detail,
+    "",
+    "**Result:**",
+    "The ticket was returned before any implementation provider turn started, so no",
+    "paid builder work was stranded. Operon did not stage, commit, reset, or remove",
+    "the checkout.",
+    "",
+    "**Recovery:**",
+    `Prepared work remains at \`${worktree}\`. Restore write access to the resolved`,
+    "Git administrative index, then re-arm this exact ticket; do not delete the",
+    "worktree while it contains uncommitted work.",
+    "",
+  ].join("\n");
 }
 
 /** Provision-time setup failure evidence for the returned ticket — the same

@@ -22,6 +22,7 @@ import type {
   TurnUsage,
 } from "../types.js";
 import { resolveTurnRequestAssignment } from "../assignment.js";
+import { gitWorktreeWritableRoots } from "../git-worktree-sandbox.js";
 import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { renderContextBundle } from "../worktree-context.js";
 import { toolUseEvent } from "../tool-events.js";
@@ -612,7 +613,7 @@ function turnParams(
     approvalsReviewer: "user",
     sandboxPolicy: {
       type: "workspaceWrite",
-      writableRoots: [req.workdir],
+      writableRoots: gitWorktreeWritableRoots(req.workdir),
       networkAccess: req.networkAccess === true,
       excludeTmpdirEnvVar: false,
       excludeSlashTmp: false,

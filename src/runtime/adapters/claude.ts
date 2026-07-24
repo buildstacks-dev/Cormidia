@@ -44,6 +44,7 @@ import type {
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import * as path from "node:path";
+import { gitWorktreeWritableRoots } from "../git-worktree-sandbox.js";
 import type {
   GateEscalation,
   Runtime,
@@ -479,7 +480,7 @@ function protectHostHome(
         // already limits writes to cwd, and a parent deny could also block the
         // nested eval worktree because allowWrite is not a deny override.
         allowRead: appendPath("allowRead", workdir),
-        allowWrite: [path.resolve(workdir)],
+        allowWrite: gitWorktreeWritableRoots(workdir),
       },
     },
   } as SdkOptions["settings"];

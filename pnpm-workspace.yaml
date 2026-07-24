@@ -1,5 +1,12 @@
 # pnpm config only — this repo is deliberately NOT a workspace (docs/PURPOSE.md →
 # Repo shape); pnpm ≥11 also reads its per-repo settings from this file.
+# pnpm 11.10.0 requires a non-empty selector even for a root-only project.
+# Selecting only "." preserves the single-package repository boundary.
+packages:
+  - '.'
+# Installs are an explicit lifecycle step (`pnpm install`); validation commands
+# must never mutate or purge a linked worktree's dependency directory.
+verifyDepsBeforeRun: false
 # esbuild's postinstall downloads the platform binary tsx needs.
 allowBuilds:
   '@google/genai': false

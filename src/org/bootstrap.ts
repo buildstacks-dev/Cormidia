@@ -981,9 +981,14 @@ function configYaml(
 #   org-approved candidate IDs, optionally narrowed per role). Assignment mode
 #   changes assignment selection only; it never disables episode planning.
 # release: the app's declared release mechanism (A4) — omitted until the
-#   app has one. A milestone whose plan requires deploy/package fails the
-#   ship gate unless this declares it, e.g.:
-#   release: { kind: deploy, command: gh workflow run deploy.yml, owner: orchestrator }
+#   app has one. A milestone whose plan requires deploy/package fails the ship
+#   gate unless this declares it. trigger: tag (the default when no command is
+#   given) fires deploy by pushing the milestone's Release-version as a git tag
+#   vX.Y.Z, so the app's deploy workflow must listen on push tags (v*), never
+#   on push to the default branch; trigger: command runs a declared
+#   command after merge instead. Examples:
+#   release: { kind: deploy, owner: sre, trigger: tag }
+#   release: { kind: deploy, owner: orchestrator, trigger: command, command: gh workflow run deploy.yml }
 # setup_command/test_command/lint_command/e2e_test_command: checkout-level
 #   quality gates. These keys are top-level siblings of apps, never fields
 #   under apps.<name>.

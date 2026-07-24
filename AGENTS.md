@@ -76,6 +76,11 @@ re-executed; semantics last maintainer-verified 2026-07-14).
   seeds the adapter conformance suite — extend cases, never soften one. The
   builder ≠ reviewer cross-provider test in `test/roles.test.ts` encodes
   uncorrelated review blind spots — if it fails, the roles.yaml edit is wrong.
+- **Every defect fix deposits its detector.** Fix and offline test that
+  reproduces the defect land in the same change; if the failure is not
+  offline-reproducible, guard the nearest deterministic seam
+  (provision/preflight) and say so in the PR. A fix without a guard is
+  incomplete — a live run is not a regression test (docs/testing.md).
 - **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the three
   provider SDKs. Adding one is a decision, not a convenience.
 - **Model IDs** in roles.yaml were human-ratified 2026-07-15

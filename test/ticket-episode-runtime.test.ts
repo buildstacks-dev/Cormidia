@@ -326,6 +326,122 @@ describe("ticket EpisodePlanner execution adapter", () => {
     }
   });
 
+  // ISSUE-036 (run-4 regression): `review/verify` holds read-only worktree
+  // access, but verifying rendered acceptance criteria ("ships zero client
+  // JavaScript") requires building the site. The fingerprint covers tracked
+  // content only — ignored build output is not reviewer mutation, and failing
+  // the approve verdict for it abandons a clean, mergeable PR. B-MET-02 pins
+  // the fingerprint helper; this pins the runtime step that consumes it.
+  it("run-4 regression: a reviewer building ignored output keeps its approve verdict (ISSUE-036)", async () => {
+    const fixture = await setup("verify", "review/verify", true);
+    try {
+      fixture.repo.clone.commit("chore: ignore generated site", { ".gitignore": "dist/\n" });
+      fixture.item = {
+        ...fixture.item,
+        body: "## Goal\nFix a bounded parser bug.\n",
+        branch: "main",
+      };
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(fixture, calls, (request) => {
+        if (request.role.name === "reviewer") {
+          // The reviewer builds the site to inspect rendered output — into a
+          // path the repo itself declares disposable.
+          mkdirSync(join(request.workdir, "dist"), { recursive: true });
+          writeFileSync(join(request.workdir, "dist", "index.html"), "<h1>verified build</h1>\n");
+          return JSON.stringify({
+            verdict: "approve",
+            findings: [],
+            review: {
+              rationale: "Rendered output verified against the exact reviewed revision.",
+              evidence: [{
+                claim: "AC1 parser regression",
+                evidence: "the named parser regression test passes at the reviewed head",
+              }],
+              notReviewed: ["unrelated application paths"],
+            },
+          });
+        }
+        return isContractTurn(request) ? CONTRACT_VERDICT : JSON.stringify({ status: "done" });
+      });
+
+      const shipped = await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      });
+
+      expect(calls.filter((call) => call.requestRole.name === "reviewer")).toHaveLength(1);
+      const [pr] = await fixture.gh.listPRsForBranch("main");
+      if (pr === undefined) throw new Error("expected the seeded gates step to create a PR");
+      expect(shipped).toMatchObject({ phase: "shipping", approvedCommitId: pr.headRefOid });
+      const journal = await readEpisodePlanExecutionJournal(
+        fixture.state.root,
+        fixture.accepted.plan.episodeId,
+      );
+      expect(JSON.stringify(journal)).not.toContain(
+        "error_ticket_read_only_operation_modified_worktree",
+      );
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  // The ISSUE-036 near-miss: read-only means read-only for tracked content.
+  // A reviewer that edits a tracked file must still fail its step with the
+  // exact reason code, not ride through on the ignored-output tolerance.
+  it("run-4 near-miss: a reviewer mutating tracked content still fails its read-only step (ISSUE-036)", async () => {
+    const fixture = await setup("verify", "review/verify", true);
+    try {
+      fixture.repo.clone.commit("chore: ignore generated site", { ".gitignore": "dist/\n" });
+      fixture.item = {
+        ...fixture.item,
+        body: "## Goal\nFix a bounded parser bug.\n",
+        branch: "main",
+      };
+      const calls: ObservedCall[] = [];
+      const runtime = makeTicketRuntime(fixture, calls, (request) => {
+        if (request.role.name === "reviewer") {
+          writeFileSync(join(request.workdir, ".gitignore"), "dist/\nnode_modules/\n");
+          return JSON.stringify({
+            verdict: "approve",
+            findings: [],
+            review: {
+              rationale: "The exact delivered diff satisfies the bounded parser ticket.",
+              evidence: [{
+                claim: "AC1 parser regression",
+                evidence: "the named parser regression test passes at the reviewed head",
+              }],
+              notReviewed: ["unrelated application paths"],
+            },
+          });
+        }
+        return isContractTurn(request) ? CONTRACT_VERDICT : JSON.stringify({ status: "done" });
+      });
+
+      const item = await runtime.executeTicketPlan({
+        request: fixture.request,
+        accepted: fixture.accepted,
+        item: fixture.item,
+        beforeProviderTurn: async () => undefined,
+      });
+
+      expect(calls.filter((call) => call.requestRole.name === "reviewer")).toHaveLength(1);
+      expect(item.phase).toBe("returned");
+      expect(await readEpisodePlanExecutionJournal(fixture.state.root, fixture.accepted.plan.episodeId))
+        .toMatchObject({
+          events: expect.arrayContaining([
+            expect.objectContaining({
+              kind: "step_failed",
+              reason_code: "error_ticket_read_only_operation_modified_worktree",
+            }),
+          ]),
+        });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("authorizes a same-account comment fallback only from its relisted remote commit", async () => {
     const fixture = await setup("verify", "review/verify", true);
     try {

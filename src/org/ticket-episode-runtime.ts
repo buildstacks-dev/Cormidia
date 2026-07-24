@@ -496,6 +496,22 @@ async function executeTicketEpisode(
         role,
       }) ?? options.plannerContext;
     },
+    // Asked before an adopted revision would re-enter the exact step it was
+    // authored to repair. The ticket domain can settle such a step from a
+    // preserved prior material event, so it answers from the same evidence
+    // code the handler below uses instead of spending a second turn (#175).
+    // Evidence that fails its own integrity checks is not "completable": the
+    // step is withheld here and enters normally on the next tick, where the
+    // executor turns the same error into that step's typed failure.
+    providerStepCompletableWithoutNewTurn: async (step, plan) => {
+      const definition = ticketProviderOperation(step.operation);
+      if (definition === undefined || definition.role !== step.role) return false;
+      try {
+        return (await completableProviderEvidence({ options, plan, step }, definition)) !== undefined;
+      } catch {
+        return false;
+      }
+    },
     provider: async (step, context) => {
       const plan = await ticketExecutionPlan(
         options.root,
@@ -583,12 +599,20 @@ async function ticketExecutionPlan(
   return plan;
 }
 
-interface TicketProviderExecutionInput {
+/** Everything needed to resolve one planned provider step's durable evidence.
+ *  Deliberately narrower than a step execution: the adopted-revision halt asks
+ *  the same evidence question before any execution context exists. `plan` is
+ *  the immutable plan the step belongs to, so `plan.version` is the version
+ *  the evidence must be bound to. */
+interface TicketProviderEvidenceInput {
   options: TicketEpisodeRuntimeOptions;
-  input: TicketEpisodeExecutionRequest;
-  item: LoopItem;
   plan: EpisodePlan;
   step: ProviderTurnStep;
+}
+
+interface TicketProviderExecutionInput extends TicketProviderEvidenceInput {
+  input: TicketEpisodeExecutionRequest;
+  item: LoopItem;
   context: EpisodeStepExecutionContext;
 }
 
@@ -609,8 +633,7 @@ async function executeTicketProviderStep(
     );
   }
   const role = requireRole(input.options.roles, input.step.role);
-  const prior = await ticketProviderEvidence(input, definition);
-  let evidence = prior ?? await reconciledDoneBuildEvidence(input, definition);
+  let evidence = await completableProviderEvidence(input, definition);
   if (evidence === undefined) {
     const routeAuthority = await exactProviderAuthorization(input, role);
     const context = await providerContext(input, role);
@@ -798,8 +821,20 @@ interface ProviderEvidence {
   reconciledFromPlanVersion?: number;
 }
 
+/** Durable evidence that completes this provider step without spending a new
+ *  turn: this plan version's own terminal record, or a preserved prior blocked
+ *  transport whose content-bound build verdict said done. Single source of
+ *  truth for both the step handler and the adopted-revision halt (#175). */
+async function completableProviderEvidence(
+  input: TicketProviderEvidenceInput,
+  definition: TicketProviderOperationDefinition,
+): Promise<ProviderEvidence | undefined> {
+  return await ticketProviderEvidence(input, definition)
+    ?? await reconciledDoneBuildEvidence(input, definition);
+}
+
 async function ticketProviderEvidence(
-  input: TicketProviderExecutionInput,
+  input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence | undefined> {
   const terminal = (await readExecutionSteps(
@@ -807,7 +842,7 @@ async function ticketProviderEvidence(
     input.plan.episodeId,
   )).filter((record) =>
     record.kind === "provider" &&
-    record.plan_version === input.context.planVersion &&
+    record.plan_version === input.plan.version &&
     record.plan_step_id === input.step.id,
   );
   if (terminal.length > 1) {
@@ -820,14 +855,14 @@ async function ticketProviderEvidence(
 }
 
 async function reconciledDoneBuildEvidence(
-  input: TicketProviderExecutionInput,
+  input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence | undefined> {
-  if (input.context.planVersion <= 1 || definition.verdictKind !== "build") return undefined;
+  if (input.plan.version <= 1 || definition.verdictKind !== "build") return undefined;
   const journal = await readEpisodeReplanJournal(input.options.root, input.plan.episodeId);
   const accepted = journal?.records.findLast((record) =>
     record.status === "accepted" &&
-    record.revisionVersion === input.context.planVersion &&
+    record.revisionVersion === input.plan.version &&
     record.trigger.affectedStepIds.includes(input.step.id));
   if (accepted === undefined) return undefined;
   const priorPlan = await readEpisodePlanVersion(
@@ -867,7 +902,7 @@ async function reconciledDoneBuildEvidence(
 }
 
 async function providerOutput(
-  input: TicketProviderExecutionInput,
+  input: TicketProviderEvidenceInput,
   record: ExecutionStepRecord,
 ): Promise<string> {
   let output: string;
@@ -886,7 +921,7 @@ async function providerOutput(
 }
 
 async function requireTicketProviderEvidence(
-  input: TicketProviderExecutionInput,
+  input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence> {
   const evidence = await ticketProviderEvidence(input, definition);
@@ -897,10 +932,10 @@ async function requireTicketProviderEvidence(
 }
 
 function assertProviderEvidenceMatches(
-  input: TicketProviderExecutionInput,
+  input: TicketProviderEvidenceInput,
   _definition: TicketProviderOperationDefinition,
   record: ExecutionStepRecord,
-  expectedPlanVersion = input.context.planVersion,
+  expectedPlanVersion = input.plan.version,
 ): void {
   if (
     record.role !== input.step.role ||

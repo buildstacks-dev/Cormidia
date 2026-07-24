@@ -302,13 +302,21 @@ the plan version that authorized them. Adapter unavailability never triggers
 silent tuple substitution.
 
 An accepted revision continues immediately under its newly persisted
-authority. A ticket adapter may reconcile a prior blocked transport only when
-the retained typed build verdict says `done`, the revision preserves the exact
-content-hashed step, and the replan journal links that failed step to the new
-version; it then resumes the returned label and runs the remaining gates
-without another provider turn. Rejected revisions remain terminal for that
-invocation, with their durable refusal reason shown by `operon loop`, `operon
-status`, and `operon episode --explain`.
+authority: its mechanical gates, approvals, and never-attempted downstream
+steps all run in the same invocation, so a valid preserve-and-continue plan
+reaches its gates and PR instead of stranding paid work. The one step held
+back is the exact step whose failure authorized the revision — re-entering it
+here would spend a second provider turn repeating the failure that caused the
+replan (typically an unavailable assignment), so it is returned as the queued
+next step. It is held back only when it would genuinely spend that turn: a
+repaired step whose durable evidence already settles it runs now. A ticket
+adapter may reconcile a prior blocked transport only when the retained typed
+build verdict says `done`, the revision preserves the exact content-hashed
+step, and the replan journal links that failed step to the new version; it
+then resumes the returned label and runs the remaining gates without another
+provider turn. Rejected revisions remain terminal for that invocation, with
+their durable refusal reason shown by `operon loop`, `operon status`, and
+`operon episode --explain`.
 
 
 

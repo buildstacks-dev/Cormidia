@@ -553,6 +553,10 @@ describe("EpisodePlanner org orchestrator", () => {
       reasonCode: "ticket_quality_gate_failed",
       summary: "focused test exposed a missing diagnostic",
     }));
+    const mechanical = vi.fn(async (step: { gate: string }) => ({
+      status: "completed" as const,
+      artifact: { gate: step.gate },
+    }));
 
     const result = await orchestrateEpisode({
       root: home.root,
@@ -567,19 +571,25 @@ describe("EpisodePlanner org orchestrator", () => {
         runtimeForAssignment: () => new FakeRuntime([], "codex"),
         contextForProviderStep: () => CONTEXT,
         provider,
-        mechanical: async (step) => ({ status: "completed", artifact: { gate: step.gate } }),
+        mechanical,
         approval: async (step) => ({ status: "completed", artifact: { approval: step.actionRef } }),
         telemetry: { orgDir: home.root, trigger: "manual" },
         now: () => NOW,
       },
     });
 
+    // The accepted revision runs its mechanical gate in this invocation (#175:
+    // an adopted preserve-and-continue plan must actually reach its gates), and
+    // then halts before the revised provider turn rather than spending a second
+    // provider side effect here. So the queued step is the provider retry.
     expect(result.execution).toMatchObject({
       status: "running",
       planVersion: 2,
-      nextStepId: "diagnose-failure",
+      nextStepId: "build",
       replan: { kind: "failed_gate", status: "accepted", revisionVersion: 2 },
     });
+    expect(mechanical).toHaveBeenCalledOnce();
+    expect(mechanical.mock.calls[0]?.[0]).toMatchObject({ gate: "focused-diagnostic" });
     expect(provider).toHaveBeenCalledOnce();
     expect(revisionRuntime.calls).toHaveLength(1);
     expect(await readCurrentEpisodePlan(home.root, episodeId)).toMatchObject({ version: 2 });

@@ -576,6 +576,9 @@ describe("accepted EpisodePlan provider identity and reconciliation", () => {
         artifacts: [],
       },
     }, {
+      // Deliberately scripted and deliberately never spent: the corrective
+      // turn is available, and the adopted revision still must not take it in
+      // the same invocation that authorized it.
       result: completedResult("bounded correction completed from the captured diagnosis"),
     }], "codex");
     const runtimeForAssignment = vi.fn(() => runtime);
@@ -633,10 +636,17 @@ describe("accepted EpisodePlan provider identity and reconciliation", () => {
       proposeRevision,
     });
 
+    // The adopted revision is executed, not parked (#175): its brand-new
+    // mechanical diagnosis is durably complete before this invocation ends, so
+    // no accepted preserve-and-continue work is stranded behind a synthetic
+    // `running`. The single step held back is `build` — the exact step whose
+    // failure authorized this revision. Re-entering it here would spend a
+    // second provider turn repeating the failure that caused the replan, so it
+    // is queued as `nextStepId` for the next tick instead.
     expect(result).toMatchObject({
-      status: "completed",
+      status: "running",
       planVersion: 2,
-      nextStepId: null,
+      nextStepId: "build",
       replan: {
         kind: "failed_gate",
         status: "accepted",
@@ -644,12 +654,29 @@ describe("accepted EpisodePlan provider identity and reconciliation", () => {
       },
     });
     expect(proposeRevision).toHaveBeenCalledOnce();
-    expect(runtime.calls).toHaveLength(2);
-    expect(runtimeForAssignment).toHaveBeenCalledTimes(2);
+    expect(runtime.calls).toHaveLength(1);
+    expect(runtimeForAssignment).toHaveBeenCalledTimes(1);
     expect(await readCurrentEpisodePlan(home.root, target.intent.episodeId))
       .toMatchObject({ version: 2, intentHash: target.plan.intentHash });
-    expect(await readEpisodePlanExecutionJournal(home.root, target.intent.episodeId))
-      .toMatchObject({ status: "completed", current_plan_version: 2 });
+    const journal = await readEpisodePlanExecutionJournal(
+      home.root,
+      target.intent.episodeId,
+    );
+    expect(journal).toMatchObject({
+      status: "running",
+      current_plan_version: 2,
+      events: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "step_completed",
+          plan_version: 2,
+          step_id: "diagnose-failure",
+        }),
+      ]),
+    });
+    // The withheld step is withheld cleanly: no v2 attempt was ever started,
+    // so the next tick begins it as attempt 1 with no live reservation.
+    expect(journal?.events.filter((event) =>
+      event.plan_version === 2 && event.step_id === "build")).toEqual([]);
     expect(await readEpisodeReplanJournal(home.root, target.intent.episodeId))
       .toMatchObject({
         records: [{ status: "accepted", revisionVersion: 2 }],

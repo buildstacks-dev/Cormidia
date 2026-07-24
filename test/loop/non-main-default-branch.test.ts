@@ -35,6 +35,7 @@ import type { CreatorEpisodeScope } from "../../src/loop/episode-plan.js";
 import type {
   CreatePrInput,
   GhPullRequest,
+  ListPullRequestOptions,
   SquashMergeInput,
 } from "../../src/loop/github.js";
 import {
@@ -149,6 +150,44 @@ class DefaultBranchGhOps extends FakeGhOps {
     const headRefOid = git(this.cloneDir, "rev-parse", input.head);
     this.setPrHead(pr.number, headRefOid);
     return { ...pr, headRefOid };
+  }
+
+  /** Real `gh pr list --json headRefOid` reports the head BRANCH's current tip,
+   *  recomputed on every read. The fake instead stamps `headRefOid` once, at PR
+   *  creation, and never moves it — so any later commit on the ticket branch
+   *  (the review fix cycle commits one) leaves the fake frozen at the pre-fix
+   *  sha. `ensurePr` correctly fails closed when gate evidence is bound to a
+   *  revision the PR head does not carry (#180), so a frozen fake fails a
+   *  product check that real `gh` would pass. Re-project the head from the
+   *  branch ref on every read to match the real reporter.
+   *
+   *  Deliberately local to this subclass: `test/loop.test.ts` pins a synthetic
+   *  head on the shared fake to exercise that same fail-closed path, and an
+   *  unconditional refresh there would clobber it. */
+  private branchHead(branch: string): string | undefined {
+    try {
+      return git(this.cloneDir, "rev-parse", branch);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private refresh(pr: GhPullRequest): GhPullRequest {
+    const oid = this.branchHead(pr.headRefName);
+    if (oid === undefined) return pr;
+    if (oid !== pr.headRefOid) this.setPrHead(pr.number, oid);
+    return { ...pr, headRefOid: oid };
+  }
+
+  override async listPRsForBranch(
+    branch: string,
+    options?: ListPullRequestOptions,
+  ): Promise<GhPullRequest[]> {
+    return (await super.listPRsForBranch(branch, options)).map((pr) => this.refresh(pr));
+  }
+
+  override async readPR(selector: number | string): Promise<GhPullRequest> {
+    return this.refresh(await super.readPR(selector));
   }
 
   override async squashMerge(prNumber: number, input: SquashMergeInput): Promise<GhPullRequest> {
@@ -617,6 +656,20 @@ for (const defaultBranch of DEFAULT_BRANCHES) {
         });
         expect(regated.phase).toBe("reviewing");
         expect(regated.gateResults[regated.gateResults.length - 1]?.tier).toBe("high");
+
+        // `ensurePr`'s EXISTING-pr branch: the second gate run reuses the open
+        // PR and rewrites its managed evidence block in place. #180 requires
+        // that block to name the revision it was actually evaluated at, so the
+        // published revision must be the post-fix head — not the pre-fix sha
+        // the PR was opened at — and the managed block must be replaced, never
+        // appended a second time.
+        const postFixHead = git(fixed.worktree as string, "rev-parse", "HEAD");
+        expect(postFixHead).not.toBe(git(item.worktree as string, "rev-parse", `origin/${defaultBranch}`));
+        const pr = await h.gh.readPR(regated.prNumber as number);
+        expect(pr.headRefOid).toBe(postFixHead);
+        expect(pr.body).toContain(`**Revision:** \`${postFixHead}\``);
+        expect(pr.body.match(/<!-- operon:gate-evidence:start -->/g)).toHaveLength(1);
+        expect(pr.body.match(/<!-- operon:gate-evidence:end -->/g)).toHaveLength(1);
       } finally {
         home.cleanup();
         h.cleanup();

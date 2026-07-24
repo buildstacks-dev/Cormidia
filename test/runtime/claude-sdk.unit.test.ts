@@ -6,7 +6,9 @@
 // state, or wall-clock time is required.
 
 import { describe, expect, it } from "vitest";
+import { dirname, join } from "node:path";
 import type { Options as SdkOptions, SDKMessage, SyncHookJSONOutput } from "@anthropic-ai/claude-agent-sdk";
+import { makeBareWithClone } from "../fixtures/gitRepo.js";
 import {
   buildSystemPromptAppend,
   ClaudeRuntime,
@@ -144,6 +146,54 @@ describe("ClaudeRuntime (SDK mocked)", () => {
       gate: defaultGate,
     });
     expect(captured.options?.maxTurns).toBe(7);
+  });
+
+  // ISSUE-046 / #179. The Claude sandbox confines writes to `allowWrite`. A
+  // linked worktree keeps its index, branch ref, and reflog OUTSIDE the
+  // worktree directory, so declaring only the workdir strands a fully
+  // implemented ticket at its atomic commit. The sibling Codex assertion lives
+  // in test/adapters/codex.test.ts; without this one, reverting claude.ts's
+  // `gitWorktreeWritableRoots(workdir)` back to `[workdir]` breaks no test.
+  it("declares a linked worktree's real Git directories writable", async () => {
+    const pair = makeBareWithClone();
+    try {
+      const worktree = join(pair.root, "ticket-worktree");
+      pair.clone.git("worktree", "add", "-b", "op/claude-sandbox-roots", worktree, "main");
+      const gitDir = pair.clone.git("-C", worktree, "rev-parse", "--absolute-git-dir");
+      const objectsDir = pair.clone.git("-C", worktree, "rev-parse", "--git-path", "objects");
+      const branchRef = pair.clone.git("-C", worktree, "symbolic-ref", "HEAD");
+      const branchRefDir = dirname(
+        pair.clone.git("-C", worktree, "rev-parse", "--git-path", branchRef),
+      );
+      const branchReflogDir = dirname(
+        pair.clone.git("-C", worktree, "rev-parse", "--git-path", `logs/${branchRef}`),
+      );
+      const { captured, queryFn } = scriptedQuery([initMsg("s1"), successMsg("s1")]);
+
+      await new ClaudeRuntime({
+        queryFn,
+        // The hermetic sandbox settings are only assembled for a protected
+        // home, which is the configuration every live builder turn runs under.
+        protectedHome: "/Users/example",
+        baseOptions: { env: { HOME: "/Users/example", PATH: "/usr/bin" } },
+      }).runTurn(makeReq({ workdir: worktree }), { gate: defaultGate });
+
+      const filesystem = (captured.options?.settings as {
+        sandbox?: { filesystem?: { allowWrite?: string[] } };
+      }).sandbox?.filesystem;
+      expect(filesystem?.allowWrite).toEqual([
+        worktree,
+        gitDir,
+        objectsDir,
+        branchRefDir,
+        branchReflogDir,
+      ]);
+      // The index lives outside the worktree — the whole point of the fix.
+      expect(gitDir).not.toBe(join(worktree, ".git"));
+      expect(filesystem?.allowWrite).toContain(dirname(join(gitDir, "index")));
+    } finally {
+      pair.cleanup();
+    }
   });
 
   it("protects a macOS auth HOME from model tools while re-allowing the worktree", async () => {

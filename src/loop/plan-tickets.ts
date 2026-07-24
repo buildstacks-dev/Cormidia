@@ -229,6 +229,13 @@ export interface TicketPlan {
    *  body as a `Release-kind:` trailer; the ship gate cross-checks it
    *  against the app's declared `release:` mechanism. */
   releaseKind: ReleaseKind;
+  /** The milestone's release version (`vX.Y.Z`), rendered as a
+   *  `Release-version:` trailer. A `trigger: tag` app fixes its deploy tag from
+   *  this at merge (the tag must be known when the approval binds), so the
+   *  Planner declares it for deployable milestones; command/merge-only
+   *  mechanisms ignore it. Optional: the ship gate (P7) enforces its presence
+   *  only where the app's mechanism actually needs it. */
+  releaseVersion?: string;
   tickets: PlanTicket[];
 }
 
@@ -374,6 +381,7 @@ export const PLAN_SCHEMA: Record<string, unknown> = {
     ticketCountRationale: { type: "string" },
     releaseDisposition: { type: "string" },
     releaseKind: { type: "string", enum: [...RELEASE_KINDS] },
+    releaseVersion: { type: "string", pattern: "^v?\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$" },
     tickets: {
       type: "array",
       minItems: 1,
@@ -471,6 +479,12 @@ function planProblems(plan: TicketPlan, budget: number): string[] {
         "the ship gate needs the machine-readable half of the disposition (P7)",
     );
   }
+  if (plan.releaseVersion !== undefined && !RELEASE_VERSION_RE.test(plan.releaseVersion)) {
+    problems.push(
+      `releaseVersion "${String(plan.releaseVersion)}" is not a vX.Y.Z version — a tag ` +
+        "release fixes its git tag from this, so it must be a concrete semver (P7)",
+    );
+  }
   if (plan.stage === "bootstrap" && plan.tickets.some((t) => t.tier === "op:tier-deep")) {
     problems.push(
       "bootstrap tickets must not be op:tier-deep — deep is for auth/payments/data-loss surfaces, " +
@@ -533,6 +547,7 @@ export function renderTicketBody(
   ticket: PlanTicket,
   issueNumbers: readonly (number | undefined)[],
   releaseKind?: ReleaseKind,
+  releaseVersion?: string,
   planningSources?: PlanningSourceTicketEvidence,
   provenance?: PlanProvenance,
 ): string {
@@ -544,6 +559,7 @@ export function renderTicketBody(
     ...(deps.length > 0 ? [deps.join("\n"), ""] : []),
     `Execution group: ${ticket.executionGroup}`,
     ...(releaseKind !== undefined ? [`Release-kind: ${releaseKind}`] : []),
+    ...(releaseVersion !== undefined ? [`Release-version: ${releaseVersion}`] : []),
     ...(provenance !== undefined
       ? [
           `Planned-by: episode=${encodeProvenanceId(provenance.episodeId)} ` +
@@ -854,7 +870,7 @@ export async function publishPlanProjection(
     for (const { index, ticket, labels, ready } of projection.tickets) {
       const issue = await gh.createIssue({
         title: ticket.title,
-        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, planningSources, provenance),
+        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, projection.plan.releaseVersion, planningSources, provenance),
         labels,
       });
       issueNumbers[index] = issue.number;
@@ -866,7 +882,7 @@ export async function publishPlanProjection(
       if (ticket.dependsOn.some((dep) => dep > index)) {
         await gh.updateIssueBody(
           issueNumbers[index]!,
-          renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, planningSources, provenance),
+          renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, projection.plan.releaseVersion, planningSources, provenance),
         );
       }
     }

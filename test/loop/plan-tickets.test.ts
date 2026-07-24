@@ -98,6 +98,13 @@ describe("validatePlan", () => {
     expect(result.problems.some((p) => p.includes("releaseKind"))).toBe(true);
   });
 
+  it("accepts a valid releaseVersion and rejects a non-semver one", () => {
+    expect(validatePlan(plan({ releaseVersion: "v1.2.3" })).ok).toBe(true);
+    const bad = validatePlan(plan({ releaseVersion: "latest" }));
+    expect(bad.ok).toBe(false);
+    expect(bad.problems.some((p) => p.includes("releaseVersion"))).toBe(true);
+  });
+
   it("rejects vague criteria, bad dependency indexes, and a fully serial graph", () => {
     const result = validatePlan(
       plan({
@@ -227,6 +234,15 @@ describe("renderTicketBody", () => {
     expect(parseReleaseKind(body)).toBe("deploy");
   });
 
+  it("renders and reads back the Release-version trailer for a tag release", () => {
+    const body = renderTicketBody(ticket(), [], "deploy", "v2.1.0");
+    expect(body).toContain("Release-kind: deploy");
+    expect(body).toContain("Release-version: v2.1.0");
+    expect(parseReleaseVersion(body)).toBe("v2.1.0");
+    // Omitted version renders no trailer.
+    expect(renderTicketBody(ticket(), [], "deploy")).not.toContain("Release-version:");
+  });
+
   it("pre-A4 bodies carry no release requirement", () => {
     const body = renderTicketBody(ticket(), []);
     expect(body).not.toContain("Release-kind:");
@@ -240,7 +256,7 @@ describe("renderTicketBody", () => {
       runId: "20260718-090000-plan-bootstrap-bootstrap-plan",
       traceId: "plan-greenfield-1234",
     };
-    const body = renderTicketBody(ticket(), [], "deploy", undefined, provenance);
+    const body = renderTicketBody(ticket(), [], "deploy", undefined, undefined, provenance);
     expect(body).toContain(
       "Planned-by: episode=trace:greenfield:plan-greenfield-1234 " +
         "run=20260718-090000-plan-bootstrap-bootstrap-plan trace=plan-greenfield-1234",
@@ -267,7 +283,7 @@ describe("renderTicketBody", () => {
       runId: "20260718-090000-plan-bootstrap-bootstrap-plan",
       traceId: "plan-my app-1234",
     };
-    const body = renderTicketBody(ticket(), [], undefined, undefined, provenance);
+    const body = renderTicketBody(ticket(), [], undefined, undefined, undefined, provenance);
     expect(parsePlannedBy(body)).toEqual(provenance);
   });
 
@@ -280,11 +296,11 @@ describe("renderTicketBody", () => {
     expect(parsePlannedBy(body)).toBeUndefined(); // …but never reads back
     // A genuine header trailer still parses with forged prose present.
     const provenance: PlanProvenance = { episodeId: "e", runId: "r", traceId: "t" };
-    expect(parsePlannedBy(renderTicketBody(forged, [], undefined, undefined, provenance))).toEqual(provenance);
+    expect(parsePlannedBy(renderTicketBody(forged, [], undefined, undefined, undefined, provenance))).toEqual(provenance);
   });
 
   it("renders content-bound planning-source references without publishing source bytes", () => {
-    const body = renderTicketBody(ticket(), [], "merge-only", {
+    const body = renderTicketBody(ticket(), [], "merge-only", undefined, {
       manifestSha256: "manifest-hash",
       sources: [{
         canonicalRef: "git:abc123:docs/design/spec.md",

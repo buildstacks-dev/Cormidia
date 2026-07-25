@@ -134,6 +134,18 @@ The per-path rulebook (moved from root AGENTS.md 2026-07-21).
   [CI lanes](#ci-lanes)).
 - New tests: reuse the composable fixtures `test/fixtures/orgHome.ts` and
   `test/fixtures/fakeClock.ts` instead of a new ad-hoc mkdtemp scaffold.
+- Any defect fix: deposit its detector in the same change — the cheapest
+  offline test that reconstructs the exact failing state and asserts the
+  correct recovery, red against the pre-fix code (prove it by revert or a
+  targeted mutation) and green with the fix. Extend the suite that already
+  owns the area rather than opening a per-issue file; findings from operator
+  runs follow the existing `*-runN-regression` naming. When the failure
+  depends on environment, sandbox, or timing and cannot be cheaply reproduced
+  offline, guard the nearest deterministic seam instead — a
+  provision/preflight assertion that fails cheaply when the invariant is
+  broken — and state in the PR that the finding is guarded by preflight, not
+  reproduction. A fix that lands without either is incomplete; a live run is
+  not a regression test.
 - Docs-only changes: nothing to run.
 
 ## When CI runs at all

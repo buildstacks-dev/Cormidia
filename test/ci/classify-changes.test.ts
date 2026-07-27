@@ -47,6 +47,7 @@ describe("docs-only changes admit no lane", () => {
     // bytes. This case turns that into a loud failure.
     const { readFileSync } = await import("node:fs");
     const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { files: string[] };
+    // @ts-expect-error -- dependency-free .mjs CI helper, deliberately untyped.
     const { __testing } = await import("../../scripts/ci/classify-changes.mjs");
     for (const packagedDoc of ["docs/policy.yaml.template", "docs/scheduler/design.md"]) {
       expect(pkg.files, packagedDoc).toContain(packagedDoc);

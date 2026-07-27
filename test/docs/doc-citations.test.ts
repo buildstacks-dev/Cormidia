@@ -102,7 +102,7 @@ function headingSlugs(markdown: string): Set<string> {
   const slugs = new Set<string>();
   for (const line of markdown.split("\n")) {
     const match = /^#{1,6}\s+(.+?)\s*$/.exec(line);
-    if (match) slugs.add(slug(match[1]));
+    if (match?.[1]) slugs.add(slug(match[1]));
   }
   return slugs;
 }
@@ -131,9 +131,11 @@ describe("documentation citations resolve", () => {
     for (const file of markdownFiles) {
       const text = readFileSync(join(repoRoot, file), "utf8");
       for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
-        const raw = match[1];
+        const raw = match[1] ?? "";
         if (/^(?:https?:|mailto:)/.test(raw)) continue;
-        const [pathPart, anchor] = raw.split("#", 2);
+        const hashIndex = raw.indexOf("#");
+        const pathPart = hashIndex === -1 ? raw : raw.slice(0, hashIndex);
+        const anchor = hashIndex === -1 ? "" : raw.slice(hashIndex + 1);
         const target = pathPart === "" ? join(repoRoot, file) : resolve(repoRoot, dirname(file), pathPart);
         if (!existsSync(target)) {
           failures.push(`${file} links missing ${raw}`);

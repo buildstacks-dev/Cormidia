@@ -4,6 +4,16 @@ This is the canonical developer-lifecycle policy for the Operon platform.
 It applies to humans and coding agents changing this repository. It does not
 grant authority to, configure, or become context for an Operon-operated org.
 
+Three terms carry this document. A **campaign** is one predeclared batch of
+evaluation runs against a pinned build: the cases, repetition counts,
+budgets, and stop rules are all declared before the first model call, and
+the results are immutable once recorded. An **episode** is one end-to-end
+unit of org work — one outcome, one route. A **provider turn** is a single
+call into a model adapter, settled into the cost ledger exactly once. The
+normative definitions live in `docs/episodes/contract.md` → Normative
+identities and `docs/qualification/design.md` → Campaign and result
+semantics.
+
 ## Two independent control planes
 
 | | Build and maintain Operon | Operate an org with Operon |
@@ -31,47 +41,54 @@ them. `test/development-boundary.test.ts` pins this packaging separation.
 
 ## One objective, bounded autonomy
 
-A human may authorize a development objective once. That authorization covers
-ordinary isolated descendants needed to reach it: investigation, code and doc
-changes, token-free tests, focused provider admission, repaired candidates,
-disposable eval GitHub exercises, final qualification, evidence handling, PR,
-CI repair, and shipping. A changed commit invalidates prior evidence identity;
-it does not by itself invalidate the objective authority.
+A human authorizes a development objective **once**, and that one
+authorization covers the ordinary work of reaching it: investigation, code
+and doc changes, token-free tests, small focused campaigns, repaired
+candidates, disposable eval repos on GitHub, final qualification, evidence
+handling, the PR, CI repair, and shipping. There is no re-approval loop for
+each step. When the candidate commit changes, the *evidence* tied to the old
+commit expires — the objective's authority does not.
 
-Provider campaigns bind the standing grant into each immutable manifest. The
-grant declares the objective, repair lineage, allowed campaign types, private
-GitHub namespace, billing mode, cumulative equivalent-cost ceiling, and zero-
-effect boundary. The command-line environment switch and exact campaign
-confirmation remain two-key accident guards that the developer supplies; they
-are not repeated requests for human approval.
+The authorization is written down as a standing grant, and every campaign
+binds that grant into its immutable manifest. The grant names the objective,
+the repair lineage it covers, which campaign types it allows, the private
+GitHub namespace, the billing mode, a cumulative spend ceiling, and the
+promise of zero outward effects. The `OPERON_EVAL_LIVE=1` switch and the
+exact `--confirm <campaign-id>` are accident guards the developer supplies —
+two keys against running the wrong thing — not repeated requests for human
+approval.
 
-Equivalent USD is an accounting and loop-detection measurement. For a declared
-subscription-backed grant it is not a claim of incremental token billing. The
-circuit breaker counts historical spend plus every immutable descendant
-attempt, including failed attempts and typed retries, and stops before the
-cumulative ceiling. Never overwrite or omit an attempt to recover capacity.
+Spend is counted in **equivalent USD** even when billing is
+subscription-backed. It is a loop detector, not an invoice: the circuit
+breaker adds up the grant's whole history — including failed attempts and
+typed retries — and stops before the ceiling. Never drop or overwrite an
+attempt to win back headroom.
 
 ## Proportionate release evidence
 
-Evaluation exists to reduce material product risk, not to create an infinite
-proof loop. Product behavior, safety boundaries, provider settlements and
-accounting, learning integrity, builds, typechecks, core tests, required CI,
-and campaign budget ceilings are release blockers. Evaluator-only false
-positives, redundant exact-candidate admission demands already bounded by
-retained evidence, report or metadata defects, preserved transient
-infrastructure failures, and unnecessary repetition are release debt rather
-than product failures.
+Evaluation exists to reduce real product risk, not to prove things forever.
+Failures split into two categories. **Release blockers** are defects in the
+thing being shipped: product behavior, safety boundaries, provider
+settlement and accounting errors, learning-integrity failures, broken
+builds, typechecks, core tests, required CI, and blown campaign budget
+ceilings. **Release debt** is a failure of the *evaluator* rather than the
+product: a grader's false positive, a demand to re-prove a candidate whose
+risk existing evidence already bounds, defects in reports or metadata, a
+transient infrastructure failure that was properly preserved, and plain
+unnecessary repetition. Blockers stop the release; debt ships — bounded,
+disclosed, and on the record.
 
-Keep that debt immutable and explicit. Never rescore, overwrite, relabel,
-conceal, or promote a failed campaign, and never weaken product behavior,
-graders, thresholds, assignments, accounting, safety, learning rules, or CI.
-When deterministic regressions and prior live evidence bound the material risk,
-an evaluator-only failure does not restart an adapter/focused/full cascade. One
-repaired candidate receives at most one decisive full qualification campaign
-unless a genuine product defect materially changes the candidate. A pre-V1
-release may ship with bounded, disclosed evaluator debt.
+Debt stays immutable and visible. Never rescore, overwrite, relabel,
+conceal, or promote a failed campaign — and never make a red result green by
+weakening the product, graders, thresholds, assignments, accounting, safety,
+learning rules, or CI. When deterministic regression tests and earlier live
+evidence already bound the risk, an evaluator-only failure does not restart
+the whole adapter → focused → full campaign cascade: one repaired candidate
+gets at most one decisive full qualification campaign, unless a genuine
+product defect materially changes it. A pre-V1 release may ship with
+bounded, disclosed evaluator debt.
 
-Fresh human direction is required only for a genuinely new decision:
+Go back to the human only for a genuinely new decision:
 
 - expanding the objective, repository namespace, production path, or outward
   effects;

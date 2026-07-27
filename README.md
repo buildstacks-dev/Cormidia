@@ -261,7 +261,9 @@ Onboarding claims follow an evidence ladder:
 These are evidence claims, not five new `apps.yaml` values; registry state
 remains `onboarding | live | paused`. `new-app` reaches generated, while a
 successful bootstrap reaches registered. Neither alone proves runtime-ready,
-live, or autonomous scheduling.
+live, or autonomous scheduling. The design contract behind all of this —
+what bootstrap scans, what verify proves, how promote executes — is
+[`docs/org/onboarding.md`](docs/org/onboarding.md).
 
 Scheduler lifecycle is explicitly gated. Preview the exact org-scoped
 definition first, then execute only with the reported identity (or exact org

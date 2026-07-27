@@ -2,8 +2,10 @@
 
 *How an app enters and leaves readiness states: `operon new-app` (greenfield),
 `operon bootstrap` (existing repo), and the token-free `app reset`/`verify`/
-`promote` lifecycle commands. Registry and budget are [`apps.md`](apps.md);
-the evidence-ladder claim vocabulary is
+`promote` lifecycle commands. This is the design contract; the operator
+walk-through (install, org init, first bootstrap) is README → Install
+locally. Registry and budget are [`apps.md`](apps.md); the evidence-ladder
+claim vocabulary is
 [`../episodes/contract.md`](../episodes/contract.md); the system map is
 [`../architecture.md`](../architecture.md) §9.*
 

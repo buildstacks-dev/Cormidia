@@ -1,11 +1,12 @@
 # Operon Architecture
 
-*v1.7 — last aligned 2026-07-26. `docs/PURPOSE.md` → Decided is upstream and
-authoritative; this document holds the implementation map the decision layer
-deliberately does not. Route, budget, and measurement norms live
-only in `docs/episodes/contract.md`; platform qualification and release
-gating in `docs/qualification/design.md`. Propose implementation changes here; promote
-decisions to PURPOSE only after human ratification.*
+*v1.8 — last aligned 2026-07-27. This is the implementation map: how Operon
+actually runs, and where each subsystem's full contract lives. Decisions and
+their history belong to `docs/PURPOSE.md` → Decided; numeric budgets, routes,
+and measurement definitions live only in `docs/episodes/contract.md`;
+qualification and release gating in `docs/qualification/design.md`. Propose
+implementation changes here first, and promote them to PURPOSE only after
+human ratification.*
 
 ## 0. Overview
 
@@ -87,21 +88,26 @@ escalations land in the CLI approval queue ── §4
 telemetry / memory / scorecard events written at turn end ── §6
 ```
 
-**How the dispatcher "decides":** there is no planning intelligence in the
-tick — *deciding is computing what is due*. Every ~5 minutes a stateless tick
-merges roles.yaml triggers with apps.yaml overrides, checks schedule state,
-polls GitHub for new events, starts a detached turn for each due (role, app),
-and exits. Turns outlive ticks (§2); a fresh lock heartbeat skips that
-(role, app) while unrelated work may start in parallel up to the org WIP limit.
+**There is no planning intelligence in the tick.** Every ~5 minutes the
+dispatcher wakes, works out which (role, app) pairs are due, starts a detached
+process for each, and exits. "Due" is arithmetic: a role's schedule in
+roles.yaml says it is time (apps.yaml may override the cadence per app), or an
+event the role subscribes to has arrived from GitHub or the local event inbox.
+A turn keeps running after the tick that started it ends; the next tick sees
+its fresh lock heartbeat and leaves it alone, while other due work starts in
+parallel up to the org-wide WIP limit (§2).
 
-Every due episode admits a plan-derived route and budget **before** provider
-work: a bounded `EpisodeIntent`, then either token-free creator-scope
-normalization or EpisodePlanner, then a schema-validated durable `EpisodePlan`
-that owns the step DAG and exact harness/model/effort assignments. Identities and
-numeric ceilings live only in `docs/episodes/contract.md`, qualification
-semantics in `docs/qualification/design.md`;
-this document places intent/plan/journal/settlement modules on the import path
-(`src/org` → `src/loop` → `src/runtime`). Observe and report are read-only.
+Before any model is called, every due episode gets a plan. The dispatcher
+gathers the deterministic facts into a bounded `EpisodeIntent`; the plan is
+then either normalized token-free from a complete creator-supplied scope, or
+designed by the EpisodePlanner in one bounded turn. Either way the result is
+a schema-validated, durable `EpisodePlan` that owns the step DAG and the
+exact harness/model/effort assignment of every provider step. The numeric
+ceilings and identity definitions behind all of this live in
+`docs/episodes/contract.md`; qualification semantics in
+`docs/qualification/design.md`. Code-wise, the intent/plan/journal/settlement
+modules sit on a one-way import path (`src/org` → `src/loop` →
+`src/runtime`), and the observe/report surfaces are read-only leaves.
 
 Newer work never assumes older work finished:
 
@@ -132,16 +138,22 @@ Newer work never assumes older work finished:
 | Release handoff | `src/org/release.ts` | approved deploy executed once by later dispatch |
 | Package/org/state boundary | `src/org/home.ts` | org init, active pointer, state-home resolution |
 
-A **role invocation** is one scheduled, event-driven, or manual invocation of
-a role. A **pass** is a configured protocol stage. A **provider turn** is one
-adapter invocation and one settlement. An **execution step** is one terminal
-provider or mechanical record; a **mechanical step** constructs no adapter.
-Each planned provider step carries one indivisible `TurnAssignment`
-`{harness, model, effort}` — never a silent substitute. The runtime gate is a
-pure `GateFn`; the org composes grants (§4) and passes them down. Adapters run
-headless with a non-interactive environment overlay and deny-first dependency
-builds (`PNPM_CONFIG_IGNORE_SCRIPTS`); tickets that need builds opt in via
-`setup_command`.
+A few terms recur throughout (normative definitions:
+`docs/episodes/contract.md`). A **role invocation** is one wake-up of a role,
+whether scheduled, event-driven, or manual. Within it, a **pass** is one
+configured protocol stage — build, review, fix. A **provider turn** is one
+actual call into a model adapter, and it settles into the cost ledger exactly
+once. An **execution step** is one terminal record in an episode's plan;
+a **mechanical step** is the deterministic kind that never constructs an
+adapter and never spends tokens.
+
+Three cross-cutting rules: every planned provider step carries one
+indivisible `TurnAssignment` `{harness, model, effort}` and nothing may
+silently substitute a member; the runtime gate is a pure `GateFn`, with the
+org composing grants (§4) and passing them down; and adapters run headless
+with a non-interactive environment overlay and dependency builds denied by
+default (`PNPM_CONFIG_IGNORE_SCRIPTS`) — a ticket that needs builds opts in
+via `setup_command`.
 
 ## 1. On-disk layout
 
@@ -189,39 +201,43 @@ skills/                  promoted skills (Agent Skills standard)
 retro/<date>.md          weekly retro notes (§6)
 ```
 
-`operon org init <path> --name <name> --dry-run [--json]` builds the same
-read-only init manifest execution consumes: resolved org/state/pointer effects,
-every generated file and directory, authority summary, packaged role chart,
-and any nested collision blocker. It writes no target, state, pointer, or stage.
-Execution remains the compatibility default. An absent target is atomically
-staged, validated, and renamed; an existing real directory is populated with
-exclusive file creation and exact-entry rollback while unrelated bytes and
-reusable directories remain untouched. A complete org directs the operator to
-`operon org use <path>`. Generated-file, nested-path, non-directory,
-overlapping, or symlink collisions fail before target mutation. Successful
-execution creates the state home and writes `~/.operon/config` with the active
-`org_home`. Onboarding selects `delegated-operator` (default),
-`conservative`, or an attributable custom authority file and previews both
-automatic and human-gated actions. A pre-feature org with no `AUTHORITY.md`
-fails closed to the built-in legacy-conservative profile; it never silently
-inherits the newer delegated default. `operon org use <path>` selects an existing complete tree.
-`OPERON_ORG_HOME` is the explicit non-persistent override.
+`operon org init <path> --name <name>` creates a complete org home from the
+packaged templates. With `--dry-run` it is a read-only preflight that prints
+exactly what execution would do — the resolved org/state/pointer paths, every
+file it would generate, the authority summary, and the packaged role chart —
+and writes nothing. Execution stages an absent target atomically (build,
+validate, rename into place); an existing real directory is populated with
+exclusive file creation and exact rollback, leaving unrelated files
+untouched. Any collision — a generated path that already exists, a nested
+org, a non-directory, a symlink — fails before anything is mutated, and a
+directory that already holds a complete org just points the operator at
+`operon org use <path>`. Success creates the state home and records the
+active org in `~/.operon/config`.
 
-`operon org upgrade` is the token-free legacy migration boundary. Its default
-is a byte-stable, non-mutating schema/change plan. Execution requires an
-explicit authority choice when a legacy org has no charter, copies only
-missing packaged surfaces (including newly introduced nested prompt/taste
-files inside an already-present tree), adds the registry schema marker without rewriting
-app entries, writes a checksummed archive outside state, and validates the
-complete org plus effective authority afterward. Existing ratified surfaces
-are never replaced. A deterministic stage and dead-process-aware org lock make
-an interrupted migration safely rerunnable; thrown failures restore the exact
+Onboarding also picks an authority profile: `delegated-operator` (the
+default), `conservative`, or an attributable custom file — previewing which
+actions will run automatically and which will wait for a human. An older org
+with no `AUTHORITY.md` fails closed to the built-in legacy-conservative
+profile; it never silently inherits the newer delegated default.
+`OPERON_ORG_HOME` overrides the active pointer for a single process.
+
+`operon org upgrade` migrates a legacy org, spending no tokens. By default it
+only prints a byte-stable plan of the schema changes it would make. Execution
+copies only the packaged surfaces that are missing (including nested
+prompt/taste files newly introduced inside an existing tree), adds the
+registry schema marker without rewriting app entries, writes a checksummed
+archive outside the state home, and validates the whole org plus its
+effective authority afterward. Ratified surfaces that already exist are never
+replaced, and a legacy org with no charter must choose an authority profile
+explicitly. A deterministic staging step plus a dead-process-aware lock make
+an interrupted migration safe to rerun; a thrown failure restores the exact
 archived bytes.
 
 ### App reset, verify, and promote
 
 Token-free lifecycle commands for repeatable onboarding and readiness —
 [`docs/org/onboarding.md`](org/onboarding.md).
+
 ### App repo (target product repo)
 
 ```
@@ -303,17 +319,28 @@ Reports and narrative are sibling presentation leaves (`docs/reporting/design.md
 
 ## 2. Dispatcher & scheduler
 
-**Model: stateless tick, not a daemon.** Every ~5 minutes an org-scoped host
-trigger (launchd today; a future systemd user timer shares the same backend
-boundary) invokes the ordinary `operon dispatch`, which reads config plus
-durable state, computes what is due, starts detached turns, and exits — there
-is no competing daemon or workflow engine. Deciding is computing what is due:
-roles.yaml triggers merge with apps.yaml cadence overrides, GitHub and the
-file-drop event inbox are polled per live app, consumed events dedup durably,
-locks and the org WIP limit bound concurrency, and due provider work still
-enters only through the EpisodePlanner boundary (§0, §8). Turns outlive the
-tick, a wedged host resumes on the next tick, and missed windows collapse to
-one firing.
+Operon has no daemon. The "scheduler" is the operating system's own timer —
+launchd on macOS today, a systemd user timer later on a server — firing the
+ordinary `operon dispatch` command every ~5 minutes. Each tick is a fresh,
+stateless process: it reads configuration and durable state, decides what is
+due, spawns one detached turn per due (role, app), and exits.
+
+"Due" is a computation, not a judgment call. A role is due when its
+roles.yaml trigger fires: either its schedule (say `daily 08:00`, with
+apps.yaml able to override the cadence per app) or an event it subscribes to,
+which the tick discovers by polling GitHub and the local file-drop inbox for
+each live app. Consumed events are recorded durably, so one event wakes a
+role exactly once. Locks and the org-wide WIP limit decide how much runs
+concurrently. And deciding *when* something runs never decides *what* runs —
+any work that needs a model still enters through the EpisodePlanner boundary
+(§0, §8) first.
+
+The stateless-tick model buys three properties cheaply. A long turn simply
+keeps running while later ticks see its lock and skip it — turns outlive the
+tick that started them. A hung or sleeping machine needs no recovery
+procedure — the next tick that manages to run picks everything up. And when
+a laptop wakes up having slept through many scheduled windows, each missed
+role fires once, not once per missed window.
 
 [`docs/scheduler/design.md`](scheduler/design.md) is the canonical contract:
 trigger grammar and event polling, trigger→protocol routing, locking and
@@ -325,59 +352,77 @@ semantics. Company-lifecycle event payloads for the file-drop inbox are
 
 ## 3. Turn lifecycle & state machine
 
-One role invocation is a journaled, lock-held, worktree-isolated execution:
-`dispatch → journal → worktree acquire → context assembly (§5) → adapter turn
-→ collect artifacts/escalations/usage → telemetry + scorecards → release
-lock`, with the journal written synchronously at every phase transition as the
-crash-recovery source of truth. Operon cuts worktrees from its own per-app
-clone — never the human's checkouts; GitHub is the only sync point. Recovery
-reopens the accepted plan and journal at artifact boundaries
-(`intent → plan → route → ready step → terminal evidence`); restart-clean may
-discard only scratch never accepted as an episode artifact; and four
-idempotency rules (durable progress is explicit; artifact before label;
-claims are label flips; non-git writes append-only keyed by turnId) keep a
-dead turn from leaving the repo half-done.
+A role invocation runs as one journaled, lock-held, worktree-isolated
+process. Its life is a fixed sequence: dispatch spawns it; it writes a
+journal entry, holds the (role, app) lock, acquires a worktree, assembles
+context (§5), runs the adapter turn, collects artifacts, escalations, and
+usage, writes telemetry and scorecard events, and releases the lock. The
+journal is rewritten synchronously at every phase change, which makes it the
+crash-recovery source of truth: whatever the journal last said is where
+recovery begins.
+
+Isolation is physical. Operon keeps its own clone of each app under the
+state home and cuts worktrees from that clone; it never touches the human's
+personal checkouts of the same repositories — GitHub is the only place where
+human and org work meet.
+
+Crashes recover at artifact boundaries, not by re-running from the top.
+Recovery reopens the accepted plan and journal, finds the last durable
+artifact (`intent → plan → route → ready step → terminal evidence`), and
+continues from there; restart-clean may throw away only scratch that was
+never accepted as an episode artifact. Four idempotency rules keep a dead
+turn from leaving the repo half-done: durable progress is explicit, the
+artifact is created before the label that announces it, claims are atomic
+label flips, and non-git writes are append-only keyed by turnId.
 [`docs/loop/turns.md`](loop/turns.md) is the full contract.
 
 ### Build-loop state machine (`src/loop`) — see `docs/loop/design.md`
 
-The loop is Operon's center of gravity — a framework-agnostic TypeScript
-re-engineering of the predecessor orchestrator (`docs/loop/design.md` §0), **not**
-a thin state machine over opaque role turns (decided 2026-07-04: control and
-gates, never "throw a ticket at an agent"). `docs/loop/design.md` is the
-authoritative design — passes, briefs, gates, verdicts, review dimensions,
-and acceptance-criteria discipline all live there. Summary:
+The loop is Operon's center of gravity: a framework-agnostic TypeScript
+re-engineering of the predecessor orchestrator (`docs/loop/design.md` §0).
+Its founding thesis is control and gates, never "throw a ticket at an agent"
+— it is not a thin state machine over opaque role turns.
+`docs/loop/design.md` is the authoritative design; passes, briefs, gates,
+verdicts, review dimensions, and acceptance-criteria discipline all live
+there. In summary:
 
-- A validated plan provider step currently uses the pass executor as a
-  one-step transport: it invokes `runTurn` with the planned atomic assignment,
-  assembled budgeted **brief**, role authority, and fresh session. Existing
-  static pass pipelines remain readable for historical episodes and
-  compatibility entry points, but cannot add work to an accepted EpisodePlan.
-  Any extra adapter invocation remains a distinct provider turn and settlement
-  (`docs/loop/design.md` §§2–4).
-- **Mechanical quality gates** (setup/tests/lint/e2e/secret-scan/
-completeness/review-freshness, risk-tiered by `.operon/policy.yaml`) run
-as orchestrator subprocesses after build passes and twice at ship —
-distinct from the safety gate; no agent prose ever drives a side effect
-(`docs/loop/design.md` §5).
-- Item states: `ready → building → gates → reviewing → shipping → merged`,
-with bounded remediation (3) and review cycles (3) → `returned`.
-`approve` + green gates + freshness → **the orchestrator squash-merges**
-(agents never merge), deletes the branch, closes the ticket via
-`Closes #N`. All states derive from GitHub artifacts; any tick advances
-any item (`docs/loop/design.md` §7).
+- Each provider step in a validated plan runs through the pass executor as a
+  one-step transport: `runTurn` with the planned atomic assignment, an
+  assembled and budgeted **brief**, the role's authority, and a fresh
+  session. The older static pass pipelines remain readable for historical
+  episodes, but they cannot add work to an accepted EpisodePlan, and any
+  extra adapter invocation is always its own provider turn with its own
+  settlement (`docs/loop/design.md` §§2–4).
+- **Mechanical quality gates** — setup, tests, lint, e2e, secret scan,
+  completeness, review freshness, risk-tiered by `.operon/policy.yaml` — run
+  as orchestrator subprocesses after build passes and twice at ship. They are
+  distinct from the safety gate, and no agent prose ever drives a side
+  effect (`docs/loop/design.md` §5).
+- A ticket moves `ready → building → gates → reviewing → shipping → merged`,
+  with bounded remediation and review cycles (three each) before it bounces
+  back as `returned`. On approve, green gates, and a fresh review, **the
+  orchestrator squash-merges** — agents never merge — deletes the branch,
+  and closes the ticket via `Closes #N`. Every state derives from GitHub
+  artifacts, so any tick can advance any item (`docs/loop/design.md` §7).
+
 ## 4. Approval surface (CLI queue)
 
-Decided 2026-07-04: CLI queue, one-by-one review, approve or deny-with-reason,
-persisted audit trail, app-tagged, single queue. **Approve ≠ execute**: a
-decision mints a content-bound grant (default single-use; the human may widen
-scope, the agent never chooses), and a later dispatch performs only typed
-orchestrator-owned allowlisted actions with durable
-`approved → executing → executed | failed | ambiguous` acknowledgement.
-Self-merge, production deploy, external publication, and protocol-surface
-writes are never scopeable. The classifier reads Operon's own command line as
-an effect surface, and budget escalations (§7) enter this same queue as
-synthetic `budget-exceeded` items — one inbox, never two.
+When the gate blocks a critical operation, the turn ends and the operation
+queues for a human. The queue is a CLI (`operon approvals`): one item at a
+time, approve or deny with a reason, every decision persisted to an audit
+trail. Items are tagged by app, but there is a single queue for the whole
+org — budget overruns (§7) land in it too, as synthetic `budget-exceeded`
+items, so the human has one inbox, never two.
+
+**Approving is not executing.** A decision mints a content-bound grant —
+single-use by default; the human may widen its scope, the agent never
+chooses — and a later dispatch tick performs only typed, orchestrator-owned,
+allowlisted actions, recording
+`approved → executing → executed | failed | ambiguous` durably. Four things
+are never grantable at any scope: self-merge, production deploys, external
+publication, and writes to protocol surfaces. The classifier also reads
+Operon's *own* command line as an effect surface — self-approval by CLI is
+still self-approval.
 
 [`docs/approvals/design.md`](approvals/design.md) is the authoritative
 contract: storage layout and item schema, the CLI effect classifier, grant
@@ -389,55 +434,69 @@ requirements.
 
 ## 5. Context assembly
 
-Assembly is concatenation in fixed order — effective delegated authority, org
-TASTE, role craft, app charter, the generated role protocol, then pinned
-memory/concept excerpts — with the guarantee living in the gate, not prompt
-order: narrower layers can only specialize defaults, never override authority
-or the org's never-do list. Layers [0]–[4] are a pure function of
-(role, app, ratified files) and layer [5] is pinned per resolve, which keeps
-provider prompt-cache prefixes byte-stable across a ticket's passes.
-Injection uses each adapter's native channel; nothing assembled lands in a
-commit. [`docs/org/context.md`](org/context.md) is the full contract.
+What an agent knows is assembled by concatenation in a fixed order: the
+effective delegated authority, the org's TASTE, the role's craft notes, the
+app's charter, the generated role protocol, and finally pinned memory and
+concept excerpts. Narrower layers can only specialize defaults — they can
+never override authority or the org's never-do list, and that guarantee
+lives in the gate, not in prompt order. The first five layers are a pure
+function of (role, app, ratified files), and the excerpt layer is pinned per
+resolve, so a ticket's passes see byte-identical prompt prefixes and provider
+prompt caches stay warm. Injection uses each adapter's native channel;
+nothing assembled ever lands in a commit.
+[`docs/org/context.md`](org/context.md) is the full contract.
+
 ## 6. Memory & scorecards
 
-Memory is two committed OKF bundle partitions — role craft in the org home,
-app domain under `<app>/.operon/` — always indexed, keyword-selected, and
-capped into context layer [5]. Agents write only candidate notes; governed
-surfaces are publisher/human-only (`learning-surface-tamper` rule), and
-curation belongs to the governed learning loop. Scorecards append
-orchestrator-written events (never self-reported), and the weekly retro turns
-telemetry + scorecards into committed retro notes, learning candidates, and
-proposals — the scorecard, not self-assessment, decides autonomy changes.
+Memory lives in two committed bundle partitions: what a role has learned
+about its craft (org home, cross-app) and what it knows about one product
+(`<app>/.operon/`). Both are indexed, keyword-selected, and size-capped into
+the context's excerpt layer. Agents may write only *candidate* notes — the
+governed learning surfaces are publisher- and human-only, enforced by the
+`learning-surface-tamper` gate rule — and curation belongs to the governed
+learning loop, not to any agent. Scorecards are append-only events written
+by the orchestrator, never self-reported; the weekly retro turns telemetry
+plus scorecards into committed retro notes, learning candidates, and
+proposals. When a role's autonomy changes, it is the scorecard trend that
+justifies it, not the role's self-assessment.
 [`docs/org/memory.md`](org/memory.md) is the full contract.
+
 ## 7. Multi-app structure
 
-`apps.yaml` is the registry: one org, N independent apps, each with status,
-monthly budget, optional per-role cadence overrides, and an
-`assignment_mode` (`fixed` | `adaptive`) that changes only how a planned
-provider step resolves its atomic harness/model/effort tuple — never
-EpisodePlanner participation or role authority. One-turn-one-app is
-structural (`TurnRequest` has a single `workdir`). Budget enforcement is in
-code: the dispatcher recomputes the per-app overlay every tick, warns at 80%,
-and pauses the app at 100% with a `budget-exceeded` approval item.
+One org runs N independent apps, registered in `apps.yaml`: each entry has a
+status, a monthly budget, and optional per-role cadence overrides. An app may
+also set `assignment_mode` (`fixed` | `adaptive`), which changes exactly one
+thing — how a planned provider step resolves its harness/model/effort tuple —
+and never changes EpisodePlanner participation or a role's authority. A turn
+belongs to exactly one app by construction: `TurnRequest` has a single
+`workdir`. Budgets are enforced in code, not in a digest: the dispatcher
+recomputes each app's spend overlay every tick, warns the Planner at 80% of
+the monthly budget, and at 100% pauses the app and files a `budget-exceeded`
+approval item for the human.
 [`docs/org/apps.md`](org/apps.md) is the full contract.
+
 ## 8. Product co-planning and the EpisodePlanner boundary
 
-`operon plan` is the product-facing planning surface. A token-free `--dry-run`
-preview assembles Planner context (§5) without constructing a runtime. Live
-`--auto --goal` runs through the shared EpisodePlanner boundary
-(`src/org/episode-planner/`): bounded intent, creator-scope assessment or
-planner turn, then a durable execution `EpisodePlan` whose terminal output is
-a schema-validated `TicketPlan` the orchestrator may publish as GitHub issues
-(`src/org/plan-auto.ts`, `src/loop/plan-tickets.ts`). EpisodePlan authorizes
-execution; TicketPlan describes child work. Route, budget, and assignment
-norms are `docs/episodes/contract.md`; loop pass transport remains `docs/loop/design.md`.
+`operon plan` is the product-facing planning surface. Its token-free
+`--dry-run` assembles the Planner's context (§5) without constructing a
+runtime; the live form, `--auto --goal`, runs a real episode through the
+shared EpisodePlanner boundary (`src/org/episode-planner/`): bounded intent,
+then a creator-scope assessment or a planner turn, then a durable
+`EpisodePlan`. That plan's terminal output is a schema-validated `TicketPlan`
+the orchestrator may publish as GitHub issues (`src/org/plan-auto.ts`,
+`src/loop/plan-tickets.ts`). The two artifacts answer different questions:
+the EpisodePlan authorizes this episode's own execution, while the
+TicketPlan describes the child work it proposes. Route, budget, and
+assignment norms are `docs/episodes/contract.md`; pass transport stays in
+`docs/loop/design.md`.
 
-`previewEpisode` / `orchestrateEpisode` / `explainEpisode` are the shared
-boundary used by dispatch, tickets, product planning, and release flows.
-`operon episode explain` is a total read-only diagnostic over durable evidence.
-Only complete provenance-bearing creator scope skips the planner provider turn;
-labels, lifecycle stage, or short prose never authorize a bypass. Bare
-`operon plan <app>` fails closed and directs operators to `--auto --goal`.
+Every entry point — dispatch, tickets, product planning, release flows —
+uses the same three functions: `previewEpisode`, `orchestrateEpisode`, and
+`explainEpisode` (surfaced as the read-only `operon episode explain`). The
+only way to skip the planner's provider turn is a complete,
+provenance-bearing creator scope; labels, lifecycle stage, or short prose
+never authorize the bypass, and bare `operon plan <app>` fails closed,
+directing the operator to `--auto --goal`.
 
 Published tickets carry a `Planned-by:` trailer and a local
 `published-tickets.json` mirror — the planner→ticket causal edge. Gate,
@@ -446,22 +505,31 @@ EpisodePlan-backed provider step.
 
 ## 9. Greenfield creation and Bootstrap
 
-`operon new-app` (deterministic local skeleton + starter product truth) and
-`operon bootstrap` (agent-free scan + questionnaire inside an existing repo)
-both require a complete active org and register the app as `onboarding`;
-the token-free `app reset`/`verify`/`promote` commands own the path to
+An app enters the org one of two ways. `operon new-app` builds a fresh
+product from a deterministic local skeleton plus starter product truth;
+`operon bootstrap` onboards an existing repo with an agent-free scan and an
+operator questionnaire. Both require a complete active org, both register
+the app as `onboarding`, and neither spends a token. From there the
+token-free `app reset` / `verify` / `promote` commands own the path to
 `live`. Readiness claims follow the evidence ladder in
-`docs/episodes/contract.md`; no state is implied by an earlier one.
-[`docs/org/onboarding.md`](org/onboarding.md) is the full contract.
+`docs/episodes/contract.md`, and no state on that ladder is ever implied by
+an earlier one.
+[`docs/org/onboarding.md`](org/onboarding.md) is the full contract; the
+operator-facing walk-through is README → Install locally.
+
 ## 10. GitHub substrate conventions
 
-State labels (`op:ready → op:building → op:in-review`, plus
-`op:returned | op:blocked | op:incident` and `p1–p3`), the fixed-heading
-ticket format the Planner emits, and branch/PR/review/merge conventions
-(`op/<issue>-<slug>` branches, evidence-bearing PR bodies, real reviews with
-the HMAC-verified single-account fallback, orchestrator-only squash-merge)
-are [`docs/loop/github-conventions.md`](loop/github-conventions.md). Labels
-flip only after the artifact they announce exists.
+GitHub is the substrate the loop drives, under fixed conventions: state
+labels (`op:ready → op:building → op:in-review`, plus
+`op:returned | op:blocked | op:incident` and the `p1–p3` priorities), the
+fixed-heading ticket format the Planner emits, `op/<issue>-<slug>` branches,
+evidence-bearing PR bodies, real reviews with an HMAC-verified
+single-account fallback, and squash-merges performed only by the
+orchestrator. One rule anchors all of it: a label flips only after the
+artifact it announces exists.
+[`docs/loop/github-conventions.md`](loop/github-conventions.md) is the full
+contract.
+
 ## 11. Ratified decisions promoted to docs/PURPOSE.md
 
 Ratified decisions live in `docs/PURPOSE.md` → Decided. Propose implementation

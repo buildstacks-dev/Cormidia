@@ -866,3 +866,21 @@ will resolve them.
   one-runtime/many-apps, scarce human attention / durable outcomes).
   `docs/status.md` removed as a redundant shadow of README Status, Observability,
   and subsystem design docs.
+- 2026-07-26 — v2.8: documentation re-homed into topic folders (decided in
+  session with the human; path citations updated mechanically, decision
+  content untouched). `docs/` root now holds only PURPOSE, VISION,
+  architecture (thin system map, stable §numbering), DEVELOPMENT (renamed
+  all-caps; campaign ephemera trimmed to a standing-grant pointer), and the
+  packaged policy template; depth lives in per-subsystem folders (loop,
+  scheduler, approvals, episodes, qualification, harness, org, testing,
+  learning-loop, live-ui, reporting, narrative). `docs/efficiency.md` split
+  into `docs/episodes/contract.md` (operating contract; efficiency/v1
+  lineage, markers, and doctrine tests preserved) and
+  `docs/qualification/design.md` (campaign/Phase 6/isolation) — the
+  efficiency *doctrine* and its ratification history are unchanged; only the
+  filename retired. The Stage 5 approval amendment file retired into
+  `docs/approvals/design.md`; `docs/wiki.html` retired (a generation behind
+  the surface inventory); `research/` deliberately remains a separate
+  top-level tree for dated evidence. Deposited detectors: repo-wide
+  docs-citation/link/anchor checker and a docs-root inventory pin
+  (`test/docs/`).

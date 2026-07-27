@@ -50,9 +50,11 @@ Read [`docs/PURPOSE.md`](docs/PURPOSE.md) for the why and every decision made so
 [`TASTE.md`](TASTE.md) is the org's constitution;
 [`roles.yaml`](roles.yaml) is the org chart made executable;
 [`AGENTS.md`](AGENTS.md) is the contributor map.
-New to the code? Open [`docs/wiki.html`](docs/wiki.html) — a standalone,
-self-contained wiki that walks the three layers, the build loop, and the
-runtime adapters, with curated reading paths for coming up to speed.
+New to the code? Start at [`docs/architecture.md`](docs/architecture.md) —
+the thin system map — and follow its links into each subsystem's topic folder
+(`docs/loop/`, `docs/scheduler/`, `docs/approvals/`, `docs/harness/`,
+`docs/org/`, and friends), where one `design.md` per folder is the
+authoritative contract.
 
 Operon turns approved goals into verified software outcomes with process
 proportional to the work and its risk, minimal human attention, durable forward

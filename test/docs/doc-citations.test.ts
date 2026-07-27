@@ -47,6 +47,7 @@ const KNOWN_EXTERNAL_PATHS = new Set([
   "docs/status.md",
   "docs/architecture/conceptual-overview.md",
   "docs/efficiency.md",
+  "docs/wiki.html",
 ]);
 
 const SCANNED_EXTENSIONS = new Set([".ts", ".mjs", ".cjs", ".sh", ".md", ".yaml", ".yml", ".template", ".mermaid"]);
@@ -72,8 +73,7 @@ function walk(dir: string): string[] {
 function scannedFiles(): string[] {
   const files = SCAN_ROOTS.flatMap((root) => (existsSync(join(repoRoot, root)) ? walk(root) : []));
   for (const file of SCAN_FILES) if (existsSync(join(repoRoot, file))) files.push(file);
-  // The reorg backlog cites folders before they exist; it is deleted when done.
-  return files.filter((file) => file !== join("docs", "todo-plan.md"));
+  return files;
 }
 
 /**
@@ -145,6 +145,35 @@ describe("documentation citations resolve", () => {
       }
     }
     expect(failures).toEqual([]);
+  });
+
+  it("docs/ root holds exactly the navigation files, the packaged template, and the topic folders", () => {
+    // The 2026-07-26 reorg's durable outcome: root files are navigation and
+    // ratified policy only; depth lives in one folder per subsystem. Adding a
+    // root file or a folder is a deliberate decision — update this pin and
+    // the AGENTS.md navigation in the same change.
+    const entries = readdirSync(join(repoRoot, "docs"), { withFileTypes: true });
+    expect(entries.filter((e) => e.isFile()).map((e) => e.name).sort()).toEqual([
+      "DEVELOPMENT.md",
+      "PURPOSE.md",
+      "VISION.md",
+      "architecture.md",
+      "policy.yaml.template",
+    ]);
+    expect(entries.filter((e) => e.isDirectory()).map((e) => e.name).sort()).toEqual([
+      "approvals",
+      "episodes",
+      "harness",
+      "learning-loop",
+      "live-ui",
+      "loop",
+      "narrative",
+      "org",
+      "qualification",
+      "reporting",
+      "scheduler",
+      "testing",
+    ]);
   });
 });
 

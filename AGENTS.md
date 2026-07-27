@@ -104,14 +104,15 @@ machinery. On conflict this summary wins — fix that file.
 | `gate.ts` | new `test/gate.test.ts` cases: critical + routine near-miss |
 | `roles.yaml` · `pipelines.yaml` · `prompts/**` | `pnpm dev roles` / `pnpm dev pipelines` print cleanly; intent changes go through `test/loop/pipelines-root.test.ts` deliberately |
 | CI admission rules (`scripts/ci/**`, workflows) | case in `test/ci/classify-changes.test.ts` |
-| Docs-only | nothing |
+| Docs-only | nothing in CI (ratified 2026-07-17); the `test/docs/` citation/link guard runs on the next `pnpm test` |
 
 ## Navigation
-- Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · code wiki: `docs/wiki.html` (open in a browser)
-- Architecture: `docs/architecture.md` · build loop: `docs/loop/design.md` · testing map: `docs/testing/runbook.md` · sandbox-app journey: `docs/testing/journey.md`
-- Scheduler contract: `docs/scheduler/design.md` · event payloads: `docs/scheduler/event-schemas.md` · approvals/release boundary: `docs/approvals/design.md`
-- Learning loop: `docs/learning-loop/` · episode operating contract: `docs/episodes/contract.md` · qualification/release gating: `docs/qualification/design.md` · benchmarks: `docs/qualification/benchmark-runbook.md`
-- Adapters: `docs/harness/capability-matrix.md` · `docs/harness/adding-updating.md` · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`
+- Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · operator outcome: `docs/VISION.md` · platform development: `docs/DEVELOPMENT.md`
+- `docs/architecture.md` is the thin system map (stable §numbering); depth lives in topic folders — one per subsystem, `design.md` as the folder's contract
+- Build loop: `docs/loop/` (design · turns · github-conventions) · dispatch/scheduler: `docs/scheduler/` (design · event-schemas) · approvals/release: `docs/approvals/design.md`
+- Episode operating contract: `docs/episodes/contract.md` · qualification/release gating: `docs/qualification/` (design · benchmark-runbook) · learning loop: `docs/learning-loop/`
+- Adapters: `docs/harness/` (capability-matrix · adding-updating · qualification-evidence) · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`
+- Org layer: `docs/org/` (context · memory · apps · onboarding) · testing: `docs/testing/` (runbook · journey)
 - Live UI / Reports / Narrative contracts: `docs/live-ui/design.md` · `docs/reporting/design.md` · `docs/narrative/design.md`
 - Predecessor orchestrator (read-only prior art; "the predecessor" in docs): `scratchpad-gitignore/claude-loop-teams/`
 

@@ -10,7 +10,7 @@
 // own permission layer). Codex routes every command through its approval
 // callback with no per-command deny list, and pi exposes only a coarse
 // read/bash/edit/write toolset — for both, the composed gate's flat deny IS
-// the enforcement (docs/capability-matrix.md records the degradation).
+// the enforcement (docs/harness/capability-matrix.md records the degradation).
 
 /** Acts these roles must never even attempt. Keys are roles.yaml role
  *  names; values are the gate rule names (src/runtime/gate.ts). */

@@ -23,7 +23,7 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
   make an adapter pass. `test/gate.test.ts` is the seed, including the
   subagent tool-call cases.
 - Capability flow is one-way (#116). Follow
-  `docs/adding-updating-harnesses.md` for the adapter contract, registration
+  `docs/harness/adding-updating.md` for the adapter contract, registration
   checklist, three test tiers, and update obligations.
 
 ## Testing
@@ -35,6 +35,6 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
   the critical side and a routine near-miss.
 
 ## References
-`docs/capability-matrix.md` · `docs/adding-updating-harnesses.md` ·
+`docs/harness/capability-matrix.md` · `docs/harness/adding-updating.md` ·
 `research/2026-07-03_runtime-layer.md` ·
 `research/2026-07-04_prompt-caching.md`

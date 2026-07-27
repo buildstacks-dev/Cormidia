@@ -6,7 +6,7 @@ SDK, Codex App Server, pi SDK — into an Operon `Runtime`. This doc is the
 procedure: what a harness must implement, where it registers, what proves it,
 and what an update obligates. The per-capability contract itself lives in
 [`capability-matrix.md`](capability-matrix.md); accounting rules live in
-[`efficiency.md`](efficiency.md); this doc does not restate them.*
+[`docs/efficiency.md`](../efficiency.md); this doc does not restate them.*
 
 ## 1. What a harness is
 
@@ -98,7 +98,7 @@ blocker if skipped:
    presence (`operon doctor` runs this; an expired credential must fail here,
    not inside a paid model turn).
 6. **Tests** — all three tiers plus the budget pin (§4).
-7. **`docs/capability-matrix.md`** — add the adapter's column with honest
+7. **`docs/harness/capability-matrix.md`** — add the adapter's column with honest
    native/adapter-built/degraded labels per row. The matrix is the contract
    for what an org loses when a role moves; "degraded" written down is fine,
    "native" claimed loosely is not.
@@ -145,7 +145,7 @@ Minimum bar for **any** `src/runtime/adapters/**` change:
    run is the only proof the subagent-gate claim still holds; the research
    record is what makes that proof citable later.
 3. If a capability's tier or behavior changed, update the matching
-   `docs/capability-matrix.md` row **in the same change**, and the
+   `docs/harness/capability-matrix.md` row **in the same change**, and the
    `RuntimeCapabilityProfile` if the machine-readable tier moved.
 
 Additional obligations by blast radius:
@@ -154,7 +154,7 @@ Additional obligations by blast radius:
   campaign hashes: a change to covered bytes means retained calibration
   campaigns remain historical evidence but cannot admit a new candidate by
   resemblance — a fresh, separately authorized adapter admission campaign is
-  required (`docs/capability-matrix.md` → Qualification evidence,
+  required (`docs/harness/qualification-evidence.md`,
   `docs/development.md`). Never rerun or repair a terminal campaign; never
   run `eval:github`/`eval:live` merely because adapter files changed.
 - **Known limitations are documented, not hidden.** A gate-enforcement gap

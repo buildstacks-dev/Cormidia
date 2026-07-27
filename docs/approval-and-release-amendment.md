@@ -75,7 +75,7 @@ a durable A5 lesson. A decision is still authorization, never evidence that
 the gated side effect executed; A2.1 acknowledgement remains unchanged.
 
 The earlier deferral is lifted on evidence, not assumption. Claude, Codex,
-and pi now expose native session resume (`docs/capability-matrix.md`), and the
+and pi now expose native session resume (`docs/harness/capability-matrix.md`), and the
 retained final adapter calibration
 `adapter-harness-calibration-v1-20260713-9c3b336d6842` qualified continuation
 without retry. Resume is content-bound to the role/runtime, context manifest,

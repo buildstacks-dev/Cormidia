@@ -802,7 +802,7 @@ distillation with independent review and report-only compaction. The latest date
 [`research/2026-07-11_adapter-tool-events.md`](research/2026-07-11_adapter-tool-events.md);
 open work lives in the [issue tracker](https://github.com/buildstacks-dev/Operon/issues).
 
-`docs/capability-matrix.md` records each adapter's native, adapter-built, and
+`docs/harness/capability-matrix.md` records each adapter's native, adapter-built, and
 degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
 
 ### Known limitations

@@ -103,7 +103,7 @@ and agent definitions.
   and lifecycle telemetry separates pause cost from repeated cost. This change
   is now admissible because all three adapters expose native session resume and
   the retained final adapter calibration qualified continuation without retry
-  (`docs/capability-matrix.md`; campaign
+  (`docs/harness/capability-matrix.md`; campaign
   `adapter-harness-calibration-v1-20260713-9c3b336d6842`). It does not broaden
   approval authority or collapse decision and execution acknowledgement.
 

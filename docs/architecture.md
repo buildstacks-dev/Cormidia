@@ -220,18 +220,8 @@ archived bytes.
 
 ### App reset, verify, and promote
 
-`operon app reset`, `operon app verify`, and `operon app promote` are the
-token-free lifecycle commands for repeatable onboarding and readiness. Reset
-archives managed state outside the state home before any destructive change
-and never deletes a GitHub repository. Verify proves refs, managed clone,
-authority/config hashes, app checks, locks/approvals, and adapters without
-constructing a provider turn; it also synthesizes or repairs the lifecycle
-record. Promote to `live` is plan-by-default and executes only from passing
-verification. Readiness claims follow the generated → registered →
-runtime-ready → live → autonomously scheduled ladder in `docs/episodes/contract.md`;
-none of those states is implied by an earlier one. CLI details and remediation
-live with the commands themselves and README → Commands.
-
+Token-free lifecycle commands for repeatable onboarding and readiness —
+[`docs/org/onboarding.md`](org/onboarding.md).
 ### App repo (target product repo)
 
 ```
@@ -399,287 +389,37 @@ requirements.
 
 ## 5. Context assembly
 
-Assembly is **concatenation in fixed order** (PURPOSE v0.8 — layers answer
-different questions, so conflicts are rare; narrower layers specialize
-defaults):
-
-```
-[0] effective delegated authority    org AUTHORITY.md, optionally narrowed
-                                      by <app>/.operon/AUTHORITY.md
-[1] org TASTE.md                      values + engineering constitution
-[2] taste/<role>.md                   role craft (when it exists)
-[3] <app>/.operon/TASTE.md            product charter (when it exists)
-[4] role turn protocol                generated: expected outputs, GitHub
-                                      conventions (§10), end-of-turn learning
-                                      note instruction, approval etiquette
-[5] memory excerpts                   role craft bundle + this app's domain
-                                      bundle (§6) — capped
-```
-
-**Authority and the org's "What we never do" section are unoverridable by
-narrower context — but the guarantee is the gate, not prompt order.** App
-authority can only inherit, select conservative, or add restrictions; a stale
-app snapshot fails closed. Current-task instructions can narrow the grant.
-Broader authority requires a fresh, attributable human instruction. Layers
-[2]/[3] specializing a never-do rule
-would merely be ignored text; the critical-ops gate enforces the same list
-mechanically on every tool action. Prompt layering is steering; the gate is
-the contract.
-
-**Memory excerpt selection v1: no embeddings.** Include each bundle's
-`INDEX.md` (curated one-liners) plus any documents whose frontmatter
-`keywords` match the task text; hard cap ~16 KB. Curation (§6) keeps bundles
-small enough that this stays adequate; retrieval sophistication is earned by
-evidence, not assumed.
-
-**Governed concepts resolve ahead of legacy memory** (`docs/learning-loop/`).
-When learning is enabled, `resolveLearningContext`
-(`src/org/learning/resolver.ts`, wired into `src/org/context.ts`) runs once
-per turn as a **pinned resolve** — promotion, disable, or rollback mid-turn
-never shifts a running turn's context. Its concept sections fill layer [5]
-first, and the legacy keyword selection above spends only the bytes the
-concepts leave. In the build loop the pin is per (ticket episode, pipeline
-role) via `createEpisodeContextResolver` (`src/org/context.ts`), so build
-and fix passes on one ticket share one pin and reviewer-scoped concepts
-reach review passes. Every governed resolve persists a pinned record at
-`learning/resolved/<turnId>.json` in the state home.
-
-**Cache-stable assembly** (added 2026-07-04, reviewed with the human
-operator; economics in `research/2026-07-04_prompt-caching.md`). Provider
-prompt caches are org-wide *prefix matches*, not session state: a fresh
-session whose rendered prefix is byte-identical to a recent request reads it
-at ~0.1× input price, and every read refreshes the TTL — so back-to-back
-passes stay warm across the loop's fresh-session-per-pass rule for free.
-Two rules protect that:
-
-1. **Layers [0]–[4] are a pure function of (role, app, ratified files).**
-   Never embed per-turn bytes — timestamps, turn ids, ticket refs, attempt
-   counters. Per-turn facts belong in the task payload (the brief), which
-   renders after the stable prefix.
-2. **Layer [5] is pinned per resolve and held fixed across its passes** —
-   once per role turn, and in the build loop once per (ticket episode,
-   pipeline role). Keyword matching runs against the *ticket* text,
-   never the per-pass brief — re-selecting per pass would silently change
-   the prefix on every pass (and hand the builder and the fix pass
-   different lessons; pinning is better for coherence, not just cost).
-
-A model switch between adjacent passes forfeits the whole cache (caches are
-model-scoped) — weigh that when tuning per-pass overrides in pipelines.yaml.
-
-**Injection per adapter — native channels only** (docs/PURPOSE.md), nothing
-assembled ever lands in a commit:
-
-
-| Runtime | Channel                                   | Mechanics                                                                                 |
-| ------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
-| claude  | system-prompt append (SDK option)         | no files written                                                                          |
-| codex   | App Server `developerInstructions`        | per-thread native instruction field; no worktree overlay required                         |
-| pi      | `.pi/APPEND_SYSTEM.md` in worktree        | worktree-local, masked via `.git/info/exclude` (never the repo's `.gitignore`)            |
-
-
-The assembler produces `ContextBundle.authority` (effective text, profile,
-version, SHA-256, and source paths), then layers [1]–[4] in `taste: string[]`
-and layer [5] in `memoryExcerpts`. Every pass envelope copies the authority
-provenance without duplicating its full prose. Parent delegated-task records
-capture the same evidence at `operon task begin`.
-
-This section covers the *system context* a pass runs under. The *task
-payload* — ticket, spec excerpts, contract, findings, attempt history — is
-the loop's brief assembler (`docs/loop/design.md` §3), a separate, per-pass,
-budgeted packet logged verbatim in the run artifact.
-
+Assembly is concatenation in fixed order — effective delegated authority, org
+TASTE, role craft, app charter, the generated role protocol, then pinned
+memory/concept excerpts — with the guarantee living in the gate, not prompt
+order: narrower layers can only specialize defaults, never override authority
+or the org's never-do list. Layers [0]–[4] are a pure function of
+(role, app, ratified files) and layer [5] is pinned per resolve, which keeps
+provider prompt-cache prefixes byte-stable across a ticket's passes.
+Injection uses each adapter's native channel; nothing assembled lands in a
+commit. [`docs/org/context.md`](org/context.md) is the full contract.
 ## 6. Memory & scorecards
 
-
-
-### OKF bundles
-
-Two partitions (PURPOSE v0.8: one-turn-one-app):
-
-
-| Bundle                         | Home                 | Content                                                          |
-| ------------------------------ | -------------------- | ---------------------------------------------------------------- |
-| `memory/roles/<role>/`         | org home (committed) | craft: what this role has learned about doing its job, cross-app |
-| `<app>/.operon/memory/<role>/` | app repo (committed) | domain: what this role knows about this product                  |
-
-
-Document format (OKF — markdown + YAML frontmatter):
-
-```markdown
----
-name: prefer-fixture-factories
-description: one-line hook used for excerpt selection
-type: lesson | fact | procedure
-keywords: [tests, fixtures]
-evidence: ["PR #12 review", "incident 2026-07-02"]
-status: active | deprecated
-created: 2026-07-04
-updated: 2026-07-04
----
-Body: the lesson, with the why. Wrong lessons get deleted, not hedged.
-```
-
-Each bundle carries an `INDEX.md` (one line per doc) — the always-included
-excerpt layer.
-
-**End-of-turn learning notes** (`docs/learning-loop/`): the role protocol
-(context layer [4]) instructs agents to record lessons and corrections as
-**candidate notes** — `learning/candidates/<role>/` in the org home,
-`.operon/learning/candidates/<role>/` on the ticket branch — never as active
-OKF docs. Candidate trees are deliberately agent-writable routine ops; they
-carry no authority and nothing in them loads into future context until it
-passes review. The learning GOVERNANCE surfaces
-(`learning/{bundle,quarantine,evals,reviews,experiments,interventions}/**`,
-`manifest.yaml`, `policy.yaml`, `rejections.jsonl`, and their
-`.operon/learning/**` counterparts) are critical ops by the
-`learning-surface-tamper` gate rule — publisher/human-only. Existing
-`memory/**` trees remain read-only legacy seed context: still resolved into
-layer [5] at lowest precedence, no longer written by anyone.
-
-**Curation** belongs to the governed learning loop (review → approval →
-publish, `docs/learning-loop/`).
-
-### Scorecards
-
-Raw events append to `scorecards/<app>/<role>.jsonl` as they happen, written
-by the orchestrator (never self-reported):
-
-
-| Event                | Source                                          | Scores              |
-| -------------------- | ----------------------------------------------- | ------------------- |
-| `review_cycles`      | loop item at merge/return (cycles count)        | Builder             |
-| `escaped_bug`        | SRE incident note tracing to a merged PR        | Reviewer            |
-| `rework`             | ticket returned / reopened after merge          | Planner             |
-| `edit_distance`      | human's delta on a published draft              | Support / Marketing |
-| `gate_denial_upheld` | approval queue: deny on an item the role raised | any                 |
-| `turn_cost`          | telemetry rollup                                | any                 |
-
-
-
-
-### Weekly retro (`operon retro`)
-
-A scheduled org-level turn (Opus, high effort — quality of judgment matters
-here) that consumes the week's telemetry + scorecards and emits:
-
-1. `retro/<date>.md` in org home (committed) — scores per (role, app),
-  trends, incidents;
-2. learning notes into `learning/candidates/` (routine — curation itself is
-  the governed learning loop's job, `docs/learning-loop/`);
-3. proposed TASTE/roles.yaml changes — **as proposals only** (issues/PRs for
-  the human; the gate's `protocol-self-edit` rule backstops this).
-
-The scorecard, not self-assessment, decides autonomy changes (TASTE §13) —
-e.g. Support replies graduating from draft-only is a roles.yaml proposal
-justified by edit-distance trend.
-
+Memory is two committed OKF bundle partitions — role craft in the org home,
+app domain under `<app>/.operon/` — always indexed, keyword-selected, and
+capped into context layer [5]. Agents write only candidate notes; governed
+surfaces are publisher/human-only (`learning-surface-tamper` rule), and
+curation belongs to the governed learning loop. Scorecards append
+orchestrator-written events (never self-reported), and the weekly retro turns
+telemetry + scorecards into committed retro notes, learning candidates, and
+proposals — the scorecard, not self-assessment, decides autonomy changes.
+[`docs/org/memory.md`](org/memory.md) is the full contract.
 ## 7. Multi-app structure
 
-
-
-### App registry — `apps.yaml` (org home)
-
-```yaml
-org:
-  name: operon
-  max_concurrent_turns: 2
-
-defaults:
-  budget_usd_month: 1000        # decided 2026-07-04, configurable per app
-
-apps:
-  operon-sandbox-alpha:
-    repo: bikramgupta/operon-sandbox-alpha       # GitHub slug = identity
-    status: live                # live | paused | onboarding
-    budget_usd_month: 1000
-    execution:
-      assignment_mode: fixed    # fixed | adaptive; omission is fixed
-      allowed_assignments: {}   # adaptive app narrowing by role/candidate id
-    cadence: {}                 # optional per-role trigger overrides, e.g.
-                                #   support: []          (disable role here)
-                                #   planner: [{schedule: "daily 08:00"}]
-  operon-sandbox-beta:
-    repo: bikramgupta/operon-sandbox-beta
-    status: onboarding
-```
-
-`assignment_mode` changes assignment resolution only; it cannot disable
-EpisodePlanner. In `fixed`, each planned role turn resolves the role's existing
-configured tuple. In `adaptive`, role-local org-approved candidates are
-required, and `allowed_assignments` may narrow their IDs per app but cannot
-invent or widen a tuple. The Planner boot turn remains its configured fixed
-tuple in both modes. The committed org-home entry and `.operon/config.yaml`'s
-`apps.<name>` mirror use the same app-entry schema and must normalize
-identically. Checkout gate commands are `.operon/config.yaml` top-level
-extensions, not app-entry fields.
-
-An org-approved role candidate keeps the harness and exact model inseparable,
-lists every supported effort explicitly, and binds the operational evidence
-used for capability, qualification, and price validation:
-
-```yaml
-roles:
-  builder:
-    runtime: codex
-    model: gpt-5.6-sol
-    effort: high
-    adaptive_assignments:
-      - id: codex-gpt-5.6-sol-qualified
-        harness: codex
-        model: gpt-5.6-sol
-        efforts: [medium, high, xhigh]
-        provider_family: openai
-        capability_ref: codex/v1
-        qualification_ref: campaign:codex-gpt-5.6-sol-v1
-        conservative_estimate:
-          max_turn_cost_usd: 5
-          source: https://developers.openai.com/api/docs/pricing
-```
-
-Candidate IDs are stable and role-local; `configured` is reserved for the
-role's fixed tuple and is always present. Each adaptive candidate currently
-supplies a bounded `conservative_estimate`; `price_ref` is rejected until the
-product packages an operational model-and-token estimator instead of silently
-using the role-wide cap as a catalog estimate. `qualification_ref` is the
-human-ratified provenance reference for the exact tuple. Configuration loading
-validates its typed form but does not claim to rerun or dereference an external
-campaign. App
-`allowed_assignments` values are candidate-ID lists keyed by role. Unknown
-roles or IDs fail configuration loading before execution, so app configuration
-can only narrow the org catalog.
-
-- **One-turn-one-app is structural:** `TurnRequest` has a single `workdir`;
-multi-app exists only in the dispatcher (which iterates apps) and human
-surfaces (the app-tagged approval queue, per-app budget rollups). No turn
-ever sees two apps.
-- "One live app at a time" is **operational policy** expressed as `status:`,
-not code — the WIP limit is what code enforces.
-- Per-app cadence overrides replace (not merge with) that role's roles.yaml
-triggers when present; an empty list disables the role for that app.
-
-
-
-### Budget enforcement
-
-Telemetry already records cost per turn; the dispatcher rolls up the current
-month per app (telemetry records gain an `app` field — small addition to
-`TurnRecord`):
-
-- ≥ 80% of `budget_usd_month` → warning line in the Planner's daily digest.
-- ≥ 100% → app auto-set to `paused` (state overlay, not a YAML edit) + a
-`budget-exceeded` item in the approval queue; human approval resumes the
-app (optionally raising the budget in apps.yaml themselves).
-
-The overlay (`state/budget-overlay.json`) is recomputed on **every dispatch
-tick** — `enforceBudgetOverlay` runs before due-turn computation, and
-`computeDueTurns` skips any app the overlay marks paused, so an app past its
-cap stops spending within one tick rather than at the next human touch. The
-rollup is per calendar month, so the overlay clears itself at month rollover
-(a new month starts at $0). This is enforcement in code, not just a digest
-line.
-
-
-
+`apps.yaml` is the registry: one org, N independent apps, each with status,
+monthly budget, optional per-role cadence overrides, and an
+`assignment_mode` (`fixed` | `adaptive`) that changes only how a planned
+provider step resolves its atomic harness/model/effort tuple — never
+EpisodePlanner participation or role authority. One-turn-one-app is
+structural (`TurnRequest` has a single `workdir`). Budget enforcement is in
+code: the dispatcher recomputes the per-app overlay every tick, warns at 80%,
+and pauses the app at 100% with a `budget-exceeded` approval item.
+[`docs/org/apps.md`](org/apps.md) is the full contract.
 ## 8. Product co-planning and the EpisodePlanner boundary
 
 `operon plan` is the product-facing planning surface. A token-free `--dry-run`
@@ -706,27 +446,13 @@ EpisodePlan-backed provider step.
 
 ## 9. Greenfield creation and Bootstrap
 
-Greenfield (`operon new-app`) and existing-app (`operon bootstrap`) both require
-a complete active org (`operon org init`). Readiness claims follow the evidence
-ladder in `docs/episodes/contract.md` and §1 (generated → registered → runtime-ready →
-live → autonomously scheduled); registry states remain `onboarding | live |
-paused`.
-
-`new-app` is deterministic and local: target skeleton, starter product truth
-(`docs/VISION.md`, `docs/REQUIREMENTS.md`), `.operon/` contract, optional
-template (`typescript-node` or `bare`), then the same register path as
-bootstrap. It does not create a GitHub repo, push, or run the Planner —
-follow-ups live in `.operon/bootstrap/next-commands.md`. After push,
-`operon app verify` synthesizes the lifecycle record; `operon app promote
---to live --execute` flips status without a manual `apps.yaml` edit.
-
-`bootstrap` (run inside the product repo) scans manifests/docs without agents,
-runs the operator questionnaire, emits app-owned `.operon/` artifacts plus
-marked AGENTS.md/CLAUDE.md blocks, and registers the app as `onboarding`. It
-inventories setup signals; it does not infer authoritative product truth from
-source. Recovered bootstrap writes only to an Operon-managed clone and leaves
-the human checkout untouched.
-
+`operon new-app` (deterministic local skeleton + starter product truth) and
+`operon bootstrap` (agent-free scan + questionnaire inside an existing repo)
+both require a complete active org and register the app as `onboarding`;
+the token-free `app reset`/`verify`/`promote` commands own the path to
+`live`. Readiness claims follow the evidence ladder in
+`docs/episodes/contract.md`; no state is implied by an earlier one.
+[`docs/org/onboarding.md`](org/onboarding.md) is the full contract.
 ## 10. GitHub substrate conventions
 
 State labels (`op:ready → op:building → op:in-review`, plus

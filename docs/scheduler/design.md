@@ -135,7 +135,7 @@ ordinary contention — including a holder releasing exactly as the tick reads i
 aborts the tick.
 - Tick finds a lock with heartbeat < 2 min old → turn still running → skip
 (this is how overlapping firings don't collide). Heartbeat stale → crash
-recovery (§3), which decides resume vs restart and re-owns the lock.
+recovery (`../loop/turns.md`), which decides resume vs restart and re-owns the lock.
 - **Org-level WIP limit:** live locks ≥ `org.max_concurrent_turns`
 (apps.yaml, default 2) → remaining due turns stay due; next tick retries.
 Priority when contending: blocked-turn re-dispatches, then events, then

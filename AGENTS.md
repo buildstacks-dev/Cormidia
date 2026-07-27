@@ -55,7 +55,7 @@ re-executed; semantics last maintainer-verified 2026-07-14).
   `operon <cmd> --help`.
 - UI/packaging checks: `pnpm test:observe-browser` · `pnpm smoke:onboarding` ·
   `npm pack --dry-run`.
-- Token-spending — never run casually (docs/testing.md → Never run these by
+- Token-spending — never run casually (docs/testing/runbook.md → Never run these by
   accident): `pnpm test:live`, `eval:github|live|soak`, live
   `dispatch`/`loop`/`plan`, `pnpm e2e:sandbox` (needs `GH_SANDBOX_REPO`).
 - Eval/qualification boundary: `eval/AGENTS.md` · `docs/development.md`.
@@ -80,7 +80,7 @@ re-executed; semantics last maintainer-verified 2026-07-14).
   reproduces the defect land in the same change; if the failure is not
   offline-reproducible, guard the nearest deterministic seam
   (provision/preflight) and say so in the PR. A fix without a guard is
-  incomplete — a live run is not a regression test (docs/testing.md).
+  incomplete — a live run is not a regression test (docs/testing/runbook.md).
 - **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the three
   provider SDKs. Adding one is a decision, not a convenience.
 - **Model IDs** in roles.yaml were human-ratified 2026-07-15
@@ -88,7 +88,7 @@ re-executed; semantics last maintainer-verified 2026-07-14).
   availability is proved by adapter calibration before a candidate campaign.
 
 ## Testing expectations
-`docs/testing.md` → Required runs by changed path is the full per-path
+`docs/testing/runbook.md` → Required runs by changed path is the full per-path
 rulebook; the rest of that file maps commands, CI lanes, and the integrity
 machinery. On conflict this summary wins — fix that file.
 | Change | Minimum required |
@@ -98,7 +98,7 @@ machinery. On conflict this summary wins — fix that file.
 | `src/runtime/adapters/**` | + `pnpm test:live` + dated `research/` record |
 | `eval/**` · `scripts/eval/**` · transformation fixtures | `eval/AGENTS.md` → Required on any change |
 | Packaging · home resolution · CLI discovery · onboarding | + `pnpm smoke:onboarding`, `npm pack --dry-run` |
-| Onboarding · `apps.yaml` · bootstrap · planning · loop behavior | + live sandbox apps (docs/testing.md) |
+| Onboarding · `apps.yaml` · bootstrap · planning · loop behavior | + live sandbox apps (docs/testing/runbook.md) |
 | Scheduler lifecycle/evidence/health | `test/scheduler/` suite; fake clocks; never real launchd/systemd |
 | M5 loop state machine | + `pnpm e2e:sandbox` when `gh` auth + `GH_SANDBOX_REPO` allow |
 | `gate.ts` | new `test/gate.test.ts` cases: critical + routine near-miss |
@@ -108,7 +108,7 @@ machinery. On conflict this summary wins — fix that file.
 
 ## Navigation
 - Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · code wiki: `docs/wiki.html` (open in a browser)
-- Architecture: `docs/architecture.md` · build loop: `docs/loop/design.md` · testing map: `docs/testing.md` · sandbox-app journey: `docs/testing-journey.md`
+- Architecture: `docs/architecture.md` · build loop: `docs/loop/design.md` · testing map: `docs/testing/runbook.md` · sandbox-app journey: `docs/testing/journey.md`
 - Scheduler contract: `docs/scheduler/design.md` · event payloads: `docs/scheduler/event-schemas.md` · approvals/release boundary: `docs/approvals/design.md`
 - Learning loop: `docs/learning-loop/` · episode operating contract: `docs/episodes/contract.md` · qualification/release gating: `docs/qualification/design.md` · benchmarks: `docs/qualification/benchmark-runbook.md`
 - Adapters: `docs/harness/capability-matrix.md` · `docs/harness/adding-updating.md` · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`

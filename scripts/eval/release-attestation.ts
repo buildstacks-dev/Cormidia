@@ -31,7 +31,7 @@ const ALLOWED_PROMOTION_PATHS = new Set([
   "docs/episodes/contract.md",
   "docs/qualification/design.md",
   "docs/qualification/benchmark-runbook.md",
-  "docs/testing-journey.md",
+  "docs/testing/journey.md",
   "docs/harness/capability-matrix.md",
   "docs/harness/qualification-evidence.md",
   EVALUATOR_REPAIR_AUTHORIZATION_PATH,

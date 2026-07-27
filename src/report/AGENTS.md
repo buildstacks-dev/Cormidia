@@ -29,4 +29,4 @@ CSP/L3 exclusion, pagination resync, immutable app scope, and read-only
 behavior.
 
 ## References
-`docs/reporting/design.md` · `docs/testing.md` → Required runs by changed path
+`docs/reporting/design.md` · `docs/testing/runbook.md` → Required runs by changed path

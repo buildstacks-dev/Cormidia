@@ -118,7 +118,7 @@ completed current qualification without weakening either. The current
 nine bound evidence promotions. `I-LIVE-01` alone remains `future_soak`: it is
 pending, not passed, and neither the virtual soak nor production confirmation
 can promote it. The canonical definition is
-[`docs/qualification/design.md`](qualification/design.md#phase-6-qualification-scope).
+[`docs/qualification/design.md`](../qualification/design.md#phase-6-qualification-scope).
 
 The first Phase 6 candidate campaign remains a useful negative proof rather
 than a disposable rehearsal. It is archived with 11 passes, eight product

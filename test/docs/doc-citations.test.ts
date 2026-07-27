@@ -26,8 +26,11 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 /** Paths cited in code/docs that intentionally do NOT exist in this repo. */
 const KNOWN_EXTERNAL_PATHS = new Set([
   // Emitted by `operon new-app` / `bootstrap` into the *target app's* repo.
+  // (Case matters: the host filesystem's case-insensitivity previously let
+  // docs/TESTING.md pass against docs/testing.md.)
   "docs/REQUIREMENTS.md",
   "docs/RUNBOOK.md",
+  "docs/TESTING.md",
   // The seeded benchmark sandbox repo's own file (scripts/seed-benchmark-repo.sh).
   "docs/product.md",
   // A managed app repo's design assets, cited from docs/live-ui/design.md.

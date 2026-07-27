@@ -50,4 +50,4 @@ live under `eval/development-authorizations/`.
 ## References
 `docs/qualification/design.md` → Phase 6 qualification scope (canonical boundary) ·
 `docs/development.md` (authorization + lifecycle) · `docs/qualification/benchmark-runbook.md`
-· `docs/testing.md` → Never run these by accident
+· `docs/testing/runbook.md` → Never run these by accident

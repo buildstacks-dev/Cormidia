@@ -19,3 +19,9 @@ test-results/
 
 # Temp files
 TODO.md
+# Local agent/editor config — personal, not repo surface. (.claude/rules/ IS
+# tracked; these siblings are per-machine and were once committed by accident.)
+.claude/commands/
+.claude/skills/
+.codex/
+.cursor/

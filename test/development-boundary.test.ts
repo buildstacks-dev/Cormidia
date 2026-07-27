@@ -7,7 +7,7 @@ it("developer lifecycle policy and evidence never ship into an operated Operon o
   for (const developerOnly of [
     "AGENTS.md",
     "docs/PURPOSE.md",
-    "docs/development.md",
+    "docs/DEVELOPMENT.md",
     "docs/episodes/contract.md",
     "docs/qualification/design.md",
     "eval/",

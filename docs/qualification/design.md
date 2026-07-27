@@ -8,7 +8,7 @@ attestation integrity/currency split (ratified 2026-07-17). Operating
 identities, route admission, budgets, thresholds, and measurement definitions
 are [`docs/episodes/contract.md`](../episodes/contract.md);
 platform-development lifecycle authority is
-[`docs/development.md`](../development.md); the executable requirement
+[`docs/DEVELOPMENT.md`](../DEVELOPMENT.md); the executable requirement
 inventory is `eval/contracts.yaml`.*
 
 ## Campaign and result semantics
@@ -53,7 +53,7 @@ change.
 ## Development qualification execution
 
 The platform-development lifecycle is separate from the org runtime and is
-defined canonically in [`docs/development.md`](../development.md). A standing
+defined canonically in [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md). A standing
 objective grant may cover repaired candidate descendants without repeated
 human approval, but it cannot cross into an operated org, production, outward
 effects, governed learning activation, or the future real-time soak.

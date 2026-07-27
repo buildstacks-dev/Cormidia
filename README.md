@@ -550,7 +550,7 @@ unbound local `passed` JSON cannot promote a contract. See
 [`eval/README.md`](eval/README.md) and the
 canonical [`docs/qualification/design.md`](docs/qualification/design.md).
 The independent control-plane boundary and incremental workflow are canonical
-in the repository-only [`docs/development.md`](docs/development.md); those
+in the repository-only [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md); those
 developer instructions and grants never become authority for an operated org.
 
 The Phase 6 learning block uses a predeclared content-hashed T1 treatment only

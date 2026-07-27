@@ -44,10 +44,10 @@ live under `eval/development-authorizations/`.
   cascades. Never resample an aggregate learning experiment for a favorable
   draw — replay deterministic verifier defects token-free.
 - Standing development authorization and cumulative equivalent-cost
-  accounting are defined only in `docs/development.md` and never apply to an
+  accounting are defined only in `docs/DEVELOPMENT.md` and never apply to an
   operated org.
 
 ## References
 `docs/qualification/design.md` → Phase 6 qualification scope (canonical boundary) ·
-`docs/development.md` (authorization + lifecycle) · `docs/qualification/benchmark-runbook.md`
+`docs/DEVELOPMENT.md` (authorization + lifecycle) · `docs/qualification/benchmark-runbook.md`
 · `docs/testing/runbook.md` → Never run these by accident

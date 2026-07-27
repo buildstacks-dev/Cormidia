@@ -139,7 +139,7 @@ and agent definitions.
   residual evidence debt honestly and never rescore, overwrite, relabel,
   conceal, or promote unsupported evidence. A real pre-V1 product may ship with
   bounded, disclosed eval debt while every product, safety, accounting,
-  learning, budget, and CI boundary remains intact. `docs/development.md` and
+  learning, budget, and CI boundary remains intact. `docs/DEVELOPMENT.md` and
   `docs/qualification/benchmark-runbook.md` carry the detailed shipping policy.
 
 - **Operon platform development is an independent control plane** (ratified
@@ -156,7 +156,7 @@ and agent definitions.
   authority is still required for scope/effect expansion, metered or unknown
   billing, threshold or safety weakening, a raised ceiling, governed learning
   actions, production/outward effects, reserved future campaigns, or a second
-  full campaign without a material product repair. `docs/development.md` is the
+  full campaign without a material product repair. `docs/DEVELOPMENT.md` is the
   canonical detailed policy; developer-only files are excluded from the
   installable org-runtime package.
 

@@ -95,7 +95,7 @@ The per-path rulebook (moved from root AGENTS.md 2026-07-21).
   these files changed, and never execute `eval:soak` merely because soak
   files changed. The provider-quality, first-failure, and
   one-decisive-campaign invariants live in `eval/AGENTS.md` → Invariants and
-  `docs/development.md`.
+  `docs/DEVELOPMENT.md`.
 - Changes that affect app onboarding, `apps.yaml`, bootstrap, planning, or
   loop behavior must also be exercised against the live sandbox apps, not
   only unit tests. Current targets: `~/Build/operon-sandbox-alpha`,
@@ -275,4 +275,4 @@ they cannot enter it:
 `pnpm e2e:sandbox` · any `operon dispatch` / `loop` / `plan` operation.
 
 Each requires explicit human authorization, an environment switch, and exact
-campaign confirmation. See `docs/development.md` for the authorization boundary.
+campaign confirmation. See `docs/DEVELOPMENT.md` for the authorization boundary.

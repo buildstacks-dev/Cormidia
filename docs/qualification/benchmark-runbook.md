@@ -20,7 +20,7 @@ Before any new comparable provider run, execute the token-free funnel
 `eval:github` and `eval:live` previews. When material adapter uncertainty
 remains, calibration precedes product episodes. Platform-development authority
 is defined separately in
-[`docs/development.md`](../development.md): a matching standing objective grant may
+[`docs/DEVELOPMENT.md`](../DEVELOPMENT.md): a matching standing objective grant may
 cover repaired campaign descendants, but each manifest, attempt, cumulative
 equivalent-cost ceiling, and zero-effect sandbox remains content-bound. A
 repaired candidate receives at most one decisive fail-fast full qualification

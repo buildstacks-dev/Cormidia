@@ -155,7 +155,7 @@ Additional obligations by blast radius:
   campaigns remain historical evidence but cannot admit a new candidate by
   resemblance — a fresh, separately authorized adapter admission campaign is
   required (`docs/harness/qualification-evidence.md`,
-  `docs/development.md`). Never rerun or repair a terminal campaign; never
+  `docs/DEVELOPMENT.md`). Never rerun or repair a terminal campaign; never
   run `eval:github`/`eval:live` merely because adapter files changed.
 - **Known limitations are documented, not hidden.** A gate-enforcement gap
   that can't be closed adapter-side (e.g. #20, the Codex App-Server trusted

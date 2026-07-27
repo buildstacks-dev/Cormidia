@@ -7,7 +7,7 @@ one when working there. `docs/PURPOSE.md` is the decision log; on conflict its
 Decided section wins and this file is stale — fix this file.
 
 This file governs **building and maintaining the Operon platform**, not
-operating an org with Operon. Read `docs/development.md` before development
+operating an org with Operon. Read `docs/DEVELOPMENT.md` before development
 campaigns. Operon does not self-host its own development: root instructions,
 developer grants, eval state, and CI/release authority must never enter an
 Operon org's prompts, state, learning, or approvals. The packaged
@@ -26,7 +26,7 @@ tracker (`gh issue list`).
 | Path | What it is |
 | --- | --- |
 | `docs/PURPOSE.md` | Decision log — **read first** |
-| `docs/development.md` | Canonical platform-development lifecycle, standing grants, shipping |
+| `docs/DEVELOPMENT.md` | Canonical platform-development lifecycle, standing grants, shipping |
 | `TASTE.md` · `roles.yaml` · `pipelines.yaml` · `prompts/` | Human-ratified org templates and protocol surfaces (see Working rules) |
 | `src/runtime/` | Runtime contract + adapters — `src/runtime/AGENTS.md` |
 | `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop/design.md`) |
@@ -58,7 +58,7 @@ re-executed; semantics last maintainer-verified 2026-07-14).
 - Token-spending — never run casually (docs/testing/runbook.md → Never run these by
   accident): `pnpm test:live`, `eval:github|live|soak`, live
   `dispatch`/`loop`/`plan`, `pnpm e2e:sandbox` (needs `GH_SANDBOX_REPO`).
-- Eval/qualification boundary: `eval/AGENTS.md` · `docs/development.md`.
+- Eval/qualification boundary: `eval/AGENTS.md` · `docs/DEVELOPMENT.md`.
 
 ## Working rules
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;

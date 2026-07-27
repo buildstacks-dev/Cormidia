@@ -190,7 +190,7 @@ two failed full descendants trip the repair-lineage loop breaker.
 The standing objective does not authorize learning activation, production or
 outward effects, the future real-time soak, metered/unknown billing, a raised
 ceiling, or weakened contracts. Those remain new human decisions. The
-canonical developer policy is [`docs/development.md`](../docs/development.md).
+canonical developer policy is [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md).
 
 The candidate campaign pins `eval/treatments/learning-t1-v1.md` by content
 hash. Control arms receive no treatment bytes; treatment arms receive only

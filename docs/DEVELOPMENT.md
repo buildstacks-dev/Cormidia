@@ -128,46 +128,19 @@ result is inconclusive, regressed, or invalid, retain it and distinguish a
 genuine treatment miss from a deterministic verifier defect before seeking a
 new treatment or experiment decision. Never rerun for a better draw.
 
-## Phase 6 implementation of this policy
+## The active development grant
 
-The current proportionate-release grant is
-`eval/development-authorizations/phase6-efficiency-qualification-20260716-proportionate-release.yaml`.
-It binds the same Phase 6 repair lineage to subscription billing, a cumulative
-`$2000` equivalent-cost circuit breaker, `buildstacks-dev/operon-eval-*`, and
-zero production or outward effects. Its `$1017.54113775` measured historical
-amount plus `$79.550785` of separately preserved unavailable-usage reservations
-makes `$1097.09192275` committed before the one fresh campaign; unavailable
-usage is not coerced to zero.
-
-The grant authorizes only candidate qualification. It content-binds the
-qualified adapter and focused campaigns for candidate `523bb998...`, the exact
-bounded descendant path set, and a one-fresh-full-campaign stop. Those retained
-admissions remain non-promotable; they merely bound the evaluator-only repair
-risk. The prior scorer-repair grant and every dependent campaign remain
-immutable.
-
-The current sequence is therefore:
-
-```bash
-AUTH=eval/development-authorizations/phase6-efficiency-qualification-20260716-proportionate-release.yaml
-
-pnpm eval:prepare -- --campaign candidate-qualification --github-owner buildstacks-dev --authorization "$AUTH"
-# preview and execute the disposable GitHub exercise, then preview and execute
-# at most one full provider campaign
-```
-
-Pass `--authorization "$AUTH"` to the GitHub and live entrypoints as well. The
-candidate retains every Phase 6 assignment, case, threshold,
-AB/BA/AB learning order, safety rule, accounting requirement, and the one typed
-infrastructure retry. Promotion still requires contract-specific evidence from
-a qualified candidate; retained admission evidence cannot promote anything.
-
-The final candidate stops and writes `campaign-stop.json` on its first
-terminal non-pass. A repaired candidate gets at most one decisive full
-qualification campaign unless a genuine product defect materially changes it.
-An evaluator-only stop is retained as debt and does not authorize another
-provider campaign. Learning activation and the future 48-hour real-time soak
-remain separately authorized.
+Standing development authorizations live under
+`eval/development-authorizations/`; the YAML for the current objective is the
+single authority for its repair lineage, billing mode, cumulative
+equivalent-cost ceiling, GitHub namespace, and zero-effect boundary. This
+policy deliberately embeds no grant's dated path, dollar ceiling, candidate
+hash, or command sequence — when a campaign ends, the grant file is retired
+in place and this file does not change. Execution semantics for campaigns
+under a standing grant (accident guards, readiness, confirmation, and the
+thresholds they cannot alter) are
+[`docs/qualification/design.md`](qualification/design.md) → Development
+qualification execution; entrypoint usage is `eval/README.md`.
 
 ## Shipping discipline
 

@@ -6,7 +6,7 @@ loop design)
 **Companions:** `learning-loop-design.md`
 
 Episode identity, learning-capture coverage, and outcome-accountable efficacy
-use the canonical definitions and missingness rules in `docs/efficiency.md`.
+use the canonical definitions and missingness rules in `docs/episodes/contract.md`.
 The schemas below carry those facts but do not redefine their measurements.
 
 All schemas are draft contracts. Field names may change before implementation.

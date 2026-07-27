@@ -1,7 +1,7 @@
 # Operon evaluation suite
 
 This tree is the portable, evidence-preserving qualification layer for the
-highly efficient organization contract in `docs/efficiency.md`. Ordinary
+highly efficient organization contract in `docs/qualification/design.md`. Ordinary
 validation and deterministic execution are token-free. Provider-backed work
 is a separate, explicitly enabled, content-hashed, confirmed, and budget-capped
 campaign.
@@ -128,7 +128,7 @@ campaign.
   archive-incomplete, route-mismatched, or settlement-mismatched evidence.
 
 The authoritative current-versus-future boundary is
-[`docs/efficiency.md`](../docs/efficiency.md#phase-6-qualification-scope).
+[`docs/qualification/design.md`](../docs/qualification/design.md#phase-6-qualification-scope).
 Phase 6 candidate evidence may promote only the nine current provider
 contracts. `I-LIVE-01` is still required but is neither passed nor current
 Phase 6 debt; preview, virtual-soak, manufactured, and production-confirmation

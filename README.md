@@ -57,8 +57,9 @@ runtime adapters, with curated reading paths for coming up to speed.
 Operon turns approved goals into verified software outcomes with process
 proportional to the work and its risk, minimal human attention, durable forward
 progress, and continuously improving unit economics. `docs/VISION.md` states
-the operator outcome; `docs/efficiency.md` is the normative plan-derived
-budget, route, measurement, and qualification contract.
+the operator outcome; `docs/episodes/contract.md` is the normative plan-derived
+budget, route, and measurement contract; `docs/qualification/design.md`
+owns qualification and release gating.
 
 ## Install locally
 
@@ -526,7 +527,7 @@ pnpm test:transformation:future-soak-strict # red only for I-LIVE-01 until the f
 ```
 
 The ratified Phase 6 boundary is defined only in
-[`docs/efficiency.md`](docs/efficiency.md#phase-6-qualification-scope). Its
+[`docs/qualification/design.md`](docs/qualification/design.md#phase-6-qualification-scope). Its
 current strict scope contains 83 contracts and can finish after valid candidate
 qualification, nine evidence promotions, read-only production confirmation,
 and shipping. `I-LIVE-01` is the sole future-soak contract: it remains pending,
@@ -547,7 +548,7 @@ then proves installable-package and executable-suite bytes are unchanged, and
 `eval:promote` creates the contract-specific projections. File presence or an
 unbound local `passed` JSON cannot promote a contract. See
 [`eval/README.md`](eval/README.md) and the
-canonical [`docs/efficiency.md`](docs/efficiency.md).
+canonical [`docs/qualification/design.md`](docs/qualification/design.md).
 The independent control-plane boundary and incremental workflow are canonical
 in the repository-only [`docs/development.md`](docs/development.md); those
 developer instructions and grants never become authority for an operated org.
@@ -792,7 +793,7 @@ token-free environment preflight, one-pass proportional bootstrap planning
 published by the orchestrator, a ratified approval & release boundary (scoped
 grants, release handoff, adapter-level role toolset shaping), and a
 repeatable clean-room benchmark
-([`docs/benchmark-runbook.md`](docs/benchmark-runbook.md)). On top of that
+([`docs/qualification/benchmark-runbook.md`](docs/qualification/benchmark-runbook.md)). On top of that
 substrate, a governed learning loop
 ([`docs/learning-loop/`](docs/learning-loop/), ratified 2026-07-11) is complete
 and live through M6: every pass is captured into episodes and replay

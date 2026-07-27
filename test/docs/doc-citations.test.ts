@@ -37,9 +37,13 @@ const KNOWN_EXTERNAL_PATHS = new Set([
   "docs/a/b.md",
   // Target-app spec path used in README's episode-intent example block.
   "docs/specs/feature-a.md",
-  // Retired by ratified decisions; PURPOSE's Decided log cites them as history.
+  // Retired by ratified decisions; PURPOSE's Decided log and the successor
+  // contracts' "formerly docs/efficiency.md" lineage notes cite them as
+  // history. The 2026-07-26 reorg split efficiency.md into
+  // docs/episodes/contract.md + docs/qualification/design.md.
   "docs/status.md",
   "docs/architecture/conceptual-overview.md",
+  "docs/efficiency.md",
 ]);
 
 const SCANNED_EXTENSIONS = new Set([".ts", ".mjs", ".cjs", ".sh", ".md", ".yaml", ".yml", ".template", ".mermaid"]);

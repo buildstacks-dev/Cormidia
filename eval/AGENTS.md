@@ -48,6 +48,6 @@ live under `eval/development-authorizations/`.
   operated org.
 
 ## References
-`docs/efficiency.md` → Phase 6 qualification scope (canonical boundary) ·
-`docs/development.md` (authorization + lifecycle) · `docs/benchmark-runbook.md`
+`docs/qualification/design.md` → Phase 6 qualification scope (canonical boundary) ·
+`docs/development.md` (authorization + lifecycle) · `docs/qualification/benchmark-runbook.md`
 · `docs/testing.md` → Never run these by accident

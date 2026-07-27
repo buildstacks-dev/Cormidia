@@ -21,7 +21,8 @@ learning, budgets, scheduler state, and production evidence cannot authorize or
 train platform-development work. Development campaign results cannot authorize
 an org operation.
 
-Root `AGENTS.md`, this guide, `docs/PURPOSE.md`, `docs/efficiency.md`, `eval/**`,
+Root `AGENTS.md`, this guide, `docs/PURPOSE.md`, `docs/episodes/contract.md`,
+`docs/qualification/design.md`, `eval/**`,
 `scripts/eval/**`, and `test/**` are developer-only surfaces and are excluded
 from the npm package. The packaged `agent-skills/operon/` skill is deliberately
 an org-operation guide. `TASTE.md`, `roles.yaml`, `pipelines.yaml`, and
@@ -182,5 +183,5 @@ check, repair causes without weakening gates, squash-merge, and synchronize the
 primary checkout without disturbing protected local edits.
 
 Phase 6 working-version completion is defined only by
-[`docs/efficiency.md`](efficiency.md#phase-6-qualification-scope). The future
+[`docs/qualification/design.md`](qualification/design.md#phase-6-qualification-scope). The future
 real-time soak is a distinct later campaign and broader organizational proof.

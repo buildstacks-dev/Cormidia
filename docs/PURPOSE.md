@@ -140,7 +140,7 @@ and agent definitions.
   conceal, or promote unsupported evidence. A real pre-V1 product may ship with
   bounded, disclosed eval debt while every product, safety, accounting,
   learning, budget, and CI boundary remains intact. `docs/development.md` and
-  `docs/benchmark-runbook.md` carry the detailed shipping policy.
+  `docs/qualification/benchmark-runbook.md` carry the detailed shipping policy.
 
 - **Operon platform development is an independent control plane** (ratified
   2026-07-16). Operon does not operate an org whose job is to build or maintain
@@ -174,7 +174,7 @@ and agent definitions.
   confirmation evidence cannot promote it. Phase 6 completion may be reported
   while the future soak is pending, but the broader claim that Operon is a
   fully proven “highly efficient organization” remains reserved until
-  `I-LIVE-01` passes. `docs/efficiency.md` → Phase 6 qualification scope is the
+  `I-LIVE-01` passes. `docs/qualification/design.md` → Phase 6 qualification scope is the
   canonical boundary.
 
 - **Input tokens are not a budget dimension** (ratified 2026-07-20; retracts
@@ -226,7 +226,7 @@ and agent definitions.
 - **Efficiency doctrine and evaluation semantics** (evaluation semantics
   ratified 2026-07-12; organization-wide operating doctrine ratified
   2026-07-13; operator outcome in `docs/VISION.md`, canonical contract in
-  `docs/efficiency.md`, executable requirement inventory in
+  `docs/episodes/contract.md`, executable requirement inventory in
   `eval/contracts.yaml`).
   Efficiency is a correctness property and never weakens safety, independent
   review, evidence, or critical-operation governance. Provider accounting and
@@ -441,7 +441,7 @@ and agent definitions.
   evidence if contracts prove weak. Planner depth previously defaulted to deep
   competing-PM planning for milestones and per-pass wall time previously
   defaulted to 60 minutes. Route depth and time budgets now come from
-  `docs/efficiency.md`; neither former default can override proportional
+  `docs/episodes/contract.md`; neither former default can override proportional
   admission.
   Org WIP defaults to `max_concurrent_turns: 2`; approval grants expire after
   24 h; dispatch ticks every 5 minutes; loop review/fix cycles cap at 3.
@@ -635,7 +635,7 @@ and agent definitions.
   publish/activate/rollback activation, and to promotion of the learning
   contract** — the activation and promotion paths are unchanged. Learning
   *capture* (100% eligible capture) was already, and remains, the operations SLO
-  for the loop (`docs/efficiency.md` → Threshold semantics). This is the same
+  for the loop (`docs/episodes/contract.md` → Threshold semantics). This is the same
   class of mis-scoping as the integrity/currency separation above: an accurate
   check (does the treatment strictly improve artifacts *on this draw*) was
   embedded where it structurally blocked a legitimate release. *Rationale
@@ -850,7 +850,7 @@ will resolve them.
   route; execution/accounting terms and layer ownership are explicit; legacy
   deep/60-minute defaults are non-normative; durable progress and lifecycle
   evidence claims are part of the product contract. Numeric budgets remain
-  solely in `docs/efficiency.md` (`efficiency/v1`).
+  solely in the efficiency contract (`efficiency/v1`; today `docs/episodes/contract.md`).
 - 2026-07-16 — v2.4: proportionate release evidence ratified. Material
   product, safety, accounting, learning-integrity, budget, and CI failures
   remain blockers; bounded evaluator-only defects are retained and disclosed

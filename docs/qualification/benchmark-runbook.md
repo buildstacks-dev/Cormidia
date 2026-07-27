@@ -8,7 +8,7 @@ Everything below is measured by Stage 1 telemetry; nothing is anecdotal.
 the procedure for re-runs.
 
 This historical Stage 7 procedure is no longer the qualification contract by
-itself. New comparable campaigns use `docs/efficiency.md` and `eval/README.md`:
+itself. New comparable campaigns use `docs/qualification/design.md` and `eval/README.md`:
 predeclared ordered cases and repetitions, immutable attempts, hidden graders,
 separate product/evaluator usage, explicit GitHub allowlists, and a read-only
 qualifier. A Stage 7 replay remains useful evidence but cannot replace the
@@ -20,7 +20,7 @@ Before any new comparable provider run, execute the token-free funnel
 `eval:github` and `eval:live` previews. When material adapter uncertainty
 remains, calibration precedes product episodes. Platform-development authority
 is defined separately in
-[`development.md`](development.md): a matching standing objective grant may
+[`docs/development.md`](../development.md): a matching standing objective grant may
 cover repaired campaign descendants, but each manifest, attempt, cumulative
 equivalent-cost ceiling, and zero-effect sandbox remains content-bound. A
 repaired candidate receives at most one decisive fail-fast full qualification
@@ -66,7 +66,7 @@ duplicate decisions/episodes and orphaned state, zero mechanical provider
 construction, exact provider-turn/settlement agreement, at least one durable
 restart, and byte-stable replay. This evidence promotes only deterministic
 `I-INSTALL`/`I-SOAK` contracts. It cannot promote provider standing-role or
-real-time-soak contracts. See [`docs/scheduler/design.md`](scheduler/design.md).
+real-time-soak contracts. See [`docs/scheduler/design.md`](../scheduler/design.md).
 
 Phase 6 promotion is also a separate token-free gate after execution. Archive
 the immutable campaign externally, import only its sanitized promotion slice,
@@ -79,7 +79,7 @@ current Phase 6 provider contracts. The separately authorized future L6
 archive remains the only route to `I-LIVE-01`; candidate qualification,
 virtual-soak evidence, and production confirmation cannot promote it. It is
 outside the current Phase 6 strict gate, not passed. See the canonical scope
-boundary in [`efficiency.md`](efficiency.md#phase-6-qualification-scope).
+boundary in [`design.md`](design.md#phase-6-qualification-scope).
 
 Candidate qualification has a third, independent boundary after L5. The
 learning block applies its content-hashed T1 procedure only to treatment arms
@@ -226,7 +226,7 @@ operon approvals   # decision count; expect ≤ 5, ideally 0-1
   human's only allowed touches are approval decisions (counted) and the
   commands above.
 - A missed target is not massaged — it becomes the next round of
-  efficiency work under `docs/efficiency.md`.
+  efficiency work under `docs/episodes/contract.md`.
 - No attempt is deleted or replaced. A typed infrastructure retry links to the
   original; merit failures are never rerun under the same attempt id.
 - Production is read-only confirmation and never threshold/prompt calibration.

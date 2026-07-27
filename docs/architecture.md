@@ -2,8 +2,9 @@
 
 *v1.7 — last aligned 2026-07-26. `docs/PURPOSE.md` → Decided is upstream and
 authoritative; this document holds the implementation map the decision layer
-deliberately does not. Route, budget, measurement, and qualification norms live
-only in `docs/efficiency.md`. Propose implementation changes here; promote
+deliberately does not. Route, budget, and measurement norms live
+only in `docs/episodes/contract.md`; platform qualification and release
+gating in `docs/qualification/design.md`. Propose implementation changes here; promote
 decisions to PURPOSE only after human ratification.*
 
 ## 0. Overview
@@ -96,8 +97,9 @@ and exits. Turns outlive ticks (§2); a fresh lock heartbeat skips that
 Every due episode admits a plan-derived route and budget **before** provider
 work: a bounded `EpisodeIntent`, then either token-free creator-scope
 normalization or EpisodePlanner, then a schema-validated durable `EpisodePlan`
-that owns the step DAG and exact harness/model/effort assignments. Identities,
-numeric ceilings, and qualification semantics live only in `docs/efficiency.md`;
+that owns the step DAG and exact harness/model/effort assignments. Identities and
+numeric ceilings live only in `docs/episodes/contract.md`, qualification
+semantics in `docs/qualification/design.md`;
 this document places intent/plan/journal/settlement modules on the import path
 (`src/org` → `src/loop` → `src/runtime`). Observe and report are read-only.
 
@@ -226,7 +228,7 @@ authority/config hashes, app checks, locks/approvals, and adapters without
 constructing a provider turn; it also synthesizes or repairs the lifecycle
 record. Promote to `live` is plan-by-default and executes only from passing
 verification. Readiness claims follow the generated → registered →
-runtime-ready → live → autonomously scheduled ladder in `docs/efficiency.md`;
+runtime-ready → live → autonomously scheduled ladder in `docs/episodes/contract.md`;
 none of those states is implied by an earlier one. CLI details and remediation
 live with the commands themselves and README → Commands.
 
@@ -358,7 +360,7 @@ with the exact `error_max_budget_usd` code and an incident note artifact
 recovery evidence names its isolated path and branch, reports whether the worktree
 is dirty, and gives a read-only inspection command. Operon does not automatically
 stage or commit arbitrary provider output at this boundary. Episode route
-admission and remaining-budget enforcement (`docs/efficiency.md`) are the
+admission and remaining-budget enforcement (`docs/episodes/contract.md`) are the
 canonical ceilings; this adapter cap is a safety backstop, not a second route
 budget.
 
@@ -448,7 +450,7 @@ process restarts.
 A role invocation whose running pass exceeds its wall-clock cap is killed by
 the dispatcher — SIGTERM escalating to SIGKILL. The pass executor derives its
 effective watchdog from the smaller of its configured ceiling and the
-episode's remaining active-time allowance in `docs/efficiency.md`.
+episode's remaining active-time allowance in `docs/episodes/contract.md`.
 Recovery (restart-clean + respawn) is **deferred until the process is
 confirmed dead** (`killHungTurns` in `src/org/dispatch.ts`): a still-alive
 child that also holds the per-app clone lock would otherwise let two workers
@@ -802,7 +804,7 @@ planner turn, then a durable execution `EpisodePlan` whose terminal output is
 a schema-validated `TicketPlan` the orchestrator may publish as GitHub issues
 (`src/org/plan-auto.ts`, `src/loop/plan-tickets.ts`). EpisodePlan authorizes
 execution; TicketPlan describes child work. Route, budget, and assignment
-norms are `docs/efficiency.md`; loop pass transport remains `docs/loop.md`.
+norms are `docs/episodes/contract.md`; loop pass transport remains `docs/loop.md`.
 
 `previewEpisode` / `orchestrateEpisode` / `explainEpisode` are the shared
 boundary used by dispatch, tickets, product planning, and release flows.
@@ -820,7 +822,7 @@ EpisodePlan-backed provider step.
 
 Greenfield (`operon new-app`) and existing-app (`operon bootstrap`) both require
 a complete active org (`operon org init`). Readiness claims follow the evidence
-ladder in `docs/efficiency.md` and §1 (generated → registered → runtime-ready →
+ladder in `docs/episodes/contract.md` and §1 (generated → registered → runtime-ready →
 live → autonomously scheduled); registry states remain `onboarding | live |
 paused`.
 

@@ -28,8 +28,9 @@ const ALLOWED_PROPORTIONATE_REPAIR_PATHS = new Set([
 const ALLOWED_PROMOTION_PATHS = new Set([
   "AGENTS.md",
   "eval/contracts.yaml",
-  "docs/efficiency.md",
-  "docs/benchmark-runbook.md",
+  "docs/episodes/contract.md",
+  "docs/qualification/design.md",
+  "docs/qualification/benchmark-runbook.md",
   "docs/testing-journey.md",
   "docs/harness/capability-matrix.md",
   "docs/harness/qualification-evidence.md",

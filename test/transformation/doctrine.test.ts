@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const efficiency = readFileSync(join(root, "docs/efficiency.md"), "utf8");
+const efficiency = readFileSync(join(root, "docs/episodes/contract.md"), "utf8");
 const purpose = readFileSync(join(root, "docs/PURPOSE.md"), "utf8");
 const vision = readFileSync(join(root, "docs/VISION.md"), "utf8");
 const architecture = readFileSync(join(root, "docs/architecture.md"), "utf8");
@@ -22,10 +22,10 @@ describe("ratified efficiency doctrine", () => {
     expect(purpose).toContain("organization-wide operating doctrine ratified");
     // VISION states the operator outcome only; claims/measurement authority
     // lives in PURPOSE + efficiency (PURPOSE points at both).
-    expect(vision).not.toContain("docs/efficiency.md");
+    expect(vision).not.toContain("docs/episodes/contract.md");
     expect(purpose).toContain("operator outcome in `docs/VISION.md`");
     for (const [name, text] of [["PURPOSE", purpose], ["README", readme], ["architecture", architecture], ["loop", loop]] as const) {
-      expect(text, `${name} must link the canonical authority`).toContain("docs/efficiency.md");
+      expect(text, `${name} must link the canonical authority`).toContain("docs/episodes/contract.md");
       expect(identityConflicts(text), name).toEqual([]);
     }
     expect(identityConflicts(vision), "VISION").toEqual([]);

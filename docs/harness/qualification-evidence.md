@@ -107,4 +107,4 @@ turns equal to 73 settlements. Its bound standing-role results promote
 from their own mapped cases. `I-LIVE-01` remains the sole pending
 `future_soak` contract and cannot be inferred from this campaign, virtual soak,
 or read-only production evidence. The canonical distinction is
-[`docs/efficiency.md`](../efficiency.md#phase-6-qualification-scope).
+[`docs/qualification/design.md`](../qualification/design.md#phase-6-qualification-scope).

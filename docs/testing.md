@@ -90,7 +90,7 @@ The per-path rulebook (moved from root AGENTS.md 2026-07-21).
   `test:transformation:strict` must pass the current scope after the nine
   Phase 6 provider-evidence promotions;
   `test:transformation:future-soak-strict` must independently fail only for
-  `I-LIVE-01`. The canonical boundary is `docs/efficiency.md` → Phase 6
+  `I-LIVE-01`. The canonical boundary is `docs/qualification/design.md` → Phase 6
   qualification scope. Never run `eval:github` or `eval:live` merely because
   these files changed, and never execute `eval:soak` merely because soak
   files changed. The provider-quality, first-failure, and

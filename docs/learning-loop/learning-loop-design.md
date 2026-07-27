@@ -9,7 +9,7 @@ built (2026-07-14); where this document and the code diverge, the code and
 **Companions:** `learning-loop-spec.md` (schemas)
 
 Learning efficacy, capture, episode identity, and later-comparable outcome
-claims use `docs/efficiency.md` as their canonical measurement contract. This
+claims use `docs/episodes/contract.md` as their canonical measurement contract. This
 design governs interventions and evidence; it does not define a second route or
 budget authority.
 
@@ -79,7 +79,7 @@ treatment fingerprints, hidden-guardrail commitment, eligibility hash,
 actor-blind pairing, budget, stop/missingness rules, and side-effect replacement
 before results. `operon learn report --efficiency-health` then reports capture,
 governance, and efficacy independently under the measurement rules in
-`docs/efficiency.md`.
+`docs/episodes/contract.md`.
 
 Phase 5 supplies the scheduler source: only terminal
 `missed_window_reconciled` decisions from `scheduler/evidence/decisions/`
@@ -601,7 +601,7 @@ True held-out behavioral cases remain **verifier-only**. Visible tests in the
 app or org repository are valuable regression tests, but they are not held out
 if the acting agent can read and optimize directly against their expected
 answers. The post-proportionality bootstrap benchmark
-(`docs/benchmark-runbook.md`) is the first global eval; it is not sufficient
+(`docs/qualification/benchmark-runbook.md`) is the first global eval; it is not sufficient
 as the general learning suite.
 
 ### 9.4 ReplayCapsule and the Ownership Boundary

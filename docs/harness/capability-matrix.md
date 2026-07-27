@@ -9,7 +9,7 @@ turn as `native | adapter-built | fallback (degraded) | unsupported` guidance.
 That profile-derived note is descriptive: role tools, permissions, and
 approval boundaries remain unchanged.
 
-Capability quality and provider accounting use `docs/efficiency.md`: every
+Capability quality and provider accounting use `docs/episodes/contract.md`: every
 adapter invocation is a provider turn with exactly one settlement, missing or
 estimated usage stays labeled by quality, and adapter readiness cannot be
 inferred from configuration presence alone.

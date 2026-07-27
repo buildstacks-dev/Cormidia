@@ -161,7 +161,7 @@ Rules, all inherited from the predecessor and now contract-level:
   the role's `max_turn_budget_usd` still bound the current implementation.
   They do not authorize additional episode spend. The target pre-provider-turn
   check uses the plan-derived route's remaining allowance from
-  `docs/efficiency.md`.
+  `docs/episodes/contract.md`.
 
 Adapter requirement surfaced by the predecessor's sharpest edge: briefs are
 large (it needed a custom stdin transport because prompts overflow ARG_MAX).

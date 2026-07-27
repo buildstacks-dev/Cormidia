@@ -6,7 +6,7 @@ SDK, Codex App Server, pi SDK — into an Operon `Runtime`. This doc is the
 procedure: what a harness must implement, where it registers, what proves it,
 and what an update obligates. The per-capability contract itself lives in
 [`capability-matrix.md`](capability-matrix.md); accounting rules live in
-[`docs/efficiency.md`](../efficiency.md); this doc does not restate them.*
+[`docs/episodes/contract.md`](../episodes/contract.md); this doc does not restate them.*
 
 ## 1. What a harness is
 
@@ -48,7 +48,7 @@ wrong first:
   `complete | partial | estimated | unavailable`. Estimated cost (Codex) is
   flagged `costEstimated: true`; unknown spend is never silently zero;
   `unavailable` keeps its typed cause and is never coerced or retried as a
-  merit miss (`docs/efficiency.md`).
+  merit miss (`docs/episodes/contract.md`).
 - **Enforce the per-turn budget cap as a running guard.** `maxTurnBudgetUsd`
   stops the turn mid-run → `failed` + `errorCode: "error_max_budget_usd"` +
   exactly one incident note. Budget exhaustion never masquerades as a generic

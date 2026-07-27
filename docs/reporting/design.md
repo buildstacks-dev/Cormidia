@@ -7,7 +7,7 @@
 *Audience: the org owner, a new implementation session, and reviewers.*
 
 Route, context, provider-turn, active-time, human-decision, scheduler, and
-learning metrics use `docs/efficiency.md` as their canonical definitions.
+learning metrics use `docs/episodes/contract.md` as their canonical definitions.
 Reporting projects durable facts and measurement quality; it never admits a
 route, repairs workflow state, or converts missing evidence into zero.
 

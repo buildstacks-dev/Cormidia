@@ -6,7 +6,7 @@ Stage 5 amendments A1–A5 ratified 2026-07-10; continuation and typed delivery
 (A2/A2.1) ratified 2026-07-18; content-bound grant identity (A-002)
 implemented 2026-07-17 — ratification history in `docs/PURPOSE.md` → Decided.
 Approval efficiency and human-decision accounting use the canonical
-definitions in `docs/efficiency.md`: approval precision and recurrence are
+definitions in `docs/episodes/contract.md`: approval precision and recurrence are
 measured at the semantic action/scope level, and only authority- or
 state-changing operator actions count as human decisions. This contract owns
 authorization behavior, not a separate efficiency budget. The system map is

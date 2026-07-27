@@ -416,4 +416,4 @@ sole `future_soak` contract: neither this preview, the virtual soak, nor
 read-only production confirmation can promote it. Phase 6 may finish with that
 future campaign pending, but the broader fully proven “highly efficient
 organization” claim may not. See
-[`docs/efficiency.md`](../efficiency.md#phase-6-qualification-scope).
+[`docs/qualification/design.md`](../qualification/design.md#phase-6-qualification-scope).

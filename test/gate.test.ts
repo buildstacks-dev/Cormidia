@@ -144,7 +144,7 @@ const CRITICAL_CASES: { action: ToolAction; rule: string }[] = [
   { action: bash("cat config/secrets.json"), rule: "secrets-or-auth" },
   { action: { tool: "read", input: { path: "config/credentials.json" } }, rule: "secrets-or-auth" },
   { action: bash("cat ~/.ssh/id_rsa"), rule: "secrets-or-auth" },
-  // Stage 6 calibration (approval-and-release-amendment): the USER/GLOBAL rc
+  // Stage 6 calibration (docs/approvals/design.md): the USER/GLOBAL rc
   // files stay critical — only the repo-local variant was recalibrated.
   { action: bash("cat ~/.npmrc"), rule: "secrets-or-auth" },
   { action: bash("cat /Users/alice/.npmrc"), rule: "secrets-or-auth" },

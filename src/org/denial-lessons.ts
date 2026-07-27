@@ -1,4 +1,4 @@
-// Durable denial lessons (approval-and-release-amendment A5). Eight of the
+// Durable denial lessons (docs/approvals/design.md A5). Eight of the
 // episode's fourteen denials were the SAME denial — the human's thoughtful
 // reason evaporated after each pass. A denial now persists as role memory
 // under the org home, deduplicated, so the next brief carries the lesson

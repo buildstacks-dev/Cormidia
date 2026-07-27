@@ -123,7 +123,7 @@ and agent definitions.
   broadly scopeable because every published payload needs its own execution
   acknowledgement. Critical SRE health events use this boundary to file exactly
   one source-linked `op:incident` issue while retaining analysis and filing as
-  distinct completion claims. `docs/approval-and-release-amendment.md` and
+  distinct completion claims. `docs/approvals/design.md` and
   `docs/architecture.md` carry the detailed contract.
 
 - **Qualification is proportionate to material release risk** (ratified
@@ -453,7 +453,7 @@ and agent definitions.
   (`ci-sweep`) unless scorecards later justify a standalone role.
 - **Approval & release boundary amendment** (ratified 2026-07-10; full design,
   threat model, adapter feasibility, and regression requirements in
-  `docs/approval-and-release-amendment.md`). Amends the 2026-07-04/06
+  `docs/approvals/design.md`). Amends the 2026-07-04/06
   approval decisions after the buildstacks.dev episode (42 decisions in one
   afternoon, mostly false positives): (A1) the human may widen a grant at
   decision time to rule+path scope for a ticket or app — TTL, use-count cap,
@@ -823,7 +823,7 @@ will resolve them.
   single-app org profile.
 - 2026-07-10 — v1.6: approval & release boundary amendment ratified (A1–A5:
   scoped grants, approve-and-rearm, batch review, release handoff, denial
-  lessons; full design `docs/approval-and-release-amendment.md`). Recorded in
+  lessons; full design `docs/approvals/design.md`). Recorded in
   Decided above; implemented through Stage 6 of the proportionality plan.
 - 2026-07-11 — v1.7: learning loop design ratified (v0.8 suite,
   `docs/learning-loop/`; governed self-improvement — capture → episodes →

@@ -1153,7 +1153,7 @@ export async function advanceShipping(
   const prNumber = requireField(item, "prNumber");
   const gateResults = [...item.gateResults];
 
-  // P7 (docs/approval-and-release-amendment.md A4): a milestone whose plan
+  // P7 (docs/approvals/design.md A4): a milestone whose plan
   // declared a deploy/package disposition may not merge unless the app
   // declares a matching mechanism — "deployable but unowned" is unfinished,
   // mechanically. Checked before any merge side effect; routed to the

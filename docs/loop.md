@@ -532,7 +532,7 @@ description-only defect.
   optional ship-check pass) and once immediately before the squash-merge
    (catches anything that moved in between). The predecessor's double-run,
    kept exactly. Before either run, the P7 release check
-   (docs/approval-and-release-amendment.md A4): a ticket whose
+   (docs/approvals/design.md A4): a ticket whose
    `Release-kind:` trailer declares deploy/package may not merge unless the
    app's `release:` block declares a matching mechanism — and, for a
    `trigger: tag` app, unless the milestone also declares a `Release-version`.

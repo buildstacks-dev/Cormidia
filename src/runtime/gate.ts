@@ -249,7 +249,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
     },
   },
   {
-    // Calibrated (Stage 6, approval-and-release-amendment): irreversible
+    // Calibrated (Stage 6, docs/approvals/design.md): irreversible
     // remote/data operations stay critical unconditionally, but `rm -rf` on a
     // RELATIVE path is bounded by the sandbox cwd (the ticket worktree) and
     // is routine — the 2026-07-10 episode escalated deleting a temp folder

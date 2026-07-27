@@ -490,109 +490,24 @@ These four rules are why a dead turn never leaves the repo half-done:
 
 ## 4. Approval surface (CLI queue)
 
-Decided 2026-07-04: CLI queue, one-by-one review, approve or
-deny-with-reason, persisted audit trail, app-tagged, single queue.
+Decided 2026-07-04: CLI queue, one-by-one review, approve or deny-with-reason,
+persisted audit trail, app-tagged, single queue. **Approve ≠ execute**: a
+decision mints a content-bound grant (default single-use; the human may widen
+scope, the agent never chooses), and a later dispatch performs only typed
+orchestrator-owned allowlisted actions with durable
+`approved → executing → executed | failed | ambiguous` acknowledgement.
+Self-merge, production deploy, external publication, and protocol-surface
+writes are never scopeable. The classifier reads Operon's own command line as
+an effect surface, and budget escalations (§7) enter this same queue as
+synthetic `budget-exceeded` items — one inbox, never two.
 
-The classifier reads Operon's own command line as an effect surface, not just
-third-party tools: `operon app reset`/`prune-runs` are
-`destructive-or-irreversible`, `operon org init|use|upgrade` is
-`protocol-self-edit`, `operon plan ratify-ticket-budget` and `operon bootstrap
-publish` are `external-publishing`, and `operon approvals
-review|revoke|disposition` is `approval-store-tamper` — self-approval by CLI is
-still self-approval. Read-only invocations (`roles`, `apps`, `status`,
-`doctor`, `budget`, `context`, `episode explain`, `approvals show|status`)
-stay routine.
-
-### Storage (`~/.operon/<org>/approvals/`)
-
-```
-pending/<id>.json     one file per open item
-decided/<id>.json     moved here on decision (decision fields merged in)
-grants/<grantId>.json grants created by approvals (single-use by default;
-                      the human may widen to ticket/app scope at decision time)
-execution-locks/      per-item claim locks for sanctioned later executors
-log.jsonl             append-only audit trail (raised, decided, grant uses,
-                      and execution transitions)
-```
-
-Plain files, no database: one human decision consumer, with per-item locks for
-concurrent dispatch executors; survives the droplet migration as a directory
-copy, and TASTE §3 (boring dependencies). `id = <utc-compact-timestamp>-<rand4>`.
-
-Item schema:
-
-```jsonc
-{
-  "id": "20260704T193201Z-8k2f",
-  "app": "civic", "role": "builder", "turnId": "…", "ticketRef": "#42",
-  "workdir": "/…/worktrees/civic/op-42",  // sandbox cwd the action was raised
-                                          // from; the context a later
-                                          // orchestrator execution runs in
-  "rule": "secrets-or-auth",              // gate rule that fired
-  "action": { "tool": "Bash", "input": "…", "description": "…" },
-  "classification": {                     // effect fields only; no prose
-    "schemaVersion": 1, "rule": "secrets-or-auth", "reason": "…",
-    "matchedAction": { "executables": ["cat"], "targets": [".env"] }
-  },
-  "justification": "…",                   // the model's stated intent, from turn events
-  "raisedAt": "…", "status": "approved",
-  "execution": {
-    "state": "approved",                  // not evidence the effect happened
-    "executor": "orchestrator-command | durable-github | release | actor-retry",
-    "idempotencyKey": "…", "attempts": 0, "nextAction": "dispatch"
-  }
-}
-```
-
-
-
-### Flow
-
-1. Gate denies-and-escalates; the adapter surfaces the denial; the item is
-   persisted to `pending/` at collection time (`blocked_on_gate` when the
-   primary artifact is unreachable).
-2. Human reviews via CLI. **Approve ≠ execute.** Approval mints an
-   action-hashed grant (default scope `once`; human may widen to ticket/app
-   with TTL/cap/revoke). Self-merge, production deploy, external publication,
-   and protocol-surface writes are never scopeable.
-3. Next tick re-dispatches when escalations are decided; the effective gate is
-   grant lookup then default rules. Deny reasons become durable lessons.
-4. Later dispatch executes only typed orchestrator-owned allowlisted actions
-   (`durable-github`, `release`, `orchestrator-command`), records
-   `approved → executing → executed|failed|ambiguous`, and never blindly
-   retries ambiguity. Full grant, binding, and disposition contract:
-   `docs/approval-and-release-amendment.md` and `docs/PURPOSE.md` → Decided.
-
-### CLI
-
-```
-operon approvals              pending table plus approved executions that
-                              still need acknowledgement (app-tagged)
-operon approvals review       one-by-one: full item, then [a]pprove (with
-                              optional scope: `a ticket [path]` / `a app
-                              [path]`) / [d]eny (reason required) / [s]kip;
-                              approving may also re-arm the parked ticket
-                              (op:blocked → op:ready) so the next tick
-                              continues from artifacts
-operon approvals review --batch   group pending items with identical
-                              (rule, app); one decision, per-item audit rows
-operon approvals show <id>    full detail incl. turn-event context
-operon approvals status       decision/execution state, attempts, actor,
-                              result, remote reference, and next action
-operon approvals disposition <id> (--executed|--failed|--retry)
-                              --reason <text> --confirm <id>
-                              explicit reconciliation for failed/ambiguous work
-operon approvals revoke <grant-id>   immediate revocation of a live grant
-```
-
-Decision writes materialize the grant before the decision log and atomic item
-move, so a logged approval cannot lack its authorization file; log-vs-file
-reconciliation repairs an interrupted move or missing grant at the next
-`operon approvals` run. Execution item rewrites are atomic and transition rows
-remain append-only evidence.
-
-Budget escalations (§7) enter this same queue as synthetic items
-(`rule: "budget-exceeded"`) — one inbox, never two.
+[`docs/approvals/design.md`](approvals/design.md) is the authoritative
+contract: storage layout and item schema, the CLI effect classifier, grant
+scopes and the never-scopeable list, content-bound grant identity (A-002),
+continuation after a decision, typed later delivery and acknowledgement,
+batched review, release ownership and the `release:` config schema (A4),
+denial lessons, standing Stage 5 bounds, and the standing regression
+requirements.
 
 ## 5. Context assembly
 

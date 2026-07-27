@@ -1,7 +1,7 @@
 // Grant-aware gate composition. This lives in src/org so runtime remains a
 // pure adapter layer and never imports approval storage.
 //
-// Stage 6 (approval-and-release-amendment): scoped multi-use grants match by
+// Stage 6 (docs/approvals/design.md): scoped multi-use grants match by
 // rule+path before escalating (A1); acts forbidden for a role are auto-denied
 // with guidance and a durable lesson instead of burning a human decision —
 // the episode spent 20 decisions on attempts the protocol already forbade.

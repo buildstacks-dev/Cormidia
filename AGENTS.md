@@ -2,8 +2,8 @@
 
 ## Scope
 Applies to the whole repo. Nested AGENTS.md files specialize local rules in
-`src/runtime/`, `src/observe/`, `src/report/`, and `eval/` — read the nearest
-one when working there. `docs/PURPOSE.md` is the decision log; on conflict its
+`src/runtime/`, `src/observe/`, `src/report/`, `src/narrative/`, and `eval/` —
+read the nearest one when working there. `docs/PURPOSE.md` is the decision log; on conflict its
 Decided section wins and this file is stale — fix this file.
 
 This file governs **building and maintaining the Operon platform**, not
@@ -31,7 +31,7 @@ tracker (`gh issue list`).
 | `src/runtime/` | Runtime contract + adapters — `src/runtime/AGENTS.md` |
 | `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop/design.md`) |
 | `src/org/` | Standing-org layer: lifecycle, bootstrap, scheduler, approvals, budget, learning (`src/org/learning/`); `src/org/home.ts` is the package/org/state boundary |
-| `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×2, `docs/narrative/design.md` |
+| `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table — new subcommand = new file + one registry line |
 | `agent-skills/operon/` | Packaged `$operon` Agent Skill (org operation, not development) |
 | `test/` | Offline suite; reuse `test/fixtures/` (orgHome, fakeClock); `test/conformance/` is the adapter-generic suite |

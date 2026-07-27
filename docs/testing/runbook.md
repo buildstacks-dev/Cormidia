@@ -22,15 +22,16 @@ CI is not your inner loop. These are the numbers that decide your day:
 | Check one contract gate | `pnpm eval:contracts:strict` | 0.6s |
 | Observer/Reports UI change | `pnpm test:observe-browser` | ~4s |
 | Packaging/onboarding change | `pnpm smoke:onboarding` | ~25s |
-| **Before you push** | `pnpm test && pnpm typecheck` | **~2.3 min** |
+| **Before you push** | `pnpm test && pnpm typecheck` | **~3.5 min** |
 
 Run the focused suite while you work and the full suite once before pushing.
 Re-running the whole suite after every edit is the single easiest way to make
-this repo feel slow.
+this repo feel slow. (Timings here are indicative and drift as the suite
+grows; the lane times in [CI lanes](#ci-lanes) are CI-measured.)
 
 If you have already run `pnpm test`, use the **atomic** contract commands
 (`pnpm eval:contracts`, `pnpm eval:contracts:strict`) rather than the
-`test:transformation*` composites — the composites re-run ~98s of Vitest to
+`test:transformation*` composites — the composites re-run minutes of Vitest to
 reach a 0.6s assertion. The composites exist so a single command is
 self-contained when you have *not* run the suite.
 
@@ -146,7 +147,10 @@ The per-path rulebook (moved from root AGENTS.md 2026-07-21).
   broken — and state in the PR that the finding is guarded by preflight, not
   reproduction. A fix that lands without either is incomplete; a live run is
   not a regression test.
-- Docs-only changes: nothing to run.
+- Docs-only changes: nothing to run in CI (ratified 2026-07-17). The
+  `test/docs/` citation/link/anchor guard and the docs-root inventory pin
+  run with the next `pnpm test`, so a moved or renamed doc fails offline
+  instead of rotting silently.
 
 ## When CI runs at all
 
@@ -210,7 +214,7 @@ Changing an admission rule requires a case in `test/ci/classify-changes.test.ts`
 
 | Command | Covers | Notes |
 | --- | --- | --- |
-| `pnpm test` | every `test/**/*.test.ts`, excluding `*.live.test.ts` | the offline suite; ~2 min |
+| `pnpm test` | every `test/**/*.test.ts`, excluding `*.live.test.ts` | the offline suite; ~3.5 min |
 | `pnpm test:offline` | same, with the CI timeout | what CI runs |
 | `pnpm typecheck` | `tsc --noEmit` | seconds |
 | `pnpm build` | `tsc` → `dist/` | no offline test needs a real `dist/` |
@@ -228,8 +232,9 @@ Changing an admission rule requires a case in `test/ci/classify-changes.test.ts`
 
 ## Why the integrity machinery exists
 
-Qualification campaigns cost real money (the Phase 6 grant carries a `$2000`
-cumulative ceiling). An efficiency claim is only worth that spend if it cannot be
+Qualification campaigns cost real money (the standing grant under
+`eval/development-authorizations/` carries a cumulative equivalent-cost
+ceiling). An efficiency claim is only worth that spend if it cannot be
 quietly detached from the thing it certifies. Four content hashes do that:
 
 | Hash | Governs |

@@ -101,16 +101,14 @@ only its declared useful turns across 48–72 hours, records all other due ticks
 mechanically, and requires a distinct-process receipt at the predeclared
 restart hour.
 
-Phase 6 promotion does not trust a copied pass marker. The qualifier emits a
-deterministic JSON result beside the portable HTML report; a schema-v2 archive
-retains every selected result, hidden-grader/verifier record, and independent
-attempt-accounting receipt. A content-bound release attestation permits only
-sanitized evidence/status documentation after the exact candidate commit and
-proves the installable package, executable eval suite, and org bytes are
-unchanged. Contract tests recompute the outcome and reject stale, foreign,
-malformed, duplicated, missing, grader-failed, or settlement-mismatched
-evidence. L6 is reconciled independently from all 576 ticks, the 12 useful
-runs, ledgers, envelopes, and the distinct-process restart receipt.
+Promotion never trusts a copied pass marker. The qualifier emits a
+deterministic JSON result, an archive retains every selected result and
+hidden-grader record, and contract tests independently recompute the outcome —
+rejecting stale, foreign, malformed, duplicated, missing, grader-failed, or
+settlement-mismatched evidence. How a qualified result then survives into a
+release without being quietly detached from the code it certifies is the
+attestation contract in
+[`docs/qualification/design.md`](../qualification/design.md).
 
 The ratified Phase 6 boundary separates that future real-time proof from the
 completed current qualification without weakening either. The current
@@ -120,54 +118,23 @@ pending, not passed, and neither the virtual soak nor production confirmation
 can promote it. The canonical definition is
 [`docs/qualification/design.md`](../qualification/design.md#phase-6-qualification-scope).
 
-The first Phase 6 candidate campaign remains a useful negative proof rather
-than a disposable rehearsal. It is archived with 11 passes, eight product
-misses, three infrastructure-invalid attempts, and an incomplete tail. The
-corrected harness turns unavailable provider usage into explicit missing
-denominators, and corrected actor-visible contracts pin compatibility details
-without revealing hidden answers. The exact retained evidence and correction
-handoff live in
-`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`.
+Failed campaigns are kept, not rerun. Three invalid candidate campaigns and
+the invalidated 2026-07-12 provider baseline are retained as negative proofs —
+each one exposed a real harness or contract defect, each correction is
+documented, and none was rescored or replaced. The full forensics (exact pass
+counts, costs, hashes, and correction handoffs) live where dated evidence
+belongs, in `research/evals/`:
+`2026-07-15-phase6-candidate-qualification-invalid.md`,
+`2026-07-15-phase6-pi-codex-candidate-invalid.md`,
+`2026-07-15-phase6-scope-split-candidate-invalid.md`, and
+`2026-07-12-pre-transformation-baseline.md`.
 
-The next pi-on-Codex adapter evidence qualified, while the dependent candidate
-is retained as a second `invalid` negative proof: 24 passes, two deep product
-misses, two continuation invalid measurements, and six learning pristine-gate
-harness errors. The corrected harness waits for usage-bearing progress before
-injecting continuation cancellation and keeps the learning case network-dark
-with a focused non-loopback seed test. The deep actor contract now preserves
-pinned package scripts. Exact hashes, costs, archives, and the fresh-identity
-handoff live in
-`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`.
-
-The subsequent scope-split adapter campaign qualified, while its dependent
-candidate is retained as a third `invalid` negative proof: 31 passes, one
-context safety stop, one deep product miss, and one learning product miss.
-The context gate remained fail-closed when safety prose was embedded in a
-shell validation literal; the deep implementation now distinguishes an
-expired contract-authoring-only edit ban from durable constraints; and the
-learning schema makes exact event class identifiers explicit while still
-rejecting annotations. All 71 provider turns settled once, and exact hashes,
-costs, report, archive, and continuation instructions live in
-`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`.
-
-The paired learning proof likewise cannot be a fixture verdict. A predeclared
-T1 procedure is injected only into the three treatment arms. Operon hashes the
-six actual provider candidates, independent reviewer observations, and hidden
-grader records; computes all three treatment-minus-control deltas; and retains
-inconclusive, regressed, or invalid outcomes unchanged. A measured improvement
-still does not activate anything: a separate preview produces the exact
-candidate/action hashes for one isolated governed activation and rollback,
-which needs its own human authorization beyond the L5 spend decision.
-
-The 2026-07-12 provider baseline is recorded in
-`research/evals/2026-07-12-pre-transformation-baseline.md`. Its misses and
-safety stop are retained as the pre-feature comparison point. The later T0–T5
-audit deliberately invalidated that v1 bundle under the hardened result schema
-rather than inventing missing measurements. The replacement adapter calibration
-qualified on 2026-07-13; the replacement provider baseline remains a separate,
-explicitly authorized T4 operation. Product misses are expected baseline
-evidence when the harness, graders, run records, settlements, and accounting
-remain complete and reconcilable.
+The paired learning proof is likewise never a fixture verdict: a predeclared
+treatment is injected only into treatment arms, hidden graders score the real
+provider artifacts, and even a measured improvement activates nothing without
+its own separately authorized decision. The full procedure is
+[`docs/qualification/design.md`](../qualification/design.md) → Phase 6
+learning-efficacy measurement.
 
 ## The journey, stage by stage
 
@@ -224,14 +191,16 @@ efficacy result.
 Build work continued past M10 through the M12 manual-app hardening and a
 follow-on hardening campaign (atomic org state, per-tick budget auto-pause,
 the setup gate, per-app clone serialization, kind-based company-event
-routing, and the delta from-scratch onboarding). Real-application onboarding
-is not gated behind a single "build-complete" moment: the first production
-app, **buildstacks.dev**, is registered in `apps.yaml` at
-`status: onboarding` — frozen as the proportionality benchmark baseline
-(historical Stage 7). The sandbox benchmark met its
-targets on 2026-07-11 (round 2); its
-re-entry as the production confirmation is now an open disposition
-(issue #17) awaiting a human go.
+routing, and the delta from-scratch onboarding). The sandbox benchmark met
+its targets on 2026-07-11 (round 2). The first production-app attempt,
+**buildstacks.dev**, ended honestly rather than successfully: its
+production-confirmation run missed the Stage 7 targets, and the app was
+deliberately offboarded with a guarded, archived `operon app reset` —
+recorded in the
+[frozen-state disposition issue #17](https://github.com/buildstacks-dev/Operon/issues/17)
+(closed 2026-07-12) as an explicit failed/incomplete result, not a false
+success. A future production attempt re-onboards from a deliberate checkout
+as new work.
 
 ## What the current test apps cover — and what they don't
 
@@ -263,28 +232,17 @@ exercises them against *synthetic* operating material, below):
    launch-note *drafts* from real shipped work. Positioning and
    adoption-signal work needs richer material.
 
-### The third test application
+### How gamma narrows that gap
 
-Created and smoke-tested 2026-07-06 as roadmap item M8.5:
-**`operon-sandbox-gamma` — a tiny deployable web service**
-(a small HTTP API with a health endpoint and a local/container deploy
-script), plus a seeded, synthetic user-feedback inbox.
-
-That one addition makes the remaining surfaces testable with real
-functionality and zero outward blast radius:
-
-- **SRE:** the hourly sweep checks a real health endpoint; killing the
-  service produces a real alert → incident note → Planner ticket; the
-  deploy script is a real critical-op target for the approval queue.
-- **Support:** the feedback inbox contains realistic user messages; the
-  digest and reply drafts are produced from real material and stay
-  drafts.
-- **Marketing:** real releases of a real (toy) service feed changelog and
-  launch-post drafts.
-
-The M8.5 smoke produced a real private `op:incident` issue from an unhealthy
+Gamma exists precisely to shrink those three gaps with zero outward blast
+radius: the SRE hourly sweep checks a real health endpoint (killing the
+service produces a real alert → incident note → Planner ticket, and the
+deploy script is a real critical-op target for the approval queue); Support
+digests a seeded feedback inbox into drafts; and Marketing turns real sandbox
+releases into changelog and launch-note drafts. Its creation smoke (M8.5,
+2026-07-06) produced a real private `op:incident` issue from an unhealthy
 health check, Support reply drafts from synthetic feedback, and Marketing
-release/changelog drafts from the `v0.1.0` sandbox tag.
+release drafts from the `v0.1.0` tag — synthetic material, real machinery.
 
 The standing principle throughout: **nothing outward-facing is ever
 actually published during testing** — no posts, no emails, no DNS

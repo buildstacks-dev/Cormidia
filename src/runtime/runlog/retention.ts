@@ -1,4 +1,4 @@
-// Run-dir retention (build plan M2.7; docs/loop.md §9: L3 retention =
+// Run-dir retention (build plan M2.7; docs/loop/design.md §9: L3 retention =
 // `session_retention_days`; run dirs pruned on the same schedule).
 //
 // Prune rule, fail-safe in every ambiguous case: a run dir is deleted ONLY

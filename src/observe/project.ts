@@ -1174,7 +1174,7 @@ const TRIGGER_SOURCE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   event: "Company event file drop",
   manual: "Human operator command",
 });
-/** The four contract kinds in docs/event-schemas.md. */
+/** The four contract kinds in docs/scheduler/event-schemas.md. */
 const EVENT_KIND_LABELS: Readonly<Record<string, string>> = Object.freeze({
   "health-alert": "Service health alert",
   "support-feedback": "User feedback from a support channel",

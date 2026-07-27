@@ -224,7 +224,7 @@ export interface TicketPlan {
   ticketCountRationale: string;
   /** P7: every milestone names its release disposition and owner. */
   releaseDisposition: string;
-  /** P7, machine-readable half (docs/approval-and-release-amendment.md A4):
+  /** P7, machine-readable half (docs/approvals/design.md A4):
    *  what the milestone requires at ship time. Rendered into every ticket
    *  body as a `Release-kind:` trailer; the ship gate cross-checks it
    *  against the app's declared `release:` mechanism. */

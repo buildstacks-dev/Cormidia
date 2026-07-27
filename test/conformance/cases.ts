@@ -63,7 +63,7 @@ export const ROUTINE_CASES: ToolAction[] = [
  *  there is exactly one place that defines what "destructive rm -rf" means. */
 export const SUBAGENT_CRITICAL_CASE: ConformanceCriticalCase = CRITICAL_CASES[1]!;
 
-/** docs/loop.md §2's ARG_MAX lesson: adapters must accept multi-hundred-KB
+/** docs/loop/design.md §2's ARG_MAX lesson: adapters must accept multi-hundred-KB
  *  task payloads via a robust channel, not ARG_MAX-limited argv. 300KB + 1
  *  byte, matching src/runtime/testing/fakeRuntime.test.ts's own self-test so
  *  the two payload-size constants never silently drift apart. */

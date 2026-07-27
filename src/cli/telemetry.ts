@@ -1,6 +1,6 @@
-// Historical telemetry view over runs/ (Stage 2 of
-// docs/telemetry-review-and-proposed-fixes.md §5). Per-pass detail comes from
-// L1 envelopes + L2 events, so it stays truthful even before the Stage 1
+// Historical telemetry view over runs/ (accounting rules:
+// docs/reporting/design.md). Per-pass detail comes from
+// L1 envelopes + L2 events, so it stays truthful even before ledger
 // reconciliation completes; it never writes telemetry.
 //
 // The AGGREGATE cost is read from the settled org ledger, which is the single

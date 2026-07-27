@@ -50,15 +50,18 @@ Read [`docs/PURPOSE.md`](docs/PURPOSE.md) for the why and every decision made so
 [`TASTE.md`](TASTE.md) is the org's constitution;
 [`roles.yaml`](roles.yaml) is the org chart made executable;
 [`AGENTS.md`](AGENTS.md) is the contributor map.
-New to the code? Open [`docs/wiki.html`](docs/wiki.html) — a standalone,
-self-contained wiki that walks the three layers, the build loop, and the
-runtime adapters, with curated reading paths for coming up to speed.
+New to the code? Start at [`docs/architecture.md`](docs/architecture.md) —
+the thin system map — and follow its links into each subsystem's topic folder
+(`docs/loop/`, `docs/scheduler/`, `docs/approvals/`, `docs/harness/`,
+`docs/org/`, and friends), where one `design.md` per folder is the
+authoritative contract.
 
 Operon turns approved goals into verified software outcomes with process
 proportional to the work and its risk, minimal human attention, durable forward
 progress, and continuously improving unit economics. `docs/VISION.md` states
-the operator outcome; `docs/efficiency.md` is the normative plan-derived
-budget, route, measurement, and qualification contract.
+the operator outcome; `docs/episodes/contract.md` is the normative plan-derived
+budget, route, and measurement contract; `docs/qualification/design.md`
+owns qualification and release gating.
 
 ## Install locally
 
@@ -210,7 +213,7 @@ Company-lifecycle files placed in
 `operon dispatch` reports malformed payloads as `malformed_company_event`,
 unregistered kinds as `unknown_company_event_kind`, and valid registered kinds
 with no current role trigger as the non-error skip `no_subscriber`; only valid
-subscribed kinds spawn turns. See [the event schema contract](docs/event-schemas.md)
+subscribed kinds spawn turns. See [the event schema contract](docs/scheduler/event-schemas.md)
 for the supported kinds, payloads, and exact retention behavior.
 
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
@@ -258,7 +261,9 @@ Onboarding claims follow an evidence ladder:
 These are evidence claims, not five new `apps.yaml` values; registry state
 remains `onboarding | live | paused`. `new-app` reaches generated, while a
 successful bootstrap reaches registered. Neither alone proves runtime-ready,
-live, or autonomous scheduling.
+live, or autonomous scheduling. The design contract behind all of this —
+what bootstrap scans, what verify proves, how promote executes — is
+[`docs/org/onboarding.md`](docs/org/onboarding.md).
 
 Scheduler lifecycle is explicitly gated. Preview the exact org-scoped
 definition first, then execute only with the reported identity (or exact org
@@ -277,7 +282,7 @@ state-home paths. It contains no credentials or inherited environment dump.
 Status joins ownership/hash/cadence validation, loaded/active manager state,
 recent durable ticks, duplicate/orphan checks, and provider settlement
 agreement; a definition file alone is never healthy. See
-[`docs/scheduler.md`](docs/scheduler.md) for the canonical schema, identities,
+[`docs/scheduler/design.md`](docs/scheduler/design.md) for the canonical schema, identities,
 reason codes, and health rules.
 
 The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
@@ -526,7 +531,7 @@ pnpm test:transformation:future-soak-strict # red only for I-LIVE-01 until the f
 ```
 
 The ratified Phase 6 boundary is defined only in
-[`docs/efficiency.md`](docs/efficiency.md#phase-6-qualification-scope). Its
+[`docs/qualification/design.md`](docs/qualification/design.md#phase-6-qualification-scope). Its
 current strict scope contains 83 contracts and can finish after valid candidate
 qualification, nine evidence promotions, read-only production confirmation,
 and shipping. `I-LIVE-01` is the sole future-soak contract: it remains pending,
@@ -547,9 +552,9 @@ then proves installable-package and executable-suite bytes are unchanged, and
 `eval:promote` creates the contract-specific projections. File presence or an
 unbound local `passed` JSON cannot promote a contract. See
 [`eval/README.md`](eval/README.md) and the
-canonical [`docs/efficiency.md`](docs/efficiency.md).
+canonical [`docs/qualification/design.md`](docs/qualification/design.md).
 The independent control-plane boundary and incremental workflow are canonical
-in the repository-only [`docs/development.md`](docs/development.md); those
+in the repository-only [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md); those
 developer instructions and grants never become authority for an operated org.
 
 The Phase 6 learning block uses a predeclared content-hashed T1 treatment only
@@ -689,7 +694,7 @@ adjacent evidence bundle.
 
 None of these stores grows forever: every state subtree has a documented
 retention window, swept fail-safe once per UTC day from the dispatch tick
-(docs/scheduler.md → State retention; manual form `operon prune-runs
+(docs/scheduler/design.md → State retention; manual form `operon prune-runs
 --sweep`). Ledger day-files are never deleted while `budget --reconcile`
 could still re-settle their rows from surviving evidence, and the committed
 org-home `learning/**` substrate plus the state home's durable learning
@@ -792,7 +797,7 @@ token-free environment preflight, one-pass proportional bootstrap planning
 published by the orchestrator, a ratified approval & release boundary (scoped
 grants, release handoff, adapter-level role toolset shaping), and a
 repeatable clean-room benchmark
-([`docs/benchmark-runbook.md`](docs/benchmark-runbook.md)). On top of that
+([`docs/qualification/benchmark-runbook.md`](docs/qualification/benchmark-runbook.md)). On top of that
 substrate, a governed learning loop
 ([`docs/learning-loop/`](docs/learning-loop/), ratified 2026-07-11) is complete
 and live through M6: every pass is captured into episodes and replay
@@ -802,7 +807,7 @@ distillation with independent review and report-only compaction. The latest date
 [`research/2026-07-11_adapter-tool-events.md`](research/2026-07-11_adapter-tool-events.md);
 open work lives in the [issue tracker](https://github.com/buildstacks-dev/Operon/issues).
 
-`docs/capability-matrix.md` records each adapter's native, adapter-built, and
+`docs/harness/capability-matrix.md` records each adapter's native, adapter-built, and
 degraded capabilities. `pnpm test:live` is the gated live-adapter proof.
 
 ### Known limitations

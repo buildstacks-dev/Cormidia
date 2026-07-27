@@ -1,9 +1,9 @@
 # PURPOSE — Operon
 
-*v2.6 — 2026-07-19. Human-ratified decision log. Keep this file high-level;
-execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
-
-## One-liner
+*v2.7 — 2026-07-26. Human-ratified decision log. Keep this file high-level;
+execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop/design.md.
+The operator outcome is `docs/VISION.md`; product status and known limitations
+live in README → Status.*
 
 Operon is a governed **org runtime** that turns approved goals into verified
 software outcomes with process proportional to risk, minimal human attention,
@@ -18,38 +18,6 @@ operations only.
 at org configuration and target repos; it never contains app code. One org
 runtime, N applications.
 
-## Validation and launch path
-
-The product is proven on disposable sandbox apps before touching production
-applications (updated 2026-07-11):
-
-1. **operon-sandbox-alpha** — well-kept Node library with tests, lint, CI, and
-   agent docs. Primary build-loop target.
-2. **operon-sandbox-beta** — minimal Node library with tests only. Proves
-   graceful absence handling and "second app = config file, not a fork."
-3. **operon-sandbox-gamma** — created 2026-07-06. A tiny deployable HTTP
-   service with `/health`, a local/container deploy script, and seeded
-   feedback/adoption/health events. Its job is to give SRE, Support, and
-   Marketing real functional coverage before production onboarding.
-4. **operon-sandbox-delta** ("Ledgerette") — created 2026-07-06. Built from
-   scratch through `operon new-app`; the from-scratch onboarding + live
-   build-loop proof (the loop fixed and merged its planted bugs unaided).
-
-**Build-complete means M10.** After M10, production onboarding happens with the
-human as launch activity, not as product-development proof. Current status:
-
-1. **Civic Intelligence / Responsible Citizen**
-   (`~/Build/Government/AgentSkill-CivicIntelligence`) — pending production
-   onboarding.
-2. **buildstacks.dev** (`~/Build/buildstacks.dev`,
-   `buildstacks-dev/buildstacks.dev`) — created and bootstrapped on
-   2026-07-06 as `status: onboarding`, proving the same config-not-fork story
-   on a production repo. It is not live until the human flips the app status.
-
-The org operates on each app the way the predecessor operated on any target
-repo. The architecture must generalize: pointing the org at another app is a
-config file, not a fork.
-
 ## The org chart
 
 | Role | Responsibility |
@@ -62,52 +30,28 @@ config file, not a fork.
 | **Marketing agent** | Positioning, changelogs, launch notes, content drafts; watches adoption signals and feeds them to the Planner |
 | **Distiller agent** | Daily, deterministic-prechecked synthesis of captured evidence into governed candidates |
 | **Learning Reviewer agent** | Weekly cross-provider review of candidates plus report-only compaction recommendations |
-| **Human (Bikram)** | Approver for **critical ops only**; final authority |
-| **GitHub (private repo)** | Source of truth: code, tickets/issues, PRs, decisions, agent definitions |
+| **Human** | Approver for **critical ops only**; final authority |
+
+System of record: private GitHub repos hold code, tickets/issues, PRs, decisions,
+and agent definitions.
 
 ## Non-negotiables
 
-1. **Protocol-driven, not prompt-and-pray.** This is not "throw a problem at a
-   model and let a builder run with a few prompts." There is a specific taste in
-   how software gets built — protocols, standards, review gates — and the system
-   must make those enforceable and easy to customize.
-2. **Model-agnostic.** Role responsibility and execution assignment are
-   separate. Every provider turn receives one atomic harness, exact-model, and
-   effort assignment. Fixed assignments resolve from configuration; adaptive
-   assignments are selected only from exact org-approved candidates. Changing
-   an assignment must be a config change, not a rewrite, and must never broaden
-   the role's authority.
-3. **The agent is the code.** Each agent = a versioned blob of code/config/prompt
-   in the repo — inspectable, diffable, reviewable like anything else.
-4. **Reusable beyond the first app.** The org runtime must not absorb
-   app-specific knowledge into its own code; app context lives in the target
-   repo and in per-app memory.
-5. **Adaptable by design.** The AI/runtime landscape will keep changing fast.
-   Operon must stay simple, maintainable, and extensible: new roles, models,
-   pipelines, and app-specific policies should be config/protocol additions
-   unless evidence proves the core runtime must change.
-6. **Efficiency is a correctness property.** Correct outcomes must preserve
-   safety and evidence while using process proportional to demonstrated risk.
-   A result reached through disproportionate retries, repeated context, or
-   human supervision is not fully correct.
-7. **Intelligence is reserved for judgment.** Parsing, migration,
-   synchronization, validation, capture, aggregation, reconciliation, and
-   other deterministic mechanics use zero model turns by default.
-8. **Risk buys process.** The normal EpisodePlanner turn establishes the
-   smallest sufficient workflow. Every additional planning revision, review,
-   isolation, model effort, or context allowance requires a recorded risk,
-   uncertainty, safety, or failed-assumption factor under the canonical
-   efficiency policy.
-9. **Forward progress is durable.** Valid decisions and artifacts survive
-   interruption, approval, retry, reset, and restart. Re-derivation requires a
-   recorded invalidation reason.
-10. **Human attention and context are budgets.** False or repeated approvals
-    and unexplained context growth are organizational defects. Authority,
-    safety, acceptance criteria, and unresolved findings are never discarded
-    merely to meet a budget.
-11. **Learning is outcome-accountable.** Learning is successful only when a
-    governed intervention measurably improves a later comparable episode; an
-    event or plausible candidate alone is not improvement.
+1. **Deterministic by default.** If it can be code, it is code. Models only for
+   judgment that cannot be captured deterministically.
+2. **Intelligence is harness + model.** A provider turn is an atomic
+   harness/model/effort assignment. Operon must use the harness's full evolving
+   capability, not treat the model as a bare completion API. Role responsibility
+   and execution assignment stay separate; changing an assignment is a config
+   change that never broadens the role's authority.
+3. **Protocol over prompt-and-pray.** Agents, gates, and assignments are
+   versioned, enforceable, inspectable config and code — not freeform prompting.
+4. **One runtime, many apps.** App knowledge stays in the target repo and
+   per-app memory; the runtime stays general and extensible by config unless
+   evidence proves the core must change.
+5. **Scarce human attention, durable truthful outcomes.** Humans gate critical
+   ops only. Valid progress survives interruption. Cheap-wrong results, hidden
+   retries, and human babysitting are not success.
 
 ## Decided
 
@@ -159,7 +103,7 @@ config file, not a fork.
   and lifecycle telemetry separates pause cost from repeated cost. This change
   is now admissible because all three adapters expose native session resume and
   the retained final adapter calibration qualified continuation without retry
-  (`docs/capability-matrix.md`; campaign
+  (`docs/harness/capability-matrix.md`; campaign
   `adapter-harness-calibration-v1-20260713-9c3b336d6842`). It does not broaden
   approval authority or collapse decision and execution acknowledgement.
 
@@ -179,7 +123,7 @@ config file, not a fork.
   broadly scopeable because every published payload needs its own execution
   acknowledgement. Critical SRE health events use this boundary to file exactly
   one source-linked `op:incident` issue while retaining analysis and filing as
-  distinct completion claims. `docs/approval-and-release-amendment.md` and
+  distinct completion claims. `docs/approvals/design.md` and
   `docs/architecture.md` carry the detailed contract.
 
 - **Qualification is proportionate to material release risk** (ratified
@@ -195,8 +139,8 @@ config file, not a fork.
   residual evidence debt honestly and never rescore, overwrite, relabel,
   conceal, or promote unsupported evidence. A real pre-V1 product may ship with
   bounded, disclosed eval debt while every product, safety, accounting,
-  learning, budget, and CI boundary remains intact. `docs/development.md` and
-  `docs/benchmark-runbook.md` carry the detailed shipping policy.
+  learning, budget, and CI boundary remains intact. `docs/DEVELOPMENT.md` and
+  `docs/qualification/benchmark-runbook.md` carry the detailed shipping policy.
 
 - **Operon platform development is an independent control plane** (ratified
   2026-07-16). Operon does not operate an org whose job is to build or maintain
@@ -212,7 +156,7 @@ config file, not a fork.
   authority is still required for scope/effect expansion, metered or unknown
   billing, threshold or safety weakening, a raised ceiling, governed learning
   actions, production/outward effects, reserved future campaigns, or a second
-  full campaign without a material product repair. `docs/development.md` is the
+  full campaign without a material product repair. `docs/DEVELOPMENT.md` is the
   canonical detailed policy; developer-only files are excluded from the
   installable org-runtime package.
 
@@ -230,7 +174,7 @@ config file, not a fork.
   confirmation evidence cannot promote it. Phase 6 completion may be reported
   while the future soak is pending, but the broader claim that Operon is a
   fully proven “highly efficient organization” remains reserved until
-  `I-LIVE-01` passes. `docs/efficiency.md` → Phase 6 qualification scope is the
+  `I-LIVE-01` passes. `docs/qualification/design.md` → Phase 6 qualification scope is the
   canonical boundary.
 
 - **Input tokens are not a budget dimension** (ratified 2026-07-20; retracts
@@ -282,7 +226,7 @@ config file, not a fork.
 - **Efficiency doctrine and evaluation semantics** (evaluation semantics
   ratified 2026-07-12; organization-wide operating doctrine ratified
   2026-07-13; operator outcome in `docs/VISION.md`, canonical contract in
-  `docs/efficiency.md`, executable requirement inventory in
+  `docs/episodes/contract.md`, executable requirement inventory in
   `eval/contracts.yaml`).
   Efficiency is a correctness property and never weakens safety, independent
   review, evidence, or critical-operation governance. Provider accounting and
@@ -497,7 +441,7 @@ config file, not a fork.
   evidence if contracts prove weak. Planner depth previously defaulted to deep
   competing-PM planning for milestones and per-pass wall time previously
   defaulted to 60 minutes. Route depth and time budgets now come from
-  `docs/efficiency.md`; neither former default can override proportional
+  `docs/episodes/contract.md`; neither former default can override proportional
   admission.
   Org WIP defaults to `max_concurrent_turns: 2`; approval grants expire after
   24 h; dispatch ticks every 5 minutes; loop review/fix cycles cap at 3.
@@ -509,7 +453,7 @@ config file, not a fork.
   (`ci-sweep`) unless scorecards later justify a standalone role.
 - **Approval & release boundary amendment** (ratified 2026-07-10; full design,
   threat model, adapter feasibility, and regression requirements in
-  `docs/approval-and-release-amendment.md`). Amends the 2026-07-04/06
+  `docs/approvals/design.md`). Amends the 2026-07-04/06
   approval decisions after the buildstacks.dev episode (42 decisions in one
   afternoon, mostly false positives): (A1) the human may widen a grant at
   decision time to rule+path scope for a ticket or app — TTL, use-count cap,
@@ -601,7 +545,7 @@ config file, not a fork.
   changed-path rule binds only to files that affect the **packaged artifact** —
   what `npm pack` ships per package.json `files` (the compiled `dist` output,
   `agent-skills/operon/`, `config/launchd/`, `docs/policy.yaml.template`,
-  `docs/scheduler.md`, the prompts and taste trees, `TASTE.md`, `roles.yaml`,
+  `docs/scheduler/design.md`, the prompts and taste trees, `TASTE.md`, `roles.yaml`,
   `pipelines.yaml`, `README.md`, and the three packaged `scripts/*.mjs`) plus the
   `src` sources and `package.json` that produce it. A change under those paths
   invalidates qualification. The executable suite — `scripts/eval/`, `test/`,
@@ -691,13 +635,13 @@ config file, not a fork.
   publish/activate/rollback activation, and to promotion of the learning
   contract** — the activation and promotion paths are unchanged. Learning
   *capture* (100% eligible capture) was already, and remains, the operations SLO
-  for the loop (`docs/efficiency.md` → Threshold semantics). This is the same
+  for the loop (`docs/episodes/contract.md` → Threshold semantics). This is the same
   class of mis-scoping as the integrity/currency separation above: an accurate
   check (does the treatment strictly improve artifacts *on this draw*) was
   embedded where it structurally blocked a legitimate release. *Rationale
   (first-principles):* learning is instrumental and outcome-accountable
-  (Non-negotiable #11) — it succeeds only by improving a *later comparable
-  episode that had headroom*. A qualification that forces an improvement out of
+  (outcome-accountable learning) — it succeeds only by improving a *later
+  comparable episode that had headroom*. A qualification that forces an improvement out of
   every episode — including ones where the untreated baseline already scores at
   the ceiling — does not measure learning; it manufactures deltas, and every
   manufactured delta competes for the same finite attention and risk budget the
@@ -879,7 +823,7 @@ will resolve them.
   single-app org profile.
 - 2026-07-10 — v1.6: approval & release boundary amendment ratified (A1–A5:
   scoped grants, approve-and-rearm, batch review, release handoff, denial
-  lessons; full design `docs/approval-and-release-amendment.md`). Recorded in
+  lessons; full design `docs/approvals/design.md`). Recorded in
   Decided above; implemented through Stage 6 of the proportionality plan.
 - 2026-07-11 — v1.7: learning loop design ratified (v0.8 suite,
   `docs/learning-loop/`; governed self-improvement — capture → episodes →
@@ -906,7 +850,7 @@ will resolve them.
   route; execution/accounting terms and layer ownership are explicit; legacy
   deep/60-minute defaults are non-normative; durable progress and lifecycle
   evidence claims are part of the product contract. Numeric budgets remain
-  solely in `docs/efficiency.md` (`efficiency/v1`).
+  solely in the efficiency contract (`efficiency/v1`; today `docs/episodes/contract.md`).
 - 2026-07-16 — v2.4: proportionate release evidence ratified. Material
   product, safety, accounting, learning-integrity, budget, and CI failures
   remain blockers; bounded evaluator-only defects are retained and disclosed
@@ -915,3 +859,28 @@ will resolve them.
   fixed and adaptive assignment modes; explicit execution-ready creator scope
   became the sole planner-turn bypass; atomic harness/model/effort assignment,
   plan-derived routing, and forward-only plan revisions were ratified.
+- 2026-07-26 — v2.7: front matter compacted — opener without section name;
+  sandbox/production inventory dropped (README → Status); org chart
+  keeps Human unnamed and GitHub as system-of-record note; non-negotiables
+  reduced to five (deterministic default, harness+model intelligence, protocol,
+  one-runtime/many-apps, scarce human attention / durable outcomes).
+  `docs/status.md` removed as a redundant shadow of README Status, Observability,
+  and subsystem design docs.
+- 2026-07-26 — v2.8: documentation re-homed into topic folders (decided in
+  session with the human; path citations updated mechanically, decision
+  content untouched). `docs/` root now holds only PURPOSE, VISION,
+  architecture (thin system map, stable §numbering), DEVELOPMENT (renamed
+  all-caps; campaign ephemera trimmed to a standing-grant pointer), and the
+  packaged policy template; depth lives in per-subsystem folders (loop,
+  scheduler, approvals, episodes, qualification, harness, org, testing,
+  learning-loop, live-ui, reporting, narrative). `docs/efficiency.md` split
+  into `docs/episodes/contract.md` (operating contract; efficiency/v1
+  lineage, markers, and doctrine tests preserved) and
+  `docs/qualification/design.md` (campaign/Phase 6/isolation) — the
+  efficiency *doctrine* and its ratification history are unchanged; only the
+  filename retired. The Stage 5 approval amendment file retired into
+  `docs/approvals/design.md`; `docs/wiki.html` retired (a generation behind
+  the surface inventory); `research/` deliberately remains a separate
+  top-level tree for dated evidence. Deposited detectors: repo-wide
+  docs-citation/link/anchor checker and a docs-root inventory pin
+  (`test/docs/`).

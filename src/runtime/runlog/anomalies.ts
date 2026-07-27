@@ -1,4 +1,4 @@
-// L1/L2 anomaly detectors (docs/loop.md §9).
+// L1/L2 anomaly detectors (docs/loop/design.md §9).
 
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";

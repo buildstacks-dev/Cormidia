@@ -152,7 +152,7 @@ describe("review verdict parser", () => {
       "review",
       approvedReviewText(
         "Verdict: approve",
-        ["- src/loop/verdicts.ts looks fine", "- docs/loop.md matches"].join("\n"),
+        ["- src/loop/verdicts.ts looks fine", "- docs/loop/design.md matches"].join("\n"),
       ),
     );
     expectOk(r);

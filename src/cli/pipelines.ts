@@ -1,7 +1,7 @@
 // `operon pipelines [path]` — validate pipelines.yaml and print the pass table.
 //
 // Role names come from roles.yaml next to the pipelines file, templates from
-// its sibling prompts/ dir — the org-home layout (docs/loop.md §4), which the
+// its sibling prompts/ dir — the org-home layout (docs/loop/design.md §4), which the
 // repo root mirrors.
 
 import { access } from "node:fs/promises";

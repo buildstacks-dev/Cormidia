@@ -1,5 +1,5 @@
 // Low-level manual-role transport as a synthesized one-pass pipeline (build plan M2.9;
-// docs/loop.md §2, §3; architecture.md §2 — the dispatcher spawns exactly
+// docs/loop/design.md §2, §3; architecture.md §2 — the dispatcher spawns exactly
 // this signature, so the contract is fixed here once). This helper is not an
 // episode-creation boundary: the live CLI enters the org-layer EpisodePlan
 // boundary first. Embedders that create provider work must do the same.

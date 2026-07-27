@@ -1,4 +1,4 @@
-// Pass executor (build plan M2.8; docs/loop.md §2, §4, §9, §10).
+// Pass executor (build plan M2.8; docs/loop/design.md §2, §4, §9, §10).
 //
 // Executes a loaded pipeline against a Runtime: fresh session per pass during
 // ordinary execution; an approval decision may resume ONLY that same pass's
@@ -226,7 +226,7 @@ export interface ExecutePipelineOptions {
    *  envelope is finalized. The loop layer owns verdict semantics (kinds,
    *  reformat retry, side effects); the executor only needs the ok/failed
    *  outcome so an unparseable verdict finalizes the pass as an infra failure
-   *  (distinct error_code), never a merit outcome (docs/loop.md §6, §13 row
+   *  (distinct error_code), never a merit outcome (docs/loop/design.md §6, §13 row
    *  11). `verdict.recorded` (§9) is emitted by the callback into the pass's
    *  own L2 writer. Never throws for a parse failure — it returns
    *  `{ok:false,…}` and the executor rethrows the typed error once the record
@@ -237,7 +237,7 @@ export interface ExecutePipelineOptions {
 /** Everything the loop's verdict recorder needs, handed to it by the executor
  *  once the turn is done: the pass's run context plus the SAME runtime and
  *  hooks the turn used, so a reformat retry can resume the just-finished
- *  session (docs/loop.md §6). */
+ *  session (docs/loop/design.md §6). */
 export interface VerdictRecordContext {
   pass: PassConfig;
   runId: string;

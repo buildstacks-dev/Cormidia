@@ -30,7 +30,7 @@
  */
 
 /** Packaged documentation: ships in the npm package, so it is product, not docs. */
-const PACKAGED_DOCS = new Set(["docs/policy.yaml.template", "docs/scheduler.md", "README.md"]);
+const PACKAGED_DOCS = new Set(["docs/policy.yaml.template", "docs/scheduler/design.md", "README.md"]);
 
 /** Paths that cannot alter graded behaviour and admit no lane. */
 function isDocsOnlyPath(path) {

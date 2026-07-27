@@ -1,4 +1,4 @@
-// Human dashboard over L1 envelopes + L2 events only (docs/loop.md §9).
+// Human dashboard over L1 envelopes + L2 events only (docs/loop/design.md §9).
 
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";

@@ -1,4 +1,4 @@
-// L1 envelope lifecycle (build plan M2.5; docs/loop.md §9).
+// L1 envelope lifecycle (build plan M2.5; docs/loop/design.md §9).
 //
 // One envelope.json per executed pass: ids, status, timings, token/cost
 // rollups, gate results, tool counts, durable verdict material, truncated

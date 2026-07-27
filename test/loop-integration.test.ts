@@ -961,7 +961,7 @@ describe("M6 loop engine integration", () => {
   });
 });
 
-describe("GAP D — verdict reformat retry (docs/loop.md §6, §13 row 11)", () => {
+describe("GAP D — verdict reformat retry (docs/loop/design.md §6, §13 row 11)", () => {
   const MALFORMED = "I'll touch a couple files and add a test or two — looks good.";
 
   it("a malformed-then-valid verdict recovers via one session-resuming reformat turn", async () => {
@@ -1035,7 +1035,7 @@ describe("GAP D — verdict reformat retry (docs/loop.md §6, §13 row 11)", () 
   });
 });
 
-describe("GAP F — brief [spec] and [history] population (docs/loop.md §3)", () => {
+describe("GAP F — brief [spec] and [history] population (docs/loop/design.md §3)", () => {
   it("a Context link to a repo file yields a [spec] section with the file's excerpts", async () => {
     const body = [
       "## Goal",

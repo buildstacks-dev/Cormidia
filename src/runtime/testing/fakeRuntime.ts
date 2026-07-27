@@ -10,7 +10,7 @@
 // dependency.
 //
 // See src/runtime/types.ts (Runtime/TurnRequest/TurnHooks contract) and
-// docs/loop.md §2 (fresh session per pass; hooks.gate must see every tool
+// docs/loop/design.md §2 (fresh session per pass; hooks.gate must see every tool
 // action including subagents'; adapters must transport multi-hundred-KB
 // task payloads intact).
 
@@ -29,7 +29,7 @@ import type {
  *  declaration order. Marking `fromSubagent` makes FakeRuntime emit
  *  `onEvent({type:"subagent", ...})` immediately before the gate call, so a
  *  test can prove the gate sees a subagent-issued action exactly like a
- *  top-level one (TurnHooks.gate's doc comment; docs/loop.md §2). */
+ *  top-level one (TurnHooks.gate's doc comment; docs/loop/design.md §2). */
 export interface ScriptedToolAction {
   action: ToolAction;
   fromSubagent?: boolean;

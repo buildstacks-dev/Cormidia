@@ -1,4 +1,4 @@
-// Redaction helpers for L1/L2 run records (build plan M2.4; docs/loop.md §9:
+// Redaction helpers for L1/L2 run records (build plan M2.4; docs/loop/design.md §9:
 // "no full prompts, no tool args, no secrets — the quality-gate secret
 // regexes double as a log scrubber"; dashboards read previews ~120 chars,
 // args hashed). L3 forensics stay verbatim and local — these helpers are for

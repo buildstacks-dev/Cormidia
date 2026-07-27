@@ -6,7 +6,7 @@ loop design)
 **Companions:** `learning-loop-design.md`
 
 Episode identity, learning-capture coverage, and outcome-accountable efficacy
-use the canonical definitions and missingness rules in `docs/efficiency.md`.
+use the canonical definitions and missingness rules in `docs/episodes/contract.md`.
 The schemas below carry those facts but do not redefine their measurements.
 
 All schemas are draft contracts. Field names may change before implementation.
@@ -328,7 +328,7 @@ Scheduler-miss
 evidence is now projected from the Phase 5 scheduler's orchestrator-owned
 `missed_window_reconciled` decision through the same `efficiency-evidence/v1`
 capture path. The scheduler creates no competing learning record or provider
-turn; its canonical source schema is `docs/scheduler.md`.
+turn; its canonical source schema is `docs/scheduler/design.md`.
 Trusted recurrence is keyed by app, role, class, and normalized cause, with
 distinct source identities and the policy's `min_cluster_events` threshold.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Seed the Stage 7 benchmark fixture (the 2026-07-10 proportionality campaign §5;
-# fixture decision: docs/approval-and-release-amendment.md — a disposable
+# fixture decision: docs/approvals/design.md — a disposable
 # repository per run, created from pinned inputs, no state bleed).
 #
 # Usage: GH_BENCH_REPO=<owner/repo> bash scripts/seed-benchmark-repo.sh

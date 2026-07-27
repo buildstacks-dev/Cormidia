@@ -107,7 +107,7 @@ export interface ApprovalItem {
   execution?: ApprovalExecution;
 }
 
-/** Human-chosen widened grant scope (approval-and-release-amendment A1).
+/** Human-chosen widened grant scope (docs/approvals/design.md A1).
  *  Absent scope = the ratified default: single-use, action-hashed. */
 export interface GrantScope {
   kind: "ticket" | "app";
@@ -429,7 +429,7 @@ export class ApprovalStore {
 
     if (input.scope !== undefined && NEVER_SCOPEABLE_RULES.includes(pending.rule)) {
       throw new Error(
-        `approvals: rule "${pending.rule}" is never scopeable (approval-and-release-amendment A1) — ` +
+        `approvals: rule "${pending.rule}" is never scopeable (docs/approvals/design.md A1) — ` +
           `decide it single-use`,
       );
     }

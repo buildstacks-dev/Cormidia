@@ -151,7 +151,7 @@ export function runConformanceSuite(
     );
 
     // A subagent-issued critical op must be caught identically to a
-    // top-level one (docs/loop.md §2; TurnHooks.gate's doc comment in
+    // top-level one (docs/loop/design.md §2; TurnHooks.gate's doc comment in
     // src/runtime/types.ts): the subagent event fires, then the gate sees
     // the action, then it is denied + escalated exactly like the top-level
     // cases above.
@@ -171,7 +171,7 @@ export function runConformanceSuite(
     const req = makeRequest(role, workdir, bigTask);
     const result = await runtime.runTurn(req, hooks);
 
-    // docs/loop.md §2's ARG_MAX lesson: the brief must transport intact, not
+    // docs/loop/design.md §2's ARG_MAX lesson: the brief must transport intact, not
     // truncated or corrupted by an argv-sized channel.
     expect(req.task.length).toBe(LARGE_PAYLOAD_SIZE_BYTES);
     expect(result.status).toBe("completed");

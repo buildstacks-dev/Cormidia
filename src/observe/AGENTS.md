@@ -30,4 +30,4 @@ capability/security headers, SSE replay/resync, corrupt/torn/legacy state,
 traversal/symlink rejection, and observer-shutdown independence.
 
 ## References
-`docs/live-ui/design.md` · `docs/testing.md` → Required runs by changed path
+`docs/live-ui/design.md` · `docs/testing/runbook.md` → Required runs by changed path

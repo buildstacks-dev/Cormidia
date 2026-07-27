@@ -4,7 +4,7 @@
 // any GitHub client library. GhCliOps is deliberately a thin wrapper over the
 // installed `gh` CLI with an injectable executor for tests. Every non-zero
 // command becomes a GhOpsError carrying stderr verbatim: orchestrator side
-// effects either happen or fail loudly (docs/loop.md §1).
+// effects either happen or fail loudly (docs/loop/design.md §1).
 
 import { spawn } from "node:child_process";
 import { createHmac, timingSafeEqual } from "node:crypto";

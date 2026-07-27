@@ -15,7 +15,7 @@ export type LoopPhase =
 
 export type TicketTier = "quick" | "standard" | "deep";
 
-// --- Release handoff (docs/approval-and-release-amendment.md A4) ----------
+// --- Release handoff (docs/approvals/design.md A4) ----------
 // Defined in the loop layer so both sides of the one-way import boundary can
 // share them: the plan publisher renders the milestone's release kind into
 // ticket bodies, advanceShipping enforces P7 against the app's declared

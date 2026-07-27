@@ -1,4 +1,4 @@
-// L3 forensics writers (build plan M2.7; docs/loop.md §9).
+// L3 forensics writers (build plan M2.7; docs/loop/design.md §9).
 //
 // L3 is the verbatim layer: exact assembled brief, final output text, full
 // transcript. Local-only, UNREDACTED by design — reproducibility beats

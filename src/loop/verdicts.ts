@@ -1,5 +1,5 @@
 // Typed pass verdicts + lenient parsers + reformat retry (build plan M4.6;
-// docs/loop.md §6, §10).
+// docs/loop/design.md §6, §10).
 //
 // Every pass has a typed verdict the orchestrator acts on — no side effect
 // ever keys off prose (§6). Three kinds:
@@ -40,7 +40,7 @@
 // is verified live in M6.2, not assumed here.
 
 // ---------------------------------------------------------------------------
-// Verdict types — docs/loop.md §6 sketch
+// Verdict types — docs/loop/design.md §6 sketch
 // ---------------------------------------------------------------------------
 
 export const FINDING_CATEGORIES = [
@@ -711,7 +711,7 @@ const FINDING_SCHEMA: VerdictSchema = {
   title: "Finding",
   description:
     "One review finding — line grammar: `- category/severity file:line -- " +
-    "description -> action` (docs/loop.md §6). There is deliberately no perf " +
+    "description -> action` (docs/loop/design.md §6). There is deliberately no perf " +
     "category: performance findings file under architecture or testing " +
     "(prompts/review/perf.md).",
   type: "object",
@@ -962,7 +962,7 @@ export const VERDICT_SCHEMAS: Readonly<Record<VerdictKind, VerdictSchema>> = {
     description:
       "Review pass outcome: approve (findings list is empty) or findings. " +
       "Double-entered as a real GitHub review — the GitHub state is " +
-      "authoritative for merge (docs/loop.md §6).",
+      "authoritative for merge (docs/loop/design.md §6).",
     type: "object",
     additionalProperties: false,
     required: ["verdict", "findings", "review"],

@@ -2,12 +2,12 @@
 
 ## Scope
 Applies to the whole repo. Nested AGENTS.md files specialize local rules in
-`src/runtime/`, `src/observe/`, `src/report/`, and `eval/` — read the nearest
-one when working there. `docs/PURPOSE.md` is the decision log; on conflict its
+`src/runtime/`, `src/observe/`, `src/report/`, `src/narrative/`, and `eval/` —
+read the nearest one when working there. `docs/PURPOSE.md` is the decision log; on conflict its
 Decided section wins and this file is stale — fix this file.
 
 This file governs **building and maintaining the Operon platform**, not
-operating an org with Operon. Read `docs/development.md` before development
+operating an org with Operon. Read `docs/DEVELOPMENT.md` before development
 campaigns. Operon does not self-host its own development: root instructions,
 developer grants, eval state, and CI/release authority must never enter an
 Operon org's prompts, state, learning, or approvals. The packaged
@@ -17,21 +17,21 @@ Operon org's prompts, state, learning, or approvals. The packaged
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,
 Reviewer, SRE, Support, Marketing) that develops and operates a software
 product through a private GitHub repo, with a human gating critical ops only.
-Build-complete and proven live end-to-end — `docs/status.md` is the agent-facing
-state digest; README → Status / Known limitations are the product view; README
-→ Observability is the authoritative state-home inventory (`~/.operon/<org>/`).
-Open work lives in the GitHub issue tracker (`gh issue list`).
+Build-complete and proven live end-to-end — README → Status / Known
+limitations are the product view; README → Observability is the authoritative
+state-home inventory (`~/.operon/<org>/`). Open work lives in the GitHub issue
+tracker (`gh issue list`).
 
 ## Repository map
 | Path | What it is |
 | --- | --- |
 | `docs/PURPOSE.md` | Decision log — **read first** |
-| `docs/development.md` | Canonical platform-development lifecycle, standing grants, shipping |
+| `docs/DEVELOPMENT.md` | Canonical platform-development lifecycle, standing grants, shipping |
 | `TASTE.md` · `roles.yaml` · `pipelines.yaml` · `prompts/` | Human-ratified org templates and protocol surfaces (see Working rules) |
 | `src/runtime/` | Runtime contract + adapters — `src/runtime/AGENTS.md` |
-| `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop.md`) |
+| `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop/design.md`) |
 | `src/org/` | Standing-org layer: lifecycle, bootstrap, scheduler, approvals, budget, learning (`src/org/learning/`); `src/org/home.ts` is the package/org/state boundary |
-| `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×2, `docs/narrative/design.md` |
+| `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table — new subcommand = new file + one registry line |
 | `agent-skills/operon/` | Packaged `$operon` Agent Skill (org operation, not development) |
 | `test/` | Offline suite; reuse `test/fixtures/` (orgHome, fakeClock); `test/conformance/` is the adapter-generic suite |
@@ -55,10 +55,10 @@ re-executed; semantics last maintainer-verified 2026-07-14).
   `operon <cmd> --help`.
 - UI/packaging checks: `pnpm test:observe-browser` · `pnpm smoke:onboarding` ·
   `npm pack --dry-run`.
-- Token-spending — never run casually (docs/testing.md → Never run these by
+- Token-spending — never run casually (docs/testing/runbook.md → Never run these by
   accident): `pnpm test:live`, `eval:github|live|soak`, live
   `dispatch`/`loop`/`plan`, `pnpm e2e:sandbox` (needs `GH_SANDBOX_REPO`).
-- Eval/qualification boundary: `eval/AGENTS.md` · `docs/development.md`.
+- Eval/qualification boundary: `eval/AGENTS.md` · `docs/DEVELOPMENT.md`.
 
 ## Working rules
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;
@@ -80,7 +80,7 @@ re-executed; semantics last maintainer-verified 2026-07-14).
   reproduces the defect land in the same change; if the failure is not
   offline-reproducible, guard the nearest deterministic seam
   (provision/preflight) and say so in the PR. A fix without a guard is
-  incomplete — a live run is not a regression test (docs/testing.md).
+  incomplete — a live run is not a regression test (docs/testing/runbook.md).
 - **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the three
   provider SDKs. Adding one is a decision, not a convenience.
 - **Model IDs** in roles.yaml were human-ratified 2026-07-15
@@ -88,7 +88,7 @@ re-executed; semantics last maintainer-verified 2026-07-14).
   availability is proved by adapter calibration before a candidate campaign.
 
 ## Testing expectations
-`docs/testing.md` → Required runs by changed path is the full per-path
+`docs/testing/runbook.md` → Required runs by changed path is the full per-path
 rulebook; the rest of that file maps commands, CI lanes, and the integrity
 machinery. On conflict this summary wins — fix that file.
 | Change | Minimum required |
@@ -98,20 +98,21 @@ machinery. On conflict this summary wins — fix that file.
 | `src/runtime/adapters/**` | + `pnpm test:live` + dated `research/` record |
 | `eval/**` · `scripts/eval/**` · transformation fixtures | `eval/AGENTS.md` → Required on any change |
 | Packaging · home resolution · CLI discovery · onboarding | + `pnpm smoke:onboarding`, `npm pack --dry-run` |
-| Onboarding · `apps.yaml` · bootstrap · planning · loop behavior | + live sandbox apps (docs/testing.md) |
+| Onboarding · `apps.yaml` · bootstrap · planning · loop behavior | + live sandbox apps (docs/testing/runbook.md) |
 | Scheduler lifecycle/evidence/health | `test/scheduler/` suite; fake clocks; never real launchd/systemd |
 | M5 loop state machine | + `pnpm e2e:sandbox` when `gh` auth + `GH_SANDBOX_REPO` allow |
 | `gate.ts` | new `test/gate.test.ts` cases: critical + routine near-miss |
 | `roles.yaml` · `pipelines.yaml` · `prompts/**` | `pnpm dev roles` / `pnpm dev pipelines` print cleanly; intent changes go through `test/loop/pipelines-root.test.ts` deliberately |
 | CI admission rules (`scripts/ci/**`, workflows) | case in `test/ci/classify-changes.test.ts` |
-| Docs-only | nothing |
+| Docs-only | nothing in CI (ratified 2026-07-17); the `test/docs/` citation/link guard runs on the next `pnpm test` |
 
 ## Navigation
-- Platform state: `docs/status.md` · decisions: `docs/PURPOSE.md` · code wiki: `docs/wiki.html` (open in a browser)
-- Architecture: `docs/architecture.md` · build loop: `docs/loop.md` · testing map: `docs/testing.md` · sandbox-app journey: `docs/testing-journey.md`
-- Scheduler contract: `docs/scheduler.md` · event payloads: `docs/event-schemas.md` · approvals/release boundary: `docs/approval-and-release-amendment.md`
-- Learning loop: `docs/learning-loop/` · efficiency boundary: `docs/efficiency.md` · benchmarks: `docs/benchmark-runbook.md`
-- Adapters: `docs/capability-matrix.md` · `docs/adding-updating-harnesses.md` · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`
+- Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · operator outcome: `docs/VISION.md` · platform development: `docs/DEVELOPMENT.md`
+- `docs/architecture.md` is the thin system map (stable §numbering); depth lives in topic folders — one per subsystem, `design.md` as the folder's contract
+- Build loop: `docs/loop/` (design · turns · github-conventions) · dispatch/scheduler: `docs/scheduler/` (design · event-schemas) · approvals/release: `docs/approvals/design.md`
+- Episode operating contract: `docs/episodes/contract.md` · qualification/release gating: `docs/qualification/` (design · benchmark-runbook) · learning loop: `docs/learning-loop/`
+- Adapters: `docs/harness/` (capability-matrix · adding-updating · qualification-evidence) · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`
+- Org layer: `docs/org/` (context · memory · apps · onboarding) · testing: `docs/testing/` (runbook · journey)
 - Live UI / Reports / Narrative contracts: `docs/live-ui/design.md` · `docs/reporting/design.md` · `docs/narrative/design.md`
 - Predecessor orchestrator (read-only prior art; "the predecessor" in docs): `scratchpad-gitignore/claude-loop-teams/`
 

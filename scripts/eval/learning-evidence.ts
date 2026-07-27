@@ -153,7 +153,7 @@ export function writeLearningPairEvidence(input: {
  * Well-formedness + verdict check for the six-arm learning pair evidence.
  *
  * `mode` decides how the delta-based efficacy VERDICT is treated (2026-07-17
- * decouple decision — see docs/PURPOSE.md and docs/efficiency.md):
+ * decouple decision — see docs/PURPOSE.md and docs/qualification/design.md):
  * - `"activation"` (default, strict): the separately-authorized publish/
  *   activate/rollback path. Only `improved` may proceed — every pair must show
  *   a strictly positive delta. Unchanged from before this decision.

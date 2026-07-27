@@ -12,7 +12,7 @@
 // `fixture.root` as whatever root parameter the code under test expects.
 // This is a deliberate simplification for tests only — in a real deployment
 // those two roots usually differ (repo root vs `~/.operon/<org>/`); nothing
-// here claims otherwise. See docs/loop.md §9 for `runs/<app>/<runId>/…`,
+// here claims otherwise. See docs/loop/design.md §9 for `runs/<app>/<runId>/…`,
 // which M2.4 extends this fixture to build in full — the `runs` sub-builder
 // here is a namespace hook (per-app directories), not the run-record layout.
 //
@@ -111,7 +111,7 @@ export interface ApprovalsOptions {
   log?: unknown[];
 }
 
-/** One run record's files (docs/loop.md §9). Only the pieces a test opts
+/** One run record's files (docs/loop/design.md §9). Only the pieces a test opts
  * into are written; the run directory itself always exists. */
 export interface RunRecordOptions {
   /** envelope.json (L1). */

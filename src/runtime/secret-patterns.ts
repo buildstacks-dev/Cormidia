@@ -4,7 +4,7 @@
 // loop→runtime is the legal import direction. A second pattern list
 // anywhere in the repo is a bug.
 //
-// Families per docs/loop.md §5's security-gate row. Philosophy matches the
+// Families per docs/loop/design.md §5's security-gate row. Philosophy matches the
 // critical-ops gate: fail closed — a false positive costs a redacted log
 // line or a human tap; a false negative costs a leaked credential.
 

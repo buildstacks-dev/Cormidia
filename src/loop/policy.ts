@@ -1,5 +1,5 @@
 // .operon/policy.yaml schema, loader, tier resolution (build plan M4.2;
-// docs/loop.md §5 table + defaults, §4 tiering axes).
+// docs/loop/design.md §5 table + defaults, §4 tiering axes).
 //
 // Risk tiering is a pure, provable function: the app's policy maps
 // changed-file globs → risk tiers → gate sets, plus the review-dimension
@@ -37,7 +37,7 @@ export type RiskTier = "low" | "medium" | "high";
 /** Ascending severity — resolveTier folds with "highest wins". */
 export const RISK_TIERS: RiskTier[] = ["low", "medium", "high"];
 
-/** Gates a policy may schedule per tier (docs/loop.md §5 table).
+/** Gates a policy may schedule per tier (docs/loop/design.md §5 table).
  *  `review-freshness` is absent by design — see the header note. */
 export type GateName = "tests" | "lint" | "e2e" | "security" | "completeness";
 export const GATE_NAMES: GateName[] = ["tests", "lint", "e2e", "security", "completeness"];
@@ -46,7 +46,7 @@ export const DEFAULT_MAX_ATTEMPTS = 3;
 
 export interface RemediationPolicy {
   /** Bounded fix re-dispatches after a gate failure before the ticket goes
-   *  `op:returned` (docs/loop.md §5; default 3). Persistence of the counter
+   *  `op:returned` (docs/loop/design.md §5; default 3). Persistence of the counter
    *  is the caller's job — this is the configured cap. */
   maxAttempts: number;
 }
@@ -140,7 +140,7 @@ function parseGates(raw: unknown, err: (msg: string) => Error): Record<RiskTier,
       if (gate === "review-freshness") {
         throw err(
           `gates.${tier}: "review-freshness" is not configurable — ` +
-            `it always runs regardless of tier (docs/loop.md §5)`,
+            `it always runs regardless of tier (docs/loop/design.md §5)`,
         );
       }
       if (!GATE_NAMES.includes(gate as GateName)) {

@@ -4,7 +4,7 @@
 // @anthropic-ai/claude-agent-sdk 0.3.x type definitions):
 // - headless Claude Code; the SDK spawns the CLI with `--input-format
 //   stream-json`, so the task prompt travels over stdin — multi-hundred-KB
-//   briefs transport intact (docs/loop.md §2's ARG_MAX lesson).
+//   briefs transport intact (docs/loop/design.md §2's ARG_MAX lesson).
 // - THE GATE CHANNEL IS A PreToolUse HOOK, not canUseTool. Settled
 //   empirically (live runs, 2026-07-05): canUseTool is only consulted when
 //   the permission system would ask, so it NEVER sees auto-allowed
@@ -299,7 +299,7 @@ export class ClaudeRuntime implements Runtime {
       // Native structured output when the pass demands a typed verdict —
       // the CLI constrains the final response to the schema, so the result
       // text (→ summary) is the JSON itself. Absent verdictSchema, the key
-      // is left untouched (docs/loop.md §10: adapters without support
+      // is left untouched (docs/loop/design.md §10: adapters without support
       // ignore it; here "no schema" must not clobber a baseOptions value).
       ...(req.verdictSchema !== undefined
         ? { outputFormat: { type: "json_schema" as const, schema: req.verdictSchema } }

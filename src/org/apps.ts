@@ -349,7 +349,7 @@ function parseAllowedAssignments(
   return result;
 }
 
-/** Parse the optional `release:` block (docs/approval-and-release-amendment.md
+/** Parse the optional `release:` block (docs/approvals/design.md
  *  A4). Absent → undefined: the app declares no mechanism, and the ship gate
  *  fails any milestone whose plan requires one (P7). Loud on malformation —
  *  a wrong declaration must fail at load, not at ship time. */

@@ -1,4 +1,4 @@
-// Org-wide state-home retention (review P1-14 / F-003; docs/scheduler.md →
+// Org-wide state-home retention (review P1-14 / F-003; docs/scheduler/design.md →
 // State retention).
 //
 // Before this module, `runs/` was the only state subtree with retention, and
@@ -36,7 +36,7 @@
 //   org-home `learning/**` governance substrate are structurally out of
 //   scope: the sweep only ever touches the named `events` child.
 // - `scheduler/evidence/` is pruned without ever falsifying health
-//   (docs/scheduler.md → Health semantics): only terminal decisions whose
+//   (docs/scheduler/design.md → Health semantics): only terminal decisions whose
 //   episode is no longer referenced by any surviving lock, turn journal, run
 //   envelope, or ledger row (the exact sources of the orphan cross-check) and
 //   whose provider turn/settlement counts agree; only terminal invocations

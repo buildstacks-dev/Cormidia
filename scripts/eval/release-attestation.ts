@@ -28,10 +28,12 @@ const ALLOWED_PROPORTIONATE_REPAIR_PATHS = new Set([
 const ALLOWED_PROMOTION_PATHS = new Set([
   "AGENTS.md",
   "eval/contracts.yaml",
-  "docs/efficiency.md",
-  "docs/benchmark-runbook.md",
-  "docs/testing-journey.md",
-  "docs/capability-matrix.md",
+  "docs/episodes/contract.md",
+  "docs/qualification/design.md",
+  "docs/qualification/benchmark-runbook.md",
+  "docs/testing/journey.md",
+  "docs/harness/capability-matrix.md",
+  "docs/harness/qualification-evidence.md",
   EVALUATOR_REPAIR_AUTHORIZATION_PATH,
 ]);
 const PHASE6_CONTRACT_IDS = new Set([
@@ -345,7 +347,7 @@ function packagedArtifactPath(path: string): boolean {
     path.startsWith("agent-skills/operon/") ||
     path.startsWith("config/launchd/") ||
     path === "docs/policy.yaml.template" ||
-    path === "docs/scheduler.md" ||
+    path === "docs/scheduler/design.md" ||
     path === "README.md" ||
     path === "scripts/link-local.mjs" ||
     path === "scripts/operon-local.mjs" ||

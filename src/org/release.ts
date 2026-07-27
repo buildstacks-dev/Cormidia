@@ -1,4 +1,4 @@
-// Release handoff (docs/approval-and-release-amendment.md A4): queue the exact
+// Release handoff (docs/approvals/design.md A4): queue the exact
 // declared command as a critical op, then execute it only on a later dispatch
 // after the human-approved single-use grant exists. Execution is crash-safe
 // and idempotent: an in-flight/terminal record prevents a deploy from being

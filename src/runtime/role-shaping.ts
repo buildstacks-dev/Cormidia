@@ -1,5 +1,5 @@
 // Role-forbidden acts, defined once at the runtime layer so BOTH consumers
-// share one list (docs/approval-and-release-amendment.md, capability
+// share one list (docs/approvals/design.md, capability
 // shaping): the org's composed gate auto-denies these flat (the mechanical
 // backstop, src/org/gate-compose.ts — org→runtime is the legal import
 // direction), and adapters that expose a toolset-shaping surface make the
@@ -10,7 +10,7 @@
 // own permission layer). Codex routes every command through its approval
 // callback with no per-command deny list, and pi exposes only a coarse
 // read/bash/edit/write toolset — for both, the composed gate's flat deny IS
-// the enforcement (docs/capability-matrix.md records the degradation).
+// the enforcement (docs/harness/capability-matrix.md records the degradation).
 
 /** Acts these roles must never even attempt. Keys are roles.yaml role
  *  names; values are the gate rule names (src/runtime/gate.ts). */

@@ -17,10 +17,10 @@ Operon org's prompts, state, learning, or approvals. The packaged
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,
 Reviewer, SRE, Support, Marketing) that develops and operates a software
 product through a private GitHub repo, with a human gating critical ops only.
-Build-complete and proven live end-to-end — `docs/status.md` is the agent-facing
-state digest; README → Status / Known limitations are the product view; README
-→ Observability is the authoritative state-home inventory (`~/.operon/<org>/`).
-Open work lives in the GitHub issue tracker (`gh issue list`).
+Build-complete and proven live end-to-end — README → Status / Known
+limitations are the product view; README → Observability is the authoritative
+state-home inventory (`~/.operon/<org>/`). Open work lives in the GitHub issue
+tracker (`gh issue list`).
 
 ## Repository map
 | Path | What it is |
@@ -107,7 +107,7 @@ machinery. On conflict this summary wins — fix that file.
 | Docs-only | nothing |
 
 ## Navigation
-- Platform state: `docs/status.md` · decisions: `docs/PURPOSE.md` · code wiki: `docs/wiki.html` (open in a browser)
+- Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · code wiki: `docs/wiki.html` (open in a browser)
 - Architecture: `docs/architecture.md` · build loop: `docs/loop.md` · testing map: `docs/testing.md` · sandbox-app journey: `docs/testing-journey.md`
 - Scheduler contract: `docs/scheduler.md` · event payloads: `docs/event-schemas.md` · approvals/release boundary: `docs/approval-and-release-amendment.md`
 - Learning loop: `docs/learning-loop/` · efficiency boundary: `docs/efficiency.md` · benchmarks: `docs/benchmark-runbook.md`

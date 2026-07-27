@@ -1,16 +1,64 @@
 # Operon Architecture
 
-*v1.6 — last aligned 2026-07-19. docs/PURPOSE.md → Decided is upstream and
-authoritative; this document holds the implementation detail the decision
-layer deliberately does not. §11 records decisions ratified into
-docs/PURPOSE.md on 2026-07-06, 2026-07-13, and 2026-07-19; future new decisions should be
-proposed here first, then promoted only after human ratification.*
+*v1.7 — last aligned 2026-07-26. `docs/PURPOSE.md` → Decided is upstream and
+authoritative; this document holds the implementation map the decision layer
+deliberately does not. Route, budget, measurement, and qualification norms live
+only in `docs/efficiency.md`. Propose implementation changes here; promote
+decisions to PURPOSE only after human ratification.*
 
 ## 0. Overview
 
-For the human- and company-level view of the system, start with the
-[conceptual overview](architecture/conceptual-overview.md). The diagram below
-then zooms in on the runtime execution path.
+Operon is an installable **org runtime**: a standing AI company that develops
+and operates a portfolio of independent software products. One human leads by
+setting goals and guardrails and by making the critical decisions. Operon
+handles the day-to-day work that turns that direction into software outcomes.
+
+```mermaid
+flowchart TB
+    subgraph LEADERSHIP[" "]
+        direction LR
+        HUMAN["Human<br/><b>Direction · final authority</b>"]
+        COMPANY["Operon<br/><b>The standing AI company</b>"]
+
+        HUMAN ==>|goals and guardrails| COMPANY
+        COMPANY -->|outcomes and consequential decisions| HUMAN
+    end
+
+    subgraph WORK["What the company does"]
+        direction TB
+        OPERATIONS["Day-to-day operations<br/><b>Plans · builds · reviews · runs</b>"]
+
+        subgraph PORTFOLIO["Product portfolio"]
+            direction LR
+            PRODUCT_1["Product 1"]
+            PRODUCT_2["Product 2"]
+        end
+
+        subgraph TEAMS["Specialist agents working within each product"]
+            direction LR
+            TEAM_1["Product 1 agents"]
+            TEAM_2["Product 2 agents"]
+        end
+
+        LEARNING["Company learning and memory<br/><b>Experience improves future work</b>"]
+
+        OPERATIONS --> PRODUCT_1
+        OPERATIONS --> PRODUCT_2
+        PRODUCT_1 --> TEAM_1
+        PRODUCT_2 --> TEAM_2
+        TEAM_1 --> LEARNING
+        TEAM_2 --> LEARNING
+        LEARNING -.->|learned over time| OPERATIONS
+    end
+
+    COMPANY --> OPERATIONS
+```
+
+Read the diagram as an organization, not as an implementation architecture.
+The human runs the company rather than its task queue. Each product stays
+independent; shared learning must not erase product boundaries.
+
+The runtime execution path:
 
 ```
 launchd (now) / systemd timer (droplet later)
@@ -39,217 +87,59 @@ telemetry / memory / scorecard events written at turn end ── §6
 ```
 
 **How the dispatcher "decides":** there is no planning intelligence in the
-tick — *deciding is computing what is due*. The model is fully asynchronous:
-every ~5 minutes a stateless tick merges roles.yaml triggers with apps.yaml
-overrides, checks schedule state ("is the Planner's `daily 07:00` unfired
-today?"), polls GitHub for new events ("is there a fresh `op:ready`
-ticket?"), starts a detached turn for each due (role, app), and exits.
+tick — *deciding is computing what is due*. Every ~5 minutes a stateless tick
+merges roles.yaml triggers with apps.yaml overrides, checks schedule state,
+polls GitHub for new events, starts a detached turn for each due (role, app),
+and exits. Turns outlive ticks (§2); a fresh lock heartbeat skips that
+(role, app) while unrelated work may start in parallel up to the org WIP limit.
 
-A worked tick: the Builder has been running a long turn since yesterday —
-its lock heartbeat is fresh, so the tick skips that (role, app) and the turn
-simply continues (turns outlive ticks, §2). Meanwhile a newly due event
-starts an unrelated turn in parallel, up to the org WIP limit.
+Every due episode admits a plan-derived route and budget **before** provider
+work: a bounded `EpisodeIntent`, then either token-free creator-scope
+normalization or EpisodePlanner, then a schema-validated durable `EpisodePlan`
+that owns the step DAG and exact harness/model/effort assignments. Identities,
+numeric ceilings, and qualification semantics live only in `docs/efficiency.md`;
+this document places intent/plan/journal/settlement modules on the import path
+(`src/org` → `src/loop` → `src/runtime`). Observe and report are read-only.
 
-Newer work never assumes older work finished, for two structural reasons:
+Newer work never assumes older work finished:
 
 1. **State derives from artifacts, not intentions** (§3): a ticket is
-   reviewable only when its PR actually exists; a PR ships only when an
-   APPROVE review and green gates actually exist. Unfinished work presents
-   no artifact, so dependent steps simply are not due yet — nothing infers
-   completion from elapsed time or from a task having been scheduled.
-2. **Dependencies gate readiness** (`docs/loop.md` §8): a ticket with
-   `Depends-on: #N` becomes due only when #N is *merged*; tickets whose
-   declared file scopes overlap are never scheduled concurrently.
+   reviewable only when its PR exists; a PR ships only when an APPROVE review
+   and green gates exist.
+2. **Dependencies gate readiness** (`docs/loop.md` §8): `Depends-on: #N`
+   becomes due only when #N is *merged*; overlapping file scopes never run
+   concurrently.
 
-Module placement respects the one-way import rule
-(`src/org` → `src/loop` → `src/runtime`):
-
-
-| Component                                               | Module                                                         | Notes                                   |
-| ------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------- |
-| Dispatcher, schedule state, event polling, locks, trigger routing | `src/org/dispatch.ts`, `src/org/trigger-routing.ts`             | M8 route table maps roles.yaml triggers to protocols |
-| App registry (`apps.yaml` loader)                       | `src/org/apps.ts`                                              | implemented (M7)                       |
-| Authority charter + resolver                            | `src/org/authority.ts`                                         | versioned org grant, app-only narrowing |
-| Context assembler                                       | `src/org/context.ts`                                           | authority + TASTE + memory              |
-| Approval queue + grants                                 | `src/org/approvals.ts`                                         | implemented (M7)                       |
-| OKF memory read/write                                   | `src/org/memory.ts`                                           | implemented M9                         |
-| Scorecards                                              | `src/org/scorecards.ts`                                        | implemented M9                         |
-| Retro reports + curation                                | `src/org/retro.ts`                                             | implemented M9                         |
-| Ticket state machine                                    | `src/loop/loop.ts`                                             | implemented (M5/M6); full design in `docs/loop.md` |
-| Episode intent, creator-scope assessment, planner runtime and orchestration | `src/org/episode-planner/` | implemented shared boundary across dispatch, tickets, product planning, governed protocol, replay, and release flows |
-| EpisodePlan contract, validation, persistence, DAG execution and route projection | `src/loop/episode-plan.ts`, `episode-plan-executor.ts`, `episode-route.ts` | one workflow source of truth |
-| Pass executor, brief assembler, quality gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | provider-step transport and legacy compatibility — `docs/loop.md` |
-| Pass prompt templates + pipeline config                 | `prompts/`, `pipelines.yaml` (org home)                        | human-ratified protocol/gate vocabulary; not a workflow planner |
-| Runtime contract, gate, telemetry, adapters             | `src/runtime/`                                                 | exists                                  |
-| Run status + anomaly readers                            | `src/runtime/runlog/status.ts`, `anomalies.ts`                 | implemented M9; L1/L2 only             |
-| Read-only Live UI observer                              | `src/observe/`, `src/cli/observe.ts`                           | presentation-only leaf; HTTP snapshot + SSE; no workflow writes |
-| Governed learning loop (capture, recurrence, efficacy, activation, resolver) | `src/org/learning/`                                    | design in `docs/learning-loop/`; Phase 4 closure is token-free outside declared replay turns |
-| A4 release handoff                                      | `src/org/release.ts`                                           | ship-gate P7; deploy queued as a critical op, then a later dispatch executes the approved command once and comments the ticket |
-| Package/org/state boundary                              | `src/org/home.ts`                                              | org init, validation, active pointer, state-home resolution |
-
-
-### Efficiency control plane
-
-`docs/efficiency.md` is the normative plan-derived route, budget,
-measurement, and qualification authority. Each organizational **episode**
-starts from a bounded `EpisodeIntent`: trigger and repository facts, hard
-ceilings, available roles, allowed assignment candidates, safety facts, and
-any explicit creator scope. A complete provenance-bearing creator scope is
-normalized token-free. Otherwise EpisodePlanner runs under the Planner role's
-fixed boot assignment in both `fixed` and `adaptive` mode. Apparent simplicity,
-an existing-ticket lifecycle, a label, or short prose never authorizes a
-bypass. Deterministic inspection finishes before the provider turn; its tool
-gate denies every tool and it receives no network access, so the bounded intent
-and context manifest are the complete planning input.
-
-The accepted `EpisodePlan` is schema-validated and persisted before delivery.
-It owns the versioned role/step DAG, dependencies, inputs, outputs, mechanical
-gates, approvals, exact turn assignments, estimates, and terminal outcomes.
-Policy validates role and tuple membership, capabilities, budget arithmetic,
-safety floors, release constraints, and independent review; it rejects or
-permits one bounded repair instead of substituting a static workflow. A
-material event may create a bounded forward-only revision. Completed steps,
-artifacts, approvals, and settlements stay immutable and linked to the version
-that authorized them.
-
-Only after acceptance does Operon project the compatibility route record:
-`planned_route`, explicit safety factors, exact authorized provider steps, and
-hard bounds. Quick/standard/deep is a derived reporting/safety label. The
-projection cannot add, remove, or reorder work. Before each provider turn, the
-ordinary admission and settlement substrate reserves the remaining cost and
-time exposure; incomplete usage blocks later admission rather than becoming
-zero. Each turn records a component-hashed context manifest and exactly one
-terminal execution step and ledger settlement.
-
-Ownership follows the import direction:
-
-| Layer | Efficiency responsibility |
-| --- | --- |
-| `src/runtime` | Validate and execute one atomic harness/model/effort assignment, checkpoint usage/session facts, and settle each provider turn exactly once. It never chooses workflow or authority. |
-| `src/loop` | Own the EpisodePlan contract, pure validation/persistence, deterministic DAG readiness, plan-derived route admission, preflight, context manifests/deltas, work fingerprints, and terminal provider/mechanical execution evidence. |
-| `src/org` | Construct intent, run/skip EpisodePlanner under the explicit creator-scope rule, resolve app/org assignment policy, orchestrate delivery/replanning, and own organizational lifecycle, approvals, learning outcomes, and final disposition. |
-| `src/report` / `src/observe` | Read-only projections. They perform no admission, reconciliation, workflow mutation, or provider call. |
-| `eval/**` | Qualify an exact candidate. Eval evidence never becomes production workflow authority. |
-
-Phase 6 keeps qualification identity and release evidence separate. Prepared
-campaigns pin both the historical whole-checkout hashes and two independently
-recomputable identities: the exact prebuilt installable-package tarball and the executable eval
-suite. After a terminal campaign is qualified and externally archived, only a
-sanitized evidence slice may enter `research/evals/**`. A release attestation
-compares the descendant with the exact candidate commit, rejects any
-unallowlisted change, and proves package, suite, and org bytes are identical.
-Per-contract projections are read by the token-free contract harness and must
-recompute the qualifier/report and reconcile archive, grader, GitHub, route,
-terminal, and settlement evidence. These files have no import path into
-`src/org`, `src/loop`, or `src/runtime` and grant no workflow authority.
-
-Phase 4 learning closure stays in `src/org/learning`: `capture.ts` inventories
-eligible finalized provider envelopes and repairs receipts exactly once;
-`efficiency-evidence.ts` derives versioned events and comparable recurrence
-from orchestrator-owned artifacts; `efficiency-health.ts` projects separate
-capture, governance, and efficacy health; and `efficacy.ts` decides declared
-control/treatment observations. These modules import no provider adapter and
-never infer trusted evidence from model prose. They extend the existing
-Candidate, ReplayCapsule, SystemFingerprint, ExperimentRecord, EvalResult,
-Intervention, publisher, and canary authority chain instead of creating a
-parallel state model. Report and Observe remain presentation-only readers.
+| Component | Module | Notes |
+| --- | --- | --- |
+| Dispatcher, schedule, events, locks, trigger routing | `src/org/dispatch.ts`, `src/org/trigger-routing.ts` | roles.yaml triggers → protocols |
+| App registry (`apps.yaml`) | `src/org/apps.ts` | multi-app registry |
+| Authority charter + resolver | `src/org/authority.ts` | versioned org grant, app-only narrowing |
+| Context assembler | `src/org/context.ts` | authority + TASTE + memory |
+| Approval queue + grants | `src/org/approvals.ts` | CLI queue; approve ≠ execute |
+| OKF memory / scorecards / retro | `src/org/memory.ts`, `scorecards.ts`, `retro.ts` | §6 |
+| Ticket state machine | `src/loop/loop.ts` | full design in `docs/loop.md` |
+| EpisodePlanner boundary | `src/org/episode-planner/` | intent, creator scope, planner orchestration |
+| EpisodePlan + route projection | `src/loop/episode-plan.ts`, `episode-plan-executor.ts`, `episode-route.ts` | one workflow source of truth |
+| Pass transport, briefs, gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | `docs/loop.md` |
+| Protocol templates | `prompts/`, `pipelines.yaml` (org home) | human-ratified; not a workflow planner |
+| Runtime contract, gate, telemetry, adapters | `src/runtime/` | atomic harness/model/effort per provider turn |
+| Run status + anomalies | `src/runtime/runlog/status.ts`, `anomalies.ts` | L1/L2 readers |
+| Live UI / reports / narrative | `src/observe/`, `src/report/`, `src/narrative/` | presentation-only leaves |
+| Governed learning | `src/org/learning/` | `docs/learning-loop/` |
+| Release handoff | `src/org/release.ts` | approved deploy executed once by later dispatch |
+| Package/org/state boundary | `src/org/home.ts` | org init, active pointer, state-home resolution |
 
 A **role invocation** is one scheduled, event-driven, or manual invocation of
-an organizational role. A **pass** is a configured protocol stage. A
-**provider turn** is one adapter invocation and one provider settlement. An
-**execution step** is one terminal provider or deterministic operation record;
-a **mechanical step** constructs no adapter and has zero settlements. If a pass
-calls the adapter again for recovery or verdict reformatting, that is another
-provider turn even when the pass retains one parent summary. Use the specific
-identity in normative text instead of ambiguous bare “turn.”
-
-A role and an execution assignment are deliberately different contracts. The
-role owns responsibility, instructions, expected outputs, tool shaping,
-permissions, and role budget policy. Each planned provider step instead owns
-one indivisible `TurnAssignment`:
-
-```ts
-interface TurnAssignment {
-  harness: RuntimeKind;
-  model: string;
-  effort: Effort;
-}
-```
-
-The executor constructs the adapter from `harness`, sends that exact `model`
-and `effort`, then intersects adapter capabilities with the role's allowed
-toolset. Fixed mode resolves the role's configured tuple; adaptive mode selects
-one exact, qualified candidate from the org catalog after app narrowing. A
-missing or unavailable tuple fails closed and requests revision. It never
-substitutes a harness while retaining the model, or changes effort as a
-fallback. Run envelopes, context, plan journal, and ledger evidence all retain
-the tuple and plan version, so resume uses persisted authority rather than
-current defaults.
-
-When a provider owner disappears after checkpointing partial usage, stale-step
-reconciliation carries that measured partial usage into the terminal step and
-ledger settlement. It records usage as unavailable only when no measured
-checkpoint exists; unknown usage is never silently treated as measured zero.
-
-Every adapter gives its headless provider harness and shell commands the same
-non-interactive environment overlay: `CI=true`, `NPM_CONFIG_YES=true`,
-`DEBIAN_FRONTEND=noninteractive`, `GIT_TERMINAL_PROMPT=0`, and
-`PNPM_CONFIG_IGNORE_SCRIPTS=true`. The overlay
-replaces conflicting interactive values while preserving unrelated caller-
-supplied environment such as provider authentication and campaign scratch
-paths. Claude and Codex inherit it at harness launch; pi applies it to the
-embedded Bash tool's spawn environment.
-
-Claude and Codex sandbox source writes to the exact turn worktree. For a
-linked checkout, `src/runtime/git-worktree-sandbox.ts` additionally resolves
-Git's real per-worktree administrative directory plus only the external object,
-current-branch ref, and current-branch reflog directories required by
-`git add`/`git commit`; it does not grant the managed clone wholesale. Ticket
-provision also probes creation of the exact `index.lock` before setup or any
-paid provider turn. Failure returns the ticket with
-`error_git_index_unwritable`, preserves the checkout, and names the recovery
-path.
-
-`PNPM_CONFIG_IGNORE_SCRIPTS` is the **dependency build policy**, and it is a
-separate mechanism from the four non-interactive values, not a fifth flavour of
-them. A headless sandbox stops a package manager from *prompting*; it does not
-stop pnpm 11 from *writing the question it would have prompted about into the
-repo*. Denied a build decision it cannot ask for, pnpm appends an `allowBuilds:`
-block whose values are the literal string `set this to true or false`, then
-fails. An agent that answers by appending its own `allowBuilds:` block produces a
-duplicate YAML mapping key, and every later pnpm invocation — including the ones
-that would repair the file — dies at parse time. Denying builds is also the safer
-default in its own right: a dependency that silently runs an install script is
-the more dangerous outcome, so the policy is deny-first and a ticket that needs a
-build opts in explicitly through the app's `setup_command`. The same policy is
-applied to the quality-gate subprocess (`src/loop/qgates.ts`), which is where a
-fresh worktree's first install actually runs. `src/loop/setup-artifacts.ts` is
-the backstop for the paths that opt out: it fails the setup gate with the real
-cause and the consolidation remedy rather than letting a placeholder become an
-opaque parser error several attempts later.
-
-The gate stays a pure `GateFn` in `src/runtime`; the org layer *composes* the
-effective gate for a turn (default rules + grant lookup, §4) and passes it
-down through `TurnHooks`. The runtime layer never imports approval storage.
-Shell normalization treats only a literal `/dev/null` redirect as a
-non-mutating sink. This lets a compound command read a protocol surface while
-discarding diagnostics without manufacturing a `protocol-self-edit` request.
-Every other redirect remains material and fail-closed, and a real protocol
-write in the same compound command still triggers the rule.
-
-An action's `operation` follows what its programs DO, never the fact that it
-named a file. A command whose every program is a read-only utility (`wc`,
-`cat`, `head`, `stat`, `grep`, `sed`/`awk` without an in-place flag, `find`
-without `-delete`/`-exec`, the reporting `git` subcommands) is a **read**
-whichever paths it names, so surveying `AGENTS.md` and `.operon/config.yaml` —
-the literal first instruction a bare-template builder receives — costs no human
-decision. Recording a **write** requires a write-shaped signal: an output
-redirection, an in-place flag, a mutating verb (`rm`, `mv`, `cp`, `install`,
-`chmod`, `truncate`, `ln`, `tee`), an editor or patch tool, `find -exec`, a
-non-reporting `git` subcommand, or a write-capable tool call. Where the
-projection cannot tell — an unresolvable redirect destination, a `find` action,
-a command nested past the projection's depth — it fails closed and records a
-write: over-approval costs a tap, under-detection costs the boundary.
+a role. A **pass** is a configured protocol stage. A **provider turn** is one
+adapter invocation and one settlement. An **execution step** is one terminal
+provider or mechanical record; a **mechanical step** constructs no adapter.
+Each planned provider step carries one indivisible `TurnAssignment`
+`{harness, model, effort}` — never a silent substitute. The runtime gate is a
+pure `GateFn`; the org composes grants (§4) and passes them down. Adapters run
+headless with a non-interactive environment overlay and deny-first dependency
+builds (`PNPM_CONFIG_IGNORE_SCRIPTS`); tickets that need builds opt in via
+`setup_command`.
 
 ## 1. On-disk layout
 
@@ -326,102 +216,19 @@ are never replaced. A deterministic stage and dead-process-aware org lock make
 an interrupted migration safely rerunnable; thrown failures restore the exact
 archived bytes.
 
-### App reset archives
+### App reset, verify, and promote
 
-`operon app reset <app>` is the lifecycle command for repeatable onboarding
-and build-loop testing. Planning is the default and reads the selected app's
-managed state plus GitHub surface. Execution requires both `--execute` and an
-exact `--confirm <app>` value. Before every local or remote change it writes a
-checksummed archive outside the state home, by default at
-`~/.operon/archives/<org>/<app>-reset-<fingerprint>/`; a reset can therefore
-never delete its own recovery material.
-
-The command takes every configured role lock for the app, and refuses if it
-finds a fresh-heartbeat running envelope, active journal/lock, or pending approval.
-`--force` permits an old running envelope with no heartbeat for ten minutes;
-it does not bypass any of the other live-work checks. It archives
-and removes only app-scoped managed paths (`repos/<app>`, `worktrees/<app>`,
-`runs/<app>`, `tickets/<app>`), app-attributed approval/schedule/budget/ledger
-entries, and the app registry entry. Its GitHub plan closes only issues bearing
-an `op:*` label plus open PRs whose body closes one of those issues (or whose
-branch starts `op/`), then deletes their head branches. It never deletes a
-GitHub repository, rewrites its default branch, or touches a human checkout.
-GitHub's retained closed issue/PR history is intentional.
-
-Reset also archives the normalized questionnaire record, after checking it
-against the canonical secret patterns. Blockers are typed and carry specific
-remediation; `--force` suppresses only the stale-run blocker. A durable reset
-intent retains the originally reviewed remote plan across process death, and
-dead reset-owned role locks are reclaimable without crossing a live lock.
-Remote closes/deletes and local cleanup are idempotent; registry writes are
-atomic and last. `operon bootstrap <checkout> --answers-from <archive|app>`
-recovers the archived identity and answers, so the checkout directory name is
-not used as a substitute app identity.
-
-### Token-free app verification and promotion
-
-`operon app verify <app>` performs bounded Git/ref reads, deterministically
-recreates or synchronizes the managed clone only after the onboarding commit
-is reachable, validates registry/config and authority/config hashes, and, for
-a GitHub remote, reads the repository label definitions once and compares them
-to the canonical plan-ticket contract. Missing or drifted canonical labels
-block readiness with the generated idempotent setup command as remediation;
-local/file remotes report that check explicitly not applicable and construct no
-GitHub client. Verify then parses generated artifacts, installs the app's
-dependencies via its `setup_command` and runs declared app tests/lint, checks
-approvals and role locks, and proves the configured adapter packages/models
-without constructing a runtime or provider process. The setup step runs first
-in the managed clone, mirroring
-the build loop's provision-time setup gate: a fresh clone has no `node_modules`,
-so a real npm scaffold's test command (`npm run build && node --test …`, needing
-`tsc` from devDependencies) would otherwise fail purely for lack of dependencies
-and the app-check gates could never reach `ready` (E2E-01). An unconfigured
-`setup_command` is a clean absence (no `app-check-setup`, unchanged); a setup
-failure is a typed `app-check-setup` **blocked** check with remediation and
-short-circuits the dependent tests/lint so their would-be failures never
-masquerade as the cause. Verify resolves the setup command the same way every
-gate command is resolved (`loadGateCommands`). Gate commands are canonical only
-at the top level of `.operon/config.yaml` (siblings of `apps`, never under
-`apps.<name>`), which is the shape `operon new-app` emits. Both the schema
-validator and gate loader reject nested keys with the exact canonical path, so
-a build cannot execute commands from config that verification rejects. It writes
-a stable readiness projection and a terminal mechanical execution step; provider
-factories, processes, turns, and settlements remain zero.
-
-`verify` **owns lifecycle-record synthesis and repair.** A greenfield
-`operon new-app` app has no lifecycle record until its scaffold is pushed —
-`new-app` runs before `git init`/push, so it cannot write one, and instead
-records an onboarding-source pointer (`<state>/lifecycle/apps/<app>/onboarding-source.json`)
-naming the scaffolded checkout. The first real `operon app verify` (not a
-non-mutating promotion preview) clones the pushed remote into the managed clone,
-adopts the first commit that introduced `.operon/config.yaml` as the onboarding
-commit and default base, and writes the record. A missing or unreadable record
-is always a **typed** verification result — a `lifecycle-record` check with
-status `blocked`/`invalid` and remediation — never a raw `ENOENT` or unhandled
-exception. When no onboarding pointer exists (an app onboarded before this
-path), verify falls back to the registered GitHub slug so re-running
-`operon app verify` recovers an app already stuck in the broken state.
-After schema, registry mirror, effective authority, and formatting validation,
-a real verify also accepts a changed config only when its exact bytes come from
-the fetched remote default branch and managed HEAD equals that commit. It uses
-one raw-byte hash derivation for both record writes and comparisons, records the
-commit that supplied those bytes, and keeps an atomic crash-resumable journal
-with the previous and accepted hash/commit. Promotion preview is read-only: it
-reports the exact `operon app verify` remediation and never changes the pin.
-Arbitrary managed-working-tree bytes therefore cannot become lifecycle
-authority, while a reviewed config change merged to the remote default branch
-converges without weakening drift detection.
-
-`operon app promote <app> --to live` is a non-mutating plan unless
-`--execute` is present. Execution is admitted only from passing verification,
-then uses a crash-resumable journal to commit and push the app-owned status
-(the commit is marked `[skip ci]` so the default-branch push cannot start an
-app's deploy or CI workflows — promotion is lifecycle metadata, never a deploy
-trigger), atomically update the one registry entry, refresh the lifecycle hash
-record, and verify the final live state. Commit, push, config, and registry boundaries
-are individually rerunnable; a dead process lock is reclaimed while a live
-one fails closed. Repetition returns `already_live` without a duplicate
-commit or side effect.
+`operon app reset`, `operon app verify`, and `operon app promote` are the
+token-free lifecycle commands for repeatable onboarding and readiness. Reset
+archives managed state outside the state home before any destructive change
+and never deletes a GitHub repository. Verify proves refs, managed clone,
+authority/config hashes, app checks, locks/approvals, and adapters without
+constructing a provider turn; it also synthesizes or repairs the lifecycle
+record. Promote to `live` is plan-by-default and executes only from passing
+verification. Readiness claims follow the generated → registered →
+runtime-ready → live → autonomously scheduled ladder in `docs/efficiency.md`;
+none of those states is implied by an earlier one. CLI details and remediation
+live with the commands themselves and README → Commands.
 
 ### App repo (target product repo)
 
@@ -452,9 +259,8 @@ Operon can ignore exactly one directory — the same social contract as
 keep in the app repo regardless of whether the Operon tool itself is ever
 open-sourced or stays private: it holds app-owned configuration and memory
 (which a reader may freely see — it documents how the app is managed),
-never tool source. One consequence: if Operon is published, the
-`.operon/config.yaml` schema becomes a public contract, so it carries a
-`schema_version` field from day one. Flagged in §11.
+never tool source. If Operon is published, the `.operon/config.yaml` schema
+becomes a public contract, so it carries a `schema_version` field from day one.
 
 ### Runtime state (`~/.operon/<org>/`, outside git entirely)
 
@@ -497,34 +303,11 @@ can read it freely (same reasoning that keeps repos at `~/Build`).
 
 ### Read-only Live UI (`operon observe`)
 
-`src/observe/` is a presentation-only leaf: it may consume org, loop, and
-runtime readers, while no core layer imports it. At startup it resolves the
-same package/org/state homes as every installed command, reconstructs a strict
-`ObserveSnapshotV1`, reads bounded GitHub issue/PR/review/check state, and
-keeps only a disposable in-memory index plus bounded SSE replay events. It
-never persists a queue or workflow fact.
-
-The server binds only to `127.0.0.1`, mints a new high-entropy capability on
-each process start, and exposes only GET/HEAD routes: `/api/v1/snapshot`,
-`/api/v1/events`, `/healthz`, static same-origin assets, and allowlisted local
-evidence. Every response is no-store, frame-denied, no-referrer, nosniff, and
-covered by a restrictive CSP. Artifact paths are ID-validated and realpath-
-checked; traversal, unknown names, cross-home access, and symlink escapes fail
-closed. L3 prompt/brief/output/activity content never enters snapshots or SSE
-and is fetched deliberately as text. `session.log` is always an activity log,
-not a transcript.
-
-Filesystem notifications provide latency; periodic scans provide correctness.
-GitHub polling is read-only, bounded, and independently degradable: a GitHub
-failure retains the last known external projection with explicit source-health
-state while local pass activity keeps updating. A monotonically increasing
-observer cursor supports SSE replay; clients outside the bounded buffer receive
-`resync` and fetch a fresh durable snapshot. Stopping the server closes only
-observer HTTP streams and never signals a runtime, loop, dispatcher, or pass.
-The browser's session chooser is a disposable view over the same snapshot:
-parent tasks are the preferred historical boundary, standalone traces cover
-legacy/orphaned work, and URL state scopes the existing components without
-creating a session store or changing correlation semantics.
+`src/observe/` is a presentation-only leaf over durable state and bounded
+GitHub reads: loopback-only bind, per-process capability, no workflow mutation.
+Stopping it never affects a run. `docs/live-ui/design.md` is the contract.
+Reports and narrative are sibling presentation leaves (`docs/reporting/design.md`,
+`docs/narrative/design.md`).
 
 ## 2. Dispatcher & scheduler
 
@@ -536,7 +319,9 @@ on an unexercised platform. Each tick calls the ordinary `operon dispatch`,
 reads config + durable state, computes what is due, starts detached turns, and
 exits. There is no competing daemon or workflow engine. A wedged host resumes
 on the next tick; cadence remains flexi and ticks run at all hours (decided
-2026-07-04).
+2026-07-04). Due work that needs a provider turn still enters only through the
+EpisodePlanner boundary (§0, §8): the tick computes *what is due*; the accepted
+EpisodePlan authorizes *what may run*.
 
 Lifecycle mutations preview by default and require `--execute` plus exact org
 or scheduler-id confirmation. Ownership metadata, the rendered-definition
@@ -630,7 +415,7 @@ deadlines — enter through the file-drop inbox: any producer (a mail poller,
 a payment-webhook relay on the droplet, a calendar script) writes an event
 JSON into `state/events/inbox/`, and the dispatcher routes it through the
 same roles.yaml trigger mechanism, unchanged. Enumerating these producers
-per role (Support, Marketing, SRE) is a roadmap item, not a dispatcher
+per role (Support, Marketing, SRE) is operator configuration, not a dispatcher
 change.
 
 The v0 payload contract for file-drop company events is documented in
@@ -660,7 +445,6 @@ schedules (oldest due first).
 - **Turns outlive the tick.** `operon dispatch` spawns
 `operon run-role … --turn <id>` as a detached process, so the 5-minute
 timer never kills a long turn. `run-role` is thereby also the manual
-entrypoint (roadmap item 2) — the dispatcher is just the thing that calls
 it on time. `--turn` is the invocation/trace identity used by the journal and
 run evidence; it is not a GitHub ticket number and never creates a ticket
 binding. Ticket context, when present, comes from the already-durable dispatch
@@ -717,9 +501,10 @@ with the exact `error_max_budget_usd` code and an incident note artifact
 (roles.yaml: "overrun = incident note, not silent spend"). A standalone turn's
 recovery evidence names its isolated path and branch, reports whether the worktree
 is dirty, and gives a read-only inspection command. Operon does not automatically
-stage or commit arbitrary provider output at this boundary. It remains a safety
-backstop while episode route admission and pre-provider-turn remaining-budget
-enforcement are implemented; it is not a second canonical route budget.
+stage or commit arbitrary provider output at this boundary. Episode route
+admission and remaining-budget enforcement (`docs/efficiency.md`) are the
+canonical ceilings; this adapter cap is a safety backstop, not a second route
+budget.
 
 ### Worktrees
 
@@ -907,120 +692,20 @@ Item schema:
 
 ### Flow
 
-1. Gate denies-and-escalates (existing `defaultGate`). The adapter surfaces
-  the denial to the model as the tool result ("denied — escalated to human
-   approval as ") and records the `GateEscalation`.
-2. The model continues if it can deliver value without the op; if its primary
-  artifact is unreachable it ends the turn declaring so → status
-   `blocked_on_gate`. Either way the item is persisted to `pending/` at
-   collection time, tagged with app and turnId.
-3. Human reviews via CLI (below). **Approve ≠ auto-execute.** Approval mints
-  a grant: `{app, role, actionHash, identityVersion, scope, expiresAt, uses,
-   maxUses, revokedAt?}`. `actionHash` = SHA-256 of the *authorization
-   identity* (`actionHash` in `src/org/approvals.ts`): the payload-free
-   semantic projection (`normalizeSemanticAction` — the same shape `classify`
-   uses) **plus** a content digest of the agent-authored payload that
-   projection discards (a Write `content`, an Edit `new_string`/`old_string`,
-   an apply_patch body) **plus** a format version. Binding the payload is what
-   makes a human's approval cover the exact bytes they saw and nothing else —
-   approving Write X never authorizes Write Y on the same path (finding A-002),
-   and a different-content raise is a distinct pending item, not a silent
-   collapse into the one the human is reading. Classification itself stays
-   payload-blind (`normalizeSemanticAction` discards the payload, so a doc that
-   merely names a protocol surface is not a self-edit). Bumping the identity
-   format (`ACTION_IDENTITY_VERSION`) cancels every in-flight grant: a persisted
-   grant carries its mint-time `identityVersion`, and `findMatchingGrantSync`
-   refuses any grant whose version is not current — so on a format change agents
-   re-raise and the miss path yields a fresh approval item, never a crash. The
-   default scope is `once` — a single-use action hash, exactly the
-   pre-amendment behavior. At decision time the
-   human (never the agent) may widen to `ticket` or `app` scope: every
-   action matching (rule, path prefix) for that app±ticket until TTL,
-   use-count cap (default 20), or `operon approvals revoke <grant-id>`.
-   Self-merge, production deploy, external publication, protocol-surface writes, and
-   out-of-boundary actions are never scopeable. Nothing replays tool calls
-   outside a session except an explicit typed, orchestrator-owned executor.
-4. Next tick re-dispatches any `blocked_on_gate` turn whose escalations are
-  all decided (resume the session if fresh, else restart with a decision
-   summary in context). The effective gate = grant lookup **then** default
-   rules — a `once` grant passes exactly once; a scoped grant passes
-   matching actions until exhausted, each use appending its own audit row.
-   Deny-with-reason: the reason is injected into that turn's context ("your
-   request to X was denied: ") — and persisted as a durable denial lesson
-   for the (app, role) pair so the same denial is never re-litigated.
-   Role-forbidden acts (builder/reviewer self-merge, deploy,
-   provider-global-memory) never reach the queue at all: the composed gate
-   denies them flat with standing guidance, and on Claude the adapter
-   removes them from the tool surface itself (`src/runtime/role-shaping.ts`).
-5. For `durable-github`, `release`, and `orchestrator-command` items, a later
-   dispatch claims the exact action and advances `approved → executing →
-   executed | failed | ambiguous`. `operon dispatch` reconciles the store
-   before it executes anything, so a record homed on an executor nobody can
-   reach is re-homed by the same command that then runs it.
-   The record includes attempt, actor, result, failure cause, remote reference,
-   and next action. GitHub actions reconcile by a stable remote marker; an
-   ambiguous result is never blindly retried. Only a reasoned, exact `operon
-   approvals disposition <id> ... --confirm <id>` may resolve or re-arm it.
-   An approved SHELL action is `orchestrator-command`
-   (`src/org/approval-command.ts`): `operon dispatch` runs the exact recorded
-   command string — never a reconstruction — in the recorded `workdir`, or in
-   the app's managed clone when the record carries none. A recorded workdir
-   that no longer exists is refused rather than substituted, and the recorded
-   workdir is the sandbox cwd of the raising turn — for a builder ticket pass
-   that is the per-ticket worktree, not the managed clone. A generic command
-   has no remote idempotency marker, so an interrupted or timed-out execution
-   becomes durably `ambiguous` and waits for a human disposition; it is never
-   re-run.
-
-   Three boundaries make orchestrator execution narrower than the approval
-   itself. **Rule allowlist**: only `external-publishing`, `outbound-network`
-   and `destructive-or-irreversible` are ever homed on the orchestrator
-   (`ORCHESTRATOR_EXECUTABLE_RULES`). Approving an action is not authorizing
-   the orchestrator to enact it on the human's behalf, and the rules left out
-   are the ones whose effect lands on the org's own control plane — the review
-   boundary, the protocol surfaces, the approval store, the scorecards, a
-   learning publish — which `NEVER_SCOPEABLE_RULES` already treats as
-   boundaries an agent must never enact. **Literal binding**: the decision
-   records `commandSha256` over the RAW command on the grant, a separate file
-   from the decided record, because `actionHash` is computed over
-   `unwrapCommand(...)` and so ignores a `sudo `/`command `/`env VAR=val `
-   prefix; without the separate binding, editing a decided record to add such
-   a prefix kept its grant and changed what ran. A grant with no recorded
-   binding requires the literal to be byte-identical to the identity it does
-   cover. **Scope, not validity**: an app absent from the apps.yaml a
-   particular dispatch was given is reported and left approved, never
-   terminalized. This exists because `actor-retry` alone is not a mechanism: it needs
-   the raising turn to ask again, and run 3 showed the sandbox answering the
-   actor "rejected by user" while the grant sat granted, leaving four approvals
-   at `attempts: 0` with nothing able to spend them (ISSUE-020).
-   `orchestrator-command` stays actor-claimable — a live turn re-attempting its
-   own approved command still wins the single-use grant and the orchestrator
-   then finds nothing to do — while `durable-github` and `release` remain
-   orchestrator-only. Before an originating outer turn is terminalized, its
-   turn runner drains every same-turn `orchestrator-command` approval through
-   the same content-bound executor; the per-item claim increments `attempts`
-   before the command begins, and multiple decisions are each delivered once.
-   A same-turn shell approval that is still undispatched when the actor ends is
-   claimed and terminalized `failed` with
-   `actor_ended_before_dispatch`, never left `approved` at zero attempts.
-   For an exact single-use actor grant, the
-   synchronous gate advances the item to `executing` before it consumes the
-   grant. The turn runner accepts only an exact action-identity `TurnEvent`
-   with an explicit adapter `success: true|false` as acknowledgement; prose or
-   a pre-execution event yields `ambiguous`. Failed/ambiguous actor work makes
-   that role invocation `blocked_on_gate`, and a later invocation for the same
-   app/role stops before clone or Runtime construction with the exact
-   disposition command. An unused approved grant remains visible and may be
-   revoked. Scoped multi-use grants retain their per-use audit because they do
-   not identify one exact action. Reconciliation upgrades the legacy
-   consumed-at/attempts-zero record to one ambiguous attempt and removes a
-   contradictory live `consumedAt`+`revokedAt` pair without discarding its
-   append-only history.
-6. Grants expire (default TTL 24 h), count uses against their cap, and are
-  revocable; grant mint, each use, exhaustion, and revocation all go to
-   `log.jsonl`.
-
-
+1. Gate denies-and-escalates; the adapter surfaces the denial; the item is
+   persisted to `pending/` at collection time (`blocked_on_gate` when the
+   primary artifact is unreachable).
+2. Human reviews via CLI. **Approve ≠ execute.** Approval mints an
+   action-hashed grant (default scope `once`; human may widen to ticket/app
+   with TTL/cap/revoke). Self-merge, production deploy, external publication,
+   and protocol-surface writes are never scopeable.
+3. Next tick re-dispatches when escalations are decided; the effective gate is
+   grant lookup then default rules. Deny reasons become durable lessons.
+4. Later dispatch executes only typed orchestrator-owned allowlisted actions
+   (`durable-github`, `release`, `orchestrator-command`), records
+   `approved → executing → executed|failed|ambiguous`, and never blindly
+   retries ambiguity. Full grant, binding, and disposition contract:
+   `docs/approval-and-release-amendment.md` and `docs/PURPOSE.md` → Decided.
 
 ### CLI
 
@@ -1088,8 +773,8 @@ the contract.
 small enough that this stays adequate; retrieval sophistication is earned by
 evidence, not assumed.
 
-**Governed concepts resolve ahead of legacy memory** (learning-loop M4/M5,
-`docs/learning-loop/`). When learning is enabled, `resolveLearningContext`
+**Governed concepts resolve ahead of legacy memory** (`docs/learning-loop/`).
+When learning is enabled, `resolveLearningContext`
 (`src/org/learning/resolver.ts`, wired into `src/org/context.ts`) runs once
 per turn as a **pinned resolve** — promotion, disable, or rollback mid-turn
 never shifts a running turn's context. Its concept sections fill layer [5]
@@ -1178,24 +863,22 @@ Body: the lesson, with the why. Wrong lessons get deleted, not hedged.
 Each bundle carries an `INDEX.md` (one line per doc) — the always-included
 excerpt layer.
 
-**End-of-turn learning notes** (learning-loop M1, design §7.1 in
-`docs/learning-loop/`): the role protocol (context layer [4]) instructs
-agents to record lessons and corrections as **candidate notes** —
-`learning/candidates/<role>/` in the org home, `.operon/learning/candidates/
-<role>/` on the ticket branch — never as active OKF docs. Candidate trees are
-deliberately agent-writable routine ops; they carry no authority and nothing
-in them loads into future context until it passes review. The learning
-GOVERNANCE surfaces (`learning/{bundle,quarantine,evals,reviews,experiments,
-interventions}/**`, `manifest.yaml`, `policy.yaml`, `rejections.jsonl`, and
-their `.operon/learning/**` counterparts) are critical ops by the
+**End-of-turn learning notes** (`docs/learning-loop/`): the role protocol
+(context layer [4]) instructs agents to record lessons and corrections as
+**candidate notes** — `learning/candidates/<role>/` in the org home,
+`.operon/learning/candidates/<role>/` on the ticket branch — never as active
+OKF docs. Candidate trees are deliberately agent-writable routine ops; they
+carry no authority and nothing in them loads into future context until it
+passes review. The learning GOVERNANCE surfaces
+(`learning/{bundle,quarantine,evals,reviews,experiments,interventions}/**`,
+`manifest.yaml`, `policy.yaml`, `rejections.jsonl`, and their
+`.operon/learning/**` counterparts) are critical ops by the
 `learning-surface-tamper` gate rule — publisher/human-only. Existing
 `memory/**` trees remain read-only legacy seed context: still resolved into
 layer [5] at lowest precedence, no longer written by anyone.
 
 **Curation** belongs to the governed learning loop (review → approval →
-publish, `docs/learning-loop/`); the old direct-write retro curation pass
-(`runRetroCuration`) was retired with M1 — its destructive dedupe/delete was
-ungated and never wired, and its skill-draft idea moves to the M6 distiller.
+publish, `docs/learning-loop/`).
 
 ### Scorecards
 
@@ -1340,262 +1023,50 @@ line.
 
 ## 8. Product co-planning and the EpisodePlanner boundary
 
-The product-facing `operon plan` command offers a token-free manual preview and
-an EpisodePlanner-backed `--auto` product-decomposition episode. In `--auto`, the
-accepted execution EpisodePlan authorizes a smallest-sufficient DAG over the
-code-owned governed planning-operation catalog. Its terminal provider output
-is the existing schema-validated `TicketPlan`, which the deterministic
-publisher may turn into GitHub issues transactionally
-(`src/org/plan-auto.ts`, `src/loop/plan-tickets.ts`). The two plan types are
-distinct: EpisodePlan authorizes execution; TicketPlan describes child work.
+`operon plan` is the product-facing planning surface. A token-free `--dry-run`
+preview assembles Planner context (§5) without constructing a runtime. Live
+`--auto --goal` runs through the shared EpisodePlanner boundary
+(`src/org/episode-planner/`): bounded intent, creator-scope assessment or
+planner turn, then a durable execution `EpisodePlan` whose terminal output is
+a schema-validated `TicketPlan` the orchestrator may publish as GitHub issues
+(`src/org/plan-auto.ts`, `src/loop/plan-tickets.ts`). EpisodePlan authorizes
+execution; TicketPlan describes child work. Route, budget, and assignment
+norms are `docs/efficiency.md`; loop pass transport remains `docs/loop.md`.
 
-The shared execution boundary lives in `src/org/episode-planner/`:
-`previewEpisode` deterministically resolves bounded intent, assignment
-candidates, safety facts, and whether explicit creator scope is complete;
-`orchestrateEpisode` creates or normalizes and persists the plan; and
-`explainEpisode` joins the intent, accepted version, derived route, step
-assignments, and execution journal. The preview deliberately returns
-`exactProviderAuthoredPlan: null` when EpisodePlanner would have to run; an
-explicit creator-scope preview instead proves whether the supplied scope can
-take the deterministic normalization path, without persisting it.
+`previewEpisode` / `orchestrateEpisode` / `explainEpisode` are the shared
+boundary used by dispatch, tickets, product planning, and release flows.
+`operon episode explain` is a total read-only diagnostic over durable evidence.
+Only complete provenance-bearing creator scope skips the planner provider turn;
+labels, lifecycle stage, or short prose never authorize a bypass. Bare
+`operon plan <app>` fails closed and directs operators to `--auto --goal`.
 
-The public `operon episode explain <episode-id>` command exposes the durable
-explanation read-only. Because it is the primary operator diagnostic it is
-total: missing, corrupt, or internally inconsistent evidence is annotated in
-`problems[]` and rendered inline, never thrown, so an episode with only a
-route record still explains its route and durable execution steps. Every
-durable read is named by the printed `evidenceDir`, so operators are not
-forced to reverse-engineer the state-home layout. `complete: false` means at
-least one artifact could not be resolved, and the command exits non-zero.
-Provider-step assignments resolve against the route authorization that
-actually paid for the step: after a plan revision, a step that already
-completed is deliberately not re-authorized at the new version, so its
-explanation reports `authorized_at_prior_plan_version` rather than claiming it
-is unauthorized. `operon plan --explain-route` and `--auto --dry-run`
-expose a provisional token-free intent/candidate/safety preview, including
-current ledger spend. Product stage is resolved by one deterministic boundary
-shared with live planning: an explicit `--stage` wins; otherwise at most five
-reachable commits and no reachable tags means bootstrap, at least fifty commits
-plus three reachable tags means mature, and the broad middle means growth. The
-greenfield seed strengthens only the low-history bootstrap reason and never
-pins a repository after it grows. App lifecycle (`onboarding|live|paused`) is
-not maturity evidence. Missing local Git evidence produces an auditable,
-conservative bootstrap fallback. Preview and live inspect the same already-local
-checkout before live clone synchronization so creating a managed clone cannot
-silently change the previewed stage. Both text and JSON expose explicit versus
-inferred provenance, the stable reason, and bounded commit/tag/seed evidence;
-the same record is hashed into and persisted with `EpisodeIntent`. Other live
-repository/source inspection remains deferred, and previews explicitly leave
-the exact provider-authored plan null. They are evidence of what EpisodePlanner
-may choose from, never evidence that its turn may be skipped.
-
-```
-operon plan <app> --dry-run [--topic "stats percentile helper"] [--workdir <app-checkout>]
-operon plan <app> --auto --goal "<product goal>" [--source <file-or-dir>]...
-  [--optional-source <file-or-dir>]... [--stage bootstrap] [--no-publish]
-operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready
-  [--dry-run] [--no-publish]
-```
-
-- The manual `--dry-run` form assembles the Planner's context exactly as §5
-  (same TASTE layers and memory bundles), creates a throwaway worktree from the
-  fetched remote default-branch tip, prints the preview, and cleans it up. It
-  constructs no runtime and emits no execution evidence.
-- The former native interactive Claude child is retired. Its inherited TTY
-  conversation could not be represented as one bounded adapter turn and
-  bypassed durable plan, exact assignment, gate, envelope, and settlement
-  authority. Bare `operon plan <app>` therefore fails before worktree creation
-  and directs the operator to `--auto --goal` for live planning.
-- The creator-scope form accepts JSON or YAML only as transport for the one
-  strict `CreatorEpisodeScope` parser. `--creator-scope` and
-  `--execution-ready` require each other, and the file must independently
-  declare `planningDisposition: execution_ready`; its objective supplies the
-  goal when `--goal` is absent. Incomplete scope, a disposition mismatch,
-  invalid governed operations, or unapproved adaptive assignments fail before
-  provider construction instead of silently invoking EpisodePlanner. A valid
-  scope retains its exact provenance in `EpisodeIntent` and `EpisodePlan` and
-  is included as authoritative input to its declared planning-operation turns.
-- Manual `plan --dry-run` checkout resolution accepts an explicit `--workdir`;
-  otherwise Operon prefers the managed dispatch clone at
-  `~/.operon/<org>/repos/<app>`, then a sibling checkout beside the Operon
-  repo (the `~/Build/<app>` laptop layout), then the repo basename. It fails
-  loudly instead of silently using the Operon repo as the target app.
-  `run-role` deliberately does not share that override: its live path owns the
-  managed clone, so accepting a preview-only workdir would misrepresent the
-  execution checkout.
-- In `--auto` mode the orchestrator publishes the validated TicketPlan with
-  canonical labels — agents author no `gh` side effects.
-- `--auto` source inputs are resolved and content-bound before Runtime
-  construction. Required source failures stop the run; optional sources may
-  be deterministically truncated/excluded and remain named in the manifest.
-  Exact bytes cross the provider boundary as explicitly untrusted data. Each
-  pass envelope references its pending/consumed input manifest, while GitHub
-  tickets receive refs/hashes only.
-- Published tickets carry a `Planned-by: episode=… run=… trace=…` trailer
-  (`parsePlannedBy` reads it back), and the orchestrator writes the mirror
-  record `published-tickets.json` into the final planning pass's run dir —
-  the two durable halves of the planner→ticket causal edge (#128). The
-  trailer travels with the repo and survives every local retention sweep;
-  the local record cross-checks it against the envelope identity.
-- Automated-planning provider turns settle measured usage through the ordinary episode
-  boundary. The manual preview records no telemetry because it invokes no
-  provider. The `Trigger` type's `manual?: boolean` kind remains a declaration
-  the dispatcher **never** auto-fires.
-- Budget admission reserves the bounded two-attempt EpisodePlanner allowance
-  only when that provider design turn may run. An explicit, validated
-  execution-ready creator path reserves zero hypothetical planner spend and
-  gives its declared workflow the existing remaining delivery ceiling;
-  persisted intents keep their original immutable ceiling.
-- Legacy depth/risk flags are retained as bounded request facts for callers and
-  historical evidence. They do not select the product-planning steps. Existing
-  ticket status and the former `direct-execution` disposition are not valid
-  EpisodePlanner bypass signals; only complete creator scope with explicit
-  provenance is.
-- After the final pass emits a valid plan, `finalizePlanForPublication` applies
-  all orchestrator-owned tier floors and canonical-label transforms once. Its
-  immutable projection carries requested tier, final tier, escalation reason,
-  and exact labels; console/JSON output, no-publish results, and GitHub
-  publication all consume that same object.
-- `--explain-route`, `--auto --dry-run`, and creator-scope `--dry-run` stop before runtime construction and
-  show provisional bounded intent authority without pretending to know the
-  eventual execution EpisodePlan or TicketPlan. `--no-publish` runs the
-  accepted product-planning EpisodePlan but does not publish its finalized
-  TicketPlan projection.
-- Gate, envelope, assignment, and settlement enforcement is identical to every
-  other EpisodePlan-backed provider step; terminal interactivity is not a
-  parallel approval surface.
-
-
+Published tickets carry a `Planned-by:` trailer and a local
+`published-tickets.json` mirror — the planner→ticket causal edge. Gate,
+envelope, assignment, and settlement enforcement match every other
+EpisodePlan-backed provider step.
 
 ## 9. Greenfield creation and Bootstrap
 
-Greenfield products start one step earlier than existing-app bootstrap. Both
-paths require a complete active org created with `operon org init`:
+Greenfield (`operon new-app`) and existing-app (`operon bootstrap`) both require
+a complete active org (`operon org init`). Readiness claims follow the evidence
+ladder in `docs/efficiency.md` and §1 (generated → registered → runtime-ready →
+live → autonomously scheduled); registry states remain `onboarding | live |
+paused`.
 
-Readiness claims use this evidence ladder; it does not add registry states or
-replace `onboarding | live | paused`:
+`new-app` is deterministic and local: target skeleton, starter product truth
+(`docs/VISION.md`, `docs/REQUIREMENTS.md`), `.operon/` contract, optional
+template (`typescript-node` or `bare`), then the same register path as
+bootstrap. It does not create a GitHub repo, push, or run the Planner —
+follow-ups live in `.operon/bootstrap/next-commands.md`. After push,
+`operon app verify` synthesizes the lifecycle record; `operon app promote
+--to live --execute` flips status without a manual `apps.yaml` edit.
 
-1. **Generated:** local app/org artifacts exist; registry, remote, runtime,
-   and schedule claims do not follow.
-2. **Registered:** the org registry and app-owned config agree; the app is
-   still onboarding.
-3. **Runtime-ready:** deterministic verification proves refs, ancestry,
-   managed clone, authority/config hashes, app checks, locks/approvals, and
-   required adapters.
-4. **Live:** the human-selected registry state permits ordinary manual and
-   dispatch work; scheduler installation is not implied.
-5. **Autonomously scheduled:** the correct org-scoped scheduler is installed,
-   healthy, and producing attributable due/executed/skipped/blocked evidence.
-
-The lifecycle transaction belongs to `src/org`; reporting and observation only
-project the evidence. `new-app` reaches generated, and successful bootstrap
-reaches registered. Neither command alone proves runtime-ready, live, or
-autonomously scheduled.
-
-```
-operon new-app "marketplace for dummy products" \
-  --name marketplace \
-  --target-dir ~/Build/marketplace \
-  --repo owner/marketplace \
-  --template typescript-node
-```
-
-`new-app` is deterministic and local. It creates a separate target app repo
-skeleton, starter product truth (`docs/VISION.md`, `docs/REQUIREMENTS.md`),
-starter architecture/runbook/testing docs, an initial GitHub issue body under
-`.operon/bootstrap/`, a canonical label reference at `.operon/LABELS.md`, and
-a Planner seed under `.operon/planning/`. The explicit template selects the
-rest:
-
-- `typescript-node` is the backward-compatible default. It emits the existing
-  npm + strict TypeScript web shell and configures executable setup, test, and
-  lint commands.
-- `bare` emits no runtime, package-manager, framework, source, test, or server
-  skeleton. It leaves required test/lint commands absent with explicit pending
-  guidance, so the loop fails closed until the first implementation selects a
-  stack and adds meaningful stack-specific gates. The goal is product truth,
-  never a template-inference input.
-
-It then calls the same bootstrap/register implementation described below, so
-greenfield and existing-app onboarding converge at the `.operon/` contract and
-`apps.yaml` registry. Dry-run text and JSON include the selected template, the
-exact target/org/state paths, and configured-or-pending gate state. If Support
-or Marketing channels are supplied, they are preserved in the org registry so
-channel-presence gating can fire those roles.
-
-For `bare`, the generated initial issue is a deliberately narrow bootstrap
-exception to the usual ready-work posture: the manual loop may build the first
-stack and gate commands because gate resolution reloads the Builder worktree
-immediately before quality gates. Its first generated loop command explicitly
-grants network access for stack selection and dependency-manifest creation in
-the fresh worktree; that grant is per invocation, not a standing app policy.
-Keep that as the only ready product-work issue. Run `app verify` and preview
-promotion only after it merges; verification correctly fails while required
-commands are absent.
-
-`new-app` does not create a GitHub repo, push code, publish marketing content,
-or run the Planner. Those are explicit follow-up operations recorded in the
-generated `.operon/bootstrap/next-commands.md`: create the private repo, push
-the scaffold, idempotently converge every canonical state/tier/priority/domain
-label with `gh label create --force`, and only then create the initial
-`op:ready` issue. Planning guidance uses the supplied greenfield goal exactly,
-requires `docs/VISION.md` and `docs/REQUIREMENTS.md` as checkout-relative
-sources, previews token-free first, then gives the live
-`operon plan <app> --auto --goal ...` form before the normal loop.
-
-Once the scaffold is pushed, `operon app verify <app>` synthesizes the app's
-lifecycle record from the pushed remote (see "Token-free app verification and
-promotion"), and `operon app promote <app> --to live --execute` transitions the
-app to `status: live` with no manual `apps.yaml` edit — the path SRE, Support,
-and Marketing dispatch depends on. If an app is stuck without a record because
-it was onboarded before record synthesis existed, re-run `operon app verify`:
-it recovers the record from the registered GitHub slug, and its typed
-`lifecycle-record` remediation names the next step when it cannot.
-
-```
-operon bootstrap        # run inside the product repo
-```
-
-1. **Learn.** Scan the GitHub-backed repo: language/build/test commands
-  (manifests, CI config), documentation inventory grouped by onboarding
-  category, existing agent docs (CLAUDE.md / AGENTS.md), and deploy hints
-   (Dockerfiles, DNS/IaC). Bootstrap never runs agents during scan.
-2. **Questionnaire.** Interactive alignment pass with the user: what the
-  product is and what "good" means (→ app charter); which roles to enable;
-   budget; cadence; app-specific critical ops (deploy commands, publish
-   targets, secret locations — these extend the gate's rule set for this
-   app); support/marketing channels if any; and whether app authority inherits
-   the org grant, selects conservative, or adds custom restrictions.
-3. **Emit app-owned artifacts.**
-  - `.operon/TASTE.md` — the app charter (layer [3]);
-  - `.operon/AUTHORITY.md` — the effective, content-bound authority snapshot;
-  - `.operon/config.yaml` — the app's registry entry (apps.yaml schema);
-  - `.operon/policy.yaml` — the app-owned quality-gate policy;
-  - `.operon/onboarding-report.md` — deterministic documentation/setup
-  inventory and gap report;
-  - `.operon/memory/<role>/INDEX.md` — seeded empty bundles.
-  - marked blocks in root `AGENTS.md` and `CLAUDE.md` — safe composition,
-    never replacement, pointing top-level harnesses at the app snapshot.
-4. **Register / join.** Resolve the complete active org through explicit
-  `--org-home`, `OPERON_ORG_HOME`, or `~/.operon/config`, then add the app to
-  its `apps.yaml` as `status: onboarding`. If no org resolves, stop before
-  writing and direct the operator to `operon org init`; bootstrap never emits
-  a parallel `.operon/org/` configuration.
-
-Bootstrap inventories documentation and setup signals; it does not infer
-authoritative product, architecture, or roadmap truth from source code. App
-owners bring those source-of-truth docs. The onboarding report may suggest
-missing categories, but gaps are guidance, not blockers unless app config or
-policy makes them so.
-
-Before normal bootstrap reports success it parses the emitted registry,
-policy, and authority metadata and checks every generated text artifact for a
-final newline, trailing whitespace, and Git formatter errors. With a resolved
-state home it also stores the normalized non-secret questionnaire record for
-future reset recovery. Recovered bootstrap writes only to an Operon-managed
-clone, creates a deterministic onboarding commit, records the remote default
-base and source checkout fingerprint, and leaves the human checkout branch,
-HEAD, index, tracked changes, and untracked files untouched.
+`bootstrap` (run inside the product repo) scans manifests/docs without agents,
+runs the operator questionnaire, emits app-owned `.operon/` artifacts plus
+marked AGENTS.md/CLAUDE.md blocks, and registers the app as `onboarding`. It
+inventories setup signals; it does not infer authoritative product truth from
+source. Recovered bootstrap writes only to an Operon-managed clone and leaves
+the human checkout untouched.
 
 ## 10. GitHub substrate conventions
 
@@ -1662,75 +1133,9 @@ predecessor pattern).
 
 ## 11. Ratified decisions promoted to docs/PURPOSE.md
 
-Decisions 1–10 were ratified by the human operator beginning 2026-07-06;
-decision 11 was ratified on 2026-07-13, and decision 12 on 2026-07-19. All are
-promoted to docs/PURPOSE.md; later decisions supersede conflicting mechanics:
-
-1. **Tick dispatcher, detached turns.** Stateless `operon dispatch` tick
-  (launchd/systemd, ~5 min); turns spawn detached so schedulers never kill
-   work; events by GitHub polling + file-drop inbox in v1 (webhook parity
-   later without dispatcher changes).
-2. **Approve ≠ execute — grants.** Queue approval mints an expiring,
-  action-hashed grant consumed by the gate on re-dispatch; the orchestrator
-   never replays tool calls itself. Amended 2026-07-10 (approval & release
-   amendment, ratified): single-use stays the default, and the human may
-   widen a decision to a rule+path-scoped ticket/app grant with TTL,
-   use-count cap, revocation, and per-use audit rows; self-merge, deploys,
-   and protocol-surface writes are never scopeable.
-3. **Idempotency contract** (§3): durable product effects are git/GitHub ops;
-  artifact-before-label; claims are label flips; durable orchestration records
-  are append-only and identity-keyed. P0-07 later clarified that accepted
-  non-git episode artifacts also survive interruption.
-4. **Org-managed clones.** The org works only in its own clones/worktrees
-  under `~/.operon/`; GitHub is the sole sync point with the human's
-   checkouts.
-5. **Superseded 2026-07-09:** the `.operon/org/` single-app sublayout. The
-  packaging/onboarding reconciliation now requires a separate complete org
-  home; app repos contain app-owned `.operon/` artifacts only.
-6. **Merge is loop-owned.** The orchestrator squash-merges after APPROVE;
-  agents never merge.
-7. `manual` **trigger kind** for human-initiated planning; the former native
-   interactive Anthropic child is superseded by the EpisodePlanner-backed
-   execution path.
-8. **The loop-engineering decisions** in `docs/loop.md` §11 (added
-  2026-07-04 after design review with the human): orchestrator-owned pass
-   protocol and gates; mechanical quality gates distinct from the safety gate;
-   product planning originally as a Planner pipeline; assembled briefs;
-   ticket-level parallelism only; loud orchestrator failures; risk-selected
-   review dimensions with security always-on; acceptance criteria as a
-   ratified quality contract. Decision 12 supersedes static pass order as the
-   execution workflow authority.
-9. **Containment invariant.** Operon's footprint in an app repo is exactly
-  `.operon/` (plus transient `op/*` branches and `op:*` labels); nothing
-   Operon-specific elsewhere in the app's tree; `.operon/config.yaml`
-   carries `schema_version` from day one.
-10. **Company-lifecycle events ride the file-drop inbox** (§2): external
-  producers write event JSON; the dispatcher's trigger mechanism is
-  unchanged. Enumerating producers per role is roadmap work.
-11. **Efficiency control-plane ownership** (ratified 2026-07-13; P0-01 through
-   P0-09): the episode owns admission and route history; `src/loop` owns shared
-   execution-economy primitives, `src/org` owns organizational lifecycle,
-   `src/runtime` executes and settles, and report/observe remain read-only.
-   Legacy deep-planning and 60-minute fallbacks are implementation history,
-   not policy; `docs/efficiency.md` is the sole numeric authority.
-12. **Episode planning precedes route derivation** (ratified 2026-07-19):
-   EpisodePlanner normally designs the smallest sufficient workflow in fixed
-   and adaptive assignment modes; only explicit execution-ready creator scope
-   skips that provider turn. Every provider step carries one atomic
-   harness/model/effort assignment, role authority remains separate, every
-   episode persists the same validated plan, revisions are bounded and
-   forward-only, and quick/standard/deep is a projection rather than a
-   workflow selector.
-
-
+Ratified decisions live in `docs/PURPOSE.md` → Decided. Propose implementation
+changes in this document; promote them to PURPOSE only after human ratification.
 
 ## 12. Open questions
 
-1. **Codex context channel — resolved 2026-07-06.** Codex App Server exposes
-   `developerInstructions` on `thread/start` and `thread/resume`; Operon uses
-   that native channel. The worktree overlay fallback remains only for
-   runtimes that need files (pi uses `.pi/APPEND_SYSTEM.md`).
-
-Resolved 2026-07-06: Support/Marketing stay disabled per app until channels
-exist; defaults confirmed as `max_concurrent_turns: 2`, grant TTL 24 h,
-dispatch tick 5 min, loop `maxCycles: 3`.
+None at the architecture level. Open work lives in the GitHub issue tracker.

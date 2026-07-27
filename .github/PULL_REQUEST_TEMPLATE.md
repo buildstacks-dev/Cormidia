@@ -4,5 +4,4 @@
 
 - [ ] If this PR changes commands, contracts, conventions, or testing
       strategy, the nearest AGENTS.md (or the reference doc it links) is
-      updated in the same change — `docs/status.md` is the status digest and
-      goes stale silently.
+      updated in the same change.

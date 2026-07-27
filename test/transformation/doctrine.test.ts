@@ -20,10 +20,16 @@ describe("ratified efficiency doctrine", () => {
     }
     expect(efficiency).toMatch(/Organization-wide operating doctrine ratified 2026-07-13/);
     expect(purpose).toContain("organization-wide operating doctrine ratified");
-    for (const [name, text] of [["PURPOSE", purpose], ["VISION", vision], ["README", readme], ["architecture", architecture], ["loop", loop]] as const) {
+    // VISION states the operator outcome only; claims/measurement authority
+    // lives in PURPOSE + efficiency (PURPOSE points at both).
+    expect(vision).not.toContain("docs/efficiency.md");
+    expect(purpose).toContain("operator outcome in `docs/VISION.md`");
+    for (const [name, text] of [["PURPOSE", purpose], ["README", readme], ["architecture", architecture], ["loop", loop]] as const) {
       expect(text, `${name} must link the canonical authority`).toContain("docs/efficiency.md");
       expect(identityConflicts(text), name).toEqual([]);
     }
+    expect(identityConflicts(vision), "VISION").toEqual([]);
+
   });
   it("A-DOC-02 has exactly one authoritative route-budget table", () => {
     expect(efficiency.match(/<!-- efficiency-budgets:start -->/g)).toHaveLength(1);

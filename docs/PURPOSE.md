@@ -1,9 +1,9 @@
 # PURPOSE — Operon
 
-*v2.6 — 2026-07-19. Human-ratified decision log. Keep this file high-level;
-execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.*
-
-## One-liner
+*v2.7 — 2026-07-26. Human-ratified decision log. Keep this file high-level;
+execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.
+The operator outcome is `docs/VISION.md`; product status and known limitations
+live in README → Status.*
 
 Operon is a governed **org runtime** that turns approved goals into verified
 software outcomes with process proportional to risk, minimal human attention,
@@ -18,38 +18,6 @@ operations only.
 at org configuration and target repos; it never contains app code. One org
 runtime, N applications.
 
-## Validation and launch path
-
-The product is proven on disposable sandbox apps before touching production
-applications (updated 2026-07-11):
-
-1. **operon-sandbox-alpha** — well-kept Node library with tests, lint, CI, and
-   agent docs. Primary build-loop target.
-2. **operon-sandbox-beta** — minimal Node library with tests only. Proves
-   graceful absence handling and "second app = config file, not a fork."
-3. **operon-sandbox-gamma** — created 2026-07-06. A tiny deployable HTTP
-   service with `/health`, a local/container deploy script, and seeded
-   feedback/adoption/health events. Its job is to give SRE, Support, and
-   Marketing real functional coverage before production onboarding.
-4. **operon-sandbox-delta** ("Ledgerette") — created 2026-07-06. Built from
-   scratch through `operon new-app`; the from-scratch onboarding + live
-   build-loop proof (the loop fixed and merged its planted bugs unaided).
-
-**Build-complete means M10.** After M10, production onboarding happens with the
-human as launch activity, not as product-development proof. Current status:
-
-1. **Civic Intelligence / Responsible Citizen**
-   (`~/Build/Government/AgentSkill-CivicIntelligence`) — pending production
-   onboarding.
-2. **buildstacks.dev** (`~/Build/buildstacks.dev`,
-   `buildstacks-dev/buildstacks.dev`) — created and bootstrapped on
-   2026-07-06 as `status: onboarding`, proving the same config-not-fork story
-   on a production repo. It is not live until the human flips the app status.
-
-The org operates on each app the way the predecessor operated on any target
-repo. The architecture must generalize: pointing the org at another app is a
-config file, not a fork.
-
 ## The org chart
 
 | Role | Responsibility |
@@ -62,52 +30,28 @@ config file, not a fork.
 | **Marketing agent** | Positioning, changelogs, launch notes, content drafts; watches adoption signals and feeds them to the Planner |
 | **Distiller agent** | Daily, deterministic-prechecked synthesis of captured evidence into governed candidates |
 | **Learning Reviewer agent** | Weekly cross-provider review of candidates plus report-only compaction recommendations |
-| **Human (Bikram)** | Approver for **critical ops only**; final authority |
-| **GitHub (private repo)** | Source of truth: code, tickets/issues, PRs, decisions, agent definitions |
+| **Human** | Approver for **critical ops only**; final authority |
+
+System of record: private GitHub repos hold code, tickets/issues, PRs, decisions,
+and agent definitions.
 
 ## Non-negotiables
 
-1. **Protocol-driven, not prompt-and-pray.** This is not "throw a problem at a
-   model and let a builder run with a few prompts." There is a specific taste in
-   how software gets built — protocols, standards, review gates — and the system
-   must make those enforceable and easy to customize.
-2. **Model-agnostic.** Role responsibility and execution assignment are
-   separate. Every provider turn receives one atomic harness, exact-model, and
-   effort assignment. Fixed assignments resolve from configuration; adaptive
-   assignments are selected only from exact org-approved candidates. Changing
-   an assignment must be a config change, not a rewrite, and must never broaden
-   the role's authority.
-3. **The agent is the code.** Each agent = a versioned blob of code/config/prompt
-   in the repo — inspectable, diffable, reviewable like anything else.
-4. **Reusable beyond the first app.** The org runtime must not absorb
-   app-specific knowledge into its own code; app context lives in the target
-   repo and in per-app memory.
-5. **Adaptable by design.** The AI/runtime landscape will keep changing fast.
-   Operon must stay simple, maintainable, and extensible: new roles, models,
-   pipelines, and app-specific policies should be config/protocol additions
-   unless evidence proves the core runtime must change.
-6. **Efficiency is a correctness property.** Correct outcomes must preserve
-   safety and evidence while using process proportional to demonstrated risk.
-   A result reached through disproportionate retries, repeated context, or
-   human supervision is not fully correct.
-7. **Intelligence is reserved for judgment.** Parsing, migration,
-   synchronization, validation, capture, aggregation, reconciliation, and
-   other deterministic mechanics use zero model turns by default.
-8. **Risk buys process.** The normal EpisodePlanner turn establishes the
-   smallest sufficient workflow. Every additional planning revision, review,
-   isolation, model effort, or context allowance requires a recorded risk,
-   uncertainty, safety, or failed-assumption factor under the canonical
-   efficiency policy.
-9. **Forward progress is durable.** Valid decisions and artifacts survive
-   interruption, approval, retry, reset, and restart. Re-derivation requires a
-   recorded invalidation reason.
-10. **Human attention and context are budgets.** False or repeated approvals
-    and unexplained context growth are organizational defects. Authority,
-    safety, acceptance criteria, and unresolved findings are never discarded
-    merely to meet a budget.
-11. **Learning is outcome-accountable.** Learning is successful only when a
-    governed intervention measurably improves a later comparable episode; an
-    event or plausible candidate alone is not improvement.
+1. **Deterministic by default.** If it can be code, it is code. Models only for
+   judgment that cannot be captured deterministically.
+2. **Intelligence is harness + model.** A provider turn is an atomic
+   harness/model/effort assignment. Operon must use the harness's full evolving
+   capability, not treat the model as a bare completion API. Role responsibility
+   and execution assignment stay separate; changing an assignment is a config
+   change that never broadens the role's authority.
+3. **Protocol over prompt-and-pray.** Agents, gates, and assignments are
+   versioned, enforceable, inspectable config and code — not freeform prompting.
+4. **One runtime, many apps.** App knowledge stays in the target repo and
+   per-app memory; the runtime stays general and extensible by config unless
+   evidence proves the core must change.
+5. **Scarce human attention, durable truthful outcomes.** Humans gate critical
+   ops only. Valid progress survives interruption. Cheap-wrong results, hidden
+   retries, and human babysitting are not success.
 
 ## Decided
 
@@ -696,8 +640,8 @@ config file, not a fork.
   check (does the treatment strictly improve artifacts *on this draw*) was
   embedded where it structurally blocked a legitimate release. *Rationale
   (first-principles):* learning is instrumental and outcome-accountable
-  (Non-negotiable #11) — it succeeds only by improving a *later comparable
-  episode that had headroom*. A qualification that forces an improvement out of
+  (outcome-accountable learning) — it succeeds only by improving a *later
+  comparable episode that had headroom*. A qualification that forces an improvement out of
   every episode — including ones where the untreated baseline already scores at
   the ceiling — does not measure learning; it manufactures deltas, and every
   manufactured delta competes for the same finite attention and risk budget the
@@ -915,3 +859,10 @@ will resolve them.
   fixed and adaptive assignment modes; explicit execution-ready creator scope
   became the sole planner-turn bypass; atomic harness/model/effort assignment,
   plan-derived routing, and forward-only plan revisions were ratified.
+- 2026-07-26 — v2.7: front matter compacted — opener without section name;
+  sandbox/production inventory dropped (README → Status); org chart
+  keeps Human unnamed and GitHub as system-of-record note; non-negotiables
+  reduced to five (deterministic default, harness+model intelligence, protocol,
+  one-runtime/many-apps, scarce human attention / durable outcomes).
+  `docs/status.md` removed as a redundant shadow of README Status, Observability,
+  and subsystem design docs.

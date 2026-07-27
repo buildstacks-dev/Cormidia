@@ -1,5 +1,5 @@
 // roles.yaml loader + validation. The file is the org chart made executable —
-// "the agent is the code" (docs/PURPOSE.md non-negotiable #3).
+// "Protocol over prompt-and-pray" (docs/PURPOSE.md non-negotiable #3).
 
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";

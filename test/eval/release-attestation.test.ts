@@ -55,7 +55,7 @@ it("rejects an unallowlisted packaged-artifact change with the candidate commit 
 it("does not invalidate qualification on a non-packaged docs change", () => {
   const fixture = buildFixture();
   // The exact file whose docs-only addition broke main under the old rule.
-  write(fixture.root, "docs/architecture/conceptual-overview.md", "docs-only change; not shipped in the package\n");
+  write(fixture.root, "docs/VISION.md", "docs-only change; not shipped in the package\n");
   expect(() => verify(fixture)).not.toThrow();
 });
 

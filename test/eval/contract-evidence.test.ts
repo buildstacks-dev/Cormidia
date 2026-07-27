@@ -81,7 +81,7 @@ it("Phase 6 contract promotion ignores a non-packaged docs change outside the pa
   // artifact (docs/PURPOSE.md 2026-07-17). This is the exact docs-only file whose
   // addition silently invalidated the evidence on main under the old rule.
   const fixture = makeFixture();
-  write(fixture.root, "docs/architecture/conceptual-overview.md", "docs-only change; not shipped in the package\n");
+  write(fixture.root, "docs/VISION.md", "docs-only change; not shipped in the package\n");
   expect(() => verify(fixture)).not.toThrow();
 });
 

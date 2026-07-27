@@ -151,7 +151,7 @@ export interface TurnRequest {
   task: string;
   context: ContextBundle;
   session?: SessionHandle;
-  /** Optional JSON schema for a typed verdict (docs/loop.md §10). Adapters
+  /** Optional JSON schema for a typed verdict (docs/loop/design.md §10). Adapters
    *  with native structured output request it from the provider; adapters
    *  without support ignore it — the loop's lenient parser is the fallback
    *  (build plan M4.6). Deliberately just a JSON-schema-shaped bag here:
@@ -262,7 +262,7 @@ export type GateFn = (action: ToolAction) => GateDecision;
 export interface TurnEvent {
   type: "text" | "tool_use" | "tool_result" | "subagent" | "gate";
   detail: string;
-  /** Structured runlog fields (docs/loop.md §9 L2 bridge). All optional and
+  /** Structured runlog fields (docs/loop/design.md §9 L2 bridge). All optional and
    *  purely additive: an adapter that only sets `type`/`detail` still works —
    *  the executor's L2 bridge (src/loop/pipeline.ts) reads these when present
    *  and infers what it can from `detail` otherwise. `args` is HASHED at the

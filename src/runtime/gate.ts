@@ -340,7 +340,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // prompt-injected agent piping secrets to an attacker host. The build
     // protocol pushes code via git (its own routine verbs), so treating the
     // raw egress tools as critical costs at most a human tap on a legitimate
-    // fetch while closing the leak path (docs/loop.md gate philosophy).
+    // fetch while closing the leak path (docs/loop/design.md gate philosophy).
     name: "outbound-network",
     matches: (a) => /\b(curl|wget|ncat|nc|scp|sftp|telnet)\b/.test(effectText(a)),
   },
@@ -449,7 +449,7 @@ const PROTOCOL_FILENAMES =
 /** Path-qualified protocol directories, where the file basename varies and so
  *  the exact-filename check above can't catch it — e.g. `taste/reviewer.md`
  *  (role craft addenda; distinct from the root `TASTE.md` constitution) and
- *  `prompts/build/contract.md` (pass templates, docs/loop.md §2 rule 2). The
+ *  `prompts/build/contract.md` (pass templates, docs/loop/design.md §2 rule 2). The
  *  old `\btaste\.md\b`-only check missed these: "taste/reviewer.md" has no
  *  "taste.md" substring. */
 const PROTOCOL_DIRS = /\b(taste|prompts)\/[^\s"']+/;

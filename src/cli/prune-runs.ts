@@ -1,5 +1,5 @@
 // `operon prune-runs [root] [--retention-days N]` — delete finalized run
-// dirs older than the retention window (docs/loop.md §9). Root defaults to
+// dirs older than the retention window (docs/loop/design.md §9). Root defaults to
 // the current directory (the org runtime home once one exists — M3/M7 wire
 // the real default); running-status runs are never deleted.
 //

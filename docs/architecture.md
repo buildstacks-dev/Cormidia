@@ -108,7 +108,7 @@ Newer work never assumes older work finished:
 1. **State derives from artifacts, not intentions** (§3): a ticket is
    reviewable only when its PR exists; a PR ships only when an APPROVE review
    and green gates exist.
-2. **Dependencies gate readiness** (`docs/loop.md` §8): `Depends-on: #N`
+2. **Dependencies gate readiness** (`docs/loop/design.md` §8): `Depends-on: #N`
    becomes due only when #N is *merged*; overlapping file scopes never run
    concurrently.
 
@@ -120,10 +120,10 @@ Newer work never assumes older work finished:
 | Context assembler | `src/org/context.ts` | authority + TASTE + memory |
 | Approval queue + grants | `src/org/approvals.ts` | CLI queue; approve ≠ execute |
 | OKF memory / scorecards / retro | `src/org/memory.ts`, `scorecards.ts`, `retro.ts` | §6 |
-| Ticket state machine | `src/loop/loop.ts` | full design in `docs/loop.md` |
+| Ticket state machine | `src/loop/loop.ts` | full design in `docs/loop/design.md` |
 | EpisodePlanner boundary | `src/org/episode-planner/` | intent, creator scope, planner orchestration |
 | EpisodePlan + route projection | `src/loop/episode-plan.ts`, `episode-plan-executor.ts`, `episode-route.ts` | one workflow source of truth |
-| Pass transport, briefs, gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | `docs/loop.md` |
+| Pass transport, briefs, gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | `docs/loop/design.md` |
 | Protocol templates | `prompts/`, `pipelines.yaml` (org home) | human-ratified; not a workflow planner |
 | Runtime contract, gate, telemetry, adapters | `src/runtime/` | atomic harness/model/effort per provider turn |
 | Run status + anomalies | `src/runtime/runlog/status.ts`, `anomalies.ts` | L1/L2 readers |
@@ -283,12 +283,12 @@ tasks/<taskId>/           parent delegated-task record + exact operator prompt;
                          child runs correlate via parent_task_id
 runs/<app>/<runId>/      L1–L3 per-pass runlogs: envelope, events, brief,
                          exact prompt, output, activity log (not a full
-                         transcript; docs/loop.md §9)
+                         transcript; docs/loop/design.md §9)
 telemetry/<day>.jsonl    org cost ledger (src/runtime/telemetry.ts orgDir)
 invocations/<day>.jsonl  one terminal row per CLI command plus distinct
                          internal release-execution rows
 state/invocation-journal/ pre-command intent and idempotent append recovery
-tickets/<app>/<issue>.json  cross-process ticket claim state (docs/loop.md §7.1)
+tickets/<app>/<issue>.json  cross-process ticket claim state (docs/loop/design.md §7.1)
 scorecards/<app>/<role>.jsonl  raw scorecard events (§6)
 learning/**              learning-loop capture/episode/activation state;
                          metrics/capture-cursor.json binds eligible runs to
@@ -335,70 +335,26 @@ semantics. Company-lifecycle event payloads for the file-drop inbox are
 
 ## 3. Turn lifecycle & state machine
 
+One role invocation is a journaled, lock-held, worktree-isolated execution:
+`dispatch → journal → worktree acquire → context assembly (§5) → adapter turn
+→ collect artifacts/escalations/usage → telemetry + scorecards → release
+lock`, with the journal written synchronously at every phase transition as the
+crash-recovery source of truth. Operon cuts worktrees from its own per-app
+clone — never the human's checkouts; GitHub is the only sync point. Recovery
+reopens the accepted plan and journal at artifact boundaries
+(`intent → plan → route → ready step → terminal evidence`); restart-clean may
+discard only scratch never accepted as an episode artifact; and four
+idempotency rules (durable progress is explicit; artifact before label;
+claims are label flips; non-git writes append-only keyed by turnId) keep a
+dead turn from leaving the repo half-done.
+[`docs/loop/turns.md`](loop/turns.md) is the full contract.
 
-
-### One role invocation
-
-```
-dispatch → journal(assembling) → unresolved actor-retry check (§4)
-        → worktree acquire
-        → context assembly (§5)
-        → journal(running)    → adapter.runTurn(req, {gate, onEvent})
-        → journal(collecting) → collect artifacts, escalations, usage
-        → telemetry append · scorecard events · memory-write check
-        → journal(done | blocked_on_gate | failed) → release lock
-```
-
-The journal `state/turns/<turnId>.json` is written synchronously at every
-phase transition — it is the crash-recovery source of truth:
-`{turnId, role, app, trigger, phase, attempt, session?, worktree?, worktreeBranch?, ticketRef?, escalationIds?, errorCode?, recovery?, startedAt, updatedAt}`.
-
-**Legacy role-invocation budget.** The adapter tracks running cost from SDK usage events;
-crossing `max_turn_budget_usd` aborts the turn gracefully → status `failed`
-with the exact `error_max_budget_usd` code and an incident note artifact
-(roles.yaml: "overrun = incident note, not silent spend"). A standalone turn's
-recovery evidence names its isolated path and branch, reports whether the worktree
-is dirty, and gives a read-only inspection command. Operon does not automatically
-stage or commit arbitrary provider output at this boundary. Episode route
-admission and remaining-budget enforcement (`docs/episodes/contract.md`) are the
-canonical ceilings; this adapter cap is a safety backstop, not a second route
-budget.
-
-### Worktrees
-
-- Operon maintains its **own clone** per app at `repos/<app>` (fetch-only
-sync with GitHub) and cuts worktrees from it under
-`worktrees/<app>/<branch>`. It never touches the human's personal checkouts
-of the same repos — GitHub is the only sync point between human and org.
-Mutating git operations on that shared clone (fetch, worktree add/remove) are
-serialized by a per-app clone lock (`withAppGitLock` in
-`src/org/turn-runner.ts`), so two concurrent turns for the same app never
-contend on `.git/index.lock` and corrupt the tree. That lock is a configuration
-of the shared `FileLock` primitive (`src/runtime/file-lock.ts`): the lock file
-carries a `pid`+`nonce` ownership token, release verifies the token before
-unlinking (a late holder never deletes a successor's lock), and a proven-live
-holder is never force-broken — a stale holder is reclaimed only when its pid is
-dead or it has aged past the window, and a live holder held past the max wait
-fails the waiter (typed busy, next tick retries) rather than running a second
-`git reset --hard` on the same checkout.
-- Loop items get branch `op/<issue>-<slug>` and keep the same worktree across
-build → review → fix cycles; it is removed after merge/return. Explicit
-standalone `run-role` turns get a collision-resistant `op/turn-<slug>-<hash>`
-branch and durable worktree. Reusing the same invocation identity rediscovers
-that worktree without resetting or deleting uncommitted work. Governed
-scheduled/event routes retain their existing protocol-specific checkout policy.
-- Standalone provider turns never run in `repos/<app>` itself. The managed clone
-remains on its resolved remote default and clean while the isolated worktree may
-retain inspected WIP after a failed turn.
-
-
-
-### Build-loop state machine (`src/loop`) — see `docs/loop.md`
+### Build-loop state machine (`src/loop`) — see `docs/loop/design.md`
 
 The loop is Operon's center of gravity — a framework-agnostic TypeScript
-re-engineering of the predecessor orchestrator (`docs/loop.md` §0), **not**
+re-engineering of the predecessor orchestrator (`docs/loop/design.md` §0), **not**
 a thin state machine over opaque role turns (decided 2026-07-04: control and
-gates, never "throw a ticket at an agent"). `docs/loop.md` is the
+gates, never "throw a ticket at an agent"). `docs/loop/design.md` is the
 authoritative design — passes, briefs, gates, verdicts, review dimensions,
 and acceptance-criteria discipline all live there. Summary:
 
@@ -408,88 +364,18 @@ and acceptance-criteria discipline all live there. Summary:
   static pass pipelines remain readable for historical episodes and
   compatibility entry points, but cannot add work to an accepted EpisodePlan.
   Any extra adapter invocation remains a distinct provider turn and settlement
-  (`docs/loop.md` §§2–4).
+  (`docs/loop/design.md` §§2–4).
 - **Mechanical quality gates** (setup/tests/lint/e2e/secret-scan/
 completeness/review-freshness, risk-tiered by `.operon/policy.yaml`) run
 as orchestrator subprocesses after build passes and twice at ship —
 distinct from the safety gate; no agent prose ever drives a side effect
-(`docs/loop.md` §5).
+(`docs/loop/design.md` §5).
 - Item states: `ready → building → gates → reviewing → shipping → merged`,
 with bounded remediation (3) and review cycles (3) → `returned`.
 `approve` + green gates + freshness → **the orchestrator squash-merges**
 (agents never merge), deletes the branch, closes the ticket via
 `Closes #N`. All states derive from GitHub artifacts; any tick advances
-any item (`docs/loop.md` §7).
-
-
-
-### Crash recovery: artifact boundary first
-
-A stale lock or interrupted tick reopens the accepted plan pointer and
-`plan-execution-journal.json` before choosing work. The authority order is
-`intent → plan version → derived route → ready step → terminal evidence`.
-Within a legacy ticket-delivery step, the finer artifact boundaries remain
-`contract → implementation → push → gates → pr → findings → approvals → merge
-→ release`. A boundary is reused only while its recorded artifact fingerprint
-is still valid. Ticket, commit, or finding drift creates a typed material event
-and invalidates only future work; any resulting plan revision is forward-only.
-A cap stop, cancellation, crash, or timeout retains the last valid artifact
-refs and a typed resume decision.
-
-
-**Restart clean** currently resets worktree scratch to the branch tip with
-`git reset --hard && git clean -fd`. It may discard only scratch that has not
-been accepted as a valid episode artifact. Commits, pushed refs, contracts,
-findings, approvals, gate evidence, usage checkpoints, execution records, and
-any other accepted artifact survive interruption. Repeating a productive pass
-requires a durable invalidation reason tied to the artifact or decision it
-invalidates. Claim, repair, review, retry, tool-call, active-time, provider-turn,
-and cost bounds are plan-derived and policy-clamped, and remain in force across
-process restarts.
-
-A role invocation whose running pass exceeds its wall-clock cap is killed by
-the dispatcher — SIGTERM escalating to SIGKILL. The pass executor derives its
-effective watchdog from the smaller of its configured ceiling and the
-episode's remaining active-time allowance in `docs/episodes/contract.md`.
-Recovery (restart-clean + respawn) is **deferred until the process is
-confirmed dead** (`killHungTurns` in `src/org/dispatch.ts`): a still-alive
-child that also holds the per-app clone lock would otherwise let two workers
-mutate one clone. If the pid refuses to die this tick, recovery waits for a
-later one.
-
-Inside a pass, the executor also owns a shorter adapter-start deadline
-(default 30 seconds). The first adapter progress checkpoint or streamed event
-proves startup; silence until the deadline aborts the same owned provider tree
-and finalizes `failed(error_adapter_start_timeout)`, distinct from the full
-turn wall-clock timeout. `operon doctor` uses separate bounded, non-billable
-initialize/account/auth probes to catch missing binaries, transports,
-credentials, and model configuration before an operator starts live work.
-
-### Idempotency rules
-
-These four rules are why a dead turn never leaves the repo half-done:
-
-1. **Durable progress is explicit.** Git/GitHub operations remain the durable
-  product effects: commit, push, PR create, label flip, review, comment, merge.
-  Episode contracts, findings, approvals, gate evidence, usage checkpoints,
-  and terminal records are also durable orchestration artifacts. Only
-  unaccepted worktree/session scratch is disposable.
-2. **Artifact before label.** State labels flip only *after* the artifact
-  they announce exists (push branch → then `op:building`; open PR → then
-   `op:in-review`). A restarted turn re-derives state from artifacts (`gh pr  list --head <branch>`), never trusts the label alone, and skips
-   already-done steps.
-3. **Claims are label flips.** The Builder claims a ticket by atomically
-  swapping `op:ready → op:building`; a dispatcher that polls mid-claim sees
-   a consistent state either way.
-4. **Non-git writes are append-only and keyed by turnId** (telemetry JSONL,
-  scorecard events, journal) — re-running collection dedupes on turnId.
-   Whole-file operational state (journal, lock, schedule, consumed-event set,
-   approval items) is written atomically via a tmp-file-plus-`rename`
-   (`writeFileAtomic` in `src/org/atomic.ts`), so a crash mid-write never
-   leaves a torn file a later tick would choke on.
-
-
-
+any item (`docs/loop/design.md` §7).
 ## 4. Approval surface (CLI queue)
 
 Decided 2026-07-04: CLI queue, one-by-one review, approve or deny-with-reason,
@@ -599,7 +485,7 @@ capture the same evidence at `operon task begin`.
 
 This section covers the *system context* a pass runs under. The *task
 payload* — ticket, spec excerpts, contract, findings, attempt history — is
-the loop's brief assembler (`docs/loop.md` §3), a separate, per-pass,
+the loop's brief assembler (`docs/loop/design.md` §3), a separate, per-pass,
 budgeted packet logged verbatim in the run artifact.
 
 ## 6. Memory & scorecards
@@ -804,7 +690,7 @@ planner turn, then a durable execution `EpisodePlan` whose terminal output is
 a schema-validated `TicketPlan` the orchestrator may publish as GitHub issues
 (`src/org/plan-auto.ts`, `src/loop/plan-tickets.ts`). EpisodePlan authorizes
 execution; TicketPlan describes child work. Route, budget, and assignment
-norms are `docs/episodes/contract.md`; loop pass transport remains `docs/loop.md`.
+norms are `docs/episodes/contract.md`; loop pass transport remains `docs/loop/design.md`.
 
 `previewEpisode` / `orchestrateEpisode` / `explainEpisode` are the shared
 boundary used by dispatch, tickets, product planning, and release flows.
@@ -843,67 +729,13 @@ the human checkout untouched.
 
 ## 10. GitHub substrate conventions
 
-
-
-### Labels — the ticket state machine
-
-
-| Label              | Meaning                                      | Set by                                              |
-| ------------------ | -------------------------------------------- | --------------------------------------------------- |
-| `op:ready`         | ticket is buildable as specified             | Planner (or human)                                  |
-| `op:building`      | claimed; branch/PR in progress               | Builder turn (claim = atomic `ready→building` swap) |
-| `op:in-review`     | PR open, review cycle running                | loop, after PR exists                               |
-| `op:returned`      | bounced to Planner (max cycles / infeasible) | loop                                                |
-| `op:blocked`       | waiting on approval-queue decision           | loop, on `blocked_on_gate`                          |
-| `op:incident`      | SRE incident note                            | SRE                                                 |
-| `p1` / `p2` / `p3` | priority (dispatch order within events)      | Planner                                             |
-
-
-Transitions follow §3's artifact-before-label rule; ticket close comes from
-the squash-merge's `Closes #N`, never a manual state.
-
-### Ticket format (what the Planner emits)
-
-Fixed headings, parseable by heading, human-first:
-
-```markdown
-Title: imperative, one concern (one ticket = one PR, TASTE §5)
-
-## Goal            — what exists after this ships, one paragraph
-## Context         — why now; links to feedback/digests/prior art
-## Acceptance criteria   — checklist; each item mechanically checkable
-## Out of scope    — the temptation fence
-## Notes for the builder (optional) — pointers, not prescriptions
-```
-
-
-
-### Branches, PRs, reviews
-
-- Branch: `op/<issue>-<slug>` from main; one branch per ticket; worktree ↔
-branch 1:1 (§3).
-- PR: title `<type>: <summary> (#<issue>)` — in v1 the builder loop always
-emits the literal `build:` type (`prTitle` in `src/loop/loop.ts` is hardcoded;
-a variable type is a later change); body = What / Why, **Evidence**
-(pasted test output — TASTE §6), `Closes #<issue>`. Draft on first push;
-ready when the Builder declares done.
-- Review: verdict as a real GitHub review (APPROVE / REQUEST_CHANGES) plus a
-structured findings comment — numbered findings, each must be resolved or
-explicitly rebutted before merge (TASTE §8). Findings ride to the fix turn
-as context. Single-account pilot caveat: GitHub forbids approving your own
-PR, so a same-account approval lands as a marked COMMENTED review — trusted
-only when its `operon:self-approval-fallback` marker carries a verifying
-HMAC — signed with an orchestrator-only secret over the PR number **and the
-reviewed commit**, so a marker copied onto a later push no longer verifies
-(A-001) — plus an author-independence check, a structured `Verdict: approve`,
-and commit freshness. No secret (or an unresolved reviewed commit) = fail
-closed; a bare marker is never trusted (`docs/loop.md` §6).
-- Merge: squash-merge only, performed by the loop after APPROVE; branch
-deleted; PR description survives as the commit body (state-in-markdown, a
-predecessor pattern).
-
-
-
+State labels (`op:ready → op:building → op:in-review`, plus
+`op:returned | op:blocked | op:incident` and `p1–p3`), the fixed-heading
+ticket format the Planner emits, and branch/PR/review/merge conventions
+(`op/<issue>-<slug>` branches, evidence-bearing PR bodies, real reviews with
+the HMAC-verified single-account fallback, orchestrator-only squash-merge)
+are [`docs/loop/github-conventions.md`](loop/github-conventions.md). Labels
+flip only after the artifact they announce exists.
 ## 11. Ratified decisions promoted to docs/PURPOSE.md
 
 Ratified decisions live in `docs/PURPOSE.md` → Decided. Propose implementation

@@ -1,4 +1,4 @@
-// Run-record ids and path builders (build plan M2.4; docs/loop.md §9).
+// Run-record ids and path builders (build plan M2.4; docs/loop/design.md §9).
 //
 // One run record per executed pass, under the org runtime home:
 //   runs/<app>/<runId>/{envelope.json,events.jsonl,brief.md,prompt.md,output.md,session.log}
@@ -35,7 +35,7 @@ export function hashedFileStem(id: string): string {
   return `${readable === "" ? "id" : readable}-${hash}`;
 }
 
-/** `YYYYMMDD-HHMMSS-<pipeline>-<pass>` in UTC (docs/loop.md §9). */
+/** `YYYYMMDD-HHMMSS-<pipeline>-<pass>` in UTC (docs/loop/design.md §9). */
 export function mintRunId(now: Date, pipeline: string, pass: string): string {
   const p = (n: number, w = 2): string => String(n).padStart(w, "0");
   const stamp =

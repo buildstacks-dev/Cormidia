@@ -121,7 +121,7 @@ describe("FakeRuntime", () => {
 
     // The gate must see the subagent's action after the subagent event fires
     // — proving a subagent-issued critical op is caught identically to a
-    // top-level one (docs/loop.md §2).
+    // top-level one (docs/loop/design.md §2).
     expect(order).toEqual(["event:subagent", "gate:bash"]);
     expect(fake.calls[0]?.events).toEqual([
       { type: "subagent", detail: expect.stringContaining("bash") },

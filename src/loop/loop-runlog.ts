@@ -1,4 +1,4 @@
-// Runlog context for the loop's ticket state machine (docs/loop.md §7, §9).
+// Runlog context for the loop's ticket state machine (docs/loop/design.md §7, §9).
 //
 // The pass executor (pipeline.ts) owns a run record per pass. But quality
 // gates and ticket transitions happen in the state machine BETWEEN passes

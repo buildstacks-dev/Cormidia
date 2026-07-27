@@ -6,8 +6,9 @@ re-engineering of the predecessor orchestrator — a private Python prototype
 that proved the approach, called simply "the predecessor" throughout
 (maintainers can find it read-only at* `scratchpad-gitignore/claude-loop-teams/`*)
 — made framework-agnostic through the runtime adapters. This doc is the
-detail layer for* `src/loop/`*;* `docs/architecture.md` *§3 holds the
-surrounding turn/worktree machinery. §11 records decisions ratified into
+detail layer for* `src/loop/`*;* [`turns.md`](turns.md) *holds the
+surrounding turn/worktree machinery,* [`github-conventions.md`](github-conventions.md)
+*the GitHub substrate conventions. §11 records decisions ratified into
 docs/PURPOSE.md on 2026-07-06, 2026-07-13, and 2026-07-19; future new decisions should be proposed here
 first, then promoted only after human ratification.*
 

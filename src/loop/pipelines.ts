@@ -1,4 +1,4 @@
-// pipelines.yaml schema, types, loader (build plan M2.1; docs/loop.md §4, §10).
+// pipelines.yaml schema, types, loader (build plan M2.1; docs/loop/design.md §4, §10).
 //
 // Pipelines are typed, validated config — not YAML hope. The loader
 // validates structure, role references, and template existence at load
@@ -7,7 +7,7 @@
 //
 // Deliberate scope cuts:
 // - A per-pass `model` override must stay within the role's provider
-//   (docs/loop.md §4) — but this loader receives role NAMES only, so that
+//   (docs/loop/design.md §4) — but this loader receives role NAMES only, so that
 //   check belongs to the executor (M2.8), which resolves RoleConfig and
 //   knows the runtime. Validating it here would force a loop→org import.
 // - `only_on.risk` values are plain strings: risk tiers are defined by the
@@ -31,7 +31,7 @@ const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];
 export type TicketTier = "quick" | "standard" | "deep";
 export const TICKET_TIERS: TicketTier[] = ["quick", "standard", "deep"];
 
-/** Conditional-pass trigger (docs/loop.md §4 "Review dimensions"). A pass
+/** Conditional-pass trigger (docs/loop/design.md §4 "Review dimensions"). A pass
  *  with `onlyOn` runs when ANY listed condition matches (OR semantics —
  *  §4: security-deep fires on security globs OR high risk tier). */
 export interface OnlyOn {
@@ -58,7 +58,7 @@ export interface PassConfig {
   /** Per-pass model override — must stay within the role's provider;
    *  enforced by the executor (see header note). */
   model?: string;
-  /** Consecutive passes sharing a group run concurrently (docs/loop.md §4
+  /** Consecutive passes sharing a group run concurrently (docs/loop/design.md §4
    *  plan sketch: competing PMs). Grouping is adjacency-based. */
   parallelGroup?: string;
   /** Ticket tiers on which this pass is skipped. */
@@ -221,7 +221,7 @@ async function parsePipeline(
       if (pass.onlyOn === undefined) {
         throw err(
           `mechanical pipeline has unconditional agent pass "${pass.id}" — ` +
-            `every pass needs only_on (agent judgment only on trigger, docs/loop.md §5)`,
+            `every pass needs only_on (agent judgment only on trigger, docs/loop/design.md §5)`,
         );
       }
     }

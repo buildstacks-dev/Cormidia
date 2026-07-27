@@ -1,4 +1,4 @@
-// L2 structured events (build plan M2.6; docs/loop.md §9).
+// L2 structured events (build plan M2.6; docs/loop/design.md §9).
 //
 // Append-only events.jsonl, one JSON object per line. Correlation ids on
 // every event: trace_id = turnId (one per pipeline execution), span_id per

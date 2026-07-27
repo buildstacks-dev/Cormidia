@@ -1,11 +1,11 @@
-# pipelines.yaml — the org's build protocol as ordered passes (docs/loop.md §4).
+# pipelines.yaml — the org's build protocol as ordered passes (docs/loop/design.md §4).
 #
 # Human-ratified surface: agents propose changes via PR; only the human
 # merges (the safety gate's protocol-self-edit rule covers this file and
 # prompts/**). Loaded and validated by src/loop/pipelines.ts; every
 # template path resolves under prompts/.
 #
-# Two tiering axes, deliberately orthogonal (docs/loop.md §4):
+# Two tiering axes, deliberately orthogonal (docs/loop/design.md §4):
 #   - ticket tier (Planner label op:tier-quick|standard|deep) selects PASSES
 #   - risk tier (.operon/policy.yaml changed-file globs) selects GATES
 # Tiering makes the loop cheaper, never less safe: a quick ticket touching

@@ -1742,7 +1742,7 @@ Implementation is complete only when:
 ## 15. Handoff checklist for a new session
 
 1. Read `docs/PURPOSE.md`, this document, `docs/architecture.md` §§2/9/10,
-   `docs/loop.md` §§7/9, and the prior buildstacks telemetry investigation.
+   `docs/loop/design.md` §§7/9, and the prior buildstacks telemetry investigation.
 2. Run the Operon skill discovery commands; verify the active org and state
    home.
 3. Check current Git status and preserve unrelated user changes.

@@ -5,7 +5,7 @@
 //
 // - `makeWorkingRepo()` — a single working repo with an initial commit and a
 //   package.json whose test/lint scripts are caller-configured. The quality
-//   gates run as subprocesses *against a real worktree* (docs/loop.md §5,
+//   gates run as subprocesses *against a real worktree* (docs/loop/design.md §5,
 //   §10: qgates is pure subprocess + git), so their tests need a repo whose
 //   `pnpm`/`node` scripts and `git diff` output are real, not mocked.
 // - `makeBareWithClone()` — a bare "origin" plus a working clone, so

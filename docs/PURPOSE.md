@@ -1,7 +1,7 @@
 # PURPOSE — Operon
 
 *v2.7 — 2026-07-26. Human-ratified decision log. Keep this file high-level;
-execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop.md.
+execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop/design.md.
 The operator outcome is `docs/VISION.md`; product status and known limitations
 live in README → Status.*
 

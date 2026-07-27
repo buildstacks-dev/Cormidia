@@ -58,7 +58,7 @@ wrong first:
   work. Classify auth-like failures (`error_auth`) distinctly.
 - **Transport the task as a payload, not argv.** Briefs reach 300 KB; the
   conformance suite pins intact transport (the ARG_MAX lesson,
-  `docs/loop.md` §2).
+  `docs/loop/design.md` §2).
 - **Redact with the shared list.** Secret patterns come only from
   `src/runtime/secret-patterns.ts` — redaction and quality gates import the
   same list.

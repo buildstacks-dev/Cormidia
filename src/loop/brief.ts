@@ -1,5 +1,5 @@
 // Deterministic, token-budgeted brief assembly (build plan M2.3;
-// docs/loop.md §3). The brief is the answer to "fix this bug + source code"
+// docs/loop/design.md §3). The brief is the answer to "fix this bug + source code"
 // vs "feature doc + relevant PRD + learnings so far + fix this issue":
 // [ticket][spec][contract][findings][history][memory][repo], assembled the
 // same way every time — byte-identical output for identical inputs, because

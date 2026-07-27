@@ -1,5 +1,5 @@
 // Quality-gate engine — process gates: tests, lint, e2e (build plan M4.3;
-// docs/loop.md §5 rows, §10: qgates is pure subprocess + git, no adapter
+// docs/loop/design.md §5 rows, §10: qgates is pure subprocess + git, no adapter
 // dependency).
 //
 // Quality gates are orchestrator code, distinct from the safety gate

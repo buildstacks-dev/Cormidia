@@ -29,7 +29,7 @@ tracker (`gh issue list`).
 | `docs/development.md` | Canonical platform-development lifecycle, standing grants, shipping |
 | `TASTE.md` · `roles.yaml` · `pipelines.yaml` · `prompts/` | Human-ratified org templates and protocol surfaces (see Working rules) |
 | `src/runtime/` | Runtime contract + adapters — `src/runtime/AGENTS.md` |
-| `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop.md`) |
+| `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop/design.md`) |
 | `src/org/` | Standing-org layer: lifecycle, bootstrap, scheduler, approvals, budget, learning (`src/org/learning/`); `src/org/home.ts` is the package/org/state boundary |
 | `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×2, `docs/narrative/design.md` |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table — new subcommand = new file + one registry line |
@@ -108,7 +108,7 @@ machinery. On conflict this summary wins — fix that file.
 
 ## Navigation
 - Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · code wiki: `docs/wiki.html` (open in a browser)
-- Architecture: `docs/architecture.md` · build loop: `docs/loop.md` · testing map: `docs/testing.md` · sandbox-app journey: `docs/testing-journey.md`
+- Architecture: `docs/architecture.md` · build loop: `docs/loop/design.md` · testing map: `docs/testing.md` · sandbox-app journey: `docs/testing-journey.md`
 - Scheduler contract: `docs/scheduler/design.md` · event payloads: `docs/scheduler/event-schemas.md` · approvals/release boundary: `docs/approvals/design.md`
 - Learning loop: `docs/learning-loop/` · episode operating contract: `docs/episodes/contract.md` · qualification/release gating: `docs/qualification/design.md` · benchmarks: `docs/qualification/benchmark-runbook.md`
 - Adapters: `docs/harness/capability-matrix.md` · `docs/harness/adding-updating.md` · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`

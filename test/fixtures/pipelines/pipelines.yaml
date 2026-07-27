@@ -1,5 +1,5 @@
 # Fixture pipelines exercising every schema feature (build plan M2.1).
-# Mirrors docs/loop.md §4's sketch shapes; the real root pipelines.yaml is
+# Mirrors docs/loop/design.md §4's sketch shapes; the real root pipelines.yaml is
 # a human-ratified surface landing via proposal PR in M2.2.
 
 build:

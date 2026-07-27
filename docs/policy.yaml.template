@@ -1,4 +1,4 @@
-# .operon/policy.yaml — per-app quality-gate policy (docs/loop.md §5).
+# .operon/policy.yaml — per-app quality-gate policy (docs/loop/design.md §5).
 # Lives in the app repo, emitted by `operon bootstrap`, committed like any
 # other config. Loaded and validated by src/loop/policy.ts.
 #
@@ -9,7 +9,7 @@
 
 schema_version: 1
 
-# Risk tier by changed-file globs (docs/loop.md §4): per file, tiers are
+# Risk tier by changed-file globs (docs/loop/design.md §4): per file, tiers are
 # checked high → low and the first match wins; a file matching NO glob is
 # medium. Across a diff, the highest tier wins — a quick ticket touching
 # auth/** still gets high-tier gates. Tiering makes the loop cheaper,
@@ -31,7 +31,7 @@ risk_tiers:
 # Gate set per resolved risk tier, in run order (predecessor defaults:
 # medium drops the security scan; low keeps tests + completeness).
 # `review-freshness` is deliberately not listed anywhere: it always runs,
-# regardless of tier, and cannot be configured away (docs/loop.md §5).
+# regardless of tier, and cannot be configured away (docs/loop/design.md §5).
 gates:
   high:
     - tests
@@ -46,7 +46,7 @@ gates:
     - tests
     - completeness
 
-# Review dimensions (docs/loop.md §4): conditional review passes in
+# Review dimensions (docs/loop/design.md §4): conditional review passes in
 # pipelines.yaml reference these keys via `only_on.dimension_globs`; a diff
 # matching a dimension's globs selects that pass. Adding a dimension is a
 # policy.yaml + pipelines.yaml edit, never loop code. (The `verify` pass —
@@ -75,6 +75,6 @@ dimension_globs:
 # Bounded remediation after a gate failure: fix passes are re-dispatched
 # with verbatim gate output in the brief up to max_attempts, then the
 # ticket goes op:returned with a blocked-with-evidence comment
-# (docs/loop.md §5, §7).
+# (docs/loop/design.md §5, §7).
 remediation:
   max_attempts: 3

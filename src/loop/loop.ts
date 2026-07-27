@@ -108,7 +108,7 @@ export interface GatePhaseOptions {
   prDraft?: boolean;
   /** When present, the gate phase gets its own run record: `gate.started/
    *  passed/failed` + `ticket.transition` events and `envelope.gate_results`
-   *  (docs/loop.md §9). Absent → no run record, identical behavior. */
+   *  (docs/loop/design.md §9). Absent → no run record, identical behavior. */
   runlog?: LoopRunlog;
   /** Ticket execution journal prepared by the driver. Pure state-machine
    * callers omit it and retain the same provider-free behavior. */
@@ -429,13 +429,13 @@ export interface ProvisionSetupOptions {
   indexPreflight?: (worktree: string) => GitIndexPreflightResult;
   /** When present, the provision-setup step gets its own run record so its
    *  `gate.started/passed/failed` events and `envelope.gate_results` land in
-   *  events.jsonl BEFORE the first implement pass (docs/loop.md §5, §9). Absent
+   *  events.jsonl BEFORE the first implement pass (docs/loop/design.md §5, §9). Absent
    *  → no run record, identical behavior. */
   runlog?: LoopRunlog;
 }
 
 /** Run the app's `setup` gate in the freshly provisioned worktree, BEFORE the
- *  first implement pass (L1-02 / L-003, docs/loop.md §5). `createWorktree`
+ *  first implement pass (L1-02 / L-003, docs/loop/design.md §5). `createWorktree`
  *  provisions an empty tree with no installed dependencies, and the builder's
  *  mandatory "baseline before changes — if red, stop" check runs at the very
  *  start of the implement pass. Without deps that baseline fails for every
@@ -666,7 +666,7 @@ export async function advanceReviewing(
     // unparseable body as "changes requested with no structured findings" and
     // bounce to building with the prose captured as a single finding. The cycle
     // still counts, so the loop stays bounded and terminates in op:returned
-    // (loud, never silent, never unbounded — docs/loop.md §6/§7).
+    // (loud, never silent, never unbounded — docs/loop/design.md §6/§7).
     const findings = parsed.ok ? parsed.verdict.findings : [unstructuredReviewFinding(latest.body)];
     const cycles = item.cycles + 1;
     if (cycles > (options.maxCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
@@ -1610,7 +1610,7 @@ type PassVerdictOutcome<K extends PassVerdictKind> =
   | { ok: false; failure: VerdictRecordOutcome };
 
 /** Parse the pass's verdict with exactly one session-resuming reformat retry
- *  (docs/loop.md §6, §13 row 11), emit `verdict.recorded` into the pass's run
+ *  (docs/loop/design.md §6, §13 row 11), emit `verdict.recorded` into the pass's run
  *  record on success, and on unparseable-after-retry surface a typed infra
  *  failure (distinct `error_code`, never a merit outcome). */
 async function recordPassVerdict<K extends PassVerdictKind>(

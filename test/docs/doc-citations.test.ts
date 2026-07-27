@@ -16,7 +16,7 @@
 //
 // Reads committed files only; no network, org state, or wall-clock time.
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -26,11 +26,13 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 /** Paths cited in code/docs that intentionally do NOT exist in this repo. */
 const KNOWN_EXTERNAL_PATHS = new Set([
   // Emitted by `operon new-app` / `bootstrap` into the *target app's* repo.
-  // (Case matters: the host filesystem's case-insensitivity previously let
-  // docs/TESTING.md pass against docs/testing.md.)
+  // (Case matters: a case-insensitive dev filesystem lets docs/TESTING.md
+  // match docs/testing.md while case-sensitive CI correctly fails — which is
+  // why resolution below is case-exact set membership, never existsSync.)
   "docs/REQUIREMENTS.md",
   "docs/RUNBOOK.md",
   "docs/TESTING.md",
+  "docs/ARCHITECTURE.md",
   // The seeded benchmark sandbox repo's own file (scripts/seed-benchmark-repo.sh).
   "docs/product.md",
   // A managed app repo's design assets, cited from docs/live-ui/design.md.
@@ -77,6 +79,32 @@ function scannedFiles(): string[] {
 }
 
 /**
+ * Every real path under docs/, case-exact — files and directories separately.
+ * `existsSync` is case-insensitive on typical macOS dev machines but
+ * case-sensitive on Linux CI, so set membership here — never `existsSync` —
+ * decides whether a docs path resolves. This keeps local runs and CI in
+ * agreement (found the hard way: `docs/ARCHITECTURE.md` citations passed
+ * locally against `docs/architecture.md` and failed only in CI).
+ */
+function realDocsEntries(): { files: Set<string>; dirs: Set<string> } {
+  const files = new Set<string>();
+  const dirs = new Set<string>(["docs"]);
+  const visit = (dir: string): void => {
+    for (const entry of readdirSync(join(repoRoot, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        dirs.add(rel);
+        visit(rel);
+      } else {
+        files.add(rel);
+      }
+    }
+  };
+  visit("docs");
+  return { files, dirs };
+}
+
+/**
  * Extract `docs/...` file citations from arbitrary text (code, YAML, prose).
  * Directory references are not checked: target-app repos legitimately carry
  * their own `docs/specs/`-style trees that this repo never contains.
@@ -108,22 +136,21 @@ function headingSlugs(markdown: string): Set<string> {
 }
 
 describe("documentation citations resolve", () => {
-  it("every docs/ path cited anywhere in the repo exists", () => {
+  it("every docs/ path cited anywhere in the repo exists (case-exact)", () => {
+    const real = realDocsEntries();
     const failures: string[] = [];
     for (const file of scannedFiles()) {
       const text = readFileSync(join(repoRoot, file), "utf8");
       for (const cited of citedDocsPaths(text)) {
         if (KNOWN_EXTERNAL_PATHS.has(cited)) continue;
-        const target = join(repoRoot, cited);
-        if (cited.endsWith("/") ? !isDirectory(target) : !existsSync(target)) {
-          failures.push(`${file} cites missing ${cited}`);
-        }
+        if (!real.files.has(cited)) failures.push(`${file} cites missing ${cited}`);
       }
     }
     expect(failures).toEqual([]);
   });
 
   it("relative markdown links and heading anchors inside the docs tree resolve", () => {
+    const real = realDocsEntries();
     const markdownFiles = scannedFiles().filter(
       (file) => file.endsWith(".md") && (file.startsWith(`docs${sep}`) || file === "README.md" || file.endsWith("AGENTS.md") || file === "eval/README.md"),
     );
@@ -137,7 +164,13 @@ describe("documentation citations resolve", () => {
         const pathPart = hashIndex === -1 ? raw : raw.slice(0, hashIndex);
         const anchor = hashIndex === -1 ? "" : raw.slice(hashIndex + 1);
         const target = pathPart === "" ? join(repoRoot, file) : resolve(repoRoot, dirname(file), pathPart);
-        if (!existsSync(target)) {
+        const relTarget = target.slice(repoRoot.length + 1).split(sep).join("/").replace(/\/$/, "");
+        // docs/ targets resolve by case-exact membership (file or folder);
+        // targets outside docs/ (research records, root files) use existsSync.
+        const resolves = relTarget.startsWith("docs/")
+          ? real.files.has(relTarget) || real.dirs.has(relTarget)
+          : existsSync(target);
+        if (!resolves) {
           failures.push(`${file} links missing ${raw}`);
           continue;
         }
@@ -178,11 +211,3 @@ describe("documentation citations resolve", () => {
     ]);
   });
 });
-
-function isDirectory(path: string): boolean {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-}

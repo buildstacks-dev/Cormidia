@@ -30,14 +30,31 @@ describe("docs-only changes admit no lane", () => {
   });
 
   it("treats PACKAGED documentation as product, not docs (it ships in npm pack)", () => {
-    // docs/scheduler.md, docs/policy.yaml.template and README.md are in
+    // docs/scheduler/design.md, docs/policy.yaml.template and README.md are in
     // package.json `files`, so they are packaged artifact paths. A docs-only
     // skip here would let shipped bytes change with no coverage at all.
-    for (const packaged of ["docs/scheduler.md", "docs/policy.yaml.template", "README.md"]) {
+    for (const packaged of ["docs/scheduler/design.md", "docs/policy.yaml.template", "README.md"]) {
       const decision = decide([packaged]);
       expect(decision.core, packaged).toBe(true);
       expect(decision.observe, packaged).toBe(true);
     }
+  });
+
+  it("keeps PACKAGED_DOCS in lockstep with package.json files entries", async () => {
+    // The 2026-07-26 docs reorg moved docs/scheduler.md into a topic folder.
+    // A packaged doc whose path moves in only one of these two places fails
+    // SILENTLY: either npm pack drops the file, or CI stops covering shipped
+    // bytes. This case turns that into a loud failure.
+    const { readFileSync } = await import("node:fs");
+    const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { files: string[] };
+    const { __testing } = await import("../../scripts/ci/classify-changes.mjs");
+    for (const packagedDoc of ["docs/policy.yaml.template", "docs/scheduler/design.md"]) {
+      expect(pkg.files, packagedDoc).toContain(packagedDoc);
+      expect(__testing.isDocsOnlyPath(packagedDoc), packagedDoc).toBe(false);
+    }
+    // The retired root path is ordinary docs again — a stale entry must not
+    // quietly keep admitting lanes for a file that no longer ships.
+    expect(__testing.isDocsOnlyPath("docs/scheduler.md")).toBe(true);
   });
 });
 

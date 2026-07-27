@@ -45,7 +45,7 @@ describe("event polling", () => {
   });
 
   it("filters consumed keys and returns inbox files once after marking consumed", async () => {
-    // Inbox payloads now carry a typed company-lifecycle kind (docs/event-schemas.md,
+    // Inbox payloads now carry a typed company-lifecycle kind (docs/scheduler/event-schemas.md,
     // GAP B): the file-drop is a valid company event, not arbitrary JSON.
     const home = makeOrgHome({ state: { eventsInbox: { "alert.json": HEALTH_ALERT } } });
     const source = fakeSource({ tickets: [{ issueNumber: 1 }] });

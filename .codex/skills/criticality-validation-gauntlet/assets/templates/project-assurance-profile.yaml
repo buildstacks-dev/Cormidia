@@ -1,0 +1,109 @@
+schema_version: "1.0"
+assessment:
+  id: "{{ASSESSMENT_ID}}"
+  mode: "assess"
+  started_at_utc: "{{TIMESTAMP_UTC}}"
+  target_revision: "{{TARGET_REVISION}}"
+  repository_root: "{{REPO_ROOT}}"
+  working_tree_state: "unknown"
+  assessor_roles: []
+  independence_level: "I0"
+
+project:
+  name: ""
+  summary: ""
+  intended_use: ""
+  permitted_users: []
+  excluded_uses: []
+  deployment_environments: []
+  supported_platforms: []
+  expected_scale: ""
+  patch_and_rollback_model: ""
+
+system_boundary:
+  in_scope_inspected: []
+  in_scope_unavailable: []
+  external_assumed: []
+  out_of_scope: []
+  human_roles_and_procedures: []
+  material_boundary_limitations: []
+
+criticality:
+  system_level: "C?"
+  system_rationale: []
+  dominant_drivers: []
+  components:
+    - id: "COMP-001"
+      name: ""
+      function: ""
+      trust_boundary: ""
+      privileges: []
+      failure_propagation: ""
+      containment: []
+      level: "C?"
+      rationale: []
+  current_change:
+    description: ""
+    level: "L?"
+    affected_components: []
+    rationale: []
+
+criticality_dimensions:
+  safety_and_physical_consequence:
+    rating: "unknown"
+    rationale: ""
+  mission_or_operational_consequence:
+    rating: "unknown"
+    rationale: ""
+  financial_and_legal_consequence:
+    rating: "unknown"
+    rationale: ""
+  security_and_privacy_consequence:
+    rating: "unknown"
+    rationale: ""
+  data_integrity_and_reversibility:
+    rating: "unknown"
+    rationale: ""
+  availability_and_continuity:
+    rating: "unknown"
+    rationale: ""
+  exposure_and_blast_radius:
+    rating: "unknown"
+    rationale: ""
+  detectability:
+    rating: "unknown"
+    rationale: ""
+  recoverability:
+    rating: "unknown"
+    rationale: ""
+  privilege_and_autonomy:
+    rating: "unknown"
+    rationale: ""
+  novelty_and_uncertainty:
+    rating: "unknown"
+    rationale: ""
+  patchability_and_lifetime:
+    rating: "unknown"
+    rationale: ""
+
+failure_model:
+  worst_credible_failures: []
+  irreversible_effects: []
+  silent_failure_modes: []
+  common_mode_or_cascade_risks: []
+  credible_abuse_cases: []
+
+assurance_target:
+  scoped_claim: ""
+  required_confidence: ""
+  mandatory_claim_categories: []
+  mandatory_evidence_classes: []
+  minimum_independence: ""
+  acceptance_authority: ""
+  residual_risk_owner: ""
+  constraints_and_controls: []
+  invalidation_triggers: []
+
+assumptions: []
+unknowns: []
+blocking_questions: []

@@ -66,7 +66,7 @@ duplicate decisions/episodes and orphaned state, zero mechanical provider
 construction, exact provider-turn/settlement agreement, at least one durable
 restart, and byte-stable replay. This evidence promotes only deterministic
 `I-INSTALL`/`I-SOAK` contracts. It cannot promote provider standing-role or
-real-time-soak contracts. See [`scheduler.md`](scheduler.md).
+real-time-soak contracts. See [`docs/scheduler/design.md`](scheduler/design.md).
 
 Phase 6 promotion is also a separate token-free gate after execution. Archive
 the immutable campaign externally, import only its sanitized promotion slice,

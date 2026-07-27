@@ -24,7 +24,7 @@ export type EventKind =
 
 /** The kind a role's trigger matches on. GitHub events keep their transport
  *  kind; file-drop inbox events carry the parsed company-lifecycle kind
- *  (docs/event-schemas.md) so roles.yaml stays the source of truth for who
+ *  (docs/scheduler/event-schemas.md) so roles.yaml stays the source of truth for who
  *  subscribes to `support-feedback` / `adoption-signal` / `health-alert` /
  *  `launch-calendar`. */
 export type RoutedEventKind = EventKind | CompanyEventKind;
@@ -175,7 +175,7 @@ export class EventStore {
   }
 
   /** Read the file-drop inbox, parsing each payload's company-lifecycle kind
-   *  (docs/event-schemas.md) so the dispatcher can route by kind. Already
+   *  (docs/scheduler/event-schemas.md) so the dispatcher can route by kind. Already
    *  consumed files are skipped. A malformed payload (bad JSON or a payload
    *  that fails the company-event contract) is surfaced LOUDLY as an
    *  `error_event_source` — never silently dropped — while sibling files keep

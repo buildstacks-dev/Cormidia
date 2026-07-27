@@ -21,7 +21,7 @@ exercised on a supported host. Scheduler lifecycle, empty windows, missed-tick
 reconciliation, and status aggregation construct no adapter. Scheduled
 provider work enters the ordinary adapter path and must retain one settlement
 per provider turn. The canonical platform contract is
-[`docs/scheduler.md`](../scheduler.md).
+[`docs/scheduler/design.md`](../scheduler/design.md).
 
 | Capability | ClaudeRuntime | CodexRuntime | PiRuntime |
 | --- | --- | --- | --- |

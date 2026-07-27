@@ -4,7 +4,7 @@
 // the real default); running-status runs are never deleted.
 //
 // `operon prune-runs --sweep` runs the full state-home retention sweep
-// (review P1-14 / F-003; docs/scheduler.md → State retention) across every
+// (review P1-14 / F-003; docs/scheduler/design.md → State retention) across every
 // retained subtree with the default windows — the same sweep the scheduler's
 // dispatch tick runs at most once per UTC day. The manual form runs
 // immediately (it does not consume the daily claim's exact-once semantics —

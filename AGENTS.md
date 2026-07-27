@@ -109,7 +109,7 @@ machinery. On conflict this summary wins — fix that file.
 ## Navigation
 - Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · code wiki: `docs/wiki.html` (open in a browser)
 - Architecture: `docs/architecture.md` · build loop: `docs/loop.md` · testing map: `docs/testing.md` · sandbox-app journey: `docs/testing-journey.md`
-- Scheduler contract: `docs/scheduler.md` · event payloads: `docs/event-schemas.md` · approvals/release boundary: `docs/approval-and-release-amendment.md`
+- Scheduler contract: `docs/scheduler/design.md` · event payloads: `docs/scheduler/event-schemas.md` · approvals/release boundary: `docs/approval-and-release-amendment.md`
 - Learning loop: `docs/learning-loop/` · efficiency boundary: `docs/efficiency.md` · benchmarks: `docs/benchmark-runbook.md`
 - Adapters: `docs/harness/capability-matrix.md` · `docs/harness/adding-updating.md` · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`
 - Live UI / Reports / Narrative contracts: `docs/live-ui/design.md` · `docs/reporting/design.md` · `docs/narrative/design.md`

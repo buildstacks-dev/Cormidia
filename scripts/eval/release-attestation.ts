@@ -346,7 +346,7 @@ function packagedArtifactPath(path: string): boolean {
     path.startsWith("agent-skills/operon/") ||
     path.startsWith("config/launchd/") ||
     path === "docs/policy.yaml.template" ||
-    path === "docs/scheduler.md" ||
+    path === "docs/scheduler/design.md" ||
     path === "README.md" ||
     path === "scripts/link-local.mjs" ||
     path === "scripts/operon-local.mjs" ||

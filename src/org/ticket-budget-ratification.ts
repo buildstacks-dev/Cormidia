@@ -130,7 +130,7 @@ export interface TicketBudgetRatificationRecord {
 // ---------------------------------------------------------------------------
 
 /** High-churn, provider-derived evidence: swept on its own retention window
- *  (docs/scheduler.md → State retention). */
+ *  (docs/scheduler/design.md → State retention). */
 export function refusedDecompositionDir(stateHome: string, app: string): string {
   assertSafeSegment(app, "refused decomposition");
   return join(resolve(stateHome), "planning", app, "refused-decompositions");

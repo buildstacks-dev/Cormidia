@@ -953,7 +953,7 @@ no full prompts, no tool args, no secrets — the quality-gate secret
 regexes double as a log scrubber. L3 stays local, retention =
 `session_retention_days`; run dirs pruned on the same schedule. Run-dir
 pruning (and retention for every other state subtree) runs daily from the
-dispatch tick's org-wide retention sweep — docs/scheduler.md → State
+dispatch tick's org-wide retention sweep — docs/scheduler/design.md → State
 retention; `operon prune-runs` remains the manual surface.
 - **Attribution is exact** — runs are ticket-scoped by construction; costs
 roll up run → ticket → (role, app) → monthly budget with no
@@ -1188,7 +1188,7 @@ distinct codes end to end (§9).
 | 4                           | Host asleep / offline                                | nothing runs                                         | missed schedules collapse to one firing; distributed item state resumes on any later tick                                                    |
 | 5                           | GitHub API down / rate-limited                       | API errors on tick                                   | loud L2 event; retry next tick (polling is idempotent); repeated → anomaly flag + incident note                                              |
 | 6                           | Session resume or content binding fails              | adapter error or role/runtime/context/work fingerprint mismatch | fail closed before blind retry; preserve session/work evidence and require explicit re-arm or a newly authorized claim            |
-| 7                           | Run-dir / session growth                             | retention job                                        | pruned on `session_retention_days`; L1/L2 kept longer than L3; the dispatch tick runs the daily org-wide sweep (docs/scheduler.md → State retention)                                                                |
+| 7                           | Run-dir / session growth                             | retention job                                        | pruned on `session_retention_days`; L1/L2 kept longer than L3; the dispatch tick runs the daily org-wide sweep (docs/scheduler/design.md → State retention)                                                                |
 | **Model behavior**          |                                                      |                                                      |                                                                                                                                              |
 | 8                           | Tests fail during implement                          | in-pass verification loop                            | 3 mechanical attempts → blocked-with-evidence (error verbatim / attempted fix / assessment)                                                  |
 | 9                           | Gate failure after a pass                            | quality-gate engine                                  | remediation fix passes ≤ `max_attempts` (3) → blocked                                                                                        |

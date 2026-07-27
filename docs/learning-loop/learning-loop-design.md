@@ -85,7 +85,7 @@ Phase 5 supplies the scheduler source: only terminal
 `missed_window_reconciled` decisions from `scheduler/evidence/decisions/`
 project as `scheduler.missed_tick`. Their org/app/role/trigger identity and
 timestamps are verifier-owned; provider prose cannot create one. The scheduler
-schema and health contract remain canonical in `docs/scheduler.md`.
+schema and health contract remain canonical in `docs/scheduler/design.md`.
 
 The implementation target is **inside Operon first**. The interface boundaries
 should stay clean enough that this can later become a standalone library, but V1

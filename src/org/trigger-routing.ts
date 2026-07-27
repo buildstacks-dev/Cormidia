@@ -46,7 +46,7 @@ export function resolveTriggerRoute(input: ResolveTriggerRouteInput): TriggerRou
       return skip(role, `planner schedule "${trigger.schedule}" is not mapped`);
     }
     // Groom feed: a support-feedback or adoption-signal drop grooms the
-    // backlog with that specific signal in hand (docs/event-schemas.md).
+    // backlog with that specific signal in hand (docs/scheduler/event-schemas.md).
     if (trigger.event === "support-feedback" || trigger.event === "adoption-signal") {
       return { kind: "pipeline", pipeline: "groom" };
     }

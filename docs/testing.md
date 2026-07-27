@@ -201,7 +201,7 @@ workers detects **order** dependence, seed `12072026` at one worker detects
 **concurrency/serialisation** dependence. Neither is testable by the ordinary
 run.
 
-Packaged docs (`docs/scheduler.md`, `docs/policy.yaml.template`, `README.md`)
+Packaged docs (`docs/scheduler/design.md`, `docs/policy.yaml.template`, `README.md`)
 count as **product**, not docs — they ship in `npm pack`.
 
 Changing an admission rule requires a case in `test/ci/classify-changes.test.ts`.

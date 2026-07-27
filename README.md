@@ -210,7 +210,7 @@ Company-lifecycle files placed in
 `operon dispatch` reports malformed payloads as `malformed_company_event`,
 unregistered kinds as `unknown_company_event_kind`, and valid registered kinds
 with no current role trigger as the non-error skip `no_subscriber`; only valid
-subscribed kinds spawn turns. See [the event schema contract](docs/event-schemas.md)
+subscribed kinds spawn turns. See [the event schema contract](docs/scheduler/event-schemas.md)
 for the supported kinds, payloads, and exact retention behavior.
 
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
@@ -277,7 +277,7 @@ state-home paths. It contains no credentials or inherited environment dump.
 Status joins ownership/hash/cadence validation, loaded/active manager state,
 recent durable ticks, duplicate/orphan checks, and provider settlement
 agreement; a definition file alone is never healthy. See
-[`docs/scheduler.md`](docs/scheduler.md) for the canonical schema, identities,
+[`docs/scheduler/design.md`](docs/scheduler/design.md) for the canonical schema, identities,
 reason codes, and health rules.
 
 The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
@@ -689,7 +689,7 @@ adjacent evidence bundle.
 
 None of these stores grows forever: every state subtree has a documented
 retention window, swept fail-safe once per UTC day from the dispatch tick
-(docs/scheduler.md → State retention; manual form `operon prune-runs
+(docs/scheduler/design.md → State retention; manual form `operon prune-runs
 --sweep`). Ledger day-files are never deleted while `budget --reconcile`
 could still re-settle their rows from surviving evidence, and the committed
 org-home `learning/**` substrate plus the state home's durable learning

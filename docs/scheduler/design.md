@@ -1,10 +1,178 @@
-# Scheduler lifecycle and evidence
+# Dispatch and scheduler
 
-This document is the canonical contract for Operon's scheduler definition,
-identities, durable evidence, reason codes, and health semantics. The scheduler
-is an org-scoped host trigger for the ordinary stateless `operon dispatch`
-boundary. It is not a daemon, workflow engine, provider runtime, or replacement
-for turn journals, locks, approvals, budgets, continuation, or telemetry.
+*Canonical contract for the dispatch tick and the org-scoped host scheduler:
+trigger grammar, event polling and routing, locking and concurrency, manual
+invocation, the scheduler definition and identity schema, durable evidence,
+state retention, reason codes, and health semantics. The scheduler is an
+org-scoped host trigger for the ordinary stateless `operon dispatch` boundary.
+It is not a daemon, workflow engine, provider runtime, or replacement for turn
+journals, locks, approvals, budgets, continuation, or telemetry. The system
+map is [`../architecture.md`](../architecture.md) §2.*
+
+## Dispatch model
+
+**Model: stateless tick, not a daemon.** `operon scheduler install` creates an
+org-scoped launchd definition (`StartInterval: 300` by default) that invokes an
+absolute Node/package entry with explicit org and state homes. A future systemd
+user timer uses the same backend boundary, but Operon does not claim its health
+on an unexercised platform. Each tick calls the ordinary `operon dispatch`,
+reads config + durable state, computes what is due, starts detached turns, and
+exits. There is no competing daemon or workflow engine. A wedged host resumes
+on the next tick; cadence remains flexi and ticks run at all hours (decided
+2026-07-04). Due work that needs a provider turn still enters only through the
+EpisodePlanner boundary (`../architecture.md` §0, §8): the tick computes *what is due*; the accepted
+EpisodePlan authorizes *what may run*.
+
+Lifecycle mutations preview by default and require `--execute` plus exact org
+or scheduler-id confirmation. Ownership metadata, the rendered-definition
+hash, and a crash-resumable transaction prevent silent overwrite/removal of a
+malformed, foreign, or wrong-org definition. `operon scheduler status` and
+doctor join definition, loaded/active manager state, recent tick evidence,
+duplicate/orphan checks, and provider-settlement agreement. Definition-file
+existence is never sufficient for health.
+
+The scheduler evidence model deliberately keeps four ids separate: OS cadence
+invocation, app/role/trigger decision, spawned episode/turn, and ordinary
+provider turn/settlement. A decision is durable before lock/journal/spawn
+boundaries and reaches one typed terminal outcome. Stable hashes bind org,
+window, app, role, trigger, and event rather than enumeration order or random
+process state. `spawn_committed` precedes detached spawn, so retry after
+post-spawn bookkeeping failure cannot start a second child. Missed host windows
+still collapse to one firing with explicit missed/reconciled counts.
+
+### Trigger resolution
+
+For each app with `status: live`, for each role, merge `roles.yaml` triggers
+with the app's cadence overrides (`../architecture.md` §7), then evaluate. An app that is not
+`status: live` is a **named skip** in the tick result (app + actual status,
+printed by `operon dispatch` as a `skip` line), never a silent no-op — its
+pending inbox events stay unpolled, and the operator can see why:
+
+**Schedule triggers.** Grammar (already in roles.yaml): `hourly`,
+`every <N>h|m`, `daily HH:MM`, `weekly <dow> [HH:MM]` (default 09:00). Local
+host time. A trigger is due when `now ≥ next(lastFired, spec)`;
+`state/schedule.json` keys `(app, role, trigger)` → last-fired timestamp,
+written only after the turn actually starts. Missed windows (laptop asleep)
+collapse to **one** firing — no backfill.
+
+**Event triggers.** v1 is **polling, not webhooks** — the laptop has no
+public ingress. Each tick polls GitHub (via `gh`/REST) per live app:
+
+
+| roles.yaml event  | Poll                                                               | Stable dedup key            |
+| ----------------- | ------------------------------------------------------------------ | --------------------------- |
+| `ticket-ready`    | issues labeled `op:ready`                                          | `ticket-ready:<issue>`      |
+| `pr-opened`       | open `op/*` PRs lacking a fresh verdict (no review after head SHA) | `pr-opened:<pr>@<head-sha>` |
+| `ci-failed`       | failed check runs on main / open op PRs                            | `ci-failed:<sha>:<check>`   |
+| `release-shipped` | new release/tag since last seen                                    | `release:<tag>`             |
+| `alert-webhook`   | file-drop inbox `state/events/inbox/*.json`                        | file name                   |
+
+
+Consumed-event state is recorded in `state/events/` per (event, role): a
+spawn writes a `<key>::role::<role>` mark, so one event fans out to every
+subscribed role even when the WIP limit splits them across ticks, and a role
+never refires on an event it already handled. The dispatcher's per-tick sweep
+retires the bare key — what polling filters on — once every *current*
+subscriber holds a mark, pruning the per-role marks in the same atomic write;
+because retirement is evaluated fresh against roles.yaml each tick, a
+subscriber removed mid-fan-out cannot strand an event live forever. A
+channel-gated subscriber deliberately holds retirement open: the event stays
+observably pending (a skip line per tick) until the app grows the channel and
+the gated role runs. The file-drop inbox gives webhook parity later: a
+droplet webhook receiver just writes JSON files into the same inbox — the
+dispatcher does not change.
+
+### Trigger routing
+
+`roles.yaml` declares when a role wakes; `src/org/trigger-routing.ts` maps
+the effective trigger (after app cadence overrides) to the protocol that
+runs. Unknown mappings remain loud skips in dispatch, never undefined turns.
+
+| Role trigger | Route |
+| --- | --- |
+| Planner `daily ...` | `groom` pipeline |
+| Planner `weekly ...` | `plan` pipeline |
+| Planner `support-feedback` / `adoption-signal` (file-drop) | `groom` pipeline |
+| Builder `ticket-ready` | build-loop claim/build path |
+| Reviewer `pr-opened` | review-loop path owned by the ticket state machine |
+| SRE `hourly` | `sre-health` pipeline |
+| SRE `ci-failed` / `alert-webhook` / `health-alert` | `sre-incident` pipeline |
+| Support `support-feedback` | `support-digest` pipeline |
+| Support scheduled trigger | `support-digest` pipeline |
+| Marketing `release-shipped` | `marketing-release` pipeline |
+| Marketing `launch-calendar` | `marketing-release` pipeline |
+| Marketing `adoption-signal` | `ci-sweep` pipeline |
+| Marketing weekly trigger | `ci-sweep` pipeline |
+
+**Scope note — software lifecycle now, company lifecycle via the same
+inbox.** The polled events above are deliberately all software-lifecycle:
+GitHub is the only source a laptop can poll in v1 without new ingress or
+credentials. Company-lifecycle events — support inbox items, billing/usage
+thresholds, signup or churn spikes, launch-calendar dates, compliance
+deadlines — enter through the file-drop inbox: any producer (a mail poller,
+a payment-webhook relay on the droplet, a calendar script) writes an event
+JSON into `state/events/inbox/`, and the dispatcher routes it through the
+same roles.yaml trigger mechanism, unchanged. Enumerating these producers
+per role (Support, Marketing, SRE) is operator configuration, not a dispatcher
+change.
+
+The v0 payload contract for file-drop company events is documented in
+[`event-schemas.md`](event-schemas.md) and validated by `src/org/event-schemas.ts`.
+For a `critical` or `down` health alert, the SRE pipeline persists its grounded
+analysis and queues a typed GitHub issue action with `op:incident`, the source
+event key, payload hash, and stable incident identity. A later dispatch performs
+that action through the orchestrator-owned `GhOps` boundary, so SRE and Builder
+do not depend on different provider-local network/tool behavior. Analysis
+completion and filing acknowledgement remain separate facts.
+
+### Locking & concurrency
+
+- **One turn per (role, app).** Lock file `locks/<app>--<role>.lock` created
+with `O_EXCL`, containing `{pid, turnId, startedAt, heartbeatAt}`. The turn
+runner heartbeats it every 30 s. Acquisition is atomic on the `O_EXCL` create;
+ordinary contention — including a holder releasing exactly as the tick reads it
+— resolves to a holder snapshot or a retry, never an unhandled `ENOENT` that
+aborts the tick.
+- Tick finds a lock with heartbeat < 2 min old → turn still running → skip
+(this is how overlapping firings don't collide). Heartbeat stale → crash
+recovery (§3), which decides resume vs restart and re-owns the lock.
+- **Org-level WIP limit:** live locks ≥ `org.max_concurrent_turns`
+(apps.yaml, default 2) → remaining due turns stay due; next tick retries.
+Priority when contending: blocked-turn re-dispatches, then events, then
+schedules (oldest due first).
+- **Turns outlive the tick.** `operon dispatch` spawns
+`operon run-role … --turn <id>` as a detached process, so the 5-minute
+timer never kills a long turn. `run-role` is thereby also the manual
+entry point. `--turn` is the invocation/trace identity used by the journal and
+run evidence; it is not a GitHub ticket number and never creates a ticket
+binding. Ticket context, when present, comes from the already-durable dispatch
+journal.
+
+### Manual and standalone invocation (`run-role`)
+
+- A fresh manual standalone invocation requires `--app`, `--turn`, and one
+non-empty bounded `--template` in both dry-run and live forms. Both forms enter
+the same read-only journal/route/durable-intent/template/assignment/scope
+inspection first. The dry-run reports the template hash and summary,
+provenance, objective, execution-ready creator scope, and atomic assignment,
+then stops with zero provider turns and no workflow-state writes beyond the
+command audit row. Live persists the
+already-inspected manual journal before provider entry. Provider readiness,
+budget/approval outcomes, managed-clone synchronization, and mutable external
+state are explicit preview exclusions.
+- A durable resume may reuse its accepted creator bytes without rereading a
+mutable template. Scheduled/event dispatch journals already name a governed
+pipeline or ticket protocol, so those routes may omit the standalone template
+and reject CLI template/assignment overrides instead of ignoring them.
+`--workdir` is unsupported: preview reads a discovered registered checkout;
+live always synchronizes the org-managed clone, then an explicit standalone
+creator scope executes in a durable per-turn worktree cut from that exact
+resolved base. Provider egress is denied by default. A manual invocation may
+admit it with
+`--allow-network`; that boolean is shown by `--dry-run`, bound into the creator
+scope, and copied to only that episode's `TurnRequest`s. Resume rejects a
+different value instead of silently widening or narrowing the persisted
+invocation.
 
 ## Lifecycle CLI
 
@@ -248,4 +416,4 @@ sole `future_soak` contract: neither this preview, the virtual soak, nor
 read-only production confirmation can promote it. Phase 6 may finish with that
 future campaign pending, but the broader fully proven “highly efficient
 organization” claim may not. See
-[`efficiency.md`](efficiency.md#phase-6-qualification-scope).
+[`docs/efficiency.md`](../efficiency.md#phase-6-qualification-scope).

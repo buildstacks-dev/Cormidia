@@ -64,7 +64,7 @@ describe("trigger routing", () => {
   });
 
   it("routes company-lifecycle event kinds to their documented pipelines", () => {
-    // docs/event-schemas.md fan-out (GAP B).
+    // docs/scheduler/event-schemas.md fan-out (GAP B).
     expect(route("support", { event: "support-feedback" })).toEqual({
       kind: "pipeline",
       pipeline: "support-digest",

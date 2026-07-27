@@ -171,7 +171,7 @@ These evidence states do not replace the persisted app registry states
 The ladder is a claim vocabulary projected from real evidence, not a second
 database or lifecycle state machine.
 
-The autonomous claim is defined by [`docs/scheduler.md`](scheduler.md). It
+The autonomous claim is defined by [`docs/scheduler/design.md`](scheduler/design.md). It
 requires an owned/current org-scoped definition, observed loaded/active manager
 state, a recent completed tick, valid due-decision and orphan denominators, and
 provider-turn/settlement agreement. Missing/corrupt evidence is

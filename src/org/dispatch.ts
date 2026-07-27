@@ -68,7 +68,7 @@ export interface DispatchTickResult {
   errors: string[];
   scheduler?: { invocationId: string; cadenceWindow: string };
   /** Present only on the tick that won today's retention-sweep claim
-   *  (review P1-14 / F-003; docs/scheduler.md → State retention). */
+   *  (review P1-14 / F-003; docs/scheduler/design.md → State retention). */
   retention?: StateSweepResult;
 }
 

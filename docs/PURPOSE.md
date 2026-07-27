@@ -545,7 +545,7 @@ and agent definitions.
   changed-path rule binds only to files that affect the **packaged artifact** —
   what `npm pack` ships per package.json `files` (the compiled `dist` output,
   `agent-skills/operon/`, `config/launchd/`, `docs/policy.yaml.template`,
-  `docs/scheduler.md`, the prompts and taste trees, `TASTE.md`, `roles.yaml`,
+  `docs/scheduler/design.md`, the prompts and taste trees, `TASTE.md`, `roles.yaml`,
   `pipelines.yaml`, `README.md`, and the three packaged `scripts/*.mjs`) plus the
   `src` sources and `package.json` that produce it. A change under those paths
   invalidates qualification. The executable suite — `scripts/eval/`, `test/`,

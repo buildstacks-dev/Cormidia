@@ -1,0 +1,131 @@
+// CF-B14-* — link/artifact ownership (contracts/B-14-human-checkout.md §2):
+// "`pnpm link:local`-class operations upgrade only artifacts owned by the
+// same checkout; foreign-owned files/links are refused untouched."
+//
+// L2 at the real process seam: the actual `scripts/link-local.mjs` runs as a
+// subprocess with every install location redirected into a temp sandbox via
+// its own env seams (OPERON_BIN_DIR, CODEX_HOME, CLAUDE_CONFIG_DIR,
+// PI_CODING_AGENT_DIR) — the operator's real ~/.local, ~/.codex, ~/.claude,
+// ~/.pi are never touched. The script's link SOURCE is this checkout
+// (src/operon-local.cjs, agent-skills/operon), read-only.
+
+import { afterEach, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { assertHumanBytesPreserved } from "./helpers.js";
+
+const SCRIPT = fileURLToPath(new URL("../../../scripts/link-local.mjs", import.meta.url));
+const BINARY_SOURCE = fileURLToPath(new URL("../../../src/operon-local.cjs", import.meta.url));
+const SKILL_SOURCE = fileURLToPath(new URL("../../../agent-skills/operon", import.meta.url));
+
+interface Sandbox {
+  root: string;
+  binDir: string;
+  claudeSkill: string;
+  codexSkill: string;
+  piSkill: string;
+  run(): { status: number; output: string };
+}
+
+describe("CF-B14-* — link ownership: link:local-class operations refuse foreign-owned files/links untouched (contract B-14 §2)", () => {
+  let cleanups: Array<() => Promise<void> | void> = [];
+
+  afterEach(async () => {
+    for (const cleanup of cleanups.reverse()) await cleanup();
+    cleanups = [];
+  });
+
+  async function makeSandbox(): Promise<Sandbox> {
+    const root = await mkdtemp(join(tmpdir(), "operon-cf-b14-link-"));
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const binDir = join(root, "bin");
+    const codexHome = join(root, "codex");
+    const claudeHome = join(root, "claude");
+    const piHome = join(root, "pi");
+    return {
+      root,
+      binDir,
+      claudeSkill: join(claudeHome, "skills", "operon"),
+      codexSkill: join(codexHome, "skills", "operon"),
+      piSkill: join(piHome, "skills", "operon"),
+      run: () => {
+        try {
+          const output = execFileSync(process.execPath, [SCRIPT], {
+            env: {
+              ...process.env,
+              OPERON_BIN_DIR: binDir,
+              CODEX_HOME: codexHome,
+              CLAUDE_CONFIG_DIR: claudeHome,
+              PI_CODING_AGENT_DIR: piHome,
+            },
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: 15_000,
+          });
+          return { status: 0, output };
+        } catch (error) {
+          const failure = error as { status?: number; stdout?: string; stderr?: string };
+          return {
+            status: failure.status ?? 1,
+            output: `${failure.stdout ?? ""}${failure.stderr ?? ""}`,
+          };
+        }
+      },
+    };
+  }
+
+  it("§2 links into an empty sandbox and re-runs idempotently — same-checkout artifacts are upgraded in place", async () => {
+    const sandbox = await makeSandbox();
+
+    const first = sandbox.run();
+    expect(first.status).toBe(0);
+    expect(readlinkSync(join(sandbox.binDir, "operon"))).toBe(BINARY_SOURCE);
+    for (const skill of [sandbox.claudeSkill, sandbox.codexSkill, sandbox.piSkill]) {
+      expect(readlinkSync(skill)).toBe(SKILL_SOURCE);
+    }
+
+    // Re-run: idempotent, links unchanged — the ownership check recognizes
+    // its own links and upgrades (here: keeps) them rather than refusing.
+    const second = sandbox.run();
+    expect(second.status).toBe(0);
+    expect(readlinkSync(join(sandbox.binDir, "operon"))).toBe(BINARY_SOURCE);
+    expect(readlinkSync(sandbox.claudeSkill)).toBe(SKILL_SOURCE);
+  });
+
+  it("§2 refuses a foreign REGULAR FILE at the binary target — refused untouched, and no partial linking proceeds past the refusal", async () => {
+    const sandbox = await makeSandbox();
+    const foreignBytes = "#!/bin/sh\necho the human's own operon shim\n";
+    mkdirSync(sandbox.binDir, { recursive: true });
+    writeFileSync(join(sandbox.binDir, "operon"), foreignBytes);
+
+    const result = sandbox.run();
+    expect(result.status).not.toBe(0);
+    expect(result.output).toMatch(/refusing to replace existing path: .*\/bin\/operon/);
+    // Untouched: the human's file survives byte-for-byte, still a regular file.
+    assertHumanBytesPreserved(join(sandbox.binDir, "operon"), foreignBytes);
+    // The refusal stopped the run before any skill link was created.
+    expect(existsSync(sandbox.claudeSkill)).toBe(false);
+    expect(existsSync(sandbox.codexSkill)).toBe(false);
+  });
+
+  it("negative control: a seeded foreign-owned symlink at a skill target — the ownership guard FIRES and the link is untouched", async () => {
+    const sandbox = await makeSandbox();
+    // SEEDED VIOLATION: a symlink owned by some OTHER checkout/tool sits at
+    // the Codex skill path (first skill target, so the guard is provably the
+    // thing that stops the run).
+    const foreignTarget = join(sandbox.root, "some-other-checkout", "skill");
+    mkdirSync(foreignTarget, { recursive: true });
+    mkdirSync(join(sandbox.root, "codex", "skills"), { recursive: true });
+    symlinkSync(foreignTarget, sandbox.codexSkill);
+
+    const result = sandbox.run();
+    expect(result.status).not.toBe(0);
+    expect(result.output).toMatch(/refusing to replace existing path: .*codex\/skills\/operon/);
+    // The foreign link still points where its owner left it.
+    expect(readlinkSync(sandbox.codexSkill)).toBe(foreignTarget);
+  });
+});

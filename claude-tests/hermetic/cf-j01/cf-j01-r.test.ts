@@ -7,14 +7,13 @@
 // not a refusal. Snapshots walk via fixtures/walk.ts (non-empty guaranteed by
 // the world sentinel).
 //
-// PRODUCT DEFECT TRIPWIRE (nested org): C-OP-LIFE §1 ratifies "any collision
-// (existing org, generated-path collision, nested org, non-directory,
-// symlink) blocks before mutation". planOrgInit/preflightInitEffects
-// (src/org/home.ts) checks the target itself for a complete-org shape but
-// never walks ancestors, so a target INSIDE an existing org home plans
-// "ready" and would initialize a nested org. The it.fails tripwire below
-// stays green while the defect exists and turns red the moment ancestor
-// detection lands — then promote it to a regular refusal case.
+// Nested org: C-OP-LIFE §1 ratifies "any collision (existing org,
+// generated-path collision, nested org, non-directory, symlink) blocks
+// before mutation". The nested-org case below started as an it.fails
+// tripwire and was PROMOTED 2026-07-31 when the fix landed:
+// preflightInitEffects (src/org/home.ts) now walks the target's ancestors
+// for a complete org shape and blocks a nested target in the preview with
+// the "nested_org" blocker — the collision never reaches execute.
 
 import { symlink, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -95,8 +94,8 @@ describe("CF-J01-R — collision/refusal classes refuse pre-mutation (C-OP-LIFE 
     expect(diffIsEmpty(diffSnapshots(before, await snapshotTree(w.root)))).toBe(true);
   });
 
-  it.fails(
-    "TRIPWIRE (product defect vs C-OP-LIFE §1): a target nested inside an existing org home must plan blocked",
+  it(
+    "a target nested inside an existing org home plans blocked (C-OP-LIFE §1)",
     async () => {
       const w = await world();
       await initOrgHome(initOptions(w, { name: "outer" }));
@@ -107,9 +106,10 @@ describe("CF-J01-R — collision/refusal classes refuse pre-mutation (C-OP-LIFE 
           stateHome: join(w.root, "state-nested"),
         }),
       );
-      // Ratified: the nested-org collision blocks before mutation. Actual
-      // (2026-07-31): status is "ready" with no blocker — the collision scan
-      // never looks upward from the target.
+      // Ratified: the nested-org collision blocks before mutation. PROMOTED
+      // from an it.fails tripwire 2026-07-31: preflightInitEffects
+      // (src/org/home.ts) now walks ancestors for a complete org shape and
+      // reports the "nested_org" blocker, so the plan is never executable.
       expect(plan.preview.status).toBe("blocked");
     },
   );

@@ -328,11 +328,14 @@ describe("CF-INV-001 seed c (L2): a label or prior approval is never standing au
     expect(gate(secretX).allow).toBe(false);
   });
 
-  it("negative control: a live matching grant file flips the gate — the deny assertions above are live", async () => {
+  it("negative control: a live matching grant WITH its durable decision flips the gate — the deny assertions above are live", async () => {
     // Seeded violation: a well-formed scoped grant planted straight into the
-    // store. The gate MUST allow now — proving grant lookup genuinely drives
-    // the denials asserted above. This byte-level write is exactly why
-    // approval-store writes classify critical for agents
+    // store, paired with the durable decided record that owns it. The gate
+    // MUST allow then — proving grant lookup genuinely drives the denials
+    // asserted above. (Since the B-09a §3 orphan fix, a grant file ALONE is a
+    // crash orphan and must NOT authorize — asserted inline below; the full
+    // orphan family lives in cf-sm-appr-c.) This byte-level write is exactly
+    // why approval-store writes classify critical for agents
     // (approval-store-tamper, unit/cf-inv-001): only humans and the
     // orchestrator may produce these bytes; here the harness plays that role.
     const state = await stateHomeFixture();
@@ -352,6 +355,25 @@ describe("CF-INV-001 seed c (L2): a label or prior approval is never standing au
     await writeFile(
       state.path("approvals", "grants", "grant-planted-1.json"),
       JSON.stringify(planted, null, 2),
+      "utf8",
+    );
+    // Orphan shape (grant, no decided record): never authorization (B-09a §3).
+    expect(gate(secretY).allow).toBe(false);
+    const decidedOwner: ApprovalItem = {
+      id: "planted-approval-1",
+      app: "seed-app",
+      role: "sre",
+      rule: "secrets-or-auth",
+      action: secretY,
+      raisedAt: new Date().toISOString(),
+      status: "approved",
+      decidedAt: new Date().toISOString(),
+      decision: "approved",
+      grantId: "grant-planted-1",
+    };
+    await writeFile(
+      state.path("approvals", "decided", "planted-approval-1.json"),
+      JSON.stringify(decidedOwner, null, 2),
       "utf8",
     );
     expect(gate(secretY)).toEqual({ allow: true });

@@ -15,7 +15,7 @@
 // package.
 
 import { readFile, readdir, mkdir, rm, rmdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
@@ -409,6 +409,27 @@ function sanitizeAppName(name: string): string {
   return cleaned.length > 0 ? cleaned : "app";
 }
 
+/** Contract B-14 §3: a symlinked target path — or any symlinked ancestor,
+ * e.g. `.operon` itself linked out of the checkout — would route bootstrap
+ * writes outside the tree that was validated. Typed refusal before mutation.
+ * `existsSync` follows links, so this walks every path segment with lstat. */
+function assertNotSymlinked(targetRoot: string, rels: readonly string[]): void {
+  for (const rel of rels) {
+    const segments = rel.split("/");
+    for (let depth = 1; depth <= segments.length; depth++) {
+      const partial = segments.slice(0, depth).join("/");
+      const stat = lstatSync(join(targetRoot, partial), { throwIfNoEntry: false });
+      if (stat === undefined) break; // nothing deeper can exist either
+      if (stat.isSymbolicLink()) {
+        throw new Error(
+          `bootstrap: ${partial} in ${targetRoot} is a symbolic link — ` +
+            "refusing to write through it to a target outside the checkout",
+        );
+      }
+    }
+  }
+}
+
 /** Bootstrap never silently clobbers an existing org — checked for every
  * target file BEFORE the first write, so a failed run leaves no half-tree. */
 function assertNotExists(targetRoot: string, rels: readonly string[]): void {
@@ -659,6 +680,12 @@ export interface EmitAppArtifactsOptions {
   /** Canonical org grant to snapshot. bootstrapRun supplies it; direct unit
    * callers safely fall back to legacy-conservative resolution. */
   orgAuthority?: AuthorityContext;
+  /** Instruction-file plans captured at the command's validation phase.
+   * bootstrapRun supplies its pre-flight plans so the write phase compares
+   * against exactly the bytes the command validated (F-PT-007
+   * compare-and-refuse); direct callers may omit and emitAppArtifacts
+   * validates (plans) itself. */
+  instructionPlans?: ProjectInstructionPlan[];
   /** Template root for docs/policy.yaml.template; defaults to this package. */
   templateRoot?: string;
 }
@@ -781,6 +808,7 @@ export async function emitAppArtifacts(
 
   const files = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, files);
+  assertNotSymlinked(targetRoot, files);
   const policyTemplate = await readPolicyTemplate(templateRoot);
   const scan = options.scan ?? (await scanRepo(targetRoot));
   const onboardingReport = buildOnboardingGapReport(scan, answers);
@@ -788,17 +816,29 @@ export async function emitAppArtifacts(
     options.orgAuthority ?? (await resolveAuthority({ orgHome: templateRoot }));
   const effectiveAuthority = applyAppAuthority(orgAuthority, answers.authority);
   const appAuthority = createAppAuthorityDocument(orgAuthority, answers.authority);
-  const instructionPlans = await planProjectInstructionFiles(targetRoot, effectiveAuthority);
+  const instructionPlans =
+    options.instructionPlans ??
+    (await planProjectInstructionFiles(targetRoot, effectiveAuthority));
 
   const created: string[] = [];
   const updated: string[] = [];
-  const previousInstructions = new Map(
-    await Promise.all(instructionPlans
-      .filter((plan) => plan.existed)
-      .map(async (plan) => [plan.rel, await readFile(join(targetRoot, plan.rel), "utf8")] as const)),
-  );
+  // Validated bytes for rollback: restore only files this run overwrote, so a
+  // refusal never rewrites human bytes the command declined to touch.
+  const previousInstructions = new Map<string, string>();
+  for (const plan of instructionPlans) {
+    if (plan.validated !== undefined) previousInstructions.set(plan.rel, plan.validated);
+  }
   const emit = async (rel: string, content: string) => {
     const abs = join(targetRoot, rel);
+    // F-PT-007 compare-and-refuse: validation proved this path absent, so a
+    // file here now is a concurrent human write — refuse, preserve its bytes.
+    assertNotSymlinked(targetRoot, [rel]);
+    if (lstatSync(abs, { throwIfNoEntry: false }) !== undefined) {
+      throw new Error(
+        `bootstrap: ${rel} appeared in ${targetRoot} after validation — ` +
+          "a concurrent edit; refusing to overwrite human bytes",
+      );
+    }
     await mkdir(dirname(abs), { recursive: true });
     await writeFile(abs, content, "utf8");
     created.push(rel);
@@ -823,14 +863,35 @@ export async function emitAppArtifacts(
     }
 
     for (const plan of instructionPlans) {
-      await writeFile(join(targetRoot, plan.rel), plan.content, "utf8");
+      const abs = join(targetRoot, plan.rel);
+      // F-PT-007 compare-and-refuse: the file must still hold exactly the
+      // validated bytes; drift is a concurrent human edit — refuse, never
+      // merge the marked block into content the command never validated.
+      const stat = lstatSync(abs, { throwIfNoEntry: false });
+      if (stat?.isSymbolicLink()) {
+        throw new Error(
+          `bootstrap: ${plan.rel} in ${targetRoot} is a symbolic link — ` +
+            "refusing to write through it to a target outside the checkout",
+        );
+      }
+      const current = stat === undefined ? undefined : await readFile(abs, "utf8");
+      if (current !== plan.validated) {
+        throw new Error(
+          `bootstrap: ${plan.rel} in ${targetRoot} changed after validation — ` +
+            "a concurrent edit; refusing to merge with unvalidated content",
+        );
+      }
+      await writeFile(abs, plan.content, "utf8");
       if (plan.existed) updated.push(plan.rel);
       else created.push(plan.rel);
     }
     await validateEmittedArtifacts(targetRoot, appName, repoSlug, created, updated);
   } catch (error) {
     for (const rel of created) await rm(join(targetRoot, rel), { recursive: true, force: true });
-    for (const [rel, content] of previousInstructions) await writeFile(join(targetRoot, rel), content, "utf8");
+    for (const rel of updated) {
+      const validated = previousInstructions.get(rel);
+      if (validated !== undefined) await writeFile(join(targetRoot, rel), validated, "utf8");
+    }
     throw error;
   }
 
@@ -866,12 +927,19 @@ export async function validateEmittedArtifacts(
   }
 }
 
-interface ProjectInstructionPlan {
+export interface ProjectInstructionPlan {
   rel: string;
   existed: boolean;
+  /** Exact bytes at validation time (undefined when the file did not exist).
+   * The write phase re-compares against this copy and refuses on drift —
+   * F-PT-007: a concurrent human edit is never merged silently. */
+  validated: string | undefined;
   content: string;
 }
 
+/** Plan the instruction-file writes from a validated read. A symlinked
+ * instruction file is a typed refusal before mutation (contract B-14 §3):
+ * following it would write through to a target outside the checkout. */
 async function planProjectInstructionFiles(
   targetRoot: string,
   effectiveAuthority: AuthorityContext,
@@ -883,11 +951,19 @@ async function planProjectInstructionFiles(
   return Promise.all(
     AGENT_DOCS.map(async (rel) => {
       const path = join(targetRoot, rel);
-      const existed = existsSync(path);
+      const stat = lstatSync(path, { throwIfNoEntry: false });
+      if (stat?.isSymbolicLink()) {
+        throw new Error(
+          `bootstrap: ${rel} in ${targetRoot} is a symbolic link — ` +
+            "refusing to write through it to a target outside the checkout",
+        );
+      }
+      const existed = stat !== undefined;
       const existing = existed ? await readFile(path, "utf8") : `# ${rel}\n`;
       return {
         rel,
         existed,
+        validated: existed ? existing : undefined,
         content: composeProjectInstructions(existing, instructionBlock),
       };
     }),
@@ -1164,10 +1240,15 @@ export async function bootstrapRun(
 
   const appFiles = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, appFiles);
+  assertNotSymlinked(targetRoot, appFiles);
 
   const orgAuthority = await resolveAuthority({ orgHome });
   // Composition errors must surface before apps.yaml or the app repo changes.
-  await planProjectInstructionFiles(
+  // The plans double as the command's validated copy: emitAppArtifacts' write
+  // phase compares each instruction file against these bytes and refuses on
+  // drift (F-PT-007) instead of re-planning from a fresh — possibly
+  // concurrently human-edited — read.
+  const instructionPlans = await planProjectInstructionFiles(
     targetRoot,
     applyAppAuthority(orgAuthority, answers.authority),
   );
@@ -1188,6 +1269,7 @@ export async function bootstrapRun(
 
     const appOptions: EmitAppArtifactsOptions = { appName, answers, scan, allRoles, templateRoot };
     appOptions.orgAuthority = orgAuthority;
+    appOptions.instructionPlans = instructionPlans;
     if (repoSlug) appOptions.repoSlug = repoSlug;
     const app = await emitAppArtifacts(targetRoot, appOptions);
 

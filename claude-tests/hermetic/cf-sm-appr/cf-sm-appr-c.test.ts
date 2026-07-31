@@ -10,19 +10,26 @@
 // the rewound tree is byte-faithful to the kill), plus one REAL subprocess
 // kill between store transactions via fixtures/kill-point.ts.
 //
-// KNOWN DEFECTS (probed 2026-07-31, tripwires below, reported with HB-011):
-//   D1 — the ORPHAN-GRANT intermediate IS usable authorization today:
-//        findMatchingGrantSync never checks that a grant's approvalId has a
-//        durable decision, and composeGate consumes+allows a scoped orphan.
-//   D3 — the PENDING-GHOST intermediate (rename done, rm lost) is never
-//        repaired by reconcile(); the already-decided item is re-offered and a
-//        second decision succeeds, flipping the durable record while the first
-//        decision's grant survives.
+// DEFECT STATUS (probed 2026-07-31, reported with HB-011):
+//   D1 — FIXED 2026-07-31 (orchestrator integration, after the reported
+//        collision). findMatchingGrantSync now requires the grant's owning
+//        decided record to exist with decision "approved" before any match
+//        (unscoped and scoped alike), so the orphan intermediate is
+//        recognizable evidence, never authorization. The colliding
+//        cf-inv-001 negative control was updated in the same change to seed
+//        the durable decision it always meant to represent (and to assert
+//        the orphan shape denies). Tripwires below promoted to plain
+//        detectors.
+//   D3 — FIXED 2026-07-31. reconcile() now repairs the PENDING-GHOST
+//        intermediate (decided record wins, pending copy removed, a
+//        pending-ghost-repaired log row appended) and decide() refuses a
+//        ghost/decided id with the typed already-decided outcome — the
+//        decided record is the first-write-wins commit point. Former
+//        tripwires promoted to plain detectors below.
 // The recognizability detectors for both intermediates are deposited here and
-// proven to fire (negative controls); the never-usable / repaired clauses are
-// it.fails tripwires that flip red when the product conforms.
+// proven to fire (negative controls).
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -43,6 +50,11 @@ import { detectIllegalExecutionTransitions } from "../../unit/cf-sm-appr/transit
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const productModuleUrl = (rel: string): string => pathToFileURL(join(repoRoot, rel)).href;
+
+// Full-lane flake guard (see cf-sm-appr-lir.test.ts): real per-item execution
+// file locks can wait up to ~35s under worker contention; widen the budget in
+// TEST setup, never in src.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const APP = "appr-crash-app";
 const ROLE = "sre";
@@ -229,10 +241,13 @@ describe("CF-SM-APPR-C — orphan-grant intermediate (B-09a §3, L2, HB-011)", (
     expect(() => detectOrphanGrants(rig.state.stateHome)).toThrow(/grant-seeded-orphan/);
   });
 
-  // DEFECT TRIPWIRE D1a (B-09a §3 "no reader treats the orphan grant as
-  // usable authorization"): findMatchingGrantSync matches on identity fields
-  // alone (src/org/approvals.ts findMatchingGrantSync) and returns the orphan.
-  it.fails("never matches as usable authorization: findMatchingGrantSync refuses a grant with no durable decision", async () => {
+  // D1a FIXED 2026-07-31 (B-09a §3 "no reader treats the orphan grant as
+  // usable authorization"): findMatchingGrantSync now requires the grant's
+  // owning decided record to exist with decision "approved" before any match.
+  // The cf-inv-001 planted-grant negative control was updated in the same
+  // change to seed the durable decision (and to assert the orphan shape
+  // denies), so both specs assert the ratified behavior.
+  it("never matches as usable authorization: findMatchingGrantSync refuses a grant with no durable decision", async () => {
     const rig = await makeRig();
     await stageOrphanGrant(rig, onceAction, "external-publishing", {});
     const match = rig.store.findMatchingGrantSync({
@@ -244,12 +259,11 @@ describe("CF-SM-APPR-C — orphan-grant intermediate (B-09a §3, L2, HB-011)", (
     expect(match).toBeUndefined();
   });
 
-  // DEFECT TRIPWIRE D1b (same clause, scoped shape, full gate composition):
-  // composeGate consumes the scoped orphan and returns { allow: true } — a
-  // critical action would execute with NO persisted decision anywhere
-  // (OPERON-INV-003 falsifying shape: "an executed critical op with no prior
-  // persisted decision").
-  it.fails("never authorizes through the composed gate: a scoped orphan grant does not allow the action", async () => {
+  // D1b FIXED 2026-07-31 (same clause, scoped shape, full gate composition):
+  // a scoped orphan no longer flows through composeGate — the store-level
+  // owner-decision check refuses the match before consumption, so a critical
+  // action can never execute with no persisted decision anywhere (INV-003).
+  it("never authorizes through the composed gate: a scoped orphan grant does not allow the action", async () => {
     const rig = await makeRig();
     await stageOrphanGrant(rig, scopedAction, "outbound-network", {
       scope: { kind: "ticket" },
@@ -402,24 +416,37 @@ describe("CF-SM-APPR-C — pending-ghost intermediate (B-09a §3 / B-09b §3-§4
     expect(() => detectPendingGhosts(rig.state.stateHome)).toThrow(item.id);
   });
 
-  // DEFECT TRIPWIRE D3a (B-09a §3 "reconciliation completes or repairs the
-  // decision state"): reconcile() only handles the missing-decided direction
-  // and leaves the ghost, so listPending re-offers an already-decided item.
-  it.fails("reconcile repairs the ghost: the decided item is not re-offered as pending (B-09a §3)", async () => {
+  // PROMOTED TRIPWIRE D3a (HB-011, fixed 2026-07-31): reconcile() now repairs
+  // the ghost direction too — the durable decided record wins, the surviving
+  // pending copy is removed, and a pending-ghost-repaired log row records the
+  // repair (B-09a §3 "reconciliation completes or repairs the decision
+  // state"). The repair is idempotent: a second reconcile appends nothing.
+  it("reconcile repairs the ghost: the decided item is not re-offered as pending (B-09a §3)", async () => {
     const rig = await makeRig();
-    await stageGhost(rig);
+    const { item } = await stageGhost(rig);
     await rig.store.reconcile(rig.clock.nowDate());
     expect(await rig.store.listPending()).toHaveLength(0);
     detectPendingGhosts(rig.state.stateHome);
+    // The repair left durable evidence, exactly once, and is idempotent.
+    await rig.store.reconcile(rig.clock.nowDate());
+    const repairs = (await readLogEvents(rig)).filter(
+      (event) => event.type === "pending-ghost-repaired",
+    );
+    expect(repairs).toEqual([
+      { type: "pending-ghost-repaired", id: item.id, at: rig.clock.nowIso() },
+    ]);
   });
 
-  // DEFECT TRIPWIRE D3b (B-09b §3 "first durable write wins; the second
-  // receives a typed already-decided outcome" / §4 immutability): today the
-  // second decision SUCCEEDS from the ghost, flips the durable record
-  // approved→denied, and the first decision's grant file remains live.
-  it.fails("a second decision from the ghost is refused with the first durable decision preserved (B-09b §3/§4)", async () => {
+  // PROMOTED TRIPWIRE D3b (HB-011, fixed 2026-07-31): decide() now treats the
+  // durable decided record as the first-write-wins commit point — a second
+  // decision from the ghost receives the typed already-decided outcome
+  // referencing the original (B-09b §3/§4), never a flip of the durable
+  // record, and the first decision's record survives byte-identical.
+  it("a second decision from the ghost is refused with the first durable decision preserved (B-09b §3/§4)", async () => {
     const rig = await makeRig();
     const { item } = await stageGhost(rig);
+    const decidedPath = rig.state.path("approvals", "decided", `${item.id}.json`);
+    const bytesBefore = await readFile(decidedPath, "utf8");
     await expect(
       rig.store.decide(item.id, {
         decision: "denied",
@@ -427,6 +454,7 @@ describe("CF-SM-APPR-C — pending-ghost intermediate (B-09a §3 / B-09b §3-§4
         now: rig.clock.nowDate(),
       }),
     ).rejects.toThrow(/already decided|not pending/i);
+    expect(await readFile(decidedPath, "utf8")).toBe(bytesBefore); // immutable (B-09b §4)
   });
 });
 

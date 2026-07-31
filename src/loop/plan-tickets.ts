@@ -9,6 +9,7 @@
 // decomposition for its own sake (P1/P2).
 
 import { createHash } from "node:crypto";
+import { SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import type { GhOps } from "./github.js";
 import { RELEASE_KINDS, type ReleaseConfig, type ReleaseKind } from "./types.js";
 
@@ -829,6 +830,69 @@ export function finalizePlanForPublication(
 // Publication — orchestrator-owned, validate-all-then-create
 // ---------------------------------------------------------------------------
 
+/** Typed INV-011 refusal at the publication egress: a to-be-published title
+ *  or body matched the canonical secret-pattern list. Findings name the
+ *  ticket index, the surface, and the matched pattern KIND only — never the
+ *  matched text, and never an excerpt of the ticket (the excerpt could BE the
+ *  secret; validatePlan's title-slice convention is deliberately not followed
+ *  here). */
+export class TicketPublicationSecretError extends Error {
+  readonly code = "error_ticket_publication_secret" as const;
+  constructor(readonly findings: readonly string[]) {
+    super(
+      "publishTickets: refusing to publish — suspected secret material in planner-authored " +
+        `ticket content (${findings.join("; ")}). No issue was created; remove the credential ` +
+        "and re-plan. Publication refuses rather than scrubs: a silent scrub would publish " +
+        "content nobody wrote (INV-011).",
+    );
+    this.name = "TicketPublicationSecretError";
+  }
+}
+
+/** INV-011 guardrail (HB-016): scan EVERY to-be-published surface — each
+ *  ticket's title and its exact rendered body — against the ONE canonical
+ *  pattern list (src/runtime/secret-patterns.ts; never fork a second list)
+ *  and refuse the WHOLE plan on any match, before the first GitHub mutation.
+ *  Mirrors the episode-planner brief's refusal
+ *  (src/org/episode-planner/brief.ts): planner-authored prose is untrusted
+ *  input, and a published issue is the lower-sensitivity surface
+ *  secret-bearing content must never cross into. All-or-nothing by
+ *  construction: the scan completes over the full plan before anything is
+ *  created, so a secret in the LAST ticket vetoes the FIRST — no partial
+ *  publication to reconcile. Bodies are scanned exactly as they will render
+ *  (minus `Depends-on: #<n>` back-references, which are orchestrator-derived
+ *  issue numbers, not planner prose). */
+function assertPublishableContentCarriesNoSecret(
+  projection: FinalPlanProjection,
+  planningSources?: PlanningSourceTicketEvidence,
+  provenance?: PlanProvenance,
+): void {
+  const unnumbered: (number | undefined)[] = projection.tickets.map(() => undefined);
+  const findings: string[] = [];
+  for (const { index, ticket } of projection.tickets) {
+    const surfaces = [
+      ["title", ticket.title],
+      [
+        "body",
+        renderTicketBody(
+          ticket,
+          unnumbered,
+          projection.plan.releaseKind,
+          projection.plan.releaseVersion,
+          planningSources,
+          provenance,
+        ),
+      ],
+    ] as const;
+    for (const [surface, text] of surfaces) {
+      for (const { name, pattern } of SECRET_PATTERNS) {
+        if (pattern.test(text)) findings.push(`ticket ${index} ${surface}: ${name}`);
+      }
+    }
+  }
+  if (findings.length > 0) throw new TicketPublicationSecretError(findings);
+}
+
 export interface PublishedTicket {
   index: number;
   issueNumber: number;
@@ -845,10 +909,13 @@ export interface PublishResult {
  *  issue (labels: tier + priority; `op:ready` only on dependency-free tickets
  *  — dependency-locked backlog stays stateless until its predecessors merge,
  *  when the merge transition arms it via `rearmDependents`, L-007), then
- *  back-fill real issue numbers into `Depends-on:` references. Throws on the
- *  first GitHub failure — by then all-local validation has already passed, so
- *  a failure is environmental, and everything created so far is reported in
- *  the error for manual reconciliation. */
+ *  back-fill real issue numbers into `Depends-on:` references. Refuses with
+ *  `TicketPublicationSecretError` — before ANY GitHub mutation — when any
+ *  to-be-published title or body matches the canonical secret-pattern list
+ *  (INV-011). Otherwise throws on the first GitHub failure — by then
+ *  all-local validation has already passed, so a failure is environmental,
+ *  and everything created so far is reported in the error for manual
+ *  reconciliation. */
 export async function publishTickets(gh: GhOps, plan: TicketPlan): Promise<PublishResult> {
   return publishPlanProjection(gh, finalizePlanForPublication(plan));
 }
@@ -862,6 +929,11 @@ export async function publishPlanProjection(
   planningSources?: PlanningSourceTicketEvidence,
   provenance?: PlanProvenance,
 ): Promise<PublishResult> {
+  // INV-011: the WHOLE plan is proven secret-free before ANY GitHub mutation
+  // (label ensures included) — a refusal must leave nothing behind, never a
+  // partially published secret-bearing plan.
+  assertPublishableContentCarriesNoSecret(projection, planningSources, provenance);
+
   for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
 
   const issueNumbers: (number | undefined)[] = projection.tickets.map(() => undefined);

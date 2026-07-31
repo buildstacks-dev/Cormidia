@@ -9,7 +9,10 @@
 //      plus unexpired provisionals from quarantine (rendered under the
 //      UNVERIFIED label). Expired provisionals are skipped with a
 //      `provisional_expired` event — the resolver enforces the TTL, never a
-//      compaction footnote.
+//      compaction footnote. Bundle concepts additionally require a COMMITTED
+//      publication — a manifest cut naming the concept id (INV-013, B-11 §3):
+//      the publisher writes bundle/<scope> before its manifest cut, and a
+//      mid-transaction artifact must never resolve as active.
 //   2. RESOLVE CONFLICTS before budgeting: shared topic_key -> the narrower
 //      scope wins, the loser is excluded NOW (`conflict_resolved`), so a
 //      broad-scope loser can never consume budget that starves the winner.
@@ -209,6 +212,28 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
     app: new Set(decisions.app?.excluded ?? []),
   };
 
+  // INV-013 reader-side guardrail (B-11 §3): a publication is COMMITTED only
+  // once its manifest cut lands. The publisher's artifact step writes the
+  // activated concept into bundle/<scope> BEFORE the cut, so between those
+  // two durable writes the file is on disk while the transaction is still
+  // mid-flight — membership of the concept id in a history cut is the commit
+  // receipt this resolver requires. A bundle file no cut names (crashed
+  // mid-transaction, or hand-placed without a cut) fails closed: it never
+  // resolves. Forward-completing a crashed journal (re-run publish) cuts the
+  // manifest, after which the concept resolves normally — the recovery path
+  // needs nothing from the resolver.
+  const committedIds = (manifest: LearningManifest | null | undefined): Set<string> => {
+    const ids = new Set<string>();
+    for (const entry of manifest?.history ?? []) {
+      for (const id of entry.concepts) ids.add(id);
+    }
+    return ids;
+  };
+  const committedByRoot: Record<CanaryRootKind, Set<string>> = {
+    org: committedIds(manifests.org),
+    app: committedIds(manifests.app),
+  };
+
   // -- gather ---------------------------------------------------------------
   const gathered: ResolvedConceptInternal[] = [];
   for (const { key, scope } of SCOPE_ORDER) {
@@ -227,6 +252,15 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
         const loop = concept.doc.frontmatter.loop!;
         if (loop.status !== "active" || concept.doc.frontmatter.status !== "active") continue;
         if (loop.scope !== scopeName) continue;
+        // Only committed publications resolve (INV-013, B-11 §3): no
+        // manifest cut names this id — mid-transaction or never published.
+        if (!committedByRoot[rootKind].has(loop.id)) {
+          process.stderr.write(
+            `learning: skipping bundle concept ${loop.id} (${scopeName}) — no manifest cut ` +
+              `names it; its publication is mid-transaction or was never committed (INV-013)\n`,
+          );
+          continue;
+        }
         // Stable lineage never sees the running trial's concepts.
         if (excludedByRoot[rootKind].has(loop.id)) continue;
         gathered.push(toResolved(concept.doc, scopeName, key, false, input));

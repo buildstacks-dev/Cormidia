@@ -11,6 +11,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rename,
   rm,
   rmdir,
@@ -22,7 +23,9 @@ import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep 
 import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
 import { loadPipelines } from "../loop/pipelines.js";
-import { findExistingOrg, loadApps, type AppsFile } from "./apps.js";
+import { findExistingOrg, loadApps, OrgIdentityError, type AppsFile } from "./apps.js";
+import { writeFileAtomic } from "./atomic.js";
+import { stableJson } from "./lifecycle.js";
 import { resolveAppAssignments } from "./execution-assignments.js";
 import { loadRoles } from "./roles.js";
 import {
@@ -81,6 +84,142 @@ export class NoActiveOrgError extends Error {
   }
 }
 
+/** Typed identity stops shared with the org-home selection in apps.ts
+ * (symlinked org home) and thrown here for state-home pairing failures. */
+export { OrgIdentityError, type OrgIdentityStopCode } from "./apps.js";
+
+/**
+ * Identity marker `operon org init` records inside the state home so every
+ * later resolve can validate the (org home, state home, org id) pairing
+ * (contracts/B-10-config-resolver.md §2). See ensureStateHomeIdentity for
+ * the validation and legacy-adoption rules.
+ */
+export const STATE_HOME_IDENTITY_FILE = "org-identity.json";
+
+export interface StateHomeIdentity {
+  schema_version: 1;
+  kind: "org-identity";
+  org_name: string;
+  /** Realpath of the org home this state home was created for. */
+  org_home: string;
+  created_at: string;
+}
+
+export function stateHomeIdentityPath(stateHome: string): string {
+  return join(resolve(stateHome), STATE_HOME_IDENTITY_FILE);
+}
+
+async function writeStateHomeIdentity(
+  stateHome: string,
+  identity: { orgName: string; orgHomeRealpath: string },
+  createdAt: Date = new Date(),
+): Promise<void> {
+  const marker: StateHomeIdentity = {
+    schema_version: 1,
+    kind: "org-identity",
+    org_name: identity.orgName,
+    org_home: identity.orgHomeRealpath,
+    created_at: createdAt.toISOString(),
+  };
+  await writeFileAtomic(stateHomeIdentityPath(stateHome), `${stableJson(marker).trimEnd()}\n`);
+}
+
+type StateHomeIdentityRead =
+  | { status: "absent" }
+  | { status: "malformed" }
+  | { status: "present"; orgName: string; orgHome: string };
+
+async function readStateHomeIdentity(stateHome: string): Promise<StateHomeIdentityRead> {
+  const text = await readFileMaybe(stateHomeIdentityPath(stateHome));
+  if (text === undefined) return { status: "absent" };
+  try {
+    const raw = JSON.parse(text) as Partial<StateHomeIdentity> | null;
+    if (
+      raw !== null &&
+      typeof raw === "object" &&
+      raw.kind === "org-identity" &&
+      typeof raw.org_name === "string" &&
+      raw.org_name.length > 0 &&
+      typeof raw.org_home === "string" &&
+      raw.org_home.length > 0
+    ) {
+      return { status: "present", orgName: raw.org_name, orgHome: raw.org_home };
+    }
+  } catch {
+    // fall through: unparseable marker is malformed
+  }
+  return { status: "malformed" };
+}
+
+/**
+ * B-10 §2 (B-10a): validate that the state home belongs to the resolved org.
+ *
+ * Marker + adoption rules:
+ * - `operon org init` records the identity marker (STATE_HOME_IDENTITY_FILE:
+ *   org name, org-home realpath, created_at) in the state home it creates or
+ *   reuses — init is the pairing-establishment operation.
+ * - When the marker exists, the pairing is validated on every resolve: a
+ *   marker naming a DIFFERENT org (by name or real org-home path) is a typed
+ *   OrgIdentityError stop — "correct config from the wrong org" refuses, it
+ *   never resolves (INV-004).
+ * - A marker-less state home is LEGACY (created before the marker existed):
+ *   it is ADOPTED on first resolve by writing the marker for the current
+ *   pairing. Adoption is deliberately never a stop so existing installs keep
+ *   working; from the adoption on, the pairing is enforced.
+ * - An absent state home has no pairing yet; init/first write establishes it.
+ * - An unreadable marker fails closed (INV-013/015): refuse with remediation,
+ *   never guess or silently re-adopt.
+ */
+async function ensureStateHomeIdentity(
+  stateHome: string,
+  orgHome: string,
+  orgName: string,
+): Promise<void> {
+  const stateStat = await lstatMaybe(stateHome);
+  if (stateStat === undefined || stateStat.isSymbolicLink() || !stateStat.isDirectory()) return;
+  const markerPath = stateHomeIdentityPath(stateHome);
+  const marker = await readStateHomeIdentity(stateHome);
+  if (marker.status === "malformed") {
+    throw new OrgIdentityError({
+      code: "state_home_identity_unreadable",
+      publicMessage: "state home identity marker is unreadable",
+      remediation:
+        `Inspect ${markerPath}; restore it, or remove it to re-adopt the state home for the org it belongs to.`,
+      message:
+        `operon: state home identity marker is unreadable: ${markerPath} — cannot prove ${stateHome} ` +
+        `belongs to org "${orgName}"; inspect the file, or remove it to re-adopt this state home for the current org`,
+    });
+  }
+  const orgHomeReal = await realpath(orgHome);
+  if (marker.status === "absent") {
+    await writeStateHomeIdentity(stateHome, { orgName, orgHomeRealpath: orgHomeReal });
+    return;
+  }
+  if (marker.orgName !== orgName || marker.orgHome !== orgHomeReal) {
+    throw new OrgIdentityError({
+      code: "state_home_org_mismatch",
+      publicMessage: "state home belongs to a different org",
+      remediation:
+        "Use the state home created for this org (re-run `operon org use` with the right --state-home), " +
+        `or remove ${markerPath} if the pairing genuinely changed.`,
+      message:
+        `operon: state home ${stateHome} belongs to org "${marker.orgName}" (org home ${marker.orgHome}), ` +
+        `not to org "${orgName}" (org home ${orgHomeReal}) — refusing to mix org state; use the state home ` +
+        `created for this org, or remove ${markerPath} if the pairing genuinely changed`,
+    });
+  }
+}
+
+async function readFileMaybe(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return undefined;
+    throw error;
+  }
+}
+
 export async function resolveOperonHomes(options: OperonHomeOptions = {}): Promise<OperonHomes> {
   const homeDir = options.homeDir ?? homedir();
   const pointerPath = options.pointerPath ?? join(homeDir, ".operon", "config");
@@ -104,6 +243,9 @@ export async function resolveOperonHomes(options: OperonHomeOptions = {}): Promi
       pointerStateHome ??
       join(homeDir, ".operon", appsFile.org.name),
   );
+  // B-10 §2: the (org home, state home, org id) triple must be coherent
+  // before anything uses it — see ensureStateHomeIdentity for the rules.
+  await ensureStateHomeIdentity(stateHome, resolve(orgHome), appsFile.org.name);
   return { packageRoot: PACKAGE_ROOT, orgHome: resolve(orgHome), stateHome, appsFile, pointerPath };
 }
 
@@ -163,6 +305,7 @@ export interface InitOrgDestination {
 export interface InitOrgPlanBlocker {
   code:
     | "existing_org"
+    | "nested_org"
     | "target_not_directory"
     | "target_ancestor_invalid"
     | "target_changed"
@@ -336,6 +479,8 @@ export async function executeOrgInit(plan: InitOrgHomePlan): Promise<InitOrgHome
   let installed = false;
   let populatedEntries: InitOrgDestination[] = [];
   let stateHomeCreated = false;
+  let identityMarkerBefore: string | undefined;
+  let identityMarkerWritten = false;
 
   try {
     await materializeInitStage(staged, preview.effects.generated_destinations, plan.planned_files);
@@ -365,6 +510,15 @@ export async function executeOrgInit(plan: InitOrgHomePlan): Promise<InitOrgHome
 
     stateHomeCreated = (await lstatMaybe(preview.state_home)) === undefined;
     await mkdir(preview.state_home, { recursive: true });
+    // B-10 §2: init establishes the (org, state home) pairing — record the
+    // identity marker so every later resolve can validate the triple. A
+    // reused state home gets THIS pairing: the human just assigned it here.
+    identityMarkerBefore = await readFileMaybe(stateHomeIdentityPath(preview.state_home));
+    await writeStateHomeIdentity(preview.state_home, {
+      orgName: appsFile.org.name,
+      orgHomeRealpath: await realpath(target),
+    });
+    identityMarkerWritten = true;
     await writeActiveOrgPointer(preview.pointer_path, target, preview.state_home);
     const createdEntries = preview.effects.org_home.action === "create"
       ? preview.effects.generated_destinations
@@ -391,6 +545,14 @@ export async function executeOrgInit(plan: InitOrgHomePlan): Promise<InitOrgHome
         await rm(target, { recursive: true, force: true }).catch(() => undefined);
       } else {
         await rollbackPopulatedEntries(populatedEntries);
+      }
+    }
+    if (identityMarkerWritten) {
+      const markerPath = stateHomeIdentityPath(preview.state_home);
+      if (identityMarkerBefore === undefined) {
+        await rm(markerPath, { force: true }).catch(() => undefined);
+      } else {
+        await writeFile(markerPath, identityMarkerBefore, "utf8").catch(() => undefined);
       }
     }
     if (stateHomeCreated) await rmdir(preview.state_home).catch(() => undefined);
@@ -525,6 +687,23 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
     }
   }
 
+  // C-OP-LIFE §1: a nested org is a collision class of its own — a target
+  // INSIDE an existing org home must block in the preview, never reach
+  // execute. The target-shape checks above only look AT the target; this
+  // walks upward for the nearest complete org shape.
+  const enclosingOrg = await firstAncestorWithCompleteOrgShape(dirname(input.target));
+  if (enclosingOrg !== undefined) {
+    blockers.push({
+      code: "nested_org",
+      path: enclosingOrg,
+      detail:
+        `operon org init: target is nested inside an existing Operon org home: ${enclosingOrg}; ` +
+        "nested orgs are not allowed",
+      remediation:
+        `Choose a target outside ${enclosingOrg}, or select that org with \`operon org use ${enclosingOrg}\`.`,
+    });
+  }
+
   const destinations: InitOrgDestination[] = input.desired.map((entry) => ({
     ...entry,
     disposition: "create",
@@ -655,6 +834,20 @@ async function hasCompleteOrgShape(target: string): Promise<boolean> {
     if ((await lstatMaybe(join(target, rel))) === undefined) return false;
   }
   return true;
+}
+
+/** Nearest ancestor (starting at `start`, walking to the filesystem root)
+ * that carries a complete org shape, or undefined when none does. Ancestors
+ * that do not exist yet are walked through — a nested target several levels
+ * below an org home is still nested. */
+async function firstAncestorWithCompleteOrgShape(start: string): Promise<string | undefined> {
+  let current = resolve(start);
+  while (true) {
+    if (await hasCompleteOrgShape(current)) return current;
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
 }
 
 async function materializeInitStage(

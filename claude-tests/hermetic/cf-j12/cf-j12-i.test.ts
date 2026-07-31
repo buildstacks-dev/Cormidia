@@ -15,8 +15,11 @@
 // (The no-op-resume tail — crash after grant consumption, before the done
 // mark — is CF-SM-LEARN-C, hermetic/cf-sm-learn/cf-sm-learn-c.test.ts.)
 //
-// TRIPWIRE (it.fails): B-11 §3 "readers never resolve a partially committed
-// publication as active (INV-013)" — see the last test.
+// The last test guards B-11 §3 "readers never resolve a partially committed
+// publication as active (INV-013)" — deposited as an it.fails tripwire while
+// the defect existed (HB-017), promoted to a plain test with the fix: the
+// resolver now requires a manifest cut naming the concept id (the commit
+// receipt) before a bundle concept resolves.
 
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -172,22 +175,21 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
     await assertExactlyOncePublish({ world, candidateId: CAND, conceptId: CONCEPT });
   });
 
-  // PRODUCT DEFECT TRIPWIRE — green while the defect exists, red when fixed.
-  //
-  // Ratified clause (contracts/B-11-learning-publisher.md §3): "readers never
-  // resolve a partially committed publication as active (INV-013)". Product
-  // behavior today: the artifact step writes the activated concept straight
-  // into bundle/<scope> BEFORE the manifest cut, and the resolver
-  // (src/org/learning/resolver.ts gather) loads any active file in a bundle
-  // dir with no journal/manifest-membership check — so between the two
-  // durable writes of one journaled transaction, a turn that resolves sees
-  // the concept as active while bundle_versions still reports the pre-cut
-  // version. src/org/learning/publisher.ts's own mid-trial guard comment
-  // acknowledges the exposure ("the artifact step writes the activated
-  // concept straight into bundle/<scope>, where the resolver loads any
-  // active file"). When the product closes this window, this it.fails turns
-  // red: flip it to a plain `it` and delete this preamble.
-  it.fails("TRIPWIRE (B-11 §3 / INV-013): a mid-transaction concept must NOT resolve before the transaction commits", async () => {
+  // FIXED (HB-017) — this was the product-defect tripwire (it.fails while the
+  // defect existed). Ratified clause (contracts/B-11-learning-publisher.md
+  // §3): "readers never resolve a partially committed publication as active
+  // (INV-013)". The defect: the artifact step writes the activated concept
+  // into bundle/<scope> BEFORE the manifest cut, and the resolver loaded any
+  // active file in a bundle dir with no membership check — between the two
+  // durable writes a resolve saw the concept as active while bundle_versions
+  // still reported the pre-cut version. The fix is reader-side (INV-013's
+  // guardrail note): the resolver's gather now requires a manifest cut naming
+  // the concept id — the transaction's commit receipt, co-located with the
+  // bundle so even a dry resolve (no state home) enforces it. The completion
+  // leg proves forward-completion still works: re-running publish finishes
+  // the crashed journal, cuts the manifest, and only then does the concept
+  // resolve — at the post-cut version.
+  it("B-11 §3 / INV-013: a mid-transaction concept does NOT resolve; after forward-completion it resolves at the post-cut version", async () => {
     world = await makeLearningWorld("cf-j12-i-tripwire");
     await seedReviewedOkfCandidate(world, { id: CAND, conceptId: CONCEPT, name: NAME });
     const approvalId = await raiseAndApprove(world, CAND);
@@ -199,17 +201,36 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
     expect(journal.artifact_ref).toBeDefined();
     expect(journal.done_at).toBeUndefined();
 
-    const resolved = await resolveLearningContext({
-      orgHome: world.org.orgHome,
-      app: "fixture-app",
-      role: "builder",
-      turnId: "turn_j12i_mid",
-      episodeId: "ep_j12i_mid",
-      taskText: "any task",
-      policy: world.policy,
-      // dry resolve: pins nothing, emits nothing.
-    });
+    const resolveOnce = (turn: string) =>
+      resolveLearningContext({
+        orgHome: world.org.orgHome,
+        app: "fixture-app",
+        role: "builder",
+        turnId: turn,
+        episodeId: `ep_${turn}`,
+        taskText: "any task",
+        policy: world.policy,
+        // dry resolve: pins nothing, emits nothing.
+      });
+
     // The ratified clause: a partially committed publication never resolves.
-    expect(resolved.concept_ids).not.toContain(CONCEPT);
+    const midFlight = await resolveOnce("turn_j12i_mid");
+    expect(midFlight.concept_ids).not.toContain(CONCEPT);
+
+    // Completion leg: the existing recovery path (re-run publish) forward-
+    // completes the crashed journal — the manifest cut lands and the SAME
+    // approval finishes the transaction.
+    world.clock.advance(60_000);
+    const resumed = await publishCandidate(world.deps, CAND);
+    expect(resumed.status).toBe("published");
+    const manifest = await readManifest(world.orgRoot);
+    expect(manifest?.history).toHaveLength(1);
+    expect(manifest?.history[0]?.concepts).toContain(CONCEPT);
+
+    // AFTER the cut the concept resolves, and bundle_versions reports the
+    // post-cut version — commit is the reader-visible state change.
+    const committed = await resolveOnce("turn_j12i_post");
+    expect(committed.concept_ids).toContain(CONCEPT);
+    expect(committed.bundle_versions["org"]).toBe(manifest?.bundle_version);
   });
 });

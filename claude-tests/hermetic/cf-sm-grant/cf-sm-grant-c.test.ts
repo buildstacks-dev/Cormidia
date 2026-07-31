@@ -24,7 +24,7 @@
 // reconcile() today does not. The detector deposited here recognizes the
 // drift; the repair obligation is for the owner to rule on.
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -37,6 +37,12 @@ import {
 import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
+
+// Full-lane flake guard (see cf-sm-appr-lir.test.ts): finishExecution/
+// dispositionExecution take real per-item execution file locks that can wait
+// up to ~35s under worker contention; widen the budget in TEST setup, never
+// in src.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const APP = "grant-crash-app";
 const ROLE = "sre";

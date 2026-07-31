@@ -13,8 +13,8 @@
 // §2  containment — only `.operon/**` + the marked instruction block; existing
 //     bytes preserved outside the marker (byte-for-byte);
 // §3  path overlap with generated artifacts → typed refusal before mutation;
-//     symlinked paths → see the it.fails tripwires (product defect vs the
-//     ratified clause — deposited per AGENTS.md tripwire rule);
+//     symlinked paths → typed refusal before mutation (fixed with HB-P4;
+//     the promoted ex-tripwire tests below pin the clause);
 // §4  re-run: never duplicates the marked block, never silently overwrites.
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -329,14 +329,17 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
   // §3 — symlinked paths (ratified: typed refusal before mutation)
   // -------------------------------------------------------------------------
 
-  // PRODUCT DEFECT TRIPWIRES (deposited per AGENTS.md "Bug fixes" +
-  // build-ticket tripwire rule): contract B-14 §3 — "Symlinked paths …:
-  // typed refusals before mutation." The product follows symlinks and writes
-  // THROUGH them, mutating files outside the checkout. These it.fails tests
-  // assert the ratified clause: they stay green while the defect exists and
-  // turn red (remove .fails) once bootstrap refuses symlinked paths.
+  // PROMOTED TRIPWIRES (fix landed with this change, HB-P4): contract B-14
+  // §3 — "Symlinked paths …: typed refusals before mutation." The product now
+  // refuses at the validation phase (src/org/bootstrap.ts —
+  // planProjectInstructionFiles lstats each instruction file;
+  // assertNotSymlinked walks every generated-path segment, catching a
+  // symlinked `.operon` that existsSync-based checks would follow) and
+  // re-checks at write time. These started life as it.fails defect tripwires
+  // and were promoted to plain tests in the same change as the fix
+  // (detector-deposit rule, AGENTS.md / policy case_sourcing).
 
-  it.fails("§3 TRIPWIRE: an instruction file that is a symlink out of the checkout → typed refusal, link target untouched", async () => {
+  it("§3 an instruction file that is a symlink out of the checkout → typed refusal, link target untouched", async () => {
     const walk = await makeWalk({ seedAgents: false });
     const outside = await mkdtemp(join(tmpdir(), "operon-cf-b14-outside-"));
     cleanups.push(() => rm(outside, { recursive: true, force: true }));
@@ -352,7 +355,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     expect(lstatSync(join(walk.repo.dir, "AGENTS.md")).isSymbolicLink()).toBe(true);
   });
 
-  it.fails("§3 TRIPWIRE: .operon as a symlink to a directory outside the checkout → typed refusal, outside directory untouched", async () => {
+  it("§3 .operon as a symlink to a directory outside the checkout → typed refusal, outside directory untouched", async () => {
     const walk = await makeWalk();
     const outside = await mkdtemp(join(tmpdir(), "operon-cf-b14-outside-dir-"));
     cleanups.push(() => rm(outside, { recursive: true, force: true }));

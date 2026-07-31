@@ -8,10 +8,13 @@
 // pointer, override disagreement, symlinked org home, pointer to a
 // deleted/moved org, state home from a different org.
 //
-// Two ratified clauses are currently NOT enforced by the product; each
-// carries an `it.fails` tripwire below (green while the defect exists, red
-// the moment the product starts enforcing the clause — then promote the test
-// by dropping `.fails`).
+// Two clauses below started as `it.fails` tripwires against product defects
+// and were PROMOTED to plain detectors on 2026-07-31 when the fixes landed:
+// findExistingOrg (src/org/apps.ts) now refuses a symlinked org-home path
+// with a typed OrgIdentityError, and resolveOperonHomes (src/org/home.ts)
+// validates the state-home pairing against the org-identity marker that
+// `org init` records (legacy marker-less state homes are adopted, never
+// stopped).
 //
 // Layer: 2 (temp org homes + the real pointer file). Zero network, zero
 // tokens; the operator's real ~/.operon is never touched (fixture homeDir).
@@ -131,15 +134,14 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
     expect(homes.stateHome).toBe(join(a.homeDir, ".operon", "org-b"));
   });
 
-  // PRODUCT DEFECT TRIPWIRE (ratified clause not enforced).
   // contracts/B-10-config-resolver.md §2: "a pairing mismatch (… symlinked
-  // org home) is a typed stop". Today resolveOperonHomes (src/org/home.ts)
-  // follows the symlink and resolves: the same org becomes addressable under
-  // two identities while the pointer records the alias. This test asserts the
-  // RATIFIED behavior and is marked `.fails`: it stays green while the defect
-  // exists and turns red when the resolver starts refusing — drop `.fails`
-  // then. Do NOT "fix" this by weakening the clause.
-  it.fails("TRIPWIRE (defect): a symlinked org home must be a typed identity stop", async () => {
+  // org home) is a typed stop". PROMOTED from an `it.fails` tripwire
+  // 2026-07-31: findExistingOrg (src/org/apps.ts) now lstats the selected
+  // org-home path — whatever source selected it — and refuses a symlink with
+  // a typed OrgIdentityError (code "symlinked_org_home") instead of
+  // resolving, so the same org can no longer become addressable under two
+  // identities while the pointer records the alias.
+  it("a symlinked org home is a typed identity stop", async () => {
     const a = await orgHomeFixture("org-a");
     const linkRoot = await tempDir("b10a-link-");
     const linkPath = join(linkRoot, "org-alias");
@@ -148,16 +150,17 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
     await expect(resolveOperonHomes(a.resolveOptions)).rejects.toThrow();
   });
 
-  // PRODUCT DEFECT TRIPWIRE (ratified clause not enforced).
   // contracts/B-10-config-resolver.md §2: "a pairing mismatch (state home
   // from another org; …) is a typed stop — 'correct config from the wrong
-  // org' is an identity failure". Today an explicit OPERON_STATE_HOME naming
-  // ANOTHER org's state home resolves quietly (src/org/home.ts computes the
-  // state home with no coherence validation against the resolved org
-  // identity; nothing in the state home records which org it belongs to).
-  // Green while the defect exists; red once the resolver validates the pair —
-  // drop `.fails` then.
-  it.fails("TRIPWIRE (defect): a state home from a different org must be a typed identity stop", async () => {
+  // org' is an identity failure". PROMOTED from an `it.fails` tripwire
+  // 2026-07-31: `org init` now records an identity marker
+  // (org-identity.json: org name + org-home realpath + created_at) in the
+  // state home, and resolveOperonHomes (src/org/home.ts
+  // ensureStateHomeIdentity) validates the pairing whenever the marker
+  // exists — a marker naming a different org is a typed OrgIdentityError
+  // (code "state_home_org_mismatch"); a marker-less legacy state home is
+  // adopted on first resolve, never stopped.
+  it("a state home from a different org is a typed identity stop", async () => {
     const a = await orgHomeFixture("org-a");
     const b = await orgHomeFixture("org-b");
     await expect(

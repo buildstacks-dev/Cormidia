@@ -21,14 +21,17 @@
 //     writes the template bytes and closes.
 // The "human" edit is therefore made while the command is deterministically
 // held between validation and write — no timing races. The mechanism itself
-// is proven by a plain (non-tripwire) self-test below, so a broken hold can
-// never silently keep the it.fails tripwires green.
+// is proven by a dedicated self-test below, so a broken hold can never
+// silently turn the compare-and-refuse tests into green-by-absence.
 //
-// PRODUCT DEFECT TRIPWIRES: the product performs no compare at write time
-// (src/org/bootstrap.ts emit/writeFile paths), so today the human bytes are
-// clobbered (generated path) or silently merged (instruction file). The
-// it.fails tests assert the RATIFIED clause: green while the defect exists,
-// red once compare-and-refuse lands — then remove .fails.
+// PROMOTED TRIPWIRES (fix landed with this change, HB-P4): the product now
+// compares at write time (src/org/bootstrap.ts — emit()'s absence re-check
+// for generated paths; the instruction write loop's compare against the
+// pre-flight validated plan bytes threaded through
+// EmitAppArtifactsOptions.instructionPlans) and refuses on drift with a
+// typed error, preserving human bytes. These started life as it.fails
+// defect tripwires and were promoted to plain tests in the same change as
+// the fix (detector-deposit rule, AGENTS.md / policy case_sourcing).
 
 import { afterEach, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
@@ -155,7 +158,7 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
     expect(existsSync(join(held.repo.dir, ".operon", "TASTE.md"))).toBe(true);
   });
 
-  it.fails("RATIFIED TRIPWIRE (generated path): human creates .operon/TASTE.md mid-window → compare-and-refuse, human bytes intact — never overwritten", async () => {
+  it("RATIFIED (generated path): human creates .operon/TASTE.md mid-window → compare-and-refuse, human bytes intact — never overwritten", async () => {
     const held = await startHeldRun();
 
     // THE CONCURRENT HUMAN EDIT — made while the command is provably parked
@@ -175,12 +178,12 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
     } catch (error) {
       refusal = error as Error;
     }
-    expect(refusal).toBeInstanceOf(Error); // today: resolves — no compare exists
+    expect(refusal).toBeInstanceOf(Error); // fixed: emit() re-checks absence at write time
     // …and the human's bytes survive, never overwritten.
     assertHumanBytesPreserved(join(held.repo.dir, ".operon", "TASTE.md"), humanBytes);
   });
 
-  it.fails("RATIFIED TRIPWIRE (instruction file): human edits AGENTS.md mid-window → compare-and-refuse — never merged silently", async () => {
+  it("RATIFIED (instruction file): human edits AGENTS.md mid-window → compare-and-refuse — never merged silently", async () => {
     const held = await startHeldRun();
 
     // THE CONCURRENT HUMAN EDIT of a bootstrap-owned instruction file, made
@@ -198,7 +201,7 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
     } catch (error) {
       refusal = error as Error;
     }
-    expect(refusal).toBeInstanceOf(Error); // today: resolves — the drifted file is re-read and merged
+    expect(refusal).toBeInstanceOf(Error); // fixed: write loop compares against the validated plan bytes
     // …and the file stays exactly as the human left it: no marked block was
     // silently merged into a version the command never validated.
     assertHumanBytesPreserved(join(held.repo.dir, "AGENTS.md"), humanEdited);

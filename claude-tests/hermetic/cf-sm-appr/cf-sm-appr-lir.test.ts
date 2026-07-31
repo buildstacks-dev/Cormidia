@@ -7,14 +7,14 @@
 // per-call `now` parameters via fixtures/clock.ts — the store has no ambient
 // wall-clock dependency on these paths.
 //
-// KNOWN DEFECT (tripwires below, reported with HB-011): the decision-entry
-// seam refuses replayed/unknown decisions with a raw fs ENOENT instead of the
-// typed already-decided/unknown-item outcome B-09b §1/§3/§4 ratifies. The
-// durable-safety half (no second grant, records unchanged) HOLDS and is
-// asserted green; the typed-outcome half is deposited as it.fails tripwires
-// that flip red the moment the product gains the typed refusal.
+// DEFECT FIXED (HB-011 D2, 2026-07-31): the decision-entry seam used to
+// surface a raw fs ENOENT for both unknown ids and already-decided items.
+// decide() now refuses with the typed outcomes B-09b §1/§3/§4 ratify — a
+// typed already-decided outcome referencing the original decision, and a
+// typed unknown-item refusal naming the item. The former it.fails tripwires
+// are promoted to plain detectors below.
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -27,6 +27,14 @@ import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 import { detectIllegalExecutionTransitions } from "../../unit/cf-sm-appr/transition-relation.js";
+
+// Full-lane flake guard (observed once under worker contention): these suites
+// take REAL per-item execution file locks (src/runtime/file-lock.ts via
+// ApprovalStore.withExecutionLock), whose acquisition may legitimately wait up
+// to ~35s (EXECUTION_LOCK_STALE_MS + 5s) before yielding; the lane's 30s
+// default then times a test out mid-acquisition. The acquisition budget is
+// widened HERE, in test setup — never in src.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const APP = "appr-app";
 const ROLE = "sre";
@@ -343,12 +351,11 @@ describe("CF-SM-APPR-R — replayed stimuli never double-advance (L2, HB-011)", 
     expect(grants).toEqual([`${decided.grantId!}.json`]); // never two grants (B-09b §3)
   });
 
-  // DEFECT TRIPWIRE (B-09b §4 "re-submitting an identical decision is a no-op
-  // with reference to the original" / §3 "typed already-decided outcome"):
-  // today the store surfaces a raw fs ENOENT from the missing pending file
-  // (src/org/approvals.ts decide() → readJson(pendingPath)). Green while the
-  // defect exists; flips red when the typed outcome lands — then remove .fails.
-  it.fails("decision replay yields a typed already-decided outcome referencing the original (B-09b §3/§4)", async () => {
+  // PROMOTED TRIPWIRE (HB-011 D2, fixed 2026-07-31): decide() now checks the
+  // durable decided record first and refuses a replay with a typed
+  // already-decided outcome referencing the original decision (decision +
+  // decidedAt + grant), per B-09b §3/§4 — no more raw fs ENOENT.
+  it("decision replay yields a typed already-decided outcome referencing the original (B-09b §3/§4)", async () => {
     const rig = await makeRig();
     const raised = await rig.store.raise({ ...raiseInput("npm publish"), now: rig.clock.nowDate() });
     await rig.store.decide(raised.id, { decision: "approved", now: rig.clock.nowDate() });
@@ -357,9 +364,10 @@ describe("CF-SM-APPR-R — replayed stimuli never double-advance (L2, HB-011)", 
     ).rejects.toThrow(/already decided|not pending/i);
   });
 
-  // DEFECT TRIPWIRE (B-09b §1 "unknown item → typed refusal"): same untyped
-  // ENOENT shape for an id that never existed.
-  it.fails("deciding an unknown item is a typed refusal naming the item, not a raw fs error (B-09b §1)", async () => {
+  // PROMOTED TRIPWIRE (HB-011 D2, fixed 2026-07-31): an id with no pending or
+  // decided record anywhere is a typed refusal naming the item (B-09b §1),
+  // no longer an untyped ENOENT.
+  it("deciding an unknown item is a typed refusal naming the item, not a raw fs error (B-09b §1)", async () => {
     const rig = await makeRig();
     await expect(
       rig.store.decide("20990101T000000Z-none", {

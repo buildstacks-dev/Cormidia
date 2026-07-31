@@ -231,6 +231,54 @@ const OPERON_VERB = {
   approvalWrite: /\boperon\s+approvals\s+(?:review|revoke|disposition)\b/,
 } as const;
 
+/** The canonical `gh api` projection built by ghApiVerbParts, as it appears in
+ *  the flattened effect text: `gh api <method> <endpoint>`. */
+const GH_API_PROJECTION = /\bgh api (get|head|post|put|patch|delete|unknown)(?: (\S+))?/g;
+
+type GhApiRoute = "self-merge-or-approve" | "external-publishing" | "destructive-or-irreversible";
+
+/** `gh api` is the GitHub CLI's raw REST/GraphQL escape hatch: `gh api
+ *  --method PUT repos/o/r/pulls/7/merge` performs the same merge as
+ *  `gh pr merge`, reached by a route the subcommand patterns never see
+ *  (HB-010; INV-002 requires the gate to be total over direct API calls).
+ *  Mirroring OPERON_VERB, each MUTATING call routes to the rule its EFFECT
+ *  belongs to rather than a new catch-all — the executor allowlist, the
+ *  never-scopeable list and role shaping all key off the rule name:
+ *   - `pulls/{n}/merge` and `…/reviews` are the raw-API spellings of
+ *     `gh pr merge` / `gh pr review` → self-merge-or-approve;
+ *   - `releases`, `issues`, `comments` are the raw-API spellings of
+ *     `gh release|issue|pr create/comment` → external-publishing;
+ *   - anything else (git/refs deletes, workflow dispatches, …) is an
+ *     arbitrary remote mutation → destructive-or-irreversible ("irreversible
+ *     remote/data operations stay critical unconditionally").
+ *  GET/HEAD calls route nowhere: the read/poll shape stays routine (the
+ *  orchestrator's own GhOps never pass through this gate, but agent turns
+ *  poll the same endpoints, and false positives there are availability
+ *  damage). `graphql` is POSTed whatever the flags say and a read-only query
+ *  is indistinguishable from a mutation without parsing GraphQL the
+ *  projection does not carry, so every graphql call fails closed as a
+ *  mutation — no product path invokes `gh api graphql` (verified by grep over
+ *  src/ 2026-07-31), so the over-breadth costs at most a human tap on an
+ *  exploratory query. */
+function ghApiRoutesTo(text: string, rule: GhApiRoute): boolean {
+  for (const match of text.matchAll(GH_API_PROJECTION)) {
+    const method = match[1]!;
+    const endpoint = match[2] ?? "";
+    const route: GhApiRoute | null =
+      endpoint === "graphql" || endpoint.startsWith("graphql/")
+        ? "destructive-or-irreversible"
+        : method === "get" || method === "head"
+          ? null
+          : /\bpulls\/[^\s/]+\/merge\b/.test(endpoint) || /(?:^|\/)reviews\b/.test(endpoint)
+            ? "self-merge-or-approve"
+            : /(?:^|\/)(?:releases|issues|comments)\b/.test(endpoint)
+              ? "external-publishing"
+              : "destructive-or-irreversible";
+    if (route === rule) return true;
+  }
+  return false;
+}
+
 /** v0 heuristics. Deliberately over-broad: false positives cost a human tap,
  *  false negatives cost an incident. Tighten with calibration data. */
 export const CRITICAL_RULES: CriticalRule[] = [
@@ -264,6 +312,10 @@ export const CRITICAL_RULES: CriticalRule[] = [
       }
       if (/\bgit\s+push\s+(?:--force(?:-with-lease)?|-f)\b/.test(t)) return true;
       if (OPERON_VERB.destructive.test(t)) return true;
+      // The raw-API default: a mutating `gh api` whose endpoint no tighter
+      // rule recognizes (and every `gh api graphql`, fail closed) is an
+      // arbitrary remote mutation — see ghApiRoutesTo.
+      if (ghApiRoutesTo(t, "destructive-or-irreversible")) return true;
       const fields = actionEffectFields(a);
       if (!fields.executables.includes("rm")) return false;
       return fields.targets.some((target) =>
@@ -311,6 +363,9 @@ export const CRITICAL_RULES: CriticalRule[] = [
       return (
         /\bnpm\s+publish\b|\b(?:sendmail|mail|tweet)\b/.test(t) ||
         /\bgh\s+(?:issue\s+(?:create|comment)|pr\s+(?:create|comment)|release\s+create)\b/.test(t) ||
+        // The raw-API spellings of the same publications: a mutating `gh api`
+        // against releases/issues/comments (see ghApiRoutesTo, HB-010).
+        ghApiRoutesTo(t, "external-publishing") ||
         OPERON_VERB.publish.test(t) ||
         a.tool.toLowerCase() === "operon.github.issue.create" ||
         a.tool.toLowerCase() === "operon.github.issue.comment"
@@ -357,7 +412,13 @@ export const CRITICAL_RULES: CriticalRule[] = [
     name: "self-merge-or-approve",
     matches: (a) => {
       const t = asText(a);
-      return /\bgh\s+pr\s+(?:merge|review)\b/.test(t) || (/\bgh\b/.test(t) && /--admin\b/.test(t));
+      return (
+        /\bgh\s+pr\s+(?:merge|review)\b/.test(t) ||
+        (/\bgh\b/.test(t) && /--admin\b/.test(t)) ||
+        // The raw-API spellings of the same boundary: a mutating `gh api`
+        // against `pulls/*/merge` or `…/reviews` (see ghApiRoutesTo, HB-010).
+        ghApiRoutesTo(t, "self-merge-or-approve")
+      );
     },
   },
   {
@@ -1003,7 +1064,7 @@ function gitArguments(args: string[]): { verb: string; targets: string[] } {
 function ghArguments(args: string[]): { verb: string; targets: string[] } {
   const positional = args.filter((arg) => !arg.startsWith("-"));
   const flags = args.filter((arg) => arg === "--admin");
-  const verbParts = positional[0] === "api" ? positional.slice(0, 3) : positional.slice(0, 2);
+  const verbParts = positional[0] === "api" ? ghApiVerbParts(args) : positional.slice(0, 2);
   const verb = [...verbParts, ...flags].join(" ");
   const targets: string[] = [];
   if (positional[0] === "gist" && positional[1] === "create") targets.push(...positional.slice(2));
@@ -1014,6 +1075,75 @@ function ghArguments(args: string[]): { verb: string; targets: string[] } {
     }
   }
   return { verb, targets };
+}
+
+/** `gh api` flags that take a separate VALUE which must never be mistaken for
+ *  the endpoint (`-H "Accept: …"`, `--jq .name`, `-t <template>`, …). */
+const GH_API_VALUE_FLAGS = new Set([
+  "-H", "--header", "--hostname", "--jq", "-q", "-t", "--template",
+  "--cache", "-p", "--preview",
+]);
+
+/** Body-carrying `gh api` flags. Their presence with no explicit method is the
+ *  CLI's documented implicit-POST form: `gh api repos/o/r/issues -f title=x`
+ *  CREATES an issue with no `--method` in sight. */
+const GH_API_BODY_FLAG = /^(?:-[fF]|--field|--raw-field|--input)(?:=|$)/;
+const GH_API_BODY_FLAG_INLINE = /^-[fF].+/;
+
+const GH_API_METHODS = new Set(["get", "head", "post", "put", "patch", "delete"]);
+
+/** Canonical projection of a `gh api` invocation: `["api", <method>,
+ *  <endpoint>]` — lowercase method, `unknown` when a method flag's value could
+ *  not be resolved or names no known HTTP verb (unknown is MUTATING to the
+ *  router: an unproven read fails closed). The method must be surfaced HERE
+ *  (HB-010): the old projection kept raw positionals only, so `--method PUT`
+ *  reached the rules by accident of word order and `--method=PUT` / `-XPUT` /
+ *  the implicit-POST field forms not at all — a self-merge spelled
+ *  `gh api --method PUT repos/o/r/pulls/7/merge` classified ROUTINE. */
+function ghApiVerbParts(args: readonly string[]): string[] {
+  let method: string | null = null;
+  let implicitPost = false;
+  let endpoint: string | null = null;
+  let sawApi = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--method" || arg === "-X") {
+      const value = args[i + 1];
+      // A method flag whose value cannot be resolved is not a proven read.
+      if (value === undefined || value.startsWith("-")) {
+        method = "unknown";
+        continue;
+      }
+      method = value.toLowerCase();
+      i++;
+      continue;
+    }
+    const inline = /^(?:--method=|-X=?)(.+)$/.exec(arg);
+    if (inline !== null) {
+      method = inline[1]!.toLowerCase();
+      continue;
+    }
+    if (GH_API_BODY_FLAG.test(arg) || GH_API_BODY_FLAG_INLINE.test(arg)) {
+      implicitPost = true;
+      if (/^(?:-f|-F|--field|--raw-field|--input)$/.test(arg)) i++;
+      continue;
+    }
+    if (GH_API_VALUE_FLAGS.has(arg)) {
+      i++;
+      continue;
+    }
+    if (arg.startsWith("-")) continue;
+    if (!sawApi) {
+      sawApi = arg === "api";
+      continue;
+    }
+    // First whitespace-free positional after `api` is the endpoint; a word
+    // with spaces is a quoted data value, never a path.
+    if (endpoint === null && !/\s/.test(arg)) endpoint = arg;
+  }
+  const resolved = method ?? (implicitPost ? "post" : "get");
+  const canonical = GH_API_METHODS.has(resolved) ? resolved : "unknown";
+  return endpoint === null ? ["api", canonical] : ["api", canonical, endpoint];
 }
 
 /** One lexed shell token. `kind` separates grammar from data so the parser

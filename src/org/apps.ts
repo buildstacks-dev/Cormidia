@@ -4,7 +4,7 @@
 // never inside a turn (docs/PURPOSE.md → One turn, one app).
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse, parseDocument, stringify } from "yaml";
@@ -445,23 +445,63 @@ export function resolveTriggers(role: RoleConfig, app: AppEntry): Trigger[] {
   return app.cadence[role.name] ?? role.triggers;
 }
 
+export type OrgIdentityStopCode =
+  | "symlinked_org_home"
+  | "state_home_org_mismatch"
+  | "state_home_identity_unreadable";
+
+/**
+ * Stable machine-readable identity stop (contracts/B-10-config-resolver.md
+ * §2, B-10a): the resolved (org home, state home, org id) triple is
+ * incoherent — a symlinked org-home path, a state home recorded for a
+ * different org, or an unreadable pairing record. "Correct config from the
+ * wrong org" is an identity failure: resolution stops with remediation
+ * instead of proceeding (INV-004; fail-closed per INV-015). Mirrors
+ * NoActiveOrgError's shape (src/org/home.ts) so JSON-aware callers branch on
+ * `code` without matching prose.
+ */
+export class OrgIdentityError extends Error {
+  readonly code: OrgIdentityStopCode;
+  readonly publicMessage: string;
+  readonly remediation: string;
+
+  constructor(fields: {
+    code: OrgIdentityStopCode;
+    publicMessage: string;
+    remediation: string;
+    message: string;
+  }) {
+    super(fields.message);
+    this.name = "OrgIdentityError";
+    this.code = fields.code;
+    this.publicMessage = fields.publicMessage;
+    this.remediation = fields.remediation;
+  }
+}
+
 /** Detect an existing org home (architecture §9 step 4): explicit
  * `--org-home` wins, then OPERON_ORG_HOME, then a pointer file at
  * `~/.operon/config`. The pointer file accepts YAML/JSON with `org_home`
  * or `orgHome`, or a plain path. OPERON_HOME remains a deprecated final
  * fallback for pre-packaging installations; runtime state uses
- * OPERON_STATE_HOME and never consults OPERON_HOME. */
+ * OPERON_STATE_HOME and never consults OPERON_HOME. Whatever source wins,
+ * the selected path itself must not be a symbolic link — a symlinked org
+ * home is a typed OrgIdentityError stop (B-10 §2), never a resolution. */
 export async function findExistingOrg(
   options: FindExistingOrgOptions = {},
 ): Promise<string | undefined> {
-  if (options.orgHome !== undefined) return resolve(options.orgHome);
+  if (options.orgHome !== undefined) return assertOrgHomePathNotSymlink(resolve(options.orgHome));
 
   const env = options.env ?? process.env;
-  if (env.OPERON_ORG_HOME && env.OPERON_ORG_HOME.length > 0) return resolve(env.OPERON_ORG_HOME);
+  if (env.OPERON_ORG_HOME && env.OPERON_ORG_HOME.length > 0) {
+    return assertOrgHomePathNotSymlink(resolve(env.OPERON_ORG_HOME));
+  }
 
   const pointerPath = options.pointerPath ?? join(options.homeDir ?? homedir(), ".operon", "config");
   if (!existsSync(pointerPath)) {
-    if (env.OPERON_HOME && env.OPERON_HOME.length > 0) return resolve(env.OPERON_HOME);
+    if (env.OPERON_HOME && env.OPERON_HOME.length > 0) {
+      return assertOrgHomePathNotSymlink(resolve(env.OPERON_HOME));
+    }
     return undefined;
   }
 
@@ -469,7 +509,38 @@ export async function findExistingOrg(
   if (text.length === 0) return undefined;
 
   const parsed = parsePointer(text);
-  return parsed ? resolve(parsed) : undefined;
+  return parsed ? assertOrgHomePathNotSymlink(resolve(parsed)) : undefined;
+}
+
+/** B-10a identity guard: the org-home path ITSELF must be a real entry —
+ * symlinks elsewhere on the filesystem are out of scope. An org addressed
+ * through a link would resolve under two identities while the pointer,
+ * audit rows, and state-home pairing record the alias; refuse typed instead
+ * of following it. An absent path passes through: completeness is
+ * validateOrgHome's concern, and callers still need the selected path to
+ * name WHICH org home is missing. */
+async function assertOrgHomePathNotSymlink(orgHome: string): Promise<string> {
+  let selected: Awaited<ReturnType<typeof lstat>>;
+  try {
+    selected = await lstat(orgHome);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return orgHome;
+    throw error;
+  }
+  if (selected.isSymbolicLink()) {
+    throw new OrgIdentityError({
+      code: "symlinked_org_home",
+      publicMessage: "org home path is a symbolic link",
+      remediation:
+        "Point the selection (--org-home, OPERON_ORG_HOME, or `operon org use`) at the real directory, not a link to it.",
+      message:
+        `operon: org home path is a symbolic link: ${orgHome} — an org is addressed by its real path only, ` +
+        "so one org never resolves under two identities; re-select the real directory with " +
+        "`operon org use <real path>` (or point --org-home/OPERON_ORG_HOME at it)",
+    });
+  }
+  return orgHome;
 }
 
 function parsePointer(text: string): string | undefined {

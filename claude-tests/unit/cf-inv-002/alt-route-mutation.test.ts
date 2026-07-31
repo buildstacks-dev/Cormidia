@@ -8,13 +8,15 @@
 // This file has two halves:
 //  1. The recognized critical mutation routes that the product DOES catch —
 //     a regression guard (green), so a future edit cannot silently drop one.
-//  2. A ratified-clause TRIPWIRE (it.fails) for a route the product does NOT
-//     catch today: `gh api` with a mutating method performs an arbitrary
-//     GitHub mutation (including a self-merge) yet classifies routine. Per the
-//     build contract, a product defect against a ratified clause is deposited
-//     as an it.fails asserting the ratified behavior — GREEN while the defect
-//     exists, RED (remove the tripwire) when src/runtime/gate.ts is fixed. See
-//     defects[] in the report for file:line + repro.
+//  2. The promoted HB-010 detector: `gh api` with a mutating method performs
+//     an arbitrary GitHub mutation (including a self-merge) and used to
+//     classify ROUTINE — CRITICAL_RULES enumerated gh subcommands only and
+//     ghArguments never surfaced the HTTP method. Deposited 2026-07-31 as an
+//     it.fails tripwire, promoted to a plain detector in the same change that
+//     fixed src/runtime/gate.ts (ghApiVerbParts + ghApiRoutesTo): every
+//     mutating `gh api` form now classifies critical under the tightest
+//     existing rule, while GET/HEAD and method-less field-less reads stay
+//     routine.
 
 import { describe, expect, it } from "vitest";
 import { classify, defaultGate } from "../../../src/runtime/gate.js";
@@ -41,6 +43,35 @@ const CAUGHT_TOOL_ROUTES: ReadonlyArray<{ name: string; action: ToolAction; rule
   { name: "operon.github.issue.comment tool", action: { tool: "operon.github.issue.comment", input: { body: "x" } }, rule: "external-publishing" },
 ];
 
+/** HB-010 (fixed 2026-07-31): the raw-API escape hatch. Every MUTATING
+ *  `gh api` form — explicit method (`--method`/`-X`, any case, separate,
+ *  `=`-joined, or glued) and the implicit-POST body forms (`-f`/`-F`/
+ *  `--field`/`--raw-field`/`--input`) — classifies critical under the
+ *  tightest existing rule for its endpoint: pulls/{n}/merge and …/reviews →
+ *  self-merge-or-approve; releases/issues/comments → external-publishing;
+ *  everything else (and all of graphql, fail closed) →
+ *  destructive-or-irreversible. */
+const API_MUTATIONS: ReadonlyArray<{ name: string; command: string; rule: string }> = [
+  { name: "--method PUT pulls/*/merge (self-merge via raw API)", command: "gh api --method PUT repos/o/r/pulls/7/merge -f merge_method=squash", rule: "self-merge-or-approve" },
+  { name: "-XPUT glued form on pulls/*/merge", command: "gh api -XPUT repos/o/r/pulls/7/merge", rule: "self-merge-or-approve" },
+  { name: "-X POST pulls/*/reviews (review publish via raw API)", command: "gh api -X POST repos/o/r/pulls/7/reviews -f event=APPROVE", rule: "self-merge-or-approve" },
+  { name: "-X POST releases (publication via raw API)", command: "gh api -X POST repos/o/r/releases -f tag_name=v1", rule: "external-publishing" },
+  { name: "implicit POST via -f to issues (issue create, no --method at all)", command: "gh api repos/o/r/issues -f title=x", rule: "external-publishing" },
+  { name: "-X DELETE git/refs (destructive raw mutation)", command: "gh api -X DELETE repos/o/r/git/refs/heads/x", rule: "destructive-or-irreversible" },
+  { name: "lowercase -X delete (method matching is case-insensitive)", command: "gh api -X delete repos/o/r/git/refs/heads/x", rule: "destructive-or-irreversible" },
+  { name: "--method=PATCH inline form on an unrecognized endpoint", command: "gh api --method=PATCH repos/o/r/git/refs/heads/x", rule: "destructive-or-irreversible" },
+  { name: "implicit POST via --input (arbitrary payload to an unrecognized endpoint)", command: "gh api repos/o/r/statuses/deadbeef --input payload.json", rule: "destructive-or-irreversible" },
+  { name: "graphql (fail closed: a read-only query is indistinguishable from a mutation)", command: "gh api graphql -f query='mutation { m }'", rule: "destructive-or-irreversible" },
+];
+
+/** The fix's blast-radius guard: `gh api` READS must stay routine (false
+ *  positives are T-1 availability damage — agent turns poll these endpoints). */
+const API_READS: ReadonlyArray<{ name: string; command: string }> = [
+  { name: "bare GET (method-less, field-less)", command: "gh api repos/o/r/issues/1" },
+  { name: "explicit --method GET on a mutation-shaped path", command: "gh api --method GET repos/o/r/releases" },
+  { name: "HEAD merged-state poll on pulls/*/merge", command: "gh api -X HEAD repos/o/r/pulls/7/merge" },
+];
+
 describe("CF-INV-002 (seed c / T-1) — direct GitHub mutation routes meet the gate (L1, HB-010)", () => {
   it("covers the recognized mutation routes (no green by absence)", () => {
     expect(CAUGHT_MUTATIONS.length).toBeGreaterThanOrEqual(6);
@@ -59,39 +90,36 @@ describe("CF-INV-002 (seed c / T-1) — direct GitHub mutation routes meet the g
     expect(defaultGate(action).allow).toBe(false);
   });
 
-  it("a `gh api` READ (default GET) is correctly routine — the tripwire below is about MUTATIONS only", () => {
-    // Guards the fix's blast radius: whatever change makes `gh api` mutations
-    // critical must NOT sweep in read-only `gh api` GETs (false positives are
-    // T-1 availability damage). This stays green before and after the fix.
-    expect(classify(bash("gh api repos/o/r/issues/1")).cls).toBe("routine");
+  // === PROMOTED HB-010 DETECTOR (was the it.fails tripwire) ===
+  // Deposited 2026-07-31 as a ratified-clause tripwire: `gh api --method PUT
+  // repos/{o}/{r}/pulls/{n}/merge` performs a MERGE — a self-merge that
+  // `self-merge-or-approve` catches via `gh pr merge` — yet reached GitHub by
+  // the raw-API route and classified ROUTINE, contradicting INV-002 (the gate
+  // must be total over "direct API calls" / adversarial seed c). Fixed the
+  // same day in src/runtime/gate.ts: ghApiVerbParts projects every `gh api`
+  // call as `api <method> <endpoint>` (explicit --method/-X in all spellings,
+  // implicit-POST body forms, `unknown` fails closed) and ghApiRoutesTo sends
+  // each mutating call to the tightest existing rule. Promoted per the
+  // detector-deposit rule (AGENTS.md; policy case_sourcing): fix + detector in
+  // one change.
+  it.each(API_MUTATIONS)("mutating `gh api` route is critical: $name", ({ command, rule }) => {
+    expect(classify(bash(command))).toEqual({ cls: "critical", rule });
+    const decision = defaultGate(bash(command));
+    expect(decision.allow).toBe(false);
+    if (!decision.allow) expect(decision.escalate).toBe(true);
   });
 
-  // === RATIFIED-CLAUSE TRIPWIRE (product defect; see defects[] in the report) ===
-  // `gh api` is the GitHub CLI's raw-API escape hatch. `gh api --method PUT
-  // repos/{o}/{r}/pulls/{n}/merge` performs a MERGE — a self-merge that
-  // `self-merge-or-approve` would catch via `gh pr merge`, but reaches GitHub
-  // by the raw-API route and classifies ROUTINE (verified 2026-07-31). Same
-  // hole for `gh api -X POST .../releases` (publish) and `gh api -X DELETE
-  // .../git/refs/...` (destructive). This contradicts INV-002 — the gate must
-  // be total over "direct API calls" and "direct GitHub mutation bypassing the
-  // tool channel" (adversarial seed c) — and is a T-1 false negative
-  // (authority damage). The tripwire asserts the RATIFIED expectation; it is
-  // green (the body throws) while the defect stands, and flips red once
-  // src/runtime/gate.ts classifies `gh api` mutating methods critical — the
-  // signal to delete this tripwire and promote it to a plain detector.
-  it.fails(
-    "TRIPWIRE (INV-002 seed c): `gh api` with a mutating method is a direct GitHub mutation and MUST be critical (currently routine — DEFECT)",
-    () => {
-      // A self-merge performed through the raw API — the tool channel bypassed.
-      const selfMergeViaApi = bash("gh api --method PUT repos/o/r/pulls/7/merge -f merge_method=squash");
-      expect(classify(selfMergeViaApi).cls).toBe("critical");
+  it.each(API_READS)("`gh api` READ stays routine: $name", ({ command }) => {
+    // Guards the fix's blast radius: making `gh api` mutations critical must
+    // NOT sweep in read-only GET/HEAD calls (false positives are T-1
+    // availability damage). Green before and after the fix.
+    expect(classify(bash(command)).cls).toBe("routine");
+  });
 
-      // Sibling routes with the same escape (documented so the fix covers the
-      // whole class, not just PUT .../merge).
-      expect(classify(bash("gh api -X POST repos/o/r/releases -f tag_name=v1")).cls).toBe("critical");
-      expect(classify(bash("gh api -X DELETE repos/o/r/git/refs/heads/x")).cls).toBe("critical");
-    },
-  );
+  it("covers the raw-API mutation class (no green by absence)", () => {
+    expect(API_MUTATIONS.length).toBeGreaterThanOrEqual(10);
+    expect(API_READS.length).toBeGreaterThanOrEqual(3);
+  });
 
   // === PARKED — candidate finding, NOT encoded as truth ===
   // A direct `git push <remote> HEAD:<default-branch>` (or any push to the

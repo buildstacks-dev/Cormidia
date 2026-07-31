@@ -273,7 +273,12 @@ export type ApprovalLogEvent =
       to: ApprovalExecutor;
       reason: string;
     }
-  | { type: "deduplicated"; id: string; at: string; actionHash: string; priorStatus: "pending" | "denied" };
+  | { type: "deduplicated"; id: string; at: string; actionHash: string; priorStatus: "pending" | "denied" }
+  /** reconcile() removed a surviving pending copy of an already-decided item —
+   *  the pending-ghost intermediate a crash between moveToDecided's rename and
+   *  its rm(pending) leaves (B-09a §3). The decided record always wins; this
+   *  row is the durable evidence the repair ran. */
+  | { type: "pending-ghost-repaired"; id: string; at: string };
 
 export interface RaiseApprovalInput {
   app: string;
@@ -413,6 +418,26 @@ export class ApprovalStore {
       throw new Error("approval denial requires a non-empty reason");
     }
 
+    // B-09b §3/§4: the durable decided record is the commit point and the
+    // first durable write wins. Any later decision attempt — a replay, a
+    // second decider, or a decide() over the pending-ghost intermediate a
+    // crash inside moveToDecided leaves (rename durable, rm(pending) lost) —
+    // receives the typed already-decided outcome referencing the original.
+    // It never flips the durable record and never mints a second grant.
+    if (existsSync(this.decidedPath(id))) {
+      const original = await readJson<ApprovalItem>(this.decidedPath(id));
+      throw new Error(
+        `approval ${id} is already decided (${original.decision ?? original.status} at ` +
+          `${original.decidedAt ?? original.raisedAt}); the original decision stands` +
+          (original.grantId !== undefined ? ` (grant ${original.grantId})` : ""),
+      );
+    }
+    // B-09b §1: an unknown item is a typed refusal naming the item — never a
+    // raw fs error surfaced from a missing pending file.
+    if (!existsSync(this.pendingPath(id))) {
+      throw new Error(`approval ${id} not found: no pending or decided record`);
+    }
+
     const pending = await readJson<ApprovalItem>(this.pendingPath(id));
     if (pending.status !== "pending") {
       throw new Error(`approval ${id} is not pending`);
@@ -505,8 +530,28 @@ export class ApprovalStore {
         } satisfies ApprovalLogEvent);
       }
     }
+    await this.reconcilePendingGhosts(now);
     await this.reconcileLegacyActorRetryStates();
     await this.reconcileUnreachableActorRetryHoming(now);
+  }
+
+  /** Repair the pending-ghost intermediate (B-09a §3). moveToDecided is
+   * rename-then-rm, so a crash between the two leaves the id in BOTH pending/
+   * and decided/; listPending would then re-offer an already-decided ask. The
+   * durable decided record is the commit point and wins: the surviving
+   * pending copy is removed and the repair is logged. Nothing here invents or
+   * alters a decision (B-09b §4 immutability — decide() independently refuses
+   * a ghost with the typed already-decided outcome). */
+  private async reconcilePendingGhosts(now: Date): Promise<void> {
+    for (const id of await listJsonIds(this.pendingDir())) {
+      if (!existsSync(this.decidedPath(id))) continue;
+      await rm(this.pendingPath(id), { force: true });
+      await appendJsonLine(this.logPath(), {
+        type: "pending-ghost-repaired",
+        id,
+        at: now.toISOString(),
+      } satisfies ApprovalLogEvent);
+    }
   }
 
   /** Re-home an approved-but-unexecuted shell action from `actor-retry` to
@@ -597,6 +642,20 @@ export class ApprovalStore {
         new Date(grant.expiresAt).getTime() <= now.getTime()
       ) {
         continue;
+      }
+      // B-09a §3: a grant whose owning decision has no durable decided record
+      // is a crash orphan — recognizable evidence, never usable authorization
+      // (INV-003: an executed critical op must have a prior persisted
+      // decision). decide() writes the grant before the item moves to
+      // decided/, so a mid-decide crash leaves exactly this shape; reconcile
+      // completes the decision, and until then the grant must not match. A
+      // decided-but-not-approved owner (denied, or repaired by the
+      // pending-ghost rule) never matches either.
+      {
+        const ownerPath = this.decidedPath(grant.approvalId);
+        if (!existsSync(ownerPath)) continue;
+        const owner = readJsonSync<ApprovalItem>(ownerPath);
+        if (owner.decision !== "approved") continue;
       }
       if (grant.scope === undefined) {
         if (grant.actionHash === input.actionHash) return grant;

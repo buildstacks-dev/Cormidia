@@ -1,0 +1,274 @@
+# LLM eval plan — Operon (product scope)
+
+Status: CONFIRMED at the Phase 5 gate (2026-07-31, round 4); human-ratified 2026-07-31 (F-PT-009/010/011 thresholds remain open — the inconclusive-only rule stands; ratification-package.md §9). <!-- AUD-105 -->
+Provenance: `[elicited]` = stakeholder Phase 5 ramble; `[doc]`; `[rambling]` cited;
+`[PROPOSED]` provisional (owner: human; expiry: first eval-campaign design review).
+Grounding rule: the archived qualification machinery is prohibited design input; where
+0–8 artifact scoring or campaign semantics are cited, the citation is the **live
+contract** `docs/qualification/design.md` (canonical record; machinery archived,
+gating suspended) `[doc]`.
+
+## 0. Standing rules (apply to every site)
+
+1. **Two layers, never collapsed.** Contract layer: deterministic, mocked provider,
+   layers 1–2, every commit, always green — tests our code. Quality layer: committed
+   golden set + rubric + threshold over N runs, layer 4 — prompt/model change, rotating
+   nightly shards, release qualification.
+2. **Guardrails enforce; evals measure** (INV-012, skill rule 5). Anything serious
+   enough to demand literal perfection becomes a deterministic gate where possible —
+   "the Reviewer usually notices secret leakage" is never security architecture
+   `[elicited]`; secret containment is INV-011's guardrail.
+3. **Stochastic claims get statistical designs** — a sample size and threshold, or
+   explicit human judgment; never a one-shot pass/fail coin flip that can block a
+   release `[rambling: Phase-6 coin-flip gate]`. Campaign verdicts are
+   `pass | fail | inconclusive`.
+4. **Qualification attaches to the complete assignment tuple** (harness, model,
+   effort — and for review, the builder/reviewer pairing), never to a provider logo;
+   pairs are never pooled into one comforting average `[elicited]`.
+5. **Golden sets are authored and committed before prompt tuning** (skill rule 6) and
+   double as the model-swap regression suite.
+6. **Economics:** offline/hermetic first; every token-spending campaign declares a
+   token ceiling and preserves partial evidence when the ceiling stops it; nightly work
+   rotates committed shards rather than re-running everything `[elicited]`
+   `[rambling: "trust AND afford"]`.
+7. **Trust boundary:** agent self-reported success is advisory; it never feeds
+   promotion, canary, or quality metrics (INV-012).
+
+## 1. Call-site inventory (families → sub-sites)
+
+Family map corrected per elicitation: same role ≠ same output contract or rubric.
+
+| Site | Sub-site | Type |
+|---|---|---|
+| S-1 EpisodePlanner | S-1a product planning (TicketPlan: `plan/bootstrap`, `plan/decompose`) · S-1b episode workflow design (delivery episodes) | planner |
+| S-2 Builder | S-2a contract pass · S-2b implement pass · S-2c fix/remediation pass | agentic worker |
+| S-3 Reviewer | S-3a ordinary review · S-3b ship-check review | judge |
+| S-4 SRE | S-4a scheduled health analysis · S-4b event-driven incident analysis | analyzer |
+| S-5 Audience | S-5a Support drafts · S-5b Marketing launch/changelog content · S-5c Marketing adoption/competitive analysis | drafter/analyzer |
+| S-6 Distiller | (single) | synthesizer |
+| S-7 Learning Reviewer | (single) | judge |
+| S-9 Format-repair retry | (single; same-session structure repair) | **contract-only** — valid structure is the whole job; no elegance rubric `[elicited]` |
+
+**Not a call site — conditioning surface:** brief/context assembly. Broken = wrong app,
+wrong authority, missing required source, undisclosed truncation, runtime constructed
+after required-source failure — all deterministic (INV-001/004, C-OP-PLAN §5, layers
+1–2). "Not great" = bloated/badly selected/technically-complete-but-unhelpful —
+evaluated **separately** as a conditioning-quality study correlated with downstream
+site performance, never pretended to be another model `[elicited]`.
+
+## 2. Per-site plans
+
+Format per llm-eval-patterns: contract layer (deterministic, every commit) · quality
+layer (golden set, rubric axes, threshold, cadence) · calibration/trajectory
+obligations. Broken/not-great lines are the stakeholder's `[elicited]`.
+
+### S-3 Reviewer — **first-funded golden set** `[elicited: "where plausible green
+becomes merged reality"; PR #182 the emotional center]`
+- **Contract (L1/2):** exactly one structured `VERDICT: APPROVE|REJECT` marker; parser
+  refuses zero/two; APPROVE-prose without marker → no review artifact (INV-012);
+  verdict→GitHub-review binding carries exact HEAD (INV-009); no effect from prose;
+  wrong-HEAD acceptance is machinery failure, not model failure.
+- **Quality (L4) — a judge, so the quality layer IS a meta-eval:**
+  - Seeded-defect set: planted defects by class and severity (correctness, security,
+    evidence-fabrication — "tests passed" with no run, wrong-candidate evidence —
+    contract violations, secret exposure) + clean-change controls.
+  - Metrics: catch rate **by defect severity**, false-positive rate on clean changes,
+    reported **per (builder-tuple × reviewer-tuple) pairing** — never pooled.
+  - Thresholds: **F-PT-009 (open owner decision)** — exact numbers, N, and the sample
+    design (defect/clean case counts, aggregation by severity and pairing, the
+    inconclusive rule) are unratified. The instinct numbers (serious-defect catch
+    ≥ 95%; clean FP ≤ 10% — each bounce buys a provider turn, the 42-decision incident
+    in a lab coat; N ≥ 3) are **budgeting hypotheses only**: an asserted threshold is a
+    decision rule, so **until ratified, runs collect data and every
+    threshold-dependent verdict is `inconclusive` — never `pass`, never `fail`, never
+    release-blocking, never green evidence** (owner ruling, 2026-07-31).
+- **Cadence:** prompt/model/reviewer-instruction change; release qualification; nightly
+  shard rotation.
+
+### S-1 Planner — second `[elicited: "its mistakes amplify"]`
+- **Contract (L1/2):** C-OP-PLAN §§1–2 — creator-scope conditions, schema validity,
+  acyclic DAG, approved tuples only, persistence before publication/delivery, no
+  dependency-blocked ticket marked ready. All deterministic validator territory (its
+  correctness is T-2/T-5-adjacent code, tested as guardrail).
+- **Quality (L4):** golden goal-set per sub-site (S-1a: bounded goals → TicketPlans;
+  S-1b: episode intents → workflow DAGs). Rubric axes: decomposition sanity (neither
+  seven tiny tickets for a two-line change nor one ticket containing three systems);
+  dependency correctness; acceptance-criteria usefulness (binary, testable, mapped);
+  role/step necessity; **proportionality — expected total process cost vs the work**
+  `[elicited; rambling: "not the 83-contract apparatus"]`. Threshold + sample design:
+  **F-PT-010 (open)** — the ≥ 85% / N ≥ 3 figures are budgeting hypotheses that came
+  from neither the owner nor the docs; same owner ruling applies (data collection only;
+  threshold-dependent verdicts `inconclusive` until ratified).
+
+### S-2 Builder — trajectory-first (cheap deterministic before any rubric)
+- **Contract (L1/2):** authority escape, out-of-boundary writes, skipped gates,
+  malformed required artifacts, unaccounted spend — all guardrail territory
+  (INV-001/002/004/006, B-16), tested as guardrails; never graded as model virtue
+  ("budget respected" is code, not a personality trait `[elicited]`).
+- **Trajectory checks (deterministic, over existing run telemetry — envelope tool
+  counts, events, ledger) — split by decision status** `[owner correction]`:
+  - **Pass/fail assertions (ratified grounds only):** the documented ledger/route
+    limits (per-turn USD cap, plan-derived route budgets: equivalent cost, provider
+    turns, active time, human decisions `[doc: episodes contract]`) — asserted as
+    *detection that enforcement fired*, since enforcement itself is code; the
+    documented runlog anomaly detectors (`envelope.tool_counts`-fed, all five can fire
+    `[doc]`) — asserted as *the detector fired on its trigger*; escalation when
+    required (blocked/returned as typed outcomes); paid work not discarded on resume
+    (B-03 rule).
+  - **Registered provisional (may assert once ratified):** repeat-loop signature —
+    same tool + same args + same failure N×, PROPOSED N=3 (register entry 11).
+  - **Observed metrics only (no pass/fail — unratified heuristics):** tool-call
+    counts, environment-fiddling churn. Reported per run for calibration; a bound may
+    be registered later if evidence justifies one.
+- **Quality (L4, later — separate scaffold `golden-sets/builder-quality/`):** per
+  sub-site rubric — result-correctness vs product intent, test depth, implementation
+  economy ("twenty tool calls where five would do" is not-great, not broken).
+  Threshold + sample design: **F-PT-011 (open umbrella)**. Deferred until Reviewer +
+  Planner sets exist (priority order `[elicited]`). **The deterministic trajectory
+  suite never stands in for this surface and never masquerades as model-swap quality
+  evidence** `[owner correction]`.
+
+### S-4 SRE (S-4a scheduled / S-4b incident)  *(threshold status: see below)*
+- **Contract:** analysis-complete ≠ incident-filed (separate claims, J-11); source-event
+  identity preserved; unavailable evidence never rendered healthy (INV-008); filing goes
+  through the typed executor, never model publication.
+- **Quality:** grounded-diagnosis rubric (likely-cause plausibility, actionable checks,
+  noise discipline — "screams incident at normal noise" is the FP axis). Golden set
+  from synthetic health fixtures (gamma-class). Threshold + sample design: **F-PT-010
+  (open)** — the ≥ 80% / N ≥ 3 figures are budgeting hypotheses; data collection only,
+  threshold-dependent verdicts `inconclusive` until ratified.
+
+### S-5 Audience (S-5a Support / S-5b Marketing content / S-5c Marketing analysis)
+- **Contract:** internal drafts only; publication only via exact-payload approval
+  (B-17); secret boundary (INV-011); app attribution (INV-004); no invented evidence
+  (INV-012).
+- **Quality — separate rubrics, never one score** `[elicited]`: S-5a groundedness /
+  answers-the-actual-complaint / usefulness; S-5b truthful positioning / audience fit /
+  cheap-to-edit; S-5c signal fidelity / synthesis usefulness. Human edit-distance is a
+  scorecard signal only when split into "wording polish" vs "rewrote the factual
+  claim" `[elicited]`. Threshold + N + sample design: **OPEN — F-PT-011**
+  (inconclusive-only until ratified). Cadence: per-site prompt/model change (see
+  `golden-sets/support/`, `marketing-content/`, `marketing-analysis/`). Golden sets
+  later (channels are fixture-backed today).
+
+### S-6 Distiller (later golden set — output inert by design)
+- **Contract:** provenance preservation; secret boundary; writes only candidate/
+  proposal paths (B-11); no self-promotion (INV-012).
+- **Quality:** anti-overgeneralization (one incident ≠ universal rule); dedup;
+  cause-vs-symptom; reusability specificity. Threshold + N + sample design: **OPEN —
+  F-PT-011** (inconclusive-only until ratified). Cadence: distiller prompt/model
+  change (see `golden-sets/distiller/`).
+
+### S-7 Learning Reviewer (serious judge set, after S-3)
+- **Contract:** fail-closed structured verdicts; rejection ledger; no activation
+  authority (B-11).
+- **Quality (meta-eval):** seeded set of good / poisoned / seductive-but-unsupported /
+  duplicate / **authority-widening-if-accepted** candidates; catch rate + FP rate (a
+  reviewer that rejects every lesson is a perfectly safe system that never learns
+  `[elicited]`). Threshold + N + sample design: **OPEN — F-PT-011** (especially
+  consequential: scores inadmissible until this calibration set exists AND its
+  thresholds ratify — plan §3). Cadence: learning-reviewer prompt/model change; must
+  run before score admission (see `golden-sets/learning-reviewer/`). Sequenced after
+  S-3 because activation is human-gated and candidates start inert.
+
+### S-9 Format-repair retry
+- **Contract only:** produces valid structure in the same session; bounded attempts;
+  settlement per turn (INV-006). No quality rubric, ever `[elicited]`.
+
+## 3. Judge calibration rule
+
+Any judge site (S-3, S-7 — and any judge the qualification replacement introduces,
+which thereby becomes a call site with its own calibration obligation `[elicited]`)
+must have its meta-eval (seeded catch rate + clean FP rate) run and admitted **before**
+its scores are admissible as evidence anywhere downstream.
+
+## 4. Model-swap procedure `[rambling: "safe, boring operation"]`
+
+1. Candidate tuple runs the **existing committed golden sets first** — before any
+   prompt tuning around its failures.
+2. Results per call site × assignment tuple; a model may qualify for S-5 and fail S-3 —
+   valid outcome; "better average" never conceals regression at the merge boundary.
+3. Swap acceptance = per-site deltas within threshold vs the currently qualified
+   tuple's recorded results — comparative, never an absolute score floating in space.
+4. Verdict `pass | fail | inconclusive`; inconclusive → human judgment, never limbo,
+   never a coin-flip veto.
+
+## 5. Release-qualification replacement (design owed; gating currently SUSPENDED)
+
+The replacement campaign, when built, owes `[elicited, adopted as the design bar]`:
+1. Identity: exact commit, prompts, model/effort assignments, golden-set version,
+   policy identity.
+2. Deterministic contracts green first — no token-spending eval compensates for a red
+   guardrail.
+3. Seeded bad cases + clean controls; skipped/missing runs counted incomplete, never
+   silently removed.
+4. Reviewer results by defect severity and provider pairing, FP beside catch rate.
+5. Judge calibration before judge-produced scores are admitted.
+6. Comparison against the currently qualified assignment.
+7. Negative controls proving the harness turns red for known-bad outputs (skill rule
+   16 applied to evals).
+8. Bounded cost + a concise human-review packet focused on disagreements and
+   regressions.
+9. Verdict `pass | fail | inconclusive` — no one-shot coin flip promoted into a
+   release veto.
+Until this exists, release gating remains SUSPENDED and no surface may imply
+otherwise (INV-008; interim green-by-absence is not release evidence `[walk]`).
+
+## 6. CI cost tiering (→ validation-policy.yaml)
+
+| Lane | What runs | Cadence | Spend |
+|---|---|---|---|
+| Contract layer (all sites) | schema/marker/envelope/guardrail tests, mocked provider | every commit | none |
+| Trajectory assertions | deterministic telemetry checks over hermetic runs | every commit | none |
+| Quality evals (per site) | full committed golden set | prompt/model/instruction change for that site; release qualification | token ceiling declared per campaign |
+| Nightly | rotating committed shards | nightly (when scheduled validation exists) | small declared ceiling |
+| Meta-evals | judge calibration sets | judge prompt/model change; before admitting judge scores | declared ceiling |
+| Swap campaigns | §4 procedure | on candidate model/tuple | declared ceiling |
+
+Partial evidence at ceiling-stop is preserved and reported incomplete — never
+discarded, never rendered green (INV-008/014).
+
+## 7. Golden-set scaffolds
+
+`golden-sets/` holds **eleven** directories: nine statistical golden sets (reviewer,
+planner, **builder-quality**, sre, support, marketing-content, marketing-analysis,
+distiller, learning-reviewer), one deterministic suite (builder-trajectory — exempt
+from rubric/threshold fields, marked N/A), and `brief-conditioning/` (the §1
+conditioning-surface study — NOT a model golden set; threshold N/A, never gates).
+Every **statistical** scaffold carries: rubric axes; threshold and sample-size status
+(OPEN with its owning finding where unknown); cadence; qualifying tuple dimensions;
+case schema + provenance requirements; and an explicit `SCAFFOLD/UNPOPULATED` status
+noting it cannot support model-swap or qualification evidence yet. Deterministic/study
+scaffolds carry the same headers with N/A where a field does not apply. Authoring
+priority `[elicited]`: **1) reviewer/ 2) planner/ 3) builder-trajectory/**, then the
+rest.
+
+## 8. Findings raised
+
+- **F-PT-009 (open — owner decision):** Reviewer thresholds (serious-defect catch,
+  clean-change FP), N, and the sample design (case counts per defect class and clean
+  pool; aggregation by severity and by builder×reviewer pairing; the rule that flips a
+  result to `inconclusive`) are unratified. Numbers on file are budgeting hypotheses.
+  **Owner ruling (2026-07-31): until ratified, runs collect data; every
+  threshold-dependent verdict is `inconclusive`, never release-blocking, never green
+  evidence.** Per-pairing reporting mandatory regardless.
+- **F-PT-010 (open):** Planner (≥85%) and SRE (≥80%) thresholds and their sample
+  designs are unratified budgeting hypotheses that originated from neither owner nor
+  docs; the same owner ruling applies.
+- **F-PT-011 (open — umbrella, site-specific decisions):** thresholds, N, and sample
+  designs for the later quality sets — Builder quality, Support, Marketing content,
+  Marketing analysis, Distiller, Learning Reviewer — are undecided, **plus the
+  brief-conditioning study's non-gating sampling design** (variant pairs per
+  downstream site, minimum pair counts — a study-design decision, never a gate). Each site's
+  decision is individually owned by the human; until ratified, the §9 rule applies
+  (data collection, `inconclusive` only). The Learning Reviewer entry is especially
+  consequential: its scores stay inadmissible until its calibration set exists and its
+  thresholds ratify (plan §3).
+
+## 9. Decision-status rule (applies plan-wide)
+
+No PROPOSED or hypothesis-status number in this plan may produce a `pass` or `fail`
+verdict. Until the owning finding is ratified, quality campaigns run in
+**data-collection mode** and report `inconclusive` for every threshold-dependent
+outcome. Deterministic contract-layer checks are unaffected — they assert ratified
+behavior, not statistical thresholds.

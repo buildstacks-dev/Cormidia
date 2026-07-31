@@ -1,0 +1,84 @@
+# validation-design/ — START HERE
+
+<!-- changelog: added 2026-07-31 after Phase 8 reader test (operator findings 1,2,3,4,5,6,7,9) -->
+
+## What this corpus is — and is not
+
+This is the **design** of Operon's replacement validation harness (campaign
+operon-2026-07-31, validation-harness-design skill, Phases 0–8). It defines what must
+be tested, where, and why. It is **not**:
+
+- **A statement of deployed reality.** Nothing here tells you whether the scheduler is
+  installed or an app is live *right now* (finding F-PT-002 — resolved 2026-07-31 with
+  a dated snapshot, see ratification-package.md §9; live state still comes from the
+  product). For live state, use
+  the product: `operon scheduler status`, `operon status`, `operon doctor` — documented
+  in the product's `docs/`, not here.
+- **An incident runbook.** There is no alert→action mapping here. Triage sequencing is
+  an operational deliverable owed at harness *implementation* time (ticket HB-080 in
+  harness-backlog.md, converted from the ratification-package open item). What this corpus does give an operator:
+  severity (system-map.md §5.2, T-1…T-12), what must never break (invariants.md), and
+  expected behavior per contract.
+- **Self-contained product truth.** `[doc]`-tagged claims are *derived from* the
+  product's `./docs/` corpus, which remains authoritative for command syntax, schemas,
+  and paths. This working map makes the derivation surface explicit; it does not
+  replace the docs.
+
+## Read in this order
+
+1. `scope-and-module-map.md` — what's in scope, module map M1–M15.
+2. `system-map.md` — journeys J-01…J-18, state ownership, criticality tier (§5).
+3. `invariants.md` — OPERON-INV-001…015 (what must never break).
+4. `boundary-map.md` — B-01…B-17, failure modes, honest-fake verdicts.
+5. `contracts/` — per-boundary + operation contracts, journey acceptance criteria.
+6. `risk-allocation.md` — E-1/E-2/E-3 exhaustive families, thin lanes, spend/soak.
+7. `llm-eval-plan.md` + `golden-sets/` — the statistical lane.
+8. `case-catalog.md` — every derived case family, matrix-closed.
+9. `validation-policy.yaml` — the machine-readable contract (audit diff surface).
+10. `harness-backlog.md` — ticket-shaped build plan (walking skeleton first).
+11. `agents-md-contribution.md` — repo routing (ratified 2026-07-31; binding once
+    landed in AGENTS.md).
+12. `elicitation-log.md` / `harness-design-state.md` — provenance and gate history.
+13. `ratification-package.md` — what a human must decide to make this binding
+    (created at the final campaign gate; **ratified 2026-07-31** — its §9
+    "Ratification record" is the disposition of every decision).
+
+## Warnings a tired reader needs up front
+
+- **Ratified 2026-07-31** (`validation-policy.yaml` `design_status: ratified`). The
+  stakeholder seat this campaign was an AI grounded in docs + the owner's notes; the
+  product owner ratified the package in session on 2026-07-31 — explicit decisions
+  vs ratified-by-adoption are distinguished in ratification-package.md §9.
+  <!-- ratification 2026-07-31: was "Everything here is DRAFT pending human
+  ratification" -->
+- **Release gating is SUSPENDED** (product decision, PURPOSE v2.9) and **B-17's live
+  deploy/publication cell is BLOCKED** — should a deploy/publication-shaped incident
+  occur, it would be operating in the least-verified part of the system. <!-- AUD-109 --> No surface may imply a gate
+  exists.
+- **Eleven product-truth findings are tracked; two still block cases** (F-PT-006/008).
+  If an incident touches one of those seams — partial/duplicate event files, grant
+  expiry disposition — the artifacts deliberately encode **no
+  expected behavior**. That is honesty, not coverage: escalate to the human, don't
+  infer. F-PT-003/004/007 were ratified 2026-07-31 (budget-pause convergence:
+  pause holds, exactly one item; ambiguous worktree bytes: preserve-and-inspect;
+  bootstrap concurrent edit: compare-and-refuse preserving human bytes) — their
+  contracts are now encoded. <!-- ratification 2026-07-31: was "five block cases" -->
+- **`inconclusive` is currently the only possible verdict for every quality
+  threshold** (F-PT-009/010/011; eval-plan §9). Reading `inconclusive` as "probably
+  fine" is wrong: it means *no gate exists here yet, by design*.
+
+## ID glossary (one page, all namespaces)
+
+| Prefix | Meaning | Defined in |
+|---|---|---|
+| `M1…M15` | modules | scope-and-module-map.md §2 |
+| `J-01…J-18` | journeys | system-map.md §1.3 |
+| `T-1…T-12` | C3 control points (function-scoped risk) | system-map.md §5.2 |
+| `OPERON-INV-001…015` (alias INV-NNN) | invariants | invariants.md |
+| `B-01…B-17` (B-09a/b split) | boundaries | boundary-map.md |
+| `OPERON-C-…-001` (aliases B-NN, C-OP-*) | contracts | contracts/ headers + journey-acceptance.md alias table |
+| `S-1…S-7, S-9` | LLM call sites (S-8 intentionally absent) | llm-eval-plan.md §1 |
+| `E-1/E-2/E-3, STD, THIN, FLOOR, L4Q` | risk allocation vocabulary | risk-allocation.md §2, case-catalog.md header |
+| `CF-*` | case families | case-catalog.md |
+| `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31, HB-P3/P5 still parked) | harness-backlog.md |
+| `F-PT-001…011` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |

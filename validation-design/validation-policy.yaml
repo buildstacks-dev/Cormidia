@@ -1,0 +1,260 @@
+# validation-policy.yaml — Operon replacement harness
+# This file is the contract a future validation-harness-audit diffs conformance
+# against. Status: RATIFIED by the product owner 2026-07-31 (in session; record in
+# ratification-package.md -> "Ratification record — 2026-07-31").
+# Every decision here traces to the campaign artifacts under validation-design/.
+# Tighten-only: a narrower module policy may tighten, never loosen, anything here.
+# changelog 2026-07-31 (final-gate refusal): rewritten to parse as valid YAML with
+# owner/trigger as separate keys; artifacts registry completed (readme, agents-md
+# contribution, policy self-reference); B-17-live renamed B-17-L3; F-PT-006/007/008
+# statuses corrected to open-blocked-contract.
+# changelog 2026-07-31 (ratification): design_status -> ratified; release_campaign
+# spend amended (24 turns / $100); F-PT-002 resolved with recorded facts;
+# F-PT-003/004/007 resolved-ratified (their sentences are contract truth);
+# F-PT-005 human-ratified by adoption. F-PT-006/008/009/010/011 remain open.
+
+schema_version: 1
+scope: product
+product: operon
+campaign: operon-2026-07-31
+design_status: ratified
+ratified_on: 2026-07-31
+ratified_by: "product owner (human), in session; record: ratification-package.md -> Ratification record — 2026-07-31"
+
+default_tier: C2
+tier_model:
+  base: C2
+  c3_control_points:            # function-scoped, system-map.md section 5.2
+    [T-1, T-2, T-3, T-4, T-5, T-6, T-7, T-8, T-9, T-10, T-11, T-12]
+  c1_leaves: "presentation cosmetics, help text, narrative rendering, cache economics"
+  recovery: "tier multiplier - inherits the tier of the journey it recovers"
+
+artifacts:                       # design root now; moves with the harness to claude-tests/
+  readme: ./README.md
+  policy: ./validation-policy.yaml           # this file
+  scope_module_map: ./scope-and-module-map.md
+  system_map: ./system-map.md
+  invariants: ./invariants.md
+  boundary_map: ./boundary-map.md
+  contracts: ./contracts/
+  risk_allocation: ./risk-allocation.md
+  case_catalog: ./case-catalog.md
+  llm_eval_plan: ./llm-eval-plan.md
+  golden_sets: ./golden-sets/
+  harness_backlog: ./harness-backlog.md
+  agents_md_contribution: ./agents-md-contribution.md
+  elicitation_log: ./elicitation-log.md
+  design_state: ./harness-design-state.md
+  ratification_package: ./ratification-package.md
+
+implementation_root: claude-tests/          # per docs/PURPOSE.md v2.9
+protected_paths:
+  - path: "archive-do-not-read/**"
+    rule: "never read, cite, run, or take design cues from"   # ratified Phase 0
+coexistence:
+  posture: clean-slate-greenfield            # incumbent archived, not incumbent
+  incumbent: "archived (no coexistence obligations beyond protected_paths)"
+
+invariants:                                  # registry; statements in invariants.md
+  ids: [OPERON-INV-001, OPERON-INV-002, OPERON-INV-003, OPERON-INV-004,
+        OPERON-INV-005, OPERON-INV-006, OPERON-INV-007, OPERON-INV-008,
+        OPERON-INV-009, OPERON-INV-010, OPERON-INV-011, OPERON-INV-012,
+        OPERON-INV-013, OPERON-INV-014, OPERON-INV-015]
+  non_discretionary_floors: [OPERON-INV-001, OPERON-INV-011, OPERON-INV-015]
+  enforcement: "see invariants.md per item (guardrail+test for all; INV-013 reader-side guardrail)"
+
+layers:                                      # the audit's diff surface
+  L1_invariant_contract:
+    status: designed
+    cadence: every_commit
+    runner: "vitest + fast-check (bounded deterministic seeds)"
+    content: "invariant guardrail tests, contract clause tests, LLM contract layer, trajectory pass/fail assertions (ratified grounds only)"
+  L2_hermetic:
+    status: designed
+    cadence: every_commit
+    fixtures: "owned in-process fakes (GitHub double, fake App Server JSON-RPC, mocked adapters, fake clock, kill-point process harness) plus real temp git repos/worktrees/org+state homes; mock across boundaries, never inside"
+    conformance_pairs: "same suite runs against fake and real dependency (drift guard)"
+  L3_live_sandbox:
+    status: designed
+    runner: "separate opt-in vitest live config"
+    obligations:
+      - id: CF-B01-L3            # GitHub smoke
+        target: "sandbox repos (apps.yaml sandbox class)"
+        trigger: "merge/review/branch/auth code changes; release"
+      - id: CF-B02-L3
+        target: "real Anthropic adapter"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; release"
+      - id: CF-B03-L3
+        target: "real Codex App Server"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; release"
+      - id: CF-B04-L3
+        target: "real pi session (real denied forbidden attempt required)"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; release"
+      - id: CF-J16-A             # launchd lifecycle proof (launchd only; systemd when droplet supported)
+        target: "uniquely identifiable test definition on the real host"
+        trigger: "install/upgrade; release when definition/identity/loading changes; material host/macOS change"
+      - id: CF-J18-A             # unattended sandbox campaign
+        target: "sandbox org + sandbox repos under the test-mode profile (below)"
+        trigger: "release qualification"
+      - id: B-17-L3
+        status: BLOCKED
+        reason: "no disposable real non-GitHub deploy/publication target exists"
+        unblock: "a sandbox app declares a real, disposable release: target"
+        note: "no green L3 claim follows from this status"
+    spend_policy:                            # human-ratified 2026-07-31 (release ceiling amended at ratification)
+      pre_merge_adapter_campaign:
+        scope: "changed adapter only"
+        max_provider_turns: 2
+        max_equiv_usd: 5
+      release_campaign:
+        scope: "all adapters + GitHub + unattended profile"
+        # ratification 2026-07-31: raised from 6 turns / $15 at the owner's direction —
+        # "I don't want the test to be stopped just because of some repeat things";
+        # retries/repeat turns must not abort a campaign. The ceiling remains a hard
+        # bound, raisable only by a human policy edit.
+        max_provider_turns: 24
+        max_equiv_usd: 100
+      on_ceiling_exhaustion: "completeness=incomplete; verdict per verdict_semantics (never pass)"
+  L4_eval:
+    status: "designed (all quality thresholds unratified - decision-status rule below)"
+    runner: "hand-rolled runner over golden-sets/ (plain files in git)"
+    sites: "S-1..S-7 and S-9 per llm-eval-plan.md (S-8 intentionally absent)"
+    decision_status_rule: >
+      No PROPOSED/hypothesis threshold yields pass or fail. Until the owning finding
+      (F-PT-009/010/011) ratifies, campaigns run in data-collection mode and report
+      inconclusive for every threshold-dependent outcome. Judge scores (S-3, S-7)
+      are inadmissible until their calibration sets exist AND thresholds ratify.
+    cadence: "per-site prompt/model/instruction change; release qualification; nightly rotating shards (when scheduled validation exists); token ceiling declared per campaign; partial evidence preserved"
+  L5_ops:
+    status: designed
+    obligations:
+      - id: CF-OPS-CONT          # contention (L5 by question; hermetic rig)
+        design: ">=10 due candidates, >=3 apps, duplicate (app,role) stimuli, simultaneous terminal settlement; six proof obligations (risk-allocation section 6)"
+        owner: human
+        trigger: "pre-GA; repeat on material scheduler/locking change"
+      - id: CF-OPS-SOAK          # 7-day laptop soak, owner-ratified
+        design: "7 calendar days ordinary laptop use, >=3 sleep/wake cycles (1 overnight), sandbox only, 15 USD ceiling; inspection list per risk-allocation section 6"
+        owner: human
+        trigger: "initial autonomous qualification; repeat on material scheduler/locking/settlement/retention/shape change"
+      - id: CF-OPS-ROT           # Codex natural rotation sub-obligation (own evidence)
+        parent: CF-OPS-SOAK
+        rule: "no natural rotation observed => completeness=incomplete, never assumed covered"
+      - id: threat-model         # owner-ratified scope + timing; human-confirmed 2026-07-31
+        design: "STRIDE-style pass over boundary-map; scope = trust boundaries behind all C3 control points (ten surfaces, risk-allocation section 6)"
+        owner: human
+        note: "human-authored (confirmed at ratification 2026-07-31); sits on the critical path to release-gating reactivation"
+        due_before_earliest_of: [release_gating_reactivation, droplet_migration, first_non_sandbox_production_onboarding]
+        review_trigger: "material trust-boundary/deployment-shape/adapter-capability/reachable-surface change"
+      - id: secret-hygiene
+        design: "gitleaks in CI - pinned version+config, fail-closed invocation, generated temporary canary proving detection, no broad fixture allowlists"
+        owner: human
+        cadence: every_ci_run
+      - id: abuse-lane
+        status: "deferred_declared (behind ratified threat model)"
+        interim_floor: "INV-001/002/011/015 adversarial families"
+
+verdict_semantics:                           # owner-ratified
+  completeness: [complete, incomplete]
+  verdict: [pass, fail, inconclusive]
+  rules:
+    - "proven violation => fail even with missing runs"
+    - "otherwise incomplete => inconclusive"
+    - "incomplete never produces pass; not a fourth verdict"
+
+unattended_test_mode_profile:                # canonical definition (B-09b cross-ref)
+  status: "human-ratified as shaped 2026-07-31; pending product implementation in Operon (HB-054 gate)"
+  applies_to: "sandbox orgs only"
+  effect: "the allowed validation path requires zero human approval decisions (designed auto-grant categories, e.g. budget-tier items, within the profile)"
+  prohibitions:
+    - "never forge human decisions under a robot identity"
+    - "external publication remains hard-gated"
+    - "any non-sandbox repo/effect remains hard-gated"
+  evidence_required: [profile_identity, sandbox_target, permitted_auto_grant_categories, zero_human_decision_rows]
+  provenance: "[doc: PURPOSE v2.9] + [rambling] + owner rulings"
+
+release_gating:
+  status: SUSPENDED                          # docs/PURPOSE.md v2.9
+  interim: "green-by-absence is not release evidence (INV-008); no surface may imply a gate"
+  replacement_obligation: "llm-eval-plan.md section 5 (nine requirements, proportionate)"
+  owner: human
+  blocking: "release gating may not reactivate before the threat model exists (see L5 threat-model due_before_earliest_of)"
+
+ci:
+  host: github-actions
+  per_commit: [L1, L2, gitleaks]
+  per_commit_gate_class: "blocking - the per-commit lane (L1, L2, gitleaks) is wired as a required check; a red or incomplete lane blocks merge; fail-closed"
+  gate_classes: "no advisory or waived gates exist in this design; triggered lanes (L3/L4/L5) gate their own layer's claims per the per-layer expansion-gate rule, never merge"
+  # changelog 2026-07-31 (audit AUD-103): blocking/advisory/waived classification was undeclared; declared here (fail-closed default made explicit)
+  per_commit_wall_clock_target: "5 minutes - PROPOSED reported optimization target; once ratified, timeout => completeness=incomplete, never green"
+  triggered: "L3 per obligations above; L4 per site cadence; L5 per obligations"
+  rule: "trigger conditions live in CI config AND in this file - removing a gate in CI without a policy change is a policy violation"
+
+tooling:
+  selected: [vitest, fast-check, owned-in-process-fakes-plus-real-temp-git,
+    vitest-live-config, hand-rolled-eval-runner, stride-threat-model-doc,
+    bespoke-contention-rig, soak-protocol, gitleaks-pinned, github-actions]
+  rejected:
+    - option: jest
+      reason: "no advantage over vitest; older ESM story"
+    - option: testcontainers
+      reason: "no DB/queue boundary; Docker dependency on laptop-first workflow"
+    - option: vcr-cassettes
+      reason: "silently stale; cannot script failure modes"
+    - option: promptfoo
+      reason: "fights per-pairing/severity aggregation and the decision-status rule; second framework surface"
+    - option: hosted-eval-platforms
+      reason: "data leaves the box; recurring cost; auth surface; anti-local-first"
+
+proposed_register:                           # provisional values; owner: human
+  expiry_items_1_to_8_and_13: "first harness build review (HB-007 tripwire)"
+  expiry_items_9_to_12: "first eval-campaign design review"
+  items:
+    - {id: 1, value: "GitHub retry budget 3 attempts, exponential backoff, per operation"}
+    - {id: 2, value: "liveness-identity mechanism (semantic ratified: survive PID reuse)"}
+    - {id: 3, value: "descendant-cleanup mechanism (semantic ratified: terminate owned tree)"}
+    - {id: 4, value: "preview->execute exact-hash comparison on depended-on surfaces"}
+    - {id: 5, value: "index.lock wait <=30s, never delete/steal a foreign lock"}
+    - {id: 6, value: "hooks-disabled managed clones (core.hooksPath empty)"}
+    - {id: 7, value: "per-gate timeout default 15min (contract: explicit bound surfaced in evidence)"}
+    - {id: 8, value: "candidate-mutation detection mechanism (scope ratified: candidate HEAD + tracked/decision-relevant diff + governed generated paths)"}
+    - {id: 9, value: "S-3 thresholds >=95% / <=10% / N>=3 (F-PT-009; budgeting only - inconclusive rule)"}
+    - {id: 10, value: "S-1 >=85% / N>=3 (F-PT-010; budgeting only)"}
+    - {id: 11, value: "repeat-loop signature N=3 (assert only once ratified)"}
+    - {id: 12, value: "S-4 >=80% / N>=3 (F-PT-010; budgeting only)"}
+    - {id: 13, value: "CI per-commit wall-clock target 5min (reported target only)"}
+
+open_findings:
+  # SINGLE SOURCE OF TRUTH for the finding list; harness-design-state.md mirrors it.
+  # New findings: next F-PT-nnn id here first, mirror to design-state, park dependent
+  # cases as BLOCKED:<finding> in case-catalog.md (procedure: agents-md-contribution.md).
+  - {id: F-PT-002, status: resolved-ratified, resolved: 2026-07-31, subject: "active-org/scheduler state unknown from corpus",
+     resolution: "verified read-only 2026-07-31: active org selector ~/.operon/config points org_home=/Users/bikram/Build/sonnet1-org, state_home=~/.operon/Buildstacks (recorded 2026-07-24); exactly one registered app, sonnet8-buildstack-dev (repo buildstacks-dev/sonnet8-buildstack-dev), status live; scheduler NOT installed (no scheduler state dir, no operon launchd jobs) — all turns human-invoked; two residual partial state homes (~/.operon/operon — dogfood-era invocations/state residue; ~/.operon/questionnaire — partial onboarding lifecycle residue) are not active orgs"}
+  - {id: F-PT-003, status: resolved-ratified, resolved: 2026-07-31, subject: "budget-pause crash convergence",
+     resolution: "contract truth: pause holds; exactly one budget-exceeded item eventually — HB-P1 unparked"}
+  - {id: F-PT-004, status: resolved-ratified, resolved: 2026-07-31, subject: "scratch-vs-protected worktree bytes",
+     resolution: "contract truth: ambiguous uncommitted worktree bytes are preserved-and-inspected, never reset — HB-P2 unparked"}
+  - {id: F-PT-006, status: open-blocked-contract, subject: "event producer visibility protocol + duplicate identity"}
+  - {id: F-PT-007, status: resolved-ratified, resolved: 2026-07-31, subject: "bootstrap concurrent-edit outcome",
+     resolution: "contract truth: concurrent human edit of a bootstrap-owned path between validation and write yields compare-and-refuse, preserving human bytes — HB-P4 unparked"}
+  - {id: F-PT-008, status: open-blocked-contract, subject: "grant-expiry item disposition"}
+  - {id: F-PT-009, status: open, subject: "reviewer thresholds + sample design"}
+  - {id: F-PT-010, status: open, subject: "planner/SRE thresholds + sample designs"}
+  - {id: F-PT-011, status: open-umbrella, subject: "later-site thresholds + brief-conditioning sampling"}
+  - {id: F-PT-001, status: resolved-by-docs, subject: "redaction scope"}
+  - {id: F-PT-005, status: resolved-ratified, resolved: 2026-07-31, subject: "subscriber-set cutoff",
+     resolution: "simulated-seat derivation human-ratified by adoption 2026-07-31: added subscribers inherit pending events; removed subscribers cease blocking retirement"}
+
+case_sourcing:
+  # SINGLE SOURCE OF TRUTH for the detector-deposit rule (other files reference this block).
+  - "acceptance criteria land with every feature (contracts/journey-acceptance.md format)"
+  - "adversarial derivation from invariants as the system evolves"
+  - "every production bug deposits its regression detector in the same change; every bad LLM output in prod becomes a golden case (non-negotiable)"
+  - "evidence-deposit rule: deterministic defects found at L3/L4 deposit L1/L2 detectors in the same change"
+  - "structural mismatch => re-enter validation-harness-design in harness-revision mode; never pile cases onto a wrong shape"
+
+harness_self_tests:                          # skill rules 16-17
+  - "every detector family lands red-then-green against a seeded violation (negative control)"
+  - "fixtures get self-tests; sweeps assert non-empty walks; policy loader, CI config, and registry surfaces pinned by tests"
+  - "gitleaks canary proves the scanner can fire"
+
+modules: []                                  # product scope; later deep passes (M10 lifecycle, M13 learning) extend here

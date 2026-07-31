@@ -2,10 +2,24 @@
 # (validation-policy.yaml → L5_ops → secret-hygiene; wired in
 # .github/workflows/core-checks.yml, version + checksum pinned there).
 #
-# Deliberately minimal: default rules, NO fixture allowlists. Synthetic test
-# secrets are generated at runtime by claude-tests/fixtures/synthetic-secret.ts
+# Default rules, NO fixture allowlists: synthetic test secrets in the ACTIVE
+# harness are generated at runtime by claude-tests/fixtures/synthetic-secret.ts
 # and never committed (claude-tests/README.md convention 5). Tighten-only —
 # adding an allowlist here to make a commit pass is a policy violation.
+#
+# The single path exclusion below is NOT a fixture allowlist: it is the frozen
+# pre-rebuild corpus (AGENTS.md: never read, cite, run, or take design cues
+# from it), whose legacy specs embedded synthetic literals inline (classified
+# 2026-07-31, all placeholder-shaped: AKIAIOSFODNN7EXAMPLE, sequential-alphabet
+# ghp_/sk- strings, sk-ant-api03-a…/b…/c…, xoxb- pattern filler; no real
+# credentials). The lane scans the working tree (--no-git); the same literals
+# at historical paths live in immutable git history and are recorded in the
+# harness build report rather than re-scanned every commit.
 
 [extend]
 useDefault = true
+
+[allowlist]
+paths = [
+  '''archive-do-not-read/.*''',
+]

@@ -240,6 +240,14 @@ open_findings:
   - {id: F-PT-009, status: open, subject: "reviewer thresholds + sample design"}
   - {id: F-PT-010, status: open, subject: "planner/SRE thresholds + sample designs"}
   - {id: F-PT-011, status: open-umbrella, subject: "later-site thresholds + brief-conditioning sampling"}
+  # Findings F-PT-012..016 opened 2026-07-31 during Wave-1 harness implementation
+  # (procedure: agents-md-contribution.md). Each is a genuine design ambiguity a
+  # suite surfaced; dependent cases are parked BLOCKED:<finding> in case-catalog.md.
+  - {id: F-PT-012, status: open, subject: "app-reset execute order: ratified prose (registry removal before local clears, OP-lifecycle §6) vs deliberate code design (local clears first; registry removal as atomic commit point, app-reset.ts finalizeInterruptedAppReset)"}
+  - {id: F-PT-013, status: open, subject: "direct git push to the remote default branch classifies routine: enforcement locus (gate classifier vs loop-level guard holding default-branch state) undecided (INV-009 adjacency)"}
+  - {id: F-PT-014, status: open, subject: "INV-003 names 'outside-worktree actions' never-broadly-scopeable, but NEVER_SCOPEABLE_RULES has no mapping for that category (nearest classes are human-widenable today)"}
+  - {id: F-PT-015, status: open, subject: "B-14 §4 bootstrap re-run semantics: product refuses outright (assertNotExists) vs contract text 'idempotent; marked block replaced in place; .operon regenerated deterministically'"}
+  - {id: F-PT-016, status: open, subject: "publish-origin identity comparison ownership: bootstrap publish pushes to an origin that is not the registered repo (no comparison exists); B-14 §3 wrong-remote vs B-15 remote-identity split unresolved"}
   - {id: F-PT-001, status: resolved-by-docs, subject: "redaction scope"}
   - {id: F-PT-005, status: resolved-ratified, resolved: 2026-07-31, subject: "subscriber-set cutoff",
      resolution: "simulated-seat derivation human-ratified by adoption 2026-07-31: added subscribers inherit pending events; removed subscribers cease blocking retirement"}

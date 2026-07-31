@@ -99,7 +99,7 @@ journey-acceptance.md alias table.
 | CF-J12-RC | re-run completed transaction no-ops; rejection ledger suppresses re-publish | 2 | state | E1 |
 | CF-J12-A | states rendered distinctly (candidate/published/authorized/active/validated) on learn/report surfaces | 2 | evid | E3 |
 | CF-J13-* | PRUNE-dup:interruption+recovery rows of J-01…J-12, J-14…J-17 (J-13 is the recovery dimension itself, exercised per-journey; authority-order assertion appears in every RC family) | — | — | — |
-| CF-J14-S | reset plan (default) mutates nothing; execute: archive→GitHub closes→registry→local clears in order | 2 | state+diff | E1 (T-8) |
+| CF-J14-S | reset plan (default) mutates nothing; execute: archive→GitHub closes→registry→local clears in order (**execute-order clause BLOCKED:F-PT-012** — prose vs deliberate commit-point design) | 2 | state+diff | E1 (T-8) |
 | CF-J14-R | refusal on active runs/locks/journals/pending approvals; --force only stale >10min; wrong --confirm | 2 | refusal | E1 |
 | CF-J14-I | kill at each reset step; resumable from durable intent + archive | 2 | state | E1 |
 | CF-J14-RC | resumed reset completes without re-destroying or duplicating GitHub closes | 2 | state+evid | E1 |
@@ -134,7 +134,7 @@ journey-acceptance.md alias table.
 | CF-SM-LOOP-R | replayed stimuli (same event/label seen twice) don't double-advance | 2 | state | E2 |
 | CF-SM-LOOP-C | crash at each transition boundary | 2 | state | E2 (PRUNE-dup:CF-J04-I where identical) |
 | CF-SM-APPR-L/I/R/C | approval item `pending→approved|denied→executing→executed|failed|ambiguous`: legal set, illegal jumps (approved→executed w/o executing), decision replay no-op, crash sweep incl. orphan-grant intermediate (B-09a) | 2 | state | E1 |
-| CF-SM-GRANT-L/I/R/C | grant lifecycle (once: minted→consumed; scoped: minted→n-uses→expired/revoked): cap+1 refused, post-revocation/expiry refused, replay of consumed once-grant refused, crash between use and audit row | 2 | state | E1 |
+| CF-SM-GRANT-L/I/R/C | grant lifecycle (once: minted→consumed; scoped: minted→n-uses→expired/revoked): cap+1 refused, post-revocation/expiry refused, replay of consumed once-grant refused, crash between use and audit row (**outside-worktree never-scopeable mapping BLOCKED:F-PT-014**) | 2 | state | E1 |
 | CF-SM-PLAN-L/I/R/C | EpisodePlan versions forward-only: legal revisions, illegal backward/edit-in-place, replayed revision idempotent, crash mid-persist (torn plan never terminal) | 2 | state | E2 |
 | CF-SM-LADDER-L/I | evidence ladder monotonic claims; no surface implies a higher rung (illegal = overclaim) | 2 | evid | E3 |
 | CF-SM-LADDER-R/C | PRUNE-dup:CF-J02-I/RC (ladder transitions are lifecycle ops) | — | — | — |
@@ -150,7 +150,7 @@ plus the guardrail's negative control (skill rule 16 — the detector proves it 
 | Cell | Family (violation paths → guardrail response) | Layer | Oracle | Risk |
 |---|---|---|---|---|
 | CF-INV-001 | 4 ratified seeds (widening config, injected memory/prompt authority, label/approval-as-authority, learning-path toolset change) → refuse/stop | 1/2 | refusal+det | FLOOR |
-| CF-INV-002 | obfuscated deploy (heredoc/base64/nested shell); unknown tool type fail-closed; direct API mutation; Codex read-bypass generalized to write; **forbidden read via hook bridge** | 1/2 (+3 per §5 triggers) | refusal+det | E1 |
+| CF-INV-002 | obfuscated deploy (heredoc/base64/nested shell); unknown tool type fail-closed; direct API mutation; Codex read-bypass generalized to write; **forbidden read via hook bridge** (git-push-to-default leg **BLOCKED:F-PT-013**) | 1/2 (+3 per §5 triggers) | refusal+det | E1 |
 | CF-INV-003 | no-prior-decision execution; once-grant replay; changed-bytes-under-old-approval; scoped out-of-scope/expiry/cap+1/no-audit; ack-crash never re-performs | 2 | state+refusal | E1 |
 | CF-INV-004 | cross-app event routing, sibling memory pull, cross-app approval consumption, reset-observed-from-sibling — every facet-mismatch stops | 1/2 | refusal | E2/FLOOR |
 | CF-INV-005 | two-tick claim race; label-flip/claim-persist kill windows; pause/resume claim identity; re-arm-without-transaction refused | 2 | state | E2 |
@@ -197,7 +197,7 @@ obligation exists.
 | CF-B11-* | PRUNE-dup:CF-J12-* + CF-SM-LEARN-* (publisher boundary fully covered there) | — | — | — |
 | CF-B12-* | reader seam: torn reads, stale-as-current refused, capability/traversal (CF-J15-R), SSE gaps, per-source health; conformance CLI/HTML/observe agreement (CF-J15-A) | 2 | evid | E3 |
 | CF-B13-* | inbox sweep incl. duplicate-identity-different-payload (**BLOCKED:F-PT-006**), retention interplay, F-PT-005 add/remove semantics | 2 | state | STD |
-| CF-B14-* | temp-checkout interference: dirty accept (ordinary), publish-only refusals, marked-block idempotency, byte preservation, foreign-link refusal, symlink/wrong-remote/path-overlap; **concurrent-edit outcome per ratified F-PT-007 (2026-07-31): compare-and-refuse, preserving human bytes** (cases derivable — HB-P4) | 2 | diff+refusal | E1 |
+| CF-B14-* | temp-checkout interference: dirty accept (ordinary), publish-only refusals, marked-block idempotency, byte preservation, foreign-link refusal, symlink/wrong-remote/path-overlap; **concurrent-edit outcome per ratified F-PT-007 (2026-07-31): compare-and-refuse, preserving human bytes** (cases derivable — HB-P4); re-run semantics **BLOCKED:F-PT-015**; publish-origin comparison **BLOCKED:F-PT-016** | 2 | diff+refusal | E1 |
 | CF-B15-* | FS faults (full/read-only/perm/torn/ENOSPC) per store class; git faults (index.lock bounded wait, corrupt refs → re-clone, remote-changed identity stop, hooks-disabled, partial-command post-verify). Worktree-content preservation asserted up to the accepted-artifact line; **ambiguous-byte disposition per ratified F-PT-004 (2026-07-31): preserve-and-inspect, never reset** (cases derivable — HB-P2) | 2 | state+refusal | E2 |
 | CF-B16-* | scripted gate commands: hang→timeout-kill, flood→ratified truncation bounds (256KiB/50 lines; 8k PR; 2k tail), missing tool typed, exit-0-lying (evidence binds to candidate SHA), candidate-mutation detection within governed scope, pending-fails-closed (bare template) | 2 | evid+refusal | E3 |
 | CF-B17-* | scripted external target: accept-vs-complete split, lost response, marker disagreement, target-auth failure (grant consumed, evidence in audit), at-most-once; real round-trip **BLOCKED:B-17-L3** | 2 | evid | E1 |
@@ -325,7 +325,10 @@ value asserted as provisional. **Per-ID resolver:**
   deferred-declared ABUSE lane behind the ratified threat model; **GROW is Layer 2**
   (seeded aged state under a controlled clock — the cheapest layer that can falsify
   retention boundaries).
-- **Blocked cells (all named at their cells, none silent):** F-PT-006 (CF-J10-I,
+- **Blocked cells (all named at their cells, none silent):** F-PT-012 (CF-J14-S
+  execute-order clause), F-PT-013 (CF-INV-002 git-push-to-default leg), F-PT-014
+  (CF-SM-GRANT scope-mapping clause), F-PT-015/F-PT-016 (CF-B14-* re-run +
+  publish-origin clauses) — opened at Wave-1 implementation 2026-07-31; F-PT-006 (CF-J10-I,
   CF-SM-EVENT-*, CF-B13-*; contract-matrix remainder CF-C-B13), F-PT-008
   (CF-J06-I, CF-B09a-*; contract-matrix remainder CF-C-B09A), B-17-L3 (CF-J17-A,
   CF-B17-*; contract-matrix remainder CF-C-B17).

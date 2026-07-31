@@ -149,8 +149,16 @@ describe("CF-J14-S — reset plan mutates nothing; execute order archive→close
     expect(state.branches[w.opBranch]).toBeUndefined();
   });
 
-  it.fails(
-    "TRIPWIRE (product defect vs C-OP-LIFE §6): registry removal precedes local clears — managed state must still exist at the registry boundary",
+  // BLOCKED:F-PT-012 — the execute-order clause is a genuine design ambiguity,
+  // not a plain defect: OP-lifecycle §6 prose (and the CF-J14-S catalog row)
+  // order registry removal before local clears, but finalizeInterruptedAppReset
+  // documents local-clears-first as the deliberate atomic-commit-point design.
+  // Neither direction may be encoded until the owner rules (F-PT-012 in
+  // validation-policy.yaml → open_findings). The body below asserts the
+  // contract-prose order and stays parked; unskip + resolve polarity when the
+  // finding ratifies.
+  it.skip(
+    "BLOCKED:F-PT-012 — execute-order clause (registry boundary vs local clears) awaits owner ruling",
     async () => {
       const w = await world();
       const input = resetInput(w);

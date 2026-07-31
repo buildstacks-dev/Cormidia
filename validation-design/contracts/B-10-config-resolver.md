@@ -1,7 +1,7 @@
 # Contract — B-10 Org-home ratified surfaces ↔ runtime resolver (incl. B-10a identity)
 Canonical ID: **OPERON-C-B10-001 (alias: B-10, incl. B-10a)**
 
-Status: DRAFT (Phase 4). Defends INV-001/004/013/015, T-3/T-6. All journeys (turn construction).
+Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; header updated at Wave-1 implementation — was a stale "DRAFT (Phase 4)"). Defends INV-001/004/013/015, T-3/T-6. All journeys (turn construction).
 
 ## 1. Valid inputs
 - Config artifacts carry `schema_version` from day one `[doc]`; loaders validate before

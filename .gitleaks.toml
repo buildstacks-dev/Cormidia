@@ -1,0 +1,11 @@
+# Pinned gitleaks configuration for the per-commit secret-hygiene lane
+# (validation-policy.yaml → L5_ops → secret-hygiene; wired in
+# .github/workflows/core-checks.yml, version + checksum pinned there).
+#
+# Deliberately minimal: default rules, NO fixture allowlists. Synthetic test
+# secrets are generated at runtime by claude-tests/fixtures/synthetic-secret.ts
+# and never committed (claude-tests/README.md convention 5). Tighten-only —
+# adding an allowlist here to make a commit pass is a policy violation.
+
+[extend]
+useDefault = true

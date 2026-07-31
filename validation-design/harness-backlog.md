@@ -27,6 +27,16 @@ inline because their tickets cross layers.
 
 ## Wave 0 — Walking skeleton (before mass case implementation)
 
+<!-- implementation status 2026-07-31: HB-001..HB-006 LANDED (claude-tests/
+walking skeleton; 134 specs green; CI lane wired with pinned fail-closed
+gitleaks + canary). HB-007: register items 1–8, 13 remain PROPOSED — treated
+as working hypotheses throughout the build, still owed a human
+ratify/strike/adjust review; no Wave-1+ ticket treats them as settled.
+Defect fixed with deposited detector this wave: S-3 conflicting verdict
+markers (src/loop/verdicts.ts extractKeywordValueStrict;
+claude-tests/unit/s3-verdict-marker.test.ts). -->
+
+
 - **HB-001 — Harness root + CI lane.** Create `claude-tests/` structure (unit/,
   hermetic/, live/ opt-in config, eval-runner/, fixtures/), wire `pnpm test`
   (vitest) to it, add the GitHub Actions lane running L1+L2+gitleaks per commit.

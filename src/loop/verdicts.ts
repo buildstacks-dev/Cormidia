@@ -246,6 +246,33 @@ function extractKeywordValue(text: string, keywords: string[]): string | undefin
   return undefined;
 }
 
+/** Like extractKeywordValue but conflict-refusing, per the ratified S-3
+ *  contract clause "exactly one structured verdict marker; the parser refuses
+ *  zero/two" (validation-design/llm-eval-plan.md §2 S-3; OPERON-INV-012 —
+ *  an ambiguous verdict must never become a review artifact). Keyword
+ *  precedence is preserved: only the first keyword with any match is
+ *  consulted, so a review whose body quotes build output ("Status: done")
+ *  under a real `Verdict:` marker keeps its existing meaning. Within the
+ *  operative keyword, every format is collected; more than one DISTINCT value
+ *  is a conflict. Restating the same value twice is unambiguous and parses. */
+function extractKeywordValueStrict(
+  text: string,
+  keywords: string[],
+): { value: string } | { conflict: string[] } | undefined {
+  for (const kw of keywords) {
+    const values = new Set<string>();
+    for (const re of keywordPatterns(kw)) {
+      const flags = re.flags.includes("g") ? re.flags : re.flags + "g";
+      for (const m of text.matchAll(new RegExp(re.source, flags))) {
+        if (m[1] !== undefined) values.add(m[1].toLowerCase());
+      }
+    }
+    if (values.size === 1) return { value: [...values][0]! };
+    if (values.size > 1) return { conflict: [...values].sort() };
+  }
+  return undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Lenient section extraction (contract sections, blocked entries)
 // ---------------------------------------------------------------------------
@@ -493,13 +520,21 @@ function parseReview(text: string): ParseResult<"review"> {
   }
   if (problems.length > 0) return failure("review", problems.join("; "));
 
-  const verdict = extractKeywordValue(text, ["Verdict", "Status"]);
-  if (verdict === undefined) {
+  const extracted = extractKeywordValueStrict(text, ["Verdict", "Status"]);
+  if (extracted === undefined) {
     return failure(
       "review",
       `no verdict found — state "Verdict: approve" or "Verdict: findings"`,
     );
   }
+  if ("conflict" in extracted) {
+    return failure(
+      "review",
+      `conflicting verdict markers (${extracted.conflict.join(" vs ")}) — ` +
+        `state exactly one "Verdict: approve" or "Verdict: findings"`,
+    );
+  }
+  const verdict = extracted.value;
   if (verdict !== "approve" && verdict !== "findings") {
     return failure(
       "review",

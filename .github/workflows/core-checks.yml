@@ -1,17 +1,16 @@
 name: Core checks
 
-# Interim CI during the validation rebuild (docs/PURPOSE.md → Decided, v2.9).
+# Per-commit CI lane for the replacement validation harness
+# (validation-design/validation-policy.yaml → ci: per_commit [L1, L2, gitleaks];
+# blocking, fail-closed). The lane's shape is pinned by
+# claude-tests/policy/ — removing a gate here without a policy change is a
+# policy violation (policy `ci.rule`).
 #
-# The previous workflow (efficiency-qualification.yml — change-aware lanes,
-# offline suite, browser/smoke/pack lane, fail-closed release-currency lane)
-# was retired 2026-07-31 together with the legacy suite it ran; everything it
-# executed now sits frozen under archive-do-not-read/. Release gating is
-# SUSPENDED until the replacement harness (Validation-Design-Agent,
-# claude-tests/) rebuilds an equivalent — do not add a release lane here
-# without restoring a real qualification gate behind it.
+# Release gating remains SUSPENDED (docs/PURPOSE.md v2.9) — do not add a
+# release lane here without restoring a real qualification gate behind it.
 #
-# `pnpm test` runs vitest over claude-tests/ with passWithNoTests, so this
-# workflow becomes a real test gate automatically when the first spec lands.
+# Wall-clock: the 5-minute per-commit target is PROPOSED (register item 13) —
+# reported by the timing step below, never enforced.
 
 on:
   push:
@@ -39,7 +38,55 @@ jobs:
         with:
           node-version: "26"
           cache: pnpm
+      - name: Record lane start
+        run: echo "LANE_START=$(date +%s)" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
+      - name: Report wall clock (PROPOSED 5-min target — reported, not enforced)
+        if: always()
+        run: |
+          ELAPSED=$(( $(date +%s) - LANE_START ))
+          echo "per-commit lane wall clock: ${ELAPSED}s (PROPOSED target 300s — register item 13, report-only)"
+
+  gitleaks:
+    # Secret-hygiene lane (policy L5_ops → secret-hygiene): pinned version +
+    # config, fail-closed invocation, and a generated temporary canary proving
+    # the scanner can fire (skill rule 16 — a detector that has never fired is
+    # an assumption). No fixture allowlists: synthetic test secrets are
+    # runtime-generated, never committed (claude-tests/README.md convention 5).
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.18.4
+      GITLEAKS_SHA256: ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install pinned gitleaks (checksum-verified, fail-closed)
+        run: |
+          set -euo pipefail
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks version | grep -qx "${GITLEAKS_VERSION}" || {
+            echo "gitleaks version mismatch — refusing to run an unpinned scanner"; exit 1; }
+      - name: Canary — prove the scanner fires on a planted secret
+        run: |
+          set -euo pipefail
+          CANARY_DIR="$(mktemp -d)"
+          # Generated at run time, never committed; AWS-key-shaped test value.
+          printf 'aws_access_key_id = AKIA%s\n' \
+            "$(tr -dc 'A-Z0-9' < /dev/urandom | head -c 16)" \
+            > "${CANARY_DIR}/canary.env"
+          if ./gitleaks detect --no-banner --no-git --source "${CANARY_DIR}" > /dev/null 2>&1; then
+            echo "NEGATIVE CONTROL FAILED: gitleaks did not fire on the planted canary — the lane cannot be trusted"
+            exit 1
+          fi
+          echo "canary detected — scanner proven able to fire"
+          rm -rf "${CANARY_DIR}"
+      - name: Scan repository (fail-closed)
+        run: ./gitleaks detect --no-banner --redact --source . --config .gitleaks.toml

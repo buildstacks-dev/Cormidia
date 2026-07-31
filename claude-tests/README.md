@@ -1,0 +1,74 @@
+# claude-tests/ — the replacement validation harness
+
+Implementation of the ratified design in `validation-design/` (campaign
+operon-2026-07-31). `validation-design/validation-policy.yaml` is the contract
+(tighten-only); `validation-design/harness-backlog.md` is the build plan;
+AGENTS.md → "Validation harness" holds the binding standing rules. This README
+covers only what an implementer needs to write or read a test here.
+
+## Layout
+
+| Path | Layer | Runs |
+|---|---|---|
+| `unit/` | L1 invariant-guardrail + contract-clause tests | every commit (`pnpm test`) |
+| `hermetic/` | L2 composition on owned fakes + real temp git/state homes | every commit (`pnpm test`) |
+| `fixtures/` | fixture kit + owned doubles (each with self-tests) | self-tests run per commit |
+| `policy/` | policy loader + artifact/CI-lane pins | every commit |
+| `live/` | L3 opt-in lane (`pnpm test:live`, gated on `OPERON_LIVE=1`) | never per commit |
+| `eval-runner/` | L4 hand-rolled runner over `validation-design/golden-sets/` | per-site cadence |
+
+Case families live in specs named for their catalog IDs, e.g.
+`hermetic/cf-j04/cf-j04-s.test.ts` asserts family `CF-J04-S`
+(`validation-design/case-catalog.md`). Every spec's `describe` block starts
+with the family ID so traceability is greppable in both directions.
+
+## Conventions (binding)
+
+1. **Cheapest falsifying layer.** Before writing an L2 case, ask if L1 can
+   falsify it; before live, ask if a fake can. L3 exists only for the named
+   policy obligations.
+2. **Mock across boundaries, never inside.** Fakes sit at the ratified
+   boundary seams (B-01…B-17): the `gh` process seam, the adapter runtime
+   contract, injected clock, temp org/state homes, real temp git repos.
+   Product code under test runs unmodified.
+3. **Negative controls.** Every detector family ships at least one test named
+   `negative control: …` that seeds the violation (lying fake, seeded
+   double-settle, planted tamper) and asserts the detector FIRES. A detector
+   that has never fired is an assumption (policy `harness_self_tests`).
+4. **No green by absence.** Sweeps assert non-empty walks
+   (`fixtures/walk.ts`); skipped/gated work reports incomplete or fails —
+   never silently passes. `passWithNoTests` is off.
+5. **Synthetic secrets are generated at runtime, never committed.** INV-011
+   seeds and any credential-shaped fixture content must be produced by
+   `fixtures/synthetic-secret.ts` at test time. The repo itself must stay
+   clean under gitleaks with no fixture allowlists.
+6. **PROPOSED-register values are provisional.** Tests asserting a
+   PROPOSED value (retry budget, lock wait, gate timeout…) reference the
+   register item id in a comment and assert it as *provisional bound
+   surfaced in evidence*, not as ratified product truth (HB-007).
+7. **Blocked findings stay blocked.** F-PT-006 / F-PT-008 cells and the
+   B-17-L3 live cell are parked. Do not encode a guess; a spec touching an
+   adjacent seam carries a comment naming the block.
+8. **Tighten-only.** Never weaken an assertion, widen a tolerance, or delete
+   a case to make something pass.
+
+## Fixture kit (stable import surface)
+
+Wave 1+ suites import from these modules only; their self-tests are the API
+truth:
+
+- `fixtures/org-home.ts` / `fixtures/state-home.ts` — temp org/state homes
+- `fixtures/git-repo.ts` — temp git repo/clone/worktree factory
+- `fixtures/clock.ts` — injected clock (skew/rollback/rollover scripting)
+- `fixtures/kill-point.ts` — subprocess kill-point harness
+- `fixtures/walk.ts` — non-empty-walk assertion
+- `fixtures/synthetic-secret.ts` — runtime-generated synthetic secrets
+- `fixtures/github-double/` — scripted GitHub double (B-01 failure modes)
+- `fixtures/adapters/` — scripted provider adapter doubles (B-02/03/04)
+
+## Spend
+
+Nothing under `unit/`, `hermetic/`, `fixtures/`, or `policy/` may spend a
+token or touch the network. `live/` and `eval-runner/` enforce the policy
+spend bounds internally and report completeness/verdict per
+`validation-policy.yaml → verdict_semantics`.

@@ -30,6 +30,7 @@
     "build:watch": "tsc --watch --preserveWatchOutput",
     "dev": "tsx src/cli.ts",
     "test": "vitest run --maxWorkers=2",
+    "test:live": "vitest run --config claude-tests/live/vitest.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "smoke:onboarding": "pnpm build && node scripts/smoke-onboarding.mjs",
     "link:local": "node scripts/link-local.mjs",
@@ -46,6 +47,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
+    "fast-check": "^4.1.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

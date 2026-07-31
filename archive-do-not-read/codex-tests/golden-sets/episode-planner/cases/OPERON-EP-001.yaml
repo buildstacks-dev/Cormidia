@@ -1,0 +1,43 @@
+schema_version: operon-episode-planner-case/v1
+case_id: OPERON-EP-001
+title: Bounded defect fix with independent verification
+critical: false
+sources:
+  - docs/episodes/contract.md
+  - docs/loop/design.md
+  - OPERON-INV-004
+input:
+  goal: Fix a reproducible off-by-one defect in the report row counter and verify the corrected behavior.
+  lifecycle: bounded-defect
+  app_stage: live
+  repository_facts:
+    defect_reproduced: true
+    affected_surface: report row counter
+    expected_artifact: reviewed patch
+  requested_constraints:
+    scope: one implementation change plus independent verification
+    no_deployment: true
+    no_speculative_refactor: true
+  hard_budget:
+    maxProviderTurns: 2
+    maxEquivalentCostUsd: 10
+    maxMechanicalOverheadUsd: 0
+    maxActiveTimeMs: 900000
+    maxHumanDecisions: 0
+  required_safety_facts:
+    - kind: independent_review
+      evidenceRefs: [case:OPERON-EP-001]
+  unavailable_roles: []
+oracle:
+  min_provider_turns: 2
+  max_provider_turns: 2
+  max_total_steps: 2
+  required_provider_steps:
+    - role: builder
+      operation: build/implement
+    - role: reviewer
+      operation: review/verify
+  allowed_provider_operations: [build/implement, review/verify]
+  required_gate_kinds: []
+  required_approval_kinds: []
+  require_independent_review: true

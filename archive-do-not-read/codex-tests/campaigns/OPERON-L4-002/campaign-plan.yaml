@@ -1,0 +1,166 @@
+schema_version: operon-layer-4-follow-up/v1
+campaign_id: OPERON-L4-002
+parent_campaign_id: OPERON-L4-001
+call_site_id: OPERON-LLM-001
+call_site_name: Episode Planner
+status: full_qualification_completed_blocked_quality_no_qualification
+prepared_on: 2026-07-30
+
+authorization:
+  preparation: human_authorized
+  provider_execution: human_authorized_diagnostic_and_qualification
+  provider_spend: human_authorized_diagnostic_and_qualification
+  qualification_execution: human_authorized
+  qualification_spend: human_authorized
+  protected_prompt_adoption: not_authorized
+  production_assignment_change: not_authorized
+  source: >-
+    Human statement on 2026-07-30: "I ratify OPERON-L4-002 diagnostic as
+    prepared: EP003 × 3, claude/claude-opus-5/xhigh, $5 per turn, $10
+    aggregate, no qualification, and preserve evidence on failure."
+  qualification_source: >-
+    Human statement on 2026-07-30: "I authorize the OPERON-L4-002 full
+    qualification: 10 frozen cases × 3 runs, claude/claude-opus-5/xhigh,
+    existing quality floors, $5 per turn, $60 aggregate, no external effects,
+    preserve evidence and production assignment, and no qualification on
+    failure."
+
+boundary:
+  isolated_root: codex-tests/
+  protected_prompt_path: ../../../prompts/episode/plan.md
+  protected_prompt_modified: false
+  frozen_corpus_modified: false
+  production_roles_modified: false
+  external_effects_authorized: false
+  incumbent_harness_modified: false
+
+assignment:
+  status: human_authorized_for_diagnostic_and_qualification
+  harness: claude
+  model: claude-opus-5
+  effort: xhigh
+
+candidate_prompt:
+  composition: append_overlay_to_protected_base_in_isolated_runner
+  base_path: ../../../prompts/episode/plan.md
+  base_expected_sha256: 232b8d16952d7ba9cf9fb5e09ca381e61d3cc8f56a968263c21c6cfddf091870
+  overlay_path: ./candidate-prompt-overlay.md
+  overlay_expected_sha256: 665e966b79a626f9a21f7bb843ebd3c95b06f45d51a939f2284cc1ac040da265
+  production_adoption: separately_reviewed_and_authorized_change_only
+
+corpus:
+  source_campaign_id: OPERON-L4-001
+  manifest_path: ../../golden-sets/episode-planner/manifest.yaml
+  status: frozen_read_only
+  corpus_sha256: 4756fe437be194892b4c9f8a5efaff30d77d3ba3974c1d66c338666c4b52b3a0
+  cases: 10
+  critical_cases: [OPERON-EP-003, OPERON-EP-004, OPERON-EP-005, OPERON-EP-007, OPERON-EP-008, OPERON-EP-010]
+
+failure_deposits:
+  - id: OPERON-L4-002-DET-001
+    class: deterministic_contract
+    observation: Optional supersedes was serialized as null, then repair emitted JavaScript undefined for assignment.
+    detector: ../../specs/layer-1/episode-planner-failure-deposits.test.ts
+    fixture: ../../fixtures/eval/episode-planner-failure-deposits.yaml
+  - id: OPERON-L4-002-DET-002
+    class: statistical_quality
+    observation: A contract-valid authentication plan selected review/verify instead of review/security.
+    detector: ../../specs/layer-4/qualification-runner.test.ts
+    frozen_case: OPERON-EP-003
+  - id: OPERON-L4-002-DET-003
+    class: evidence_attribution
+    observation: The full-stage ledger silently inherited the OPERON-L4-001 campaign ID while enforcing the correct $60/$5 ceilings.
+    detector: ../../specs/layer-4/campaign-budget.test.ts
+    fix: CampaignBudgetStore requires an explicit campaign ID and spend envelope.
+
+source_evidence:
+  campaign_report:
+    path: ../../.artifacts/layer-4/OPERON-L4-001/campaign-report.json
+    sha256: bdd2348e54b088c44dced3f15134d24b14e271366362e26f9e3b5937d093f390
+  campaign_audit:
+    path: ../../.artifacts/layer-4/OPERON-L4-001/campaign-evidence-audit.json
+    sha256: efe3ee667e442c5db5a0733779faae0a7231a2e77ad829b6fb0e4d6e8f434122
+  quality_failure:
+    path: ../../.artifacts/layer-4/OPERON-L4-001/attempts/OPERON-EP-003-r1.json
+    sha256: 56a20166107dabb488b9ae1c076fc92ce44fed5190084f82b6eb66cdc81df548
+  contract_failure:
+    path: ../../.artifacts/layer-4/OPERON-L4-001/attempts/OPERON-EP-003-r3.json
+    sha256: 26949437498dc956245dd6b356214555a7e900d6006a74dee27a3ba084f1d41a
+  initial_bad_output:
+    path: ../../.artifacts/layer-4/OPERON-L4-001/worlds/OPERON-EP-003-r3/state-home/runs/operon-layer-4-eval/20260730-160341-episode-planner-plan-92e25ee2/output.md
+    sha256: b252374eaa2954f5d3b1770fe21dde90fcadf7f80cf5ac4f32b23c4656498efe
+  regressive_repair_output:
+    path: ../../.artifacts/layer-4/OPERON-L4-001/worlds/OPERON-EP-003-r3/state-home/runs/operon-layer-4-eval/20260730-160458-episode-planner-repair-92e25ee2/output.md
+    sha256: e8b7fd502d95e17fc3fa5e573cb5bd3320928e8eb318d2997e9993de7e30978a
+
+stages:
+  diagnostic:
+    purpose: Prove the fixed candidate overlay addresses the observed critical-case failures.
+    case_ids: [OPERON-EP-003]
+    runs_per_case: 3
+    qualification_claim: prohibited
+    entry_gate:
+      - all_local_deterministic_detectors_pass
+      - exact_overlay_hash_matches
+      - exact_human_provider_authorization_present
+      - exact_human_spend_authorization_present
+    pass_gate:
+      deterministic_contracts: 3_of_3
+      quality_acceptable: 3_of_3
+    spend:
+      status: human_authorized
+      aggregate_ceiling_usd: 10
+      per_turn_ceiling_usd: 5
+      stop_before_exceeding: true
+  qualification:
+    purpose: Run a fresh comparable qualification only after the diagnostic gate passes.
+    corpus_cases: 10
+    runs_per_case: 3
+    total_attempts: 30
+    overall_min_acceptable: 27
+    min_acceptable_per_case: 2
+    critical_min_acceptable_per_case: 3
+    deterministic_contracts: blocking
+    entry_gate:
+      - diagnostic_passed_without_candidate_change
+      - separate_human_provider_authorization
+      - separate_human_spend_authorization
+    spend:
+      status: human_authorized
+      aggregate_ceiling_usd: 60
+      per_turn_ceiling_usd: 5
+      stop_before_exceeding: true
+
+failure_handling:
+  qualification_on_failure: none
+  preserve_current_assignment: true
+  preserve_original_and_follow_up_evidence: true
+  prompt_or_corpus_edit_to_green: prohibited
+  candidate_change_after_diagnostic: requires_new_campaign_version
+
+human_decision_required: []
+
+observed_results:
+  diagnostic:
+    status: passed_no_qualification
+    attempts: 3
+    acceptable_attempts: 3
+    observed_spend_usd: 1.224494
+    evidence_audit: passed
+  qualification:
+    status: blocked_quality
+    qualification_issued: false
+    attempts_completed: 30
+    acceptable_attempts: 29
+    failed_case: OPERON-EP-004
+    failed_case_acceptable: 2
+    failed_case_required: 3
+    observed_spend_usd: 12.881382
+    provider_turns: 32
+    spend_enforcement: passed
+    external_effects_executed: false
+    production_assignment_preserved: true
+    evidence_integrity: failed_campaign_identity_attribution
+    immutable_report_sha256: 38aa0eab427b549c9cee59d9cb78d57bc3865b7c47e4e78a1be620bc21fc7372
+    immutable_ledger_sha256: 26302fbdcee745a444d6b1d28e7c11058d43c6f4c128d4f870afd0139cdc00b4
+    audit_path: ../../.artifacts/layer-4/OPERON-L4-002/qualification/qualification-evidence-audit.json

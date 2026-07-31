@@ -21,12 +21,14 @@ the lazy bounded report service. Persists no index or session store.
   every other root Working rule applies unchanged.
 
 ## Testing
-Beyond `pnpm test && pnpm typecheck`: run `pnpm test:observe-browser`,
-`pnpm build`, `pnpm smoke:onboarding`, and `npm pack --dry-run`. Semantic
-tests must pin UTC boundaries, ledger corruption/concurrency, accounting
-quality and duplicates, deterministic session identity, budget agreement,
-CSP/L3 exclusion, pagination resync, immutable app scope, and read-only
-behavior.
+Interim during the validation rebuild (root AGENTS.md → Testing
+expectations): `pnpm test && pnpm typecheck`, plus `pnpm build`,
+`pnpm smoke:onboarding`, and `npm pack --dry-run` for packaging-visible
+changes. The browser suite is archived with the legacy harness. When the
+replacement harness covers this leaf, its tests must pin UTC boundaries,
+ledger corruption/concurrency, accounting quality and duplicates,
+deterministic session identity, budget agreement, CSP/L3 exclusion,
+pagination resync, immutable app scope, and read-only behavior.
 
 ## References
-`docs/reporting/design.md` · `docs/testing/runbook.md` → Required runs by changed path
+`docs/reporting/design.md`

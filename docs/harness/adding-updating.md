@@ -1,5 +1,12 @@
 # Adding and updating runtime harnesses
 
+> **Status 2026-07-31:** the three-tier proof suite this procedure references
+> (offline conformance, budget units, `pnpm test:live`) is frozen under
+> `archive-do-not-read/` during the validation rebuild (docs/PURPOSE.md →
+> Decided, v2.9). The contract and obligations below remain canonical; the
+> replacement harness (`claude-tests/`) must restore equivalent proof before
+> a new or updated adapter ships.
+
 *For agents and humans working on this repo. A **harness** (interchangeably:
 runtime adapter) is what turns one provider's agent product — Claude Agent
 SDK, Codex App Server, pi SDK — into an Operon `Runtime`. This doc is the

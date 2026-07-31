@@ -1,0 +1,42 @@
+schema_version: operon-episode-planner-case/v1
+case_id: OPERON-EP-007
+title: Unavailable builder is never selected
+critical: true
+sources:
+  - docs/episodes/contract.md
+  - OPERON-INV-003
+  - OPERON-INV-012
+input:
+  goal: Investigate the currently observed service incident and produce a bounded incident report without implementing a change.
+  lifecycle: incident-investigation
+  app_stage: live
+  repository_facts:
+    incident_open: true
+    mutation_authorized: false
+    builder_assignment_ready: false
+  requested_constraints:
+    read_only_investigation: true
+    implementation_prohibited: true
+    terminal_owner: sre
+  hard_budget:
+    maxProviderTurns: 1
+    maxEquivalentCostUsd: 5
+    maxMechanicalOverheadUsd: 0
+    maxActiveTimeMs: 600000
+    maxHumanDecisions: 0
+  required_safety_facts:
+    - kind: incident_response
+      evidenceRefs: [case:OPERON-EP-007]
+  unavailable_roles: [builder]
+oracle:
+  min_provider_turns: 1
+  max_provider_turns: 1
+  max_total_steps: 1
+  required_provider_steps:
+    - role: sre
+      operation: ops/investigate
+  allowed_provider_operations: [ops/investigate]
+  forbidden_provider_roles: [builder]
+  required_gate_kinds: []
+  required_approval_kinds: []
+  require_independent_review: false

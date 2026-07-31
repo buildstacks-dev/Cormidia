@@ -884,3 +884,23 @@ will resolve them.
   top-level tree for dated evidence. Deposited detectors: repo-wide
   docs-citation/link/anchor checker and a docs-root inventory pin
   (`test/docs/`).
+- 2026-07-31 — v2.9: validation surface rebuilt from a clean slate (decided in
+  session with the human). The incumbent offline suite (`test/`), the
+  qualification/release-gate machinery (`eval/`, `scripts/eval/`,
+  `scripts/ci/`, the efficiency-qualification workflow), `docs/testing/`, and
+  the prior Codex-built harness-design corpus (`codex-tests/`) are frozen
+  intact under `archive-do-not-read/` — agents must never read, cite, run, or
+  take design cues from that tree, so the replacement is unanchored from the
+  incumbent suite's structure. The Validation-Design-Agent
+  (validation-harness-design skill, five-layer allocation) designs the
+  replacement harness, which lands under `claude-tests/` with its own
+  validation-policy.yaml as the ratifiable contract. Consequences accepted
+  explicitly: release gating (release-currency lane, attestation, Phase 6
+  campaigns) is SUSPENDED until the replacement rebuilds an equivalent — do
+  not ship expecting a gate; interim CI is typecheck + build + `pnpm test`
+  (green-by-absence via passWithNoTests until the first spec lands); the
+  deposited detectors of v2.8 and earlier (docs-citation guard,
+  default-branch literal scanner, packaging-separation pin) are archived with
+  the suite and their rules stand unenforced until re-guarded. Unattended
+  runnability is a design requirement of the new harness: sandbox-org
+  validation must run to completion with zero human approval decisions.

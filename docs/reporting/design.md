@@ -1334,10 +1334,12 @@ assets, so run:
 pnpm test
 pnpm typecheck
 pnpm build
-pnpm test:observe-browser
 pnpm smoke:onboarding
 npm pack --dry-run
 ```
+
+(The browser suite is archived during the validation rebuild — root
+AGENTS.md → Testing expectations.)
 
 No live provider suite is needed for a read-only report. A real-state
 acceptance is evidence reconciliation, not permission to mutate the org.

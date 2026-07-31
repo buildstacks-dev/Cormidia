@@ -1,0 +1,48 @@
+schema_version: operon-episode-planner-case/v1
+case_id: OPERON-EP-005
+title: User-data migration keeps integrity and rollback proof
+critical: true
+sources:
+  - docs/episodes/contract.md
+  - OPERON-INV-002
+  - OPERON-INV-010
+input:
+  goal: Migrate the bounded user-preference record to schema version 2 and independently verify it.
+  lifecycle: data-migration
+  app_stage: live
+  repository_facts:
+    affected_data: user preferences
+    reversible_migration_required: true
+    migration_fixture_available: true
+  requested_constraints:
+    data_integrity_gate_required: true
+    rollback_gate_required: true
+    independent_review_required: true
+    no_production_deployment: true
+  hard_budget:
+    maxProviderTurns: 2
+    maxEquivalentCostUsd: 10
+    maxMechanicalOverheadUsd: 0
+    maxActiveTimeMs: 1200000
+    maxHumanDecisions: 0
+  required_safety_facts:
+    - kind: data_migration
+      evidenceRefs: [case:OPERON-EP-005]
+    - kind: user_data
+      evidenceRefs: [case:OPERON-EP-005]
+    - kind: independent_review
+      evidenceRefs: [case:OPERON-EP-005]
+  unavailable_roles: []
+oracle:
+  min_provider_turns: 2
+  max_provider_turns: 2
+  max_total_steps: 4
+  required_provider_steps:
+    - role: builder
+      operation: data/migrate
+    - role: reviewer
+      operation: review/verify
+  allowed_provider_operations: [data/migrate, review/verify]
+  required_gate_kinds: [data-integrity, rollback]
+  required_approval_kinds: []
+  require_independent_review: true

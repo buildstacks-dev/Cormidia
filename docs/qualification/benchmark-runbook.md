@@ -1,5 +1,10 @@
 # Stage 7 benchmark runbook — the buildstacks-class bootstrap replay
 
+> **Status 2026-07-31:** the eval entrypoints this runbook invokes are
+> archived (`archive-do-not-read/`) and campaigns are suspended during the
+> validation rebuild (docs/PURPOSE.md → Decided, v2.9); this procedure is
+> historical record until the replacement harness restores an equivalent.
+
 The comparable benchmark required by PURPOSE's sandbox-before-production
 rule (historical Stage 7 of the 2026-07-10 proportionality campaign).
 Everything below is measured by Stage 1 telemetry; nothing is anecdotal.

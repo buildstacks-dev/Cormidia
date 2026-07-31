@@ -1,0 +1,45 @@
+name: Core checks
+
+# Interim CI during the validation rebuild (docs/PURPOSE.md → Decided, v2.9).
+#
+# The previous workflow (efficiency-qualification.yml — change-aware lanes,
+# offline suite, browser/smoke/pack lane, fail-closed release-currency lane)
+# was retired 2026-07-31 together with the legacy suite it ran; everything it
+# executed now sits frozen under archive-do-not-read/. Release gating is
+# SUSPENDED until the replacement harness (Validation-Design-Agent,
+# claude-tests/) rebuilds an equivalent — do not add a release lane here
+# without restoring a real qualification gate behind it.
+#
+# `pnpm test` runs vitest over claude-tests/ with passWithNoTests, so this
+# workflow becomes a real test gate automatically when the first spec lands.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test

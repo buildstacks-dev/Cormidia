@@ -1,0 +1,10 @@
+title = "Operon greenfield validation harness"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated validation evidence is never committed."
+paths = [
+  '''^codex-tests/\.artifacts/''',
+]

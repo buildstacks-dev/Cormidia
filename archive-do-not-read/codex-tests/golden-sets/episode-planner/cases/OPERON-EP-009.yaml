@@ -1,0 +1,38 @@
+schema_version: operon-episode-planner-case/v1
+case_id: OPERON-EP-009
+title: Tiny documentation correction is not over-planned
+critical: false
+sources:
+  - prompts/episode/plan.md
+  - PTF-007
+input:
+  goal: Correct one stale command name in the operator guide; no code or behavior changes.
+  lifecycle: docs-only
+  app_stage: live
+  repository_facts:
+    affected_files: [docs/operator-guide.md]
+    code_change_required: false
+    behavior_change_required: false
+  requested_constraints:
+    exact_scope: one documentation edit
+    speculative_analysis_prohibited: true
+    deployment_prohibited: true
+  hard_budget:
+    maxProviderTurns: 1
+    maxEquivalentCostUsd: 5
+    maxMechanicalOverheadUsd: 0
+    maxActiveTimeMs: 600000
+    maxHumanDecisions: 0
+  required_safety_facts: []
+  unavailable_roles: []
+oracle:
+  min_provider_turns: 1
+  max_provider_turns: 1
+  max_total_steps: 1
+  required_provider_steps:
+    - role: builder
+      operation: docs/update
+  allowed_provider_operations: [docs/update]
+  required_gate_kinds: []
+  required_approval_kinds: []
+  require_independent_review: false

@@ -32,12 +32,13 @@ train platform-development work. Development campaign results cannot authorize
 an org operation.
 
 Root `AGENTS.md`, this guide, `docs/PURPOSE.md`, `docs/episodes/contract.md`,
-`docs/qualification/design.md`, `eval/**`,
-`scripts/eval/**`, and `test/**` are developer-only surfaces and are excluded
-from the npm package. The packaged `agent-skills/operon/` skill is deliberately
+`docs/qualification/design.md`, `claude-tests/**`, and everything under
+`archive-do-not-read/**` are developer-only surfaces and are excluded from the
+npm package. The packaged `agent-skills/operon/` skill is deliberately
 an org-operation guide. `TASTE.md`, `roles.yaml`, `pipelines.yaml`, and
 `prompts/**` remain org-runtime surfaces; do not put developer authority in
-them. `test/development-boundary.test.ts` pins this packaging separation.
+them. (The packaging-separation pin test is archived with the legacy suite;
+the replacement harness re-guards it.)
 
 ## One objective, bounded autonomy
 
@@ -147,17 +148,16 @@ new treatment or experiment decision. Never rerun for a better draw.
 
 ## The active development grant
 
-Standing development authorizations live under
-`eval/development-authorizations/`; the YAML for the current objective is the
-single authority for its repair lineage, billing mode, cumulative
-equivalent-cost ceiling, GitHub namespace, and zero-effect boundary. This
-policy deliberately embeds no grant's dated path, dollar ceiling, candidate
-hash, or command sequence — when a campaign ends, the grant file is retired
-in place and this file does not change. Execution semantics for campaigns
-under a standing grant (accident guards, readiness, confirmation, and the
-thresholds they cannot alter) are
+Standing development authorizations lived under
+`eval/development-authorizations/`, now frozen with the rest of the
+qualification machinery under `archive-do-not-read/`; grant files there are
+historical record only. Execution semantics for campaigns under a standing
+grant (accident guards, readiness, confirmation, and the thresholds they
+cannot alter) remain documented in
 [`docs/qualification/design.md`](qualification/design.md) → Development
-qualification execution; entrypoint usage is `eval/README.md`.
+qualification execution, but the executable entrypoints are archived and
+qualification campaigns are suspended during the validation rebuild
+(docs/PURPOSE.md → Decided, v2.9).
 
 ## Shipping discipline
 

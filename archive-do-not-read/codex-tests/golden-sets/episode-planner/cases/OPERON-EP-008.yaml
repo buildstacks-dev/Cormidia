@@ -1,0 +1,42 @@
+schema_version: operon-episode-planner-case/v1
+case_id: OPERON-EP-008
+title: Builder cannot self-review
+critical: true
+sources:
+  - docs/episodes/contract.md
+  - OPERON-INV-009
+input:
+  goal: Implement the bounded cache-key correction and obtain independent verification.
+  lifecycle: bounded-defect
+  app_stage: live
+  repository_facts:
+    defect_reproduced: true
+    builder_and_reviewer_provider_families_distinct: true
+  requested_constraints:
+    self_review_prohibited: true
+    independent_reviewer_required: true
+    no_deployment: true
+  hard_budget:
+    maxProviderTurns: 2
+    maxEquivalentCostUsd: 10
+    maxMechanicalOverheadUsd: 0
+    maxActiveTimeMs: 900000
+    maxHumanDecisions: 0
+  required_safety_facts:
+    - kind: independent_review
+      evidenceRefs: [case:OPERON-EP-008]
+  unavailable_roles: []
+oracle:
+  min_provider_turns: 2
+  max_provider_turns: 2
+  max_total_steps: 2
+  required_provider_steps:
+    - role: builder
+      operation: build/implement
+    - role: reviewer
+      operation: review/verify
+  allowed_provider_operations: [build/implement, review/verify]
+  forbidden_provider_roles: []
+  required_gate_kinds: []
+  required_approval_kinds: []
+  require_independent_review: true

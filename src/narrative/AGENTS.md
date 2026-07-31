@@ -25,5 +25,4 @@ authoritative contract.
   own subtree.
 
 ## References
-`docs/narrative/design.md` · `docs/testing/runbook.md` → Required runs by
-changed path
+`docs/narrative/design.md`

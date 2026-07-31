@@ -1,5 +1,12 @@
 # Qualification and release gating
 
+> **Status 2026-07-31:** the executable machinery this contract governs
+> (`scripts/eval/**`, `eval/**`, the transformation suite, the
+> release-currency CI lane) is frozen under `archive-do-not-read/` and
+> qualification campaigns are **suspended** during the validation rebuild
+> (docs/PURPOSE.md → Decided, v2.9). The contract below remains the canonical
+> record the replacement harness must satisfy or consciously supersede.
+
 *How Operon itself earns the right to ship. A release candidate is proved by
 **campaigns** — predeclared, immutable batches of evaluation runs — and this
 document defines the rules those campaigns obey: what must be pinned before

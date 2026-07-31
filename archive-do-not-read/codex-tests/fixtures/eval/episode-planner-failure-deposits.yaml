@@ -1,0 +1,61 @@
+schema_version: operon-episode-planner-failure-deposits/v1
+source_campaign_ids: [OPERON-L4-001, OPERON-L4-003, OPERON-L4-004]
+source_case_ids: [OPERON-EP-003, OPERON-EP-004]
+deposits:
+  - id: OPERON-L4-002-DET-001A
+    stage: episode_plan_schema
+    mutation:
+      kind: set_optional_field_to_null
+      step_index: 0
+      field: supersedes
+    expected:
+      outcome: rejected
+      error_name: EpisodePlanValidationError
+      issue_code: plan_structure_invalid
+      path: $.steps[0].supersedes
+      constraint: type
+    source:
+      artifact: .artifacts/layer-4/OPERON-L4-001/worlds/OPERON-EP-003-r3/state-home/runs/operon-layer-4-eval/20260730-160341-episode-planner-plan-92e25ee2/output.md
+      sha256: b252374eaa2954f5d3b1770fe21dde90fcadf7f80cf5ac4f32b23c4656498efe
+  - id: OPERON-L4-002-DET-001B
+    stage: strict_json
+    mutation:
+      kind: inject_javascript_undefined
+      step_index: 0
+      field: assignment
+    expected:
+      outcome: rejected
+      error_name: SyntaxError
+      constraint: json
+    source:
+      artifact: .artifacts/layer-4/OPERON-L4-001/worlds/OPERON-EP-003-r3/state-home/runs/operon-layer-4-eval/20260730-160458-episode-planner-repair-92e25ee2/output.md
+      sha256: e8b7fd502d95e17fc3fa5e573cb5bd3320928e8eb318d2997e9993de7e30978a
+  - id: OPERON-L4-003-DET-003
+    stage: episode_plan_schema
+    mutation:
+      kind: omit_required_gate
+      step_index: 1
+      field: gate
+    expected:
+      outcome: rejected
+      error_name: EpisodePlanValidationError
+      issue_code: plan_structure_invalid
+      path: $.steps[1].gate
+      constraint: required
+    source:
+      artifact: .artifacts/layer-4/OPERON-L4-003/qualification/worlds/OPERON-EP-003-r3/state-home/runs/operon-layer-4-eval/20260731-024447-episode-planner-repair-92e25ee2/output.md
+      sha256: 5ef57eef5c384dcf2b379d40e549b27e9b8ffa9f3a04b91a2b76286c0aaeb96a
+  - id: OPERON-L4-004-DET-001
+    stage: initial_plan_semantics
+    mutation:
+      kind: set_initial_supersedes_to_self
+      step_index: 0
+      field: supersedes
+    expected:
+      outcome: rejected
+      error_name: EpisodePlanValidationError
+      issue_code: plan_supersession_invalid
+      constraint: initial_plan
+    source:
+      artifact: .artifacts/layer-4/OPERON-L4-004/qualification/worlds/OPERON-EP-004-r1/state-home/runs/operon-layer-4-eval/20260731-030507-episode-planner-repair-57a978ec/output.md
+      sha256: 6ab7dedd2029965de24f4a2daeddfc69adbe15713fcb1a774681f5865472bb43

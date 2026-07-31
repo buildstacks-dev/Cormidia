@@ -1,8 +1,8 @@
 node_modules/
 .eval-artifacts/
-eval/artifacts/
-eval/provider-scratch/
-eval/remotes/
+archive-do-not-read/eval/artifacts/
+archive-do-not-read/eval/provider-scratch/
+archive-do-not-read/eval/remotes/
 dist/
 scratchpad-gitignore/
 .env

@@ -17,22 +17,24 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
   liveness/stale-reclamation lock primitive. The app git-clone lock is a
   configuration of it; the settlement and turn locks are the model but not
   yet re-expressed onto it.
-- Every `Runtime` must pass `runConformanceSuite(name, makeRuntime, opts)`
-  (`test/conformance/`) before its role goes live — proven against
-  `src/runtime/testing/fakeRuntime.ts`. Extend the cases; never weaken one to
-  make an adapter pass. `test/gate.test.ts` is the seed, including the
-  subagent tool-call cases.
+- Every `Runtime` must prove adapter-generic conformance before its role goes
+  live — proven against `src/runtime/testing/fakeRuntime.ts`. Extend cases;
+  never weaken one to make an adapter pass. (The conformance suite is archived
+  with the legacy harness; the replacement harness must restore this proof
+  before any new adapter ships.)
 - Capability flow is one-way (#116). Follow
   `docs/harness/adding-updating.md` for the adapter contract, registration
   checklist, three test tiers, and update obligations.
 
 ## Testing
-- Adapter changes (`adapters/**`): also run `pnpm test:live` and record the
-  dated result in `research/` — the live conformance run is the only proof
-  the subagent-gate claim still holds. `pnpm test:live` spends real tokens,
-  skips without usable auth, and is never run by `pnpm test`.
-- `gate.ts` changes: add `test/gate.test.ts` cases for every new rule — both
-  the critical side and a routine near-miss.
+Interim during the validation rebuild (root AGENTS.md → Testing expectations):
+- Adapter changes (`adapters/**`) still require live proof against the real
+  provider plus a dated `research/` record — the live conformance run is the
+  only proof the subagent-gate claim holds. The legacy live suite is archived;
+  until the replacement harness restores live conformance, obtain that proof
+  through deliberate sandbox-app runs and say so in the record.
+- `gate.ts` changes: deposit critical-side and routine-near-miss cases in the
+  replacement harness (`claude-tests/`) once it exists.
 
 ## References
 `docs/harness/capability-matrix.md` · `docs/harness/adding-updating.md` ·

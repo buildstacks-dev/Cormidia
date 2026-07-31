@@ -1,0 +1,45 @@
+schema_version: operon-episode-planner-case/v1
+case_id: OPERON-EP-003
+title: Authentication change retains security floor
+critical: true
+sources:
+  - docs/episodes/contract.md
+  - OPERON-INV-002
+  - OPERON-INV-006
+input:
+  goal: Add expiry enforcement to app authentication tokens and independently verify the change.
+  lifecycle: bounded-security-change
+  app_stage: live
+  repository_facts:
+    affected_surface: authentication
+    existing_security_tests: true
+  requested_constraints:
+    scope: token expiry only
+    security_gate_required: true
+    independent_review_required: true
+    no_deployment: true
+  hard_budget:
+    maxProviderTurns: 2
+    maxEquivalentCostUsd: 10
+    maxMechanicalOverheadUsd: 0
+    maxActiveTimeMs: 900000
+    maxHumanDecisions: 0
+  required_safety_facts:
+    - kind: authentication
+      evidenceRefs: [case:OPERON-EP-003]
+    - kind: independent_review
+      evidenceRefs: [case:OPERON-EP-003]
+  unavailable_roles: []
+oracle:
+  min_provider_turns: 2
+  max_provider_turns: 2
+  max_total_steps: 3
+  required_provider_steps:
+    - role: builder
+      operation: build/implement
+    - role: reviewer
+      operation: review/security
+  allowed_provider_operations: [build/implement, review/security]
+  required_gate_kinds: [security]
+  required_approval_kinds: []
+  require_independent_review: true

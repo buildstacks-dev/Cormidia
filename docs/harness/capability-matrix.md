@@ -44,8 +44,8 @@ adapter with a mocked SDK — `test/runtime/claude-budget.unit.test.ts`,
 `test/runtime/codex-budget.unit.test.ts` (including the estimated-cost pricing
 table), and `test/runtime/pi-budget.unit.test.ts` — each asserting the
 under-budget / over-budget split, the single incident note, and that spend is
-still attributed. Codex and pi live smokes are opt-in in `pnpm test:live`
-because they spend provider quota and depend on local auth.
+still attributed. Codex and pi live smokes were opt-in in the archived live
+suite because they spend provider quota and depend on local auth.
 
 Terminal provider failures are evidence, not completions. Claude retains an
 explicit non-success SDK result (and its usage) even if the SDK iterator then

@@ -1,0 +1,11 @@
+packages:
+  - "."
+
+# Installation is explicit; validation must never mutate the isolated
+# dependency directory as a hidden pre-run side effect.
+verifyDepsBeforeRun: false
+
+confirmModulesPurge: false
+
+allowBuilds:
+  esbuild: true

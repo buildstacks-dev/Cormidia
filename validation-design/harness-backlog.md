@@ -156,6 +156,19 @@ separately gated L3/L4/L5 evidence. -->
 
 ## Wave 4 — standard + thin remainder (L1/L2)
 
+<!-- implementation status 2026-07-31: HB-040..HB-047 COMPLETE in the
+isolated codex/harness-wave2 worktree. Coverage includes current-subscriber
+event fan-out and post-spawn mark recovery; planner DAG/source/preview and
+lost-response publication convergence; real-git onboarding, verification,
+promotion interruption/resume; scheduler ownership/drift/orphan health;
+retention boundaries; deterministic presentation smokes; ratified trajectory
+detectors; and same-session one-repair envelope accounting. F-PT-006 producer
+identity/partial-file clauses remain parked, as designed. Product detectors
+land with every discovered defect. Full per-commit L1/L2 gate: 116 files,
+726 passed + 1 intentionally parked skip in 61.93 s; typecheck and build green.
+This status is L1/L2 only and does not imply separately gated L3/L4/L5
+evidence. -->
+
 - **HB-040** Event inbox (CF-B13-*, CF-J10-*, CF-SM-EVENT-*; F-PT-006 clauses
   parked). **HB-041** Planner validator + planning ops (CF-J03-*, C-OP-PLAN).
   **HB-042** Onboarding ladder + lifecycle records (CF-J02-*). **HB-043** Scheduler

@@ -518,8 +518,28 @@ function planProblems(plan: TicketPlan, budget: number): string[] {
   if (plan.tickets.length > 0 && rootCount === 0) {
     problems.push("no dependency-free ticket — nothing could ever be claimed");
   }
+  if (planHasDependencyCycle(plan.tickets)) {
+    problems.push("ticket dependency graph contains a cycle — TicketPlan must be a DAG");
+  }
 
   return problems;
+}
+
+function planHasDependencyCycle(tickets: readonly PlanTicket[]): boolean {
+  const visiting = new Set<number>();
+  const visited = new Set<number>();
+  const visit = (index: number): boolean => {
+    if (visiting.has(index)) return true;
+    if (visited.has(index)) return false;
+    visiting.add(index);
+    for (const dependency of tickets[index]?.dependsOn ?? []) {
+      if (dependency >= 0 && dependency < tickets.length && visit(dependency)) return true;
+    }
+    visiting.delete(index);
+    visited.add(index);
+    return false;
+  };
+  return tickets.some((_, index) => visit(index));
 }
 
 // ---------------------------------------------------------------------------
@@ -551,6 +571,7 @@ export function renderTicketBody(
   releaseVersion?: string,
   planningSources?: PlanningSourceTicketEvidence,
   provenance?: PlanProvenance,
+  publicationIndex?: number,
 ): string {
   const deps = ticket.dependsOn
     .map((dep) => issueNumbers[dep])
@@ -567,6 +588,7 @@ export function renderTicketBody(
             `run=${encodeProvenanceId(provenance.runId)} trace=${encodeProvenanceId(provenance.traceId)}`,
         ]
       : []),
+    ...(publicationIndex === undefined ? [] : [`Plan-ticket-index: ${publicationIndex}`]),
     "",
     "## Goal",
     ticket.goal,
@@ -678,6 +700,17 @@ export function parsePlannedBy(body: string): PlanProvenance | undefined {
   } catch {
     return undefined; // stray malformed %-escape → unknown, never a guess
   }
+}
+
+/** Deterministic per-plan ticket identity used only with `Planned-by` to
+ * reconcile a crash after GitHub accepted an issue create but before the
+ * local published-tickets record committed. A bare index is never trusted. */
+export function parsePlanTicketIndex(body: string): number | undefined {
+  const header = body.split(/^## /m, 1)[0] ?? body;
+  const matches = [...header.matchAll(/^Plan-ticket-index:\s*(\d+)\s*$/gm)];
+  if (matches.length !== 1) return undefined;
+  const index = Number(matches[0]![1]);
+  return Number.isSafeInteger(index) ? index : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -934,15 +967,55 @@ export async function publishPlanProjection(
   // partially published secret-bearing plan.
   assertPublishableContentCarriesNoSecret(projection, planningSources, provenance);
 
-  for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
-
   const issueNumbers: (number | undefined)[] = projection.tickets.map(() => undefined);
   const published: PublishedTicket[] = [];
+  const recoveredIssues = new Map<number, { state: string; labels: Set<string> }>();
+  if (provenance !== undefined) {
+    const existing = await gh.listIssues({ state: "all", limit: 1_000 });
+    for (const issue of existing) {
+      const owner = parsePlannedBy(issue.body);
+      if (owner === undefined || !sameProvenance(owner, provenance)) continue;
+      const index = parsePlanTicketIndex(issue.body);
+      if (index === undefined || index < 0 || index >= projection.tickets.length) {
+        throw new Error(`publishTickets: existing Planned-by issue #${issue.number} has no valid Plan-ticket-index`);
+      }
+      const expected = projection.tickets[index]!;
+      if (issueNumbers[index] !== undefined || issue.title !== expected.ticket.title) {
+        throw new Error(`publishTickets: existing Planned-by issue #${issue.number} conflicts at ticket index ${index}`);
+      }
+      issueNumbers[index] = issue.number;
+      recoveredIssues.set(index, { state: issue.state, labels: new Set(issue.labels) });
+      published.push({
+        index,
+        issueNumber: issue.number,
+        title: issue.title,
+        ready: expected.ready,
+        labels: [...expected.labels],
+      });
+    }
+  }
+
+  for (const label of CANONICAL_LABELS) await gh.ensureLabel(label);
+
   try {
+    // A create can succeed while label application/response fails. Recover
+    // missing immutable classification labels, and restore op:ready only when
+    // no later state label proves that the ticket has already advanced.
+    for (const [index, issue] of recoveredIssues) {
+      const expected = projection.tickets[index]!;
+      const hasCurrentState = [...issue.labels].some((label) => STATE_LABELS.includes(label as (typeof STATE_LABELS)[number]));
+      for (const label of expected.labels) {
+        if (issue.labels.has(label)) continue;
+        if (label === "op:ready" && (issue.state !== "OPEN" || hasCurrentState)) continue;
+        await gh.addLabel(issueNumbers[index]!, label);
+        issue.labels.add(label);
+      }
+    }
     for (const { index, ticket, labels, ready } of projection.tickets) {
+      if (issueNumbers[index] !== undefined) continue;
       const issue = await gh.createIssue({
         title: ticket.title,
-        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, projection.plan.releaseVersion, planningSources, provenance),
+        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, projection.plan.releaseVersion, planningSources, provenance, index),
         labels,
       });
       issueNumbers[index] = issue.number;
@@ -951,19 +1024,23 @@ export async function publishPlanProjection(
     // Second pass: tickets whose dependencies were created after them get
     // their real Depends-on references now that every number is known.
     for (const { index, ticket } of projection.tickets) {
-      if (ticket.dependsOn.some((dep) => dep > index)) {
+      if (ticket.dependsOn.some((dep) => dep > index) || provenance !== undefined) {
         await gh.updateIssueBody(
           issueNumbers[index]!,
-          renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, projection.plan.releaseVersion, planningSources, provenance),
+          renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, projection.plan.releaseVersion, planningSources, provenance, index),
         );
       }
     }
   } catch (error) {
     const created = published.map((t) => `#${t.issueNumber} ${t.title}`).join(", ") || "(none)";
     throw new Error(
-      `publishTickets: GitHub failed mid-publication after creating ${created} — ` +
-        `reconcile manually before re-running (${error instanceof Error ? error.message : String(error)})`,
+      `publishTickets: GitHub failed mid-publication after resolving ${created} — ` +
+        `rerun with the same Planned-by identity to reconcile (${error instanceof Error ? error.message : String(error)})`,
     );
   }
-  return { published };
+  return { published: published.sort((left, right) => left.index - right.index) };
+}
+
+function sameProvenance(left: PlanProvenance, right: PlanProvenance): boolean {
+  return left.episodeId === right.episodeId && left.runId === right.runId && left.traceId === right.traceId;
 }

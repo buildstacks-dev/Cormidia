@@ -190,7 +190,7 @@ ci:
   per_commit_enforcement_status: "BLOCKED:F-PT-018 - workflow runs on pull requests and main pushes, but this private repository's current GitHub plan does not provide branch protection/rulesets; a red lane therefore cannot presently block merge"
   gate_classes: "no advisory or waived gates exist in this design; triggered lanes (L3/L4/L5) gate their own layer's claims per the per-layer expansion-gate rule, never merge"
   # changelog 2026-07-31 (audit AUD-103): blocking/advisory/waived classification was undeclared; declared here (fail-closed default made explicit)
-  per_commit_wall_clock_target: "5 minutes - PROPOSED reported optimization target; once ratified, timeout => completeness=incomplete, never green"
+  per_commit_wall_clock_target: "5 minutes - human-ratified 2026-07-31 as a reported optimization target only; no verdict or completeness effect (15 minutes is the core-job ceiling)"
   triggered: "L3 per obligations above; L4 per site cadence; L5 per obligations"
   rule: "trigger conditions live in CI config AND in this file - removing a gate in CI without a policy change is a policy violation"
 

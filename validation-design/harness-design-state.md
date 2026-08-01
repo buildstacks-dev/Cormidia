@@ -1,7 +1,7 @@
 # Harness design state — Operon validation campaign
 
 Updated: 2026-07-31 (design campaign CLOSED and RATIFIED; implementation Waves
-0–3 complete in the replacement harness worktree; audit loop CLOSED verdict
+0–4 complete in the replacement harness worktree; audit loop CLOSED verdict
 "clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7;
 product-owner ratification record in ratification-package.md §9)
 
@@ -19,7 +19,13 @@ product-owner ratification record in ratification-package.md §9)
   phase entry, restart/SSE/source-integrity behavior, delivery/approval truth,
   and cross-surface cost, budget, lifecycle, capability, and error agreement.
   Separately gated L3/L4/L5 evidence is not implied.
-- Wave 4 and the L3/L4/L5 implementation/evidence waves remain open. F-PT-017
+- Wave 4: complete at L1/L2 (HB-040…047). The 2026-07-31 full gate ran 116 files:
+  726 passed and one intentionally parked skip in 61.93 seconds; typecheck and
+  build were green. The event, planning, onboarding, scheduler, retention,
+  presentation, trajectory, and format-repair families are executable. The
+  F-PT-006 producer-crash/duplicate-identity clauses remain parked rather than
+  guessed.
+- The L3/L4/L5 implementation/evidence waves remain open. F-PT-017
   and F-PT-018 remain parked exactly as recorded below.
 
 ## Campaign
@@ -28,7 +34,7 @@ product-owner ratification record in ratification-package.md §9)
 - Target: production Operon (org runtime)
 - Artifact root: `./validation-design/`
 - Harness implementation root (per docs v2.9, build-time only): `claude-tests/`
-  — not built during the design campaign itself; now implemented through Wave 3
+  — not built during the design campaign itself; now implemented through Wave 4
   as recorded above.
 - Incumbent suite: archived under `archive-do-not-read/**` — protected no-read path (ratified at Phase 0); clean-slate greenfield, no coexistence posture
 - ID namespace: `OPERON-` (confirmed at Phase 0)

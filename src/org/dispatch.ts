@@ -190,7 +190,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   // exceeding the WIP limit that bounds concurrency and spend.
   const recoverySpawns = killed.spawns + staleSpawns;
   const capacity = Math.max(0, appsFile.org.maxConcurrentTurns - freshLocks - recoverySpawns);
-  const { due, blocked, retirable } = await computeDueTurns({
+  const { due, blocked, retirable, recoveredEventMarks } = await computeDueTurns({
     appsFile,
     rolesFile,
     runtimeHome,
@@ -215,6 +215,15 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   // mid-fan-out cannot strand an event live forever (issue #25). Dry-run
   // computes but never writes.
   if (options.dryRun !== true) {
+    if (recoveredEventMarks.length > 0) {
+      try {
+        await eventStore.markConsumed(recoveredEventMarks);
+      } catch (error) {
+        result.errors.push(
+          `event consumption reconciliation failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
     for (const event of retirable) {
       try {
         await eventStore.retireEvent(event.key);
@@ -389,10 +398,16 @@ async function computeDueTurns(input: {
   evidence: SchedulerEvidenceStore;
   cadenceWindow: string;
   orgId: string;
-}): Promise<{ due: DueTurn[]; blocked: BlockedDecision[]; retirable: RetirableEvent[] }> {
+}): Promise<{
+  due: DueTurn[];
+  blocked: BlockedDecision[];
+  retirable: RetirableEvent[];
+  recoveredEventMarks: string[];
+}> {
   const due: DueTurn[] = [];
   const blocked: BlockedDecision[] = [];
   const retirable: RetirableEvent[] = [];
+  const recoveredEventMarks = new Set<string>();
   // One read per tick: per-role consumption marks filter out roles that have
   // already run for a still-live multi-subscriber event (issue #25).
   const consumed = new Set(await input.eventStore.readConsumed());
@@ -442,8 +457,18 @@ async function computeDueTurns(input: {
             const subscribers = subscribersByEvent.get(event.key) ?? new Set<string>();
             subscribers.add(role.name);
             subscribersByEvent.set(event.key, subscribers);
-            if (consumed.has(roleConsumedKey(event.key, role.name))) continue;
-            if (await input.evidence.hasSpawnedEvent(event.key, role.name)) continue;
+            const consumedKey = roleConsumedKey(event.key, role.name);
+            if (consumed.has(consumedKey)) continue;
+            if (await input.evidence.hasSpawnedEvent(event.key, role.name)) {
+              // The durable scheduler decision reaches `spawned` before the
+              // file-store mark. A crash in that narrow window must converge
+              // without firing the provider turn again or stranding the event
+              // forever. Treat the spawned decision as the recovery witness
+              // and back-fill the ordinary per-role mark in the caller.
+              consumed.add(consumedKey);
+              recoveredEventMarks.add(consumedKey);
+              continue;
+            }
             const route = resolveTriggerRoute({ role: role.name, trigger, channels });
             if (route.kind === "skip") {
               input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
@@ -490,7 +515,12 @@ async function computeDueTurns(input: {
     }
   }
 
-  return { due: due.sort(compareDue), blocked, retirable };
+  return {
+    due: due.sort(compareDue),
+    blocked,
+    retirable,
+    recoveredEventMarks: [...recoveredEventMarks].sort(),
+  };
 }
 
 function eventTurn(input: { orgId: string; cadenceWindow: string }, app: AppEntry, role: string, trigger: string, event: DueEvent): DueTurn {

@@ -30,6 +30,9 @@ malformed, foreign, or wrong-org definition. `operon scheduler status` and
 doctor join definition, loaded/active manager state, recent tick evidence,
 duplicate/orphan checks, and provider-settlement agreement. Definition-file
 existence is never sufficient for health.
+Duplicate decisions/episodes and orphan locks/journals/runs/settlements each
+have a distinct scheduler status reason code. They block a healthy verdict;
+they are not merely counters printed beside an otherwise-green result.
 
 The scheduler evidence model deliberately keeps four ids separate: OS cadence
 invocation, app/role/trigger decision, spawned episode/turn, and ordinary
@@ -81,6 +84,12 @@ observably pending (a skip line per tick) until the app grows the channel and
 the gated role runs. The file-drop inbox gives webhook parity later: a
 droplet webhook receiver just writes JSON files into the same inbox — the
 dispatcher does not change.
+
+If the dispatcher dies after durable scheduler evidence records a successful
+spawn but before the consumed-event mark commits, the next tick treats that
+exact `(event, role)` as handled, backfills the mark, and continues retirement.
+It never refires the already-spawned turn merely because the derived mark was
+the lagging artifact.
 
 ### Trigger routing
 

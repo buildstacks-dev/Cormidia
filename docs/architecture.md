@@ -505,10 +505,14 @@ provenance-bearing creator scope; labels, lifecycle stage, or short prose
 never authorize the bypass, and bare `operon plan <app>` fails closed,
 directing the operator to `--auto --goal`.
 
-Published tickets carry a `Planned-by:` trailer and a local
-`published-tickets.json` mirror — the planner→ticket causal edge. Gate,
-envelope, assignment, and settlement enforcement match every other
-EpisodePlan-backed provider step.
+Published tickets carry a `Planned-by:` trailer, a provenance-scoped
+`Plan-ticket-index:`, and a local `published-tickets.json` mirror — the
+planner→ticket causal edge. The publisher validates the whole dependency graph
+as a DAG (including disconnected components). After a lost create response or
+crash between issue creation and the local mirror, rerunning with the same
+planning identity discovers matching indexed issues, refuses conflicts, and
+converges without duplicates. Gate, envelope, assignment, and settlement
+enforcement match every other EpisodePlan-backed provider step.
 
 ## 9. Greenfield creation and Bootstrap
 

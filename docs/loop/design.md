@@ -241,8 +241,9 @@ Pure validation checks role/tuple/capability membership, DAG integrity and
 reachability, required outputs, independent provider review, deterministic
 safety floors, approvals, terminal coverage, and budget arithmetic. A
 planner-authored structural failure gets at most one bounded repair. Creator
-scope that omits non-authoritative planning details invokes EpisodePlanner;
-contradictory authoritative scope fails closed.
+scope declared as planner input may omit decisions for EpisodePlanner to
+complete; any invalid scope explicitly declared `execution_ready` fails closed
+before provider construction rather than silently changing routes.
 
 Closed workflow domains also supply one code-owned provider-operation
 registry. Operon injects its sorted operation IDs into both the initial and

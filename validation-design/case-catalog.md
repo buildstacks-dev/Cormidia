@@ -5,10 +5,11 @@ the ratified artifacts: system-map (J-01…J-18), invariants (INV-001…015), bo
 (B-01…B-17), contracts (22 canonical IDs), llm-eval-plan (S-1…S-7 and S-9; S-8 intentionally absent), risk-allocation
 (E-1/E-2/E-3, floors, §5/§6 obligations). **This remains the design-derived
 catalog, while executable authoring is tracked by `harness-backlog.md`.** As of
-2026-07-31, Waves 0–3 are implemented under `claude-tests/`: the Wave-3
-CF-INV-009/CF-SM-LOOP/CF-J04/CF-J15/CF-J07-A/CF-J08-A/CF-J02-A/CF-IF families
-are executable and green at L1/L2. Catalog closure does not imply implementation
-of Wave 4 or separately gated L3/L4/L5 evidence.
+2026-07-31, Waves 0–4 are implemented under `claude-tests/`: through Wave 3 the
+E-1/E-2/E-3 and evidence-agreement families are executable; Wave 4 adds the
+CF-J02/CF-J03/CF-J10/CF-J16/CF-OPS-GROW/CF-IF/CF-S2-traj/CF-S9-env remainder.
+The full L1/L2 gate is green (116 files, 726 passed, one intentionally parked
+skip). Catalog closure does not imply separately gated L3/L4/L5 evidence.
 
 **Closure rule:** every (source artifact × derivation row) cell below carries case
 families or a **named prune**. Prune vocabulary (nothing else is legal):

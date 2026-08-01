@@ -35,6 +35,12 @@ export async function schedulerOperationalStatus(input: SchedulerDefinitionInput
   if (evidence.overdue === true) reasons.add("overdue_tick");
   if (evidence.corrupt_records.length > 0) reasons.add("scheduler_state_corrupt");
   else if (!evidence.measurement_valid) reasons.add("measurement_unavailable");
+  if (evidence.duplicate_decisions > 0) reasons.add("duplicate_scheduler_decision");
+  if (evidence.duplicate_episodes > 0) reasons.add("duplicate_scheduler_episode");
+  if (evidence.orphaned_locks > 0) reasons.add("orphan_scheduler_lock");
+  if (evidence.orphaned_journals > 0) reasons.add("orphan_scheduler_journal");
+  if (evidence.orphaned_runs > 0) reasons.add("orphan_scheduler_run");
+  if (evidence.orphaned_settlements > 0) reasons.add("orphan_scheduler_settlement");
   if (evidence.provider_settlement_agreement === false) reasons.add("scheduler_state_failure");
   try {
     const invocations = await store.listInvocations();

@@ -332,7 +332,7 @@ export async function prepareEpisodePlanWithRuntime(
         : { validateAcceptedPlan: options.validateAcceptedPlan }),
     });
   }
-  if (hasAuthoritativeCreatorScopeConflict(creatorScopeAssessment.issues)) {
+  if (hasAuthoritativeCreatorScopeConflict(creatorScopeAssessment.issues, options.intent.creatorScope)) {
     throw new CreatorScopeConflictError(creatorScopeAssessment.issues);
   }
 

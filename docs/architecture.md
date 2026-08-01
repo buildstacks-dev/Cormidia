@@ -369,8 +369,9 @@ human and org work meet.
 Crashes recover at artifact boundaries, not by re-running from the top.
 Recovery reopens the accepted plan and journal, finds the last durable
 artifact (`intent → plan → route → ready step → terminal evidence`), and
-continues from there; restart-clean may throw away only scratch that was
-never accepted as an episode artifact. Four idempotency rules keep a dead
+continues from there. Ambiguous uncommitted worktree bytes are preserved for
+inspection rather than reset; only an exact valid session may resume against
+them. Four idempotency rules keep a dead
 turn from leaving the repo half-done: durable progress is explicit, the
 artifact is created before the label that announces it, claims are atomic
 label flips, and non-git writes are append-only keyed by turnId.

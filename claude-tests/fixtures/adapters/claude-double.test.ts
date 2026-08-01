@@ -8,6 +8,7 @@
 // live conformance run (HB-051). Zero network, zero tokens, zero FS writes.
 
 import { describe, expect, it } from "vitest";
+import { ClaudeSessionResumeMismatchError } from "../../../src/runtime/adapters/claude.js";
 import type {
   GateFn,
   ToolAction,
@@ -24,9 +25,11 @@ import {
 } from "./claude-double.js";
 import {
   AdapterContractViolation,
+  RESUME_MISMATCH_ERROR_CODE,
   checkEveryExecutedToolConsulted,
   checkSessionIdentityHonest,
   checkUsageAbsentRenderedUnknown,
+  isTypedResumeMismatchError,
   script,
 } from "./scenario.js";
 
@@ -295,19 +298,42 @@ describe("CF-C-CORE — OPERON-C-CORE-001 clauses against the scripted Anthropic
     expect(() => checkUsageAbsentRenderedUnknown(turn, result)).toThrow(/unavailable/);
   });
 
-  it("§2 usage absent on the terminal result: the adapter rejects rather than fabricating usage", async () => {
-    // A terminal result with NO usage block at all. The adapter must never
-    // resolve with invented numbers; today it surfaces a thrown error (the
-    // typed-error refinement for this exact shape is a product follow-up —
-    // see the wave report — but zero-fabrication is the clause under test).
+  it("§2/§3 usage-block-absent terminal result yields the typed unknown-usage outcome — never a TypeError, never fabricated numbers (promoted, HB-024)", async () => {
+    // A terminal result with NO usage block at all. The adapter settles the
+    // turn with the typed unknown-usage snapshot (INV-006 unknown ≠ zero):
+    // quality "unavailable", zero figures as the unknown marker, terminal
+    // status still honest per the provider subtype.
     const dbl = claudeDouble([
       script.turn({ sessionId: "sess-na", outcome: script.success("done", { usage: "absent" }) }),
     ]);
     const { hooks } = recordingHooks();
-    await expect(
-      dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks),
-    ).rejects.toThrow();
-    expect(onlyTurn(dbl).resultDelivered).toBe(true); // the provider DID answer — without usage
+    const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks);
+    const turn = onlyTurn(dbl);
+    expect(turn.resultDelivered).toBe(true); // the provider DID answer — without usage
+    expect(result.status).toBe("completed");
+    expect(result.summary).toBe("done");
+    expect(result.usage.quality).toBe("unavailable");
+    expect(result.usage.tokensIn).toBe(0);
+    expect(result.usage.tokensOut).toBe(0);
+    expect(result.usage.costUsd).toBe(0);
+    expect(() => checkUsageAbsentRenderedUnknown(turn, result)).not.toThrow();
+  });
+
+  it("§2/§3 usage-block-absent terminal result after a mid-turn checkpoint retains the checkpoint as partial — evidence is never zeroed", async () => {
+    const dbl = claudeDouble([
+      script.turn({
+        sessionId: "sess-nap",
+        steps: [script.usageUpdate({ inputTokens: 120, outputTokens: 8 })],
+        outcome: script.failure("error_during_execution", ["boom"], { usage: "absent" }),
+      }),
+    ]);
+    const { hooks } = recordingHooks();
+    const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks);
+    expect(result.status).toBe("failed");
+    expect(result.errorCode).toBe("error_during_execution");
+    expect(result.usage.tokensIn).toBe(120); // whatever usage is known…
+    expect(result.usage.tokensOut).toBe(8);
+    expect(result.usage.quality).toBe("partial"); // …marked incomplete, never complete, never zeroed
   });
 
   it("§2 agent prose passes through verbatim (trimmed); malformed verdict text is never interpreted", async () => {
@@ -721,28 +747,57 @@ describe("CF-B02 — OPERON-C-B02-001 deltas and scripted B-02 failure modes", (
     expect(result.usage.costUsd).toBe(0);
   });
 
-  it("resume-identity mismatch stays observable: the envelope reports the provider-restored session", async () => {
+  // PROMOTED 2026-07-31 (HB-024, was the Wave-0 `it.fails` KNOWN-GAP deposit):
+  // core §4 + B-02 resume delta ("resume validates it restored the *exact*
+  // session") is now enforced by the adapter — a provider-restored different
+  // session is a typed refusal BEFORE any tool action or usage accrues.
+  it("core §4: a resume the provider restores to a different session is a typed failure pre-spend (promoted, HB-024)", async () => {
     const dbl = claudeDouble([
       script.turn({
         sessionId: "sess-B", // the provider restored a DIFFERENT session
-        outcome: script.success("resumed elsewhere", {
-          usage: { inputTokens: 5, outputTokens: 1 },
-        }),
+        steps: [script.tool("Bash", { command: "echo spend happens" })],
+        outcome: script.success("ran anyway", { usage: { inputTokens: 9, outputTokens: 1 } }),
+      }),
+    ]);
+    const { hooks, gateActions, progress } = recordingHooks();
+    const run = dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: WORKDIR, session: { runtime: "claude", id: "sess-A" } }),
+      hooks,
+    );
+    await expect(run).rejects.toThrow(ClaudeSessionResumeMismatchError);
+    await expect(run).rejects.toThrow(/sess-A/);
+    await expect(run).rejects.toThrow(/sess-B/);
+    const turn = dbl.recorder.turns[0];
+    expect(turn?.toolPlays).toHaveLength(0); // pre-spend: no scripted tool ever played
+    expect(gateActions).toHaveLength(0); // the org gate never saw an action
+    expect(turn?.usageReported).toBe(false); // no usage accrued before the refusal
+    expect(progress.filter((entry) => entry.usage !== undefined)).toHaveLength(0);
+  });
+
+  it("core §4: the typed resume-mismatch refusal carries the stable machine code and both session ids", async () => {
+    const dbl = claudeDouble([
+      script.turn({
+        sessionId: "sess-B",
+        outcome: script.success("never", { usage: { inputTokens: 1, outputTokens: 1 } }),
       }),
     ]);
     const { hooks } = recordingHooks();
-    const req = doubleTurnRequest({
-      workdir: WORKDIR,
-      session: { runtime: "claude", id: "sess-A" },
-    });
-    const result = await dbl.runtime.runTurn(req, hooks);
-    const turn = onlyTurn(dbl);
-    expect(result.session.id).toBe("sess-B"); // provider truth, not an echo
-    expect(result.session.id).not.toBe(req.session?.id); // the mismatch is detectable downstream
-    expect(() => checkSessionIdentityHonest(turn, req.session, result)).not.toThrow();
+    try {
+      await dbl.runtime.runTurn(
+        doubleTurnRequest({ workdir: WORKDIR, session: { runtime: "claude", id: "sess-A" } }),
+        hooks,
+      );
+      expect.unreachable("the mismatch must be refused");
+    } catch (error) {
+      expect(isTypedResumeMismatchError(error)).toBe(true);
+      const typed = error as ClaudeSessionResumeMismatchError;
+      expect(typed.code).toBe(RESUME_MISMATCH_ERROR_CODE);
+      expect(typed.requestedSessionId).toBe("sess-A");
+      expect(typed.restoredSessionId).toBe("sess-B");
+    }
   });
 
-  it("negative control: a masking variant that echoes the requested resume id is caught", async () => {
+  it("negative control: a masking variant that swallows the typed refusal and echoes the requested resume id is caught", async () => {
     const dbl = claudeDouble(
       [
         script.turn({
@@ -759,34 +814,12 @@ describe("CF-B02 — OPERON-C-B02-001 deltas and scripted B-02 failure modes", (
       workdir: WORKDIR,
       session: { runtime: "claude", id: "sess-A" },
     });
+    // The seeded lie resolves where the real adapter would refuse…
     const result = await dbl.runtime.runTurn(req, hooks);
-    expect(result.session.id).toBe("sess-A"); // the seeded lie
+    expect(result.session.id).toBe("sess-A");
+    // …and the identity detector fires on the echoed id.
     expect(() =>
       checkSessionIdentityHonest(onlyTurn(dbl), req.session, result),
     ).toThrow(AdapterContractViolation);
-  });
-
-  // KNOWN GAP deposit (core §4 + B-02 resume delta: "resume validates it
-  // restored the *exact* session"): the adapter today passes a
-  // provider-restored different session THROUGH (honestly reported, so the
-  // mismatch is detectable downstream — asserted above) instead of turning
-  // it into a typed failure before further spend. `it.fails` keeps this
-  // clause deposited red-side: the day the adapter enforces it, this test
-  // flips and must be promoted to a plain `it` with the refusal asserted.
-  it.fails("KNOWN GAP — core §4: a resume the provider restores to a different session should be a typed failure pre-spend", async () => {
-    const dbl = claudeDouble([
-      script.turn({
-        sessionId: "sess-B",
-        steps: [script.tool("Bash", { command: "echo spend happens" })],
-        outcome: script.success("ran anyway", { usage: { inputTokens: 9, outputTokens: 1 } }),
-      }),
-    ]);
-    const { hooks } = recordingHooks();
-    await expect(
-      dbl.runtime.runTurn(
-        doubleTurnRequest({ workdir: WORKDIR, session: { runtime: "claude", id: "sess-A" } }),
-        hooks,
-      ),
-    ).rejects.toThrow();
   });
 });

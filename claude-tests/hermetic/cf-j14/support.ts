@@ -297,6 +297,7 @@ export async function seedRunningRun(
 
 export async function seedActiveJournal(world: ResetWorld, app = TARGET_APP): Promise<string> {
   const turnId = `turn-${app}-journal`;
+  await writeJournalPatch(world.stateHome, turnId, { role: "builder", app, phase: "assembling" });
   await writeJournalPatch(world.stateHome, turnId, { role: "builder", app, phase: "running" });
   return turnId;
 }

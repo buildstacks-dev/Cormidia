@@ -25,7 +25,9 @@ Status: DRAFT (Phase 4). Defends INV-008/012, T-9. Journey J-04 (mechanical gate
 - Exit ≠ 0 → gate failed; timeout → killed process group, gate failed (never pass,
   never hang forever). **Contract: every gate has an explicit bounded timeout,
   surfaced in its evidence**; governed app configuration may set its own bound.
-  Default: **PROPOSED** 15 min; owner: human; expiry: first harness build review.
+  **Human-ratified defaults at HB-007 review 2026-07-31:** setup/tests 5 min, lint
+  2 min, e2e 10 min. The GitHub Actions core-job ceiling is 15 min and is not a
+  per-gate default.
 - Required tool unavailable → typed environment failure, distinguished from a genuine
   red gate.
 - Runaway children/output flood: process-group kill + truncation marker (B-07 grouping).
@@ -38,8 +40,8 @@ Status: DRAFT (Phase 4). Defends INV-008/012, T-9. Journey J-04 (mechanical gate
   candidate. Detection binds to **candidate HEAD plus tracked/decision-relevant diff
   and explicitly governed generated paths** — mutation there is a named failure
   (fails the run, surfaces the diff); ignored tool residue (caches, dependency dirs)
-  is NOT automatically candidate corruption. Mechanism **PROPOSED**; owner: human;
-  expiry: first harness build review. `[elicited]`
+  is NOT automatically candidate corruption. This mechanism/scope was
+  **human-ratified at HB-007 review 2026-07-31**. `[elicited]`
 
 ## 5. Timing
 - Gates run between passes and twice at ship `[doc]`; freshness: gate evidence binds to

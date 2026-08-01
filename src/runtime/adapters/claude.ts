@@ -146,6 +146,27 @@ export function buildSystemPromptAppend(req: TurnRequest): string {
   return renderContextBundle(req.context);
 }
 
+/** Typed core-§4 refusal: a resume that authenticates but does not restore
+ *  the EXACT requested session fails closed pre-spend — it must never
+ *  silently continue as a fresh/different session (validation-design
+ *  contracts/provider-adapter-core.md §4; B-02 resume delta). The adapter
+ *  aborts the SDK session the moment the init message reports a different
+ *  session id, before any tool action or usage accrues. */
+export class ClaudeSessionResumeMismatchError extends Error {
+  readonly code = "error_resume_session_mismatch";
+  constructor(
+    readonly requestedSessionId: string,
+    readonly restoredSessionId: string,
+  ) {
+    super(
+      `ClaudeRuntime: resume requested session ${JSON.stringify(requestedSessionId)} but the ` +
+        `provider restored ${JSON.stringify(restoredSessionId)} — a resume must bind the exact ` +
+        `prior session; failing closed pre-spend instead of continuing on the wrong session`,
+    );
+    this.name = "ClaudeSessionResumeMismatchError";
+  }
+}
+
 export class ClaudeRuntime implements Runtime {
   readonly kind = "claude" as const;
 
@@ -316,6 +337,17 @@ export class ClaudeRuntime implements Runtime {
       for await (const message of this.queryFn({ prompt: req.task, options })) {
         if (message.type === "system" && message.subtype === "init") {
           sessionId = message.session_id;
+          if (
+            req.session !== undefined &&
+            sessionId !== undefined &&
+            sessionId !== req.session.id
+          ) {
+            // Core §4 fail-closed pre-spend: stop the SDK session before any
+            // tool action or usage, then surface the typed refusal.
+            const mismatch = new ClaudeSessionResumeMismatchError(req.session.id, sessionId);
+            abortController.abort(mismatch.message);
+            throw mismatch;
+          }
           if (sessionId !== undefined) {
             hooks.onProgress?.({ session: { runtime: "claude", id: sessionId } });
           }
@@ -385,16 +417,53 @@ export class ClaudeRuntime implements Runtime {
       throw new Error("ClaudeRuntime: SDK never reported a session id");
     }
 
-    const usage = resultMsg.usage;
+    // The SDK's types promise a usage block and cost on every terminal
+    // result, but a malformed provider message can omit them. That must
+    // surface as the TYPED unknown-usage outcome (INV-006: unknown ≠ zero,
+    // and never an untyped TypeError): checkpointed mid-turn usage is
+    // retained as `partial`; with no checkpoint the snapshot is
+    // `unavailable` — zeros are the unknown marker, never a claim.
+    const usage = resultMsg.usage as (typeof resultMsg)["usage"] | undefined;
+    const totalCostUsd =
+      typeof resultMsg.total_cost_usd === "number" ? resultMsg.total_cost_usd : 0;
+    const wallClockMs = typeof resultMsg.duration_ms === "number" ? resultMsg.duration_ms : 0;
     const budgetOverrun = resultMsg.subtype === "error_max_budget_usd";
-    const tokensIn =
-      usage.input_tokens +
-      (usage.cache_creation_input_tokens ?? 0) +
-      (usage.cache_read_input_tokens ?? 0);
-    const tokensOut = usage.output_tokens;
-    const usageQuality = resultMsg.total_cost_usd > 0 && tokensIn + tokensOut === 0
-      ? "partial"
-      : "complete";
+    let turnUsage: TurnUsage;
+    if (usage !== undefined) {
+      const tokensIn =
+        usage.input_tokens +
+        (usage.cache_creation_input_tokens ?? 0) +
+        (usage.cache_read_input_tokens ?? 0);
+      const tokensOut = usage.output_tokens;
+      turnUsage = {
+        tokensIn,
+        tokensInUncached: usage.input_tokens,
+        cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
+        cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+        tokensOut,
+        costUsd: totalCostUsd,
+        subagentTurns,
+        wallClockMs,
+        quality: totalCostUsd > 0 && tokensIn + tokensOut === 0 ? "partial" : "complete",
+      };
+    } else if (partialUsage !== undefined) {
+      turnUsage = {
+        ...partialUsage,
+        costUsd: totalCostUsd > 0 ? totalCostUsd : partialUsage.costUsd,
+        subagentTurns,
+        wallClockMs,
+        quality: "partial",
+      };
+    } else {
+      turnUsage = {
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: totalCostUsd,
+        subagentTurns,
+        wallClockMs,
+        quality: totalCostUsd > 0 ? "partial" : "unavailable",
+      };
+    }
     return {
       ...(resultMsg.subtype !== "success" ? { errorCode: resultMsg.subtype } : {}),
       status: resultMsg.subtype === "success" ? "completed" : "failed",
@@ -409,24 +478,14 @@ export class ClaudeRuntime implements Runtime {
               ref: `budget-overrun/${sessionId}`,
               summary:
                 `Budget overrun: turn stopped at the per-turn cap — spent ` +
-                `$${resultMsg.total_cost_usd.toFixed(4)} against maxTurnBudgetUsd ` +
+                `$${totalCostUsd.toFixed(4)} against maxTurnBudgetUsd ` +
                 `$${req.role.maxTurnBudgetUsd} (role ${req.role.name}). ` +
                 `Overrun = incident note, not silent spend (roles.yaml).`,
             },
           ]
         : [],
       session: { runtime: "claude", id: sessionId },
-      usage: {
-        tokensIn,
-        tokensInUncached: usage.input_tokens,
-        cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
-        cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-        tokensOut,
-        costUsd: resultMsg.total_cost_usd,
-        subagentTurns,
-        wallClockMs: resultMsg.duration_ms,
-        quality: usageQuality,
-      },
+      usage: turnUsage,
       escalations,
     };
   }

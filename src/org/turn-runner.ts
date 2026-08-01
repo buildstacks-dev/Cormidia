@@ -126,7 +126,7 @@ import { appLearningRoot, orgLearningRoot } from "./learning/concepts.js";
 import { journalEpisodeAnchor } from "./learning/episodes.js";
 import { readLearningEvents } from "./learning/events.js";
 import { loadLearningPolicy } from "./learning/policy.js";
-import { acquireLock, heartbeatLock, readLockOrUndefined, releaseLock } from "./locks.js";
+import { acquireLock, adoptLock, heartbeatLock, readLockOrUndefined, releaseLock, type TurnLock } from "./locks.js";
 import {
   readJournal,
   writeJournalPatch,
@@ -223,7 +223,7 @@ export async function runDispatchedTurn(
   );
   const store = new ApprovalStore(runtimeHome);
   const actorEvents: TurnEvent[] = [];
-  await ensureTurnLock(runtimeHome, options.app.name, options.role.name, options.turnId, clock());
+  const turnLock = await ensureTurnLock(runtimeHome, options.app.name, options.role.name, options.turnId, clock());
   const heartbeat = setInterval(() => {
     void heartbeatLock(runtimeHome, options.app.name, options.role.name).catch(() => {});
   }, 30_000);
@@ -241,6 +241,11 @@ export async function runDispatchedTurn(
           triggerKind: "manual",
           trigger: "manual",
           pid: process.pid,
+          ...(turnLock.processStartIdentity !== undefined
+            ? { processStartIdentity: turnLock.processStartIdentity }
+            : {}),
+          ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
+          ...(process.env.OPERON_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
         });
 
     await writeJournalPatch(runtimeHome, options.turnId, {
@@ -248,6 +253,11 @@ export async function runDispatchedTurn(
       app: options.app.name,
       phase: "assembling",
       pid: process.pid,
+      ...(turnLock.processStartIdentity !== undefined
+        ? { processStartIdentity: turnLock.processStartIdentity }
+        : {}),
+      ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
+      ...(process.env.OPERON_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
     });
 
     await store.reconcile();
@@ -2302,15 +2312,20 @@ async function ensureTurnLock(
   role: string,
   turnId: string,
   now: Date,
-): Promise<void> {
+): Promise<TurnLock> {
   // A single tolerant read replaces the lockExists-then-readLock gap: if the
   // lock is already ours (a resumed/re-entrant turn) keep it, and a
   // vanished/torn lock just reads as "not ours" instead of throwing ENOENT
   // (F-007). acquireLock below (re)acquires atomically via O_EXCL.
   const existing = await readLockOrUndefined(runtimeHome, app, role);
-  if (existing?.turnId === turnId) return;
+  if (existing?.turnId === turnId) {
+    return existing.pid === process.pid
+      ? existing
+      : adoptLock(runtimeHome, app, role, turnId, now);
+  }
   const acquired = await acquireLock(runtimeHome, { app, role, turnId, now });
   if (!acquired.acquired) throw new Error(`turn lock busy for ${app}/${role}`);
+  return acquired.lock;
 }
 
 const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;

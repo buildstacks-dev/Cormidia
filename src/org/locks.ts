@@ -1,14 +1,19 @@
 // Filesystem lock for one turn per (role, app), with heartbeat staleness.
 
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "./atomic.js";
+import { currentProcessStartIdentity, processIdentityStatus, processStartIdentity } from "../runtime/process-identity.js";
 
 export interface TurnLock {
   app: string;
   role: string;
   pid: number;
+  /** Present on every new lock; optional only for legacy on-disk records. */
+  processStartIdentity?: string;
+  nonce?: string;
   turnId: string;
   startedAt: string;
   heartbeatAt: string;
@@ -31,10 +36,16 @@ export async function acquireLock(
   input: { app: string; role: string; turnId: string; now?: Date; pid?: number },
 ): Promise<AcquireLockResult> {
   const now = input.now ?? new Date();
+  const ownerPid = input.pid ?? process.pid;
+  const ownerStart = ownerPid === process.pid
+    ? currentProcessStartIdentity()
+    : processStartIdentity(ownerPid);
   const lock: TurnLock = {
     app: input.app,
     role: input.role,
-    pid: input.pid ?? process.pid,
+    pid: ownerPid,
+    ...(ownerStart !== undefined ? { processStartIdentity: ownerStart } : {}),
+    nonce: randomUUID(),
     turnId: input.turnId,
     startedAt: now.toISOString(),
     heartbeatAt: now.toISOString(),
@@ -108,11 +119,41 @@ export async function heartbeatLock(
   return next;
 }
 
+/** A detached run-role child adopts the scheduler's pre-spawn lock for the
+ * same deterministic turn. The turn id is the handoff token; all OS liveness
+ * fields are replaced together before the child starts provider work. */
+export async function adoptLock(
+  root: string,
+  app: string,
+  role: string,
+  turnId: string,
+  now: Date = new Date(),
+): Promise<TurnLock> {
+  const existing = await readLock(root, app, role);
+  if (existing.turnId !== turnId) {
+    throw new Error(`turn lock busy for ${app}/${role}: ${existing.turnId}`);
+  }
+  const adopted: TurnLock = {
+    ...existing,
+    pid: process.pid,
+    processStartIdentity: currentProcessStartIdentity(),
+    nonce: randomUUID(),
+    startedAt: now.toISOString(),
+    heartbeatAt: now.toISOString(),
+  };
+  await writeFileAtomic(lockPath(root, app, role), `${JSON.stringify(adopted, null, 2)}\n`);
+  return adopted;
+}
+
 export async function releaseLock(root: string, app: string, role: string): Promise<void> {
   await rm(lockPath(root, app, role), { force: true });
 }
 
 export function isStale(lock: TurnLock, now: Date = new Date(), staleMs = DEFAULT_STALE_MS): boolean {
+  if (lock.processStartIdentity !== undefined) {
+    const identity = processIdentityStatus(lock.pid, lock.processStartIdentity);
+    if (identity === "mismatch") return true;
+  }
   return now.getTime() - new Date(lock.heartbeatAt).getTime() > staleMs;
 }
 

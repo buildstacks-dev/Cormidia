@@ -29,9 +29,9 @@ inline because their tickets cross layers.
 
 <!-- implementation status 2026-07-31: HB-001..HB-006 LANDED (claude-tests/
 walking skeleton; 134 specs green; CI lane wired with pinned fail-closed
-gitleaks + canary). HB-007: register items 1–8, 13 remain PROPOSED — treated
-as working hypotheses throughout the build, still owed a human
-ratify/strike/adjust review; no Wave-1+ ticket treats them as settled.
+gitleaks + canary). HB-007 **COMPLETE 2026-07-31**: owner said "ratify
+recommendations"; items 1–8 and 13 are recorded ratified/adjusted-ratified in
+validation-policy.yaml. Items 9–12 remain PROPOSED and inconclusive-only.
 Defect fixed with deposited detector this wave: S-3 conflicting verdict
 markers (src/loop/verdicts.ts extractKeywordValueStrict;
 claude-tests/unit/s3-verdict-marker.test.ts). -->
@@ -42,7 +42,7 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
   (vitest) to it, add the GitHub Actions lane running L1+L2+gitleaks per commit.
   *Acceptance:* CI runs the lane on a PR; an intentionally failing spec turns it red
   (lane negative control); gitleaks runs pinned + fail-closed with a generated
-  temporary canary proving detection; wall-clock recorded (5-min PROPOSED target is
+  temporary canary proving detection; wall-clock recorded (5-min ratified target is
   reported, not enforced). *Defends:* policy `ci` block; harness self-tests. *Layer:*
   1–2 + CI. *Executor:* build-agent.
 - **HB-002 — Fixture kit v1 + self-tests.** Temp org home, temp state home, temp git
@@ -80,8 +80,19 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
   validation-policy.yaml. *Acceptance:* no Wave-1+ ticket may treat a still-PROPOSED
   value as settled fact; the build reports which items remain provisional. *Defends:*
   PROPOSED-register discipline. *Layer:* process. *Executor:* human + build-agent.
+  **Status: COMPLETE 2026-07-31** — owner ratified the recorded recommendations;
+  policy, contracts, design state, package, CI annotations, and harness conventions
+  updated in the same change.
 
 ## Wave 1 — E-1 permission-to-effect chain (exhaustive; L1/L2)
+
+<!-- implementation status 2026-07-31: HB-010..HB-017 + HB-P4 LANDED (commits
+a70bc4b suites, e55eace fixes; 578 specs green + 1 parked skip). Twelve
+deterministic product defects vs ratified contracts were found, fixed, and
+their tripwires promoted to plain detectors in e55eace. Five genuine design
+ambiguities became findings F-PT-012..016 (cells parked; see policy
+open_findings). -->
+
 
 - **HB-010** Gate classifier adversarial suite (CF-INV-002 seeds incl. obfuscation,
   unknown-tool fail-closed). Executor: build-agent.
@@ -101,6 +112,16 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
   forward-completion). Executor: build-agent.
 
 ## Wave 2 — E-2 durability + money (exhaustive; L1/L2)
+
+<!-- implementation status 2026-07-31: HB-020..HB-025 + HB-P1/HB-P2
+COMPLETE in the isolated codex/harness-wave2 worktree. Coverage includes
+settlement conservation/reconcile properties; claim/tick races; budget-pause
+convergence; real SIGKILL sweeps at delivery and turn-journal boundaries;
+PID/start/nonce ownership plus owned-process-group TERM→KILL cleanup; Claude,
+Codex, and pi doubles; and FS/git fault/preservation cases. Product detectors
+land with every discovered defect. Full per-commit L1/L2 gate: 95 files,
+662 passed + 1 intentionally parked skip. This status is L1/L2 only: real
+provider conformance remains the separately gated HB-051 L3 obligation. -->
 
 - **HB-020** Settlement conservation + reconcile (CF-J08-*, CF-INV-006 property tests
   via fast-check). **HB-021** Claim uniqueness/races (CF-INV-005, CF-J09-RC).
@@ -198,6 +219,13 @@ its ticket)
 - **HB-P3** F-PT-006 producer-protocol + duplicate-identity cases. **HB-P5**
   F-PT-008 expiry-disposition cases. Executor: build-agent, after human ratifies each
   finding.
+- **HB-P6** F-PT-017 provider terminal-status enum decision and migration cases
+  (CF-C-CORE). Executor: human + build-agent after the owner chooses the canonical
+  vocabulary and compatibility path; no test may derive truth from the current code.
+- **HB-P7** F-PT-018 merge-blocking enforcement (CF-HARNESS-CI). Executor: human +
+  build-agent after GitHub required-check controls become available or the owner
+  ratifies an enforceable alternative. The PR workflow remains active and
+  fail-closed internally, but must not be represented as merge-blocking meanwhile.
 
 ## Post-ratification additions (2026-07-31)
 

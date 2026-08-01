@@ -17,7 +17,10 @@ Defends: INV-001/002/003/004/006, T-1/T-5/T-11. Journeys: any provider turn (J-0
 ## 2. Output guarantees
 - Always: a run envelope with terminal status ∈ {completed, failed, cancelled,
   blocked_on_gate, interrupted}; ids (app, runId, providerTurnId, session identity);
-  timings.
+  timings. <!-- harness revision 2026-07-31: src/runtime/types.ts currently exposes
+  "timed_out" instead of this ratified "interrupted" vocabulary. The implementation
+  is not treated as the specification; the enum-conformance clause is
+  BLOCKED:F-PT-017 pending a product-owner decision. -->
 - Usage: reported **as provided or as `unknown`** — never fabricated, never zero-when-
   absent (INV-006).
 - Tool events as surfaced by the provider; outcome fields (`success`, `durationMs`) only

@@ -2268,6 +2268,14 @@ export function pushBranch(worktree: string, branch: string): void {
     // one ref (never any other; the branch name is always the ticket's).
     git(worktree, "push", "--force", "-u", "origin", branch);
   }
+  const localHead = git(worktree, "rev-parse", "HEAD");
+  const remoteLine = git(worktree, "ls-remote", "--heads", "origin", `refs/heads/${branch}`);
+  const remoteHead = remoteLine.split(/\s+/)[0];
+  if (remoteHead !== localHead) {
+    throw new Error(
+      `git push post-state mismatch for ${branch}: local HEAD ${localHead}, remote ${remoteHead ?? "<missing>"}`,
+    );
+  }
 }
 
 function isNonFastForwardPush(error: unknown): boolean {
@@ -2357,7 +2365,7 @@ function packageJsonAtRef(cwd: string, spec: string): PackageJsonAtRef {
 
 function git(cwd: string, ...args: string[]): string {
   try {
-    return execFileSync("git", args, {
+    return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
       cwd: resolve(cwd),
       encoding: "utf8",
       env: {

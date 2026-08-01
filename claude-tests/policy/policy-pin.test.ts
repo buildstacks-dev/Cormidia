@@ -99,6 +99,9 @@ function mutateWorkflow(mutate: (doc: MutableWorkflow) => void): string {
 
 interface MutablePolicy {
   design_status: string;
+  proposed_register: {
+    items: { id: number; decision_status: string; value: string }[];
+  };
   open_findings: { id: string; status: string }[];
   layers: {
     L3_live_sandbox: {
@@ -184,6 +187,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
       expect(policy.ci.per_commit).toContain(lane);
     }
     expect(policy.ci.per_commit_gate_class).toContain("fail-closed");
+    expect(policy.ci.per_commit_enforcement_status).toContain("BLOCKED:F-PT-018");
   });
 
   it("(e) vitest-config pin: default config excludes claude-tests/live/** with passWithNoTests false; live config exists and includes only live/**", async () => {
@@ -212,6 +216,14 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     const f008 = policy.open_findings.find((f) => f.id === "F-PT-008");
     expect(f006?.status).toBe("open-blocked-contract");
     expect(f008?.status).toBe("open-blocked-contract");
+    for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 13]) {
+      expect(policy.proposed_register.items.find((item) => item.id === id)?.decision_status)
+        .toMatch(/^(adjusted-ratified|ratified)$/);
+    }
+    for (const id of [9, 10, 11, 12]) {
+      expect(policy.proposed_register.items.find((item) => item.id === id)?.decision_status)
+        .toBe("proposed");
+    }
   });
 });
 
@@ -322,6 +334,14 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
     });
     expect(auditRatifiedPins(unratified)).toContainEqual(
       expect.stringContaining("design_status"),
+    );
+
+    const hb007Drift = mutatedPolicy((doc) => {
+      doc.proposed_register.items.find((item) => item.id === 7)!.value =
+        "per-gate timeout default 15min";
+    });
+    expect(auditRatifiedPins(hb007Drift)).toContainEqual(
+      expect.stringContaining("HB-007 decision item 7"),
     );
   });
 

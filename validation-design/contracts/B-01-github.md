@@ -28,8 +28,9 @@ Status: DRAFT (Phase 4). Defends INV-008/009/014, T-7/T-9. Journeys J-02/03/04/0
   (terminal, surfaced); **lost response after possible effect** → ambiguity path:
   reconcile via idempotency marker or stop `ambiguous` — never blind re-perform
   (INV-003 branch, T-12 for executor ops).
-- Retry budget: **PROPOSED** 3 attempts, exponential backoff, per operation; owner:
-  human; expiry: first harness build review.
+- Retry budget: **human-ratified at HB-007 review 2026-07-31** — 3 total attempts
+  per operation, jittered exponential backoff, and an injectable clock so the
+  schedule is deterministic under test.
 
 ## 4. Idempotency
 - Creates carry detectable markers (Planned-by trailer + published-tickets mirror for

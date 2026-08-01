@@ -88,8 +88,42 @@ export interface GithubDoubleHandle {
   forcePush(name: string): string;
   /** Move the remote default branch (created if missing). */
   moveDefaultBranch(name: string): void;
+  /** First-class push mirror (HB-023): set a branch tip to an EXACT oid.
+   *  J04 walks push real git commits to a real file:// origin while the
+   *  double models remote heads abstractly, so tests sync the modeled tip to
+   *  the worktree's true HEAD (the Wave-0 skeleton patched state.json by
+   *  hand for this). Same semantics as `setBranchHead(home, …)` below. */
+  setBranchHead(branch: string, oid: string): void;
   setChecks(prNumber: number, checks: DoubleCheck[]): void;
   dispose(): Promise<void>;
+}
+
+/** Standalone form of the push mirror, usable from a subprocess that only
+ *  holds the double's `home` path (kill-point scenarios cannot share the
+ *  parent's handle closure). Mirrors a real `git push <branch>` into the
+ *  double's remote model:
+ *  - the branch tip becomes EXACTLY `oid` (never a synthetic one);
+ *  - a missing branch is created (a push can create a branch);
+ *  - open PRs whose head is the branch follow the push, with the pre-push
+ *    shape kept in `staleShadow` — identical to `advanceBranch`'s semantics.
+ *  Returns the oid for symmetry with the seed/advance helpers. */
+export function setBranchHead(home: string, branch: string, oid: string): string {
+  if (oid.trim() === "") throw new Error("github double: setBranchHead requires a non-empty oid");
+  return withDoubleState(home, (current) => {
+    const existing = current.branches[branch];
+    if (existing === undefined) {
+      current.branches[branch] = { oid };
+    } else {
+      existing.oid = oid;
+    }
+    for (const pr of Object.values(current.prs)) {
+      if (pr.headRefName === branch && pr.state === "OPEN" && pr.headRefOid !== oid) {
+        current.staleShadow.prs[String(pr.number)] = structuredClone(pr);
+        pr.headRefOid = oid;
+      }
+    }
+    return oid;
+  });
 }
 
 let engineCjsCache: string | undefined;
@@ -268,6 +302,9 @@ export async function installGithubDouble(
         }
         current.defaultBranch = name;
       });
+    },
+    setBranchHead(branch: string, oid: string) {
+      setBranchHead(home, branch, oid);
     },
     setChecks(prNumber: number, checks: DoubleCheck[]) {
       withDoubleState(home, (current) => {

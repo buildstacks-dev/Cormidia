@@ -13,9 +13,9 @@ families or a **named prune**. Prune vocabulary (nothing else is legal):
 - `PRUNE-dup:<cell>` — covered by the named cell (single-writer rule; no clone).
 - `PRUNE-na` — dimension structurally inapplicable to this source (reason inline).
 - `BLOCKED:<finding>` — cases exist but are parked until the finding ratifies
-  (now F-PT-006/008 only; F-PT-003/004/007 were ratified 2026-07-31 and their former
-  blocked cells below are derivable against the ratified contracts); listed, never
-  authored as truth.
+  (current findings are named at their cells and in §9; F-PT-003/004/007 were
+  ratified 2026-07-31 and their former blocked cells are derivable against the
+  ratified contracts); listed, never authored as truth.
 - `BLOCKED:B-17-L3` — live-target cases parked per boundary-map B-17 status.
 
 **Row/oracle/layer keys.** Layer 1/2/3/4/5 per taxonomy; oracle kinds: `state` (durable
@@ -33,6 +33,12 @@ Family IDs are stable: `CF-<source>-<row>`. Traces resolve per the
 journey-acceptance.md alias table.
 
 ---
+
+## 0. Harness self-test register (policy machinery outside the product-source matrices)
+
+| Cell | Case family | Layer | Oracle | Risk |
+|---|---|---|---|---|
+| CF-HARNESS-CI | Per-commit workflow shape, fail-closed jobs, detector canaries, and actual merge-blocking enforcement. Workflow-shape checks are implemented; required-check enforcement is **BLOCKED:F-PT-018**. | 1 + CI | evid+det | FLOOR |
 
 ## 1. Journey matrix (J × success / refusal / interruption / recovery / alt-initiators+observations)
 
@@ -140,7 +146,7 @@ journey-acceptance.md alias table.
 | CF-SM-LADDER-R/C | PRUNE-dup:CF-J02-I/RC (ladder transitions are lifecycle ops) | — | — | — |
 | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) |
 | CF-SM-EVENT-L/I/R/C | event pending→per-role-marked→retired: retire-before-all-marks illegal; refire-on-marked illegal; crash between mark and retire; **partial-file legality BLOCKED:F-PT-006** | 2 | state | STD |
-| CF-SM-TURN-L/I/R/C | turn journal phase sequence: phases in order, skipped-phase illegal, journal replay idempotent, kill at every phase (recognized intermediates only) | 2 | state | E2 |
+| CF-SM-TURN-L/I/R/C | productive turn journal path `assembling→running→collecting→done`: phases in order, productive-phase skip illegal (error terminals may end the current phase honestly), same-phase replay idempotent, real SIGKILL at every productive phase (recognized intermediates only) | 2 | state | E2 |
 
 ## 3. Invariant matrix (INV × violation-paths / guardrail-response)
 
@@ -210,11 +216,12 @@ spanning the six rows) except where a dimension is separately risky.
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-C-CORE | OPERON-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees, usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
+| CF-C-CORE | OPERON-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause BLOCKED:F-PT-017**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
 Eighteen boundary-contract families (B-09a and B-09b are separate contracts), one per
 canonical `OPERON-C-B*-001` ID, each clause-complete (valid/invalid inputs, outputs,
-typed errors, idempotency, ordering, freshness/latency), incl. every PROPOSED-register
-value asserted as provisional. **Per-ID resolver:**
+typed errors, idempotency, ordering, freshness/latency). HB-007 items 1–8 and 13 are
+asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain provisional.
+**Per-ID resolver:**
 
 | Cell | Layer set | Risk | Live/ops dup | Blocked remainder |
 |---|---|---|---|---|
@@ -331,7 +338,8 @@ value asserted as provisional. **Per-ID resolver:**
   publish-origin clauses) — opened at Wave-1 implementation 2026-07-31; F-PT-006 (CF-J10-I,
   CF-SM-EVENT-*, CF-B13-*; contract-matrix remainder CF-C-B13), F-PT-008
   (CF-J06-I, CF-B09a-*; contract-matrix remainder CF-C-B09A), B-17-L3 (CF-J17-A,
-  CF-B17-*; contract-matrix remainder CF-C-B17).
+  CF-B17-*; contract-matrix remainder CF-C-B17), F-PT-017 (CF-C-CORE terminal-
+  status enum clause), F-PT-018 (CF-HARNESS-CI required-check enforcement).
   <!-- changelog 2026-07-31 (audit AUD-106): §5 per-ID resolver's five blocked
   contract-matrix remainders added to this roll-up so it is the complete register. -->
   <!-- ratification 2026-07-31: F-PT-003 (CF-J07-I), F-PT-004 (CF-J04-I/CF-B15-*

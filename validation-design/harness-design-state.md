@@ -1,13 +1,29 @@
 # Harness design state — Operon validation campaign
 
-Updated: 2026-07-31 (CAMPAIGN CLOSED; audit loop CLOSED verdict "clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7; **design RATIFIED by the product owner in session 2026-07-31** — record in ratification-package.md §9)
+Updated: 2026-07-31 (design campaign CLOSED and RATIFIED; implementation Waves
+0–2 complete in the replacement harness worktree; audit loop CLOSED verdict
+"clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7;
+product-owner ratification record in ratification-package.md §9)
+
+## Harness implementation status
+- Wave 0: complete (walking skeleton, fixtures/doubles, policy pin, per-commit lane,
+  HB-007 owner review).
+- Wave 1: complete (E-1 permission-to-effect chain; five case cells parked on
+  F-PT-012…016 rather than guessed).
+- Wave 2: complete at L1/L2 (HB-020…025 + HB-P1/P2). The 2026-07-31 full gate ran
+  95 files: 662 passed and one intentionally parked skip. Real provider proof is
+  not implied; it remains HB-051 in the separately gated L3 wave.
+- Waves 3–4 and the L3/L4/L5 implementation/evidence waves remain open. F-PT-017
+  and F-PT-018 remain parked exactly as recorded below.
 
 ## Campaign
 - Skill: validation-harness-design
 - Scope mode: `product` — **CONFIRMED at Phase 0** (rev 2, round 3)
 - Target: production Operon (org runtime)
 - Artifact root: `./validation-design/`
-- Harness implementation root (per docs v2.9, build-time only): `claude-tests/` — NOT built in this campaign
+- Harness implementation root (per docs v2.9, build-time only): `claude-tests/`
+  — not built during the design campaign itself; now implemented through Wave 2
+  as recorded above.
 - Incumbent suite: archived under `archive-do-not-read/**` — protected no-read path (ratified at Phase 0); clean-slate greenfield, no coexistence posture
 - ID namespace: `OPERON-` (confirmed at Phase 0)
 - Provenance labels in force: `[doc]`, `[rambling]`, `[simulated]`, `[PROPOSED]`, `[walk]` (Phase 1 elicitation). `[stated]` reserved and unused (no live ratifying human).
@@ -21,7 +37,7 @@ Updated: 2026-07-31 (CAMPAIGN CLOSED; audit loop CLOSED verdict "clean" — AUD-
 - Phase 4 (contracts): **CONFIRMED** 2026-07-31 (round 4) — contracts/ (23 files, 22 canonical OPERON-C IDs). History: draft REFUSED round 1 (12 objections: cadence≠guarantee; adapter budget-observation; B-03 read bypass; time identities; B-09a orphan grant; B-11 forward-only; B-12 no-quarantine; B-14 publish-vs-bootstrap + F-PT-007; B-15 no version floor; B-16 ratified output bounds; B-17 typed markers; journey traces + 4 false criteria). All corrected; operation contracts C-OP-LIFE/C-OP-PLAN/C-OP-LOOP added. Round 2 REFUSED (canonical IDs; F-PT-008 grant-expiry parking; C-OP-LIFE verify writes + refusal split; residual cadence wording; J-10 cardinality; J-18 admission/delivery split) — all corrected. Round 3 REFUSED (non-resolving trace-table notation; J-10 at-most-once permitted silent skip; B-09a indefinite-viability promise) — all corrected. **CONFIRMED** 2026-07-31 (round 4).
 - Phase 5 (LLM eval plan): **CONFIRMED** 2026-07-31 (round 4) — llm-eval-plan.md §§0–9 + 11 golden-set scaffolds. History: round 1 REFUSED (thresholds-as-decision-rules; scaffold truthfulness; unratified trajectory bounds) — all corrected: plan §9 decision-status rule (inconclusive-only until ratified), F-PT-009 widened + F-PT-010 opened, ten truthful scaffolds incl. brief-conditioning/, trajectory checks split ratified/provisional/observed. Round 2 REFUSED (missing S-2 L4 scaffold; unowned OPEN decisions → F-PT-011; root-contract overclaim) — corrected: builder-quality/ added (11 dirs), F-PT-011 umbrella opened, root exempts deterministic/study scaffolds. Round 3 REFUSED (F-PT-011 scope vs brief-conditioning; S-5/S-6/S-7 threshold/cadence omissions) — corrected in the canonical plan. **CONFIRMED** 2026-07-31 (round 4).
 - Phase 6 (risk tiers + catalog derivation): **COMPLETE** 2026-07-31 — weighting CONFIRMED (round 3): `risk-allocation.md` (E-1/2/3 families, INV-001/011/015 floors, L3 spend ≤$5/≤$15 + triggers *(release bound later amended to ≤24 turns/$100 at human ratification — see Human ratification section)*, 7-day soak, **owner-ratified threat-model scope+timing**, **owner-ratified contention exercise**, completeness/verdict split). Gate history: round 1 refused (threat-model scope/timing, contention design, verdict split — all corrected as owner rulings), round 2 refused (INV-015/T-10/T-11 bucket closure — corrected). Catalog derived to matrix closure: `case-catalog.md` (8 matrices, ~130 case families + 4 L3 families, all cells traced or named-pruned/blocked; closure §9); catalog confirmed at combined gate round 4.
-- Phase 7 (tooling): SELECTED by owner (vitest + fast-check; in-process fakes + real temp git; opt-in live config; hand-rolled eval runner; STRIDE doc; L5-classified contention rig; soak protocol; pinned fail-closed gitleaks w/ canary + no broad fixture allowlists; GitHub Actions). 5-min L1/L2 target = PROPOSED reported-optimization-target (timeout⇒incomplete once ratified). Combined gate round 1 REFUSED on catalog closure (contention layer; missing Codex-rotation L5 case; F-PT-004 in-cell blocks; closure arithmetic/IDs/risk vocab) — all corrected. Combined gate round 2 REFUSED (boundary count 18×7=126; GROW is L2 not L5; contract per-ID resolver + S-range) — all corrected. Round 3 REFUSED (resolver misroutes/omissions) — corrected: exact L3 case IDs (CF-B01/02/03/04-L3) minted and referenced; B-06/B-07 → 2+5 dup CF-OPS-SOAK; B-09B → 2+3 dup CF-J18-A. Round 4 **CONFIRMED** 2026-07-31 — catalog closure + tooling both ratified. Phase 6 and Phase 7 complete.
+- Phase 7 (tooling): SELECTED by owner (vitest + fast-check; in-process fakes + real temp git; opt-in live config; hand-rolled eval runner; STRIDE doc; L5-classified contention rig; soak protocol; pinned fail-closed gitleaks w/ canary + no broad fixture allowlists; GitHub Actions). The 5-min L1/L2 target is a **human-ratified report-only optimization target** as of HB-007 review 2026-07-31; missing it has no verdict effect (the CI core-job ceiling is 15 min). Combined gate round 1 REFUSED on catalog closure (contention layer; missing Codex-rotation L5 case; F-PT-004 in-cell blocks; closure arithmetic/IDs/risk vocab) — all corrected. Combined gate round 2 REFUSED (boundary count 18×7=126; GROW is L2 not L5; contract per-ID resolver + S-range) — all corrected. Round 3 REFUSED (resolver misroutes/omissions) — corrected: exact L3 case IDs (CF-B01/02/03/04-L3) minted and referenced; B-06/B-07 → 2+5 dup CF-OPS-SOAK; B-09B → 2+3 dup CF-J18-A. Round 4 **CONFIRMED** 2026-07-31 — catalog closure + tooling both ratified. Phase 6 and Phase 7 complete.
 - Phase 8 (deliverables + adversarial review): **COMPLETE** — reader test complete (operator/new-engineer/coding-agent); all findings dispositioned: README.md entry point created; agents-md rewritten (activation clause, tagging sources, golden-set targeting, new-finding procedure, structural-additions rule, standing-rules digest); backlog +HB-007/+HB-047, L3 header + convention fixes; catalog §4 convention; policy single-source annotations; ratification-package.md WRITTEN. FINAL GATE round 1 REFUSED (YAML validity; registry completeness incl. B-17-L3 id + blocked-contract statuses; three stale future-policy references; ratification-package provenance/cardinality) — all corrected, policy verified parsing. FINAL GATE round 2 initially held on two audit defects (contracts [rambling] attribution B-03→B-06; stale checkpoint lines) — both corrected. **FINAL GATE CONFIRMED (round 2, 2026-07-31)** — stakeholder audited all 16 registered artifacts, 23 contract files, 11 scaffolds, parsed policy, verified provenance attribution and 15 simulated-seat decisions. Phase 8 COMPLETE; campaign closed. Confirmation scope: design campaign only — NOT real-human ratification, NOT harness implementation, NOT release-gating reactivation; policy stays draft, gating stays SUSPENDED, B-17-L3 and the five finding-dependent contracts stay blocked. *(Scope statement superseded 2026-07-31 by the human ratification recorded below: policy now ratified; F-PT-003/004/007 contracts unblocked; gating still SUSPENDED; B-17-L3 and the F-PT-006/008 contracts still blocked.)*
 
 ## Open findings
@@ -41,6 +57,8 @@ Updated: 2026-07-31 (CAMPAIGN CLOSED; audit loop CLOSED verdict "clean" — AUD-
 - F-PT-014 (open; raised Wave-1): INV-003 names "outside-worktree actions" never-broadly-scopeable but NEVER_SCOPEABLE_RULES has no mapping for that category; nearest live classes are human-widenable today. Parked in cf-sm-appr unit spec.
 - F-PT-015 (open; raised Wave-1): B-14 §4 bootstrap re-run semantics — product refuses outright vs contract "idempotent; marked block replaced in place; regenerated deterministically". Unambiguous half asserted; disjunction documented in cf-b14 spec.
 - F-PT-016 (open; raised Wave-1): publish-origin identity comparison ownership — bootstrap publish pushes to an origin that is not the registered repo (no comparison exists); B-14 §3 wrong-remote vs B-15 remote-identity split unresolved. Parked leg in cf-b14-publish spec.
+- F-PT-017 (open-blocked-contract; raised Wave-2 harness revision 2026-07-31): provider terminal-status vocabulary conflicts — ratified OPERON-C-CORE-001 says `interrupted`, while `Runtime`/all adapters expose `timed_out`. The contract was not rewritten from implementation behavior; its enum-conformance clause is parked in CF-C-CORE/HB-P6 pending the owner decision.
+- F-PT-018 (open-blocked-gate; raised harness audit/revision 2026-07-31): the per-commit workflow runs and is fail-closed internally, but the current private-repository GitHub plan does not offer branch protection/rulesets. The required merge-blocking target remains in policy; actual enforcement is parked in CF-HARNESS-CI/HB-P7 pending a plan change or ratified alternative.
 
 ## Decisions on record
 - Criticality/tiering was elicited teach-first at Phase 1 (no prior anchor); synthesis in system-map.md §5: base C2, function-scoped C3 control points T-1…T-12, C1 leaves, recovery as tier multiplier, compound worst case §5.5.
@@ -48,20 +66,20 @@ Updated: 2026-07-31 (CAMPAIGN CLOSED; audit loop CLOSED verdict "clean" — AUD-
 - Unattended live-sandbox runnability (zero human approvals, sandbox orgs only, publishing/non-sandbox still hard-gated) is a first-class layer-3 requirement for the policy file.
 - Release-gating replacement = campaign/policy obligation, proportionate; not a module.
 
-## PROPOSED register (provisional values/mechanisms; owner: human; expiry: items 1–8 and 13 = first harness build review (HB-007 tripwire); items 9–12 = first eval-campaign design review — per validation-policy.yaml `proposed_register`) <!-- AUD-104 -->
-1. B-01 GitHub retry budget: 3 attempts, exponential backoff, per operation.
-2. B-07 liveness-identity mechanism (semantic: survive PID reuse).
-3. B-07 descendant-cleanup mechanism (semantic: terminate owned descendant tree).
-4. B-10 preview→execute exact-hash comparison on depended-on surfaces.
-5. B-15 index.lock bounded wait ≤ 30 s (never delete/steal a foreign lock).
-6. B-15 hooks-disabled managed clones (core.hooksPath empty).
-7. B-16 per-gate timeout default 15 min (contract: every gate has an explicit bound surfaced in evidence).
-8. B-16 candidate-mutation detection mechanism (scope: candidate HEAD + tracked/decision-relevant diff + governed generated paths).
+## Decision register (owner: human; HB-007 review completed 2026-07-31; items 9–12 remain PROPOSED until first eval-campaign design review — per validation-policy.yaml `proposed_register`) <!-- AUD-104 -->
+1. **ADJUSTED-RATIFIED:** B-01 GitHub retry budget: 3 total attempts per operation, jittered exponential backoff, injectable clock.
+2. **ADJUSTED-RATIFIED:** B-07 liveness identity: PID + process-start identity + nonce, so PID reuse cannot impersonate a holder.
+3. **ADJUSTED-RATIFIED:** B-07 descendant cleanup: owned process group/session; TERM, bounded grace, then KILL; prove no owned descendants remain.
+4. **RATIFIED:** B-10 preview→execute exact-hash comparison on depended-on surfaces.
+5. **RATIFIED:** B-15 index.lock bounded wait ≤ 30 s (never delete/steal a foreign lock).
+6. **RATIFIED:** B-15 hooks-disabled managed clones (core.hooksPath empty).
+7. **ADJUSTED-RATIFIED:** B-16 defaults are setup/tests 5 min, lint 2 min, e2e 10 min; 15 min is the CI core-job ceiling, not a per-gate default.
+8. **RATIFIED:** B-16 candidate-mutation detection scope: candidate HEAD + tracked/decision-relevant diff + governed generated paths.
 9. S-3 Reviewer threshold hypotheses ≥95%/≤10%/N≥3 (F-PT-009; **budgeting only — inconclusive-verdict rule until ratified**).
 10. S-1 Planner hypothesis ≥85%/N≥3 (F-PT-010; same inconclusive rule).
 11. S-2 repeat-loop signature N=3 (may assert only once ratified).
 12. S-4 SRE hypothesis ≥80%/N≥3 (F-PT-010; same inconclusive rule).
-13. CI per-commit L1/L2 wall-clock target 5 min (PROPOSED — reported optimization target from first build; once ratified, timeout ⇒ completeness=incomplete, never green).
+13. **RATIFIED:** CI per-commit L1/L2 wall-clock target 5 min, report-only optimization target with no verdict effect.
 
 Owner-ratified this campaign ([simulated] seat) and **human-ratified 2026-07-31** (ratification-package.md §9; all as drafted except the release spend, amended at ratification): B-06 clock-anomaly response; F-PT-005 subscriber cutoff; eval decision-status rule (inconclusive-only); L3 spend policy (≤2 turns/$5 pre-merge; release amended to **≤24 turns/$100** — originally ≤6 turns/$15); 7-day sandbox soak with $15 ceiling; L3/launchd/GitHub trigger rules; threat-model scope+timing (human-authored, on the critical path to release-gating reactivation); contention exercise design; completeness/verdict split.
 Struck by stakeholder: uniform budget-observation point; git version floor; 1 MiB gate output cap; ≤60 s heartbeat (ratified 30 s [doc]).
@@ -103,8 +121,8 @@ its §9). Summary of the event:
 - `design_status` → **ratified**; HB-P1/HB-P2/HB-P4 unparked; +HB-080/+HB-081
   (converted §6 IOUs); agents-md section being landed (binding once landed).
 - Still open: F-PT-006, F-PT-008 (owner did not decide; HB-P3/HB-P5 stay parked),
-  F-PT-009/010/011 (inconclusive-only rule stands); PROPOSED-register expiries
-  unchanged.
+  F-PT-009/010/011 (inconclusive-only rule stands). HB-007 items 1–8 and 13 were
+  ratified/adjusted-ratified on 2026-07-31; only register items 9–12 remain PROPOSED.
 
 ## Pending confirmations
 - None in-campaign. Audit iteration 2 CONFIRMED (2026-07-31): verification pass clean,
@@ -117,5 +135,5 @@ its §9). Summary of the event:
   the replacement qualification and the human-authored threat model exist.
 - Remaining human decision points: F-PT-006 and F-PT-008 (undecided findings);
   F-PT-009/010/011 (eval thresholds, inconclusive-only until ratified);
-  PROPOSED-register items at their expiries (1–8, 13 at the HB-007 tripwire; 9–12 at
-  first eval-campaign design review).
+  PROPOSED-register items 9–12 at first eval-campaign design review. HB-007 items
+  1–8 and 13 are complete.

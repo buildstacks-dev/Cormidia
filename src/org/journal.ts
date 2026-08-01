@@ -61,6 +61,9 @@ export interface TurnJournal {
   ticketRef?: string;
   escalationIds?: string[];
   pid?: number;
+  processStartIdentity?: string;
+  processNonce?: string;
+  processGroupId?: number;
   message?: string;
   errorCode?: string;
   recovery?: TurnRecoveryEvidence;
@@ -68,9 +71,48 @@ export interface TurnJournal {
 
 export type RecoveryDecision =
   | { action: "resume"; reason: string; nextAttempt: number }
-  | { action: "restart_clean"; reason: string; nextAttempt: number }
+  | { action: "preserve_inspect"; reason: string; nextAttempt: number }
   | { action: "recollect"; reason: string; nextAttempt: number }
   | { action: "fail_incident"; reason: string; nextAttempt: number };
+
+const TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>([
+  "done",
+  "blocked_on_gate",
+  "failed",
+  "cancelled",
+  "timed_out",
+]);
+const ERROR_TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>([
+  "blocked_on_gate",
+  "failed",
+  "cancelled",
+  "timed_out",
+]);
+
+/**
+ * A turn journal is a forward-only recovery record, not a freely mutable
+ * status field. Error exits may terminalize from the phase in which they
+ * fail, but the productive path cannot skip running or collecting and a
+ * terminal record cannot be reopened under the same turn identity.
+ */
+export function assertJournalPhaseTransition(
+  previous: JournalPhase | undefined,
+  next: JournalPhase,
+): void {
+  if (previous === undefined) {
+    if (next === "assembling") return;
+    throw new Error(`error_illegal_journal_phase_transition: new -> ${next}`);
+  }
+  if (previous === next) return;
+  if (TERMINAL_JOURNAL_PHASES.has(previous)) {
+    throw new Error(`error_illegal_journal_phase_transition: ${previous} -> ${next}`);
+  }
+  if (ERROR_TERMINAL_JOURNAL_PHASES.has(next)) return;
+  if (previous === "collecting" && next === "done") return;
+  if (previous === "assembling" && next === "running") return;
+  if (previous === "running" && next === "collecting") return;
+  throw new Error(`error_illegal_journal_phase_transition: ${previous} -> ${next}`);
+}
 
 export async function writeJournalPatch(
   root: string,
@@ -80,6 +122,8 @@ export async function writeJournalPatch(
 ): Promise<TurnJournal> {
   const path = journalPath(root, turnId);
   const existing = existsSync(path) ? await readJournal(root, turnId) : undefined;
+  const nextPhase = patch.phase ?? existing?.phase ?? "assembling";
+  assertJournalPhaseTransition(existing?.phase, nextPhase);
   const next: TurnJournal = {
     ...(existing ?? {
       turnId,
@@ -101,6 +145,9 @@ export async function writeJournalPatch(
     ...(existing?.ticketRef !== undefined ? { ticketRef: existing.ticketRef } : {}),
     ...(existing?.escalationIds !== undefined ? { escalationIds: existing.escalationIds } : {}),
     ...(existing?.pid !== undefined ? { pid: existing.pid } : {}),
+    ...(existing?.processStartIdentity !== undefined ? { processStartIdentity: existing.processStartIdentity } : {}),
+    ...(existing?.processNonce !== undefined ? { processNonce: existing.processNonce } : {}),
+    ...(existing?.processGroupId !== undefined ? { processGroupId: existing.processGroupId } : {}),
     ...(existing?.message !== undefined ? { message: existing.message } : {}),
     ...(existing?.errorCode !== undefined ? { errorCode: existing.errorCode } : {}),
     ...(existing?.recovery !== undefined ? { recovery: existing.recovery } : {}),
@@ -108,7 +155,7 @@ export async function writeJournalPatch(
     turnId,
     role: patch.role,
     app: patch.app,
-    phase: patch.phase ?? existing?.phase ?? "assembling",
+    phase: nextPhase,
     attempt: patch.attempt ?? existing?.attempt ?? 0,
     startedAt: existing?.startedAt ?? patch.startedAt ?? now.toISOString(),
     updatedAt: now.toISOString(),
@@ -162,9 +209,9 @@ export function decideRecovery(
     ) {
       return { action: "resume", reason: "running turn has resumable session", nextAttempt: journal.attempt };
     }
-    return { action: "restart_clean", reason: "no usable session handle", nextAttempt };
+    return { action: "preserve_inspect", reason: "no usable session handle; worktree state is ambiguous", nextAttempt };
   }
-  return { action: "restart_clean", reason: `phase ${journal.phase} restarts clean`, nextAttempt };
+  return { action: "preserve_inspect", reason: `phase ${journal.phase} has ambiguous worktree state`, nextAttempt };
 }
 
 export function journalPath(root: string, turnId: string): string {

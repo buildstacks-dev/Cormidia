@@ -232,6 +232,23 @@ export interface CodexRuntimeOptions {
   appServerEnv?: NodeJS.ProcessEnv;
 }
 
+/** Typed core-§4 refusal: App Server authenticated the resume request but
+ * restored a different thread. Continuing would repeat paid work under a new
+ * identity, so the adapter stops before turn/start. */
+export class CodexSessionResumeMismatchError extends Error {
+  readonly code = "error_resume_session_mismatch";
+  constructor(
+    readonly requestedSessionId: string,
+    readonly restoredSessionId: string,
+  ) {
+    super(
+      `CodexRuntime resume mismatch: requested thread ${JSON.stringify(requestedSessionId)} ` +
+        `but App Server restored ${JSON.stringify(restoredSessionId)}`,
+    );
+    this.name = "CodexSessionResumeMismatchError";
+  }
+}
+
 interface CodexTurnState {
   threadId: string;
   finalSummary?: string;
@@ -305,6 +322,9 @@ export class CodexRuntime implements Runtime {
       if (threadId === undefined) {
         throw new Error("CodexRuntime: App Server did not return a thread id");
       }
+      if (req.session !== undefined && threadId !== req.session.id) {
+        throw new CodexSessionResumeMismatchError(req.session.id, threadId);
+      }
       state.threadId = threadId;
       hooks.onProgress?.({ session: { runtime: "codex", id: threadId } });
 
@@ -333,7 +353,10 @@ export class CodexRuntime implements Runtime {
           ? [budgetOverrunNote(threadId, state.usage?.costUsd ?? 0, req)]
           : [],
         session: { runtime: "codex", id: threadId },
-        usage: finalCodexUsage(state.usage ?? zeroUsage(wallClockMs, state.subagentTurns)),
+        usage:
+          state.usage === undefined
+            ? { ...zeroUsage(wallClockMs, state.subagentTurns), quality: "unavailable" }
+            : finalCodexUsage(state.usage),
         escalations,
         ...(state.budgetOverrun
           ? { errorCode: "error_max_budget_usd" }
@@ -940,9 +963,13 @@ function errorSummary(params: unknown): string {
  *  must not masquerade as a generic failure in telemetry, the same Stage 3
  *  rule that carved out budget exhaustion (benchmark round 2, tick 1). */
 function classifyCodexFailure(summary: string): string | undefined {
-  return /refresh token|access token|unauthorized|not logged in|authentication/i.test(summary)
-    ? "error_auth"
-    : undefined;
+  if (/refresh token|access token|unauthorized|not logged in|authentication/i.test(summary)) {
+    return "error_auth";
+  }
+  if (/stale capabilities|capabilit(?:y|ies).*stale|protocol.*capabilit/i.test(summary)) {
+    return "error_protocol_stale_capabilities";
+  }
+  return undefined;
 }
 
 function extractThreadId(response: unknown): string | undefined {

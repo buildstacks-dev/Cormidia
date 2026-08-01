@@ -13,8 +13,8 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
   of the one-way import direction and what keeps the loop extractable.
 - `secret-patterns.ts` is the ONE secret-regex list — redaction and qgates
   both import it. Never fork a second list.
-- `file-lock.ts` is the shared O_EXCL + pid/nonce ownership-token +
-  liveness/stale-reclamation lock primitive. The app git-clone lock is a
+- `file-lock.ts` is the shared O_EXCL + PID/process-start/nonce ownership-token
+  + liveness/stale-reclamation lock primitive. The app git-clone lock is a
   configuration of it; the settlement and turn locks are the model but not
   yet re-expressed onto it.
 - Every `Runtime` must prove adapter-generic conformance before its role goes

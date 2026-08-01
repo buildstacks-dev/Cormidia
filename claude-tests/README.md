@@ -42,13 +42,14 @@ with the family ID so traceability is greppable in both directions.
    seeds and any credential-shaped fixture content must be produced by
    `fixtures/synthetic-secret.ts` at test time. The repo itself must stay
    clean under gitleaks with no fixture allowlists.
-6. **PROPOSED-register values are provisional.** Tests asserting a
-   PROPOSED value (retry budget, lock wait, gate timeout…) reference the
-   register item id in a comment and assert it as *provisional bound
-   surfaced in evidence*, not as ratified product truth (HB-007).
-7. **Blocked findings stay blocked.** F-PT-006 / F-PT-008 cells and the
-   B-17-L3 live cell are parked. Do not encode a guess; a spec touching an
-   adjacent seam carries a comment naming the block.
+6. **Decision-register status is binding.** HB-007 items 1–8 and 13 are
+   human-ratified/adjusted-ratified and tests assert their exact recorded
+   bounds or mechanisms. Items 9–12 remain PROPOSED: tests may collect data,
+   but threshold-dependent verdicts stay inconclusive until ratification.
+7. **Blocked findings stay blocked.** F-PT-006 / F-PT-008 cells, the
+   F-PT-017 provider-terminal enum clause, F-PT-018 merge-blocking enforcement,
+   and the B-17-L3 live cell are parked. Do not encode a guess; a spec touching
+   an adjacent seam carries a comment naming the block.
 8. **Tighten-only.** Never weaken an assertion, widen a tolerance, or delete
    a case to make something pass.
 

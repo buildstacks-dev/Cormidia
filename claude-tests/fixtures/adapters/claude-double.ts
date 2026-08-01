@@ -37,20 +37,16 @@ import type {
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeRuntime, type QueryFn } from "../../../src/runtime/adapters/claude.js";
-import type {
-  RoleConfig,
-  Runtime,
-  TurnHooks,
-  TurnRequest,
-  TurnResult,
-} from "../../../src/runtime/types.js";
-import type {
-  AdapterScenario,
-  RecordedGateConsultation,
-  RecordedToolPlay,
-  ScriptedToolStep,
-  ScriptedTurnObservation,
-  ScriptedUsage,
+import type { RoleConfig, Runtime, TurnRequest } from "../../../src/runtime/types.js";
+import {
+  SeededEnvelopeViolationRuntime,
+  type AdapterScenario,
+  type EnvelopeViolation,
+  type RecordedGateConsultation,
+  type RecordedToolPlay,
+  type ScriptedToolStep,
+  type ScriptedTurnObservation,
+  type ScriptedUsage,
 } from "./scenario.js";
 
 // ---------------------------------------------------------------------------
@@ -58,10 +54,9 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type SeededViolation =
-  /** Render a usage-absent turn as authoritative zeros (INV-006 attack). */
-  | "fabricate_zero_usage"
-  /** Echo the requested resume id back, masking an identity mismatch. */
-  | "mask_resume_identity"
+  /** Envelope lies (shared wrapper, ./scenario.ts): fabricate_zero_usage,
+   *  mask_resume_identity. */
+  | EnvelopeViolation
   /** Execute scripted tools without consulting any gate channel (an SDK
    *  that stopped firing PreToolUse and never asked permission). */
   | "bypass_gate"
@@ -131,48 +126,17 @@ export function claudeDouble(
     queryFn,
     ...(opts.baseOptions !== undefined ? { baseOptions: opts.baseOptions } : {}),
   });
+  const envelopeViolations = new Set<EnvelopeViolation>(
+    [...violations].filter(
+      (violation): violation is EnvelopeViolation =>
+        violation === "fabricate_zero_usage" || violation === "mask_resume_identity",
+    ),
+  );
   const runtime =
-    violations.has("fabricate_zero_usage") || violations.has("mask_resume_identity")
-      ? new SeededResultViolationRuntime(inner, violations)
+    envelopeViolations.size > 0
+      ? new SeededEnvelopeViolationRuntime(inner, envelopeViolations)
       : inner;
   return { runtime, recorder };
-}
-
-/** Deliberately lying wrapper used ONLY for negative controls: same real
- *  adapter underneath, envelope tampered on the way out. */
-class SeededResultViolationRuntime implements Runtime {
-  readonly kind = "claude" as const;
-  constructor(
-    private readonly inner: Runtime,
-    private readonly violations: ReadonlySet<SeededViolation>,
-  ) {}
-
-  async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
-    let result = await this.inner.runTurn(req, hooks);
-    if (this.violations.has("fabricate_zero_usage")) {
-      result = {
-        ...result,
-        usage: {
-          tokensIn: 0,
-          tokensInUncached: 0,
-          cacheCreationTokens: 0,
-          cacheReadTokens: 0,
-          tokensOut: 0,
-          costUsd: 0,
-          subagentTurns: result.usage.subagentTurns,
-          wallClockMs: result.usage.wallClockMs,
-          quality: "complete", // the lie: unknown rendered as authoritative zero
-        },
-      };
-    }
-    if (this.violations.has("mask_resume_identity") && req.session !== undefined) {
-      result = {
-        ...result,
-        session: { runtime: "claude", id: req.session.id }, // the lie: echo, not truth
-      };
-    }
-    return result;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -255,9 +219,14 @@ async function* playTurn(
     return;
   }
 
-  yield initMessage(scenario.sessionId);
+  // Record delivery before yielding. The real adapter may reject immediately
+  // while consuming this init message (resume-identity mismatch) and never ask
+  // the generator for another value; recording after `yield` would therefore
+  // falsely claim the provider never reported the identity and neuter the
+  // negative-control detector.
   turn.sessionReported = true;
   turn.sequence.push("emit:init");
+  yield initMessage(scenario.sessionId);
 
   const steps = scenario.steps ?? [];
   for (const [stepIndex, step] of steps.entries()) {
@@ -476,14 +445,18 @@ function taskStartedMessage(
 
 /** Projection consumed: type, subtype, session_id, usage, total_cost_usd,
  *  duration_ms, result/structured_output (success), errors (failure).
- *  `usage: "absent"` deliberately omits the usage key — the scripted
- *  provider reported none (INV-006 posture). */
+ *  `usage: "absent"` deliberately omits BOTH the usage key and
+ *  total_cost_usd — the scripted provider reported no usage at all (the
+ *  INV-006 posture; a partially-reported cost would be the `partial`
+ *  posture, scripted via zero-token usage instead). */
 function resultMessage(
   sessionId: string,
   outcome: Extract<AdapterScenario["outcome"], { kind: "success" | "failure" }>,
 ): SDKMessage {
-  const usageField =
-    outcome.usage !== "absent" ? { usage: wireUsage(outcome.usage) } : {};
+  const usageFields =
+    outcome.usage !== "absent"
+      ? { usage: wireUsage(outcome.usage), total_cost_usd: outcome.costUsd }
+      : {};
   if (outcome.kind === "success") {
     return {
       type: "result",
@@ -492,12 +465,11 @@ function resultMessage(
       is_error: false,
       num_turns: 1,
       duration_ms: outcome.durationMs,
-      total_cost_usd: outcome.costUsd,
       result: outcome.text,
       ...(outcome.structuredOutput !== undefined
         ? { structured_output: outcome.structuredOutput }
         : {}),
-      ...usageField,
+      ...usageFields,
     } as unknown as SDKMessage;
   }
   return {
@@ -507,9 +479,8 @@ function resultMessage(
     is_error: true,
     num_turns: 1,
     duration_ms: outcome.durationMs,
-    total_cost_usd: outcome.costUsd,
     errors: outcome.errors,
-    ...usageField,
+    ...usageFields,
   } as unknown as SDKMessage;
 }
 

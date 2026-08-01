@@ -150,13 +150,13 @@ resolved-ratified; F-PT-005 ratified by adoption. F-PT-006 and F-PT-008 remain O
 (the owner did not decide them); F-PT-009/010/011 remain open under the
 inconclusive-only rule. Dispositions in §9. -->
 
-## 5. PROPOSED register (provisional values awaiting your ratify/strike/adjust)
+## 5. Decision register
 
 Thirteen items, listed with owners and expiries in `validation-policy.yaml` →
-`proposed_register` and `harness-design-state.md`. Items 1–8 and 13 come due at the
-**first harness build review** — HB-007 in the backlog is the tripwire that forces
-this conversation before Wave 1 begins. Items 9–12 come due at the first
-eval-campaign design review.
+`proposed_register` and `harness-design-state.md`. **HB-007 review completed
+2026-07-31:** the owner said "ratify recommendations." Items 1–8 and 13 are now
+ratified/adjusted-ratified with the exact outcomes in those two canonical files.
+Items 9–12 remain PROPOSED and come due at the first eval-campaign design review.
 
 ## 6. Reader-test findings and dispositions (Phase 8 adversarial review)
 
@@ -293,9 +293,9 @@ fail-closed, canary-proven, no broad allowlists.**
 
 - `validation-policy.yaml` → `design_status: ratified` (2026-07-31, by the product
   owner in session).
-- The PROPOSED register keeps its existing expiries and decision points unchanged
-  (items 1–8 and 13 at first harness build review / HB-007 tripwire; items 9–12 at
-  first eval-campaign design review).
+- HB-007 was completed 2026-07-31: items 1–8 and 13 are ratified or
+  adjusted-ratified exactly as recorded in §5 and `validation-policy.yaml`.
+  Items 9–12 keep their first eval-campaign design-review expiry.
 - **Remaining OPEN findings:** F-PT-006 (event-producer visibility protocol) and
   F-PT-008 (grant-TTL expiry disposition) — the owner did not decide these; their
   tickets (HB-P3, HB-P5) and catalog cells stay parked/blocked. F-PT-009/010/011

@@ -26,7 +26,13 @@
 // shares one detector family (negative-control rule: each detector proves it
 // fires against a seeded violation before it counts as a guard).
 
-import type { SessionHandle, TurnResult } from "../../../src/runtime/types.js";
+import type {
+  Runtime,
+  SessionHandle,
+  TurnHooks,
+  TurnRequest,
+  TurnResult,
+} from "../../../src/runtime/types.js";
 
 // ---------------------------------------------------------------------------
 // Scenario format
@@ -48,12 +54,17 @@ export type ScriptedUsageReport = ScriptedUsage | "absent";
 
 /** Which provider channel consults the gate for a tool step.
  *  - "hook": the provider's primary pre-tool channel (Claude: PreToolUse
- *    hook; Codex: approval callback; pi: gating extension).
+ *    hook; Codex: the PreToolUse hook bridge over the per-turn Unix socket —
+ *    the compensating enforcement boundary of OPERON-C-B03-001, which sees
+ *    the auto-approved reads the approval callback misses; pi: the gating
+ *    extension).
  *  - "permission": the secondary/backstop channel where the provider has one
- *    (Claude: canUseTool). Scripting "permission" simulates a provider whose
+ *    (Claude: canUseTool; Codex: an App Server approval request —
+ *    item/commandExecution|fileChange/requestApproval — routed through the
+ *    same in-process gate). Scripting "permission" simulates a provider whose
  *    primary channel did NOT fire — the backstop must still route the action
  *    through the same gate. Doubles for providers without a secondary
- *    channel must treat "permission" as a scripting error, not skip it. */
+ *    channel (pi) must treat "permission" as a scripting error, not skip it. */
 export type GateChannel = "hook" | "permission";
 
 export interface ScriptedToolStep {
@@ -335,6 +346,105 @@ export function checkSessionIdentityHonest(
       `provider restored session ${JSON.stringify(restored)} but the envelope reports ` +
         `${JSON.stringify(result.session.id)}${requestedNote} — identity mismatches must stay observable`,
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared seeded ENVELOPE violations (negative controls only)
+// ---------------------------------------------------------------------------
+
+/** Result-tampering lies shared by all three adapter doubles. Each double may
+ *  additionally define transport-level violations of its own (gate bypass,
+ *  double-channel firing) — those live in the double, because they change how
+ *  the scripted provider behaves, not what the envelope claims. */
+export type EnvelopeViolation =
+  /** Render a usage-absent turn as authoritative zeros (INV-006 attack). */
+  | "fabricate_zero_usage"
+  /** Echo the requested resume id back, masking an identity mismatch. If the
+   *  real adapter under the wrapper REFUSES the mismatch with a typed
+   *  resume-mismatch error (core §4, enforced by ClaudeRuntime), the lying
+   *  wrapper swallows the refusal and fabricates a completed envelope — the
+   *  deeper masking failure the identity detector exists to catch. */
+  | "mask_resume_identity";
+
+/** Stable machine code carried by a typed core-§4 resume-mismatch refusal.
+ *  src/runtime/adapters/claude.ts throws it today; the wrapper below and the
+ *  conformance suites recognize the refusal by this code, never by prose. */
+export const RESUME_MISMATCH_ERROR_CODE = "error_resume_session_mismatch";
+
+export function isTypedResumeMismatchError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error as Error & { code?: unknown }).code === RESUME_MISMATCH_ERROR_CODE
+  );
+}
+
+/** Deliberately lying wrapper used ONLY for negative controls: the same real
+ *  adapter runs underneath; the envelope is tampered on the way out. */
+export class SeededEnvelopeViolationRuntime implements Runtime {
+  readonly kind: Runtime["kind"];
+
+  constructor(
+    private readonly inner: Runtime,
+    private readonly violations: ReadonlySet<EnvelopeViolation>,
+  ) {
+    this.kind = inner.kind;
+  }
+
+  async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
+    let result: TurnResult;
+    try {
+      result = await this.inner.runTurn(req, hooks);
+    } catch (error) {
+      if (
+        this.violations.has("mask_resume_identity") &&
+        req.session !== undefined &&
+        isTypedResumeMismatchError(error)
+      ) {
+        // The lie: swallow the typed refusal and fabricate a clean envelope
+        // claiming the REQUESTED session was restored.
+        result = {
+          status: "completed",
+          summary: "masked resume (seeded violation)",
+          artifacts: [],
+          session: { runtime: this.kind, id: req.session.id },
+          usage: {
+            tokensIn: 0,
+            tokensOut: 0,
+            costUsd: 0,
+            subagentTurns: 0,
+            wallClockMs: 0,
+            quality: "unavailable",
+          },
+          escalations: [],
+        };
+        return result;
+      }
+      throw error;
+    }
+    if (this.violations.has("fabricate_zero_usage")) {
+      result = {
+        ...result,
+        usage: {
+          tokensIn: 0,
+          tokensInUncached: 0,
+          cacheCreationTokens: 0,
+          cacheReadTokens: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          subagentTurns: result.usage.subagentTurns,
+          wallClockMs: result.usage.wallClockMs,
+          quality: "complete", // the lie: unknown rendered as authoritative zero
+        },
+      };
+    }
+    if (this.violations.has("mask_resume_identity") && req.session !== undefined) {
+      result = {
+        ...result,
+        session: { runtime: this.kind, id: req.session.id }, // the lie: echo, not truth
+      };
+    }
+    return result;
   }
 }
 

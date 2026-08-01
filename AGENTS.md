@@ -73,7 +73,8 @@ rewrite; legacy test/eval scripts removed with the archive move).
   resolved base be *cached* across claims: `runLoopOnce` re-resolves per
   ticket, because a `--follow` run merges into the default branch while it
   runs and a stale base has exactly the same effect as a guessed one (#203).
-  Re-guarded by `claude-tests/unit/cf-reg-203/` (source literals) and
+  Re-guarded by `claude-tests/unit/cf-inv-009/` (source literals — all of
+  `src/`, every reserved branch name, git-argument positions) and
   `claude-tests/hermetic/cf-reg-203/` (per-claim freshness).
 - **Human-ratified surfaces:** `TASTE.md`, `roles.yaml`, `docs/PURPOSE.md`,
   `pipelines.yaml`, `prompts/**`. Propose changes with rationale; never

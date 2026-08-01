@@ -311,12 +311,29 @@ back is the exact step whose failure authorized the revision — re-entering it
 here would spend a second provider turn repeating the failure that caused the
 replan (typically an unavailable assignment), so it is returned as the queued
 next step. It is held back only when it would genuinely spend that turn: a
-repaired step whose durable evidence already settles it runs now. A ticket
-adapter may reconcile a prior blocked transport only when the retained typed
-build verdict says `done`, the revision preserves the exact content-hashed
-step, and the replan journal links that failed step to the new version; it
-then resumes the returned label and runs the remaining gates without another
-provider turn. Rejected revisions remain terminal for that invocation, with
+repaired step whose durable evidence already settles it runs now.
+
+The ticket adapter recognizes two such settlements, and they are mirror images
+(one rule, `reconcilablePriorEvidence`; both require that the revision preserve
+the exact content-hashed step and that the replan journal link that failed step
+to the new version):
+
+- **build** — a prior *blocked* transport whose retained typed build verdict
+  says `done`. The work happened; only the transport's terminal was
+  pessimistic.
+- **review** — a prior *completed* transport whose retained review verdict
+  carried findings. The review happened and published its verdict; those
+  findings are what authorized the revision, and the revision's `fix` step is
+  the answer to them. Re-entering the review would re-review an unchanged
+  commit for the same findings — and because the repair suffix depends on that
+  step, withholding it instead left the accepted revision with no ready step at
+  all, permanently (#202; the build half alone was #175).
+
+Either settlement resumes the returned label and runs the remaining steps
+without another provider turn, and neither re-performs a side effect the prior
+version already performed: a reconciled review publishes no second comment and
+submits no second GitHub review. Rejected revisions remain terminal for that
+invocation, with
 their durable refusal reason shown by `operon loop`, `operon status`, and
 `operon episode --explain`.
 

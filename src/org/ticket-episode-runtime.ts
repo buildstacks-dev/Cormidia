@@ -604,13 +604,18 @@ async function ticketExecutionPlan(
  *  the same evidence question before any execution context exists. `plan` is
  *  the immutable plan the step belongs to, so `plan.version` is the version
  *  the evidence must be bound to. */
-interface TicketProviderEvidenceInput {
-  options: TicketEpisodeRuntimeOptions;
+export interface TicketProviderEvidenceInput {
+  /** Deliberately narrower than the full runtime options: resolving durable
+   *  evidence reads state-home files and nothing else. Keeping the type honest
+   *  is what lets the #202 detector construct this input without inventing a
+   *  GitHub client, an adapter, or a role table it would never touch. */
+  options: { root: string; app: Pick<AppEntry, "name"> };
   plan: EpisodePlan;
   step: ProviderTurnStep;
 }
 
-interface TicketProviderExecutionInput extends TicketProviderEvidenceInput {
+export interface TicketProviderExecutionInput extends Omit<TicketProviderEvidenceInput, "options"> {
+  options: TicketEpisodeRuntimeOptions;
   input: TicketEpisodeExecutionRequest;
   item: LoopItem;
   context: EpisodeStepExecutionContext;
@@ -813,24 +818,84 @@ async function executeTicketProviderStep(
   return { item: applied.item, outcome: { status: "completed", artifact: output } };
 }
 
-interface ProviderEvidence {
+export interface ProviderEvidence {
   record: ExecutionStepRecord;
   output: string;
-  /** A prior transport terminal said blocked, but its content-bound build
-   * verdict said done and the accepted revision preserved the exact step. */
+  /** The step was settled from a PRIOR plan version's terminal evidence,
+   * preserved through an accepted revision (see `reconcilablePriorEvidence`).
+   * Every side effect that evidence already produced has been performed; the
+   * step must not perform them again. */
   reconciledFromPlanVersion?: number;
 }
 
 /** Durable evidence that completes this provider step without spending a new
- *  turn: this plan version's own terminal record, or a preserved prior blocked
- *  transport whose content-bound build verdict said done. Single source of
- *  truth for both the step handler and the adopted-revision halt (#175). */
-async function completableProviderEvidence(
+ *  turn: this plan version's own terminal record, or a prior version's
+ *  terminal record preserved through an accepted revision. Single source of
+ *  truth for both the step handler and the adopted-revision halt (#175/#202). */
+export async function completableProviderEvidence(
   input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence | undefined> {
   return await ticketProviderEvidence(input, definition)
-    ?? await reconciledDoneBuildEvidence(input, definition);
+    ?? await reconciledPriorPlanEvidence(input, definition);
+}
+
+/** The facts an accepted revision's repaired provider step is judged on. Split
+ *  out from the file reads so the rule itself is one readable, exhaustively
+ *  testable decision rather than a shape duplicated per verdict kind — the
+ *  duplication is precisely what left the review path uncovered when the build
+ *  path was fixed (#175 fixed one half; #202 was the other). */
+export interface PriorPlanEvidenceFacts {
+  /** Version of the plan now executing. A v1 plan has no prior to reconcile. */
+  planVersion: number;
+  /** Prior plan version an accepted revision at `planVersion` named this step
+   *  in its `affectedStepIds`, or undefined when no such revision exists. */
+  repairedFromPlanVersion: number | undefined;
+  /** The step is byte-identical to its counterpart in the prior plan. A
+   *  revision that changed the step authored NEW work; its evidence is not
+   *  this step's evidence. */
+  stepPreserved: boolean;
+  /** Transport status of the prior version's terminal provider record. */
+  priorRecordStatus: ExecutionStepRecord["status"] | undefined;
+  /** The prior record's content-bound verdict, already parsed. */
+  priorVerdict:
+    | { kind: "build"; status: BuildVerdict["status"] }
+    | { kind: "review"; findings: number }
+    | undefined;
+}
+
+/** The prior plan version this step may be settled from, or undefined.
+ *
+ *  Two shapes qualify, and they are mirror images — which is the point of
+ *  stating them together:
+ *
+ *  - **build** (#175): the transport said `blocked`, but the content-bound
+ *    build verdict said `done`. The work happened; only the transport's
+ *    terminal was pessimistic.
+ *  - **review** (#202): the transport said `completed` and the review verdict
+ *    carried findings. The review happened and published its verdict; the
+ *    findings are what authorized the revision, and the revision's new `fix`
+ *    step is the answer to them. Re-entering the review would re-review an
+ *    unchanged commit, produce the same findings, and burn the ticket's whole
+ *    revision allowance one turn at a time.
+ *
+ *  A review verdict with NO findings is deliberately not reconcilable: such a
+ *  step would not have failed, so there is nothing for a revision to repair
+ *  and evidence claiming otherwise is not trustworthy. */
+export function reconcilablePriorEvidence(facts: PriorPlanEvidenceFacts): number | undefined {
+  if (facts.planVersion <= 1) return undefined;
+  if (facts.repairedFromPlanVersion === undefined) return undefined;
+  if (!facts.stepPreserved) return undefined;
+  const verdict = facts.priorVerdict;
+  if (verdict === undefined) return undefined;
+  if (verdict.kind === "build") {
+    return facts.priorRecordStatus === "blocked" && verdict.status === "done"
+      ? facts.repairedFromPlanVersion
+      : undefined;
+  }
+  return facts.priorRecordStatus === "completed" && verdict.findings > 0
+    ? facts.repairedFromPlanVersion
+    : undefined;
 }
 
 async function ticketProviderEvidence(
@@ -854,11 +919,16 @@ async function ticketProviderEvidence(
   return { record, output: await providerOutput(input, record) };
 }
 
-async function reconciledDoneBuildEvidence(
+/** Settle a repaired provider step from the prior plan version's preserved
+ *  terminal evidence, per `reconcilablePriorEvidence`. Reads the durable facts;
+ *  the decision itself lives in that one rule so the build and review halves
+ *  can never drift apart again (#175 fixed build; #202 was review). */
+async function reconciledPriorPlanEvidence(
   input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence | undefined> {
-  if (input.plan.version <= 1 || definition.verdictKind !== "build") return undefined;
+  if (input.plan.version <= 1) return undefined;
+  if (definition.verdictKind !== "build" && definition.verdictKind !== "review") return undefined;
   const journal = await readEpisodeReplanJournal(input.options.root, input.plan.episodeId);
   const accepted = journal?.records.findLast((record) =>
     record.status === "accepted" &&
@@ -872,7 +942,8 @@ async function reconciledDoneBuildEvidence(
   );
   const priorStep = priorPlan?.steps.find((step): step is ProviderTurnStep =>
     step.kind === "provider_turn" && step.id === input.step.id);
-  if (priorStep === undefined || stableHash(priorStep) !== stableHash(input.step)) return undefined;
+  const stepPreserved =
+    priorStep !== undefined && stableHash(priorStep) === stableHash(input.step);
   const terminal = (await readExecutionSteps(input.options.root, input.plan.episodeId))
     .filter((record) =>
       record.kind === "provider" &&
@@ -884,21 +955,29 @@ async function reconciledDoneBuildEvidence(
     );
   }
   const record = terminal[0];
-  if (record === undefined || record.status !== "blocked") return undefined;
+  if (!stepPreserved || record === undefined) return undefined;
   assertProviderEvidenceMatches(input, definition, record, accepted.trigger.planVersion);
   const output = await providerOutput(input, record);
-  let verdict: BuildVerdict;
+  let priorVerdict: PriorPlanEvidenceFacts["priorVerdict"];
   try {
-    verdict = parseStoredVerdict("build", output);
+    priorVerdict = definition.verdictKind === "build"
+      ? { kind: "build", status: parseStoredVerdict("build", output).status }
+      : { kind: "review", findings: parseStoredVerdict("review", output).findings.length };
   } catch {
+    // Unparseable stored evidence is not evidence. The step is withheld here
+    // and enters normally on the next tick, where the executor turns the same
+    // parse error into that step's typed failure.
     return undefined;
   }
-  if (verdict.status !== "done") return undefined;
-  return {
-    record,
-    output,
-    reconciledFromPlanVersion: accepted.trigger.planVersion,
-  };
+  const reconciledFromPlanVersion = reconcilablePriorEvidence({
+    planVersion: input.plan.version,
+    repairedFromPlanVersion: accepted.trigger.planVersion,
+    stepPreserved,
+    priorRecordStatus: record.status,
+    priorVerdict,
+  });
+  if (reconciledFromPlanVersion === undefined) return undefined;
+  return { record, output, reconciledFromPlanVersion };
 }
 
 async function providerOutput(
@@ -998,7 +1077,13 @@ function parseStoredVerdict<K extends "contract" | "build" | "review">(
   throw new VerdictParseError(kind, [{ text: output, reason: parsed.reason }]);
 }
 
-async function applyProviderOutcome(
+/** Apply one provider step's parsed verdict to the ticket: publish what the
+ *  verdict requires, move the ticket, and report a typed failure when the
+ *  verdict is not a pass. Exported so the #202 detector can assert the
+ *  reconciled-review branch performs NO side effect a prior plan version
+ *  already performed — the property that keeps an accepted revision from
+ *  re-publishing its own findings and bouncing the ticket. */
+export async function applyProviderOutcome(
   input: TicketProviderExecutionInput,
   definition: TicketProviderOperationDefinition,
   evidence: ProviderEvidence,
@@ -1057,6 +1142,21 @@ async function applyProviderOutcome(
   }
   if (definition.verdictKind === "review") {
     let review = verdict as ReviewVerdict;
+    if (evidence.reconciledFromPlanVersion !== undefined) {
+      // #202: this review already ran at the prior plan version. It published
+      // its comment, submitted its GitHub review, and returned the ticket —
+      // and those findings are exactly what authorized the revision now
+      // executing. Re-performing any of it would duplicate the published
+      // verdict under a new marker and bounce the ticket back to op:returned,
+      // and re-entering the provider turn would re-review an unchanged commit
+      // for the same findings. So settle the step from that evidence and hand
+      // the findings forward to the revision's repair step.
+      //
+      // This is the review mirror of the build reconciliation #175 added; the
+      // shared rule is `reconcilablePriorEvidence`.
+      const resumed = await resumeReconciledTicket(input.options.gh, input.item);
+      return { item: { ...resumed, findings: review.findings } };
+    }
     const prNumber = requirePrNumber(input.item);
     const reviewedCommit = (await input.options.gh.readPR(prNumber)).headRefOid;
     if (reviewedCommit === undefined) {

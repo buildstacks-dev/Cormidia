@@ -672,7 +672,35 @@ const MUTATING_EXECUTABLES = new Set([
 const GIT_READ_SUBCOMMANDS = new Set([
   "log", "show", "diff", "status", "rev-parse", "cat-file", "grep", "blame",
   "describe", "ls-files", "ls-tree", "ls-remote", "shortlog",
+  // #204: plumbing that only reports. `git check-ignore` is the one that cost
+  // a promotion — the Reviewer ran it to PROVE the secret-protection criterion
+  // (`git check-ignore -v .env .env.local`), the classifier called the whole
+  // command a write because `check-ignore` was not on this list, and the
+  // resulting `secrets-or-auth` approval blocked `app verify` at 16/17 green.
+  // A reviewer penalized for doing security verification verifies less.
+  "check-ignore", "check-attr", "check-ref-format", "rev-list", "merge-base",
+  "name-rev", "for-each-ref", "diff-tree", "diff-index", "diff-files",
+  "verify-commit", "verify-tag", "count-objects", "whatchanged", "cherry",
+  "annotate", "var",
 ]);
+
+/** Subcommands that read or write depending on how they are invoked, with the
+ *  exact invocations that only read. Anything not listed here fails closed as
+ *  a write — `git config user.email x` sets, `git remote add` adds,
+ *  `git symbolic-ref HEAD ref` repoints. Deliberately small: a subcommand
+ *  earns a place here with evidence, not by looking harmless. */
+const GIT_CONDITIONAL_READ_SUBCOMMANDS: Record<string, (args: readonly string[]) => boolean> = {
+  // `--get`/`--get-all`/`--get-regexp`/`--get-urlmatch`/`--list`/`-l` report;
+  // every other form assigns, unsets, renames, or edits.
+  config: (args) =>
+    args.some((arg) => /^(?:--get(?:-all|-regexp|-urlmatch)?|--list|-l)$/.test(arg)),
+  // `get-url`, `show`, and the bare/verbose listing report; `add`, `remove`,
+  // `rename`, `set-url`, `prune`, and `update` change the repository.
+  remote: (args) => {
+    const verb = args.find((arg) => !arg.startsWith("-") && arg !== "remote");
+    return verb === undefined || verb === "get-url" || verb === "show";
+  },
+};
 
 /** Output redirections. `<`, `<<`, `<<<` and `<&` feed a command its input:
  *  `patch AGENTS.md < p.diff` writes because `patch` writes, and
@@ -726,7 +754,7 @@ function mutatesFiles(executable: string, args: readonly string[]): boolean {
   if (MUTATING_EXECUTABLES.has(executable)) return true;
   if (mutatingFlag(executable, args)) return true;
   if (READ_ONLY_EXECUTABLES.has(executable)) return false;
-  if (executable === "git") return !GIT_READ_SUBCOMMANDS.has(gitSubcommand(args));
+  if (executable === "git") return !gitInvocationReads(args);
   return WRITE_VERB_NAME.test(executable);
 }
 
@@ -734,12 +762,47 @@ function mutatesFiles(executable: string, args: readonly string[]): boolean {
  *  than `!mutatesFiles`: an unknown program is neither a proven write nor a
  *  proven read, so it leaves the action as `execute`. */
 function readsFiles(executable: string, args: readonly string[]): boolean {
-  if (executable === "git") return GIT_READ_SUBCOMMANDS.has(gitSubcommand(args));
+  if (executable === "git") return gitInvocationReads(args);
   return READ_ONLY_EXECUTABLES.has(executable) && !mutatingFlag(executable, args);
 }
 
+/** Git's own global options, which precede the subcommand. Skipping them is
+ *  what makes `git -C <dir> status` a read: the naive "first non-flag argument"
+ *  answered `<dir>`, which is in no read set, so every `-C`- or `-c`-prefixed
+ *  invocation classified as a write no matter what it actually did (#204).
+ *  Narrowing only: a write subcommand behind `-C` still resolves to itself. */
+const GIT_GLOBAL_OPTIONS_WITH_VALUE = new Set([
+  "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path",
+  "--config-env", "--super-prefix", "--attr-source",
+]);
+
 function gitSubcommand(args: readonly string[]): string {
-  return args.find((arg) => !arg.startsWith("-")) ?? "";
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (GIT_GLOBAL_OPTIONS_WITH_VALUE.has(arg)) {
+      index += 1; // its value is not the subcommand
+      continue;
+    }
+    if (arg.startsWith("-")) continue; // valueless global flag, or `--opt=value`
+    return arg;
+  }
+  return "";
+}
+
+/** Arguments belonging to the git SUBCOMMAND, i.e. everything after it. The
+ *  conditional-read predicates must not see git's own global options. */
+function gitSubcommandArgs(args: readonly string[]): readonly string[] {
+  const subcommand = gitSubcommand(args);
+  const at = args.indexOf(subcommand);
+  return at === -1 ? [] : args.slice(at + 1);
+}
+
+/** Whether this exact `git` invocation only reports. */
+function gitInvocationReads(args: readonly string[]): boolean {
+  const subcommand = gitSubcommand(args);
+  if (GIT_READ_SUBCOMMANDS.has(subcommand)) return true;
+  const conditional = GIT_CONDITIONAL_READ_SUBCOMMANDS[subcommand];
+  return conditional !== undefined && conditional(gitSubcommandArgs(args));
 }
 
 /** Shell RESERVED WORDS. They are grammar, not programs: `if`, `then`, `for`,
@@ -1054,7 +1117,7 @@ function gitArguments(args: string[]): { verb: string; targets: string[] } {
   // never match protocol-self-edit.
   const delimiter = args.indexOf("--");
   const targets = delimiter === -1 ? [] : args.slice(delimiter + 1);
-  if (GIT_READ_SUBCOMMANDS.has(subcommand)) return { verb: subcommand, targets };
+  if (gitInvocationReads(args)) return { verb: subcommand, targets };
   return {
     verb: [subcommand, ...args.filter((arg) => /^(?:--force|--force-with-lease|--force-push|-f)$/.test(arg))].join(" "),
     targets,

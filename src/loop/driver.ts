@@ -129,6 +129,26 @@ export interface LoopDriverOptions {
    *  `defaultLoopInputs` produces it, and the driver forwards it into claim,
    *  build, gates, review, ship, and route reassessment. */
   base: BaseRevision;
+  /** Re-synchronize the managed clone against its remote and re-resolve the
+   *  base. Called immediately before EVERY ticket claim; its answer, not
+   *  `base`, is what that ticket's worktree is cut from and its gates diff
+   *  against.
+   *
+   *  `base` alone is a snapshot — the value `defaultLoopInputs` computed once,
+   *  when the process started. A `--follow` run (or any tick claiming more
+   *  than one ticket) merges work into the default branch while it runs, and
+   *  nothing re-fetched the managed clone, so `origin/<default>` stayed pinned
+   *  behind the real remote and every later worktree was cut from a stale
+   *  tree. The staleness is undetectable from inside the ticket's own
+   *  checkout, whose `origin/*` refs are equally stale. This is the third
+   *  instance of the default-branch scar (#203, after #60 and #101): not a
+   *  guessed base this time but a cached one, with the same effect.
+   *
+   *  Deliberately optional, and deliberately supplied by the caller rather
+   *  than derived here: an operator-supplied `--repo-dir` checkout is pinned
+   *  at an immutable commit that must never be fetched, checked out, or
+   *  reset, so that path passes no refresher and keeps its snapshot base. */
+  refreshBase?: () => BaseRevision | Promise<BaseRevision>;
   /** Integration-test seam for claim saga crash boundaries. Production never
    * sets it; thrown faults must still leave a recoverable ticket. */
   claimFault?: (boundary: ClaimFaultBoundary, issueNumber: number) => void | Promise<void>;
@@ -606,6 +626,18 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     const issue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
     if (issue === undefined) continue;
 
+    // #203: the base is resolved HERE, per ticket, not once per invocation.
+    // Every ticket this tick already claimed may have merged into the default
+    // branch, and a `--follow` run keeps claiming for hours; reusing the base
+    // captured at startup cuts every later worktree from a tree that predates
+    // those merges. The refresher re-fetches the managed clone and re-resolves
+    // the remote's default branch, so a ticket whose acceptance criteria
+    // reference a predecessor's merged work can actually see it. Absent (an
+    // operator-supplied `--repo-dir` snapshot, pinned by design), the
+    // invocation base stands.
+    const base = options.refreshBase === undefined ? options.base : await options.refreshBase();
+    const ticketOptions: LoopDriverOptions = { ...options, base };
+
     // Workflow authority is established before the first ticket mutation.
     // Apparent simplicity, tier, title, and labels never imply a bypass; the
     // org-owned planner may skip its provider turn only for an explicit,
@@ -618,7 +650,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     const planningRequest: TicketEpisodePlanningRequest | undefined =
       options.engine === undefined
         ? undefined
-        : ticketEpisodePlanningRequest(options, issue, options.engine.runlogRoot);
+        : ticketEpisodePlanningRequest(ticketOptions, issue, options.engine.runlogRoot);
     const acceptedTicketPlan = planningRequest === undefined
       ? undefined
       : await requireAcceptedTicketEpisodePlan({
@@ -681,9 +713,15 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       targetRepo: options.repo,
       localRepo: options.localRepo,
       worktreeRoot: options.worktreeRoot,
-      base: options.base,
+      base,
       afterLabelTransition: () => options.claimFault?.("after_label_transition", issue.number),
     });
+    // The base a ticket was cut from is now stated, not inferable. #203 was
+    // only diagnosable by comparing the managed clone's `origin/<default>`
+    // against the real remote by hand; nothing in the loop output, the
+    // builder's escalation, or `episode explain` named a stale base, so the
+    // symptom read as a Planner scoping error.
+    lines.push(`#${issue.number}: base ${base.ref}${describeBaseHead(options.localRepo, base)}`);
     if (options.engine !== undefined && lease !== undefined) {
       await markTicketClaimed({
         root: options.engine.runlogRoot,
@@ -771,7 +809,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             gh: options.gh,
             policy: options.policy,
             commands: gateCommandsForWorktree(options.commands, item.worktree),
-            base: options.base,
+            base,
             criteria,
             criterionTests,
           });
@@ -793,7 +831,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             localRepo: options.localRepo,
             policy: options.policy,
             commands: gateCommandsForWorktree(options.commands, item.worktree),
-            base: options.base,
+            base,
             criteria,
             criterionTests,
             ...(options.release !== undefined ? { release: options.release } : {}),
@@ -899,11 +937,17 @@ export async function defaultLoopInputs(
   gh: GhOps;
   localRepo: string;
   base: BaseRevision;
+  /** Present only for a managed clone. `runLoopOnce` calls it before every
+   *  claim so a long-running `--follow` never cuts from a startup snapshot
+   *  (#203). Absent for a supplied `--repo-dir` checkout, whose base is an
+   *  immutable commit by design. */
+  refreshBase?: () => BaseRevision;
   policy: Policy;
   commands: GateCommands;
 }> {
   let localRepo = repoDir;
   let base: BaseRevision;
+  let refreshBase: (() => BaseRevision) | undefined;
   if (options.supplied === true) {
     if (options.snapshotDir === undefined) {
       throw new Error("loop: supplied repo input requires an Operon-owned snapshot directory");
@@ -925,11 +969,17 @@ export async function defaultLoopInputs(
     // The managed clone's resolved default branch (not an assumed `main`)
     // becomes the base every ticket branch and gate diff starts from.
     base = ensureClone(repoSlug, repoDir);
+    // …and it stays current. `ensureClone` is idempotent — fetch, checkout,
+    // reset to the remote-tracking ref — so re-running it before each claim
+    // is exactly the convergence the promotion path already performs, applied
+    // at the frequency the loop actually needs it (#203).
+    refreshBase = () => ensureClone(repoSlug, repoDir);
   }
   return {
     gh: new GhCliOps(repoSlug, undefined, options.selfApprovalSecret),
     localRepo,
     base,
+    ...(refreshBase === undefined ? {} : { refreshBase }),
     policy: await loadRequiredPolicy(join(localRepo, ".operon", "policy.yaml")),
     commands: loadGateCommands(localRepo),
   };
@@ -1179,6 +1229,20 @@ function priority(labels: readonly string[]): number {
   if (labels.includes("p2")) return 2;
   if (labels.includes("p3")) return 3;
   return 999;
+}
+
+/** ` @<sha7>` for a resolved base, or `""` when the ref cannot be read.
+ *
+ *  Best-effort by construction: this is an observability suffix on a claim
+ *  line, and a repository that cannot resolve its own base ref will fail
+ *  loudly a moment later in `createWorktree`. Failing the claim here would
+ *  trade a real defect's diagnosis for a new one. */
+function describeBaseHead(localRepo: string, base: BaseRevision): string {
+  try {
+    return ` @${git(localRepo, "rev-parse", "--short", base.ref)}`;
+  } catch {
+    return "";
+  }
 }
 
 function git(cwd: string, ...args: string[]): string {

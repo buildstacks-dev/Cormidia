@@ -1984,6 +1984,11 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     policy,
     commands,
     base: options.base,
+    // No `refreshBase` here, deliberately. This base came from
+    // `ensureManagedClone` moments ago, under the app git lock, and the turn
+    // claims exactly one ticket — so it cannot go stale within the tick the
+    // way a `--follow` invocation's did (#203). Re-synchronizing from inside
+    // the driver would also reach for the clone outside that lock.
     maxConcurrent: 1,
     turnId: options.turnId,
     authorization: { selfApprovalSecret },

@@ -1,10 +1,35 @@
 # Harness design state — Operon validation campaign
 
-Updated: 2026-07-31 (design campaign CLOSED and RATIFIED; implementation Waves
+Updated: 2026-08-01 (2026-07-31 design campaign CLOSED and RATIFIED; implementation Waves
 0–4 plus L3/L4 runner surfaces, L5 contention/soak collectors, and HB-080/081
 complete in the replacement harness worktree; audit loop CLOSED verdict
 "clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7;
 product-owner ratification record in ratification-package.md §9)
+
+## Harness revision — comparative execution (2026-08-01)
+
+The owner confirmed the direction for per-provider-turn comparison and standalone
+repository use, then requested a design and implementation epic. The revision adds
+M16, J-19, B-18/B-19, contracts OPERON-C-B18-001/OPERON-C-B19-001, S-8, and their
+case/backlog families. It introduces no new global invariant, criticality tier,
+control point, tool, or live dependency. Existing T-2/T-5/T-6/T-7/T-9/T-11 controls
+and INV-001/002/004/006/008/009/010/012/013/014/015 cover the feature.
+
+Revision status is **proposed implementation contract, direction owner-confirmed**.
+The new case families are design-only and do not change the 2026-07-31 implementation
+evidence. Exact EpisodePlan/CLI transport belongs to the implementation epic. S-8
+automatic selection is inadmissible under F-PT-011 until its meta-eval, human
+references, thresholds, and sampling design ratify; advisory data collection and
+declared non-judge fallbacks remain possible. V1 is explicit and sequential, so no
+new L5 obligation exists; automatic sampling or parallel execution must re-enter risk
+allocation. A reader pass confirmed that an operator can distinguish preview,
+execution, selection, and materialization; an engineer can resolve every new journey,
+boundary, contract, call site, case family, and backlog owner; and a coding agent can
+start with HB-090 without inferring product truth from current implementation.
+
+Revision verification on 2026-08-01: `validation-policy.yaml` parsed; the full offline
+suite passed 130/130 files (788 passed, one intentionally parked skip); `pnpm
+typecheck`, `pnpm build`, and `git diff --check` passed. No L3/L4/L5 campaign ran.
 
 ## Harness implementation status
 - Wave 0: complete (walking skeleton, fixtures/doubles, policy pin, per-commit lane,
@@ -101,7 +126,7 @@ process-identity probe.
 - F-PT-004 (RESOLVED-ratified 2026-07-31): ambiguous uncommitted worktree bytes are **preserved-and-inspected, never reset** — contract truth. HB-P2 unparked; CF-J04-I/CF-B15-* lines encoded.
 - F-PT-009 (open — owner decision): Reviewer thresholds, N, AND sample design (case counts, severity+pairing aggregation, inconclusive rule) unratified; numbers on file are budgeting hypotheses; owner ruling: data-collection only, threshold-dependent verdicts inconclusive, never release-blocking/green. See llm-eval-plan.md §§8–9.
 - F-PT-010 (open): Planner (≥85%) and SRE (≥80%) thresholds + sample designs are unratified budgeting hypotheses (source: neither owner nor docs); same ruling applies.
-- F-PT-011 (open — umbrella, site-specific decisions): later-set thresholds + sample designs (Builder quality, Support, Marketing content, Marketing analysis, Distiller, Learning Reviewer) + brief-conditioning sampling design; inconclusive-only until each ratifies; Learning Reviewer scores inadmissible until calibrated + ratified.
+- F-PT-011 (open — umbrella, site-specific decisions): later-set thresholds + sample designs (Builder quality, Support, Marketing content, Marketing analysis, Distiller, Learning Reviewer), brief-conditioning sampling design, and S-8 selection-judge calibration/thresholds; inconclusive-only until each ratifies; Learning Reviewer and Selection Judge scores inadmissible until calibrated + ratified.
 - F-PT-008 (open): what grant TTL expiry does to the approval item (fresh item, reopen, or explicit operation) is unratified; decision records are immutable; B-09a takes no position. See contracts/B-09a.
 - F-PT-007 (RESOLVED-ratified 2026-07-31): concurrent human edit of a bootstrap-owned marker/generated path between validation and write yields **compare-and-refuse, preserving human bytes** — contract truth (org-init's exclusive-creation+exact-rollback still NOT generalized by analogy). HB-P4 unparked; see contracts/B-14.
 - F-PT-006 (open): company-event producer visibility protocol (atomic rename vs tolerated-partial+retry) unspecified in docs; fake must not make policy by fixture convenience. See boundary-map.md §4.
@@ -190,4 +215,6 @@ its §9). Summary of the event:
 - Remaining human decision points: F-PT-006 and F-PT-008 (undecided findings);
   F-PT-009/010/011 (eval thresholds, inconclusive-only until ratified);
   PROPOSED-register items 9–12 at first eval-campaign design review. HB-007 items
-  1–8 and 13 are complete.
+  1–8 and 13 are complete. The 2026-08-01 comparison revision additionally leaves
+  S-8 calibration/thresholds under F-PT-011 and the exact implementation transport
+  to its epic; neither is silently encoded as completed behavior.

@@ -26,10 +26,10 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 
 ## Read in this order
 
-1. `scope-and-module-map.md` — what's in scope, module map M1–M15.
-2. `system-map.md` — journeys J-01…J-18, state ownership, criticality tier (§5).
+1. `scope-and-module-map.md` — what's in scope, module map M1–M16.
+2. `system-map.md` — journeys J-01…J-19, state ownership, criticality tier (§5).
 3. `invariants.md` — OPERON-INV-001…015 (what must never break).
-4. `boundary-map.md` — B-01…B-17, failure modes, honest-fake verdicts.
+4. `boundary-map.md` — B-01…B-19, failure modes, honest-fake verdicts.
 5. `contracts/` — per-boundary + operation contracts, journey acceptance criteria.
 6. `risk-allocation.md` — E-1/E-2/E-3 exhaustive families, thin lanes, spend/soak.
 7. `llm-eval-plan.md` + `golden-sets/` — the statistical lane.
@@ -54,6 +54,10 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   vs ratified-by-adoption are distinguished in ratification-package.md §9.
   <!-- ratification 2026-07-31: was "Everything here is DRAFT pending human
   ratification" -->
+- **Comparative execution is a proposed 2026-08-01 extension, not implemented or
+  included in the 2026-07-31 green evidence.** Its direction is owner-confirmed;
+  M16/J-19/B-18/B-19/S-8 and HB-090…094 make the implementation obligations visible.
+  `docs/comparative-execution/design.md` is the product-facing contract.
 - **Release gating is SUSPENDED** (product decision, PURPOSE v2.9) and **B-17's live
   deploy/publication cell is BLOCKED** — should a deploy/publication-shaped incident
   occur, it would be operating in the least-verified part of the system. <!-- AUD-109 --> No surface may imply a gate
@@ -79,13 +83,13 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 
 | Prefix | Meaning | Defined in |
 |---|---|---|
-| `M1…M15` | modules | scope-and-module-map.md §2 |
-| `J-01…J-18` | journeys | system-map.md §1.3 |
+| `M1…M16` | modules | scope-and-module-map.md §2 |
+| `J-01…J-19` | journeys | system-map.md §1.3 |
 | `T-1…T-12` | C3 control points (function-scoped risk) | system-map.md §5.2 |
 | `OPERON-INV-001…015` (alias INV-NNN) | invariants | invariants.md |
-| `B-01…B-17` (B-09a/b split) | boundaries | boundary-map.md |
+| `B-01…B-19` (B-09a/b split) | boundaries | boundary-map.md |
 | `OPERON-C-…-001` (aliases B-NN, C-OP-*) | contracts | contracts/ headers + journey-acceptance.md alias table |
-| `S-1…S-7, S-9` | LLM call sites (S-8 intentionally absent) | llm-eval-plan.md §1 |
+| `S-1…S-9` | LLM call sites (S-8 added by comparative-execution revision) | llm-eval-plan.md §1 |
 | `E-1/E-2/E-3, STD, THIN, FLOOR, L4Q` | risk allocation vocabulary | risk-allocation.md §2, case-catalog.md header |
 | `CF-*` | case families | case-catalog.md |
 | `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31, HB-P3/P5 still parked) | harness-backlog.md |

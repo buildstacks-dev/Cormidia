@@ -8,6 +8,10 @@ release bound amended, §5); `[PROPOSED]` marked where designer-originated.
 This allocation is encoded into `validation-policy.yaml` at Phase 8 and is the surface
 a future audit diffs deliberate-thinness against.
 
+Harness revision 2026-08-01: comparative execution inherits this confirmed
+allocation. No new tier or control point is introduced; its clauses trace into
+E-1/E-2/E-3, standard L1/L2, S-8 L4, and conditional future L5 below.
+
 ## 1. Probability axis (where it actually breaks) `[elicited]`
 
 - **The joins, not the functions.** Provider dies after useful work; GitHub accepts
@@ -40,6 +44,9 @@ a future audit diffs deliberate-thinness against.
   validated, candidates-never-resolve — as a full member, not an adjacency.
   (INV-001/002/003/010/011/012-activation; T-1/2/3/4/8/**10**/12; B-09a/b, B-11,
   B-14, B-17, C-OP-LIFE.)
+  Comparative slice: candidate lanes remain effect-inert, cannot request grant
+  widening, and only a content-bound selected artifact may cross B-19 into ordinary
+  continuation (B-18/B-19, J-19).
 - **E-2 — Turn durability and money, together.** One-app isolation, admission, pause
   enforcement, provider partials, settlement conservation, crash recovery, preserved
   paid work, no duplicate continuation. Money and recovery are one family because the
@@ -47,11 +54,17 @@ a future audit diffs deliberate-thinness against.
   (INV-004/005/006/007/013; T-5/6; B-02/03/04 core, B-07/08/15, adapter core.
   **T-11 adapter-enforcement slices are cross-cutting E-1/E-2 members** — the gate
   hook, budget-observation, and exact-session guarantees implement both families.)
+  Comparative slice: every candidate/sample and judge call is separately admitted,
+  terminal, and settled; aggregate comparison ceilings cannot hide those turns or
+  regenerate paid candidates (B-18, J-19).
 - **E-3 — Merge and evidence truth.** Exact HEAD, resolved default branch, fresh
   checks, review authorization, orchestrator-only merge; every morning-screen claim
   distinguishing missing / stale / contradictory / decided / executed / verified.
   False green is the amplifier that lets every other defect run for a week.
   (INV-008/009/012/014; T-7/9; B-01, B-12, C-OP-LOOP.)
+  Comparative slice: eligibility precedes judgment; advisory ranking is not
+  admissible selection; exactly one evidence-bound winner is materialized; ordinary
+  exact-HEAD review/merge remains downstream (B-19, J-19, S-8).
 
 **Non-discretionary floors (invariants, not allocation):** secret containment
 (INV-011); agents-never-rewrite-their-own-authority (INV-001); and the apex invariant
@@ -75,6 +88,9 @@ tier. None of these can be risk-pruned `[elicited + owner correction]`.
 - EpisodePlanner validator, event routing, onboarding ladder mechanics, learning
   *capture/projection* machinery: full contract-derived L2 coverage. (The learning
   **activation** boundary T-10 is E-1, §2 — not here.)
+- Sequential comparison coordination: full contract-derived L1/L2 with real temp git,
+  mocked providers/judge, candidate-isolation assertions, and kill-point sweeps. The
+  E-1/E-2/E-3 slices above are exhaustive, not merely standard.
 
 ## 4. Deliberately thin (recorded, reviewable)
 
@@ -90,6 +106,9 @@ tier. None of these can be risk-pruned `[elicited + owner correction]`.
   trajectory is deterministic scrutiny; the rest earn token budget from usage and
   consequence. "We ran the model three times" is three anecdotes wearing a badge —
   never claimed as coverage `[elicited]`.
+- Selection-judge quality (S-8) may collect data after its golden scaffold lands, but
+  remains advisory/inconclusive under F-PT-011 until calibration thresholds and sample
+  design are human-ratified. A standalone showcase is not an exception.
 
 ## 5. Layer-3 spend policy (owner-ratified [simulated] seat; human-ratified 2026-07-31 with the release bound amended)
 
@@ -158,6 +177,12 @@ Trigger rules `[elicited]`:
   vanishes); remaining eligible work reconsidered after capacity clears (no latency
   promise invented); locks, journals, and exactly-once settlements consistent under
   simultaneous completion. Never uniform throughput.
+- **Comparative execution (conditional):** sequential V1 adds no new L5 campaign.
+  Enabling automatic sampled activation or parallel candidate lanes adds a targeted
+  comparison exercise: sticky sampling remains distribution-correct across restart;
+  candidate workspaces never cross-read or collide; aggregate reservations and
+  settlements reconcile under simultaneous terminals; retention bounds state growth.
+  This obligation activates with that later feature slice, not before.
 
 ## 7. Completeness and verdict semantics (all expensive lanes)
 

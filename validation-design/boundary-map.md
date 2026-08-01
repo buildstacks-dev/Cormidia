@@ -5,9 +5,14 @@ Status: rev 4, CONFIRMED at the Phase 3 gate (2026-07-31); human-ratified 2026-0
 five objections + seam-by-seam operational failure modes; rev 2 refused — B-17 added,
 B-02/B-03/B-07 layer placements untangled, B-09b ownership precision, B-13 provenance;
 rev 3 refused — B-17 L3 status corrected to BLOCKED with future-policy reason/unblock
-condition; see elicitation-log.md). Rows `[doc]`-derived unless marked `[PROPOSED]`; operational failure
+condition; see elicitation-log.md). Rows `[doc]`-derived unless marked `[PROPOSED]`
+or `[stated]` (direct live owner input); operational failure
 modes contributed by the stakeholder are marked `[elicited]`, with `[rambling]` citations
 where they trace to lived incidents.
+
+Harness revision 2026-08-01: B-18/B-19 are the only new boundaries introduced by the
+owner-confirmed comparative-execution direction. Existing B-02/03/04, B-14/15/16 and
+their layer placements are reused rather than duplicated.
 
 Boundaries fall out of the structural view (state ownership, consistency, failure
 domains) — never testing convenience. Interfaces (CLI/JSON/UI) are adapters, not
@@ -319,6 +324,53 @@ both fake and real dependency to prevent drift.
   <!-- changelog 2026-07-31: pointed to the existing draft policy (final-gate fix). -->
 - **Layer:** 2 + BLOCKED L3 obligation (recorded in the draft policy file).
 
+### B-18 — Comparison coordinator ↔ isolated candidate lanes `[stated+PROPOSED]`
+- **Why it is a boundary:** the coordinator owns frozen comparison intent, candidate
+  identities, aggregate admission, and the journal; each candidate owns an isolated
+  provider execution and artifact namespace and can fail while the coordinator and
+  sibling candidates remain healthy.
+- **Boundary test:** one candidate can hang, crash, lose provider auth, corrupt its
+  worktree, or terminate ambiguous while the coordinator records the outcome and
+  proceeds with other already-admitted candidates. PASS.
+- **Journeys / tier:** J-19; C2 coordinator with T-2/T-5/T-6/T-11 slices.
+- **Failure modes:** candidate never starts after durable admission; process dies after
+  useful work but before terminal evidence; candidate observes sibling bytes; base or
+  input fingerprint differs; tuple silently substituted; candidate performs an outward
+  effect; candidate worktree mutation escapes its namespace; missing/partial usage;
+  candidate completion recorded twice; aggregate budget exhausted between candidates;
+  cleanup removes a retained or materialized artifact.
+- **Honest fake:** YES — real coordinator + temp git worktrees/artifact roots, mocked
+  adapters, injected clock/process/FS faults, scripted candidate terminals and usage.
+  The same adapter conformance obligations remain B-02/B-03/B-04; no new live seam is
+  created merely because an adapter is invoked inside a comparison.
+- **Unproven real:** provider/harness behavior remains the existing adapter L3
+  obligations. Parallel candidate contention is a future L5 obligation, not part of
+  sequential V1.
+- **Layer:** 1/2; existing conditional L3 adapters; future L5 when parallelism exists.
+
+### B-19 — Durable selection ↔ winner materialization/episode continuation `[stated+PROPOSED]`
+- **Why it is a boundary:** selection owns one immutable, evidence-bound decision;
+  materialization owns copying that exact artifact into an episode output or a new
+  standalone local winner branch. Either side can fail while the other remains valid.
+- **Boundary test:** a valid selection record can exist while git materialization or
+  episode continuation is unavailable; a materializer can be healthy while selection
+  is missing, corrupt, advisory-only, or inconclusive. PASS.
+- **Journeys / tier:** J-19; T-6 containment and T-9 evidence-truthfulness slices;
+  downstream merge still uses T-7 and ordinary J-04.
+- **Failure modes:** selected artifact hash no longer exists or differs; judge-advisory
+  output treated as admissible; crash after branch/artifact creation but before
+  acknowledgement; materialization repeated; active branch or human checkout mutated;
+  destination base moved/dirty; loser materialized; two winners; selected artifact
+  receives broader authority; selected code bypasses ordinary review/gates; cleanup
+  deletes a winner branch; report says materialized or downstream-verified when only
+  selected.
+- **Honest fake:** YES — real temp git and episode journals with kill points before and
+  after branch/artifact creation, content-hash mismatches, moved bases, dirty
+  destinations, and replayed materialization.
+- **Unproven real:** none beyond B-15 git behavior and any later ordinary B-01 GitHub
+  journey. Standalone materialization is local and creates no new L3 target.
+- **Layer:** 1/2.
+
 ## 2. Not boundaries (named, so nobody re-litigates)
 
 - `org → loop → runtime` module layering — import discipline inside one process.
@@ -327,6 +379,10 @@ both fake and real dependency to prevent drift.
 - Ledger append within a turn — same process; crash-mid-step is a B-07/B-15 modifier,
   covered by INV-006/013 cases.
 - CLI/JSON/Live-UI surfaces — adapters over behavior (system-map §1.4).
+- Standalone `operon compare` versus EpisodePlan entry — two adapters over J-19 and
+  M16, not two comparison behaviors.
+- Selection judge transport — reuses B-02/B-03/B-04; its quality and calibration are
+  S-8 layer-4 obligations, not a new provider boundary.
 
 ## 3. Diagram
 
@@ -352,6 +408,9 @@ flowchart LR
         LRN[Learning publisher]
         OBS[Observer / readers]
         INBX[Event inbox]
+        CMP[Comparison coordinator]
+        CAND[Isolated candidate lanes]
+        MAT[Winner materializer]
     end
     HUM[Human]
     TICK -- B-08 --> TURN
@@ -376,6 +435,10 @@ flowchart LR
     OPERON -- B-14 --> HCO
     LRN -- B-11 --> ORGH
     INBX -- B-13 --> TICK
+    CMP -- B-18 --> CAND
+    CMP -- B-19 --> MAT
+    CAND -- B-02/03/04 --> ANT
+    MAT -. B-15/B-14 .-> FSGIT
 ```
 
 ## 4. Findings raised at Phase 3

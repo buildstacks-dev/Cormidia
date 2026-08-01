@@ -6,8 +6,13 @@ at the Phase 1 gate (2026-07-31, round 4) alongside the criticality tier; human-
 replace `docs/architecture.md`; it makes the derivation surface for invariants, boundaries,
 and contracts explicit.
 
+Harness revision 2026-08-01: owner-confirmed comparative-execution direction adds M16,
+J-19, and the standalone CLI adapter. Existing journeys, tiering, and control points are
+unchanged; the new slices resolve to existing T-2/T-5/T-6/T-9/T-11 controls.
+
 Provenance: rows are `[doc]` unless marked `[walk]` (stakeholder's Phase 1 elicitation,
-see elicitation-log.md), `[rambling]`, `[simulated]`, or `[PROPOSED]`.
+see elicitation-log.md), `[rambling]`, `[simulated]`, `[stated]` (direct live owner
+input), or `[PROPOSED]`.
 
 ## 0. Intended use, deployment shape, criticality
 
@@ -55,6 +60,8 @@ sole write exception `[doc]`):
 - App lifecycle: `new-app`, `bootstrap [publish]`, `app verify | promote | reset`
 - Planning: `plan --auto --goal`, `plan --creator-scope --execution-ready`, sources
 - Delivery: `loop --once`, `loop rearm`, `run-role`, `dispatch` (manual form)
+- Comparative execution (proposed): EpisodePlan compared provider step; standalone
+  `compare` preview/execute/materialize over a local git repository
 - Approvals: `approvals`, decide, `plan ratify-ticket-budget`
 - Scheduler: `scheduler install | status | uninstall`
 - Observation: `status`, `budget [--reconcile]`, `report`, `telemetry`, `observe`,
@@ -96,6 +103,7 @@ sole write exception `[doc]`):
 | J-16 | Scheduler lifecycle | Install/uninstall preview-then-execute with identity confirm; status = joined evidence (ownership/hash/cadence/ticks/duplicates/settlement agreement) — a definition file alone is never "healthy" |
 | J-17 | Release handoff (A4) | Declared `release:` mechanism; deploy is a fresh content-bound critical op post-merge; handoff executed exactly once by later dispatch; (release *gating* itself: suspended — see policy obligation) |
 | J-18 | **Unattended scheduled delivery (composite; highest-hurt)** | OS due window → one durable dispatch decision → valid EpisodePlan → bounded provider turns → gate-classified actions → correct GitHub artifacts (right repo, right base branch) → exact review/merge boundary → exactly-once settlement → **truthful morning status**. Failure mode that matters: seven mornings of plausible green over wrong reality `[walk]` |
+| J-19 | **Per-turn comparative execution** `[stated+PROPOSED]` | One frozen provider-step intent → bounded exact candidate assignments/samples in isolated workspaces → operation-specific evidence → deterministic eligibility → admissible selection or explicit inconclusive outcome → exactly one content-bound winner materialized for ordinary continuation. Every candidate and judge turn settles separately; losing candidates perform no outward effect. Standalone `operon compare` enters the same behavior without an org and never mutates the active branch or contacts GitHub through an orchestrator-owned path. |
 
 ### 1.4 Entry and observation surfaces (adapters, not behaviors)
 
@@ -109,13 +117,15 @@ sole write exception `[doc]`):
 | File-drop event inbox | entry | closed kind registry; schema validation; retention semantics |
 | OS timer | stimulus source | fires the same `operon dispatch` the human can run — one behavior, two initiators |
 | Agent Skill (`$operon`) + `capabilities --json` | entry (for coding agents) | discovery accuracy |
+| Standalone `operon compare` (proposed) | entry + observation adapter over J-19 | token-free preview; exact operator-declared tuples; execute/confirm binding; no-org authority; terminal/JSON/HTML agreement; explicit local winner materialization only |
 
 ## 2. Structural view
 
 ### 2.1 Components and deployment units
 
 One process family, no daemon: CLI invocations, detached turn processes spawned by ticks,
-and the foreground observer. Module inventory M1–M15 per `scope-and-module-map.md` §2.
+candidate turn processes coordinated by a comparison journal, and the foreground
+observer. Module inventory M1–M16 per `scope-and-module-map.md` §2.
 Import direction `org → loop → runtime`; observe/report/narrative are read-only leaves.
 
 ### 2.2 Durable state: owner and authorized write paths per fact
@@ -128,6 +138,7 @@ named explicitly and the component writes under it.
 | Durable fact | Location | State owner · authorized write paths |
 |---|---|---|
 | Accepted EpisodePlan + versions + DAG journal | `efficiency/episodes/<hash>/` | episode-planner/loop (plan validation path) |
+| TurnComparison journal, candidate/evidence records, selection and materialization acknowledgement (proposed) | episode: comparison subtree beneath the accepted step; standalone: `~/.operon/standalone/<repo-fingerprint>/comparisons/<comparison-id>/` | M16 comparison coordinator; candidates write only their namespaces, selector writes one immutable selection, materializer records the content-bound local/episode continuation |
 | Ticket claim / allowance / re-arm | `tickets/<app>/<issue>.json` | loop (atomic claim transactions) |
 | Product artifacts (issues, PRs, reviews, merges, labels, branches) | GitHub | GitHub, via gate-classified actions; orchestrator-only merge |
 | Run evidence L1–L3 | `runs/<app>/<runId>/` | runtime runlog (per pass) |
@@ -141,7 +152,7 @@ named explicitly and the component writes under it.
 | Schedule last-fired + consumed events | `state/schedule.json`, `state/events/` | dispatcher |
 | Scheduler installation + evidence | `scheduler/` | scheduler lifecycle commands / tick evidence writer |
 | Triggered-validation campaign + soak checkpoints | `validation/campaigns/<id>/report.json`, `validation/soaks/<id>/state.json` | authorized L3/L4/L5 runners write versioned campaign/checkpoint evidence; status/Report/Observe are read-only consumers; completeness and verdict remain separate |
-| Managed clones + worktrees | `repos/`, `worktrees/` | loop worktree management (never human checkouts) |
+| Managed clones + worktrees | `repos/`, `worktrees/`; proposed standalone comparison worktrees under its external state root | loop/M16 worktree management (never writes the active human checkout; comparison candidates are mutually isolated) |
 | Invocation audit + journal | `invocations/`, `state/invocation-journal/` | CLI entry layer (idempotent terminal append) |
 | Self-approval HMAC key | `state/self-approval-secret` | orchestrator only (owner-only perms; fail closed) |
 | Learning state-home stores | `learning/**` (state home) | capture/projection/publisher per store |
@@ -178,8 +189,9 @@ killed campaigns `[rambling]`).
   multi-step transactions** (turn journals, invocation journal, plan-DAG journal,
   lifecycle/publish journals). Artifact-before-label is the GitHub ordering rule.
 - Failure domains that fail **independently**: each detached turn; the tick process; the
-  observer; GitHub availability; each provider; the laptop itself (sleep = global pause
-  with no recovery daemon — the next tick reconciles).
+  observer; each comparison candidate; the comparison judge; winner materialization;
+  GitHub availability; each provider; the laptop itself (sleep = global pause with no
+  recovery daemon — the next tick reconciles).
 - Version skew: package upgrade between ticks; org-home schema vs package (`schema_version`
   from day one); plan versions are forward-only; legacy ledger rows keyed differently
   (`(app, runId)`) remain readable.
@@ -208,12 +220,14 @@ killed campaigns `[rambling]`).
 | J-16 | M6 (host scheduler def) | none (host file owned/versioned) | — |
 | J-17 | M2, M1, app's deploy mechanism | **production deploy** | — |
 | J-18 | composite of J-09,03,04,05,07,08,15 | all of the above, unattended | — (formerly inherited F-PT-003/004; both ratified 2026-07-31) |
+| J-19 | M16 with M5/M4 entry in org mode or M15 entry standalone; M7/M3 per candidate and judge; M9/B-14/B-15/B-16 for workspaces and validation | provider spend; selected local branch or episode artifact (reversible before ordinary merge); candidate lanes have no outward effects | judge thresholds/sample design remain F-PT-011; automatic judge selection is inadmissible until ratified |
 
 **Cross-cutting overlays** (touch nearly every journey): secret boundary (M8) at every
 provider prompt, log, export, capture; authority/context assembly (M11/M12) at every turn
 construction; default-branch/ancestry resolution `[walk: "the scar I keep touching"]` at
 every branch/diff/ancestry/reset/release-bytes operation; settlement (M3) at every
-provider turn; the gate (M1) at every tool action.
+provider turn; the gate (M1) at every tool action. M16 comparisons inherit every overlay
+per candidate and add no permission to the wrapped turn.
 
 ## 4. Open findings (product truth / architecture) — as raised through Phase 1 only; the authoritative full list (18 findings, including resolved records) is `validation-policy.yaml` → `open_findings` <!-- AUD-108 -->
 
@@ -278,6 +292,11 @@ slices are T-2/T-5-adjacent where they admit work), dispatcher due arithmetic, e
 routing (multi-subscriber correctness leans T-9 for its truth claims), onboarding
 evidence-ladder mechanics, report/ledger aggregation correctness (silent dedup/hidden
 unsettled rows → T-9), adapter compatibility behavior, CLI parsing/formatting.
+
+Comparative execution coordination and ordinary selection quality are C2. Its
+candidate no-effect/authority slice resolves to T-2, aggregate admission and settlement
+to T-5, workspace isolation to T-6, advisory-vs-admissible reporting to T-9, and exact
+adapter enforcement per candidate to T-11. No new C3 control point is introduced.
 
 ### 5.4 C1 leaves
 

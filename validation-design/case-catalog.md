@@ -1,15 +1,18 @@
 # Case catalog — Operon (product scope, matrix closure)
 
 Status: derived to matrix closure (Phase 6, agent-alone per Division of labor §6) over
-the ratified artifacts: system-map (J-01…J-18), invariants (INV-001…015), boundary-map
-(B-01…B-17), contracts (22 canonical IDs), llm-eval-plan (S-1…S-7 and S-9; S-8 intentionally absent), risk-allocation
+the ratified baseline plus the owner-confirmed 2026-08-01 harness revision: system-map
+(J-01…J-19), invariants (INV-001…015), boundary-map (B-01…B-19), contracts
+(24 canonical IDs), llm-eval-plan (S-1…S-9), risk-allocation
 (E-1/E-2/E-3, floors, §5/§6 obligations). **This remains the design-derived
 catalog, while executable authoring is tracked by `harness-backlog.md`.** As of
 2026-07-31, Waves 0–4 are implemented under `claude-tests/`: through Wave 3 the
 E-1/E-2/E-3 and evidence-agreement families are executable; Wave 4 adds the
 CF-J02/CF-J03/CF-J10/CF-J16/CF-OPS-GROW/CF-IF/CF-S2-traj/CF-S9-env remainder.
-The full L1/L2 gate is green (116 files, 726 passed, one intentionally parked
-skip). Catalog closure does not imply separately gated L3/L4/L5 evidence.
+The full pre-revision L1/L2 gate is green (116 files, 726 passed, one intentionally
+parked skip). J-19/B-18/B-19/S-8 families are **design-only and not implemented**;
+their presence here must not be represented as executable coverage. Catalog closure
+does not imply implementation or separately gated L3/L4/L5 evidence.
 
 **Closure rule:** every (source artifact × derivation row) cell below carries case
 families or a **named prune**. Prune vocabulary (nothing else is legal):
@@ -135,6 +138,11 @@ journey-acceptance.md alias table.
 | CF-J18-I | typed non-green terminations (provider death, timeout, red gates, returned, drift, malformed verdict, ambiguity) each leave truthful morning state | 2 | evid | E3 |
 | CF-J18-RC | multi-tick recovery across the composite (sleep window injected via fake clock) | 2 | state | E2 |
 | CF-J18-A | **live unattended sandbox campaign** under test-mode profile: zero human decision rows, profile identity + sandbox target in evidence, publication blocked | 3 | live | E1/E2/E3 (≤$100 release campaign, amended 2026-07-31) |
+| CF-J19-S | one frozen step intent + exact candidate assignments → isolated turns → operation-specific evidence → deterministic eligibility → one content-bound selection and materialization acknowledgement; each candidate and judge turn settles separately | 2 | state+evid+diff | E1/E2/E3 (design-only) |
+| CF-J19-R | zero/duplicate/unapproved tuples, unavailable capabilities, unsafe repo, insufficient budget, all-ineligible candidates, and requested automatic judge selection while S-8 is inadmissible each produce a typed pre-effect refusal or explicit inconclusive result | 1/2 | refusal+evid | E1/E3 (design-only) |
+| CF-J19-I | kill at candidate start/settlement/evidence collection/selection/materialization boundaries; no losing or unselected lane crosses into ordinary continuation | 2 | state+diff | E1/E2 (design-only) |
+| CF-J19-RC | replay resumes only unsettled candidate work, never spends twice for a settled turn, preserves immutable evidence/selection, and completes or reports ambiguous materialization without choosing again | 2 | state+evid | E1/E2 (design-only) |
+| CF-J19-A | EpisodePlan and standalone `operon compare` adapters produce the same comparison/result contract; standalone preview spends nothing and execution never mutates the active branch or performs orchestrator-owned GitHub effects | 2 | diff+evid | E1/E3 (design-only) |
 
 ## 2. State-machine matrix (machine × legal / illegal / replay / crash-point)
 
@@ -152,6 +160,7 @@ journey-acceptance.md alias table.
 | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) |
 | CF-SM-EVENT-L/I/R/C | event pending→per-role-marked→retired: retire-before-all-marks illegal; refire-on-marked illegal; crash between mark and retire; **partial-file legality BLOCKED:F-PT-006** | 2 | state | STD |
 | CF-SM-TURN-L/I/R/C | productive turn journal path `assembling→running→collecting→done`: phases in order, productive-phase skip illegal (error terminals may end the current phase honestly), same-phase replay idempotent, real SIGKILL at every productive phase (recognized intermediates only) | 2 | state | E2 |
+| CF-SM-COMP-L/I/R/C | comparison `planned→executing→evaluating→selected→materializing→completed`, with typed `evaluating→inconclusive|failed` terminals: legal transitions only; candidate-set/input/policy hashes immutable after spend starts; settled candidates and selection replay idempotently; crash sweep at every transition and materialization acknowledgement | 2 | state+evid | E1/E2/E3 (design-only) |
 
 ## 3. Invariant matrix (INV × violation-paths / guardrail-response)
 
@@ -212,6 +221,8 @@ obligation exists.
 | CF-B15-* | FS faults (full/read-only/perm/torn/ENOSPC) per store class; git faults (index.lock bounded wait, corrupt refs → re-clone, remote-changed identity stop, hooks-disabled, partial-command post-verify). Worktree-content preservation asserted up to the accepted-artifact line; **ambiguous-byte disposition per ratified F-PT-004 (2026-07-31): preserve-and-inspect, never reset** (cases derivable — HB-P2) | 2 | state+refusal | E2 |
 | CF-B16-* | scripted gate commands: hang→timeout-kill, flood→ratified truncation bounds (256KiB/50 lines; 8k PR; 2k tail), missing tool typed, exit-0-lying (evidence binds to candidate SHA), candidate-mutation detection within governed scope, pending-fails-closed (bare template) | 2 | evid+refusal | E3 |
 | CF-B17-* | scripted external target: accept-vs-complete split, lost response, marker disagreement, target-auth failure (grant consumed, evidence in audit), at-most-once; real round-trip **BLOCKED:B-17-L3** | 2 | evid | E1 |
+| CF-B18-* | scripted candidate-lane boundary: identical frozen input/base/authority; exact tuple identity; unavailable capability and spend refusal; partial/timeout/duplicate settlement; workspace mutation containment; stale evidence rejected; version skew named; no candidate outward effects | 1/2 | state+diff+refusal | E1/E2/E3 (design-only) |
+| CF-B19-* | scripted selection/materialization boundary: eligible set and policy hash binding; deterministic precedence over judge; stable tie-break; no-selection/inconclusive path; duplicate/retry idempotency; stale base/evidence refusal; exactly one winner namespace crosses and only to the declared continuation target | 1/2 | state+evid+diff | E1/E3 (design-only) |
 
 ## 5. Contract matrix (C × valid/invalid inputs / outputs / typed errors / idempotency / ordering / freshness+latency)
 
@@ -222,7 +233,7 @@ spanning the six rows) except where a dimension is separately risky.
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
 | CF-C-CORE | OPERON-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause BLOCKED:F-PT-017**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
-Eighteen boundary-contract families (B-09a and B-09b are separate contracts), one per
+Twenty boundary-contract families (B-09a and B-09b are separate contracts), one per
 canonical `OPERON-C-B*-001` ID, each clause-complete (valid/invalid inputs, outputs,
 typed errors, idempotency, ordering, freshness/latency). HB-007 items 1–8 and 13 are
 asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain provisional.
@@ -248,6 +259,8 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-C-B15 | 2 | E2 | — | — (F-PT-004 ratified 2026-07-31; ambiguous-byte clause derivable — HB-P2) |
 | CF-C-B16 | 2 | E3 | — | — |
 | CF-C-B17 | 2 | E1 (T-12) | — | BLOCKED:B-17-L3 (live round-trip) |
+| CF-C-B18 | 1/2 | E1/E2/E3 | — | — (design-only; implementation pending) |
+| CF-C-B19 | 1/2 | E1/E3 | — | — (design-only; S-8 automatic-selection clause remains inadmissible under F-PT-011) |
 | CF-C-OPLIFE | C-OP-LIFE §§1–6 + error split (precondition-refusal vs journaled-intermediate) | 2 | state+refusal | E1 (T-8 slices) |
 | CF-C-OPPLAN | C-OP-PLAN §§1–5 (bypass conditions, plan production, previews, boot boundary, sources fail-closed) | 1/2 | refusal+state | STD (validator depth per risk-allocation §3) |
 | CF-C-OPLOOP | C-OP-LOOP §§1–5 (vocabulary, claims, 3-cycle bound + fourth-cycle return, review/merge, parallelism) | 2 | state | E3 |
@@ -262,7 +275,8 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-IF-UI | Live UI shell conformance: PRUNE-thin for pixels; confidentiality/truth slices covered CF-J15-* (not thin) | 2 | evid | THIN/E3 |
 | CF-IF-HTML | portable report conformance: self-contained, CSP, no external requests, no L3 | 2 | evid | E3 |
 | CF-IF-SKILL | `$operon` skill + capabilities/context discovery accuracy vs actual CLI surface | 2 | evid | STD |
-| CF-IF-XSURF | one cross-surface agreement check: same fixture truth via CLI text, `--json`, observe snapshot, portable HTML (extends CF-J15-A to non-report ops) | 2 | evid | E3 |
+| CF-IF-COMPARE | standalone `operon compare` parsing, preview/confirm hash, exact tuple preservation, safe repo preconditions, terminal/JSON result schema, external state root, and explicit local-branch materialization; no org or GitHub required | 1/2 | refusal+evid+diff | E1/E3 (design-only) |
+| CF-IF-XSURF | one cross-surface agreement check: same fixture truth via CLI text, `--json`, observe snapshot, portable HTML (extends CF-J15-A to non-report ops), plus EpisodePlan/standalone comparison-result agreement for J-19 | 2 | evid | E3 (J-19 slice design-only) |
 
 ## 7. LLM call-site matrix (S × deterministic-envelope / statistical-quality / trajectory / judge-calibration)
 
@@ -290,6 +304,9 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-S7-env | fail-closed verdict persistence — PRUNE-dup:CF-J12 families | — | — | — |
 | CF-S7-judge+qual | learning-reviewer calibration set (5 seeded classes) — **F-PT-011; scores inadmissible until calibrated+ratified** | 4 | stat | L4Q |
 | CF-S7-traj | PRUNE-na (single-pass judge) | — | — | — |
+| CF-S8-env | selection-judge envelope: blinded stable candidate IDs; identical operation rubric and deterministic evidence; complete eligible set only; schema-valid ranking/confidence/reasons; malformed output cannot select a winner | 1/2 | refusal+evid | E3 (design-only) |
+| CF-S8-qual+judge | per-operation selection meta-eval with human pairwise/ranking references, eligibility traps, swapped-order controls, ties, and abstentions — **inconclusive-only and scores inadmissible for automatic selection until F-PT-011 ratifies calibration/thresholds** | 4 | stat | L4Q (design-only/deferred) |
+| CF-S8-traj | PRUNE-na (single-pass judge; candidate trajectories belong to their emitting call sites) | — | — | — |
 | CF-S9-env | format-repair: same-session, bounded attempts, settlement — contract-only | 2 | state | STD |
 | CF-S9-qual/traj/judge | PRUNE-na (contract-only site by ratified decision) | — | — | — |
 | CF-COND | brief-conditioning study (informs, never gates) — sampling design OPEN under F-PT-011 | 4 | stat (non-gating) | THIN |
@@ -305,6 +322,7 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-OPS-SKEW | PRUNE-dup:CF-B06-* (clock anomalies) + soak's real sleep cycles | — | — | — |
 | CF-OPS-ABUSE | threat-model-driven abuse cases: deferred until the ratified threat model exists (owner-ratified timing, risk-allocation §6); interim floor = CF-INV-001/002/011/015 adversarial families | 5 | mixed | E1 (deferred lane, declared) |
 | CF-OPS-REC | PRUNE-dup:§1 interruption/recovery rows + CF-B07 (recovery is a modifier everywhere, not a lane) | — | — | — |
+| CF-OPS-COMP | PRUNE-na for V1 (explicit tuples, sequential execution, hard per-comparison ceilings are falsifiable at L1/L2); automatic sampling or parallel candidates must re-enter allocation and may create a bounded L5 contention/cost obligation | — | — | — |
 
 ---
 
@@ -328,35 +346,37 @@ not change matrix allocation or unblock any finding.
 | CF-OPS-SOAK / CF-OPS-ROT | Collector complete | `claude-tests/ops/soak-protocol.ts`; real seven-day/sleep/rotation evidence pending human scheduling. |
 | CF-OPS-ABUSE | Gate only; blocked | `claude-tests/ops/threat-model-gate.ts` refuses the checked-in `awaiting_human_author` status. No abuse cases before HB-072. |
 | CF-HARNESS-REPORT | Complete | Durable reports debit unknown failed-case spend conservatively, keep exact-ceiling coverage incomplete, bind canonical policy/golden inputs to authorized HEAD, and surface corrupt/inconclusive evidence without green. |
+| CF-J19-* / CF-SM-COMP-* / CF-B18-* / CF-B19-* / CF-C-B18 / CF-C-B19 / CF-IF-COMPARE | Design only | Implementation is tracked by the comparative-execution backlog and GitHub epic; no executable coverage or evidence claim exists yet. |
+| CF-S8-env / CF-S8-qual+judge | Design/scaffold only | Empty truthful scaffold at `golden-sets/selection-judge/`; F-PT-011 keeps scores inadmissible for automatic selection and any threshold-dependent outcome inconclusive. |
 
 - HB-080 runbook: complete at `docs/qualification/validation-triage.md` and linked
   from campaign presentation surfaces.
 - HB-081 inconclusive semantics: complete with product detector at
   `claude-tests/hermetic/cf-harness-report/campaign-report-surfaces.test.ts`.
 
-- **Journeys:** 18 × 5 = **90 semantic cells, written as 86 table rows** (the single
-  J-13 row covers its five dup-pruned cells). Accounting: **81 family cells + 9
+- **Journeys:** 19 × 5 = **95 semantic cells, written as 91 table rows** (the single
+  J-13 row covers its five dup-pruned cells). Accounting: **86 family cells + 9
   pruned/blocked cells** — J-06-A (na), J-10-A (na), J-13 ×5 (dup), J-16-RC (dup),
   J-17-A (BLOCKED:B-17-L3). CF-J10-I is a family cell carrying an embedded named
   block (F-PT-006). <!-- ratification 2026-07-31: J-07-I unblocked (F-PT-003
   ratified) — moved from the blocked count to the family count; CF-J04-I's embedded
   F-PT-004 block resolved (ratified line encoded in-cell). -->
-- **State machines:** 8 machines × 4 rows = 32 cells → all traced (2 dup prunes; 1
-  F-PT-006 block).
+- **State machines:** 9 machines × 4 rows = 36 cells → all traced (2 dup prunes; 1
+  F-PT-006 block); CF-SM-COMP is design-only.
 - **Invariants:** 15 × 2 rows → 15 families (violation+guardrail folded; every family
   carries its negative control).
-- **Boundaries:** 17 numbered boundaries become **18 matrix entries** (B-09 splits into
-  B-09a and B-09b) × 7 rows = **126 semantic cells** → traced via the §4 families
+- **Boundaries:** 19 numbered boundaries become **20 matrix entries** (B-09 splits into
+  B-09a and B-09b) × 7 rows = **140 semantic cells** → traced via the §4 families
   (B-08, B-11 dup-pruned to their journey/state owners; finding-blocks named in-cell).
-- **Contracts:** 22 canonical IDs = 18 boundary contracts (incl. B-09A/B-09B
-  separately) + CORE + 3 OP → 22 clause-complete families; acceptance criteria
+- **Contracts:** 24 canonical IDs = 20 boundary contracts (incl. B-09A/B-09B
+  separately) + CORE + 3 OP → 24 clause-complete families; acceptance criteria
   dup-pruned to their §1 cells.
-- **Interfaces:** 6 families incl. the single cross-surface agreement check.
-- **LLM sites:** **8 site families (S-1…S-7, S-9) × 4 rows = 32 cells** → every cell
+- **Interfaces:** 7 families incl. standalone comparison and the cross-surface agreement check.
+- **LLM sites:** **9 site families (S-1…S-9) × 4 rows = 36 cells** → every cell
   now explicitly a family, PRUNE-na, PRUNE-dup, or finding-parked; no quality cell may
   yield pass/fail until its owning finding ratifies (L4Q category).
-- **Ops obligations:** 7 rows → **5 families (CONT, SOAK, ROT, GROW, ABUSE-interim) +
-  2 dup prunes**. Layer 5 holds CONT (hermetic rig, L5 by question), SOAK, ROT (named
+- **Ops obligations:** 8 rows → **5 families (CONT, SOAK, ROT, GROW, ABUSE-interim) +
+  2 dup prunes + 1 named V1 not-applicable prune**. Layer 5 holds CONT (hermetic rig, L5 by question), SOAK, ROT (named
   Codex-rotation sub-obligation with its own completion evidence), and the
   deferred-declared ABUSE lane behind the ratified threat model; **GROW is Layer 2**
   (seeded aged state under a controlled clock — the cheapest layer that can falsify

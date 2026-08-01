@@ -16,6 +16,10 @@
 # status vocabulary conflict; F-PT-018 records that the configured GitHub plan cannot
 # enforce required checks. Required target gates remain tighten-only; observed
 # enforcement gaps are explicit rather than represented as green.
+# changelog 2026-08-01 (owner-confirmed harness revision): register the proposed
+# comparative-execution design (M16/J-19/B-18/B-19/S-8). Existing ratified gates,
+# tiers, spend bounds, and tooling are unchanged. New case families are design-only;
+# S-8 scores remain inadmissible under F-PT-011 until calibrated and ratified.
 
 schema_version: 1
 scope: product
@@ -53,6 +57,7 @@ artifacts:                       # design root now; moves with the harness to cl
   operator_triage: ./operator-triage-runbook.md
   threat_model_template: ./threat-model-template.md
   threat_model_status: ./threat-model-status.yaml
+  comparative_execution_design: ../docs/comparative-execution/design.md
 
 implementation_root: claude-tests/          # per docs/PURPOSE.md v2.9
 protected_paths:
@@ -123,13 +128,13 @@ layers:                                      # the audit's diff surface
         max_equiv_usd: 100
       on_ceiling_exhaustion: "completeness=incomplete; verdict per verdict_semantics (never pass)"
   L4_eval:
-    status: "data-collection runner implemented; all quality thresholds unratified; reviewer/planner human reference validation pending"
+    status: "data-collection runner implemented for the ratified baseline; S-8 selection-judge integration is design-only; all quality thresholds unratified; reviewer/planner human reference validation pending"
     runner: "hand-rolled per-tuple runner over golden-sets/ (plain files in git); OPERON_EVAL=1 + absolute reviewed authorization file; HEAD, canonical policy, and every golden input must be tracked and byte-identical at the authorized commit"
-    sites: "S-1..S-7 and S-9 per llm-eval-plan.md (S-8 intentionally absent)"
+    sites: "S-1..S-9 per llm-eval-plan.md; S-8 is registered design-only with an empty truthful scaffold"
     decision_status_rule: >
       No PROPOSED/hypothesis threshold yields pass or fail. Until the owning finding
       (F-PT-009/010/011) ratifies, campaigns run in data-collection mode and report
-      inconclusive for every threshold-dependent outcome. Judge scores (S-3, S-7)
+      inconclusive for every threshold-dependent outcome. Judge scores (S-3, S-7, S-8)
       are inadmissible until their calibration sets exist AND thresholds ratify.
     cadence: "per-site prompt/model/instruction change; release qualification; nightly rotating shards (when scheduled validation exists); token ceiling declared per campaign; partial evidence preserved"
   L5_ops:
@@ -164,6 +169,10 @@ layers:                                      # the audit's diff surface
         status: "deferred_declared (behind ratified threat model)"
         implementation_status: "fail-closed admission gate implemented; no cases authored before human threat model"
         interim_floor: "INV-001/002/011/015 adversarial families"
+      - id: CF-OPS-COMP
+        status: "not_applicable_v1"
+        implementation_status: "design-only; no L5 runner owed for explicit sequential V1"
+        rule: "automatic sampling or parallel candidate execution must re-enter risk allocation and may create a bounded L5 contention/cost obligation"
 
 verdict_semantics:                           # owner-ratified
   completeness: [complete, incomplete]
@@ -253,7 +262,7 @@ open_findings:
   - {id: F-PT-008, status: open-blocked-contract, subject: "grant-expiry item disposition"}
   - {id: F-PT-009, status: open, subject: "reviewer thresholds + sample design"}
   - {id: F-PT-010, status: open, subject: "planner/SRE thresholds + sample designs"}
-  - {id: F-PT-011, status: open-umbrella, subject: "later-site thresholds + brief-conditioning sampling"}
+  - {id: F-PT-011, status: open-umbrella, subject: "later-site thresholds + brief-conditioning sampling + S-8 selection-judge calibration/thresholds"}
   # Findings F-PT-012..016 opened 2026-07-31 during Wave-1 harness implementation
   # (procedure: agents-md-contribution.md). Each is a genuine design ambiguity a
   # suite surfaced; dependent cases are parked BLOCKED:<finding> in case-catalog.md.

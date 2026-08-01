@@ -517,6 +517,21 @@ planning identity discovers matching indexed issues, refuses conflicts, and
 converges without duplicates. Gate, envelope, assignment, and settlement
 enforcement match every other EpisodePlan-backed provider step.
 
+### Proposed comparative execution
+
+The owner has confirmed the product direction for **per-turn comparative execution**:
+one planned provider step may run a bounded set of exact harness/model/effort
+assignments from the same frozen input, evaluate their isolated artifacts, and
+continue with exactly one selected artifact. The episode remains one route and one
+outcome; comparison does not duplicate the whole episode or bypass its later review
+and ship gates.
+
+The same core is proposed behind a preview-first, org-free `operon compare` adapter
+for a local git repository. This is a design, not deployed behavior; the candidate
+isolation, selection/judge trust boundary, standalone safety posture, recovery rules,
+and phased delivery contract live in
+[`docs/comparative-execution/design.md`](comparative-execution/design.md).
+
 ## 9. Greenfield creation and Bootstrap
 
 An app enters the org one of two ways. `operon new-app` builds a fresh

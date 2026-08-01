@@ -1,9 +1,12 @@
 # Phase 0 — Scope declaration and module map (Operon)
 
-Status: presented for gate confirmation (rev 2, after GATE-REFUSED on rev 1).
+Status: ratified 2026-07-31 baseline plus a surgical harness revision for comparative
+execution, direction confirmed by the owner 2026-08-01. Existing module judgments stay
+unchanged; M16 is the only addition.
 Provenance labels: `[doc]` = derivable from ./docs/ · `[rambling]` = ./rambling.txt (cited) ·
 `[simulated]` = stakeholder judgment beyond docs/rambling · `[PROPOSED]` = designer-originated.
-`[stated]` is reserved for a live ratifying human and is not used in this campaign.
+`[stated]` = direct live owner input; absent from the closed 2026-07-31 campaign and
+used only on the owner-confirmed 2026-08-01 comparative-execution direction.
 
 ## 1. Scope declaration
 
@@ -58,6 +61,7 @@ campaign with this skill. All rows `[doc]` unless noted.
 | M13 | **Learning loop** | capture → episodes/capsules → distillation → cross-provider review → deterministic publisher → offline paired replay → human-started canary | Yes (own later pass; large). **In this campaign, broad-and-shallow but not dismissed as low-stakes — it is a persistent prompt-injection surface.** Product-level coverage must preserve at minimum: candidates never resolve; agents never write gate-protected surfaces; the deterministic publisher is the sole protected writer; authorization never masquerades as validation; agent self-reports never drive promotion metrics; T3 has no live canary. (Stakeholder-directed floor.) |
 | M14 | **Observe / report / narrative** | read-only presentation leaves; ledger-first reports. **Explicit confidentiality slice (stakeholder-directed):** loopback-only bind; per-process capability enforcement; no mutation routes; traversal/symlink confinement; no raw L3 in snapshots or SSE (explicit local fetch only); capture-time redaction for long-lived narratives | No — product-level coverage with the confidentiality slice |
 | M15 | **CLI surface** | subcommand dispatch; `--json` error contract (`ok:false`, stable `error.code`); dry-run token-free/write-free claims (audit row sole exception); exit codes | No — adapter-conformance coverage at product level |
+| M16 | **Comparative execution** `[stated+PROPOSED]` | Per-provider-turn candidate-set planning; frozen-input identity; isolated candidate workspaces; operation-specific evidence; blinded selection; durable winner materialization; the shared core behind EpisodePlan comparison and standalone `operon compare` (`docs/comparative-execution/design.md`) | Yes — new state machine, selection judge, workspace and continuation seams |
 
 Mapping judgments (ratified with this map):
 
@@ -67,6 +71,10 @@ Mapping judgments (ratified with this map):
 2. **GitHub is substrate, not a module** — an external boundary in Phase 3, alongside the
    three model providers and the OS timer.
 3. **Release-gating replacement** — campaign/policy obligation (see §1), not a module row.
+4. **Standalone comparison is an adapter, not a second module.** `operon compare` enters
+   M16 directly with an operator-declared one-step intent; EpisodePlan-backed comparison
+   enters the same coordinator from M5/M4. Their parsing and authority sources differ,
+   but candidate execution, evidence, selection, accounting, and materialization do not.
 
 ## 3. Findings opened at Phase 0
 

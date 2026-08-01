@@ -6,7 +6,7 @@
 // session at approval boundaries. The ticket JSON remains the single source
 // of truth; labels are a recoverable projection of it.
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { withFileLock } from "../runtime/file-lock.js";
 import {
@@ -25,6 +25,7 @@ import {
   type TicketRearmRecord,
 } from "./rehydrate.js";
 import type { LoopContinuation, LoopItem } from "./types.js";
+import { currentProcessStartIdentity, processIdentityStatus } from "../runtime/process-identity.js";
 
 const LOCK_STALE_MS = 10 * 60_000;
 const LOCK_WAIT_MS = 12 * 60_000;
@@ -134,6 +135,8 @@ export async function beginTicketClaim(input: {
         claimId,
         claimNumber,
         ownerPid: process.pid,
+        ownerProcessStartIdentity: currentProcessStartIdentity(),
+        ownerNonce: randomUUID(),
         acquiredAt: now.toISOString(),
         phase: "acquiring",
         resume: continuation !== undefined,
@@ -346,7 +349,10 @@ export async function recoverInterruptedClaims(input: {
   const lines: string[] = [];
   for (const entry of input.entries) {
     const active = entry.state.active;
-    if (active !== undefined && !processIsAlive(active.ownerPid)) {
+    if (
+      active !== undefined &&
+      !processIsAlive(active.ownerPid, active.ownerProcessStartIdentity)
+    ) {
       const issue = await input.gh.readIssue(entry.issueNumber);
       if (active.phase === "provider_started") {
         const workingLabel = activeClaimLabel(issue);
@@ -606,7 +612,12 @@ function stripContinuationState(
   return exact;
 }
 
-function processIsAlive(pid: number): boolean {
+function processIsAlive(pid: number, startIdentity?: string): boolean {
+  if (startIdentity !== undefined) {
+    const identity = processIdentityStatus(pid, startIdentity);
+    if (identity === "match") return true;
+    if (identity === "mismatch") return false;
+  }
   if (pid === process.pid) return true;
   try {
     process.kill(pid, 0);

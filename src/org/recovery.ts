@@ -36,22 +36,24 @@ export async function recoverStaleTurn(
     return { decision, spawned: options.spawn !== undefined };
   }
 
-  if (decision.action === "restart_clean") {
-    if (journal.worktree !== undefined) restartClean(journal.worktree);
+  if (decision.action === "preserve_inspect") {
+    const inspection = inspectAmbiguousWorktree(journal);
     await writeJournalPatch(
       root,
       journal.turnId,
       {
         role: journal.role,
         app: journal.app,
-        phase: "assembling",
+        phase: "failed",
         attempt: decision.nextAttempt,
-        message: "restart clean after stale lock",
+        message: "ambiguous worktree preserved for operator inspection; automatic restart refused",
+        errorCode: "error_ambiguous_worktree",
+        ...(inspection !== undefined ? { recovery: inspection } : {}),
       },
       now,
     );
-    await options.spawn?.({ journal, decision });
-    return { decision, spawned: options.spawn !== undefined };
+    await releaseLock(root, lock.app, lock.role, lock);
+    return { decision, spawned: false };
   }
 
   if (decision.action === "recollect") {
@@ -83,13 +85,22 @@ export async function recoverStaleTurn(
     },
     now,
   );
-  await releaseLock(root, lock.app, lock.role);
+  await releaseLock(root, lock.app, lock.role, lock);
   return { decision, spawned: false };
 }
 
-export function restartClean(worktree: string): void {
-  git(worktree, "reset", "--hard");
-  git(worktree, "clean", "-fd");
+function inspectAmbiguousWorktree(journal: TurnJournal): TurnJournal["recovery"] | undefined {
+  if (journal.worktree === undefined) return undefined;
+  const status = git(journal.worktree, "status", "--porcelain=v1", "--untracked-files=all");
+  const branch = journal.worktreeBranch ?? (git(journal.worktree, "branch", "--show-current") || "(detached)");
+  return {
+    reasonCode: "error_ambiguous_worktree",
+    path: journal.worktree,
+    branch,
+    dirty: status !== "",
+    statusEntries: status === "" ? 0 : status.split("\n").length,
+    recoveryCommand: `git -C ${JSON.stringify(journal.worktree)} status --short --branch`,
+  };
 }
 
 function git(cwd: string, ...args: string[]): string {

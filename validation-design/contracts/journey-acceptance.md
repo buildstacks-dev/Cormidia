@@ -160,7 +160,8 @@ Phase 3 boundary owns them.
 - Given the unattended sandbox profile, then zero human decision rows exist, profile
   identity + sandbox target are in evidence, and publication/non-sandbox effects
   remained blocked. [B-09b; `validation-policy.yaml` `unattended_test_mode_profile` —
-  human-ratified as shaped 2026-07-31, still pending product implementation in
-  Operon; no green claim can rest on it before the implementation exists]
+  human-ratified as shaped and implemented in Operon 2026-07-31; no green claim can
+  rest on the implementation before an authorized CF-J18-A campaign produces complete
+  evidence]
   <!-- changelog 2026-07-31: pointed to the existing draft policy (final-gate fix). -->
   <!-- ratification 2026-07-31: profile confirmed as shaped (package §3 item 11). -->

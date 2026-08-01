@@ -108,12 +108,14 @@ export interface CiBlock {
   readonly host: string;
   readonly per_commit: readonly string[];
   readonly per_commit_gate_class: string;
+  readonly per_commit_enforcement_status: string;
   readonly rule: string;
   readonly [extra: string]: unknown;
 }
 
 export interface ProposedRegisterItem {
   readonly id: number;
+  readonly decision_status: string;
   readonly value: string;
   readonly [extra: string]: unknown;
 }
@@ -367,6 +369,7 @@ export function loadValidationPolicy(repoRoot: string): ValidationPolicy {
     host: reqString(ciRaw, "ci.", "host"),
     per_commit: reqStringArray(ciRaw, "ci.", "per_commit"),
     per_commit_gate_class: reqString(ciRaw, "ci.", "per_commit_gate_class"),
+    per_commit_enforcement_status: reqString(ciRaw, "ci.", "per_commit_enforcement_status"),
     rule: reqString(ciRaw, "ci.", "rule"),
   };
 
@@ -382,6 +385,7 @@ export function loadValidationPolicy(repoRoot: string): ValidationPolicy {
     return {
       ...entry,
       id: reqNumber(entry, `proposed_register.items[${i}].`, "id"),
+      decision_status: reqString(entry, `proposed_register.items[${i}].`, "decision_status"),
       value: reqString(entry, `proposed_register.items[${i}].`, "value"),
     };
   });
@@ -481,6 +485,17 @@ export const RATIFIED_PINS = {
   /** Spend bounds — hard bounds raisable only by a human policy edit. */
   pre_merge_adapter_campaign: { max_provider_turns: 2, max_equiv_usd: 5 },
   release_campaign: { max_provider_turns: 24, max_equiv_usd: 100 },
+  hb007_decisions: [
+    { id: 1, decision_status: "adjusted-ratified", value: "GitHub retry budget: 3 total attempts per operation with jittered exponential backoff and an injectable clock" },
+    { id: 2, decision_status: "adjusted-ratified", value: "liveness identity: PID + process-start identity + nonce, so PID reuse cannot impersonate the holder" },
+    { id: 3, decision_status: "adjusted-ratified", value: "descendant cleanup: owned process group/session; TERM, bounded grace, then KILL; prove no owned descendants remain" },
+    { id: 4, decision_status: "ratified", value: "preview->execute exact-hash comparison on depended-on surfaces" },
+    { id: 5, decision_status: "ratified", value: "index.lock wait <=30s, never delete/steal a foreign lock" },
+    { id: 6, decision_status: "ratified", value: "hooks-disabled managed clones (core.hooksPath empty)" },
+    { id: 7, decision_status: "adjusted-ratified", value: "explicit default gate caps: setup/tests 5min, lint 2min, e2e 10min; 15min is the CI core-job ceiling, not a per-gate default" },
+    { id: 8, decision_status: "ratified", value: "candidate-mutation detection: candidate HEAD + tracked/decision-relevant diff + governed generated paths" },
+    { id: 13, decision_status: "ratified", value: "CI per-commit wall-clock target 5min (reported optimization target only; no verdict effect)" },
+  ],
 } as const;
 
 export function auditRatifiedPins(policy: ValidationPolicy): string[] {
@@ -531,6 +546,20 @@ export function auditRatifiedPins(policy: ValidationPolicy): string[] {
     RATIFIED_PINS.pre_merge_adapter_campaign,
   );
   checkBound("release_campaign", spend.release_campaign, RATIFIED_PINS.release_campaign);
+
+  for (const pin of RATIFIED_PINS.hb007_decisions) {
+    const item = policy.proposed_register.items.find((candidate) => candidate.id === pin.id);
+    if (item === undefined) {
+      violations.push(`HB-007 decision item ${pin.id} vanished from proposed_register`);
+      continue;
+    }
+    if (item.decision_status !== pin.decision_status || item.value !== pin.value) {
+      violations.push(
+        `HB-007 decision item ${pin.id} drifted from the human-ratified outcome; ` +
+          `changing it requires a new human policy decision`,
+      );
+    }
+  }
 
   return violations;
 }

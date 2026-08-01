@@ -500,23 +500,39 @@ git root; there is no `.env.example` yet — the variables above are the full se
 
 ## Testing
 
-**Validation rebuild in progress (decided 2026-07-31).** The legacy offline
-suite and the qualification/release-gate machinery this section used to
-describe are frozen under `archive-do-not-read/` — never read, cite, or run
-anything there (`archive-do-not-read/README.md`). The replacement harness is
-being designed by the Validation-Design-Agent under the five-layer model and
-lands in `claude-tests/`. Release gating is **suspended** until it rebuilds an
-equivalent.
+**Replacement harness implemented; triggered evidence pending (2026-07-31).** The
+legacy suite remains frozen under `archive-do-not-read/` — never read, cite, or run
+it. The ratified contract is `validation-design/validation-policy.yaml`; the executable
+L1/L2 harness plus opt-in L3/L4/L5 runners live in `claude-tests/`. Release gating is
+still **suspended**: live campaigns and the real seven-day soak have not run, eval
+references/thresholds remain pending, the human threat model is not authored, and
+required-check enforcement is blocked by F-PT-018. Implemented machinery is not
+release evidence.
 
 The interim verification for source changes is:
 
 ```bash
-pnpm test          # vitest over claude-tests/ — green-by-absence until the first spec lands
+pnpm test          # complete offline L1/L2 suite; passWithNoTests is disabled
 pnpm typecheck
 pnpm build
 pnpm smoke:onboarding   # packaging / onboarding changes
 npm pack --dry-run      # packaging changes
 ```
+
+Triggered lanes are explicit and human-authorized; an absent config is a refusal, not
+a skip. Schemas and procedures are in
+[`docs/qualification/design.md`](docs/qualification/design.md#replacement-campaign-contract).
+
+```bash
+OPERON_LIVE=1 OPERON_LIVE_CONFIG=/absolute/live.json pnpm test:live
+OPERON_EVAL=1 OPERON_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
+OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
+```
+
+All triggered results persist under the org state home and keep completeness separate
+from verdict. `INCONCLUSIVE` explicitly means not a pass and not release evidence.
+Use the [validation triage runbook](docs/qualification/validation-triage.md) for every
+reported alert or missing obligation.
 
 The ratified Phase 6 boundary is defined only in
 [`docs/qualification/design.md`](docs/qualification/design.md#phase-6-qualification-scope);
@@ -547,7 +563,7 @@ src/observe/   versioned read projection, bounded GitHub source, loopback
 src/report/    ledger/range/detail readers, deterministic report projection,
                portable renderers, lazy cache/paging service, Reports assets
 src/cli/       one module per subcommand; src/cli.ts is a thin dispatch table
-claude-tests/  replacement validation harness (Validation-Design-Agent; in design)
+claude-tests/  implemented replacement validation harness + opt-in campaign runners
 research/      decision records
 archive-do-not-read/  frozen pre-rebuild validation corpus — never read or run
 ```
@@ -585,6 +601,8 @@ state/invocation-journal/ # pre-command intent + terminal append recovery;
                           # a later command reconciles dead-process/terminal rows
 scheduler/installation.json # owned definition/install record
 scheduler/evidence/       # exact-once invocation, decision, and local-alert JSON
+validation/campaigns/<id>/ # durable L3/L4/L5 report.json; partial evidence retained
+validation/soaks/<id>/     # resumable real-soak checkpoint state
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
 approvals/                # content-bound decisions, grants, execution state,
                           # attempt/result acknowledgement, transition audit
@@ -755,6 +773,13 @@ degraded capabilities. (The gated live-adapter proof suite is archived during
 the validation rebuild — see Testing above.)
 
 ### Known limitations
+
+- **Release gating remains suspended.** L3/L4/L5 runners exist, but no authorized
+  external campaign or seven-day soak was executed in this implementation change;
+  reviewer/planner human references and thresholds remain pending, HB-072 awaits a
+  human-authored threat model, B-17-L3 is blocked, and F-PT-018 prevents the current
+  private-repo CI check from being enforced as merge-blocking. No green claim follows
+  from any of those absences.
 
 - **Live UI V1 is local-only.** It has no remote/public bind, TLS, multi-user
   auth, cloud ingestion, or workflow controls. Use SSH port forwarding to the

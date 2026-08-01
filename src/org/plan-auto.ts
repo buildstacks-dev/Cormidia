@@ -1551,7 +1551,7 @@ function createOrReusePlanningSnapshot(source: string, target: string): Planning
     return { path: target, sourcePath: source, sourceHead, sourceBranch };
   }
   mkdirSync(dirname(target), { recursive: true });
-  execFileSync("git", ["clone", "--quiet", "--no-hardlinks", source, target], {
+  execFileSync("git", ["-c", "core.hooksPath=/dev/null", "clone", "--quiet", "--no-hardlinks", source, target], {
     encoding: "utf8",
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
   });
@@ -1560,7 +1560,7 @@ function createOrReusePlanningSnapshot(source: string, target: string): Planning
 }
 
 function gitText(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, {
+  return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
     cwd,
     encoding: "utf8",
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },

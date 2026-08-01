@@ -295,7 +295,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
     .map(({ item, grant }) => projectApproval(item, grant, input.now))
     .filter((approval) => input.filters.app === undefined || approval.app === input.filters.app);
   const github = input.github.filter((source) => input.filters.app === undefined || source.app === input.filters.app);
-  const delivery = projectDelivery(github, passes, input.max_concurrent_turns, observedAt).filter((ticket) =>
+  const delivery = projectDelivery(github, passes, approvals, input.max_concurrent_turns, observedAt).filter((ticket) =>
     (input.filters.ticket === undefined || ticket.issue_number === input.filters.ticket) &&
     (input.filters.status === undefined || ticket.state === input.filters.status),
   );
@@ -335,6 +335,8 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
         cost,
         cost_window: costWindow,
         usage_quality: rows.length === 0 ? "unavailable" as const : cost.usage_quality,
+        budget_status: input.budget_rows?.find((row) => row.app === app.name)?.status ?? "unknown",
+        budget_paused: input.budget_paused_apps?.includes(app.name) === true,
         channels: {
           support: [...(app.channels?.support ?? [])],
           marketing: [...(app.channels?.marketing ?? [])],
@@ -464,6 +466,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
     },
     attention: attention.items,
     attention_groups: attention.groups,
+    validation_campaigns: input.validation_campaigns ?? { reports: [], corrupt: [] },
   };
   // Skew is data on the snapshot, not an attention item: #91 owns the attention
   // surface, and a header warning is the right place for a clock fact.
@@ -1043,6 +1046,7 @@ function projectApproval(item: ApprovalItem, grant: ApprovalGrant | undefined, n
 function projectDelivery(
   github: ObserveProjectionInput["github"],
   passes: PassView[],
+  approvals: ApprovalView[],
   maxConcurrent: number,
   observedAt: string,
 ): DeliveryTicketView[] {
@@ -1060,7 +1064,10 @@ function projectDelivery(
           pull_request.closingIssueNumbers?.includes(issue.number) === true
         )
         .map(({ pull_request, reviews, checks }) => projectPullRequest(pull_request, reviews, checks ?? []));
-      const mappedState = deliveryState(issue.state, labels, prs);
+      const ticketApprovals = approvals.filter((approval) =>
+        approval.app === source.app && ticketNumber(approval.ticket_ref) === issue.number,
+      );
+      const mappedState = deliveryState(issue.state, labels, prs, ticketPasses, ticketApprovals);
       const deps = parseDependsOn(issue.body);
       return {
         issue,
@@ -1644,7 +1651,13 @@ function sortedUnique(values: Array<string | null>): string[] {
   return [...new Set(values.filter((value): value is string => value !== null && value !== ""))].sort(compareStable);
 }
 
-function deliveryState(issueState: string, labels: string[], prs: PullRequestView[]): { state: DeliveryState; reason?: string } {
+function deliveryState(
+  issueState: string,
+  labels: string[],
+  prs: PullRequestView[],
+  passes: PassView[],
+  approvals: ApprovalView[],
+): { state: DeliveryState; reason?: string } {
   const operation = labels.filter((label) => ["op:ready", "op:building", "op:in-review", "op:blocked", "op:returned"].includes(label));
   if (operation.length > 1) return { state: "closed_unknown", reason: `Conflicting delivery labels: ${operation.join(", ")}` };
   if (prs.some((pr) => pr.state === "MERGED")) {
@@ -1657,10 +1670,26 @@ function deliveryState(issueState: string, labels: string[], prs: PullRequestVie
   }
   const label = operation[0];
   if (label === "op:ready") return { state: "ready" };
-  if (label === "op:building") return { state: "building" };
-  if (label === "op:in-review") return { state: "in_review" };
-  if (label === "op:blocked") return { state: "blocked_on_approval" };
-  if (label === "op:returned") return { state: "returned" };
+  if (label === "op:building") {
+    return passes.length > 0
+      ? { state: "building" }
+      : { state: "closed_unknown", reason: "op:building label has no correlated run artifact" };
+  }
+  if (label === "op:in-review") {
+    return prs.some((pr) => pr.state === "OPEN")
+      ? { state: "in_review" }
+      : { state: "closed_unknown", reason: "op:in-review label has no correlated open pull request" };
+  }
+  if (label === "op:blocked") {
+    return approvals.some((approval) => approval.status === "pending")
+      ? { state: "blocked_on_approval" }
+      : { state: "closed_unknown", reason: "op:blocked label has no correlated pending approval" };
+  }
+  if (label === "op:returned") {
+    return passes.some((pass) => pass.status !== "completed")
+      ? { state: "returned" }
+      : { state: "closed_unknown", reason: "op:returned label has no correlated failed or interrupted run artifact" };
+  }
   return { state: "backlog" };
 }
 

@@ -241,8 +241,9 @@ Pure validation checks role/tuple/capability membership, DAG integrity and
 reachability, required outputs, independent provider review, deterministic
 safety floors, approvals, terminal coverage, and budget arithmetic. A
 planner-authored structural failure gets at most one bounded repair. Creator
-scope that omits non-authoritative planning details invokes EpisodePlanner;
-contradictory authoritative scope fails closed.
+scope declared as planner input may omit decisions for EpisodePlanner to
+complete; any invalid scope explicitly declared `execution_ready` fails closed
+before provider construction rather than silently changing routes.
 
 Closed workflow domains also supply one code-owned provider-operation
 registry. Operon injects its sorted operation IDs into both the initial and
@@ -663,6 +664,13 @@ The loop is a **distributed state machine advanced by dispatcher ticks**
 derived from durable artifacts; any tick on any day can advance any item;
 laptop sleep loses nothing. `operon loop --app <app> [--follow]` drives
 ticks manually for an interactive, watch-it-run experience.
+
+Each public phase-transition function validates its entry phase before any
+GitHub, filesystem, journal, runtime, or settlement mutation. An illegal or
+replayed transition fails with `LoopPhaseTransitionError` and stable code
+`error_illegal_loop_phase_transition`; callers may retry only after
+re-projecting the durable phase. This makes the diagram below an enforced
+protocol rather than a descriptive convention.
 
 ```
 op:ready (deps merged)
@@ -1182,7 +1190,7 @@ distinct codes end to end (§9).
 | #                           | Failure                                              | Detected by                                          | Bounded response                                                                                                                             |
 | --------------------------- | ---------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Infrastructure**          |                                                      |                                                      |                                                                                                                                              |
-| 1                           | Turn process dies mid-pass                           | stale lock heartbeat + journal `running`             | resume session once, else restart clean; `attempt ≥ 3` → returned + incident (architecture.md §3)                                            |
+| 1                           | Turn process dies mid-pass                           | PID/start/nonce liveness + stale lock heartbeat + journal `running` | terminate the owned process group; resume the exact session when valid, else preserve ambiguous worktree bytes and stop with inspection evidence; `attempt ≥ 3` → incident |
 | 2a                          | Adapter initialize/auth/transport stalls before any provider event | adapter-start deadline (default 30 sec) | abort owned provider tree; finalize `failed(error_adapter_start_timeout)` with partial/unavailable usage                                     |
 | 2b                          | SDK session hangs after starting                     | smaller of configured per-pass ceiling and episode remaining active-time allowance | kill; retain partial usage and resume from the next legal journal boundary                                                         |
 | 3                           | Dispatcher dies mid-claim                            | provisional claim lease + next-tick reconciliation  | pre-provider: repair label, retain artifacts, consume no claim; post-provider: return with evidence and require exact durable re-arm          |

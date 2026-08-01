@@ -7,11 +7,16 @@ import { listTicketClaimStates } from "../loop/rehydrate.js";
 import { rearmCommand } from "../loop/claim-recovery.js";
 import { readEfficiencyEvidence } from "../loop/efficiency.js";
 import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
+import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
+import { readValidationCampaignReports } from "../org/validation-campaign.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
   const parsed = parseArgs(common.rest);
-  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
+  const homes = common.orgHome !== undefined || common.stateHome === undefined
+    ? await resolveOperonHomes(common)
+    : undefined;
+  const stateHome = common.stateHome ? resolve(common.stateHome) : homes!.stateHome;
   const rows = await readStatusRows(stateHome, {
     ...(parsed.app !== undefined ? { app: parsed.app } : {}),
     ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
@@ -81,6 +86,13 @@ export async function cmdStatus(args: string[]): Promise<number> {
     .sort((left, right) =>
       right.updatedAt.localeCompare(left.updatedAt) ||
       left.episodeId.localeCompare(right.episodeId));
+  const budget = homes === undefined ? [] : await Promise.all(
+    (await rollupBudgets(stateHome, homes.appsFile)).map(async (row) => ({
+      ...row,
+      paused: await isOverlayPaused(stateHome, row.app),
+    })),
+  );
+  const validationCampaigns = await readValidationCampaignReports(stateHome);
   const report = {
     schema_version: 1,
     kind: "status",
@@ -91,6 +103,8 @@ export async function cmdStatus(args: string[]): Promise<number> {
     approvalDelivery,
     claimRecovery,
     episodeReplans,
+    budget,
+    validationCampaigns,
   } as const;
   if (parsed.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -128,6 +142,32 @@ export async function cmdStatus(args: string[]): Promise<number> {
         `reason=${entry.reason ?? "-"}`,
       );
     }
+  }
+  if (report.budget.length > 0) {
+    console.log("\nBUDGET ADMISSION");
+    for (const row of report.budget) {
+      console.log(
+        `${row.app} ${row.status.toUpperCase()} spent=$${row.spentUsd.toFixed(2)} ` +
+        `budget=$${row.budgetUsd.toFixed(2)} admission=${row.paused ? "PAUSED" : "active"}`,
+      );
+    }
+  }
+  if (report.validationCampaigns.reports.length > 0 || report.validationCampaigns.corrupt.length > 0) {
+    console.log("\nVALIDATION CAMPAIGNS");
+    for (const campaign of report.validationCampaigns.reports) {
+      const verdict = campaign.outcome.verdict === "inconclusive"
+        ? "INCONCLUSIVE (NOT A PASS; NOT RELEASE EVIDENCE)"
+        : campaign.outcome.verdict.toUpperCase();
+      console.log(
+        `${campaign.campaign_id} ${campaign.lane} ${verdict} ` +
+        `completeness=${campaign.outcome.completeness} cases=${campaign.coverage.collected_case_ids.length}/${campaign.coverage.required_case_ids.length} ` +
+        `spend=${campaign.spend.observed_provider_turns}/${campaign.spend.max_provider_turns} turns $${campaign.spend.observed_equiv_usd.toFixed(2)}/$${campaign.spend.max_equiv_usd.toFixed(2)}`,
+      );
+    }
+    for (const corrupt of report.validationCampaigns.corrupt) {
+      console.log(`${corrupt.campaign_id} CORRUPT (EVIDENCE INCOMPLETE) ${corrupt.detail}`);
+    }
+    console.log("Triage: docs/qualification/validation-triage.md");
   }
   return 0;
 }

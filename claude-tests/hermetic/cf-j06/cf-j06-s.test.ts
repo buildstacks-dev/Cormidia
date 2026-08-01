@@ -24,6 +24,7 @@ import {
 import { GhCliOps } from "../../../src/loop/github.js";
 import { readTicketClaimState } from "../../../src/loop/rehydrate.js";
 import type { LoopContinuationDecision } from "../../../src/loop/types.js";
+import { ClaudeSessionResumeMismatchError } from "../../../src/runtime/adapters/claude.js";
 import {
   claudeDouble,
   doubleRole,
@@ -318,7 +319,8 @@ describe("CF-J06-S — approve and deny both resume the same session/claim with 
     const rig = await freshRig();
 
     // Honest adapter first: the provider restored a DIFFERENT session than
-    // requested — the mismatch stays observable in the envelope.
+    // requested, so the real guard refuses pre-spend rather than returning an
+    // envelope that could let the wrong session continue.
     const honest = claudeDouble([
       script.turn({
         sessionId: "sess-cf-j06-hijacked-9",
@@ -329,7 +331,7 @@ describe("CF-J06-S — approve and deny both resume the same session/claim with 
       }),
     ]);
     const gate = { gate: () => ({ allow: true }) as const };
-    const honestResult = await honest.runtime.runTurn(
+    const honestRun = honest.runtime.runTurn(
       doubleTurnRequest({
         workdir: rig.repo.dir,
         role: doubleRole({ name: ROLE_NAME, effort: "medium" }),
@@ -338,14 +340,9 @@ describe("CF-J06-S — approve and deny both resume the same session/claim with 
       }),
       gate,
     );
-    expect(honestResult.session.id).toBe("sess-cf-j06-hijacked-9"); // truth surfaces
-    expect(() =>
-      checkSessionIdentityHonest(
-        honest.recorder.turns[0]!,
-        { runtime: "claude", id: PAUSED_SESSION_ID },
-        honestResult,
-      ),
-    ).not.toThrow();
+    await expect(honestRun).rejects.toThrow(ClaudeSessionResumeMismatchError);
+    expect(honest.recorder.turns[0]!.toolPlays).toHaveLength(0);
+    expect(honest.recorder.turns[0]!.usageReported).toBe(false);
 
     // Seeded violation: the adapter echoes the REQUESTED id back, which would
     // make a hijacked resume undetectable downstream — the detector FIRES.

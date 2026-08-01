@@ -100,18 +100,18 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     expect(log.every((entry) => entry.op.length > 0)).toBe(true);
   });
 
-  it("CF-B01-to: scripted timeout, rate limit, and 5xx surface as typed GhOpsError with the failure's stderr", async () => {
+  it("CF-B01-to: timeout is terminal while rate-limit and 5xx exhaust the bounded retry as typed GhOpsError", async () => {
     const handle = await freshDouble();
-    const gh = new GhCliOps(handle.repo);
+    const gh = new GhCliOps(handle.repo, undefined, undefined, { sleep: async () => undefined, random: () => 0.5 });
     const issue = await gh.createIssue({ title: "probe", body: "", labels: [] });
 
     handle.script({ op: "issue.view", fail: "timeout" });
     await expect(gh.readIssue(issue.number)).rejects.toThrow(/context deadline exceeded/);
 
-    handle.script({ op: "issue.view", fail: "rate_limit" });
+    for (let attempt = 0; attempt < 3; attempt += 1) handle.script({ op: "issue.view", fail: "rate_limit" });
     await expect(gh.readIssue(issue.number)).rejects.toThrow(/rate limit exceeded/);
 
-    handle.script({ op: "issue.view", fail: "server_error" });
+    for (let attempt = 0; attempt < 3; attempt += 1) handle.script({ op: "issue.view", fail: "server_error" });
     await expect(gh.readIssue(issue.number)).rejects.toThrow(/HTTP 502/);
 
     // Scripts are bounded: once consumed, the seam recovers.
@@ -284,7 +284,8 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     expect(review.commitId).toBe(head);
     expect(verifiedSelfApprovalMarker(review.body, secret, pr.number, head)).toBe(true);
     // Replay onto a different head must not verify (A-001 binding).
-    expect(verifiedSelfApprovalMarker(review.body, secret, pr.number, `${head.slice(0, 39)}0`)).toBe(false);
+    const otherHead = `${head.slice(0, -1)}${head.endsWith("0") ? "1" : "0"}`;
+    expect(verifiedSelfApprovalMarker(review.body, secret, pr.number, otherHead)).toBe(false);
 
     const listed = await gh.listReviews(pr.number);
     expect(listed).toHaveLength(1);
@@ -347,5 +348,50 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     handle.script({ op: "pr.merge", fail: "server_error" });
     await gh.createIssue({ title: "unrelated", body: "", labels: [] });
     expect(() => handle.assertScenarioDrained()).toThrow(/never matched a call/);
+  });
+
+  it("CF-B01-rt: retry-safe operations get exactly three total attempts with injectable jittered exponential waits", async () => {
+    let calls = 0;
+    const delays: number[] = [];
+    const random = [0, 1];
+    const gh = new GhCliOps("owner/sandbox", async () => {
+      calls += 1;
+      return calls < 3
+        ? { stdout: "", stderr: calls === 1 ? "HTTP 503 service unavailable" : "secondary rate limit", exitCode: 1 }
+        : { stdout: "[]", stderr: "", exitCode: 0 };
+    }, undefined, {
+      sleep: async (delayMs) => { delays.push(delayMs); },
+      random: () => random.shift() ?? 0,
+    });
+
+    await expect(gh.listLabels()).resolves.toEqual([]);
+    expect(calls).toBe(3);
+    expect(delays).toEqual([125, 750]);
+  });
+
+  it("negative control: attempt 3 is terminal, 4xx is not retried, and ambiguous writes stay single-shot", async () => {
+    let retryableCalls = 0;
+    const retryable = new GhCliOps("owner/sandbox", async () => {
+      retryableCalls += 1;
+      return { stdout: "", stderr: "HTTP 502 bad gateway", exitCode: 1 };
+    }, undefined, { sleep: async () => undefined, random: () => 0.5 });
+    await expect(retryable.listLabels()).rejects.toThrow(/exit 1/);
+    expect(retryableCalls).toBe(3);
+
+    let terminalCalls = 0;
+    const terminal = new GhCliOps("owner/sandbox", async () => {
+      terminalCalls += 1;
+      return { stdout: "", stderr: "HTTP 404 not found", exitCode: 1 };
+    }, undefined, { sleep: async () => undefined, random: () => 0.5 });
+    await expect(terminal.listLabels()).rejects.toThrow(/exit 1/);
+    expect(terminalCalls).toBe(1);
+
+    let createCalls = 0;
+    const ambiguousCreate = new GhCliOps("owner/sandbox", async () => {
+      createCalls += 1;
+      return { stdout: "", stderr: "HTTP 503 response lost after possible effect", exitCode: 1 };
+    }, undefined, { sleep: async () => undefined, random: () => 0.5 });
+    await expect(ambiguousCreate.createIssue({ title: "marker", body: "marker", labels: [] })).rejects.toThrow(/exit 1/);
+    expect(createCalls).toBe(1);
   });
 });

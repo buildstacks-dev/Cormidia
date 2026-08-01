@@ -25,7 +25,10 @@ dispatch → journal(assembling) → unresolved actor-retry check (`../approvals
 
 The journal `state/turns/<turnId>.json` is written synchronously at every
 phase transition — it is the crash-recovery source of truth:
-`{turnId, role, app, trigger, phase, attempt, session?, worktree?, worktreeBranch?, ticketRef?, escalationIds?, errorCode?, recovery?, startedAt, updatedAt}`.
+`{turnId, role, app, trigger, phase, attempt, session?, worktree?, worktreeBranch?, ticketRef?, escalationIds?, pid?, processStartIdentity?, processNonce?, processGroupId?, errorCode?, recovery?, startedAt, updatedAt}`.
+The productive path is forward-only (`assembling → running → collecting → done`):
+replaying the same phase is idempotent, skipping a productive phase is refused,
+and an error may terminalize honestly from the phase in which it occurred.
 
 **Legacy role-invocation budget.** The adapter tracks running cost from SDK usage events;
 crossing `max_turn_budget_usd` aborts the turn gracefully → status `failed`
@@ -49,12 +52,13 @@ serialized by a per-app clone lock (`withAppGitLock` in
 `src/org/turn-runner.ts`), so two concurrent turns for the same app never
 contend on `.git/index.lock` and corrupt the tree. That lock is a configuration
 of the shared `FileLock` primitive (`src/runtime/file-lock.ts`): the lock file
-carries a `pid`+`nonce` ownership token, release verifies the token before
-unlinking (a late holder never deletes a successor's lock), and a proven-live
-holder is never force-broken — a stale holder is reclaimed only when its pid is
-dead or it has aged past the window, and a live holder held past the max wait
-fails the waiter (typed busy, next tick retries) rather than running a second
-`git reset --hard` on the same checkout.
+carries a PID + process-start identity + nonce ownership token, release verifies
+the token before unlinking (a late holder never deletes a successor's lock), and
+a reused PID cannot impersonate the prior process. A proven-live holder is never
+force-broken; a dead or identity-mismatched holder is reclaimable, while an
+inconclusive legacy record must also age past the stale window. A live holder
+past the max wait fails the waiter (typed busy, next tick retries) rather than
+running a second git mutation on the same checkout.
 - Loop items get branch `op/<issue>-<slug>` and keep the same worktree across
 build → review → fix cycles; it is removed after merge/return. Explicit
 standalone `run-role` turns get a collision-resistant `op/turn-<slug>-<hash>`
@@ -81,25 +85,33 @@ A cap stop, cancellation, crash, or timeout retains the last valid artifact
 refs and a typed resume decision.
 
 
-**Restart clean** currently resets worktree scratch to the branch tip with
-`git reset --hard && git clean -fd`. It may discard only scratch that has not
-been accepted as a valid episode artifact. Commits, pushed refs, contracts,
-findings, approvals, gate evidence, usage checkpoints, execution records, and
-any other accepted artifact survive interruption. Repeating a productive pass
-requires a durable invalidation reason tied to the artifact or decision it
-invalidates. Claim, repair, review, retry, tool-call, active-time, provider-turn,
-and cost bounds are plan-derived and policy-clamped, and remain in force across
-process restarts.
+**Ambiguous worktree bytes are preserved-and-inspected, never reset.** If an
+interrupted running turn has an exact resumable session, recovery may resume that
+session against the same worktree. Otherwise it records
+`failed(error_ambiguous_worktree)`, leaves the worktree bytes and accepted
+artifacts untouched, and gives the operator a read-only inspection command.
+Recovery never stages or commits arbitrary provider output. Repeating a
+productive pass requires a durable invalidation reason tied to the artifact or
+decision it invalidates. Claim, repair, review, retry, tool-call, active-time,
+provider-turn, and cost bounds remain in force across process restarts.
 
 A role invocation whose running pass exceeds its wall-clock cap is killed by
-the dispatcher — SIGTERM escalating to SIGKILL. The pass executor derives its
+the dispatcher as an owned process group — SIGTERM, a bounded grace period,
+then SIGKILL. Completion requires proof that neither leader nor owned descendants
+remain. The pass executor derives its
 effective watchdog from the smaller of its configured ceiling and the
 episode's remaining active-time allowance in `docs/episodes/contract.md`.
-Recovery (restart-clean + respawn) is **deferred until the process is
-confirmed dead** (`killHungTurns` in `src/org/dispatch.ts`): a still-alive
-child that also holds the per-app clone lock would otherwise let two workers
-mutate one clone. If the pid refuses to die this tick, recovery waits for a
-later one.
+Recovery is **deferred until the owned process group is confirmed dead**
+(`killHungTurns` in `src/org/dispatch.ts`): a surviving child that also holds
+the per-app clone lock would otherwise let two workers mutate one clone. If a
+leader or descendant refuses to die this tick, recovery waits for a later one.
+Before the first signal, the current lock and running journal must agree on the
+complete PID + process-start + nonce token and the OS probe must confirm that
+PID/start identity. A mismatch or unavailable probe is a typed deferral, never
+permission to signal a possibly reused PID. Turn-lock acquire, adoption,
+heartbeat, and release are serialized by a nonce-owned mutation guard; release
+checks the complete ownership token inside that critical section, so a holder
+finishing after reclamation cannot delete its successor.
 
 Inside a pass, the executor also owns a shorter adapter-start deadline
 (default 30 seconds). The first adapter progress checkpoint or streamed event

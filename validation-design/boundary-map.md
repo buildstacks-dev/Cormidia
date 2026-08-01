@@ -217,7 +217,9 @@ both fake and real dependency to prevent drift.
   the observer reads. PASS.
 - **Failure modes:** torn reads (INV-013 reader side); stale local evidence rendered as
   current `[elicited]`; capability token absent/wrong; traversal/symlink escape;
-  SSE cursor gaps; **source-by-source health**: the projection must report each
+  SSE cursor gaps; corrupt/missing validation-campaign report rendered absent or green;
+  incomplete/inconclusive campaign rendered as pass or release evidence;
+  **source-by-source health**: the projection must report each
   source's freshness and disagreement independently — "degraded" without naming which
   source and which claims are affected is just another plausible green `[elicited]`
   `[rambling: PR #182]` (the anchoring incident; its framing as the emotional center

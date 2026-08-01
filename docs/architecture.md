@@ -281,6 +281,9 @@ state/turns/<turnId>.json  turn journals (§3)
 state/budget-overlay.json  dispatcher budget-pause overlay (§7)
 scheduler/installation.json  org-scoped scheduler ownership/definition record
 scheduler/evidence/      versioned invocation, route-decision, and alert JSON
+validation/campaigns/<id>/report.json  versioned triggered-validation report;
+                         completeness and verdict are separate product facts
+validation/soaks/<id>/state.json  resumable seven-day soak checkpoint evidence
 standing-roles/<app>/    grounded drafts + lifecycle-bound Planner feeds/consumption receipts
 locks/<app>--<role>.lock
 approvals/               pending/ decided/ grants/ log.jsonl (§4)
@@ -369,8 +372,9 @@ human and org work meet.
 Crashes recover at artifact boundaries, not by re-running from the top.
 Recovery reopens the accepted plan and journal, finds the last durable
 artifact (`intent → plan → route → ready step → terminal evidence`), and
-continues from there; restart-clean may throw away only scratch that was
-never accepted as an episode artifact. Four idempotency rules keep a dead
+continues from there. Ambiguous uncommitted worktree bytes are preserved for
+inspection rather than reset; only an exact valid session may resume against
+them. Four idempotency rules keep a dead
 turn from leaving the repo half-done: durable progress is explicit, the
 artifact is created before the label that announces it, claims are atomic
 label flips, and non-git writes are append-only keyed by turnId.
@@ -473,6 +477,12 @@ belongs to exactly one app by construction: `TurnRequest` has a single
 recomputes each app's spend overlay every tick, warns the Planner at 80% of
 the monthly budget, and at 100% pauses the app and files a `budget-exceeded`
 approval item for the human.
+Budget threshold and admission pause are related but distinct durable facts:
+the ledger computes `ok`/`warning`/`exceeded`, while
+`state/budget-overlay.json` records whether admission is actually paused.
+`operon budget`, `operon status`, reports, and the observer project both facts
+from the same readers; none may substitute the threshold for the overlay or
+mutate admission state while presenting it.
 [`docs/org/apps.md`](org/apps.md) is the full contract.
 
 ## 8. Product co-planning and the EpisodePlanner boundary
@@ -498,10 +508,14 @@ provenance-bearing creator scope; labels, lifecycle stage, or short prose
 never authorize the bypass, and bare `operon plan <app>` fails closed,
 directing the operator to `--auto --goal`.
 
-Published tickets carry a `Planned-by:` trailer and a local
-`published-tickets.json` mirror — the planner→ticket causal edge. Gate,
-envelope, assignment, and settlement enforcement match every other
-EpisodePlan-backed provider step.
+Published tickets carry a `Planned-by:` trailer, a provenance-scoped
+`Plan-ticket-index:`, and a local `published-tickets.json` mirror — the
+planner→ticket causal edge. The publisher validates the whole dependency graph
+as a DAG (including disconnected components). After a lost create response or
+crash between issue creation and the local mirror, rerunning with the same
+planning identity discovers matching indexed issues, refuses conflicts, and
+converges without duplicates. Gate, envelope, assignment, and settlement
+enforcement match every other EpisodePlan-backed provider step.
 
 ## 9. Greenfield creation and Bootstrap
 

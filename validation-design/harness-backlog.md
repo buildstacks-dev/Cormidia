@@ -29,9 +29,9 @@ inline because their tickets cross layers.
 
 <!-- implementation status 2026-07-31: HB-001..HB-006 LANDED (claude-tests/
 walking skeleton; 134 specs green; CI lane wired with pinned fail-closed
-gitleaks + canary). HB-007: register items 1–8, 13 remain PROPOSED — treated
-as working hypotheses throughout the build, still owed a human
-ratify/strike/adjust review; no Wave-1+ ticket treats them as settled.
+gitleaks + canary). HB-007 **COMPLETE 2026-07-31**: owner said "ratify
+recommendations"; items 1–8 and 13 are recorded ratified/adjusted-ratified in
+validation-policy.yaml. Items 9–12 remain PROPOSED and inconclusive-only.
 Defect fixed with deposited detector this wave: S-3 conflicting verdict
 markers (src/loop/verdicts.ts extractKeywordValueStrict;
 claude-tests/unit/s3-verdict-marker.test.ts). -->
@@ -42,7 +42,7 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
   (vitest) to it, add the GitHub Actions lane running L1+L2+gitleaks per commit.
   *Acceptance:* CI runs the lane on a PR; an intentionally failing spec turns it red
   (lane negative control); gitleaks runs pinned + fail-closed with a generated
-  temporary canary proving detection; wall-clock recorded (5-min PROPOSED target is
+  temporary canary proving detection; wall-clock recorded (5-min ratified target is
   reported, not enforced). *Defends:* policy `ci` block; harness self-tests. *Layer:*
   1–2 + CI. *Executor:* build-agent.
 - **HB-002 — Fixture kit v1 + self-tests.** Temp org home, temp state home, temp git
@@ -80,8 +80,19 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
   validation-policy.yaml. *Acceptance:* no Wave-1+ ticket may treat a still-PROPOSED
   value as settled fact; the build reports which items remain provisional. *Defends:*
   PROPOSED-register discipline. *Layer:* process. *Executor:* human + build-agent.
+  **Status: COMPLETE 2026-07-31** — owner ratified the recorded recommendations;
+  policy, contracts, design state, package, CI annotations, and harness conventions
+  updated in the same change.
 
 ## Wave 1 — E-1 permission-to-effect chain (exhaustive; L1/L2)
+
+<!-- implementation status 2026-07-31: HB-010..HB-017 + HB-P4 LANDED (commits
+a70bc4b suites, e55eace fixes; 578 specs green + 1 parked skip). Twelve
+deterministic product defects vs ratified contracts were found, fixed, and
+their tripwires promoted to plain detectors in e55eace. Five genuine design
+ambiguities became findings F-PT-012..016 (cells parked; see policy
+open_findings). -->
+
 
 - **HB-010** Gate classifier adversarial suite (CF-INV-002 seeds incl. obfuscation,
   unknown-tool fail-closed). Executor: build-agent.
@@ -102,6 +113,16 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
 
 ## Wave 2 — E-2 durability + money (exhaustive; L1/L2)
 
+<!-- implementation status 2026-07-31: HB-020..HB-025 + HB-P1/HB-P2
+COMPLETE in the isolated codex/harness-wave2 worktree. Coverage includes
+settlement conservation/reconcile properties; claim/tick races; budget-pause
+convergence; real SIGKILL sweeps at delivery and turn-journal boundaries;
+PID/start/nonce ownership plus owned-process-group TERM→KILL cleanup; Claude,
+Codex, and pi doubles; and FS/git fault/preservation cases. Product detectors
+land with every discovered defect. Full per-commit L1/L2 gate: 95 files,
+662 passed + 1 intentionally parked skip. This status is L1/L2 only: real
+provider conformance remains the separately gated HB-051 L3 obligation. -->
+
 - **HB-020** Settlement conservation + reconcile (CF-J08-*, CF-INV-006 property tests
   via fast-check). **HB-021** Claim uniqueness/races (CF-INV-005, CF-J09-RC).
   **HB-022** Admission/pause (CF-J07-*; the former F-PT-003 block lifted 2026-07-31 —
@@ -115,6 +136,18 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
 
 ## Wave 3 — E-3 merge + evidence truth (exhaustive; L1/L2)
 
+<!-- implementation status 2026-07-31: HB-030..HB-033 COMPLETE in the
+isolated codex/harness-wave2 worktree. Coverage includes exact-HEAD/default-
+branch merge authorization and HMAC binding; legal loop-phase entry and
+ready→merged/refusal walks; observer/server restart, SSE resync, source-
+freshness, corruption, traversal, and symlink cases; delivery evidence and
+approval truthfulness; CLI capability/error semantics; and budget/cost/
+lifecycle agreement across observe, report, status, budget, terminal, HTML,
+and API surfaces. Product detectors land with every discovered defect. Full
+per-commit L1/L2 gate: 108 files, 699 passed + 1 intentionally parked skip;
+typecheck and build green. This status is L1/L2 only and does not imply any
+separately gated L3/L4/L5 evidence. -->
+
 - **HB-030** Merge boundary suite (CF-INV-009; HEAD equality; resolved default).
   **HB-031** Loop state machine + labels-after-artifacts (CF-SM-LOOP-*, CF-J04-S/R).
   **HB-032** Evidence truthfulness sweep across readers (CF-INV-008, CF-J15-*,
@@ -122,6 +155,19 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
   agreement (CF-IF-XSURF + CF-IF-* conformance). Executor: build-agent (all).
 
 ## Wave 4 — standard + thin remainder (L1/L2)
+
+<!-- implementation status 2026-07-31: HB-040..HB-047 COMPLETE in the
+isolated codex/harness-wave2 worktree. Coverage includes current-subscriber
+event fan-out and post-spawn mark recovery; planner DAG/source/preview and
+lost-response publication convergence; real-git onboarding, verification,
+promotion interruption/resume; scheduler ownership/drift/orphan health;
+retention boundaries; deterministic presentation smokes; ratified trajectory
+detectors; and same-session one-repair envelope accounting. F-PT-006 producer
+identity/partial-file clauses remain parked, as designed. Product detectors
+land with every discovered defect. Full per-commit L1/L2 gate: 116 files,
+726 passed + 1 intentionally parked skip in 61.93 s; typecheck and build green.
+This status is L1/L2 only and does not imply separately gated L3/L4/L5
+evidence. -->
 
 - **HB-040** Event inbox (CF-B13-*, CF-J10-*, CF-SM-EVENT-*; F-PT-006 clauses
   parked). **HB-041** Planner validator + planning ops (CF-J03-*, C-OP-PLAN).
@@ -137,6 +183,15 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
 except HB-054, which additionally depends on a ratified product surface, flagged in
 its ticket)
 
+<!-- implementation status 2026-07-31: HB-050 COMPLETE. The strict opt-in runner,
+durable report contract, real-adapter conformance pair, real sandbox-GitHub surface,
+attributable launchd lifecycle proof, and ratified unattended profile are implemented.
+Failed callbacks conservatively debit their full pre-authorized reservation, so
+unknown partial provider spend cannot evade the campaign ceiling.
+HB-051..HB-054 campaign EVIDENCE remains pending because no provider/repo/host campaign
+was authorized or run in this change; absence is incomplete, never pass. HB-055 stays
+blocked exactly as designed. -->
+
 - **HB-050** Live config + campaign runner with spend accounting (enforces §5 bounds;
   completeness/verdict split). *Gate: none beyond CI merge of L1/L2 skeleton.*
 - **HB-051** CF-B02-L3/CF-B03-L3/CF-B04-L3 adapter conformance runs. *Gate: provider
@@ -149,11 +204,20 @@ its ticket)
 - **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile.
   *Gate: the profile surface must first be ratified + implemented in Operon (policy
   `unattended_test_mode_profile`) — a product change, tracked as its own product
-  ticket, not a harness ticket.* Executor: campaign.
+  ticket, not a harness ticket.* Executor: campaign. **Implementation dependency
+  satisfied 2026-07-31; authorized campaign evidence still pending.**
 - **HB-055** B-17 live target: BLOCKED (policy); unblock = disposable `release:`
   target. Executor: campaign (future).
 
 ## Wave L4 — eval lane (gated ONLY on golden-set authoring + finding ratification)
+
+<!-- implementation status 2026-07-31: HB-060 COMPLETE (per-tuple data collection,
+token reservation, bounded shard rotation, partial evidence, strict golden/provenance
+validation, and tracked-blob binding to the authorized commit). HB-061/HB-062 build-agent
+authoring is complete, but every reviewer/planner reference remains explicitly
+human_validation=pending; a human must validate them before they are admissible.
+HB-063 deterministic trajectory scenarios are complete. F-PT-009/010/011 and register
+items 9..12 remain PROPOSED, so threshold-dependent campaigns remain inconclusive. -->
 
 - **HB-060** Eval runner v1 (data-collection mode; inconclusive-only reporting;
   per-tuple aggregation; token ceilings; shard rotation). Executor: build-agent.
@@ -164,6 +228,12 @@ its ticket)
   later scaffolds per elicited priority. Executor: human + build-agent.
 
 ## Wave L5 — ops lane (gated per obligation)
+
+<!-- implementation status 2026-07-31: HB-070 COMPLETE (ratified contention shape;
+deterministic rig green). HB-071 runner/collector COMPLETE but the seven-real-day
+human-started campaign and CF-OPS-ROT natural evidence are PENDING. HB-072 is
+AWAITING HUMAN AUTHOR: the ten-surface worksheet is only a scaffold. HB-073 remains
+BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed. -->
 
 - **HB-070** Contention rig (CF-OPS-CONT; hermetic implementation, L5 question).
   Executor: build-agent. **HB-071** Soak protocol runner + evidence collector
@@ -198,6 +268,13 @@ its ticket)
 - **HB-P3** F-PT-006 producer-protocol + duplicate-identity cases. **HB-P5**
   F-PT-008 expiry-disposition cases. Executor: build-agent, after human ratifies each
   finding.
+- **HB-P6** F-PT-017 provider terminal-status enum decision and migration cases
+  (CF-C-CORE). Executor: human + build-agent after the owner chooses the canonical
+  vocabulary and compatibility path; no test may derive truth from the current code.
+- **HB-P7** F-PT-018 merge-blocking enforcement (CF-HARNESS-CI). Executor: human +
+  build-agent after GitHub required-check controls become available or the owner
+  ratifies an enforceable alternative. The PR workflow remains active and
+  fail-closed internally, but must not be represented as merge-blocking meanwhile.
 
 ## Post-ratification additions (2026-07-31)
 
@@ -210,7 +287,9 @@ its ticket)
   "not an incident runbook" warning is updated to point at it when it lands.
   *Defends:* operability of the whole harness; INV-008 (truthful surfaces).
   *Layer:* process/docs. *Executor:* human + build-agent, after Wave 0 reporting
-  exists.
+  exists. **Status: COMPLETE 2026-07-31** — canonical runbook at
+  `docs/qualification/validation-triage.md`, validation-design pointer committed,
+  and report/observe/status surfaces link it.
 - **HB-081 — Product change (Operon repo, NOT harness): `inconclusive` is not a
   pass on report/observe surfaces.** The product's report/observe surfaces must state
   that an `inconclusive` verdict is not a pass (ratification-package.md §6 IOU,
@@ -221,7 +300,9 @@ its ticket)
   campaign verdicts distinguishes `inconclusive` from `pass` and never renders it
   green or as release evidence. *Defends:* INV-008; eval decision-status rule.
   *Layer:* product. *Executor:* build-agent in the Operon repo (own ticket); human
-  schedules.
+  schedules. **Status: COMPLETE 2026-07-31** — durable campaign reports are projected
+  through status, terminal/HTML Reports, and Observe; `inconclusive` is rendered as
+  not-a-pass/not-release-evidence and corrupt reports remain visibly incomplete.
 
 ## Standing rules
 

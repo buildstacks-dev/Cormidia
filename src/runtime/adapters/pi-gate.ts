@@ -3,6 +3,17 @@ import type { ExtensionFactory, ToolCallEventResult } from "@earendil-works/pi-c
 import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
 import { toolUseEvent } from "../tool-events.js";
 
+// Factory identity is a stronger precondition than "some extension loaded".
+// A custom ResourceLoader used by an embedding can accidentally discard inline
+// factories; this WeakSet records that the exact Operon gate factory was
+// actually invoked while loading resources, before a tool-capable session is
+// created.
+const activatedPiGateExtensions = new WeakSet<object>();
+
+export function isPiGateExtensionActive(factory: ExtensionFactory): boolean {
+  return activatedPiGateExtensions.has(factory);
+}
+
 export function normalizePiToolAction(
   toolName: string,
   input: Record<string, unknown>,
@@ -44,7 +55,8 @@ export function createPiGateExtension(
   hooks: TurnHooks,
   escalations: GateEscalation[],
 ): ExtensionFactory {
-  return (pi) => {
+  const factory: ExtensionFactory = (pi) => {
+    activatedPiGateExtensions.add(factory);
     pi.on("tool_call", async (event): Promise<ToolCallEventResult | undefined> => {
       if (isSubagentToolCallEvent(event)) {
         hooks.onEvent?.({
@@ -71,6 +83,7 @@ export function createPiGateExtension(
       return { block: true, reason: decision.reason };
     });
   };
+  return factory;
 }
 
 function isSubagentToolCallEvent(event: unknown): event is { toolName: string } {

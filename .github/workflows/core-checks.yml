@@ -9,8 +9,9 @@ name: Core checks
 # Release gating remains SUSPENDED (docs/PURPOSE.md v2.9) — do not add a
 # release lane here without restoring a real qualification gate behind it.
 #
-# Wall-clock: the 5-minute per-commit target is PROPOSED (register item 13) —
-# reported by the timing step below, never enforced.
+# Wall-clock: the 5-minute per-commit target is human-ratified (HB-007 item 13)
+# as a report-only optimization target. The 15-minute job ceiling remains the
+# enforced hang bound; missing 5 minutes has no verdict effect.
 
 on:
   push:
@@ -44,11 +45,11 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
-      - name: Report wall clock (PROPOSED 5-min target — reported, not enforced)
+      - name: Report wall clock (ratified 5-min target — reported, not enforced)
         if: always()
         run: |
           ELAPSED=$(( $(date +%s) - LANE_START ))
-          echo "per-commit lane wall clock: ${ELAPSED}s (PROPOSED target 300s — register item 13, report-only)"
+          echo "per-commit lane wall clock: ${ELAPSED}s (ratified target 300s — HB-007 item 13, report-only)"
 
   gitleaks:
     # Secret-hygiene lane (policy L5_ops → secret-hygiene): pinned version +
@@ -77,8 +78,9 @@ jobs:
           set -euo pipefail
           CANARY_DIR="$(mktemp -d)"
           # Generated at run time, never committed; AWS-key-shaped test value.
+          CANARY_SUFFIX="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n' | tr 'a-f' 'A-F')"
           printf 'aws_access_key_id = AKIA%s\n' \
-            "$(tr -dc 'A-Z0-9' < /dev/urandom | head -c 16)" \
+            "${CANARY_SUFFIX}" \
             > "${CANARY_DIR}/canary.env"
           if ./gitleaks detect --no-banner --no-git --source "${CANARY_DIR}" > /dev/null 2>&1; then
             echo "NEGATIVE CONTROL FAILED: gitleaks did not fire on the planted canary — the lane cannot be trusted"

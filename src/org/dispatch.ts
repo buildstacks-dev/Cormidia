@@ -24,6 +24,7 @@ import { runScheduledRetentionSweep, type StateSweepResult } from "./retention.j
 import { loadRoles, type RolesFile } from "./roles.js";
 import { isDue, ScheduleStore } from "./schedule.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
+import { processIdentityStatus } from "../runtime/process-identity.js";
 import { SchedulerEvidenceStore, type SchedulerInvocationRecord } from "./scheduler/evidence.js";
 import {
   cadenceWindow,
@@ -46,6 +47,11 @@ export interface DispatchTickOptions {
   /** Liveness probe for a killed pid; defaults to a real `process.kill(pid,0)`
    *  check. Injectable so recovery gating is deterministic in tests. */
   pidAlive?: (pid: number) => boolean;
+  /** Liveness probe for an owned detached process group (positive pgid). */
+  groupAlive?: (processGroupId: number) => boolean;
+  /** Exact PID/start probe at the kill boundary; injectable for deterministic
+   * ownership-refusal tests. Unknown always defers rather than signalling. */
+  processIdentityStatus?: (pid: number, expectedStartIdentity: string) => "match" | "mismatch" | "unknown";
   /** How long to wait for a signalled turn to actually exit before escalating
    *  to SIGKILL, and the poll interval while waiting. */
   killGraceMs?: number;
@@ -167,6 +173,8 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     options.wallClockCapMs,
     {
       pidAlive: options.pidAlive ?? defaultPidAlive,
+      groupAlive: options.groupAlive ?? defaultGroupAlive,
+      identityStatus: options.processIdentityStatus ?? processIdentityStatus,
       graceMs: options.killGraceMs ?? 5_000,
       pollMs: options.killPollMs ?? 250,
     },
@@ -186,7 +194,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   // exceeding the WIP limit that bounds concurrency and spend.
   const recoverySpawns = killed.spawns + staleSpawns;
   const capacity = Math.max(0, appsFile.org.maxConcurrentTurns - freshLocks - recoverySpawns);
-  const { due, blocked, retirable } = await computeDueTurns({
+  const { due, blocked, retirable, recoveredEventMarks } = await computeDueTurns({
     appsFile,
     rolesFile,
     runtimeHome,
@@ -211,6 +219,15 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   // mid-fan-out cannot strand an event live forever (issue #25). Dry-run
   // computes but never writes.
   if (options.dryRun !== true) {
+    if (recoveredEventMarks.length > 0) {
+      try {
+        await eventStore.markConsumed(recoveredEventMarks);
+      } catch (error) {
+        result.errors.push(
+          `event consumption reconciliation failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
     for (const event of retirable) {
       try {
         await eventStore.retireEvent(event.key);
@@ -260,8 +277,21 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     });
     if (!lock.acquired) {
       if (!isStale(lock.lock, tickAt)) {
-        result.skipped.push(`${turn.app}/${turn.role}: fresh lock`);
-        await evidence.finishDecision(decisionId, "blocked", "fresh_lock", tickAt, { detail: "existing role/app lock is fresh" });
+        const sameDecision = lock.lock.turnId === executingTurn.turnId;
+        result.skipped.push(
+          sameDecision
+            ? `${turn.app}/${turn.role}: concurrent tick lost scheduler claim`
+            : `${turn.app}/${turn.role}: fresh lock`,
+        );
+        // Two simultaneous ticks claim the same deterministic decision. The
+        // loser must not terminalize the shared record as blocked while the
+        // winner is between lock acquisition and spawn; its matching turnId
+        // proves this is contention on the SAME execution, not unrelated work.
+        if (!sameDecision) {
+          await evidence.finishDecision(decisionId, "blocked", "fresh_lock", tickAt, {
+            detail: "existing role/app lock is fresh",
+          });
+        }
       }
       continue;
     }
@@ -277,6 +307,10 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       trigger: turn.trigger,
       ...(turn.event !== undefined ? { event: turn.event } : {}),
       pid: lock.lock.pid,
+      ...(lock.lock.processStartIdentity !== undefined
+        ? { processStartIdentity: lock.lock.processStartIdentity }
+        : {}),
+      ...(lock.lock.nonce !== undefined ? { processNonce: lock.lock.nonce } : {}),
     }, tickAt);
     await evidence.advanceDecision(decisionId, "journaled", tickAt);
     await options.schedulerFault?.("after_tick_journal");
@@ -291,7 +325,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       });
     } catch (error) {
       // Only a spawn failure releases the lock; the child never started.
-      await releaseLock(runtimeHome, turn.app, turn.role);
+      await releaseLock(runtimeHome, turn.app, turn.role, lock.lock);
       result.errors.push(error instanceof Error ? error.message : String(error));
       await evidence.finishDecision(decisionId, "failed", "spawn_failure", tickAt, {
         detail: error instanceof Error ? error.message : String(error),
@@ -368,10 +402,16 @@ async function computeDueTurns(input: {
   evidence: SchedulerEvidenceStore;
   cadenceWindow: string;
   orgId: string;
-}): Promise<{ due: DueTurn[]; blocked: BlockedDecision[]; retirable: RetirableEvent[] }> {
+}): Promise<{
+  due: DueTurn[];
+  blocked: BlockedDecision[];
+  retirable: RetirableEvent[];
+  recoveredEventMarks: string[];
+}> {
   const due: DueTurn[] = [];
   const blocked: BlockedDecision[] = [];
   const retirable: RetirableEvent[] = [];
+  const recoveredEventMarks = new Set<string>();
   // One read per tick: per-role consumption marks filter out roles that have
   // already run for a still-live multi-subscriber event (issue #25).
   const consumed = new Set(await input.eventStore.readConsumed());
@@ -421,8 +461,18 @@ async function computeDueTurns(input: {
             const subscribers = subscribersByEvent.get(event.key) ?? new Set<string>();
             subscribers.add(role.name);
             subscribersByEvent.set(event.key, subscribers);
-            if (consumed.has(roleConsumedKey(event.key, role.name))) continue;
-            if (await input.evidence.hasSpawnedEvent(event.key, role.name)) continue;
+            const consumedKey = roleConsumedKey(event.key, role.name);
+            if (consumed.has(consumedKey)) continue;
+            if (await input.evidence.hasSpawnedEvent(event.key, role.name)) {
+              // The durable scheduler decision reaches `spawned` before the
+              // file-store mark. A crash in that narrow window must converge
+              // without firing the provider turn again or stranding the event
+              // forever. Treat the spawned decision as the recovery witness
+              // and back-fill the ordinary per-role mark in the caller.
+              consumed.add(consumedKey);
+              recoveredEventMarks.add(consumedKey);
+              continue;
+            }
             const route = resolveTriggerRoute({ role: role.name, trigger, channels });
             if (route.kind === "skip") {
               input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
@@ -469,7 +519,12 @@ async function computeDueTurns(input: {
     }
   }
 
-  return { due: due.sort(compareDue), blocked, retirable };
+  return {
+    due: due.sort(compareDue),
+    blocked,
+    retirable,
+    recoveredEventMarks: [...recoveredEventMarks].sort(),
+  };
 }
 
 function eventTurn(input: { orgId: string; cadenceWindow: string }, app: AppEntry, role: string, trigger: string, event: DueEvent): DueTurn {
@@ -598,8 +653,16 @@ async function killHungTurns(
   kill: DispatchTickOptions["kill"],
   spawn: DispatchSpawn,
   wallClockCapMs = 60 * 60 * 1000,
-  death: { pidAlive: (pid: number) => boolean; graceMs: number; pollMs: number } = {
+  death: {
+    pidAlive: (pid: number) => boolean;
+    groupAlive: (processGroupId: number) => boolean;
+    identityStatus: (pid: number, expectedStartIdentity: string) => "match" | "mismatch" | "unknown";
+    graceMs: number;
+    pollMs: number;
+  } = {
     pidAlive: defaultPidAlive,
+    groupAlive: defaultGroupAlive,
+    identityStatus: processIdentityStatus,
     graceMs: 5_000,
     pollMs: 250,
   },
@@ -617,20 +680,49 @@ async function killHungTurns(
     const age = now.getTime() - new Date(journal.passStartedAt).getTime();
     if (age <= capMs) continue;
     try {
-      if (kill !== undefined) await kill(journal.pid);
-      else process.kill(journal.pid, "SIGTERM");
+      const ownedProcess = {
+        pid: journal.pid,
+        ...(journal.processGroupId !== undefined ? { processGroupId: journal.processGroupId } : {}),
+      };
+      const lockBeforeSignal = await readLock(runtimeHome, journal.app, journal.role).catch(() => undefined);
+      const ownershipBound = lockBeforeSignal !== undefined
+        && lockBeforeSignal.turnId === journal.turnId
+        && lockBeforeSignal.pid === journal.pid
+        && journal.processStartIdentity !== undefined
+        && lockBeforeSignal.processStartIdentity === journal.processStartIdentity
+        && journal.processNonce !== undefined
+        && lockBeforeSignal.nonce === journal.processNonce;
+      if (!ownershipBound) {
+        result.skipped.push(
+          `${journal.app}/${journal.role}: hung turn ${journal.turnId} ownership token mismatch; refusing to signal or recover`,
+        );
+        recovered.add(journal.turnId);
+        continue;
+      }
+      const identity = journal.processStartIdentity === undefined
+        ? "unknown"
+        : death.identityStatus(journal.pid, journal.processStartIdentity);
+      if (identity === "unknown") {
+        result.skipped.push(
+          `${journal.app}/${journal.role}: hung turn ${journal.turnId} process identity unverified; refusing to signal or recover`,
+        );
+        recovered.add(journal.turnId);
+        continue;
+      }
+      if (identity === "match") await signalTurnProcess(ownedProcess, "SIGTERM", kill);
       await writeJournalPatch(runtimeHome, journal.turnId, {
         role: journal.role,
         app: journal.app,
         message: "wall-clock cap exceeded; process killed for recovery",
       }, now);
-      // Do NOT recover (git reset --hard + clean + respawn) until the killed
-      // process is confirmed dead. SIGTERM only requests termination; if we
-      // restart-clean and respawn while the old child (or its git/agent
-      // subprocess) is still alive, two workers mutate one managed clone and
-      // corrupt the tree. Escalate to SIGKILL, and if the pid still refuses to
-      // die this tick, defer recovery to a later tick.
-      const dead = await ensureProcessDead(journal.pid, { kill, ...death });
+      // Do not enter recovery until the entire owned process tree is confirmed
+      // dead. SIGTERM only requests termination; inspecting/resuming while the
+      // old child (or a git/agent descendant) is still alive would let two
+      // workers mutate one managed clone. Escalate to SIGKILL, and if any
+      // owned process still refuses to die this tick, defer recovery.
+      const dead = identity === "mismatch"
+        ? true
+        : await ensureProcessDead(ownedProcess, { kill, ...death });
       if (!dead) {
         result.skipped.push(
           `${journal.app}/${journal.role}: killed hung turn ${journal.turnId}; pid ${journal.pid} still alive, deferring recovery`,
@@ -671,31 +763,65 @@ function defaultPidAlive(pid: number): boolean {
   }
 }
 
+function defaultGroupAlive(processGroupId: number): boolean {
+  if (process.platform === "win32") return false;
+  try {
+    process.kill(-processGroupId, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+async function signalTurnProcess(
+  journal: { pid: number; processGroupId?: number },
+  signal: NodeJS.Signals,
+  kill: DispatchTickOptions["kill"],
+): Promise<void> {
+  if (kill !== undefined) {
+    await kill(journal.processGroupId ?? journal.pid, signal);
+    return;
+  }
+  if (process.platform !== "win32" && journal.processGroupId !== undefined) {
+    process.kill(-journal.processGroupId, signal);
+  } else {
+    process.kill(journal.pid, signal);
+  }
+}
+
 /** Confirm a signalled pid has exited before its worktree is reused: wait out
  *  the grace window, escalate to SIGKILL, then wait again. Returns false if the
  *  pid is still alive at the end, so the caller can defer recovery. */
 async function ensureProcessDead(
-  pid: number,
-  opts: { kill: DispatchTickOptions["kill"]; pidAlive: (pid: number) => boolean; graceMs: number; pollMs: number },
+  journal: { pid: number; processGroupId?: number },
+  opts: {
+    kill: DispatchTickOptions["kill"];
+    pidAlive: (pid: number) => boolean;
+    groupAlive: (processGroupId: number) => boolean;
+    graceMs: number;
+    pollMs: number;
+  },
 ): Promise<boolean> {
-  if (!opts.pidAlive(pid)) return true;
+  const alive = (): boolean =>
+    opts.pidAlive(journal.pid) ||
+    (journal.processGroupId !== undefined && opts.groupAlive(journal.processGroupId));
+  if (!alive()) return true;
   const pollMs = Math.max(0, opts.pollMs);
   const attempts = Math.max(1, Math.ceil(opts.graceMs / Math.max(1, pollMs)));
   for (let i = 0; i < attempts; i++) {
-    if (!opts.pidAlive(pid)) return true;
+    if (!alive()) return true;
     await delay(pollMs);
   }
   try {
-    if (opts.kill !== undefined) await opts.kill(pid, "SIGKILL");
-    else process.kill(pid, "SIGKILL");
+    await signalTurnProcess(journal, "SIGKILL", opts.kill);
   } catch {
     // Already gone between the last probe and the escalation.
   }
   for (let i = 0; i < attempts; i++) {
-    if (!opts.pidAlive(pid)) return true;
+    if (!alive()) return true;
     await delay(pollMs);
   }
-  return !opts.pidAlive(pid);
+  return !alive();
 }
 
 function delay(ms: number): Promise<void> {
@@ -775,6 +901,7 @@ async function spawnDetached(input: {
     cwd: orgRoot,
     detached: true,
     stdio: "ignore",
+    env: { ...process.env, OPERON_OWNED_PROCESS_GROUP: "1" },
   });
   child.unref();
 }

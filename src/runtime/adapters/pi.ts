@@ -35,7 +35,7 @@ import type {
 import { resolveTurnRequestAssignment } from "../assignment.js";
 import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { renderContextBundle, writeMaskedWorktreeFile } from "../worktree-context.js";
-import { createPiGateExtension } from "./pi-gate.js";
+import { createPiGateExtension, isPiGateExtensionActive } from "./pi-gate.js";
 
 export type CreatePiAgentSessionFn = (
   options: CreateAgentSessionOptions,
@@ -59,6 +59,28 @@ export interface PiRuntimeOptions {
   modelRegistry?: ModelRegistry;
   agentDir?: string;
   tools?: string[];
+}
+
+export class PiGateExtensionInactiveError extends Error {
+  readonly code = "error_gate_extension_inactive";
+  constructor() {
+    super("PiRuntime: Operon gating extension was not activated by the resource loader");
+    this.name = "PiGateExtensionInactiveError";
+  }
+}
+
+export class PiSessionResumeMismatchError extends Error {
+  readonly code = "error_resume_session_mismatch";
+  constructor(
+    readonly requestedSessionId: string,
+    readonly restoredSessionId: string,
+  ) {
+    super(
+      `PiRuntime resume mismatch: requested session ${JSON.stringify(requestedSessionId)} ` +
+        `but pi restored ${JSON.stringify(restoredSessionId)}`,
+    );
+    this.name = "PiSessionResumeMismatchError";
+  }
 }
 
 type PiModel = NonNullable<CreateAgentSessionOptions["model"]>;
@@ -108,11 +130,15 @@ export class PiRuntime implements Runtime {
     const startTime = Date.now();
     const escalations: GateEscalation[] = [];
     writeMaskedWorktreeFile(req.workdir, ".pi/APPEND_SYSTEM.md", renderContextBundle(req.context));
+    const gateExtension = createPiGateExtension(req.workdir, hooks, escalations);
     const resourceLoader = await this.resourceLoaderFactory({
       cwd: req.workdir,
       agentDir: this.agentDir,
-      extensionFactories: [createPiGateExtension(req.workdir, hooks, escalations)],
+      extensionFactories: [gateExtension],
     });
+    if (!isPiGateExtensionActive(gateExtension)) {
+      throw new PiGateExtensionInactiveError();
+    }
     const sessionManager =
       this.sessionManagerFactory?.(req) ??
       (req.session === undefined
@@ -142,7 +168,12 @@ export class PiRuntime implements Runtime {
         }),
       ],
     });
-    hooks.onProgress?.({ session: { runtime: "pi", id: session.sessionFile ?? session.sessionId } });
+    const sessionId = session.sessionFile ?? session.sessionId;
+    if (req.session !== undefined && sessionId !== req.session.id) {
+      session.dispose();
+      throw new PiSessionResumeMismatchError(req.session.id, sessionId);
+    }
+    hooks.onProgress?.({ session: { runtime: "pi", id: sessionId } });
 
     // Per-turn budget guard. pi's SDK has no native running budget knob (unlike
     // Claude's --max-budget-usd), so Operon enforces the cap itself: after each

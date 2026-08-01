@@ -188,6 +188,8 @@ export interface TicketClaimState {
     claimId: string;
     claimNumber: number;
     ownerPid: number;
+    ownerProcessStartIdentity?: string;
+    ownerNonce?: string;
     acquiredAt: string;
     phase: "acquiring" | "claimed" | "provider_started";
     resume: boolean;
@@ -325,6 +327,8 @@ function validActiveClaim(value: unknown): value is NonNullable<TicketClaimState
   const active = value as NonNullable<TicketClaimState["active"]>;
   return typeof active.claimId === "string" && Number.isInteger(active.claimNumber) &&
     Number.isInteger(active.ownerPid) && typeof active.acquiredAt === "string" &&
+    (active.ownerProcessStartIdentity === undefined || typeof active.ownerProcessStartIdentity === "string") &&
+    (active.ownerNonce === undefined || typeof active.ownerNonce === "string") &&
     ["acquiring", "claimed", "provider_started"].includes(active.phase) && typeof active.resume === "boolean";
 }
 

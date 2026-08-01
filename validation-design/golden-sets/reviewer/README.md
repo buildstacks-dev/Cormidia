@@ -1,5 +1,8 @@
-# S-3 Reviewer meta-eval — STATUS: SCAFFOLD/UNPOPULATED
-Cannot support model-swap or qualification evidence yet. FIRST-FUNDED.
+# S-3 Reviewer meta-eval — STATUS: POPULATED / HUMAN REFERENCE REVIEW PENDING
+`cases.json` contains the first committed seeded-defect and clean-control set,
+authored before prompt tuning. It may be used for data collection now, but cannot
+support model-swap or qualification evidence until a human validates the reference
+labels and F-PT-009 ratifies the statistical decision rule. FIRST-FUNDED.
 
 Rubric axes: catch-by-severity over seeded defect classes (correctness, security,
 evidence-fabrication, contract violation, secret exposure) · clean-change

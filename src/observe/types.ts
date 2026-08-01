@@ -7,6 +7,8 @@ import type { RunlogEvent } from "../runtime/runlog/events.js";
 import type { StatusRow } from "../runtime/runlog/status.js";
 import type { InvocationRecord, TurnRecord } from "../runtime/telemetry.js";
 import type { TurnLock } from "../org/locks.js";
+import type { BudgetRow } from "../org/budget.js";
+import type { ValidationCampaignReadResult } from "../org/validation-campaign.js";
 
 /** Bumped 1 → 2 once for the observer-diagnostics workstream (#91/#93/#94/#97).
  *  Additive fields alone would not have required it, but `intake` was REMOVED
@@ -204,6 +206,11 @@ export interface AppView {
   budget_usd_month: number;
   recorded_monthly_cost_usd: number;
   usage_quality: UsageQuality;
+  /** Month rollup status and the ACTUAL durable overlay state are separate:
+   *  an exceeded rollup can precede the overlay transaction, and a paused
+   *  overlay must stay visible until enforcement removes it. */
+  budget_status: BudgetRow["status"];
+  budget_paused: boolean;
   /** Month-to-date settled-ledger aggregate for this app (#89, #90). */
   cost: CostAggregate;
   /** The projection ASSERTS that the budget figures above are an app-wide
@@ -692,6 +699,8 @@ export interface ObserveSnapshotV1 {
   totals: TotalsView;
   attention: AttentionItemView[];
   attention_groups: AttentionGroupView[];
+  /** Durable triggered-validation evidence. Inconclusive is never a pass. */
+  validation_campaigns: ValidationCampaignReadResult;
 }
 
 export interface GitHubAppSnapshot {
@@ -730,6 +739,8 @@ export interface ObserveProjectionInput {
   corrupt_tasks: Array<{ task_id: string; detail: string }>;
   approvals: Array<{ item: ApprovalItem; grant?: ApprovalGrant }>;
   ledger: TurnRecord[];
+  budget_rows?: BudgetRow[];
+  budget_paused_apps?: string[];
   invocations: InvocationRecord[];
   schedule: Record<string, string>;
   locks: TurnLock[];
@@ -747,4 +758,5 @@ export interface ObserveProjectionInput {
   }>;
   github: GitHubAppSnapshot[];
   source_health: SourceHealthView[];
+  validation_campaigns?: ValidationCampaignReadResult;
 }

@@ -1,15 +1,17 @@
 // One filesystem-lock primitive shared across the codebase's hand-rolled locks
 // (F-008). Codifies the model the settlement/ledger lock already embodies
-// (src/runtime/telemetry.ts): atomic O_EXCL acquisition, a pid+nonce+timestamp
-// payload, reclamation that NEVER breaks a proven-live holder, and a release
+// (src/runtime/telemetry.ts): atomic O_EXCL acquisition, a
+// PID+process-start+nonce+timestamp payload, reclamation that NEVER breaks a
+// proven-live holder, and a release
 // that verifies its ownership token before unlinking so a holder finishing late
 // can never delete a successor's lock.
 //
-// The three legacy locks (TurnLock, settlement, app git-clone) each grew their
-// own copy with divergent reclamation policies; the app git-clone lock is the
-// first to be re-expressed as a configuration of this primitive. Import
-// direction stays legal (org -> runtime): callers in src/org and src/loop may
-// depend on this leaf.
+// The legacy locks (TurnLock, settlement, app git-clone) each grew their own
+// copy with divergent reclamation policies; the app git-clone lock is the
+// first to be re-expressed as a configuration of this primitive, while turn
+// locks now use the same PID/start/nonce liveness identity at scheduler
+// handoff. Import direction stays legal (org -> runtime): callers in src/org
+// and src/loop may depend on this leaf.
 
 import { randomUUID } from "node:crypto";
 import {
@@ -23,6 +25,7 @@ import {
 } from "node:fs";
 import { mkdir, open, readFile, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
+import { currentProcessStartIdentity, processIdentityStatus } from "./process-identity.js";
 
 /** Injectable time source so a lock's wait deadline and back-off are
  *  deterministic under test (fake clock) without touching the wall clock. */
@@ -36,10 +39,11 @@ export const realFileLockClock: FileLockClock = {
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
-/** The ownership token every lock file carries. `pid` drives the liveness
- *  probe; `nonce` makes release verifiable. */
+/** The ownership token every lock file carries. PID + process-start identity
+ * survives PID reuse; nonce makes release verifiable. */
 export interface FileLockToken {
   pid: number;
+  processStartIdentity: string;
   nonce: string;
 }
 
@@ -89,7 +93,11 @@ export async function acquireFileLock(lockPath: string, options: FileLockOptions
   const clock = options.clock ?? realFileLockClock;
   const retryMin = options.retryMinMs ?? 40;
   const retrySpan = Math.max(0, (options.retryMaxMs ?? 100) - retryMin);
-  const token: FileLockToken = { pid: process.pid, nonce: randomUUID() };
+  const token: FileLockToken = {
+    pid: process.pid,
+    processStartIdentity: currentProcessStartIdentity(),
+    nonce: randomUUID(),
+  };
   const deadline = clock.now() + options.maxWaitMs;
   await mkdir(dirname(lockPath), { recursive: true });
   for (;;) {
@@ -156,7 +164,11 @@ export function acquireFileLockSync(
   options: FileLockSyncOptions,
 ): FileLockToken {
   const now = options.now ?? Date.now;
-  const token: FileLockToken = { pid: process.pid, nonce: randomUUID() };
+  const token: FileLockToken = {
+    pid: process.pid,
+    processStartIdentity: currentProcessStartIdentity(),
+    nonce: randomUUID(),
+  };
   mkdirSync(dirname(lockPath), { recursive: true });
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -218,10 +230,12 @@ async function reclaimIfStale(lockPath: string, nowMs: number, staleMs: number):
     return false;
   }
   let pid: number | undefined;
+  let processStart: string | undefined;
   let atMs: number | undefined;
   try {
     const payload = JSON.parse(contents) as Partial<FileLockPayload>;
     if (typeof payload.pid === "number") pid = payload.pid;
+    if (typeof payload.processStartIdentity === "string") processStart = payload.processStartIdentity;
     if (typeof payload.at === "string") atMs = new Date(payload.at).getTime();
   } catch {
     // Torn/partial write — fall back to filesystem mtime for the age check.
@@ -238,7 +252,7 @@ async function reclaimIfStale(lockPath: string, nowMs: number, staleMs: number):
     }
     return false;
   }
-  if (holderIsStale(pid, old)) {
+  if (holderIsStale(pid, processStart, old)) {
     await rm(lockPath, { force: true });
     return true;
   }
@@ -256,10 +270,12 @@ function reclaimIfStaleSync(lockPath: string, nowMs: number, staleMs: number): b
     return false;
   }
   let pid: number | undefined;
+  let processStart: string | undefined;
   let atMs: number | undefined;
   try {
     const payload = JSON.parse(contents) as Partial<FileLockPayload>;
     if (typeof payload.pid === "number") pid = payload.pid;
+    if (typeof payload.processStartIdentity === "string") processStart = payload.processStartIdentity;
     if (typeof payload.at === "string") atMs = new Date(payload.at).getTime();
   } catch {
     // Torn/partial write — use mtime for the age check.
@@ -271,7 +287,7 @@ function reclaimIfStaleSync(lockPath: string, nowMs: number, staleMs: number): b
     rmSync(lockPath, { force: true });
     return true;
   }
-  if (!holderIsStale(pid, old)) return false;
+  if (!holderIsStale(pid, processStart, old)) return false;
   rmSync(lockPath, { force: true });
   return true;
 }
@@ -280,7 +296,12 @@ function reclaimIfStaleSync(lockPath: string, nowMs: number, staleMs: number): b
  *  EPERM — cannot signal but exists) is NEVER stale. A proven-dead pid (ESRCH)
  *  is stale immediately; any other probe error falls back to the age window.
  *  Mirrors settlementLockIsStale in src/runtime/telemetry.ts. */
-function holderIsStale(pid: number, old: boolean): boolean {
+function holderIsStale(pid: number, processStart: string | undefined, old: boolean): boolean {
+  if (processStart !== undefined) {
+    const identity = processIdentityStatus(pid, processStart);
+    if (identity === "mismatch") return true;
+    if (identity === "match") return false;
+  }
   if (pid === process.pid) return false;
   try {
     process.kill(pid, 0);

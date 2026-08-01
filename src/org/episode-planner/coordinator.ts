@@ -161,7 +161,7 @@ export async function prepareEpisodePlan(
     };
   }
 
-  if (hasAuthoritativeCreatorScopeConflict(creatorScopeAssessment.issues)) {
+  if (hasAuthoritativeCreatorScopeConflict(creatorScopeAssessment.issues, options.intent.creatorScope)) {
     throw new CreatorScopeConflictError(creatorScopeAssessment.issues);
   }
   if (options.propose === undefined) {
@@ -307,7 +307,13 @@ function acceptProposal(
 
 export function hasAuthoritativeCreatorScopeConflict(
   issues: readonly EpisodePlanIssue[],
+  scope?: EpisodeIntent["creatorScope"],
 ): boolean {
+  // An explicit execution-ready disposition is an authoritative claim that
+  // the creator supplied every decision needed to execute. Any validation
+  // issue therefore refuses before provider construction; silently buying an
+  // EpisodePlanner turn would contradict the caller's declared route.
+  if (scope?.planningDisposition === "execution_ready") return issues.length > 0;
   const contradictions = new Set<EpisodePlanReasonCode>([
     "creator_scope_provenance_invalid",
     "creator_scope_workflow_ambiguous",

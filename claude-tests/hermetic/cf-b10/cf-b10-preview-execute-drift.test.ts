@@ -4,13 +4,10 @@
 // execute step re-resolves and re-validates; if identity or depended-on
 // content changed since preview, execution refuses and reports.
 //
-// PROVISIONAL (validation-policy.yaml → proposed_register item 4:
-// "preview->execute exact-hash comparison on depended-on surfaces"; owner:
-// human; expiry: first harness build review). The exact-hash mechanism these
-// tests exercise (assertInitPlanIntegrity + the execute-time re-preflight in
-// src/org/home.ts) is asserted as a provisional bound surfaced in evidence,
-// NOT as ratified product truth. Tightening is allowed; treating the hash
-// mechanism itself as settled is not.
+// HUMAN-RATIFIED at HB-007 review 2026-07-31 (validation-policy.yaml →
+// proposed_register item 4): exact-hash comparison on depended-on surfaces.
+// These tests exercise assertInitPlanIntegrity + the execute-time re-preflight
+// in src/org/home.ts. Tightening remains allowed; weakening is not.
 //
 // Layer: 2 (temp filesystem, the real org-init transaction). Zero network,
 // zero tokens.
@@ -64,7 +61,7 @@ function expectNoEffects(rig: DriftRig): void {
   expect(existsSync(rig.pointerPath)).toBe(false);
 }
 
-describe("CF-B10-* (L2) preview→execute drift refusal (PROPOSED item 4 — provisional)", () => {
+describe("CF-B10-* (L2) preview→execute exact-hash drift refusal (ratified HB-007 item 4)", () => {
   it("control: an untampered plan executes exactly the previewed transaction", async () => {
     const rig = await driftRig();
     const plan = await planOrgInit(rig.options);

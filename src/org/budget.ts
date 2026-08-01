@@ -9,6 +9,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { AppsFile } from "./apps.js";
 import { ApprovalStore } from "./approvals.js";
+import { withFileLock } from "../runtime/file-lock.js";
 import {
   readSettledKeys,
   recordTurnOnce,
@@ -177,6 +178,30 @@ export async function enforceBudgetOverlay(
   orgHome: string,
   apps: AppsFile,
   now: Date = new Date(),
+  hooks: BudgetOverlayHooks = {},
+): Promise<BudgetRow[]> {
+  return withFileLock(
+    join(orgHome, "state", "budget-overlay.lock"),
+    {
+      staleMs: 10 * 60_000,
+      maxWaitMs: 12 * 60_000,
+    },
+    () => enforceBudgetOverlayLocked(orgHome, apps, now, hooks),
+  );
+}
+
+/** Deterministic crash seam for the replacement validation harness. Production
+ * callers omit it. It sits at the ratified F-PT-003 boundary: the pause is
+ * durable, while the human-visible budget item may not exist yet. */
+export interface BudgetOverlayHooks {
+  afterOverlayWrite?: () => Promise<void> | void;
+}
+
+async function enforceBudgetOverlayLocked(
+  orgHome: string,
+  apps: AppsFile,
+  now: Date,
+  hooks: BudgetOverlayHooks,
 ): Promise<BudgetRow[]> {
   const rows = await rollupBudgets(orgHome, apps, now);
   const overlay = await readOverlay(orgHome);
@@ -195,8 +220,19 @@ export async function enforceBudgetOverlay(
   // apps.yaml are preserved so an unrelated overlay is never silently dropped.
   overlay.pausedApps = overlay.pausedApps.filter((app) => !knownApps.has(app) || blocked.has(app));
 
-  for (const row of rows.filter((r) => isBudgetBlocking(r.status))) {
+  const blockedRows = rows.filter((r) => isBudgetBlocking(r.status));
+  for (const row of blockedRows) {
     if (!overlay.pausedApps.includes(row.app)) overlay.pausedApps.push(row.app);
+  }
+
+  // F-PT-003 (ratified 2026-07-31): pause first. If the process dies after
+  // this durable write, the next admission check still refuses spend and a
+  // later enforcement pass converges the missing approval item.
+  overlay.pausedApps.sort();
+  await writeOverlay(orgHome, overlay);
+  await hooks.afterOverlayWrite?.();
+
+  for (const row of blockedRows) {
     const hashKey = `budget-exceeded:${row.app}:${now.toISOString().slice(0, 7)}`;
     const existing = (await store.listPending()).some(
       (item) => item.rule === "budget-exceeded" && item.app === row.app && item.justification === hashKey,
@@ -218,9 +254,6 @@ export async function enforceBudgetOverlay(
       });
     }
   }
-
-  overlay.pausedApps.sort();
-  await writeOverlay(orgHome, overlay);
   return rows;
 }
 

@@ -727,6 +727,10 @@ exemptions and their reasons:
   its month-to-date figure unchanged and adds a separately labelled
   `this session:` line, so the two figures are never left side by side
   unexplained. It is never rescoped and never falsified to `$0.00`.
+  `budget_status` is the current ledger-derived threshold status;
+  `budget_paused` is the separately projected durable admission overlay. A
+  surface must not infer one from the other: the overlay can lag, survive a
+  restart, or require reconciliation.
 - **Source health** — CURRENT observer health, not health as of the session.
   Its rendered values are byte-identical under a historical selection: only the
   label changes. Filtering it, blanking it, or restamping `observed_at` to the
@@ -796,23 +800,35 @@ The historical page also shows completion integrity:
 | --- | --- | --- |
 | Org `apps.yaml` | app identity, status, WIP, budget, cadence/channels | authoritative configuration; read only |
 | App `.operon/**` | onboarding/config/policy context | display provenance; org registry governs operation |
-| GitHub issues/labels | delivery queue and ticket state | authoritative for ready/claimed/review/closed state |
+| GitHub issues/labels | delivery queue and ticket intent | authoritative for queue labels; an advanced delivery state additionally requires its backing artifact |
 | GitHub PR/review/check state | review and completion outcome | authoritative external delivery evidence |
 | `tasks/<taskId>/` | parent objective, exact outer prompt, fallback, result refs | authoritative parent-task record |
 | `runs/<app>/<runId>/envelope.json` | pass identity, status, usage, refs, heartbeat | L1 source of truth per pass |
-| `runs/**/events.jsonl` | live structured timeline and spans | append-only L2; tolerate only torn trailing line |
+| `runs/**/events.jsonl` | live structured timeline and spans | append-only L2; a torn trailing line is rejected and degrades the source rather than being reported healthy |
 | `brief.md`, `prompt.md`, `output.md`, `session.log` | explicit local forensic evidence | verbatim L3; never preload into overview |
 | Ticket journals/worktrees | recovery and phase evidence | supporting process-owned state; do not override GitHub labels |
 | `telemetry/<date>.jsonl` | settled per-turn cost and budget attribution | ledger truth after settlement; run envelope may show partial checkpoint first |
 | `invocations/<date>.jsonl` | CLI commands plus distinct internal release execution | invocation history, not provider-turn history |
 | `locks/` | active role/app ownership | fresh lock is supporting liveness; pass heartbeat is still shown separately |
-| `state/schedule.json` and event state | due/fired/pending activity | scheduler-owned operational state |
+| `state/schedule.json` and event state | due/fired/pending activity | scheduler-owned durable definition/state; readability alone does not prove scheduler operational health |
 | `state/events/inbox/` | company-lifecycle intake | pending until consumed for all subscribers |
 | `approvals/` | critical-operation safety queue | authoritative approval state/audit |
 
 The projection must expose per-source freshness and degradation. “GitHub
 unavailable” is different from “no ready tickets.” “No heartbeat recorded” is
-different from “stalled.”
+different from “stalled.” A failed GitHub refresh retains the cached entities'
+last successful `observed_at` and reports the failed poll as separate health
+evidence; it never restamps stale entities as freshly observed. Scheduler
+definition, lock, and inbox readability cannot establish a running scheduler,
+so the observer reports scheduler operational health as unavailable unless it
+has operational evidence.
+
+Delivery labels describe intent, not completed evidence. `op:building` requires
+a correlated non-completed pass, `op:in-review` requires an open PR,
+`op:blocked` requires a pending approval, and `op:returned` requires a failed or
+otherwise non-completed pass. Without that artifact the delivery projection is
+`closed_unknown` with a reason. Merged delivery requires the exact PR/merge
+evidence defined by the loop contract; a label alone never upgrades the rung.
 
 ### 6.2 No second store
 
@@ -1756,3 +1772,18 @@ Implementation is complete only when:
 9. Obtain explicit authorization for token/GitHub/merge scope.
 10. Run and document the correlated buildstacks acceptance flow without a
     production deploy.
+
+## 16. Triggered-validation evidence addendum (2026-07-31)
+
+The versioned snapshot includes the product-owned
+`validation_campaigns: {reports, corrupt}` read model from
+`validation/campaigns/*/report.json`. This is live app-wide/current evidence and is not
+narrowed into a selected product session. Target-app filtering may hide reports for
+other apps, while corrupt records remain visible because their scope cannot be trusted.
+
+Cards show separate completeness/verdict, case coverage, and spend. `inconclusive`
+uses blocked—not completed—visual semantics and the literal “NOT A PASS; NOT RELEASE
+EVIDENCE.” Corrupt reports are failed/incomplete; no report means “No validation
+campaign evidence recorded,” never healthy. The section links
+`docs/qualification/validation-triage.md`. Observe stays read-only: it never resumes,
+repairs, reconciles, or reruns a campaign.

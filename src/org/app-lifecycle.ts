@@ -476,6 +476,9 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
         if (options.synchronize === false) throw new Error("managed clone missing or corrupt");
         await recreateManagedClone(record, stateHome);
       }
+      const actualRemote = git(record.managed_clone, "remote", "get-url", "origin");
+      const remoteIdentityProblem = managedRemoteIdentityProblem(record.remote_url, actualRemote);
+      if (remoteIdentityProblem !== undefined) throw new Error(remoteIdentityProblem);
       if (options.synchronize !== false) {
         await options.fault?.("before_git_fetch");
         git(record.managed_clone, "fetch", "--quiet", "origin", record.default_branch);
@@ -667,6 +670,15 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
     });
   }
   return report;
+}
+
+/** B-15 identity stop used by verification before fetch/reset. Byte identity
+ * is intentional: a changed URL is an authority change even when it happens
+ * to advertise the same current commit. */
+export function managedRemoteIdentityProblem(expected: string, actual: string): string | undefined {
+  return expected === actual
+    ? undefined
+    : `managed clone remote identity changed: expected ${expected}, observed ${actual}`;
 }
 
 export async function planAppPromotion(options: PromoteAppOptions): Promise<AppPromotionPlan> {
@@ -1626,7 +1638,7 @@ function gitWithCommitIdentity(root: string, date: string, ...args: string[]): s
 }
 
 function git(root: string, ...args: string[]): string {
-  return execFileSync("git", args, { cwd: root, env: GIT_ENV, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd: root, env: GIT_ENV, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 
 function safeGit(root: string, ...args: string[]): string | null {

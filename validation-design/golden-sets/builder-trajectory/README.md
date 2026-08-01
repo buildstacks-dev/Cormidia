@@ -1,4 +1,4 @@
-# S-2 Builder trajectory suite — STATUS: SCAFFOLD/UNPOPULATED
+# S-2 Builder trajectory suite — STATUS: POPULATED / DETERMINISTIC
 Deterministic suite — EXEMPT from rubric/threshold fields per root contract.
 Rubric axes: N/A (deterministic). Threshold + N + sample design: N/A.
 This suite never masquerades as model-swap quality evidence; S-2's L4 surface is
@@ -17,3 +17,5 @@ Decision-status split (plan §2 S-2, owner-corrected):
 Cadence: every commit, hermetic. Tuple dimensions: builder assignment tuple.
 Quality rubric set: see `builder-quality/` (separate scaffold; F-PT-011).
 Case schema: {id, scripted-scenario ref, telemetry expectations, provenance}.
+The committed `cases.json` points at the ratified detector fixtures exercised by the
+every-commit CF-S2-TRAJ suite; proposed repeat-loop N=3 remains observation-only.

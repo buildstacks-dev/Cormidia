@@ -10,7 +10,7 @@ import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/pro
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { loadApps, removeExistingApp } from "./apps.js";
-import { acquireLock, releaseLock } from "./locks.js";
+import { acquireLock, releaseLock, type TurnLock } from "./locks.js";
 import { listJournals, type TurnJournal } from "./journal.js";
 import { loadRoles } from "./roles.js";
 import { readStatusRows } from "../runtime/runlog/status.js";
@@ -347,7 +347,7 @@ export async function executeAppReset(
 
   const roles = (await loadRoles(join(plan.orgHome, "roles.yaml"))).roles.map((role) => role.name);
   const lockTurnId = `reset-${plan.archiveId}`;
-  const acquired: string[] = [];
+  const acquired: TurnLock[] = [];
   try {
     for (const role of roles) {
       let result = await acquireLock(plan.stateHome, {
@@ -356,7 +356,7 @@ export async function executeAppReset(
         turnId: lockTurnId,
       });
       if (!result.acquired && result.lock.turnId === lockTurnId && !processIsAlive(result.lock.pid)) {
-        await releaseLock(plan.stateHome, plan.app.name, role);
+        await releaseLock(plan.stateHome, plan.app.name, role, result.lock);
         result = await acquireLock(plan.stateHome, {
           app: plan.app.name,
           role,
@@ -368,7 +368,7 @@ export async function executeAppReset(
           `app reset: cannot reserve ${plan.app.name}/${role}; active turn ${result.lock.turnId} holds the lock`,
         );
       }
-      acquired.push(role);
+      acquired.push(result.lock);
     }
 
     const startedAt = options.now ?? new Date();
@@ -401,7 +401,7 @@ export async function executeAppReset(
     await rm(resetIntentPath(plan.stateHome, plan.app.name), { force: true });
     return { plan, archivePath };
   } finally {
-    await Promise.all(acquired.map((role) => releaseLock(plan.stateHome, plan.app.name, role)));
+    await Promise.all(acquired.map((lock) => releaseLock(plan.stateHome, plan.app.name, lock.role, lock)));
   }
 }
 

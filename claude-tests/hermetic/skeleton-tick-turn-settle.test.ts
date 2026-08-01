@@ -28,7 +28,7 @@ import { reconcileLedger } from "../../src/org/budget.js";
 import { dispatchTick, type DispatchSpawn } from "../../src/org/dispatch.js";
 import type { GitHubEventSource } from "../../src/org/events.js";
 import { readJournal } from "../../src/org/journal.js";
-import { lockExists, releaseLock } from "../../src/org/locks.js";
+import { lockExists, readLock, releaseLock } from "../../src/org/locks.js";
 import { ScheduleStore } from "../../src/org/schedule.js";
 import {
   admitEpisode,
@@ -404,7 +404,8 @@ describe("CF-J04-RC/CF-INV-006 skeleton — dispatch tick → claim → scripted
     expect(await readTurnRecords(org.stateHome)).toHaveLength(1);
 
     // Housekeeping: release the org-level claim our injected spawn stood in for.
-    await releaseLock(org.stateHome, APP, ROLE);
+    const heldLock = await readLock(org.stateHome, APP, ROLE);
+    await releaseLock(org.stateHome, APP, ROLE, heldLock);
   });
 
   it("boundary failure mode: SIGKILL between provider return and ledger append — the reconcile path settles exactly once", async () => {

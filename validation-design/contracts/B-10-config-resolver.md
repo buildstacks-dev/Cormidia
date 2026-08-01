@@ -32,9 +32,9 @@ Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; head
   unchanged inputs.
 - **Preview→execute drift:** an execute step re-resolves and re-validates; if identity
   or ratified-surface content changed since preview, execution refuses and reports —
-  **PROPOSED** exact-hash comparison on the surfaces the operation depends on; owner:
-  human; expiry: first harness build review. `[elicited: "config changing between
-  preview and execution"]`
+  **human-ratified at HB-007 review 2026-07-31:** exact-hash comparison on the
+  surfaces the operation depends on. `[elicited: "config changing between preview
+  and execution"]`
 
 ## 5. Timing
 - Config is re-read per tick/process; there is no cross-process config cache to

@@ -3,9 +3,13 @@
 Status: derived to matrix closure (Phase 6, agent-alone per Division of labor §6) over
 the ratified artifacts: system-map (J-01…J-18), invariants (INV-001…015), boundary-map
 (B-01…B-17), contracts (22 canonical IDs), llm-eval-plan (S-1…S-7 and S-9; S-8 intentionally absent), risk-allocation
-(E-1/E-2/E-3, floors, §5/§6 obligations). **This is design derivation, not
-implementation** — executable authoring waits for the walking skeleton's fixtures
-(harness-backlog.md); derivation does not.
+(E-1/E-2/E-3, floors, §5/§6 obligations). **This remains the design-derived
+catalog, while executable authoring is tracked by `harness-backlog.md`.** As of
+2026-07-31, Waves 0–4 are implemented under `claude-tests/`: through Wave 3 the
+E-1/E-2/E-3 and evidence-agreement families are executable; Wave 4 adds the
+CF-J02/CF-J03/CF-J10/CF-J16/CF-OPS-GROW/CF-IF/CF-S2-traj/CF-S9-env remainder.
+The full L1/L2 gate is green (116 files, 726 passed, one intentionally parked
+skip). Catalog closure does not imply separately gated L3/L4/L5 evidence.
 
 **Closure rule:** every (source artifact × derivation row) cell below carries case
 families or a **named prune**. Prune vocabulary (nothing else is legal):
@@ -13,9 +17,9 @@ families or a **named prune**. Prune vocabulary (nothing else is legal):
 - `PRUNE-dup:<cell>` — covered by the named cell (single-writer rule; no clone).
 - `PRUNE-na` — dimension structurally inapplicable to this source (reason inline).
 - `BLOCKED:<finding>` — cases exist but are parked until the finding ratifies
-  (now F-PT-006/008 only; F-PT-003/004/007 were ratified 2026-07-31 and their former
-  blocked cells below are derivable against the ratified contracts); listed, never
-  authored as truth.
+  (current findings are named at their cells and in §9; F-PT-003/004/007 were
+  ratified 2026-07-31 and their former blocked cells are derivable against the
+  ratified contracts); listed, never authored as truth.
 - `BLOCKED:B-17-L3` — live-target cases parked per boundary-map B-17 status.
 
 **Row/oracle/layer keys.** Layer 1/2/3/4/5 per taxonomy; oracle kinds: `state` (durable
@@ -33,6 +37,13 @@ Family IDs are stable: `CF-<source>-<row>`. Traces resolve per the
 journey-acceptance.md alias table.
 
 ---
+
+## 0. Harness self-test register (policy machinery outside the product-source matrices)
+
+| Cell | Case family | Layer | Oracle | Risk |
+|---|---|---|---|---|
+| CF-HARNESS-CI | Per-commit workflow shape, fail-closed jobs, detector canaries, and actual merge-blocking enforcement. Workflow-shape checks are implemented; required-check enforcement is **BLOCKED:F-PT-018**. | 1 + CI | evid+det | FLOOR |
+| CF-HARNESS-REPORT | Durable completeness/verdict truth table; exact-ceiling, unknown-partial-spend, corrupt-report, canonical-policy/golden-blob binding, and presentation negative controls | 1/2 | evid+refusal+det | FLOOR |
 
 ## 1. Journey matrix (J × success / refusal / interruption / recovery / alt-initiators+observations)
 
@@ -140,7 +151,7 @@ journey-acceptance.md alias table.
 | CF-SM-LADDER-R/C | PRUNE-dup:CF-J02-I/RC (ladder transitions are lifecycle ops) | — | — | — |
 | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) |
 | CF-SM-EVENT-L/I/R/C | event pending→per-role-marked→retired: retire-before-all-marks illegal; refire-on-marked illegal; crash between mark and retire; **partial-file legality BLOCKED:F-PT-006** | 2 | state | STD |
-| CF-SM-TURN-L/I/R/C | turn journal phase sequence: phases in order, skipped-phase illegal, journal replay idempotent, kill at every phase (recognized intermediates only) | 2 | state | E2 |
+| CF-SM-TURN-L/I/R/C | productive turn journal path `assembling→running→collecting→done`: phases in order, productive-phase skip illegal (error terminals may end the current phase honestly), same-phase replay idempotent, real SIGKILL at every productive phase (recognized intermediates only) | 2 | state | E2 |
 
 ## 3. Invariant matrix (INV × violation-paths / guardrail-response)
 
@@ -179,7 +190,7 @@ obligation exists.
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-B01-{ok,to,ps,rt,dup,stale,skew} | scripted GitHub double: success ops; timeouts/rate limits; partial success (issue-no-label, merge-no-branch-delete); bounded retry w/ markers; duplicate-create detection; stale-read-after-write re-read; default-branch-moved + force-push skew. Lost-response mode in `ps`+`rt` | 2 | state+evid | E3 |
+| CF-B01-{ok,to,ps,rt,dup,stale,skew} | scripted GitHub double: success ops; timeouts/rate limits; partial success (issue-no-label, merge-no-branch-delete); ratified 3-total-attempt jittered exponential retry (injected clock) for reads/idempotent exact-input operations, while ambiguous writes remain single-shot for marker reconciliation; duplicate-create detection; stale-read-after-write re-read; default-branch-moved + force-push skew. Lost-response mode in `ps`+`rt` | 2 | state+evid | E3 |
 | CF-B01-L3 | **the GitHub live smoke** (risk-allocation §5 trigger: merge/review/branch/auth changes): real auth, squash-merge + branch-protection semantics, HMAC review submission, poll truth — on sandbox repos, spend-bounded | 3 | live | E3 |
 | CF-B02-* | adapter core against scripted Anthropic: outcomes, tool-events w/o terminal, malformed verdicts, usage absent/partial, resume-mismatch typed, partial stream | 2 | state | E2 (T-11 exhaustive) |
 | CF-B02-L3 | **Anthropic real-adapter conformance run** (same suite as the fake — drift guard; §5 trigger + bounds) | 3 | live | E2 |
@@ -189,7 +200,7 @@ obligation exists.
 | CF-B04-L3 | **pi real-adapter conformance run**: real extension installation + real denied forbidden attempt (§5 trigger + bounds) | 3 | live | E1 |
 | CF-B05-* | faked host surface: install/uninstall idempotency + refusals, status joins; unfakeable load-and-fire = CF-J16-A (L3) | 2 | evid | STD |
 | CF-B06-* | fake-clock sweep: TTL, heartbeat 30s/2min/10min semantics, UTC windows vs host-time scheduling, missed-window (app,role,trigger,window) reconciliation, rollback/NTP/DST/timezone anomalies fail closed | 2 | state | E2 |
-| CF-B07-* | kill-point injection harness; PID-reuse liveness; signal-vs-terminal-write race; orphaned descendant cleanup; dead-child-fresh-heartbeat | 2 | state | E2 |
+| CF-B07-* | kill-point injection harness; PID-reuse liveness; full journal↔lock PID/start/nonce binding before signal; nonce-bound serialized release refuses a late holder and cannot remove its successor; unknown/mismatched ownership refuses kill; signal-vs-terminal-write race; orphaned descendant cleanup; dead-child-fresh-heartbeat | 2 | state | E2 |
 | CF-B08-* | PRUNE-dup:CF-J09-* (tick↔turn cells are exactly the J-09 families) | — | — | — |
 | CF-B09a-* | continuation set persisted/validated; TTL expiry typed (**item disposition BLOCKED:F-PT-008**); orphan-grant intermediate recognizable, never usable authorization | 2 | state | E1 |
 | CF-B09b-* | decision-entry: one-by-one + reason, batch same-rule per-item audit, widen human-only, revocation, concurrent decisions first-write-wins; unattended-profile prohibition cases (no forged human decisions; zero-decision evidence) | 2 | state+evid | E1 |
@@ -210,11 +221,12 @@ spanning the six rows) except where a dimension is separately risky.
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-C-CORE | OPERON-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees, usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
+| CF-C-CORE | OPERON-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause BLOCKED:F-PT-017**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
 Eighteen boundary-contract families (B-09a and B-09b are separate contracts), one per
 canonical `OPERON-C-B*-001` ID, each clause-complete (valid/invalid inputs, outputs,
-typed errors, idempotency, ordering, freshness/latency), incl. every PROPOSED-register
-value asserted as provisional. **Per-ID resolver:**
+typed errors, idempotency, ordering, freshness/latency). HB-007 items 1–8 and 13 are
+asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain provisional.
+**Per-ID resolver:**
 
 | Cell | Layer set | Risk | Live/ops dup | Blocked remainder |
 |---|---|---|---|---|
@@ -298,6 +310,30 @@ value asserted as provisional. **Per-ID resolver:**
 
 ## 9. Closure statement
 
+### 9.1 Triggered-lane implementation/evidence ledger (2026-07-31)
+
+This ledger distinguishes executable machinery from external/human evidence; it does
+not change matrix allocation or unblock any finding.
+
+| Family | Implementation | Evidence status / executable path |
+| --- | --- | --- |
+| CF-B02-L3 / CF-B03-L3 / CF-B04-L3 | Complete | Real-pair suite at `claude-tests/fixtures/adapters/conformance.ts` + `live/campaign-live.test.ts`; no authorized provider campaign run. The Codex real pair cannot bind its hook socket in this desktop sandbox and remains runnable on an ordinary host/CI. |
+| CF-B01-L3 | Complete | Real exact-sandbox GitHub surface implemented in `claude-tests/live/real-github-surface.ts`; no sandbox-repo campaign run. |
+| CF-J16-A | Complete | Real launchd install/readback/attributable-tick/scoped-removal case implemented; no host campaign run. |
+| CF-J18-A | Complete | `src/org/validation-test-mode.ts` + L3 case; no unattended campaign run. |
+| CF-S1-qual | Runner + cases complete | Planner cases committed with `human_validation=pending`; threshold F-PT-010 open, so any run is inconclusive. |
+| CF-S3-qual+judge | Runner + cases complete | Seeded reviewer/clean cases committed with `human_validation=pending`; F-PT-009 open, so any run is inconclusive and judge scores remain inadmissible. |
+| CF-S2-traj | Complete | Deterministic trajectory scenarios committed; repeat-loop N=3 remains proposed only. |
+| CF-OPS-CONT | Complete | `claude-tests/ops/contention-rig.ts`; ratified ≥10/≥3/WIP=2 shape green in hermetic self-test. |
+| CF-OPS-SOAK / CF-OPS-ROT | Collector complete | `claude-tests/ops/soak-protocol.ts`; real seven-day/sleep/rotation evidence pending human scheduling. |
+| CF-OPS-ABUSE | Gate only; blocked | `claude-tests/ops/threat-model-gate.ts` refuses the checked-in `awaiting_human_author` status. No abuse cases before HB-072. |
+| CF-HARNESS-REPORT | Complete | Durable reports debit unknown failed-case spend conservatively, keep exact-ceiling coverage incomplete, bind canonical policy/golden inputs to authorized HEAD, and surface corrupt/inconclusive evidence without green. |
+
+- HB-080 runbook: complete at `docs/qualification/validation-triage.md` and linked
+  from campaign presentation surfaces.
+- HB-081 inconclusive semantics: complete with product detector at
+  `claude-tests/hermetic/cf-harness-report/campaign-report-surfaces.test.ts`.
+
 - **Journeys:** 18 × 5 = **90 semantic cells, written as 86 table rows** (the single
   J-13 row covers its five dup-pruned cells). Accounting: **81 family cells + 9
   pruned/blocked cells** — J-06-A (na), J-10-A (na), J-13 ×5 (dup), J-16-RC (dup),
@@ -331,7 +367,8 @@ value asserted as provisional. **Per-ID resolver:**
   publish-origin clauses) — opened at Wave-1 implementation 2026-07-31; F-PT-006 (CF-J10-I,
   CF-SM-EVENT-*, CF-B13-*; contract-matrix remainder CF-C-B13), F-PT-008
   (CF-J06-I, CF-B09a-*; contract-matrix remainder CF-C-B09A), B-17-L3 (CF-J17-A,
-  CF-B17-*; contract-matrix remainder CF-C-B17).
+  CF-B17-*; contract-matrix remainder CF-C-B17), F-PT-017 (CF-C-CORE terminal-
+  status enum clause), F-PT-018 (CF-HARNESS-CI required-check enforcement).
   <!-- changelog 2026-07-31 (audit AUD-106): §5 per-ID resolver's five blocked
   contract-matrix remainders added to this roll-up so it is the complete register. -->
   <!-- ratification 2026-07-31: F-PT-003 (CF-J07-I), F-PT-004 (CF-J04-I/CF-B15-*

@@ -4,7 +4,9 @@ import { basename, join } from "node:path";
 import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
 import type { AppsFile } from "../org/apps.js";
 import type { TurnLock } from "../org/locks.js";
+import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 import { readParentTask, type ParentTaskRecord } from "../org/parent-task.js";
+import { readValidationCampaignReports } from "../org/validation-campaign.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { readEvents } from "../runtime/runlog/events.js";
 import { runPaths } from "../runtime/runlog/paths.js";
@@ -38,10 +40,19 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
   const tasks = await indexParentTasks(options.stateHome);
   const approvals = await indexApprovals(options.stateHome);
   const ledger = await readJsonlDirectory<TurnRecord>(join(options.stateHome, "telemetry"));
+  const budgetRows = await rollupBudgets(options.stateHome, options.appsFile, now);
+  const budgetPausedApps = (await Promise.all(
+    options.appsFile.apps.map(async (app) => ({
+      app: app.name,
+      paused: await isOverlayPaused(options.stateHome, app.name),
+    })),
+  )).filter((entry) => entry.paused).map((entry) => entry.app);
   const invocations = await readJsonlDirectory<InvocationRecord>(join(options.stateHome, "invocations"));
   const schedule = await readObjectFile(join(options.stateHome, "state", "schedule.json"));
   const locks = await indexLocks(join(options.stateHome, "locks"));
   const inbox = await indexInbox(join(options.stateHome, "state", "events", "inbox"));
+  const validationCampaigns = await readValidationCampaignReports(options.stateHome);
+  errors.push(...validationCampaigns.corrupt.map((item) => `validation campaign ${item.campaign_id}: ${item.detail}`));
   errors.push(...ledger.errors.map((error) => `ledger: ${error}`));
   errors.push(...invocations.errors.map((error) => `invocations: ${error}`));
 
@@ -52,9 +63,14 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
     source("ledger", ledger.errors.length > 0 ? "degraded" : "healthy", observedAt, ledger.errors.join("; ") || "Telemetry ledger readable"),
     source(
       "scheduler",
-      schedule.error !== undefined || locks.errors.length > 0 || inbox.some((item) => item.error !== undefined) ? "degraded" : "healthy",
+      schedule.error !== undefined || locks.errors.length > 0 || inbox.some((item) => item.error !== undefined)
+        ? "degraded"
+        : "unavailable",
       observedAt,
-      schedule.error ?? (locks.errors.join("; ") || "Schedule, lock, and event state readable"),
+      schedule.error ?? (
+        locks.errors.join("; ") ||
+        "Scheduler operational health is not measured by local definition, lock, or inbox readability"
+      ),
     ),
   ];
 
@@ -72,11 +88,14 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
     corrupt_tasks: tasks.corrupt,
     approvals: approvals.records,
     ledger: ledger.records,
+    budget_rows: budgetRows,
+    budget_paused_apps: budgetPausedApps,
     invocations: invocations.records,
     schedule: schedule.value,
     locks: locks.records,
     inbox,
     source_health: sourceHealth,
+    validation_campaigns: validationCampaigns,
   };
 }
 
@@ -231,8 +250,9 @@ async function readJsonlDirectory<T>(dir: string): Promise<{ records: T[]; error
         records.push(JSON.parse(line) as T);
       } catch (error) {
         const hasLaterData = lines.slice(index + 1).some((candidate) => candidate.trim().length > 0);
-        if (hasLaterData) errors.push(`${file}:${index + 1}: malformed mid-file`);
-        // A malformed final nonempty line is a torn append: retry next scan.
+        errors.push(
+          `${file}:${index + 1}: ${hasLaterData ? "malformed mid-file" : "torn final append"}`,
+        );
       }
     }
   }

@@ -21,14 +21,15 @@ the lazy bounded report service. Persists no index or session store.
   every other root Working rule applies unchanged.
 
 ## Testing
-Interim during the validation rebuild (root AGENTS.md → Testing
-expectations): `pnpm test && pnpm typecheck`, plus `pnpm build`,
+Replacement harness (root AGENTS.md → Testing expectations):
+`pnpm test && pnpm typecheck`, plus `pnpm build`,
 `pnpm smoke:onboarding`, and `npm pack --dry-run` for packaging-visible
-changes. The browser suite is archived with the legacy harness. When the
-replacement harness covers this leaf, its tests must pin UTC boundaries,
+changes. The browser suite is archived with the legacy harness. The replacement
+harness now covers deterministic surfaces and must continue to pin UTC boundaries,
 ledger corruption/concurrency, accounting quality and duplicates,
 deterministic session identity, budget agreement, CSP/L3 exclusion,
-pagination resync, immutable app scope, and read-only behavior.
+pagination resync, immutable app scope, validation-campaign truth semantics, and
+read-only behavior.
 
 ## References
 `docs/reporting/design.md`

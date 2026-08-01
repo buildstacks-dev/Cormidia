@@ -105,6 +105,13 @@ Recovery is **deferred until the owned process group is confirmed dead**
 (`killHungTurns` in `src/org/dispatch.ts`): a surviving child that also holds
 the per-app clone lock would otherwise let two workers mutate one clone. If a
 leader or descendant refuses to die this tick, recovery waits for a later one.
+Before the first signal, the current lock and running journal must agree on the
+complete PID + process-start + nonce token and the OS probe must confirm that
+PID/start identity. A mismatch or unavailable probe is a typed deferral, never
+permission to signal a possibly reused PID. Turn-lock acquire, adoption,
+heartbeat, and release are serialized by a nonce-owned mutation guard; release
+checks the complete ownership token inside that critical section, so a holder
+finishing after reclamation cannot delete its successor.
 
 Inside a pass, the executor also owns a shorter adapter-start deadline
 (default 30 seconds). The first adapter progress checkpoint or streamed event

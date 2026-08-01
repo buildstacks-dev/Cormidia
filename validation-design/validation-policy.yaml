@@ -50,6 +50,9 @@ artifacts:                       # design root now; moves with the harness to cl
   elicitation_log: ./elicitation-log.md
   design_state: ./harness-design-state.md
   ratification_package: ./ratification-package.md
+  operator_triage: ./operator-triage-runbook.md
+  threat_model_template: ./threat-model-template.md
+  threat_model_status: ./threat-model-status.yaml
 
 implementation_root: claude-tests/          # per docs/PURPOSE.md v2.9
 protected_paths:
@@ -69,18 +72,18 @@ invariants:                                  # registry; statements in invariant
 
 layers:                                      # the audit's diff surface
   L1_invariant_contract:
-    status: designed
+    status: "implemented through backlog Wave 4; full-gate evidence recorded in harness-design-state.md"
     cadence: every_commit
     runner: "vitest + fast-check (bounded deterministic seeds)"
     content: "invariant guardrail tests, contract clause tests, LLM contract layer, trajectory pass/fail assertions (ratified grounds only)"
   L2_hermetic:
-    status: designed
+    status: "implemented through backlog Wave 4, including CF-OPS-CONT's hermetic L5 rig"
     cadence: every_commit
     fixtures: "owned in-process fakes (GitHub double, fake App Server JSON-RPC, mocked adapters, fake clock, kill-point process harness) plus real temp git repos/worktrees/org+state homes; mock across boundaries, never inside"
     conformance_pairs: "same suite runs against fake and real dependency (drift guard)"
   L3_live_sandbox:
-    status: designed
-    runner: "separate opt-in vitest live config"
+    status: "runner/profile implemented; no authorized live campaign executed in this change"
+    runner: "separate opt-in vitest live config; OPERON_LIVE=1 + absolute reviewed authorization file; checked-out HEAD and canonical tracked policy blob must match the authorized commit"
     obligations:
       - id: CF-B01-L3            # GitHub smoke
         target: "sandbox repos (apps.yaml sandbox class)"
@@ -120,8 +123,8 @@ layers:                                      # the audit's diff surface
         max_equiv_usd: 100
       on_ceiling_exhaustion: "completeness=incomplete; verdict per verdict_semantics (never pass)"
   L4_eval:
-    status: "designed (all quality thresholds unratified - decision-status rule below)"
-    runner: "hand-rolled runner over golden-sets/ (plain files in git)"
+    status: "data-collection runner implemented; all quality thresholds unratified; reviewer/planner human reference validation pending"
+    runner: "hand-rolled per-tuple runner over golden-sets/ (plain files in git); OPERON_EVAL=1 + absolute reviewed authorization file; HEAD, canonical policy, and every golden input must be tracked and byte-identical at the authorized commit"
     sites: "S-1..S-7 and S-9 per llm-eval-plan.md (S-8 intentionally absent)"
     decision_status_rule: >
       No PROPOSED/hypothesis threshold yields pass or fail. Until the owning finding
@@ -130,23 +133,27 @@ layers:                                      # the audit's diff surface
       are inadmissible until their calibration sets exist AND thresholds ratify.
     cadence: "per-site prompt/model/instruction change; release qualification; nightly rotating shards (when scheduled validation exists); token ceiling declared per campaign; partial evidence preserved"
   L5_ops:
-    status: designed
+    status: "contention rig + soak collector implemented; real seven-day evidence pending; human threat model pending; abuse lane blocked"
     obligations:
       - id: CF-OPS-CONT          # contention (L5 by question; hermetic rig)
+        implementation_status: "implemented; deterministic rig green"
         design: ">=10 due candidates, >=3 apps, duplicate (app,role) stimuli, simultaneous terminal settlement; six proof obligations (risk-allocation section 6)"
         owner: human
         trigger: "pre-GA; repeat on material scheduler/locking change"
       - id: CF-OPS-SOAK          # 7-day laptop soak, owner-ratified
+        implementation_status: "resumable collector implemented; human-started seven-day campaign not run"
         design: "7 calendar days ordinary laptop use, >=3 sleep/wake cycles (1 overnight), sandbox only, 15 USD ceiling; inspection list per risk-allocation section 6"
         owner: human
         trigger: "initial autonomous qualification; repeat on material scheduler/locking/settlement/retention/shape change"
       - id: CF-OPS-ROT           # Codex natural rotation sub-obligation (own evidence)
         parent: CF-OPS-SOAK
+        implementation_status: "collector implemented; natural live evidence not observed"
         rule: "no natural rotation observed => completeness=incomplete, never assumed covered"
       - id: threat-model         # owner-ratified scope + timing; human-confirmed 2026-07-31
         design: "STRIDE-style pass over boundary-map; scope = trust boundaries behind all C3 control points (ten surfaces, risk-allocation section 6)"
         owner: human
         note: "human-authored (confirmed at ratification 2026-07-31); sits on the critical path to release-gating reactivation"
+        implementation_status: "ten-surface template + hash-bound admission gate implemented; status awaiting_human_author"
         due_before_earliest_of: [release_gating_reactivation, droplet_migration, first_non_sandbox_production_onboarding]
         review_trigger: "material trust-boundary/deployment-shape/adapter-capability/reachable-surface change"
       - id: secret-hygiene
@@ -155,6 +162,7 @@ layers:                                      # the audit's diff surface
         cadence: every_ci_run
       - id: abuse-lane
         status: "deferred_declared (behind ratified threat model)"
+        implementation_status: "fail-closed admission gate implemented; no cases authored before human threat model"
         interim_floor: "INV-001/002/011/015 adversarial families"
 
 verdict_semantics:                           # owner-ratified
@@ -166,7 +174,7 @@ verdict_semantics:                           # owner-ratified
     - "incomplete never produces pass; not a fourth verdict"
 
 unattended_test_mode_profile:                # canonical definition (B-09b cross-ref)
-  status: "human-ratified as shaped 2026-07-31; pending product implementation in Operon (HB-054 gate)"
+  status: "human-ratified and implemented in Operon; live CF-J18-A campaign evidence pending human initiation"
   applies_to: "sandbox orgs only"
   effect: "the allowed validation path requires zero human approval decisions (designed auto-grant categories, e.g. budget-tier items, within the profile)"
   prohibitions:

@@ -1,0 +1,16 @@
+schema_version: 1
+status: awaiting_human_author
+human_authored: false
+human_reviewed: false
+artifact: threat-model-template.md
+artifact_sha256: null
+author: null
+authored_at: null
+reviewer: null
+reviewed_at: null
+covered_surfaces: []
+abuse_case_ids: []
+release_gating_acknowledged: false
+note: >-
+  This status is intentionally blocking. The checked-in template is a scaffold,
+  not the human-authored threat model required by HB-072.

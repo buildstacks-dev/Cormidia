@@ -30,7 +30,10 @@ Status: DRAFT (Phase 4). Defends INV-008/009/014, T-7/T-9. Journeys J-02/03/04/0
   (INV-003 branch, T-12 for executor ops).
 - Retry budget: **human-ratified at HB-007 review 2026-07-31** — 3 total attempts
   per operation, jittered exponential backoff, and an injectable clock so the
-  schedule is deterministic under test.
+  schedule is deterministic under test. The automatic schedule applies to reads and
+  exact-input idempotent mutations. Creates and other effect-ambiguous writes remain
+  single-shot after a failed response and enter marker/readback reconciliation; the
+  retry budget never overrides the lost-response prohibition above.
 
 ## 4. Idempotency
 - Creates carry detectable markers (Planned-by trailer + published-tickets mirror for

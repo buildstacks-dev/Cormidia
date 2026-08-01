@@ -464,9 +464,16 @@ export class ClaudeRuntime implements Runtime {
         quality: totalCostUsd > 0 ? "partial" : "unavailable",
       };
     }
+    const status = budgetOverrun
+      ? "failed"
+      : escalations.length > 0
+        ? "blocked_on_gate"
+        : resultMsg.subtype === "success"
+          ? "completed"
+          : "failed";
     return {
       ...(resultMsg.subtype !== "success" ? { errorCode: resultMsg.subtype } : {}),
-      status: resultMsg.subtype === "success" ? "completed" : "failed",
+      status,
       summary:
         resultMsg.subtype === "success"
           ? structuredResultSummary(req, resultMsg)

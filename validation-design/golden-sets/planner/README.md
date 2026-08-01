@@ -1,5 +1,8 @@
-# S-1 Planner (S-1a TicketPlan / S-1b episode design) — STATUS: SCAFFOLD/UNPOPULATED
-Cannot support model-swap or qualification evidence yet.
+# S-1 Planner (S-1a TicketPlan / S-1b episode design) — STATUS: POPULATED / HUMAN REFERENCE REVIEW PENDING
+`cases.json` contains the first committed S-1a/S-1b goals and rubric anchors,
+authored before prompt tuning. Data collection is permitted; model-swap and
+qualification evidence remain inadmissible until human reference review and
+F-PT-010 ratification.
 
 Rubric axes: decomposition sanity · dependency correctness · acceptance-criteria
 usefulness (binary/testable/mapped) · role/step necessity · proportionality (expected

@@ -211,6 +211,12 @@ export interface GhExecResult {
 
 export type GhExec = (args: readonly string[], input?: string) => Promise<GhExecResult>;
 
+/** Injectable wait/random seam for the ratified B-01 retry schedule. */
+export interface GhRetryClock {
+  sleep(delayMs: number): Promise<void>;
+  random(): number;
+}
+
 export interface GhOpsErrorDetails {
   args: readonly string[];
   stdout: string;
@@ -257,15 +263,17 @@ export class GhCliOps implements GhOps {
   readonly repo: string;
   private readonly exec: GhExec;
   private readonly selfApprovalSecret?: string;
+  private readonly retryClock: GhRetryClock;
 
-  constructor(repo: string, exec: GhExec = defaultGhExec, selfApprovalSecret?: string) {
+  constructor(repo: string, exec: GhExec = defaultGhExec, selfApprovalSecret?: string, retryClock: GhRetryClock = defaultGhRetryClock) {
     this.repo = repo;
     this.exec = exec;
+    this.retryClock = retryClock;
     if (selfApprovalSecret !== undefined) this.selfApprovalSecret = selfApprovalSecret;
   }
 
   async addLabel(issueNumber: number, label: string): Promise<void> {
-    await this.run(["issue", "edit", String(issueNumber), "--repo", this.repo, "--add-label", label]);
+    await this.run(["issue", "edit", String(issueNumber), "--repo", this.repo, "--add-label", label], undefined, true);
   }
 
   async removeLabel(issueNumber: number, label: string): Promise<void> {
@@ -277,7 +285,7 @@ export class GhCliOps implements GhOps {
       this.repo,
       "--remove-label",
       label,
-    ]);
+    ], undefined, true);
   }
 
   async swapLabel(issueNumber: number, removeLabel: string, addLabel: string): Promise<void> {
@@ -291,7 +299,7 @@ export class GhCliOps implements GhOps {
       addLabel,
       "--remove-label",
       removeLabel,
-    ]);
+    ], undefined, true);
   }
 
   async commentIssue(issueNumber: number, body: string): Promise<void> {
@@ -356,6 +364,7 @@ export class GhCliOps implements GhOps {
     await this.run(
       ["issue", "edit", String(issueNumber), "--repo", this.repo, "--body-file", "-"],
       body,
+      true,
     );
   }
 
@@ -372,7 +381,7 @@ export class GhCliOps implements GhOps {
       "--description",
       input.description,
       "--force",
-    ]);
+    ], undefined, true);
   }
 
   async listLabels(): Promise<EnsureLabelInput[]> {
@@ -433,6 +442,7 @@ export class GhCliOps implements GhOps {
     await this.run(
       ["pr", "edit", String(prNumber), "--repo", this.repo, "--body-file", "-"],
       body,
+      true,
     );
   }
 
@@ -626,21 +636,31 @@ export class GhCliOps implements GhOps {
     await this.run(["api", "-X", "DELETE", `repos/${this.repo}/git/refs/heads/${branch}`]);
   }
 
-  private async run(args: readonly string[], input?: string): Promise<GhExecResult> {
-    const result = await this.exec(args, input);
-    if (result.exitCode !== 0) {
-      throw new GhOpsError(`gh ${args.join(" ")} failed with exit ${result.exitCode}`, {
+  private async run(args: readonly string[], input?: string, retrySafe = false): Promise<GhExecResult> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const result = await this.exec(args, input);
+      if (result.exitCode === 0) return result;
+      const failure = new GhOpsError(`gh ${args.join(" ")} failed with exit ${result.exitCode}`, {
         args,
         stdout: result.stdout,
         stderr: result.stderr,
         exitCode: result.exitCode,
       });
+      // Creates, comments, reviews, merges, closes, and deletes stay single-shot:
+      // their failed response may hide a completed effect and must reconcile via
+      // markers/readback instead of blind retry. Only reads and operations that
+      // are idempotent for the exact input enter the bounded retry schedule.
+      if (!retrySafe || !isRetryableGithubFailure(result) || attempt === 2) throw failure;
+      const random = this.retryClock.random();
+      if (!Number.isFinite(random) || random < 0 || random > 1) throw new Error("GitHub retry clock random() must return a value in [0, 1]");
+      const delayMs = Math.round(250 * (2 ** attempt) * (0.5 + random));
+      await this.retryClock.sleep(delayMs);
     }
-    return result;
+    throw new Error("unreachable GitHub retry state");
   }
 
   private async runJson(args: readonly string[], input?: string): Promise<unknown> {
-    const result = await this.run(args, input);
+    const result = await this.run(args, input, true);
     try {
       return JSON.parse(result.stdout) as unknown;
     } catch (error) {
@@ -650,6 +670,12 @@ export class GhCliOps implements GhOps {
       );
     }
   }
+}
+
+function isRetryableGithubFailure(result: GhExecResult): boolean {
+  const detail = `${result.stderr}\n${result.stdout}`;
+  return /rate[ -]?limit|secondary rate limit|\bHTTP\s*:?[ ]*429\b/i.test(detail)
+    || /\b(?:HTTP|status(?: code)?|server returned)\s*:?[ ]*5\d\d\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(detail);
 }
 
 function isSelfApprovalError(error: unknown): boolean {
@@ -700,6 +726,11 @@ function defaultGhExec(args: readonly string[], input?: string): Promise<GhExecR
     else child.stdin.end();
   });
 }
+
+const defaultGhRetryClock: GhRetryClock = {
+  sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+  random: () => Math.random(),
+};
 
 function parseIssueList(raw: unknown): GhIssue[] {
   if (!Array.isArray(raw)) throw new Error("gh issue list output is not a list");

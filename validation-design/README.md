@@ -4,9 +4,10 @@
 
 ## What this corpus is — and is not
 
-This is the **design** of Operon's replacement validation harness (campaign
-operon-2026-07-31, validation-harness-design skill, Phases 0–8). It defines what must
-be tested, where, and why. It is **not**:
+This is the ratified **design and implementation index** for Operon's replacement
+validation harness (campaign operon-2026-07-31, validation-harness-design skill,
+Phases 0–8). The executable implementation lives under `../claude-tests/`; current
+machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not**:
 
 - **A statement of deployed reality.** Nothing here tells you whether the scheduler is
   installed or an app is live *right now* (finding F-PT-002 — resolved 2026-07-31 with
@@ -14,11 +15,10 @@ be tested, where, and why. It is **not**:
   product). For live state, use
   the product: `operon scheduler status`, `operon status`, `operon doctor` — documented
   in the product's `docs/`, not here.
-- **An incident runbook.** There is no alert→action mapping here. Triage sequencing is
-  an operational deliverable owed at harness *implementation* time (ticket HB-080 in
-  harness-backlog.md, converted from the ratification-package open item). What this corpus does give an operator:
-  severity (system-map.md §5.2, T-1…T-12), what must never break (invariants.md), and
-  expected behavior per contract.
+- **A substitute for the operator runbook.** HB-080 is complete: use
+  `operator-triage-runbook.md`, which points to the packaged canonical mapping at
+  `../docs/qualification/validation-triage.md`. This corpus still supplies severity
+  (system-map.md §5.2, T-1…T-12), invariants, and expected contract behavior.
 - **Self-contained product truth.** `[doc]`-tagged claims are *derived from* the
   product's `./docs/` corpus, which remains authoritative for command syntax, schemas,
   and paths. This working map makes the derivation surface explicit; it does not
@@ -36,10 +36,13 @@ be tested, where, and why. It is **not**:
 8. `case-catalog.md` — every derived case family, matrix-closed.
 9. `validation-policy.yaml` — the machine-readable contract (audit diff surface).
 10. `harness-backlog.md` — ticket-shaped build plan (walking skeleton first).
-11. `agents-md-contribution.md` — repo routing (ratified 2026-07-31; binding once
+11. `operator-triage-runbook.md` — reportable alert classes → operator actions.
+12. `threat-model-status.yaml` / `threat-model-template.md` — intentionally blocked
+    human-authoring gate for HB-072/HB-073.
+13. `agents-md-contribution.md` — repo routing (ratified 2026-07-31; binding once
     landed in AGENTS.md).
-12. `elicitation-log.md` / `harness-design-state.md` — provenance and gate history.
-13. `ratification-package.md` — what a human must decide to make this binding
+14. `elicitation-log.md` / `harness-design-state.md` — provenance and gate history.
+15. `ratification-package.md` — what a human must decide to make this binding
     (created at the final campaign gate; **ratified 2026-07-31** — its §9
     "Ratification record" is the disposition of every decision).
 
@@ -55,11 +58,16 @@ be tested, where, and why. It is **not**:
   deploy/publication cell is BLOCKED** — should a deploy/publication-shaped incident
   occur, it would be operating in the least-verified part of the system. <!-- AUD-109 --> No surface may imply a gate
   exists.
-- **Eleven product-truth findings are tracked; two still block cases** (F-PT-006/008).
-  If an incident touches one of those seams — partial/duplicate event files, grant
-  expiry disposition — the artifacts deliberately encode **no
-  expected behavior**. That is honesty, not coverage: escalate to the human, don't
-  infer. F-PT-003/004/007 were ratified 2026-07-31 (budget-pause convergence:
+- **Implemented does not mean evidenced.** L3 live machinery and the L5 soak collector
+  exist, but no external campaign or seven-day window was run in this implementation
+  change. Reviewer/planner golden references still await human validation. These are
+  reported incomplete/inconclusive, never green.
+- **Eighteen product-truth findings are tracked; nine still park exact cells**
+  (F-PT-006/008/012…018). If an incident touches one of those seams, the named cell
+  deliberately encodes **no expected behavior**. That is honesty, not coverage:
+  escalate to the human, don't infer. F-PT-009/010/011 do not prevent data collection
+  but keep quality thresholds inconclusive. F-PT-003/004/007 were ratified 2026-07-31
+  (budget-pause convergence:
   pause holds, exactly one item; ambiguous worktree bytes: preserve-and-inspect;
   bootstrap concurrent edit: compare-and-refuse preserving human bytes) — their
   contracts are now encoded. <!-- ratification 2026-07-31: was "five block cases" -->
@@ -81,4 +89,4 @@ be tested, where, and why. It is **not**:
 | `E-1/E-2/E-3, STD, THIN, FLOOR, L4Q` | risk allocation vocabulary | risk-allocation.md §2, case-catalog.md header |
 | `CF-*` | case families | case-catalog.md |
 | `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31, HB-P3/P5 still parked) | harness-backlog.md |
-| `F-PT-001…011` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |
+| `F-PT-001…018` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |

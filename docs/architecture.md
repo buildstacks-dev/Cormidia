@@ -281,6 +281,9 @@ state/turns/<turnId>.json  turn journals (§3)
 state/budget-overlay.json  dispatcher budget-pause overlay (§7)
 scheduler/installation.json  org-scoped scheduler ownership/definition record
 scheduler/evidence/      versioned invocation, route-decision, and alert JSON
+validation/campaigns/<id>/report.json  versioned triggered-validation report;
+                         completeness and verdict are separate product facts
+validation/soaks/<id>/state.json  resumable seven-day soak checkpoint evidence
 standing-roles/<app>/    grounded drafts + lifecycle-bound Planner feeds/consumption receipts
 locks/<app>--<role>.lock
 approvals/               pending/ decided/ grants/ log.jsonl (§4)

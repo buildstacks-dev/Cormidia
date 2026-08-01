@@ -43,6 +43,7 @@ journey-acceptance.md alias table.
 | Cell | Case family | Layer | Oracle | Risk |
 |---|---|---|---|---|
 | CF-HARNESS-CI | Per-commit workflow shape, fail-closed jobs, detector canaries, and actual merge-blocking enforcement. Workflow-shape checks are implemented; required-check enforcement is **BLOCKED:F-PT-018**. | 1 + CI | evid+det | FLOOR |
+| CF-HARNESS-REPORT | Durable completeness/verdict truth table; exact-ceiling, unknown-partial-spend, corrupt-report, canonical-policy/golden-blob binding, and presentation negative controls | 1/2 | evid+refusal+det | FLOOR |
 
 ## 1. Journey matrix (J × success / refusal / interruption / recovery / alt-initiators+observations)
 
@@ -189,7 +190,7 @@ obligation exists.
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-B01-{ok,to,ps,rt,dup,stale,skew} | scripted GitHub double: success ops; timeouts/rate limits; partial success (issue-no-label, merge-no-branch-delete); bounded retry w/ markers; duplicate-create detection; stale-read-after-write re-read; default-branch-moved + force-push skew. Lost-response mode in `ps`+`rt` | 2 | state+evid | E3 |
+| CF-B01-{ok,to,ps,rt,dup,stale,skew} | scripted GitHub double: success ops; timeouts/rate limits; partial success (issue-no-label, merge-no-branch-delete); ratified 3-total-attempt jittered exponential retry (injected clock) for reads/idempotent exact-input operations, while ambiguous writes remain single-shot for marker reconciliation; duplicate-create detection; stale-read-after-write re-read; default-branch-moved + force-push skew. Lost-response mode in `ps`+`rt` | 2 | state+evid | E3 |
 | CF-B01-L3 | **the GitHub live smoke** (risk-allocation §5 trigger: merge/review/branch/auth changes): real auth, squash-merge + branch-protection semantics, HMAC review submission, poll truth — on sandbox repos, spend-bounded | 3 | live | E3 |
 | CF-B02-* | adapter core against scripted Anthropic: outcomes, tool-events w/o terminal, malformed verdicts, usage absent/partial, resume-mismatch typed, partial stream | 2 | state | E2 (T-11 exhaustive) |
 | CF-B02-L3 | **Anthropic real-adapter conformance run** (same suite as the fake — drift guard; §5 trigger + bounds) | 3 | live | E2 |
@@ -199,7 +200,7 @@ obligation exists.
 | CF-B04-L3 | **pi real-adapter conformance run**: real extension installation + real denied forbidden attempt (§5 trigger + bounds) | 3 | live | E1 |
 | CF-B05-* | faked host surface: install/uninstall idempotency + refusals, status joins; unfakeable load-and-fire = CF-J16-A (L3) | 2 | evid | STD |
 | CF-B06-* | fake-clock sweep: TTL, heartbeat 30s/2min/10min semantics, UTC windows vs host-time scheduling, missed-window (app,role,trigger,window) reconciliation, rollback/NTP/DST/timezone anomalies fail closed | 2 | state | E2 |
-| CF-B07-* | kill-point injection harness; PID-reuse liveness; signal-vs-terminal-write race; orphaned descendant cleanup; dead-child-fresh-heartbeat | 2 | state | E2 |
+| CF-B07-* | kill-point injection harness; PID-reuse liveness; full journal↔lock PID/start/nonce binding before signal; nonce-bound serialized release refuses a late holder and cannot remove its successor; unknown/mismatched ownership refuses kill; signal-vs-terminal-write race; orphaned descendant cleanup; dead-child-fresh-heartbeat | 2 | state | E2 |
 | CF-B08-* | PRUNE-dup:CF-J09-* (tick↔turn cells are exactly the J-09 families) | — | — | — |
 | CF-B09a-* | continuation set persisted/validated; TTL expiry typed (**item disposition BLOCKED:F-PT-008**); orphan-grant intermediate recognizable, never usable authorization | 2 | state | E1 |
 | CF-B09b-* | decision-entry: one-by-one + reason, batch same-rule per-item audit, widen human-only, revocation, concurrent decisions first-write-wins; unattended-profile prohibition cases (no forged human decisions; zero-decision evidence) | 2 | state+evid | E1 |
@@ -308,6 +309,30 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 ---
 
 ## 9. Closure statement
+
+### 9.1 Triggered-lane implementation/evidence ledger (2026-07-31)
+
+This ledger distinguishes executable machinery from external/human evidence; it does
+not change matrix allocation or unblock any finding.
+
+| Family | Implementation | Evidence status / executable path |
+| --- | --- | --- |
+| CF-B02-L3 / CF-B03-L3 / CF-B04-L3 | Complete | Real-pair suite at `claude-tests/fixtures/adapters/conformance.ts` + `live/campaign-live.test.ts`; no authorized provider campaign run. The Codex real pair cannot bind its hook socket in this desktop sandbox and remains runnable on an ordinary host/CI. |
+| CF-B01-L3 | Complete | Real exact-sandbox GitHub surface implemented in `claude-tests/live/real-github-surface.ts`; no sandbox-repo campaign run. |
+| CF-J16-A | Complete | Real launchd install/readback/attributable-tick/scoped-removal case implemented; no host campaign run. |
+| CF-J18-A | Complete | `src/org/validation-test-mode.ts` + L3 case; no unattended campaign run. |
+| CF-S1-qual | Runner + cases complete | Planner cases committed with `human_validation=pending`; threshold F-PT-010 open, so any run is inconclusive. |
+| CF-S3-qual+judge | Runner + cases complete | Seeded reviewer/clean cases committed with `human_validation=pending`; F-PT-009 open, so any run is inconclusive and judge scores remain inadmissible. |
+| CF-S2-traj | Complete | Deterministic trajectory scenarios committed; repeat-loop N=3 remains proposed only. |
+| CF-OPS-CONT | Complete | `claude-tests/ops/contention-rig.ts`; ratified ≥10/≥3/WIP=2 shape green in hermetic self-test. |
+| CF-OPS-SOAK / CF-OPS-ROT | Collector complete | `claude-tests/ops/soak-protocol.ts`; real seven-day/sleep/rotation evidence pending human scheduling. |
+| CF-OPS-ABUSE | Gate only; blocked | `claude-tests/ops/threat-model-gate.ts` refuses the checked-in `awaiting_human_author` status. No abuse cases before HB-072. |
+| CF-HARNESS-REPORT | Complete | Durable reports debit unknown failed-case spend conservatively, keep exact-ceiling coverage incomplete, bind canonical policy/golden inputs to authorized HEAD, and surface corrupt/inconclusive evidence without green. |
+
+- HB-080 runbook: complete at `docs/qualification/validation-triage.md` and linked
+  from campaign presentation surfaces.
+- HB-081 inconclusive semantics: complete with product detector at
+  `claude-tests/hermetic/cf-harness-report/campaign-report-surfaces.test.ts`.
 
 - **Journeys:** 18 × 5 = **90 semantic cells, written as 86 table rows** (the single
   J-13 row covers its five dup-pruned cells). Accounting: **81 family cells + 9

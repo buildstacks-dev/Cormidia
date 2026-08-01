@@ -1413,3 +1413,18 @@ Before implementation, a new session should:
 8. Treat reports as read-only projections; do not repair source history during
    generation.
 9. Run and report every required verification command exactly.
+
+## 21. Triggered-validation evidence addendum (2026-07-31)
+
+Reports read `validation/campaigns/*/report.json` through the product-owned schema in
+`src/org/validation-campaign.ts`. The source is read-only and outside range filtering:
+a campaign is target-scoped current evidence, not a provider session or historical
+ledger row. Org reports show every report; app reports show campaigns naming that app.
+
+Each row renders lane, campaign kind, separate completeness/verdict, collected/required
+cases, and observed/max spend. `inconclusive` must render as “NOT A PASS; NOT RELEASE
+EVIDENCE,” never with pass/green semantics. An unreadable or identity-mismatched report
+renders corrupt/incomplete and adds a data-quality notice; absence renders no recorded
+campaign evidence, not success. Every nonempty campaign section points to
+`docs/qualification/validation-triage.md`. Report generation never repairs or rewrites
+campaign evidence.

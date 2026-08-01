@@ -533,7 +533,7 @@ export async function runDispatchedTurn(
     return { status, summary: result.summary };
   } finally {
     clearInterval(heartbeat);
-    await releaseLock(runtimeHome, options.app.name, options.role.name);
+    await releaseLock(runtimeHome, options.app.name, options.role.name, turnLock);
   }
 }
 

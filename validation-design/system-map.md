@@ -140,6 +140,7 @@ named explicitly and the component writes under it.
 | Locks | `locks/` | owning turn (heartbeat) |
 | Schedule last-fired + consumed events | `state/schedule.json`, `state/events/` | dispatcher |
 | Scheduler installation + evidence | `scheduler/` | scheduler lifecycle commands / tick evidence writer |
+| Triggered-validation campaign + soak checkpoints | `validation/campaigns/<id>/report.json`, `validation/soaks/<id>/state.json` | authorized L3/L4/L5 runners write versioned campaign/checkpoint evidence; status/Report/Observe are read-only consumers; completeness and verdict remain separate |
 | Managed clones + worktrees | `repos/`, `worktrees/` | loop worktree management (never human checkouts) |
 | Invocation audit + journal | `invocations/`, `state/invocation-journal/` | CLI entry layer (idempotent terminal append) |
 | Self-approval HMAC key | `state/self-approval-secret` | orchestrator only (owner-only perms; fail closed) |
@@ -214,7 +215,7 @@ construction; default-branch/ancestry resolution `[walk: "the scar I keep touchi
 every branch/diff/ancestry/reset/release-bytes operation; settlement (M3) at every
 provider turn; the gate (M1) at every tool action.
 
-## 4. Open findings (product truth / architecture) — as raised through Phase 1 only; the authoritative full list (11 findings) is `validation-policy.yaml` → `open_findings` <!-- AUD-108 -->
+## 4. Open findings (product truth / architecture) — as raised through Phase 1 only; the authoritative full list (18 findings, including resolved records) is `validation-policy.yaml` → `open_findings` <!-- AUD-108 -->
 
 | ID | Kind | Statement | Status |
 |---|---|---|---|

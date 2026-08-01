@@ -1,20 +1,101 @@
 # Qualification and release gating
 
-> **Status 2026-07-31:** the executable machinery this contract governs
-> (`scripts/eval/**`, `eval/**`, the transformation suite, the
-> release-currency CI lane) is frozen under `archive-do-not-read/` and
-> qualification campaigns are **suspended** during the validation rebuild
-> (docs/PURPOSE.md → Decided, v2.9). The contract below remains the canonical
-> record the replacement harness must satisfy or consciously supersede.
+> **Status 2026-07-31:** the replacement per-commit harness and the bounded
+> L3/L4/L5 runners are implemented under `claude-tests/`, with the current
+> contract in `validation-design/validation-policy.yaml`. Release gating remains
+> **SUSPENDED**: no authorized external campaign or seven-day soak was run in the
+> implementation change, reviewer/planner human references and thresholds remain
+> pending, the human-authored threat model does not yet exist, and required-check
+> enforcement remains blocked by F-PT-018. Implemented machinery is not release
+> evidence.
 
-*How Operon itself earns the right to ship. A release candidate is proved by
+## Replacement campaign contract
+
+Every triggered runner requires a human-initiated, absolute reviewed config that pins
+the exact commit, state home, policy, target, and spend envelope. Missing authorization
+is a refusal/incomplete lane, never a skipped pass.
+At entry, the runner also binds checked-out HEAD to that commit, requires the canonical
+tracked `validation-design/validation-policy.yaml` blob to be byte-identical to HEAD,
+and (for L4) applies the same tracked-blob check to every golden-set input. An arbitrary
+absolute file cannot substitute for reviewed repository truth.
+
+```bash
+# L3: one exact campaign kind (changed adapter, GitHub, launchd, or release)
+OPERON_LIVE=1 OPERON_LIVE_CONFIG=/absolute/live.json pnpm test:live
+
+# L4: per-tuple data collection over committed golden sets
+OPERON_EVAL=1 OPERON_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
+
+# L5: human-started, resumable seven-day laptop soak
+OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
+OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- checkpoint --id <id>
+OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finish
+```
+
+The L3 config schema is `claude-tests/live/config.ts` and admits only four exact
+campaign shapes: one changed adapter; one sandbox-GitHub smoke; one launchd proof; or
+a release campaign containing all three adapters, sandbox GitHub, and the unattended
+profile (launchd is additionally selected when its release trigger applies). A partial
+release cannot call itself complete. Bounds are 2 turns/$5 for a changed-adapter
+pre-merge campaign and 24 turns/$100 for release. GitHub operations use the ratified
+three-attempt jittered exponential retry budget. Launchd proof requires exact loaded
+identity, an attributable tick, and removal of exactly that definition inside the
+recorded case. Each spending case reserves its worst-case turns and equivalent cost
+before execution. If the callback throws before returning trustworthy usage, the
+runner conservatively debits the entire reservation; unknown partial spend can reduce
+remaining campaign capacity, but can never disappear and make the hard ceiling
+exceedable.
+
+The L4 config schema is `claude-tests/eval-runner/cli.ts`: exact tuples, absolute
+committed golden-set files, a token ceiling, provider-turn/equivalent-cost ceilings,
+and an optional dated rotating shard. Results never pool tuples. The reviewer and
+planner sets are build-agent authored but still carry `human_validation=pending`.
+F-PT-009/010/011 and decision-register items 9–12 remain proposed, so
+threshold-dependent results are always `inconclusive`; the command exits 2 rather than
+misrepresenting data collection as a pass.
+
+The L5 soak config schema is `claude-tests/ops/soak-protocol.ts`: exact sandbox
+org/apps/repos, commit, local time zone, and the same human authorization envelope.
+The start command binds canonical config and policy digests into durable state; every
+checkpoint and finalization refuses drift, and the CLI refuses a checked-out commit
+different from the authorization.
+The collector records actual checkpoints and requires seven elapsed days, at least
+three real sleep/wake cycles including one overnight, missed-window reconciliation,
+WIP/duplicate/orphan and settlement evidence, partial-usage settlement, state-growth
+series, retention sweep sanity, source health, zero new human decisions, and at most
+24 provider turns/$15. CF-OPS-ROT additionally needs a natural Codex auth-rotation
+record with exact session and checkpoint preservation. Missing natural rotation makes
+the campaign incomplete; it is never injected or inferred.
+
+HB-072 remains human work. `validation-design/threat-model-template.md` is only a
+ten-surface worksheet, and `threat-model-status.yaml` intentionally says
+`awaiting_human_author`. The admission gate hash-binds a human-authored and reviewed
+artifact covering TM-01…TM-10 before HB-073 abuse cases or release-gating
+reactivation can proceed.
+
+Campaigns persist after every result at
+`<state-home>/validation/campaigns/<campaign-id>/report.json`. The product schema keeps
+`completeness` separate from `verdict`: proven violation ⇒ fail even if incomplete;
+otherwise incomplete ⇒ inconclusive; proposed decisions ⇒ inconclusive; pass requires
+complete evidence and a ratified/non-proposed decision. Status, terminal/HTML Reports,
+and Observe all render inconclusive as **not a pass and not release evidence** and link
+the operator runbook at `docs/qualification/validation-triage.md`.
+
+## Retained historical qualification contract
+
+The executable machinery named below (`scripts/eval/**`, `eval/**`, transformation
+suite, and release-currency lane) is frozen under `archive-do-not-read/` and must not
+be read or run. The historical text is retained as an acceptance floor and provenance
+record; the replacement policy above is the current executable contract.
+
+*Historically, how Operon itself earned the right to ship. A release candidate was proved by
 **campaigns** — predeclared, immutable batches of evaluation runs — and this
 document defines the rules those campaigns obey: what must be pinned before
 the first model call, what attempts and outcomes may claim, how development
 iterates without a re-approval loop, the exact Phase 6 scope boundary, the
 isolation rules, and the attestation that ties a qualified result to the
 bytes actually released. Nothing here is narrative: every rule is enforced by
-`scripts/eval/**` and the transformation test suite. Operating identities and
+the now-frozen machinery. Operating identities and
 route budgets are [`docs/episodes/contract.md`](../episodes/contract.md);
 developer lifecycle policy is [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md); the
 executable requirement inventory is `eval/contracts.yaml`. Ratification dates

@@ -440,7 +440,7 @@ describe("CF-C-CORE — OPERON-C-CORE-001 clauses against the scripted Anthropic
     );
     const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks);
     const turn = onlyTurn(dbl);
-    expect(result.status).toBe("completed"); // denial never throws
+    expect(result.status).toBe("blocked_on_gate"); // denial never throws or masquerades as completion
     expect(result.escalations).toEqual([
       {
         action: { tool: "bash", input: { command: "rm -rf /" } }, // normalized

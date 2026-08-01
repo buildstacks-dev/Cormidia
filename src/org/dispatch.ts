@@ -49,6 +49,9 @@ export interface DispatchTickOptions {
   pidAlive?: (pid: number) => boolean;
   /** Liveness probe for an owned detached process group (positive pgid). */
   groupAlive?: (processGroupId: number) => boolean;
+  /** Exact PID/start probe at the kill boundary; injectable for deterministic
+   * ownership-refusal tests. Unknown always defers rather than signalling. */
+  processIdentityStatus?: (pid: number, expectedStartIdentity: string) => "match" | "mismatch" | "unknown";
   /** How long to wait for a signalled turn to actually exit before escalating
    *  to SIGKILL, and the poll interval while waiting. */
   killGraceMs?: number;
@@ -171,6 +174,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     {
       pidAlive: options.pidAlive ?? defaultPidAlive,
       groupAlive: options.groupAlive ?? defaultGroupAlive,
+      identityStatus: options.processIdentityStatus ?? processIdentityStatus,
       graceMs: options.killGraceMs ?? 5_000,
       pollMs: options.killPollMs ?? 250,
     },
@@ -321,7 +325,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       });
     } catch (error) {
       // Only a spawn failure releases the lock; the child never started.
-      await releaseLock(runtimeHome, turn.app, turn.role);
+      await releaseLock(runtimeHome, turn.app, turn.role, lock.lock);
       result.errors.push(error instanceof Error ? error.message : String(error));
       await evidence.finishDecision(decisionId, "failed", "spawn_failure", tickAt, {
         detail: error instanceof Error ? error.message : String(error),
@@ -652,11 +656,13 @@ async function killHungTurns(
   death: {
     pidAlive: (pid: number) => boolean;
     groupAlive: (processGroupId: number) => boolean;
+    identityStatus: (pid: number, expectedStartIdentity: string) => "match" | "mismatch" | "unknown";
     graceMs: number;
     pollMs: number;
   } = {
     pidAlive: defaultPidAlive,
     groupAlive: defaultGroupAlive,
+    identityStatus: processIdentityStatus,
     graceMs: 5_000,
     pollMs: 250,
   },
@@ -678,12 +684,32 @@ async function killHungTurns(
         pid: journal.pid,
         ...(journal.processGroupId !== undefined ? { processGroupId: journal.processGroupId } : {}),
       };
+      const lockBeforeSignal = await readLock(runtimeHome, journal.app, journal.role).catch(() => undefined);
+      const ownershipBound = lockBeforeSignal !== undefined
+        && lockBeforeSignal.turnId === journal.turnId
+        && lockBeforeSignal.pid === journal.pid
+        && journal.processStartIdentity !== undefined
+        && lockBeforeSignal.processStartIdentity === journal.processStartIdentity
+        && journal.processNonce !== undefined
+        && lockBeforeSignal.nonce === journal.processNonce;
+      if (!ownershipBound) {
+        result.skipped.push(
+          `${journal.app}/${journal.role}: hung turn ${journal.turnId} ownership token mismatch; refusing to signal or recover`,
+        );
+        recovered.add(journal.turnId);
+        continue;
+      }
       const identity = journal.processStartIdentity === undefined
         ? "unknown"
-        : processIdentityStatus(journal.pid, journal.processStartIdentity);
-      if (identity !== "mismatch") {
-        await signalTurnProcess(ownedProcess, "SIGTERM", kill);
+        : death.identityStatus(journal.pid, journal.processStartIdentity);
+      if (identity === "unknown") {
+        result.skipped.push(
+          `${journal.app}/${journal.role}: hung turn ${journal.turnId} process identity unverified; refusing to signal or recover`,
+        );
+        recovered.add(journal.turnId);
+        continue;
       }
+      if (identity === "match") await signalTurnProcess(ownedProcess, "SIGTERM", kill);
       await writeJournalPatch(runtimeHome, journal.turnId, {
         role: journal.role,
         app: journal.app,

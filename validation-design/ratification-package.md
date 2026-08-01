@@ -253,6 +253,10 @@ are distinguished below. Adoption items are individually reversible later via
   reactivation**.
 - **§3 item 11 (unattended sandbox test-mode profile) — CONFIRMED as shaped.** Still
   pending product implementation in Operon before HB-054 can run.
+  **Post-ratification implementation note (2026-07-31):** the product profile and
+  detector are now implemented; HB-054's campaign evidence remains pending explicit
+  human initiation. This note updates implementation state without rewriting the
+  historical ratification decision above.
 - **F-PT-002 (deployed state) — RESOLVED** with these facts, verified read-only on
   2026-07-31: the active org selector `~/.operon/config` points
   `org_home=/Users/bikram/Build/sonnet1-org`, `state_home=~/.operon/Buildstacks`

@@ -106,6 +106,11 @@ export const OBSERVE_HTML = `<!doctype html>
       <div class="section-heading"><h2 id="sources-title">Source health</h2><span id="sources-scope" class="scope-badge"></span></div>
       <div id="sources" class="sources"></div>
     </section>
+    <section aria-labelledby="validation-campaigns-title">
+      <div class="section-heading"><h2 id="validation-campaigns-title">Validation campaigns</h2><span id="validation-campaigns-scope" class="scope-badge"></span></div>
+      <p class="meta">An inconclusive campaign is not a pass and is never release evidence.</p>
+      <div id="validation-campaigns" class="history"></div>
+    </section>
   </main>
   <aside id="drawer" class="drawer" aria-labelledby="drawer-title" aria-modal="true" role="dialog" hidden>
     <div class="drawer-head"><h2 id="drawer-title">Pass inspection</h2><button id="close-drawer" type="button" aria-label="Close pass inspection">Close</button></div>
@@ -504,7 +509,7 @@ export const OBSERVE_JS = String.raw`(() => {
     );
     populateFilters(s);
     renderScopeStatement(s,scope);
-    renderAttention(s,scope); renderApps(s,scope); renderActivityHistory(s,scope); renderPendingIntake(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistoryIndex(s); renderHistory(s,scope); renderSources(s,scope);
+    renderAttention(s,scope); renderApps(s,scope); renderActivityHistory(s,scope); renderPendingIntake(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistoryIndex(s); renderHistory(s,scope); renderSources(s,scope); renderValidationCampaigns(s,scope);
     // A snapshot must never steal focus: the drawer takes focus when it OPENS,
     // not on each of the re-renders SSE drives while it is open.
     if(state.selectedPass) { const pass=s.passes.find((p)=>p.id===state.selectedPass); if(pass) renderDrawer(pass,false); else closeDrawer(); }
@@ -1304,6 +1309,30 @@ export const OBSERVE_JS = String.raw`(() => {
     renderSourceCards(s);
   }
   function renderSourceCards(s) { q('sources').replaceChildren(...s.sources.map((v)=>node('article',{class:'source'},node('h3',{},v.id+' '),badge(v.status,v.status==='healthy'?'completed':v.status==='degraded'?'blocked':'failed'),node('p',{class:'meta'},v.detail),node('p',{class:'meta'},'observed ',stamp(v.observed_at))))); }
+  function renderValidationCampaigns(s,scope) {
+    const evidence=s.validation_campaigns||{reports:[],corrupt:[]};
+    const reports=evidence.reports.filter((campaign)=>campaign.target.apps.length===0||campaign.target.apps.some((app)=>visibleApp(app,scope)));
+    const narrowed=Boolean(scope)||activeFacets().length>0;
+    const kind=narrowed?'app_wide_context':'live_app_wide';
+    renderSectionScope('validation-campaigns-scope','validation-campaigns',kind,
+      sectionScopeText(kind,'durable triggered-validation evidence',disclose(reports.length+evidence.corrupt.length,evidence.reports.length+evidence.corrupt.length,false)),
+      narrowed?'Campaign evidence is target-scoped, not part of a recorded product session.':'');
+    const cards=reports.map((campaign)=>{
+      const inconclusive=campaign.outcome.verdict==='inconclusive';
+      const verdict=inconclusive?'INCONCLUSIVE — NOT A PASS; NOT RELEASE EVIDENCE':campaign.outcome.verdict.toUpperCase();
+      const state=campaign.outcome.verdict==='pass'?'completed':campaign.outcome.verdict==='fail'?'failed':'blocked';
+      return node('article',{class:'card history-row'},
+        node('div',{},node('strong',{},campaign.campaign_id),node('div',{class:'meta'},campaign.lane+' · '+campaign.campaign_kind+' · '+campaign.target.apps.join(', '))),
+        node('div',{class:'integrity'},'completeness '+campaign.outcome.completeness+' · cases '+campaign.coverage.collected_case_ids.length+'/'+campaign.coverage.required_case_ids.length+' · spend '+campaign.spend.observed_provider_turns+'/'+campaign.spend.max_provider_turns+' turns'),
+        badge(verdict,state));
+    });
+    cards.push(...evidence.corrupt.map((item)=>node('article',{class:'card history-row'},
+      node('div',{},node('strong',{},item.campaign_id),node('div',{class:'meta'},item.detail)),
+      node('div',{class:'integrity'},'Campaign evidence is incomplete until this report is repaired.'),
+      badge('CORRUPT','failed'))));
+    if(cards.length) cards.push(node('p',{class:'meta'},'Triage: docs/qualification/validation-triage.md'));
+    q('validation-campaigns').replaceChildren(...(cards.length?cards:[empty('No validation campaign evidence recorded.') ]));
+  }
   function openDrawer(id) { state.selectedPass=id; const pass=state.snapshot.passes.find((p)=>p.id===id); if(pass) renderDrawer(pass,true); }
   // The drawer declares aria-modal, so the background must actually BE
   // unreachable — 'inert' is what makes that true for Tab, pointer, and the

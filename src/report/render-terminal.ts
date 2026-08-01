@@ -20,6 +20,22 @@ export function renderReportTerminal(report: ReportSnapshotV1): string {
   if (report.quality.notices.length > 0) {
     lines.push("", "Data quality", ...report.quality.notices.slice(0, 5).map((notice) => `  - ${notice}`));
   }
+  if (report.validation_campaigns.reports.length > 0 || report.validation_campaigns.corrupt.length > 0) {
+    lines.push("", "Validation campaigns");
+    for (const campaign of report.validation_campaigns.reports) {
+      const verdict = campaign.outcome.verdict === "inconclusive"
+        ? "INCONCLUSIVE (NOT A PASS; NOT RELEASE EVIDENCE)"
+        : campaign.outcome.verdict.toUpperCase();
+      lines.push(
+        `  ${campaign.campaign_id} · ${campaign.lane} · ${verdict} · completeness ${campaign.outcome.completeness} · ` +
+        `${campaign.coverage.collected_case_ids.length}/${campaign.coverage.required_case_ids.length} cases`,
+      );
+    }
+    for (const corrupt of report.validation_campaigns.corrupt) {
+      lines.push(`  ${corrupt.campaign_id} · CORRUPT (EVIDENCE INCOMPLETE) · ${corrupt.detail}`);
+    }
+    lines.push("  Triage: docs/qualification/validation-triage.md");
+  }
   lines.push("", "Efficiency evidence");
   for (const [name, metric] of Object.entries(report.efficiency.metrics)) {
     lines.push(

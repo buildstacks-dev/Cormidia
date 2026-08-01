@@ -15,7 +15,9 @@ covers only what an implementer needs to write or read a test here.
 | `fixtures/` | fixture kit + owned doubles (each with self-tests) | self-tests run per commit |
 | `policy/` | policy loader + artifact/CI-lane pins | every commit |
 | `live/` | L3 opt-in lane (`pnpm test:live`, gated on `OPERON_LIVE=1`) | never per commit |
-| `eval-runner/` | L4 hand-rolled runner over `validation-design/golden-sets/` | per-site cadence |
+| `campaign/` | shared durable report + spend/coverage accounting | imported by triggered lanes |
+| `eval-runner/` | L4 hand-rolled runner (`pnpm test:eval`, gated on `OPERON_EVAL=1`) | per-site cadence |
+| `ops/` | L5 contention, soak collector, and threat-model admission gate | per obligation |
 
 Case families live in specs named for their catalog IDs, e.g.
 `hermetic/cf-j04/cf-j04-s.test.ts` asserts family `CF-J04-S`
@@ -73,3 +75,37 @@ Nothing under `unit/`, `hermetic/`, `fixtures/`, or `policy/` may spend a
 token or touch the network. `live/` and `eval-runner/` enforce the policy
 spend bounds internally and report completeness/verdict per
 `validation-policy.yaml → verdict_semantics`.
+Spending cases reserve their worst-case allowance before execution. A callback that
+throws before reporting trustworthy usage is charged its full reservation, so unknown
+partial spend fails conservative rather than silently reopening the ceiling.
+
+## Triggered campaign entry points
+
+These commands do nothing without an explicit opt-in and an absolute reviewed JSON
+authorization file. The file pins exact commit, state/policy paths, target identities,
+tuples, and ceilings; an environment flag alone cannot widen scope.
+Triggered entry additionally requires the canonical policy and every L4 golden input
+to be tracked and byte-identical at the authorized HEAD; absolute paths are locators,
+not authority to substitute uncommitted evidence.
+
+```bash
+OPERON_LIVE=1 OPERON_LIVE_CONFIG=/absolute/live.json pnpm test:live
+OPERON_EVAL=1 OPERON_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
+OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
+OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- checkpoint --id day-1
+OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finish
+```
+
+Sleep checkpoints add both `--slept-at <ISO>` and `--woke-at <ISO>`. A natural Codex
+rotation adds `--rotation-evidence /absolute/evidence.json`; the collector verifies
+exact session/checkpoint preservation and never manufactures a rotation. The canonical
+schemas and operator procedure are in `docs/qualification/design.md`; alert response is
+`docs/qualification/validation-triage.md`.
+
+Every runner writes `<state-home>/validation/campaigns/<campaign-id>/report.json`
+before work and after each result. Stopped, missing, or ceiling-exhausted work stays
+incomplete/inconclusive. A fully collected proposed-threshold campaign may be complete
+as data collection, but its verdict remains inconclusive; pending human references are
+likewise inadmissible for a quality pass. L4 currently exits 2 after successful data
+collection because its thresholds remain proposed; that is intentional, not a command
+failure to normalize away.

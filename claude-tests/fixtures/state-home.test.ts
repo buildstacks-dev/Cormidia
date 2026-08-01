@@ -73,7 +73,7 @@ describe("HB-002 fixtures/state-home (standing shape + product write paths)", ()
     expect(existsSync(path)).toBe(true);
     const held = await readLock(t.stateHome, "alpha", "builder");
     expect(held.turnId).toBe("turn-0001");
-    await releaseLock(t.stateHome, "alpha", "builder");
+    await releaseLock(t.stateHome, "alpha", "builder", held);
     expect(existsSync(path)).toBe(false);
   });
 

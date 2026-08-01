@@ -1,7 +1,8 @@
 # Harness design state — Operon validation campaign
 
 Updated: 2026-07-31 (design campaign CLOSED and RATIFIED; implementation Waves
-0–4 complete in the replacement harness worktree; audit loop CLOSED verdict
+0–4 plus L3/L4 runner surfaces, L5 contention/soak collectors, and HB-080/081
+complete in the replacement harness worktree; audit loop CLOSED verdict
 "clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7;
 product-owner ratification record in ratification-package.md §9)
 
@@ -25,8 +26,49 @@ product-owner ratification record in ratification-package.md §9)
   presentation, trajectory, and format-repair families are executable. The
   F-PT-006 producer-crash/duplicate-identity clauses remain parked rather than
   guessed.
-- The L3/L4/L5 implementation/evidence waves remain open. F-PT-017
-  and F-PT-018 remain parked exactly as recorded below.
+- L3: the strict human-authorized campaign runner, real-adapter pair, sandbox-GitHub
+  surface, attributable launchd proof, unattended profile, and durable product
+  reporting are implemented. No live provider/repository/host campaign was run, so
+  HB-051…054 evidence remains incomplete—not pass. B-17-L3 remains blocked.
+- L4: the per-tuple data-collection runner, rotating shards, token reservations, and
+  reviewer/planner/builder-trajectory committed sets are implemented. Reviewer and
+  planner human reference review remains pending; F-PT-009/010/011 keep every
+  threshold-dependent verdict inconclusive.
+- L5: CF-OPS-CONT's ratified contention rig is implemented and green. The resumable
+  seven-day soak/rotation collector is implemented but no real window was scheduled.
+  The ten-surface threat-model worksheet is explicitly only a scaffold; HB-072 awaits
+  a human author/reviewer and the hash-bound gate keeps HB-073 blocked.
+- HB-080 and HB-081 are complete: the alert→action runbook is linked from all campaign
+  surfaces, and product surfaces render inconclusive as not-a-pass/not-release-evidence.
+  F-PT-017 and F-PT-018 remain parked exactly as recorded below.
+
+## Final implementation audit and verification — 2026-07-31
+
+The post-build `validation-harness-audit` pass is closed after hardening the findings
+it surfaced. In particular: turn-lock mutation/release is serialized and nonce-bound;
+unknown failed-case provider/token spend debits the full reservation; exact-ceiling
+coverage remains incomplete; L3/L4/L5 entry binds canonical policy (and L4 golden
+inputs) to clean tracked blobs at the authorized HEAD; malformed golden provenance and
+usage are refused; unavailable required soak sources cannot produce complete evidence;
+and GitHub/launchd cleanup failures remain inside their recorded cases. These are
+tighten-only corrections with negative controls, not relaxed expectations.
+
+Final focused verification passed 65 policy/report/eval/profile/soak/GitHub tests,
+plus the two-case contention rig and the two selected lock ownership/signal controls.
+`pnpm typecheck`, `pnpm build`, `git diff --check`, and `npm pack --dry-run` passed; the
+package contains 273 files (1.0 MB tarball, 4.0 MB unpacked). No tarball was written.
+
+The final full run on the managed Codex desktop host exercised 128 files: 72 files
+passed and 56 failed; 589 tests passed, 184 failed, one intentionally parked test was
+skipped, and one unhandled rejection was reported. The failures are fail-closed host
+limitations, dominated by denied `ps` process-start identity probes and the resulting
+kill-point/lock cascades (plus the already observed loopback/Unix-socket restrictions),
+not assertions weakened or normalized away. This constrained-host run is therefore
+not green evidence. The last full run in an ordinary environment before the triggered
+lane hardening remains the Wave-4 record above (116 files, 726 passed, one parked skip);
+the pull-request CI lane is the authoritative clean-host verification for the final
+integrated tree. `pnpm smoke:onboarding` is likewise blocked on this host at the same
+process-identity probe.
 
 ## Campaign
 - Skill: validation-harness-design
@@ -34,8 +76,8 @@ product-owner ratification record in ratification-package.md §9)
 - Target: production Operon (org runtime)
 - Artifact root: `./validation-design/`
 - Harness implementation root (per docs v2.9, build-time only): `claude-tests/`
-  — not built during the design campaign itself; now implemented through Wave 4
-  as recorded above.
+  — not built during the design campaign itself; now implemented through the bounded
+  runner/collector work recorded above. External evidence remains separately gated.
 - Incumbent suite: archived under `archive-do-not-read/**` — protected no-read path (ratified at Phase 0); clean-slate greenfield, no coexistence posture
 - ID namespace: `OPERON-` (confirmed at Phase 0)
 - Provenance labels in force: `[doc]`, `[rambling]`, `[simulated]`, `[PROPOSED]`, `[walk]` (Phase 1 elicitation). `[stated]` reserved and unused (no live ratifying human).

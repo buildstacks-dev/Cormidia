@@ -1,4 +1,5 @@
 import type { AppStatus } from "../org/apps.js";
+import type { ValidationCampaignReadResult } from "../org/validation-campaign.js";
 import type { CostAggregate } from "../runtime/cost.js";
 import type { TurnAssignmentSource } from "../runtime/types.js";
 
@@ -353,6 +354,9 @@ export interface ReportSnapshotV1 {
   };
   health: ReportHealthV1;
   efficiency: ReportEfficiencyV1;
+  /** Triggered validation evidence is distinct from normal product sessions.
+   * Corrupt rows remain explicit so their absence can never look green. */
+  validation_campaigns: ValidationCampaignReadResult;
   apps: ReportAppRowV1[];
   sessions: {
     total: number;

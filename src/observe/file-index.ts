@@ -6,6 +6,7 @@ import type { AppsFile } from "../org/apps.js";
 import type { TurnLock } from "../org/locks.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 import { readParentTask, type ParentTaskRecord } from "../org/parent-task.js";
+import { readValidationCampaignReports } from "../org/validation-campaign.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { readEvents } from "../runtime/runlog/events.js";
 import { runPaths } from "../runtime/runlog/paths.js";
@@ -50,6 +51,8 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
   const schedule = await readObjectFile(join(options.stateHome, "state", "schedule.json"));
   const locks = await indexLocks(join(options.stateHome, "locks"));
   const inbox = await indexInbox(join(options.stateHome, "state", "events", "inbox"));
+  const validationCampaigns = await readValidationCampaignReports(options.stateHome);
+  errors.push(...validationCampaigns.corrupt.map((item) => `validation campaign ${item.campaign_id}: ${item.detail}`));
   errors.push(...ledger.errors.map((error) => `ledger: ${error}`));
   errors.push(...invocations.errors.map((error) => `invocations: ${error}`));
 
@@ -92,6 +95,7 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
     locks: locks.records,
     inbox,
     source_health: sourceHealth,
+    validation_campaigns: validationCampaigns,
   };
 }
 

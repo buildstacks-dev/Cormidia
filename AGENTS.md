@@ -35,7 +35,7 @@ tracker (`gh issue list`).
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table — new subcommand = new file + one registry line |
 | `agent-skills/operon/` | Packaged `$operon` Agent Skill (org operation, not development) |
 | `validation-design/` | Ratified harness design (2026-07-31): `validation-policy.yaml` is the contract, `harness-backlog.md` the build plan — see "Validation harness" section below |
-| `claude-tests/` | Replacement validation harness implementation (per `validation-design/`) — being built; absent until its first change lands |
+| `claude-tests/` | Implemented replacement validation harness plus explicitly authorized L3/L4/L5 campaign runners (per `validation-design/`) |
 | `archive-do-not-read/` | Frozen pre-rebuild validation corpus (old `test/`, `eval/`, `docs/testing/`, eval/CI scripts) — **never read, cite, run, or take design cues from it** |
 | `research/` | Dated decision records (adapter facts, caching economics, live evidence) |
 | `scripts/` | Link/smoke/packaging scripts |
@@ -47,8 +47,11 @@ rewrite; legacy test/eval scripts removed with the archive move).
   `npm install -g corepack && corepack enable` once per Node install.
 - Install: `pnpm install` — pnpm pinned via `packageManager`. Deliberately NOT
   a workspace; `pnpm-workspace.yaml` is per-repo pnpm config only.
-- Test: `pnpm test` (vitest over `claude-tests/`; passWithNoTests until the
-  first spec lands) · typecheck: `pnpm typecheck` · build: `pnpm build`
+- Test: `pnpm test` (offline L1/L2 vitest over `claude-tests/`; passWithNoTests
+  disabled) · typecheck: `pnpm typecheck` · build: `pnpm build`
+- Triggered validation (human authorization + reviewed absolute config required):
+  `pnpm test:live` · `pnpm test:eval` · `pnpm test:soak -- <start|checkpoint|finish>`;
+  see `docs/qualification/design.md` and never run these casually.
   (tsc → `dist/`).
 - Local product install: `pnpm link:local` (source-backed `operon` bin + skill
   links; later source edits need no relink).
@@ -87,8 +90,9 @@ rewrite; legacy test/eval scripts removed with the archive move).
   availability is proved by adapter calibration before a candidate campaign.
 
 ## Testing expectations
-**Validation rebuild in progress (decided 2026-07-31, docs/PURPOSE.md →
-Decided v2.9).** The legacy suite, the eval/qualification machinery, and
+**Replacement validation harness implemented; external evidence pending (decided
+2026-07-31, docs/PURPOSE.md → Decided v2.9/v2.10).** The legacy suite and old
+eval/qualification machinery remain
 `docs/testing/` are frozen under `archive-do-not-read/` — never read, cite,
 run, or take design cues from that directory; the rebuild is deliberately
 unanchored from the incumbent suite. The replacement design was **ratified
@@ -97,13 +101,12 @@ unanchored from the incumbent suite. The replacement design was **ratified
 "Validation harness" section at the end of this file the standing rules; the
 implementation lands under `claude-tests/` by backlog wave.
 
-Until then the interim minimum for any change is `pnpm test && pnpm typecheck`
-(`pnpm test` is green-by-absence via passWithNoTests until the first spec
-lands — do not mistake it for coverage). Release gating is **suspended**: the
+The minimum for any change is `pnpm test && pnpm typecheck`; this is a populated
+offline gate, not green-by-absence. Release gating is **suspended**: the
 fail-closed release-currency lane and attestation were archived with `eval/`;
-do not tag a release expecting a gate to catch anything. Live sandbox checks
-(`docs/org/apps.md` sandbox apps) remain the only behavioral net — use them
-deliberately, never casually.
+do not tag a release expecting a gate to catch anything. Replacement L3/L4/L5
+runners are explicit human-authorized campaigns; their unrun/missing work remains
+incomplete/inconclusive and they must never be invoked casually.
 
 ## Navigation
 - Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · operator outcome: `docs/VISION.md` · platform development: `docs/DEVELOPMENT.md`
@@ -171,10 +174,10 @@ bound raisable only by a human policy edit). Ceiling exhaustion ⇒
 completeness=incomplete, never green. Never forge human approval decisions; unattended
 runs use only the ratified sandbox test-mode profile.
 
-**Blocked work:** the parked tickets (`harness-backlog.md` HB-P3 and HB-P5, blocked
-on F-PT-006 and F-PT-008) and B-17's live
-cell are blocked on open product-truth findings — do not implement them, and do not
-encode any finding's "expected" behavior as truth before a human ratifies it.
+**Blocked work:** the parked tickets (`harness-backlog.md` HB-P3/HB-P5/HB-P6/HB-P7),
+the exact F-PT-012…016 catalog cells, B-17's live cell, and HB-073 behind the
+human-authored threat model are blocked — do not implement them, and do not encode any
+finding's "expected" behavior as truth before a human ratifies it.
 (HB-P1/HB-P2/HB-P4 were unparked at ratification 2026-07-31 — their findings are
 resolved and their contracts ratified.)
 

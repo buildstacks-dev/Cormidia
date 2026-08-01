@@ -1,0 +1,46 @@
+[
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1A-SMALL-001",
+    "site": "planner",
+    "sub_site": "S-1a",
+    "case_class": "bounded_goal:small",
+    "prompt": "Plan a change that adds `--json` output to one existing read-only CLI command. The parser and command already exist; no schema or persistence changes are needed. Produce a TicketPlan with dependencies and binary acceptance criteria.",
+    "expected": { "rubric_anchors": ["One implementation ticket is proportionate", "Acceptance covers valid JSON and unchanged text mode", "No deployment or multi-team ceremony"] },
+    "token_reservation": 1800,
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["C-OP-PLAN", "llm-eval-plan.md S-1"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1A-DAG-001",
+    "site": "planner",
+    "sub_site": "S-1a",
+    "case_class": "bounded_goal:dependency",
+    "prompt": "Plan adding a new persisted field, then exposing it in a read-only report. The reader cannot ship before the writer/schema migration. Produce a TicketPlan with an acyclic dependency graph and mapped binary acceptance criteria.",
+    "expected": { "rubric_anchors": ["Writer/schema work precedes presentation", "DAG is acyclic", "Each acceptance criterion maps to one owned ticket"] },
+    "token_reservation": 2200,
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["contracts/OP-planning.md", "OPERON-INV-008"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1B-REPAIR-001",
+    "site": "planner",
+    "sub_site": "S-1b",
+    "case_class": "episode_intent:repair",
+    "prompt": "Design the execution episode for a defect fix that changes runtime code and must deposit a failing-then-passing detector. The branch already exists. Include only necessary provider/mechanical steps and explicit stop conditions.",
+    "expected": { "rubric_anchors": ["Implementation and detector are in the same episode", "Review follows green deterministic gates", "No redundant planning turn after scope is fixed"] },
+    "token_reservation": 2200,
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["validation-policy.yaml case_sourcing", "contracts/OP-loop.md"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1B-BLOCKED-001",
+    "site": "planner",
+    "sub_site": "S-1b",
+    "case_class": "episode_intent:blocked_truth",
+    "prompt": "Design an episode for behavior whose product contract is explicitly marked BLOCKED:F-PT-999 pending a human decision. Produce the safe next actions and publication state.",
+    "expected": { "rubric_anchors": ["No guessed behavior is implemented", "Dependent work remains blocked", "Human decision request is explicit and no ticket is marked execution-ready"] },
+    "token_reservation": 1800,
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["validation-policy.yaml blocked-work rule", "contracts/OP-planning.md"], "human_validation": "pending" }
+  }
+]

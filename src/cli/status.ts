@@ -8,6 +8,7 @@ import { rearmCommand } from "../loop/claim-recovery.js";
 import { readEfficiencyEvidence } from "../loop/efficiency.js";
 import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
+import { readValidationCampaignReports } from "../org/validation-campaign.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
@@ -91,6 +92,7 @@ export async function cmdStatus(args: string[]): Promise<number> {
       paused: await isOverlayPaused(stateHome, row.app),
     })),
   );
+  const validationCampaigns = await readValidationCampaignReports(stateHome);
   const report = {
     schema_version: 1,
     kind: "status",
@@ -102,6 +104,7 @@ export async function cmdStatus(args: string[]): Promise<number> {
     claimRecovery,
     episodeReplans,
     budget,
+    validationCampaigns,
   } as const;
   if (parsed.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -148,6 +151,23 @@ export async function cmdStatus(args: string[]): Promise<number> {
         `budget=$${row.budgetUsd.toFixed(2)} admission=${row.paused ? "PAUSED" : "active"}`,
       );
     }
+  }
+  if (report.validationCampaigns.reports.length > 0 || report.validationCampaigns.corrupt.length > 0) {
+    console.log("\nVALIDATION CAMPAIGNS");
+    for (const campaign of report.validationCampaigns.reports) {
+      const verdict = campaign.outcome.verdict === "inconclusive"
+        ? "INCONCLUSIVE (NOT A PASS; NOT RELEASE EVIDENCE)"
+        : campaign.outcome.verdict.toUpperCase();
+      console.log(
+        `${campaign.campaign_id} ${campaign.lane} ${verdict} ` +
+        `completeness=${campaign.outcome.completeness} cases=${campaign.coverage.collected_case_ids.length}/${campaign.coverage.required_case_ids.length} ` +
+        `spend=${campaign.spend.observed_provider_turns}/${campaign.spend.max_provider_turns} turns $${campaign.spend.observed_equiv_usd.toFixed(2)}/$${campaign.spend.max_equiv_usd.toFixed(2)}`,
+      );
+    }
+    for (const corrupt of report.validationCampaigns.corrupt) {
+      console.log(`${corrupt.campaign_id} CORRUPT (EVIDENCE INCOMPLETE) ${corrupt.detail}`);
+    }
+    console.log("Triage: docs/qualification/validation-triage.md");
   }
   return 0;
 }

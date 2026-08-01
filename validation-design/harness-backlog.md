@@ -183,6 +183,15 @@ evidence. -->
 except HB-054, which additionally depends on a ratified product surface, flagged in
 its ticket)
 
+<!-- implementation status 2026-07-31: HB-050 COMPLETE. The strict opt-in runner,
+durable report contract, real-adapter conformance pair, real sandbox-GitHub surface,
+attributable launchd lifecycle proof, and ratified unattended profile are implemented.
+Failed callbacks conservatively debit their full pre-authorized reservation, so
+unknown partial provider spend cannot evade the campaign ceiling.
+HB-051..HB-054 campaign EVIDENCE remains pending because no provider/repo/host campaign
+was authorized or run in this change; absence is incomplete, never pass. HB-055 stays
+blocked exactly as designed. -->
+
 - **HB-050** Live config + campaign runner with spend accounting (enforces §5 bounds;
   completeness/verdict split). *Gate: none beyond CI merge of L1/L2 skeleton.*
 - **HB-051** CF-B02-L3/CF-B03-L3/CF-B04-L3 adapter conformance runs. *Gate: provider
@@ -195,11 +204,20 @@ its ticket)
 - **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile.
   *Gate: the profile surface must first be ratified + implemented in Operon (policy
   `unattended_test_mode_profile`) — a product change, tracked as its own product
-  ticket, not a harness ticket.* Executor: campaign.
+  ticket, not a harness ticket.* Executor: campaign. **Implementation dependency
+  satisfied 2026-07-31; authorized campaign evidence still pending.**
 - **HB-055** B-17 live target: BLOCKED (policy); unblock = disposable `release:`
   target. Executor: campaign (future).
 
 ## Wave L4 — eval lane (gated ONLY on golden-set authoring + finding ratification)
+
+<!-- implementation status 2026-07-31: HB-060 COMPLETE (per-tuple data collection,
+token reservation, bounded shard rotation, partial evidence, strict golden/provenance
+validation, and tracked-blob binding to the authorized commit). HB-061/HB-062 build-agent
+authoring is complete, but every reviewer/planner reference remains explicitly
+human_validation=pending; a human must validate them before they are admissible.
+HB-063 deterministic trajectory scenarios are complete. F-PT-009/010/011 and register
+items 9..12 remain PROPOSED, so threshold-dependent campaigns remain inconclusive. -->
 
 - **HB-060** Eval runner v1 (data-collection mode; inconclusive-only reporting;
   per-tuple aggregation; token ceilings; shard rotation). Executor: build-agent.
@@ -210,6 +228,12 @@ its ticket)
   later scaffolds per elicited priority. Executor: human + build-agent.
 
 ## Wave L5 — ops lane (gated per obligation)
+
+<!-- implementation status 2026-07-31: HB-070 COMPLETE (ratified contention shape;
+deterministic rig green). HB-071 runner/collector COMPLETE but the seven-real-day
+human-started campaign and CF-OPS-ROT natural evidence are PENDING. HB-072 is
+AWAITING HUMAN AUTHOR: the ten-surface worksheet is only a scaffold. HB-073 remains
+BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed. -->
 
 - **HB-070** Contention rig (CF-OPS-CONT; hermetic implementation, L5 question).
   Executor: build-agent. **HB-071** Soak protocol runner + evidence collector
@@ -263,7 +287,9 @@ its ticket)
   "not an incident runbook" warning is updated to point at it when it lands.
   *Defends:* operability of the whole harness; INV-008 (truthful surfaces).
   *Layer:* process/docs. *Executor:* human + build-agent, after Wave 0 reporting
-  exists.
+  exists. **Status: COMPLETE 2026-07-31** — canonical runbook at
+  `docs/qualification/validation-triage.md`, validation-design pointer committed,
+  and report/observe/status surfaces link it.
 - **HB-081 — Product change (Operon repo, NOT harness): `inconclusive` is not a
   pass on report/observe surfaces.** The product's report/observe surfaces must state
   that an `inconclusive` verdict is not a pass (ratification-package.md §6 IOU,
@@ -274,7 +300,9 @@ its ticket)
   campaign verdicts distinguishes `inconclusive` from `pass` and never renders it
   green or as release evidence. *Defends:* INV-008; eval decision-status rule.
   *Layer:* product. *Executor:* build-agent in the Operon repo (own ticket); human
-  schedules.
+  schedules. **Status: COMPLETE 2026-07-31** — durable campaign reports are projected
+  through status, terminal/HTML Reports, and Observe; `inconclusive` is rendered as
+  not-a-pass/not-release-evidence and corrupt reports remain visibly incomplete.
 
 ## Standing rules
 

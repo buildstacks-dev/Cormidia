@@ -30,11 +30,21 @@ Status: DRAFT (Phase 4). Defends INV-005/013/014, T-6. Journeys J-09/J-13.
 - Orphaned descendants — **semantic contract: terminate the owned descendant tree**;
   **human-ratified at HB-007 review 2026-07-31:** use an owned process group/session;
   TERM, wait a bounded grace period, then KILL; completion evidence proves no owned
-  descendants remain.
+  descendants remain. Signalling is authorized only when journal and current lock
+  agree on the complete PID + process-start + nonce ownership token and the OS probe
+  confirms the PID/start match. Missing/mismatched/unknown ownership defers without
+  signalling or recovery; PID reuse is never treated as authority to kill.
+- Turn-lock acquire, adoption, heartbeat, and release are serialized by an
+  atomically installed, nonce-owned mutation guard. Release compares the full
+  durable ownership token while holding that guard; non-recursive guard removal
+  cannot delete a successor if a prior holder finishes after reclamation.
 
 ## 4. Idempotency
 - Liveness checks are read-only; dead-process reconciliation (journals → `interrupted`)
   is idempotent and keyed by turn/invocation identity `[doc]`.
+- Release is idempotent and returns false when its exact PID + process-start +
+  nonce + turn identity no longer owns the path; path ownership alone is never
+  sufficient.
 
 ## 5. Timing
 - Detached turns outlive ticks by design; no supervisor exists — the next tick is the

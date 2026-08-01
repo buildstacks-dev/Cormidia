@@ -6,8 +6,9 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { vi } from "vitest";
 import { dispatchTick } from "../../../src/org/dispatch.js";
-import { acquireLock } from "../../../src/org/locks.js";
+import { acquireLock, lockPath, readLock, releaseLock } from "../../../src/org/locks.js";
 import { writeJournalPatch } from "../../../src/org/journal.js";
 import {
   acquireFileLock,
@@ -74,6 +75,59 @@ describe("CF-B07 — OS process lifecycle (L2, HB-023)", () => {
 
   it("negative control: a bare-pid owner record makes the identity detector FIRE", () => {
     expect(() => assertCompleteIdentity({ pid: process.pid })).toThrow(BarePidIdentityViolation);
+  });
+
+  it("negative control: a late holder cannot release a successor's turn lock", async () => {
+    state = await makeTempStateHome({ name: "cf-b07-release" });
+    const path = lockPath(state.stateHome, "app", "builder");
+    await mkdir(dirname(path), { recursive: true });
+    const prior = { app: "app", role: "builder", pid: 1, processStartIdentity: "old", nonce: "old-nonce", turnId: "old-turn", startedAt: "2026-07-31T10:00:00.000Z", heartbeatAt: "2026-07-31T10:00:00.000Z" };
+    const successor = { ...prior, pid: 2, processStartIdentity: "new", nonce: "new-nonce", turnId: "new-turn" };
+    await writeFile(path, `${JSON.stringify(successor)}\n`, "utf8");
+    expect(await releaseLock(state.stateHome, "app", "builder", prior, {
+      currentStartIdentity: () => "fixture-process-start",
+    })).toBe(false);
+    expect(await readLock(state.stateHome, "app", "builder")).toEqual(successor);
+  });
+
+  it("negative control: a nonce mismatch or unknown PID/start probe refuses to signal the named PID", async () => {
+    org = await makeBudgetOrg([{ status: "paused" }]);
+    const now = new Date("2026-07-31T10:01:00.000Z");
+    await mkdir(dirname(lockPath(org.org.stateHome, "budget-app", "builder")), { recursive: true });
+    await writeFile(lockPath(org.org.stateHome, "budget-app", "builder"), `${JSON.stringify({
+      app: "budget-app", role: "builder", pid: 4242, processStartIdentity: "fake-start",
+      nonce: "current-lock-nonce", turnId: "turn-b07-mismatch",
+      startedAt: now.toISOString(), heartbeatAt: now.toISOString(),
+    })}\n`);
+    await writeJournalPatch(org.org.stateHome, "turn-b07-mismatch", {
+      app: "budget-app", role: "builder", phase: "assembling",
+    }, new Date("2026-07-31T09:00:00.000Z"));
+    await writeJournalPatch(org.org.stateHome, "turn-b07-mismatch", {
+      app: "budget-app", role: "builder", phase: "running", pid: 4242,
+      processStartIdentity: "fake-start", processNonce: "stale-journal-nonce",
+      processGroupId: 4242, passStartedAt: "2026-07-31T09:00:00.000Z", wallClockCapMs: 1,
+    }, now);
+    const kill = vi.fn(async () => undefined);
+    const result = await dispatchTick({
+      orgRoot: org.org.orgHome, runtimeHome: org.org.stateHome, now: () => now,
+      eventSource: NO_EVENTS, spawn: async () => undefined, kill,
+      processIdentityStatus: () => "match", pidAlive: () => true, groupAlive: () => true,
+      killGraceMs: 0, killPollMs: 0,
+    });
+    expect(kill).not.toHaveBeenCalled();
+    expect(result.skipped).toContainEqual(expect.stringContaining("ownership token mismatch; refusing to signal or recover"));
+
+    await writeJournalPatch(org.org.stateHome, "turn-b07-mismatch", {
+      app: "budget-app", role: "builder", phase: "running", processNonce: "current-lock-nonce",
+    }, now);
+    const unknown = await dispatchTick({
+      orgRoot: org.org.orgHome, runtimeHome: org.org.stateHome, now: () => now,
+      eventSource: NO_EVENTS, spawn: async () => undefined, kill,
+      processIdentityStatus: () => "unknown", pidAlive: () => true, groupAlive: () => true,
+      killGraceMs: 0, killPollMs: 0,
+    });
+    expect(kill).not.toHaveBeenCalled();
+    expect(unknown.skipped).toContainEqual(expect.stringContaining("process identity unverified; refusing to signal or recover"));
   });
 
   it("hung-turn recovery TERM→bounded grace→KILL reaches the owned process group and leaves no descendant alive", async () => {

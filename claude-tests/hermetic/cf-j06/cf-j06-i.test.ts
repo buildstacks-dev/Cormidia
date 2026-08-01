@@ -73,7 +73,7 @@ describe("CF-J06-I — crash mid-resume; TTL expiry before resume (L2, HB-012)",
       labels: [...OP_LABELS],
     });
     cleanups.push(() => handle.dispose());
-    const gh = new GhCliOps(handle.repo, handle.exec);
+    const gh = new GhCliOps(handle.repo, handle.exec, undefined, { sleep: async () => undefined, random: () => 0.5 });
     const issue = await gh.createIssue({
       title: "cf-j06-i paused ticket",
       body: "## Goal\nCrash-mid-resume walk.\n",
@@ -93,7 +93,7 @@ describe("CF-J06-I — crash mid-resume; TTL expiry before resume (L2, HB-012)",
     const root = walk.state.stateHome;
 
     // Scripted seam failure: the label projection's `gh issue edit` dies.
-    walk.handle.script({ op: "issue.edit", fail: "server_error" });
+    for (let attempt = 0; attempt < 3; attempt += 1) walk.handle.script({ op: "issue.edit", fail: "server_error" });
     await expect(
       continueAfterApproval({
         root,
@@ -140,7 +140,7 @@ describe("CF-J06-I — crash mid-resume; TTL expiry before resume (L2, HB-012)",
   it("startup reconciliation repairs the stale decision projection (op:blocked -> op:ready) with the decision intact", async () => {
     const walk = await pausedWalk();
     const root = walk.state.stateHome;
-    walk.handle.script({ op: "issue.edit", fail: "server_error" });
+    for (let attempt = 0; attempt < 3; attempt += 1) walk.handle.script({ op: "issue.edit", fail: "server_error" });
     await expect(
       continueAfterApproval({
         root,

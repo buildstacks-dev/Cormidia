@@ -52,7 +52,7 @@ export async function recoverStaleTurn(
       },
       now,
     );
-    await releaseLock(root, lock.app, lock.role);
+    await releaseLock(root, lock.app, lock.role, lock);
     return { decision, spawned: false };
   }
 
@@ -85,7 +85,7 @@ export async function recoverStaleTurn(
     },
     now,
   );
-  await releaseLock(root, lock.app, lock.role);
+  await releaseLock(root, lock.app, lock.role, lock);
   return { decision, spawned: false };
 }
 

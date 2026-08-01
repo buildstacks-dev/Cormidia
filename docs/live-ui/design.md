@@ -1772,3 +1772,18 @@ Implementation is complete only when:
 9. Obtain explicit authorization for token/GitHub/merge scope.
 10. Run and document the correlated buildstacks acceptance flow without a
     production deploy.
+
+## 16. Triggered-validation evidence addendum (2026-07-31)
+
+The versioned snapshot includes the product-owned
+`validation_campaigns: {reports, corrupt}` read model from
+`validation/campaigns/*/report.json`. This is live app-wide/current evidence and is not
+narrowed into a selected product session. Target-app filtering may hide reports for
+other apps, while corrupt records remain visible because their scope cannot be trusted.
+
+Cards show separate completeness/verdict, case coverage, and spend. `inconclusive`
+uses blocked—not completed—visual semantics and the literal “NOT A PASS; NOT RELEASE
+EVIDENCE.” Corrupt reports are failed/incomplete; no report means “No validation
+campaign evidence recorded,” never healthy. The section links
+`docs/qualification/validation-triage.md`. Observe stays read-only: it never resumes,
+repairs, reconciles, or reruns a campaign.

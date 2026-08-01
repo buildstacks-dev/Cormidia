@@ -21,6 +21,7 @@ export function renderReportHtml(report: ReportSnapshotV1): string {
 <main id="main" class="scroll">
 <p class="confidential"><strong>Confidential operational metadata.</strong> Portable local projection; no external requests. Equivalent cost is not a provider invoice.</p>
 ${quality(report)}
+${validationCampaigns(report)}
 <section aria-labelledby="headline"><h1 id="headline">Usage overview</h1><div class="metrics">${metric("Known input", formatInt(report.headline.known_input_tokens))}${metric("Known output", formatInt(report.headline.known_output_tokens))}${metric("Known total", formatInt(report.headline.known_total_tokens))}${metric("Equivalent cost", money(report.headline.recorded_equivalent_cost_usd), `reported ${money(report.headline.provider_reported_cost_usd)} · estimated ${money(report.headline.operon_estimated_cost_usd)} · partial ${money(report.headline.partial_recorded_cost_usd)}`)}${metric("Provider turns", String(report.headline.provider_turns), `${report.headline.unknown_usage_turns} unknown usage`)}${metric("Sessions", String(report.headline.sessions), `${report.headline.completed_sessions} completed`)}</div></section>
 ${efficiency(report)}
 ${budget(report)}
@@ -57,6 +58,22 @@ function efficiency(report: ReportSnapshotV1): string {
 function quality(report: ReportSnapshotV1): string {
   const items = report.quality.notices.length > 0 ? report.quality.notices : ["No source-quality issue was detected; provider invoice agreement is still not implied."];
   return `<section class="quality" aria-labelledby="quality"><h1 id="quality">Data quality · ${esc(report.quality.overall)}</h1><ul>${items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul><details><summary>Diagnostics and coverage</summary><dl><dt>Observable / provider turns</dt><dd>${report.quality.observable_turns} / ${report.headline.provider_turns}</dd><dt>Duplicates</dt><dd>${report.quality.duplicate_rows}</dd><dt>Corrupt / torn</dt><dd>${report.quality.corrupt_lines} / ${report.quality.torn_tails}</dd><dt>Missing run detail</dt><dd>${report.quality.missing_envelopes}</dd><dt>Unsettled passes</dt><dd>${report.quality.unsettled_passes}</dd><dt>Retained ledger range</dt><dd>${esc(report.quality.retained_from ?? "none")} – ${esc(report.quality.retained_to ?? "none")}</dd></dl></details></section>`;
+}
+
+function validationCampaigns(report: ReportSnapshotV1): string {
+  const campaigns = report.validation_campaigns.reports;
+  const corrupt = report.validation_campaigns.corrupt;
+  if (campaigns.length === 0 && corrupt.length === 0) return "";
+  const rows = campaigns.map((campaign) => {
+    const verdict = campaign.outcome.verdict === "inconclusive"
+      ? "INCONCLUSIVE — NOT A PASS; NOT RELEASE EVIDENCE"
+      : campaign.outcome.verdict.toUpperCase();
+    return `<tr><td><code>${esc(campaign.campaign_id)}</code></td><td>${esc(campaign.lane)}</td><td><strong>${esc(verdict)}</strong></td><td>${esc(campaign.outcome.completeness)}</td><td>${campaign.coverage.collected_case_ids.length} / ${campaign.coverage.required_case_ids.length}</td><td>${campaign.spend.observed_provider_turns} / ${campaign.spend.max_provider_turns} turns · ${money(campaign.spend.observed_equiv_usd)} / ${money(campaign.spend.max_equiv_usd)}</td></tr>`;
+  });
+  rows.push(...corrupt.map((item) =>
+    `<tr><td><code>${esc(item.campaign_id)}</code></td><td>—</td><td><strong>CORRUPT — EVIDENCE INCOMPLETE</strong></td><td>incomplete</td><td>—</td><td>${esc(item.detail)}</td></tr>`,
+  ));
+  return `<section class="quality" aria-labelledby="validation-campaigns"><h1 id="validation-campaigns">Validation campaigns</h1><p>An inconclusive campaign is not a pass and is never release evidence. Triage: <code>docs/qualification/validation-triage.md</code>.</p><div class="scroll"><table><thead><tr><th>Campaign</th><th>Lane</th><th>Verdict</th><th>Completeness</th><th>Cases</th><th>Spend / evidence</th></tr></thead><tbody>${rows.join("")}</tbody></table></div></section>`;
 }
 
 function trend(report: ReportSnapshotV1): string {

@@ -8,6 +8,7 @@ import type { StatusRow } from "../runtime/runlog/status.js";
 import type { InvocationRecord, TurnRecord } from "../runtime/telemetry.js";
 import type { TurnLock } from "../org/locks.js";
 import type { BudgetRow } from "../org/budget.js";
+import type { ValidationCampaignReadResult } from "../org/validation-campaign.js";
 
 /** Bumped 1 → 2 once for the observer-diagnostics workstream (#91/#93/#94/#97).
  *  Additive fields alone would not have required it, but `intake` was REMOVED
@@ -698,6 +699,8 @@ export interface ObserveSnapshotV1 {
   totals: TotalsView;
   attention: AttentionItemView[];
   attention_groups: AttentionGroupView[];
+  /** Durable triggered-validation evidence. Inconclusive is never a pass. */
+  validation_campaigns: ValidationCampaignReadResult;
 }
 
 export interface GitHubAppSnapshot {
@@ -755,4 +758,5 @@ export interface ObserveProjectionInput {
   }>;
   github: GitHubAppSnapshot[];
   source_health: SourceHealthView[];
+  validation_campaigns?: ValidationCampaignReadResult;
 }

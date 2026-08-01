@@ -22,6 +22,10 @@ Status: DRAFT (Phase 4). Defends INV-008/011/013, T-4/T-9. Journey J-15. GitHub 
   portable HTML carries no L3, no external requests, hash-restricted CSP (INV-011).
 - Reports are as-of snapshots with a disclosure panel (incomplete/estimated/duplicate/
   unsettled/legacy/retention-limited) before any totals `[doc]`.
+- Versioned validation-campaign reports preserve separate completeness/verdict fields.
+  `inconclusive` is rendered as not-a-pass/not-release-evidence; corrupt reports remain
+  visibly incomplete; absence never implies success. Every campaign surface links the
+  operator triage runbook (INV-008).
 
 ## 3. Error behavior
 - Torn local reads: the observer **rejects the record, reports the owning source as

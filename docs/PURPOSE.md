@@ -904,3 +904,19 @@ will resolve them.
   the suite and their rules stand unenforced until re-guarded. Unattended
   runnability is a design requirement of the new harness: sandbox-org
   validation must run to completion with zero human approval decisions.
+- 2026-07-31 — v2.10: the owner ratified the harness recommendations and approved
+  their complete implementation in an isolated worktree/PR workflow. The replacement
+  L1/L2 suite, bounded L3 live runner, L4 data-collection runner, L5 contention/soak
+  collectors, and operator triage surfaces now live under `claude-tests/` and
+  `validation-design/`. Two product surfaces are permanent: versioned validation
+  campaign reports under `<stateHome>/validation/campaigns/<campaign-id>/report.json`,
+  projected read-only through status/Report/Observe; and the sandbox-only unattended
+  profile `operon/unattended-sandbox/v1`, whose sole auto-grant category is campaign
+  budget and which can never authorize publication, non-sandbox effects, critical
+  operations, or forge a human decision. Completeness and verdict are separate;
+  `inconclusive` is explicitly not a pass and never release evidence. Release gating
+  remains SUSPENDED: no L3/L4 external campaign or seven-day soak was executed by the
+  implementation change, F-PT-009/010/011 keep thresholds provisional, human reference
+  validation is pending, HB-072 still requires a genuinely human-authored/reviewed
+  threat model, B-17-L3 remains blocked, and F-PT-018 leaves required-check enforcement
+  unavailable. Implemented machinery never substitutes for missing evidence.

@@ -7,7 +7,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { dispatchTick } from "../../../src/org/dispatch.js";
 import { EventStore, roleConsumedKey, type GitHubEventSource } from "../../../src/org/events.js";
-import { releaseLock } from "../../../src/org/locks.js";
+import { readLock, releaseLock } from "../../../src/org/locks.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
 
 const APP = "event-app";
@@ -106,7 +106,8 @@ async function tick(home: TempOrgHome, at: string, fault?: "after_child_spawn") 
 }
 
 async function unlock(home: TempOrgHome, role: string): Promise<void> {
-  await releaseLock(home.stateHome, APP, role);
+  const lock = await readLock(home.stateHome, APP, role);
+  await releaseLock(home.stateHome, APP, role, lock);
 }
 
 async function consumed(home: TempOrgHome): Promise<string[]> {

@@ -22,14 +22,15 @@ framework-free assets. `docs/live-ui/design.md` is the authoritative contract.
 - Framework-free: assets are embedded; no new runtime dependencies.
 
 ## Testing
-Interim during the validation rebuild (root AGENTS.md → Testing
-expectations): `pnpm test && pnpm typecheck`, plus `pnpm build`,
+Replacement harness (root AGENTS.md → Testing expectations):
+`pnpm test && pnpm typecheck`, plus `pnpm build`,
 `pnpm smoke:onboarding`, and `npm pack --dry-run` for packaging-visible
 changes. The Playwright browser suite is archived with the legacy harness.
-When the replacement harness covers this leaf, server tests must use a real
+The replacement harness covers the deterministic leaf; server tests must use a real
 ephemeral loopback port and cover capability/security headers, SSE
 replay/resync, corrupt/torn/legacy state, traversal/symlink rejection, and
-observer-shutdown independence.
+observer-shutdown independence, and campaign evidence must keep inconclusive/corrupt
+states visibly non-green.
 
 ## References
 `docs/live-ui/design.md`

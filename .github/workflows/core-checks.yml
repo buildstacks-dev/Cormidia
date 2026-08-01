@@ -78,8 +78,9 @@ jobs:
           set -euo pipefail
           CANARY_DIR="$(mktemp -d)"
           # Generated at run time, never committed; AWS-key-shaped test value.
+          CANARY_SUFFIX="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n' | tr 'a-f' 'A-F')"
           printf 'aws_access_key_id = AKIA%s\n' \
-            "$(tr -dc 'A-Z0-9' < /dev/urandom | head -c 16)" \
+            "${CANARY_SUFFIX}" \
             > "${CANARY_DIR}/canary.env"
           if ./gitleaks detect --no-banner --no-git --source "${CANARY_DIR}" > /dev/null 2>&1; then
             echo "NEGATIVE CONTROL FAILED: gitleaks did not fire on the planted canary — the lane cannot be trusted"

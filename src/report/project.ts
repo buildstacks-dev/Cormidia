@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import type { AppsFile } from "../org/apps.js";
-import { rollupBudgets } from "../org/budget.js";
+import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 import { settlementIdentity, settlementKey } from "../runtime/telemetry.js";
 import { aggregateCost, providerPassRef } from "../runtime/cost.js";
 import { classifyEnvelopeUsage } from "../runtime/runlog/envelope.js";
@@ -137,6 +137,12 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
     completion_integrity_sessions: sessions.filter((session) => session.summary.completion_integrity !== "unknown").length,
   };
   const budgetRows = await rollupBudgets(options.stateHome, options.appsFile, now);
+  const budgetPaused = new Set((await Promise.all(
+    options.appsFile.apps.map(async (app) => ({
+      app: app.name,
+      paused: await isOverlayPaused(options.stateHome, app.name),
+    })),
+  )).filter((entry) => entry.paused).map((entry) => entry.app));
   const allDetails = query.summaryOnly === true ? [] : sessions;
   const sourceFingerprint = createHash("sha256")
     .update(ledger.fingerprint)
@@ -190,7 +196,7 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
     },
     health: buildHealth(sessions),
     efficiency,
-    apps: buildAppRows(options.appsFile, budgetRows, sessions, allTurns, headline.known_total_tokens, query.app),
+    apps: buildAppRows(options.appsFile, budgetRows, budgetPaused, sessions, allTurns, headline.known_total_tokens, query.app),
     sessions: {
       total: sessions.length,
       returned: sessions.length,
@@ -284,7 +290,7 @@ function buildHealth(sessions: ReportSessionDetailV1[]): ReportSnapshotV1["healt
   };
 }
 
-function buildAppRows(appsFile: AppsFile, budgets: Awaited<ReturnType<typeof rollupBudgets>>, sessions: ReportSessionDetailV1[], turns: ReportTurnV1[], denominator: number, appScope?: string): ReportAppRowV1[] {
+function buildAppRows(appsFile: AppsFile, budgets: Awaited<ReturnType<typeof rollupBudgets>>, budgetPaused: ReadonlySet<string>, sessions: ReportSessionDetailV1[], turns: ReportTurnV1[], denominator: number, appScope?: string): ReportAppRowV1[] {
   return appsFile.apps.filter((app) => appScope === undefined || app.name === appScope).map((app) => {
     const appTurns = turns.filter((turn) => turn.app === app.name);
     const appSessions = sessions.filter((session) => session.summary.apps.includes(app.name));
@@ -308,6 +314,7 @@ function buildAppRows(appsFile: AppsFile, budgets: Awaited<ReturnType<typeof rol
       // over-cap, fail-closed state; the report projects it as `exceeded` so its
       // public schema stays stable while never reading as `ok`.
       budget_status: budget.status === "unknown" ? "exceeded" : budget.status,
+      budget_paused: budgetPaused.has(app.name),
       usage_coverage: share(observable.length, appTurns.length),
       completion_coverage: share(appSessions.filter((session) => session.summary.completion_integrity !== "unknown").length, appSessions.length),
       most_recent_activity: appTurns.map((turn) => turn.settled_at).filter((value): value is string => value !== null).sort().at(-1) ?? null,

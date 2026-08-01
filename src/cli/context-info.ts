@@ -43,6 +43,7 @@ export async function cmdContext(args: string[]): Promise<number> {
 }
 
 const CAPABILITIES = [
+  { command: "capabilities", writes: false, spendsTokens: false, summary: "discover the installed command surface and its write/token/JSON claims" },
   { command: "org init", writes: true, spendsTokens: false, summary: "preview with --dry-run or safely create/populate and select an org home" },
   { command: "org show", writes: false, spendsTokens: false, summary: "show resolved package, org, and state homes" },
   { command: "org use", writes: true, spendsTokens: false, summary: "select an existing complete org home" },
@@ -84,6 +85,7 @@ const CAPABILITIES = [
 /** A command is marked true when at least one documented invocation accepts
  * `--json`; compound commands may still have interactive text-only forms. */
 const JSON_COMMANDS = new Set<string>([
+  "capabilities",
   "org init", "org show", "org use", "org list", "org archive", "org upgrade",
   "roles", "roles set", "apps", "app reset", "app verify", "app promote", "pipelines",
   "bootstrap", "new-app", "plan", "plan ratify-ticket-budget",

@@ -324,6 +324,7 @@ export interface ReportAppRowV1 {
   monthly_budget_usd: number;
   budget_percent: number;
   budget_status: "ok" | "warning" | "exceeded";
+  budget_paused: boolean;
   usage_coverage: number | null;
   completion_coverage: number | null;
   most_recent_activity: string | null;

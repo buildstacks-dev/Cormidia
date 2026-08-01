@@ -3,9 +3,12 @@
 Status: derived to matrix closure (Phase 6, agent-alone per Division of labor §6) over
 the ratified artifacts: system-map (J-01…J-18), invariants (INV-001…015), boundary-map
 (B-01…B-17), contracts (22 canonical IDs), llm-eval-plan (S-1…S-7 and S-9; S-8 intentionally absent), risk-allocation
-(E-1/E-2/E-3, floors, §5/§6 obligations). **This is design derivation, not
-implementation** — executable authoring waits for the walking skeleton's fixtures
-(harness-backlog.md); derivation does not.
+(E-1/E-2/E-3, floors, §5/§6 obligations). **This remains the design-derived
+catalog, while executable authoring is tracked by `harness-backlog.md`.** As of
+2026-07-31, Waves 0–3 are implemented under `claude-tests/`: the Wave-3
+CF-INV-009/CF-SM-LOOP/CF-J04/CF-J15/CF-J07-A/CF-J08-A/CF-J02-A/CF-IF families
+are executable and green at L1/L2. Catalog closure does not imply implementation
+of Wave 4 or separately gated L3/L4/L5 evidence.
 
 **Closure rule:** every (source artifact × derivation row) cell below carries case
 families or a **named prune**. Prune vocabulary (nothing else is legal):

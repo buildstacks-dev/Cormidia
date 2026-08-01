@@ -1155,10 +1155,16 @@ before moving code.
 Budget is an enforcement view for the current calendar month. Reports reuse
 the same ledger accounting semantics and show the current-month budget panel,
 but report generation never enforces, pauses, raises approvals, or reconciles.
+The report also projects the durable budget-admission overlay as a separate
+`budget_paused` fact and renders `PAUSED`/`active` in terminal and self-contained
+HTML output. It must not derive overlay state from the computed budget status or
+write the overlay while reporting.
 
 An implementation test must prove that a current-month report’s per-app
 recorded equivalent cost agrees with `rollupBudgets` for the same fixed clock,
-including estimated and unmeasured caveats.
+including estimated and unmeasured caveats. The same fixed fixture must also
+prove agreement among report JSON/terminal/HTML, `operon budget`, `operon
+status`, and the observer for both threshold status and durable pause state.
 
 ### 15.3 `operon retro` and scorecards
 

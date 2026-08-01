@@ -664,6 +664,13 @@ derived from durable artifacts; any tick on any day can advance any item;
 laptop sleep loses nothing. `operon loop --app <app> [--follow]` drives
 ticks manually for an interactive, watch-it-run experience.
 
+Each public phase-transition function validates its entry phase before any
+GitHub, filesystem, journal, runtime, or settlement mutation. An illegal or
+replayed transition fails with `LoopPhaseTransitionError` and stable code
+`error_illegal_loop_phase_transition`; callers may retry only after
+re-projecting the durable phase. This makes the diagram below an enforced
+protocol rather than a descriptive convention.
+
 ```
 op:ready (deps merged)
   │ claim: label swap → worktree + branch op/<issue>-<slug>

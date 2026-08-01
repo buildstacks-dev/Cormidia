@@ -136,6 +136,18 @@ provider conformance remains the separately gated HB-051 L3 obligation. -->
 
 ## Wave 3 — E-3 merge + evidence truth (exhaustive; L1/L2)
 
+<!-- implementation status 2026-07-31: HB-030..HB-033 COMPLETE in the
+isolated codex/harness-wave2 worktree. Coverage includes exact-HEAD/default-
+branch merge authorization and HMAC binding; legal loop-phase entry and
+ready→merged/refusal walks; observer/server restart, SSE resync, source-
+freshness, corruption, traversal, and symlink cases; delivery evidence and
+approval truthfulness; CLI capability/error semantics; and budget/cost/
+lifecycle agreement across observe, report, status, budget, terminal, HTML,
+and API surfaces. Product detectors land with every discovered defect. Full
+per-commit L1/L2 gate: 108 files, 699 passed + 1 intentionally parked skip;
+typecheck and build green. This status is L1/L2 only and does not imply any
+separately gated L3/L4/L5 evidence. -->
+
 - **HB-030** Merge boundary suite (CF-INV-009; HEAD equality; resolved default).
   **HB-031** Loop state machine + labels-after-artifacts (CF-SM-LOOP-*, CF-J04-S/R).
   **HB-032** Evidence truthfulness sweep across readers (CF-INV-008, CF-J15-*,

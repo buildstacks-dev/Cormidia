@@ -190,14 +190,17 @@ export class ObserveService {
     this.github = result.apps.map((app) => {
       const prior = previous.get(app.app);
       return app.error !== undefined && prior !== undefined
-        ? { ...prior, observed_at: app.observed_at, error: app.error }
+        ? { ...prior, error: app.error }
         : app;
     });
-    const changed = this.githubHealth?.status !== result.health.status || this.githubHealth?.detail !== result.health.detail;
-    this.githubHealth = result.health;
+    const health = result.health.status === "unavailable" && this.githubHealth?.last_success_at !== null
+      ? { ...result.health, last_success_at: this.githubHealth?.last_success_at ?? null }
+      : result.health;
+    const changed = this.githubHealth?.status !== health.status || this.githubHealth?.detail !== health.detail;
+    this.githubHealth = health;
     if (changed && this.snapshotValue !== undefined) {
       this.cursor += 1;
-      this.publish("source.health", result.health);
+      this.publish("source.health", health);
     }
   }
 

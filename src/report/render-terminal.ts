@@ -12,7 +12,7 @@ export function renderReportTerminal(report: ReportSnapshotV1): string {
   ];
   if (report.scope.kind === "app" && report.apps[0] !== undefined) {
     const app = report.apps[0];
-    lines.push(`Current month budget  $${app.current_month_spend_usd.toFixed(2)} / $${app.monthly_budget_usd.toFixed(2)} (${app.budget_percent.toFixed(1)}%, ${app.budget_status})`);
+    lines.push(`Current month budget  $${app.current_month_spend_usd.toFixed(2)} / $${app.monthly_budget_usd.toFixed(2)} (${app.budget_percent.toFixed(1)}%, ${app.budget_status}, ${app.budget_paused ? "PAUSED" : "active"})`);
   } else {
     const warn = report.apps.filter((app) => app.budget_status !== "ok");
     lines.push(`Current month budgets  ${warn.length} app(s) warning or exceeded`);

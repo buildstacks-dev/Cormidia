@@ -86,6 +86,25 @@ export interface ClaimTicketOptions {
   afterLabelTransition?: () => void | Promise<void>;
 }
 
+export class LoopPhaseTransitionError extends Error {
+  readonly code = "error_illegal_loop_phase_transition";
+
+  constructor(operation: string, phase: LoopPhase, expected: readonly LoopPhase[]) {
+    super(`error_illegal_loop_phase_transition: ${operation} requires ${expected.join("|")}, received ${phase}`);
+    this.name = "LoopPhaseTransitionError";
+  }
+}
+
+function requireLoopPhase(
+  operation: string,
+  item: Pick<LoopItem, "phase">,
+  expected: readonly LoopPhase[],
+): void {
+  if (!expected.includes(item.phase)) {
+    throw new LoopPhaseTransitionError(operation, item.phase, expected);
+  }
+}
+
 export interface GatePhaseOptions {
   gh: GhOps;
   policy: Policy;
@@ -301,6 +320,12 @@ export async function claimTicket(
   issue: GhIssue,
   options: ClaimTicketOptions,
 ): Promise<LoopItem> {
+  const stateLabels = issue.labels.filter((label) =>
+    (STATE_LABELS as readonly string[]).includes(label),
+  );
+  if (stateLabels.length !== 1 || stateLabels[0] !== "op:ready") {
+    throw new LoopPhaseTransitionError("claimTicket", phaseFromLabels(issue.labels), ["ready"]);
+  }
   const item = itemFromIssue(issue, options.targetRepo);
   const branch = branchNameForIssue(issue);
 
@@ -326,6 +351,7 @@ export async function advanceGates(
   item: LoopItem,
   options: GatePhaseOptions,
 ): Promise<LoopItem> {
+  requireLoopPhase("advanceGates", item, ["building", "gates"]);
   const worktree = requireField(item, "worktree");
   const branch = requireField(item, "branch");
   let current = { ...item, phase: "gates" as LoopPhase };
@@ -651,6 +677,7 @@ export async function advanceReviewing(
   item: LoopItem,
   options: ReviewPhaseOptions,
 ): Promise<LoopItem> {
+  requireLoopPhase("advanceReviewing", item, ["reviewing"]);
   const prNumber = requireField(item, "prNumber");
   const reviews = await options.gh.listReviews(prNumber);
   const latest = latestActionableReview(reviews, prNumber, options.authorization);
@@ -1148,6 +1175,7 @@ export async function advanceShipping(
   item: LoopItem,
   options: ShippingPhaseOptions,
 ): Promise<LoopItem> {
+  requireLoopPhase("advanceShipping", item, ["shipping"]);
   const branch = requireField(item, "branch");
   const worktree = requireField(item, "worktree");
   const prNumber = requireField(item, "prNumber");

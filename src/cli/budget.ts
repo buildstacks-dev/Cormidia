@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import {
   countUnmeasured,
   enforceBudgetOverlay,
+  isOverlayPaused,
   reconcileLedger,
   rollupLearningSpend,
 } from "../org/budget.js";
@@ -42,6 +43,10 @@ export async function cmdBudget(args: string[]): Promise<number> {
   }
 
   const rows = await enforceBudgetOverlay(homes.stateHome, apps, now);
+  const appRows = await Promise.all(rows.map(async (row) => ({
+    ...row,
+    paused: await isOverlayPaused(homes.stateHome, row.app),
+  })));
   // Learning overlay (learning-loop M5, spec §13): replay/eval spend settles
   // into the same ledger; this is the rollup against the learning caps.
   const learning = await rollupLearningSpend(homes.stateHome, now);
@@ -89,7 +94,7 @@ export async function cmdBudget(args: string[]): Promise<number> {
     appsPath: effectiveAppsPath,
     month,
     reconciliation,
-    apps: rows,
+    apps: appRows,
     learning: learningReport,
     learningPolicyWarning,
     unmeasured: [...unmeasured.entries()].sort(([a], [b]) => a.localeCompare(b))
@@ -116,7 +121,7 @@ export async function cmdBudget(args: string[]): Promise<number> {
   console.log("APP                  SPENT      BUDGET     STATUS");
   for (const row of report.apps) {
     console.log(
-      `${row.app.padEnd(20)} ${money(row.spentUsd).padStart(10)} ${money(row.budgetUsd).padStart(10)} ${row.status.toUpperCase()}`,
+      `${row.app.padEnd(20)} ${money(row.spentUsd).padStart(10)} ${money(row.budgetUsd).padStart(10)} ${row.status.toUpperCase()}${row.paused ? " PAUSED" : ""}`,
     );
   }
   if (report.learningPolicyWarning !== null) console.error(`note: ${report.learningPolicyWarning}`);

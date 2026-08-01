@@ -79,7 +79,7 @@ describe("CF-J17-R — undeclared mechanism fails the ship gate; scoped grants r
       body: DEPLOYABLE_BODY,
       targetRepo: handle.repo,
       labels: ["op:in-review"],
-      phase: "reviewing",
+      phase: "shipping",
       tier: "standard",
       cycles: 0,
       remediationAttempts: 0,

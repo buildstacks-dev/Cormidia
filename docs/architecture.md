@@ -474,6 +474,12 @@ belongs to exactly one app by construction: `TurnRequest` has a single
 recomputes each app's spend overlay every tick, warns the Planner at 80% of
 the monthly budget, and at 100% pauses the app and files a `budget-exceeded`
 approval item for the human.
+Budget threshold and admission pause are related but distinct durable facts:
+the ledger computes `ok`/`warning`/`exceeded`, while
+`state/budget-overlay.json` records whether admission is actually paused.
+`operon budget`, `operon status`, reports, and the observer project both facts
+from the same readers; none may substitute the threshold for the overlay or
+mutate admission state while presenting it.
 [`docs/org/apps.md`](org/apps.md) is the full contract.
 
 ## 8. Product co-planning and the EpisodePlanner boundary

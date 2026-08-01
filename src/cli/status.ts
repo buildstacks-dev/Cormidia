@@ -7,11 +7,15 @@ import { listTicketClaimStates } from "../loop/rehydrate.js";
 import { rearmCommand } from "../loop/claim-recovery.js";
 import { readEfficiencyEvidence } from "../loop/efficiency.js";
 import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
+import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
   const parsed = parseArgs(common.rest);
-  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
+  const homes = common.orgHome !== undefined || common.stateHome === undefined
+    ? await resolveOperonHomes(common)
+    : undefined;
+  const stateHome = common.stateHome ? resolve(common.stateHome) : homes!.stateHome;
   const rows = await readStatusRows(stateHome, {
     ...(parsed.app !== undefined ? { app: parsed.app } : {}),
     ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
@@ -81,6 +85,12 @@ export async function cmdStatus(args: string[]): Promise<number> {
     .sort((left, right) =>
       right.updatedAt.localeCompare(left.updatedAt) ||
       left.episodeId.localeCompare(right.episodeId));
+  const budget = homes === undefined ? [] : await Promise.all(
+    (await rollupBudgets(stateHome, homes.appsFile)).map(async (row) => ({
+      ...row,
+      paused: await isOverlayPaused(stateHome, row.app),
+    })),
+  );
   const report = {
     schema_version: 1,
     kind: "status",
@@ -91,6 +101,7 @@ export async function cmdStatus(args: string[]): Promise<number> {
     approvalDelivery,
     claimRecovery,
     episodeReplans,
+    budget,
   } as const;
   if (parsed.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -126,6 +137,15 @@ export async function cmdStatus(args: string[]): Promise<number> {
         `${entry.app} ${entry.episodeId} ${entry.status} ${entry.kind} ` +
         `revision=${entry.revisionVersion ?? "-"} at=${entry.updatedAt} ` +
         `reason=${entry.reason ?? "-"}`,
+      );
+    }
+  }
+  if (report.budget.length > 0) {
+    console.log("\nBUDGET ADMISSION");
+    for (const row of report.budget) {
+      console.log(
+        `${row.app} ${row.status.toUpperCase()} spent=$${row.spentUsd.toFixed(2)} ` +
+        `budget=$${row.budgetUsd.toFixed(2)} admission=${row.paused ? "PAUSED" : "active"}`,
       );
     }
   }

@@ -845,6 +845,18 @@ manual label edit, and no reliance on the Planner "groom" pass, which the live
 campaign confirmed was unenforced (10/17 tickets never claimed; a human did all
 re-arms by hand). A dependent with any op-state label already has an owner and
 is left untouched.
+- **Every claim cuts from a freshly resolved base (#203).** The base is not an
+invocation-level constant. `runLoopOnce` calls the caller-supplied
+`refreshBase` immediately before each claim — for a managed clone that is
+`ensureClone`'s idempotent fetch/checkout/reset, which re-synchronizes the
+clone and re-resolves the remote's default branch. Without it, a `--follow`
+run reused the base captured at startup, so `origin/<default>` stayed pinned
+behind the real remote and every ticket claimed after the first merge was cut
+from a tree predating it — invisible from inside the ticket's own checkout,
+whose `origin/*` refs were equally stale. The claim line now names the base
+(`#6: base origin/trunk @ 4503968`) so staleness is stated rather than
+inferable. An operator-supplied `--repo-dir` checkout passes no refresher: its
+base is an immutable commit by design.
 - **Scope-overlap conservatism:** tickets whose declared file scopes
 intersect are never scheduled concurrently. The predecessor's own rule,
 promoted to scheduler policy: "when in doubt, use sequential — incorrect

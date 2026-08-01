@@ -462,6 +462,12 @@ export async function cmdLoop(args: string[]): Promise<number> {
       maxConcurrent: appsFile.org.maxConcurrentTurns,
       turnId,
       base: inputs.base,
+      // `inputs` is built once per invocation, but `--follow` ticks for hours
+      // and merges land in the default branch while it runs. Forwarding the
+      // refresher makes the driver re-resolve per claim instead of reusing
+      // this startup snapshot (#203). Absent for `--repo-dir`, whose base is
+      // an immutable commit.
+      ...(inputs.refreshBase === undefined ? {} : { refreshBase: inputs.refreshBase }),
       planOnly: dryRun,
       ...(ticketInspection === undefined ? {} : { ticketInspection }),
       ...(selectedApp.release !== undefined ? { release: selectedApp.release } : {}),

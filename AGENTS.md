@@ -69,9 +69,12 @@ rewrite; legacy test/eval scripts removed with the archive move).
 - **Never hardcode a default branch.** Resolve with
   `resolveRemoteDefaultBranch()` from `src/loop/default-branch.ts` and thread
   the resulting `BaseRevision` through; the option types make it required.
-  A guessed base silently diffs against the wrong tree (#101). (The literal
-  scanner that enforced this is archived with the legacy suite; the rule
-  stands on its own until the replacement harness re-guards it.)
+  A guessed base silently diffs against the wrong tree (#101). Nor may a
+  resolved base be *cached* across claims: `runLoopOnce` re-resolves per
+  ticket, because a `--follow` run merges into the default branch while it
+  runs and a stale base has exactly the same effect as a guessed one (#203).
+  Re-guarded by `claude-tests/unit/cf-reg-203/` (source literals) and
+  `claude-tests/hermetic/cf-reg-203/` (per-claim freshness).
 - **Human-ratified surfaces:** `TASTE.md`, `roles.yaml`, `docs/PURPOSE.md`,
   `pipelines.yaml`, `prompts/**`. Propose changes with rationale; never
   silently rewrite.

@@ -384,3 +384,24 @@ not change matrix allocation or unblock any finding.
 Matrix closure reached: no silent empty cell. The catalog is maintained under the
 case-derivation grammar for the life of the product (sourcing channels, agents-md
 contribution).
+
+---
+
+## 10. Defect-sourced regression families
+
+The `case_sourcing` channel in `validation-policy.yaml` ("every production bug deposits
+its regression detector in the same change") produces families that are **not** new
+matrix cells: each one is a case added against structure §§1–8 already own. This section
+is the traceability record — defect → owning invariant/journey/boundary, control point,
+layer, and the spec that carries it — so the deposit rule is auditable in both
+directions. **It does not change the §9 closure counts**, and a row here is never a
+substitute for the derivation row it hangs off.
+
+A row is added here only when the defect's cases fit existing structure. A defect that
+would need a new journey, boundary, or invariant is a structural change and re-enters
+`validation-harness-design` in `harness-revision` mode (AGENTS.md → Validation harness).
+
+| Family | Defect | Owning structure | Control point | Layer | Oracle | Spec |
+|---|---|---|---|---|---|---|
+| CF-REG-203 | #203 — `loop --follow` cut every ticket after the first from the base captured at loop start; the managed clone was never re-fetched, so merges landing mid-run were invisible to later tickets (third instance of the default-branch scar after #60/#101 — cached, not guessed) | INV-009 (base resolved, never guessed) · CF-J04-S (ready→merged walk) · CF-B15-* (git substrate) | T-7 | 2 | state | `claude-tests/hermetic/cf-reg-203/cf-reg-203-base-freshness.test.ts` |
+| CF-REG-203-G | same defect, source-rule half: AGENTS.md's "never hardcode a default branch" rule lost its literal scanner when the legacy suite was frozen | INV-009 · CF-B15-* | T-7 | 1 | det | `claude-tests/unit/cf-reg-203/cf-reg-203-g-default-branch-literal-guard.test.ts` |

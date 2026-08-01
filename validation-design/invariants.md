@@ -15,6 +15,12 @@ model or external system could violate at runtime carries a guardrail (skill rul
 Acceptance gate applied to every item: stated as something a test could violate; the
 adversarial pass lists seed violation paths (each becomes catalog material in Phase 6).
 
+Harness revision 2026-08-01: comparative execution adds no global invariant. Candidate
+authority/effects are governed by INV-001/002/003; one-app and workspace coherence by
+INV-004/010; candidate and judge accounting by INV-006; selection/report truth by
+INV-008/012/015; durable recovery by INV-013/014. Operation-specific promises remain
+contracts B-18/B-19 and J-19 acceptance criteria rather than masquerading as INV-016.
+
 ---
 
 ## OPERON-INV-001 — Authority never grows by accident

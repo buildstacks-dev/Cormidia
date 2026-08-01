@@ -8,6 +8,11 @@ Grounding rule: the archived qualification machinery is prohibited design input;
 contract** `docs/qualification/design.md` (canonical record; machinery archived,
 gating suspended) `[doc]`.
 
+Harness revision 2026-08-01: comparative execution adds S-8, the operation-specific
+selection judge. It is a judge site and therefore inherits the calibration rule. Its
+threshold/sample design stays under F-PT-011; all scores are advisory/inconclusive
+until ratified.
+
 ## 0. Standing rules (apply to every site)
 
 1. **Two layers, never collapsed.** Contract layer: deterministic, mocked provider,
@@ -47,6 +52,7 @@ Family map corrected per elicitation: same role ≠ same output contract or rubr
 | S-5 Audience | S-5a Support drafts · S-5b Marketing launch/changelog content · S-5c Marketing adoption/competitive analysis | drafter/analyzer |
 | S-6 Distiller | (single) | synthesizer |
 | S-7 Learning Reviewer | (single) | judge |
+| S-8 Selection Judge | S-8a Builder change · later operation-specific policies for Planner/Reviewer/SRE/Audience | judge |
 | S-9 Format-repair retry | (single; same-session structure repair) | **contract-only** — valid structure is the whole job; no elegance rubric `[elicited]` |
 
 **Not a call site — conditioning surface:** brief/context assembly. Broken = wrong app,
@@ -171,13 +177,39 @@ becomes merged reality"; PR #182 the emotional center]`
   run before score admission (see `golden-sets/learning-reviewer/`). Sequenced after
   S-3 because activation is human-gated and candidates start inert.
 
+### S-8 Selection Judge — comparative execution `[stated+PROPOSED]`
+- **Contract (L1/2):** consumes only eligible, anonymized candidate artifacts plus the
+  frozen operation rubric and evidence manifest; candidate/provider identity is absent
+  from the judge view; emits one structured ranking with criterion-level evidence,
+  confidence/disagreement data, and exactly one terminal marker. The selector rejects
+  unknown candidates, missing evidence citations, multiple winners, and any attempt to
+  promote a deterministic-gate failure. Advisory/inconclusive output cannot materialize
+  a winner except through the separately declared non-judge fallback (B-19).
+- **Quality/meta-eval (L4):** operation-specific seeded sets with (a) must-catch pairs
+  where one artifact contains a planted correctness, evidence-fabrication, scope,
+  documentation, test-depth, or maintainability defect; (b) must-pass/tie controls of
+  comparable difficulty; (c) order-reversal and identity-blinding controls; and (d)
+  cost/verbosity lures where the expensive or polished candidate is not the correct
+  winner. Metrics: serious-defect preference, clean/tie false-selection rate,
+  order-invariance, evidence-citation validity, and abstention/inconclusive accuracy.
+- **Threshold + sample design:** OPEN under F-PT-011. Data collection is allowed, but
+  every threshold-dependent verdict is `inconclusive`; scores are inadmissible for
+  automatic materialization until the corpus, thresholds, N, and aggregation rule are
+  human-ratified. The Builder policy is authored first; later operation policies add
+  cases to this same call-site corpus rather than standing up uncalibrated judges.
+- **Pairing:** results remain per `(candidate operation × candidate tuple set × judge
+  tuple)`; different operation families are never pooled into one quality average.
+- **Cadence:** judge prompt/model/rubric change; comparison-selection policy change;
+  before enabling automatic winner materialization; then the ordinary triggered L4
+  cadence.
+
 ### S-9 Format-repair retry
 - **Contract only:** produces valid structure in the same session; bounded attempts;
   settlement per turn (INV-006). No quality rubric, ever `[elicited]`.
 
 ## 3. Judge calibration rule
 
-Any judge site (S-3, S-7 — and any judge the qualification replacement introduces,
+Any judge site (S-3, S-7, S-8 — and any judge the qualification replacement introduces,
 which thereby becomes a call site with its own calibration obligation `[elicited]`)
 must have its meta-eval (seeded catch rate + clean FP rate) run and admitted **before**
 its scores are admissible as evidence anywhere downstream.
@@ -230,9 +262,9 @@ discarded, never rendered green (INV-008/014).
 
 ## 7. Golden-set scaffolds
 
-`golden-sets/` holds **eleven** directories: nine statistical golden sets (reviewer,
+`golden-sets/` holds **twelve** directories: ten statistical golden sets (reviewer,
 planner, **builder-quality**, sre, support, marketing-content, marketing-analysis,
-distiller, learning-reviewer), one deterministic suite (builder-trajectory — exempt
+distiller, learning-reviewer, **selection-judge**), one deterministic suite (builder-trajectory — exempt
 from rubric/threshold fields, marked N/A), and `brief-conditioning/` (the §1
 conditioning-surface study — NOT a model golden set; threshold N/A, never gates).
 Every **statistical** scaffold carries: rubric axes; threshold and sample-size status

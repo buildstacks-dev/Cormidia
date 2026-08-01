@@ -304,6 +304,56 @@ BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed
   through status, terminal/HTML Reports, and Observe; `inconclusive` is rendered as
   not-a-pass/not-release-evidence and corrupt reports remain visibly incomplete.
 
+## Proposed comparative-execution implementation (2026-08-01)
+
+<!-- Owner confirmed the product direction and requested the design + implementation
+epic. These tickets are DESIGN-ONLY: none is implemented by this document change, and
+the pre-revision green gate is not evidence for them. Sequence and acceptance derive
+from docs/comparative-execution/design.md, J-19, B-18/B-19, and S-8. Tracked by
+GitHub epic [#219](https://github.com/buildstacks-dev/Operon/issues/219). -->
+
+- **HB-090 — Comparison contracts and hermetic skeleton.** Implement immutable
+  comparison/candidate identities, the CF-SM-COMP state machine, sequential candidate
+  execution, isolated namespaces/worktrees, exact tuple preservation, per-turn
+  settlement, aggregate admission ceilings, evidence hashes, deterministic
+  eligibility, durable selection, and crash-safe materialization acknowledgement.
+  Land CF-J19-S/R/I/RC, CF-SM-COMP-*, CF-B18-*, CF-B19-*, CF-C-B18/19, and detector
+  negative controls. *Acceptance:* no candidate outward effect; no sibling leakage;
+  no double spend for a settled turn; no deterministic failure can be outweighed by a
+  judge; exactly one content-bound eligible artifact, or none, may cross B-19.
+  *Layer:* 1/2. *Executor:* build-agent.
+- **HB-091 — Standalone Builder slice.** Add preview-first `operon compare` over a
+  local git repo with exact operator-declared tuples, provider/capability checks,
+  execute/confirm identity binding, external state/worktrees, Builder-specific
+  validation evidence, terminal/JSON/portable-HTML results, and a separate explicit
+  local winner-branch materialization command. Land CF-J19-A and CF-IF-COMPARE.
+  *Acceptance:* no org, scheduler, GitHub remote, or GitHub auth is required; preview
+  spends zero tokens; execution never mutates the active branch or pushes/opens a PR;
+  operator-declared candidates are never represented as qualified. *Layer:* 1/2.
+  *Executor:* build-agent.
+- **HB-092 — EpisodePlan integration.** Add the exact transport schema, app-narrowed
+  candidate-set and selection-policy validation, worst-case candidate+judge admission
+  arithmetic, selected-artifact continuation, explain/status/report projection, and
+  recovery. *Acceptance:* comparison is optional/off by omission; only a provider
+  turn fans out; the episode keeps one route after selection; mandatory Reviewer,
+  gates, PR, and merge remain downstream; losing candidates never become outputs.
+  *Layer:* 1/2, with existing L3 adapter obligations only if invocation semantics
+  change. *Executor:* build-agent.
+- **HB-093 — S-8 selection-judge corpus and calibration.** Author seeded eligibility
+  traps, clean controls, human pairwise/ranking references, order swaps, ties, and
+  abstentions per operation; implement the blinded structured envelope and L4 runner
+  integration. Authoring/data collection may proceed, but **automatic judge selection
+  remains BLOCKED:F-PT-011** and all threshold-dependent outcomes remain inconclusive
+  until the owner ratifies S-8 calibration thresholds and sampling design. A unique
+  mechanically eligible candidate and declared non-judge fallbacks remain separately
+  governed. *Layer:* 1/2 envelope + 4 quality. *Executor:* human + build-agent.
+- **HB-094 — Planner activation, sampling, and optional parallelism.** After HB-090…093,
+  allow planner-proposed comparisons inside app policy; then separately design sticky
+  Operon-owned sampling and governed aggregate learning. Parallel candidates are last.
+  *Gate:* sampling or parallelism re-enters risk allocation and may activate
+  CF-OPS-COMP at L5; no single comparison mutates routing/qualification policy.
+  *Executor:* human + build-agent.
+
 ## Standing rules
 
 (Single source of truth for the detector-deposit obligation:

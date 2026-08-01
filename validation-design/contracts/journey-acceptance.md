@@ -19,6 +19,7 @@ its header):
 | B-05 | OPERON-C-B05-001 | | B-15 | OPERON-C-B15-001 |
 | B-06 | OPERON-C-B06-001 | | B-16 | OPERON-C-B16-001 |
 | B-07 | OPERON-C-B07-001 | | B-17 | OPERON-C-B17-001 |
+| B-18 | OPERON-C-B18-001 | | B-19 | OPERON-C-B19-001 |
 | B-08 | OPERON-C-B08-001 | | C-OP-LIFE | OPERON-C-OPLIFE-001 |
 | B-09a | OPERON-C-B09A-001 | | C-OP-PLAN | OPERON-C-OPPLAN-001 |
 | B-09b | OPERON-C-B09B-001 | | C-OP-LOOP | OPERON-C-OPLOOP-001 |
@@ -165,3 +166,25 @@ Phase 3 boundary owns them.
   evidence]
   <!-- changelog 2026-07-31: pointed to the existing draft policy (final-gate fix). -->
   <!-- ratification 2026-07-31: profile confirmed as shaped (package §3 item 11). -->
+
+## J-19 Per-turn comparative execution
+
+- Given one comparison, when any candidate runtime starts, then every candidate is
+  bound to the same role/operation/base/context/authority/expected outputs, differs
+  only by exact assignment and sample index, stays in its isolated namespace, and
+  settles exactly once. [B-18, INV-001/002/004/006/010]
+- Given candidate terminals, when selection runs, then required deterministic and
+  grounded clauses filter eligibility before any qualitative judgment; failed clauses
+  cannot be outweighed by judge preference, cost, or style. [B-19, INV-008/012/015]
+- Given an uncalibrated or inadmissible judge and multiple eligible candidates, when
+  selection terminates, then the outcome is advisory/inconclusive and follows the
+  explicit fallback; no surface calls the judge ranking selected, qualified, or green.
+  [B-19, INV-008/012/015]
+- Given an admissible selection or an explicit standalone human choice, when winner
+  materialization runs, then exactly the content-bound selected artifact continues;
+  losing artifacts perform no outward effect and ordinary downstream review/ship gates
+  remain mandatory. [B-18/B-19, INV-002/009/010/013]
+- Given standalone `operon compare`, when preview, execution, and materialization are
+  used, then no org or GitHub is required, preview spends no tokens, candidates mutate
+  only external comparison worktrees, and materialization creates only a new local
+  winner branch without touching the active branch. [B-18/B-19, INV-004/010/013]

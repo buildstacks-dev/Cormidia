@@ -1022,3 +1022,65 @@ gating SUSPENDED; no harness implementation authorized.
 all disposition=fixed. ratification-package.md §7 "Audit record" written (verdict,
 per-finding tier/disposition/rationale table, no unresolved disputes or deferrals,
 scope unchanged); prior §7 renumbered §8.
+
+## Harness revision — comparative execution (2026-08-01)
+
+### Owner input (close to verbatim)
+
+> Imagine a setting in episode planner that enables operon to run a permutation of
+> harness+model+effort on the same episode and finally rank the quality of work using
+> a mix of deterministic validation and llm as a judge. Sometimes it can be operon's
+> own sampling.
+
+After the first synthesis, the owner corrected two important assumptions:
+
+> Besides deterministic checks, you also have things like docs update, validate, etc.
+> I almost think the comparison is per agent turn, not entire episode.
+
+> Even if someone is not using operon, can this feature work standalone given a repo
+> and operon binary? It will help showcase the power of operon.
+
+The owner then requested: "Please build the design doc and epic. Commit and merge."
+
+### Synthesis and revision decisions
+
+- Unit corrected from episode-wide tournament to one planned provider turn. One
+  episode remains one outcome and route; only the compared step fans out.
+- “Permutation” narrowed to bounded exact assignment tuples and optional independent
+  sample indexes. No Cartesian expansion or silent tuple invention.
+- Evidence made operation-specific: Builder includes gates/tests/typecheck,
+  criterion→test mapping, documentation updates, scope/mutation checks, and qualitative
+  maintainability/economy; Planner, Reviewer, SRE, Support, and Marketing have distinct
+  grounded evidence and rubrics.
+- Selection is lexicographic: deterministic/grounded eligibility first, then a blinded
+  calibrated S-8 judge, then declared deterministic tie-breaks. A failed guardrail can
+  never be offset by judge preference or price.
+- S-8 is registered as a new call site and placed under the existing F-PT-011 umbrella.
+  Its scores are advisory/inconclusive and inadmissible for automatic promotion until
+  calibration data, thresholds, and sampling design are human-ratified.
+- Standalone `operon compare` is a first-class adapter over the same coordinator, not a
+  second engine. It requires only a binary, a safe local git repo, exact tuples,
+  credentials, task/policy, budget, and confirmation; it needs no org, scheduler, or
+  GitHub. It never mutates the active branch and only materializes an explicitly
+  selected local branch.
+- V1 is explicit and sequential. Planner activation, sticky Operon-owned sampling,
+  governed cross-episode learning, and parallel candidate execution are later phases.
+- Harness revision introduced M16/J-19/B-18/B-19/S-8 and associated contracts/cases.
+  Existing invariants, risk vocabulary, control points, and tooling remain sufficient.
+  No new L5 obligation exists until automatic sampling or parallelism changes the
+  question being tested.
+
+### Reader/adversarial pass
+
+- **Operator:** preview/execution/selection/materialization are distinct; advisory judge
+  output cannot masquerade as qualification; standalone's no-org/no-GitHub promise is
+  explicit.
+- **New engineer:** J-19 resolves to M16, B-18/B-19, both canonical contracts, S-8,
+  case families, and HB-090…094; every new cell is named design-only rather than green.
+- **Coding agent:** HB-090 is the walking skeleton; exact transport stays in the epic;
+  current runtime behavior is not a design oracle; F-PT-011 blocks automatic judge
+  selection but does not block envelope/corpus authoring or advisory data collection.
+
+Revision gate outcome: **direction confirmed; implementation pending.** No existing
+ratified requirement was loosened, no blocked finding was guessed, and no live/eval/
+soak campaign was run.

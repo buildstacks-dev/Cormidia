@@ -31,6 +31,13 @@ apps:
     repo: buildstacks-dev/Operon
     status: onboarding
     cadence: {}
+  # Public front door (homepage, install docs, community issues, release
+  # notes; never source) — self-hosting decision, docs/PURPOSE.md v2.11.
+  operon-web:
+    repo: buildstacks-dev/operon-web
+    status: onboarding
+    budget_usd_month: 1000
+    cadence: {}
   operon-sandbox-alpha:
     repo: bikramgupta/operon-sandbox-alpha
     status: live

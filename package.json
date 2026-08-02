@@ -3,6 +3,10 @@
   "version": "0.1.1",
   "private": true,
   "description": "Org runtime: a standing team of AI agents developing a product via a private GitHub repo, human-gated on critical ops only",
+  "homepage": "https://github.com/buildstacks-dev/operon-web",
+  "bugs": {
+    "url": "https://github.com/buildstacks-dev/operon-web/issues"
+  },
   "type": "module",
   "bin": {
     "operon": "./src/operon.cjs"

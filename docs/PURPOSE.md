@@ -1,6 +1,6 @@
 # PURPOSE — Operon
 
-*v2.7 — 2026-07-26. Human-ratified decision log. Keep this file high-level;
+*v2.11 — 2026-08-02. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop/design.md.
 The operator outcome is `docs/VISION.md`; product status and known limitations
 live in README → Status.*
@@ -708,6 +708,39 @@ and agent definitions.
   re-run reappears, that the strict gate carries no `if:`, that concurrency
   never cancels `main`, and that no provider-spending or externally mutating
   command can enter CI.
+- **Operon develops and distributes Operon: self-hosting ratified with
+  retained human release authority** (PROPOSED 2026-08-02 — ratified when
+  this PR merges). The product's public front door is the new public repo
+  `buildstacks-dev/operon-web` (homepage, install docs, community issues,
+  release notes; never source), created 2026-08-02. The platform source
+  stays in the private repo `buildstacks-dev/Operon`, deliberately
+  unrenamed — no clone, link, or state churn; a product-branded org or repo
+  rename is a GTM decision, deferred with the rest of GTM. The npm package
+  publishes from the private repo under a scoped name chosen at first
+  publish (unscoped `operon` is already taken on the registry). The standing
+  Operon org may register and operate both as apps: `operon-web` first (a
+  public front door carries no platform authority), and the platform source
+  repo only after the public app has proven the loop. This amends the prior
+  standing rule that Operon does not self-host its own development. Retained
+  carve-outs, tighten-only: (1) *Release authority stays human* — npm
+  publish, version tags, and release handoff are human-executed critical
+  ops, never delegated to the org and never reachable through an org
+  approval. (2) *Same rules as any developer* — the org obeys AGENTS.md
+  working rules; validation policy stays tighten-only; gates and thresholds
+  change only by human ratification. (3) *Authority separation stands* —
+  root instructions, developer grants, and eval state never enter an org's
+  prompts, state, learning, or approvals; the org can never approve its own
+  release. (4) *Human-ratified surfaces keep human merge* — TASTE.md,
+  roles.yaml, docs/PURPOSE.md, pipelines.yaml, prompts/**. v1.5 stands
+  unchanged: the source repo never doubles as the active org home; org state
+  lives in `~/.operon/<org>/`. *Rationale:* the recoverability boundary is
+  proven (package/org/state separation; onboard, reset, and verify are
+  built paths), and what the old rule actually protected — authority
+  separation, not development itself — is preserved by the carve-outs,
+  which is where the risk of a self-modifying system actually lives.
+  Distribution stays gated: publishing to npm is release-shaped work and
+  waits on reinstated release evidence per v2.9/v2.10 (release gating
+  suspended; L3/L4/L5 campaigns pending).
 
 ## Prior art (ours)
 
@@ -920,3 +953,8 @@ will resolve them.
   validation is pending, HB-072 still requires a genuinely human-authored/reviewed
   threat model, B-17-L3 remains blocked, and F-PT-018 leaves required-check enforcement
   unavailable. Implemented machinery never substitutes for missing evidence.
+- 2026-08-02 — v2.11: self-hosting ratified with retained human release
+  authority; public front door `buildstacks-dev/operon-web` created and
+  registered as an app; platform source repo deliberately unrenamed; npm
+  naming and GTM posture deferred. (Header version was stale at v2.7 while
+  the changelog stood at v2.10; corrected as part of this bump.)

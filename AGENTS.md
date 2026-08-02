@@ -8,10 +8,13 @@ Decided section wins and this file is stale — fix this file.
 
 This file governs **building and maintaining the Operon platform**, not
 operating an org with Operon. Read `docs/DEVELOPMENT.md` before development
-campaigns. Operon does not self-host its own development: root instructions,
-developer grants, eval state, and CI/release authority must never enter an
-Operon org's prompts, state, learning, or approvals. The packaged
-`agent-skills/operon/` skill is the separate org-operation guide.
+campaigns. Self-hosting is ratified with carve-outs (PURPOSE.md → Decided,
+2026-08-02): the standing org may operate `operon-web` (the public front
+door) and, once proven there, this repo — but release authority (npm
+publish, version tags, release handoff) stays human, and root instructions,
+developer grants, and eval state must never enter an Operon org's prompts,
+state, learning, or approvals. The packaged `agent-skills/operon/` skill is
+the separate org-operation guide.
 
 ## What this repo is
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,

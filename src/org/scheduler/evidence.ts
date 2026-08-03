@@ -324,10 +324,17 @@ export class SchedulerEvidenceStore {
     stage: Exclude<SchedulerDecisionStage, "terminal">,
     at: Date,
     detail?: string,
+    reasonCode?: SchedulerReasonCode,
   ): Promise<SchedulerDecisionRecord> {
     const record = await this.mustDecision(decisionId);
     if (record.stage === "terminal") return record;
-    const next = { ...record, stage, updated_at: at.toISOString(), detail: detail ?? record.detail };
+    const next = {
+      ...record,
+      stage,
+      updated_at: at.toISOString(),
+      detail: detail ?? record.detail,
+      reason_code: reasonCode ?? record.reason_code,
+    };
     await this.writeDecision(next);
     return next;
   }

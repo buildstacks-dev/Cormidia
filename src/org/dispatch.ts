@@ -71,7 +71,13 @@ export interface DispatchTickOptions {
   explicitScheduleRetries?: readonly string[];
   /** Sealed host-restart seam for deterministic claim recovery tests. */
   dueClaimOwnerStatus?: (owner: DurableClaimOwner) => DurableClaimOwnerStatus;
-  schedulerFault?: (boundary: "after_scheduler_lock" | "after_tick_journal" | "after_child_spawn" | "after_terminal_receipt") => void | Promise<void>;
+  schedulerFault?: (boundary:
+    | "after_scheduler_lock"
+    | "after_tick_journal"
+    | "after_child_spawn"
+    | "post_spawn_bookkeeping"
+    | "after_terminal_receipt"
+  ) => void | Promise<void>;
 }
 
 export type DispatchSpawn = (input: {
@@ -457,6 +463,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     // un-recorded AND unlock the slot, so the next tick would dispatch a second
     // concurrent turn for the same (app, role) onto the shared managed clone.
     try {
+      await options.schedulerFault?.("post_spawn_bookkeeping");
       if (turn.triggerKind === "schedule") {
         await schedule.recordFired(turn.app, turn.role, turn.trigger, new Date(turn.cadenceWindow));
       }
@@ -472,9 +479,13 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       result.errors.push(
         `${turn.app}/${turn.role}: post-spawn bookkeeping failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-      await evidence.finishDecision(decisionId, "executed", "post_spawn_bookkeeping_failure", tickAt, {
-        detail: error instanceof Error ? error.message : String(error),
-      });
+      await evidence.advanceDecision(
+        decisionId,
+        "spawned",
+        tickAt,
+        error instanceof Error ? error.message : String(error),
+        "post_spawn_bookkeeping_failure",
+      );
     }
     // Spawn is not provider completion. Keep the decision pending until the
     // child writes its terminal journal and recordTurnReceipt can measure both

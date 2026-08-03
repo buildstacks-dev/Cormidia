@@ -9,7 +9,7 @@ import { dispatchTick } from "../../../src/org/dispatch.js";
 import type { GitHubEventSource } from "../../../src/org/events.js";
 import { writeJournalPatch } from "../../../src/org/journal.js";
 import { acquireLock } from "../../../src/org/locks.js";
-import { SchedulerEvidenceStore } from "../../../src/org/scheduler/evidence.js";
+import { SchedulerEvidenceStore, type SchedulerDecisionRecord } from "../../../src/org/scheduler/evidence.js";
 import { schedulerIdentity } from "../../../src/org/scheduler/model.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
 
@@ -26,12 +26,28 @@ class BackpressureMisclassified extends Error {}
 
 class UnresolvedDecisionAlert extends Error {}
 
+class PrematureDecisionTerminalization extends Error {}
+
 function assertBackpressure(value: string | undefined): void {
   if (value !== "blocked_backpressure") throw new BackpressureMisclassified();
 }
 
 function assertDecisionAlertResolved(value: { resolved: boolean }): void {
   if (!value.resolved) throw new UnresolvedDecisionAlert();
+}
+
+function assertPendingBookkeepingFailure(value: Pick<
+  SchedulerDecisionRecord,
+  "stage" | "outcome" | "classification" | "reason_code"
+>): void {
+  if (
+    value.stage !== "spawned"
+    || value.outcome !== null
+    || value.classification !== "pending"
+    || value.reason_code !== "post_spawn_bookkeeping_failure"
+  ) {
+    throw new PrematureDecisionTerminalization();
+  }
 }
 
 describe("CF-REG-209 — scheduler health truth", () => {
@@ -299,11 +315,73 @@ describe("CF-REG-209 — scheduler health truth", () => {
     expect(() => assertDecisionAlertResolved(alert!)).not.toThrow();
   });
 
+  it("keeps a spawned child pending when post-spawn bookkeeping fails and preserves prior failure evidence", async () => {
+    await configure(["app-a"]);
+    const store = evidence();
+    const priorAt = new Date(NOW.getTime() - 60 * 60_000);
+    const priorInvocation = await store.beginInvocation(priorAt);
+    const priorDecision = await store.claimDecision({
+      invocationId: priorInvocation.invocation_id,
+      cadenceWindow: priorInvocation.cadence_window,
+      app: "app-a",
+      role: "sre",
+      triggerKind: "schedule",
+      trigger: "hourly",
+      now: priorAt,
+    });
+    await store.finishDecision(
+      priorDecision.record.decision_id,
+      "failed",
+      "scheduler_state_failure",
+      priorAt,
+      { detail: "seeded prior child failure" },
+    );
+
+    let spawned = 0;
+    const tick = await dispatchTick({
+      orgRoot: org!.orgHome,
+      runtimeHome: org!.stateHome,
+      now: () => NOW,
+      eventSource: SOURCE,
+      spawn: async () => { spawned += 1; },
+      schedulerFault: async (boundary) => {
+        if (boundary === "post_spawn_bookkeeping") throw new Error("seeded schedule-state EIO");
+      },
+    });
+
+    expect(spawned).toBe(1);
+    expect(tick.errors).toContain("app-a/sre: post-spawn bookkeeping failed: seeded schedule-state EIO");
+    const pending = (await store.listDecisions())
+      .find((decision) => decision.episode_id === tick.spawned[0]!.turnId);
+    expect(pending).toBeDefined();
+    expect(pending).toMatchObject({
+      stage: "spawned",
+      outcome: null,
+      classification: "pending",
+      reason_code: "post_spawn_bookkeeping_failure",
+      provider_turns: null,
+      provider_settlements: null,
+    });
+    expect(() => assertPendingBookkeepingFailure(pending!)).not.toThrow();
+    expect((await store.listAlerts())
+      .find((alert) => alert.evidence_id === priorDecision.record.decision_id))
+      .toMatchObject({ resolved: false });
+  });
+
   it("negative control: the detector rejects error-classification of normal backpressure", () => {
     expect(() => assertBackpressure("blocked_error")).toThrow(BackpressureMisclassified);
   });
 
   it("negative control: the alert-lifecycle detector rejects an unresolved recovered decision", () => {
     expect(() => assertDecisionAlertResolved({ resolved: false })).toThrow(UnresolvedDecisionAlert);
+  });
+
+  it("negative control: the receipt-boundary detector rejects the old executed bookkeeping outcome", () => {
+    expect(() => assertPendingBookkeepingFailure({
+      stage: "terminal",
+      outcome: "executed",
+      classification: "executed",
+      reason_code: "post_spawn_bookkeeping_failure",
+    })).toThrow(PrematureDecisionTerminalization);
   });
 });

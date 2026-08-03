@@ -1,0 +1,80 @@
+# .cormidia/policy.yaml — per-app quality-gate policy (docs/loop/design.md §5).
+# Lives in the app repo, emitted by `cormidia bootstrap`, committed like any
+# other config. Loaded and validated by src/loop/policy.ts.
+#
+# Glob semantics (predecessor parity, fnmatch-style): `*` and `?` are
+# wildcards, and `*` matches across `/` — so `*.md` matches `docs/a/b.md`,
+# and `**` is equivalent to `*`. Paths are repo-relative POSIX paths, as
+# `git diff --name-only` emits them.
+
+schema_version: 1
+
+# Risk tier by changed-file globs (docs/loop/design.md §4): per file, tiers are
+# checked high → low and the first match wins; a file matching NO glob is
+# medium. Across a diff, the highest tier wins — a quick ticket touching
+# auth/** still gets high-tier gates. Tiering makes the loop cheaper,
+# never less safe.
+risk_tiers:
+  high:
+    - "db/**"
+    - "*/migrations/**"
+    - "*/auth/**"
+  medium:
+    - "src/**"
+    - "lib/**"
+    - "app/**"
+  low:
+    - "docs/**"
+    - "*.md"
+    - "tests/**"
+
+# Gate set per resolved risk tier, in run order (predecessor defaults:
+# medium drops the security scan; low keeps tests + completeness).
+# `review-freshness` is deliberately not listed anywhere: it always runs,
+# regardless of tier, and cannot be configured away (docs/loop/design.md §5).
+gates:
+  high:
+    - tests
+    - lint
+    - security
+    - completeness
+  medium:
+    - tests
+    - lint
+    - completeness
+  low:
+    - tests
+    - completeness
+
+# Review dimensions (docs/loop/design.md §4): conditional review passes in
+# pipelines.yaml reference these keys via `only_on.dimension_globs`; a diff
+# matching a dimension's globs selects that pass. Adding a dimension is a
+# policy.yaml + pipelines.yaml edit, never loop code. (The `verify` pass —
+# functionality plus a baked-in security lens — runs on every PR and needs
+# no entry here.)
+#
+# `package.json` is CONTENT-GATED, not path-gated (src/loop/policy.ts,
+# matchedDimensions): it only trips the security dimension when the diff
+# actually changes a dependency or run-script key (dependencies,
+# devDependencies, optionalDependencies, peerDependencies, scripts). A
+# metadata or test-glob edit does not escalate standard → deep (L1-05).
+# `pnpm-lock.yaml` stays path-gated — a lock file only changes as a
+# consequence of a dependency change.
+dimension_globs:
+  security:
+    - "*/auth/**"
+    - "*/crypto/**"
+    - "*/middleware/**"
+    - "package.json"
+    - "pnpm-lock.yaml"
+  perf:
+    - "*/migrations/**"
+    - "*/queries/**"
+    - "*/cache/**"
+
+# Bounded remediation after a gate failure: fix passes are re-dispatched
+# with verbatim gate output in the brief up to max_attempts, then the
+# ticket goes op:returned with a blocked-with-evidence comment
+# (docs/loop/design.md §5, §7).
+remediation:
+  max_attempts: 3

@@ -1,17 +1,17 @@
-@AGENTS.md
+---
+schema_version: 1
+kind: cormidia-app-authority
+mode: inherit
+org_charter_version: delegated-operator/v1
+org_charter_sha256: 1296914e5a7fd3f2f597a525a0523d1a33595bf1467fcc8378d4427f879a8994
+---
 
-<!-- cormidia-authority:start -->
-## Cormidia delegated authority
+# Cormidia app authority snapshot
 
-Read `.cormidia/AUTHORITY.md` before acting. Its recorded authority is version
-`delegated-operator/v1+app-inherit/v1` with SHA-256 `280df594080710f4e8df2764b66dc38d3778d7403123b21d66d552779c2e4962`.
-
-The authority file governs routine autonomy but never bypasses Cormidia's
-critical-operation approvals. App instructions and the current human task
-may narrow it; they cannot broaden it. A broader grant requires a fresh,
-attributable human instruction.
-
-### Effective charter projection
+This file makes the effective charter visible to top-level harnesses.
+It is not a grant source: it may only preserve or narrow the canonical
+org charter delegated-operator/v1 (sha256:1296914e5a7fd3f2f597a525a0523d1a33595bf1467fcc8378d4427f879a8994). Critical-operation
+approvals remain mandatory regardless of any prose in this repository.
 
 ---
 schema_version: 1
@@ -39,4 +39,3 @@ genuinely material product decision.
 - Never infer a broader grant than this recorded charter.
 - A broader grant requires a fresh, attributable human instruction.
 - Escalate genuine material product decisions whose answer changes the delegated outcome.
-<!-- cormidia-authority:end -->

@@ -147,8 +147,8 @@ describe("CF-J05-A — queue CLI and observe read-only view agree; approved is n
     await assertNonEmptyWalk(join(org.stateHome, "approvals", "decided"), /\.json$/);
 
     // --- Surface 1: the queue CLI (real cmdApprovals, JSON views).
-    const list = (await runApprovalsCli(org, ["--json"])) as CliListView;
-    const status = (await runApprovalsCli(org, ["status", "--json"])) as CliStatusView;
+    const list = (await runApprovalsCli(org, ["--now", clock.nowIso(), "--json"])) as CliListView;
+    const status = (await runApprovalsCli(org, ["status", "--now", clock.nowIso(), "--json"])) as CliStatusView;
 
     expect(list.pending.map((item) => item.id)).toEqual([ids.pending]);
     const outstandingById = new Map(list.outstanding.map((item) => [item.id, item]));

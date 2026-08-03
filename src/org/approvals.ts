@@ -31,9 +31,20 @@ import {
 import { withFileLock, withFileLockSync } from "../runtime/file-lock.js";
 
 export type ApprovalDecision = "approved" | "denied";
-export type ApprovalStatus = "pending" | ApprovalDecision;
+export type ApprovalStatus = "pending" | "expired" | ApprovalDecision;
+/** The persisted execution schema retains `approved` for compatibility with
+ * existing records and frozen delivery consumers. Decision authorization is
+ * always read from ApprovalItem.status/decision; execution progress is read
+ * only from ApprovalItem.execution, so the two facts never share a field. */
 export type ApprovalExecutionState = "approved" | "executing" | "executed" | "failed" | "ambiguous";
 export type ApprovalLifecycleState = "pending" | "denied" | ApprovalExecutionState;
+
+export interface ApprovalDecider {
+  /** Agent decisions are deliberately distinct audit facts. A caller cannot
+   * smuggle an agent identity into a record that readers present as human. */
+  kind: "human" | "agent";
+  identity: string;
+}
 
 /** Who is responsible for turning an approved decision into the effect.
  *  `actor-retry` is the only one that depends on a provider turn re-attempting
@@ -100,6 +111,9 @@ export interface ApprovalItem {
   decidedAt?: string;
   decision?: ApprovalDecision;
   reason?: string;
+  decidedBy?: ApprovalDecider;
+  expiredAt?: string;
+  expiryReason?: string;
   grantId?: string;
   /** Decision and execution are separate facts. `status: approved` never
    * means the side effect ran; this lifecycle advances only on acknowledged
@@ -249,9 +263,11 @@ export type ApprovalLogEvent =
       at: string;
       decision: ApprovalDecision;
       reason?: string;
+      decidedBy?: ApprovalDecider;
       grantId?: string;
       grant?: ApprovalGrant;
     }
+  | { type: "expired"; id: string; at: string; reason: string }
   | { type: "grant-minted"; id: string; grantId: string; at: string }
   | { type: "grant-consumed"; id: string; grantId: string; at: string }
   | { type: "grant-revoked"; id: string; grantId: string; at: string }
@@ -297,6 +313,7 @@ export interface RaiseApprovalInput {
 export interface DecideApprovalInput {
   decision: ApprovalDecision;
   reason?: string;
+  decidedBy?: ApprovalDecider;
   now?: Date;
   ttlMs?: number;
   /** A1: the human widens the grant at decision time. Rejected for
@@ -308,18 +325,82 @@ export interface DecideApprovalInput {
 
 export interface ApprovalStoreOptions {
   idSource?: (now: Date) => string;
+  policy?: ApprovalPolicyConfig;
+  /** Deterministic kill points for crash-recovery detectors. Production never
+   * supplies this hook. */
+  decisionFault?: (
+    boundary: "after_grant" | "after_decision_log" | "after_item_move",
+  ) => void | Promise<void>;
 }
 
-const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+export interface ApprovalPolicyConfig {
+  /** Grant authority lifetime after an approval decision. */
+  grantTtlMs?: number;
+  /** Undecided item lifetime. Omission deliberately inherits grantTtlMs. */
+  pendingTtlMs?: number;
+}
+
+export interface ApprovalPolicy {
+  grantTtlMs: number;
+  pendingTtlMs: number;
+}
+
+const APPROVAL_POLICY_DEFAULTS = Object.freeze({
+  grantTtlMs: 24 * 60 * 60 * 1000,
+});
+
+/** Resolve one policy for grants and pending items. Pending TTL follows the
+ * configured grant TTL unless explicitly narrowed/widened, so the v2.15
+ * default is expressed at the policy seam rather than duplicated in expiry
+ * code as a second source constant. */
+export function resolveApprovalPolicy(config: ApprovalPolicyConfig = {}): ApprovalPolicy {
+  const grantTtlMs = config.grantTtlMs ?? APPROVAL_POLICY_DEFAULTS.grantTtlMs;
+  const pendingTtlMs = config.pendingTtlMs ?? grantTtlMs;
+  for (const [name, value] of Object.entries({ grantTtlMs, pendingTtlMs })) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`approval policy ${name} must be a positive finite number`);
+    }
+  }
+  return { grantTtlMs, pendingTtlMs };
+}
+
+/** CLI identity convention. Agent identities are explicitly namespaced;
+ * unqualified identities remain human for compatibility with the existing
+ * operator-facing `--by <identity>` house pattern. The durable `kind` field,
+ * not display text, is what authorization checks consume. */
+export function approvalDeciderFromIdentity(identity: string): ApprovalDecider {
+  const normalized = identity.trim();
+  if (normalized.length === 0) throw new Error("approval deciding identity must be non-empty");
+  const agent = /^agent[:/](.+)$/i.exec(normalized);
+  return {
+    kind: agent === null ? "human" : "agent",
+    identity: normalized,
+  };
+}
+
+export class ApprovalDecisionConflictError extends Error {
+  readonly code = "approval_already_decided";
+
+  constructor(readonly approvalId: string, message: string) {
+    super(message);
+    this.name = "ApprovalDecisionConflictError";
+  }
+}
+
 const EXECUTION_LOCK_STALE_MS = 30_000;
+const DECISION_LOCK_STALE_MS = 30_000;
 
 export class ApprovalStore {
   readonly root: string;
   private readonly idSource: (now: Date) => string;
+  private readonly policy: ApprovalPolicy;
+  private readonly decisionFault?: ApprovalStoreOptions["decisionFault"];
 
   constructor(root: string, options: ApprovalStoreOptions = {}) {
     this.root = root;
     this.idSource = options.idSource ?? defaultId;
+    this.policy = resolveApprovalPolicy(options.policy);
+    this.decisionFault = options.decisionFault;
   }
 
   async raise(input: RaiseApprovalInput): Promise<ApprovalItem> {
@@ -414,144 +495,269 @@ export class ApprovalStore {
   async decide(id: string, input: DecideApprovalInput): Promise<ApprovalItem> {
     const now = input.now ?? new Date();
     await this.ensureDirs();
-    if (input.decision === "denied" && (input.reason ?? "").trim().length === 0) {
-      throw new Error("approval denial requires a non-empty reason");
-    }
+    const decidedBy = input.decidedBy ?? { kind: "human", identity: "human/operator" };
+    const reason = decisionReason(input, decidedBy);
 
-    // B-09b §3/§4: the durable decided record is the commit point and the
-    // first durable write wins. Any later decision attempt — a replay, a
-    // second decider, or a decide() over the pending-ghost intermediate a
-    // crash inside moveToDecided leaves (rename durable, rm(pending) lost) —
-    // receives the typed already-decided outcome referencing the original.
-    // It never flips the durable record and never mints a second grant.
-    if (existsSync(this.decidedPath(id))) {
-      const original = await readJson<ApprovalItem>(this.decidedPath(id));
-      throw new Error(
-        `approval ${id} is already decided (${original.decision ?? original.status} at ` +
-          `${original.decidedAt ?? original.raisedAt}); the original decision stands` +
-          (original.grantId !== undefined ? ` (grant ${original.grantId})` : ""),
-      );
-    }
-    // B-09b §1: an unknown item is a typed refusal naming the item — never a
-    // raw fs error surfaced from a missing pending file.
-    if (!existsSync(this.pendingPath(id))) {
-      throw new Error(`approval ${id} not found: no pending or decided record`);
-    }
+    return this.withDecisionLock(id, async () => {
+      const log = await this.readLog();
+      await this.reconcileDecisionLocked(id, log, now);
 
-    const pending = await readJson<ApprovalItem>(this.pendingPath(id));
-    if (pending.status !== "pending") {
-      throw new Error(`approval ${id} is not pending`);
-    }
+      // B-09b §3/§4: the complete transition is serialized by the shared
+      // O_EXCL file-lock primitive. Re-checking after acquisition makes the
+      // durable decided record the commit point for every competing caller.
+      if (existsSync(this.decidedPath(id))) {
+        throw await this.decisionConflict(id);
+      }
+      if (!existsSync(this.pendingPath(id))) {
+        throw new Error(`approval ${id} not found: no pending or decided record`);
+      }
 
-    const decided: ApprovalItem = {
-      ...pending,
-      status: input.decision,
-      decision: input.decision,
-      decidedAt: now.toISOString(),
-      ...(input.decision === "approved" ? { execution: initialExecution(pending) } : {}),
-      ...(input.reason !== undefined ? { reason: input.reason } : {}),
-    };
+      const pending = await readJson<ApprovalItem>(this.pendingPath(id));
+      if (pending.status !== "pending") throw new Error(`approval ${id} is not pending`);
+      if (this.pendingItemExpired(pending, now)) {
+        await this.expirePendingLocked(pending, now);
+        throw new ApprovalDecisionConflictError(
+          id,
+          `approval ${id} expired at ${now.toISOString()} before the decision could be recorded`,
+        );
+      }
+      if (decidedBy.kind === "agent" && NEVER_SCOPEABLE_RULES.includes(pending.rule)) {
+        throw new Error(
+          `approvals: rule "${pending.rule}" requires a human decision; ` +
+            `${decidedBy.identity} is an agent identity`,
+        );
+      }
+      if (input.scope !== undefined && NEVER_SCOPEABLE_RULES.includes(pending.rule)) {
+        throw new Error(
+          `approvals: rule "${pending.rule}" is never scopeable (docs/approvals/design.md A1) — ` +
+            `decide it single-use`,
+        );
+      }
 
-    if (input.scope !== undefined && NEVER_SCOPEABLE_RULES.includes(pending.rule)) {
-      throw new Error(
-        `approvals: rule "${pending.rule}" is never scopeable (docs/approvals/design.md A1) — ` +
-          `decide it single-use`,
-      );
-    }
-    const grant =
-      input.decision === "approved"
-        ? mintGrant(decided, now, input.ttlMs ?? DEFAULT_TTL_MS, input.scope, input.maxUses)
-        : undefined;
-    if (grant !== undefined) decided.grantId = grant.grantId;
+      const decided: ApprovalItem = {
+        ...pending,
+        status: input.decision,
+        decision: input.decision,
+        decidedAt: now.toISOString(),
+        decidedBy,
+        reason,
+        ...(input.decision === "approved" ? { execution: initialExecution(pending) } : {}),
+      };
+      const grant =
+        input.decision === "approved"
+          ? mintGrant(decided, now, input.ttlMs ?? this.policy.grantTtlMs, input.scope, input.maxUses)
+          : undefined;
+      if (grant !== undefined) decided.grantId = grant.grantId;
 
-    // Materialize the grant on disk BEFORE the decided log records the
-    // approval. findMatchingGrantSync only reads grants/*.json, so if the
-    // process died after the decided-log append but before the grant landed,
-    // the approved action would have no consumable grant and the very next
-    // gated turn would re-escalate a decision the human already made. Writing
-    // the grant first (atomically) closes that window; the log still carries
-    // the embedded grant so reconcile() can rebuild it if the file is lost.
-    if (grant !== undefined) {
-      await writeJsonAtomic(this.grantPath(grant.grantId), grant);
-    }
-    await appendJsonLine(this.logPath(), {
-      type: "decided",
-      id,
-      at: now.toISOString(),
-      decision: input.decision,
-      ...(input.reason !== undefined ? { reason: input.reason } : {}),
-      ...(grant !== undefined ? { grantId: grant.grantId, grant } : {}),
-    } satisfies ApprovalLogEvent);
-    await this.moveToDecided(decided);
-    if (grant !== undefined) {
+      // Materialize the grant before the decision event. Its deterministic
+      // grant-<approval> identity makes an after-grant interruption
+      // recognizable; reconcileDecisionLocked removes an unauthoritative
+      // orphan or completes a logged decision without minting a second grant.
+      if (grant !== undefined) {
+        await writeJsonAtomic(this.grantPath(grant.grantId), grant);
+        await this.decisionFault?.("after_grant");
+      }
       await appendJsonLine(this.logPath(), {
-        type: "grant-minted",
+        type: "decided",
         id,
-        grantId: grant.grantId,
         at: now.toISOString(),
+        decision: input.decision,
+        reason,
+        decidedBy,
+        ...(grant !== undefined ? { grantId: grant.grantId, grant } : {}),
       } satisfies ApprovalLogEvent);
-    }
-    return decided;
+      await this.decisionFault?.("after_decision_log");
+      await this.moveToDecided(decided);
+      await this.decisionFault?.("after_item_move");
+      if (grant !== undefined) {
+        await appendJsonLine(this.logPath(), {
+          type: "grant-minted",
+          id,
+          grantId: grant.grantId,
+          at: now.toISOString(),
+        } satisfies ApprovalLogEvent);
+      }
+      return decided;
+    });
   }
 
-  async reconcile(now: Date = new Date()): Promise<void> {
+  async reconcile(now: Date = new Date()): Promise<ApprovalItem[]> {
     await this.ensureDirs();
     const log = await this.readLog();
-    const decisions = log.filter((e): e is Extract<ApprovalLogEvent, { type: "decided" }> => {
-      return e.type === "decided";
+    const ids = new Set<string>([
+      ...log.filter((event) => event.type === "decided").map((event) => event.id),
+      ...(await listJsonIds(this.pendingDir())),
+      ...(await listJsonIds(this.decidedDir())),
+    ]);
+    for (const id of ids) {
+      await this.withDecisionLock(id, () => this.reconcileDecisionLocked(id, log, now));
+    }
+    const expired = await this.expirePending(now);
+    await this.reconcileLegacyActorRetryStates();
+    await this.reconcileUnreachableActorRetryHoming(now);
+    return expired;
+  }
+
+  /** Move every due undecided item into the durable audit view. The returned
+   * items are only those transitioned by this call; callers use them to
+   * release the associated suspended claim without coupling this store to the
+   * loop layer. */
+  async expirePending(now: Date = new Date()): Promise<ApprovalItem[]> {
+    await this.ensureDirs();
+    const log = await this.readLog();
+    const expired: ApprovalItem[] = [];
+    for (const id of await listJsonIds(this.pendingDir())) {
+      const item = await this.withDecisionLock(id, async () => {
+        await this.reconcileDecisionLocked(id, log, now);
+        if (!existsSync(this.pendingPath(id))) return undefined;
+        const pending = await readJson<ApprovalItem>(this.pendingPath(id));
+        return this.pendingItemExpired(pending, now)
+          ? this.expirePendingLocked(pending, now)
+          : undefined;
+      });
+      if (item !== undefined) expired.push(item);
+    }
+    return expired;
+  }
+
+  /** Expire one known approval at the observation seam (ticket episode). */
+  async expirePendingItem(id: string, now: Date = new Date()): Promise<ApprovalItem | undefined> {
+    await this.ensureDirs();
+    return this.withDecisionLock(id, async () => {
+      await this.reconcileDecisionLocked(id, await this.readLog(), now);
+      if (!existsSync(this.pendingPath(id))) {
+        if (!existsSync(this.decidedPath(id))) return undefined;
+        const decided = await readJson<ApprovalItem>(this.decidedPath(id));
+        return decided.status === "expired" ? decided : undefined;
+      }
+      const pending = await readJson<ApprovalItem>(this.pendingPath(id));
+      return this.pendingItemExpired(pending, now)
+        ? this.expirePendingLocked(pending, now)
+        : undefined;
     });
-    for (const event of decisions) {
-      const decidedExists = existsSync(this.decidedPath(event.id));
-      if (!decidedExists && existsSync(this.pendingPath(event.id))) {
-        const pending = await readJson<ApprovalItem>(this.pendingPath(event.id));
-        const decided: ApprovalItem = {
+  }
+
+  private pendingItemExpired(item: ApprovalItem, now: Date): boolean {
+    const raisedAt = new Date(item.raisedAt).getTime();
+    if (!Number.isFinite(raisedAt)) {
+      throw new Error(`approval ${item.id} has an invalid raisedAt timestamp`);
+    }
+    return now.getTime() >= raisedAt + this.policy.pendingTtlMs;
+  }
+
+  private async expirePendingLocked(pending: ApprovalItem, now: Date): Promise<ApprovalItem> {
+    const reason =
+      `undecided approval exceeded its configured ${this.policy.pendingTtlMs}ms pending TTL; ` +
+      `the raising turn is blocked and its claim may be released`;
+    const expired: ApprovalItem = {
+      ...pending,
+      status: "expired",
+      expiredAt: now.toISOString(),
+      expiryReason: reason,
+    };
+    await this.moveToDecided(expired);
+    await appendJsonLine(this.logPath(), {
+      type: "expired",
+      id: expired.id,
+      at: expired.expiredAt!,
+      reason,
+    } satisfies ApprovalLogEvent);
+    return expired;
+  }
+
+  /** Complete only a previously logged decision and clean recognizable
+   * intermediates. This method always runs under decision-locks/<id>.lock. */
+  private async reconcileDecisionLocked(
+    id: string,
+    log: readonly ApprovalLogEvent[],
+    now: Date,
+  ): Promise<void> {
+    const decisionEvents = log.filter(
+      (event): event is Extract<ApprovalLogEvent, { type: "decided" }> =>
+        event.type === "decided" && event.id === id,
+    );
+    if (decisionEvents.length > 1) {
+      throw new Error(
+        `approval ${id} has ${decisionEvents.length} durable decision events; ` +
+          `refusing to guess which authority is valid`,
+      );
+    }
+    const event = decisionEvents[0];
+    const deterministicGrantPath = this.grantPath(`grant-${id}`);
+
+    if (event === undefined) {
+      // A crash after grant materialization but before the append-only
+      // decision event produced no authority. The deterministic orphan is
+      // unusable already; remove it before a fresh approve/deny can proceed.
+      if (!existsSync(this.decidedPath(id)) && existsSync(deterministicGrantPath)) {
+        await rm(deterministicGrantPath, { force: true });
+      }
+    } else {
+      if (event.grant !== undefined && !existsSync(this.grantPath(event.grant.grantId))) {
+        await writeJsonAtomic(this.grantPath(event.grant.grantId), event.grant);
+      }
+      if (!existsSync(this.decidedPath(id)) && existsSync(this.pendingPath(id))) {
+        const pending = await readJson<ApprovalItem>(this.pendingPath(id));
+        const recovered: ApprovalItem = {
           ...pending,
           status: event.decision,
           decision: event.decision,
           decidedAt: event.at,
-          ...(event.decision === "approved" ? { execution: initialExecution(pending) } : {}),
           ...(event.reason !== undefined ? { reason: event.reason } : {}),
+          ...(event.decidedBy !== undefined ? { decidedBy: event.decidedBy } : {}),
+          ...(event.decision === "approved" ? { execution: initialExecution(pending) } : {}),
           ...(event.grantId !== undefined ? { grantId: event.grantId } : {}),
         };
-        await this.moveToDecided(decided);
-      }
-      if (event.grant !== undefined && !existsSync(this.grantPath(event.grant.grantId))) {
-        await writeJson(this.grantPath(event.grant.grantId), event.grant);
+        await this.moveToDecided(recovered);
       }
       if (
         event.grantId !== undefined &&
-        !log.some((e) => e.type === "grant-minted" && e.grantId === event.grantId)
+        !log.some((candidate) =>
+          candidate.type === "grant-minted" && candidate.grantId === event.grantId
+        )
       ) {
         await appendJsonLine(this.logPath(), {
           type: "grant-minted",
-          id: event.id,
+          id,
           grantId: event.grantId,
           at: event.at,
         } satisfies ApprovalLogEvent);
       }
     }
-    await this.reconcilePendingGhosts(now);
-    await this.reconcileLegacyActorRetryStates();
-    await this.reconcileUnreachableActorRetryHoming(now);
-  }
 
-  /** Repair the pending-ghost intermediate (B-09a §3). moveToDecided is
-   * rename-then-rm, so a crash between the two leaves the id in BOTH pending/
-   * and decided/; listPending would then re-offer an already-decided ask. The
-   * durable decided record is the commit point and wins: the surviving
-   * pending copy is removed and the repair is logged. Nothing here invents or
-   * alters a decision (B-09b §4 immutability — decide() independently refuses
-   * a ghost with the typed already-decided outcome). */
-  private async reconcilePendingGhosts(now: Date): Promise<void> {
-    for (const id of await listJsonIds(this.pendingDir())) {
-      if (!existsSync(this.decidedPath(id))) continue;
+    if (!existsSync(this.decidedPath(id))) return;
+    const decided = await readJson<ApprovalItem>(this.decidedPath(id));
+    if (existsSync(this.pendingPath(id))) {
       await rm(this.pendingPath(id), { force: true });
+      if (!log.some((candidate) => candidate.type === "pending-ghost-repaired" && candidate.id === id)) {
+        await appendJsonLine(this.logPath(), {
+          type: "pending-ghost-repaired",
+          id,
+          at: now.toISOString(),
+        } satisfies ApprovalLogEvent);
+      }
+    }
+    if (
+      decided.status === "expired" &&
+      !log.some((candidate) => candidate.type === "expired" && candidate.id === id)
+    ) {
       await appendJsonLine(this.logPath(), {
-        type: "pending-ghost-repaired",
+        type: "expired",
         id,
-        at: now.toISOString(),
+        at: decided.expiredAt ?? now.toISOString(),
+        reason: decided.expiryReason ?? "undecided approval expired",
       } satisfies ApprovalLogEvent);
     }
+  }
+
+  private async decisionConflict(id: string): Promise<ApprovalDecisionConflictError> {
+    const original = await readJson<ApprovalItem>(this.decidedPath(id));
+    return new ApprovalDecisionConflictError(
+      id,
+      `approval ${id} is already decided (${original.decision ?? original.status} at ` +
+        `${original.decidedAt ?? original.expiredAt ?? original.raisedAt}); the original result stands` +
+        (original.grantId !== undefined ? ` (grant ${original.grantId})` : ""),
+    );
   }
 
   /** Re-home an approved-but-unexecuted shell action from `actor-retry` to
@@ -1209,9 +1415,7 @@ export class ApprovalStore {
   }
 
   private async moveToDecided(item: ApprovalItem): Promise<void> {
-    const temp = join(this.decidedDir(), `${item.id}.json.tmp`);
-    await writeJson(temp, item);
-    await rename(temp, this.decidedPath(item.id));
+    await writeJsonAtomic(this.decidedPath(item.id), item);
     await rm(this.pendingPath(item.id), { force: true });
   }
 
@@ -1263,6 +1467,18 @@ export class ApprovalStore {
 
   private executionLockPath(id: string): string {
     return join(this.approvalsDir(), "execution-locks", `${id}.lock`);
+  }
+
+  private decisionLockPath(id: string): string {
+    return join(this.approvalsDir(), "decision-locks", `${id}.lock`);
+  }
+
+  private async withDecisionLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+    return withFileLock(
+      this.decisionLockPath(id),
+      { staleMs: DECISION_LOCK_STALE_MS, maxWaitMs: DECISION_LOCK_STALE_MS + 5_000 },
+      fn,
+    );
   }
 
   private async withExecutionLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
@@ -1333,8 +1549,31 @@ export function normalizeAction(action: ToolAction | ApprovalAction): ApprovalAc
   return normalized;
 }
 
+function decisionReason(input: DecideApprovalInput, decidedBy: ApprovalDecider): string {
+  if (decidedBy.identity.trim().length === 0) {
+    throw new Error("approval decision requires a non-empty deciding identity");
+  }
+  const supplied = input.reason?.trim();
+  if (input.decision === "denied" && (supplied ?? "").length === 0) {
+    throw new Error("approval denial requires a non-empty reason");
+  }
+  if (input.reason !== undefined && (supplied ?? "").length === 0) {
+    throw new Error("approval decision requires a non-empty reason");
+  }
+  if (supplied !== undefined && /^[ads]$/i.test(supplied)) {
+    throw new Error(
+      `approval decision reason "${supplied}" is a bare decision token; provide an actual justification`,
+    );
+  }
+  return supplied ?? `approved by ${decidedBy.identity}`;
+}
+
 export function approvalLifecycleState(item: ApprovalItem): ApprovalLifecycleState {
   if (item.status === "pending") return "pending";
+  // Existing delivery projections have no expired vocabulary and must treat
+  // it as a terminal non-authorization. Audit surfaces read item.status and
+  // retain the distinct CF-SM-APPR `expired` state.
+  if (item.status === "expired") return "denied";
   if (item.status === "denied") return "denied";
   return item.execution?.state ?? "approved";
 }

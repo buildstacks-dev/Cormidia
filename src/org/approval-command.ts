@@ -46,6 +46,7 @@ import {
 } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { grantScopeText } from "./gate-compose.js";
+import { releaseExpiredTicketApprovalClaim } from "./ticket-episode-approval.js";
 
 /** The actor recorded on an orchestrator-claimed execution. A later dispatch
  *  uses it to tell its own interrupted attempt apart from a live provider turn
@@ -124,6 +125,11 @@ export async function executeApprovedCommands(
   const clock = options.now ?? (() => new Date());
   const store = new ApprovalStore(options.stateHome);
   const outcomes: ApprovalCommandOutcome[] = [];
+  const reconciliationTime = clock();
+  await store.reconcile(reconciliationTime);
+  for (const expired of (await store.listDecided()).filter((item) => item.status === "expired")) {
+    await releaseExpiredTicketApprovalClaim(options.stateHome, expired, reconciliationTime);
+  }
   const items = (await store.listDecided()).filter(
     (item) =>
       item.decision === "approved" &&

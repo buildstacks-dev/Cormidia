@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { LoopItem } from "../loop/types.js";
 import type {
   AcceptedTicketEpisodePlan,
@@ -12,14 +13,25 @@ import {
   ApprovalStore,
   type ApprovalItem,
 } from "./approvals.js";
+import { withFileLock } from "../runtime/file-lock.js";
+import {
+  readTicketClaimState,
+  ticketStatePath,
+  writeTicketClaimState,
+  type TicketClaimEvent,
+} from "../loop/rehydrate.js";
 
 const APPROVAL_ACTION_REF =
   /^approval:([A-Za-z0-9][A-Za-z0-9._-]{0,199}):action-sha256:([a-f0-9]{64})$/;
+const CLAIM_LOCK_STALE_MS = 10 * 60_000;
+const CLAIM_LOCK_WAIT_MS = 12 * 60_000;
+const CLAIM_EVENT_LIMIT = 100;
 
 export interface ExistingTicketApprovalHandlerOptions {
   store: ApprovalStore;
   app: string;
   roleNames: readonly string[];
+  now?: () => Date;
 }
 
 export type TicketEpisodeApprovalHandler = (
@@ -69,6 +81,14 @@ export function createExistingTicketApprovalHandler(
 
     let approval: ApprovalItem;
     try {
+      const observedAt = options.now?.() ?? new Date();
+      const expired = await options.store.expirePendingItem(
+        reference.approvalId,
+        observedAt,
+      );
+      if (expired !== undefined) {
+        await releaseExpiredTicketApprovalClaim(options.store.root, expired, observedAt);
+      }
       approval = (await options.store.show(reference.approvalId)).item;
     } catch {
       return failure(
@@ -93,7 +113,16 @@ export function createExistingTicketApprovalHandler(
       return {
         status: "pending",
         reasonCode: "ticket_episode_approval_pending",
-        summary: `approval ${approval.id} is awaiting a durable human decision`,
+        summary: `approval ${approval.id} is awaiting a durable attributable decision`,
+      };
+    }
+    if (approval.status === "expired") {
+      return {
+        status: "denied",
+        reasonCode: "ticket_episode_approval_expired",
+        summary:
+          `approval ${approval.id} expired undecided; the turn is blocked, its claim was released, ` +
+          `and its durable artifacts remain preserved`,
       };
     }
     if (approval.status === "denied") {
@@ -129,6 +158,51 @@ export function createExistingTicketApprovalHandler(
       },
     };
   };
+}
+
+/** Release only the suspended claim continuation associated with an expired
+ * approval. The ticket's claim count is unchanged (expiry is not a merit
+ * failure), and no worktree/artifact path is touched. Repeated calls are a
+ * no-op, which lets approvals CLI, dispatch, and ticket observation converge
+ * after any interruption. */
+export async function releaseExpiredTicketApprovalClaim(
+  root: string,
+  item: ApprovalItem,
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (item.status !== "expired" || item.ticketRef === undefined) return false;
+  const issueNumber = Number(/#(\d+)/.exec(item.ticketRef)?.[1]);
+  if (!Number.isInteger(issueNumber)) return false;
+  const path = ticketStatePath(root, item.app, issueNumber);
+  if (!existsSync(path)) return false;
+
+  return withFileLock(
+    `${path}.lock`,
+    { staleMs: CLAIM_LOCK_STALE_MS, maxWaitMs: CLAIM_LOCK_WAIT_MS },
+    async () => {
+      const state = readTicketClaimState(root, item.app, issueNumber);
+      const continuation = state.continuation;
+      if (continuation === undefined) return false;
+      const claimNumber = continuation.claimNumber;
+      const detail =
+        `claim ${claimNumber}: approval ${item.id} expired; resolved blocked with artifacts ` +
+        `preserved and no failure-claim consumption`;
+      const event: TicketClaimEvent = {
+        at: now.toISOString(),
+        kind: "claim_terminal",
+        claimNumber,
+        detail,
+        repeatedCostUsd: 0,
+      };
+      const { continuation: _continuation, ...withoutContinuation } = state;
+      writeTicketClaimState(root, item.app, issueNumber, {
+        ...withoutContinuation,
+        outcomes: [...state.outcomes.slice(-9), detail],
+        events: [...(state.events ?? []).slice(-(CLAIM_EVENT_LIMIT - 1)), event],
+      });
+      return true;
+    },
+  );
 }
 
 /** Canonical reference accepted by the ticket approval observer. */

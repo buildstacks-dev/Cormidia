@@ -13,6 +13,9 @@ Status: DRAFT (Phase 4). Defends INV-013/014/015 branches, T-5/T-9. All time-dri
   computation.
 - Missed windows: one reconciled firing keyed by **(app, role, trigger, window)** with
   the missed-window count — never one firing per missed window `[doc][walk]`.
+- The schedule slot is normalized independently of the five-minute host cadence and
+  binds one durable settlement identity. Repeated ticks in the same slot cannot create
+  a second independent attempt; retry is explicit and bounded under that identity.
   <!-- changelog 2026-07-31 (audit AUD-101): rambling tag corrected to walk — the
   clause traces to the stakeholder's Phase 1 walk (elicitation-log), not rambling.txt. -->
 

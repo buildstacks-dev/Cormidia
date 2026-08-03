@@ -13,6 +13,8 @@ import {
 } from "../../../src/org/scheduler/lifecycle.js";
 import type { SchedulerManager, SchedulerManagerInspection } from "../../../src/org/scheduler/manager.js";
 import { schedulerOperationalStatus } from "../../../src/org/scheduler/status.js";
+import { SchedulerEvidenceStore } from "../../../src/org/scheduler/evidence.js";
+import { schedulerIdentity } from "../../../src/org/scheduler/model.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 class FakeSchedulerManager implements SchedulerManager {
@@ -165,6 +167,30 @@ describe("HB-043 scheduler lifecycle", () => {
       "duplicate_scheduler_decision",
       "orphan_scheduler_lock",
     ]));
+  });
+
+  it("does not present stale runtime failure reasons as current after intentional uninstall", async () => {
+    const { manager, input } = await world("stopped-org");
+    const expected = buildSchedulerExpectation(input);
+    await installScheduler({ ...input, execute: true, confirm: expected.metadata.scheduler_id });
+    const evidence = new SchedulerEvidenceStore({
+      stateHome: input.stateHome,
+      orgName: input.orgName,
+      orgHome: input.orgHome,
+      schedulerId: schedulerIdentity(input.orgName, input.orgHome),
+    });
+    const completedAt = new Date(input.now().getTime() - 5 * 60_000);
+    const completed = await evidence.beginInvocation(completedAt);
+    await evidence.finishInvocation(completed.invocation_id, "completed", "no_due_work", completedAt);
+    const failed = await evidence.beginInvocation(input.now());
+    await evidence.finishInvocation(failed.invocation_id, "failed", "scheduler_state_failure", input.now());
+    await uninstallScheduler({ ...input, execute: true, confirm: input.orgName });
+
+    const stopped = await schedulerOperationalStatus({ ...input, now: input.now() });
+    expect(stopped.reason_codes).toContain("not_installed");
+    expect(stopped.reason_codes).not.toContain("last_tick_failed");
+    expect(stopped.reason_codes).not.toContain("measurement_unavailable");
+    expect(stopped.reason_codes).not.toContain("healthy_recent_tick");
   });
 });
 

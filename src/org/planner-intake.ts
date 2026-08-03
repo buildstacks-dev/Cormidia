@@ -1,0 +1,323 @@
+// Bounded, provenance-bearing issue intake and deterministic readiness
+// application for scheduled Planner work (#230).
+
+import type { GhIssue, GhOps, ListIssueOptions } from "../loop/github.js";
+import { STATE_LABELS } from "../loop/plan-tickets.js";
+import { canonicalJson, sha256 } from "./scheduler/model.js";
+
+export const PLANNER_ISSUE_BATCH_MAX = 100;
+export const PLANNER_ISSUE_BUDGET_BYTES = 64 * 1024;
+
+export type PlannerInputDiagnosticCode =
+  | "planner_input_ready"
+  | "empty_repository"
+  | "github_unavailable"
+  | "missing_required_executable"
+  | "ready_only_filtering";
+
+export interface PlannerIssueInput {
+  number: number;
+  title: string;
+  body: string;
+  labels: string[];
+  source_bytes: number;
+  included_bytes: number;
+  inclusion: "full" | "truncated";
+}
+
+export interface PlannerIssueIntake {
+  schema_version: 1;
+  kind: "planner-issue-intake";
+  app: string;
+  turn_id: string;
+  query: ListIssueOptions;
+  budget_bytes: number;
+  included_bytes: number;
+  deferred_count: number;
+  issues: PlannerIssueInput[];
+  diagnostic: { code: PlannerInputDiagnosticCode; detail: string };
+  manifest_sha256: string;
+}
+
+export type PlannerReadinessReasonCode =
+  | "routine_ready"
+  | "high_risk"
+  | "validation_incomplete"
+  | "blocked_dependency"
+  | "needs_information"
+  | "not_buildable";
+
+export interface PlannerReadinessDecision {
+  issue_number: number;
+  disposition: "ready" | "unready";
+  reason_code: PlannerReadinessReasonCode;
+  reason: string;
+}
+
+export function parsePlannerReadinessDecisions(output: string): PlannerReadinessDecision[] {
+  const marker = "<!-- cormidia:planner-readiness-v1 -->";
+  const start = output.indexOf(marker);
+  if (start < 0) throw new Error("Planner output has no cormidia:planner-readiness-v1 marker");
+  const tail = output.slice(start + marker.length);
+  const fence = /```json\s*\n([\s\S]*?)\n```/.exec(tail);
+  if (fence?.[1] === undefined) throw new Error("Planner readiness marker has no JSON fence");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fence[1]);
+  } catch (error) {
+    throw new Error(`Planner readiness JSON is invalid: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Planner readiness JSON must be an object");
+  }
+  const record = parsed as Record<string, unknown>;
+  if (record["schema_version"] !== 1 || !Array.isArray(record["decisions"])) {
+    throw new Error("Planner readiness JSON must be schema_version 1 with decisions[]");
+  }
+  return record["decisions"].map((value, index) => {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error(`Planner readiness decision ${index} must be an object`);
+    }
+    const decision = value as Record<string, unknown>;
+    const reasonCode = decision["reason_code"];
+    if (
+      !Number.isInteger(decision["issue_number"])
+      || (decision["disposition"] !== "ready" && decision["disposition"] !== "unready")
+      || !isReadinessReasonCode(reasonCode)
+      || typeof decision["reason"] !== "string"
+    ) {
+      throw new Error(`Planner readiness decision ${index} has invalid fields`);
+    }
+    return {
+      issue_number: decision["issue_number"] as number,
+      disposition: decision["disposition"],
+      reason_code: reasonCode,
+      reason: decision["reason"],
+    };
+  });
+}
+
+export interface PlannerReadinessOutcome extends PlannerReadinessDecision {
+  requested_disposition: "ready" | "unready";
+}
+
+export interface PlannerReadinessApplication {
+  schema_version: 1;
+  kind: "planner-readiness-application";
+  intake_sha256: string;
+  applied_issue_numbers: number[];
+  outcomes: PlannerReadinessOutcome[];
+}
+
+export async function preparePlannerIssueIntake(input: {
+  gh: Pick<GhOps, "listIssues">;
+  app: string;
+  turnId: string;
+  query?: ListIssueOptions;
+  maxIssues?: number;
+  budgetBytes?: number;
+}): Promise<PlannerIssueIntake> {
+  const query = input.query ?? { state: "open", limit: PLANNER_ISSUE_BATCH_MAX };
+  if (query.labels?.includes("op:ready") === true) {
+    return intakeRecord(input, query, [], 0, 0, {
+      code: "ready_only_filtering",
+      detail: "Planner issue intake must not filter on op:ready; Builder owns the ready-only query",
+    });
+  }
+  let fetched: GhIssue[];
+  try {
+    fetched = await input.gh.listIssues(query);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return intakeRecord(input, query, [], 0, 0, {
+      code: /\b(?:enoent|spawn\s+gh|gh:\s*command not found)\b/i.test(detail)
+        ? "missing_required_executable"
+        : "github_unavailable",
+      detail,
+    });
+  }
+  const maxIssues = input.maxIssues ?? PLANNER_ISSUE_BATCH_MAX;
+  const budgetBytes = input.budgetBytes ?? PLANNER_ISSUE_BUDGET_BYTES;
+  if (!Number.isInteger(maxIssues) || maxIssues < 1) throw new Error("planner intake maxIssues must be positive");
+  if (!Number.isInteger(budgetBytes) || budgetBytes < 1) throw new Error("planner intake budgetBytes must be positive");
+  const selected: PlannerIssueInput[] = [];
+  let remaining = budgetBytes;
+  const candidates = fetched
+    .filter((issue) => issue.state === "OPEN")
+    .sort((left, right) => left.number - right.number);
+  for (const issue of candidates.slice(0, maxIssues)) {
+    const header = `#${issue.number} ${issue.title}\nLabels: ${issue.labels.join(", ") || "none"}\n`;
+    const available = Math.max(0, remaining - Buffer.byteLength(header));
+    if (available < 1) break;
+    const body = truncateUtf8(issue.body, available);
+    const sourceBytes = Buffer.byteLength(issue.body);
+    const includedBytes = Buffer.byteLength(body);
+    selected.push({
+      number: issue.number,
+      title: issue.title,
+      body,
+      labels: [...issue.labels].sort(),
+      source_bytes: sourceBytes,
+      included_bytes: includedBytes,
+      inclusion: includedBytes < sourceBytes ? "truncated" : "full",
+    });
+    remaining -= Buffer.byteLength(header) + includedBytes;
+  }
+  const diagnostic = candidates.length === 0
+    ? { code: "empty_repository" as const, detail: "GitHub returned no eligible open issues" }
+    : { code: "planner_input_ready" as const, detail: `${selected.length} open issue(s) selected without an op:ready filter` };
+  return intakeRecord(
+    input,
+    query,
+    selected,
+    budgetBytes - remaining,
+    Math.max(0, candidates.length - selected.length),
+    diagnostic,
+    budgetBytes,
+  );
+}
+
+export function plannerIssueIntakeJson(intake: PlannerIssueIntake): string {
+  return canonicalJson(intake);
+}
+
+export function plannerIssueIntakeBrief(intake: PlannerIssueIntake): string {
+  if (intake.issues.length === 0) return `Planner issue intake: ${intake.diagnostic.code} — ${intake.diagnostic.detail}`;
+  return intake.issues.map((issue) => [
+    `### #${issue.number} ${issue.title}`,
+    `Labels: ${issue.labels.join(", ") || "none"}`,
+    `Provenance: GitHub issue #${issue.number}; body ${issue.inclusion}, ${issue.included_bytes}/${issue.source_bytes} bytes.`,
+    "",
+    issue.body,
+  ].join("\n")).join("\n\n");
+}
+
+export async function applyPlannerReadinessDecisions(input: {
+  gh: Pick<GhOps, "addLabel" | "readIssue">;
+  intake: PlannerIssueIntake;
+  decisions: readonly PlannerReadinessDecision[];
+  fault?: (boundary: "after_remote") => void | Promise<void>;
+}): Promise<PlannerReadinessApplication> {
+  const outcomes = validateReadinessDecisions(input.intake, input.decisions);
+  const issueNumbers = outcomes
+    .filter((outcome) => outcome.disposition === "ready")
+    .map((outcome) => outcome.issue_number);
+  const appliedIssueNumbers: number[] = [];
+  for (const issueNumber of issueNumbers) {
+    await input.gh.addLabel(issueNumber, "op:ready");
+    await input.fault?.("after_remote");
+    const observed = await input.gh.readIssue(issueNumber);
+    if (!observed.labels.includes("op:ready")) {
+      throw new Error(`GitHub did not acknowledge op:ready on issue #${issueNumber}`);
+    }
+    appliedIssueNumbers.push(issueNumber);
+  }
+  return {
+    schema_version: 1,
+    kind: "planner-readiness-application",
+    intake_sha256: input.intake.manifest_sha256,
+    applied_issue_numbers: appliedIssueNumbers,
+    outcomes,
+  };
+}
+
+function validateReadinessDecisions(
+  intake: PlannerIssueIntake,
+  decisions: readonly PlannerReadinessDecision[],
+): PlannerReadinessOutcome[] {
+  const actionable = intake.issues.filter((issue) =>
+    !issue.labels.some((label) => STATE_LABELS.includes(label as (typeof STATE_LABELS)[number])),
+  );
+  const byNumber = new Map<number, PlannerReadinessDecision>();
+  for (const decision of decisions) {
+    if (byNumber.has(decision.issue_number)) throw new Error(`duplicate Planner readiness decision for #${decision.issue_number}`);
+    if (decision.reason.trim().length === 0) throw new Error(`Planner readiness decision #${decision.issue_number} has no reason`);
+    byNumber.set(decision.issue_number, decision);
+  }
+  const allowed = new Set(actionable.map((issue) => issue.number));
+  for (const number of byNumber.keys()) {
+    if (!allowed.has(number)) throw new Error(`Planner readiness decision references unknown or already-active issue #${number}`);
+  }
+  return actionable.map((issue) => {
+    const requested = byNumber.get(issue.number);
+    if (requested === undefined) throw new Error(`Planner omitted readiness decision for #${issue.number}`);
+    const guard = readinessGuard(issue);
+    if (requested.disposition === "ready" && guard !== undefined) {
+      return {
+        ...requested,
+        requested_disposition: "ready",
+        disposition: "unready",
+        reason_code: guard.code,
+        reason: guard.detail,
+      };
+    }
+    if (requested.disposition === "ready" && requested.reason_code !== "routine_ready") {
+      throw new Error(`ready decision #${issue.number} must use reason_code routine_ready`);
+    }
+    if (requested.disposition === "unready" && requested.reason_code === "routine_ready") {
+      throw new Error(`unready decision #${issue.number} cannot use reason_code routine_ready`);
+    }
+    return { ...requested, requested_disposition: requested.disposition };
+  });
+}
+
+function readinessGuard(issue: PlannerIssueInput): { code: "high_risk" | "validation_incomplete"; detail: string } | undefined {
+  if (issue.labels.includes("op:tier-deep") || issue.labels.some((label) => label.startsWith("domain:"))) {
+    return { code: "high_risk", detail: "high-risk/deep work requires human-signed criteria before op:ready" };
+  }
+  const required = [
+    /(?:^|\n)Depends-on:\s*\S/im,
+    /(?:^|\n)Execution group:\s*\S/im,
+    /(?:^|\n)File scope:\s*\S/im,
+    /^##\s+Acceptance criteria\s*$/im,
+    /^\s*-\s+\[\s\]\s+\S/m,
+  ];
+  const tiers = issue.labels.filter((label) => /^op:tier-(?:quick|standard|deep)$/.test(label));
+  const priorities = issue.labels.filter((label) => /^p[123]$/.test(label));
+  if (issue.inclusion !== "full" || tiers.length !== 1 || priorities.length !== 1 || required.some((pattern) => !pattern.test(issue.body))) {
+    return { code: "validation_incomplete", detail: "ticket lacks complete tier, priority, scope, dependency, or binary acceptance evidence" };
+  }
+  return undefined;
+}
+
+function intakeRecord(
+  input: { app: string; turnId: string },
+  query: ListIssueOptions,
+  issues: PlannerIssueInput[],
+  includedBytes: number,
+  deferredCount: number,
+  diagnostic: PlannerIssueIntake["diagnostic"],
+  budgetBytes = PLANNER_ISSUE_BUDGET_BYTES,
+): PlannerIssueIntake {
+  const withoutHash = {
+    schema_version: 1 as const,
+    kind: "planner-issue-intake" as const,
+    app: input.app,
+    turn_id: input.turnId,
+    query: structuredClone(query),
+    budget_bytes: budgetBytes,
+    included_bytes: includedBytes,
+    deferred_count: deferredCount,
+    issues,
+    diagnostic,
+  };
+  return { ...withoutHash, manifest_sha256: sha256(canonicalJson(withoutHash)) };
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  if (Buffer.byteLength(value) <= maxBytes) return value;
+  let end = Math.min(value.length, maxBytes);
+  while (end > 0 && Buffer.byteLength(value.slice(0, end)) > maxBytes) end -= 1;
+  return value.slice(0, end);
+}
+
+function isReadinessReasonCode(value: unknown): value is PlannerReadinessReasonCode {
+  return [
+    "routine_ready",
+    "high_risk",
+    "validation_incomplete",
+    "blocked_dependency",
+    "needs_information",
+    "not_buildable",
+  ].includes(String(value));
+}

@@ -14,12 +14,16 @@ export async function cmdDispatch(args: string[]): Promise<number> {
   let appsPath: string | undefined;
   let rolesPath: string | undefined;
   let dryRun = false;
+  const explicitScheduleRetries: string[] = [];
 
   for (let i = 0; i < common.rest.length; i++) {
     const arg = common.rest[i]!;
     if (arg === "--apps") appsPath = needValue(common.rest, ++i, "--apps");
     else if (arg === "--roles") rolesPath = needValue(common.rest, ++i, "--roles");
     else if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--retry-schedule") {
+      explicitScheduleRetries.push(needValue(common.rest, ++i, "--retry-schedule"));
+    }
     else throw new Error(`dispatch: unknown argument "${arg}"`);
   }
 
@@ -61,6 +65,7 @@ export async function cmdDispatch(args: string[]): Promise<number> {
     appsPath: effectiveApps,
     rolesPath: effectiveRoles,
     dryRun,
+    ...(explicitScheduleRetries.length > 0 ? { explicitScheduleRetries } : {}),
   });
   reportCliInvocation({
     dryRun,

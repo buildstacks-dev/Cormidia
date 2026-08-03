@@ -4,6 +4,7 @@ import { link, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
 import type { SchedulerMissEvidence } from "../learning/efficiency-evidence.js";
+import { ScheduleDueClaimStore } from "./due-window-claims.js";
 import {
   DEFAULT_SCHEDULER_CADENCE_MINUTES,
   SCHEDULER_EVIDENCE_SCHEMA_VERSION,
@@ -56,6 +57,7 @@ export interface SchedulerDecisionRecord {
   event_key: string | null;
   stage: SchedulerDecisionStage;
   outcome: SchedulerDecisionOutcome | null;
+  classification: SchedulerDecisionClassification;
   reason_code: SchedulerReasonCode | null;
   episode_id: string | null;
   provider_turns: number | null;
@@ -64,6 +66,10 @@ export interface SchedulerDecisionRecord {
   updated_at: string;
   terminal_at: string | null;
   detail: string | null;
+  /** Stable schedule due-window settlement. Attempt is deliberately separate
+   * from identity so explicit retry cannot look like fresh scheduled work. */
+  schedule_claim_id?: string;
+  schedule_claim_attempt?: number;
 }
 
 export interface SchedulerAlertRecord {
@@ -75,8 +81,17 @@ export interface SchedulerAlertRecord {
   evidence_id: string;
   occurred_at: string;
   detail: string;
-  resolved: false;
+  resolved: boolean;
+  resolved_at?: string | null;
+  resolution?: string | null;
 }
+
+export type SchedulerDecisionClassification =
+  | "pending"
+  | "executed"
+  | "blocked_backpressure"
+  | "blocked_error"
+  | "skipped";
 
 export interface SchedulerEvidenceSummary {
   schema_version: 1;
@@ -213,7 +228,13 @@ export class SchedulerEvidenceStore {
     }
     this.latestInvocation = record;
     if (missed > 0) {
-      await this.writeAlert("missed_window_reconciled", id, at, `${missed} missed host window(s) collapsed into one firing`);
+      await this.writeAlert(
+        "missed_window_reconciled",
+        id,
+        at,
+        `${missed} missed host window(s) collapsed into one firing`,
+        true,
+      );
     }
     return record;
   }
@@ -229,7 +250,11 @@ export class SchedulerEvidenceStore {
     const next = { ...record, terminal, reason_code: reasonCode, completed_at: at.toISOString() };
     await this.writeInvocation(next);
     if (this.latestInvocation?.invocation_id === next.invocation_id) this.latestInvocation = next;
-    if (terminal === "failed") await this.writeAlert(reasonCode, invocationId, at, "scheduler invocation failed");
+    if (terminal === "failed") {
+      await this.writeAlert(reasonCode, invocationId, at, "scheduler invocation failed");
+    } else {
+      await this.resolveInvocationAlerts(at, invocationId);
+    }
     return next;
   }
 
@@ -274,6 +299,7 @@ export class SchedulerEvidenceStore {
       event_key: input.eventKey ?? null,
       stage: "prepared",
       outcome: null,
+      classification: "pending",
       reason_code: null,
       episode_id: scheduledEpisodeId(decisionId),
       provider_turns: null,
@@ -306,6 +332,33 @@ export class SchedulerEvidenceStore {
     return next;
   }
 
+  async bindScheduleClaim(
+    decisionId: string,
+    input: { settlementId: string; attempt: number; episodeId: string },
+    at: Date,
+  ): Promise<SchedulerDecisionRecord> {
+    const record = await this.mustDecision(decisionId);
+    if (record.schedule_claim_id !== undefined) {
+      if (
+        record.schedule_claim_id !== input.settlementId
+        || record.schedule_claim_attempt !== input.attempt
+        || record.episode_id !== input.episodeId
+      ) {
+        throw new Error(`scheduler decision ${decisionId}: schedule claim binding conflict`);
+      }
+      return record;
+    }
+    const next: SchedulerDecisionRecord = {
+      ...record,
+      schedule_claim_id: input.settlementId,
+      schedule_claim_attempt: input.attempt,
+      episode_id: input.episodeId,
+      updated_at: at.toISOString(),
+    };
+    await this.writeDecision(next);
+    return next;
+  }
+
   async finishDecision(
     decisionId: string,
     outcome: SchedulerDecisionOutcome,
@@ -319,6 +372,7 @@ export class SchedulerEvidenceStore {
       ...record,
       stage: "terminal",
       outcome,
+      classification: classifyDecision(outcome, reasonCode),
       reason_code: reasonCode,
       updated_at: at.toISOString(),
       terminal_at: at.toISOString(),
@@ -329,6 +383,8 @@ export class SchedulerEvidenceStore {
     await this.writeDecision(next);
     if (["failed", "missed"].includes(outcome)) {
       await this.writeAlert(reasonCode, decisionId, at, next.detail ?? `${outcome} scheduler decision`);
+    } else {
+      await this.resolveDecisionAlerts(next, at);
     }
     return next;
   }
@@ -347,6 +403,7 @@ export class SchedulerEvidenceStore {
       ...decision,
       stage: "terminal",
       outcome,
+      classification: classifyDecision(outcome, reason),
       reason_code: reason,
       provider_turns: emptyLearning || phase !== "done" ? providerTurnIds.size : providerTurnIds.size === 0 ? null : providerTurnIds.size,
       provider_settlements: emptyLearning || phase !== "done" ? settledIds.size : providerTurnIds.size === 0 ? null : settledIds.size,
@@ -355,6 +412,20 @@ export class SchedulerEvidenceStore {
       detail: phase,
     };
     await this.writeDecision(next);
+    if (outcome === "failed") {
+      await this.writeAlert(reason, decision.decision_id, at, summary ?? `${outcome} scheduled turn`);
+    } else {
+      await this.resolveDecisionAlerts(next, at);
+    }
+    if (decision.schedule_claim_id !== undefined && decision.schedule_claim_attempt !== undefined) {
+      await new ScheduleDueClaimStore(this.stateHome).settle({
+        settlementId: decision.schedule_claim_id,
+        attempt: decision.schedule_claim_attempt,
+        runId: turnId,
+        outcome: reason,
+        now: at,
+      });
+    }
     return next;
   }
 
@@ -485,7 +556,13 @@ export class SchedulerEvidenceStore {
     await writeRecord(this.decisionPath(record.decision_id), record);
   }
 
-  private async writeAlert(reason: SchedulerReasonCode, evidenceId: string, at: Date, detail: string): Promise<void> {
+  private async writeAlert(
+    reason: SchedulerReasonCode,
+    evidenceId: string,
+    at: Date,
+    detail: string,
+    resolved = false,
+  ): Promise<void> {
     const alertId = `alert_${sha256(`${this.orgId}\0${reason}\0${evidenceId}`).slice(7, 31)}`;
     const path = join(this.alertsDir(), `${alertId}.json`);
     if (existsSync(path)) return;
@@ -498,7 +575,41 @@ export class SchedulerEvidenceStore {
       evidence_id: evidenceId,
       occurred_at: at.toISOString(),
       detail,
-      resolved: false,
+      resolved,
+      resolved_at: resolved ? at.toISOString() : null,
+      resolution: resolved ? "reconciled when recorded" : null,
+    } satisfies SchedulerAlertRecord);
+  }
+
+  private async resolveInvocationAlerts(at: Date, evidenceId: string): Promise<void> {
+    for (const alert of await this.listAlerts()) {
+      if (alert.resolved || !alert.evidence_id.startsWith("tick_")) continue;
+      await this.resolveAlert(alert, at, `scheduler cycle ${evidenceId} completed successfully`);
+    }
+  }
+
+  private async resolveDecisionAlerts(decision: SchedulerDecisionRecord, at: Date): Promise<void> {
+    const decisions = new Map((await this.listDecisions()).map((item) => [item.decision_id, item]));
+    for (const alert of await this.listAlerts()) {
+      if (alert.resolved) continue;
+      const prior = decisions.get(alert.evidence_id);
+      if (
+        prior === undefined
+        || prior.app !== decision.app
+        || prior.role !== decision.role
+        || prior.trigger_kind !== decision.trigger_kind
+        || prior.trigger !== decision.trigger
+      ) continue;
+      await this.resolveAlert(alert, at, `later decision ${decision.decision_id} completed without error`);
+    }
+  }
+
+  private async resolveAlert(alert: SchedulerAlertRecord, at: Date, resolution: string): Promise<void> {
+    await writeRecord(join(this.alertsDir(), `${alert.alert_id}.json`), {
+      ...alert,
+      resolved: true,
+      resolved_at: at.toISOString(),
+      resolution,
     } satisfies SchedulerAlertRecord);
   }
 
@@ -592,6 +703,27 @@ function countValues(values: string[]): Map<string, number> {
 
 function duplicateCount(counts: Map<string, number>): number {
   return [...counts.values()].reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+}
+
+const BACKPRESSURE_REASONS = new Set<SchedulerReasonCode>([
+  "wip_limit",
+  "fresh_lock",
+  "budget_paused",
+  "channel_gated",
+  "approval_blocked",
+  "already_claimed",
+  "already_settled",
+  "retry_exhausted",
+]);
+
+function classifyDecision(
+  outcome: SchedulerDecisionOutcome,
+  reason: SchedulerReasonCode,
+): SchedulerDecisionClassification {
+  if (outcome === "executed") return "executed";
+  if (outcome === "skipped" || outcome === "reconciled") return "skipped";
+  if (outcome === "blocked" && BACKPRESSURE_REASONS.has(reason)) return "blocked_backpressure";
+  return "blocked_error";
 }
 
 function sum(values: number[]): number { return values.reduce((total, value) => total + value, 0); }

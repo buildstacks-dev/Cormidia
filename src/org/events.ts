@@ -58,6 +58,17 @@ export interface GitHubEventSource {
   prOpened(app: AppEntry): Promise<{ prNumber: number; headSha: string }[]>;
   ciFailed(app: AppEntry): Promise<{ sha: string; check: string }[]>;
   releaseShipped(app: AppEntry): Promise<{ tag: string }[]>;
+  /** Optional richer backlog snapshot used only by deterministic scheduled-role
+   * eligibility and Planner intake. Older embedded sources remain valid; an
+   * absent method is surfaced as unavailable input, never interpreted as an
+   * empty repository. */
+  openIssues?(app: AppEntry): Promise<GitHubIssueSummary[]>;
+}
+
+export interface GitHubIssueSummary {
+  number: number;
+  title: string;
+  labels: string[];
 }
 
 export const EVENT_KINDS: EventKind[] = [

@@ -34,8 +34,22 @@ Emit exactly these headings:
 ## Tickets to relabel ready
 ## Returned or blocked items
 ## Proposal-only changes
+## Readiness decisions
 ```
 
 Every ready ticket must include binary acceptance criteria, tier, priority,
 dependencies, and file scope. Deep-tier or high-risk criteria need human
 sign-off before `op:ready`.
+
+Under `## Readiness decisions`, emit this exact machine-readable block once.
+Include exactly one decision for every supplied issue that has no active
+`op:*` state label. Routine, fully specified low-risk work may be `ready`;
+deep/high-risk or validation-incomplete work must remain `unready` with the
+specific reason. Do not include already-active or unknown issue numbers.
+
+````text
+<!-- cormidia:planner-readiness-v1 -->
+```json
+{"schema_version":1,"decisions":[{"issue_number":123,"disposition":"ready|unready","reason_code":"routine_ready|high_risk|validation_incomplete|blocked_dependency|needs_information|not_buildable","reason":"specific evidence-based reason"}]}
+```
+````

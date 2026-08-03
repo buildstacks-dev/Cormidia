@@ -78,6 +78,11 @@ const MINIMAL_APPS_YAML = [
   "    repo: fixture/skeleton",
   "    status: live",
   "    cadence: {}",
+  "    release:",
+  "      kind: deploy",
+  "      owner: sre",
+  "      trigger: command",
+  "      command: ./deploy.sh",
   "",
 ].join("\n");
 

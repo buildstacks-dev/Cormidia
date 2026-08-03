@@ -5,6 +5,10 @@ import { buildSchedulerExpectation } from "../org/scheduler/definition.js";
 import { installScheduler, uninstallScheduler, type SchedulerLifecycleResult } from "../org/scheduler/lifecycle.js";
 import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
 import { DEFAULT_SCHEDULER_CADENCE_MINUTES, type SchedulerBackend } from "../org/scheduler/model.js";
+import {
+  resolveSchedulerRequiredExecutables,
+  schedulerEnvironmentPath,
+} from "../org/scheduler/environment.js";
 import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -14,6 +18,8 @@ export interface SchedulerCommandOptions extends CormidiaHomeOptions {
   packageEntryPath?: string;
   executablePath?: string;
   now?: () => Date;
+  environmentPath?: string;
+  requiredExecutables?: Record<string, string>;
 }
 
 export async function cmdScheduler(args: string[]): Promise<number> {
@@ -49,6 +55,9 @@ export async function runSchedulerCommand(args: string[], options: SchedulerComm
   const homes = await resolveCormidiaHomes({ ...common, ...options });
   const manager = options.manager ?? new PlatformSchedulerManager({ backend: selected, platform });
   if (manager.backend !== selected) throw new Error(`scheduler manager backend mismatch: expected ${selected}, got ${manager.backend}`);
+  const schedulerEnvironment = verb === "install"
+    ? schedulerEnvironmentForInstall(options)
+    : {};
   const input = {
     backend: selected,
     orgName: homes.appsFile.org.name,
@@ -58,6 +67,7 @@ export async function runSchedulerCommand(args: string[], options: SchedulerComm
     executablePath: resolve(options.executablePath ?? process.execPath),
     cadenceMinutes,
     manager,
+    ...schedulerEnvironment,
   };
 
   if (verb === "status") {
@@ -70,6 +80,18 @@ export async function runSchedulerCommand(args: string[], options: SchedulerComm
     : await uninstallScheduler({ ...input, execute, ...(confirm !== undefined ? { confirm } : {}), ...(options.now !== undefined ? { now: options.now } : {}) });
   printLifecycle(result, json);
   return result.action === "refuse" ? 1 : 0;
+}
+
+function schedulerEnvironmentForInstall(options: SchedulerCommandOptions): {
+  environmentPath: string;
+  requiredExecutables: Record<string, string>;
+} {
+  const requiredExecutables = options.requiredExecutables
+    ?? resolveSchedulerRequiredExecutables();
+  return {
+    requiredExecutables,
+    environmentPath: schedulerEnvironmentPath(requiredExecutables, options.environmentPath),
+  };
 }
 
 export function schedulerExpectationForCli(input: Parameters<typeof buildSchedulerExpectation>[0]) {

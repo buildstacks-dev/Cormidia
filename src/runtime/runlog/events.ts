@@ -27,6 +27,7 @@ export type RunlogEventType =
   | "gate.passed"
   | "gate.failed"
   | "tool.called"
+  | "turn.budget_stopped"
   | "subagent.started"
   | "subagent.completed"
   | "ticket.transition"

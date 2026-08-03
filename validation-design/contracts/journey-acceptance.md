@@ -57,6 +57,10 @@ Phase 3 boundary owns them.
   fails before provider construction — never silent EpisodePlanner fallback. [C-OP-PLAN §1]
 - Given planning prose without a durable plan, then the episode reports failure — prose
   is not an artifact. [INV-012]
+- Given scheduled grooming, Planner receives bounded provenance-bearing open issues
+  without an `op:ready` filter while Builder remains ready-only; only complete routine
+  issues gain `op:ready`, and risky/incomplete issues remain unready with typed reasons.
+  [C-OP-PLAN §2/§5, B-01, INV-008/012]
 
 ## J-04 Delivery loop
 - Given a claimed ticket, when each stage completes, then its label flips only after
@@ -80,7 +84,9 @@ Phase 3 boundary owns them.
   before spend. [B-09a, INV-005]
 
 ## J-07 Budget enforcement
-- Given a turn crossing its per-turn cap, then it stops at the adapter boundary.
+- Given a turn reaching a per-turn action/cost/time bound, then the next provider/tool
+  action is refused synchronously at the adapter boundary, partial usage is retained,
+  and the local stop never creates a budget-escalation approval item.
   [core adapter §5]
 - Given monthly spend ≥100%, when the next tick runs, then the app cannot claim new
   spend and a budget-exceeded item exists in the single queue. (Crash-seam
@@ -97,6 +103,9 @@ Phase 3 boundary owns them.
 ## J-09 Dispatch tick
 - Given any considered (app, role, trigger, window), then a durable named reason exists;
   given nothing due, no adapter is constructed. [INV-014, B-08]
+- Given repeated or concurrent host ticks in one schedule slot, at most one independent
+  run starts for `(org, app, role, trigger, due-window)`; crash recovery and one explicit
+  bounded retry retain that settlement identity. [B-06/B-08, INV-005/014]
 
 ## J-10 Event intake
 - Given one valid pending event, then **each eligible current subscriber eventually
@@ -144,6 +153,9 @@ Phase 3 boundary owns them.
 ## J-16 Scheduler lifecycle
 - Given install/uninstall, then preview-then-confirm with exact identity; given status,
   then health = joined evidence, never a definition file alone. [B-05, INV-008]
+- Given scheduler installation, required tools are resolved and recorded absolutely in
+  the rendered environment; disappearance fails status/doctor and dispatch fails before
+  turn construction. [B-05, INV-008/015]
 
 ## J-17 Release handoff
 - Given a merged deployable milestone, then deploy executes only under a fresh

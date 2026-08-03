@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
+import { schedulerEnvironmentProblems } from "./environment.js";
 import { buildSchedulerExpectation, parseSchedulerDefinition, type SchedulerDefinitionInput } from "./definition.js";
 import type { SchedulerManager, SchedulerManagerInspection } from "./manager.js";
 import {
@@ -27,6 +28,10 @@ export interface SchedulerInstallationRecord {
   definition_path: string;
   rendered_definition_hash: string;
   installed_at: string;
+  /** Added by #211; absent only on legacy installation records. */
+  environment_path?: string;
+  /** Added by #211; absent only on legacy installation records. */
+  required_executables?: Record<string, string>;
 }
 
 interface SchedulerLifecycleTransaction {
@@ -99,10 +104,19 @@ export interface SchedulerDefinitionStatus {
   state_home: string;
   reason_codes: SchedulerReasonCode[];
   detail: string[];
+  environment_path: string;
+  required_executables: Record<string, string>;
 }
 
 export async function installScheduler(options: SchedulerLifecycleOptions): Promise<SchedulerLifecycleResult> {
   const expected = buildSchedulerExpectation(options);
+  const environmentProblems = schedulerEnvironmentProblems({
+    path: expected.metadata.environment_path,
+    requiredExecutables: expected.metadata.required_executables,
+  });
+  if (environmentProblems.length > 0) {
+    throw new Error(`scheduler install: ${environmentProblems.join("; ")}`);
+  }
   const now = options.now ?? (() => new Date());
   const observed = await options.manager.readDefinition(expected.metadata.scheduler_id);
   const assessment = assessObserved(expected, observed);
@@ -166,7 +180,7 @@ export async function installScheduler(options: SchedulerLifecycleOptions): Prom
 }
 
 export async function uninstallScheduler(options: SchedulerLifecycleOptions): Promise<SchedulerLifecycleResult> {
-  const expected = buildSchedulerExpectation(options);
+  const expected = await expectationForExistingDefinition(options);
   const now = options.now ?? (() => new Date());
   const observed = await options.manager.readDefinition(expected.metadata.scheduler_id);
   const assessment = assessObserved(expected, observed);
@@ -223,7 +237,7 @@ export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput 
   manager: SchedulerManager;
   runtime?: boolean;
 }): Promise<SchedulerDefinitionStatus> {
-  const expected = buildSchedulerExpectation(input);
+  const expected = await expectationForExistingDefinition(input);
   const definition = await input.manager.readDefinition(expected.metadata.scheduler_id);
   const assessment = assessObserved(expected, definition);
   const inspection = await safeInspect(input.manager, expected.metadata.scheduler_id, input.runtime !== false);
@@ -231,6 +245,10 @@ export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput 
   const state = await readInstallationState(statePath);
   const reasons = new Set<SchedulerReasonCode>();
   const detail: string[] = [];
+  const environmentProblems = schedulerEnvironmentProblems({
+    path: expected.metadata.environment_path,
+    requiredExecutables: expected.metadata.required_executables,
+  });
   if (!input.manager.supported) reasons.add(input.manager.backend === "systemd" ? "unsupported_backend" : "unsupported_platform");
   if (definition === undefined) reasons.add("not_installed");
   for (const reason of assessment.reasons) reasons.add(reason);
@@ -243,8 +261,10 @@ export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput 
     if (state.value.rendered_definition_hash !== expected.definitionHash) reasons.add("stale_definition");
   }
   if (!existsSync(expected.metadata.executable_path) || !existsSync(expected.metadata.package_entry_path)) reasons.add("wrong_executable");
-  if (assessment.valid && assessment.hash === expected.definitionHash) reasons.add("definition_valid");
+  if (environmentProblems.length > 0) reasons.add("missing_required_executable");
+  if (assessment.valid && assessment.hash === expected.definitionHash && environmentProblems.length === 0) reasons.add("definition_valid");
   detail.push(inspection.detail);
+  detail.push(...environmentProblems);
   if (state.kind === "corrupt") detail.push(state.detail);
   return {
     schema_version: 1,
@@ -258,7 +278,7 @@ export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput 
     installed: inspection.installed,
     loaded: inspection.loaded,
     active: inspection.active,
-    definition_valid: assessment.valid && assessment.hash === expected.definitionHash,
+    definition_valid: assessment.valid && assessment.hash === expected.definitionHash && environmentProblems.length === 0,
     installation_state_valid: state.kind === "valid",
     expected_definition_hash: expected.definitionHash,
     observed_definition_hash: assessment.hash,
@@ -267,9 +287,27 @@ export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput 
     executable_path: expected.metadata.executable_path,
     org_home: expected.metadata.org_home,
     state_home: expected.metadata.state_home,
+    environment_path: expected.metadata.environment_path,
+    required_executables: { ...expected.metadata.required_executables },
     reason_codes: [...reasons].sort(),
     detail,
   };
+}
+
+async function expectationForExistingDefinition(
+  input: SchedulerDefinitionInput & { manager: SchedulerManager },
+): Promise<SchedulerExpectation> {
+  const initial = buildSchedulerExpectation(input);
+  if (input.requiredExecutables !== undefined || input.environmentPath !== undefined) return initial;
+  const definition = await input.manager.readDefinition(initial.metadata.scheduler_id);
+  if (definition === undefined) return initial;
+  const parsed = parseSchedulerDefinition(definition);
+  if (parsed.kind !== "owned") return initial;
+  return buildSchedulerExpectation({
+    ...input,
+    environmentPath: parsed.metadata.environment_path,
+    requiredExecutables: parsed.metadata.required_executables,
+  });
 }
 
 export function schedulerInstallationPath(stateHome: string): string {
@@ -297,6 +335,10 @@ function assessObserved(expected: SchedulerExpectation, definition: string | und
   if (actual.state_home !== expected.metadata.state_home) reasons.push("wrong_state_home");
   if (actual.org_home !== expected.metadata.org_home) reasons.push("wrong_org");
   if (actual.executable_path !== expected.metadata.executable_path || actual.package_entry_path !== expected.metadata.package_entry_path) reasons.push("wrong_executable");
+  if (
+    actual.environment_path !== expected.metadata.environment_path
+    || canonicalJson(actual.required_executables) !== canonicalJson(expected.metadata.required_executables)
+  ) reasons.push("wrong_executable");
   if (actual.cadence_minutes !== expected.metadata.cadence_minutes) reasons.push("cadence_drift");
   if (parsed.definitionHash !== expected.definitionHash) reasons.push("stale_definition");
   const wrongOwner = reasons.includes("wrong_org");
@@ -367,6 +409,8 @@ async function writeInstallationRecord(manager: SchedulerManager, expected: Sche
     definition_path: manager.definitionPath(expected.metadata.scheduler_id),
     rendered_definition_hash: expected.definitionHash,
     installed_at: at.toISOString(),
+    environment_path: expected.metadata.environment_path,
+    required_executables: { ...expected.metadata.required_executables },
   };
   await mkdir(dirname(path), { recursive: true });
   await writeFileAtomic(path, canonicalJson(record));

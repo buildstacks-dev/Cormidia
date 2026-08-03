@@ -230,6 +230,7 @@ function schedulerCheck(status: SchedulerOperationalStatus, configOnly: boolean)
     "wrong_org",
     "wrong_state_home",
     "wrong_executable",
+    "missing_required_executable",
     "cadence_drift",
     "stale_definition",
     "scheduler_state_missing",

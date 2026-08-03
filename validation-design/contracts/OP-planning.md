@@ -30,6 +30,11 @@ B-01/B-02..04/B-10.
   lineage + `published-tickets.json` mirror; dependencies + acceptance criteria per
   ticket; only dependency-free tickets `op:ready` `[doc]`.
 - Fluent prose with no durable plan = episode failure, not partial success (INV-012).
+- Scheduled grooming receives a bounded, content-hashed snapshot of open issues without
+  an `op:ready` filter. Builder remains `op:ready`-only. Every issue without an active
+  lifecycle label receives an explicit readiness disposition; the deterministic
+  application admits only fully specified routine work and leaves risky, blocked,
+  truncated, or incomplete work unready with a typed reason.
 
 ## §3 Previews and explanation
 - `--dry-run` forms spend zero tokens, construct no runtime, and return
@@ -48,3 +53,5 @@ B-01/B-02..04/B-10.
   recorded refs/bytes/trust/selection/truncation before runtime construction; a
   missing/unreadable/rejected/over-budget required source fails closed; emitted tickets
   carry refs + hashes, never source bytes `[doc]`.
+- Scheduled GitHub intake distinguishes empty repository, unavailable GitHub, missing
+  required executable, and accidental ready-only filtering before provider construction.

@@ -13,6 +13,12 @@ import {
   type SchedulerDefinitionMetadata,
   type SchedulerExpectation,
 } from "./model.js";
+import {
+  DEFAULT_SCHEDULER_PATH,
+  requiredExecutablesManifest,
+  schedulerEnvironmentPath,
+  SCHEDULER_REQUIRED_EXECUTABLES_ENV,
+} from "./environment.js";
 
 const MARKER = "cormidia-scheduler-metadata-v1:";
 
@@ -25,6 +31,8 @@ export interface SchedulerDefinitionInput {
   executablePath?: string;
   cadenceMinutes?: number;
   tsxImportPath?: string;
+  environmentPath?: string;
+  requiredExecutables?: Record<string, string>;
 }
 
 export type ParsedSchedulerDefinition =
@@ -38,6 +46,11 @@ export function buildSchedulerExpectation(input: SchedulerDefinitionInput): Sche
   const packageEntryPath = resolve(input.packageEntryPath);
   const executablePath = resolve(input.executablePath ?? process.execPath);
   const cadenceMinutes = input.cadenceMinutes ?? DEFAULT_SCHEDULER_CADENCE_MINUTES;
+  const requiredExecutables = normalizeRequiredExecutables(input.requiredExecutables ?? {});
+  const environmentPath = schedulerEnvironmentPath(
+    requiredExecutables,
+    input.environmentPath ?? DEFAULT_SCHEDULER_PATH,
+  );
   assertCadence(cadenceMinutes);
   const schedulerId = schedulerIdentity(input.orgName, orgHome);
   const command = schedulerCommand({
@@ -46,6 +59,8 @@ export function buildSchedulerExpectation(input: SchedulerDefinitionInput): Sche
     orgHome,
     stateHome,
     ...(input.tsxImportPath !== undefined ? { tsxImportPath: input.tsxImportPath } : {}),
+    environmentPath,
+    requiredExecutables,
   });
   const metadata: SchedulerDefinitionMetadata = {
     schema_version: SCHEDULER_SCHEMA_VERSION,
@@ -60,6 +75,8 @@ export function buildSchedulerExpectation(input: SchedulerDefinitionInput): Sche
     org_home: orgHome,
     state_home: stateHome,
     command_sha256: sha256(canonicalJson(command)),
+    environment_path: environmentPath,
+    required_executables: requiredExecutables,
   };
   const definition = input.backend === "launchd"
     ? renderLaunchd(metadata, command)
@@ -74,7 +91,19 @@ export function parseSchedulerDefinition(text: string): ParsedSchedulerDefinitio
   try {
     const value = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as unknown;
     if (!validMetadata(value)) throw new Error("metadata schema mismatch");
-    return { kind: "owned", metadata: value, definitionHash: sha256(text) };
+    const legacy = value as SchedulerDefinitionMetadata & {
+      environment_path?: string;
+      required_executables?: Record<string, string>;
+    };
+    return {
+      kind: "owned",
+      metadata: {
+        ...legacy,
+        environment_path: legacy.environment_path ?? DEFAULT_SCHEDULER_PATH,
+        required_executables: legacy.required_executables ?? {},
+      },
+      definitionHash: sha256(text),
+    };
   } catch (error) {
     return {
       kind: "malformed",
@@ -90,6 +119,8 @@ export function schedulerCommand(input: {
   orgHome: string;
   stateHome: string;
   tsxImportPath?: string;
+  environmentPath: string;
+  requiredExecutables: Record<string, string>;
 }): SchedulerCommand {
   const tsx = input.packageEntryPath.endsWith(".ts")
     ? input.tsxImportPath ?? createRequire(import.meta.url).resolve("tsx")
@@ -106,6 +137,8 @@ export function schedulerCommand(input: {
       "--state-home",
       input.stateHome,
     ],
+    environment: { PATH: input.environmentPath },
+    requiredExecutables: { ...input.requiredExecutables },
   };
 }
 
@@ -124,6 +157,13 @@ function renderLaunchd(metadata: SchedulerDefinitionMetadata, command: Scheduler
   <array>
 ${args}
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${escapeXml(command.environment.PATH)}</string>
+    <key>${SCHEDULER_REQUIRED_EXECUTABLES_ENV}</key>
+    <string>${escapeXml(requiredExecutablesManifest(command.requiredExecutables))}</string>
+  </dict>
   <key>StartInterval</key>
   <integer>${metadata.cadence_minutes * 60}</integer>
   <key>RunAtLoad</key>
@@ -147,6 +187,8 @@ Description=Cormidia org-scoped dispatch (${metadata.org_name})
 
 [Service]
 Type=oneshot
+Environment=${systemdQuote(`PATH=${command.environment.PATH}`)}
+Environment=${systemdQuote(`${SCHEDULER_REQUIRED_EXECUTABLES_ENV}=${requiredExecutablesManifest(command.requiredExecutables)}`)}
 ExecStart=${escaped}
 WorkingDirectory=${systemdQuote(metadata.org_home)}
 
@@ -179,7 +221,21 @@ function validMetadata(value: unknown): value is SchedulerDefinitionMetadata {
     && typeof row.package_entry_path === "string"
     && typeof row.org_home === "string"
     && typeof row.state_home === "string"
-    && typeof row.command_sha256 === "string";
+    && typeof row.command_sha256 === "string"
+    && (row.environment_path === undefined || typeof row.environment_path === "string")
+    && (
+      row.required_executables === undefined
+      || (row.required_executables !== null
+        && typeof row.required_executables === "object"
+        && !Array.isArray(row.required_executables))
+    );
+}
+
+function normalizeRequiredExecutables(value: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([name, path]) => {
+    if (!/^[A-Za-z0-9._+-]+$/.test(name)) throw new TypeError(`invalid required executable name: ${name}`);
+    return [name, resolve(path)];
+  }));
 }
 
 function escapeXml(value: string): string {

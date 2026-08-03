@@ -1,4 +1,4 @@
-// Human approval queue CLI (architecture.md §4; approval-and-release-
+// Attributable approval queue CLI (architecture.md §4; approval-and-release-
 // amendment A1–A3): decisions may widen a grant's scope (never for
 // NEVER_SCOPEABLE_RULES), same-rule items may be reviewed as one batch with
 // per-item audit intact, approvals may re-arm the parked ticket, and grants
@@ -8,11 +8,13 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { join, resolve } from "node:path";
 import {
+  approvalDeciderFromIdentity,
   approvalLifecycleState,
   ApprovalStore,
   type ApprovalItem,
   type DecideApprovalInput,
 } from "../org/approvals.js";
+import { releaseExpiredTicketApprovalClaim } from "../org/ticket-episode-approval.js";
 import { appendDenialLesson } from "../org/denial-lessons.js";
 import { loadApps } from "../org/apps.js";
 import { GhCliOps } from "../loop/github.js";
@@ -26,7 +28,13 @@ export async function cmdApprovals(args: string[]): Promise<number> {
   const homes = await resolveCormidiaHomes(common);
   const stateHome = common.stateHome ? resolve(common.stateHome) : homes.stateHome;
   const store = new ApprovalStore(stateHome);
-  await store.reconcile();
+  if (parsed.subcommand === "review" && input.isTTY !== true) {
+    throw new Error("approvals review requires a terminal; use 'cormidia approvals decide'");
+  }
+  await store.reconcile(parsed.now);
+  for (const expired of (await store.listDecided()).filter((item) => item.status === "expired")) {
+    await releaseExpiredTicketApprovalClaim(stateHome, expired, parsed.now);
+  }
 
   if (parsed.subcommand === "show") {
     if (parsed.id === undefined) throw new Error("approvals show: id required");
@@ -48,11 +56,67 @@ export async function cmdApprovals(args: string[]): Promise<number> {
 
   if (parsed.subcommand === "review") {
     if (parsed.json) throw new Error("approvals review: --json is unavailable for interactive decisions");
-    return reviewQueue(store, homes.orgHome, stateHome, parsed.batch);
+    if (parsed.by === undefined || parsed.by.trim() === "") {
+      throw new Error("approvals review: --by <identity> is required");
+    }
+    return reviewQueue(store, homes.orgHome, stateHome, parsed.batch, parsed.by);
+  }
+
+  if (parsed.subcommand === "decide") {
+    if (parsed.id === undefined) throw new Error("approvals decide: id required");
+    if (parsed.decision === undefined) {
+      throw new Error("approvals decide: choose exactly one of --approve or --deny");
+    }
+    if (parsed.reason === undefined || parsed.reason.trim() === "") {
+      throw new Error("approvals decide: --reason is required");
+    }
+    if (/^[ads]$/i.test(parsed.reason.trim())) {
+      throw new Error("approvals decide: --reason must be an actual justification, not a bare a/d/s token");
+    }
+    if (parsed.by === undefined || parsed.by.trim() === "") {
+      throw new Error("approvals decide: --by <identity> is required");
+    }
+    if (parsed.confirm !== parsed.id) {
+      throw new Error(`approvals decide: --confirm must exactly match ${parsed.id}`);
+    }
+    if (parsed.decision === "denied" && parsed.scope !== undefined) {
+      throw new Error("approvals decide: --scope is available only with --approve");
+    }
+    const decided = await store.decide(parsed.id, {
+      decision: parsed.decision,
+      reason: parsed.reason,
+      decidedBy: approvalDeciderFromIdentity(parsed.by),
+      now: parsed.now,
+      ...(parsed.scope !== undefined ? { scope: parsed.scope } : {}),
+    });
+    if (decided.decision === "denied") {
+      appendDenialLesson(homes.orgHome, decided.role, {
+        app: decided.app,
+        rule: decided.rule,
+        reason: decided.reason!,
+        at: decided.decidedAt!,
+      });
+    }
+    await rearmTicket(homes.orgHome, stateHome, decided);
+    if (parsed.json) {
+      console.log(JSON.stringify({
+        schema_version: 1,
+        kind: "approval-decision",
+        item: approvalView(decided),
+      }, null, 2));
+    } else {
+      console.log(
+        `${decided.decision} ${decided.id} by ${decided.decidedBy?.identity ?? "unknown"}` +
+          (decided.grantId === undefined ? "" : ` grant=${decided.grantId}`),
+      );
+    }
+    return 0;
   }
 
   if (parsed.subcommand === "status") {
-    const executions = (await store.listDecided()).filter((item) => item.execution !== undefined);
+    const executions = (await store.listDecided()).filter(
+      (item) => item.execution !== undefined || item.status === "expired",
+    );
     if (parsed.json) {
       console.log(JSON.stringify({
         schema_version: 1,
@@ -116,12 +180,15 @@ export async function cmdApprovals(args: string[]): Promise<number> {
 }
 
 interface ParsedArgs {
-  subcommand: "list" | "review" | "show" | "revoke" | "status" | "disposition";
+  subcommand: "list" | "review" | "decide" | "show" | "revoke" | "status" | "disposition";
   id?: string;
   batch: boolean;
   now: Date;
+  decision?: "approved" | "denied";
   disposition?: "executed" | "failed" | "retry";
   reason?: string;
+  by?: string;
+  scope?: DecideApprovalInput["scope"];
   confirm?: string;
   json: boolean;
 }
@@ -131,8 +198,11 @@ function parseArgs(args: string[]): ParsedArgs {
   let id: string | undefined;
   let batch = false;
   let now = new Date();
+  let decision: ParsedArgs["decision"];
   let disposition: ParsedArgs["disposition"];
   let reason: string | undefined;
+  let by: string | undefined;
+  let scope: DecideApprovalInput["scope"];
   let confirm: string | undefined;
   let json = false;
 
@@ -142,12 +212,30 @@ function parseArgs(args: string[]): ParsedArgs {
     else if (arg === "--json") json = true;
     else if (arg === "--batch") batch = true;
     else if (arg === "--reason") reason = needValue(args, ++i, "--reason");
+    else if (arg === "--by") by = needValue(args, ++i, "--by");
     else if (arg === "--confirm") confirm = needValue(args, ++i, "--confirm");
+    else if (arg === "--approve" || arg === "--deny") {
+      if (decision !== undefined) throw new Error("approvals decide: choose only one decision");
+      decision = arg === "--approve" ? "approved" : "denied";
+    }
+    else if (arg === "--scope") {
+      const kind = needValue(args, ++i, "--scope");
+      if (kind !== "ticket" && kind !== "app") {
+        throw new Error('approvals decide: --scope must be "ticket" or "app"');
+      }
+      const path = args[i + 1];
+      if (path !== undefined && !path.startsWith("--")) i += 1;
+      scope = { kind, ...(path !== undefined && !path.startsWith("--") ? { pathContains: path } : {}) };
+    }
     else if (arg === "--executed" || arg === "--failed" || arg === "--retry") {
       if (disposition !== undefined) throw new Error("approvals disposition: choose only one disposition");
       disposition = arg.slice(2) as ParsedArgs["disposition"];
     }
     else if (arg === "review") subcommand = "review";
+    else if (arg === "decide") {
+      subcommand = "decide";
+      id = needValue(args, ++i, "decide");
+    }
     else if (arg === "show") {
       subcommand = "show";
       id = needValue(args, ++i, "show");
@@ -168,8 +256,11 @@ function parseArgs(args: string[]): ParsedArgs {
     json,
     ...(id !== undefined ? { id } : {}),
     now,
+    ...(decision !== undefined ? { decision } : {}),
     ...(disposition !== undefined ? { disposition } : {}),
     ...(reason !== undefined ? { reason } : {}),
+    ...(by !== undefined ? { by } : {}),
+    ...(scope !== undefined ? { scope } : {}),
     ...(confirm !== undefined ? { confirm } : {}),
   };
 }
@@ -196,6 +287,7 @@ async function reviewQueue(
   orgHome: string,
   stateHome: string,
   batch: boolean,
+  by: string,
 ): Promise<number> {
   const pending = await store.listPending();
   if (pending.length === 0) {
@@ -206,12 +298,9 @@ async function reviewQueue(
   // still gets its own decide() call and log rows.
   const groups: ApprovalItem[][] = batch ? groupByRuleAndApp(pending) : pending.map((item) => [item]);
 
-  const interactive = input.isTTY === true;
-  const rl = interactive ? createInterface({ input, output }) : undefined;
-  const scripted = interactive ? [] : (await readStdin()).split(/\r?\n/);
-  let scriptIndex = 0;
-  const ask = async (prompt: string): Promise<string> =>
-    rl !== undefined ? await rl.question(prompt) : (scripted[scriptIndex++] ?? "");
+  const rl = createInterface({ input, output });
+  const ask = (prompt: string): Promise<string> => rl.question(prompt);
+  const decidedBy = approvalDeciderFromIdentity(by);
 
   try {
     for (const group of groups) {
@@ -231,7 +320,7 @@ async function reviewQueue(
       if (decision.kind === "deny") {
         const reason = (await ask("reason: ")).trim();
         for (const item of group) {
-          const decided = await store.decide(item.id, { decision: "denied", reason });
+          const decided = await store.decide(item.id, { decision: "denied", reason, decidedBy });
           console.log(`denied ${item.id}`);
           // A5: EVERY human denial reason persists as role memory — not only
           // the composed gate's role-forbidden flat denies. Without this, the
@@ -248,6 +337,7 @@ async function reviewQueue(
         }
         continue;
       }
+      const reason = (await ask("reason: ")).trim();
       for (const item of group) {
         // One wrong answer must not kill the review session: a scope request
         // on a never-scopeable rule throws — report it, leave the item
@@ -255,6 +345,8 @@ async function reviewQueue(
         try {
           const decided = await store.decide(item.id, {
             decision: "approved",
+            reason,
+            decidedBy,
             ...(decision.scope !== undefined ? { scope: decision.scope } : {}),
           });
           console.log(
@@ -271,7 +363,7 @@ async function reviewQueue(
       }
     }
   } finally {
-    rl?.close();
+    rl.close();
   }
   return 0;
 }
@@ -320,12 +412,6 @@ async function rearmTicket(orgHome: string, stateHome: string, item: ApprovalIte
   }
 }
 
-async function readStdin(): Promise<string> {
-  let text = "";
-  for await (const chunk of input) text += String(chunk);
-  return text;
-}
-
 function printTable(items: readonly ApprovalItem[], now: Date): void {
   console.log("ID                       APP                  ROLE       RULE                 AGE");
   for (const item of items) {
@@ -351,7 +437,7 @@ function printExecutionTable(
     console.log([
       item.id.padEnd(24),
       item.app.padEnd(20),
-      approvalLifecycleState(item).padEnd(11),
+      displayedLifecycleState(item).padEnd(11),
       String(item.execution?.attempts ?? 0).padStart(3),
       (item.execution?.actor ?? "-").slice(0, 24).padEnd(24),
       item.execution?.nextAction ?? "-",
@@ -385,7 +471,11 @@ function isOutstandingExecution(item: ApprovalItem): boolean {
 }
 
 function approvalView(item: ApprovalItem): ApprovalItem & { lifecycleState: string } {
-  return { ...item, lifecycleState: approvalLifecycleState(item) };
+  return { ...item, lifecycleState: displayedLifecycleState(item) };
+}
+
+function displayedLifecycleState(item: ApprovalItem): string {
+  return item.status === "expired" ? "expired" : approvalLifecycleState(item);
 }
 
 function formatFullItem(item: ApprovalItem): string {

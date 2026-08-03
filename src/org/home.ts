@@ -400,6 +400,8 @@ async function repairMigratedScheduler(
     packageEntryPath: record.package_entry_path,
     executablePath: record.executable_path,
     cadenceMinutes: record.cadence_minutes,
+    ...(record.environment_path !== undefined ? { environmentPath: record.environment_path } : {}),
+    ...(record.required_executables !== undefined ? { requiredExecutables: record.required_executables } : {}),
   });
 
   const currentDefinition = await manager.readDefinition(expected.metadata.scheduler_id);
@@ -477,6 +479,8 @@ async function repairMigratedScheduler(
       definition_path: manager.definitionPath(expected.metadata.scheduler_id),
       rendered_definition_hash: expected.definitionHash,
       installed_at: record.installed_at,
+      environment_path: expected.metadata.environment_path,
+      required_executables: { ...expected.metadata.required_executables },
     };
     await writeFileAtomic(installationPath, canonicalJson(repaired));
     return 1;

@@ -1,0 +1,28 @@
+{
+  "command": [
+    "pnpm",
+    "exec",
+    "vitest",
+    "run",
+    "claude-tests/hermetic/cf-reg-209",
+    "claude-tests/hermetic/cf-reg-211",
+    "claude-tests/hermetic/cf-reg-228",
+    "claude-tests/hermetic/cf-reg-229",
+    "claude-tests/hermetic/cf-reg-230",
+    "claude-tests/hermetic/cf-reg-231",
+    "claude-tests/unit/cf-sched-claim"
+  ],
+  "cwd": "/Users/bikram/Build/Cormidia-epic-227",
+  "duration_seconds": 1.520469,
+  "ended_at_utc": "2026-08-03T15:29:23Z",
+  "environment_variables_recorded": false,
+  "exit_code": 0,
+  "name": "merge-focused-regressions",
+  "redaction_patterns_applied": 0,
+  "schema_version": "1.0",
+  "started_at_utc": "2026-08-03T15:29:21Z",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sha256": "6a3e388145e49749e8173baefdfe0fd889ecebcc88936aa6ed43755a3c1af833",
+  "timed_out": false,
+  "timeout_seconds": 180.0
+}

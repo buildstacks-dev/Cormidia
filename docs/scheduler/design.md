@@ -58,6 +58,27 @@ host time. A trigger is due when `now ≥ next(lastFired, spec)`;
 written only after the turn actually starts. Missed windows (laptop asleep)
 collapse to **one** firing — no backfill.
 
+A clock wake-up is only a stimulus to inspect work. Before lock acquisition or
+child/provider construction, scheduled standing roles run a deterministic,
+token-free eligibility preflight: SRE requires a declared release/deploy
+surface or operational backlog (health/CI alerts already route as their own
+event turns); Support and Marketing require their declared
+channel plus actionable backlog; Planner requires an issue with no active
+`op:*` state or a pending Planner feed; learning roles use their deterministic
+window preparation. Configured-but-empty and unavailable/missing inputs remain
+distinct diagnostics. Ineligible windows terminate successfully as
+`no_actionable_input` with the checked inputs and zero provider turns.
+
+The schedule slot itself is normalized to `(org, app, role, trigger,
+due-window)` and claimed through one durable settlement identity. Repeated host
+ticks in that slot observe `already_claimed` or `already_settled` and never
+mint an independent run. A dead pre-journal owner is recoverable under the same
+attempt; a committed child is reconciled from its terminal turn journal. An
+ordinary tick is never an implicit retry. An operator may request the single
+bounded retry with `cormidia dispatch --retry-schedule <settlement-id>`; it
+reuses the settlement identity and records `explicit_retry` or
+`retry_exhausted`.
+
 **Event triggers.** v1 is **polling, not webhooks** — the laptop has no
 public ingress. Each tick polls GitHub (via `gh`/REST) per live app:
 
@@ -200,8 +221,13 @@ org home, and state home independently of cwd. `status` is read-only.
 
 The installed definition invokes an absolute Node executable and absolute
 package entry with explicit `--org-home` and `--state-home` arguments. It does
-not rely on an active-org pointer, cwd, an interactive shell, inherited `PATH`,
-or an environment dump. Definition metadata contains no credentials. The
+not rely on an active-org pointer, cwd, or an interactive shell. At install,
+Cormidia resolves every required external tool (currently `gh`) to an absolute
+path, records the mapping, and renders an explicit minimal `PATH` plus the
+required-tool manifest. Status/doctor re-resolve the tools under that exact
+scheduled environment, and scheduled dispatch fails before loading org state
+if a recorded tool disappears. No inherited environment dump or credentials
+enter the definition. The
 identity is `dev.cormidia.dispatch.<org-slug>.<org-home-hash>`; the org id also
 binds the exact org name and org-home path, so two orgs cannot collide.
 
@@ -221,6 +247,7 @@ The ownership metadata marker and `scheduler/installation.json` are
 - backend and cadence minutes;
 - absolute executable and package-entry paths;
 - absolute org and state homes;
+- explicit scheduled `PATH` and absolute required-executable mapping;
 - command hash, rendered-definition hash, definition path, and install time.
 
 `scheduler/lifecycle-transaction.json` records install/uninstall progress
@@ -238,6 +265,9 @@ Scheduler-owned state lives under the independently resolved state home:
 scheduler/
 ├── installation.json
 ├── lifecycle-transaction.json        # present only while a mutation is incomplete
+├── due-window-claims/
+│   ├── records/<settlement-id>.json   # one identity; claimed → committed → settled
+│   └── locks/<settlement-id>.lock     # serialized claim mutation
 ├── logs/                              # host scheduler stdout/stderr target
 └── evidence/
     ├── invocations/<tick-id>.json
@@ -264,14 +294,18 @@ source advance older pending records to `superseded`. Terminal records become
 `expired` and are pruned after their retention window, while pending evidence
 is never removed merely because it is old.
 
-The four identity layers remain distinct:
+The five identity layers remain distinct:
 
 1. Invocation: `SHA-256(org-id, cadence-window)` identifies the OS due window.
-2. Decision: `SHA-256(org-id, cadence-window, app, role, trigger-kind,
+2. Scheduled settlement: `SHA-256(org-id, app, role, trigger,
+   schedule-due-window)` identifies the one independently runnable scheduled
+   obligation; retries remain attempts of this identity.
+3. Decision: `SHA-256(org-id, cadence-window, app, role, trigger-kind,
    trigger, event-key)` identifies one route-admission decision.
-3. Episode/turn: derived from the decision id and carried into the ordinary
+4. Episode/turn: for schedules, derived from settlement id + attempt; otherwise
+   derived from the decision id. It is carried into the ordinary
    turn journal, run envelope, and trace.
-4. Provider turn: the adapter's provider-turn id and its ordinary telemetry
+5. Provider turn: the adapter's provider-turn id and its ordinary telemetry
    settlement; mechanical scheduling creates neither.
 
 Enumeration order and process randomness are not identity inputs. Org, app,
@@ -373,8 +407,8 @@ Every due decision terminates as `executed`, `skipped`, `blocked`, `missed`,
 
 | Area | Canonical reason codes |
 | --- | --- |
-| Execution/admission | `executed`, `no_due_work`, `fresh_lock`, `wip_limit`, `budget_paused`, `approval_blocked`, `channel_gated`, `no_subscriber`, `empty_learning_window`, `missed_window_reconciled`, `spawn_failure`, `post_spawn_bookkeeping_failure`, `scheduler_definition_failure`, `scheduler_state_failure` |
-| Definition/install | `unsupported_platform`, `unsupported_backend`, `not_installed`, `definition_valid`, `inactive`, `stale_definition`, `malformed_definition`, `wrong_org`, `wrong_state_home`, `wrong_executable`, `cadence_drift`, `ownership_mismatch`, `scheduler_state_missing`, `scheduler_state_corrupt` |
+| Execution/admission | `executed`, `no_due_work`, `no_actionable_input`, `not_due`, `already_claimed`, `already_settled`, `explicit_retry`, `retry_exhausted`, `fresh_lock`, `wip_limit`, `budget_paused`, `approval_blocked`, `channel_gated`, `no_subscriber`, `empty_learning_window`, `missed_window_reconciled`, `spawn_failure`, `post_spawn_bookkeeping_failure`, `scheduler_definition_failure`, `scheduler_state_failure` |
+| Definition/install | `unsupported_platform`, `unsupported_backend`, `not_installed`, `definition_valid`, `inactive`, `stale_definition`, `malformed_definition`, `wrong_org`, `wrong_state_home`, `wrong_executable`, `missing_required_executable`, `cadence_drift`, `ownership_mismatch`, `scheduler_state_missing`, `scheduler_state_corrupt` |
 | Operational health | `healthy_recent_tick`, `overdue_tick`, `last_tick_failed`, `measurement_unavailable` |
 
 Budget, approval, channel, and learning outcomes are ordinary Cormidia decisions:
@@ -401,6 +435,15 @@ valid provider denominators with settlement agreement. A file's existence is
 never health. Missing denominators, config-only inspection, absent runtime
 manager evidence, and corrupt state yield invalid/unavailable measurement—not
 zero and not healthy.
+
+A spawned decision remains `pending` until the child journal is terminal; only
+then does the receipt join provider-turn ids and ledger settlements. WIP, fresh
+locks, paused budgets, and other normal backpressure classify as
+`blocked_backpressure` and do not alert. Scheduler-cycle or decision errors do
+alert, and later successful evidence resolves matching alerts. After an
+intentional uninstall, retained historical evidence remains inspectable but
+does not project stale runtime health/failure reasons into the stopped
+scheduler's current status.
 
 `cormidia doctor` uses this projection without constructing a provider runtime.
 Normal doctor performs the bounded host-manager inspection; `--config-only`

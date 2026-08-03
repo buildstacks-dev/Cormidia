@@ -1,0 +1,6 @@
+$ vitest run --maxWorkers=2
+learning: skipping bundle concept lrn_j12i_lesson (org) — no manifest cut names it; its publication is mid-transaction or was never committed (INV-013)
+cormidia: skipping misplaced governed concept — learning: /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-fixture-org-2knDPm/org/learning/bundle/org/smuggled.md: loop.status "candidate" cannot live in bundle/ (allowed: active | deprecated; spec §3)
+cormidia: skipping misplaced governed concept — learning: /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-fixture-org-2knDPm/org/learning/bundle/org/smuggled.md: loop.status "candidate" cannot live in bundle/ (allowed: active | deprecated; spec §3)
+cormidia: skipping misplaced governed concept — learning: /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-fixture-org-2knDPm/org/learning/bundle/org/smuggled.md: loop.status "candidate" cannot live in bundle/ (allowed: active | deprecated; spec §3)
+cormidia: skipping misplaced governed concept — learning: /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-fixture-org-2knDPm/org/learning/quarantine/agent-provisional.md: provisional concepts require a human author (loop.author) — quarantine is the human urgent lane, never an agent write path (design §7)

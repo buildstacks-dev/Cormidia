@@ -17,6 +17,12 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
   + liveness/stale-reclamation lock primitive. The app git-clone lock is a
   configuration of it; the settlement and turn locks are the model but not
   yet re-expressed onto it.
+- `durable-claim.ts` is the reusable single-claim/commit/settle primitive for
+  content-bound work that must survive process death and allow only an explicit,
+  bounded retry under the same settlement identity. Scheduler due windows use
+  it through `src/org/scheduler/due-window-claims.ts`; a future approvals
+  decision lock (#199) may adopt this seam, but runtime code must remain free of
+  schedule, ticket, and approval vocabulary.
 - Every `Runtime` must prove adapter-generic conformance before its role goes
   live — proven against `src/runtime/testing/fakeRuntime.ts`. Extend cases;
   never weaken one to make an adapter pass. (The conformance suite is archived

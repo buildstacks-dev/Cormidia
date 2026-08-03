@@ -18,6 +18,7 @@ export type SchedulerReasonCode =
   | "wrong_org"
   | "wrong_state_home"
   | "wrong_executable"
+  | "missing_required_executable"
   | "cadence_drift"
   | "ownership_mismatch"
   | "scheduler_state_missing"
@@ -37,7 +38,13 @@ export type SchedulerReasonCode =
   | "budget_paused"
   | "approval_blocked"
   | "channel_gated"
+  | "no_actionable_input"
   | "no_subscriber"
+  | "not_due"
+  | "already_claimed"
+  | "already_settled"
+  | "explicit_retry"
+  | "retry_exhausted"
   | "no_due_work"
   | "empty_learning_window"
   | "missed_window_reconciled"
@@ -59,6 +66,8 @@ export interface SchedulerCommand {
   executablePath: string;
   packageEntryPath: string;
   args: string[];
+  environment: { PATH: string };
+  requiredExecutables: Record<string, string>;
 }
 
 export interface SchedulerDefinitionMetadata {
@@ -74,6 +83,8 @@ export interface SchedulerDefinitionMetadata {
   org_home: string;
   state_home: string;
   command_sha256: string;
+  environment_path: string;
+  required_executables: Record<string, string>;
 }
 
 export interface SchedulerExpectation {

@@ -1,0 +1,44 @@
+{
+  "assessment_id": "20260803T144458Z-f40f12b10680",
+  "created_at_utc": "2026-08-03T14:44:58Z",
+  "created_templates": [
+    "evidence-report.md",
+    "findings.md",
+    "project-assurance-profile.yaml",
+    "release-assessment.md",
+    "risk-register.yaml",
+    "system-map.md",
+    "traceability-matrix.md",
+    "validation-contract.yaml",
+    "validation-plan.md"
+  ],
+  "evidence": [
+    "evidence/merge-focused-regressions",
+    "evidence/merge-full-offline-suite",
+    "evidence/merge-strict-typecheck",
+    "evidence/merge-build",
+    "evidence/merge-onboarding-smoke",
+    "evidence/merge-package-dry-run",
+    "evidence/merge-diff-check",
+    "evidence/merge-frozen-path-diff",
+    "evidence/merge-changed-files"
+  ],
+  "host": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.3",
+    "node": "26.4.0",
+    "pnpm": "11.10.0"
+  },
+  "mode": "full",
+  "notes": [
+    "Environment variables are intentionally not recorded.",
+    "Target f6bb611 is the implementation commit; only this assurance workspace was untracked while evidence commands ran.",
+    "No live provider, eval, soak, scheduler lifecycle, release, or approval operation was executed."
+  ],
+  "repository_root": "/Users/bikram/Build/Cormidia-epic-227",
+  "schema_version": "1.0",
+  "target_revision": "f6bb61123d2f7e3b74c6b0e93c27367fc3e93003",
+  "base_revision": "f40f12b10680d69e396bd52b0b197ff680a64ec7",
+  "working_tree_dirty": true,
+  "implementation_tree_clean_except_assurance_workspace": true
+}

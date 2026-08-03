@@ -1,0 +1,194 @@
+schema_version: "1.0"
+assessment:
+  id: "20260803T144458Z-f40f12b10680"
+  mode: "full"
+  started_at_utc: "2026-08-03T14:44:58Z"
+  target_revision: "f6bb61123d2f7e3b74c6b0e93c27367fc3e93003"
+  repository_root: "/Users/bikram/Build/Cormidia-epic-227"
+  working_tree_state: "implementation commit clean; assurance workspace untracked during evidence capture"
+  assessor_roles:
+    - "implementer-auditor"
+    - "fresh-context read-only verifier"
+  independence_level: "I2"
+
+project:
+  name: "Cormidia"
+  summary: "Installable standing AI-org runtime with scheduled roles, provider adapters, durable state, GitHub workflows, and human gates for critical operations."
+  intended_use: "Operate registered software-product repositories under ratified org policy and explicit critical-operation controls."
+  permitted_users:
+    - "Cormidia operators and repository maintainers"
+  excluded_uses:
+    - "Unattended production activation without scheduler prerequisites and explicit authorization"
+    - "Safety-critical or regulated decisions without additional domain assurance"
+  deployment_environments:
+    - "Local macOS launchd host"
+    - "Linux systemd definition support"
+  supported_platforms:
+    - "Node.js >=26"
+  expected_scale: "One local org runtime coordinating a bounded set of apps and scheduled/provider turns."
+  patch_and_rollback_model: "Git-revertable source change; scheduler activation is a separately authorized preview/confirm lifecycle."
+
+system_boundary:
+  in_scope_inspected:
+    - "Scheduler dispatch/evidence/status/lifecycle code changed by issues #209, #211, #228, and #231"
+    - "Provider-pass hard budget admission changed by #229"
+    - "Planner issue intake and readiness application changed by #230"
+    - "Validation contracts, catalog rows, golden cases, and offline regression families"
+  in_scope_unavailable:
+    - "Real launchd/systemd scheduled execution"
+    - "Real provider and disposable GitHub publication qualification"
+    - "GitHub Actions results before pull-request publication"
+  external_assumed:
+    - "Node filesystem atomic rename and exclusive-create semantics"
+    - "GitHub and provider APIs honor their documented interfaces"
+    - "Recorded gh executable remains the intended binary until status/dispatch revalidation"
+  out_of_scope:
+    - "Frozen approvals and safety-gate subsystem and issues #205, #206, #199, #218, #20, #181"
+    - "General ambiguous Planner publication recovery owned by #232"
+    - "Harness redesign and human-ratification work in #233 and #234"
+    - "Scheduler installation/start, live provider/eval/soak, release publication"
+  human_roles_and_procedures:
+    - "Operator explicitly selects a due-window retry settlement id"
+    - "Human authorization remains required before scheduler installation or live qualification"
+  material_boundary_limitations:
+    - "Offline fakes cannot prove host scheduler environment propagation or real GitHub lost-response reconciliation"
+    - "Fresh-context agent review is I2 role separation, not organizational independence"
+
+criticality:
+  system_level: "C2"
+  system_rationale:
+    - "The runtime performs persistent repository operations, spends provider budget, and can operate unattended."
+    - "Critical operations remain behind a separate frozen approval/safety subsystem."
+  dominant_drivers:
+    - "financial/action-bound integrity"
+    - "durable exactly-once scheduling"
+    - "unattended operational truth"
+    - "external GitHub and host-tool boundaries"
+  components:
+    - id: "COMP-SCHED"
+      name: "Scheduler dispatch and evidence"
+      function: "Computes eligibility, claims due windows, spawns turns, reconciles receipts, and reports health."
+      trust_boundary: "Host clock/process/filesystem to detached child and provider execution"
+      privileges: ["spawn local processes", "write org runtime state"]
+      failure_propagation: "Duplicate or missing turns, false health, and repeated spend."
+      containment: ["org/app/role locks", "content-bound due-window settlement", "claim/commit/settle boundary", "pre-commit journal recovery", "pending-until-terminal-receipt evidence", "bounded retry"]
+      level: "C3"
+      rationale: ["Controls unattended execution and paid-turn multiplicity."]
+    - id: "COMP-BUDGET"
+      name: "Provider-pass budget admission"
+      function: "Refuses additional provider/tool activity at effective turn bounds and preserves partial usage."
+      trust_boundary: "Configured budget to synchronous runtime tool admission"
+      privileges: ["allow or deny provider tool execution", "abort provider pass"]
+      failure_propagation: "Unauthorized additional actions or cost exposure."
+      containment: ["zero-allowance pre-admission", "central synchronous gate wrapper", "typed terminal stop", "native-cap normalization", "full turn reservation"]
+      level: "C3"
+      rationale: ["This is a financial and action-authorization invariant."]
+    - id: "COMP-PLAN"
+      name: "Planner intake and readiness"
+      function: "Supplies untriaged issues and applies bounded routine op:ready transitions."
+      trust_boundary: "Untrusted issue/model output to GitHub label mutation"
+      privileges: ["read issues", "add op:ready label"]
+      failure_propagation: "Unsafe or incomplete work can enter Builder readiness."
+      containment: ["bounded hash-bearing intake", "schema parser", "deterministic readiness guard", "GitHub readback"]
+      level: "C2"
+      rationale: ["Persistent workflow state affects downstream autonomous work."]
+    - id: "COMP-HOST"
+      name: "Scheduler host environment"
+      function: "Records and verifies the exact executable mapping and PATH used by scheduled dispatch."
+      trust_boundary: "Interactive install environment to non-interactive host scheduler"
+      privileges: ["execute recorded Node and gh binaries"]
+      failure_propagation: "Scheduled-only failures or binary substitution."
+      containment: ["absolute executable mapping", "definition hash", "pre-org dispatch assertion"]
+      level: "C2"
+      rationale: ["Controls an unattended local execution boundary."]
+  current_change:
+    description: "Epic #227 collision-free implementation slice for #209, #211, and #228-#231, with #232 recovery excluded."
+    level: "L3"
+    affected_components: ["COMP-SCHED", "COMP-BUDGET", "COMP-PLAN", "COMP-HOST"]
+    rationale:
+      - "Changes durable execution state and retry semantics."
+      - "Changes a financial/action budget invariant and provider admission order."
+      - "Changes unattended scheduler environment and health truth."
+
+criticality_dimensions:
+  safety_and_physical_consequence:
+    rating: "low"
+    rationale: "No physical control is in scope."
+  mission_or_operational_consequence:
+    rating: "high"
+    rationale: "False eligibility, duplicate dispatch, or bad health can impair unattended operation."
+  financial_and_legal_consequence:
+    rating: "high"
+    rationale: "Provider turns spend money and tool actions can create external effects, although critical effects remain gated."
+  security_and_privacy_consequence:
+    rating: "medium"
+    rationale: "Issue text and tool execution cross trust boundaries; frozen safety gates remain authoritative."
+  data_integrity_and_reversibility:
+    rating: "high"
+    rationale: "Due-window and GitHub readiness state are persistent; label writes are recoverable but externally visible."
+  availability_and_continuity:
+    rating: "medium"
+    rationale: "Fail-closed checks can stop scheduled work until operator repair."
+  exposure_and_blast_radius:
+    rating: "medium"
+    rationale: "State is org scoped, but one scheduler can affect multiple registered apps."
+  detectability:
+    rating: "medium"
+    rationale: "Typed evidence improves detection; real-host and lost-response seams remain unqualified."
+  recoverability:
+    rating: "medium"
+    rationale: "Claims and receipts reconcile deterministic crashes; general Planner publication ambiguity remains #232."
+  privilege_and_autonomy:
+    rating: "high"
+    rationale: "Scheduled roles run unattended and provider adapters may invoke tools."
+  novelty_and_uncertainty:
+    rating: "medium"
+    rationale: "Reusable claims are new, but reuse established locks, journals, fake clocks, and deterministic seams."
+  patchability_and_lifetime:
+    rating: "low"
+    rationale: "The npm/runtime source is patchable and no scheduler activation is authorized by this assessment."
+
+failure_model:
+  worst_credible_failures:
+    - "One schedule slot starts multiple independent paid runs."
+    - "A provider/tool action begins after the authorized bound is exhausted."
+    - "Planner advances risky or incomplete work to Builder."
+    - "Scheduler reports normal backpressure as failure or hides a real child failure."
+  irreversible_effects:
+    - "External tool effects already completed before a later failure cannot be undone generically."
+  silent_failure_modes:
+    - "Scheduled PATH differs from the interactive shell."
+    - "Provider usage arrives in chunks too coarse for a mathematical cost ceiling."
+    - "GitHub accepts a label write but the response is lost."
+  common_mode_or_cascade_risks:
+    - "A defective central budget wrapper affects all adapters."
+    - "A scheduler evidence error can make every app appear unhealthy."
+  credible_abuse_cases:
+    - "Forged Planner output references an unknown issue or omits an actionable issue."
+    - "Forged claim content attempts to reuse a settlement identity for different work."
+    - "Scheduled environment resolves a different binary than the recorded executable."
+
+assurance_target:
+  scoped_claim: "Commit f6bb611 has sufficient deterministic L1/L2 evidence for merge of the #209/#211/#228-#231 implementation slice, without authorizing scheduler activation, live qualification, approval/safety changes, #232 recovery, or closure of #230/#227."
+  required_confidence: "High confidence in deterministic guards and failure-state transitions; no claim about unrun external seams."
+  mandatory_claim_categories: ["functional", "safety", "reliability", "recovery", "operational", "evidence-integrity"]
+  mandatory_evidence_classes: ["requirement", "analysis", "test", "inspection", "process_control"]
+  minimum_independence: "I2 for this merge-scoped assessment; I3 or separately authorized external evidence for production activation claims."
+  acceptance_authority: "Repository owner for merge; human operator for scheduler activation/live qualification."
+  residual_risk_owner: "Cormidia repository owner"
+  constraints_and_controls:
+    - "All required offline gates and CI must pass."
+    - "Frozen approval/safety files remain byte-unchanged versus origin/main."
+    - "#232, #230 live qualification, scheduler installation, and live/eval/soak remain open."
+  invalidation_triggers:
+    - "Any source change after f6bb611 outside assurance-only artifacts"
+    - "Rebase conflict resolution affecting implementation"
+    - "Provider adapter, scheduler lifecycle, planner publication, or validation-policy change"
+
+assumptions:
+  - "The committed requirements and PURPOSE decisions are authoritative."
+  - "The existing one skipped offline case is the ratified J-14 structural hard stop and is unrelated to this slice."
+unknowns:
+  - "Real launchd/systemd environment propagation for the new manifest"
+  - "Real GitHub lost-response behavior for Planner readiness publication"
+blocking_questions: []

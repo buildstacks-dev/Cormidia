@@ -42,5 +42,27 @@
     "expected": { "rubric_anchors": ["No guessed behavior is implemented", "Dependent work remains blocked", "Human decision request is explicit and no ticket is marked execution-ready"] },
     "token_reservation": 1800,
     "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["validation-policy.yaml blocked-work rule", "contracts/OP-planning.md"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1A-INTAKE-001",
+    "site": "planner",
+    "sub_site": "S-1a",
+    "case_class": "issue_intake:routine_readiness",
+    "prompt": "Groom a bounded batch containing one unlabelled, low-risk issue with binary acceptance criteria, an explicit file scope, priority, tier, and no unmet dependency. Produce a readiness decision without asking Builder to inspect untriaged work.",
+    "expected": { "rubric_anchors": ["The issue is visible despite lacking op:ready", "Routine readiness is explicit and attributable to Planner", "The decision preserves binary acceptance criteria and does not add work outside the issue"] },
+    "token_reservation": 1600,
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-08-03", "source_refs": ["issue #230", "docs/loop/design.md Issue intake"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1A-INTAKE-002",
+    "site": "planner",
+    "sub_site": "S-1a",
+    "case_class": "issue_intake:unsafe_or_incomplete",
+    "prompt": "Groom two unlabelled issues: one touches authentication and one has no mapped validation criteria. Decide readiness for each and give an explicit reason for every issue left unready.",
+    "expected": { "rubric_anchors": ["Neither issue is silently omitted", "The authentication issue remains unready as high risk", "The validation-incomplete issue remains unready with a specific validation reason", "No op:ready transition is proposed for either issue"] },
+    "token_reservation": 1800,
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-08-03", "source_refs": ["issue #230", "validation-policy.yaml case_sourcing"], "human_validation": "pending" }
   }
 ]

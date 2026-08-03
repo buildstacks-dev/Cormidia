@@ -449,6 +449,18 @@ classification is separate from episode planning. A ready existing ticket
 still runs EpisodePlanner unless its creator supplied an execution-ready scope
 with provenance. The loop never builds an untriaged issue.
 
+Scheduled `groom` receives a bounded, hash-bearing snapshot of open GitHub
+issues without an `op:ready` filter; Builder's claim query remains
+`op:ready`-only. Missing `gh`, unavailable GitHub, an empty repository, and an
+accidental ready-only Planner query are distinct typed outcomes before
+provider construction. Planner emits one machine-readable readiness decision
+with an explicit reason for every issue that has no active `op:*` state. The
+deterministic publisher may add `op:ready` only for a fully specified routine
+ticket; deep/domain-risk, truncated, blocked, or validation-incomplete work
+stays unready with a typed reason. GitHub is read back after a label write;
+general lost-response/ambiguous publication recovery remains the separate
+#232 transaction and is not represented by a competing local state machine.
+
 - `triage` (bug batches): classify each issue — *bug* → tier + spec
 links + `op:ready`; *improvement* → backlog candidate (labeled, not
 ready); *duplicate/invalid* → close with reason. Prioritize (`p1..p3`).
@@ -972,6 +984,17 @@ Residual caveat: Claude and pi emit at their pre-execution intercept points,
 so their events carry no outcome fields and the bridge defaults
 `success: true` / `durationMs: 0`; Codex emits post-execution with real exit
 codes and durations.
+- Every provider pass carries one synchronous hard-turn admission object. It
+  records effective provider-turn, equivalent-cost, tool-call, active-time,
+  and model-turn bounds before execution; wraps ahead of the unchanged safety
+  gate so action 41 is refused before execution when the cap is 40; and stops
+  provider continuation as soon as cumulative usage reaches the authorized
+  cost. The terminal `failed(error_turn_budget_exhausted)` retains partial
+  usage/settlement, names the prevented next action and measured/estimated cost
+  basis, and never raises or repurposes a `budget-exceeded` approval item.
+  Adapters without a native strict monetary cap declare that limitation and
+  conservatively reserve their full authorized provider-turn exposure; no
+  surface calls a chunk-reported cap a mathematical no-overshoot guarantee.
 - **Infra and merit never conflate** (the doc's sharpest lesson: "infra
 failures looked like merit failures until you read verify stats"). A
 pass that *errors* is `failed` with an `error_code`; a pass that

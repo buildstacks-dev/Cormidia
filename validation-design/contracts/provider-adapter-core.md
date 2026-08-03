@@ -48,6 +48,10 @@ Defends: INV-001/002/003/004/006, T-1/T-5/T-11. Journeys: any provider turn (J-0
   defensive check. On crossing: stop; any overshoot is retained and settled (INV-006).
   The configured cap is **not** claimed as a mathematically hard spend ceiling where a
   provider reports usage in jumps — surfaces must not imply otherwise (INV-008).
+- Effective cost/tool/time/provider/model bounds are recorded before execution. Budget
+  admission wraps ahead of the safety gate and refuses the next disallowed action with
+  `escalate:false`; it never creates or reroutes a `budget-exceeded` approval item.
+  Partial usage and settlement survive the terminal `error_turn_budget_exhausted` stop.
 - Gate classification precedes every tool action's execution — no post-hoc classification
   (INV-002).
 - Exactly one settlement obligation per turn regardless of outcome (INV-006).

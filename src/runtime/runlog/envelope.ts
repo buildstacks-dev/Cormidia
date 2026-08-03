@@ -27,6 +27,7 @@ import type {
   TurnAssignmentSource,
   UsageQuality,
 } from "../types.js";
+import type { EffectiveTurnBounds, TurnBudgetStop } from "../turn-budget.js";
 
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
@@ -136,6 +137,10 @@ export interface RunEnvelope {
   provider_turn_ids?: string[];
   /** Provider and mechanical terminal execution records owned by the episode. */
   execution_step_ids?: string[];
+  /** Effective hard bounds written before provider construction (#229). */
+  effective_bounds?: EffectiveTurnBounds;
+  /** Typed terminal refusal with the prevented next action and usage basis. */
+  budget_stop?: TurnBudgetStop;
   /** REFERENCES to the L3/L2 siblings, relative to the run dir. A ref is a
    *  promise: `session_log` is declared while the run is live (the sink may
    *  still produce it) and dropped at finalize when no file was written —
@@ -241,6 +246,8 @@ export interface EnvelopePatch {
   artifacts?: Artifact[];
   providerTurnIds?: string[];
   executionStepIds?: string[];
+  effectiveBounds?: EffectiveTurnBounds;
+  budgetStop?: TurnBudgetStop;
   contextManifestRef?: string;
 }
 
@@ -338,6 +345,8 @@ export async function updateEnvelope(
   if (patch.executionStepIds !== undefined) {
     envelope.execution_step_ids = [...new Set([...(envelope.execution_step_ids ?? []), ...patch.executionStepIds])];
   }
+  if (patch.effectiveBounds !== undefined) envelope.effective_bounds = { ...patch.effectiveBounds };
+  if (patch.budgetStop !== undefined) envelope.budget_stop = { ...patch.budgetStop };
   if (patch.contextManifestRef !== undefined) {
     envelope.refs.context_manifest = patch.contextManifestRef;
   }

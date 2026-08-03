@@ -57,6 +57,11 @@ export function budgetAppsYaml(apps: BudgetAppSpec[] = [{}]): string {
     `    status: ${spec.status ?? "live"}`,
     `    budget_usd_month: ${spec.budgetUsd ?? 100}`,
     "    cadence: {}",
+    "    release:",
+    "      kind: deploy",
+    "      owner: sre",
+    "      trigger: command",
+    "      command: ./deploy.sh",
   ].join("\n"));
   return [
     "schema_version: 1",

@@ -214,6 +214,7 @@ cormidia plan ratify-ticket-budget --app <app> --decomposition <id> --actor <ide
 cormidia loop --app <app> --once --dry-run
 cormidia loop rearm --app <app> --ticket <n> --reason "reviewed" --actor <identity> --from-allowance 3 --to-allowance 4 # preview
 cormidia dispatch --dry-run
+cormidia dispatch --retry-schedule <settlement-id>       # explicit one-time retry; same due-window identity
 cormidia scheduler install --json                       # preview, audit row only
 cormidia scheduler status --json                        # read-only health
 cormidia scheduler uninstall --json                     # preview, audit row only
@@ -299,7 +300,10 @@ cormidia scheduler uninstall --execute --confirm <scheduler-id>
 ```
 
 The generated host definition uses absolute executable, package, org-home, and
-state-home paths. It contains no credentials or inherited environment dump.
+state-home paths. Install also resolves required tools such as `gh`, records
+their absolute paths, and renders an explicit minimal `PATH`; dispatch fails
+before org loading or turn construction if that environment drifts. It contains
+no credentials or inherited environment dump.
 Status joins ownership/hash/cadence validation, loaded/active manager state,
 recent durable ticks, duplicate/orphan checks, and provider settlement
 agreement; a definition file alone is never healthy. See

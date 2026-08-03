@@ -149,9 +149,15 @@ import {
   commitPlannerFeedConsumption,
   consumedPlannerFeedBatchManifest,
   persistStandingRoleOutcome,
-  plannerFeedBatchManifestJson,
   preparePlannerFeedBatch,
 } from "./standing-roles.js";
+import {
+  applyPlannerReadinessDecisions,
+  parsePlannerReadinessDecisions,
+  plannerIssueIntakeBrief,
+  preparePlannerIssueIntake,
+  type PlannerIssueIntake,
+} from "./planner-intake.js";
 
 export interface RunDispatchedTurnOptions {
   role: RoleConfig;
@@ -1129,6 +1135,33 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
         now,
       })
     : undefined;
+  const plannerIssueIntake = options.role.name === "planner" && options.pipelineName === "groom"
+    ? await preparePlannerIssueIntake({
+        gh: options.gh ?? new GhCliOps(options.app.repo),
+        app: options.app.name,
+        turnId: options.turnId,
+      })
+    : undefined;
+  if (
+    plannerIssueIntake !== undefined
+    && ["github_unavailable", "missing_required_executable", "ready_only_filtering"]
+      .includes(plannerIssueIntake.diagnostic.code)
+  ) {
+    return {
+      ...zeroResult(
+        "failed",
+        `Planner intake ${plannerIssueIntake.diagnostic.code}: ${plannerIssueIntake.diagnostic.detail}`,
+        options.role,
+      ),
+      errorCode: `error_${plannerIssueIntake.diagnostic.code}`,
+    };
+  }
+  if (
+    plannerIssueIntake?.diagnostic.code === "empty_repository"
+    && plannerFeedBatch?.selected.length === 0
+  ) {
+    return zeroResult("completed", "Planner no-op: empty repository and no pending standing-role feeds", options.role);
+  }
   const repository = persistedIntent === undefined
     ? inspectEpisodeRepository({ workdir: options.localRepo, baseRevision: options.base })
     : undefined;
@@ -1259,14 +1292,18 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
           plannerFeeds: (plannerFeedBatch?.manifest.entries ?? [])
             .filter((feed) => feed.selection === "selected")
             .map((feed) => ({ id: feed.feed_id, summary: feed.summary })),
+          ...(plannerIssueIntake === undefined ? {} : { plannerIssueIntake }),
         }),
-      inputManifestForStep: () => plannerFeedBatch === undefined
+      inputManifestForStep: () => plannerFeedBatch === undefined && plannerIssueIntake === undefined
         ? undefined
         : {
-            fileName: "planner-feeds.json",
-            pendingContents: plannerFeedBatchManifestJson(plannerFeedBatch.manifest),
-            completedContents: plannerFeedBatchManifestJson(
-              consumedPlannerFeedBatchManifest(plannerFeedBatch.manifest),
+            fileName: "planner-inputs.json",
+            pendingContents: plannerInputsManifestJson(plannerIssueIntake, plannerFeedBatch?.manifest),
+            completedContents: plannerInputsManifestJson(
+              plannerIssueIntake,
+              plannerFeedBatch === undefined
+                ? undefined
+                : consumedPlannerFeedBatchManifest(plannerFeedBatch.manifest),
             ),
           },
     },
@@ -1293,7 +1330,24 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     });
   }
 
-  const turnResult = resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+  let turnResult = resultFromPipeline(options.role, options.pipelineName, result, options.signal);
+  if (plannerIssueIntake !== undefined && turnResult.status === "completed") {
+    try {
+      const decisions = parsePlannerReadinessDecisions(result.passes.at(-1)?.result.summary ?? "");
+      await applyPlannerReadinessDecisions({
+        gh: options.gh ?? new GhCliOps(options.app.repo),
+        intake: plannerIssueIntake,
+        decisions,
+      });
+    } catch (error) {
+      turnResult = {
+        ...turnResult,
+        status: "failed",
+        summary: `Planner readiness application refused: ${error instanceof Error ? error.message : String(error)}`,
+        errorCode: "error_planner_readiness_application",
+      };
+    }
+  }
   if (plannerFeedBatch !== undefined && turnResult.status === "completed") {
     await commitPlannerFeedConsumption({
       stateHome: options.runtimeHome,
@@ -2113,6 +2167,7 @@ function protocolBrief(input: {
   approvalRows: { id: string; app: string; role: string; rule: string; ageMs: number }[];
   budgetRows: { app: string; spentUsd: number; budgetUsd: number; percent: number; status: string }[];
   plannerFeeds: { id: string; summary: string }[];
+  plannerIssueIntake?: PlannerIssueIntake;
 }): string {
   const prior =
     input.priorOutputs.size === 0
@@ -2138,6 +2193,9 @@ function protocolBrief(input: {
   const plannerFeeds = input.plannerFeeds.length === 0
     ? "No standing-role feeds."
     : input.plannerFeeds.map((item) => `- ${item.id}: ${item.summary}`).join("\n");
+  const plannerIssues = input.plannerIssueIntake === undefined
+    ? "Not a Planner groom input."
+    : plannerIssueIntakeBrief(input.plannerIssueIntake);
 
   // The original event payload, verbatim, with a provenance stamp — a
   // dispatched Support/Marketing/SRE/Planner turn must be able to quote what
@@ -2187,10 +2245,25 @@ function protocolBrief(input: {
     "### Standing-role Planner feeds",
     plannerFeeds,
     "",
+    "### Open GitHub issue intake",
+    plannerIssues,
+    "",
     "## Prior pass outputs",
     "",
     prior,
   ].join("\n");
+}
+
+function plannerInputsManifestJson(
+  issueIntake: PlannerIssueIntake | undefined,
+  feedManifest: ReturnType<typeof consumedPlannerFeedBatchManifest> | undefined,
+): string {
+  return `${JSON.stringify({
+    schema_version: 1,
+    kind: "planner-input-manifest",
+    issue_intake: issueIntake ?? null,
+    standing_role_feeds: feedManifest ?? null,
+  }, null, 2)}\n`;
 }
 
 function resultFromPipeline(

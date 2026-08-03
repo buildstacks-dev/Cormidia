@@ -62,6 +62,11 @@ import {
 import { gitSnapshotOf } from "../runtime/git.js";
 import { worstUsageQuality } from "../runtime/cost.js";
 import {
+  costEnforcementFor,
+  HardTurnBudget,
+  type TurnBudgetStop,
+} from "../runtime/turn-budget.js";
+import {
   createEventWriter,
   readEvents,
   type EventWriter,
@@ -988,35 +993,60 @@ async function runPass(
   const passController = new AbortController();
   let providerToolCalls = 0;
   let toolCallAllowance: number | null = null;
+  let activeBudget: HardTurnBudget | undefined;
+  let queuedBudgetStop: TurnBudgetStop | undefined;
+  const baseGate = options.gateForRole?.(role, options.workdir) ?? options.hooks.gate;
+  const queueBudgetStop = (stop: TurnBudgetStop | undefined): void => {
+    if (stop === undefined || queuedBudgetStop !== undefined) return;
+    queuedBudgetStop = stop;
+    checkpointWrites = checkpointWrites.then(async () => {
+      await Promise.all([
+        updateEnvelope(root, app, runId, { budgetStop: stop }),
+        events.append({
+          type: "turn.budget_stopped",
+          severity: "warn",
+          errorCode: "error_turn_budget_exhausted",
+          detail: {
+            dimension: stop.dimension,
+            cap: stop.cap,
+            observed: stop.observed,
+            prevented_next_action: stop.prevented_next_action,
+            cost_measurement: stop.cost_measurement,
+          },
+        }),
+      ]);
+    });
+  };
   const passHooks: TurnHooks = {
     // The pass runs in options.workdir — for a builder ticket pass that is
     // the per-ticket worktree, not the managed clone. The gate records this
     // cwd on any approval it raises, so a later orchestrator execution runs
     // in the tree the human approved the action for.
-    gate: options.gateForRole?.(role, options.workdir) ?? options.hooks.gate,
+    gate: (action) => {
+      if (activeBudget === undefined) {
+        return {
+          allow: false,
+          escalate: false,
+          reason: "hard turn budget is not initialized before tool admission",
+        };
+      }
+      const decision = activeBudget.admitTool(action, baseGate);
+      providerToolCalls = activeBudget.toolActions;
+      queueBudgetStop(activeBudget.stop);
+      return decision;
+    },
     onEvent: (e) => {
       markAdapterStarted();
       sessionLog(e);
       if (e.type === "tool_use" || e.type === "subagent") bridged.push(e);
-      if (e.type === "tool_use") {
-        providerToolCalls += 1;
-        if (
-          toolCallAllowance !== null &&
-          providerToolCalls > toolCallAllowance &&
-          !passController.signal.aborted
-        ) {
-          passController.abort({
-            status: "failed",
-            errorCode: "error_tool_call_cap_exceeded",
-            reason: `episode tool-call cap exceeded (${toolCallAllowance})`,
-          } satisfies AbortDescriptor);
-        }
-      }
       options.hooks.onEvent?.(e);
     },
     onProgress: (progress) => {
       markAdapterStarted();
       latestProgress = mergeProgress(latestProgress, progress);
+      if (progress.usage !== undefined) {
+        queueBudgetStop(activeBudget?.observeUsage(progress.usage));
+      }
       if (latestProgress.usage !== undefined || latestProgress.session !== undefined) {
         const usage =
           latestProgress.usage !== undefined
@@ -1064,16 +1094,22 @@ async function runPass(
   const allowance = await remainingExecutionAllowance(root, episodeId);
   toolCallAllowance = allowance.toolCalls;
   const configuredCapMs = (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000;
-  const capMs = Math.max(1, Math.min(configuredCapMs, allowance.activeTimeMs));
+  const capMs = Math.min(configuredCapMs, allowance.activeTimeMs);
   const unlinkParent = forwardAbort(options.signal, passController);
-  const timeout = setTimeout(() => {
-    passController.abort({
-      status: "timed_out",
-      errorCode: ERROR_WALL_CLOCK_EXCEEDED,
-      reason: `pass "${pass.id}" exceeded its ${Math.round(capMs / 60_000)}-minute wall-clock cap`,
-    } satisfies AbortDescriptor);
-  }, capMs);
-  timeout.unref?.();
+  const timeout = capMs <= 0
+    ? undefined
+    : setTimeout(() => {
+        if (activeBudget !== undefined) {
+          queueBudgetStop(activeBudget.stopActiveTime(capMs));
+        } else {
+          passController.abort({
+            status: "timed_out",
+            errorCode: ERROR_WALL_CLOCK_EXCEEDED,
+            reason: `pass "${pass.id}" exceeded its ${Math.round(capMs / 60_000)}-minute wall-clock cap`,
+          } satisfies AbortDescriptor);
+        }
+      }, capMs);
+  timeout?.unref?.();
   const adapterStartTimeoutMs =
     options.adapterStartTimeoutMs ?? DEFAULT_ADAPTER_START_TIMEOUT_MS;
   const runProviderTurn = async (request: {
@@ -1082,6 +1118,36 @@ async function runPass(
     session?: TurnResult["session"];
     verdictSchema?: Record<string, unknown>;
   }): Promise<TurnResult> => {
+    if (capMs <= 0) {
+      const effectiveBounds = {
+        provider_turns: allowance.providerTurns,
+        equivalent_cost_usd: allowance.equivalentCostUsd,
+        tool_calls: toolCallAllowance,
+        active_time_ms: 0,
+        model_turns: pass.maxTurns ?? null,
+        cost_enforcement: costEnforcementFor(assignment.harness),
+        equivalent_cost_reserve_usd: 0,
+      } as const;
+      activeBudget = new HardTurnBudget({
+        bounds: effectiveBounds,
+        abort: (reason) => {
+          if (!passController.signal.aborted) passController.abort(reason);
+        },
+        now: clock,
+        initialToolActions: providerToolCalls,
+      });
+      await updateEnvelope(root, app, runId, { effectiveBounds });
+      queueBudgetStop(activeBudget.stopActiveTime(0));
+      await checkpointWrites;
+      return activeBudget.normalizeResult({
+        status: "failed",
+        summary: "Hard turn budget refused provider construction: no active-time allowance remains.",
+        artifacts: [],
+        session: { runtime: assignment.harness, id: `turn-budget-${pass.id}` },
+        usage: unavailableUsage(),
+        escalations: [],
+      });
+    }
     if (providerOrdinal > 0 && planMetadata.plan_version !== undefined) {
       throw new Error(
         `accepted EpisodePlan step ${planMetadata.plan_step_id ?? pass.id} authorizes one provider turn; ` +
@@ -1133,9 +1199,27 @@ async function runPass(
       started.reservation.equivalentCostUsd === role.maxTurnBudgetUsd
         ? role
         : { ...role, maxTurnBudgetUsd: started.reservation.equivalentCostUsd };
+    const effectiveBounds = {
+      provider_turns: allowance.providerTurns,
+      equivalent_cost_usd: started.reservation.equivalentCostUsd,
+      tool_calls: toolCallAllowance,
+      active_time_ms: capMs,
+      model_turns: pass.maxTurns ?? null,
+      cost_enforcement: costEnforcementFor(assignment.harness),
+      equivalent_cost_reserve_usd: started.reservation.equivalentCostUsd,
+    } as const;
+    activeBudget = new HardTurnBudget({
+      bounds: effectiveBounds,
+      abort: (reason) => {
+        if (!passController.signal.aborted) passController.abort(reason);
+      },
+      now: clock,
+      initialToolActions: providerToolCalls,
+    });
     await updateEnvelope(root, app, runId, {
       providerTurnIds: [started.providerTurnId],
       executionStepIds: [started.executionStepId],
+      effectiveBounds,
     });
     const before = worktreeFingerprint(options.workdir);
     let turnResult: TurnResult;
@@ -1192,6 +1276,11 @@ async function runPass(
       if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
       adapterStartTimer = undefined;
     }
+    if (turnResult.errorCode === "error_max_budget_usd") {
+      queueBudgetStop(activeBudget.observeUsage(turnResult.usage));
+    }
+    turnResult = activeBudget.normalizeResult(turnResult);
+    queueBudgetStop(activeBudget.stop);
     turnResult = enforceEquivalentCostReservation({
       episodeId,
       operation: request.operation,
@@ -1342,7 +1431,7 @@ async function runPass(
       escalations: [],
     };
   } finally {
-    clearTimeout(timeout);
+    if (timeout !== undefined) clearTimeout(timeout);
     if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
     unlinkParent();
     clearInterval(heartbeat);

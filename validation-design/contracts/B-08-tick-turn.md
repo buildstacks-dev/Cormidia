@@ -4,8 +4,10 @@ Canonical ID: **CORMIDIA-C-B08-001 (alias: B-08)**
 Status: DRAFT (Phase 4). Defends INV-005/007/014, T-5/T-6. Journeys J-09/J-13/J-18.
 
 ## 1. Valid inputs
-- A tick reads: roles.yaml triggers, apps.yaml cadence/status, schedule state, consumed
-  events, budget overlay, locks, WIP count. "Due" is arithmetic, never judgment `[doc]`.
+- A tick reads: roles.yaml triggers, apps.yaml cadence/status, schedule and due-window
+  claim state, consumed events, budget overlay, locks, WIP count, and deterministic
+  actionable-input summaries. "Due" is arithmetic; paid-turn eligibility is a
+  token-free preflight, never provider judgment `[doc]`.
 
 ## 2. Output guarantees
 - Every considered (app, role, trigger, window) terminates in a durable named reason
@@ -14,6 +16,10 @@ Status: DRAFT (Phase 4). Defends INV-005/007/014, T-5/T-6. Journeys J-09/J-13/J-
   `empty_learning_window`, `missed_window_reconciled`, `spawn_failure`,
   `post_spawn_bookkeeping_failure`, …) `[doc]` (INV-014).
 - The spawn decision is durably committed **before** the child starts `[doc]`.
+- A scheduled due window has one content-bound claim/commit/settle identity; a later
+  ordinary tick observes it and cannot retry it. A dead pre-commit owner is reclaimed
+  under the same attempt, and one operator-requested retry is bounded under the same
+  settlement identity.
 - The two asymmetric crash outcomes are distinct, named states — decision-without-child
   (`spawn_failure`) vs child-without-bookkeeping (`post_spawn_bookkeeping_failure`);
   the latter must prevent duplicate-spawn on the next tick via the child's own durable

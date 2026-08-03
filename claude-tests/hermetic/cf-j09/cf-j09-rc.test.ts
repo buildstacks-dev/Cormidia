@@ -85,7 +85,15 @@ describe("CF-J09-RC — double-fire tick race (L2, HB-021)", () => {
     const decisions = await evidence.listDecisions();
     const turnDecisions = decisions.filter((decision) => decision.app === APP && decision.role === ROLE);
     expect(turnDecisions).toHaveLength(1);
-    expect(turnDecisions[0]).toMatchObject({ stage: "terminal", outcome: "executed", reason_code: "executed" });
+    // Spawn is not a provider receipt (#209): the winner stays pending until
+    // its child reports terminal usage/settlement, while the loser cannot
+    // falsify or terminalize the shared decision.
+    expect(turnDecisions[0]).toMatchObject({
+      stage: "spawned",
+      outcome: null,
+      reason_code: null,
+      classification: "pending",
+    });
     const summary = await evidence.summarize(clock.nowDate());
     expect(summary.duplicate_decisions).toBe(0);
     expect(summary.duplicate_episodes).toBe(0);

@@ -31,27 +31,33 @@ export async function schedulerOperationalStatus(input: SchedulerDefinitionInput
   });
   const evidence = await store.summarize(now);
   const reasons = new Set<SchedulerReasonCode>(definition.reason_codes);
-  if (evidence.last_invocation === null) reasons.add("measurement_unavailable");
-  if (evidence.overdue === true) reasons.add("overdue_tick");
-  if (evidence.corrupt_records.length > 0) reasons.add("scheduler_state_corrupt");
-  else if (!evidence.measurement_valid) reasons.add("measurement_unavailable");
-  if (evidence.duplicate_decisions > 0) reasons.add("duplicate_scheduler_decision");
-  if (evidence.duplicate_episodes > 0) reasons.add("duplicate_scheduler_episode");
-  if (evidence.orphaned_locks > 0) reasons.add("orphan_scheduler_lock");
-  if (evidence.orphaned_journals > 0) reasons.add("orphan_scheduler_journal");
-  if (evidence.orphaned_runs > 0) reasons.add("orphan_scheduler_run");
-  if (evidence.orphaned_settlements > 0) reasons.add("orphan_scheduler_settlement");
-  if (evidence.provider_settlement_agreement === false) reasons.add("scheduler_state_failure");
-  try {
-    const invocations = await store.listInvocations();
-    if (invocations.at(-1)?.terminal === "failed") reasons.add("last_tick_failed");
-  } catch {
-    reasons.add("scheduler_state_corrupt");
+  // Once intentionally uninstalled, historical runtime measurements remain
+  // available in `evidence` but are not current operational reasons. Mixing
+  // last_tick_failed/overdue into not_installed made an intentional stop look
+  // like a still-running broken scheduler (#209).
+  if (definition.installed) {
+    if (evidence.last_invocation === null) reasons.add("measurement_unavailable");
+    if (evidence.overdue === true) reasons.add("overdue_tick");
+    if (evidence.corrupt_records.length > 0) reasons.add("scheduler_state_corrupt");
+    else if (!evidence.measurement_valid) reasons.add("measurement_unavailable");
+    if (evidence.duplicate_decisions > 0) reasons.add("duplicate_scheduler_decision");
+    if (evidence.duplicate_episodes > 0) reasons.add("duplicate_scheduler_episode");
+    if (evidence.orphaned_locks > 0) reasons.add("orphan_scheduler_lock");
+    if (evidence.orphaned_journals > 0) reasons.add("orphan_scheduler_journal");
+    if (evidence.orphaned_runs > 0) reasons.add("orphan_scheduler_run");
+    if (evidence.orphaned_settlements > 0) reasons.add("orphan_scheduler_settlement");
+    if (evidence.provider_settlement_agreement === false) reasons.add("scheduler_state_failure");
+    try {
+      const invocations = await store.listInvocations();
+      if (invocations.at(-1)?.terminal === "failed") reasons.add("last_tick_failed");
+    } catch {
+      reasons.add("scheduler_state_corrupt");
+    }
   }
   const recentlyTicking = evidence.last_completed_tick !== null
     && now.getTime() - Date.parse(evidence.last_completed_tick) <= definition.configured_cadence_minutes * 2 * 60_000;
-  if (recentlyTicking && evidence.overdue !== true) reasons.add("healthy_recent_tick");
-  if (input.runtime === false) reasons.add("measurement_unavailable");
+  if (definition.installed && recentlyTicking && evidence.overdue !== true) reasons.add("healthy_recent_tick");
+  if (definition.installed && input.runtime === false) reasons.add("measurement_unavailable");
   const blocking = [...reasons].filter((reason) => !["definition_valid", "healthy_recent_tick", "missed_window_reconciled"].includes(reason)).sort();
   const measurementValid = evidence.measurement_valid
     && evidence.last_invocation !== null

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "pnpm",
+    "test"
+  ],
+  "cwd": "/Users/bikram/Build/Cormidia-epic-227",
+  "duration_seconds": 69.253846,
+  "ended_at_utc": "2026-08-03T15:29:09Z",
+  "environment_variables_recorded": false,
+  "exit_code": 0,
+  "name": "merge-full-offline-suite",
+  "redaction_patterns_applied": 0,
+  "schema_version": "1.0",
+  "started_at_utc": "2026-08-03T15:28:00Z",
+  "stderr_sha256": "8529129d7a850f6bc15c6055cf6aa2ee392a7dc43259c6fc9c05fbe8d40ea7a8",
+  "stdout_sha256": "32252de029570272b78d16b972e89adf27ffbd2700e97b46885d9048008876dc",
+  "timed_out": false,
+  "timeout_seconds": 180.0
+}

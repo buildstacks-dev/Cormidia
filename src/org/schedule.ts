@@ -50,6 +50,26 @@ export function isDue(spec: string, lastFired: Date | undefined, now: Date): boo
   return now.getTime() >= nextFireAfter(spec, lastFired).getTime();
 }
 
+/** Canonical identity of the most recent nominal firing slot. Host cadence
+ * windows are deliberately not schedule windows: five reconciliation ticks
+ * after one daily 07:00 slot must all name the same piece of work (#231). */
+export function scheduleDueWindow(spec: string, now: Date): Date {
+  const parsed = parseSchedule(spec);
+  if (parsed.kind === "interval") {
+    return new Date(Math.floor(now.getTime() / parsed.ms) * parsed.ms);
+  }
+  if (parsed.kind === "daily") {
+    const slot = atLocalTime(now, parsed.hour, parsed.minute);
+    if (slot.getTime() > now.getTime()) slot.setDate(slot.getDate() - 1);
+    return slot;
+  }
+  const slot = atLocalTime(now, parsed.hour, parsed.minute);
+  const daysBack = (slot.getDay() - parsed.day + 7) % 7;
+  slot.setDate(slot.getDate() - daysBack);
+  if (slot.getTime() > now.getTime()) slot.setDate(slot.getDate() - 7);
+  return slot;
+}
+
 export function nextFireAfter(spec: string, lastFired: Date): Date {
   const parsed = parseSchedule(spec);
   if (parsed.kind === "interval") {

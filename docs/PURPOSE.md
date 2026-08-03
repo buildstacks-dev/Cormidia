@@ -1,6 +1,6 @@
 # PURPOSE — Cormidia
 
-*v2.12 — 2026-08-02. Human-ratified decision log. Keep this file high-level;
+*v2.14 — 2026-08-02. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop/design.md.
 The operator outcome is `docs/VISION.md`; product status and known limitations
 live in README → Status.*
@@ -142,12 +142,15 @@ and agent definitions.
   learning, budget, and CI boundary remains intact. `docs/DEVELOPMENT.md` and
   `docs/qualification/benchmark-runbook.md` carry the detailed shipping policy.
 
-- **Cormidia platform development is an independent control plane** (ratified
-  2026-07-16). Cormidia does not operate an org whose job is to build or maintain
-  Cormidia. Repository developer instructions, objective grants, eval artifacts,
-  CI/release authority, and learning remain outside every operated org; org
-  prompts, state, approvals, memory, budgets, scheduler, and learning never
-  authorize platform work. A human may authorize one bounded development
+- **Cormidia platform-development authority is independently governed**
+  (ratified 2026-07-16; original operational exclusion superseded by the
+  self-hosting decision of 2026-08-02). The standing org may operate the
+  Cormidia source repository as an app; its ratified org/app authority can
+  authorize ordinary platform work under repository policy. Repository
+  developer instructions remain app-scoped context, while objective grants,
+  raw eval artifacts, campaign state, and CI evidence never become org-home
+  constitution, cross-app learning, or approval authority. A human may
+  authorize one bounded development
   objective whose isolated repair descendants remain authorized across fresh
   candidate identities. Subscription-backed equivalent USD is a cumulative
   accounting and loop-detection ceiling, not incremental billing. Development
@@ -716,24 +719,30 @@ and agent definitions.
   never cancels `main`, and that no provider-spending or externally mutating
   command can enter CI.
 - **Cormidia develops and distributes Cormidia: self-hosting ratified with
-  retained human release authority** (ratified 2026-08-02). The product's
+  uniform human-approved releases** (ratified 2026-08-02; clarified in v2.13).
+  The product's
   public front door is `cormidia/cormidia-web` (homepage, install docs,
   community issues, release notes; never source). The platform source is the
   private repo `cormidia/Cormidia`, and the npm package is the unscoped
-  `cormidia` package. The standing Cormidia org may register and operate both
-  as apps: `cormidia-web` first (a public front door carries no platform
-  authority), and the platform source repo only after the public app has
-  proven the loop. This amends the prior standing rule that the product does
-  not self-host its own development. Retained
-  carve-outs, tighten-only: (1) *Release authority stays human* — npm
-  publish, version tags, and release handoff are human-executed critical
-  ops, never delegated to the org and never reachable through an org
-  approval. (2) *Same rules as any developer* — the org obeys AGENTS.md
+  `cormidia` package. The standing Cormidia org may register, onboard, and
+  operate both repositories as apps; neither app's onboarding is conditioned
+  on the other first proving the loop. This amends the prior standing rule
+  that the product does not self-host its own development. Retained carve-outs,
+  tighten-only: (1) *Release authority stays human and is uniform across apps*
+  — every release-shaped action for every app, including website deployment,
+  external publication, npm publish, version tags, and release handoff,
+  requires explicit human approval. Approval is not execution; after approval,
+  Cormidia may execute only the exact approved action through the ordinary
+  durable release mechanism. The org can never approve its own release, and
+  there is no manual-execution-only exception for the Cormidia source app.
+  (2) *Same rules as any developer* — the org obeys AGENTS.md
   working rules; validation policy stays tighten-only; gates and thresholds
   change only by human ratification. (3) *Authority separation stands* —
-  root instructions, developer grants, and eval state never enter an org's
-  prompts, state, learning, or approvals; the org can never approve its own
-  release. (4) *Human-ratified surfaces keep human merge* — TASTE.md,
+  repository instructions and linked developer policy are app-scoped context
+  for source work, not org-global authority. Development grants, raw eval and
+  campaign state, and outer-session instructions never enter org-home prompts,
+  state, learning, or approvals. (4) *Human-ratified surfaces keep human merge*
+  — TASTE.md,
   roles.yaml, docs/PURPOSE.md, pipelines.yaml, prompts/**. v1.5 stands
   unchanged: the source repo never doubles as the active org home; org state
   lives in `~/.cormidia/<org>/`. *Rationale:* the recoverability boundary is
@@ -743,7 +752,13 @@ and agent definitions.
   which is where the risk of a self-modifying system actually lives.
   Distribution stays gated: publishing to npm is release-shaped work and
   waits on reinstated release evidence per v2.9/v2.10 (release gating
-  suspended; L3/L4/L5 campaigns pending).
+  suspended; L3/L4/L5 campaigns pending). **Exact one-release exception:** the
+  owner explicitly authorized publication of `cormidia@0.1.1` despite that
+  suspended evidence gate. This authorization applies only to version 0.1.1,
+  is not release evidence, does not reactivate or weaken the gate, and does not
+  authorize any later version. The candidate must still pass the complete
+  offline, typecheck, build, packaging, and installed-command checks before
+  publication.
 
 ## Prior art (ours)
 
@@ -972,3 +987,17 @@ will resolve them.
   continues to verify. The frozen archive and five named external repository
   identities remain untouched. The primary local checkout is renamed only after
   its attached worktrees are repaired as part of the landing sequence.
+- 2026-08-02 — v2.13: self-hosting was made operationally uniform. The standing
+  org may register, onboard, and manage both `cormidia-web` and
+  `cormidia/Cormidia` without a web-first prerequisite. Every app release now
+  uses the same boundary: explicit human approval supplies authority, and
+  Cormidia may execute only the exact approved release through its durable
+  release mechanism. The obsolete manual-execution-only package exception and
+  remaining platform-self-hosting prohibitions were removed from the developer
+  policy and packaged operator skill.
+- 2026-08-02 — v2.14: the owner explicitly authorized the exact
+  `cormidia@0.1.1` npm publication despite the suspended release-evidence gate.
+  This is a one-release exception, not evidence and not gate reactivation;
+  every later release remains blocked on both its own human approval and the
+  ordinary release-evidence policy. Version 0.1.1 still requires green offline,
+  typecheck, build, packaging, and installed-command checks.

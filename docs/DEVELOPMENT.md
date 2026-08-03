@@ -1,8 +1,10 @@
 # Building and maintaining Cormidia
 
 This is the canonical developer-lifecycle policy for the Cormidia platform.
-It applies to humans and coding agents changing this repository. It does not
-grant authority to, configure, or become context for a Cormidia-operated org.
+It applies to humans and coding agents changing this repository, including
+Cormidia roles when the repository is managed as the `cormidia` app. It does
+not by itself configure an org or grant release authority; inside a managed
+checkout it remains app-scoped repository policy, not an org constitution.
 
 Three terms carry this document. A **campaign** is one predeclared batch of
 evaluation runs against a pinned build: the cases, repetition counts,
@@ -21,24 +23,66 @@ semantics.
 | Subject | The `cormidia` package, source, tests, evals, and release | One configured org and its target applications |
 | Authority | A human-approved development objective and repository policy | The org's ratified constitution, roles, pipelines, app policy, and scoped approvals |
 | Durable state | Git commits, PRs, CI, isolated eval artifacts, external archives | `~/.cormidia/<org>/`, app repositories, tickets, runs, ledger, scheduler and learning state |
-| Agents | Independent development agents selected by the human | Planner, Builder, Reviewer, SRE, Support, Marketing, and learning roles instantiated by Cormidia |
+| Agents | Human-selected development agents, including Cormidia roles when this repo is a managed app | Planner, Builder, Reviewer, SRE, Support, Marketing, and learning roles instantiated by Cormidia |
 | External boundary | Disposable private eval repositories and isolated provider campaigns | The org's approved GitHub, production, publication, deployment, and communication surfaces |
 
-The relationship is one-way: developers build a package; a separately
-configured org consumes that package. Cormidia must not operate an org whose job
-is to build or maintain Cormidia itself. Org prompts, approvals, memories,
-learning, budgets, scheduler state, and production evidence cannot authorize or
-train platform-development work. Development campaign results cannot authorize
-an org operation.
+The authority boundary is separated, not one-way. A configured Cormidia org may
+consume the package and may register, onboard, and operate both
+`cormidia/cormidia-web` and `cormidia/Cormidia` as apps. For the source app, its
+ratified org/app authority may authorize ordinary planning, implementation,
+review, maintenance, and marketing work under this repository policy. Every
+release-shaped action for every app requires explicit human approval; after
+approval, Cormidia may execute only the exact approved action through the
+normal durable release path. The org can never approve its own release.
+
+Repository `AGENTS.md` and linked developer documents are app-scoped context
+when an org role works in this checkout. They do not become org-home
+constitution, cross-app memory, or approval authority. Development grants, raw
+eval artifacts, isolated campaign state, and outer-session instructions must
+not be copied into org prompts, state, learning, or approvals. Conversely,
+development campaign results never authorize an org operation.
 
 Root `AGENTS.md`, this guide, `docs/PURPOSE.md`, `docs/episodes/contract.md`,
 `docs/qualification/design.md`, `claude-tests/**`, and everything under
-`archive-do-not-read/**` are developer-only surfaces and are excluded from the
-npm package. The packaged `agent-skills/cormidia/` skill is deliberately
+`archive-do-not-read/**` are developer-only package surfaces and are excluded
+from the npm package. They may still govern source-app work from the repository
+checkout; exclusion from the package is not exclusion from app-scoped
+development context. The packaged `agent-skills/cormidia/` skill is deliberately
 an org-operation guide. `TASTE.md`, `roles.yaml`, `pipelines.yaml`, and
 `prompts/**` remain org-runtime surfaces; do not put developer authority in
 them. (The packaging-separation pin test is archived with the legacy suite;
 the replacement harness re-guards it.)
+
+### Which work Cormidia does on itself
+
+**Cormidia does its own work, except where it would be judging itself.**
+
+The call is made **once per pull request**, at the start of that PR's work, on
+the PR as a whole. It is best effort and never a reason to split a coherent
+unit of work — if a PR's scope is right, it does not get chunked to make the
+routing rule come out cleanly. In conflict, the work goes to a directly driven
+coding agent.
+
+"Judging itself" is about the **instrument of verification**, not the files
+touched. A change to `src/org/approvals.ts` proven by a deterministic store
+test is fine: the gate is not what establishes it correct. A change to
+`src/runtime/gate.ts` is not — the Reviewer's verification runs under the
+classifier being repaired, so a false negative in the thing under repair is
+exactly what would let a bad verification pass unnoticed. The same reasoning
+already appears at release scale above: the org can never approve its own
+release.
+
+Excluded by default:
+
+- the critical-ops gate and its adapter bridges (`src/runtime/gate.ts`,
+  `src/org/gate-compose.ts`, `src/runtime/adapters/*-gate-*.ts`);
+- `protocol-self-edit`-covered surfaces;
+- anything whose verification routes through the thing being changed.
+
+Drift is caught at the end, not prevented by chunking in the middle: if a PR's
+final diff reaches an excluded path, stop and re-decide before merge. A
+frozen-path diff against the changed-file list is the mechanism — it held
+across 86 files in #235 and costs one command.
 
 ## One objective, bounded autonomy
 
@@ -66,6 +110,12 @@ typed retries — and stops before the ceiling. Never drop or overwrite an
 attempt to win back headroom.
 
 ## Proportionate release evidence
+
+PURPOSE v2.14 is a one-release exception for exactly `cormidia@0.1.1`: the
+owner authorized npm publication despite the suspended release-evidence gate,
+provided the complete token-free suite, typecheck, build, packaging, and
+installed-command checks pass. It is not release evidence, does not reactivate
+or weaken the gate, and grants nothing to any later version.
 
 Evaluation exists to reduce real product risk, not to prove things forever.
 Failures split into two categories. **Release blockers** are defects in the

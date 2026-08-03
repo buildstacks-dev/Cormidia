@@ -566,10 +566,9 @@ async function repairMigratedGitWorktrees(stateHome: string): Promise<number> {
     const worktreesRoot = join(stateHome, "worktrees", app.name);
     const worktreesStat = await lstatMaybe(worktreesRoot);
     const worktrees = worktreesStat !== undefined && worktreesStat.isDirectory() && !worktreesStat.isSymbolicLink()
-      ? (await readdir(worktreesRoot, { withFileTypes: true }))
-        .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
-        .map((entry) => join(worktreesRoot, entry.name))
+      ? await registeredWorktreesForRepair(repo, worktreesRoot)
       : [];
+    if (worktrees.length === 0) continue;
     try {
       await execFileAsync("git", ["-C", repo, "worktree", "repair", ...worktrees], {
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1" },
@@ -583,6 +582,29 @@ async function repairMigratedGitWorktrees(stateHome: string): Promise<number> {
     repaired += 1;
   }
   return repaired;
+}
+
+async function registeredWorktreesForRepair(repo: string, worktreesRoot: string): Promise<string[]> {
+  const adminRoot = join(repo, ".git", "worktrees");
+  const adminRootStat = await lstatMaybe(adminRoot);
+  if (adminRootStat === undefined || adminRootStat.isSymbolicLink() || !adminRootStat.isDirectory()) return [];
+
+  const registered: string[] = [];
+  for (const entry of await readdir(worktreesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+    const worktree = join(worktreesRoot, entry.name);
+    const gitFile = join(worktree, ".git");
+    const gitFileStat = await lstatMaybe(gitFile);
+    if (gitFileStat === undefined || gitFileStat.isSymbolicLink() || !gitFileStat.isFile()) continue;
+
+    const match = /^gitdir: (.+?)\r?\n?$/.exec(await readFile(gitFile, "utf8"));
+    if (match === null) continue;
+    const adminEntry = join(adminRoot, basename(normalize(match[1]!)));
+    const adminEntryStat = await lstatMaybe(adminEntry);
+    if (adminEntryStat === undefined || adminEntryStat.isSymbolicLink() || !adminEntryStat.isDirectory()) continue;
+    registered.push(worktree);
+  }
+  return registered;
 }
 
 function relocateLegacyPath(

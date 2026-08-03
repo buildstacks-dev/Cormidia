@@ -429,6 +429,61 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
     expect(diffIsEmpty(diffSnapshots(before, await snapshotTree(currentRoot)))).toBe(true);
   });
 
+  it("repairs only registered linked worktrees while preserving other worktree-root directories", async () => {
+    const w = await world();
+    const legacyRoot = join(w.homeDir, [".ope", "ron"].join(""));
+    const legacyState = join(legacyRoot, "migrating-org");
+    await initOrgHome({
+      target: w.target,
+      name: "migrating-org",
+      stateHome: legacyState,
+      homeDir: w.homeDir,
+      pointerPath: join(legacyRoot, "config"),
+    });
+
+    const legacyRepo = join(legacyState, "repos", "demo");
+    const legacyWorktrees = join(legacyState, "worktrees", "demo");
+    const linkedWorktree = join(legacyWorktrees, "ticket-1");
+    await mkdir(legacyRepo, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "trunk", legacyRepo]);
+    execFileSync("git", ["-C", legacyRepo, "config", "user.name", "Cormidia Test"]);
+    execFileSync("git", ["-C", legacyRepo, "config", "user.email", "cormidia@example.invalid"]);
+    await writeFile(join(legacyRepo, "README.md"), "fixture\n", "utf8");
+    execFileSync("git", ["-C", legacyRepo, "add", "README.md"]);
+    execFileSync("git", ["-C", legacyRepo, "commit", "-q", "-m", "fixture"]);
+    await mkdir(legacyWorktrees, { recursive: true });
+    execFileSync("git", ["-C", legacyRepo, "worktree", "add", "-q", "-b", "op/test", linkedWorktree]);
+
+    const staleWorktree = join(legacyWorktrees, "preserved-stale-worktree");
+    await mkdir(staleWorktree, { recursive: true });
+    await writeFile(
+      join(staleWorktree, ".git"),
+      `gitdir: ${join(legacyRepo, ".git", "worktrees", "missing-registration")}\n`,
+      "utf8",
+    );
+    await writeFile(join(staleWorktree, "preserved.txt"), "ambiguous worktree bytes\n", "utf8");
+
+    const standaloneRepo = join(legacyWorktrees, "standalone-plan-clone");
+    execFileSync("git", ["init", "-q", "-b", "plan", standaloneRepo]);
+    await writeFile(join(standaloneRepo, "preserved.txt"), "standalone clone bytes\n", "utf8");
+
+    const migration = await migrateLegacyStateRoot(w.homeDir);
+    const currentState = join(w.homeDir, ".cormidia", "migrating-org");
+    const currentLinkedWorktree = join(currentState, "worktrees", "demo", "ticket-1");
+    expect(migration.status).toBe("migrated");
+    expect(execFileSync("git", ["-C", currentLinkedWorktree, "rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+    }).trim()).toBe(await realpath(currentLinkedWorktree));
+    expect(await readFile(
+      join(currentState, "worktrees", "demo", "preserved-stale-worktree", "preserved.txt"),
+      "utf8",
+    )).toBe("ambiguous worktree bytes\n");
+    expect(await readFile(
+      join(currentState, "worktrees", "demo", "standalone-plan-clone", "preserved.txt"),
+      "utf8",
+    )).toBe("standalone clone bytes\n");
+  });
+
   it("negative control: a required surface removed from a 'complete' home — the completeness detector FIRES", async () => {
     // The happy-path oracle above is validateOrgHome; prove it is a real
     // detector, not an assumption (claude-tests/README.md rule 3).

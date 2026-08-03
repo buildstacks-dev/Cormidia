@@ -93,7 +93,7 @@ import {
   type ApprovedCommandResult,
 } from "./approval-command.js";
 import type { AppEntry, AppsFile } from "./apps.js";
-import { isBudgetBlocking, rollupBudgets } from "./budget.js";
+import { isBudgetBlocking, raiseTurnBudgetEscalation, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
 import {
   orchestrateEpisode,
@@ -2023,6 +2023,10 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       app: options.app.name,
       roleNames: rolesFile.roles.map((role) => role.name),
     }),
+    // One inbox, never two: a per-turn budget grant is a synthetic item in the
+    // same store the critical-op approvals live in.
+    raiseTurnBudgetEscalation: (escalation) =>
+      raiseTurnBudgetEscalation(options.store.root, escalation, clock()),
     ...(options.creatorScope === undefined
       ? {}
       : { creatorScopeForTicket: () => options.creatorScope }),

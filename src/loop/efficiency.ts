@@ -20,6 +20,7 @@ import type {
   TurnUsage,
 } from "../runtime/types.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
+import { ERROR_TURN_BUDGET_SUSPENDED } from "../runtime/turn-budget.js";
 import { withFileLock } from "../runtime/file-lock.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import type { TicketTier } from "./pipelines.js";
@@ -241,6 +242,28 @@ export interface ExecutionStepRecord {
   repeated_from_step_id: string | null;
   tool_call_count: number;
   usage: TurnUsage | null;
+}
+
+/** A provider record that PARKED its turn rather than settling its plan step:
+ *  the per-turn (soft) budget ring fired while the episode still had headroom,
+ *  so the turn is waiting on a budget decision (epic #236).
+ *
+ *  It is a fully terminal EXECUTION record — the turn ran, the money was spent,
+ *  and every budget counter must keep counting it. What it is not is STEP
+ *  evidence: the planned step did not settle, and asking "did this step settle?"
+ *  must therefore skip it. Callers asking the settlement question route through
+ *  `settledProviderSteps`; callers asking the accounting question do not. */
+export function isSuspendedProviderStep(record: ExecutionStepRecord): boolean {
+  return record.kind === "provider" && record.error_code === ERROR_TURN_BUDGET_SUSPENDED;
+}
+
+/** Records that answer "did this plan step settle?" — every terminal provider
+ *  record except the parked ones. A step may accumulate several suspensions
+ *  (one per budget grant) and still have at most one settlement. */
+export function settledProviderSteps(
+  records: readonly ExecutionStepRecord[],
+): ExecutionStepRecord[] {
+  return records.filter((record) => !isSuspendedProviderStep(record));
 }
 
 export interface StartedProviderStep {

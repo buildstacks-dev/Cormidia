@@ -19,7 +19,9 @@ import {
   ticketStatePath,
   writeTicketClaimState,
   type TicketClaimEvent,
+  type TicketClaimState,
 } from "../loop/rehydrate.js";
+import { isBudgetEscalationRule } from "./budget.js";
 
 const APPROVAL_ACTION_REF =
   /^approval:([A-Za-z0-9][A-Za-z0-9._-]{0,199}):action-sha256:([a-f0-9]{64})$/;
@@ -164,7 +166,13 @@ export function createExistingTicketApprovalHandler(
  * approval. The ticket's claim count is unchanged (expiry is not a merit
  * failure), and no worktree/artifact path is touched. Repeated calls are a
  * no-op, which lets approvals CLI, dispatch, and ticket observation converge
- * after any interruption. */
+ * after any interruption.
+ *
+ * Expiry also deposits the operation's #244 suppression record: the turn
+ * resolves blocked with a declared critical operation missing, and that
+ * absence has to be readable from the ticket, not only from the approvals
+ * audit log. A BUDGET escalation is exempt — an unfunded turn suppressed no
+ * critical operation. */
 export async function releaseExpiredTicketApprovalClaim(
   root: string,
   item: ApprovalItem,
@@ -181,8 +189,16 @@ export async function releaseExpiredTicketApprovalClaim(
     { staleMs: CLAIM_LOCK_STALE_MS, maxWaitMs: CLAIM_LOCK_WAIT_MS },
     async () => {
       const state = readTicketClaimState(root, item.app, issueNumber);
+      const suppressed = expirySuppression(state, item, now);
       const continuation = state.continuation;
-      if (continuation === undefined) return false;
+      if (continuation === undefined) {
+        // The claim is already released. The suppression still has to land:
+        // an approval that expired after its turn was reconciled is exactly
+        // the orphan case #244 was filed for.
+        if (suppressed.suppressed === undefined) return false;
+        writeTicketClaimState(root, item.app, issueNumber, { ...state, ...suppressed });
+        return true;
+      }
       const claimNumber = continuation.claimNumber;
       const detail =
         `claim ${claimNumber}: approval ${item.id} expired; resolved blocked with artifacts ` +
@@ -197,12 +213,43 @@ export async function releaseExpiredTicketApprovalClaim(
       const { continuation: _continuation, ...withoutContinuation } = state;
       writeTicketClaimState(root, item.app, issueNumber, {
         ...withoutContinuation,
+        ...suppressed,
         outcomes: [...state.outcomes.slice(-9), detail],
         events: [...(state.events ?? []).slice(-(CLAIM_EVENT_LIMIT - 1)), event],
       });
       return true;
     },
   );
+}
+
+/** Idempotent by (approvalId, disposition): expiry reconciliation runs from
+ * three call sites and must converge, never accumulate. */
+function expirySuppression(
+  state: TicketClaimState,
+  item: ApprovalItem,
+  now: Date,
+): Pick<TicketClaimState, "suppressed"> | Record<string, never> {
+  if (isBudgetEscalationRule(item.rule)) return {};
+  const existing = state.suppressed ?? [];
+  if (
+    existing.some((record) => record.approvalId === item.id && record.disposition === "expired")
+  ) {
+    return {};
+  }
+  return {
+    suppressed: [
+      ...existing,
+      {
+        approvalId: item.id,
+        rule: item.rule,
+        actionSha256: actionHash(item.action),
+        tool: item.action.tool,
+        disposition: "expired",
+        ...(item.expiryReason === undefined ? {} : { reason: item.expiryReason }),
+        at: item.expiredAt ?? now.toISOString(),
+      },
+    ],
+  };
 }
 
 /** Canonical reference accepted by the ticket approval observer. */

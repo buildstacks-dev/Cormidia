@@ -12,6 +12,7 @@ import type { RunEnvelope } from "../../runtime/runlog/envelope.js";
 import type { TurnAssignmentSource } from "../../runtime/types.js";
 import type { ExecutionJournal } from "../../loop/execution-journal.js";
 import type { ExecutionStepRecord, RouteRecord } from "../../loop/efficiency.js";
+import { ERROR_TURN_BUDGET_SUSPENDED } from "../../runtime/turn-budget.js";
 import { METRIC_EMITTERS, type LearningEvent } from "./events.js";
 
 export const EFFICIENCY_EVIDENCE_VERSION = "efficiency-evidence/v1" as const;
@@ -71,6 +72,16 @@ const CLASS_CAUSES = {
 function terminalErrorClass(errorCode: string): EfficiencyErrorClass {
   if (errorCode === "error_cancelled") return "execution.cancelled";
   if (errorCode === "error_stale_missing_finalization") return "execution.missing_finalization";
+  // A soft-ring budget SUSPENSION is a designed pause, not a terminal cap: the
+  // turn parked, kept its session, and is waiting on a human budget decision.
+  // It matches the substring predicate below and must be excluded ahead of it,
+  // or every healthy pause would emit `execution.cap_stop` evidence under that
+  // class's canonical cause ("the admitted execution route reached a
+  // deterministic cap") and manufacture recurrence clusters for normal
+  // operation — the #141 failure mode, from the other direction. Suspension
+  // frequency is a real efficiency signal, but it needs its own class rather
+  // than borrowing one whose cause statement would be false.
+  if (errorCode === ERROR_TURN_BUDGET_SUSPENDED) return "execution.pass_failed";
   // Same predicate as `journalStopKind` in src/loop/loop.ts. Keep them
   // identical: a code the loop treats as a cap must classify as one here.
   if (errorCode.includes("budget") || errorCode.includes("cap")) return "execution.cap_stop";

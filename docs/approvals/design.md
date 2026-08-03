@@ -193,11 +193,60 @@ remain append-only evidence. Concurrent decisions on one item are serialized:
 exactly one caller wins and the loser receives an already-decided conflict
 before any grant or decision event is written.
 
-Budget escalations (`../architecture.md` §7) enter this same queue as synthetic items
-(`rule: "budget-exceeded"`) — one inbox, never two. This covers both the
-app-monthly ceiling and the per-turn soft cap whose exhaustion suspends a turn
-and requests more budget; the ticket/episode hard ceiling stops with no
-escalation offered and therefore raises no item.
+Budget escalations (`../architecture.md` §7) enter this same queue as synthetic
+items — one inbox, never two. Two rules, because they answer different questions
+about different subjects:
+
+- `budget-exceeded` — the APP-MONTHLY ceiling, keyed
+  `budget-exceeded:<app>:<YYYY-MM>`. One item per app per month.
+- `turn-budget-exceeded` — ONE parked provider turn whose per-turn (soft-ring)
+  cap fired while its episode could still afford another turn. Keyed
+  `turn-budget:<app>:<ticket>:<episode>:<run>:<pass>`, so re-raising for the
+  same parked turn converges on the existing item instead of minting a second —
+  a crash between the durable pause and the queue write is expected, and the
+  pause is written first (the F-PT-003 ordering). The item carries the stop
+  dimension, what was spent, what the episode still allows, and a
+  **resume-cost estimate** derived from the parked turn's observed
+  cache-read/cache-creation tokens: a human approving more spend is told how
+  much of it re-establishes context before any new work happens. A turn that
+  reported no cache split yields `unavailable` — an honest absence, never a
+  modelled number.
+
+The ticket/episode HARD ceiling stops with no escalation offered and raises no
+item. That asymmetry is what bounds the mechanism: without it, suspend → grant →
+suspend has no bound.
+
+Approving a `turn-budget-exceeded` item resumes the exact parked session.
+Denying it terminalizes the ticket at `op:returned`, because there is nothing to
+resume with and resuming would start a paid turn that re-suspends on the same
+cap. Neither outcome consumes a failure claim (#104): a pause is not a merit
+failure.
+
+## Suppressed critical operations (#244)
+
+A critical operation the turn asked for and did not get is recorded against the
+ticket and surfaced in that turn's verdict. Since v2.15 (1) a gate denial
+suspends rather than shipping past, exactly two dispositions remain reachable:
+
+- `denied` — a human decided against it; the turn resumes without the operation.
+- `expired` — nobody decided within the TTL; the turn resolves blocked with its
+  artifacts preserved (v2.15 (2)).
+
+The record carries the rule, the action's canonical authorization identity
+(`actionHash`), the tool, the disposition, and the deciding reason. It lives on
+the ticket's cross-claim state rather than on a run, because the turn that ASKED
+and the turn that REPORTS are different turns: the decision lands while the
+asking turn is parked, and the resumed turn is the one that publishes a verdict.
+
+Every verdict renders the section unconditionally — a turn that suppressed
+nothing renders `- None recorded.`, because a missing heading is
+indistinguishable from an older verdict that never checked. This is a **record,
+not a gate**: whether a verdict may still report PASS with declared evidence
+missing is #234's decision.
+
+Budget escalations are exempt. A turn that ran out of money suppressed no
+critical operation, and recording one would turn the #244 record from "declared
+evidence is missing" into "something went wrong".
 
 ## Grant scope (A1): human-chosen, rule+path-scoped, multi-use grants
 

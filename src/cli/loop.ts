@@ -19,7 +19,12 @@ import { assembleContext, createEpisodeContextResolver } from "../org/context.js
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
-import { enforceBudgetOverlay, isBudgetBlocking, rollupBudgets } from "../org/budget.js";
+import {
+  enforceBudgetOverlay,
+  isBudgetBlocking,
+  raiseTurnBudgetEscalation,
+  rollupBudgets,
+} from "../org/budget.js";
 import {
   createTicketEpisodeRuntime,
   inspectTicketEpisodeInvocation,
@@ -391,6 +396,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
           app: selectedApp.name,
           roleNames: rolesFile.roles.map((role) => role.name),
         }),
+        raiseTurnBudgetEscalation: (escalation) =>
+          raiseTurnBudgetEscalation(approvalStore.root, escalation),
         ...(selfApprovalSecret === undefined
           ? {}
           : {

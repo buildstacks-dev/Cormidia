@@ -865,17 +865,29 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         item,
         now: options.engine.clock?.() ?? new Date(),
       });
-      const terminal = terminalDisposition(item);
-      await options.engine.onEpisodeTerminal?.({
-        episodeId: episodeIdFor({
-          app: options.app,
-          ticket: item.ticketRef,
-          traceId: item.turnId ?? item.ticketRef,
-        }),
-        item,
-        ...terminal,
-        now: options.engine.clock?.() ?? new Date(),
-      });
+      // A PAUSE is not a terminal episode. `blocked` with a live continuation
+      // means the turn is parked on a human decision — a gate escalation or a
+      // per-turn budget grant — and is expected to resume into this same
+      // episode. Finalizing here would write a terminal route record, and the
+      // op:ready claim path above refuses any ticket whose episode is
+      // terminal: the ticket would be bounced straight back to op:returned the
+      // moment the human approved it, with the paid session discarded. Only a
+      // pause with no continuation left (denied, expired, or released) is
+      // genuinely terminal, and it reaches this branch with `continuation`
+      // already cleared.
+      if (item.phase !== "blocked" || item.continuation === undefined) {
+        const terminal = terminalDisposition(item);
+        await options.engine.onEpisodeTerminal?.({
+          episodeId: episodeIdFor({
+            app: options.app,
+            ticket: item.ticketRef,
+            traceId: item.turnId ?? item.ticketRef,
+          }),
+          item,
+          ...terminal,
+          now: options.engine.clock?.() ?? new Date(),
+        });
+      }
     }
     items.push(item);
     } catch (error) {

@@ -80,6 +80,44 @@ export interface LoopContinuationDecision {
   decidedAt: string;
 }
 
+/** Why a turn parked. One pause mechanism, two triggers (PURPOSE v2.15 (1)):
+ *  - `approval` — the safety gate raised a critical-operation request;
+ *  - `budget`   — the per-turn (soft-ring) cap fired and the org asked the
+ *                 human to authorize the next turn's spend.
+ *  Absent on continuations written before budget suspension existed; readers
+ *  must treat absence as `approval`. The two differ on ONE rule: a denied
+ *  approval resumes the turn without the operation, while a denied budget
+ *  grant has nothing left to resume with and terminalizes the ticket. */
+export type LoopPauseKind = "approval" | "budget";
+
+/** A critical operation that was requested during a turn and did not happen.
+ *
+ *  #244: a verdict can otherwise pass while the evidence it depended on was
+ *  silently removed — a Reviewer's negative control is denied, the turn carries
+ *  on, and nothing says the proof is missing. This is the record that makes the
+ *  absence visible. It is a RECORD, never a gate: refusing to pass on it is
+ *  #234's decision, not this type's.
+ *
+ *  Since PURPOSE v2.15 (1) a gate denial suspends the turn rather than shipping
+ *  past it, so exactly two dispositions remain reachable:
+ *  - `denied`  — a human decided against it; the turn resumed without it.
+ *  - `expired` — nobody decided within the TTL; the turn resolved blocked with
+ *                its artifacts preserved (v2.15 (2)). */
+export type SuppressionDisposition = "denied" | "expired";
+
+export interface SuppressedOperation {
+  approvalId: string;
+  rule: string;
+  /** The action's canonical AUTHORIZATION identity — the same
+   *  `actionHash(item.action)` the approval store and its grants key on, so a
+   *  reader can join this record to the decision that produced it. */
+  actionSha256: string;
+  tool: string;
+  disposition: SuppressionDisposition;
+  reason?: string;
+  at: string;
+}
+
 /** Exact provider continuation parked at an approval boundary. The native
  * session alone is insufficient: resuming under changed authority/context or
  * a changed worktree would let an old conversation act on new facts. The
@@ -106,6 +144,12 @@ export interface LoopContinuation {
    * lifecycle telemetry reports it separately from repeated cost (zero for an
    * exact continuation). */
   pauseCostUsd?: number;
+  /** Absent means `approval` (every continuation written before #236). */
+  pauseKind?: LoopPauseKind;
+  /** The exact queue item whose decision releases this pause. Recorded on
+   * budget pauses, where the orchestrator raises the item itself and must be
+   * able to tell its own grant from an unrelated approval on the ticket. */
+  pauseApprovalId?: string;
 }
 
 export interface LoopItem {

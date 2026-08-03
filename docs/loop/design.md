@@ -989,12 +989,57 @@ codes and durations.
   and model-turn bounds before execution; wraps ahead of the unchanged safety
   gate so action 41 is refused before execution when the cap is 40; and stops
   provider continuation as soon as cumulative usage reaches the authorized
-  cost. The terminal `failed(error_turn_budget_exhausted)` retains partial
-  usage/settlement, names the prevented next action and measured/estimated cost
-  basis, and never raises or repurposes a `budget-exceeded` approval item.
-  Adapters without a native strict monetary cap declare that limitation and
-  conservatively reserve their full authorized provider-turn exposure; no
+  cost. Adapters without a native strict monetary cap declare that limitation
+  and conservatively reserve their full authorized provider-turn exposure; no
   surface calls a chunk-reported cap a mathematical no-overshoot guarantee.
+- **Two rings decide what happens after the stop** (epic #236, ratified
+  2026-08-03). Enforcement is identical either way — no action crosses a cap —
+  but the ring decides the orchestrator's next move, and it is DERIVED from the
+  episode ledger, never declared: a dimension is `per_turn` only when its
+  effective bound is strictly tighter than what the episode still allows.
+  - `episode` (hard) — the episode/ticket ceiling itself bound. Terminal
+    `failed(error_turn_budget_exhausted)`, retaining partial usage/settlement
+    and naming the prevented next action and measured/estimated cost basis. No
+    escalation is offered; without this ring, suspend → grant → suspend has no
+    bound.
+  - `per_turn` (soft) — the per-turn/per-pass bound was tighter, so the episode
+    can still afford a turn. The pass returns
+    `blocked_on_gate(error_turn_budget_suspended)` — the same transport status a
+    gate escalation uses, because #236 ratified one pause mechanism with two
+    triggers. Partial usage, the terminal reason, and the native session handle
+    all survive (`session_resume: "native"` is the one capability all three
+    profiles declare). The ticket parks at `op:blocked` with a durable
+    continuation, one `turn-budget-exceeded` item enters the existing approvals
+    queue carrying a resume-cost estimate, and no claim is consumed.
+
+  Both stop records carry `ring` and `episode_remaining` on the envelope's
+  `budget_stop`, so a reader can see why a stop was terminal without re-deriving
+  it. Budget admission still never escalates through the SAFETY gate
+  (`escalate: false`): the soft ring reaches the queue as an
+  orchestrator-raised item after the turn is parked, never as a
+  critical-operation request for an action that cannot execute.
+- **A parked provider step stays open in the plan journal.** The EpisodePlan
+  executor gains `step_suspended`, which parks the journal at
+  `waiting_approval` exactly as `approval_pending` does, so a later invocation
+  re-enters the same step under a new attempt carrying the parked session. It is
+  deliberately not a `step_failed`: a failure is sticky for its plan version
+  (`blockingResult` short-circuits every later invocation), which is right for a
+  step that cannot succeed and wrong for one that is merely unfunded. A
+  budget-suspended execution record is a terminal EXECUTION record — every
+  budget counter keeps counting it — but it is not STEP evidence, so
+  `settledProviderSteps` excludes it when asking whether a step settled.
+- **A pause is not a terminal episode.** The driver skips `onEpisodeTerminal`
+  for a ticket that is `blocked` with a live continuation. Finalizing would
+  write a terminal route record, and the `op:ready` claim path refuses any
+  ticket whose episode is terminal — so the ticket would bounce straight back to
+  `op:returned` the moment the human approved it, discarding the paid session.
+- **Every verdict states what the turn asked for and did not get** (#244). A
+  critical operation that was denied or expired is recorded against the ticket
+  with its rule, action identity, and disposition, and rendered into the review
+  body. The section is unconditional: a turn that suppressed nothing renders
+  `- None recorded.`, because a missing heading is indistinguishable from an
+  older verdict that never checked. Refusing to PASS on a suppression is #234's
+  decision, not this record's.
 - **Infra and merit never conflate** (the doc's sharpest lesson: "infra
 failures looked like merit failures until you read verify stats"). A
 pass that *errors* is `failed` with an `error_code`; a pass that

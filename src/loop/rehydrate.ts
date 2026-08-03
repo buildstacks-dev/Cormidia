@@ -22,7 +22,7 @@ import {
 import { dirname, join } from "node:path";
 import { isTurnAssignment } from "../runtime/assignment.js";
 import type { GhIssueComment, GhOps } from "./github.js";
-import type { LoopContinuation, LoopItem } from "./types.js";
+import type { LoopContinuation, LoopItem, SuppressedOperation } from "./types.js";
 import { parseVerdict, type Finding, type FindingResolution } from "./verdicts.js";
 
 // ---------------------------------------------------------------------------
@@ -203,6 +203,14 @@ export interface TicketClaimState {
   };
   rearms?: TicketRearmRecord[];
   events?: TicketClaimEvent[];
+  /** Critical operations this ticket asked for and did not get (#244).
+   *
+   *  It lives on the ticket's cross-claim record, not on a run, because the
+   *  turn that asked and the turn that must report the absence are different
+   *  turns: an approval is denied while the asking turn is parked, and the
+   *  RESUMED turn is the one that publishes a verdict. A per-run home would
+   *  lose exactly the join the issue is about. Append-only within a ticket. */
+  suppressed?: SuppressedOperation[];
 }
 
 export interface TicketRearmRecord {
@@ -269,6 +277,9 @@ export function readTicketClaimState(
       ...(validContinuation(raw.continuation) ? { continuation: raw.continuation } : {}),
       ...(Array.isArray(raw.rearms) ? { rearms: raw.rearms.filter(validRearm) } : {}),
       ...(Array.isArray(raw.events) ? { events: raw.events.filter(validClaimEvent) } : {}),
+      ...(Array.isArray(raw.suppressed)
+        ? { suppressed: raw.suppressed.filter(validSuppressedOperation) }
+        : {}),
     };
   } catch (error) {
     // Claim allowance is a safety/accounting boundary. Treating corrupt state
@@ -361,6 +372,22 @@ function validRearm(value: unknown): value is TicketRearmRecord {
     typeof record.actor === "string" && Number.isInteger(record.priorAllowance) &&
     Number.isInteger(record.intendedAllowance) && typeof record.priorLabel === "string" &&
     ["prepared", "completed"].includes(record.status) && typeof record.preparedAt === "string";
+}
+
+/** A suppression record is evidence that something did NOT happen, so a
+ *  malformed one is dropped rather than repaired: an invented rule or identity
+ *  would be worse than a missing row, and the approvals log remains the
+ *  independent copy. */
+function validSuppressedOperation(value: unknown): value is SuppressedOperation {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as SuppressedOperation;
+  return typeof record.approvalId === "string" && record.approvalId.length > 0 &&
+    typeof record.rule === "string" && record.rule.length > 0 &&
+    typeof record.actionSha256 === "string" && /^[a-f0-9]{64}$/.test(record.actionSha256) &&
+    typeof record.tool === "string" && record.tool.length > 0 &&
+    ["denied", "expired"].includes(record.disposition) &&
+    typeof record.at === "string" && record.at.length > 0 &&
+    (record.reason === undefined || typeof record.reason === "string");
 }
 
 function validClaimEvent(value: unknown): value is TicketClaimEvent {

@@ -43,7 +43,7 @@ import {
 import type { GhOps, GhReview } from "../loop/github.js";
 import type { Policy } from "../loop/policy.js";
 import type { GateCommands } from "../loop/qgates.js";
-import type { LoopItem, ReleaseConfig } from "../loop/types.js";
+import type { LoopItem, ReleaseConfig, SuppressedOperation } from "../loop/types.js";
 import { resolveReleaseCommand } from "../loop/plan-tickets.js";
 import {
   EPISODE_PLAN_EXECUTION_PIPELINE,
@@ -82,6 +82,7 @@ import {
   fingerprint,
   readExecutionSteps,
   readRouteRecord,
+  settledProviderSteps,
   worktreeFingerprint,
   type AuthorizedPass,
   type ExecutionStepRecord,
@@ -105,9 +106,26 @@ import type {
   EpisodeStepCompletedOutcome,
   EpisodeStepExecutionContext,
   EpisodeStepFailedOutcome,
+  ProviderStepOutcome,
 } from "../loop/episode-plan-executor.js";
 import type { PlannerAdmissionLimits } from "../loop/planner-admission.js";
-import { executePipeline, type VerdictRecordOutcome } from "../loop/pipeline.js";
+import {
+  executePipeline,
+  type PassRunRecord,
+  type PipelineRunResult,
+  type VerdictRecordOutcome,
+} from "../loop/pipeline.js";
+import {
+  ERROR_TURN_BUDGET_SUSPENDED,
+  type TurnBudgetStop,
+} from "../runtime/turn-budget.js";
+import { readEnvelope } from "../runtime/runlog/envelope.js";
+import {
+  resumeCostEstimate,
+  type ResumeCostEstimate,
+  type TurnBudgetEscalationInput,
+} from "./budget.js";
+import type { ApprovalItem } from "./approvals.js";
 import type { PipelineConfig } from "../loop/pipelines.js";
 import {
   parseVerdictEither,
@@ -118,7 +136,12 @@ import {
   type ReviewVerdict,
   type VerdictTypes,
 } from "../loop/verdicts.js";
-import { contractMarker, hashTicketBody, renderFixResolutionsComment } from "../loop/rehydrate.js";
+import {
+  contractMarker,
+  hashTicketBody,
+  readTicketClaimState,
+  renderFixResolutionsComment,
+} from "../loop/rehydrate.js";
 import { writeLoopFileOnce } from "../loop/durable.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
 import {
@@ -190,6 +213,13 @@ export interface TicketEpisodeRuntimeOptions {
    *  tree must never be executed in the other. */
   gateForRole?: (role: RoleConfig, workdir?: string) => TurnHooks["gate"];
   approval?: TicketEpisodeApprovalHandler;
+  /** Raises the ONE queue item whose decision releases a soft-ring budget
+   *  pause. The org owns it because the approval store is org state and this
+   *  module must stay on the loop-facing side of that boundary. Absent (pure
+   *  state-machine harnesses) still suspends and still preserves the session —
+   *  it just leaves the pause for a human to notice, never silently returns
+   *  the ticket. */
+  raiseTurnBudgetEscalation?: (input: TurnBudgetEscalationInput) => Promise<ApprovalItem>;
   authorization?: ReviewAuthorization;
   release?: ReleaseConfig;
   telemetry?: { orgDir: string; trigger?: TriggerKind };
@@ -626,9 +656,15 @@ interface TicketStepResult {
   outcome: EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome;
 }
 
+/** Provider steps alone can park: only they hold a per-turn budget. */
+interface TicketProviderStepResult {
+  item: LoopItem;
+  outcome: ProviderStepOutcome;
+}
+
 async function executeTicketProviderStep(
   input: TicketProviderExecutionInput,
-): Promise<TicketStepResult> {
+): Promise<TicketProviderStepResult> {
   const definition = ticketProviderOperation(input.step.operation);
   if (definition === undefined || definition.role !== input.step.role) {
     return failedTicketProvider(
@@ -653,8 +689,14 @@ async function executeTicketProviderStep(
     };
     const dependencyOutputs = await requiredPlanOutputs(input);
     let pipelineError: unknown;
+    let run: PipelineRunResult | undefined;
+    // A continuation is consumed only by the exact step that parked. The
+    // driver hands the ticket its durable continuation; if it targets a
+    // different pass, this step starts a fresh session as usual.
+    const continuation =
+      input.item.continuation?.pass === input.step.id ? input.item.continuation : undefined;
     try {
-      await executePipeline({
+      run = await executePipeline({
         pipeline,
         selection: { tier: planRouteLabel(input.plan) },
         roles: { [role.name]: role },
@@ -707,7 +749,14 @@ async function executeTicketProviderStep(
                 }
                 await ctx.events.append({
                   type: "verdict.recorded",
-                  detail: { kind: definition.verdictKind ?? "none", retry_count: 0 },
+                  detail: {
+                    kind: definition.verdictKind ?? "none",
+                    retry_count: 0,
+                    // #244: always present, zero included. A missing field
+                    // reads as "this verdict never checked"; `0` reads as
+                    // "nothing was suppressed" — different facts.
+                    suppressed_operations: ticketSuppressions(input).length,
+                  },
                 });
                 return {
                   ok: true,
@@ -718,6 +767,7 @@ async function executeTicketProviderStep(
                 };
               },
             }),
+        ...(continuation === undefined ? {} : { continuation }),
         beforeProviderTurn: async () => input.input.beforeProviderTurn(),
         ...(input.options.telemetry === undefined ? {} : { telemetry: input.options.telemetry }),
         ...(input.options.parentTaskId === undefined
@@ -734,6 +784,14 @@ async function executeTicketProviderStep(
       // the original actionable diagnostic rather than hiding it behind a
       // generic interruption.
       pipelineError = error;
+    }
+    // Soft-ring budget suspension: the turn is parked, not finished. Handle it
+    // BEFORE evidence resolution — its execution record is deliberately not
+    // step evidence, so `ticketProviderEvidence` would report "no evidence" and
+    // `requireTicketProviderEvidence` would raise a misleading hard failure.
+    const parked = suspendedPass(run);
+    if (parked !== undefined) {
+      return suspendTicketProvider(input, parked);
     }
     evidence = await ticketProviderEvidence(input, definition);
     if (evidence === undefined) {
@@ -902,7 +960,10 @@ async function ticketProviderEvidence(
   input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence | undefined> {
-  const terminal = (await readExecutionSteps(
+  // Budget-suspended records are terminal executions but not step evidence
+  // (`settledProviderSteps`). A step legitimately holds one per budget grant,
+  // and settling from one would report a parked turn as a finished step.
+  const terminal = settledProviderSteps(await readExecutionSteps(
     input.options.root,
     input.plan.episodeId,
   )).filter((record) =>
@@ -1178,7 +1239,9 @@ export async function applyProviderOutcome(
       reviewedCommit,
       review,
     );
-    const body = `${reviewMarker}\n\n${renderReviewBody([{ pass: input.step.id, verdict: review }])}`;
+    const body =
+      `${reviewMarker}\n\n` +
+      renderReviewBody([{ pass: input.step.id, verdict: review }], ticketSuppressions(input));
     await ensureIssueComment(
       input.options.gh,
       input.item.issueNumber,
@@ -1226,6 +1289,233 @@ export async function applyProviderOutcome(
   // Diagnostic output is deliberately artifact-only. Its read-only property
   // was verified against durable before/after worktree fingerprints above.
   return { item: input.item };
+}
+
+/** Critical operations this ticket asked for and did not get (#244).
+ *
+ *  Read at PUBLICATION time rather than carried on the turn, because the turn
+ *  that asked and the turn that reports are different turns: the approval is
+ *  decided (or expires) while the asking turn is parked, and the RESUMED turn
+ *  is the one that publishes a verdict. Reading the ticket's durable record is
+ *  what joins them. Unreadable state is never fatal here — a verdict must
+ *  still publish — but it also must not silently claim "none", so the read
+ *  failure surfaces as its own row. */
+function ticketSuppressions(input: {
+  options: { root: string; app: Pick<AppEntry, "name"> };
+  item: LoopItem;
+}): SuppressedOperation[] {
+  try {
+    return readTicketClaimState(
+      input.options.root,
+      input.options.app.name,
+      input.item.issueNumber,
+    ).suppressed ?? [];
+  } catch {
+    return [{
+      approvalId: "unreadable",
+      rule: "suppression-record-unreadable",
+      actionSha256: "0".repeat(64),
+      tool: "cormidia.ticket-claim-state",
+      disposition: "denied",
+      reason:
+        "the ticket's suppression record could not be read; treat this verdict as unverified " +
+        "for suppressed critical operations",
+      at: (input as { options: { now?: () => Date } }).options.now?.().toISOString()
+        ?? new Date().toISOString(),
+    }];
+  }
+}
+
+/** The parked pass of a run whose per-turn budget ring fired, or undefined. */
+function suspendedPass(run: PipelineRunResult | undefined): PassRunRecord | undefined {
+  const last = run?.passes.at(-1);
+  return last?.result.errorCode === ERROR_TURN_BUDGET_SUSPENDED ? last : undefined;
+}
+
+/**
+ * Park a ticket on a soft-ring budget stop.
+ *
+ * The current outcome for `cap_stop` was the harshest of the loop's three —
+ * `op:returned`, which burns a claim — and that is backwards for a turn whose
+ * only problem is that its next step is unfunded while the episode can still
+ * afford one. This routes it to the SAME pause `blockedOnApproval` uses for a
+ * gate escalation (#104's machinery, PURPOSE v2.15 (1): one mechanism, two
+ * triggers):
+ *
+ *  - the exact native session and both fingerprints are checkpointed, so the
+ *    resumed turn continues rather than repeating a completed pass;
+ *  - one item enters the existing approvals queue, carrying what resuming costs
+ *    before any new work happens;
+ *  - `op:blocked`, and `finishTicketClaim` records an approval pause — which is
+ *    what keeps the claim: a pause is not a merit failure (#104).
+ *
+ * Ordering is deliberate and mirrors F-PT-003: the pause is made durable on the
+ * item BEFORE the queue item exists. A crash in between leaves a parked ticket
+ * with no item, which the next tick re-raises idempotently by
+ * `turnBudgetEscalationKey`; the reverse order would leave a decidable item for
+ * a turn nothing can resume.
+ */
+async function suspendTicketProvider(
+  input: TicketProviderExecutionInput,
+  parked: PassRunRecord,
+): Promise<TicketProviderStepResult> {
+  // Presentation detail only: the stop record enriches the operator comment and
+  // the queue item. Losing it must never cost the PAUSE itself, which is the
+  // one thing standing between a parked paid session and re-running that work.
+  let stop: TurnBudgetStop | undefined;
+  try {
+    stop = (await readEnvelope(
+      input.options.root,
+      input.options.app.name,
+      parked.runId,
+    )).budget_stop;
+  } catch {
+    stop = undefined;
+  }
+  const usage = parked.result.usage;
+  const resume = resumeCostEstimate(usage);
+  const continuation: NonNullable<LoopItem["continuation"]> = {
+    pipeline: EPISODE_PLAN_EXECUTION_PIPELINE,
+    pass: input.step.id,
+    role: input.step.role,
+    assignment: parked.assignment,
+    ...(parked.planMetadata.plan_version === undefined
+      ? {}
+      : {
+          planVersion: parked.planMetadata.plan_version,
+          planStepId: parked.planMetadata.plan_step_id,
+        }),
+    session: parked.result.session,
+    completedPasses: [],
+    contextFingerprint: parked.contextFingerprint,
+    workFingerprint: parked.workFingerprint,
+    runId: parked.runId,
+    pausedAt: (input.options.now?.() ?? new Date()).toISOString(),
+    decisions: [],
+    pauseCostUsd: usage.costUsd,
+    pauseKind: "budget",
+  };
+  const blocked = await blockTicket(input.options.gh, {
+    ...input.item,
+    continuation,
+  });
+
+  // The queue write is best-effort BY DESIGN, and the ordering above is why:
+  // the pause is durable first, so a failure here leaves a parked ticket with
+  // no item — which the next tick re-raises idempotently by
+  // `turnBudgetEscalationKey`. Letting this throw would unwind the pause and
+  // hand the ticket to the return path, discarding the session it just paid
+  // for. The reverse ordering would be worse still: a decidable item for a turn
+  // nothing can resume.
+  const escalation = await raiseEscalationBestEffort(input, {
+    app: input.options.app.name,
+    role: input.step.role,
+    ticketRef: input.item.ticketRef,
+    ...(input.item.turnId === undefined ? {} : { turnId: input.item.turnId }),
+    episodeId: input.plan.episodeId,
+    runId: parked.runId,
+    pipeline: EPISODE_PLAN_EXECUTION_PIPELINE,
+    pass: input.step.id,
+    workdir: requireWorktree(input.item),
+    stop: {
+      dimension: stop?.dimension ?? "equivalent_cost_usd",
+      cap: stop?.cap ?? input.step.maxTurnBudgetUsd,
+      observed: stop?.observed ?? usage.costUsd,
+      costMeasurement: stop?.cost_measurement ?? "unavailable",
+      episodeRemaining: stop?.episode_remaining ?? null,
+    },
+    spentUsd: usage.costUsd,
+    resume,
+  });
+
+  const item: LoopItem = {
+    ...blocked,
+    continuation: {
+      ...continuation,
+      ...(escalation === undefined ? {} : { pauseApprovalId: escalation.id }),
+    },
+  };
+  const summary =
+    `${input.step.operation} suspended on its per-turn budget ` +
+    `(${stop?.dimension ?? "equivalent_cost_usd"} ${stop?.observed ?? usage.costUsd}/` +
+    `${stop?.cap ?? input.step.maxTurnBudgetUsd}); session ${parked.result.session.id} preserved. ` +
+    (escalation === undefined
+      ? "No queue item is recorded for this pause yet; the next tick converges it."
+      : `Approval ${escalation.id} authorizes the next turn; resuming re-establishes context first ` +
+        `(${resume.basis === "unavailable" ? "resume cost unavailable" : `~$${resume.usd?.toFixed(4)}`}).`);
+  await input.options.gh.commentIssue(
+    input.item.issueNumber,
+    ticketBudgetSuspensionComment({
+      operation: input.step.operation,
+      summary,
+      resume,
+      ...(escalation === undefined ? {} : { approvalId: escalation.id }),
+    }),
+  );
+  return {
+    item,
+    outcome: {
+      status: "suspended",
+      reasonCode: ERROR_TURN_BUDGET_SUSPENDED,
+      summary,
+    },
+  };
+}
+
+/** The pause is already durable; this only converges the queue. A store write
+ * that fails is retried by the next tick against the same idempotency key. */
+async function raiseEscalationBestEffort(
+  input: TicketProviderExecutionInput,
+  escalation: TurnBudgetEscalationInput,
+): Promise<ApprovalItem | undefined> {
+  if (input.options.raiseTurnBudgetEscalation === undefined) return undefined;
+  try {
+    return await input.options.raiseTurnBudgetEscalation(escalation);
+  } catch {
+    return undefined;
+  }
+}
+
+function ticketBudgetSuspensionComment(input: {
+  operation: string;
+  summary: string;
+  resume: ResumeCostEstimate;
+  approvalId?: string;
+}): string {
+  return [
+    "## Turn suspended: per-turn budget",
+    "",
+    input.summary,
+    "",
+    "**Durable work and the exact provider session are preserved.** No claim was consumed —",
+    "a budget pause is not a merit failure.",
+    "",
+    "**Resume cost before any new work:** " +
+      (input.resume.basis === "unavailable"
+        ? "unavailable (the parked turn reported no cache split)"
+        : `~$${input.resume.usd?.toFixed(4)} to re-establish context ` +
+          `(${input.resume.cacheReadTokens} cache-read + ${input.resume.cacheCreationTokens} cache-write tokens)`),
+    "",
+    input.approvalId === undefined
+      ? "Decide it with `cormidia approvals review`."
+      : `Decide approval \`${input.approvalId}\` with \`cormidia approvals review\`. ` +
+        "Approving resumes this exact session; denying returns the ticket.",
+  ].join("\n");
+}
+
+/** Project the pause onto the ticket's labels. Idempotent, and it never
+ * touches a ticket already parked terminal. */
+async function blockTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
+  const durable = await gh.readIssue(item.issueNumber);
+  if (!durable.labels.includes("op:blocked")) {
+    const from = durable.labels.find((label) =>
+      ["op:ready", "op:building", "op:in-review"].includes(label),
+    );
+    if (from !== undefined) await gh.swapLabel(item.issueNumber, from, "op:blocked");
+    else await gh.addLabel(item.issueNumber, "op:blocked");
+  }
+  const labels = (await gh.readIssue(item.issueNumber)).labels;
+  return { ...item, labels, phase: "blocked" };
 }
 
 async function failedTicketProvider(

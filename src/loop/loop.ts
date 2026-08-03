@@ -60,7 +60,14 @@ import {
   type ReviewVerdict,
   type VerdictTypes,
 } from "./verdicts.js";
-import type { LoopItem, LoopPhase, ReleaseConfig, ScorecardEvent, TicketTier } from "./types.js";
+import type {
+  LoopItem,
+  LoopPhase,
+  ReleaseConfig,
+  ScorecardEvent,
+  SuppressedOperation,
+  TicketTier,
+} from "./types.js";
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
 import { parseReleaseKind, parseReleaseVersion, resolveReleaseCommand, STATE_LABELS } from "./plan-tickets.js";
 import { parseDependsOn } from "./scheduling.js";
@@ -273,6 +280,7 @@ async function blockedOnApproval(
     pausedAt: (options.clock?.() ?? new Date()).toISOString(),
     decisions: options.continuation?.decisions ?? [],
     pauseCostUsd: last.result.usage.costUsd,
+    pauseKind: "approval",
   };
   await options.gh.commentIssue(
     item.issueNumber,
@@ -1756,7 +1764,10 @@ export function renderBuildBlockedComment(verdict: BuildVerdict): string {
 }
 
 /** Stable review rendering shared by both ticket executors. */
-export function renderReviewBody(entries: readonly { pass: string; verdict: ReviewVerdict }[]): string {
+export function renderReviewBody(
+  entries: readonly { pass: string; verdict: ReviewVerdict }[],
+  suppressed: readonly SuppressedOperation[] = [],
+): string {
   const findings = entries.flatMap((entry) => entry.verdict.findings);
   const notReviewed = entries.flatMap((entry) =>
     entry.verdict.review.notReviewed.map((scope) => `${entry.pass}: ${scope}`),
@@ -1778,8 +1789,32 @@ export function renderReviewBody(entries: readonly { pass: string; verdict: Revi
     "",
     "## Not reviewed",
     ...(notReviewed.length === 0 ? ["- None."] : notReviewed.map((scope) => `- ${scope}`)),
+    "",
+    ...renderSuppressedOperations(suppressed),
   ];
   return lines.join("\n");
+}
+
+/** #244: every verdict states what the turn ASKED FOR and did not get.
+ *
+ *  The section is unconditional. A turn that suppressed nothing renders an
+ *  explicit "None recorded." — the absence of the heading would be
+ *  indistinguishable from an older verdict that never checked, which is the
+ *  exact ambiguity the issue exists to remove. It is a record, not a gate:
+ *  whether a verdict may still PASS with evidence missing is #234's decision. */
+export function renderSuppressedOperations(
+  suppressed: readonly SuppressedOperation[],
+): string[] {
+  return [
+    "## Suppressed critical operations",
+    ...(suppressed.length === 0
+      ? ["- None recorded."]
+      : suppressed.map((record) =>
+          `- ${record.rule} (${record.disposition}) \`${record.tool}\` ` +
+          `action=${record.actionSha256.slice(0, 12)} approval=${record.approvalId}` +
+          `${record.reason === undefined ? "" : ` — ${record.reason}`}`,
+        )),
+  ];
 }
 
 function hasFindings(entries: readonly { verdict: ReviewVerdict }[]): boolean {

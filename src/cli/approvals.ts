@@ -8,12 +8,14 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { join, resolve } from "node:path";
 import {
+  actionHash,
   approvalDeciderFromIdentity,
   approvalLifecycleState,
   ApprovalStore,
   type ApprovalItem,
   type DecideApprovalInput,
 } from "../org/approvals.js";
+import { isBudgetEscalationRule } from "../org/budget.js";
 import { releaseExpiredTicketApprovalClaim } from "../org/ticket-episode-approval.js";
 import { appendDenialLesson } from "../org/denial-lessons.js";
 import { loadApps } from "../org/apps.js";
@@ -393,7 +395,7 @@ async function rearmTicket(orgHome: string, stateHome: string, item: ApprovalIte
       console.log(`re-arm skipped: app "${item.app}" not in apps.yaml`);
       return;
     }
-    await continueAfterApproval({
+    const outcome = await continueAfterApproval({
       root: stateHome,
       app: item.app,
       issueNumber,
@@ -401,9 +403,27 @@ async function rearmTicket(orgHome: string, stateHome: string, item: ApprovalIte
       decision: item.decision,
       ...(item.decision === "denied" && item.reason !== undefined ? { reason: item.reason } : {}),
       decidedAt: item.decidedAt,
+      // #244: a denied CRITICAL OPERATION is a suppression the turn's verdict
+      // must report. A denied budget grant is a spend refusal and suppresses
+      // nothing, so it deposits no record.
+      ...(isBudgetEscalationRule(item.rule)
+        ? {}
+        : {
+            suppression: {
+              rule: item.rule,
+              actionSha256: actionHash(item.action),
+              tool: item.action.tool,
+            },
+          }),
       gh: new GhCliOps(app.repo),
     });
-    console.log(`continued ${item.ticketRef}: ${item.decision}; exact session -> op:ready`);
+    console.log(
+      outcome === "terminalized"
+        ? `continued ${item.ticketRef}: ${item.decision}; no budget granted -> op:returned`
+        : outcome === "unparked"
+          ? `recorded ${item.ticketRef}: ${item.decision}; no turn was waiting, label unchanged`
+          : `continued ${item.ticketRef}: ${item.decision}; exact session -> op:ready`,
+    );
   } catch (error) {
     console.log(
       `re-arm failed (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — ` +

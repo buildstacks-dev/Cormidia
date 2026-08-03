@@ -7,6 +7,7 @@ import { writeLoopFileAtomic } from "./durable.js";
 import {
   efficiencyEpisodeDir,
   readExecutionSteps,
+  settledProviderSteps,
 } from "./efficiency.js";
 import {
   episodePlanHash,
@@ -130,13 +131,38 @@ export interface ApprovalDeniedEvent {
   at: string;
 }
 
+/** A provider step that parked instead of settling: its per-turn budget ran out
+ * while the episode still had headroom, so the turn waits on a budget decision
+ * rather than having failed (epic #236).
+ *
+ * Deliberately NOT a `step_failed`: a failure is sticky for its plan version
+ * (`blockingResult` short-circuits every later invocation), which is right for
+ * a step that cannot succeed and wrong for one that is merely unfunded. Like
+ * `approval_pending` it parks the journal at `waiting_approval`, so a later
+ * invocation re-enters the SAME step under a new attempt — carrying the parked
+ * provider session, so no completed work is repeated. */
+export interface StepSuspendedEvent {
+  kind: "step_suspended";
+  plan_version: number;
+  plan_sha256: string;
+  step_id: string;
+  step_kind: "provider_turn";
+  step_sha256: string;
+  attempt: number;
+  execution_id: string;
+  reason_code: string;
+  summary: string;
+  at: string;
+}
+
 export type EpisodePlanExecutionEvent =
   | PlanAdoptedEvent
   | StepStartedEvent
   | StepCompletedEvent
   | StepFailedEvent
   | ApprovalPendingEvent
-  | ApprovalDeniedEvent;
+  | ApprovalDeniedEvent
+  | StepSuspendedEvent;
 
 export interface EpisodePlanExecutionJournal {
   schema_version: typeof EPISODE_PLAN_EXECUTION_JOURNAL_VERSION;
@@ -176,6 +202,20 @@ export type EpisodeStepFailedOutcome = {
   artifact?: unknown;
 };
 
+/** Provider-step counterpart of an approval `pending`: parked, resumable, and
+ * explicitly not terminal. Only a provider step may return it — a mechanical
+ * gate spends nothing and has no per-turn budget to exhaust. */
+export type EpisodeStepSuspendedOutcome = {
+  status: "suspended";
+  reasonCode: string;
+  summary: string;
+};
+
+export type ProviderStepOutcome =
+  | EpisodeStepCompletedOutcome
+  | EpisodeStepFailedOutcome
+  | EpisodeStepSuspendedOutcome;
+
 export type ApprovalStepOutcome =
   | EpisodeStepCompletedOutcome
   | EpisodeStepFailedOutcome
@@ -190,11 +230,15 @@ export type ApprovalStepOutcome =
       summary: string;
     };
 
+/** Every shape a handler may return, across all step kinds. `validateOutcome`
+ * is what rejects a shape a given kind is not allowed to produce. */
+type StepOutcome = ApprovalStepOutcome | EpisodeStepSuspendedOutcome;
+
 export interface EpisodePlanStepHandlers {
   provider(
     step: ProviderTurnStep,
     context: EpisodeStepExecutionContext,
-  ): Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome>;
+  ): Promise<ProviderStepOutcome>;
   mechanical(
     step: MechanicalGateStep,
     context: EpisodeStepExecutionContext,
@@ -418,7 +462,7 @@ async function executeLocked(
       executionId: started.execution_id,
       resume: active !== undefined,
     };
-    let outcome: ApprovalStepOutcome;
+    let outcome: StepOutcome;
     try {
       outcome = await handler(context);
     } catch (error) {
@@ -475,10 +519,13 @@ async function hasMatchingTerminalProviderEvidence(
   step: EpisodeStep,
 ): Promise<boolean> {
   if (step.kind !== "provider_turn") return false;
-  const matching = (await readExecutionSteps(root, plan.episodeId)).filter((record) =>
-    record.kind === "provider" &&
-    record.plan_version === plan.version &&
-    record.plan_step_id === step.id,
+  // Parked turns are excluded: they are terminal EXECUTION records but not
+  // step evidence, and a step legitimately accumulates one per budget grant.
+  const matching = settledProviderSteps(await readExecutionSteps(root, plan.episodeId)).filter(
+    (record) =>
+      record.kind === "provider" &&
+      record.plan_version === plan.version &&
+      record.plan_step_id === step.id,
   );
   if (matching.length > 1) {
     throw new EpisodePlanExecutionError(
@@ -661,14 +708,22 @@ function nextStep(
   completed: Map<string, StepCompletedEvent>,
 ): EpisodeStep {
   if (journal.status === "waiting_approval" && journal.blocked_step_id !== null) {
-    const pending = plan.steps.find((step) => step.id === journal.blocked_step_id);
-    if (pending?.kind !== "approval" || !pending.dependsOn.every((id) => completed.has(id))) {
+    const parked = plan.steps.find((step) => step.id === journal.blocked_step_id);
+    // `waiting_approval` is reachable two ways, and the parked step's kind must
+    // match the event that parked it: a provider step may only be waiting
+    // because it was suspended, never because an approval step went pending.
+    const parkedBy = latestPlanEventFor(journal, plan.version, journal.blocked_step_id);
+    const expectedKind = parkedBy?.kind === "step_suspended" ? "provider_turn" : "approval";
+    if (
+      parked?.kind !== expectedKind ||
+      !parked.dependsOn.every((id) => completed.has(id))
+    ) {
       throw new EpisodePlanExecutionError(
         "error_episode_plan_execution_dependency_failed",
-        `pending approval ${journal.blocked_step_id} no longer has a valid completed dependency set`,
+        `parked step ${journal.blocked_step_id} no longer has a valid completed dependency set`,
       );
     }
-    return pending;
+    return parked;
   }
   const ready = selectReadyEpisodeSteps(plan, [...completed.keys()]);
   const step = ready[0];
@@ -712,7 +767,7 @@ function currentStepForActive(
 function handlerFor(
   step: EpisodeStep,
   handlers: EpisodePlanStepHandlers,
-): (context: EpisodeStepExecutionContext) => Promise<ApprovalStepOutcome> {
+): (context: EpisodeStepExecutionContext) => Promise<StepOutcome> {
   if (step.kind === "provider_turn") return (context) => handlers.provider(step, context);
   if (step.kind === "mechanical_gate") return (context) => handlers.mechanical(step, context);
   return (context) => handlers.approval(step, context);
@@ -744,9 +799,9 @@ function terminalEvent(
   planHash: string,
   step: EpisodeStep,
   started: StepStartedEvent,
-  outcome: ApprovalStepOutcome,
+  outcome: StepOutcome,
   now: Date,
-): StepCompletedEvent | StepFailedEvent | ApprovalPendingEvent | ApprovalDeniedEvent {
+): TerminalStepEvent {
   const base = {
     plan_version: plan.version,
     plan_sha256: planHash,
@@ -781,6 +836,16 @@ function terminalEvent(
       artifact_sha256: stableHash(outcome.artifact ?? null),
     };
   }
+  if (outcome.status === "suspended") {
+    if (step.kind !== "provider_turn") throw invalidOutcome(step, outcome.status);
+    return {
+      ...base,
+      kind: "step_suspended",
+      step_kind: "provider_turn",
+      reason_code: outcome.reasonCode,
+      summary: outcome.summary,
+    };
+  }
   if (outcome.status === "pending") {
     if (step.kind !== "approval") throw invalidOutcome(step, outcome.status);
     return {
@@ -801,15 +866,26 @@ function terminalEvent(
   };
 }
 
+/** Every event that terminates one step ATTEMPT. `step_suspended` terminates
+ * an attempt without terminating the step: the step itself stays open. */
+type TerminalStepEvent =
+  | StepCompletedEvent
+  | StepFailedEvent
+  | ApprovalPendingEvent
+  | ApprovalDeniedEvent
+  | StepSuspendedEvent;
+
 function applyTerminalEvent(
   journal: EpisodePlanExecutionJournal,
-  event: StepCompletedEvent | StepFailedEvent | ApprovalPendingEvent | ApprovalDeniedEvent,
+  event: TerminalStepEvent,
 ): EpisodePlanExecutionJournal {
   const status: EpisodePlanExecutionStatus = event.kind === "step_completed"
     ? "running"
     : event.kind === "step_failed"
       ? "failed"
-      : event.kind === "approval_pending"
+      // A budget suspension parks exactly like a pending approval: both are
+      // "this step is open and waiting on a human decision".
+      : event.kind === "approval_pending" || event.kind === "step_suspended"
         ? "waiting_approval"
         : "denied";
   return {
@@ -821,7 +897,7 @@ function applyTerminalEvent(
   };
 }
 
-function validateOutcome(step: EpisodeStep, outcome: ApprovalStepOutcome): void {
+function validateOutcome(step: EpisodeStep, outcome: StepOutcome): void {
   if (outcome === null || typeof outcome !== "object") throw invalidOutcome(step, "non-object");
   if (outcome.status === "completed") {
     if (!("artifact" in outcome) || outcome.artifact === undefined || outcome.artifact === null) {
@@ -839,6 +915,9 @@ function validateOutcome(step: EpisodeStep, outcome: ApprovalStepOutcome): void 
     throw invalidOutcome(step, "failed-without-reason");
   }
   if (step.kind === "approval" && (outcome.status === "pending" || outcome.status === "denied")) {
+    if (nonEmpty(outcome.reasonCode) && nonEmpty(outcome.summary)) return;
+  }
+  if (step.kind === "provider_turn" && outcome.status === "suspended") {
     if (nonEmpty(outcome.reasonCode) && nonEmpty(outcome.summary)) return;
   }
   throw invalidOutcome(step, "unsupported-status");
@@ -937,10 +1016,25 @@ function completedEvents(journal: EpisodePlanExecutionJournal): Map<string, Step
   return completed;
 }
 
+/** Latest terminal event for one step within one plan version — what parked
+ * the journal, when it is parked. */
+function latestPlanEventFor(
+  journal: EpisodePlanExecutionJournal,
+  planVersion: number,
+  stepId: string,
+): TerminalStepEvent | undefined {
+  return [...journal.events].reverse().find((event): event is TerminalStepEvent =>
+    event.kind !== "plan_adopted" &&
+    event.kind !== "step_started" &&
+    event.plan_version === planVersion &&
+    event.step_id === stepId);
+}
+
 function activeStartedEvent(journal: EpisodePlanExecutionJournal): StepStartedEvent | undefined {
   const terminalIds = new Set(journal.events.flatMap((event) =>
     event.kind === "step_completed" || event.kind === "step_failed" ||
-    event.kind === "approval_pending" || event.kind === "approval_denied"
+    event.kind === "approval_pending" || event.kind === "approval_denied" ||
+    event.kind === "step_suspended"
       ? [event.execution_id]
       : []));
   const active = journal.events.filter(
@@ -1020,8 +1114,9 @@ function assertJournalLifecycle(journal: EpisodePlanExecutionJournal): void {
     event.kind !== "plan_adopted" && event.plan_version === journal.current_plan_version);
   const latest = currentEvents.at(-1);
   if (journal.status === "waiting_approval" &&
-      (latest?.kind !== "approval_pending" || latest.step_id !== journal.blocked_step_id)) {
-    corrupt(`waiting approval ${journal.blocked_step_id ?? "<missing>"} lacks a matching current-plan event`);
+      ((latest?.kind !== "approval_pending" && latest?.kind !== "step_suspended") ||
+        latest.step_id !== journal.blocked_step_id)) {
+    corrupt(`parked step ${journal.blocked_step_id ?? "<missing>"} lacks a matching current-plan event`);
   }
   if (journal.status === "failed" &&
       (latest?.kind !== "step_failed" || latest.step_id !== journal.blocked_step_id)) {
@@ -1099,6 +1194,10 @@ function isExecutionEvent(value: unknown): value is EpisodePlanExecutionEvent {
   if (value.kind === "approval_pending" || value.kind === "approval_denied") {
     return hasOnlyKeys(value, [...commonKeys, "reason_code", "summary"]) &&
       value.step_kind === "approval" && nonEmpty(value.reason_code) && nonEmpty(value.summary);
+  }
+  if (value.kind === "step_suspended") {
+    return hasOnlyKeys(value, [...commonKeys, "reason_code", "summary"]) &&
+      value.step_kind === "provider_turn" && nonEmpty(value.reason_code) && nonEmpty(value.summary);
   }
   return false;
 }

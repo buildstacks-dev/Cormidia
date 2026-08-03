@@ -5,7 +5,10 @@ later execution, and app release ownership. CLI queue decided 2026-07-04;
 Stage 5 amendments A1–A5 ratified 2026-07-10; continuation and typed delivery
 (A2/A2.1) ratified 2026-07-18; content-bound grant identity (A-002)
 implemented 2026-07-17; uniform fresh approval for every app release clarified
-2026-08-02 — ratification history in `docs/PURPOSE.md` → Decided.
+2026-08-02; synchronous suspension, pending-item expiry, agent decision
+authority, and an operation-aware `secrets-or-auth` ratified 2026-08-03
+(PURPOSE v2.15, resolving F-PT-019 and F-PT-020) — ratification history in
+`docs/PURPOSE.md` → Decided.
 Approval efficiency and human-decision accounting use the canonical
 definitions in `docs/episodes/contract.md`: approval precision and recurrence are
 measured at the semantic action/scope level, and only authority- or
@@ -24,6 +27,21 @@ review|revoke|disposition` is `approval-store-tamper` — self-approval by CLI i
 still self-approval. Read-only invocations (`roles`, `apps`, `status`,
 `doctor`, `budget`, `context`, `episode explain`, `approvals show|status`)
 stay routine.
+
+`secrets-or-auth` is **operation-aware and fails closed** (PURPOSE v2.15,
+F-PT-019). The rule classifies on whether an action actually emits file
+contents, not on text alone, and any command whose effect cannot be parsed is
+treated as critical. Text-only matching was wrong in both directions at once:
+`git check-ignore .env` opens nothing and classified critical (#204), while
+`git show HEAD:.env` prints the secret and classified routine (#218). The
+directions are not symmetric — `validation-design/system-map.md` §5.2: a real
+critical effect classified routine is authority damage, a false positive is
+only availability damage — so the fail-closed default on unparsed effects is
+part of the contract, not an implementation detail. Classification must also
+cover effects that bypass the gate entirely rather than merely evading a
+pattern: an adapter that auto-runs a trusted read-only command set without
+routing it through `hooks.gate` (#20) defeats the rule regardless of how the
+rule is written.
 
 ### Storage (`~/.cormidia/<org>/approvals/`)
 
@@ -70,11 +88,16 @@ Item schema:
 
 1. Gate denies-and-escalates; the adapter surfaces the denial; the item is
    persisted to `pending/` at collection time (`blocked_on_gate` when the
-   primary artifact is unreachable).
-2. Human reviews via CLI. **Approve ≠ execute.** Approval mints an
-   action-hashed grant (default scope `once`; human may widen to ticket/app
-   with TTL/cap/revoke). Self-merge, production deploy, external publication,
-   and protocol-surface writes are never scopeable.
+   primary artifact is unreachable). **The raising turn suspends and waits**
+   (PURPOSE v2.15) — an approval is raised synchronously, not as an
+   after-the-fact notification the turn ships past. Suspension uses the same
+   pause and resume machinery as the budget soft cap: one mechanism, two
+   triggers. A turn therefore cannot outlive the approval it raised, and an
+   approval cannot outlive its turn.
+2. A decision is taken via CLI. **Approve ≠ execute.** Approval mints an
+   action-hashed grant (default scope `once`; the decider may widen to
+   ticket/app with TTL/cap/revoke). Self-merge, production deploy, external
+   publication, and protocol-surface writes are never scopeable.
 3. Next tick re-dispatches when escalations are decided; the effective gate is
    grant lookup then default rules. Deny reasons become durable lessons.
 4. Later dispatch executes only typed orchestrator-owned allowlisted actions
@@ -82,6 +105,52 @@ Item schema:
    `approved → executing → executed|failed|ambiguous`, and never blindly
    retries ambiguity. Grant scopes, binding, and disposition are contracted below; ratification
    history is `docs/PURPOSE.md` → Decided.
+
+### Pending-item lifetime (F-PT-020)
+
+Grant TTL and expiry govern authority **after** a decision. This governs an item
+that was never decided.
+
+The state machine `CF-SM-APPR` has a terminal, non-blocking `expired` state.
+An undecided item reaches it after a TTL — default 24h, matching the existing
+grant TTL, resolved through ordinary policy configuration rather than a source
+constant.
+
+On expiry:
+
+- the raising turn's durable artifacts and worktree are **preserved**;
+- its claim is **released**;
+- the turn resolves as **blocked, not failed** — a pause is not a merit
+  failure, and it does not consume a failure claim (the rule established for
+  granted approval pauses in #104);
+- the item **leaves the pending queue** and appears in an audit view;
+- `cormidia app verify` counts only approvals whose raising turn is still live,
+  so an expired or orphaned item is never a promotion blocker.
+
+Why this is a contract clause and not a detail: while the only exit from
+`pending` was a human decision, the queue grew monotonically by construction.
+In the 2026-08-01 live run 7 of 7 items outlived their turns and were the sole
+reason promotion was blocked, and clearing them forced 7 meaningless denials
+into the decision ledger — degrading the artifact the queue exists to produce.
+
+### Who may decide
+
+An **agent operating an org may decide ordinary approvals** (PURPOSE v2.15). An
+agent decision is a first-class, attributable decision recorded against a
+distinct agent identity and never presented as a human one, so an unattended
+org can drain its own queue and the packaged `$cormidia` skill can operate an
+org without a TTY.
+
+The `NEVER_SCOPEABLE_RULES` set is the boundary: self-merge/approve, production
+deploy, external publication, writes to human-ratified protocol surfaces, and
+any action outside the app's own worktree/repo boundary **require a human
+decision** and remain ineligible for a widened grant. PURPOSE v2.13's rule that
+the org can never approve its own release is unchanged, and is now enforced
+through this boundary rather than through the absence of a decision path.
+
+Every decision — human or agent — records the deciding identity, a non-empty
+reason, and an audit row. A reason equal to a bare decision token is rejected
+rather than stored.
 
 ### CLI
 
@@ -99,20 +168,36 @@ cormidia approvals review --batch   group pending items with identical
 cormidia approvals show <id>    full detail incl. turn-event context
 cormidia approvals status       decision/execution state, attempts, actor,
                               result, remote reference, and next action
+cormidia approvals decide <id> (--approve|--deny) --reason <text>
+                              --by <identity> --confirm <id> [--json]
+                              [--scope ticket|app [path]]
+                              non-interactive decision; the only decision path
+                              available without a TTY
 cormidia approvals disposition <id> (--executed|--failed|--retry)
                               --reason <text> --confirm <id>
                               explicit reconciliation for failed/ambiguous work
 cormidia approvals revoke <grant-id>   immediate revocation of a live grant
 ```
 
+`review` is interactive and requires a terminal; without a TTY it refuses and
+names `decide` rather than silently skipping every item. `decide` is the
+non-interactive path and carries the same scope options `review` offers. Both
+require an identity (`--by`) and a non-empty reason; a reason equal to a bare
+decision token is a line-protocol mistake and is rejected, never stored.
+
 Decision writes materialize the grant before the decision log and atomic item
 move, so a logged approval cannot lack its authorization file; log-vs-file
 reconciliation repairs an interrupted move or missing grant at the next
 `cormidia approvals` run. Execution item rewrites are atomic and transition rows
-remain append-only evidence.
+remain append-only evidence. Concurrent decisions on one item are serialized:
+exactly one caller wins and the loser receives an already-decided conflict
+before any grant or decision event is written.
 
 Budget escalations (`../architecture.md` §7) enter this same queue as synthetic items
-(`rule: "budget-exceeded"`) — one inbox, never two.
+(`rule: "budget-exceeded"`) — one inbox, never two. This covers both the
+app-monthly ceiling and the per-turn soft cap whose exhaustion suspends a turn
+and requests more budget; the ticket/episode hard ceiling stops with no
+escalation offered and therefore raises no item.
 
 ## Grant scope (A1): human-chosen, rule+path-scoped, multi-use grants
 
@@ -134,7 +219,10 @@ per-action even when the decision was per-scope.
 
 **Never scopeable** (always one-by-one, always fresh): self-merge/approve,
 production deploy, writes to human-ratified protocol surfaces, and any
-action outside the app's own worktree/repo boundary.
+action outside the app's own worktree/repo boundary. These are also the rules
+an agent may not decide (see "Who may decide") — never-scopeable and
+human-decided are the same set, so widening authority and delegating authority
+are bounded by one list rather than two that can drift apart.
 
 Threat model: the widened grant is an *availability* concession bounded by
 rule, path prefix, app, TTL, use count, and revocation; it cannot be minted

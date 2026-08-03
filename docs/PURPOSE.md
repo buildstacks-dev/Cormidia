@@ -1,6 +1,6 @@
 # PURPOSE — Cormidia
 
-*v2.14 — 2026-08-02. Human-ratified decision log. Keep this file high-level;
+*v2.15 — 2026-08-03. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop/design.md.
 The operator outcome is `docs/VISION.md`; product status and known limitations
 live in README → Status.*
@@ -1001,3 +1001,59 @@ will resolve them.
   every later release remains blocked on both its own human approval and the
   ordinary release-evidence policy. Version 0.1.1 still requires green offline,
   typecheck, build, packaging, and installed-command checks.
+- 2026-08-03 — v2.15: **the approval contract was settled on four points that
+  had been left undecided, and under which defects kept recurring** (epic
+  #236). Approvals had produced defects in every live run because the
+  behaviour beneath them was unspecified, not because the code was wrong.
+
+  (1) *A gate denial suspends the turn.* An approval is raised synchronously
+  and the turn genuinely waits; it is not an after-the-fact notification that
+  the turn ships past. This uses the same pause and resume machinery as the
+  budget soft cap ratified the same day — one mechanism, two triggers — so an
+  approval can no longer outlive the turn that raised it. Supersedes the
+  deny-and-continue behaviour that produced #103, #104, #176, and #205.
+
+  (2) *An undecided approval expires* (resolves F-PT-020). The approval state
+  machine CF-SM-APPR gains a terminal, non-blocking `expired` state reached
+  after a TTL, defaulting to 24h to match the existing grant TTL and
+  configurable through ordinary policy resolution. On expiry the raising
+  turn's durable artifacts and worktree are preserved, its claim is released,
+  and the turn resolves as blocked rather than failed — a pause is not a merit
+  failure, and it does not consume a failure claim (the rule established for
+  granted approval pauses in #104). An expired item leaves the pending queue
+  and appears in an audit view; `cormidia app verify` counts only approvals
+  whose raising turn is still live. A queue whose sole exit was a human
+  decision grew monotonically by construction: 7 of 7 items outlived their
+  turns in the 2026-08-01 run and were the only thing blocking promotion.
+
+  (3) *An agent operating an org may decide ordinary approvals; the
+  never-scopeable rules stay human.* An agent decision is a first-class,
+  attributable decision recorded against a distinct agent identity, never
+  presented as a human one, so an unattended org can drain its own queue. The
+  `NEVER_SCOPEABLE_RULES` set — self-merge/approve, production deploy,
+  external publication, writes to human-ratified protocol surfaces, and any
+  action outside the app's own worktree/repo boundary — continues to require a
+  human decision and remains ineligible for a widened grant. v2.13's rule that
+  the org can never approve its own release is unchanged and is now enforced
+  through this boundary rather than by the absence of a decision path. This
+  resolves the `approval-store-tamper` collision that made a non-interactive
+  decision verb unreachable while the packaged `$cormidia` skill was expected
+  to operate an org without a TTY (#206).
+
+  (4) *`secrets-or-auth` becomes operation-aware and fails closed* (resolves
+  F-PT-019). The rule classifies on whether an action actually emits file
+  contents rather than on text alone, and any command whose effect cannot be
+  parsed is treated as critical. Text-only matching was wrong in both
+  directions at once: `git check-ignore .env` opens nothing and classified
+  critical (#204), while `git show HEAD:.env` prints the secret and classified
+  routine (#218). The two directions are not symmetric — per
+  `validation-design/system-map.md` §5.2 a real critical effect classified
+  routine is authority damage, while a false positive is only availability
+  damage — so the fail-closed default on unparsed effects is part of the
+  decision, not an implementation detail. Coverage must also reach effects
+  that bypass the classifier entirely rather than merely evading a pattern
+  (#20).
+
+  F-PT-008 (grant-expiry item disposition) is adjacent but **not** resolved
+  here: it concerns an item whose grant expires after a decision, whereas
+  F-PT-020 concerns an item that was never decided. It remains open.

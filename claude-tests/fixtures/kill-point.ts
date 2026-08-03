@@ -108,7 +108,7 @@ export async function runKillPointScenario(scenario: KillPointScenario): Promise
   if (!existsSync(tsxBin)) {
     throw new Error(`fixtures/kill-point: tsx binary not found at ${tsxBin} — run pnpm install`);
   }
-  const scratch = await mkdtemp(join(tmpdir(), "operon-fixture-kill-"));
+  const scratch = await mkdtemp(join(tmpdir(), "cormidia-fixture-kill-"));
   const stateDir = join(scratch, "state");
   await mkdir(stateDir);
   const scenarioPath = join(scratch, "scenario.mts");

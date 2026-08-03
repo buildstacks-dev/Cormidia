@@ -7,7 +7,7 @@
 // approvals store, the loop's ticket claim state, and captured learning
 // events — and never becomes a second writable store (design §8.3): while
 // the sources survive, deleting `learning/episodes/` and re-projecting
-// rebuilds byte-identical records. Once `operon prune-runs` retires a closed
+// rebuilds byte-identical records. Once `cormidia prune-runs` retires a closed
 // episode's run dirs, the projection stops re-folding it: the existing
 // closed record is preserved as the durable archive (only its append-only
 // fields keep refreshing) instead of being silently degraded to whatever
@@ -127,10 +127,10 @@ export interface EpisodeOutcome {
    *  usage — done-means 1 requires the record to match the ledger. */
   cost_usd: number;
   /** True when any settled row is an equivalent-cost estimate, mirroring the
-   *  `~` marker in `operon status` (spec §5 delta). */
+   *  `~` marker in `cormidia status` (spec §5 delta). */
   cost_estimated: boolean;
   /** Terminal/stalled runs with measured usage but no ledger row — the
-   *  reconcile target (`operon budget --reconcile`); spec §5 delta. */
+   *  reconcile target (`cormidia budget --reconcile`); spec §5 delta. */
   unsettled_runs: string[];
   /** Explicit lifecycle terminal. Model/pass, artifact, execution-step, and
    * episode outcomes remain separate fields; this value names only why the
@@ -693,7 +693,7 @@ async function runGates(stateHome: string, envelope: RunEnvelope): Promise<Episo
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     // Mid-file corruption: loud but ISOLATED — one damaged historical run
-    // must not wedge every projection (and with it every `operon learn`
+    // must not wedge every projection (and with it every `cormidia learn`
     // subcommand) forever. Recorded as a failing gate entry on the run, the
     // same shape status.ts uses for a corrupt envelope: shown, never
     // dropped, never fatal.
@@ -963,7 +963,7 @@ export async function readEpisodeRecord(
   if (!existsSync(path)) {
     throw new Error(
       `learning: no projected record for ${episodeId} — check the id ` +
-        `(operon learn report lists known episodes); an episode gets a record ` +
+        `(cormidia learn report lists known episodes); an episode gets a record ` +
         `once it has captured runs`,
     );
   }

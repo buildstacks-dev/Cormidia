@@ -30,15 +30,15 @@ function config(stateHome: string, policyPath: string) {
       { runtime: "pi", model: "pi-model", effort: "medium", max_turn_budget_usd: 2 },
     ],
     github: { enabled: true, repo: "owner/sandbox-alpha" },
-    launchd: { enabled: false, label: "com.operon.validation.unique" },
+    launchd: { enabled: false, label: "com.cormidia.validation.unique" },
     unattended: { enabled: true, permitted_auto_grant_categories: ["campaign_budget"] },
   };
 }
 
 describe("live campaign config", () => {
   it("refuses absent opt-in and absent reviewed config", async () => {
-    await expect(loadLiveCampaignConfig({})).rejects.toThrow(/OPERON_LIVE=1/);
-    await expect(loadLiveCampaignConfig({ OPERON_LIVE: "1" })).rejects.toThrow(/OPERON_LIVE_CONFIG/);
+    await expect(loadLiveCampaignConfig({})).rejects.toThrow(/CORMIDIA_LIVE=1/);
+    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1" })).rejects.toThrow(/CORMIDIA_LIVE_CONFIG/);
   });
 
   it("loads a strict human-initiated authorization envelope", async () => {
@@ -47,7 +47,7 @@ describe("live campaign config", () => {
     const policyPath = state.path("policy.yaml");
     await writeFile(policyPath, "schema_version: 1\n", "utf8");
     await writeFile(path, JSON.stringify(config(state.stateHome, policyPath)), "utf8");
-    expect((await loadLiveCampaignConfig({ OPERON_LIVE: "1", OPERON_LIVE_CONFIG: path })).config.campaign_id).toBe("live-release-20260731");
+    expect((await loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).config.campaign_id).toBe("live-release-20260731");
   });
 
   it("negative control: refuses a non-sandbox GitHub target and unknown widening fields", async () => {
@@ -56,7 +56,7 @@ describe("live campaign config", () => {
     const policyPath = state.path("policy.yaml");
     const seeded = { ...config(state.stateHome, policyPath), github: { enabled: true, repo: "owner/production" }, allow_production: true };
     await writeFile(path, JSON.stringify(seeded), "utf8");
-    await expect(loadLiveCampaignConfig({ OPERON_LIVE: "1", OPERON_LIVE_CONFIG: path })).rejects.toThrow(/unknown live config field/);
+    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(/unknown live config field/);
   });
 
   it("negative control: a partial release cannot manufacture complete evidence", async () => {
@@ -66,7 +66,7 @@ describe("live campaign config", () => {
     const seeded = config(state.stateHome, policyPath);
     seeded.adapters = seeded.adapters.slice(0, 1);
     await writeFile(path, JSON.stringify(seeded), "utf8");
-    await expect(loadLiveCampaignConfig({ OPERON_LIVE: "1", OPERON_LIVE_CONFIG: path })).rejects.toThrow(/release campaign requires all three adapters/);
+    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(/release campaign requires all three adapters/);
   });
 
   it("admits exact single-obligation GitHub and launchd campaigns", async () => {
@@ -81,7 +81,7 @@ describe("live campaign config", () => {
       seeded.launchd.enabled = campaignKind === "launchd_proof";
       seeded.unattended.enabled = false;
       await writeFile(path, JSON.stringify(seeded), "utf8");
-      await expect(loadLiveCampaignConfig({ OPERON_LIVE: "1", OPERON_LIVE_CONFIG: path })).resolves.toMatchObject({ config: { campaign_kind: campaignKind } });
+      await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).resolves.toMatchObject({ config: { campaign_kind: campaignKind } });
     }
   });
 });

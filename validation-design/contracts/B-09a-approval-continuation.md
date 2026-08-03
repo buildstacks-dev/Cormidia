@@ -1,5 +1,5 @@
 # Contract — B-09a Turn ↔ approval store (continuation seam)
-Canonical ID: **OPERON-C-B09A-001 (alias: B-09a)**
+Canonical ID: **CORMIDIA-C-B09A-001 (alias: B-09a)**
 
 Status: DRAFT (Phase 4). Defends INV-003/005, T-2. Journeys J-05/J-06.
 

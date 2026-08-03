@@ -2,13 +2,13 @@ import { join, resolve } from "node:path";
 import { loadApps } from "../org/apps.js";
 import { loadRoles } from "../org/roles.js";
 import { runRetro } from "../org/retro.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdRetro(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "retro");
   const parsed = parseArgs(common.rest);
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const appsPath = resolve(parsed.apps ?? join(homes.orgHome, "apps.yaml"));
   const rolesPath = resolve(parsed.roles ?? join(homes.orgHome, "roles.yaml"));
   const appsFile = await loadApps(appsPath);

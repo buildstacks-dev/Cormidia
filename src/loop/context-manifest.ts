@@ -468,7 +468,7 @@ function isBriefCategory(category: ContextCategory): boolean {
 }
 
 function assertNoHiddenAnswer(components: ManifestInputComponent[]): void {
-  const leaking = components.find((component) => /OPERON_HIDDEN_[A-Za-z0-9_-]+/.test(component.rendered));
+  const leaking = components.find((component) => /CORMIDIA_HIDDEN_[A-Za-z0-9_-]+/.test(component.rendered));
   if (leaking !== undefined) throw new Error(`hidden_answer_leakage:${leaking.source}`);
 }
 

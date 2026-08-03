@@ -1,7 +1,7 @@
 // CF-INV-011 — bounded previews and envelope fields are scrubbed at write
 // time: L2 composition on a temp state home (HB-016, FLOOR).
 //
-// OPERON-INV-011 (validation-design/invariants.md): L3 stays verbatim and
+// CORMIDIA-INV-011 (validation-design/invariants.md): L3 stays verbatim and
 // local; everything the envelope (L1) and event stream (L2) carry OUT of the
 // run dir is a bounded, scrubbed derivation. The write-time scrub in
 // src/runtime/runlog/envelope.ts + events.ts is the guardrail every

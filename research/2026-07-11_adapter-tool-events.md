@@ -24,7 +24,7 @@ are hashed at the L2 boundary, never persisted raw.
 
 ## Live conformance run (2026-07-11, this checkout)
 
-`OPERON_CODEX_LIVE=1 OPERON_PI_LIVE=1 pnpm test:live` — **6/6 passed**:
+`CORMIDIA_CODEX_LIVE=1 CORMIDIA_PI_LIVE=1 pnpm test:live` — **6/6 passed**:
 
 - **Claude live conformance** (real SDK, `claude-sonnet-5`, subscription
   auth `apiKeySource=none`): 12 live turns, **$3.3554** total.

@@ -271,9 +271,9 @@ describe("CF-J04-I — crash-point sweep follows artifact authority", () => {
       body: BODY,
       labels: ["op:ready"],
     });
-    const worktreeRoot = await mkdtemp(join(tmpdir(), "operon-cf-j04-worktrees-"));
+    const worktreeRoot = await mkdtemp(join(tmpdir(), "cormidia-cf-j04-worktrees-"));
     cleanups.push(() => rm(worktreeRoot, { recursive: true, force: true }));
-    const runlogRoot = await mkdtemp(join(tmpdir(), "operon-cf-j04-runlog-"));
+    const runlogRoot = await mkdtemp(join(tmpdir(), "cormidia-cf-j04-runlog-"));
     cleanups.push(() => rm(runlogRoot, { recursive: true, force: true }));
     return {
       repo,

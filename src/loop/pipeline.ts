@@ -1289,7 +1289,7 @@ async function runPass(
     // scale, or an abort unwinding through here) must NOT discard a paid-for
     // provider turn. The execution step above (finalizeProviderStep) is already
     // durable — it is written BEFORE settlement precisely so this ordering
-    // holds — so `operon budget --reconcile` back-fills the ledger row. Record a
+    // holds — so `cormidia budget --reconcile` back-fills the ledger row. Record a
     // durable settle-failure marker and let the completed turn survive rather
     // than unwinding the whole pipeline past money already spent. Do NOT reorder
     // the durable step write after this point.

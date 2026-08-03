@@ -1,5 +1,5 @@
 ---
-title: Operon Learning Loop - Control Flow (v0.8)
+title: Cormidia Learning Loop - Control Flow (v0.8)
 ---
 flowchart TD
     EVENTS["Trusted and advisory learning events<br/>(every event carries episode_id)"] --> ROUTE
@@ -11,7 +11,7 @@ flowchart TD
         DEST -->|"repeatable procedure"| SKILL["Skill draft"]
         DEST -->|"broad behavior rule"| PROTO["Protocol proposal"]
         DEST -->|"mechanically checkable weakness"| EVAL["Eval or gate proposal"]
-        DEST -->|"runtime/product work"| TICKET["Operon ticket"]
+        DEST -->|"runtime/product work"| TICKET["Cormidia ticket"]
         DEST -->|"wrong or unsafe"| LEDGER["Rejection ledger"]
 
         OKF --> REVIEW{"Reviewer verdict (cross-provider)"}
@@ -25,7 +25,7 @@ flowchart TD
     end
 
     REVIEW -->|"routine: ticket / unmerged proposal draft"| ROUTINE["Publish without human gate<br/>(deduped + rate-capped)"]
-    REVIEW -->|"activation, T2/T3, ratified surface"| HUMAN["Human approval via operon approvals<br/>(binds candidate + verdict + diff hashes)"]
+    REVIEW -->|"activation, T2/T3, ratified surface"| HUMAN["Human approval via cormidia approvals<br/>(binds candidate + verdict + diff hashes)"]
 
     HUMAN -->|"claims efficacy or T2/T3"| EXP["Declared ExperimentRecord required<br/>(or explicit human waiver)"]
     EXP --> PUBLISH
@@ -59,8 +59,8 @@ flowchart TD
     end
 
     subgraph CONTAIN["Containment"]
-        DISABLE["operon learn disable concept-id"] --> RECUT["New version without concept"]
-        VERSION_ROLLBACK["operon learn rollback --root org|app"] --> PTR["Pointer revert"]
+        DISABLE["cormidia learn disable concept-id"] --> RECUT["New version without concept"]
+        VERSION_ROLLBACK["cormidia learn rollback --root org|app"] --> PTR["Pointer revert"]
     end
 
     STABLE -.->|"affects only newly resolved episodes (per-turn pin)"| EVENTS

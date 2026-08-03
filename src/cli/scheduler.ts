@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { resolveOperonHomes, type OperonHomeOptions } from "../org/home.js";
+import { resolveCormidiaHomes, type CormidiaHomeOptions } from "../org/home.js";
 import { buildSchedulerExpectation } from "../org/scheduler/definition.js";
 import { installScheduler, uninstallScheduler, type SchedulerLifecycleResult } from "../org/scheduler/lifecycle.js";
 import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
@@ -8,7 +8,7 @@ import { DEFAULT_SCHEDULER_CADENCE_MINUTES, type SchedulerBackend } from "../org
 import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
 import { extractHomeFlags } from "./home-flags.js";
 
-export interface SchedulerCommandOptions extends OperonHomeOptions {
+export interface SchedulerCommandOptions extends CormidiaHomeOptions {
   manager?: SchedulerManager;
   platform?: NodeJS.Platform;
   packageEntryPath?: string;
@@ -46,7 +46,7 @@ export async function runSchedulerCommand(args: string[], options: SchedulerComm
   if (verb === "status" && (execute || confirm !== undefined)) throw new Error("scheduler status is read-only and does not accept --execute or --confirm");
   const platform = options.platform ?? process.platform;
   const selected = backend ?? (platform === "darwin" ? "launchd" : "systemd");
-  const homes = await resolveOperonHomes({ ...common, ...options });
+  const homes = await resolveCormidiaHomes({ ...common, ...options });
   const manager = options.manager ?? new PlatformSchedulerManager({ backend: selected, platform });
   if (manager.backend !== selected) throw new Error(`scheduler manager backend mismatch: expected ${selected}, got ${manager.backend}`);
   const input = {

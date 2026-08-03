@@ -1,8 +1,12 @@
-# Operon
+# Cormidia
 
 An **org runtime**: a standing team of AI agents (Planner, Builder, Reviewer,
 SRE, Support, Marketing) that develops and operates a software product through
 a private GitHub repo, with a human approver gating critical operations only.
+
+The name comes from the *cormidium*, a coordinated unit found in siphonophores.
+That is only the name's origin: Cormidia's product units remain **orgs**, **apps**,
+and **roles**.
 
 ```mermaid
 flowchart TD
@@ -56,7 +60,7 @@ the thin system map — and follow its links into each subsystem's topic folder
 `docs/org/`, and friends), where one `design.md` per folder is the
 authoritative contract.
 
-Operon turns approved goals into verified software outcomes with process
+Cormidia turns approved goals into verified software outcomes with process
 proportional to the work and its risk, minimal human attention, durable forward
 progress, and continuously improving unit economics. `docs/VISION.md` states
 the operator outcome; `docs/episodes/contract.md` is the normative plan-derived
@@ -65,7 +69,7 @@ owns qualification and release gating.
 
 ## Install locally
 
-Operon requires **Node.js >= 26** and the pnpm version pinned in
+Cormidia requires **Node.js >= 26** and the pnpm version pinned in
 `packageManager`. Node 26 does not bundle Corepack, so install/enable it once
 if `pnpm --version` does not match the pin.
 
@@ -76,18 +80,18 @@ pnpm install
 pnpm link:local
 ```
 
-`pnpm link:local` exposes `operon` at `~/.local/bin/operon` (or
-`$OPERON_BIN_DIR/operon`) and links the `$operon` skill into Codex
-(`$CODEX_HOME/skills/operon`), Claude (`$CLAUDE_CONFIG_DIR/skills/operon`),
-and pi (`$PI_CODING_AGENT_DIR/skills/operon`), using each provider's default
+`pnpm link:local` exposes `cormidia` at `~/.local/bin/cormidia` (or
+`$CORMIDIA_BIN_DIR/cormidia`) and links the `$cormidia` skill into Codex
+(`$CODEX_HOME/skills/cormidia`), Claude (`$CLAUDE_CONFIG_DIR/skills/cormidia`),
+and pi (`$PI_CODING_AGENT_DIR/skills/cormidia`), using each provider's default
 home when its override is unset. Add `~/.local/bin` to `PATH` if necessary. The
 local command is source-backed: the next invocation reads the latest source
-changes, so no `operon update`, relink, or rebuild is needed. A packed or
-published installation uses the packaged `src/operon.cjs` preflight launcher and
+changes, so no `cormidia update`, relink, or rebuild is needed. A packed or
+published installation uses the packaged `src/cormidia.cjs` preflight launcher and
 then runs the compiled `dist/cli.js` binary. Both launchers report a removed
-working directory before ESM resolution with one actionable Operon error.
+working directory before ESM resolution with one actionable Cormidia error.
 Rerunning `pnpm link:local` is idempotent and upgrades the former
-`scripts/operon-local.mjs` link only when it belongs to that same checkout;
+`scripts/cormidia-local.mjs` link only when it belongs to that same checkout;
 files, directories, and links owned by another checkout remain untouched and
 are refused.
 
@@ -95,19 +99,19 @@ These four locations are intentionally different:
 
 | Location | One-line meaning |
 | --- | --- |
-| Package root | Operon's installed implementation and reusable templates. |
+| Package root | Cormidia's installed implementation and reusable templates. |
 | Org home | Committed roles, apps, pipelines, prompts, authority, taste, and curated memory. |
 | State home | Local high-churn clones, worktrees, locks, approvals, telemetry, and run logs. |
-| App repo | An independent product checkout that Operon develops or operates. |
+| App repo | An independent product checkout that Cormidia develops or operates. |
 
 Create the org before onboarding an app; this can be run from any directory:
 
 ```bash
-operon --version
-operon org init ~/Build/my-org --name my-org --dry-run
-operon org init ~/Build/my-org --name my-org
-operon doctor
-operon context
+cormidia --version
+cormidia org init ~/Build/my-org --name my-org --dry-run
+cormidia org init ~/Build/my-org --name my-org
+cormidia doctor
+cormidia context
 ```
 
 `org init --dry-run` is a token-free, zero-domain-write preflight: it resolves the org,
@@ -121,14 +125,31 @@ that validation, the command-level invocation audit is the sole preview write.
 
 Successful init creates a complete org home from packaged templates, including
 a versioned `AUTHORITY.md`, creates the
-default state home at `~/.operon/<org>`, and records the active org pointer at
-`~/.operon/config`. Use `operon org use <path>` to switch to another complete
-org. `OPERON_ORG_HOME` and `OPERON_STATE_HOME` are explicit per-process
+default state home at `~/.cormidia/<org>`, and records the active org pointer at
+`~/.cormidia/config`. Use `cormidia org use <path>` to switch to another complete
+org. `CORMIDIA_ORG_HOME` and `CORMIDIA_STATE_HOME` are explicit per-process
 overrides. The default `delegated-operator` charter automates ordinary,
-reversible work while Operon's critical-operation gates remain mandatory;
+reversible work while Cormidia's critical-operation gates remain mandatory;
 choose `--authority conservative` or `--authority custom --authority-file
 <path> --authority-by <identity>` during onboarding to narrow or replace the
 human grant explicitly.
+
+### Upgrading an existing installation
+
+The first invocation that uses the default home atomically moves
+`~/.operon` to `~/.cormidia`, rewrites the active pointer and lifecycle clone
+paths, repairs active turn journals and registered git worktrees, and replaces
+an owned host-scheduler definition with the Cormidia identity and state path.
+If both roots exist, Cormidia
+refuses before changing either one; identify the authoritative state and move
+the other aside before retrying. Explicit `CORMIDIA_STATE_HOME` paths are never
+relocated automatically.
+
+Environment variables are a hard break: only the `CORMIDIA_*` names are read.
+Existing app repositories also need one reviewed repository commit that runs
+`git mv .operon .cormidia` and updates any instruction links to the app-owned
+files. Bootstrap refuses to create `.cormidia/` beside the retired directory,
+so app policy can never split across two roots.
 
 Every dispatched CLI command whose state home is explicit or safely resolved
 writes one terminal command row under `invocations/`, including read-only
@@ -146,16 +167,16 @@ journaled.
 
 ## Commands
 
-Run `operon --help` or `operon <command> --help` for current syntax. The
+Run `cormidia --help` or `cormidia <command> --help` for current syntax. The
 read-only discovery surfaces are also machine-readable for coding agents:
 
 ```bash
-operon capabilities --json
-operon context --json
-operon roles
-operon apps
-operon pipelines
-operon doctor --json
+cormidia capabilities --json
+cormidia context --json
+cormidia roles
+cormidia apps
+cormidia pipelines
+cormidia doctor --json
 ```
 
 For every command that accepts `--json`, the format contract also covers
@@ -171,53 +192,53 @@ SDK initialize/account-info control request, Codex performs App Server
 `initialize` + `account/read`, and pi resolves its model/auth configuration.
 No model prompt is sent. Missing launch artifacts, transport failure, missing
 auth, invalid model configuration, and probe timeout are reported distinctly.
-Use `operon doctor --config-only` only in an isolated/offline packaging check;
+Use `cormidia doctor --config-only` only in an isolated/offline packaging check;
 its adapter rows are `WARN` because configuration validity is not runtime
 readiness.
 
 Offline onboarding and inspection do not require provider credentials:
 
 ```bash
-operon bootstrap <local-repo> --scan-only
-operon bootstrap <local-repo>                    # interactive terminal questionnaire
-operon bootstrap <local-repo> --answers answers.json
-operon bootstrap <local-repo> --answers-from <archive-or-app> --json
-operon bootstrap publish <app> --json             # preview; --execute opens draft PRs only
-operon org upgrade --authority delegated-operator --json
-operon app verify <app> --json
-operon app promote <app> --to live --json         # non-mutating plan
-operon new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
-operon new-app docs-site --target-dir ../docs-site --repo owner/docs-site --goal "Publish product documentation" --template bare --dry-run --json
-operon plan <app> --dry-run
-operon plan ratify-ticket-budget --app <app> --decomposition <id> --actor <identity> --reason "<why>" --from-budget N --to-budget N # preview; human-gated
-operon loop --app <app> --once --dry-run
-operon loop rearm --app <app> --ticket <n> --reason "reviewed" --actor <identity> --from-allowance 3 --to-allowance 4 # preview
-operon dispatch --dry-run
-operon scheduler install --json                       # preview, audit row only
-operon scheduler status --json                        # read-only health
-operon scheduler uninstall --json                     # preview, audit row only
-operon run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run
-operon run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run --allow-network # explicit per-invocation egress preview
-operon status
-operon budget
-operon analyze
-operon approvals
-operon approvals status
-operon report --period 90d
-operon report --app <app> --period 30d --html app-report.html
-operon observe --app <app> --open
+cormidia bootstrap <local-repo> --scan-only
+cormidia bootstrap <local-repo>                    # interactive terminal questionnaire
+cormidia bootstrap <local-repo> --answers answers.json
+cormidia bootstrap <local-repo> --answers-from <archive-or-app> --json
+cormidia bootstrap publish <app> --json             # preview; --execute opens draft PRs only
+cormidia org upgrade --authority delegated-operator --json
+cormidia app verify <app> --json
+cormidia app promote <app> --to live --json         # non-mutating plan
+cormidia new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
+cormidia new-app docs-site --target-dir ../docs-site --repo owner/docs-site --goal "Publish product documentation" --template bare --dry-run --json
+cormidia plan <app> --dry-run
+cormidia plan ratify-ticket-budget --app <app> --decomposition <id> --actor <identity> --reason "<why>" --from-budget N --to-budget N # preview; human-gated
+cormidia loop --app <app> --once --dry-run
+cormidia loop rearm --app <app> --ticket <n> --reason "reviewed" --actor <identity> --from-allowance 3 --to-allowance 4 # preview
+cormidia dispatch --dry-run
+cormidia scheduler install --json                       # preview, audit row only
+cormidia scheduler status --json                        # read-only health
+cormidia scheduler uninstall --json                     # preview, audit row only
+cormidia run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run
+cormidia run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run --allow-network # explicit per-invocation egress preview
+cormidia status
+cormidia budget
+cormidia analyze
+cormidia approvals
+cormidia approvals status
+cormidia report --period 90d
+cormidia report --app <app> --period 30d --html app-report.html
+cormidia observe --app <app> --open
 ```
 
 Company-lifecycle files placed in
-`~/.operon/<org>/state/events/inbox/*.json` use a closed kind registry.
-`operon dispatch` reports malformed payloads as `malformed_company_event`,
+`~/.cormidia/<org>/state/events/inbox/*.json` use a closed kind registry.
+`cormidia dispatch` reports malformed payloads as `malformed_company_event`,
 unregistered kinds as `unknown_company_event_kind`, and valid registered kinds
 with no current role trigger as the non-error skip `no_subscriber`; only valid
 subscribed kinds spawn turns. See [the event schema contract](docs/scheduler/event-schemas.md)
 for the supported kinds, payloads, and exact retention behavior.
 
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
-the active org and writes app-owned files under `.operon/`, plus one marked,
+the active org and writes app-owned files under `.cormidia/`, plus one marked,
 idempotent authority pointer composed into root `AGENTS.md` and `CLAUDE.md`.
 Existing instruction content is preserved. Its opening output explains the app repo, org home, and
 state home before anything is written. A non-interactive run requires
@@ -230,12 +251,12 @@ success. `new-app` creates a separate product repo and then follows the same
 bootstrap/register path. Its backward-compatible default,
 `--template typescript-node`, emits the existing npm + strict TypeScript web
 scaffold and executable setup/test/lint commands. `--template bare` emits only
-stack-neutral product docs and Operon artifacts: no framework, runtime, package
+stack-neutral product docs and Cormidia artifacts: no framework, runtime, package
 manager, application skeleton, or gate command is inferred from `--goal`.
 Required test/lint gates remain explicitly pending and fail closed until the
 first implementation configures meaningful stack-specific commands. Dry-run
 text and JSON report the selected template, exact paths (including the
-generated `.operon/LABELS.md` reference), and gate state. The generated next
+generated `.cormidia/LABELS.md` reference), and gate state. The generated next
 steps install the canonical state/tier/priority/domain labels idempotently
 before creating the first issue, then preview the supported
 `plan --auto --goal ... --source docs/VISION.md --source
@@ -270,11 +291,11 @@ definition first, then execute only with the reported identity (or exact org
 name):
 
 ```bash
-operon scheduler install --json
-operon scheduler install --execute --confirm <scheduler-id>
-operon scheduler status --json
-operon scheduler uninstall --json
-operon scheduler uninstall --execute --confirm <scheduler-id>
+cormidia scheduler install --json
+cormidia scheduler install --execute --confirm <scheduler-id>
+cormidia scheduler status --json
+cormidia scheduler uninstall --json
+cormidia scheduler uninstall --execute --confirm <scheduler-id>
 ```
 
 The generated host definition uses absolute executable, package, org-home, and
@@ -295,7 +316,7 @@ Repository/source inspection owned by the live snapshot remains clearly
 deferred. The previews deliberately return
 `exactProviderAuthoredPlan: null`; ordinary auto planning needs a live
 EpisodePlanner call, while explicit creator scope is normalized and persisted
-only during live execution. `operon episode explain <episode-id>` exposes the
+only during live execution. `cormidia episode explain <episode-id>` exposes the
 read-only durable plan, assignment rationale, route, and execution status. It
 degrades instead of failing: it prints the directory it read, renders whatever
 durable evidence exists, annotates anything it could not resolve, and exits
@@ -322,10 +343,10 @@ the durable creator scope so a resumed turn cannot silently change it.
 Live forms can spend tokens and touch GitHub:
 
 ```bash
-operon plan <app> --auto --goal "<bounded goal>"
-operon plan <app> --creator-scope ./scope.yaml --execution-ready --no-publish
-operon loop --app <app> --once
-operon dispatch
+cormidia plan <app> --auto --goal "<bounded goal>"
+cormidia plan <app> --creator-scope ./scope.yaml --execution-ready --no-publish
+cormidia loop --app <app> --once
+cormidia dispatch
 ```
 
 An execution-ready creator scope is the explicit alternative to the dedicated
@@ -370,7 +391,7 @@ steps:
 
 The terminal operation must match the requested/default stage:
 `plan/bootstrap` for bootstrap and `plan/decompose` for growth or mature.
-In fixed assignment mode, omit `assignment` and Operon resolves the configured
+In fixed assignment mode, omit `assignment` and Cormidia resolves the configured
 role tuple. In adaptive mode, each provider step must include one exact approved
 `assignment` tuple. `--dry-run` validates and previews creator-scope
 normalization with zero runtime calls or durable writes. Live execution skips
@@ -381,25 +402,25 @@ orchestrator-owned publication projection as ordinary planning.
 
 ## Reset an app for another test iteration
 
-Use `operon app reset <app>` to begin another onboarding/build-loop iteration
+Use `cormidia app reset <app>` to begin another onboarding/build-loop iteration
 without deleting the GitHub repository or the organization. It is a
 non-mutating plan by default: it inventories the selected app's managed local
-state and identifiable Operon GitHub work (`op:*` issues and PRs linked to
+state and identifiable Cormidia GitHub work (`op:*` issues and PRs linked to
 them), and reports blockers such as active turns, locks, journals, or pending
 approvals.
 
 ```bash
-operon app reset buildstacks.dev
-operon app reset buildstacks.dev --execute --confirm buildstacks.dev --force
+cormidia app reset buildstacks.dev
+cormidia app reset buildstacks.dev --execute --confirm buildstacks.dev --force
 ```
 
 Execution first writes a checksummed archive to
-`~/.operon/archives/<org>/<app>-reset-<fingerprint>/` (or `--archive-root`), then
+`~/.cormidia/archives/<org>/<app>-reset-<fingerprint>/` (or `--archive-root`), then
 closes the planned PRs/issues, deletes their head branches, removes the app
 from `apps.yaml`, and clears its managed clone, worktrees, runs, ticket state,
 approval records, schedules, and ledger rows. It never deletes the GitHub
 repository, its default branch, a human checkout, or the GitHub history of
-closed work. Re-onboard the checkout with `operon bootstrap <local-repo>
+closed work. Re-onboard the checkout with `cormidia bootstrap <local-repo>
 --answers-from <archive-or-app>` when ready. Reset JSON includes typed blocker
 codes, ids, force eligibility, and remediation. Its durable intent and
 checksummed archive make a killed execution safely resumable without losing
@@ -413,17 +434,17 @@ Legacy org migration and the registered-to-live lifecycle are also plan-first
 and token-free:
 
 ```bash
-operon org upgrade --authority delegated-operator --json
-operon org upgrade --authority delegated-operator --execute --json
-operon app verify <app> --json
-operon app promote <app> --to live --json
-operon app promote <app> --to live --execute --json
+cormidia org upgrade --authority delegated-operator --json
+cormidia org upgrade --authority delegated-operator --execute --json
+cormidia app verify <app> --json
+cormidia app promote <app> --to live --json
+cormidia app promote <app> --to live --execute --json
 ```
 
 Upgrade is additive, archive-backed, and followed by org/authority validation.
 Verification proves remote/default ancestry, managed HEAD, registry/config and
 authority hashes, app checks, approvals/locks, and static adapter/model
-readiness without starting a runtime. Gate commands in `.operon/config.yaml`
+readiness without starting a runtime. Gate commands in `.cormidia/config.yaml`
 are top-level keys (siblings of `apps`, never under `apps.<name>`). A real
 verify accepts a valid changed config only from the fetched remote default
 branch, records its exact hash and commit in a crash-resumable lifecycle
@@ -432,13 +453,13 @@ without mutating the record. Promotion mutates app/registry status
 only after verification and resumes exactly once across config, commit, push,
 and registry boundaries. All lifecycle JSON is canonically key-sorted.
 
-Contributors can still use `pnpm dev <command>` inside the Operon source repo,
-but product and org workflows should exercise the installed `operon` command
+Contributors can still use `pnpm dev <command>` inside the Cormidia source repo,
+but product and org workflows should exercise the installed `cormidia` command
 from a neutral directory.
 
 ## Live UI and Reports
 
-`operon observe` starts one read-only local server in the foreground. **Live**
+`cormidia observe` starts one read-only local server in the foreground. **Live**
 remains at `/`; **Reports** is available at `/reports` under the same
 per-process capability, listener, security headers, and navigation shell. It resolves
 the active org and state home independently of the working directory, binds
@@ -469,14 +490,14 @@ distributions, current-month budget context, and exhaustive session/pass
 detail. An observer started with `--app` is server-scoped: its Reports mode
 cannot query the org or sibling apps.
 
-`operon report` provides the same ledger-first read model without starting a
+`cormidia report` provides the same ledger-first read model without starting a
 server. Omitted `--app` means the active org; the default is the trailing 90
 UTC calendar days. Terminal output is concise, while `--json` and portable
 `--html` are exhaustive unless `--summary-only` is explicit. Portable HTML is
 one responsive, accessible, print-friendly file with a hash-restricted CSP,
 no external requests, and no prompts, briefs, outputs, or activity logs.
-Report generation never reconciles or mutates state. `operon telemetry`
-remains the envelope-first forensic trace/evidence report, and `operon budget`
+Report generation never reconciles or mutates state. `cormidia telemetry`
+remains the envelope-first forensic trace/evidence report, and `cormidia budget`
 remains the current-calendar-month enforcement rollup; selected multi-month
 report spend is never compared directly with one monthly cap.
 
@@ -492,7 +513,7 @@ The offline commands above need nothing. The live commands need:
   execution race-safely creates an owner-only HMAC key at
   `<stateHome>/state/self-approval-secret`; it is resolved by the orchestrator
   and never placed in provider context or environment. Set
-  `OPERON_SELF_APPROVAL_SECRET` only as an explicit compatibility override.
+  `CORMIDIA_SELF_APPROVAL_SECRET` only as an explicit compatibility override.
   A corrupt, linked, or weakly-permissioned state key fails closed.
 
 Environment variables are loaded per project from `.env` / `.env.local` at the
@@ -524,9 +545,9 @@ a skip. Schemas and procedures are in
 [`docs/qualification/design.md`](docs/qualification/design.md#replacement-campaign-contract).
 
 ```bash
-OPERON_LIVE=1 OPERON_LIVE_CONFIG=/absolute/live.json pnpm test:live
-OPERON_EVAL=1 OPERON_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
-OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
+CORMIDIA_LIVE=1 CORMIDIA_LIVE_CONFIG=/absolute/live.json pnpm test:live
+CORMIDIA_EVAL=1 CORMIDIA_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
+CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
 ```
 
 All triggered results persist under the org state home and keep completeness separate
@@ -573,7 +594,7 @@ Imports flow downward only: `org -> loop -> runtime`.
 ## Observability: where agent activity is recorded
 
 The operational evidence stores live under the org's *state home*
-(`~/.operon/<org>/` by default), with one authority per fact:
+(`~/.cormidia/<org>/` by default), with one authority per fact:
 
 ```
 runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
@@ -591,7 +612,7 @@ narrative/<app>/          # human-level causal timeline (#129): one captured
                           # story (.json) + rendered markdown (.md) per episode
                           # and a time-ordered INDEX.md — quotes captured at
                           # render time survive the 30-day runs/ sweep
-                          # (`operon narrative`; docs/narrative/design.md)
+                          # (`cormidia narrative`; docs/narrative/design.md)
 efficiency/episodes/<hash>/ # EpisodeIntent + immutable plan-vN records/current
                             # pointer + plan-DAG journal + derived route +
                             # terminal execution steps + context projection
@@ -640,33 +661,33 @@ except candidates and proposals is gate-protected; only humans and the
 deterministic publisher write inside.
 
 `runs/` is the per-pass source of truth (what was asked, what happened, what
-it cost). The ledger is the rollup `operon budget`, `operon status`, retro,
+it cost). The ledger is the rollup `cormidia budget`, `cormidia status`, retro,
 and scorecards read: every provider turn settles into it exactly once, keyed
 on `(app, providerTurnId)` for current rows and `(app, runId)` for legacy rows
 — completed, blocked, and failed provider invocations alike — so budget caps
 are enforced against real spend, and a tick whose app has exhausted its
-monthly cap refuses to claim before any pass starts. `operon budget
+monthly cap refuses to claim before any pass starts. `cormidia budget
 --reconcile` repairs stale terminal execution receipts and back-fills missing
 settlements idempotently.
-Subscription-backed provider costs are Operon-computed equivalent-cost
-estimates, flagged as such on every row. `operon telemetry --app <app>
+Subscription-backed provider costs are Cormidia-computed equivalent-cost
+estimates, flagged as such on every row. `cormidia telemetry --app <app>
 [--html out.html]` renders the run view and copies linked artifacts into an
 adjacent evidence bundle.
 
 None of these stores grows forever: every state subtree has a documented
 retention window, swept fail-safe once per UTC day from the dispatch tick
-(docs/scheduler/design.md → State retention; manual form `operon prune-runs
+(docs/scheduler/design.md → State retention; manual form `cormidia prune-runs
 --sweep`). Ledger day-files are never deleted while `budget --reconcile`
 could still re-settle their rows from surviving evidence, and the committed
 org-home `learning/**` substrate plus the state home's durable learning
 archives are never swept.
 
-`operon report [--app <app>] [--period 90d] [--json|--html out.html]`
+`cormidia report [--app <app>] [--period 90d] [--json|--html out.html]`
 instead reads the ledger first, keeps duplicate rows as recorded, separates
 provider-reported, estimated, partial, and unknown cost, and groups explicit
 parent tasks, traces, orphan runs, mechanical passes, and legacy unattributed
 turns for management drill-down without copying L3 evidence. Current-month
-budget context uses the same ledger semantics as `operon budget`; historical
+budget context uses the same ledger semantics as `cormidia budget`; historical
 range spend remains a separate fact. CLI, JSON, portable HTML, and Observe
 `/reports` also project route history, terminal/settlement integrity,
 productive and repeated-work evidence, elapsed/active/human-wait time, and
@@ -674,12 +695,12 @@ rendered context bytes by source; missing legacy evidence stays named and
 invalidates the affected metric instead of becoming zero.
 
 For work delegated from an outer Codex/Claude session, begin a parent record
-once with `operon task begin --id <id> --prompt-file <exact-prompt>`, export
-the printed `OPERON_PARENT_TASK_ID`, and then run Planner/Builder/Reviewer
-commands normally. Use `operon task fallback` before any external/manual
-continuation and `operon task finish` only at the actual outcome boundary.
+once with `cormidia task begin --id <id> --prompt-file <exact-prompt>`, export
+the printed `CORMIDIA_PARENT_TASK_ID`, and then run Planner/Builder/Reviewer
+commands normally. Use `cormidia task fallback` before any external/manual
+continuation and `cormidia task finish` only at the actual outcome boundary.
 Telemetry joins those child traces back to the exact prompt and will not call
-a task “Operon end-to-end complete” when a required stage or Reviewer is
+a task “Cormidia end-to-end complete” when a required stage or Reviewer is
 missing, or when execution used a fallback.
 
 Episode execution now has one workflow authority: a schema-validated,
@@ -687,7 +708,7 @@ versioned `EpisodePlan`. EpisodePlanner normally designs the smallest
 sufficient role/step DAG before delivery. A creator may avoid that provider
 turn only by deliberately supplying complete scope, acceptance criteria,
 artifacts, governed steps or a workflow-template reference, safety facts, and
-provenance; Operon normalizes it into the same plan and validates it under the
+provenance; Cormidia normalizes it into the same plan and validates it under the
 same policy. Incomplete creator scope remains authoritative input, but
 EpisodePlanner fills the missing decisions.
 
@@ -711,25 +732,25 @@ by hard policy, not inputs that choose a generic pass set. `pipelines.yaml`
 remains a governed protocol vocabulary and one-step provider transport for the
 current executor; it is not a second workflow planner.
 
-`operon plan --auto` is itself an EpisodePlanner-backed episode. Its accepted
+`cormidia plan --auto` is itself an EpisodePlanner-backed episode. Its accepted
 plan selects the smallest DAG over code-owned, human-ratified product-planning
 operations; the terminal operation emits the existing schema-validated
 `TicketPlan`, which the deterministic publisher may turn into GitHub issues.
 The old depth/risk flags remain bounded request facts and compatibility input,
-not pass selectors or planner-bypass signals. Use `operon episode explain
+not pass selectors or planner-bypass signals. Use `cormidia episode explain
 <episode-id>` for the accepted execution plan's durable explanation.
 
 Automated planning also accepts repeatable required `--source <file-or-dir>`
 and optional `--optional-source <file-or-dir>` inputs. Relative paths resolve
 against the exact source checkout; absolute external sources are allowed.
-Operon resolves bounded directories, content-hashes UTF-8 text, applies the
+Cormidia resolves bounded directories, content-hashes UTF-8 text, applies the
 shared secret boundary, and records canonical refs, bytes, trust, selection,
 truncation/exclusion, and consumption before constructing a provider runtime.
 A missing, unreadable, rejected, or over-budget required source fails closed.
 Every pass retains `planning-sources.json`; emitted tickets carry only the
 manifest/source refs and hashes, never the source bytes.
 
-`operon learn` is the learning loop's human window; `operon learn --help`
+`cormidia learn` is the learning loop's human window; `cormidia learn --help`
 has the full argument semantics. The capture verbs (`report`, `inspect
 <episode-id>`, `show <id>`, `emit`, `fixture`) read and annotate episodes
 and convert closed episodes into eval fixtures (trusted only after an
@@ -740,16 +761,16 @@ context or T2/T3 raises a content-bound approval, and nothing
 self-activates. The M5 evaluation verbs (`experiment declare|run|list`,
 `canary start|status|promote|stop`) run the design-§9.5 offline funnel —
 paired control/treatment replays in seed worktrees, early stopping, spend
-settled into the org ledger and capped by the learning budget `operon
+settled into the org ledger and capped by the learning budget `cormidia
 budget` renders — and the human-started, episode-sticky live canary (a T3
 live canary is unrepresentable in policy; insufficient volume reads
 `inconclusive` — human judgment, never limbo).
 
 ## Status
 
-Operon is build-complete and proven live: real Planner/Builder/Reviewer turns
+Cormidia is build-complete and proven live: real Planner/Builder/Reviewer turns
 take GitHub issues from `op:ready` through quality gates, PR, cross-provider
-review, and squash-merge on real repos — most recently `operon-sandbox-delta`
+review, and squash-merge on real repos — most recently `cormidia-sandbox-delta`
 ("Ledgerette"), onboarded from scratch, where the loop fixed and merged both
 planted bugs unaided. A 2026-07-10 proportionality campaign then
 rebuilt the org's economics end to end: per-pass ledger settlement with
@@ -766,7 +787,7 @@ capsules, and learned changes activate only through human review, offline
 paired-replay evaluation, a human-started canary, and M6 scheduled
 distillation with independent review and report-only compaction. The latest dated live evidence is
 [`research/2026-07-11_adapter-tool-events.md`](research/2026-07-11_adapter-tool-events.md);
-open work lives in the [issue tracker](https://github.com/buildstacks-dev/Operon/issues).
+open work lives in the [issue tracker](https://github.com/cormidia/Cormidia/issues).
 
 `docs/harness/capability-matrix.md` records each adapter's native, adapter-built, and
 degraded capabilities. (The gated live-adapter proof suite is archived during
@@ -796,21 +817,21 @@ the validation rebuild — see Testing above.)
   analytics are Codex-only for now.
 - **Native interactive co-planning is retired.** A TTY child process cannot
   preserve the durable EpisodePlan, exact assignment, gate, run-envelope, and
-  settlement boundary, so bare `operon plan <app>` fails closed. Use
+  settlement boundary, so bare `cormidia plan <app>` fails closed. Use
   `plan --auto --goal ...` for EpisodePlanner-backed planning, or
   `plan --creator-scope <json-or-yaml> --execution-ready` for an explicitly
   complete creator-authored bypass. The manual `--dry-run` form remains as a
   token-free current-worktree/context preview.
-- **Bootstrap publication is draft-PR-only.** `operon bootstrap publish <app>`
+- **Bootstrap publication is draft-PR-only.** `cormidia bootstrap publish <app>`
   previews by default; `--execute` stages only bootstrap-owned paths, cuts
   `op/bootstrap-<app>` from each remote's resolved default branch, and opens
   draft pull requests — it never merges or marks ready, is idempotent on
   retry, and refuses when unrelated staged changes, a merge in progress, or a
   detached HEAD make the scope ambiguous. Marking ready and merging stay
-  human ([issue #61](https://github.com/buildstacks-dev/Operon/issues/61),
+  human ([issue #61](https://github.com/cormidia/Cormidia/issues/61),
   closed 2026-07-18).
 - **Codex App-Server read bypass:** under the `untrusted` approval policy the
   App Server auto-runs trusted read-only commands (`cat`, `ls`) without an
   approval request, so those reads do not reach the gate hook. Tracked in
-  [issue #20](https://github.com/buildstacks-dev/Operon/issues/20) with live
+  [issue #20](https://github.com/cormidia/Cormidia/issues/20) with live
   evidence and the required upstream capability.

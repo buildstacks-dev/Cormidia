@@ -1,4 +1,4 @@
-// GitHub double v1 — engine (HB-003, boundary B-01, contract OPERON-C-B01-001).
+// GitHub double v1 — engine (HB-003, boundary B-01, contract CORMIDIA-C-B01-001).
 //
 // Honest fake of the `gh` CLI surface that src/loop/github.ts (GhCliOps) and
 // src/observe/github-source.ts (`gh pr checks`) spawn. The seam is the real
@@ -873,7 +873,7 @@ function executeOp(
     }
 
     default:
-      return err(`operon-github-double: unsupported gh invocation: ${op}`);
+      return err(`cormidia-github-double: unsupported gh invocation: ${op}`);
   }
 }
 
@@ -969,7 +969,7 @@ export function shimMain(home: string): void {
   try {
     result = handleShimCall(home, argv, stdinBody);
   } catch (error) {
-    process.stderr.write(`operon-github-double: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(`cormidia-github-double: ${error instanceof Error ? error.message : String(error)}\n`);
     process.exit(1);
   }
   if (result.delayMs > 0) sleepMs(result.delayMs);

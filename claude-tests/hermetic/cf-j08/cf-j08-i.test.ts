@@ -1,7 +1,7 @@
 // CF-J08-I — kill between provider return and ledger append; ENOSPC variant
 // via B-15, asserted at this family's seam only (HB-020).
 //
-// Design: validation-design/invariants.md OPERON-INV-006 adversarial seed (a)
+// Design: validation-design/invariants.md CORMIDIA-INV-006 adversarial seed (a)
 // "kill between provider return and ledger append, then budget --reconcile";
 // case-catalog §1 CF-J08-I; boundary-map B-15 (resource-exhaustion modifier).
 // The product settle ordering (src/loop/pipeline.ts) is: provider returns →

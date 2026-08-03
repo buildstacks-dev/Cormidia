@@ -45,10 +45,10 @@ Alpha (`~/Build/operon-sandbox-alpha`):
 - `pnpm dev loop --app operon-sandbox-alpha --once --dry-run` passed:
   no ready tickets.
 
-Beta (`~/Build/operon-sandbox-beta`):
+Beta (`~/Build/cormidia-sandbox-beta`):
 
 - `npm test` passed: 4 tests.
-- `pnpm dev loop --app operon-sandbox-beta --once --dry-run` passed:
+- `pnpm dev loop --app cormidia-sandbox-beta --once --dry-run` passed:
   no ready tickets.
 
 Gamma:

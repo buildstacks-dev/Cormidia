@@ -2,8 +2,8 @@
 // removing its local state (ENH-001).
 //
 // Retiring an org used to be hand-moving directories nobody could enumerate:
-// `~/.operon/config` is the only record of the active org, each org's state
-// home is discoverable only by listing `~/.operon`, and once the pointer is
+// `~/.cormidia/config` is the only record of the active org, each org's state
+// home is discoverable only by listing `~/.cormidia`, and once the pointer is
 // gone nothing points at the org home at all. That made the operation most
 // likely to lose data the one with the least protection.
 //
@@ -37,7 +37,7 @@ export const ORG_ARCHIVE_SCHEMA_VERSION = LIFECYCLE_SCHEMA_VERSION;
  * ENH-001 asks `doctor` to surface. */
 export const ORG_BACKLINK_FILE = "org-home.json";
 
-/** Entries under the pointer's parent that are Operon's own, not an org. */
+/** Entries under the pointer's parent that are Cormidia's own, not an org. */
 const NON_ORG_ENTRIES = new Set(["archives", "questionnaire", "config"]);
 
 export interface OrgBacklink {
@@ -104,7 +104,7 @@ export interface DiscoveredOrg {
 }
 
 export interface ListOrgsOptions {
-  /** Defaults to the active-pointer path (`~/.operon/config`). */
+  /** Defaults to the active-pointer path (`~/.cormidia/config`). */
   pointerPath: string;
   /**
    * Walk each state home to measure footprint and last activity. Defaults to
@@ -205,7 +205,7 @@ export async function planOrgArchive(options: PlanOrgArchiveOptions): Promise<Or
     const prior = join(archiveRoot, `${safeSegment(options.org)}-org-latest.json`);
     throw new Error(
       `org archive: unknown org ${JSON.stringify(options.org)}; ` +
-        `operon org list shows: ${orgs.map((entry) => entry.name).join(", ") || "none"}` +
+        `cormidia org list shows: ${orgs.map((entry) => entry.name).join(", ") || "none"}` +
         (existsSync(prior)
           ? `. It has no local state home left and was already archived; see ${prior}`
           : ""),
@@ -382,7 +382,7 @@ export function formatOrgArchivePlan(plan: OrgArchivePlan): string {
     lines.push(`  left intact: ${intact.path} — ${intact.reason}`);
   }
   if (plan.clearsActivePointer) {
-    lines.push("  clears the active org pointer; select another org with `operon org use <path>`");
+    lines.push("  clears the active org pointer; select another org with `cormidia org use <path>`");
   }
   for (const blocker of plan.blockers) {
     lines.push(`  BLOCKED ${blocker.code}: ${blocker.ids.join(", ")}`);
@@ -393,7 +393,7 @@ export function formatOrgArchivePlan(plan: OrgArchivePlan): string {
       plan.blockers.length > 0
         ? "  Nothing was archived or removed."
         : "  Nothing was archived or removed. To execute: " +
-          `operon org archive ${plan.org.name} --execute --confirm ${plan.org.name}`,
+          `cormidia org archive ${plan.org.name} --execute --confirm ${plan.org.name}`,
     );
   }
   return lines.join("\n");
@@ -411,7 +411,7 @@ export function formatOrgList(orgs: readonly DiscoveredOrg[]): string {
         `${org.lastActivityAt ?? "never"}`,
     );
     if (org.orphan) {
-      lines.push("      orphan: no org home recorded; `operon org archive` can still retire it");
+      lines.push("      orphan: no org home recorded; `cormidia org archive` can still retire it");
     } else if (org.orgHomeMissing) {
       lines.push(`      org home missing: ${org.orgHome}`);
     }
@@ -445,7 +445,7 @@ async function activeWorkBlockers(stateHome: string): Promise<LifecycleBlocker[]
       ids: pending,
       forceEligible: false,
       remediation:
-        "decide every pending critical-operation approval with `operon approvals review` first",
+        "decide every pending critical-operation approval with `cormidia approvals review` first",
     });
   }
   const transactions = await listFiles(join(stateHome, "lifecycle", "transactions"), (name) =>

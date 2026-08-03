@@ -3,7 +3,7 @@ import { join } from "node:path";
 import {
   ORG_HOME_DEFINITION,
   PACKAGE_ROOT,
-  resolveOperonHomes,
+  resolveCormidiaHomes,
   STATE_HOME_DEFINITION,
 } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -12,7 +12,7 @@ import { authorityEvidence, resolveAuthority } from "../org/authority.js";
 export async function cmdContext(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "context");
   const json = consumeJsonOnly(common.rest, "context");
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const authority = await resolveAuthority({ orgHome: homes.orgHome });
   const data = {
     version: await packageVersion(),
@@ -32,7 +32,7 @@ export async function cmdContext(args: string[]): Promise<number> {
   };
   if (json) console.log(JSON.stringify(data, null, 2));
   else {
-    console.log(`Operon ${data.version}`);
+    console.log(`Cormidia ${data.version}`);
     console.log(`Package:    ${data.packageRoot}`);
     console.log(`Org home:   ${data.orgHome} — ${ORG_HOME_DEFINITION}.`);
     console.log(`State home: ${data.stateHome} — ${STATE_HOME_DEFINITION}.`);
@@ -53,7 +53,7 @@ const CAPABILITIES = [
   { command: "roles", writes: false, spendsTokens: false, summary: "validate and list the active org's roles" },
   { command: "roles set", writes: true, spendsTokens: false, summary: "preview a role's harness/model/effort/turn-budget change; --execute is journaled and requires an attributable --by identity" },
   { command: "apps", writes: false, spendsTokens: false, summary: "validate and list registered apps" },
-  { command: "app reset", writes: true, spendsTokens: false, summary: "archive and remove one app's Operon-managed state and tracked GitHub work after explicit confirmation" },
+  { command: "app reset", writes: true, spendsTokens: false, summary: "archive and remove one app's Cormidia-managed state and tracked GitHub work after explicit confirmation" },
   { command: "app verify", writes: true, spendsTokens: false, summary: "verify and converge lifecycle readiness without constructing a provider runtime" },
   { command: "app promote", writes: true, spendsTokens: false, summary: "preview/apply journaled verified promotion to live" },
   { command: "pipelines", writes: false, spendsTokens: false, summary: "validate and list pass pipelines" },
@@ -73,7 +73,7 @@ const CAPABILITIES = [
   { command: "telemetry", writes: false, spendsTokens: false, summary: "historical pass/trace/cost view over run records" },
   { command: "report", writes: false, spendsTokens: false, summary: "ledger-first org/app usage report; --html writes only the user-selected export" },
   { command: "narrative", writes: true, spendsTokens: false, summary: "render the human-level causal timeline (one markdown story per episode + per-app INDEX.md); writes only under the state home's narrative/; --episode prints without writing" },
-  { command: "observe", writes: false, spendsTokens: false, summary: "loopback-only read-only Live and Reports UI over durable Operon and GitHub state" },
+  { command: "observe", writes: false, spendsTokens: false, summary: "loopback-only read-only Live and Reports UI over durable Cormidia and GitHub state" },
   { command: "task", writes: true, spendsTokens: false, summary: "record the broader delegated task, fallback, and terminal outcome" },
   { command: "retro", writes: true, spendsTokens: false, summary: "write an evidence-based org retro" },
   { command: "learn", writes: true, spendsTokens: true, summary: "learning loop: inspect/show/report and `distill --dry-run` are token-free; experiment run and actionable `distill` windows spend learning-budgeted tokens; governed activation remains human-operated" },
@@ -105,7 +105,7 @@ export async function cmdCapabilities(args: string[]): Promise<number> {
   const data = { version: await packageVersion(), commands };
   if (json) console.log(JSON.stringify(data, null, 2));
   else {
-    console.log(`Operon ${data.version} capabilities:`);
+    console.log(`Cormidia ${data.version} capabilities:`);
     for (const row of data.commands) {
       const risk = row.spendsTokens ? "live/token-spending" : row.writes ? "local write" : "read-only";
       const output = row.supportsJson ? "json" : "text-only";

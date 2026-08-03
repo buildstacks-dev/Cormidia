@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Scope
-`src/report/**` and `src/cli/report.ts` — Reporting V1 (`operon report`,
+`src/report/**` and `src/cli/report.ts` — Reporting V1 (`cormidia report`,
 Observe `/reports`). Root AGENTS.md rules still apply; this file adds the
 local ones.
 

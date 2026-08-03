@@ -35,7 +35,7 @@ crossing `max_turn_budget_usd` aborts the turn gracefully → status `failed`
 with the exact `error_max_budget_usd` code and an incident note artifact
 (roles.yaml: "overrun = incident note, not silent spend"). A standalone turn's
 recovery evidence names its isolated path and branch, reports whether the worktree
-is dirty, and gives a read-only inspection command. Operon does not automatically
+is dirty, and gives a read-only inspection command. Cormidia does not automatically
 stage or commit arbitrary provider output at this boundary. Episode route
 admission and remaining-budget enforcement (`docs/episodes/contract.md`) are the
 canonical ceilings; this adapter cap is a safety backstop, not a second route
@@ -43,7 +43,7 @@ budget.
 
 ### Worktrees
 
-- Operon maintains its **own clone** per app at `repos/<app>` (fetch-only
+- Cormidia maintains its **own clone** per app at `repos/<app>` (fetch-only
 sync with GitHub) and cuts worktrees from it under
 `worktrees/<app>/<branch>`. It never touches the human's personal checkouts
 of the same repos — GitHub is the only sync point between human and org.
@@ -117,7 +117,7 @@ Inside a pass, the executor also owns a shorter adapter-start deadline
 (default 30 seconds). The first adapter progress checkpoint or streamed event
 proves startup; silence until the deadline aborts the same owned provider tree
 and finalizes `failed(error_adapter_start_timeout)`, distinct from the full
-turn wall-clock timeout. `operon doctor` uses separate bounded, non-billable
+turn wall-clock timeout. `cormidia doctor` uses separate bounded, non-billable
 initialize/account/auth probes to catch missing binaries, transports,
 credentials, and model configuration before an operator starts live work.
 

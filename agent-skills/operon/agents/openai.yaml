@@ -1,4 +1,0 @@
-interface:
-  display_name: "Operon"
-  short_description: "Operate and onboard apps with Operon"
-  default_prompt: "Use $operon to inspect the active org and safely onboard or operate an application."

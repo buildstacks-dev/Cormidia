@@ -1,5 +1,5 @@
 // CF-J17-I — lost response / marker disagreement → ambiguous terminal
-// (contracts/B-17-typed-executor.md §3; OPERON-INV-003 "ambiguity is
+// (contracts/B-17-typed-executor.md §3; CORMIDIA-INV-003 "ambiguity is
 // terminal-until-reconciled and is never resolved by re-performing";
 // system-map T-12; risk E-1).
 //
@@ -36,7 +36,7 @@ function mergedItem(): LoopItem {
     ticketRef: "#7",
     title: "Deployable milestone",
     body: "Release-kind: deploy\n",
-    targetRepo: "operon-double/unused",
+    targetRepo: "cormidia-double/unused",
     labels: [],
     phase: "merged",
     tier: "standard",
@@ -81,7 +81,7 @@ describe("CF-J17-I — lost response and record/claim disagreement land ambiguou
     const appsFile: AppsFile = {
       org: { name: "cf-j17-i", maxConcurrentTurns: 1 },
       defaults: { budgetUsdMonth: 100 },
-      apps: [{ name: APP, repo: "operon-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
     };
     let calls = 0;
     const run = () =>

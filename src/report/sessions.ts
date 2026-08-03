@@ -125,7 +125,7 @@ function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope
   const warnings = isMechanical
     ? ["no provider was invoked; cost is an authoritative zero"]
     : ["no matching ledger settlement; excluded from authoritative accounting totals"];
-  if (!isMechanical && usage !== undefined && envelope.status !== "running") warnings.push("terminal envelope has recorded usage; explicit operon budget --reconcile may recover it");
+  if (!isMechanical && usage !== undefined && envelope.status !== "running") warnings.push("terminal envelope has recorded usage; explicit cormidia budget --reconcile may recover it");
   return {
     id: `envelope:${envelope.app}:${envelope.run_id}`,
     source: { day: null, line: null },

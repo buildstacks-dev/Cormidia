@@ -1,7 +1,7 @@
 // CF-REG-203 — the base a ticket branch is cut from is resolved AT THAT
 // TICKET'S CLAIM, never reused from an earlier claim in the same run.
 //
-// Defect source: buildstacks-dev/Operon#203 ("`loop --follow` cuts every later
+// Defect source: cormidia/Cormidia#203 ("`loop --follow` cuts every later
 // ticket from the base captured at loop start"), found by the august-org live
 // end-to-end run 2026-08-01. `defaultLoopInputs` resolved the base once, and
 // `runLoopOnce` reused that single `BaseRevision` for every ticket the tick
@@ -78,7 +78,7 @@ interface Rig {
   remoteDir: string;
   /** A human-side checkout used only to land the predecessor's merge. */
   upstream: TempGitRepo;
-  /** The Operon-managed clone: `localRepo`, the tree worktrees are cut from. */
+  /** The Cormidia-managed clone: `localRepo`, the tree worktrees are cut from. */
   managed: TempGitRepo;
   handle: GithubDoubleHandle;
   gh: GhCliOps;
@@ -120,7 +120,7 @@ describe("CF-REG-203 — each ticket claim cuts from the base resolved at that c
       issues.push(await gh.createIssue({ title, body: TICKET_BODY, labels: ["op:ready"] }));
     }
 
-    const worktreeRoot = await mkdtemp(join(tmpdir(), "operon-reg203-worktrees-"));
+    const worktreeRoot = await mkdtemp(join(tmpdir(), "cormidia-reg203-worktrees-"));
     cleanups.push(() => rm(worktreeRoot, { recursive: true, force: true }));
 
     // `refreshBase` is what `defaultLoopInputs` hands the driver for a MANAGED

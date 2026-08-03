@@ -1,7 +1,7 @@
-// `operon bootstrap [path] [--scan-only] [--answers <file>]` — scan the
+// `cormidia bootstrap [path] [--scan-only] [--answers <file>]` — scan the
 // target repo (docs/architecture.md §9 step 1), walk the alignment
 // questionnaire (step 2: interactive in a terminal, or injected via
-// `--answers answers.json` for tests/scripting), and emit the `.operon/`
+// `--answers answers.json` for tests/scripting), and emit the `.cormidia/`
 // tree (step 3): app charter/config/policy/onboarding report + seeded memory
 // bundles, then register the app with the active org.
 // `--scan-only` prints the scan profile and the would-create list without
@@ -22,7 +22,7 @@ import { findExistingOrg } from "../org/apps.js";
 import { loadRoles } from "../org/roles.js";
 import {
   ORG_HOME_DEFINITION,
-  resolveOperonHomes,
+  resolveCormidiaHomes,
   STATE_HOME_DEFINITION,
   validateOrgHome,
 } from "../org/home.js";
@@ -89,7 +89,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   const existingOrgHome = await findExistingOrg(orgHome ? { orgHome } : {});
   if (existingOrgHome !== undefined) await validateOrgHome(existingOrgHome);
   const homes = existingOrgHome
-    ? await resolveOperonHomes({
+    ? await resolveCormidiaHomes({
         orgHome: existingOrgHome,
         ...(stateHome !== undefined ? { stateHome } : {}),
       })
@@ -114,12 +114,12 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     printScan(scan);
     console.log("\nwould create:");
     if (existingOrgHome) console.log(`  ${existingOrgHome}/apps.yaml entry (join existing org)`);
-    else console.log("  no files — initialize an org first with `operon org init <path> --name <name>`");
+    else console.log("  no files — initialize an org first with `cormidia org init <path> --name <name>`");
     console.log(
-      "  .operon/TASTE.md, .operon/config.yaml, .operon/policy.yaml, " +
-        ".operon/AUTHORITY.md, .operon/onboarding-report.md, " +
+      "  .cormidia/TASTE.md, .cormidia/config.yaml, .cormidia/policy.yaml, " +
+        ".cormidia/AUTHORITY.md, .cormidia/onboarding-report.md, " +
         "safe AGENTS.md/CLAUDE.md authority blocks, " +
-        ".operon/memory/<role>/INDEX.md (with answers)",
+        ".cormidia/memory/<role>/INDEX.md (with answers)",
     );
     console.log("(nothing written to bootstrap artifacts — --scan-only; dispatched CLI invocation audit only)");
     return 0;
@@ -127,7 +127,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
 
   if (existingOrgHome === undefined) {
     throw new Error(
-      "bootstrap: no active org home — create one first with `operon org init <path> --name <name>`",
+      "bootstrap: no active org home — create one first with `cormidia org init <path> --name <name>`",
     );
   }
   if (homes === undefined) throw new Error("bootstrap: active org resolution failed");
@@ -195,14 +195,14 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     console.log("\ncreated:");
     for (const rel of created) console.log(`  ${rel}`);
     if (updated.length > 0) {
-      console.log("\nupdated (Operon marked block only):");
+      console.log("\nupdated (Cormidia marked block only):");
       for (const rel of updated) console.log(`  ${rel}`);
     }
     if (recovered !== undefined) {
       console.log(`\nmanaged onboarding commit: ${recovered.onboardingCommit}`);
       console.log(`default branch: ${recovered.defaultBranch}`);
       console.log(`source checkout unchanged: ${root}`);
-      console.log("next: make the onboarding commit reachable from the remote default branch, then run `operon app verify <app>`.");
+      console.log("next: make the onboarding commit reachable from the remote default branch, then run `cormidia app verify <app>`.");
     }
     const preview = authorityPreview(
       authority.profile === "conservative"
@@ -216,9 +216,9 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     console.log(`  human-gated: ${preview.humanGated.join("; ")}`);
     if (recovered === undefined) {
       console.log(
-        "\nnext: review + commit app artifacts under .operon/ in the app repo:\n" +
-          "charter (.operon/TASTE.md), authority (.operon/AUTHORITY.md), registry entry (.operon/config.yaml),\n" +
-          "policy (.operon/policy.yaml), onboarding report (.operon/onboarding-report.md),\n" +
+        "\nnext: review + commit app artifacts under .cormidia/ in the app repo:\n" +
+          "charter (.cormidia/TASTE.md), authority (.cormidia/AUTHORITY.md), registry entry (.cormidia/config.yaml),\n" +
+          "policy (.cormidia/policy.yaml), onboarding report (.cormidia/onboarding-report.md),\n" +
           "and seeded memory bundles.",
       );
     }
@@ -276,7 +276,7 @@ async function readAnswersFile(path: string): Promise<unknown> {
  * producing the same raw shape `--answers answers.json` supplies (validated
  * once, in parseAnswers). Streams are injected so tests can drive it.
  * Cadence overrides are deliberately not prompted — the default (empty =
- * roles.yaml triggers) is right for onboarding; edit .operon/config.yaml
+ * roles.yaml triggers) is right for onboarding; edit .cormidia/config.yaml
  * to tune later. */
 export async function collectAnswers(
   input: NodeJS.ReadableStream,
@@ -369,7 +369,7 @@ function printScan(scan: RepoScan): void {
   console.log(`  doc gaps:     ${missing.length > 0 ? missing.join(", ") : "none detected"}`);
   console.log(`  git remote:   ${scan.repoSlug ?? "none detected"}`);
   console.log(
-    "profile: bootstrap writes app-owned .operon/ artifacts and registers the app in the active org; " +
-      "full bootstrap creates .operon/onboarding-report.md and .operon/AUTHORITY.md and composes marked AGENTS/CLAUDE blocks",
+    "profile: bootstrap writes app-owned .cormidia/ artifacts and registers the app in the active org; " +
+      "full bootstrap creates .cormidia/onboarding-report.md and .cormidia/AUTHORITY.md and composes marked AGENTS/CLAUDE blocks",
   );
 }

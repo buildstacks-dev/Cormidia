@@ -1,10 +1,10 @@
 # Contract — B-04 pi SDK adapter
-Canonical ID: **OPERON-C-B04-001 (alias: B-04)**
+Canonical ID: **CORMIDIA-C-B04-001 (alias: B-04)**
 
 Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
 
 - Embedding: `createAgentSession()`; SYSTEM.md + extensions for protocol enforcement.
-- Gate: pi has no first-class approval flow — Operon installs the gating extension at
+- Gate: pi has no first-class approval flow — Cormidia installs the gating extension at
   runtime. **Turn-start precondition: the gating extension is verified active before
   any tool-capable execution; absence is a typed, terminal failure** (INV-002 fail
   closed) — "extension loaded" alone is insufficient; conformance proves a forbidden

@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 // layers.L3_live_sandbox). Spends real provider tokens and touches real
 // sandbox targets; never wired into the per-commit lane.
 //
-// Gate: OPERON_LIVE=1 must be set or every live spec refuses to run (the
+// Gate: CORMIDIA_LIVE=1 must be set or every live spec refuses to run (the
 // specs themselves assert this — fail-closed, not silently skipped-green;
 // a skipped lane reports incomplete, never pass).
 export default defineConfig({

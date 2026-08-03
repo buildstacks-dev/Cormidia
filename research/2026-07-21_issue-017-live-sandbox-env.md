@@ -15,7 +15,7 @@ project had network disabled, touched no org or GitHub state, used low effort,
 disabled test retries, and carried a `$0.50` hard turn cap.
 
 ```console
-$ OPERON_CODEX_LIVE=1 pnpm exec vitest run --config vitest.live.config.ts test/runtime/codex-app-server.live.test.ts -t "runs a pnpm install with the canonical non-interactive sandbox environment" --retry=0
+$ CORMIDIA_CODEX_LIVE=1 pnpm exec vitest run --config vitest.live.config.ts test/runtime/codex-app-server.live.test.ts -t "runs a pnpm install with the canonical non-interactive sandbox environment" --retry=0
 
 Tests  1 passed | 1 skipped
 status: completed

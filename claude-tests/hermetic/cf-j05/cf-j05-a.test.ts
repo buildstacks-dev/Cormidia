@@ -1,6 +1,6 @@
 // CF-J05-A — the queue CLI and the observe read-only view agree on approval
 // state, and an approved-but-unexecuted item is NEVER rendered executed on
-// any surface (contracts/journey-acceptance.md J-05; OPERON-INV-008 "no
+// any surface (contracts/journey-acceptance.md J-05; CORMIDIA-INV-008 "no
 // surface reads approved as executed"; contracts/B-17-typed-executor.md §2;
 // risk E-3).
 //
@@ -9,7 +9,7 @@
 // real observe read model) over ONE seeded temp state home holding every
 // lifecycle state: pending, denied, approved-unexecuted, ambiguous, executed.
 // HOME is redirected into the fixture so the CLI's active-org pointer read
-// never touches the operator's real ~/.operon.
+// never touches the operator's real ~/.cormidia.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -98,7 +98,7 @@ async function seedLifecycleStates(store: ApprovalStore, clock: TestClock): Prom
 }
 
 /** Run the real CLI module with stdout captured and HOME confined to the
- *  fixture (the CLI's pointer read must never touch the real ~/.operon). */
+ *  fixture (the CLI's pointer read must never touch the real ~/.cormidia). */
 async function runApprovalsCli(org: TempOrgHome, args: string[]): Promise<unknown> {
   const lines: string[] = [];
   const spy = vi.spyOn(console, "log").mockImplementation((...chunks: unknown[]) => {

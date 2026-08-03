@@ -1,5 +1,5 @@
 # Contract — B-18 Comparison coordinator ↔ isolated candidate lanes
-Canonical ID: **OPERON-C-B18-001 (alias: B-18)**
+Canonical ID: **CORMIDIA-C-B18-001 (alias: B-18)**
 
 Status: PROPOSED harness revision (2026-08-01). Defends
 INV-001/002/004/006/010/013/014/015 and T-2/T-5/T-6/T-11. Journey J-19.

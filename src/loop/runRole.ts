@@ -81,7 +81,7 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
           title: `Manual role turn: ${request.role.name}`,
           body: [
             `Goal: run one ${request.role.name} turn, invoked directly by the human operator`,
-            `(operon run-role).`,
+            `(cormidia run-role).`,
             `Invocation identity: ${request.turnId ?? "(not supplied by this low-level caller)"}.`,
             "Identity semantics: this is trace/session identity only; it is not a GitHub ticket " +
               "number and does not bind the turn to a ticket.",

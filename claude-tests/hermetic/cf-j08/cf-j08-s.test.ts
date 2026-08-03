@@ -1,7 +1,7 @@
 // CF-J08-S — every terminal outcome class settles exactly once, keyed
 // (app, providerTurnId); estimates flagged (HB-020).
 //
-// Design: validation-design/invariants.md OPERON-INV-006 ("succeeded, failed,
+// Design: validation-design/invariants.md CORMIDIA-INV-006 ("succeeded, failed,
 // cancelled, malformed, or gate-stopped alike"); case-catalog §1 CF-J08-S;
 // system-map §2.2 cost-ledger row (telemetry/<date>.jsonl, exactly once per
 // provider turn). Layer 2 composition on the REAL chain: admitEpisode →

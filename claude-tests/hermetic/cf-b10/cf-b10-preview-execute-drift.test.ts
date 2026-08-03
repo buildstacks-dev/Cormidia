@@ -45,7 +45,7 @@ async function driftRig(): Promise<DriftRig> {
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const target = join(root, "org");
   const stateHome = join(root, "state");
-  const pointerPath = join(root, "home", ".operon", "config");
+  const pointerPath = join(root, "home", ".cormidia", "config");
   return {
     root,
     target,

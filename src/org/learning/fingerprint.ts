@@ -7,7 +7,7 @@
 //
 // Capture-truthful deltas from the spec sketch, recorded like M1's:
 //   - `gates_hash` and `permissions_hash` are null: gate rules and role
-//     toolset shaping are CODE, versioned by `operon.commit`, until either
+//     toolset shaping are CODE, versioned by `cormidia.commit`, until either
 //     externalizes into config worth hashing separately.
 //   - `budget_caps` carries what actually exists today — the app's monthly
 //     cap and each role's per-turn cap — not the sketch's org-daily shape.
@@ -31,7 +31,7 @@ export interface FingerprintModelEntry {
 
 export interface SystemFingerprint {
   fingerprint_id: string;
-  operon: { version: string | null; commit: string | null };
+  cormidia: { version: string | null; commit: string | null };
   org: {
     commit: string | null;
     taste_hash: string | null;
@@ -89,12 +89,12 @@ export async function computeSystemFingerprint(
       fileHash(join(options.orgHome, "pipelines.yaml")),
       treeHash(join(options.orgHome, "prompts")),
       options.app.workdir !== undefined
-        ? fileHash(join(options.app.workdir, ".operon", "config.yaml"))
+        ? fileHash(join(options.app.workdir, ".cormidia", "config.yaml"))
         : Promise.resolve(null),
     ]);
 
   const body: Omit<SystemFingerprint, "fingerprint_id"> = {
-    operon: {
+    cormidia: {
       version,
       // gitHeadOf reports a commit only when the directory IS a checkout —
       // an npm-installed package under an app's node_modules must read

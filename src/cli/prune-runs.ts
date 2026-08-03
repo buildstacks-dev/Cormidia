@@ -1,9 +1,9 @@
-// `operon prune-runs [root] [--retention-days N]` — delete finalized run
+// `cormidia prune-runs [root] [--retention-days N]` — delete finalized run
 // dirs older than the retention window (docs/loop/design.md §9). Root defaults to
 // the current directory (the org runtime home once one exists — M3/M7 wire
 // the real default); running-status runs are never deleted.
 //
-// `operon prune-runs --sweep` runs the full state-home retention sweep
+// `cormidia prune-runs --sweep` runs the full state-home retention sweep
 // (review P1-14 / F-003; docs/scheduler/design.md → State retention) across every
 // retained subtree with the default windows — the same sweep the scheduler's
 // dispatch tick runs at most once per UTC day. The manual form runs
@@ -12,7 +12,7 @@
 
 import { pruneRuns } from "../runtime/runlog/retention.js";
 import { recordSweepMarker, sweepStateRetention, type StateSweepResult } from "../org/retention.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 const DEFAULT_RETENTION_DAYS = 30;
@@ -43,7 +43,7 @@ export async function cmdPruneRuns(args: string[]): Promise<number> {
     throw new Error("prune-runs: --sweep applies the documented per-subtree windows; it cannot be combined with --retention-days");
   }
 
-  const effectiveRoot = root ?? (await resolveOperonHomes(common)).stateHome;
+  const effectiveRoot = root ?? (await resolveCormidiaHomes(common)).stateHome;
   if (sweep) {
     const now = new Date();
     const result = await sweepStateRetention(effectiveRoot, now);

@@ -1,5 +1,5 @@
 # Contract — B-07 OS process lifecycle (sealed seam)
-Canonical ID: **OPERON-C-B07-001 (alias: B-07)**
+Canonical ID: **CORMIDIA-C-B07-001 (alias: B-07)**
 
 Status: DRAFT (Phase 4). Defends INV-005/013/014, T-6. Journeys J-09/J-13.
 

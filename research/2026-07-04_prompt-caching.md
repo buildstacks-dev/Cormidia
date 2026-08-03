@@ -14,7 +14,7 @@ OpenAI), and an agentic pass re-sends its entire growing transcript on
 every internal tool round trip — input tokens dominate turn cost by
 construction. The classic third-party-agent failure (a cron that wakes a
 model every N minutes and re-feeds a long-lived conversation cold) does
-not apply to Operon: the dispatcher tick spends no tokens, turns fire only
+not apply to Cormidia: the dispatcher tick spends no tokens, turns fire only
 when due, and state lives in artifacts, not chat history. Our exposure is
 narrower — feeding the harness *slightly different bytes* each pass, so
 the caching it does on our behalf silently stops working.
@@ -50,7 +50,7 @@ Numbers not re-verified against current OpenAI docs — check at Codex
 adapter build time. The design rule is identical either way: stable bytes
 first, volatile bytes last.
 
-## Where Operon's input tokens actually go
+## Where Cormidia's input tokens actually go
 
 1. **Within a pass** (dominant). The harness (Claude Code via the Agent
    SDK; Codex) owns cache placement here and does it well. Our only job
@@ -103,7 +103,7 @@ first, volatile bytes last.
   Anthropic's own selective rollout of 1 h caching — it is not a blanket
   win.)
 - **Pre-warm.** Pre-warming trades a cache write now for first-request
-  latency later — a user-facing-chat concern; Operon is background work.
+  latency later — a user-facing-chat concern; Cormidia is background work.
 
 ## Verifying
 

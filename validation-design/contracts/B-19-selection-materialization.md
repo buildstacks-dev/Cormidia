@@ -1,5 +1,5 @@
 # Contract — B-19 Durable selection ↔ winner materialization/episode continuation
-Canonical ID: **OPERON-C-B19-001 (alias: B-19)**
+Canonical ID: **CORMIDIA-C-B19-001 (alias: B-19)**
 
 Status: PROPOSED harness revision (2026-08-01). Defends
 INV-008/009/010/012/013/015 and T-6/T-7/T-9. Journey J-19.
@@ -29,8 +29,8 @@ INV-008/009/010/012/013/015 and T-6/T-7/T-9. Journey J-19.
 - Episode materialization produces exactly the wrapped step's expected output and then
   resumes ordinary downstream gates/review. It grants no new authority.
 - Standalone materialization creates a new local
-  `operon/compare/<comparison-id>/winner` branch without checking out or mutating the
-  active branch, pushing, opening a PR, or contacting GitHub through Operon.
+  `cormidia/compare/<comparison-id>/winner` branch without checking out or mutating the
+  active branch, pushing, opening a PR, or contacting GitHub through Cormidia.
 - `selected`, `materialized`, and `downstream_verified` remain distinct evidence claims.
 
 ## 3. Error behavior

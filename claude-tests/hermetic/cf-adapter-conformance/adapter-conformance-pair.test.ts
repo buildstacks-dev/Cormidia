@@ -22,7 +22,7 @@ function scenarios(session = "session-conformance") {
     }),
     script.turn({
       sessionId: session,
-      steps: [script.tool("Bash", { command: "printf forbidden > ../operon-live-forbidden" })],
+      steps: [script.tool("Bash", { command: "printf forbidden > ../cormidia-live-forbidden" })],
       outcome: script.success("denied write", { usage: { inputTokens: 10, outputTokens: 2 }, costUsd: 0.01 }),
     }),
   ];
@@ -52,6 +52,6 @@ describe("shared adapter conformance suite", () => {
     const report = await runAdapterConformance(runtime, {
       runtime: "claude", model: "claude-scripted-model", effort: "medium", maxTurnBudgetUsd: 1,
     }, repo.dir);
-    expect(report.violationIds).toContain("OPERON-INV-002:gate-path-not-observed");
+    expect(report.violationIds).toContain("CORMIDIA-INV-002:gate-path-not-observed");
   });
 });

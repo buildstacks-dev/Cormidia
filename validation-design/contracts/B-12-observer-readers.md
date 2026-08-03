@@ -1,5 +1,5 @@
 # Contract — B-12 Observer/report readers ↔ local durable state
-Canonical ID: **OPERON-C-B12-001 (alias: B-12)**
+Canonical ID: **CORMIDIA-C-B12-001 (alias: B-12)**
 
 Status: DRAFT (Phase 4). Defends INV-008/011/013, T-4/T-9. Journey J-15. GitHub source: B-01.
 

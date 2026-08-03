@@ -4,7 +4,7 @@
 Organization-wide operating doctrine ratified 2026-07-13 · Canonical normative
 home (formerly `docs/efficiency.md`)*
 
-This document defines Operon's route, budget, measurement, and variance
+This document defines Cormidia's route, budget, measurement, and variance
 semantics — the operating half of the ratified efficiency doctrine. Other
 documents link here and must not carry a divergent numeric budget table.
 Platform qualification, campaign, and release-gating semantics are
@@ -99,7 +99,7 @@ before the next provider turn.
 
 Equivalent-cost admission remains pessimistic and pre-runtime for every
 provider turn, including the EpisodePlanner boot turn. Under the episode lock,
-Operon adds settled provider cost to every in-flight reservation, then reserves
+Cormidia adds settled provider cost to every in-flight reservation, then reserves
 the applicable planning cap or the smaller of the planned step ceiling, the
 role's per-turn cap, and the episode's remaining hard cost. That reservation
 becomes the adapter request's actual `maxTurnBudgetUsd`; it is not merely
@@ -260,7 +260,7 @@ authoritative; agent prose is not.
   coverage are `invalid_measurement`; event and candidate counts are not an
   efficacy numerator.
 
-`operon learn report --efficiency-health` is the canonical projection of these
+`cormidia learn report --efficiency-health` is the canonical projection of these
 three independent dimensions. It is read-only unless `--refresh` is supplied;
 the refresh writes only rebuildable evidence/health projections and cannot
 write protected active learning state.

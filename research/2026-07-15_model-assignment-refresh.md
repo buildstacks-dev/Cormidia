@@ -2,7 +2,7 @@
 
 ## Decision and scope
 
-The human operator ratified refreshing Operon's current model configuration
+The human operator ratified refreshing Cormidia's current model configuration
 and the still-unexecuted Phase 6 campaigns to the latest generally available
 models. This changes model/configuration bytes only; it does not change any
 grader, threshold, route, denominator, effort, safety rule, provider-turn cap,

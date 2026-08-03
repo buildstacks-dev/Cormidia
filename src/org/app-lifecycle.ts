@@ -1,5 +1,5 @@
 // Deterministic application lifecycle: recovered-answer onboarding into an
-// Operon-owned clone, remote/default-branch verification, clone convergence,
+// Cormidia-owned clone, remote/default-branch verification, clone convergence,
 // and journaled promotion. A human checkout is an immutable input.
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -125,12 +125,12 @@ export interface VerifyAppOptions {
   runtimeReadiness?: RuntimeReadinessInspector;
   /** Non-billable readiness probe seam. When `runtimeReadiness` is not
    * supplied, verify's `runtime-<provider>` checks come from this probe — the
-   * SAME `probeRuntimeReadiness` mechanism `operon doctor` uses, so the two
+   * SAME `probeRuntimeReadiness` mechanism `cormidia doctor` uses, so the two
    * always agree (B-LIVE-04). Tests inject a fake so they never touch a real
    * adapter; the CLI leaves it unset to run the real non-billable probe. */
   readinessProbe?: RuntimeReadinessProbe;
   /** Validate configuration without running a readiness probe, mirroring
-   * `operon doctor --config-only`. A config-only runtime check never claims
+   * `cormidia doctor --config-only`. A config-only runtime check never claims
    * readiness (it is `blocked`, not `pass`): configuration validity is not
    * runtime readiness. Intended for isolated packaging/offline fixtures. */
   configOnly?: boolean;
@@ -324,11 +324,11 @@ async function bootstrapFromRecoveredAnswersLocked(
     git(stage, "diff", "--cached", "--check");
     const commitDate = nextCommitDate(stage);
     await options.fault?.("before_commit");
-    gitWithCommitIdentity(stage, commitDate, "commit", "--quiet", "-m", "chore: onboard app with Operon");
+    gitWithCommitIdentity(stage, commitDate, "commit", "--quiet", "-m", "chore: onboard app with Cormidia");
     await options.fault?.("after_commit");
     const onboardingCommit = git(stage, "rev-parse", "HEAD");
     const authority = await resolveAuthority({ orgHome, appWorkdir: stage });
-    const configBytes = await readFile(join(stage, ".operon", "config.yaml"));
+    const configBytes = await readFile(join(stage, ".cormidia", "config.yaml"));
 
     await options.fault?.("before_registry_write");
     await joinExistingOrg(orgHome, {
@@ -441,14 +441,14 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
       checks.push(blocked(
         "canonical-labels",
         message(error),
-        "restore GitHub access, then run the idempotent label commands in .operon/bootstrap/next-commands.md",
+        "restore GitHub access, then run the idempotent label commands in .cormidia/bootstrap/next-commands.md",
       ));
     }
   } else if (isGithubRemoteForSlug(record.remote_url, app.repo)) {
     checks.push(blocked(
       "canonical-labels",
       "GitHub label inspection was not configured for this verification caller",
-      "rerun through operon app verify, which supplies the bounded GitHub label reader",
+      "rerun through cormidia app verify, which supplies the bounded GitHub label reader",
     ));
   } else {
     checks.push(pass(
@@ -515,7 +515,7 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
     if (remoteHead !== null && managedHead === remoteHead) checks.push(pass("managed-head", `managed HEAD equals ${record.default_branch} at ${managedHead}`));
     else checks.push(blocked("managed-head", `managed HEAD ${managedHead ?? "missing"} does not equal remote ${remoteHead ?? "unavailable"}`, "make onboarding reachable and rerun app verify to synchronize"));
 
-    const configPath = join(record.managed_clone, ".operon", "config.yaml");
+    const configPath = join(record.managed_clone, ".cormidia", "config.yaml");
     try {
       await assertRegularFile(configPath, "app config");
       const configBytes = await readFile(configPath);
@@ -527,7 +527,7 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
         if (committedHash !== configHash) {
           throw new ConfigVerificationError(
             `working-tree config hash ${configHash} differs from fetched ${record.default_branch} config ${committedHash}`,
-            "discard or commit the working-tree drift through the reviewed remote-default-branch path, then rerun `operon app verify`",
+            "discard or commit the working-tree drift through the reviewed remote-default-branch path, then rerun `cormidia app verify`",
           );
         }
       } else {
@@ -547,14 +547,14 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
         if (!remoteAligned) {
           throw new ConfigVerificationError(
             `config hash ${configHash} differs from lifecycle record ${record.config_sha256}, but the fetched remote default branch is not synchronized`,
-            "resolve the managed-head/remote checks, then rerun `operon app verify` to accept only committed remote-default bytes",
+            "resolve the managed-head/remote checks, then rerun `cormidia app verify` to accept only committed remote-default bytes",
           );
         }
         if (options.synchronize === false) {
           throw new ConfigVerificationError(
             `fetched ${record.default_branch} config ${configHash} at ${configCommit} differs from lifecycle record ` +
               `${record.config_sha256} at ${record.config_commit ?? "unknown commit"}`,
-            "run `operon app verify` to validate and accept the content-bound remote-default config before promotion",
+            "run `cormidia app verify` to validate and accept the content-bound remote-default config before promotion",
           );
         }
         if (configCommit === null) {
@@ -590,7 +590,7 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
         message(error),
         error instanceof ConfigVerificationError
           ? error.remediation
-          : "fix the named .operon/config.yaml schema, registry, authority, or formatting mismatch and rerun `operon app verify`",
+          : "fix the named .cormidia/config.yaml schema, registry, authority, or formatting mismatch and rerun `cormidia app verify`",
       ));
     }
   }
@@ -608,7 +608,7 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
         : "app checks were not run because registry-config is invalid",
       registryConfigValid
         ? "resolve ref/clone blockers and rerun"
-        : "fix registry-config first, then rerun `operon app verify`",
+        : "fix registry-config first, then rerun `cormidia app verify`",
     ));
   } else {
     const priorPath = join(stateHome, "lifecycle", "readiness", `${app.name}.json`);
@@ -619,9 +619,9 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
         .every((check) => check.status === "pass");
       checks.push(priorChecksPassed
         ? pass("app-checks-evidence", "prior synchronized verification contains passing app checks")
-        : blocked("app-checks-evidence", "no passing prior app verification", "run operon app verify before promotion"));
+        : blocked("app-checks-evidence", "no passing prior app verification", "run cormidia app verify before promotion"));
     } catch {
-      checks.push(blocked("app-checks-evidence", "no prior app verification", "run operon app verify before promotion"));
+      checks.push(blocked("app-checks-evidence", "no prior app verification", "run cormidia app verify before promotion"));
     }
   }
   const runtimeInspector = options.runtimeReadiness ?? ((runtimes) =>
@@ -710,7 +710,7 @@ export async function planAppPromotion(options: PromoteAppOptions): Promise<AppP
   const changes = idempotent
     ? []
     : [
-        "app .operon/config.yaml status -> live",
+        "app .cormidia/config.yaml status -> live",
         "org apps.yaml status -> live",
         "managed clone -> remote default HEAD",
         PROMOTION_WORKFLOW_INERT_NOTE,
@@ -757,14 +757,14 @@ export async function executeAppPromotion(
     const journalPath = join(stateHome, "lifecycle", "apps", options.appName, "promotion.json");
     let journal = await readOrCreatePromotionJournal(journalPath, fresh);
 
-    const configPath = join(record.managed_clone, ".operon", "config.yaml");
+    const configPath = join(record.managed_clone, ".cormidia", "config.yaml");
     const headConfigStatus = appConfigStatusText(
-      git(record.managed_clone, "show", `HEAD:.operon/config.yaml`),
+      git(record.managed_clone, "show", `HEAD:.cormidia/config.yaml`),
       options.appName,
       "committed app config",
     );
     if (headConfigStatus === "live") {
-      if (git(record.managed_clone, "status", "--porcelain", "--", ".operon/config.yaml") !== "") {
+      if (git(record.managed_clone, "status", "--porcelain", "--", ".cormidia/config.yaml") !== "") {
         throw new Error("app promote: committed live config has uncommitted changes");
       }
       journal = await patchPromotionJournal(journalPath, journal, {
@@ -782,7 +782,7 @@ export async function executeAppPromotion(
         await options.fault?.("after_config_write");
       }
       await validateFormatting(record.managed_clone);
-      git(record.managed_clone, "add", ".operon/config.yaml");
+      git(record.managed_clone, "add", ".cormidia/config.yaml");
       git(record.managed_clone, "diff", "--cached", "--check");
       const commitDate = nextCommitDate(record.managed_clone);
       await options.fault?.("before_commit");
@@ -864,7 +864,7 @@ export async function readLifecycleRecord(stateHome: string, app: string): Promi
 type RecordResolution = { ok: true; record: AppLifecycleRecord } | { ok: false; check: LifecycleCheck };
 
 /** Read the lifecycle record, or (for a real verify) synthesize one for a
- * registered app that has none. A `operon new-app` app is left in exactly this
+ * registered app that has none. A `cormidia new-app` app is left in exactly this
  * state until its scaffold is pushed: the record writer only ran on the
  * recovered-answer bootstrap path, so `verify` used to surface a raw ENOENT
  * (L0-01). Verify now owns record synthesis/repair; every miss is typed. */
@@ -892,7 +892,7 @@ async function resolveLifecycleRecordForVerify(
       check: blocked(
         "lifecycle-record",
         `no lifecycle record for ${app.name}`,
-        "run `operon app verify` to synthesize the lifecycle record, then retry promotion",
+        "run `cormidia app verify` to synthesize the lifecycle record, then retry promotion",
       ),
     };
   }
@@ -922,7 +922,7 @@ async function synthesizeLifecycleRecord(
       check: blocked(
         "lifecycle-record",
         `app remote is unreachable or has no default branch: ${message(error)}`,
-        "push the app repo to its remote default branch, then rerun `operon app verify`",
+        "push the app repo to its remote default branch, then rerun `cormidia app verify`",
       ),
     };
   }
@@ -936,24 +936,24 @@ async function synthesizeLifecycleRecord(
       check: blocked(
         "lifecycle-record",
         `could not clone the app remote into a managed clone: ${message(error)}`,
-        "ensure the app repo is reachable, then rerun `operon app verify`",
+        "ensure the app repo is reachable, then rerun `cormidia app verify`",
       ),
     };
   }
 
-  const configPath = join(managedClone, ".operon", "config.yaml");
+  const configPath = join(managedClone, ".cormidia", "config.yaml");
   if (!existsSync(configPath)) {
     return {
       ok: false,
       check: blocked(
         "lifecycle-record",
-        `the onboarding artifacts (.operon/config.yaml) are not on ${defaultBranch} of the app remote`,
-        "commit and push the generated .operon scaffold to the default branch, then rerun `operon app verify`",
+        `the onboarding artifacts (.cormidia/config.yaml) are not on ${defaultBranch} of the app remote`,
+        "commit and push the generated .cormidia scaffold to the default branch, then rerun `cormidia app verify`",
       ),
     };
   }
 
-  const onboardingCommit = firstCommitAdding(managedClone, ".operon/config.yaml") ?? git(managedClone, "rev-parse", "HEAD");
+  const onboardingCommit = firstCommitAdding(managedClone, ".cormidia/config.yaml") ?? git(managedClone, "rev-parse", "HEAD");
   const configBytes = await readFile(configPath);
   const authority = await resolveAuthority({ orgHome, appWorkdir: managedClone });
   const record: AppLifecycleRecord = {
@@ -1001,18 +1001,18 @@ async function resolveOnboardingRemote(
         check: blocked(
           "lifecycle-record",
           `onboarding checkout for ${app.name} has no pushed 'origin' remote yet: ${checkout}`,
-          "add and push the remote (create/push the app repo), then rerun `operon app verify`",
+          "add and push the remote (create/push the app repo), then rerun `cormidia app verify`",
         ),
       };
     }
     // The pointer exists but the scaffold has not been initialized/pushed yet —
-    // the expected state right after `operon new-app`. Report it precisely
+    // the expected state right after `cormidia new-app`. Report it precisely
     // rather than blindly probing the network.
     return {
       check: blocked(
         "lifecycle-record",
         `onboarding checkout for ${app.name} is not an initialized git repository yet: ${checkout}`,
-        "initialize and push the app repo (git init && commit && create/push the remote), then rerun `operon app verify`",
+        "initialize and push the app repo (git init && commit && create/push the remote), then rerun `cormidia app verify`",
       ),
     };
   }
@@ -1046,7 +1046,7 @@ function configSha256(bytes: string | Buffer): string {
 }
 
 function configBytesAtCommit(root: string, revision: string): Buffer {
-  return execFileSync("git", ["show", `${revision}:.operon/config.yaml`], {
+  return execFileSync("git", ["show", `${revision}:.cormidia/config.yaml`], {
     cwd: root,
     env: GIT_ENV,
     stdio: ["ignore", "pipe", "pipe"],
@@ -1054,7 +1054,7 @@ function configBytesAtCommit(root: string, revision: string): Buffer {
 }
 
 function configCommitAt(root: string, revision: string): string {
-  const commit = git(root, "log", "-1", "--format=%H", revision, "--", ".operon/config.yaml");
+  const commit = git(root, "log", "-1", "--format=%H", revision, "--", ".cormidia/config.yaml");
   if (commit === "") {
     throw new Error(`app config has no committed revision reachable from ${revision}`);
   }
@@ -1062,7 +1062,7 @@ function configCommitAt(root: string, revision: string): string {
 }
 
 function findConfigCommitByHash(root: string, revision: string, hash: string): string | null {
-  const history = git(root, "log", "--format=%H", revision, "--", ".operon/config.yaml");
+  const history = git(root, "log", "--format=%H", revision, "--", ".cormidia/config.yaml");
   for (const commit of history.split("\n").filter((line) => line.length > 0)) {
     if (configSha256(configBytesAtCommit(root, commit)) === hash) return commit;
   }
@@ -1288,13 +1288,13 @@ async function unverifiableReport(
 }
 
 async function validateGeneratedArtifacts(root: string, app: string, repo: string, created: string[], updated: string[]): Promise<void> {
-  const config = await loadApps(join(root, ".operon", "config.yaml"));
+  const config = await loadApps(join(root, ".cormidia", "config.yaml"));
   const entry = config.apps.find((candidate) => candidate.name === app);
   if (config.schemaVersion !== LIFECYCLE_SCHEMA_VERSION || entry?.repo !== repo || entry.status !== "onboarding") {
     throw new Error("bootstrap: generated app config failed schema validation");
   }
-  parse(await readFile(join(root, ".operon", "policy.yaml"), "utf8"));
-  await assertRegularFile(join(root, ".operon", "AUTHORITY.md"), "generated authority");
+  parse(await readFile(join(root, ".cormidia", "policy.yaml"), "utf8"));
+  await assertRegularFile(join(root, ".cormidia", "AUTHORITY.md"), "generated authority");
   for (const rel of [...created, ...updated]) {
     const path = join(root, rel);
     await assertRegularFile(path, "generated artifact");
@@ -1305,14 +1305,14 @@ async function validateGeneratedArtifacts(root: string, app: string, repo: strin
 }
 
 async function validateFormatting(root: string): Promise<void> {
-  const configPath = join(root, ".operon", "config.yaml");
+  const configPath = join(root, ".cormidia", "config.yaml");
   await loadApps(configPath);
   const configText = await readFile(configPath, "utf8");
   if (!configText.endsWith("\n")) throw new Error("app config lacks a final newline");
   if (configText.split("\n").some((line) => /[ \t]+$/.test(line))) {
     throw new Error("app config has trailing whitespace");
   }
-  parse(await readFile(join(root, ".operon", "policy.yaml"), "utf8"));
+  parse(await readFile(join(root, ".cormidia", "policy.yaml"), "utf8"));
   git(root, "diff", "--check");
 }
 
@@ -1419,7 +1419,7 @@ function runDeclaredChecks(root: string): LifecycleCheck[] {
         blocked(
           "app-check-setup",
           `${commands.setupCommand} failed with exit ${String(setup.status)}`,
-          "fix `setup_command` in .operon/config.yaml (or the environment it needs) and rerun operon app verify",
+          "fix `setup_command` in .cormidia/config.yaml (or the environment it needs) and rerun cormidia app verify",
         ),
       ];
     }
@@ -1454,7 +1454,7 @@ interface RuntimeReadinessProbeConfig {
   timeoutMs?: number;
 }
 
-// Verify's `runtime-<provider>` checks must AGREE with `operon doctor`, so they
+// Verify's `runtime-<provider>` checks must AGREE with `cormidia doctor`, so they
 // run the SAME non-billable `probeRuntimeReadiness` mechanism (readiness.ts) —
 // never `require.resolve` of the adapter package. Codex ships bin-only (no
 // resolvable main/exports under pnpm) and pi exports no main either, so
@@ -1482,7 +1482,7 @@ async function probeRuntimeReadinessChecks(
           `runtime-${runtime}`,
           `configured for ${models.join(", ")}; readiness probe skipped (config-only); ` +
             "configuration validity is not runtime readiness",
-          "rerun operon app verify with the adapter available to prove runtime readiness",
+          "rerun cormidia app verify with the adapter available to prove runtime readiness",
         );
       }
       try {
@@ -1543,7 +1543,7 @@ function groupRuntimes(roles: Array<{ runtime: RuntimeKind; model: string }>): A
 
 // The app-vs-registry agreement check is tamper detection over the fields that
 // must be identical in both the org registry (apps.yaml) and the app-owned
-// `.operon/config.yaml`: identity (name/repo), lifecycle state (status),
+// `.cormidia/config.yaml`: identity (name/repo), lifecycle state (status),
 // operating cadence, event channels, assignment policy, and release wiring.
 //
 // `budgetUsdMonth` is DELIBERATELY excluded (B-LIVE-05). Budget is
@@ -1553,7 +1553,7 @@ function groupRuntimes(roles: Array<{ runtime: RuntimeKind; model: string }>): A
 // (src/org/budget.ts), the manual loop guard (src/cli/loop.ts budgetGuard →
 // enforceBudgetOverlay(stateHome, appsFile) over the registry), and the
 // dispatch tick (src/org/dispatch.ts → enforceBudgetOverlay(runtimeHome,
-// appsFile) over the registry). The managed clone's `.operon/config.yaml`
+// appsFile) over the registry). The managed clone's `.cormidia/config.yaml`
 // budget is never read for enforcement, so an app declaring a larger budget in
 // its own config cannot thereby spend more than the registry cap. That makes an
 // operator capping an app's budget in apps.yaml (registry 50 vs the config's
@@ -1600,7 +1600,7 @@ function canonicalLabelsCheck(
   return blocked(
     "canonical-labels",
     problems.join("; "),
-    "run the idempotent gh label create --force commands in .operon/bootstrap/next-commands.md",
+    "run the idempotent gh label create --force commands in .cormidia/bootstrap/next-commands.md",
   );
 }
 
@@ -1629,8 +1629,8 @@ function nextCommitDate(root: string): string {
 
 function gitWithCommitIdentity(root: string, date: string, ...args: string[]): string {
   return execFileSync("git", [
-    "-c", "user.name=Operon Lifecycle",
-    "-c", "user.email=lifecycle@operon.invalid",
+    "-c", "user.name=Cormidia Lifecycle",
+    "-c", "user.email=lifecycle@cormidia.invalid",
     "-c", "commit.gpgsign=false",
     "-c", "core.hooksPath=/dev/null",
     ...args,

@@ -2,7 +2,7 @@
 // (L2, STD; C-OP-LIFE §1, B-15; case-catalog row CF-J01-A).
 //
 // HONEST REDUCTION: full packed-launcher OP parity would execute
-// `src/operon.cjs`, which imports `dist/cli.js` — a build artifact whose
+// `src/cormidia.cjs`, which imports `dist/cli.js` — a build artifact whose
 // freshness this hermetic lane cannot guarantee (a stale dist would flake the
 // lane red or, worse, green-prove old code), and building tsc in-lane is not
 // hermetic either. What IS in hermetic reach and is asserted here:
@@ -28,15 +28,15 @@ import { REPO_ROOT } from "./support.js";
 
 const execFileAsync = promisify(execFile);
 
-const PACKED_LAUNCHER = join(REPO_ROOT, "src", "operon.cjs");
-const SOURCE_LAUNCHER = join(REPO_ROOT, "src", "operon-local.cjs");
+const PACKED_LAUNCHER = join(REPO_ROOT, "src", "cormidia.cjs");
+const SOURCE_LAUNCHER = join(REPO_ROOT, "src", "cormidia-local.cjs");
 
 /** Run `node <launcher> <args>` from a working directory that is removed
  *  before exec — the removed-cwd seeded violation. */
 async function runFromRemovedCwd(
   launcher: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  const doomed = await mkdtemp(join(tmpdir(), "operon-cf-j01a-cwd-"));
+  const doomed = await mkdtemp(join(tmpdir(), "cormidia-cf-j01a-cwd-"));
   try {
     const { stdout, stderr } = await execFileAsync(
       "bash",
@@ -69,7 +69,7 @@ describe("CF-J01-A — launcher parity and the removed-cwd guard (C-OP-LIFE §1)
     ] as const) {
       expect(run.code, `${label} launcher exit code`).toBe(1);
       expect(run.stderr, `${label} launcher guard message`).toContain(
-        "operon: cannot resolve the current working directory",
+        "cormidia: cannot resolve the current working directory",
       );
       expect(run.stderr).toContain("cd to an existing directory and retry");
       // The guard refuses BEFORE any CLI work: no other output at all.
@@ -81,7 +81,7 @@ describe("CF-J01-A — launcher parity and the removed-cwd guard (C-OP-LIFE §1)
   });
 
   it("source-backed launcher: `org init --dry-run --json` agrees byte-for-byte with the in-process plan preview", async () => {
-    const root = await mkdtemp(join(tmpdir(), "operon-cf-j01a-parity-"));
+    const root = await mkdtemp(join(tmpdir(), "cormidia-cf-j01a-parity-"));
     cleanups.push(() => rm(root, { recursive: true, force: true }));
     const homeDir = join(root, "home");
     await mkdir(homeDir, { recursive: true });
@@ -90,11 +90,11 @@ describe("CF-J01-A — launcher parity and the removed-cwd guard (C-OP-LIFE §1)
 
     // Subprocess env: HOME pinned to the temp world so the launcher's
     // homedir()-derived pointer path can never touch the operator's real
-    // ~/.operon; ambient OPERON_* selection is stripped for the same reason.
+    // ~/.cormidia; ambient CORMIDIA_* selection is stripped for the same reason.
     const env: NodeJS.ProcessEnv = { ...process.env, HOME: homeDir };
-    delete env["OPERON_ORG_HOME"];
-    delete env["OPERON_STATE_HOME"];
-    delete env["OPERON_HOME"];
+    delete env["CORMIDIA_ORG_HOME"];
+    delete env["CORMIDIA_STATE_HOME"];
+    delete env["CORMIDIA_HOME"];
 
     // Module truth FIRST: the CLI's sole preview write is its invocation
     // audit row, which creates the planned state home — planning in-process

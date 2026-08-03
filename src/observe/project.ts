@@ -911,7 +911,7 @@ function projectTraces(passes: PassView[], observedAt: string, byRun: Map<string
         reviewer: group.some((pass) => pass.role === "reviewer" && pass.status === "completed") ? "completed" : "unknown",
         manual_fallback: "not_recorded",
         durable_outcome: status,
-        operon_end_to_end_complete: required !== null && missing.length === 0 && group.every((pass) => pass.status === "completed"),
+        cormidia_end_to_end_complete: required !== null && missing.length === 0 && group.every((pass) => pass.status === "completed"),
         reasons,
       },
       observed_at: observedAt,
@@ -950,10 +950,10 @@ function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], t
     const usage = aggregateQuality(taskPasses.map((pass) => pass.usage.quality));
     const reasons: string[] = [];
     if (record.status !== "completed") reasons.push(`Parent task is ${record.status}`);
-    if (record.executionMode !== "operon") reasons.push(`Execution mode is ${record.executionMode}`);
+    if (record.executionMode !== "cormidia") reasons.push(`Execution mode is ${record.executionMode}`);
     if (missing.length > 0) reasons.push(`Missing required stages: ${missing.join(", ")}`);
     if (taskTraces.length === 0) reasons.push("No correlated trace recorded");
-    if (taskTraces.some((trace) => !trace.completion_integrity.operon_end_to_end_complete)) reasons.push("One or more correlated traces is incomplete");
+    if (taskTraces.some((trace) => !trace.completion_integrity.cormidia_end_to_end_complete)) reasons.push("One or more correlated traces is incomplete");
     const complete = reasons.length === 0;
     const taskCost = costForPasses(taskPasses, byRun);
     return {
@@ -987,9 +987,9 @@ function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], t
         reviewer: record.requiredStages.includes("reviewer")
           ? observedStages.includes("reviewer") ? "completed" : "missing"
           : "not_required",
-        manual_fallback: record.executionMode === "operon" ? "none" : "present",
+        manual_fallback: record.executionMode === "cormidia" ? "none" : "present",
         durable_outcome: record.completionState?.pr ?? "not_recorded",
-        operon_end_to_end_complete: complete,
+        cormidia_end_to_end_complete: complete,
         reasons,
       },
       duration: durationBetween(instant(record.startedAt), instant(record.endedAt), "Parent task"),

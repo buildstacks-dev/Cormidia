@@ -1,11 +1,11 @@
-# PURPOSE — Operon
+# PURPOSE — Cormidia
 
-*v2.11 — 2026-08-02. Human-ratified decision log. Keep this file high-level;
+*v2.12 — 2026-08-02. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop/design.md.
 The operator outcome is `docs/VISION.md`; product status and known limitations
 live in README → Status.*
 
-Operon is a governed **org runtime** that turns approved goals into verified
+Cormidia is a governed **org runtime** that turns approved goals into verified
 software outcomes with process proportional to risk, minimal human attention,
 durable forward progress, and continuously improving unit economics.
 
@@ -14,7 +14,7 @@ Support, Marketing, Distiller, Learning Reviewer), coordinated through private
 GitHub repos as the source of truth, with a human approver gating critical
 operations only.
 
-**Operon is an installable package/runtime, not an app.** Its CLI is pointed
+**Cormidia is an installable package/runtime, not an app.** Its CLI is pointed
 at org configuration and target repos; it never contains app code. One org
 runtime, N applications.
 
@@ -40,7 +40,7 @@ and agent definitions.
 1. **Deterministic by default.** If it can be code, it is code. Models only for
    judgment that cannot be captured deterministically.
 2. **Intelligence is harness + model.** A provider turn is an atomic
-   harness/model/effort assignment. Operon must use the harness's full evolving
+   harness/model/effort assignment. Cormidia must use the harness's full evolving
    capability, not treat the model as a bare completion API. Role responsibility
    and execution assignment stay separate; changing an assignment is a config
    change that never broadens the role's authority.
@@ -94,7 +94,7 @@ and agent definitions.
   A2 same-pass-resume deferral below). Claim acquisition is provisional until
   the first provider turn starts. A crash before that boundary auto-repairs the
   GitHub label and consumes no allowance; ambiguity after provider work never
-  retries blindly and requires the explicit, content-bound `operon loop rearm`
+  retries blindly and requires the explicit, content-bound `cormidia loop rearm`
   transaction. Approval pauses persist the pipeline/pass, native session,
   completed-pass set, context fingerprint, worktree fingerprint, run id, cost,
   and exact decisions; approved and denied decisions both continue the same
@@ -142,9 +142,9 @@ and agent definitions.
   learning, budget, and CI boundary remains intact. `docs/DEVELOPMENT.md` and
   `docs/qualification/benchmark-runbook.md` carry the detailed shipping policy.
 
-- **Operon platform development is an independent control plane** (ratified
-  2026-07-16). Operon does not operate an org whose job is to build or maintain
-  Operon. Repository developer instructions, objective grants, eval artifacts,
+- **Cormidia platform development is an independent control plane** (ratified
+  2026-07-16). Cormidia does not operate an org whose job is to build or maintain
+  Cormidia. Repository developer instructions, objective grants, eval artifacts,
   CI/release authority, and learning remain outside every operated org; org
   prompts, state, approvals, memory, budgets, scheduler, and learning never
   authorize platform work. A human may authorize one bounded development
@@ -172,7 +172,7 @@ and agent definitions.
   still required and known-red pending its genuine separately authorized
   48–72 hour campaign; preview, virtual-soak, manufactured, or production-
   confirmation evidence cannot promote it. Phase 6 completion may be reported
-  while the future soak is pending, but the broader claim that Operon is a
+  while the future soak is pending, but the broader claim that Cormidia is a
   fully proven “highly efficient organization” remains reserved until
   `I-LIVE-01` passes. `docs/qualification/design.md` → Phase 6 qualification scope is the
   canonical boundary.
@@ -249,7 +249,7 @@ and agent definitions.
 - **Build, don't buy — TypeScript orchestrator, claude-loop reborn.** Ground-up
   rewrite in TypeScript (strict mode) porting claude-loop's proven patterns
   (state-in-markdown, roles.yaml, worktrees, squash-merge discipline). No
-  multi-agent framework. **Operon supersedes claude-loop outright** —
+  multi-agent framework. **Cormidia supersedes claude-loop outright** —
   claude-loop has no users, so the Python repo is frozen as pattern reference
   with no back-compat obligation. TS over Python because: pi (and our mandatory
   gating extension) is TS, Codex App Server exposes a generated JSON-RPC schema
@@ -262,10 +262,10 @@ and agent definitions.
   - **OpenAI roles** → Codex App Server through the pinned `@openai/codex`
     CLI and documented JSON-RPC over stdio (per-thread model, approvals,
     sandbox modes). The `@openai/codex-sdk` package wraps `codex exec` and is
-    not the adapter surface for Operon.
+    not the adapter surface for Cormidia.
   - **All other models** → **pi** embedded via its SDK
     (`createAgentSession()`); SYSTEM.md + extensions for protocol enforcement.
-    pi has no first-class approval flow, so Operon installs the gating
+    pi has no first-class approval flow, so Cormidia installs the gating
     extension at runtime.
 - **Single-runtime orgs are a first-class profile.** Nothing in the
   orchestrator assumes a mix — `runtime:` is per-role config, so a user can run
@@ -319,11 +319,12 @@ and agent definitions.
   silent fan-out shows up in budget reports, and gates/permissions bind the
   whole session including subagents. `roles.yaml` carries a per-role
   **delegation policy** (whether/when a role may fan out).
-- **Folder home: `~/Build/`.** `Operon` lives at `~/Build/Operon`
-  (moved 2026-07-03); the target-app sibling arrives as a fresh clone when the
-  org starts operating on it.
+- **Folder home: `~/Build/`.** The source checkout lives under `~/Build/`; its
+  local basename is not a product contract. The existing checkout keeps its
+  predecessor basename until its attached worktrees have been retired. Target
+  apps arrive as sibling clones when the org starts operating on them.
 
-- **Repo shape — one repo, one package.** `Operon` is a single TypeScript
+- **Repo shape — one repo, one package.** `Cormidia` is a single TypeScript
   package (no workspace). The layering is enforced as module boundaries —
   `src/runtime` (adapters, gate, telemetry) ← `src/loop` (the build loop,
   claude-loop's successor) ← `src/org` (scheduler, roles, memory, retro) —
@@ -331,12 +332,18 @@ and agent definitions.
   package later is mechanical if it ever earns independent users. The loop's
   CLI identity survives as a subcommand. The original Python claude-loop will
   be archived.
-- **Named Operon.** "agentic-org" was a placeholder description, not a brand —
-  too generic to be a product or GitHub org name. Renamed to **Operon**: from
-  biology, a cluster of genes expressed as one functional unit under a single
-  operator — the same shape as this project (multiple role-agents, one
-  critical-ops gate). Repo moved to `~/Build/Operon`; GitHub repo at
-  `buildstacks-dev/Operon`.
+- **Named Cormidia; the predecessor product name is retired completely**
+  (ratified 2026-08-02). Cormidia is the product and brand, the `cormidia` CLI
+  and npm package, and the `cormidia` GitHub organization. Product vocabulary
+  remains org, app, and role; the brand is never a unit inside the product.
+  The default state root is `~/.cormidia`, with one atomic first-run migration
+  from the retired root and a fail-closed dual-root collision. Environment
+  variables use only the `CORMIDIA_*` prefix. App-owned artifacts live only at
+  `.cormidia/`; existing app repositories move that directory in one reviewed
+  commit rather than supporting parallel paths. The source repository is
+  `cormidia/Cormidia`; the front-door repository is `cormidia/cormidia-web`.
+  The existing developer checkout directory is deliberately not renamed by
+  this repository change because attached worktree paths depend on it.
 - **Sandbox proof before production onboarding** (2026-07-05; gamma approved
   2026-07-06). Roadmap "toy task" smokes are replaced by real, disposable
   sandbox repos. Alpha/beta cover onboarding, build loop, multi-app, approvals,
@@ -362,46 +369,46 @@ and agent definitions.
   quality regressions localize.
 - **Packaging, homes, and bootstrap boundary** (reconciled 2026-07-09;
   supersedes the optional single-app org-home profile from 2026-07-04).
-  Operon's installed package/source, committed org home, local runtime state,
-  and app repo are four distinct paths. `operon org init` creates a complete
+  Cormidia's installed package/source, committed org home, local runtime state,
+  and app repo are four distinct paths. `cormidia org init` creates a complete
   org home from packaged templates and records an active pointer;
-  `OPERON_ORG_HOME` and `OPERON_STATE_HOME` are explicit overrides. Runtime
-  state defaults to `~/.operon/<org>/` and never lives in git. `operon
+  `CORMIDIA_ORG_HOME` and `CORMIDIA_STATE_HOME` are explicit overrides. Runtime
+  state defaults to `~/.cormidia/<org>/` and never lives in git. `cormidia
   bootstrap` requires an active org, accepts a local app checkout, emits only
-  app-owned `.operon/` artifacts there, and registers the app in the org's
-  `apps.yaml`. The Operon source repo never doubles as the active org merely
+  app-owned `.cormidia/` artifacts there, and registers the app in the org's
+  `apps.yaml`. The Cormidia source repo never doubles as the active org merely
   because it is the current working directory.
 - **Archive-backed app reset** (2026-07-11). A repeatable app test iteration
-  is `operon app reset <app>`, not deletion/recreation of the whole org. Its
+  is `cormidia app reset <app>`, not deletion/recreation of the whole org. Its
   default is a non-mutating plan; explicit `--execute --confirm <app>` first
   writes a checksummed archive outside the state home, then removes only the
-  named app's Operon-managed clone/worktrees/runs/ticket state, app-attributed
+  named app's Cormidia-managed clone/worktrees/runs/ticket state, app-attributed
   control records, and registry entry. It refuses active runs, journals,
   locks, and pending approvals. `--force` crosses only stale run envelopes
   with no heartbeat for ten minutes; it never crosses a fresh run or any other
   live-work boundary. GitHub cleanup closes only identifiable
-  Operon work (`op:*` issues and linked/`op/` PRs) and deletes its head
+  Cormidia work (`op:*` issues and linked/`op/` PRs) and deletes its head
   branches; the repository, default branch, human checkout, and retained
   closed history stay intact. This is one lifecycle operation, not a new
   user-facing app-epoch concept.
 - **Local development installation is source-backed** (2026-07-09).
-  `pnpm link:local` exposes the `operon` command and Operon Agent Skill while
+  `pnpm link:local` exposes the `cormidia` command and Cormidia Agent Skill while
   retaining a live reference to the local source tree; subsequent invocations
   pick up source edits without update/relink/build. Packed installations use
   the compiled `dist/cli.js`. Agents discover the installed surface through
-  `operon capabilities --json`, `operon context --json`, command help, and the
-  packaged `$operon` skill rather than reading implementation code.
+  `cormidia capabilities --json`, `cormidia context --json`, command help, and the
+  packaged `$cormidia` skill rather than reading implementation code.
 - **Greenfield creation is create-then-bootstrap** (2026-07-07). A brand-new
-  product starts with `operon new-app`: create a separate target app repo
+  product starts with `cormidia new-app`: create a separate target app repo
   skeleton, write seed vision/requirements docs plus an initial issue packet,
-  then reuse the same `operon bootstrap` app-artifact/register path. The command
+  then reuse the same `cormidia bootstrap` app-artifact/register path. The command
   is local and deterministic; creating/pushing the private GitHub repo, running
   the Planner, and starting the loop remain explicit follow-up steps. This keeps
-  Operon a runtime pointed at app repos, never a place where app code lives.
+  Cormidia a runtime pointed at app repos, never a place where app code lives.
 - **TASTE layers answer different questions** (2026-07-04). The stack is not
   an override cascade of one document type. Org `TASTE.md`: values +
   engineering constitution ("how we work; what we never do"). App
-  `.operon/TASTE.md` in the target repo: product charter ("what this product
+  `.cormidia/TASTE.md` in the target repo: product charter ("what this product
   is; what good means here" — civic's evidence honesty vs buildstacks'
   personal voice). Role `taste/<role>.md`: craft standards ("what good looks
   like in this discipline" — reviewer checklist, marketing tone). Assembly
@@ -420,8 +427,8 @@ and agent definitions.
   app against its budget. Cadence: **flexi, no restrictions** — roles fire
   per their triggers at any hour; no working-hours window.
 - **Dispatcher, approvals, and idempotency** (ratified 2026-07-06). The
-  autonomous host is a stateless `operon dispatch` tick that spawns detached
-  turns; turns operate in org-managed clones/worktrees under `~/.operon/`.
+  autonomous host is a stateless `cormidia dispatch` tick that spawns detached
+  turns; turns operate in org-managed clones/worktrees under `~/.cormidia/`.
   Critical-op approval means an expiring, single-use, action-hashed grant for a
   later retry — never auto-execution by the orchestrator. Durable side effects
   are git/GitHub artifacts only; labels move after the artifacts they announce;
@@ -471,7 +478,7 @@ and agent definitions.
   re-litigated. Agents gain no unilateral power anywhere in this amendment —
   every widening is a human act at decision time.
 - **Learning loop design** (ratified 2026-07-11; full design and schemas in
-  `docs/learning-loop/`). Operon's governed
+  `docs/learning-loop/`). Cormidia's governed
   self-improvement system: agents stop writing active memory directly and
   emit candidates instead; a distiller routes evidence to the
   lowest-authority useful destination (OKF concept, skill draft, protocol
@@ -500,8 +507,8 @@ and agent definitions.
   autonomy is earned by measured agreement plus outcomes, never granted by
   release.
 - **Live observability is read-only and disposable** (ratified 2026-07-12;
-  implementation contract in `docs/live-ui/design.md`). Operon remains
-  agent-operated through coding agents and the CLI; `operon observe` is a
+  implementation contract in `docs/live-ui/design.md`). Cormidia remains
+  agent-operated through coding agents and the CLI; `cormidia observe` is a
   human-observable projection over existing durable files plus bounded,
   read-only GitHub state. It binds only to loopback with a per-process
   capability token, uses HTTP snapshots plus SSE, owns no workflow state or
@@ -512,14 +519,14 @@ and agent definitions.
   a run.
 - **Reporting is deterministic, ledger-first, and shares the observer**
   (ratified 2026-07-12; implementation contract in
-  `docs/reporting/design.md`). `operon report` provides token-free org/app
+  `docs/reporting/design.md`). `cormidia report` provides token-free org/app
   usage, allocation, quality, budget-context, and exhaustive session/pass
   snapshots over an explicit UTC period; the ledger is accounting authority
   and run/task evidence enriches it without repair or hidden deduplication.
-  `operon observe` remains the one loopback reader server, with Live at `/`
+  `cormidia observe` remains the one loopback reader server, with Live at `/`
   and as-of Reports at `/reports`; portable HTML works without a server. No
   reporting database, workflow controls, reconciliation side effect, provider
-  turn, or model-written management narrative is introduced. `operon
+  turn, or model-written management narrative is introduced. `cormidia
   telemetry` remains the backward-compatible envelope-first forensic view.
 - **The Phase 6 release attestation fails closed, and its changed-path rule
   binds only to the packaged artifact** (PROPOSED 2026-07-17 — ratified when the
@@ -544,7 +551,7 @@ and agent definitions.
   *Scope.* The
   changed-path rule binds only to files that affect the **packaged artifact** —
   what `npm pack` ships per package.json `files` (the compiled `dist` output,
-  `agent-skills/operon/`, `config/launchd/`, `docs/policy.yaml.template`,
+  `agent-skills/cormidia/`, `config/launchd/`, `docs/policy.yaml.template`,
   `docs/scheduler/design.md`, the prompts and taste trees, `TASTE.md`, `roles.yaml`,
   `pipelines.yaml`, `README.md`, and the three packaged `scripts/*.mjs`) plus the
   `src` sources and `package.json` that produce it. A change under those paths
@@ -708,20 +715,16 @@ and agent definitions.
   re-run reappears, that the strict gate carries no `if:`, that concurrency
   never cancels `main`, and that no provider-spending or externally mutating
   command can enter CI.
-- **Operon develops and distributes Operon: self-hosting ratified with
-  retained human release authority** (PROPOSED 2026-08-02 — ratified when
-  this PR merges). The product's public front door is the new public repo
-  `buildstacks-dev/operon-web` (homepage, install docs, community issues,
-  release notes; never source), created 2026-08-02. The platform source
-  stays in the private repo `buildstacks-dev/Operon`, deliberately
-  unrenamed — no clone, link, or state churn; a product-branded org or repo
-  rename is a GTM decision, deferred with the rest of GTM. The npm package
-  publishes from the private repo under a scoped name chosen at first
-  publish (unscoped `operon` is already taken on the registry). The standing
-  Operon org may register and operate both as apps: `operon-web` first (a
-  public front door carries no platform authority), and the platform source
-  repo only after the public app has proven the loop. This amends the prior
-  standing rule that Operon does not self-host its own development. Retained
+- **Cormidia develops and distributes Cormidia: self-hosting ratified with
+  retained human release authority** (ratified 2026-08-02). The product's
+  public front door is `cormidia/cormidia-web` (homepage, install docs,
+  community issues, release notes; never source). The platform source is the
+  private repo `cormidia/Cormidia`, and the npm package is the unscoped
+  `cormidia` package. The standing Cormidia org may register and operate both
+  as apps: `cormidia-web` first (a public front door carries no platform
+  authority), and the platform source repo only after the public app has
+  proven the loop. This amends the prior standing rule that the product does
+  not self-host its own development. Retained
   carve-outs, tighten-only: (1) *Release authority stays human* — npm
   publish, version tags, and release handoff are human-executed critical
   ops, never delegated to the org and never reachable through an org
@@ -733,7 +736,7 @@ and agent definitions.
   release. (4) *Human-ratified surfaces keep human merge* — TASTE.md,
   roles.yaml, docs/PURPOSE.md, pipelines.yaml, prompts/**. v1.5 stands
   unchanged: the source repo never doubles as the active org home; org state
-  lives in `~/.operon/<org>/`. *Rationale:* the recoverability boundary is
+  lives in `~/.cormidia/<org>/`. *Rationale:* the recoverability boundary is
   proven (package/org/state separation; onboard, reset, and verify are
   built paths), and what the old rule actually protected — authority
   separation, not development itself — is preserved by the carve-outs,
@@ -748,9 +751,9 @@ and agent definitions.
 `scratchpad-gitignore/claude-loop-teams/`) already proved the core
 shape: vision.md → plan → dev → review → ship, state in plain markdown in the
 target repo, per-role model selection in `roles.yaml`, fresh agent sessions,
-squash-merge to main. Operon is its successor, generalizing on two axes:
+squash-merge to main. Cormidia is its successor, generalizing on two axes:
 
-| Axis | claude-loop | Operon |
+| Axis | claude-loop | Cormidia |
 | --- | --- | --- |
 | Runtime | Claude CLI only | model-agnostic body per role |
 | Roles | build pipeline (plan/dev/review/ship) | standing org incl. SRE + Support |
@@ -802,14 +805,14 @@ will resolve them.
   conformance seed (16 tests green), roles.yaml loader, CLI (`roles`,
   `doctor`), TASTE.md v0. Adapters are documented stubs. Python claude-loop to
   be archived by Bikram.
-- 2026-07-03 — v0.7: renamed agentic-org → **Operon**; repo moved to
-  `~/Build/Operon`; GitHub repo created at `buildstacks-dev/Operon`.
+- 2026-07-03 — v0.7: agentic-org received its predecessor product brand and
+  original repository. Superseded by the complete Cormidia rename in v2.11.
 - 2026-07-04 — v0.8: pilots decided — civic (app #1) drives the loop
   milestones via real acceptance tasks; **buildstacks.dev** added as app #2
   to prove config-not-fork and the SRE/approval surface. Multi-app designed
   in, operated one-live-app-at-a-time; one-turn-one-app invariant; memory
   and scorecards partitioned per (role, app). Bootstrap artifact home
-  decided (`.operon/` in the product repo; org-home repo optional). This
+  decided (`.cormidia/` in the product repo; org-home repo optional). This
   artifact-home choice was superseded by v1.5's required separate org home. TASTE
   layer semantics clarified (org values / app charter / role craft).
   Superseded by v1.0's sandbox-first validation path for roadmap acceptance;
@@ -830,7 +833,7 @@ will resolve them.
   per app until channels exist).
 - 2026-07-06 — v1.2: buildstacks.dev production onboarding executed after
   M10: private repo `buildstacks-dev/buildstacks.dev` created, bootstrapped
-  with app-owned `.operon/` artifacts, and registered in the Operon org as
+  with app-owned `.cormidia/` artifacts, and registered in the Cormidia org as
   `status: onboarding`. Civic remains pending; buildstacks.dev is not live
   until the human flips its app status.
 - 2026-07-06 — v1.3: post-M12 hardening and live verification recorded (no
@@ -846,10 +849,10 @@ will resolve them.
   end-to-end: the live build loop drove planted tickets on the sandbox apps
   through ready → build → gates → review → ship → squash-merge, and the Claude
   live conformance suite re-passed.
-- 2026-07-07 — v1.4: greenfield creation boundary recorded. `operon new-app`
+- 2026-07-07 — v1.4: greenfield creation boundary recorded. `cormidia new-app`
   creates a separate product repo scaffold, starter product docs, and initial
   issue packet, then converges through the existing bootstrap/register path.
-- 2026-07-09 — v1.5: packaging/onboarding boundary reconciled. Operon is a
+- 2026-07-09 — v1.5: packaging/onboarding boundary reconciled. Cormidia is a
   locally installable CLI with a source-backed development link and packaged
   Agent Skill; package, org, state, and app paths are explicit and separate;
   bootstrap always joins a complete active org and no longer creates a nested
@@ -870,15 +873,15 @@ will resolve them.
   fail-closed verdict persistence, and report-only compaction. M6 is complete
   and live in the dispatch/CLI path; offline conformance is complete, and no
   token-spending calibration campaign was required for the implementation.
-- 2026-07-12 — v1.9: the read-only Operon Live UI contract was ratified and
-  implemented as `operon observe`: loopback capability URL, versioned
+- 2026-07-12 — v1.9: the read-only Cormidia Live UI contract was ratified and
+  implemented as `cormidia observe`: loopback capability URL, versioned
   snapshot projection, SSE reconciliation, deliberate local evidence access,
   and framework-free responsive browser UI without a second workflow store.
 - 2026-07-12 — v2.0: Reporting V1 ratified and implemented as a deterministic
-  ledger-first `operon report` CLI/portable export plus lazily computed
+  ledger-first `cormidia report` CLI/portable export plus lazily computed
   `/reports` mode in the existing observer; detailed semantics remain in
   `docs/reporting/design.md` v0.1.
-- 2026-07-13 — v2.1: P0-01 through P0-09 ratified as Operon's
+- 2026-07-13 — v2.1: P0-01 through P0-09 ratified as Cormidia's
   organization-wide efficiency operating doctrine. The episode now owns its
   route; execution/accounting terms and layer ownership are explicit; legacy
   deep/60-minute defaults are non-normative; durable progress and lifecycle
@@ -944,7 +947,7 @@ will resolve them.
   `validation-design/`. Two product surfaces are permanent: versioned validation
   campaign reports under `<stateHome>/validation/campaigns/<campaign-id>/report.json`,
   projected read-only through status/Report/Observe; and the sandbox-only unattended
-  profile `operon/unattended-sandbox/v1`, whose sole auto-grant category is campaign
+  profile `cormidia/unattended-sandbox/v1`, whose sole auto-grant category is campaign
   budget and which can never authorize publication, non-sandbox effects, critical
   operations, or forge a human decision. Completeness and verdict are separate;
   `inconclusive` is explicitly not a pass and never release evidence. Release gating
@@ -954,7 +957,18 @@ will resolve them.
   threat model, B-17-L3 remains blocked, and F-PT-018 leaves required-check enforcement
   unavailable. Implemented machinery never substitutes for missing evidence.
 - 2026-08-02 — v2.11: self-hosting ratified with retained human release
-  authority; public front door `buildstacks-dev/operon-web` created and
-  registered as an app; platform source repo deliberately unrenamed; npm
-  naming and GTM posture deferred. (Header version was stale at v2.7 while
-  the changelog stood at v2.10; corrected as part of this bump.)
+  authority. The front door and platform source may both be operated as apps,
+  while release authority and human-ratified surfaces remain human-controlled.
+  Its identity deferrals were superseded the same day by v2.12; the authority
+  carve-outs remain in force. (The header's stale v2.7 was corrected here.)
+- 2026-08-02 — v2.12: the product was renamed completely and permanently to
+  Cormidia. The CLI/package/skill, repository and organization, prompts, docs,
+  source, validation corpus, state/app artifact paths, and environment variables
+  moved together. Default state migrates atomically on first use and refuses a
+  dual-root ambiguity; environment variables are a hard break; existing app
+  repositories require one reviewed artifact-directory move. Narrative research
+  was normalized for open-source consistency; signed, content-addressed, and
+  hash-referenced raw research evidence remains byte-identical so its provenance
+  continues to verify. The frozen archive and five named external repository
+  identities remain untouched. The primary local checkout is renamed only after
+  its attached worktrees are repaired as part of the landing sequence.

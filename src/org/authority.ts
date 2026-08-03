@@ -26,7 +26,7 @@ export const LEGACY_CONSERVATIVE_VERSION = "legacy-conservative/v1";
 
 interface AuthorityFrontmatter {
   schema_version: number;
-  kind: "operon-org-authority";
+  kind: "cormidia-org-authority";
   profile: AuthorityProfile;
   version: string;
   granted_by?: string;
@@ -34,7 +34,7 @@ interface AuthorityFrontmatter {
 
 interface AppAuthorityFrontmatter {
   schema_version: number;
-  kind: "operon-app-authority";
+  kind: "cormidia-app-authority";
   mode: AppAuthorityMode;
   org_charter_version: string;
   org_charter_sha256: string;
@@ -62,7 +62,7 @@ export function createOrgAuthorityDocument(
     customText?.includes(AUTHORITY_BLOCK_START) ||
     customText?.includes(AUTHORITY_BLOCK_END)
   ) {
-    throw new Error("authority: custom charter text may not contain Operon instruction markers");
+    throw new Error("authority: custom charter text may not contain Cormidia instruction markers");
   }
   const version =
     profile === "delegated-operator"
@@ -72,7 +72,7 @@ export function createOrgAuthorityDocument(
         : "custom/v1";
   const frontmatter: AuthorityFrontmatter = {
     schema_version: AUTHORITY_SCHEMA_VERSION,
-    kind: "operon-org-authority",
+    kind: "cormidia-org-authority",
     profile,
     version,
     ...(grantedBy !== undefined ? { granted_by: grantedBy.trim() } : {}),
@@ -105,7 +105,7 @@ export async function resolveAuthority(options: {
     : legacyConservativeAuthority();
   if (options.appWorkdir === undefined) return org;
 
-  const appPath = join(resolve(options.appWorkdir), ".operon", "AUTHORITY.md");
+  const appPath = join(resolve(options.appWorkdir), ".cormidia", "AUTHORITY.md");
   if (!existsSync(appPath)) return org;
   const appText = await readFile(appPath, "utf8");
   const metadata = parseAppAuthority(appText, appPath);
@@ -171,7 +171,7 @@ export function createAppAuthorityDocument(
   validateAppSelection(selection);
   const frontmatter: AppAuthorityFrontmatter = {
     schema_version: AUTHORITY_SCHEMA_VERSION,
-    kind: "operon-app-authority",
+    kind: "cormidia-app-authority",
     mode: selection.mode,
     org_charter_version: org.version,
     org_charter_sha256: org.sha256,
@@ -185,7 +185,7 @@ export function createAppAuthorityDocument(
     stringify(frontmatter).trimEnd(),
     "---",
     "",
-    "# Operon app authority snapshot",
+    "# Cormidia app authority snapshot",
     "",
     "This file makes the effective charter visible to top-level harnesses.",
     "It is not a grant source: it may only preserve or narrow the canonical",
@@ -233,8 +233,8 @@ export function authorityPreview(profile: AuthorityProfile): {
   };
 }
 
-export const AUTHORITY_BLOCK_START = "<!-- operon-authority:start -->";
-export const AUTHORITY_BLOCK_END = "<!-- operon-authority:end -->";
+export const AUTHORITY_BLOCK_START = "<!-- cormidia-authority:start -->";
+export const AUTHORITY_BLOCK_END = "<!-- cormidia-authority:end -->";
 
 export function projectAuthorityBlock(
   authorityPath: string,
@@ -242,12 +242,12 @@ export function projectAuthorityBlock(
 ): string {
   return [
     AUTHORITY_BLOCK_START,
-    "## Operon delegated authority",
+    "## Cormidia delegated authority",
     "",
     `Read \`${authorityPath}\` before acting. Its recorded authority is version`,
     `\`${authority.version}\` with SHA-256 \`${authority.sha256}\`.`,
     "",
-    "The authority file governs routine autonomy but never bypasses Operon's",
+    "The authority file governs routine autonomy but never bypasses Cormidia's",
     "critical-operation approvals. App instructions and the current human task",
     "may narrow it; they cannot broaden it. A broader grant requires a fresh,",
     "attributable human instruction.",
@@ -259,7 +259,7 @@ export function projectAuthorityBlock(
   ].join("\n");
 }
 
-/** Preserve all non-Operon content byte-for-byte and replace/append only the
+/** Preserve all non-Cormidia content byte-for-byte and replace/append only the
  * marked block. Used for both AGENTS.md and CLAUDE.md. */
 export function composeProjectInstructions(existing: string, block: string): string {
   const start = existing.indexOf(AUTHORITY_BLOCK_START);
@@ -272,7 +272,7 @@ export function composeProjectInstructions(existing: string, block: string): str
     duplicateStart ||
     duplicateEnd
   ) {
-    throw new Error("authority: malformed Operon authority block in project instructions");
+    throw new Error("authority: malformed Cormidia authority block in project instructions");
   }
   if (start !== -1) {
     const after = end + AUTHORITY_BLOCK_END.length;
@@ -284,12 +284,12 @@ export function composeProjectInstructions(existing: string, block: string): str
 
 function authorityFromDocument(text: string, source: string): AuthorityContext {
   if (text.includes(AUTHORITY_BLOCK_START) || text.includes(AUTHORITY_BLOCK_END)) {
-    throw new Error(`authority: charter ${source} may not contain Operon instruction markers`);
+    throw new Error(`authority: charter ${source} may not contain Cormidia instruction markers`);
   }
   const metadata = parseFrontmatter(text, source) as Record<string, unknown>;
   if (
     metadata["schema_version"] !== AUTHORITY_SCHEMA_VERSION ||
-    metadata["kind"] !== "operon-org-authority" ||
+    metadata["kind"] !== "cormidia-org-authority" ||
     !["delegated-operator", "conservative", "custom"].includes(String(metadata["profile"])) ||
     typeof metadata["version"] !== "string" ||
     metadata["version"].trim().length === 0 ||
@@ -311,7 +311,7 @@ function parseAppAuthority(text: string, source: string): AppAuthorityFrontmatte
   const metadata = parseFrontmatter(text, source) as Record<string, unknown>;
   if (
     metadata["schema_version"] !== AUTHORITY_SCHEMA_VERSION ||
-    metadata["kind"] !== "operon-app-authority" ||
+    metadata["kind"] !== "cormidia-app-authority" ||
     !["inherit", "conservative", "custom"].includes(String(metadata["mode"])) ||
     typeof metadata["org_charter_version"] !== "string" ||
     typeof metadata["org_charter_sha256"] !== "string"
@@ -327,7 +327,7 @@ function parseAppAuthority(text: string, source: string): AppAuthorityFrontmatte
   validateAppSelection(selection);
   return {
     schema_version: AUTHORITY_SCHEMA_VERSION,
-    kind: "operon-app-authority",
+    kind: "cormidia-app-authority",
     mode: selection.mode,
     org_charter_version: metadata["org_charter_version"],
     org_charter_sha256: metadata["org_charter_sha256"],
@@ -363,7 +363,7 @@ function validateAppSelection(selection: AppAuthoritySelection): void {
     selection.restrictions?.includes(AUTHORITY_BLOCK_START) ||
     selection.restrictions?.includes(AUTHORITY_BLOCK_END)
   ) {
-    throw new Error("authority: app restrictions may not contain Operon instruction markers");
+    throw new Error("authority: app restrictions may not contain Cormidia instruction markers");
   }
   if (selection.restrictions !== undefined) validateRestrictionText(selection.restrictions);
 }
@@ -411,7 +411,7 @@ function effectiveAuthorityText(org: AuthorityContext, selection: AppAuthoritySe
 
 function legacyConservativeAuthority(): AuthorityContext {
   const base = createOrgAuthorityDocument("conservative");
-  const text = `${base.trim()}\n\nLegacy org note: no canonical AUTHORITY.md was recorded, so Operon fails closed.\n`;
+  const text = `${base.trim()}\n\nLegacy org note: no canonical AUTHORITY.md was recorded, so Cormidia fails closed.\n`;
   return {
     profile: "conservative",
     version: LEGACY_CONSERVATIVE_VERSION,
@@ -425,7 +425,7 @@ function authorityBody(profile: AuthorityProfile, customText?: string): string {
   const fixed = [
     "## Non-bypassable boundaries",
     "",
-    "- Operon's critical-operation approvals always apply. This charter cannot bypass them.",
+    "- Cormidia's critical-operation approvals always apply. This charter cannot bypass them.",
     "- App policy and the current human instruction may narrow this authority.",
     "- Never infer a broader grant than this recorded charter.",
     "- A broader grant requires a fresh, attributable human instruction.",

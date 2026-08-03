@@ -102,10 +102,10 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
     });
   }
 
-  const appTastePath = join(appWorkdir, ".operon", "TASTE.md");
+  const appTastePath = join(appWorkdir, ".cormidia", "TASTE.md");
   const appTaste = await readLayer(
     appTastePath,
-    "App .operon/TASTE.md",
+    "App .cormidia/TASTE.md",
     sources,
     false,
   );
@@ -158,12 +158,12 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
         : {}),
     });
     legacyCap = Math.min(legacyCap, resolved.bytes_remaining);
-    sources.push(join(orgHome, "learning"), join(appWorkdir, ".operon", "learning"));
+    sources.push(join(orgHome, "learning"), join(appWorkdir, ".cormidia", "learning"));
   }
 
   const memoryDirs = [
     join(orgHome, "memory", "roles", options.role.name),
-    join(appWorkdir, ".operon", "memory", options.role.name),
+    join(appWorkdir, ".cormidia", "memory", options.role.name),
   ].filter((dir) => existsSync(dir));
   const governedSections = resolved?.sections ?? [];
   const legacyExcerpts = await selectAttributedExcerpts(memoryDirs, options.taskText, legacyCap);
@@ -317,7 +317,7 @@ function roleProtocol(role: RoleConfig): string {
     "",
     "End-of-turn learning note instruction:",
     "- Before finishing, record observed lessons, corrections, and recurring failures as learning notes — candidate input for review, not active instructions.",
-    "- Craft notes go to org learning/candidates/<role>/; app-domain notes go to .operon/learning/candidates/<role>/ on the ticket branch.",
+    "- Craft notes go to org learning/candidates/<role>/; app-domain notes go to .cormidia/learning/candidates/<role>/ on the ticket branch.",
     "- A note states what you observed and the evidence for it. Notes carry no authority: nothing you write there loads into future context until it passes review.",
     "- Never write into memory/ trees or learning governance surfaces (bundle/, manifest.yaml, policy.yaml, quarantine/, evals/, reviews/, rejections.jsonl); those writes are critical ops and will be denied.",
     "",

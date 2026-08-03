@@ -8,7 +8,7 @@ uncorrelated judgment, not consensus.
 
 1. Challenge the obvious sequence. Consider risk-reduction-first, support-
    pain-first, and infrastructure-first alternatives.
-2. Preserve Operon's constraints: one ticket equals one PR, binary acceptance
+2. Preserve Cormidia's constraints: one ticket equals one PR, binary acceptance
    criteria, and critical operations remain human-gated.
 3. Call out any assumption in the brief that seems weak or unproven.
 4. Keep the plan executable by the existing build loop; do not invent a new
@@ -17,8 +17,8 @@ uncorrelated judgment, not consensus.
 ## Output
 
 Your artifact is the PM-B roadmap. If you write a file, write only
-`.operon/planning/pm-b.md`; the competing PM-A pass owns
-`.operon/planning/pm-a.md`.
+`.cormidia/planning/pm-b.md`; the competing PM-A pass owns
+`.cormidia/planning/pm-a.md`.
 
 Emit exactly these headings:
 

@@ -17,13 +17,13 @@ import { appendDenialLesson } from "../org/denial-lessons.js";
 import { loadApps } from "../org/apps.js";
 import { GhCliOps } from "../loop/github.js";
 import { continueAfterApproval } from "../loop/claim-recovery.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdApprovals(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "approvals");
   const parsed = parseArgs(common.rest);
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const stateHome = common.stateHome ? resolve(common.stateHome) : homes.stateHome;
   const store = new ApprovalStore(stateHome);
   await store.reconcile();
@@ -363,10 +363,10 @@ function printExecutionTable(
       // is the change-of-mind path, not the default next step.
       console.log(
         item.execution.nextAction === "dispatch"
-          ? `  waiting for execution: run \`operon dispatch\` (grant ${item.grantId}; ` +
-            `revoke with operon approvals revoke ${item.grantId} --confirm ${item.grantId})`
+          ? `  waiting for execution: run \`cormidia dispatch\` (grant ${item.grantId}; ` +
+            `revoke with cormidia approvals revoke ${item.grantId} --confirm ${item.grantId})`
           : `  unused grant: ${item.grantId}; only the raising turn can consume it — ` +
-            `revoke with operon approvals revoke ${item.grantId} --confirm ${item.grantId}`,
+            `revoke with cormidia approvals revoke ${item.grantId} --confirm ${item.grantId}`,
       );
     }
     if (item.execution?.failureCause !== undefined) console.log(`  cause: ${item.execution.failureCause}`);

@@ -1,12 +1,12 @@
 // CF-SM-GRANT-L/I/R — grant lifecycle on the real ApprovalStore (L2, HB-011):
 // once-grants (minted → consumed) and human-widened scoped A1 grants
 // (minted → n uses → expired/revoked), with every refusal leg of
-// OPERON-INV-003's falsifying shapes: cap+1, post-revocation, post-expiry,
+// CORMIDIA-INV-003's falsifying shapes: cap+1, post-revocation, post-expiry,
 // out-of-scope, changed-bytes, stale identity version, and consumed-once
 // replay.
 //
 // Design: case-catalog §2 CF-SM-GRANT row; contracts/B-09b §1-§5;
-// invariants.md OPERON-INV-003 shapes (a)/(b). Time is injected through the
+// invariants.md CORMIDIA-INV-003 shapes (a)/(b). Time is injected through the
 // store's per-call `now` parameters (fixtures/clock.ts) — decide,
 // findMatchingGrantSync, consumeGrantSync, revokeGrantSync and
 // claimActorRetryGrantSync all accept the instant, so TTL expiry is scripted,

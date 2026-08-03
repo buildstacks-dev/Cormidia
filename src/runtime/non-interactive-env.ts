@@ -74,7 +74,7 @@ export function withDependencyBuildPolicy(base: NodeJS.ProcessEnv): NodeJS.Proce
  * Environment for running an app's OWN declared commands — `setup_command`,
  * `test_command`, `lint_command` — outside a provider turn.
  *
- * The build loop's quality gates and `operon app verify`'s app-checks run the
+ * The build loop's quality gates and `cormidia app verify`'s app-checks run the
  * same commands against the same tree for the same purpose, so they must run
  * them the same way. They did not: ISSUE-031 had `pnpm install --frozen-lockfile`
  * pass the gates (which carried the ISSUE-029 build policy) and fail

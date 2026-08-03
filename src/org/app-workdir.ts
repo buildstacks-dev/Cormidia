@@ -2,8 +2,8 @@
 //
 // App identity is the GitHub slug in apps.yaml; execution still needs a local
 // checkout/worktree. For Bikram's laptop-first layout, target apps usually sit
-// beside the Operon repo under ~/Build/. Managed dispatch clones live under
-// ~/.operon/<org>/repos/<app>. Keep this resolver in the org layer so loop code
+// beside the Cormidia repo under ~/Build/. Managed dispatch clones live under
+// ~/.cormidia/<org>/repos/<app>. Keep this resolver in the org layer so loop code
 // remains app-agnostic.
 
 import { existsSync } from "node:fs";
@@ -39,7 +39,7 @@ export function appWorkdirCandidates(
 ): string[] {
   const orgRoot = resolve(options.orgRoot ?? process.cwd());
   const runtimeHome =
-    options.runtimeHome ?? join(homedir(), ".operon", "operon");
+    options.runtimeHome ?? join(homedir(), ".cormidia", "cormidia");
   const siblingRoot = dirname(orgRoot);
   const repoBase = repoBasename(app.repo);
   const candidates = [

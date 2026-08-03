@@ -1,5 +1,5 @@
 # Contract — B-01 GitHub API
-Canonical ID: **OPERON-C-B01-001 (alias: B-01)**
+Canonical ID: **CORMIDIA-C-B01-001 (alias: B-01)**
 
 Status: DRAFT (Phase 4). Defends INV-008/009/014, T-7/T-9. Journeys J-02/03/04/05/10/11/14/15/18.
 
@@ -14,14 +14,14 @@ Status: DRAFT (Phase 4). Defends INV-008/009/014, T-7/T-9. Journeys J-02/03/04/0
 
 ## 2. Output guarantees
 - Writes return the created artifact identity (issue #, PR #, review id, merge SHA);
-  Operon persists that identity before flipping any announcing label
+  Cormidia persists that identity before flipping any announcing label
   (artifact-before-label, INV-008).
 - Reads (polling): polling is **attempted on successful ticks** for live apps — there is
   no promised staleness maximum (the configured cadence is not a delivery guarantee:
   launchd may not fire, the laptop may sleep, GitHub may fail, the app may not be live).
   Poll age and poll failure are always exposed to readers (INV-008; B-12).
 - No cross-entity ordering guarantee; per-entity read-after-write is NOT assumed —
-  Operon re-reads before relying on a just-written state.
+  Cormidia re-reads before relying on a just-written state.
 
 ## 3. Error behavior
 - Typed: rate-limit (retry with backoff, bounded); 5xx (retryable, bounded); 4xx

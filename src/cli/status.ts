@@ -1,5 +1,5 @@
 import { formatStatusRows, readStatusRows } from "../runtime/runlog/status.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { resolve } from "node:path";
 import { approvalLifecycleState, ApprovalStore } from "../org/approvals.js";
@@ -14,7 +14,7 @@ export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
   const parsed = parseArgs(common.rest);
   const homes = common.orgHome !== undefined || common.stateHome === undefined
-    ? await resolveOperonHomes(common)
+    ? await resolveCormidiaHomes(common)
     : undefined;
   const stateHome = common.stateHome ? resolve(common.stateHome) : homes!.stateHome;
   const rows = await readStatusRows(stateHome, {

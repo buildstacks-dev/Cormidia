@@ -2,7 +2,7 @@
 // (HB-016 fix detector, deposited with the fix per AGENTS.md → policy
 // case_sourcing).
 //
-// OPERON-INV-011: secret-bearing content never crosses into the published
+// CORMIDIA-INV-011: secret-bearing content never crosses into the published
 // GitHub issue surface, and every egress guards through the ONE canonical
 // pattern policy (src/runtime/secret-patterns.ts). The guard under test is
 // the REAL product path `publishTickets` → `publishPlanProjection`

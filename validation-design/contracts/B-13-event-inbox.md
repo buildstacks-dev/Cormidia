@@ -1,5 +1,5 @@
 # Contract — B-13 Company-event inbox producers ↔ dispatcher
-Canonical ID: **OPERON-C-B13-001 (alias: B-13)**
+Canonical ID: **CORMIDIA-C-B13-001 (alias: B-13)**
 
 Status: DRAFT (Phase 4). Defends INV-013/014, F-PT-005 (resolved). Journey J-10.
 

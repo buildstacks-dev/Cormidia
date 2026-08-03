@@ -29,19 +29,19 @@ export const RELEASE_OWNERS = ["orchestrator", "sre"] as const;
 export type ReleaseOwner = (typeof RELEASE_OWNERS)[number];
 
 /** How a release is fired (deploy/package only; absent for `merge-only`):
- *  - `tag`: Operon pushes a version tag `vX.Y.Z` (the milestone's declared
+ *  - `tag`: Cormidia pushes a version tag `vX.Y.Z` (the milestone's declared
  *    `Release-version`) — the app's deploy workflow listens on `push: tags`.
  *    The default for a mechanism that declares no `command`.
- *  - `command`: Operon runs the app's declared `command` after merge (the
+ *  - `command`: Cormidia runs the app's declared `command` after merge (the
  *    pre-tag mechanism, retained as an escape hatch and inferred when a
  *    `command` is present without an explicit `trigger`).
  *  - `branch`: planned; rejected at parse until implemented. */
 export const RELEASE_TRIGGERS = ["tag", "branch", "command"] as const;
 export type ReleaseTriggerMode = (typeof RELEASE_TRIGGERS)[number];
 
-/** An app's declared release mechanism (`release:` in `.operon/config.yaml`
+/** An app's declared release mechanism (`release:` in `.cormidia/config.yaml`
  *  / apps.yaml). For `trigger: command` a `command` is required; for
- *  `trigger: tag` no command is declared (Operon derives the tag push); a
+ *  `trigger: tag` no command is declared (Cormidia derives the tag push); a
  *  `merge-only` mechanism has neither a command nor a trigger. */
 export interface ReleaseConfig {
   kind: ReleaseKind;

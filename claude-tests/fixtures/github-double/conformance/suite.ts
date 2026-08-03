@@ -1,5 +1,5 @@
 // CF-C-B01 — GitHub surface conformance suite (HB-003; contract
-// OPERON-C-B01-001; defends INV-008/INV-009 adjacency at the B-01 seam).
+// CORMIDIA-C-B01-001; defends INV-008/INV-009 adjacency at the B-01 seam).
 //
 // ONE suite, TWO targets (boundary-map honest-fake rule: "one conformance
 // suite runs against both fake and real dependency to prevent drift"):
@@ -20,7 +20,7 @@
 // FAILS it without wrapping vitest reporters.
 //
 // Read-back tolerance: the B-01 contract promises no per-entity
-// read-after-write ("Operon re-reads before relying"). `readBackAttempts`
+// read-after-write ("Cormidia re-reads before relying"). `readBackAttempts`
 // exists for the real target's propagation delays; the fake runs with the
 // strict default of 1 so it can never hide behind retries.
 

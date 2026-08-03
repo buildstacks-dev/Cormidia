@@ -39,8 +39,8 @@ const CAUGHT_MUTATIONS: ReadonlyArray<{ name: string; command: string; rule: str
 /** The tool-name route (adapter-native GitHub op) — INV-002 "adapter-native
  *  tool formats". */
 const CAUGHT_TOOL_ROUTES: ReadonlyArray<{ name: string; action: ToolAction; rule: string }> = [
-  { name: "operon.github.issue.create tool", action: { tool: "operon.github.issue.create", input: { title: "x" } }, rule: "external-publishing" },
-  { name: "operon.github.issue.comment tool", action: { tool: "operon.github.issue.comment", input: { body: "x" } }, rule: "external-publishing" },
+  { name: "cormidia.github.issue.create tool", action: { tool: "cormidia.github.issue.create", input: { title: "x" } }, rule: "external-publishing" },
+  { name: "cormidia.github.issue.comment tool", action: { tool: "cormidia.github.issue.comment", input: { body: "x" } }, rule: "external-publishing" },
 ];
 
 /** HB-010 (fixed 2026-07-31): the raw-API escape hatch. Every MUTATING

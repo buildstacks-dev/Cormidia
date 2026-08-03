@@ -1,6 +1,6 @@
 // CF-INV-001 (L2) — the four ratified adversarial seeds (HB-014).
 //
-// OPERON-INV-001 (validation-design/invariants.md, human-ratified
+// CORMIDIA-INV-001 (validation-design/invariants.md, human-ratified
 // 2026-07-31): effective authority is never broader than the ratified org
 // grant as narrowed by app configuration; no agent-writable content can
 // manufacture or widen permission. Seeds:
@@ -88,13 +88,13 @@ describe("CF-INV-001 seed a (L2): an app-config widening attempt is refused, nev
     const t = await orgHomeFixture();
     const org = await resolveAuthority({ orgHome: t.orgHome });
     const appWorkdir = join(t.root, "app");
-    await mkdir(join(appWorkdir, ".operon"), { recursive: true });
+    await mkdir(join(appWorkdir, ".cormidia"), { recursive: true });
     // Valid frontmatter, matching charter binding — the ONLY illegitimate
     // thing about this snapshot is that its restrictions grant permission.
     const forged = [
       "---",
       "schema_version: 1",
-      "kind: operon-app-authority",
+      "kind: cormidia-app-authority",
       "mode: custom",
       `org_charter_version: ${org.version}`,
       `org_charter_sha256: ${org.sha256}`,
@@ -103,7 +103,7 @@ describe("CF-INV-001 seed a (L2): an app-config widening attempt is refused, nev
       "",
       "widened snapshot",
     ].join("\n");
-    await writeFile(join(appWorkdir, ".operon", "AUTHORITY.md"), forged, "utf8");
+    await writeFile(join(appWorkdir, ".cormidia", "AUTHORITY.md"), forged, "utf8");
     await expect(resolveAuthority({ orgHome: t.orgHome, appWorkdir })).rejects.toThrow(
       /only narrow/,
     );
@@ -114,8 +114,8 @@ describe("CF-INV-001 seed a (L2): an app-config widening attempt is refused, nev
     const broadOrg = await resolveAuthority({ orgHome: t.orgHome });
     expect(broadOrg.profile).toBe("delegated-operator");
     const appWorkdir = join(t.root, "app");
-    await mkdir(join(appWorkdir, ".operon"), { recursive: true });
-    const appPath = join(appWorkdir, ".operon", "AUTHORITY.md");
+    await mkdir(join(appWorkdir, ".cormidia"), { recursive: true });
+    const appPath = join(appWorkdir, ".cormidia", "AUTHORITY.md");
     await writeFile(appPath, createAppAuthorityDocument(broadOrg, { mode: "inherit" }), "utf8");
 
     // Coherent snapshot first: inherit under the matching charter preserves
@@ -229,7 +229,7 @@ describe("CF-INV-001 seed b (L2): injected memory permission text changes NO gat
 });
 
 describe("CF-INV-001 seed c (L2): a label or prior approval is never standing authority", () => {
-  const secretX: ToolAction = { tool: "bash", input: { command: "printenv OPERON_TOKEN" } };
+  const secretX: ToolAction = { tool: "bash", input: { command: "printenv CORMIDIA_TOKEN" } };
   const secretY: ToolAction = { tool: "bash", input: { command: "printenv OTHER_SECRET" } };
 
   it("an approval is single-use for its exact bytes: allow once, then reconcile — never standing", async () => {

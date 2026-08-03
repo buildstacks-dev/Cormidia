@@ -33,16 +33,16 @@ export type RuntimeModelCatalogReader = (runtime: RuntimeKind) => Promise<Runtim
 /**
  * Why `claude` and `codex` have no offline roster. Both are reachable
  * token-free, but only by launching the provider's own transport with a
- * working credential — which `operon roles set` must not require: editing the
+ * working credential — which `cormidia roles set` must not require: editing the
  * org chart has to work on a machine that has not been authenticated yet, and
- * adapter probing is `operon doctor`'s job, not a config edit's.
+ * adapter probing is `cormidia doctor`'s job, not a config edit's.
  */
 const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
   claude:
     "the Claude adapter ships no offline model roster; its catalog is only readable by " +
     "launching the Claude CLI transport with a working credential, which a config edit must not require",
   codex:
-    "the Codex App Server protocol Operon speaks exposes account and thread methods only, " +
+    "the Codex App Server protocol Cormidia speaks exposes account and thread methods only, " +
     "with no model enumeration; the id is proven when a turn starts",
   pi: undefined,
 };

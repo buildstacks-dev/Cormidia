@@ -13,7 +13,7 @@ import { resolveAuthority } from "../../src/org/authority.js";
 import {
   ORG_REQUIRED_FILES,
   readActiveOrgPointer,
-  resolveOperonHomes,
+  resolveCormidiaHomes,
   validateOrgHome,
 } from "../../src/org/home.js";
 import { makeTempOrgHome, type TempOrgHome } from "./org-home.js";
@@ -33,7 +33,7 @@ async function orgHomeFixture(): Promise<TempOrgHome> {
 describe("HB-002 fixtures/org-home (product resolver accepts the fixture)", () => {
   it("resolves through the real active-org pointer to the fixture homes", async () => {
     const t = await orgHomeFixture();
-    const homes = await resolveOperonHomes(t.resolveOptions);
+    const homes = await resolveCormidiaHomes(t.resolveOptions);
     expect(homes.orgHome).toBe(t.orgHome);
     expect(homes.stateHome).toBe(t.stateHome);
     expect(homes.appsFile.org.name).toBe(t.orgName);
@@ -51,15 +51,15 @@ describe("HB-002 fixtures/org-home (product resolver accepts the fixture)", () =
     await assertNonEmptyWalk(join(t.orgHome, "prompts"));
   });
 
-  it("resolves via OPERON_ORG_HOME/OPERON_STATE_HOME overrides (B-10a env identity)", async () => {
+  it("resolves via CORMIDIA_ORG_HOME/CORMIDIA_STATE_HOME overrides (B-10a env identity)", async () => {
     const t = await orgHomeFixture();
     const strangerHome = await mkdtemp(join(tmpdir(), "hb002-stranger-home-"));
     cleanups.push(() => rm(strangerHome, { recursive: true, force: true }));
     // No pointer under this homeDir: only the env overrides can name the org.
-    const homes = await resolveOperonHomes({
+    const homes = await resolveCormidiaHomes({
       env: t.env,
       homeDir: strangerHome,
-      pointerPath: join(strangerHome, ".operon", "config"),
+      pointerPath: join(strangerHome, ".cormidia", "config"),
     });
     expect(homes.orgHome).toBe(t.orgHome);
     expect(homes.stateHome).toBe(t.stateHome);

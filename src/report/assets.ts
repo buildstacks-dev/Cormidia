@@ -5,13 +5,13 @@ export const REPORT_HTML = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Operon Reports</title>
+  <title>Cormidia Reports</title>
   <link rel="stylesheet" href="/assets/report.css">
 </head>
 <body>
   <a class="skip" href="#report-main">Skip to report</a>
   <header>
-    <div><strong>OPERON</strong><span class="marker">READ ONLY · TOKEN FREE · AS OF</span></div>
+    <div><strong>CORMIDIA</strong><span class="marker">READ ONLY · TOKEN FREE · AS OF</span></div>
     <nav aria-label="Primary"><a href="/">Live</a><a href="/reports" aria-current="page">Reports</a></nav>
     <p id="identity">Loading report…</p>
     <p id="timezone" class="tz"></p>
@@ -176,7 +176,7 @@ export const REPORT_JS = String.raw`
       metric('Known input', num(headline.known_input_tokens)),
       metric('Known output', num(headline.known_output_tokens)),
       metric('Known total', num(headline.known_total_tokens)),
-      metric('Equivalent cost', money(headline.recorded_equivalent_cost_usd), 'reported ' + money(headline.provider_reported_cost_usd) + ' · estimated ' + money(headline.operon_estimated_cost_usd) + ' · partial ' + money(headline.partial_recorded_cost_usd)),
+      metric('Equivalent cost', money(headline.recorded_equivalent_cost_usd), 'reported ' + money(headline.provider_reported_cost_usd) + ' · estimated ' + money(headline.cormidia_estimated_cost_usd) + ' · partial ' + money(headline.partial_recorded_cost_usd)),
       metric('Provider turns', headline.provider_turns, headline.unknown_usage_turns + ' unknown usage'),
       metric('Sessions', headline.sessions, headline.completed_sessions + ' completed'),
     ));
@@ -222,7 +222,7 @@ export const REPORT_JS = String.raw`
         node('td', {}, value.known_input_tokens === null ? '—' : num(value.known_input_tokens)),
         node('td', {}, value.known_output_tokens === null ? '—' : num(value.known_output_tokens)),
         node('td', {}, value.provider_reported_cost_usd === null ? '—' : money(value.provider_reported_cost_usd)),
-        node('td', {}, value.operon_estimated_cost_usd === null ? '—' : money(value.operon_estimated_cost_usd)),
+        node('td', {}, value.cormidia_estimated_cost_usd === null ? '—' : money(value.cormidia_estimated_cost_usd)),
         node('td', {}, value.partial_recorded_cost_usd === null ? '—' : money(value.partial_recorded_cost_usd)),
         node('td', {}, value.source_quality),
       ))),

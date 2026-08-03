@@ -415,8 +415,8 @@ function creatorProvenance(
     creatorId: parentTaskId !== undefined
       ? `parent-task:${parentTaskId}`
       : automated
-        ? "operon-dispatch"
-        : "operon-cli",
+        ? "cormidia-dispatch"
+        : "cormidia-cli",
     createdAt: journal.startedAt,
     evidenceRefs: [
       `turn:${journal.turnId}`,

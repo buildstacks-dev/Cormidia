@@ -1,7 +1,7 @@
 // CF-J05-RC — idempotency-marker reconciliation converts a crashed attempt
 // correctly; markers are typed by what they prove (contracts/
 // B-17-typed-executor.md §3/§4; contracts/journey-acceptance.md J-05;
-// OPERON-INV-003/008; system-map T-12; risk E-1).
+// CORMIDIA-INV-003/008; system-map T-12; risk E-1).
 //
 // L2 on real product code: `executeApprovedDeliveries` (the durable-github
 // typed executor) against the gh PROCESS double (B-01 seam) through
@@ -100,7 +100,7 @@ describe("CF-J05-RC — typed idempotency-marker reconciliation of crashed durab
   function remoteIssuesWithMarker(handle: GithubDoubleHandle): string[] {
     const state = handle.readState();
     return Object.values(state.issues)
-      .filter((issue) => issue.body.includes(`operon:delivery id=${IDEMPOTENCY_KEY}`))
+      .filter((issue) => issue.body.includes(`cormidia:delivery id=${IDEMPOTENCY_KEY}`))
       .map((issue) => issue.title);
   }
 
@@ -179,9 +179,9 @@ describe("CF-J05-RC — typed idempotency-marker reconciliation of crashed durab
     // (copied from the real one, so the format cannot drift from product).
     const state = walk.handle.readState();
     const original = Object.values(state.issues).find((issue) =>
-      issue.body.includes(`operon:delivery id=${IDEMPOTENCY_KEY}`),
+      issue.body.includes(`cormidia:delivery id=${IDEMPOTENCY_KEY}`),
     )!;
-    const markerLine = /<!-- operon:delivery id=[^>]*-->/.exec(original.body)![0];
+    const markerLine = /<!-- cormidia:delivery id=[^>]*-->/.exec(original.body)![0];
     await walk.gh.createIssue({
       title: "Impostor with the same marker",
       body: `Unrelated content.\n\n${markerLine}\n`,

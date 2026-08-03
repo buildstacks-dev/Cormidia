@@ -1,6 +1,6 @@
 // Durable parent delegated-task ledger. Pass runlogs answer "what did this
 // agent turn do?"; this store answers "what outcome did the human delegate,
-// and did execution remain inside Operon?". It is intentionally state-home
+// and did execution remain inside Cormidia?". It is intentionally state-home
 // data: exact operator prompts and native task identifiers are forensic
 // evidence, not committed org policy.
 
@@ -14,7 +14,7 @@ import type { AuthorityEvidence } from "../runtime/types.js";
 import { writeFileAtomic } from "./atomic.js";
 
 export type ParentTaskStatus = "running" | "completed" | "failed" | "cancelled" | "timed_out";
-export type ParentTaskExecutionMode = "operon" | "mixed" | "external_manual";
+export type ParentTaskExecutionMode = "cormidia" | "mixed" | "external_manual";
 
 export interface ParentTaskRecord {
   schemaVersion: 1;
@@ -58,7 +58,7 @@ export interface ParentTaskRecord {
 export interface ParentTaskCompletionState {
   implementation: "complete" | "incomplete" | "unknown";
   ci: "green" | "red" | "pending" | "unknown";
-  operonReview: "approved" | "changes_requested" | "awaiting" | "bypassed" | "not_required" | "unknown";
+  cormidiaReview: "approved" | "changes_requested" | "awaiting" | "bypassed" | "not_required" | "unknown";
   humanReview: "approved" | "awaiting" | "not_required" | "unknown";
   pr: "open" | "merged" | "closed" | "abandoned" | "none" | "unknown";
   issuesCloseOnMerge: string[];
@@ -107,7 +107,7 @@ export async function beginParentTask(options: BeginParentTaskOptions): Promise<
     ...(repository !== undefined ? { repository } : {}),
     requiredStages: options.requiredStages ?? ["planner", "builder", "reviewer"],
     ...(options.charter !== undefined ? { charter: options.charter } : {}),
-    executionMode: "operon",
+    executionMode: "cormidia",
     fallbackEvents: [],
     status: "running",
     startedAt: now.toISOString(),
@@ -193,7 +193,7 @@ export async function listParentTasks(stateHome: string): Promise<ParentTaskReco
 }
 
 export function parentTaskIdFrom(explicit?: string): string | undefined {
-  const value = explicit ?? process.env["OPERON_PARENT_TASK_ID"];
+  const value = explicit ?? process.env["CORMIDIA_PARENT_TASK_ID"];
   return value !== undefined ? validateTaskId(value) : undefined;
 }
 

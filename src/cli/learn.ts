@@ -1,4 +1,4 @@
-// `operon learn` — the episode-linked human review workflow
+// `cormidia learn` — the episode-linked human review workflow
 // (learning-loop M1 capture + M2 episode substrate; docs/learning-loop/
 // design §10.1, spec §16).
 //
@@ -29,7 +29,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { rollupLearningSpend } from "../org/budget.js";
-import { resolveOperonHomes, type OperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes, type CormidiaHomes } from "../org/home.js";
 import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
 import {
   previewCaptureEvents,
@@ -108,7 +108,7 @@ import { installProcessCancellation } from "./process-signal.js";
 export async function cmdLearn(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "learn");
   const [sub, ...rest] = common.rest;
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const stateHome = homes.stateHome;
   const appStages = Object.fromEntries(homes.appsFile.apps.map((app) => [app.name, app.status]));
   const appNames = homes.appsFile.apps.map((app) => app.name);
@@ -187,7 +187,7 @@ export async function cmdLearn(args: string[]): Promise<number> {
   }
 }
 
-async function distill(homes: OperonHomes, args: string[]): Promise<number> {
+async function distill(homes: CormidiaHomes, args: string[]): Promise<number> {
   let appName: string | undefined;
   let dryRun = false;
   for (let i = 0; i < args.length; i++) {
@@ -253,7 +253,7 @@ async function distill(homes: OperonHomes, args: string[]): Promise<number> {
 // ---------------------------------------------------------------------------
 
 async function inspect(
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   episodeId: string,
   projection: CaptureProjectionResult,
 ): Promise<number> {
@@ -270,7 +270,7 @@ async function inspect(
         (projection.runsPending > 0
           ? ` (${projection.runsPending} run(s) still pending capture — not yet terminal)`
           : "") +
-        "\nList known episodes with: operon learn report",
+        "\nList known episodes with: cormidia learn report",
     );
     return 1;
   }
@@ -379,7 +379,7 @@ async function inspect(
     lines.push(
       `  cost ${outcome.cost_estimated ? "~" : ""}$${outcome.cost_usd.toFixed(2)} (org ledger)` +
         (outcome.unsettled_runs.length > 0
-          ? `; UNSETTLED runs: ${outcome.unsettled_runs.join(", ")} — run operon budget --reconcile`
+          ? `; UNSETTLED runs: ${outcome.unsettled_runs.join(", ")} — run cormidia budget --reconcile`
           : ""),
     );
   }
@@ -433,7 +433,7 @@ async function inspect(
  *  missing checkout degrades the fingerprint (recorded as a failure reason),
  *  never the caller. Shared by inspect's capsule section and `learn fixture`. */
 async function assembleCapsule(
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   record: EpisodeRecord,
 ): Promise<{ capsule: ReplayCapsule; fingerprintFailure?: string }> {
   let fingerprintRef: string | undefined;
@@ -478,7 +478,7 @@ async function assembleCapsule(
 }
 
 /** Replay-capsule section for a closed build episode. */
-async function capsuleLines(homes: OperonHomes, record: EpisodeRecord): Promise<string[]> {
+async function capsuleLines(homes: CormidiaHomes, record: EpisodeRecord): Promise<string[]> {
   let capsule: ReplayCapsule;
   let fingerprintFailure: string | undefined;
   try {
@@ -565,7 +565,7 @@ async function emit(
     });
     console.log(`recorded late outcome ${event.event_id} against ${event.episode_id}`);
     console.log(`  it folds into the episode record on the next projection`);
-    console.log(`  trace it with: operon learn show ${event.event_id}`);
+    console.log(`  trace it with: cormidia learn show ${event.event_id}`);
     return 0;
   }
 
@@ -636,7 +636,7 @@ async function emit(
   await createLearningEventSink(stateHome).emit(event);
   console.log(`recorded ${event.event_id} against ${event.episode_id}`);
   console.log(`  ${learningEventPath(stateHome, event)}`);
-  console.log(`  trace it with: operon learn show ${event.event_id}`);
+  console.log(`  trace it with: cormidia learn show ${event.event_id}`);
   return 0;
 }
 
@@ -690,7 +690,7 @@ function mintEventId(now: Date): string {
 // show
 // ---------------------------------------------------------------------------
 
-async function show(homes: OperonHomes, id: string): Promise<number> {
+async function show(homes: CormidiaHomes, id: string): Promise<number> {
   const stateHome = homes.stateHome;
 
   // M3 record ids route to the committed org home's learning stores. A
@@ -704,7 +704,7 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
         console.log("");
         console.log(
           experiment.status === "decided"
-            ? `disposition: decided by ${experiment.result} — trace it with: operon learn show ${experiment.result}`
+            ? `disposition: decided by ${experiment.result} — trace it with: cormidia learn show ${experiment.result}`
             : `disposition: ${experiment.status} — no results yet (declared-before-results, design §9.1)`,
         );
       } else if (id.startsWith("eval_")) {
@@ -747,7 +747,7 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
     console.log("");
     const verdict = await readReviewerVerdict(homes.orgHome, id);
     if (verdict === undefined) {
-      console.log("disposition: awaiting review (fails closed) — operon learn review " + id);
+      console.log("disposition: awaiting review (fails closed) — cormidia learn review " + id);
       return 0;
     }
     console.log(`review: ${verdict.verdict} by ${verdict.reviewed_by} — ${verdict.rationale}`);
@@ -759,7 +759,7 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
       const intervention = await readInterventionRecord(homes.orgHome, interventionId);
       console.log(
         `disposition: ${intervention.status} ${intervention.destination} — ` +
-          `trace it with: operon learn show ${intervention.intervention_id}`,
+          `trace it with: cormidia learn show ${intervention.intervention_id}`,
       );
     } else {
       const rejected = (await readRejections(homes.orgHome)).find(
@@ -768,7 +768,7 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
       console.log(
         rejected !== undefined
           ? `disposition: rejected ${rejected.rejected_at} by ${rejected.by} — ${rejected.reason}`
-          : `disposition: reviewed, not yet published — operon learn publish ${id}`,
+          : `disposition: reviewed, not yet published — cormidia learn publish ${id}`,
       );
     }
     return 0;
@@ -785,7 +785,7 @@ async function show(homes: OperonHomes, id: string): Promise<number> {
   console.log(`stored at: ${learningEventPath(stateHome, match)}`);
   console.log(
     match.type === "late_outcome"
-      ? `disposition: folded into ${match.episode_id}'s record (late_outcomes) — inspect it with: operon learn inspect ${match.episode_id}`
+      ? `disposition: folded into ${match.episode_id}'s record (late_outcomes) — inspect it with: cormidia learn inspect ${match.episode_id}`
       : "disposition: captured — available to the M6 classification and distillation window",
   );
   return 0;
@@ -802,7 +802,7 @@ function claimLabel(claim: "authorized" | "validated"): string {
 // ---------------------------------------------------------------------------
 
 async function fixture(
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   args: string[],
   appStages: Record<string, string>,
   projector: EpisodeProjector,
@@ -884,7 +884,7 @@ async function fixture(
   if (converted.trust_gaps.length > 0) {
     console.log(`  not yet trusted — missing: ${converted.trust_gaps.join(", ")}`);
     console.log(
-      `  validate independently with: operon learn fixture ${episodeId} --set ${set} --validate --by <someone-else>`,
+      `  validate independently with: cormidia learn fixture ${episodeId} --set ${set} --validate --by <someone-else>`,
     );
   }
   return 0;
@@ -895,7 +895,7 @@ async function fixture(
 // ---------------------------------------------------------------------------
 
 async function report(
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   projection: CaptureProjectionResult,
   json: boolean,
   efficiencyHealthRequested: boolean,
@@ -1125,7 +1125,7 @@ async function report(
     );
     lines.push(
       projection.refreshRequired
-        ? "Run `operon learn report --refresh` to update derived capture and episode projections."
+        ? "Run `cormidia learn report --refresh` to update derived capture and episode projections."
         : "Derived capture projection is current; no files were changed.",
     );
   } else {

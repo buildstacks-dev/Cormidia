@@ -14,7 +14,7 @@ import {
   type SchedulerExpectation,
 } from "./model.js";
 
-const MARKER = "operon-scheduler-metadata-v1:";
+const MARKER = "cormidia-scheduler-metadata-v1:";
 
 export interface SchedulerDefinitionInput {
   backend: SchedulerBackend;
@@ -49,7 +49,7 @@ export function buildSchedulerExpectation(input: SchedulerDefinitionInput): Sche
   });
   const metadata: SchedulerDefinitionMetadata = {
     schema_version: SCHEDULER_SCHEMA_VERSION,
-    owner: "operon",
+    owner: "cormidia",
     scheduler_id: schedulerId,
     org_id: schedulerOrgId(input.orgName, orgHome),
     org_name: input.orgName,
@@ -143,7 +143,7 @@ function renderSystemd(metadata: SchedulerDefinitionMetadata, command: Scheduler
   const escaped = [command.executablePath, ...command.args].map(systemdQuote).join(" ");
   return `# ${MARKER}${encodeMetadata(metadata)}
 [Unit]
-Description=Operon org-scoped dispatch (${metadata.org_name})
+Description=Cormidia org-scoped dispatch (${metadata.org_name})
 
 [Service]
 Type=oneshot
@@ -169,7 +169,7 @@ function validMetadata(value: unknown): value is SchedulerDefinitionMetadata {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
   return row.schema_version === SCHEDULER_SCHEMA_VERSION
-    && row.owner === "operon"
+    && row.owner === "cormidia"
     && typeof row.scheduler_id === "string"
     && typeof row.org_id === "string"
     && typeof row.org_name === "string"

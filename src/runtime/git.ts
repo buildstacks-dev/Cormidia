@@ -8,7 +8,7 @@
 // upward repository discovery would otherwise attribute an enclosing repo's
 // HEAD to a non-git directory nested inside it (an npm-installed package
 // under an app's node_modules would fingerprint the APP's commit as
-// operon's). One spawn resolves both the toplevel and HEAD; a timeout keeps
+// cormidia's). One spawn resolves both the toplevel and HEAD; a timeout keeps
 // a wedged filesystem from blocking the event loop; failures of any kind
 // read as "unknown", never as an error.
 

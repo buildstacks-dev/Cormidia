@@ -41,7 +41,7 @@ export type ApprovalLifecycleState = "pending" | "denied" | ApprovalExecutionSta
  *  `attempts: 0` (ISSUE-020): the sandbox answered the actor "rejected by
  *  user" while the grant sat granted, and nothing can make a finished turn
  *  retry. `orchestrator-command` is the durable answer for a recorded shell
- *  action — `operon dispatch` runs the exact recorded command from the durable
+ *  action — `cormidia dispatch` runs the exact recorded command from the durable
  *  record. It remains actor-claimable (see claimActorRetryGrantSync): a live
  *  actor that legitimately re-attempts still wins the race and the orchestrator
  *  then finds nothing to do. */
@@ -146,7 +146,7 @@ export interface ApprovalGrant {
   commandSha256?: string;
   /** A1: present on multi-use rule+path-scoped grants. */
   scope?: GrantScope;
-  /** Set by `operon approvals revoke` — a revoked grant never matches. */
+  /** Set by `cormidia approvals revoke` — a revoked grant never matches. */
   revokedAt?: string;
   /** The action-identity format this grant was minted under (see
    *  ACTION_IDENTITY_VERSION). `findMatchingGrantSync` refuses any grant whose
@@ -221,9 +221,9 @@ export const NEVER_SCOPEABLE_RULES: readonly string[] = [
  * other side.
  *
  * So this list is closed and outward-effect only: a publication, a network
- * call, or a delete the human read in `operon approvals show`. Anything not
+ * call, or a delete the human read in `cormidia approvals show`. Anything not
  * listed — including a rule added later — stays with the executor it had, and
- * the human retains `operon approvals disposition`. `production-deploy` is
+ * the human retains `cormidia approvals disposition`. `production-deploy` is
  * absent because it has its own A4 release executor, and `secrets-or-auth`
  * because running a credential-bearing command under the orchestrator's
  * ambient environment is a materially different act from the agent running it
@@ -691,7 +691,7 @@ export class ApprovalStore {
       if (grant.scope === undefined && grant.consumedAt !== undefined) {
         throw new Error(
           `approval grant ${grantId} was already consumed; reconcile approval ${grant.approvalId} with ` +
-            `\`operon approvals disposition ${grant.approvalId} (--executed|--failed) ` +
+            `\`cormidia approvals disposition ${grant.approvalId} (--executed|--failed) ` +
             `--reason <text> --confirm ${grant.approvalId}\``,
         );
       }
@@ -1342,7 +1342,7 @@ export function approvalLifecycleState(item: ApprovalItem): ApprovalLifecycleSta
 function initialExecution(item: ApprovalItem): ApprovalExecution {
   const executor = item.rule === "production-deploy"
     ? "release" as const
-    : item.action.tool === "operon.github.issue.create" || item.action.tool === "operon.github.issue.comment"
+    : item.action.tool === "cormidia.github.issue.create" || item.action.tool === "cormidia.github.issue.comment"
       ? "durable-github" as const
       : approvedCommand(item.action) !== undefined && isOrchestratorExecutableRule(item.rule)
         ? "orchestrator-command" as const
@@ -1367,7 +1367,7 @@ const SHELL_TOOLS: ReadonlySet<string> = new Set([
 /** The exact command an approved shell action authorizes, or undefined when
  *  the action is not one. This is the ONLY thing an `orchestrator-command`
  *  execution may run: no rewriting, no re-quoting, no substitution — the same
- *  string the human read in `operon approvals show`. */
+ *  string the human read in `cormidia approvals show`. */
 export function approvedCommand(action: ApprovalAction | ToolAction): string | undefined {
   if (!SHELL_TOOLS.has(action.tool.trim().toLowerCase())) return undefined;
   const input = action.input;

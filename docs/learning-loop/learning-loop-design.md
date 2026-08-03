@@ -26,7 +26,7 @@ v0.7's scope model, migration plan, and cache-stability rules carry forward.
 
 ## 1. Overview
 
-Learning Loop is Operon's governed self-improvement system. It observes what
+Learning Loop is Cormidia's governed self-improvement system. It observes what
 actually happens during agent work, turns repeated failures and corrections into
 reviewable improvement candidates, publishes accepted improvements to the right
 durable artifact, and measures whether those improvements help.
@@ -77,7 +77,7 @@ app/role/class/cause events, and gives every cluster a durable disposition.
 Efficacy-claiming experiments additionally declare the baseline, control and
 treatment fingerprints, hidden-guardrail commitment, eligibility hash,
 actor-blind pairing, budget, stop/missingness rules, and side-effect replacement
-before results. `operon learn report --efficiency-health` then reports capture,
+before results. `cormidia learn report --efficiency-health` then reports capture,
 governance, and efficacy independently under the measurement rules in
 `docs/episodes/contract.md`.
 
@@ -87,9 +87,9 @@ project as `scheduler.missed_tick`. Their org/app/role/trigger identity and
 timestamps are verifier-owned; provider prose cannot create one. The scheduler
 schema and health contract remain canonical in `docs/scheduler/design.md`.
 
-The implementation target is **inside Operon first**. The interface boundaries
+The implementation target is **inside Cormidia first**. The interface boundaries
 should stay clean enough that this can later become a standalone library, but V1
-should optimize for a solid Operon integration, not for an abstract npm package.
+should optimize for a solid Cormidia integration, not for an abstract npm package.
 
 ## 2. Goals and Non-Goals
 
@@ -105,7 +105,7 @@ should optimize for a solid Operon integration, not for an abstract npm package.
 - Distinguish human-authorized changes from efficacy-validated changes, and
   make validation executable via declared experiment contracts.
 - Treat active context as a prompt-injection persistence surface.
-- Preserve Operon's app-aware model: one turn, one app; cross-app craft memory
+- Preserve Cormidia's app-aware model: one turn, one app; cross-app craft memory
   stays separate from app-domain knowledge.
 - Keep autonomy earned by measured agreement and outcomes, never granted by
   release.
@@ -132,7 +132,7 @@ The distiller produces candidate artifacts, not just "candidate memories."
 | Skill draft        | Repeatable procedure with steps, tools, pitfalls, and examples               | "Support feedback triage workflow"; "Browser QA checklist for Vite apps"           | Review-gated; promoted when recurring                  |
 | Protocol proposal  | Broad rule that should shape many turns                                      | "Never invent user feedback"; "Acceptance criteria must map to tests"              | Human-ratified surface                                 |
 | Eval/gate proposal | A mechanically checkable weakness                                            | Browser build imports must resolve; event fan-out must preserve all subscribers    | Test/gate PR; can block future regressions             |
-| Ticket             | Product/runtime work is required                                             | Fix lossy event fan-out; include file-drop payload in dispatched briefs            | Normal Operon issue/PR loop                            |
+| Ticket             | Product/runtime work is required                                             | Fix lossy event fan-out; include file-drop payload in dispatched briefs            | Normal Cormidia issue/PR loop                            |
 | Rejection ledger   | Candidate is wrong, too broad, stale, or unsafe                              | "Rejected: infer support reply without source payload"                             | Suppresses repeat proposals                            |
 
 Rule of thumb:
@@ -150,7 +150,7 @@ bundles get versioned manifests and canaries; a prompt change gets a PR and
 the same lineage record. Nothing activates without a traceable record of what
 changed and what happened next.
 
-## 4. Scope Model for Operon V1
+## 4. Scope Model for Cormidia V1
 
 V1 has four scopes:
 
@@ -214,12 +214,12 @@ before declaring launch readiness."
 
 `identities/` **is deferred.** It matters only when one role has multiple named
 employees with different durable responsibilities, such as `support-us-anna`
-and `support-eu-max`. Operon does not need that in V1.
+and `support-eu-max`. Cormidia does not need that in V1.
 
 `accounts/` **is deferred.** It matters when an app is doing customer-specific
 operations, such as "Acme Corp requires invoice PO numbers" or "Customer X has
 a custom SLA." Those are excellent OKF concepts, but they belong to a future
-Support/Sales/customer-ops layer, not core Operon V1.
+Support/Sales/customer-ops layer, not core Cormidia V1.
 
 The docs may mention these as future extensions, but the implementation should
 not pay their complexity tax yet.
@@ -242,7 +242,7 @@ escalated to review, not silently resolved.
 
 ## 5. Architecture
 
-The Operon-first loop has nine components.
+The Cormidia-first loop has nine components.
 
 **Capture.** The orchestrator records learning events from runlogs, quality
 gates, approvals, scorecards, telemetry, file-drop payloads, and explicit human
@@ -290,10 +290,10 @@ one content-hashed publish transaction:
 - Skill drafts land as proposal artifacts until reviewed.
 - Protocol changes become proposal PRs against human-ratified surfaces.
 - Eval/gate proposals become normal test/gate PRs.
-- Tickets enter the normal Operon issue loop (deduplicated and rate-capped;
+- Tickets enter the normal Cormidia issue loop (deduplicated and rate-capped;
   routine, no human gate — §6.1).
 
-**Resolve.** At turn start, Operon resolves knowledge once for
+**Resolve.** At turn start, Cormidia resolves knowledge once for
 `(app, role, turnId, episodeId)` and pins the resulting bundle versions for
 the whole turn/pipeline. Already-running turns never re-resolve. Canary lineage is
 chosen per **episode**, not per turn (§8.4), so every turn in one episode sees
@@ -388,7 +388,7 @@ memory.
 
 Run remediation and durable learning are different trust regimes.
 
-When a run fails, Operon's existing gates, retries, tickets, and review cycles
+When a run fails, Cormidia's existing gates, retries, tickets, and review cycles
 fix the run. That path should stay fast and operational.
 
 When a lesson should change future context, it enters the learning loop. If a
@@ -406,7 +406,7 @@ active future instructions directly.
 Today, **all** OKF memory is written by agents directly: the end-of-turn
 protocol injected into every context bundle (`src/org/context.ts`) instructs
 agents to author docs straight into `memory/roles/<role>/` and
-`.operon/memory/<role>/`, and the critical-ops gate allows it — `memory/**` is
+`.cormidia/memory/<role>/`, and the critical-ops gate allows it — `memory/**` is
 not a protocol surface. `writeMemoryDoc` and `runRetroCuration` exist as
 library code but have no callers in any runtime path. The real migration is
 therefore *agents-write-active-memory → agents-emit-candidates*, and it is the
@@ -418,13 +418,13 @@ The migration has three parts, all landing in M1 (capture-only):
 
 1. **Redirect the end-of-turn protocol.** The injected instruction changes
    from "write OKF docs into memory trees" to "emit learning notes as
-   candidate input" (a quarantine-style notes path or `operon learn emit`).
+   candidate input" (a quarantine-style notes path or `cormidia learn emit`).
    Agents keep the habit of recording lessons; the lessons stop being
    instantly active.
 2. **Gate the learning surfaces mechanically.** New gate rules make writes to
    `learning/bundle/**`, `learning/manifest.yaml`, `learning/policy.yaml`,
    `learning/evals/**`, `learning/reviews/**`, and `learning/rejections.jsonl`
-   (and their `.operon/learning/**` app-repo counterparts) critical ops — same
+   (and their `.cormidia/learning/**` app-repo counterparts) critical ops — same
    shape as the existing `scorecard-tamper` rule in `src/runtime/gate.ts`.
    Every governance surface of the loop becomes orchestrator/human-only by
    enforcement, not etiquette: protecting only the bundle would leave the
@@ -437,7 +437,7 @@ The migration has three parts, all landing in M1 (capture-only):
    keywords — ports into the distiller's `skill_draft` destination.
 
 **Legacy memory trees are read-only seed context.** Existing
-`memory/roles/**` and `.operon/memory/**` docs keep resolving, at lowest
+`memory/roles/**` and `.cormidia/memory/**` docs keep resolving, at lowest
 precedence, stamped `trust: legacy`. Individual docs get promoted into the
 governed bundle through the normal candidate path when evidence warrants; no
 bulk migration.
@@ -531,7 +531,7 @@ answer to:
 > extension, rejection, or rollback?
 
 Requiring one for every candidate would tax trivial facts with apparatus they
-cannot use — at Operon's episode volume, most T0 facts will never justify a
+cannot use — at Cormidia's episode volume, most T0 facts will never justify a
 paired replay. The requirement is therefore conditional:
 
 | Candidate                                                  | Experiment contract |
@@ -623,11 +623,11 @@ episode record
 The responsibility boundary:
 
 ```text
-Operon records and reproduces what ran.
+Cormidia records and reproduces what ran.
 The learning loop decides what to test and whether it helped.
 ```
 
-**Operon core** provides the deterministic recording and reproduction
+**Cormidia core** provides the deterministic recording and reproduction
 substrate: durable `EpisodeRecord` lifecycle, immutable inputs and evidence
 references, seed commits and fixtures, `SystemFingerprint`, turn/run lineage
 with gates/approvals/costs/release disposition, an external side-effect ledger
@@ -708,7 +708,7 @@ The system must not replay every completed episode.
 
 ## 10. Measurement and Low-Volume Canary
 
-Operon will begin with low run volume. A hard "200 canary runs" rule would stall
+Cormidia will begin with low run volume. A hard "200 canary runs" rule would stall
 learning before it starts.
 
 V1 therefore uses a three-part decision rule:
@@ -735,13 +735,13 @@ a durable episode end-to-end. A human reviewing a completed ticket, incident,
 support thread, or campaign can:
 
 - Inspect the complete episode: turns, runs, artifacts, gates, decisions,
-  configuration fingerprint, and outcome (`operon learn inspect <episode-id>`).
+  configuration fingerprint, and outcome (`cormidia learn inspect <episode-id>`).
 - Record one or more observations against that episode
-  (`operon learn emit --episode <episode-id>`), interactively or from a
+  (`cormidia learn emit --episode <episode-id>`), interactively or from a
   structured Markdown/JSON artifact.
 - Trace each observation through classification, candidate creation,
   evaluation, activation, rejection, or deferral
-  (`operon learn show <event-or-candidate-id>`).
+  (`cormidia learn show <event-or-candidate-id>`).
 
 The input contract keeps three fields separate:
 
@@ -760,7 +760,7 @@ Two manual lanes exist:
 
 - **Normal correction:** enters the standard capture → distill → review →
   evaluate → activate/reject workflow.
-- **Urgent provisional instruction:** `operon learn provisional` adds
+- **Urgent provisional instruction:** `cormidia learn provisional` adds
   explicitly unverified, quarantined context with a hard TTL; it never
   silently promotes (§7).
 
@@ -805,16 +805,16 @@ completes or no-ops by approval id; it never double-publishes. The publisher
 is orchestrator code with no model in the loop, and it is the only component
 allowed to write inside the gate-protected learning surfaces.
 
-## 12. Operon Integration
+## 12. Cormidia Integration
 
-V1 integrates with existing Operon surfaces:
+V1 integrates with existing Cormidia surfaces:
 
 - **Homes:** committed learning artifacts live in the **committed org home**
-  created by `operon org init` (the ratified package/org/state/app separation
+  created by `cormidia org init` (the ratified package/org/state/app separation
   in `docs/PURPOSE.md`; resolution in `src/org/home.ts`). High-churn runtime
   state (events, metrics, episodes, capsules, reports) lives in the state home
-  `~/.operon/<org>/`. App-scoped bundles live in the app repo under
-  `.operon/learning/`. The Operon source checkout holds none of it.
+  `~/.cormidia/<org>/`. App-scoped bundles live in the app repo under
+  `.cormidia/learning/`. The Cormidia source checkout holds none of it.
 - **Episodes:** the build-episode projection reads the M5 ticket state
   machine's process-owned state plus `runs/<app>/<runId>/` and the telemetry
   ledger (§8.3) — it does not introduce a second ticket-state store.
@@ -847,7 +847,7 @@ V1 integrates with existing Operon surfaces:
 - `src/loop/verdicts.ts`: reviewer verdict parsing reuses `parseWithRetry` and
   the native structured-output path rather than fresh JSON parsing.
 - `src/org/approvals.ts`: the human gate is the existing approvals store
-  (pending/decided/grants + `operon approvals`), not a second inbox. Candidate
+  (pending/decided/grants + `cormidia approvals`), not a second inbox. Candidate
   approvals are a new item kind carrying the §11.1 binding; the reviewer's
   verdict JSON is stored as evidence, but the human decision lives in the one
   queue. Fail-closed comes free: no grant, no publish. The SLA report reads
@@ -857,12 +857,12 @@ V1 integrates with existing Operon surfaces:
   current validator reconstructs only known fields, so an unextended
   round-trip would silently strip the loop governance metadata.
 
-The CLI is `operon learn ...`, not `loop-learn`, until extraction earns
+The CLI is `cormidia learn ...`, not `loop-learn`, until extraction earns
 itself.
 
 ### 12.1 Cache Stability
 
-The resolver sits directly on Operon's most expensive surface. The rules in
+The resolver sits directly on Cormidia's most expensive surface. The rules in
 `research/2026-07-04_prompt-caching.md` bind it:
 
 1. **Deterministic serialization.** The resolved bundle renders byte-identically
@@ -926,6 +926,6 @@ regressions. Agreement alone is insufficient.
 
 If a second orchestrator wants this system, the interfaces can be extracted:
 EventSink, EpisodeProjector, Distiller, Reviewer, Publisher, Store, Resolver,
-ExperimentRunner, Metrics. Until then, the implementation stays inside Operon
+ExperimentRunner, Metrics. Until then, the implementation stays inside Cormidia
 so it can reuse runlogs, approvals, scorecards, app registries, GitHub
 operations, and quality gates directly.

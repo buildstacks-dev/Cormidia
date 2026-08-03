@@ -4,18 +4,18 @@
 trigger grammar, event polling and routing, locking and concurrency, manual
 invocation, the scheduler definition and identity schema, durable evidence,
 state retention, reason codes, and health semantics. The scheduler is an
-org-scoped host trigger for the ordinary stateless `operon dispatch` boundary.
+org-scoped host trigger for the ordinary stateless `cormidia dispatch` boundary.
 It is not a daemon, workflow engine, provider runtime, or replacement for turn
 journals, locks, approvals, budgets, continuation, or telemetry. The system
 map is [`../architecture.md`](../architecture.md) §2.*
 
 ## Dispatch model
 
-**Model: stateless tick, not a daemon.** `operon scheduler install` creates an
+**Model: stateless tick, not a daemon.** `cormidia scheduler install` creates an
 org-scoped launchd definition (`StartInterval: 300` by default) that invokes an
 absolute Node/package entry with explicit org and state homes. A future systemd
-user timer uses the same backend boundary, but Operon does not claim its health
-on an unexercised platform. Each tick calls the ordinary `operon dispatch`,
+user timer uses the same backend boundary, but Cormidia does not claim its health
+on an unexercised platform. Each tick calls the ordinary `cormidia dispatch`,
 reads config + durable state, computes what is due, starts detached turns, and
 exits. There is no competing daemon or workflow engine. A wedged host resumes
 on the next tick; cadence remains flexi and ticks run at all hours (decided
@@ -26,7 +26,7 @@ EpisodePlan authorizes *what may run*.
 Lifecycle mutations preview by default and require `--execute` plus exact org
 or scheduler-id confirmation. Ownership metadata, the rendered-definition
 hash, and a crash-resumable transaction prevent silent overwrite/removal of a
-malformed, foreign, or wrong-org definition. `operon scheduler status` and
+malformed, foreign, or wrong-org definition. `cormidia scheduler status` and
 doctor join definition, loaded/active manager state, recent tick evidence,
 duplicate/orphan checks, and provider-settlement agreement. Definition-file
 existence is never sufficient for health.
@@ -48,7 +48,7 @@ still collapse to one firing with explicit missed/reconciled counts.
 For each app with `status: live`, for each role, merge `roles.yaml` triggers
 with the app's cadence overrides (`../architecture.md` §7), then evaluate. An app that is not
 `status: live` is a **named skip** in the tick result (app + actual status,
-printed by `operon dispatch` as a `skip` line), never a silent no-op — its
+printed by `cormidia dispatch` as a `skip` line), never a silent no-op — its
 pending inbox events stay unpolled, and the operator can see why:
 
 **Schedule triggers.** Grammar (already in roles.yaml): `hourly`,
@@ -149,8 +149,8 @@ recovery (`../loop/turns.md`), which decides resume vs restart and re-owns the l
 (apps.yaml, default 2) → remaining due turns stay due; next tick retries.
 Priority when contending: blocked-turn re-dispatches, then events, then
 schedules (oldest due first).
-- **Turns outlive the tick.** `operon dispatch` spawns
-`operon run-role … --turn <id>` as a detached process, so the 5-minute
+- **Turns outlive the tick.** `cormidia dispatch` spawns
+`cormidia run-role … --turn <id>` as a detached process, so the 5-minute
 timer never kills a long turn. `run-role` is thereby also the manual
 entry point. `--turn` is the invocation/trace identity used by the journal and
 run evidence; it is not a GitHub ticket number and never creates a ticket
@@ -186,11 +186,11 @@ invocation.
 ## Lifecycle CLI
 
 ```bash
-operon scheduler install [--backend launchd|systemd] [--cadence-minutes N] [--json]
-operon scheduler install ... --execute --confirm <scheduler-id-or-exact-org-name>
-operon scheduler status [--backend launchd|systemd] [--cadence-minutes N] [--json]
-operon scheduler uninstall [--backend launchd|systemd] [--cadence-minutes N] [--json]
-operon scheduler uninstall ... --execute --confirm <scheduler-id-or-exact-org-name>
+cormidia scheduler install [--backend launchd|systemd] [--cadence-minutes N] [--json]
+cormidia scheduler install ... --execute --confirm <scheduler-id-or-exact-org-name>
+cormidia scheduler status [--backend launchd|systemd] [--cadence-minutes N] [--json]
+cormidia scheduler uninstall [--backend launchd|systemd] [--cadence-minutes N] [--json]
+cormidia scheduler uninstall ... --execute --confirm <scheduler-id-or-exact-org-name>
 ```
 
 Install and uninstall preview by default and write nothing. Execution requires
@@ -202,11 +202,11 @@ The installed definition invokes an absolute Node executable and absolute
 package entry with explicit `--org-home` and `--state-home` arguments. It does
 not rely on an active-org pointer, cwd, an interactive shell, inherited `PATH`,
 or an environment dump. Definition metadata contains no credentials. The
-identity is `dev.operon.dispatch.<org-slug>.<org-home-hash>`; the org id also
+identity is `dev.cormidia.dispatch.<org-slug>.<org-home-hash>`; the org id also
 binds the exact org name and org-home path, so two orgs cannot collide.
 
 launchd is the supported host backend on macOS. A systemd user-timer
-representation exists behind the same small manager boundary, but Operon does
+representation exists behind the same small manager boundary, but Cormidia does
 not claim installed or active health on an unexercised/unsupported platform.
 Production host commands are isolated in `src/org/scheduler/manager.ts`; tests
 inject a manager and temporary definition directory and never call the host
@@ -217,7 +217,7 @@ scheduler.
 The ownership metadata marker and `scheduler/installation.json` are
 `schema_version: 1` and bind:
 
-- `owner: operon`, scheduler id, org id, and org name;
+- `owner: cormidia`, scheduler id, org id, and org name;
 - backend and cadence minutes;
 - absolute executable and package-entry paths;
 - absolute org and state homes;
@@ -306,8 +306,8 @@ UTC day per state home (concurrent ticks race the claim safely; the marker is
 overwritten with the completed sweep record). A sweep failure is reported in
 the tick output but never fails the tick, and each subtree fails
 independently — an error keeps that subtree's files for a later sweep. The
-manual surface is `operon prune-runs --sweep` (same windows, immediate run);
-`operon prune-runs` without `--sweep` remains the runs-only manual prune.
+manual surface is `cormidia prune-runs --sweep` (same windows, immediate run);
+`cormidia prune-runs` without `--sweep` remains the runs-only manual prune.
 
 Default windows (days) and fail-safe prune rules:
 
@@ -333,7 +333,7 @@ safe: a refused decomposition is provider-derived evidence *awaiting* a
 decision, and the ratification that accepts one embeds the accepted plan
 verbatim, so ageing the refusal can never lose something a human decided.
 
-**Ledger retention respects the reconciliation window.** `operon budget
+**Ledger retention respects the reconciliation window.** `cormidia budget
 --reconcile` can back-fill the ledger from surviving run envelopes and
 efficiency provider steps, so deleting a ledger row while its source evidence
 survives would let a later reconcile re-append that spend as a duplicate,
@@ -377,7 +377,7 @@ Every due decision terminates as `executed`, `skipped`, `blocked`, `missed`,
 | Definition/install | `unsupported_platform`, `unsupported_backend`, `not_installed`, `definition_valid`, `inactive`, `stale_definition`, `malformed_definition`, `wrong_org`, `wrong_state_home`, `wrong_executable`, `cadence_drift`, `ownership_mismatch`, `scheduler_state_missing`, `scheduler_state_corrupt` |
 | Operational health | `healthy_recent_tick`, `overdue_tick`, `last_tick_failed`, `measurement_unavailable` |
 
-Budget, approval, channel, and learning outcomes are ordinary Operon decisions:
+Budget, approval, channel, and learning outcomes are ordinary Cormidia decisions:
 per-app budget overlays remain isolated; approval parking and denial recurrence
 remain in force; scheduled distillation/review uses the learning-budget overlay
 and governed publisher; empty learning windows are mechanical and construct no
@@ -385,7 +385,7 @@ runtime. Local durable alerts are the only scheduler notification surface.
 
 ## Health semantics
 
-`operon scheduler status --json` is the canonical read projection. Terminal
+`cormidia scheduler status --json` is the canonical read projection. Terminal
 output renders the same facts. It reports definition/install/loaded/active
 state and hashes; expected/observed paths and cadence; last due window,
 invocation, completed tick, next tick, overdue and missed windows; outcome and
@@ -402,7 +402,7 @@ never health. Missing denominators, config-only inspection, absent runtime
 manager evidence, and corrupt state yield invalid/unavailable measurement—not
 zero and not healthy.
 
-`operon doctor` uses this projection without constructing a provider runtime.
+`cormidia doctor` uses this projection without constructing a provider runtime.
 Normal doctor performs the bounded host-manager inspection; `--config-only`
 checks only definition/config facts and explicitly cannot claim execution
 health. Repair is the explicit idempotent `scheduler install --execute` path;

@@ -1,7 +1,7 @@
 // CF-INV-011 — one shared secret policy scrubs every egress: L1 scrub
 // guardrail (HB-016, FLOOR — non-discretionary).
 //
-// OPERON-INV-011 (validation-design/invariants.md): every egress surface
+// CORMIDIA-INV-011 (validation-design/invariants.md): every egress surface
 // scrubs through the ONE canonical pattern policy. The guard under test is
 // the REAL product pair `SECRET_PATTERNS` + `scrubSecrets`
 // (src/runtime/secret-patterns.ts, src/runtime/runlog/redact.ts) — the exact

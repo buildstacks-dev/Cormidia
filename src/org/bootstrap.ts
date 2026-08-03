@@ -1,4 +1,4 @@
-// `operon bootstrap` — runs inside the product repo (docs/architecture.md §9).
+// `cormidia bootstrap` — runs inside the product repo (docs/architecture.md §9).
 //
 // Step 1 ("Learn") is `scanRepo()` — language/build/test commands from
 // manifests and CI config, documentation inventory, agent docs
@@ -7,11 +7,11 @@
 // — interactive collection lives in the CLI; tests and scripts inject the
 // same object via `--answers answers.json`. Step 3 ("Emit") is
 // `emitAppArtifacts()`: the app charter
-// (`.operon/TASTE.md`), the app's registry entry (`.operon/config.yaml`,
-// apps.yaml schema), `.operon/onboarding-report.md`, and seeded per-role
+// (`.cormidia/TASTE.md`), the app's registry entry (`.cormidia/config.yaml`,
+// apps.yaml schema), `.cormidia/onboarding-report.md`, and seeded per-role
 // memory bundles. `bootstrapRun()` composes steps 1–3 and registers the app in
 // the required active org home. App-owned bootstrap output also includes
-// `.operon/policy.yaml` when the M4.2 policy template is present in this
+// `.cormidia/policy.yaml` when the M4.2 policy template is present in this
 // package.
 
 import { readFile, readdir, mkdir, rm, rmdir, writeFile } from "node:fs/promises";
@@ -108,7 +108,7 @@ const DOC_CATEGORY_DEFS: readonly { id: DocCategoryId; label: string; guidance: 
   {
     id: "product/readme",
     label: "Product / overview",
-    guidance: "Add or point Operon at app-owner-authored product overview docs.",
+    guidance: "Add or point Cormidia at app-owner-authored product overview docs.",
   },
   {
     id: "architecture",
@@ -395,13 +395,14 @@ export interface EmitResult {
   /** Relative paths written, in emission order. */
   created: string[];
   /** Existing project instruction files changed only inside the marked
-   * Operon block; all other bytes are preserved. */
+   * Cormidia block; all other bytes are preserved. */
   updated: string[];
 }
 
 /** This package's root (works from both src/ and dist/ — two levels up). */
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const POLICY_TEMPLATE_REL = join("docs", "policy.yaml.template");
+const RETIRED_APP_ARTIFACT_DIR = ".operon";
 
 /** apps.yaml keys are plain YAML scalars — keep names to safe characters. */
 function sanitizeAppName(name: string): string {
@@ -410,7 +411,7 @@ function sanitizeAppName(name: string): string {
 }
 
 /** Contract B-14 §3: a symlinked target path — or any symlinked ancestor,
- * e.g. `.operon` itself linked out of the checkout — would route bootstrap
+ * e.g. `.cormidia` itself linked out of the checkout — would route bootstrap
  * writes outside the tree that was validated. Typed refusal before mutation.
  * `existsSync` follows links, so this walks every path segment with lstat. */
 function assertNotSymlinked(targetRoot: string, rels: readonly string[]): void {
@@ -441,6 +442,18 @@ function assertNotExists(targetRoot: string, rels: readonly string[]): void {
       );
     }
   }
+}
+
+/** Refuse to create a second app-policy tree beside a checkout that still
+ * carries the retired product path. That repository needs one reviewed
+ * `git mv` so config authority never splits between two directories. */
+function assertNoRetiredAppArtifactRoot(targetRoot: string): void {
+  const retired = join(targetRoot, RETIRED_APP_ARTIFACT_DIR);
+  if (lstatSync(retired, { throwIfNoEntry: false }) === undefined) return;
+  throw new Error(
+    `bootstrap: retired app artifact directory ${retired} still exists — ` +
+      "rename it to .cormidia in one reviewed app-repository commit before bootstrapping with Cormidia",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -694,12 +707,12 @@ export interface EmitAppArtifactsOptions {
 export function appArtifactFiles(answers: BootstrapAnswers, allRoles: string[]): string[] {
   const enabled = allRoles.filter((r) => answers.roles.includes(r));
   return [
-    ".operon/TASTE.md",
-    ".operon/AUTHORITY.md",
-    ".operon/config.yaml",
-    ".operon/policy.yaml",
-    ".operon/onboarding-report.md",
-    ...enabled.map((role) => `.operon/memory/${role}/INDEX.md`),
+    ".cormidia/TASTE.md",
+    ".cormidia/AUTHORITY.md",
+    ".cormidia/config.yaml",
+    ".cormidia/policy.yaml",
+    ".cormidia/onboarding-report.md",
+    ...enabled.map((role) => `.cormidia/memory/${role}/INDEX.md`),
   ];
 }
 
@@ -806,6 +819,7 @@ export async function emitAppArtifacts(
   const repoSlug = options.repoSlug ?? `OWNER/${appName}`;
   const templateRoot = options.templateRoot ?? PACKAGE_ROOT;
 
+  assertNoRetiredAppArtifactRoot(targetRoot);
   const files = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, files);
   assertNotSymlinked(targetRoot, files);
@@ -845,20 +859,20 @@ export async function emitAppArtifacts(
   };
 
   try {
-    await emit(".operon/TASTE.md", charterMd(appName, answers));
-    await emit(".operon/AUTHORITY.md", appAuthority);
+    await emit(".cormidia/TASTE.md", charterMd(appName, answers));
+    await emit(".cormidia/AUTHORITY.md", appAuthority);
     await emit(
-      ".operon/config.yaml",
+      ".cormidia/config.yaml",
       configYaml(appName, repoSlug, options.repoSlug === undefined, answers, allRoles),
     );
-    await emit(".operon/policy.yaml", policyTemplate);
+    await emit(".cormidia/policy.yaml", policyTemplate);
     await emit(
-      ".operon/onboarding-report.md",
+      ".cormidia/onboarding-report.md",
       onboardingReportMd(appName, onboardingReport, effectiveAuthority, answers.authority),
     );
     for (const role of allRoles) {
       if (answers.roles.includes(role)) {
-        await emit(`.operon/memory/${role}/INDEX.md`, memoryIndexMd(role, appName));
+        await emit(`.cormidia/memory/${role}/INDEX.md`, memoryIndexMd(role, appName));
       }
     }
 
@@ -905,17 +919,17 @@ export async function validateEmittedArtifacts(
   created: readonly string[],
   updated: readonly string[],
 ): Promise<void> {
-  const config = await loadApps(join(root, ".operon", "config.yaml"));
+  const config = await loadApps(join(root, ".cormidia", "config.yaml"));
   const app = config.apps.find((entry) => entry.name === appName);
   if (config.schemaVersion !== 1 || app?.repo !== repoSlug || app.status !== "onboarding") {
     throw new Error("bootstrap: generated config failed schema validation");
   }
-  const policy = parse(await readFile(join(root, ".operon", "policy.yaml"), "utf8"));
+  const policy = parse(await readFile(join(root, ".cormidia", "policy.yaml"), "utf8"));
   if (!policy || typeof policy !== "object") throw new Error("bootstrap: generated policy is not a YAML mapping");
-  const authorityText = await readFile(join(root, ".operon", "AUTHORITY.md"), "utf8");
+  const authorityText = await readFile(join(root, ".cormidia", "AUTHORITY.md"), "utf8");
   const authorityFrontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(authorityText)?.[1];
   const authorityMeta = authorityFrontmatter === undefined ? undefined : parse(authorityFrontmatter) as Record<string, unknown>;
-  if (authorityMeta?.["schema_version"] !== 1 || authorityMeta["kind"] !== "operon-app-authority") {
+  if (authorityMeta?.["schema_version"] !== 1 || authorityMeta["kind"] !== "cormidia-app-authority") {
     throw new Error("bootstrap: generated authority failed schema validation");
   }
   for (const rel of [...created, ...updated]) {
@@ -945,7 +959,7 @@ async function planProjectInstructionFiles(
   effectiveAuthority: AuthorityContext,
 ): Promise<ProjectInstructionPlan[]> {
   const instructionBlock = projectAuthorityBlock(
-    ".operon/AUTHORITY.md",
+    ".cormidia/AUTHORITY.md",
     effectiveAuthority,
   );
   return Promise.all(
@@ -977,7 +991,7 @@ async function readPolicyTemplate(templateRoot: string): Promise<string> {
   } catch (e) {
     throw new Error(
       `bootstrap: policy template ${path} is missing or unreadable — ` +
-        `.operon/policy.yaml is app-owned bootstrap output; M6 consumes it and fails if missing ` +
+        `.cormidia/policy.yaml is app-owned bootstrap output; M6 consumes it and fails if missing ` +
         `(${e instanceof Error ? e.message : String(e)})`,
     );
   }
@@ -993,7 +1007,7 @@ App-level taste, layer [3] of context assembly (docs/architecture.md §5;
 docs/PURPOSE.md → TASTE layers): what this product is and what "good" means here.
 Concatenated after the org constitution and role craft addenda — it
 specializes defaults; the org's "What we never do" section stays
-unoverridable. Seeded by \`operon bootstrap\` from the questionnaire; edit
+unoverridable. Seeded by \`cormidia bootstrap\` from the questionnaire; edit
 freely via proposal PR (human-ratified surface — agent writes are
 gate-critical).
 
@@ -1041,8 +1055,8 @@ function configYaml(
   if (answers.channels.marketing !== undefined) channels["marketing"] = answers.channels.marketing;
   if (Object.keys(channels).length > 0) entry["channels"] = channels;
 
-  const header = `# .operon/config.yaml — app registry mirror plus checkout-level policy
-# (docs/architecture.md §1, §9). Emitted by \`operon bootstrap\` from the
+  const header = `# .cormidia/config.yaml — app registry mirror plus checkout-level policy
+# (docs/architecture.md §1, §9). Emitted by \`cormidia bootstrap\` from the
 # questionnaire answers. Human-ratified surface: changes land via proposal
 # PR; agent writes are gate-critical. schema_version is the public contract
 # marker (§1 containment invariant).
@@ -1092,11 +1106,11 @@ function onboardingReportMd(
   selection: AppAuthoritySelection,
 ): string {
   const lines: string[] = [
-    `# Operon Onboarding Report — ${appName}`,
+    `# Cormidia Onboarding Report — ${appName}`,
     "",
     "This report inventories existing documentation and setup signals. It does not infer product truth from source code.",
     "",
-    "Gaps are onboarding guidance, not blockers unless `.operon/config.yaml` or `.operon/policy.yaml` says so.",
+    "Gaps are onboarding guidance, not blockers unless `.cormidia/config.yaml` or `.cormidia/policy.yaml` says so.",
     "",
     "## Documentation Inventory",
     "",
@@ -1175,7 +1189,7 @@ function memoryIndexMd(role: string, appName: string): string {
 
 Per-(role, app) OKF bundle (docs/architecture.md §6): what the ${role} role
 knows about this product. This INDEX is the always-included excerpt layer —
-one line per document in the bundle. Seeded empty by \`operon bootstrap\`;
+one line per document in the bundle. Seeded empty by \`cormidia bootstrap\`;
 the role appends lessons at end of turn (deliberately agent-writable routine
 op) and the weekly curation pass dedupes, prunes, and promotes.
 
@@ -1238,6 +1252,7 @@ export async function bootstrapRun(
   const repoSlug = options.repoSlug ?? scan.repoSlug;
   const registrationRepoSlug = repoSlug ?? `OWNER/${appName}`;
 
+  assertNoRetiredAppArtifactRoot(targetRoot);
   const appFiles = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, appFiles);
   assertNotSymlinked(targetRoot, appFiles);
@@ -1325,7 +1340,7 @@ export interface RegisterExistingOrgResult {
   joinedOrgHome: string;
 }
 
-/** Register-only path for `operon bootstrap <repo> --org-home <org>` when no
+/** Register-only path for `cormidia bootstrap <repo> --org-home <org>` when no
  * questionnaire answers are supplied: scan the repo and append it to the
  * existing org registry, leaving app artifacts for a later answers run. */
 export async function registerAppWithExistingOrg(

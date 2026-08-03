@@ -1,4 +1,4 @@
-// `operon new-app` — greenfield product bootstrap. This creates the target app
+// `cormidia new-app` — greenfield product bootstrap. This creates the target app
 // repo skeleton first, then hands off to the normal bootstrap/register path.
 
 import {
@@ -7,12 +7,12 @@ import {
   NEW_APP_TEMPLATES,
   type NewAppTemplate,
 } from "../org/new-app.js";
-import { ORG_HOME_DEFINITION, resolveOperonHomes, STATE_HOME_DEFINITION } from "../org/home.js";
+import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION } from "../org/home.js";
 import { reportCliInvocation } from "./invocation-audit.js";
 
 export async function cmdNewApp(args: string[]): Promise<number> {
   const parsed = parseArgs(args);
-  const homes = await resolveOperonHomes(
+  const homes = await resolveCormidiaHomes(
     parsed.orgHome !== undefined ? { orgHome: parsed.orgHome } : {},
   );
   const result = await createNewApp({
@@ -66,7 +66,7 @@ export async function cmdNewApp(args: string[]): Promise<number> {
   } else {
     console.log(
       "\nnext: review the scaffold, create/push the private GitHub repo, then " +
-        "create the initial op:ready issue from .operon/bootstrap/initial-issue.md.",
+        "create the initial op:ready issue from .cormidia/bootstrap/initial-issue.md.",
     );
   }
   return 0;
@@ -89,7 +89,7 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
   const first = args[0];
   if (!first || first.startsWith("--")) {
     throw new Error(
-      "new-app: usage: operon new-app <name-or-goal> --target-dir <path> --repo <owner/repo> " +
+      "new-app: usage: cormidia new-app <name-or-goal> --target-dir <path> --repo <owner/repo> " +
         '[--goal <string>] [--name <app>] [--template typescript-node|bare] [--org-home <path>] ' +
         "[--support-channel <id>] [--marketing-channel <id>] [--dry-run] [--json]",
     );

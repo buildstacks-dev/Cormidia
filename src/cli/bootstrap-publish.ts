@@ -1,15 +1,15 @@
-// `operon bootstrap publish <app>` — coordinated draft-PR publication of the
-// artifacts `operon bootstrap` wrote (#61).
+// `cormidia bootstrap publish <app>` — coordinated draft-PR publication of the
+// artifacts `cormidia bootstrap` wrote (#61).
 //
 // Preview is the default. Publishing opens pull requests on GitHub, which is
-// an outward-facing effect, so it follows the same convention as `operon
+// an outward-facing effect, so it follows the same convention as `cormidia
 // scheduler install`: describe exactly what would happen, and require an
 // explicit `--execute` to do it. `--dry-run` is accepted as an explicit way to
 // ask for the default, so a script can state its intent rather than rely on it.
 
 import { resolve } from "node:path";
 import { findExistingOrg } from "../org/apps.js";
-import { resolveOperonHomes, validateOrgHome } from "../org/home.js";
+import { resolveCormidiaHomes, validateOrgHome } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
 import {
   executeBootstrapPublish,
@@ -61,17 +61,17 @@ export async function cmdBootstrapPublish(args: string[]): Promise<number> {
   }
 
   if (app === undefined) {
-    throw new Error("bootstrap publish: an app name is required (operon bootstrap publish <app>)");
+    throw new Error("bootstrap publish: an app name is required (cormidia bootstrap publish <app>)");
   }
 
   const existingOrgHome = await findExistingOrg(orgHomeFlag ? { orgHome: orgHomeFlag } : {});
   if (existingOrgHome === undefined) {
     throw new Error(
-      "bootstrap publish: no active org — initialize one with `operon org init <path> --name <name>`",
+      "bootstrap publish: no active org — initialize one with `cormidia org init <path> --name <name>`",
     );
   }
   await validateOrgHome(existingOrgHome);
-  const homes = await resolveOperonHomes({
+  const homes = await resolveCormidiaHomes({
     orgHome: existingOrgHome,
     ...(stateHome !== undefined ? { stateHome } : {}),
   });
@@ -143,7 +143,7 @@ export async function cmdBootstrapPublish(args: string[]): Promise<number> {
   if (drafts > 0) {
     console.log(
       `\n${drafts === 1 ? "The pull request is a draft" : `All ${drafts} pull requests are drafts`}. ` +
-        "Review and merge them together; Operon will not.",
+        "Review and merge them together; Cormidia will not.",
     );
   }
   return 0;

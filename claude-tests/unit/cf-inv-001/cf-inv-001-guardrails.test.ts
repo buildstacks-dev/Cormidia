@@ -1,6 +1,6 @@
 // CF-INV-001 (L1) — authority never grows by accident: pure guardrails (HB-014).
 //
-// OPERON-INV-001 (validation-design/invariants.md): no agent-writable content
+// CORMIDIA-INV-001 (validation-design/invariants.md): no agent-writable content
 // — prose in a command, a description, a label mention, a memory note — can
 // manufacture or widen permission, and the surfaces that define agent
 // authority are structurally unwritable by agents (proposal-only). The
@@ -127,7 +127,7 @@ describe("CF-INV-001 seed d (L1): protocol surfaces are structurally unwritable 
     },
     {
       label: "self-approval through the supported CLI decision channel",
-      action: { tool: "bash", input: { command: "operon approvals review" } },
+      action: { tool: "bash", input: { command: "cormidia approvals review" } },
       rule: "approval-store-tamper",
     },
   ];

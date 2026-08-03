@@ -2,7 +2,7 @@
 // executable: its repaired review step settles from the evidence that already
 // exists, and the revision reaches its `fix` step.
 //
-// Defect source: buildstacks-dev/Operon#202 ("accepted v2 replan unreachable on
+// Defect source: cormidia/Cormidia#202 ("accepted v2 replan unreachable on
 // the failed_gate path"), found by the august-org live run 2026-08-01.
 //
 // The mechanism, established from the run's own durable artifacts:

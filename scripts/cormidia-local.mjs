@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // Source-backed local launcher. `pnpm link:local` puts a symlink to the
-// pre-ESM guard in `src/operon-local.cjs` on PATH; that guard imports this file,
-// so the next `operon` invocation reads the latest TypeScript source without a
+// pre-ESM guard in `src/cormidia-local.cjs` on PATH; that guard imports this file,
+// so the next `cormidia` invocation reads the latest TypeScript source without a
 // rebuild or relink.
 
 import { spawn } from "node:child_process";
@@ -17,7 +17,7 @@ const child = spawn(process.execPath, ["--import", tsxLoader, cli, ...process.ar
 });
 
 // Keep the source-backed wrapper transparent for foreground commands. In
-// particular, `operon observe` owns graceful SIGINT/SIGTERM shutdown; killing
+// particular, `cormidia observe` owns graceful SIGINT/SIGTERM shutdown; killing
 // only this wrapper would orphan the real CLI child or report a misleading
 // signal exit even after the observer closed cleanly.
 const forward = (signal) => {
@@ -29,7 +29,7 @@ process.on("SIGINT", onSigint);
 process.on("SIGTERM", onSigterm);
 
 child.on("error", (error) => {
-  console.error(`operon local launcher: ${error.message}`);
+  console.error(`cormidia local launcher: ${error.message}`);
   process.exitCode = 1;
 });
 child.on("exit", (code, signal) => {

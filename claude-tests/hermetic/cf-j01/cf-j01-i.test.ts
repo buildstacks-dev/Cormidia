@@ -15,7 +15,7 @@
 // out of hermetic reach without modifying product code. The init legs cover
 // the reachable seams honestly: a kill between plan and execute (nothing
 // exists yet), and the exact on-disk aftermath a mid-staging SIGKILL leaves
-// (an orphaned `.<name>.operon-init-*` stage), which the rerun must converge
+// (an orphaned `.<name>.cormidia-init-*` stage), which the rerun must converge
 // past. The atomic-rename step itself is asserted transitively: no kill leg
 // ever observes a half-populated target.
 
@@ -195,8 +195,8 @@ await kp("done");
     const w = await makeInitWorld();
     cleanups.push(() => w.cleanup());
     // The exact aftermath of a SIGKILL inside materializeInitStage: a
-    // `.<name>.operon-init-*` sibling holding a partial, unvalidated tree.
-    const orphan = join(w.root, ".org.operon-init-killed01");
+    // `.<name>.cormidia-init-*` sibling holding a partial, unvalidated tree.
+    const orphan = join(w.root, ".org.cormidia-init-killed01");
     await mkdir(orphan, { recursive: true });
     await writeFile(join(orphan, "TASTE.md"), "partial staged bytes from a killed init\n", "utf8");
 

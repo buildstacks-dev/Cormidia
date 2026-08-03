@@ -1,4 +1,4 @@
-// `operon plan <app>` — token-free manual context/worktree preview plus the
+// `cormidia plan <app>` — token-free manual context/worktree preview plus the
 // EpisodePlanner-backed `--auto` mode. The former native interactive child
 // process is intentionally unavailable because it bypassed durable plan,
 // assignment, gate, envelope, and settlement authority.
@@ -6,7 +6,7 @@
 import { cleanupPlanningWorktree, preparePlanSession } from "../org/plan.js";
 import { runAutoPlan } from "../org/plan-auto.js";
 import { loadApps } from "../org/apps.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -58,7 +58,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
   // reason `bootstrap publish` is: it is a different, human-gated operation
   // with outward-facing effects, not a modifier on a planning run (ENH-011).
   if (common.rest[0] === "ratify-ticket-budget") {
-    return cmdPlanRatifyTicketBudget(common.rest.slice(1), await resolveOperonHomes(common));
+    return cmdPlanRatifyTicketBudget(common.rest.slice(1), await resolveCormidiaHomes(common));
   }
   const parsed = parsePlanArgs(common.rest);
   const creatorScope = parsed.creatorScopePath === undefined
@@ -82,7 +82,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
   }
   const automated = parsed.auto || creatorScope !== undefined;
   const goal = creatorScope?.objective ?? parsed.goal;
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const parentTaskId = await resolveParentTaskId(homes.stateHome, parsed.parentTaskId);
 
   if (parsed.explainRoute) {
@@ -340,9 +340,9 @@ export function parsePlanArgs(args: string[]): ParsedPlanArgs {
   const app = args[0];
   if (!app || app.startsWith("--")) {
     throw new Error(
-      "plan: usage: operon plan <app> --dry-run [--topic <string>] [--workdir <path>] " +
-        "| operon plan <app> --auto --goal <text> [--stage bootstrap] [--no-publish] " +
-        "| operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready [--no-publish]",
+      "plan: usage: cormidia plan <app> --dry-run [--topic <string>] [--workdir <path>] " +
+        "| cormidia plan <app> --auto --goal <text> [--stage bootstrap] [--no-publish] " +
+        "| cormidia plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready [--no-publish]",
     );
   }
 
@@ -571,7 +571,7 @@ export function projectTicketBudget(input: {
   const range = expectedTicketBandRange(input.requestedBand);
   const remedy =
     "plan a smaller milestone, or ratify the exact refused decomposition with " +
-    "`operon plan ratify-ticket-budget` — do not raise --stage, which falsifies repository maturity";
+    "`cormidia plan ratify-ticket-budget` — do not raise --stage, which falsifies repository maturity";
   if (range.max !== null && range.max <= budget) {
     return {
       stage: input.stage,
@@ -642,7 +642,7 @@ async function previewAutoPlanningRequest(input: {
   if (isBudgetBlocking(budget.status)) {
     throw new Error(
       budget.status === "unknown"
-        ? `plan: ${input.app.name} budget total is unverifiable; run \`operon budget --reconcile\``
+        ? `plan: ${input.app.name} budget total is unverifiable; run \`cormidia budget --reconcile\``
         : `plan: ${input.app.name} has exhausted its monthly budget`,
     );
   }
@@ -842,7 +842,7 @@ function assertExplicitCreatorScopeReady(
       .join("; ");
     throw new Error(
       `plan: --execution-ready creator scope ${resolve(path!)} is incomplete or invalid: ${problems}. ` +
-        "Correct the declared scope; Operon will not infer readiness or silently invoke EpisodePlanner.",
+        "Correct the declared scope; Cormidia will not infer readiness or silently invoke EpisodePlanner.",
     );
   }
   try {

@@ -70,7 +70,7 @@ export interface ReportHeadlineV1 {
   cache_read_tokens: number;
   cache_creation_tokens: number;
   provider_reported_cost_usd: number;
-  operon_estimated_cost_usd: number;
+  cormidia_estimated_cost_usd: number;
   partial_recorded_cost_usd: number;
   recorded_equivalent_cost_usd: number;
   unknown_cost_turns: number;
@@ -88,7 +88,7 @@ export interface ReportBucketV1 {
   known_input_tokens: number | null;
   known_output_tokens: number | null;
   provider_reported_cost_usd: number | null;
-  operon_estimated_cost_usd: number | null;
+  cormidia_estimated_cost_usd: number | null;
   partial_recorded_cost_usd: number | null;
   provider_turns: number;
   unknown_usage_turns: number;
@@ -102,7 +102,7 @@ export interface ReportBreakdownV1 {
   known_total_tokens: number;
   recorded_equivalent_cost_usd: number;
   provider_reported_cost_usd: number;
-  operon_estimated_cost_usd: number;
+  cormidia_estimated_cost_usd: number;
   partial_recorded_cost_usd: number;
   turns: number;
   sessions: number;
@@ -278,7 +278,7 @@ export interface ReportSessionSummaryV1 {
   ended_at: string | null;
   outcome: string;
   completion_integrity: CompletionIntegrity;
-  execution_mode: "operon" | "mixed" | "manual" | "not_recorded";
+  execution_mode: "cormidia" | "mixed" | "manual" | "not_recorded";
   provider_turns: number;
   mechanical_passes: number;
   known_input_tokens: number;

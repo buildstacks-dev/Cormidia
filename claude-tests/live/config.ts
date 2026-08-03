@@ -36,10 +36,10 @@ export interface LiveCampaignConfigV1 {
 export async function loadLiveCampaignConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ config: LiveCampaignConfigV1; path: string }> {
-  if (env["OPERON_LIVE"] !== "1") throw new Error("live validation refused: OPERON_LIVE=1 is required (lane is incomplete, not skipped)");
-  const configured = env["OPERON_LIVE_CONFIG"];
-  if (configured === undefined || configured.trim() === "") throw new Error("live validation refused: OPERON_LIVE_CONFIG must name a reviewed authorization file");
-  if (!isAbsolute(configured)) throw new Error("live validation refused: OPERON_LIVE_CONFIG must be an absolute path");
+  if (env["CORMIDIA_LIVE"] !== "1") throw new Error("live validation refused: CORMIDIA_LIVE=1 is required (lane is incomplete, not skipped)");
+  const configured = env["CORMIDIA_LIVE_CONFIG"];
+  if (configured === undefined || configured.trim() === "") throw new Error("live validation refused: CORMIDIA_LIVE_CONFIG must name a reviewed authorization file");
+  if (!isAbsolute(configured)) throw new Error("live validation refused: CORMIDIA_LIVE_CONFIG must be an absolute path");
   const path = resolve(configured);
   const value: unknown = JSON.parse(await readFile(path, "utf8"));
   validate(value);

@@ -1,5 +1,5 @@
 // Greenfield app creation: create a separate product repo skeleton, then reuse
-// the normal bootstrap path so `.operon/` artifacts and org registration stay
+// the normal bootstrap path so `.cormidia/` artifacts and org registration stay
 // identical to an existing-app onboarding.
 
 import { existsSync } from "node:fs";
@@ -28,7 +28,7 @@ export type NewAppTemplate = (typeof NEW_APP_TEMPLATES)[number];
 export const DEFAULT_NEW_APP_TEMPLATE: NewAppTemplate = "typescript-node";
 
 export interface NewAppOptions {
-  /** Operon app key. Defaults to the target directory basename. */
+  /** Cormidia app key. Defaults to the target directory basename. */
   appName?: string;
   /** Local directory to create. Must be absent or empty. */
   targetDir: string;
@@ -98,19 +98,19 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   });
   const scaffold = generatedFiles(template, appName, options.repoSlug, goal);
   const bootstrapFiles = appArtifactFiles(answers, allRoles);
-  const operonSeedFiles = [
-    ".operon/LABELS.md",
-    ".operon/bootstrap/initial-issue.md",
-    ".operon/bootstrap/next-commands.md",
-    ".operon/planning/0001-greenfield-seed.md",
+  const cormidiaSeedFiles = [
+    ".cormidia/LABELS.md",
+    ".cormidia/bootstrap/initial-issue.md",
+    ".cormidia/bootstrap/next-commands.md",
+    ".cormidia/planning/0001-greenfield-seed.md",
   ];
   const plannedCreated = [
     ...scaffold.map((file) => file.rel),
     ...bootstrapFiles,
     "CLAUDE.md",
-    ...operonSeedFiles,
+    ...cormidiaSeedFiles,
   ];
-  const plannedUpdated = ["AGENTS.md", ".operon/config.yaml", `${orgHome}/apps.yaml`];
+  const plannedUpdated = ["AGENTS.md", ".cormidia/config.yaml", `${orgHome}/apps.yaml`];
   const stateCreated = options.stateHome === undefined
     ? []
     : [
@@ -145,7 +145,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     ...(options.stateHome !== undefined ? { stateHome: options.stateHome } : {}),
   });
 
-  // Record where this greenfield app was scaffolded so `operon app verify` can
+  // Record where this greenfield app was scaffolded so `cormidia app verify` can
   // synthesize a lifecycle record from the pushed remote (L0-01). new-app runs
   // before `git init`/push, so it cannot write the record itself.
   if (options.stateHome !== undefined) {
@@ -156,19 +156,19 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   }
 
   await appendGateCommands(targetDir, template);
-  const operonSeeds = generatedOperonSeedFiles(
+  const cormidiaSeeds = generatedCormidiaSeedFiles(
     template,
     appName,
     options.repoSlug,
     goal,
     targetDir,
   );
-  for (const file of operonSeeds) await writeGeneratedFile(targetDir, file);
+  for (const file of cormidiaSeeds) await writeGeneratedFile(targetDir, file);
   await validateEmittedArtifacts(
     targetDir,
     appName,
     options.repoSlug,
-    [...scaffold.map((file) => file.rel), ...bootstrap.created, ...operonSeeds.map((file) => file.rel)],
+    [...scaffold.map((file) => file.rel), ...bootstrap.created, ...cormidiaSeeds.map((file) => file.rel)],
     bootstrap.updated,
   );
 
@@ -178,7 +178,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     repoSlug: options.repoSlug,
     template,
     dryRun: false,
-    created: [...scaffold.map((file) => file.rel), ...bootstrap.created, ...operonSeeds.map((file) => file.rel)],
+    created: [...scaffold.map((file) => file.rel), ...bootstrap.created, ...cormidiaSeeds.map((file) => file.rel)],
     updated: [...new Set([...plannedUpdated, ...bootstrap.updated])],
     stateCreated,
     qualityGates,
@@ -210,14 +210,14 @@ function buildAnswers(options: {
 
   const product = options.template === "bare"
     ? `${options.appName} is a greenfield product scaffolded from this goal: ${options.goal}. ` +
-      "The repository is intentionally stack-neutral: it begins with product truth and Operon bootstrap artifacts only. " +
+      "The repository is intentionally stack-neutral: it begins with product truth and Cormidia bootstrap artifacts only. " +
       "The first implementation work must select the stack and establish meaningful stack-specific build, test, and lint gates."
     : `${options.appName} is a greenfield product scaffolded from this goal: ` +
       `${options.goal}. The initial app is intentionally small: a documented web product skeleton, ` +
-      "a starter domain model, and an Operon-ready first ticket packet.";
+      "a starter domain model, and a Cormidia-ready first ticket packet.";
   const good = options.template === "bare"
     ? "Good means the first implementation explicitly records its stack, delivers one observable product slice, " +
-      "and configures non-vacuous test and lint commands before Operon accepts the work. Missing gate commands remain a failure, not a green check."
+      "and configures non-vacuous test and lint commands before Cormidia accepts the work. Missing gate commands remain a failure, not a green check."
     : "Good means the first vertical slice is buildable from GitHub issues, has explicit acceptance criteria, " +
       "keeps product truth in docs, and keeps every code change covered by the configured build, test, and lint gates.";
 
@@ -275,7 +275,7 @@ function qualityGatePlan(template: NewAppTemplate): NewAppResult["qualityGates"]
 }
 
 async function appendGateCommands(targetDir: string, template: NewAppTemplate): Promise<void> {
-  const configPath = join(targetDir, ".operon", "config.yaml");
+  const configPath = join(targetDir, ".cormidia", "config.yaml");
   const content = template === "bare"
     ? `
 # Quality gates for the bare template are intentionally pending.
@@ -288,7 +288,7 @@ async function appendGateCommands(targetDir: string, template: NewAppTemplate): 
 # lint_command: <meaningful stack-specific lint or static-analysis command>
 `
     : `
-# Gate commands used by Operon's loop in fresh worktrees. These are TOP-LEVEL
+# Gate commands used by Cormidia's loop in fresh worktrees. These are TOP-LEVEL
 # keys (siblings of \`apps\`), never \`apps.<name>\` fields.
 setup_command: npm install
 test_command: npm test
@@ -342,7 +342,7 @@ function generatedFiles(
   ];
 }
 
-function generatedOperonSeedFiles(
+function generatedCormidiaSeedFiles(
   template: NewAppTemplate,
   appName: string,
   repoSlug: string,
@@ -351,21 +351,21 @@ function generatedOperonSeedFiles(
 ): GeneratedFile[] {
   return [
     {
-      rel: ".operon/LABELS.md",
+      rel: ".cormidia/LABELS.md",
       content: labelsMd(),
     },
     {
-      rel: ".operon/bootstrap/initial-issue.md",
+      rel: ".cormidia/bootstrap/initial-issue.md",
       content: template === "bare" ? bareInitialIssueMd(appName, goal) : initialIssueMd(appName, goal),
     },
     {
-      rel: ".operon/bootstrap/next-commands.md",
+      rel: ".cormidia/bootstrap/next-commands.md",
       content: template === "bare"
         ? bareNextCommandsMd(appName, repoSlug, goal, targetDir)
         : nextCommandsMd(appName, repoSlug, goal, targetDir),
     },
     {
-      rel: ".operon/planning/0001-greenfield-seed.md",
+      rel: ".cormidia/planning/0001-greenfield-seed.md",
       content: template === "bare" ? barePlanningSeedMd(appName, goal) : planningSeedMd(appName, goal),
     },
   ];
@@ -416,12 +416,12 @@ Applies to the whole ${appName} app repo.
 ## Product Truth
 - Product vision starts in docs/VISION.md.
 - Buildable requirements start in docs/REQUIREMENTS.md.
-- Operon app policy and memory live under .operon/.
+- Cormidia app policy and memory live under .cormidia/.
 
 ## Commands
 - Status: pending; the bare template intentionally selects no stack.
 - The first implementation must record exact install/build/test/lint commands here.
-- It must also configure meaningful test and lint commands in .operon/config.yaml.
+- It must also configure meaningful test and lint commands in .cormidia/config.yaml.
 
 ## Working Rules
 - Select the implementation stack explicitly from product requirements and record it in docs/ARCHITECTURE.md.
@@ -436,8 +436,8 @@ function bareReadmeMd(appName: string, repoSlug: string, goal: string): string {
 
 ${goal}
 
-This repo was scaffolded by \`operon new-app --template bare\` as a stack-neutral
-greenfield product target. It contains product truth and Operon bootstrap
+This repo was scaffolded by \`cormidia new-app --template bare\` as a stack-neutral
+greenfield product target. It contains product truth and Cormidia bootstrap
 artifacts, but deliberately chooses no framework, runtime, package manager, or
 application skeleton.
 
@@ -449,24 +449,24 @@ The first implementation work must:
 - add the stack's real source, manifest, and local commands;
 - add meaningful automated tests and lint or static analysis; and
 - set top-level \`test_command\` and \`lint_command\` (plus top-level
-  \`setup_command\` when needed) in \`.operon/config.yaml\`; these keys are
+  \`setup_command\` when needed) in \`.cormidia/config.yaml\`; these keys are
   siblings of \`apps\`, never fields under \`apps.<name>\`.
 
-Those required gate commands are intentionally absent. Operon treats them as
+Those required gate commands are intentionally absent. Cormidia treats them as
 unconfigured failures, so this empty scaffold cannot certify itself with
 vacuous green checks.
 
-## Operon
+## Cormidia
 
 - GitHub repo slug: \`${repoSlug}\`
-- App charter: \`.operon/TASTE.md\`
-- App registry entry: \`.operon/config.yaml\`
-- GitHub label contract: \`.operon/LABELS.md\`
-- Initial issue body: \`.operon/bootstrap/initial-issue.md\`
-- Planner seed: \`.operon/planning/0001-greenfield-seed.md\`
+- App charter: \`.cormidia/TASTE.md\`
+- App registry entry: \`.cormidia/config.yaml\`
+- GitHub label contract: \`.cormidia/LABELS.md\`
+- Initial issue body: \`.cormidia/bootstrap/initial-issue.md\`
+- Planner seed: \`.cormidia/planning/0001-greenfield-seed.md\`
 
 After creating and pushing the private GitHub repo, create the initial issue
-from \`.operon/bootstrap/initial-issue.md\` and label it \`op:ready\`.
+from \`.cormidia/bootstrap/initial-issue.md\` and label it \`op:ready\`.
 Keep it as the only ready product-work issue and run it through the loop first.
 Do not run app verification or promotion until it merges with meaningful gate
 commands; both correctly remain blocked while this scaffold is pending.
@@ -491,7 +491,7 @@ Applies to the whole ${appName} app repo.
 ## Product Truth
 - Product vision starts in docs/VISION.md.
 - Buildable requirements start in docs/REQUIREMENTS.md.
-- Operon app policy and memory live under .operon/.
+- Cormidia app policy and memory live under .cormidia/.
 
 ## Commands
 - Install: npm install
@@ -511,9 +511,9 @@ function readmeMd(appName: string, repoSlug: string, goal: string): string {
 
 ${goal}
 
-This repo was scaffolded by \`operon new-app\` as a greenfield product target.
+This repo was scaffolded by \`cormidia new-app\` as a greenfield product target.
 It is intentionally small: product docs, a strict TypeScript web shell, tests,
-and Operon bootstrap artifacts.
+and Cormidia bootstrap artifacts.
 
 ## Local Development
 
@@ -526,17 +526,17 @@ npm start
 
 The local server builds the app and serves it at http://localhost:4173.
 
-## Operon
+## Cormidia
 
 - GitHub repo slug: \`${repoSlug}\`
-- App charter: \`.operon/TASTE.md\`
-- App registry entry: \`.operon/config.yaml\`
-- GitHub label contract: \`.operon/LABELS.md\`
-- Initial issue body: \`.operon/bootstrap/initial-issue.md\`
-- Planner seed: \`.operon/planning/0001-greenfield-seed.md\`
+- App charter: \`.cormidia/TASTE.md\`
+- App registry entry: \`.cormidia/config.yaml\`
+- GitHub label contract: \`.cormidia/LABELS.md\`
+- Initial issue body: \`.cormidia/bootstrap/initial-issue.md\`
+- Planner seed: \`.cormidia/planning/0001-greenfield-seed.md\`
 
 After creating and pushing the private GitHub repo, create the initial issue
-from \`.operon/bootstrap/initial-issue.md\` and label it \`op:ready\`.
+from \`.cormidia/bootstrap/initial-issue.md\` and label it \`op:ready\`.
 `;
 }
 
@@ -821,7 +821,7 @@ ${goal}
 
 - Primary users who need the core workflow completed with low friction.
 - Operators who need clear status, support inputs, and release notes.
-- The Operon agent team that will convert this seed into reviewed tickets.
+- The Cormidia agent team that will convert this seed into reviewed tickets.
 
 ## First Outcome
 
@@ -854,8 +854,8 @@ ${goal}
 
 - AC1: The app renders the product goal and starter work areas.
 - AC2: A domain test verifies the product goal and starter backlog.
-- AC3: The README explains local setup and Operon next steps.
-- AC4: Operon gate commands are configured in \`.operon/config.yaml\`.
+- AC3: The README explains local setup and Cormidia next steps.
+- AC4: Cormidia gate commands are configured in \`.cormidia/config.yaml\`.
 `;
 }
 
@@ -863,7 +863,7 @@ function bareRequirementsMd(appName: string, goal: string): string {
   return `# Requirements - ${appName}
 
 This is a stack-neutral bootstrap PRD seed generated from the initial goal. The
-Planner should refine it before deep product work; \`operon new-app\` has not
+Planner should refine it before deep product work; \`cormidia new-app\` has not
 inferred an implementation stack from the goal.
 
 ## Problem
@@ -879,7 +879,7 @@ ${goal}
   that stack.
 - Add meaningful automated tests and lint or static analysis for the selected
   stack.
-- Configure the resulting commands in \`.operon/config.yaml\`; a no-op or a
+- Configure the resulting commands in \`.cormidia/config.yaml\`; a no-op or a
   command that succeeds while running zero tests is not acceptable.
 - Update the runbook and this requirements document with the real commands and
   behavior.
@@ -902,7 +902,7 @@ function bareArchitectureMd(appName: string): string {
 ## Current Shape
 
 No application stack is selected. The bare template contains product truth and
-Operon bootstrap artifacts only; it emits no runtime, package-manager,
+Cormidia bootstrap artifacts only; it emits no runtime, package-manager,
 framework, source, test, or server skeleton.
 
 ## First Implementation Decision
@@ -914,15 +914,15 @@ free-form goal text.
 
 ## Quality-Gate Boundary
 
-\`.operon/config.yaml\` intentionally has no \`test_command\` or \`lint_command\`.
-Operon's required gates therefore fail closed until the first implementation
+\`.cormidia/config.yaml\` intentionally has no \`test_command\` or \`lint_command\`.
+Cormidia's required gates therefore fail closed until the first implementation
 adds meaningful stack-specific commands. Gate commands are top-level keys,
 siblings of \`apps\`; never put them under \`apps.<name>\`. Add
 \`setup_command\` only when a fresh worktree needs a deterministic setup step.
 
 ## Dependency Build Scripts
 
-Operon runs every install with dependency build (postinstall) scripts **denied**
+Cormidia runs every install with dependency build (postinstall) scripts **denied**
 by default — a package that silently runs an install script is the more
 dangerous default, and pnpm answers an unanswerable build question by writing a
 placeholder into \`pnpm-workspace.yaml\` rather than by asking. If a dependency
@@ -948,7 +948,7 @@ the stack.
 ## Quality Gates — Pending
 
 The first implementation must add real commands as top-level keys in
-\`.operon/config.yaml\` (siblings of \`apps\`, never under \`apps.<name>\`):
+\`.cormidia/config.yaml\` (siblings of \`apps\`, never under \`apps.<name>\`):
 
 \`\`\`yaml
 setup_command: <optional stack-specific setup command>
@@ -958,15 +958,15 @@ lint_command: <meaningful stack-specific lint or static-analysis command>
 
 Do not copy the placeholders literally and do not use commands that pass
 without exercising the implemented product. Until the required commands are
-configured, Operon reports the test and lint gates as unconfigured failures.
+configured, Cormidia reports the test and lint gates as unconfigured failures.
 
-## Operon Loop
+## Cormidia Loop
 
 After this repo is pushed and an \`op:ready\` issue exists, run from any
-directory (Operon resolves the active org home):
+directory (Cormidia resolves the active org home):
 
 \`\`\`bash
-operon loop --app ${appName} --once
+cormidia loop --app ${appName} --once
 \`\`\`
 `;
 }
@@ -975,7 +975,7 @@ function bareTestingMd(): string {
   return `# Testing
 
 No test framework is selected by the bare template. Missing test and lint
-commands fail closed in Operon; this scaffold does not claim that an empty or
+commands fail closed in Cormidia; this scaffold does not claim that an empty or
 zero-test project is healthy.
 
 The first implementation must:
@@ -984,7 +984,7 @@ The first implementation must:
 - add at least one named behavior test for the first product slice;
 - prove that the test command fails when that behavior is broken;
 - configure top-level \`test_command\` and \`lint_command\` in
-  \`.operon/config.yaml\` as siblings of \`apps\`, never under
+  \`.cormidia/config.yaml\` as siblings of \`apps\`, never under
   \`apps.<name>\`; and
 - replace this file with the exact local and CI workflow.
 
@@ -1028,13 +1028,13 @@ npm test
 npm run lint
 \`\`\`
 
-## Operon Loop
+## Cormidia Loop
 
 After this repo is pushed and an \`op:ready\` issue exists, run from any
-directory (Operon resolves the active org home):
+directory (Cormidia resolves the active org home):
 
 \`\`\`bash
-operon loop --app ${appName} --once
+cormidia loop --app ${appName} --once
 \`\`\`
 `;
 }
@@ -1070,7 +1070,7 @@ Seed goal:
 - Stack-neutral PRD: docs/REQUIREMENTS.md
 - Pending architecture decision: docs/ARCHITECTURE.md
 - Pending local workflow: docs/RUNBOOK.md
-- Gate contract: docs/TESTING.md and .operon/config.yaml
+- Gate contract: docs/TESTING.md and .cormidia/config.yaml
 
 The \`bare\` template was selected explicitly. It emitted no application/runtime
 skeleton and did not infer a stack from the goal. Required test and lint gates
@@ -1080,8 +1080,8 @@ remain unconfigured and fail closed until this work establishes them.
 
 - [ ] AC1: The selected stack and rationale are recorded in docs/ARCHITECTURE.md.
 - [ ] AC2: The stack's real manifest, source layout, and local workflow replace the pending guidance.
-- [ ] AC3: .operon/config.yaml declares a meaningful stack-specific top-level \`test_command\` (a sibling of \`apps\`, never under \`apps.<name>\`) that runs at least one named behavior test and fails when the behavior breaks.
-- [ ] AC4: .operon/config.yaml declares a meaningful stack-specific top-level \`lint_command\` (and top-level \`setup_command\` when fresh worktrees need it).
+- [ ] AC3: .cormidia/config.yaml declares a meaningful stack-specific top-level \`test_command\` (a sibling of \`apps\`, never under \`apps.<name>\`) that runs at least one named behavior test and fails when the behavior breaks.
+- [ ] AC4: .cormidia/config.yaml declares a meaningful stack-specific top-level \`lint_command\` (and top-level \`setup_command\` when fresh worktrees need it).
 - [ ] AC5: The first product workflow has an observable result and docs explain how to run it.
 
 ## Suggested Implementation Notes
@@ -1140,7 +1140,7 @@ merges: the loop reloads gate commands from the Builder worktree before gates,
 so that issue can introduce the first real commands without certifying the
 empty scaffold.
 
-Do not run \`operon app verify\` or \`operon app promote\` before that issue
+Do not run \`cormidia app verify\` or \`cormidia app promote\` before that issue
 merges. Verification intentionally fails while test/lint commands are absent,
 and promotion requires a passing verification. Do not substitute placeholder,
 no-op, or zero-test commands.
@@ -1150,7 +1150,7 @@ no-op, or zero-test commands.
 Run these from the generated app repo after reviewing the scaffold. Label setup
 is idempotent: \`--force\` creates missing labels and converges existing label
 color and description. The full vocabulary is documented in
-\`.operon/LABELS.md\`.
+\`.cormidia/LABELS.md\`.
 
 \`\`\`bash
 ${repositoryBootstrapCommands(appName, repoSlug)}
@@ -1164,7 +1164,7 @@ network access. The grant applies only to this invocation; omit it later unless
 the accepted work itself requires egress.
 
 \`\`\`bash
-operon loop --app ${shellQuote(appName)} --once --allow-network
+cormidia loop --app ${shellQuote(appName)} --once --allow-network
 \`\`\`
 
 ## After The Stack-And-Gates Issue Merges
@@ -1172,7 +1172,7 @@ operon loop --app ${shellQuote(appName)} --once --allow-network
 Verify the merged stack-specific checks before planning more product work:
 
 \`\`\`bash
-operon app verify ${shellQuote(appName)}
+cormidia app verify ${shellQuote(appName)}
 \`\`\`
 
 The first planning command is a token-free preview. Review it before running
@@ -1199,7 +1199,7 @@ function nextCommandsMd(
 Run these from the generated app repo after reviewing the scaffold. Label setup
 is idempotent: \`--force\` creates missing labels and converges existing label
 color and description. The full vocabulary is documented in
-\`.operon/LABELS.md\`.
+\`.cormidia/LABELS.md\`.
 
 \`\`\`bash
 ${repositoryBootstrapCommands(appName, repoSlug)}
@@ -1249,14 +1249,14 @@ function repositoryBootstrapCommands(appName: string, repoSlug: string): string 
       "--label",
       shellQuote("p2"),
       "--body-file",
-      shellQuote(".operon/bootstrap/initial-issue.md"),
+      shellQuote(".cormidia/bootstrap/initial-issue.md"),
     ].join(" "),
   ].join("\n");
 }
 
 function planningCommands(appName: string, goal: string, targetDir: string): string {
   const plan = [
-    "operon plan",
+    "cormidia plan",
     shellQuote(appName),
     "--auto",
     "--goal",
@@ -1272,7 +1272,7 @@ function planningCommands(appName: string, goal: string, targetDir: string): str
     `${plan} --dry-run`,
     "# If you copied and reviewed another design source into this repo, add --source '<path>' to both plan commands.",
     plan,
-    `operon loop --app ${shellQuote(appName)} --once`,
+    `cormidia loop --app ${shellQuote(appName)} --once`,
   ].join("\n");
 }
 
@@ -1301,14 +1301,14 @@ function labelsMd(): string {
 | --- | --- | --- | --- | --- |
 ${rows}`;
   });
-  return `# Operon GitHub Labels
+  return `# Cormidia GitHub Labels
 
-This file is generated from Operon's canonical label contract. The idempotent
+This file is generated from Cormidia's canonical label contract. The idempotent
 \`gh label create --force\` commands in
-\`.operon/bootstrap/next-commands.md\` install exactly these definitions before
+\`.cormidia/bootstrap/next-commands.md\` install exactly these definitions before
 the first issue is created.
 
-An open Operon issue should carry at most one workflow-state label. Tier labels
+An open Cormidia issue should carry at most one workflow-state label. Tier labels
 are durable reporting and safety metadata; the accepted EpisodePlan remains
 the live workflow authority. Do not invent additional \`op:*\` states or remove
 risk labels to bypass a plan or gate.
@@ -1360,7 +1360,7 @@ the free-form goal.
 Refine docs/VISION.md and docs/REQUIREMENTS.md into a buildable first milestone.
 The first implementation dependency must explicitly select and document the
 stack, add real source and local workflows, and establish meaningful
-stack-specific test and lint gates in \`.operon/config.yaml\`.
+stack-specific test and lint gates in \`.cormidia/config.yaml\`.
 
 ## Decomposition Guidance
 

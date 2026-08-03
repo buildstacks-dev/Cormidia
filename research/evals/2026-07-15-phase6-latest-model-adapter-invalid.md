@@ -28,7 +28,7 @@ cost was zero.
 ## GitHub evidence
 
 The exact private GitHub lifecycle used issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260715-7d36fc5f3d3f`.
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260715-7d36fc5f3d3f`.
 It squash-merged the content-addressed temporary branch, closed the issue,
 deleted only the temporary branch, and retained the repository. The identical
 second execution reused the durable evidence and reported source-evidence
@@ -61,7 +61,7 @@ bytes and must never be executed.
 The byte-stable portable report SHA-256 is
 `91bb9f48a5d92baccc120f3fb2109967c489b21360504ee0f8d622eb03706c43`.
 The verified 67-file `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260715-7d36fc5f3d3f/adapter-harness-calibration-v1-20260715-7d36fc5f3d3f-7184ed70-evidence-v2`.
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260715-7d36fc5f3d3f/adapter-harness-calibration-v1-20260715-7d36fc5f3d3f-7184ed70-evidence-v2`.
 Its archive-manifest SHA-256 is
 `4e4890f59ce24f1b6c999c6a6fc08fcaf046787d642b7546456d78fa6f0869a6`,
 and the local archive-receipt SHA-256 is

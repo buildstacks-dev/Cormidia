@@ -1,6 +1,6 @@
 # The Build Loop — engineering design
 
-*Living design doc — last aligned 2026-07-19. The loop is Operon's center
+*Living design doc — last aligned 2026-07-19. The loop is Cormidia's center
 of gravity: a TypeScript
 re-engineering of the predecessor orchestrator — a private Python prototype
 that proved the approach, called simply "the predecessor" throughout
@@ -78,9 +78,9 @@ acceptance criteria, test-infra-first, cross-release integration tasks.
 
 - *State home:* task-file sections in the repo → **GitHub artifacts**
 (labels, issue/PR comments, reviews). Durable, human-visible, and already
-Operon's idempotency substrate (architecture.md §3). Local caches only.
+Cormidia's idempotency substrate (architecture.md §3). Local caches only.
 - *Unit of work:* the predecessor's dev session worked a whole scope (one
-release, many tasks, one branch) → Operon runs **one ticket = one branch =
+release, many tasks, one branch) → Cormidia runs **one ticket = one branch =
 one PR** (TASTE §5). Cost attribution becomes exact by construction — the
 predecessor's weighted-mention heuristics existed only because sessions
 were multi-task.
@@ -90,7 +90,7 @@ were multi-task.
 an APPROVE review is bound to its `commit_id`; ship requires branch HEAD
 == approved `commit_id`. Same guarantee, no bookkeeping to drift.
 - *Drive model:* hand-invoked `auto` command → the **dispatcher's tick**
-advances every in-flight item (§7); `operon loop` remains as a manual
+advances every in-flight item (§7); `cormidia loop` remains as a manual
 driver for interactive use.
 - *Golden principles in every prompt* → arrive once via context assembly
 (TASTE layer [1], architecture.md §5); pass prompts carry only
@@ -99,10 +99,10 @@ pass-specific protocol. One source of truth, no drift between ten copies.
 **Drop (with reasons)**
 
 - *"SHIP READY" string parsing.* The one place the predecessor trusted agent
-text for control flow. All Operon verdicts are structured (§6); merges
+text for control flow. All Cormidia verdicts are structured (§6); merges
 key off GitHub review state + mechanical gates, never prose.
 - *Silent best-effort* `except: pass`*.* The predecessor wrapped GitHub sync, SHA
-recording, and cleanup in bare excepts — failures vanished. Operon rule:
+recording, and cleanup in bare excepts — failures vanished. Cormidia rule:
 every orchestrator side effect either succeeds, retries, or lands in
 telemetry + an incident note. Evidence over claims applies to the
 orchestrator too (TASTE §6).
@@ -193,7 +193,7 @@ run artifact (§9) so every pass is reproducible.
 [memory]     OKF excerpts (architecture.md §5): role craft + app domain —
              selected once per pipeline execution, fixed across passes
              (cache-stable assembly, architecture.md §5)
-[repo]       app conventions: build/test commands from .operon/config.yaml
+[repo]       app conventions: build/test commands from .cormidia/config.yaml
 ```
 
 **Budgeted like the predecessor's state budget:** estimate tokens (len/4
@@ -203,7 +203,7 @@ stays verbatim. The ticket and acceptance criteria are never summarized.
 
 Feature specs get a durable home so tickets can link to them:
 `docs/specs/<date>-<topic>.md` in the app repo (or the Planner's
-`.operon/planning/` notes graduate there). Planner pipelines emit tickets
+`.cormidia/planning/` notes graduate there). Planner pipelines emit tickets
 whose Context section links the spec; the assembler does the rest. This is
 the mechanism behind "here are the parts of the PRD relevant to you."
 
@@ -246,7 +246,7 @@ complete; any invalid scope explicitly declared `execution_ready` fails closed
 before provider construction rather than silently changing routes.
 
 Closed workflow domains also supply one code-owned provider-operation
-registry. Operon injects its sorted operation IDs into both the initial and
+registry. Cormidia injects its sorted operation IDs into both the initial and
 revision planner context and structured-output schema, then validates the same
 registry before plan hashing or template resolution. An unknown operation is
 a named plan-contract error that includes the valid IDs. An orchestrator
@@ -334,8 +334,8 @@ without another provider turn, and neither re-performs a side effect the prior
 version already performed: a reconciled review publishes no second comment and
 submits no second GitHub review. Rejected revisions remain terminal for that
 invocation, with
-their durable refusal reason shown by `operon loop`, `operon status`, and
-`operon episode --explain`.
+their durable refusal reason shown by `cormidia loop`, `cormidia status`, and
+`cormidia episode --explain`.
 
 
 
@@ -417,13 +417,13 @@ Two compatibility labels remain, but neither authors the workflow:
 - **Episode route** (`quick|standard|deep`) is derived from accepted plan
   complexity and typed safety facts. It supports reporting, historical readers,
   hard-ceiling selection, and an explainable safety floor.
-- **Changed-file risk tier** in `.operon/policy.yaml` selects deterministic
+- **Changed-file risk tier** in `.cormidia/policy.yaml` selects deterministic
   mechanical gate strength. A small plan touching a sensitive surface still
   receives the required gates; economy never weakens safety.
 
 Product-ticket publication may continue to attach `op:tier-*` and `domain:*`
 labels for compatibility. Its prose-sensitive-domain classifier is not the
-EpisodePlan safety boundary. Before EpisodePlanner, Operon gathers typed safety
+EpisodePlan safety boundary. Before EpisodePlanner, Cormidia gathers typed safety
 facts from the trigger, declared creator constraints, repository/change facts,
 app policy, and explicit evidence references. Deterministic validation can add
 a visible mandatory gate/approval floor or reject the plan, but it cannot
@@ -482,7 +482,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 
 | Gate             | Mechanics (ported)                                                                                                                                             |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| setup            | run app's top-level `.operon/config.yaml` `setup_command` (a sibling of `apps`, never under `apps.<name>`; e.g. `npm ci`) in the worktree to install dependencies. It runs **at worktree provision, before the first implement pass** (`advanceProvisionSetup`, `src/loop/loop.ts`), and again **first within each post-implement gate set**, before any scheduled gate (`runGates`, `src/loop/qgates.ts`). The provision run is load-bearing: `createWorktree` provisions an empty tree, and the builder's mandatory "baseline before changes — if red, stop" check runs at the very start of the implement pass, so without deps that baseline fails for **every** greenfield ticket regardless of ticket quality (the L1-02 defect; the live operator's workaround was committing 26 MB of `node_modules`). Unconfigured = absent (no gate, never a failure) **unless the tree carries an unresolved setup artifact**. A provision-time setup failure returns the ticket loudly (blocked-with-evidence comment + `op:returned`) with no build turn spent; within a gate set a setup **failure short-circuits** the rest so the tests/lint gates don't produce misleading failures (`runSetupGate`). The gate also scans the worktree's package-manager config **before and after** the command (`src/loop/setup-artifacts.ts`): an unresolved tool placeholder (pnpm's literal `set this to true or false`) or a duplicated YAML mapping key fails setup with *that* cause, naming the file and the consolidation remedy, instead of letting it surface as an opaque `[ERROR] duplicated mapping key (4:1)` several attempts later. Before, because a corrupt file disables the tool the command invokes; after, because the install is what writes the placeholder. The subprocess itself runs under the deny-by-default dependency build policy (`PNPM_CONFIG_IGNORE_SCRIPTS=true`), so on the default path the placeholder is never generated at all; a ticket that genuinely needs a dependency built opts in explicitly in its `setup_command` (`pnpm install --frozen-lockfile --no-ignore-scripts` alongside a committed `allowBuilds` decision — a CLI flag beats env config), which is precisely why the scan is kept as a backstop |
+| setup            | run app's top-level `.cormidia/config.yaml` `setup_command` (a sibling of `apps`, never under `apps.<name>`; e.g. `npm ci`) in the worktree to install dependencies. It runs **at worktree provision, before the first implement pass** (`advanceProvisionSetup`, `src/loop/loop.ts`), and again **first within each post-implement gate set**, before any scheduled gate (`runGates`, `src/loop/qgates.ts`). The provision run is load-bearing: `createWorktree` provisions an empty tree, and the builder's mandatory "baseline before changes — if red, stop" check runs at the very start of the implement pass, so without deps that baseline fails for **every** greenfield ticket regardless of ticket quality (the L1-02 defect; the live operator's workaround was committing 26 MB of `node_modules`). Unconfigured = absent (no gate, never a failure) **unless the tree carries an unresolved setup artifact**. A provision-time setup failure returns the ticket loudly (blocked-with-evidence comment + `op:returned`) with no build turn spent; within a gate set a setup **failure short-circuits** the rest so the tests/lint gates don't produce misleading failures (`runSetupGate`). The gate also scans the worktree's package-manager config **before and after** the command (`src/loop/setup-artifacts.ts`): an unresolved tool placeholder (pnpm's literal `set this to true or false`) or a duplicated YAML mapping key fails setup with *that* cause, naming the file and the consolidation remedy, instead of letting it surface as an opaque `[ERROR] duplicated mapping key (4:1)` several attempts later. Before, because a corrupt file disables the tool the command invokes; after, because the install is what writes the placeholder. The subprocess itself runs under the deny-by-default dependency build policy (`PNPM_CONFIG_IGNORE_SCRIPTS=true`), so on the default path the placeholder is never generated at all; a ticket that genuinely needs a dependency built opts in explicitly in its `setup_command` (`pnpm install --frozen-lockfile --no-ignore-scripts` alongside a committed `allowBuilds` decision — a CLI flag beats env config), which is precisely why the scan is kept as a backstop |
 | tests            | run app's `test_command`, exit code 0, timeout; retain the last output lines on every executed result                                                         |
 | lint             | `lint_command`                                                                                                                                                 |
 | e2e              | `e2e_test_command` when configured                                                                                                                             |
@@ -491,7 +491,7 @@ subprocesses against the worktree**. Port of the predecessor's gate engine:
 | review-freshness | branch HEAD == the APPROVE review's `commit_id` (GitHub-native); always runs regardless of tier                                                                |
 
 
-`.operon/policy.yaml` (app repo, emitted by bootstrap) carries risk-tier
+`.cormidia/policy.yaml` (app repo, emitted by bootstrap) carries risk-tier
 globs → gate sets, the review-dimension globs (§4), plus
 `remediation.max_attempts` (default 3). Defaults mirror the predecessor's
 template (high: tests+lint+security+completeness; medium drops security
@@ -525,7 +525,7 @@ scan; low: tests+completeness).
 Green process-gate output is delivery evidence, not disposable console noise.
 Each executed gate retains its byte- and line-bounded combined output tail,
 including on exit 0. The first PR description receives an
-`operon:gate-evidence` managed block with the command, exit status, verbatim
+`cormidia:gate-evidence` managed block with the command, exit status, verbatim
 captured output, exact evaluated revision, and a content-addressed artifact
 identifier. Publication
 scrubs the canonical secret patterns, and the PR renderer applies an additional
@@ -647,14 +647,14 @@ allowlist is configured (`authorization.reviewerIdentities`), requires the
 approver to be in it — a non-independent or unlisted APPROVE is ignored, never
 merged. M6 found the
 single-account pilot caveat: GitHub rejects approving your own PR, so until
-Operon has a separate bot/app identity, `GhCliOps` falls back only for that
+Cormidia has a separate bot/app identity, `GhCliOps` falls back only for that
 exact error to a real COMMENTED PR review carrying the
-`<!-- operon:self-approval-fallback sig=… -->` marker. That marker is **not**
+`<!-- cormidia:self-approval-fallback sig=… -->` marker. That marker is **not**
 a static string anyone can post: it carries an HMAC over the PR number **and
 the reviewed commit** (`headRefOid`) signed with an orchestrator-only secret.
-By default Operon race-safely creates and validates that key at
+By default Cormidia race-safely creates and validates that key at
 `<stateHome>/state/self-approval-secret` (regular owner-only file, never prompt
-context or provider environment); `OPERON_SELF_APPROVAL_SECRET` remains an
+context or provider environment); `CORMIDIA_SELF_APPROVAL_SECRET` remains an
 explicit compatibility override. One resolved value is passed to both
 `GhCliOps` signing and `authorization.selfApprovalSecret` verification.
 Binding the commit is what defeats replay (A-001):
@@ -679,7 +679,7 @@ would re-open the forgery, so it must stay orchestrator-only.)
 The loop is a **distributed state machine advanced by dispatcher ticks**
 (architecture.md §2) — not a long-lived `auto` process. Every state is
 derived from durable artifacts; any tick on any day can advance any item;
-laptop sleep loses nothing. `operon loop --app <app> [--follow]` drives
+laptop sleep loses nothing. `cormidia loop --app <app> [--follow]` drives
 ticks manually for an interactive, watch-it-run experience.
 
 Each public phase-transition function validates its entry phase before any
@@ -751,7 +751,7 @@ budget cap or a wall-clock/adapter timeout that aborts the pipeline — is
 terminalized the same way (L-005): `runReviewPipeline`/`runShipCheckPipeline`
 route `op:in-review -> op:returned` with a budget/limit-exhaustion evidence
 comment and leave the open PR untouched, instead of throwing and crashing
-`operon loop --once` (which stranded the ticket at `op:in-review` with a
+`cormidia loop --once` (which stranded the ticket at `op:in-review` with a
 mergeable-but-orphaned PR). The distinction is `journalStopKind`: a
 `cap_stop`/`provider_timeout` terminalizes cleanly; a genuine internal error
 (`crash`) still throws loudly so a real defect is never swallowed.
@@ -772,10 +772,10 @@ step. A legacy ticket-delivery step may then consult `execution-journal.json`
 for its finer contract, implementation, push, gates, PR, findings, approvals,
 merge, and release boundaries. Accepted boundary fingerprints are reused.
 Ticket, commit, or reopened-finding drift records why future work was
-invalidated; no still-valid productive prefix repeats. `operon loop
+invalidated; no still-valid productive prefix repeats. `cormidia loop
 --resume-episode <episode>` is a **read-only preview** of that decision — it
 prints the resume plan (`{ "preview": true, "resume": … }`) and states plainly
-that it does not execute; actual continuation is `operon loop --app <app>`,
+that it does not execute; actual continuation is `cormidia loop --app <app>`,
 which claims the ticket and resumes from these durable artifacts (L-005).
 
 Every still-valid decision and accepted artifact survives cancellation,
@@ -788,7 +788,7 @@ evidence, usage checkpoints, and terminal records do not.
 Approval waits add one narrower continuation boundary. A
 `blocked_on_gate` result persists the exact pipeline/pass, native session,
 completed passes, context-manifest fingerprint, worktree fingerprint, run id,
-settled pause cost, and human decisions. `operon approvals review` records an
+settled pause cost, and human decisions. `cormidia approvals review` records an
 approved or denied decision before repairing `op:blocked → op:ready`; the next
 claim reuses the original claim number and resumes only that pass. Completed
 passes and setup are excluded. A role, runtime, route, context, or worktree
@@ -824,7 +824,7 @@ claim-lifecycle events.
   `LoopDriverOptions.maxClaims`)
   the driver refuses to claim and parks the ticket `op:returned` with an
   evidence digest (prior claim outcomes, contract state, PR, open
-  findings) and an exact `operon loop rearm --app ... --ticket ... --reason
+  findings) and an exact `cormidia loop rearm --app ... --ticket ... --reason
   ... --actor ... --from-allowance ... --to-allowance ...` transaction.
   Preview is the default; execution binds the app, ticket, reason, actor, old
   allowance, new allowance, and prior label in a replay-safe prepared/completed
@@ -837,7 +837,7 @@ claim-lifecycle events.
   auto-releasing it. The manual command exits nonzero and records a distinct
   invocation outcome; dispatch reports `blocked_on_gate`, never completed
   idleness. A label-only `op:ready` edit cannot change the durable cap. The
-  `CLAIM RECOVERY` block in `operon status` explains the stopped
+  `CLAIM RECOVERY` block in `cormidia status` explains the stopped
   boundary and next action. The episode's human
   performed all twenty re-arms by hand; this is the stop that was missing.
 
@@ -895,7 +895,7 @@ a later thin adapter over Layer 2 ("a weekend, not a rewrite"), planned
 for, never a rewrite.
 
 ```
-~/.operon/<org>/runs/<app>/<runId>/
+~/.cormidia/<org>/runs/<app>/<runId>/
   envelope.json     L1 — one per pass: ids, status, timings, token/cost
                     rollups, gate results, redacted durable verdict material,
                     tool counts (see the tool-telemetry note below), truncated
@@ -981,7 +981,7 @@ provider transport itself returned normally. Structured JSON in
 `verdict_summary` remains complete and parseable after redaction; only prose
 summaries and the separate `previews` map use the presentation-size cap.
 Dashboards, retro, and scorecards read infra and merit as different populations.
-- **Dashboards read L1+L2 only.** `operon status` / `operon analyze` never
+- **Dashboards read L1+L2 only.** `cormidia status` / `cormidia analyze` never
 parse transcripts; previews are truncated (~120 chars), args hashed. Status
 adds a bounded `TERMINAL ATTENTION` line for failed, blocked, cancelled, and
 timed-out rows using the persisted terminal diagnostic, so the reason is
@@ -992,20 +992,20 @@ regexes double as a log scrubber. L3 stays local, retention =
 `session_retention_days`; run dirs pruned on the same schedule. Run-dir
 pruning (and retention for every other state subtree) runs daily from the
 dispatch tick's org-wide retention sweep — docs/scheduler/design.md → State
-retention; `operon prune-runs` remains the manual surface.
+retention; `cormidia prune-runs` remains the manual surface.
 - **Attribution is exact** — runs are ticket-scoped by construction; costs
 roll up run → ticket → (role, app) → monthly budget with no
 weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
   - **Which spend reaches the monthly budget rollup:** all of it. The pass
   executor settles **every** provider turn into the org telemetry ledger
-  (`~/.operon/<org>/telemetry/<day>.jsonl`, the source `operon budget` sums)
+  (`~/.cormidia/<org>/telemetry/<day>.jsonl`, the source `cormidia budget` sums)
   exactly once, keyed on `(app, providerTurnId)` for new rows with legacy
   `(app, runId)` fallback — completed, blocked, and failed invocations alike,
-  from the dispatcher and the manual `operon loop` driver both
+  from the dispatcher and the manual `cormidia loop` driver both
   (Stage 1 of the proportionality campaign). A loop tick whose app has
   exhausted its monthly cap refuses to claim before any pass starts, so the
   budget hard-stop (architecture.md §7) governs manual and dispatched turns
-  equally. `operon budget --reconcile` back-fills the ledger from run
+  equally. `cormidia budget --reconcile` back-fills the ledger from run
   envelopes (idempotent). The retired native interactive planner no longer
   creates fabricated zero-usage rows; live planning uses the ordinary measured
   EpisodePlan path. New ledger rows also carry
@@ -1029,7 +1029,7 @@ weighted-mention guessing. The predecessor's `UNATTRIBUTED` bucket disappears.
   executor writes the durable execution step *before* it settles, and wraps the
   settlement call so a throw (e.g. a lock timeout under contention) records a
   `telemetry.settle_failed` event and leaves the completed turn intact rather
-  than unwinding the pipeline past money already spent. `operon budget
+  than unwinding the pipeline past money already spent. `cormidia budget
   --reconcile` back-fills the ledger row from the durable execution step.
 - **Cache visibility.** Input tokens come in three price classes (uncached
 ~1×, cache-write 1.25–2×, cache-read ~0.1×); both SDKs report the split
@@ -1037,7 +1037,7 @@ per response. L1 rollups and telemetry carry it (`TurnUsage` delta, §10),
 and cost is computed with three-bucket pricing — a flat input rate would
 misprice a healthy cached pass ~5–10× and fire the per-turn budget abort
 wrongly. Economics reference: `research/2026-07-04_prompt-caching.md`.
-- **Anomaly flags** (`operon analyze`, computed from L1/L2,
+- **Anomaly flags** (`cormidia analyze`, computed from L1/L2,
 src/runtime/runlog/anomalies.ts) — ported detectors: `low_tokens_high_time`
 (>300 s, <1 k tokens — stuck on environment), `single_turn_long_run`,
 `bash_heavy` (≥20 calls), `environment_retry` (≥3 docker/install/wait
@@ -1053,7 +1053,7 @@ recommendations and feed the weekly retro (architecture.md §6). Stale
 `running` envelopes additionally fire `stale_running` and
 `missing_finalization` after three minutes without a heartbeat.
 
-`operon telemetry --html <report>` writes a static report plus an adjacent
+`cormidia telemetry --html <report>` writes a static report plus an adjacent
 `<report>.evidence/` copy bundle. Links target the copied envelope, exact
 prompt, brief, output, events, and activity log, so browser file-origin rules
 never require mutating or serving the state home. Its completion-integrity
@@ -1063,13 +1063,13 @@ cost, manual-fallback, and PR evidence as unknown when the run generation did
 not record them.
 
 The broader operator session is explicit rather than inferred from pass text.
-`operon task begin` stores `tasks/<taskId>/task.json` plus the exact outer
-prompt in `prompt.md`; `OPERON_PARENT_TASK_ID` (or `--parent-task`) stamps the
+`cormidia task begin` stores `tasks/<taskId>/task.json` plus the exact outer
+prompt in `prompt.md`; `CORMIDIA_PARENT_TASK_ID` (or `--parent-task`) stamps the
 id on every child envelope and ledger row. `task fallback` is durable evidence
-that work left Operon, and `task finish` records terminal status plus external
+that work left Cormidia, and `task finish` records terminal status plus external
 ticket/trace/branch/PR/review/deployment references. Telemetry requires every
 declared stage, completed trace manifests, no fallback, and a terminal parent
-task before it can say “Operon end-to-end complete.”
+task before it can say “Cormidia end-to-end complete.”
 
 
 
@@ -1085,7 +1085,7 @@ src/loop/
   planner-admission.ts planner boot-turn reservation/settlement/repair bounds
   loop.ts          ticket state machine (§7): phases, label swaps, bounded
                    review/gate/ship cycles, squash-merge
-  driver.ts        manual tick driver: advance ready tickets once (`operon
+  driver.ts        manual tick driver: advance ready tickets once (`cormidia
                    loop` and the sandbox e2e; dispatch calls the same phases)
   pipeline.ts      provider-step/static-compatibility transport, exact atomic
                    assignments, runlog + ledger settlement per invocation
@@ -1101,7 +1101,7 @@ src/loop/
                    reuse, findings ledger, claim cap
   scheduling.ts    ticket-level scheduling (§8): dependency-aware,
                    scope-overlap conservative, WIP-bounded
-  policy.ts        .operon/policy.yaml loader: risk tiers → gate sets
+  policy.ts        .cormidia/policy.yaml loader: risk tiers → gate sets
   preflight.ts     token-free config/capability/budget/artifact/environment
                    admission before any model turn
   route-policy.ts  legacy static-route compatibility reader; not plan authority
@@ -1242,4 +1242,4 @@ distinct codes end to end (§9).
 | 18                          | Per-turn budget overrun                              | adapter cost tracking                                | graceful abort → `failed` + incident note                                                                                                    |
 | 19                          | Monthly app budget hit                               | telemetry rollup                                     | app auto-paused + `budget-exceeded` approval item (architecture.md §7)                                                                       |
 | 20                          | Approval grant expires before re-dispatch            | gate lookup                                          | item re-escalates as a fresh queue entry; nothing auto-approves                                                                              |
-| 21                          | Approval queue neglected                             | item age                                             | ages shown in `operon approvals` and the Planner's daily digest; blocked items just wait — fail-closed                                       |
+| 21                          | Approval queue neglected                             | item age                                             | ages shown in `cormidia approvals` and the Planner's daily digest; blocked items just wait — fail-closed                                       |

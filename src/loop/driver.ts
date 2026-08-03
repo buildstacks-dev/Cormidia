@@ -922,7 +922,7 @@ export interface DefaultLoopInputOptions {
   /** True only when the operator supplied --repo-dir. Such a checkout is an
    * immutable source and must never be fetched/checked-out/reset. */
   supplied?: boolean;
-  /** Required for supplied input: Operon-owned clone used for ticket branches. */
+  /** Required for supplied input: Cormidia-owned clone used for ticket branches. */
   snapshotDir?: string;
   /** One orchestrator-resolved value shared by review publication and merge
    * authorization. It is never resolved from process state in this leaf. */
@@ -950,7 +950,7 @@ export async function defaultLoopInputs(
   let refreshBase: (() => BaseRevision) | undefined;
   if (options.supplied === true) {
     if (options.snapshotDir === undefined) {
-      throw new Error("loop: supplied repo input requires an Operon-owned snapshot directory");
+      throw new Error("loop: supplied repo input requires a Cormidia-owned snapshot directory");
     }
     const prepared = snapshotSuppliedCheckout(repoDir, options.snapshotDir);
     localRepo = prepared.path;
@@ -980,7 +980,7 @@ export async function defaultLoopInputs(
     localRepo,
     base,
     ...(refreshBase === undefined ? {} : { refreshBase }),
-    policy: await loadRequiredPolicy(join(localRepo, ".operon", "policy.yaml")),
+    policy: await loadRequiredPolicy(join(localRepo, ".cormidia", "policy.yaml")),
     commands: loadGateCommands(localRepo),
   };
 }
@@ -999,7 +999,7 @@ export const DEFAULT_LOOP_POLICY: Policy = {
 async function loadRequiredPolicy(path: string): Promise<Policy> {
   if (!existsSync(path)) {
     throw new Error(
-      `loop: missing app-owned policy file ${path}; run operon bootstrap for this app first`,
+      `loop: missing app-owned policy file ${path}; run cormidia bootstrap for this app first`,
     );
   }
   return loadPolicy(path);
@@ -1081,7 +1081,7 @@ function terminalDisposition(item: LoopItem): {
 
 export function loadGateCommands(repoDir: string): GateCommands {
   const commands: GateCommands = {};
-  const configPath = join(repoDir, ".operon", "config.yaml");
+  const configPath = join(repoDir, ".cormidia", "config.yaml");
   if (existsSync(configPath)) {
     const raw = parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
     assertCanonicalGateCommandPlacement(raw, configPath);
@@ -1121,7 +1121,7 @@ export function loadGateCommands(repoDir: string): GateCommands {
 
 /** Resolve commands immediately before a worktree gate runs. A ticket may
  * introduce the app's first test/lint commands, so the pre-claim main clone is
- * not authoritative after Builder has changed `.operon/config.yaml` or
+ * not authoritative after Builder has changed `.cormidia/config.yaml` or
  * `package.json`. Worktree-owned values intentionally override the initial
  * registry snapshot. */
 export function gateCommandsForWorktree(
@@ -1183,7 +1183,7 @@ function suppliedCheckoutDefaultBranch(sourceDir: string): string {
   }
 }
 
-/** Prepare the Operon-managed clone and report the base ticket work starts
+/** Prepare the Cormidia-managed clone and report the base ticket work starts
  * from. The remote's advertised default branch is resolved instead of being
  * assumed to be `main`: a stock `git init` repo (no init.defaultBranch) is
  * `master`, and the first tick used to die inside `git fetch origin main`

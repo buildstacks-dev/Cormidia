@@ -100,9 +100,9 @@ export interface SoakEvaluation {
 }
 
 export async function loadSoakConfig(env: NodeJS.ProcessEnv = process.env): Promise<SoakConfigV1> {
-  if (env["OPERON_SOAK"] !== "1") throw new Error("soak refused: OPERON_SOAK=1 is required");
-  const configured = env["OPERON_SOAK_CONFIG"];
-  if (configured === undefined || !isAbsolute(configured)) throw new Error("soak refused: OPERON_SOAK_CONFIG must be an absolute reviewed file");
+  if (env["CORMIDIA_SOAK"] !== "1") throw new Error("soak refused: CORMIDIA_SOAK=1 is required");
+  const configured = env["CORMIDIA_SOAK_CONFIG"];
+  if (configured === undefined || !isAbsolute(configured)) throw new Error("soak refused: CORMIDIA_SOAK_CONFIG must be an absolute reviewed file");
   const value: unknown = JSON.parse(await readFile(resolve(configured), "utf8"));
   validateConfig(value);
   return value;
@@ -312,7 +312,7 @@ async function persistReport(config: SoakConfigV1, state: SoakStateV1, terminal:
       reason_codes: evaluation.missing_reason_codes,
     },
     evidence_refs: [soakStatePath(config.state_home, config.campaign_id), "docs/qualification/validation-triage.md"],
-    profile: { identity: "operon/unattended-sandbox/v1", sandbox_target: `${config.sandbox.org}:${config.sandbox.apps.join(",")}`, permitted_auto_grant_categories: ["campaign_budget"], human_decision_rows: 0 },
+    profile: { identity: "cormidia/unattended-sandbox/v1", sandbox_target: `${config.sandbox.org}:${config.sandbox.apps.join(",")}`, permitted_auto_grant_categories: ["campaign_budget"], human_decision_rows: 0 },
   };
   await writeValidationCampaignReport(config.state_home, report);
   return report;

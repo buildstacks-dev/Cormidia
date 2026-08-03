@@ -63,9 +63,9 @@ The read-only outcome is `not_qualified`. Qualification SHA-256 is
 report SHA-256 is
 `0160477fc93069b7099ec008316ceded819414c240b90939506f640124155a70`.
 The private GitHub exercise and identical rerun passed in
-`buildstacks-dev/operon-eval-candidate-qualification-v1-20260716-107b6ba190a4`.
+`buildstacks-dev/cormidia-eval-candidate-qualification-v1-20260716-107b6ba190a4`.
 The verified sanitized archive is
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260716-107b6ba190a4-4d86dbd2-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260716-107b6ba190a4-4d86dbd2-evidence-v2`;
 its archive-manifest SHA-256 is
 `6446bd18b7bd9d5548ac255abad7c8238cdd1055c3c7706286b63c0c5ee727af`.
 Cleanup was preview-only.

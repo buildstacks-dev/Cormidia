@@ -3,7 +3,7 @@
 //
 // Design: case-catalog §1 CF-J08-RC; system-map §2.2 cost-ledger row ("legacy
 // (app, runId) rows readable") and §2.5 version-skew note; invariants.md
-// OPERON-INV-006. The product surface is reconcileLedger (src/org/budget.ts):
+// CORMIDIA-INV-006. The product surface is reconcileLedger (src/org/budget.ts):
 // new-schema execution steps settle keyed (app, providerTurnId); legacy run
 // envelopes without provider_turn_ids fall back to (app, runId); every
 // scanned envelope lands in exactly one result bucket.
@@ -274,7 +274,7 @@ describe("CF-J08-RC — budget --reconcile back-fills idempotently from survivin
     const apps: AppsFile = {
       org: { name: "cf-j08-rc", maxConcurrentTurns: 1 },
       defaults: { budgetUsdMonth: 100 },
-      apps: [{ name: APP, repo: "operon-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
     };
     const budget = await rollupBudgets(state.stateHome, apps, T_LATER);
     expect(budget.find((entry) => entry.app === APP)?.spentUsd).toBeCloseTo(0.2, 6);

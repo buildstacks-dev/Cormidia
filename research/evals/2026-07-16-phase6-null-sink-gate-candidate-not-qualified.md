@@ -72,7 +72,7 @@ The read-only qualifier reproduced byte-for-byte. Qualification SHA-256 is
 report SHA-256 is
 `80761cb154bb1e820613ea95de398bcc6f668dd55f27f52fa61e50f709f128f9`.
 The 228-file `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260716-7ff53bd8273c-e89e5a6e-evidence-v2/candidate-qualification-v1-20260716-7ff53bd8273c-e89e5a6e-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260716-7ff53bd8273c-e89e5a6e-evidence-v2/candidate-qualification-v1-20260716-7ff53bd8273c-e89e5a6e-evidence-v2`;
 its archive-manifest SHA-256 is
 `3676dfe4759ce0127d15286b2ea31abb3805a6da0e85cd86acb048af8d1fc761`.
 The local archive-receipt SHA-256 is

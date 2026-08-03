@@ -1,8 +1,8 @@
-# Building and maintaining Operon
+# Building and maintaining Cormidia
 
-This is the canonical developer-lifecycle policy for the Operon platform.
+This is the canonical developer-lifecycle policy for the Cormidia platform.
 It applies to humans and coding agents changing this repository. It does not
-grant authority to, configure, or become context for an Operon-operated org.
+grant authority to, configure, or become context for a Cormidia-operated org.
 
 Three terms carry this document. A **campaign** is one predeclared batch of
 evaluation runs against a pinned build: the cases, repetition counts,
@@ -16,17 +16,17 @@ semantics.
 
 ## Two independent control planes
 
-| | Build and maintain Operon | Operate an org with Operon |
+| | Build and maintain Cormidia | Operate an org with Cormidia |
 | --- | --- | --- |
-| Subject | The `operon` package, source, tests, evals, and release | One configured org and its target applications |
+| Subject | The `cormidia` package, source, tests, evals, and release | One configured org and its target applications |
 | Authority | A human-approved development objective and repository policy | The org's ratified constitution, roles, pipelines, app policy, and scoped approvals |
-| Durable state | Git commits, PRs, CI, isolated eval artifacts, external archives | `~/.operon/<org>/`, app repositories, tickets, runs, ledger, scheduler and learning state |
-| Agents | Independent development agents selected by the human | Planner, Builder, Reviewer, SRE, Support, Marketing, and learning roles instantiated by Operon |
+| Durable state | Git commits, PRs, CI, isolated eval artifacts, external archives | `~/.cormidia/<org>/`, app repositories, tickets, runs, ledger, scheduler and learning state |
+| Agents | Independent development agents selected by the human | Planner, Builder, Reviewer, SRE, Support, Marketing, and learning roles instantiated by Cormidia |
 | External boundary | Disposable private eval repositories and isolated provider campaigns | The org's approved GitHub, production, publication, deployment, and communication surfaces |
 
 The relationship is one-way: developers build a package; a separately
-configured org consumes that package. Operon must not operate an org whose job
-is to build or maintain Operon itself. Org prompts, approvals, memories,
+configured org consumes that package. Cormidia must not operate an org whose job
+is to build or maintain Cormidia itself. Org prompts, approvals, memories,
 learning, budgets, scheduler state, and production evidence cannot authorize or
 train platform-development work. Development campaign results cannot authorize
 an org operation.
@@ -34,7 +34,7 @@ an org operation.
 Root `AGENTS.md`, this guide, `docs/PURPOSE.md`, `docs/episodes/contract.md`,
 `docs/qualification/design.md`, `claude-tests/**`, and everything under
 `archive-do-not-read/**` are developer-only surfaces and are excluded from the
-npm package. The packaged `agent-skills/operon/` skill is deliberately
+npm package. The packaged `agent-skills/cormidia/` skill is deliberately
 an org-operation guide. `TASTE.md`, `roles.yaml`, `pipelines.yaml`, and
 `prompts/**` remain org-runtime surfaces; do not put developer authority in
 them. (The packaging-separation pin test is archived with the legacy suite;
@@ -54,7 +54,7 @@ The authorization is written down as a standing grant, and every campaign
 binds that grant into its immutable manifest. The grant names the objective,
 the repair lineage it covers, which campaign types it allows, the private
 GitHub namespace, the billing mode, a cumulative spend ceiling, and the
-promise of zero outward effects. The `OPERON_EVAL_LIVE=1` switch and the
+promise of zero outward effects. The `CORMIDIA_EVAL_LIVE=1` switch and the
 exact `--confirm <campaign-id>` are accident guards the developer supplies —
 two keys against running the wrong thing — not repeated requests for human
 approval.

@@ -1,7 +1,7 @@
-// `operon bootstrap publish` — the coordinated, reviewable way to get
+// `cormidia bootstrap publish` — the coordinated, reviewable way to get
 // bootstrap's output in front of humans (#61).
 //
-// `operon bootstrap` writes app-owned `.operon/` artifacts into the app repo
+// `cormidia bootstrap` writes app-owned `.cormidia/` artifacts into the app repo
 // and registers the app in the org's `apps.yaml`. Both are human-ratified
 // surfaces, and until now publication was entirely manual: an operator had to
 // remember which files bootstrap owned, stage exactly those in two separate
@@ -13,8 +13,8 @@
 //
 //  1. **Only bootstrap-owned paths are ever staged.** The publishable set is
 //     computed from the same artifact list bootstrap emits — never from "what
-//     changed in the working tree". A file Operon did not write is not
-//     Operon's to commit.
+//     changed in the working tree". A file Cormidia did not write is not
+//     Cormidia's to commit.
 //  2. **Ambiguity refuses.** Pre-staged unrelated content, a merge or rebase
 //     in progress, a detached HEAD, or a conflicted bootstrap path all stop
 //     the publish with an actionable message. Guessing is worse than stopping.
@@ -122,7 +122,7 @@ export async function planBootstrapPublish(
       repos: [],
       blockers: [
         `bootstrap publish: "${options.app}" is not registered in ${join(orgHome, "apps.yaml")} — ` +
-          "run `operon bootstrap` for this app first",
+          "run `cormidia bootstrap` for this app first",
       ],
       noop: false,
     };
@@ -137,8 +137,8 @@ export async function planBootstrapPublish(
     ownedPaths: ownedAppPaths,
     branch: `op/bootstrap-${entry.name}`,
     commitMessage:
-      `chore(operon): onboard ${entry.name}\n\n` +
-      "Adds the Operon app-owned `.operon/` artifacts written by `operon\n" +
+      `chore(cormidia): onboard ${entry.name}\n\n` +
+      "Adds the Cormidia app-owned `.cormidia/` artifacts written by `cormidia\n" +
       "bootstrap`. Review the charter, policy, and authority before merging —\n" +
       "these are human-ratified surfaces.\n",
     blockers,
@@ -146,7 +146,7 @@ export async function planBootstrapPublish(
   if (appPlan !== undefined) {
     appPlan.pr = {
       repo: entry.repo,
-      title: `chore(operon): onboard ${entry.name}`,
+      title: `chore(cormidia): onboard ${entry.name}`,
       body: appRepoPrBody(entry),
     };
     repos.push(appPlan);
@@ -159,7 +159,7 @@ export async function planBootstrapPublish(
       ownedPaths: ["apps.yaml"],
       branch: `op/bootstrap-${entry.name}`,
       commitMessage:
-        `chore(operon): register ${entry.name}\n\n` +
+        `chore(cormidia): register ${entry.name}\n\n` +
         `Registers ${entry.repo} in the org app registry.\n`,
       // An org home that is not a git repo is a normal, supported setup — it
       // is simply not publishable, which is reported rather than treated as
@@ -175,7 +175,7 @@ export async function planBootstrapPublish(
       if (orgSlug !== undefined) {
         orgPlan.pr = {
           repo: orgSlug,
-          title: `chore(operon): register ${entry.name}`,
+          title: `chore(cormidia): register ${entry.name}`,
           body: orgRepoPrBody(entry),
         };
       }
@@ -297,18 +297,18 @@ function inspectRepo(input: InspectRepoInput): RepoPublishPlan | undefined {
   ]);
   const files = [...pending].filter((path) => input.ownedPaths.includes(path)).sort();
 
-  // `AGENTS.md` / `CLAUDE.md` are the one owned-path category Operon does not
+  // `AGENTS.md` / `CLAUDE.md` are the one owned-path category Cormidia does not
   // author outright — it appends a delimited authority block to a file the
   // operator owns. Staging is file-granular, so publishing one whole would
   // sweep in any unrelated edit the operator has in flight, which is exactly
-  // what rule #1 forbids ("a file Operon did not write is not Operon's to
+  // what rule #1 forbids ("a file Cormidia did not write is not Cormidia's to
   // commit"). Refuse when the pending change is not confined to that block,
   // and name the file so the operator can commit or stash their own work.
   for (const doc of PROJECT_INSTRUCTION_DOCS) {
     if (!files.includes(doc)) continue;
     if (pendingChangeIsAuthorityBlockOnly(root, doc)) continue;
     input.blockers.push(
-      `bootstrap publish: ${label} has changes to ${doc} beyond the Operon authority block, ` +
+      `bootstrap publish: ${label} has changes to ${doc} beyond the Cormidia authority block, ` +
         "so publishing it would commit unrelated work — commit or stash your own " +
         `${doc} changes, then re-run`,
     );
@@ -394,18 +394,18 @@ function appRepoPrBody(entry: AppEntry): string {
   return [
     "## What",
     "",
-    `Onboards \`${entry.name}\` onto Operon by adding the app-owned \`.operon/\` artifacts`,
-    "written by `operon bootstrap`.",
+    `Onboards \`${entry.name}\` onto Cormidia by adding the app-owned \`.cormidia/\` artifacts`,
+    "written by `cormidia bootstrap`.",
     "",
     "## Review notes",
     "",
-    "- `.operon/TASTE.md`, `.operon/policy.yaml`, and `.operon/AUTHORITY.md` are",
+    "- `.cormidia/TASTE.md`, `.cormidia/policy.yaml`, and `.cormidia/AUTHORITY.md` are",
     "  human-ratified surfaces. Read them rather than skimming the diff.",
     "- The org-side registry change (`apps.yaml`) is published separately against",
     "  the org repo — as a draft pull request when that remote is on GitHub, and",
     "  otherwise as a pushed branch. Land the two together.",
     "",
-    "Opened as a draft by `operon bootstrap publish`. Operon does not merge this.",
+    "Opened as a draft by `cormidia bootstrap publish`. Cormidia does not merge this.",
   ].join("\n");
 }
 
@@ -417,11 +417,11 @@ function orgRepoPrBody(entry: AppEntry): string {
     "",
     "## Review notes",
     "",
-    "- This is the org half of an onboarding pair. The app-owned `.operon/`",
+    "- This is the org half of an onboarding pair. The app-owned `.cormidia/`",
     `  artifacts are published as a separate draft pull request on \`${entry.repo}\`.`,
     "  Land them together.",
     "",
-    "Opened as a draft by `operon bootstrap publish`. Operon does not merge this.",
+    "Opened as a draft by `cormidia bootstrap publish`. Cormidia does not merge this.",
   ].join("\n");
 }
 
@@ -509,7 +509,7 @@ export async function executeBootstrapPublish(
     //
     // Committing in place needs a `git checkout`, and both outcomes of that
     // are bad: leaving the checkout parked on the publish branch means every
-    // later `operon` command reads the ORG HOME's config from a branch cut
+    // later `cormidia` command reads the ORG HOME's config from a branch cut
     // from the remote tip, while switching back afterwards DELETES the newly
     // committed files from the operator's working tree (they are tracked on
     // the publish branch and absent from the branch they were on). A separate
@@ -559,7 +559,7 @@ async function ensureDraftPullRequest(
           base: repo.base.defaultBranch,
           title: repo.pr.title,
           body: repo.pr.body,
-          // Draft, always. Operon opens the conversation; a human lands it.
+          // Draft, always. Cormidia opens the conversation; a human lands it.
           draft: true,
         });
   published.prNumber = pr.number;
@@ -635,7 +635,7 @@ function showBlob(cwd: string, revPath: string): string | undefined {
  *  A deleted owned path is carried across as a deletion rather than skipped,
  *  so the publish reflects what bootstrap actually left behind. */
 function publishFromTemporaryWorktree(repo: RepoPublishPlan): void {
-  const worktree = mkdtempSync(join(tmpdir(), "operon-publish-"));
+  const worktree = mkdtempSync(join(tmpdir(), "cormidia-publish-"));
   // `git worktree add` wants to create the directory itself.
   rmSync(worktree, { recursive: true, force: true });
 
@@ -668,7 +668,7 @@ function publishFromTemporaryWorktree(repo: RepoPublishPlan): void {
   }
 }
 
-/** Is this instruction file's pending change confined to the Operon authority
+/** Is this instruction file's pending change confined to the Cormidia authority
  *  block? Compares the committed and working copies with the delimited block
  *  removed from both: if the remainder is identical, the only difference is
  *  the block bootstrap owns.

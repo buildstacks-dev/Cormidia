@@ -1,5 +1,5 @@
 # Operation contract — C-OP-LOOP (ticket delivery state machine)
-Canonical ID: **OPERON-C-OPLOOP-001 (alias: C-OP-LOOP)**
+Canonical ID: **CORMIDIA-C-OPLOOP-001 (alias: C-OP-LOOP)**
 
 Status: DRAFT (Phase 4). Added on stakeholder trace audit. Covers the loop's internal
 operation promises not owned by a single Phase 3 boundary. Defends INV-005/008/009.

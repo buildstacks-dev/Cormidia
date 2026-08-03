@@ -134,7 +134,7 @@ export async function projectCaptureEvents(
   return captureEvents(options, true);
 }
 
-/** Read-only scan used by `operon learn report`. It derives enough from the
+/** Read-only scan used by `cormidia learn report`. It derives enough from the
  * immutable run evidence to identify new/missing projections but never
  * appends events, rewrites the cursor, or projects episode records. */
 export async function previewCaptureEvents(

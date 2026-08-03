@@ -17,7 +17,7 @@
 //
 //   * it executes only a typed, content-bound action — the exact recorded
 //     command string, never a reconstruction, never anything the human did not
-//     read in `operon approvals show`;
+//     read in `cormidia approvals show`;
 //   * one approval is one execution: the per-item O_EXCL lock claims
 //     `approved -> executing` and the single-use grant is consumed before the
 //     command starts, so a crash can strand only a visible attempt;
@@ -167,7 +167,7 @@ export async function executeApprovedCommands(
       // uncertainty durable and stop.
       const summary =
         `orchestrator execution stopped before acknowledgement; the command may or may not have ` +
-        `run. Inspect, then close it with \`operon approvals disposition ${item.id} ` +
+        `run. Inspect, then close it with \`cormidia approvals disposition ${item.id} ` +
         `(--executed|--failed|--retry) --reason <text> --confirm ${item.id}\``;
       await store.finishExecution({
         id: item.id,
@@ -210,7 +210,7 @@ export async function executeApprovedCommands(
         summary:
           `approval ${item.id} is rule "${item.rule}", which the orchestrator never enacts on a ` +
           `human's behalf; approving the action did not authorize that. Close it with ` +
-          `\`operon approvals disposition ${item.id} (--executed|--failed|--retry) --reason <text> ` +
+          `\`cormidia approvals disposition ${item.id} (--executed|--failed|--retry) --reason <text> ` +
           `--confirm ${item.id}\``,
       });
       continue;
@@ -228,7 +228,7 @@ export async function executeApprovedCommands(
     }
     const app = options.appsFile.apps.find((entry) => entry.name === item.app);
     if (app === undefined) {
-      // Scope, not validity. `operon dispatch --apps <subset>` is an ordinary
+      // Scope, not validity. `cormidia dispatch --apps <subset>` is an ordinary
       // way to run one app's tick, and an app being out of scope for THIS
       // invocation says nothing about the approval. Terminalizing it here would
       // burn a good human decision and demand a disposition to re-arm it.
@@ -325,7 +325,7 @@ export async function executeApprovedCommands(
     if (result.timedOut === true) {
       const timedOut =
         `${summary}; the command was killed at the deadline and its effect is unknown. Close it ` +
-        `with \`operon approvals disposition ${item.id} (--executed|--failed|--retry) ` +
+        `with \`cormidia approvals disposition ${item.id} (--executed|--failed|--retry) ` +
         `--reason <text> --confirm ${item.id}\``;
       await store.finishExecution({
         id: item.id,

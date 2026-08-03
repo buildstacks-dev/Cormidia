@@ -1,4 +1,4 @@
-# Case catalog — Operon (product scope, matrix closure)
+# Case catalog — Cormidia (product scope, matrix closure)
 
 Status: derived to matrix closure (Phase 6, agent-alone per Division of labor §6) over
 the ratified baseline plus the owner-confirmed 2026-08-01 harness revision: system-map
@@ -52,8 +52,8 @@ journey-acceptance.md alias table.
 
 | Cell | Case family (what the cases assert) | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-J01-S | init/upgrade/use happy paths: complete org home, pointer, authority profiles per C-OP-LIFE §§1–3 | 2 | state | STD |
-| CF-J01-R | every named collision/refusal class (existing org, nested, symlink, non-dir, incomplete org for `use`, wrong `--confirm`) refuses pre-mutation | 2 | refusal+diff | E1 (T-8 slice) |
+| CF-J01-S | init/upgrade/use happy paths: complete org home, pointer, authority profiles per C-OP-LIFE §§1–3; first Cormidia resolution atomically relocates the retired default state root, repairs pointer/lifecycle/git-worktree paths, and converges on replay | 2 | state | STD |
+| CF-J01-R | every named collision/refusal class (existing org, nested, symlink, non-dir, incomplete org for `use`, wrong `--confirm`, dual default state roots) refuses pre-mutation | 2 | refusal+diff | E1 (T-8 slice) |
 | CF-J01-I | kill mid-init-staging / mid-upgrade-transaction at each journaled step | 2 | state+diff | E1 |
 | CF-J01-RC | rerun after interruption converges; archived bytes restorable; ratified surfaces unreplaced | 2 | state | E1 |
 | CF-J01-A | same op via packed vs source-backed launcher; removed-cwd guard | 2 | refusal | STD |
@@ -142,7 +142,7 @@ journey-acceptance.md alias table.
 | CF-J19-R | zero/duplicate/unapproved tuples, unavailable capabilities, unsafe repo, insufficient budget, all-ineligible candidates, and requested automatic judge selection while S-8 is inadmissible each produce a typed pre-effect refusal or explicit inconclusive result | 1/2 | refusal+evid | E1/E3 (design-only) |
 | CF-J19-I | kill at candidate start/settlement/evidence collection/selection/materialization boundaries; no losing or unselected lane crosses into ordinary continuation | 2 | state+diff | E1/E2 (design-only) |
 | CF-J19-RC | replay resumes only unsettled candidate work, never spends twice for a settled turn, preserves immutable evidence/selection, and completes or reports ambiguous materialization without choosing again | 2 | state+evid | E1/E2 (design-only) |
-| CF-J19-A | EpisodePlan and standalone `operon compare` adapters produce the same comparison/result contract; standalone preview spends nothing and execution never mutates the active branch or performs orchestrator-owned GitHub effects | 2 | diff+evid | E1/E3 (design-only) |
+| CF-J19-A | EpisodePlan and standalone `cormidia compare` adapters produce the same comparison/result contract; standalone preview spends nothing and execution never mutates the active branch or performs orchestrator-owned GitHub effects | 2 | diff+evid | E1/E3 (design-only) |
 
 ## 2. State-machine matrix (machine × legal / illegal / replay / crash-point)
 
@@ -213,11 +213,11 @@ obligation exists.
 | CF-B08-* | PRUNE-dup:CF-J09-* (tick↔turn cells are exactly the J-09 families) | — | — | — |
 | CF-B09a-* | continuation set persisted/validated; TTL expiry typed (**item disposition BLOCKED:F-PT-008**); orphan-grant intermediate recognizable, never usable authorization | 2 | state | E1 |
 | CF-B09b-* | decision-entry: one-by-one + reason, batch same-rule per-item audit, widen human-only, revocation, concurrent decisions first-write-wins; unattended-profile prohibition cases (no forged human decisions; zero-decision evidence) | 2 | state+evid | E1 |
-| CF-B10-* | fixture org-home sweep: invalid YAML, schema skew, missing AUTHORITY→legacy-conservative, mid-edit torn read, widening-narrowing refusal, preview→execute drift refusal; B-10a identity sweep (stale pointer, override disagreement, symlinked home, mismatched state-home) | 1/2 | refusal | E1/FLOOR |
+| CF-B10-* | fixture org-home sweep: invalid YAML, schema skew, missing AUTHORITY→legacy-conservative, mid-edit torn read, widening-narrowing refusal, preview→execute drift refusal; B-10a identity sweep (stale pointer, override disagreement, symlinked home, mismatched state-home, retired-root relocation/replay, dual-root refusal); product-identity/package-path sweep with exact migration and external-repository exceptions | 1/2 | refusal | E1/FLOOR |
 | CF-B11-* | PRUNE-dup:CF-J12-* + CF-SM-LEARN-* (publisher boundary fully covered there) | — | — | — |
 | CF-B12-* | reader seam: torn reads, stale-as-current refused, capability/traversal (CF-J15-R), SSE gaps, per-source health; conformance CLI/HTML/observe agreement (CF-J15-A) | 2 | evid | E3 |
 | CF-B13-* | inbox sweep incl. duplicate-identity-different-payload (**BLOCKED:F-PT-006**), retention interplay, F-PT-005 add/remove semantics | 2 | state | STD |
-| CF-B14-* | temp-checkout interference: dirty accept (ordinary), publish-only refusals, marked-block idempotency, byte preservation, foreign-link refusal, symlink/wrong-remote/path-overlap; **concurrent-edit outcome per ratified F-PT-007 (2026-07-31): compare-and-refuse, preserving human bytes** (cases derivable — HB-P4); re-run semantics **BLOCKED:F-PT-015**; publish-origin comparison **BLOCKED:F-PT-016** | 2 | diff+refusal | E1 |
+| CF-B14-* | temp-checkout interference: dirty accept (ordinary), publish-only refusals, marked-block idempotency, byte preservation, foreign-link refusal, symlink/wrong-remote/path-overlap, retired app-artifact root refusal; **concurrent-edit outcome per ratified F-PT-007 (2026-07-31): compare-and-refuse, preserving human bytes** (cases derivable — HB-P4); re-run semantics **BLOCKED:F-PT-015**; publish-origin comparison **BLOCKED:F-PT-016** | 2 | diff+refusal | E1 |
 | CF-B15-* | FS faults (full/read-only/perm/torn/ENOSPC) per store class; git faults (index.lock bounded wait, corrupt refs → re-clone, remote-changed identity stop, hooks-disabled, partial-command post-verify). Worktree-content preservation asserted up to the accepted-artifact line; **ambiguous-byte disposition per ratified F-PT-004 (2026-07-31): preserve-and-inspect, never reset** (cases derivable — HB-P2) | 2 | state+refusal | E2 |
 | CF-B16-* | scripted gate commands: hang→timeout-kill, flood→ratified truncation bounds (256KiB/50 lines; 8k PR; 2k tail), missing tool typed, exit-0-lying (evidence binds to candidate SHA), candidate-mutation detection within governed scope, pending-fails-closed (bare template) | 2 | evid+refusal | E3 |
 | CF-B17-* | scripted external target: accept-vs-complete split, lost response, marker disagreement, target-auth failure (grant consumed, evidence in audit), at-most-once; real round-trip **BLOCKED:B-17-L3** | 2 | evid | E1 |
@@ -232,9 +232,9 @@ spanning the six rows) except where a dimension is separately risky.
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-C-CORE | OPERON-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause BLOCKED:F-PT-017**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
+| CF-C-CORE | CORMIDIA-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause BLOCKED:F-PT-017**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
 Twenty boundary-contract families (B-09a and B-09b are separate contracts), one per
-canonical `OPERON-C-B*-001` ID, each clause-complete (valid/invalid inputs, outputs,
+canonical `CORMIDIA-C-B*-001` ID, each clause-complete (valid/invalid inputs, outputs,
 typed errors, idempotency, ordering, freshness/latency). HB-007 items 1–8 and 13 are
 asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain provisional.
 **Per-ID resolver:**
@@ -274,8 +274,8 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-IF-JSON | schema stability + canonical key-sorting where claimed; no-active-org → `no_active_org` | 2 | evid | STD |
 | CF-IF-UI | Live UI shell conformance: PRUNE-thin for pixels; confidentiality/truth slices covered CF-J15-* (not thin) | 2 | evid | THIN/E3 |
 | CF-IF-HTML | portable report conformance: self-contained, CSP, no external requests, no L3 | 2 | evid | E3 |
-| CF-IF-SKILL | `$operon` skill + capabilities/context discovery accuracy vs actual CLI surface | 2 | evid | STD |
-| CF-IF-COMPARE | standalone `operon compare` parsing, preview/confirm hash, exact tuple preservation, safe repo preconditions, terminal/JSON result schema, external state root, and explicit local-branch materialization; no org or GitHub required | 1/2 | refusal+evid+diff | E1/E3 (design-only) |
+| CF-IF-SKILL | `$cormidia` skill + capabilities/context discovery accuracy vs actual CLI surface | 2 | evid | STD |
+| CF-IF-COMPARE | standalone `cormidia compare` parsing, preview/confirm hash, exact tuple preservation, safe repo preconditions, terminal/JSON result schema, external state root, and explicit local-branch materialization; no org or GitHub required | 1/2 | refusal+evid+diff | E1/E3 (design-only) |
 | CF-IF-XSURF | one cross-surface agreement check: same fixture truth via CLI text, `--json`, observe snapshot, portable HTML (extends CF-J15-A to non-report ops), plus EpisodePlan/standalone comparison-result agreement for J-19 | 2 | evid | E3 (J-19 slice design-only) |
 
 ## 7. LLM call-site matrix (S × deterministic-envelope / statistical-quality / trajectory / judge-calibration)
@@ -315,7 +315,7 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-OPS-CONT | ratified contention exercise: ≥10 due candidates, ≥3 apps, duplicate (app,role) stimuli, simultaneous terminal settlement; six proof obligations. **Layer 5** — the question is "can load/contention hurt Operon"; the rig being hermetic describes the implementation, not the layer | 5 (hermetic rig, deterministic oracle) | state | E2 |
+| CF-OPS-CONT | ratified contention exercise: ≥10 due candidates, ≥3 apps, duplicate (app,role) stimuli, simultaneous terminal settlement; six proof obligations. **Layer 5** — the question is "can load/contention hurt Cormidia"; the rig being hermetic describes the implementation, not the layer | 5 (hermetic rig, deterministic oracle) | state | E2 |
 | CF-OPS-SOAK | 7-day sandbox soak per risk-allocation §6 (inspection list; $15 ceiling; completeness/verdict split) | 5 | live+evid | E2/E3 |
 | CF-OPS-ROT | **Codex natural multi-hour auth-rotation under a long live run** (ratified L5 obligation, boundary-map B-03 / contract B-03): embedded in the 7-day soak as a named sub-obligation with **its own completion evidence** — at least one live Codex session spanning a real rotation window, with checkpoint/session-identity preservation asserted; if no natural rotation occurs during the soak, the sub-obligation reports completeness=incomplete (never assumed covered) | 5 | live+evid | E2 |
 | CF-OPS-GROW | seeded aged-state retention sweep at 30/180/365-day boundaries under controlled clock; ledger-day-file protection rule | 2 | state | E2 |

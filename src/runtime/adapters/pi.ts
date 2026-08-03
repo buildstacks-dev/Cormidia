@@ -2,7 +2,7 @@
 //
 // Integration notes (research/2026-07-03_runtime-layer.md):
 // - protocol via SYSTEM.md / APPEND_SYSTEM.md + AGENTS.md context files
-// - pi has no first-class approval flow; Operon installs an extension that
+// - pi has no first-class approval flow; Cormidia installs an extension that
 //   intercepts `tool_call` events and blocks on hooks.gate denial.
 // - sessions are JSONL trees; resume uses the session file path when present.
 // - custom providers via models.json (Google, xAI, DeepSeek, local, ...)
@@ -64,7 +64,7 @@ export interface PiRuntimeOptions {
 export class PiGateExtensionInactiveError extends Error {
   readonly code = "error_gate_extension_inactive";
   constructor() {
-    super("PiRuntime: Operon gating extension was not activated by the resource loader");
+    super("PiRuntime: Cormidia gating extension was not activated by the resource loader");
     this.name = "PiGateExtensionInactiveError";
   }
 }
@@ -176,7 +176,7 @@ export class PiRuntime implements Runtime {
     hooks.onProgress?.({ session: { runtime: "pi", id: sessionId } });
 
     // Per-turn budget guard. pi's SDK has no native running budget knob (unlike
-    // Claude's --max-budget-usd), so Operon enforces the cap itself: after each
+    // Claude's --max-budget-usd), so Cormidia enforces the cap itself: after each
     // pi turn completes we read the running cost and, once it crosses
     // role.maxTurnBudgetUsd, abort the session gracefully. The overrun then
     // maps to failed + exactly one incident note — mirroring ClaudeRuntime's

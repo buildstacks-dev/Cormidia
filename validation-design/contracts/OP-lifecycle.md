@@ -1,5 +1,5 @@
 # Operation contract — C-OP-LIFE (org/app lifecycle operations)
-Canonical ID: **OPERON-C-OPLIFE-001 (alias: C-OP-LIFE)**
+Canonical ID: **CORMIDIA-C-OPLIFE-001 (alias: C-OP-LIFE)**
 
 Status: DRAFT (Phase 4). Added on stakeholder trace audit: journeys need stable
 operation-contract IDs where no Phase 3 boundary owns the promise. Covers `org init`,

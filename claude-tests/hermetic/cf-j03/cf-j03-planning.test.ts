@@ -50,7 +50,7 @@ afterEach(async () => {
 
 const app: AppEntry = {
   name: "planner-app",
-  repo: "operon-double/planner-app",
+  repo: "cormidia-double/planner-app",
   status: "live",
   budgetUsdMonth: 100,
   cadence: {},

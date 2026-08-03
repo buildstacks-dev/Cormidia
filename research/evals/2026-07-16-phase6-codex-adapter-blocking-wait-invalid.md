@@ -54,9 +54,9 @@ its deterministic report SHA-256 is
 `49bae93f593a23a23d5051808da9d076b84690d4d001b6e7a416f47e2da067c3`.
 
 The private GitHub exercise and identical idempotency rerun passed in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260716-5421c437b604`.
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260716-5421c437b604`.
 The verified sanitized archive is
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260716-5421c437b604-d5f680f8-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260716-5421c437b604-d5f680f8-evidence-v2`;
 its archive-manifest SHA-256 is
 `f7f38973870ae4fbd328d639394ed74a5d89b02d4fb70fe49b29a895c0f9eecd`.
 Cleanup was preview-only. Focused admission and final qualification were not

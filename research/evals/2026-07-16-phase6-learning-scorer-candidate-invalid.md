@@ -70,7 +70,7 @@ The immutable qualification SHA-256 is
 the report SHA-256 is
 `65f44c948fa7610e43c7193e68429a95af33a0f0e973c7ca143351dd82a0dd2f`.
 The verified sanitized archive is
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260716-593f8cd01faf-28938818-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260716-593f8cd01faf-28938818-evidence-v2`;
 its archive-manifest SHA-256 is
 `8d6c4a01ebb0f8903334457737a57604e9e4ce8f3dfd570331be886dabca90fd`.
 

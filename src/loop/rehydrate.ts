@@ -29,7 +29,7 @@ import { parseVerdict, type Finding, type FindingResolution } from "./verdicts.j
 // Durable comment markers
 // ---------------------------------------------------------------------------
 
-const CONTRACT_MARKER_PREFIX = "<!-- operon:contract body-sha256:";
+const CONTRACT_MARKER_PREFIX = "<!-- cormidia:contract body-sha256:";
 export const REVIEW_VERDICT_HEADING = "## Structured review verdict";
 export const FIX_RESOLUTIONS_HEADING = "## Fix resolutions";
 
@@ -298,7 +298,7 @@ export function writeTicketClaimState(
   }
 }
 
-/** Diagnostic enumeration for `operon status`. Ticket state remains the
+/** Diagnostic enumeration for `cormidia status`. Ticket state remains the
  * source of truth; this adds no index or second store. Corrupt files stay out
  * of the projection rather than being rewritten by a read-only command. */
 export function listTicketClaimStates(runlogRoot: string, app?: string): TicketClaimStateEntry[] {
@@ -383,7 +383,7 @@ export function parkedDigestComment(input: {
   hasContract: boolean;
 }): string {
   const command =
-    `operon loop rearm --app ${input.app} --ticket ${input.issueNumber} ` +
+    `cormidia loop rearm --app ${input.app} --ticket ${input.issueNumber} ` +
     `--reason <reason> --actor <actor> --from-allowance ${input.maxClaims} ` +
     `--to-allowance ${input.maxClaims + 1} --execute --confirm ${input.app}#${input.issueNumber}`;
   const lines = [

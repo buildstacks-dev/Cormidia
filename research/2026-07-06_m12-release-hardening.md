@@ -3,7 +3,7 @@
 ## Scope
 
 M12 closed a post-M11 hardening gap found during sandbox verification:
-manual app commands could still assemble against the Operon repo or an empty
+manual app commands could still assemble against the Cormidia repo or an empty
 context instead of the selected app checkout.
 
 Implemented:
@@ -11,9 +11,9 @@ Implemented:
 - `src/org/app-workdir.ts` resolves local app checkouts for manual CLIs:
   explicit `--workdir`, managed dispatch clone, sibling app checkout, then
   repo basename.
-- `operon plan <app> --dry-run` now uses that resolver instead of defaulting
+- `cormidia plan <app> --dry-run` now uses that resolver instead of defaulting
   to the current working directory.
-- `operon run-role <role> --app <app> --dry-run` assembles app-aware context
+- `cormidia run-role <role> --app <app> --dry-run` assembles app-aware context
   and passes it through the synthesized one-pass `runRole` pipeline.
 - Dispatched fallback turns now pass their already assembled context into
   `runRole`.
@@ -33,7 +33,7 @@ Implemented:
   - `npm test` in `~/Build/operon-sandbox-alpha` - passed, 5 tests.
   - `npm run lint` - passed.
 - Beta:
-  - `npm test` in `~/Build/operon-sandbox-beta` - passed, 4 tests.
+  - `npm test` in `~/Build/cormidia-sandbox-beta` - passed, 4 tests.
 - Gamma:
   - `npm test` in `~/Build/operon-sandbox-gamma` - passed, 3 tests.
   - `npm run lint` - passed.
@@ -41,7 +41,7 @@ Implemented:
   - `npm run smoke:support` - passed, wrote `artifacts/support/digest.md`.
   - `npm run smoke:marketing` - passed, wrote `artifacts/marketing/release-draft.md`.
 
-## Operon app-facing smokes
+## Cormidia app-facing smokes
 
 - `pnpm dev apps` - passed, listed 5 apps.
 - `pnpm dev roles` - passed, listed 6 roles.
@@ -71,8 +71,8 @@ Implemented:
   - 11 live turns.
   - total reported cost: $2.4365.
   - model: `claude-sonnet-5`.
-- Codex and pi live tests skipped as expected because `OPERON_CODEX_LIVE=1`
-  and `OPERON_PI_LIVE=1` were not set.
+- Codex and pi live tests skipped as expected because `CORMIDIA_CODEX_LIVE=1`
+  and `CORMIDIA_PI_LIVE=1` were not set.
 
 ## GitHub e2e
 

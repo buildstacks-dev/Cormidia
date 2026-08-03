@@ -49,7 +49,7 @@ export const UNRESOLVED_SETUP_MARKERS: readonly UnresolvedMarker[] = [
     what: "an unanswered dependency build decision",
     remedy:
       "replace each `set this to true or false` with an explicit `true` or `false` in a " +
-      "single `allowBuilds` mapping, then re-run the setup command. Operon's sandbox " +
+      "single `allowBuilds` mapping, then re-run the setup command. Cormidia's sandbox " +
       "denies dependency build scripts by default (PNPM_CONFIG_IGNORE_SCRIPTS=true); a " +
       "dependency that genuinely needs its install script must opt in through the app's " +
       "setup_command, not by answering this placeholder",

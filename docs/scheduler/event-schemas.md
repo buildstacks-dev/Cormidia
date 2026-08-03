@@ -1,6 +1,6 @@
 # Event Schemas
 
-File-drop events live under `~/.operon/<org>/state/events/inbox/*.json`.
+File-drop events live under `~/.cormidia/<org>/state/events/inbox/*.json`.
 The inbox file is the transport and dedup identity (deduplicated by filename),
 but the dispatcher **routes on the payload's `kind`**: `readInbox`
 (`src/org/events.ts`) parses each file with `parseCompanyLifecycleEvent`
@@ -12,7 +12,7 @@ and how they interpret the event. The `COMPANY_EVENT_KINDS` registry in
 not treated as an unwatched event. Sibling inbox files keep flowing after any
 one rejection.
 
-`operon dispatch` uses these exact classifications:
+`cormidia dispatch` uses these exact classifications:
 
 | Input | Dispatch code | Behavior |
 | --- | --- | --- |

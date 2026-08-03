@@ -1,5 +1,5 @@
 // HB-002 fixtures/state-home self-test — the temp state home carries the
-// standing ~/.operon/<org> shape (system-map §2.2) and REAL product write
+// standing ~/.cormidia/<org> shape (system-map §2.2) and REAL product write
 // paths accept it unmodified: the turn lock store and the telemetry ledger
 // write into it at their own paths.
 

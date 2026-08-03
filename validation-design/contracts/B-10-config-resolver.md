@@ -1,5 +1,5 @@
 # Contract — B-10 Org-home ratified surfaces ↔ runtime resolver (incl. B-10a identity)
-Canonical ID: **OPERON-C-B10-001 (alias: B-10, incl. B-10a)**
+Canonical ID: **CORMIDIA-C-B10-001 (alias: B-10, incl. B-10a)**
 
 Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; header updated at Wave-1 implementation — was a stale "DRAFT (Phase 4)"). Defends INV-001/004/013/015, T-3/T-6. All journeys (turn construction).
 
@@ -11,9 +11,16 @@ Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; head
 - App narrowing may only narrow (INV-001); a widening app config is a typed refusal.
 
 ## 2. Output guarantees (B-10a — active-org identity)
-- Resolution precedence: explicit per-process overrides (`OPERON_ORG_HOME`,
-  `OPERON_STATE_HOME`) > active pointer (`~/.operon/config`). No command infers an org
+- Resolution precedence: explicit per-process overrides (`CORMIDIA_ORG_HOME`,
+  `CORMIDIA_STATE_HOME`) > active pointer (`~/.cormidia/config`). No command infers an org
   home from cwd `[doc]`.
+- Before default-root resolution, a first Cormidia invocation atomically renames the
+  retired `~/.operon` root to `~/.cormidia`, rewrites any active-pointer and lifecycle
+  managed-clone paths rooted there, repairs active turn journals and registered git
+  worktrees, and replaces any provably owned host-scheduler definition with the current
+  identity and state path. If both roots
+  exist, resolution is a typed pre-mutation stop; it never merges or chooses between two
+  state authorities. Explicit state-home overrides are not relocated. [INV-004/013]
 - The resolved (org home, state home, org id) triple is validated as a **coherent
   identity** before use; a pairing mismatch (state home from another org; pointer to
   moved/deleted org; symlinked org home) is a typed stop — "correct config from the
@@ -30,6 +37,8 @@ Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; head
 ## 4. Idempotency
 - Resolution is pure per process invocation; re-resolution yields the same triple for
   unchanged inputs.
+- First-run relocation is convergent after interruption: the directory move is atomic,
+  and pointer/lifecycle/worktree repairs are idempotent when replayed after the move.
 - **Preview→execute drift:** an execute step re-resolves and re-validates; if identity
   or ratified-surface content changed since preview, execution refuses and reports —
   **human-ratified at HB-007 review 2026-07-31:** exact-hash comparison on the

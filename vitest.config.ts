@@ -8,7 +8,7 @@ import { defineConfig } from "vitest/config";
 //   run.
 // passWithNoTests is now false: with the first specs landed, the lane must
 // fail red if the include walk ever comes back empty (no green by absence —
-// OPERON-INV-008 / harness self-test rule).
+// CORMIDIA-INV-008 / harness self-test rule).
 export default defineConfig({
   test: {
     include: ["claude-tests/**/*.test.ts"],

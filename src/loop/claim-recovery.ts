@@ -418,7 +418,7 @@ export async function planTicketRearm(input: RearmTicketInput): Promise<RearmPla
   if (priorLabel === "op:blocked" && state.continuation?.status === "waiting_approval") {
     throw new Error(
       `loop rearm: ${input.app}#${input.issueNumber} is waiting on an approval; ` +
-        "decide it with `operon approvals review` instead of bypassing the content-bound continuation",
+        "decide it with `cormidia approvals review` instead of bypassing the content-bound continuation",
     );
   }
   if (effectiveClaimAllowance(state, input.priorAllowance) !== input.priorAllowance) {
@@ -659,7 +659,7 @@ export function rearmCommand(input: {
   allowance: number;
 }): string {
   return (
-    `operon loop rearm --app ${shellWord(input.app)} --ticket ${input.issueNumber} ` +
+    `cormidia loop rearm --app ${shellWord(input.app)} --ticket ${input.issueNumber} ` +
     `--reason <reason> --actor <actor> --from-allowance ${input.allowance} ` +
     `--to-allowance ${input.allowance + 1} --execute --confirm ${shellWord(`${input.app}#${input.issueNumber}`)}`
   );

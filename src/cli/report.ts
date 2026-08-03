@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { open, mkdir, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { buildReport } from "../report/project.js";
 import { renderReportHtml } from "../report/render-html.js";
 import { renderReportTerminal } from "../report/render-terminal.js";
@@ -13,7 +13,7 @@ interface ReportArgs { query: ReportQuery; json: boolean; html?: string; open: b
 export async function cmdReport(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "report");
   const parsed = parseReportArgs(common.rest);
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const report = await buildReport({ orgName: homes.appsFile.org.name, stateHome: homes.stateHome, appsFile: homes.appsFile, query: parsed.query });
   if (parsed.html !== undefined) {
     const target = resolve(parsed.html);

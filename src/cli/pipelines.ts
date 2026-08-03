@@ -1,4 +1,4 @@
-// `operon pipelines [path]` — validate pipelines.yaml and print the pass table.
+// `cormidia pipelines [path]` — validate pipelines.yaml and print the pass table.
 //
 // Role names come from roles.yaml next to the pipelines file, templates from
 // its sibling prompts/ dir — the org-home layout (docs/loop/design.md §4), which the
@@ -8,7 +8,7 @@ import { access } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { loadPipelines } from "../loop/pipelines.js";
 import { loadRoles } from "../org/roles.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdPipelines(args: string[] = []): Promise<number> {
@@ -23,7 +23,7 @@ export async function cmdPipelines(args: string[] = []): Promise<number> {
   }
   const path = pathArgument
     ? resolve(pathArgument)
-    : join((await resolveOperonHomes(common)).orgHome, "pipelines.yaml");
+    : join((await resolveCormidiaHomes(common)).orgHome, "pipelines.yaml");
   // Check the target first: a missing pipelines.yaml must not surface as a
   // confusing error about the sibling roles.yaml the user never named.
   try {

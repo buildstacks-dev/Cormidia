@@ -1,5 +1,5 @@
 // Durable validation-campaign evidence shared by the opt-in L3/L4/L5 runners
-// and Operon's read-only presentation leaves. The product owns this schema so
+// and Cormidia's read-only presentation leaves. The product owns this schema so
 // status, Reports, and Observe cannot independently reinterpret an incomplete
 // or threshold-inconclusive campaign as green.
 
@@ -197,7 +197,7 @@ export function validateValidationCampaignReport(value: unknown): asserts value 
 function validateProfile(value: unknown): void {
   const profile = object(value, "profile");
   exactKeys(profile, ["identity", "sandbox_target", "permitted_auto_grant_categories", "human_decision_rows"]);
-  if (nonEmpty(profile["identity"], "profile.identity") !== "operon/unattended-sandbox/v1") throw new Error("profile.identity is not the ratified unattended profile");
+  if (nonEmpty(profile["identity"], "profile.identity") !== "cormidia/unattended-sandbox/v1") throw new Error("profile.identity is not the ratified unattended profile");
   nonEmpty(profile["sandbox_target"], "profile.sandbox_target");
   const categories = uniqueStringList(profile["permitted_auto_grant_categories"], "profile.permitted_auto_grant_categories");
   if (JSON.stringify(categories) !== JSON.stringify(["campaign_budget"])) throw new Error("unattended profile permits only campaign_budget");

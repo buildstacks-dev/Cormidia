@@ -21,7 +21,7 @@ high-effort Reviewer, and a $250 equivalent-cost cap.
 ## Retained lifecycle and accounting
 
 L4 passed twice against the retained private repository
-`buildstacks-dev/operon-eval-pre-transformation-baseline` (repository id
+`buildstacks-dev/cormidia-eval-pre-transformation-baseline` (repository id
 `R_kgDOTWcSxw`). The first run created issue #3 and PR #4, pushed commit
 `fecf096043e214f460d3f39fe5b2677886607cf3`, recorded comments and a
 non-approving review, squash-merged, closed the issue, and deleted the branch.
@@ -48,7 +48,7 @@ $3.651080 and evaluator equivalent cost is $0.314457, for $3.965537 total.
 The portable report SHA-256 is
 `08a49dcc5ce6d582b592c546c86e99977f20891b17f9bb77e369294feb179689`.
 The 86-file schema-v2 sanitized archive is retained at
-`/Users/bikram/Build/operon-eval-archives/pre-transformation-baseline-v2-20260714-72e5c855d725-0bf48530-evidence-v2`.
+`/Users/bikram/Build/cormidia-eval-archives/pre-transformation-baseline-v2-20260714-72e5c855d725-0bf48530-evidence-v2`.
 The cleanup verifier rechecked its full per-file inventory and accepted the
 receipt whose archive-manifest SHA-256 is
 `1cebf08b1030079e56d5da0730b89121fe22056320fd5c14bd379c2b89233d6d`.
@@ -61,7 +61,7 @@ The live app-gate sandbox used `(deny network*)` for every case, including
 cases whose reviewed side-effect policy is `loopback_only`. Both `npm test`
 and `npm run e2e` start the fixture server on `127.0.0.1`; macOS therefore
 returned `listen EPERM` during the pristine pre-provider gate. This is an eval
-harness policy mismatch, not an Operon deep-product outcome.
+harness policy mismatch, not a Cormidia deep-product outcome.
 
 The repair keeps forbidden-network app gates fully network-dark and adds only
 specific localhost inbound/outbound allowances for `loopback_only` and
@@ -132,7 +132,7 @@ The portable invalid-sample report SHA-256 is
 `99d501ac085cea67fbb789aa95a8125a096fb4c19886c8fc1ead381b28594f25`.
 After the archive-policy repair, the actual campaign produced a 109-file
 schema-v2 sanitized archive at
-`/Users/bikram/Build/operon-eval-archives/pre-transformation-baseline-v2-20260714-fb96dfa288e8-30299951-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/pre-transformation-baseline-v2-20260714-fb96dfa288e8-30299951-evidence-v2`;
 its archive-manifest SHA-256 is
 `c70a51bc2f685120bdf48b9f35fe9bbffe683825873cf1ce232ee254e4981280`.
 Cleanup preview revalidated that receipt without deleting local evidence, and
@@ -161,7 +161,7 @@ were no retries. Total equivalent cost was $2.158391 against the authorized
 $15 cap.
 
 L4 ran twice in retained private repository
-`buildstacks-dev/operon-eval-adapter-calibration` (id `R_kgDOTWn4rw`). The
+`buildstacks-dev/cormidia-eval-adapter-calibration` (id `R_kgDOTWn4rw`). The
 first run created issue #19 and PR #20, pushed content commit
 `76daadcedf0e92d1745a5a4687b25d26eaa3559d`, wrote comments and one
 non-approving review, squash-merged, closed the issue, and deleted the branch.
@@ -171,7 +171,7 @@ The second run verified the same terminal state and source-evidence SHA-256
 The report SHA-256 is
 `4d424ebd4cdac477e15788a6af89af0ef1dc3ae00d8e301c1a21b9272ec96fff`.
 The 150-file `sanitized-evidence/v2` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260714-e52bf4335e81-e10fdc62-evidence-v2/adapter-harness-calibration-v1-20260714-e52bf4335e81-e10fdc62-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260714-e52bf4335e81-e10fdc62-evidence-v2/adapter-harness-calibration-v1-20260714-e52bf4335e81-e10fdc62-evidence-v2`;
 its archive-manifest SHA-256 is
 `81a0bab3415138d736c13c27cf7019ba95203a6325be9290174d4d6cbba7d11e`.
 Cleanup preview verified the receipt and did not delete the retained campaign.
@@ -202,7 +202,7 @@ cost is $0.439821, for $10.919951 total against the authorized $250 cap. There
 were no retries.
 
 L4 ran twice in retained private repository
-`buildstacks-dev/operon-eval-pre-transformation-baseline` (id
+`buildstacks-dev/cormidia-eval-pre-transformation-baseline` (id
 `R_kgDOTWcSxw`). The first run created issue #7 and PR #8, pushed content
 commit `b13bbb0ce211b45da08453d18bfdf671c0aa4942`, wrote comments and one
 non-approving review, squash-merged, closed the issue, and deleted the branch.
@@ -214,7 +214,7 @@ without a provider or GitHub mutation. The portable report reproduced
 byte-for-byte at SHA-256
 `f2e61615e14bea59d386a6efa829a7e1063761ceaa1ba4fcdcbf8f0995205fd2`.
 The 104-file `sanitized-evidence/v2` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/pre-transformation-baseline-v2-20260714-e52bf4335e81-5bddc84c-evidence-v2/pre-transformation-baseline-v2-20260714-e52bf4335e81-5bddc84c-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/pre-transformation-baseline-v2-20260714-e52bf4335e81-5bddc84c-evidence-v2/pre-transformation-baseline-v2-20260714-e52bf4335e81-5bddc84c-evidence-v2`;
 its archive-manifest SHA-256 is
 `b61ed6d0760d78ed4248be0032d377d0ccf106cad031855a40930e3fbc95e5e6`.
 Cleanup preview verified the receipt and did not delete retained evidence.

@@ -5,7 +5,7 @@
 // missing AUTHORITY.md (fail closed to legacy-conservative — INV-015
 // direction, never the newer default), mid-edit torn read. The fixture stages
 // each state (fixtures/org-home.ts corruption knobs); the detector asserted
-// here is always product code: resolveOperonHomes / validateOrgHome /
+// here is always product code: resolveCormidiaHomes / validateOrgHome /
 // resolveAuthority / assembleContext.
 //
 // Layer: 2 (temp org homes, real product resolution). Zero network, zero
@@ -21,7 +21,7 @@ import {
   resolveAuthority,
 } from "../../../src/org/authority.js";
 import { assembleContext } from "../../../src/org/context.js";
-import { resolveOperonHomes } from "../../../src/org/home.js";
+import { resolveCormidiaHomes } from "../../../src/org/home.js";
 import type { RoleConfig } from "../../../src/runtime/types.js";
 import {
   makeTempOrgHome,
@@ -56,7 +56,7 @@ describe("CF-B10-* (L2) corruption sweep — the resolver refuses every staged s
   it("control: the pristine fixture resolves and its ratified surfaces are provably present", async () => {
     const t = await orgHomeFixture();
     await assertNonEmptyWalk(t.orgHome);
-    const homes = await resolveOperonHomes(t.resolveOptions);
+    const homes = await resolveCormidiaHomes(t.resolveOptions);
     expect(homes.orgHome).toBe(t.orgHome);
     expect(homes.stateHome).toBe(t.stateHome);
     expect(homes.appsFile.org.name).toBe(t.orgName);
@@ -70,7 +70,7 @@ describe("CF-B10-* (L2) corruption sweep — the resolver refuses every staged s
     for (const surface of surfaces) {
       const t = await orgHomeFixture();
       await t.corrupt.invalidYaml(surface);
-      await resolveOperonHomes(t.resolveOptions).then(
+      await resolveCormidiaHomes(t.resolveOptions).then(
         () => undefined,
         () => refused.push(surface),
       );
@@ -81,7 +81,7 @@ describe("CF-B10-* (L2) corruption sweep — the resolver refuses every staged s
   it("package/org schema skew is a typed, directional refusal naming the unknown field", async () => {
     const t = await orgHomeFixture();
     await t.corrupt.schemaSkew();
-    await expect(resolveOperonHomes(t.resolveOptions)).rejects.toThrow(
+    await expect(resolveCormidiaHomes(t.resolveOptions)).rejects.toThrow(
       /unknown field.*from_a_newer_package_schema/,
     );
   });
@@ -92,18 +92,18 @@ describe("CF-B10-* (L2) corruption sweep — the resolver refuses every staged s
     // A complete pre-edit copy sits right beside the target; the resolver
     // must refuse the torn bytes rather than silently recover from siblings.
     expect(existsSync(strayTemp)).toBe(true);
-    await expect(resolveOperonHomes(t.resolveOptions)).rejects.toThrow();
+    await expect(resolveCormidiaHomes(t.resolveOptions)).rejects.toThrow();
     expect(existsSync(strayTemp)).toBe(true);
   });
 
   it("a removed ratified surface stops resolution with the org-home identity named", async () => {
     const t = await orgHomeFixture();
     await t.corrupt.removeRequired("TASTE.md");
-    await expect(resolveOperonHomes(t.resolveOptions)).rejects.toThrow(/not a complete org home/);
+    await expect(resolveCormidiaHomes(t.resolveOptions)).rejects.toThrow(/not a complete org home/);
 
     const missingPrompts = await orgHomeFixture();
     await missingPrompts.corrupt.removeRequired("prompts");
-    await expect(resolveOperonHomes(missingPrompts.resolveOptions)).rejects.toThrow(
+    await expect(resolveCormidiaHomes(missingPrompts.resolveOptions)).rejects.toThrow(
       /missing prompts/,
     );
   });
@@ -120,7 +120,7 @@ describe("CF-B10-* (L2) missing AUTHORITY.md fails closed to legacy-conservative
 
     await t.corrupt.missingAuthority();
     // The org home itself stays resolvable…
-    const homes = await resolveOperonHomes(t.resolveOptions);
+    const homes = await resolveCormidiaHomes(t.resolveOptions);
     expect(homes.orgHome).toBe(t.orgHome);
     // …but authority fails closed to the built-in legacy-conservative
     // profile: never delegated-operator "because it was convenient".
@@ -129,7 +129,7 @@ describe("CF-B10-* (L2) missing AUTHORITY.md fails closed to legacy-conservative
     expect(after.version).toBe(LEGACY_CONSERVATIVE_VERSION);
     expect(after.version).not.toBe(DELEGATED_OPERATOR_VERSION);
     expect(after.sources).toEqual([`builtin:${LEGACY_CONSERVATIVE_VERSION}`]);
-    expect(after.text).toContain("Operon fails closed");
+    expect(after.text).toContain("Cormidia fails closed");
     expect(after.text).not.toContain("You are my delegated operator");
   });
 

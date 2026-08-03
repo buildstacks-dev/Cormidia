@@ -11,9 +11,9 @@ const BRIDGE_TIMEOUT_MS = 5_000;
 async function main(): Promise<void> {
   try {
     const input = await readStdin();
-    const socketPath = process.env["OPERON_CODEX_GATE_SOCKET"];
+    const socketPath = process.env["CORMIDIA_CODEX_GATE_SOCKET"];
     if (socketPath === undefined || socketPath.length === 0) {
-      deny("Operon Codex gate bridge is unavailable");
+      deny("Cormidia Codex gate bridge is unavailable");
       return;
     }
     const response = await requestDecision(socketPath, input);
@@ -28,10 +28,10 @@ async function main(): Promise<void> {
       );
       return;
     }
-    deny(response.reason ?? "Operon gate denied the tool action");
+    deny(response.reason ?? "Cormidia gate denied the tool action");
   } catch (error) {
     deny(
-      `Operon Codex gate bridge failed closed: ` +
+      `Cormidia Codex gate bridge failed closed: ` +
         `${error instanceof Error ? error.message : String(error)}`,
     );
   }

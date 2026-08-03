@@ -1,5 +1,5 @@
 // CF-J05-R — refusal legs of the critical-op approval journey
-// (contracts/journey-acceptance.md J-05; OPERON-INV-003 grant shapes;
+// (contracts/journey-acceptance.md J-05; CORMIDIA-INV-003 grant shapes;
 // docs/approvals/design.md A1 via NEVER_SCOPEABLE_RULES; risk E-1):
 // the deny path with durable recurrence, never-broadly-scopeable ops
 // refusing scoped grants, and unknown-item refusal.

@@ -1,7 +1,7 @@
 // The ratified unattended validation profile is a narrow machine authorization,
 // not an approval decision and never a way to impersonate a human approver.
 
-export const UNATTENDED_VALIDATION_PROFILE_ID = "operon/unattended-sandbox/v1" as const;
+export const UNATTENDED_VALIDATION_PROFILE_ID = "cormidia/unattended-sandbox/v1" as const;
 export const VALIDATION_AUTO_GRANT_CATEGORIES = ["campaign_budget"] as const;
 export type ValidationAutoGrantCategory = typeof VALIDATION_AUTO_GRANT_CATEGORIES[number];
 

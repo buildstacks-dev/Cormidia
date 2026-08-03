@@ -36,7 +36,7 @@ returned `qualified` with three passes and no product, infrastructure,
 harness, safety, budget, missing-attempt, or retry result.
 
 The private GitHub exercise retained issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260715-0e41f4160bff`.
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260715-0e41f4160bff`.
 Repository ID `R_kgDOTZwsKw` and content commit
 `52327921d072b168b30bddee61045e8d80782587` are bound in the evidence. The
 identical second execution created no duplicate remote state. Source evidence
@@ -51,7 +51,7 @@ and the immutable qualification JSON SHA-256 is
 `a7e7717ee83044f3a408e5b04e93b84915ee8f6a8abeb43f8df85d2c27b008a2`.
 Both reproduced byte-for-byte. The verified 91-file
 `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260715-0e41f4160bff-c54d52d2-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260715-0e41f4160bff-c54d52d2-evidence-v2`;
 its archive-manifest SHA-256 is
 `94a04bb757bd9d6f37fa7f8a88de65166dff8064308f5b48f1b4721a82c49541`.
 The separately retained local archive-receipt SHA-256 is
@@ -61,7 +61,7 @@ Cleanup was previewed only.
 ## Candidate result and accounting
 
 The candidate GitHub exercise retained issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-candidate-qualification-v1-20260715-0e41f4160bff`.
+`buildstacks-dev/cormidia-eval-candidate-qualification-v1-20260715-0e41f4160bff`.
 Repository ID `R_kgDOTZw2bQ` and content commit
 `bc8f5b0451e6cde1add8674b992f4e20255aaf7f` are bound in the evidence. Its
 identical rerun created no duplicate remote state. Source evidence SHA-256 is
@@ -157,7 +157,7 @@ and the immutable qualification JSON SHA-256 is
 `d0a29dc5fc4f6e9a684a14dd27a96c833a5bd0d22b49a5abd54fd67f54fc7019`.
 Both reproduced byte-for-byte. The verified 659-file
 `sanitized-evidence/v3` archive is permanently retained at
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260715-0e41f4160bff-3bf2bd69-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260715-0e41f4160bff-3bf2bd69-evidence-v2`;
 its archive-manifest SHA-256 is
 `2a0783874480853c9c1084010b93481144b478ed57a9de9eee3ff41e3581c7e4`.
 The separately retained local archive-receipt SHA-256 is

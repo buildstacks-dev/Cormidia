@@ -1,7 +1,7 @@
 // CF-J08-R — mechanical steps never settle as provider turns; a duplicate
 // settle attempt no-ops (HB-020).
 //
-// Design: validation-design/invariants.md OPERON-INV-006 ("Mechanical steps
+// Design: validation-design/invariants.md CORMIDIA-INV-006 ("Mechanical steps
 // never settle as provider turns"); case-catalog §1 CF-J08-R; system-map J-08.
 // The structural guard is twofold in product code:
 //   1. mechanical execution records carry kind:"mechanical" and

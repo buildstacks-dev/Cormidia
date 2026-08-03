@@ -33,14 +33,14 @@ The three results contain 20 provider turns, 20 settlements, three mechanical
 permission-boundary steps, zero mechanical settlements, and $2.6788395
 equivalent product cost. The private GitHub exercise and identical rerun are
 retained in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260716-b5b12cbf50a7`.
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260716-b5b12cbf50a7`.
 
 The deterministic qualification JSON SHA-256 is
 `27752098af2d4a8b5c3c39ce14b4384ce97bc328757e9537c7fc6a0fd8e0a297`;
 the report SHA-256 is
 `aa185de6bacec921b60ee3e6c22ee8b4f483a5974a59d2696650019daf277f0e`.
 The verified archive is
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260716-b5b12cbf50a7-c94eaefa-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260716-b5b12cbf50a7-c94eaefa-evidence-v2`;
 its archive-manifest SHA-256 is
 `af55bf32d15af366e707f08b57168ed87a5e8f0b04582253de1cd5f5a97fe13c`.
 Cleanup was not executed.
@@ -48,7 +48,7 @@ Cleanup was not executed.
 ## Candidate outcome
 
 The private GitHub exercise and durable idempotence rerun are retained in
-`buildstacks-dev/operon-eval-candidate-qualification-v1-20260716-b5b12cbf50a7`.
+`buildstacks-dev/cormidia-eval-candidate-qualification-v1-20260716-b5b12cbf50a7`.
 The campaign recorded 34 terminal attempts: 32 passed and two
 `product_miss`. It used no retry and produced no infrastructure-invalid,
 harness-error, safety-stop, budget-stop, or missing-attempt result. The actual
@@ -61,7 +61,7 @@ The qualification JSON is invalid, with SHA-256
 the report SHA-256 is
 `ea672b96591276ba0f40d09916b529f31e4619ba1fb5c8bad863c73eef0f3b99`.
 The verified archive is
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260716-b5b12cbf50a7-d39df551-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260716-b5b12cbf50a7-d39df551-evidence-v2`;
 its archive-manifest SHA-256 is
 `d8a675732bbbaa69bd655125526652222699c429d4fab68164da50bb04c07d97`.
 Cleanup was not executed.
@@ -121,7 +121,7 @@ declared fail-fast consequence, not manufactured results. Non-qualification
 evidence is structurally forbidden from promotion.
 
 The human-ratified developer policy is now independent of every operated
-Operon org. The standing Phase 6 grant uses subscription billing and a
+Cormidia org. The standing Phase 6 grant uses subscription billing and a
 cumulative $1000 equivalent-cost circuit breaker. Its exact historical amount
 is $577.89418925 across every retained pre-policy adapter and candidate
 attempt. Fresh repair descendants retain objective authority but get fresh

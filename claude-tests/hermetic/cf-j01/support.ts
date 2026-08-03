@@ -3,7 +3,7 @@
 //
 // Everything here is TEMP-FS ONLY: worlds live under mkdtemp roots, the org
 // home is built by the REAL product init transaction (initOrgHome), and no
-// path ever reaches the operator checkout or the real ~/.operon. Snapshots
+// path ever reaches the operator checkout or the real ~/.cormidia. Snapshots
 // walk through fixtures/walk.ts so a sweep over a moved/renamed tree can
 // never pass vacuously (claude-tests/README.md rule 4); every world root
 // carries a sentinel file so "empty world" is impossible by construction.
@@ -90,14 +90,14 @@ export interface InitWorld {
 }
 
 export async function makeInitWorld(): Promise<InitWorld> {
-  const root = await mkdtemp(join(tmpdir(), "operon-cf-j01-"));
+  const root = await mkdtemp(join(tmpdir(), "cormidia-cf-j01-"));
   await writeFile(join(root, "sentinel.txt"), "world sentinel — walks are never empty\n", "utf8");
   return {
     root,
     target: join(root, "org"),
     stateHome: join(root, "state"),
     homeDir: join(root, "home"),
-    pointerPath: join(root, "home", ".operon", "config"),
+    pointerPath: join(root, "home", ".cormidia", "config"),
     cleanup: async () => {
       await rm(root, { recursive: true, force: true });
     },

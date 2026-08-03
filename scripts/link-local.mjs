@@ -7,18 +7,18 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
-const binarySource = join(packageRoot, "src", "operon-local.cjs");
-const legacyBinarySources = [join(packageRoot, "scripts", "operon-local.mjs")];
-const binDir = resolve(process.env.OPERON_BIN_DIR ?? join(homedir(), ".local", "bin"));
-const binaryTarget = join(binDir, "operon");
+const binarySource = join(packageRoot, "src", "cormidia-local.cjs");
+const legacyBinarySources = [join(packageRoot, "scripts", "cormidia-local.mjs")];
+const binDir = resolve(process.env.CORMIDIA_BIN_DIR ?? join(homedir(), ".local", "bin"));
+const binaryTarget = join(binDir, "cormidia");
 const codexHome = resolve(process.env.CODEX_HOME ?? join(homedir(), ".codex"));
 const claudeHome = resolve(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"));
 const piHome = resolve(process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"));
-const skillSource = join(packageRoot, "agent-skills", "operon");
+const skillSource = join(packageRoot, "agent-skills", "cormidia");
 const skillTargets = [
-  ["Codex", join(codexHome, "skills", "operon")],
-  ["Claude", join(claudeHome, "skills", "operon")],
-  ["pi", join(piHome, "skills", "operon")],
+  ["Codex", join(codexHome, "skills", "cormidia")],
+  ["Claude", join(claudeHome, "skills", "cormidia")],
+  ["pi", join(piHome, "skills", "cormidia")],
 ];
 
 await chmod(binarySource, 0o755);
@@ -28,15 +28,15 @@ const binaryLinkAction = await linkExact(binarySource, binaryTarget, "file", {
 for (const [, target] of skillTargets) await linkExact(skillSource, target, "dir");
 
 if (binaryLinkAction === "migrated") {
-  console.log(`operon binary link migrated from the legacy same-checkout launcher: ${binaryTarget}`);
+  console.log(`cormidia binary link migrated from the legacy same-checkout launcher: ${binaryTarget}`);
 }
-console.log(`operon binary linked: ${binaryTarget} -> ${binarySource}`);
+console.log(`cormidia binary linked: ${binaryTarget} -> ${binarySource}`);
 for (const [provider, target] of skillTargets) {
-  console.log(`Operon skill linked (${provider}): ${target} -> ${skillSource}`);
+  console.log(`Cormidia skill linked (${provider}): ${target} -> ${skillSource}`);
 }
 console.log("This local link is source-backed: the next invocation picks up source changes without update or rebuild.");
 if (!process.env.PATH?.split(":").includes(binDir)) {
-  console.log(`Add ${binDir} to PATH, then run: operon --version`);
+  console.log(`Add ${binDir} to PATH, then run: cormidia --version`);
 }
 
 async function linkExact(source, target, kind, options = {}) {
@@ -67,7 +67,7 @@ async function linkExact(source, target, kind, options = {}) {
 async function migrateOwnedSymlink(source, target, kind, observed) {
   const temporaryTarget = join(
     dirname(target),
-    `.${basename(target)}.operon-link-${process.pid}-${randomUUID()}`,
+    `.${basename(target)}.cormidia-link-${process.pid}-${randomUUID()}`,
   );
 
   try {

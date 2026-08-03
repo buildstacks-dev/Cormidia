@@ -178,11 +178,11 @@ export async function installGithubDouble(
   options: GithubDoubleOptions = {},
 ): Promise<GithubDoubleHandle> {
   installSeq += 1;
-  const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "operon-github-double-"));
+  const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "cormidia-github-double-"));
   const binDir = path.join(home, "bin");
   await fs.promises.mkdir(binDir);
 
-  const repo = options.repo ?? `operon-double/sandbox-${process.pid}-${installSeq}`;
+  const repo = options.repo ?? `cormidia-double/sandbox-${process.pid}-${installSeq}`;
   const defaultBranch = options.defaultBranch ?? "main";
 
   const enginePath = path.join(home, "gh-engine.cjs");
@@ -198,7 +198,7 @@ export async function installGithubDouble(
     config: {
       repo,
       singleAccount: options.singleAccount ?? false,
-      viewerLogin: options.viewerLogin ?? "operon-double",
+      viewerLogin: options.viewerLogin ?? "cormidia-double",
       epochIso: "2026-01-01T00:00:00.000Z",
       lies: options.lies ?? {},
     },

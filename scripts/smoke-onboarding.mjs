@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
-const root = mkdtempSync(join(tmpdir(), "operon-onboarding-smoke-"));
+const root = mkdtempSync(join(tmpdir(), "cormidia-onboarding-smoke-"));
 const home = join(root, "home");
 const bin = join(root, "bin");
 const codexHome = join(root, "codex");
@@ -28,7 +28,7 @@ const env = {
   CODEX_HOME: codexHome,
   CLAUDE_CONFIG_DIR: claudeHome,
   PI_CODING_AGENT_DIR: piHome,
-  OPERON_BIN_DIR: bin,
+  CORMIDIA_BIN_DIR: bin,
   PATH: `${bin}:${process.env.PATH ?? ""}`,
 };
 
@@ -55,15 +55,15 @@ try {
   );
 
   run(process.execPath, [join(packageRoot, "scripts", "link-local.mjs")], packageRoot);
-  const operon = join(bin, "operon");
-  assert(existsSync(operon), "local binary link was not created");
-  assert(existsSync(join(codexHome, "skills", "operon", "SKILL.md")), "Codex skill link was not created");
-  assert(existsSync(join(claudeHome, "skills", "operon", "SKILL.md")), "Claude skill link was not created");
-  assert(existsSync(join(piHome, "skills", "operon", "SKILL.md")), "pi skill link was not created");
+  const cormidia = join(bin, "cormidia");
+  assert(existsSync(cormidia), "local binary link was not created");
+  assert(existsSync(join(codexHome, "skills", "cormidia", "SKILL.md")), "Codex skill link was not created");
+  assert(existsSync(join(claudeHome, "skills", "cormidia", "SKILL.md")), "Claude skill link was not created");
+  assert(existsSync(join(piHome, "skills", "cormidia", "SKILL.md")), "pi skill link was not created");
 
-  run(operon, ["--version"], neutral);
+  run(cormidia, ["--version"], neutral);
   const initPreview = JSON.parse(run(
-    operon,
+    cormidia,
     ["org", "init", orgHome, "--name", "fixture-org", "--state-home", stateHome, "--dry-run", "--json"],
     neutral,
   ));
@@ -84,9 +84,9 @@ try {
     previewStateEntries.every((entry) => entry === "invocations" || entry === "state"),
     `org init dry-run wrote more than its audit row into the state home: ${previewStateEntries.join(", ")}`,
   );
-  assert(!existsSync(join(home, ".operon", "config")), "org init dry-run wrote the active pointer");
+  assert(!existsSync(join(home, ".cormidia", "config")), "org init dry-run wrote the active pointer");
   const initialized = run(
-    operon,
+    cormidia,
     ["org", "init", orgHome, "--name", "fixture-org", "--state-home", stateHome],
     neutral,
   );
@@ -95,44 +95,44 @@ try {
   assert(initialized.includes("Automatic:"), "org init did not preview automatic authority");
   assert(initialized.includes("Human-gated:"), "org init did not preview gated authority");
   assert(existsSync(join(orgHome, "AUTHORITY.md")), "org init did not emit canonical authority");
-  assert(readFileSync(join(orgHome, "AGENTS.md"), "utf8").includes("operon-authority:start"), "org Codex instructions lack authority");
-  assert(readFileSync(join(orgHome, "CLAUDE.md"), "utf8").includes("operon-authority:start"), "org Claude instructions lack authority");
+  assert(readFileSync(join(orgHome, "AGENTS.md"), "utf8").includes("cormidia-authority:start"), "org Codex instructions lack authority");
+  assert(readFileSync(join(orgHome, "CLAUDE.md"), "utf8").includes("cormidia-authority:start"), "org Claude instructions lack authority");
 
-  await smokeObserver(operon, neutral);
+  await smokeObserver(cormidia, neutral);
 
-  const scan = run(operon, ["bootstrap", app, "--scan-only"], neutral);
+  const scan = run(cormidia, ["bootstrap", app, "--scan-only"], neutral);
   assert(scan.includes("App repo:"), "bootstrap did not explain app repo");
   assert(scan.includes("Org home:"), "bootstrap did not explain org home");
   assert(scan.includes("State home:"), "bootstrap did not explain state home");
-  assert(!existsSync(join(app, ".operon")), "scan-only wrote into the app repo");
+  assert(!existsSync(join(app, ".cormidia")), "scan-only wrote into the app repo");
 
-  run(operon, ["bootstrap", app, "--answers", answers], neutral);
-  assert(existsSync(join(app, ".operon", "config.yaml")), "full bootstrap did not emit app config");
-  assert(existsSync(join(app, ".operon", "AUTHORITY.md")), "full bootstrap did not emit app authority");
+  run(cormidia, ["bootstrap", app, "--answers", answers], neutral);
+  assert(existsSync(join(app, ".cormidia", "config.yaml")), "full bootstrap did not emit app config");
+  assert(existsSync(join(app, ".cormidia", "AUTHORITY.md")), "full bootstrap did not emit app authority");
   assert(readFileSync(join(app, "AGENTS.md"), "utf8").startsWith("# Existing agent rule\n"), "bootstrap replaced existing AGENTS.md content");
-  assert(readFileSync(join(app, "AGENTS.md"), "utf8").includes("operon-authority:start"), "app Codex instructions lack authority");
+  assert(readFileSync(join(app, "AGENTS.md"), "utf8").includes("cormidia-authority:start"), "app Codex instructions lack authority");
   assert(readFileSync(join(app, "CLAUDE.md"), "utf8").startsWith("# Existing Claude rule\n"), "bootstrap replaced existing CLAUDE.md content");
-  assert(!existsSync(join(app, ".operon", "org")), "bootstrap emitted the retired nested org profile");
+  assert(!existsSync(join(app, ".cormidia", "org")), "bootstrap emitted the retired nested org profile");
 
-  const context = JSON.parse(run(operon, ["context", "--json"], neutral));
+  const context = JSON.parse(run(cormidia, ["context", "--json"], neutral));
   assert(context.orgHome === orgHome, "context resolved the wrong org home");
   assert(context.stateHome === stateHome, "context resolved the wrong state home");
   assert(context.authority?.version === "delegated-operator/v1", "context omitted the org authority version");
   assert(context.apps.some((entry) => entry.repo === "owner/fixture-app"), "onboarded app is absent from context");
 
-  const capabilities = JSON.parse(run(operon, ["capabilities", "--json"], neutral));
+  const capabilities = JSON.parse(run(cormidia, ["capabilities", "--json"], neutral));
   assert(capabilities.commands.some((entry) => entry.command === "bootstrap"), "bootstrap capability is absent");
   assert(capabilities.commands.some((entry) => entry.command === "observe" && entry.writes === false && entry.spendsTokens === false), "observe capability is absent or not read-only/token-free");
   assert(capabilities.commands.some((entry) => entry.command === "report" && entry.writes === false && entry.spendsTokens === false), "report capability is absent or not read-only/token-free");
-  const reportJson = JSON.parse(run(operon, ["report", "--period", "7d", "--json"], neutral));
+  const reportJson = JSON.parse(run(cormidia, ["report", "--period", "7d", "--json"], neutral));
   assert(reportJson.schema_version === 1 && reportJson.scope.kind === "org", "report JSON contract is unavailable");
   const portableReport = join(root, "fixture-report.html");
-  run(operon, ["report", "--period", "7d", "--html", portableReport], neutral);
+  run(cormidia, ["report", "--period", "7d", "--html", portableReport], neutral);
   assert(existsSync(portableReport), "portable report was not written");
   assert(!readFileSync(portableReport, "utf8").includes("https://"), "portable report contains an external request");
-  run(operon, ["doctor", "--json", "--config-only"], neutral);
+  run(cormidia, ["doctor", "--json", "--config-only"], neutral);
   run(
-    operon,
+    cormidia,
     [
       "new-app",
       "greenfield-app",
@@ -188,7 +188,7 @@ async function smokeObserver(command, cwd) {
   const deadline = Date.now() + 10_000;
   let url;
   while (Date.now() < deadline) {
-    const match = /^Operon observer: (http:\/\/127\.0\.0\.1:\d+\/\?token=\S+)$/m.exec(stdout);
+    const match = /^Cormidia observer: (http:\/\/127\.0\.0\.1:\d+\/\?token=\S+)$/m.exec(stdout);
     if (match) {
       url = match[1];
       break;
@@ -205,7 +205,7 @@ async function smokeObserver(command, cwd) {
   const reports = new URL("/reports", url);
   reports.search = new URL(url).search;
   const reportPage = await fetch(reports, { cache: "no-store" });
-  assert(reportPage.ok && (await reportPage.text()).includes("Operon Reports"), "observer Reports page failed");
+  assert(reportPage.ok && (await reportPage.text()).includes("Cormidia Reports"), "observer Reports page failed");
   const summary = new URL("/api/v1/reports/summary?period=7d", url);
   summary.searchParams.set("token", new URL(url).searchParams.get("token"));
   const reportSummary = await fetch(summary, { cache: "no-store" });

@@ -1,4 +1,4 @@
-// `operon learn experiment ...` and `operon learn canary ...` — the M5
+// `cormidia learn experiment ...` and `cormidia learn canary ...` — the M5
 // human surface over the offline-evaluation funnel and the episode-sticky
 // live canary (design §8.4, §9.5; spec §10, §13).
 //
@@ -19,7 +19,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { rollupLearningSpend } from "../org/budget.js";
-import type { OperonHomes } from "../org/home.js";
+import type { CormidiaHomes } from "../org/home.js";
 import {
   listCanaryAssignments,
   promoteCanary,
@@ -67,7 +67,7 @@ import { flag, learningRoots, parseFlags, requireFlag, type Flags } from "./lear
 // experiment
 // ---------------------------------------------------------------------------
 
-export async function learnExperiment(homes: OperonHomes, args: string[]): Promise<number> {
+export async function learnExperiment(homes: CormidiaHomes, args: string[]): Promise<number> {
   const [sub, ...rest] = args;
   switch (sub) {
     case "declare":
@@ -84,7 +84,7 @@ export async function learnExperiment(homes: OperonHomes, args: string[]): Promi
   }
 }
 
-async function declare(homes: OperonHomes, args: string[]): Promise<number> {
+async function declare(homes: CormidiaHomes, args: string[]): Promise<number> {
   const flags = parseFlags(args, "learn experiment declare");
   const candidateId = requireFlag(flags, "candidate", "learn experiment declare");
   const evalsRef = requireFlag(flags, "evals", "learn experiment declare");
@@ -200,7 +200,7 @@ async function declare(homes: OperonHomes, args: string[]): Promise<number> {
     `  arms: control ${arms.controlId} vs treatment ${arms.treatmentId}` +
       (declared.arm_delta !== null ? ` (delta: ${declared.arm_delta.join(", ")})` : ""),
   );
-  console.log(`  run it with: operon learn experiment run ${declared.record.experiment_id}`);
+  console.log(`  run it with: cormidia learn experiment run ${declared.record.experiment_id}`);
   return 0;
 }
 
@@ -208,7 +208,7 @@ function sha256Ref(value: string): string {
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
-async function run(homes: OperonHomes, args: string[]): Promise<number> {
+async function run(homes: CormidiaHomes, args: string[]): Promise<number> {
   const flags = parseFlags(args, "learn experiment run");
   const experimentId = flags.positionals[0];
   if (experimentId === undefined) {
@@ -243,7 +243,7 @@ async function run(homes: OperonHomes, args: string[]): Promise<number> {
   if (fixtures.length === 0) {
     console.error(
       `learn experiment run: no trusted fixtures under ${experiment.eligibility.episodes} — ` +
-        "draft with `operon learn fixture <episode-id> --set <set>` and have a second actor --validate",
+        "draft with `cormidia learn fixture <episode-id> --set <set>` and have a second actor --validate",
     );
     return 1;
   }
@@ -356,11 +356,11 @@ async function run(homes: OperonHomes, args: string[]): Promise<number> {
   }
   console.log(`  cost: $${outcome.result.cost_usd.toFixed(2)} (${outcome.attempts.length} attempts)`);
   if (outcome.halted !== null) console.log(`  halted: ${outcome.halted}`);
-  console.log(`  recorded: ${outcome.result.eval_id} (operon learn show ${outcome.result.eval_id})`);
+  console.log(`  recorded: ${outcome.result.eval_id} (cormidia learn show ${outcome.result.eval_id})`);
   return 0;
 }
 
-async function list(homes: OperonHomes): Promise<number> {
+async function list(homes: CormidiaHomes): Promise<number> {
   const experiments = await listExperimentRecords(homes.orgHome);
   if (experiments.length === 0) {
     console.log("no experiments declared");
@@ -387,7 +387,7 @@ async function list(homes: OperonHomes): Promise<number> {
 // canary
 // ---------------------------------------------------------------------------
 
-export async function learnCanary(homes: OperonHomes, args: string[]): Promise<number> {
+export async function learnCanary(homes: CormidiaHomes, args: string[]): Promise<number> {
   const [sub, ...rest] = args;
   switch (sub) {
     case "start": {
@@ -411,7 +411,7 @@ export async function learnCanary(homes: OperonHomes, args: string[]): Promise<n
       );
       console.log(
         "  new episodes assign by hash of episode id (design §8.4); " +
-          "watch it with: operon learn canary status",
+          "watch it with: cormidia learn canary status",
       );
       return 0;
     }
@@ -464,7 +464,7 @@ export async function learnCanary(homes: OperonHomes, args: string[]): Promise<n
  *  report passes its already-loaded episode records instead of re-walking
  *  the store. */
 export async function canaryStatusLines(
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   policy: LearningPolicy,
   preloadedEpisodes?: EpisodeRecord[],
 ): Promise<string[]> {
@@ -530,8 +530,8 @@ export async function canaryStatusLines(
     const rule = policy.tiers[meta.tier as keyof LearningPolicy["tiers"]]?.promote_rule ?? null;
     lines.push(`  recommendation: ${recommend(rule, canaryStats, stableStats)}`);
     lines.push(
-      `  next: operon learn canary promote --root ${root.kind} | ` +
-        `operon learn canary stop --root ${root.kind} --reason "<why>"`,
+      `  next: cormidia learn canary promote --root ${root.kind} | ` +
+        `cormidia learn canary stop --root ${root.kind} --reason "<why>"`,
     );
   }
   if (!anyActive) lines.push("no active canary on any reachable root");
@@ -629,7 +629,7 @@ const MATERIAL_FINGERPRINT_PREFIXES = [
  *  lineage. Both are stored content-addressed so declare can verify them
  *  and run can detect drift. */
 async function armFingerprints(
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   appName: string,
   candidate: CandidateArtifact,
 ): Promise<{ control: SystemFingerprint; controlId: string; treatmentId: string }> {
@@ -736,7 +736,7 @@ function rootFlag(flags: Flags, command: string): CanaryRootKind {
   return root;
 }
 
-function appWorkdirFlag(homes: OperonHomes, flags: Flags): { appWorkdir?: string } {
+function appWorkdirFlag(homes: CormidiaHomes, flags: Flags): { appWorkdir?: string } {
   const appName = flag(flags, "app");
   if (appName === undefined) return {};
   const appEntry = homes.appsFile.apps.find((app) => app.name === appName);

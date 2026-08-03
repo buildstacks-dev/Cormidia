@@ -8,7 +8,7 @@
 //   - non-clean injection screen -> the disposition escalates regardless of
 //     the verdict word (spec §15: "Non-clean injection screens escalate").
 //
-// In M4 review is human-invoked (`operon learn review`); M6 adds the
+// In M4 review is human-invoked (`cormidia learn review`); M6 adds the
 // cross-provider reviewer role writing the same contract. Spec deltas,
 // recorded M1-M3-style: `schema_version`, plus `reviewed_by`/`reviewed_at`
 // provenance — the reviewer-human agreement metric (spec §18) needs to know

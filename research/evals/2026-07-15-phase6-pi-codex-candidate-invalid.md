@@ -36,7 +36,7 @@ returned `qualified` with three passes and no product, infrastructure,
 harness, safety, budget, missing-attempt, or retry result.
 
 The private GitHub exercise retained issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260715-6ed3b4ac8b87`.
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260715-6ed3b4ac8b87`.
 The identical second execution reused the first evidence and created no
 duplicate remote state. Source evidence SHA-256 is
 `2b8e4f507b11725a25bc357739c4ae78cb7fa56ceb43cc4615323d2395f26fff`;
@@ -49,7 +49,7 @@ and the immutable qualification JSON SHA-256 is
 `1ecc7356eba3b7483295f9184ad2a6a387ed48d75055d22024af2c90fb3b0c7c`.
 Both reproduced byte-for-byte. The verified 91-file
 `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260715-6ed3b4ac8b87/adapter-harness-calibration-v1-20260715-6ed3b4ac8b87-74e1260f-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260715-6ed3b4ac8b87/adapter-harness-calibration-v1-20260715-6ed3b4ac8b87-74e1260f-evidence-v2`;
 its archive-manifest SHA-256 is
 `2afa159505bb86494d3edf0d44eb6d55ca0df08f39f01f42be5305c8e12538a5`.
 The separately retained local archive-receipt SHA-256 is
@@ -59,7 +59,7 @@ Cleanup was previewed only.
 ## Candidate result and accounting
 
 The candidate GitHub exercise retained issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-candidate-qualification-v1-20260715-6ed3b4ac8b87`.
+`buildstacks-dev/cormidia-eval-candidate-qualification-v1-20260715-6ed3b4ac8b87`.
 Its identical rerun reused source evidence SHA-256
 `9ec8217e84c41af6489301768d976c8cf60db4f6e529ae636aef9ae8465fbb46`;
 the idempotence evidence SHA-256 is
@@ -152,7 +152,7 @@ and the immutable qualification JSON SHA-256 is
 `17759889102ac60a84ff41101bec4a3121aa00811ad5d3b6f8e87796c4a96565`.
 Both reproduced byte-for-byte. The verified 607-file
 `sanitized-evidence/v3` archive is permanently retained at
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260715-6ed3b4ac8b87/candidate-qualification-v1-20260715-6ed3b4ac8b87-f871bb3b-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260715-6ed3b4ac8b87/candidate-qualification-v1-20260715-6ed3b4ac8b87-f871bb3b-evidence-v2`;
 its archive-manifest SHA-256 is
 `359bb801d29d99884c71bb8ac174e0ad8605193293b2cd97716520c72a90f052`.
 The separately retained local archive-receipt SHA-256 is
@@ -180,7 +180,7 @@ strict must remain red for exactly that contract. The genuine future campaign
 keeps every original 48-hour cadence, restart, safety, accounting, and evidence
 requirement. Preview, deterministic virtual-soak evidence, manufactured
 evidence, or bounded read-only production confirmation cannot promote it.
-Phase 6 may ship with the future soak pending, but Operon may not claim to be a
+Phase 6 may ship with the future soak pending, but Cormidia may not claim to be a
 fully proven “highly efficient organization” until that campaign passes. The
 canonical boundary is
 [`docs/efficiency.md`](../../docs/efficiency.md#phase-6-qualification-scope).

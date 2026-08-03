@@ -186,8 +186,8 @@ import {
   markTicketProviderStarted,
 } from ${JSON.stringify(productModuleUrl("src/loop/claim-recovery.ts"))};
 
-const root = process.env.OPERON_KP_STATE_HOME;
-if (root === undefined || root.length === 0) throw new Error("OPERON_KP_STATE_HOME not set");
+const root = process.env.CORMIDIA_KP_STATE_HOME;
+if (root === undefined || root.length === 0) throw new Error("CORMIDIA_KP_STATE_HOME not set");
 const app = ${JSON.stringify(APP)};
 const issueNumber = ${issueNumber};
 
@@ -222,7 +222,7 @@ await kp("provider_resumed");
     const res = await runKillPointScenario({
       source: resumeKillScenarioSource(walk.issueNumber),
       killAt: "resume_lease_acquired",
-      env: { OPERON_KP_STATE_HOME: root },
+      env: { CORMIDIA_KP_STATE_HOME: root },
       timeoutMs: 25_000,
     });
     cleanups.push(() => res.cleanup());
@@ -286,7 +286,7 @@ await kp("provider_resumed");
 
     const res = await runKillPointScenario({
       source: resumeKillScenarioSource(walk.issueNumber),
-      env: { OPERON_KP_STATE_HOME: root },
+      env: { CORMIDIA_KP_STATE_HOME: root },
       timeoutMs: 25_000,
     });
     cleanups.push(() => res.cleanup());

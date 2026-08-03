@@ -6,14 +6,14 @@ Applies to the whole repo. Nested AGENTS.md files specialize local rules in
 read the nearest one when working there. `docs/PURPOSE.md` is the decision log; on conflict its
 Decided section wins and this file is stale — fix this file.
 
-This file governs **building and maintaining the Operon platform**, not
-operating an org with Operon. Read `docs/DEVELOPMENT.md` before development
+This file governs **building and maintaining the Cormidia platform**, not
+operating an org with Cormidia. Read `docs/DEVELOPMENT.md` before development
 campaigns. Self-hosting is ratified with carve-outs (PURPOSE.md → Decided,
-2026-08-02): the standing org may operate `operon-web` (the public front
+2026-08-02): the standing org may operate `cormidia-web` (the public front
 door) and, once proven there, this repo — but release authority (npm
 publish, version tags, release handoff) stays human, and root instructions,
-developer grants, and eval state must never enter an Operon org's prompts,
-state, learning, or approvals. The packaged `agent-skills/operon/` skill is
+developer grants, and eval state must never enter a Cormidia org's prompts,
+state, learning, or approvals. The packaged `agent-skills/cormidia/` skill is
 the separate org-operation guide.
 
 ## What this repo is
@@ -22,7 +22,7 @@ Reviewer, SRE, Support, Marketing) that develops and operates a software
 product through a private GitHub repo, with a human gating critical ops only.
 Build-complete and proven live end-to-end — README → Status / Known
 limitations are the product view; README → Observability is the authoritative
-state-home inventory (`~/.operon/<org>/`). Open work lives in the GitHub issue
+state-home inventory (`~/.cormidia/<org>/`). Open work lives in the GitHub issue
 tracker (`gh issue list`).
 
 ## Repository map
@@ -33,10 +33,10 @@ tracker (`gh issue list`).
 | `TASTE.md` · `roles.yaml` · `pipelines.yaml` · `prompts/` | Human-ratified org templates and protocol surfaces (see Working rules) |
 | `src/runtime/` | Runtime contract + adapters — `src/runtime/AGENTS.md` |
 | `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop/design.md`) |
-| `src/org/` | Standing-org layer: lifecycle, bootstrap, scheduler, approvals, budget, learning (`src/org/learning/`); `src/org/home.ts` is the package/org/state boundary |
+| `src/org/` | Standing-org layer: lifecycle, bootstrap, scheduler, approvals, budget, learning (`src/org/learning/`); `src/org/home.ts` is the package/org/state boundary and owns the one-time default-state-root migration |
 | `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table — new subcommand = new file + one registry line |
-| `agent-skills/operon/` | Packaged `$operon` Agent Skill (org operation, not development) |
+| `agent-skills/cormidia/` | Packaged `$cormidia` Agent Skill (org operation, not development) |
 | `validation-design/` | Ratified harness design (2026-07-31): `validation-policy.yaml` is the contract, `harness-backlog.md` the build plan — see "Validation harness" section below |
 | `claude-tests/` | Implemented replacement validation harness plus explicitly authorized L3/L4/L5 campaign runners (per `validation-design/`) |
 | `archive-do-not-read/` | Frozen pre-rebuild validation corpus (old `test/`, `eval/`, `docs/testing/`, eval/CI scripts) — **never read, cite, run, or take design cues from it** |
@@ -56,11 +56,11 @@ rewrite; legacy test/eval scripts removed with the archive move).
   `pnpm test:live` · `pnpm test:eval` · `pnpm test:soak -- <start|checkpoint|finish>`;
   see `docs/qualification/design.md` and never run these casually.
   (tsc → `dist/`).
-- Local product install: `pnpm link:local` (source-backed `operon` bin + skill
+- Local product install: `pnpm link:local` (source-backed `cormidia` bin + skill
   links; later source edits need no relink).
 - CLI: `pnpm dev <cmd>` in source mode; the full catalog with flags and
-  caveats is README → Commands (substitute `pnpm dev` for `operon`), plus
-  `operon <cmd> --help`.
+  caveats is README → Commands (substitute `pnpm dev` for `cormidia`), plus
+  `cormidia <cmd> --help`.
 - Packaging checks: `pnpm smoke:onboarding` · `npm pack --dry-run`.
 - Token-spending — never run casually: live `dispatch`/`loop`/`plan` against
   a real org spend provider tokens and can open PRs/approvals.
@@ -151,7 +151,7 @@ golden sets are never weakened to make a change pass.
 
 **Feature changes** start from the affected journey's acceptance criteria
 (`contracts/journey-acceptance.md`) and the affected boundary's contract
-(`contracts/B-*.md`, `contracts/OP-*.md`, canonical `OPERON-C-*` IDs). Derive the
+(`contracts/B-*.md`, `contracts/OP-*.md`, canonical `CORMIDIA-C-*` IDs). Derive the
 change's cases with the derivation grammar rows (journey / state machine / invariant /
 boundary / contract / interface / LLM site / ops), land each at the cheapest layer
 that can falsify it, and update `case-catalog.md` traceability in the same change.

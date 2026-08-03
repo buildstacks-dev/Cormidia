@@ -1,5 +1,5 @@
 // hermetic/cf-j07/support.ts — shared rig + detectors for the CF-J07 family
-// (HB-022 + HB-P1; case-catalog §CF-J07-*; OPERON-INV-007; F-PT-003 ratified
+// (HB-022 + HB-P1; case-catalog §CF-J07-*; CORMIDIA-INV-007; F-PT-003 ratified
 // 2026-07-31: pause holds; exactly one budget-exceeded item eventually).
 //
 // NOTE on the product seam this family drives (report obligation, HB-022):

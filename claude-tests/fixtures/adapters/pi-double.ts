@@ -89,7 +89,7 @@ export function piDouble(
     modelRegistry: { getAll: () => [fakeModel] } as never,
     authStorage: {} as never,
     sessionManagerFactory: () => ({}) as never,
-    agentDir: "/tmp/operon-pi-double-agent",
+    agentDir: "/tmp/cormidia-pi-double-agent",
   });
   return { runtime, recorder };
 }

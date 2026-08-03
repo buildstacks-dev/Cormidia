@@ -1,4 +1,4 @@
-// `operon doctor` — verify the installed package, active org configuration,
+// `cormidia doctor` — verify the installed package, active org configuration,
 // state home, adapters, and scheduler surface without assuming cwd is special.
 
 import { existsSync } from "node:fs";
@@ -16,9 +16,9 @@ import { loadApps } from "../org/apps.js";
 import { loadPipelines } from "../loop/pipelines.js";
 import {
   ORG_HOME_DEFINITION,
-  resolveOperonHomes,
+  resolveCormidiaHomes,
   STATE_HOME_DEFINITION,
-  type OperonHomeOptions,
+  type CormidiaHomeOptions,
 } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { resolveAuthority } from "../org/authority.js";
@@ -31,7 +31,7 @@ import {
 } from "../org/managed-clone-health.js";
 import { listOrgs } from "../org/org-archive.js";
 
-export interface DoctorOptions extends OperonHomeOptions {
+export interface DoctorOptions extends CormidiaHomeOptions {
   launchAgentsDir?: string;
   json?: boolean;
   /** Validate files without starting non-billable adapter probes. Intended
@@ -65,10 +65,10 @@ export async function cmdDoctorArgs(args: string[]): Promise<number> {
 
 export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   const config: CheckRow[] = [];
-  let homes: Awaited<ReturnType<typeof resolveOperonHomes>> | undefined;
+  let homes: Awaited<ReturnType<typeof resolveCormidiaHomes>> | undefined;
   let roles: Awaited<ReturnType<typeof loadRoles>> | undefined;
   try {
-    homes = await resolveOperonHomes(options);
+    homes = await resolveCormidiaHomes(options);
     const rolesPath = join(homes.orgHome, "roles.yaml");
     const appsPath = join(homes.orgHome, "apps.yaml");
     const pipelinesPath = join(homes.orgHome, "pipelines.yaml");
@@ -153,7 +153,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   // still on this machine.
   const orgsPointerPath = homes?.pointerPath
     ?? options.pointerPath
-    ?? join(options.homeDir ?? homedir(), ".operon", "config");
+    ?? join(options.homeDir ?? homedir(), ".cormidia", "config");
   const discoveredOrgs = await listOrgs({
     pointerPath: orgsPointerPath,
     includeUsage: false,
@@ -164,9 +164,9 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
       name: `orgs/${org.name}`,
       status: "WARN" as const,
       detail: org.orphan
-        ? `${org.stateHome} has no recorded org home; retire it with "operon org archive ${org.name}"`
+        ? `${org.stateHome} has no recorded org home; retire it with "cormidia org archive ${org.name}"`
         : `${org.stateHome} points at a missing org home ${org.orgHome}; re-select it with ` +
-          `"operon org use <path>" or retire it with "operon org archive ${org.name}"`,
+          `"cormidia org use <path>" or retire it with "cormidia org archive ${org.name}"`,
     }));
 
   const ok = ![...adapters, ...config, state, scheduler, ...clones, ...orphans].some(
@@ -215,8 +215,8 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   if (clones.length > 0) printRows("managed clones", clones);
   if (orphans.length > 0) printRows("orgs", orphans);
   printRows("scheduler", [scheduler]);
-  if (schedulerStatus?.definition.installed === true) console.log(`  ${manager.backend} installed; inspect/repair with: operon scheduler status`);
-  else if (homes) console.log(`  ${manager.backend} not installed; preview with: operon scheduler install --backend ${manager.backend}`);
+  if (schedulerStatus?.definition.installed === true) console.log(`  ${manager.backend} installed; inspect/repair with: cormidia scheduler status`);
+  else if (homes) console.log(`  ${manager.backend} not installed; preview with: cormidia scheduler install --backend ${manager.backend}`);
   return ok ? 0 : 1;
 }
 

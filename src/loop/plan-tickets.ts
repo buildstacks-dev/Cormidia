@@ -62,7 +62,7 @@ export const CANONICAL_LABELS: readonly CanonicalLabelDefinition[] = [
     description: "Ready for the build loop to claim",
     kind: "state",
     appliedBy: "Planner publication, dependency rearming, or the operator's reviewed first issue",
-    operatorResponse: "Leave it for the loop to claim; do not add another Operon state label",
+    operatorResponse: "Leave it for the loop to claim; do not add another Cormidia state label",
   },
   {
     name: "op:building",
@@ -87,7 +87,7 @@ export const CANONICAL_LABELS: readonly CanonicalLabelDefinition[] = [
     kind: "state",
     appliedBy: "The loop after a bounded failure, exhausted correction allowance, or triage finding",
     operatorResponse:
-      "Read the retained evidence; use operon loop rearm only for a non-terminal episode, or create a new ticket if terminal",
+      "Read the retained evidence; use cormidia loop rearm only for a non-terminal episode, or create a new ticket if terminal",
   },
   {
     name: "op:blocked",
@@ -95,7 +95,7 @@ export const CANONICAL_LABELS: readonly CanonicalLabelDefinition[] = [
     description: "Waiting on a critical-op approval",
     kind: "state",
     appliedBy: "The loop when the exact durable continuation is waiting on critical-op approval",
-    operatorResponse: "Review operon approvals; do not bypass the decision by editing labels",
+    operatorResponse: "Review cormidia approvals; do not bypass the decision by editing labels",
   },
   {
     name: "op:tier-quick",
@@ -268,7 +268,7 @@ export const TICKET_BUDGETS: Record<ProjectStage, number> = {
 /** One durable, attributable human decision to admit ONE oversized
  *  decomposition (ENH-011). The refusal below has always prescribed "explicit
  *  human ratification"; this is the shape that decision takes, and
- *  `operon plan ratify-ticket-budget` is the verb that records it.
+ *  `cormidia plan ratify-ticket-budget` is the verb that records it.
  *
  *  It is deliberately NOT a standing override and NOT a flag that skips the
  *  check. It names the exact stage, the exact ticket count a human read and
@@ -447,7 +447,7 @@ export function validatePlan(
 
 /** True when the ONLY thing standing between this decomposition and
  *  publication is the stage ticket budget — the exact case
- *  `operon plan ratify-ticket-budget` exists for. A plan that is also
+ *  `cormidia plan ratify-ticket-budget` exists for. A plan that is also
  *  structurally invalid is never offered for ratification. */
 export function isTicketBudgetOnlyRefusal(plan: TicketPlan): boolean {
   const stageBudget = TICKET_BUDGETS[plan.stage];
@@ -465,7 +465,7 @@ function planProblems(plan: TicketPlan, budget: number): string[] {
     problems.push(
       `${plan.tickets.length} tickets exceed the ${plan.stage} budget of ${budget} — ` +
         "decompose less, not more (P1); more requires explicit human ratification of this exact " +
-        "decomposition (operon plan ratify-ticket-budget), not a bigger plan and not a falsified --stage",
+        "decomposition (cormidia plan ratify-ticket-budget), not a bigger plan and not a falsified --stage",
     );
   }
   if (plan.ticketCountRationale.trim().length === 0) {
@@ -634,7 +634,7 @@ export function parseReleaseKind(body: string): ReleaseKind | undefined {
 
 /** A milestone's declared release version, validated to a strict `vX.Y.Z`
  *  (optionally a `-prerelease`) shape. The strictness is load-bearing: the
- *  value is interpolated into the git tag command Operon runs, so anything
+ *  value is interpolated into the git tag command Cormidia runs, so anything
  *  outside this character set (which cannot carry shell metacharacters) is
  *  rejected — a malformed version yields no release rather than an injection. */
 const RELEASE_VERSION_RE = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -653,7 +653,7 @@ export function releaseTagFor(version: string): string {
 /** The executable release command for an app's mechanism given a merged
  *  ticket body, or `undefined` when nothing runs after merge: `merge-only`,
  *  or a `tag` mechanism whose milestone declared no valid `Release-version`.
- *  For `trigger: tag` Operon derives a git tag push (there is no app-declared
+ *  For `trigger: tag` Cormidia derives a git tag push (there is no app-declared
  *  command); for `command`/legacy it is the app's declared command. Both the
  *  loop (which queues the release) and crash-restore (which re-validates the
  *  durable trigger) resolve the command here so their fingerprints match. */

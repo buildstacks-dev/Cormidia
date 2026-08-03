@@ -140,10 +140,10 @@ export interface GhOps {
   deleteBranch(branch: string): Promise<void>;
 }
 
-const SELF_APPROVAL_FALLBACK_PREFIX = "<!-- operon:self-approval-fallback";
+const SELF_APPROVAL_FALLBACK_PREFIX = "<!-- cormidia:self-approval-fallback";
 export const SELF_APPROVAL_FALLBACK_MARKER = `${SELF_APPROVAL_FALLBACK_PREFIX} -->`;
 export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER =
-  "<!-- operon:self-changes-requested-fallback -->";
+  "<!-- cormidia:self-changes-requested-fallback -->";
 
 // The self-approval fallback (single-account pilot: GitHub rejects approving
 // your own PR) must not be authorizable by a static, repo-visible string —
@@ -163,7 +163,7 @@ export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER =
 
 export function signSelfApproval(secret: string, prNumber: number, commit: string): string {
   return createHmac("sha256", secret)
-    .update(`operon-self-approval:${prNumber}:${commit}`)
+    .update(`cormidia-self-approval:${prNumber}:${commit}`)
     .digest("hex");
 }
 

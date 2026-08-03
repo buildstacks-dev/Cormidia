@@ -1,4 +1,4 @@
-// `operon roles set` — the only write path for a role's model, effort, and
+// `cormidia roles set` — the only write path for a role's model, effort, and
 // per-turn budget (ENH-004).
 //
 // roles.yaml is a human-ratified surface. This does not bypass that boundary,
@@ -165,7 +165,7 @@ export async function applyRoleAssignmentChange(
   if (!existsSync(rolesPath)) {
     return blocked(base, {
       code: "roles_file_missing",
-      detail: `${rolesPath} does not exist; select an org with "operon org use" first`,
+      detail: `${rolesPath} does not exist; select an org with "cormidia org use" first`,
     });
   }
   const text = await readFile(rolesPath, "utf8");
@@ -390,10 +390,10 @@ export function formatRoleAssignmentPlan(plan: RoleAssignmentChangePlan): string
     lines.push(
       plan.executed
         ? `  WARNING: applied an UNVERIFIED model id — nothing has proven ${plan.modelCatalog.runtime} ` +
-          `serves ${plan.modelCatalog.model}; prove it with \`operon doctor\` before the next turn ` +
+          `serves ${plan.modelCatalog.model}; prove it with \`cormidia doctor\` before the next turn ` +
           "spends on it"
         : `  WARNING: ${plan.modelCatalog.model} cannot be checked before it is applied; ` +
-          `\`operon doctor\` probes the ${plan.modelCatalog.runtime} adapter and is what proves it`,
+          `\`cormidia doctor\` probes the ${plan.modelCatalog.runtime} adapter and is what proves it`,
     );
   }
   for (const blocker of plan.blockers) lines.push(`  BLOCKED ${blocker.code}: ${blocker.detail}`);

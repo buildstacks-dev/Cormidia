@@ -1,4 +1,4 @@
-// `operon plan ratify-ticket-budget` — the human-gated verb the bootstrap
+// `cormidia plan ratify-ticket-budget` — the human-gated verb the bootstrap
 // ticket-budget refusal has always named but never provided (ENH-011).
 //
 // It follows the repo's established shape for a human decision (`app promote`,
@@ -12,7 +12,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { GhCliOps, type GhOps } from "../loop/github.js";
-import type { OperonHomes } from "../org/home.js";
+import type { CormidiaHomes } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
 import {
   executeTicketBudgetRatification,
@@ -33,7 +33,7 @@ export interface PlanRatifyDependencies {
 
 export async function cmdPlanRatifyTicketBudget(
   args: string[],
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   io: PlanRatifyIo = defaultIo(),
   dependencies: PlanRatifyDependencies = {},
 ): Promise<number> {
@@ -209,7 +209,7 @@ export function parsePlanRatifyArgs(args: string[]): ParsedPlanRatifyArgs {
   if (decomposition === undefined) {
     throw new Error(
       "plan ratify-ticket-budget: --decomposition <id> is required — ratification names one exact " +
-        "preserved decomposition. `operon plan <app> --dry-run` lists the ones awaiting a decision.",
+        "preserved decomposition. `cormidia plan <app> --dry-run` lists the ones awaiting a decision.",
     );
   }
   if (actor === undefined) throw new Error("plan ratify-ticket-budget: --actor is required");

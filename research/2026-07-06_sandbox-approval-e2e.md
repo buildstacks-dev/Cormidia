@@ -12,7 +12,7 @@ Flow:
 1. Composed the effective gate for `app=operon-sandbox-alpha`,
    `role=builder`, `turnId=approval-e2e`.
 2. Attempted a benign critical-class action:
-   `write { path: ".operon/config.yaml", content: "schema_version: 1\n" }`.
+   `write { path: ".cormidia/config.yaml", content: "schema_version: 1\n" }`.
 3. `defaultGate` denied it as `protocol-self-edit`, and `composeGate`
    persisted one pending approval item:
    `{"pending":1,"pendingId":"approval-e2e"}`.

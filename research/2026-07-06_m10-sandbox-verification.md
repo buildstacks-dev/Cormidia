@@ -2,7 +2,7 @@
 
 Date: 2026-07-06
 
-## Operon Runtime Checks
+## Cormidia Runtime Checks
 
 - `pnpm test` — passed: 63 files, 454 tests.
 - `pnpm typecheck` — passed.
@@ -14,7 +14,7 @@ Date: 2026-07-06
 - `pnpm dev doctor` — passed; Claude, Codex App Server, and pi SDK adapters
   construct.
 - `pnpm test:live` — passed Claude live conformance; Codex/pi opt-in smokes
-  skipped because `OPERON_CODEX_LIVE=1` / `OPERON_PI_LIVE=1` were not set.
+  skipped because `CORMIDIA_CODEX_LIVE=1` / `CORMIDIA_PI_LIVE=1` were not set.
 
 ## Sandbox Apps
 
@@ -28,14 +28,14 @@ Date: 2026-07-06
 - `pnpm dev loop --app operon-sandbox-alpha --once --dry-run` — passed; no
   ready tickets.
 
-### operon-sandbox-beta
+### cormidia-sandbox-beta
 
 - `npm test` — passed: 4 node tests.
-- `pnpm dev bootstrap --scan-only /Users/bikram/Build/operon-sandbox-beta`
+- `pnpm dev bootstrap --scan-only /Users/bikram/Build/cormidia-sandbox-beta`
   — passed.
-- `pnpm dev plan operon-sandbox-beta --topic "M10 adapter smoke" --dry-run --workdir /Users/bikram/Build/operon-sandbox-beta`
+- `pnpm dev plan cormidia-sandbox-beta --topic "M10 adapter smoke" --dry-run --workdir /Users/bikram/Build/cormidia-sandbox-beta`
   — passed; context bytes 5189.
-- `pnpm dev loop --app operon-sandbox-beta --once --dry-run` — passed; no
+- `pnpm dev loop --app cormidia-sandbox-beta --once --dry-run` — passed; no
   ready tickets.
 
 ### operon-sandbox-gamma

@@ -36,7 +36,7 @@ export interface AppExecutionConfig {
 
 /** Feedback/publishing channels an app exposes (docs/PURPOSE.md → "Support
  *  and Marketing are disabled per app until that app has real feedback or
- *  adoption channels"). Shared apps.yaml / `.operon/config.yaml` schema:
+ *  adoption channels"). Shared apps.yaml / `.cormidia/config.yaml` schema:
  *  `channels.support` gates Support turns, `channels.marketing` gates
  *  Marketing turns. Absent or empty list = that role stays disabled for the
  *  app regardless of its schedule/event triggers (see resolveTriggerRoute). */
@@ -72,7 +72,7 @@ export interface AppEntry {
 
 export interface AppsFile {
   /** Present when the file carries the public-contract version field
-   *  (architecture.md §1 — `.operon/config.yaml` shares this schema). */
+   *  (architecture.md §1 — `.cormidia/config.yaml` shares this schema). */
   schemaVersion?: number;
   org: { name: string; maxConcurrentTurns: number };
   defaults: { budgetUsdMonth: number };
@@ -83,10 +83,10 @@ export interface FindExistingOrgOptions {
   /** Explicit org home, e.g. CLI `--org-home`. */
   orgHome?: string;
   /** Environment source; defaults to process.env. */
-  env?: Partial<Pick<NodeJS.ProcessEnv, "OPERON_ORG_HOME" | "OPERON_HOME">>;
+  env?: Partial<Pick<NodeJS.ProcessEnv, "CORMIDIA_ORG_HOME" | "CORMIDIA_HOME">>;
   /** Home dir for the pointer-file lookup; defaults to the current user. */
   homeDir?: string;
-  /** Override for tests; defaults to `${homeDir}/.operon/config`. */
+  /** Override for tests; defaults to `${homeDir}/.cormidia/config`. */
   pointerPath?: string;
 }
 
@@ -273,7 +273,7 @@ export function normalizeAppExecution(
 }
 
 /** Convert normalized in-memory spelling to the shared apps.yaml /
- * `.operon/config.yaml` public schema. */
+ * `.cormidia/config.yaml` public schema. */
 export function appExecutionYaml(
   execution: AppExecutionConfig | undefined,
 ): Record<string, unknown> {
@@ -395,7 +395,7 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
 
   // deploy | package. An explicit trigger wins; otherwise a declared command
   // infers `command` (back-compat for pre-trigger apps) and its absence
-  // defaults to `tag` — the mechanism Operon fires by pushing the version tag.
+  // defaults to `tag` — the mechanism Cormidia fires by pushing the version tag.
   const trigger: ReleaseTriggerMode =
     rawTrigger === "tag" || rawTrigger === "command"
       ? rawTrigger
@@ -407,7 +407,7 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
       throw err('release.command is required for trigger "command" (deploy command or CI workflow ref)');
     }
   } else if (command !== undefined) {
-    throw err("release.command is not used with trigger: tag (Operon pushes the version tag itself)");
+    throw err("release.command is not used with trigger: tag (Cormidia pushes the version tag itself)");
   }
   return {
     kind: kind as ReleaseKind,
@@ -480,11 +480,11 @@ export class OrgIdentityError extends Error {
 }
 
 /** Detect an existing org home (architecture §9 step 4): explicit
- * `--org-home` wins, then OPERON_ORG_HOME, then a pointer file at
- * `~/.operon/config`. The pointer file accepts YAML/JSON with `org_home`
- * or `orgHome`, or a plain path. OPERON_HOME remains a deprecated final
+ * `--org-home` wins, then CORMIDIA_ORG_HOME, then a pointer file at
+ * `~/.cormidia/config`. The pointer file accepts YAML/JSON with `org_home`
+ * or `orgHome`, or a plain path. CORMIDIA_HOME remains a deprecated final
  * fallback for pre-packaging installations; runtime state uses
- * OPERON_STATE_HOME and never consults OPERON_HOME. Whatever source wins,
+ * CORMIDIA_STATE_HOME and never consults CORMIDIA_HOME. Whatever source wins,
  * the selected path itself must not be a symbolic link — a symlinked org
  * home is a typed OrgIdentityError stop (B-10 §2), never a resolution. */
 export async function findExistingOrg(
@@ -493,14 +493,14 @@ export async function findExistingOrg(
   if (options.orgHome !== undefined) return assertOrgHomePathNotSymlink(resolve(options.orgHome));
 
   const env = options.env ?? process.env;
-  if (env.OPERON_ORG_HOME && env.OPERON_ORG_HOME.length > 0) {
-    return assertOrgHomePathNotSymlink(resolve(env.OPERON_ORG_HOME));
+  if (env.CORMIDIA_ORG_HOME && env.CORMIDIA_ORG_HOME.length > 0) {
+    return assertOrgHomePathNotSymlink(resolve(env.CORMIDIA_ORG_HOME));
   }
 
-  const pointerPath = options.pointerPath ?? join(options.homeDir ?? homedir(), ".operon", "config");
+  const pointerPath = options.pointerPath ?? join(options.homeDir ?? homedir(), ".cormidia", "config");
   if (!existsSync(pointerPath)) {
-    if (env.OPERON_HOME && env.OPERON_HOME.length > 0) {
-      return assertOrgHomePathNotSymlink(resolve(env.OPERON_HOME));
+    if (env.CORMIDIA_HOME && env.CORMIDIA_HOME.length > 0) {
+      return assertOrgHomePathNotSymlink(resolve(env.CORMIDIA_HOME));
     }
     return undefined;
   }
@@ -533,11 +533,11 @@ async function assertOrgHomePathNotSymlink(orgHome: string): Promise<string> {
       code: "symlinked_org_home",
       publicMessage: "org home path is a symbolic link",
       remediation:
-        "Point the selection (--org-home, OPERON_ORG_HOME, or `operon org use`) at the real directory, not a link to it.",
+        "Point the selection (--org-home, CORMIDIA_ORG_HOME, or `cormidia org use`) at the real directory, not a link to it.",
       message:
-        `operon: org home path is a symbolic link: ${orgHome} — an org is addressed by its real path only, ` +
+        `cormidia: org home path is a symbolic link: ${orgHome} — an org is addressed by its real path only, ` +
         "so one org never resolves under two identities; re-select the real directory with " +
-        "`operon org use <real path>` (or point --org-home/OPERON_ORG_HOME at it)",
+        "`cormidia org use <real path>` (or point --org-home/CORMIDIA_ORG_HOME at it)",
     });
   }
   return orgHome;
@@ -613,7 +613,7 @@ export async function joinExistingOrg(
     .split("\n")
     .map((line) => `  ${line}`)
     .join("\n");
-  // `operon org init` deliberately starts with an empty mapping. Expand that
+  // `cormidia org init` deliberately starts with an empty mapping. Expand that
   // canonical form in place for the first app; later registrations retain the
   // byte-preserving EOF append used for human-edited registries.
   const emptyAppsLine = /^apps:\s*\{\}\s*$/m;
@@ -684,7 +684,7 @@ async function validateRegistrationAssignments(
 }
 
 /** Remove one explicitly named app from the org registry. This is the local
- * half of `operon app reset`: a human-authorized lifecycle operation, never an
+ * half of `cormidia app reset`: a human-authorized lifecycle operation, never an
  * agent action. `parseDocument` retains comments and surrounding hand-edited
  * structure far better than a parse/stringify rewrite; the post-write reload
  * is the same fail-safe contract as registration — on any problem, restore

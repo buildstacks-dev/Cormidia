@@ -1,4 +1,4 @@
-# LLM eval plan — Operon (product scope)
+# LLM eval plan — Cormidia (product scope)
 
 Status: CONFIRMED at the Phase 5 gate (2026-07-31, round 4); human-ratified 2026-07-31 (F-PT-009/010/011 thresholds remain open — the inconclusive-only rule stands; ratification-package.md §9). <!-- AUD-105 -->
 Provenance: `[elicited]` = stakeholder Phase 5 ramble; `[doc]`; `[rambling]` cited;

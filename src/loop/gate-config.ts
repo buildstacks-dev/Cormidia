@@ -1,6 +1,6 @@
 // Canonical placement contract for app-owned quality-gate commands.
 //
-// `.operon/config.yaml` contains an `apps:` registry-shaped mapping, but gate
+// `.cormidia/config.yaml` contains an `apps:` registry-shaped mapping, but gate
 // commands are properties of this checkout, not of the mirrored app entry.
 // They therefore live only at the document top level. Keeping this check in
 // the loop layer lets both the gate loader and the org-layer schema validator
@@ -42,7 +42,7 @@ export function assertCanonicalGateCommandPlacement(
   throw new Error(
     `${path}: gate command path(s) ${misplaced.map(({ from }) => JSON.stringify(from)).join(", ")} ` +
       `are invalid; declare ${misplaced.map(({ to }) => JSON.stringify(to)).join(", ")} at the top level of ` +
-      `.operon/config.yaml (as siblings of "apps"), never under "apps.<name>"`,
+      `.cormidia/config.yaml (as siblings of "apps"), never under "apps.<name>"`,
   );
 }
 

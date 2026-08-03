@@ -345,7 +345,7 @@ export async function planTicketBudgetRatification(
   if (refused === undefined) {
     throw new Error(
       `plan ratify-ticket-budget: no refused decomposition ${input.decompositionId} is preserved for ` +
-        `${input.app}. Ratification never invents a plan: run \`operon plan ${input.app} --dry-run\` to ` +
+        `${input.app}. Ratification never invents a plan: run \`cormidia plan ${input.app} --dry-run\` to ` +
         "see which decompositions are awaiting a decision.",
     );
   }
@@ -660,7 +660,7 @@ export function ratifyTicketBudgetCommand(input: {
   ticketCount: number;
 }): string {
   return (
-    `operon plan ratify-ticket-budget --app ${shellWord(input.app)} ` +
+    `cormidia plan ratify-ticket-budget --app ${shellWord(input.app)} ` +
     `--decomposition ${input.decompositionId} --actor <identity> --reason "<why>" ` +
     `--from-budget ${input.stageBudget} --to-budget ${input.ticketCount} ` +
     `--execute --confirm ${shellWord(ticketBudgetConfirmation(input.app, input.decompositionId))}`

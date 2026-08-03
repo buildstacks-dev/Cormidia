@@ -1,4 +1,4 @@
-# Operon reporting — org and app analytics design
+# Cormidia reporting — org and app analytics design
 
 *Status: owner-ratified and recorded in `docs/PURPOSE.md` v2.0.*
 
@@ -16,14 +16,14 @@ route, repairs workflow state, or converts missing evidence into zero.
 Build reporting as a distinct product mode over the same durable facts as
 Observe, not as a larger Observe dashboard and not as a second daemon.
 
-The operator should experience one local Operon web surface with two explicit
+The operator should experience one local Cormidia web surface with two explicit
 destinations:
 
 - **Live** answers “what is happening now, what is waiting, and why?”
 - **Reports** answers “what happened in this period, how much did it consume,
   where did the consumption go, and how healthy was execution?”
 
-`operon observe` remains the only browser server. It serves the current Live UI
+`cormidia observe` remains the only browser server. It serves the current Live UI
 at `/` and a lazily computed reporting UI at `/reports`, protected by the same
 loopback binding and per-process capability. Reports do not subscribe to the
 live SSE stream; they are as-of analytical snapshots with an explicit refresh.
@@ -31,8 +31,8 @@ live SSE stream; they are as-of analytical snapshots with an explicit refresh.
 The CLI gets a separate, token-free command:
 
 ```sh
-operon report --app <app> --period 90d --html app-report.html
-operon report --period 1y --html org-report.html
+cormidia report --app <app> --period 90d --html app-report.html
+cormidia report --period 1y --html org-report.html
 ```
 
 The generated HTML is portable and self-contained. It does not need an
@@ -43,11 +43,11 @@ This separation is important:
 
 | Surface | Primary question | Time posture | Canonical output |
 | --- | --- | --- | --- |
-| `operon observe` → Live | What is happening or blocked now? | current plus forensic replay | changing local browser projection |
-| `operon report` / Reports | What happened and where did usage go? | explicit bounded interval | deterministic as-of report |
-| `operon telemetry` | What exactly happened in these passes/traces? | run/day forensic scope | low-level trace view plus evidence bundle |
-| `operon budget` | May this app spend more this month? | current budget month | enforcement rollup |
-| `operon retro` | What should the org learn from a week? | weekly evidence synthesis | durable retro artifact |
+| `cormidia observe` → Live | What is happening or blocked now? | current plus forensic replay | changing local browser projection |
+| `cormidia report` / Reports | What happened and where did usage go? | explicit bounded interval | deterministic as-of report |
+| `cormidia telemetry` | What exactly happened in these passes/traces? | run/day forensic scope | low-level trace view plus evidence bundle |
+| `cormidia budget` | May this app spend more this month? | current budget month | enforcement rollup |
+| `cormidia retro` | What should the org learn from a week? | weekly evidence synthesis | durable retro artifact |
 
 Reporting therefore complements all four existing surfaces without replacing
 their contracts.
@@ -57,7 +57,7 @@ their contracts.
 These are the decisions this design asks the owner to ratify before
 implementation:
 
-1. The command is `operon report`; an omitted `--app` means the active org.
+1. The command is `cormidia report`; an omitted `--app` means the active org.
 2. The default period is the trailing **90 UTC calendar days**, including the
    current day. Presets are `7d`, `30d`, `90d`, `1y`, and `all`; custom dates
    are supported.
@@ -67,17 +67,17 @@ implementation:
 4. A reporting “session” is a presentation grouping: parent task first,
    standalone trace second, orphan run last. A provider-native session ID is
    never the grouping key.
-5. One `operon observe` process serves both Live and Reports. The two modes
+5. One `cormidia observe` process serves both Live and Reports. The two modes
    have separate routes, read models, navigation, and update semantics.
-6. `operon report --html` generates a portable snapshot without starting a
+6. `cormidia report --html` generates a portable snapshot without starting a
    server. No server discovery, daemon registry, or second report server is
    introduced.
 7. V1 reporting is deterministic and token-free. It may state evidence-backed
    highlights, but it does not ask a model to write an executive narrative.
 8. V1 adds no reporting database, scheduled archive, email delivery, cloud
    ingestion, or workflow controls.
-9. Existing `operon telemetry --json/--html` output remains backward
-   compatible. It stays the forensic run report while `operon report` becomes
+9. Existing `cormidia telemetry --json/--html` output remains backward
+   compatible. It stays the forensic run report while `cormidia report` becomes
    the management and usage report.
 
 After approval, record only the concise product decision in
@@ -91,7 +91,7 @@ At org scope:
 
 1. How many known input and output tokens did this org consume in the period?
 2. How much recorded equivalent cost did it incur, and how much is provider
-   reported versus Operon-estimated?
+   reported versus Cormidia-estimated?
 3. How many provider turns and presentation sessions ran?
 4. Which apps, roles, runtimes, models, pipelines, triggers, and outcomes
    account for the consumption?
@@ -138,7 +138,7 @@ The report may make grounded operating statements such as:
 
 It must not infer productivity, business value, code quality, employee
 performance, or return on investment from token volume. Product completion and
-Operon execution integrity remain separate claims. Sparse scorecard data is
+Cormidia execution integrity remain separate claims. Sparse scorecard data is
 shown as sparse evidence, never converted into a synthetic score.
 
 ### 3.3 Non-goals
@@ -161,7 +161,7 @@ V1 does not provide:
   similarity;
 - full prompts, outputs, tool arguments, or transcripts embedded in the
   management report;
-- rewriting or deprecating `operon telemetry` in the first release.
+- rewriting or deprecating `cormidia telemetry` in the first release.
 
 ## 4. Relationship among CLI, Live UI, and Reports
 
@@ -170,7 +170,7 @@ V1 does not provide:
 The local browser header gains a simple primary navigation:
 
 ```text
-Operon / <org>       [ Live ] [ Reports ]       READ ONLY
+Cormidia / <org>       [ Live ] [ Reports ]       READ ONLY
 ```
 
 The routes are deliberately distinct:
@@ -197,10 +197,10 @@ The browser modes may link to each other:
 The modes must not share one giant view model. They share source types and
 small pure helpers where useful, while preserving separate public schemas.
 
-The existing `operon observe --app <name>` flag is a server-side scope, not
+The existing `cormidia observe --app <name>` flag is a server-side scope, not
 merely an initial browser filter. When the observer is started that way,
 Reports is locked to that app and report APIs reject org-wide or sibling-app
-queries. An unscoped `operon observe` permits both org and registered-app
+queries. An unscoped `cormidia observe` permits both org and registered-app
 reports. `--parent-task` and `--ticket` remain initial Live selections and do
 not narrow the report service.
 
@@ -222,7 +222,7 @@ server avoids operational clutter.
 
 ### 4.3 Why the CLI remains independent of the server
 
-`operon report` must work when no observer is running, from a neutral working
+`cormidia report` must work when no observer is running, from a neutral working
 directory, and without network access. It resolves the active org/state home,
 builds a report snapshot, and renders terminal, JSON, or HTML directly.
 
@@ -301,7 +301,7 @@ Browser presets:
 CLI:
 
 ```text
-operon report [--app <name>]
+cormidia report [--app <name>]
               [--period 7d|30d|90d|1y|all]
               [--since YYYY-MM-DD] [--until YYYY-MM-DD]
               [--bucket auto|day|week|month]
@@ -367,7 +367,7 @@ unreadable source is a quality gap, not a zero.
 
 Every report begins with:
 
-- Operon org and resolved state-home identity;
+- Cormidia org and resolved state-home identity;
 - scope: all apps or one registered app;
 - selected UTC period and generated-at timestamp;
 - presets plus custom date controls;
@@ -625,7 +625,7 @@ complete usage.
 Maintain separate sums:
 
 - `provider_reported_cost_usd`;
-- `operon_estimated_cost_usd`;
+- `cormidia_estimated_cost_usd`;
 - `partial_recorded_cost_usd`;
 - `recorded_equivalent_cost_usd` (their explicitly labeled sum);
 - `unknown_cost_turns`.
@@ -638,7 +638,7 @@ is not zero.
 
 The report detects repeated `(app, providerTurnId)` settlement keys, falling
 back to `(app, runId)` for legacy rows. It must not silently deduplicate
-because `operon budget` consumes ledger rows as recorded and hidden adjustment
+because `cormidia budget` consumes ledger rows as recorded and hidden adjustment
 would make the two surfaces disagree.
 
 Totals remain **ledger-recorded totals** and the quality panel reports:
@@ -687,8 +687,8 @@ sessions whose completion is known and whose cost quality is not unavailable.
 
 ### 8.8 No implicit reconciliation
 
-Report generation is read-only with respect to Operon state. It never invokes
-`operon budget --reconcile`, appends a ledger row, repairs an envelope, or
+Report generation is read-only with respect to Cormidia state. It never invokes
+`cormidia budget --reconcile`, appends a ledger row, repairs an envelope, or
 persists an index.
 
 When a terminal envelope with recorded usage has no ledger row, report the
@@ -803,7 +803,7 @@ interface ReportSessionSummaryV1 {
   ended_at: string | null;
   outcome: string;
   completion_integrity: "complete" | "incomplete" | "unknown";
-  execution_mode: "operon" | "mixed" | "manual" | "not_recorded";
+  execution_mode: "cormidia" | "mixed" | "manual" | "not_recorded";
   provider_turns: number;
   mechanical_passes: number;
   known_input_tokens: number;
@@ -885,7 +885,7 @@ semantics and preserves telemetry’s stable output.
 
 ### 10.2 Lazy startup
 
-Starting `operon observe` must not scan 90 days or a year of history. Construct
+Starting `cormidia observe` must not scan 90 days or a year of history. Construct
 the report service cheaply and read historical data only when `/reports` or a
 report API is requested.
 
@@ -948,13 +948,13 @@ The current observer already allows multiple disposable reader processes, but
 the normal experience needs only one:
 
 ```sh
-operon observe --open
+cormidia observe --open
 ```
 
-That URL can navigate between Live and Reports. `operon report --html` is not a
+That URL can navigate between Live and Reports. `cormidia report --html` is not a
 server and therefore does not violate the one-server model.
 
-Do not add `operon report --serve`. If a future remote reporting service is
+Do not add `cormidia report --serve`. If a future remote reporting service is
 needed, it requires a separate authentication, transport, privacy, and
 retention design.
 
@@ -998,7 +998,7 @@ threshold, but do not silently truncate an exhaustive report. The explicit
 Add `report` to:
 
 - root help and command help;
-- `operon capabilities --json` as token-free and workflow-read-only, noting
+- `cormidia capabilities --json` as token-free and workflow-read-only, noting
   that `--html` writes only the user-selected export;
 - README command examples and observability/reporting explanation;
 - package/onboarding smoke coverage.
@@ -1124,11 +1124,11 @@ These are targets to measure, not claims to make before benchmark evidence.
 
 Report generation and browser requests never acquire turn locks or participate
 in dispatch. Closing a report, stopping the observer, or cancelling CLI export
-must not affect an Operon run.
+must not affect a Cormidia run.
 
 ## 15. Convergence with existing telemetry and budget surfaces
 
-### 15.1 `operon telemetry`
+### 15.1 `cormidia telemetry`
 
 Preserve its existing arguments and stable JSON/HTML semantics. It remains
 envelope-first and forensic:
@@ -1150,7 +1150,7 @@ Shared helpers may include usage-quality ranking, cost labeling, identity
 keys, and escaped rendering. A refactor must pin existing telemetry tests
 before moving code.
 
-### 15.2 `operon budget`
+### 15.2 `cormidia budget`
 
 Budget is an enforcement view for the current calendar month. Reports reuse
 the same ledger accounting semantics and show the current-month budget panel,
@@ -1163,10 +1163,10 @@ write the overlay while reporting.
 An implementation test must prove that a current-month report’s per-app
 recorded equivalent cost agrees with `rollupBudgets` for the same fixed clock,
 including estimated and unmeasured caveats. The same fixed fixture must also
-prove agreement among report JSON/terminal/HTML, `operon budget`, `operon
+prove agreement among report JSON/terminal/HTML, `cormidia budget`, `cormidia
 status`, and the observer for both threshold status and durable pause state.
 
-### 15.3 `operon retro` and scorecards
+### 15.3 `cormidia retro` and scorecards
 
 Retro remains a durable weekly synthesis and learning input. Reports show
 structured scorecard/event evidence and execution distributions; they do not
@@ -1203,7 +1203,7 @@ no CLI/server/UI code.
 - Add terminal and stable JSON rendering.
 - Add atomic self-contained HTML generation and `--open` behavior.
 - Add accessibility, escaping, CSP, print, no-network, and large-export tests.
-- Keep `operon telemetry` output byte/shape compatible where pinned.
+- Keep `cormidia telemetry` output byte/shape compatible where pinned.
 
 Exit: from a neutral directory, org/app/range reports render offline and every
 selected provider turn appears exactly once or in an explicit diagnostic.
@@ -1217,7 +1217,7 @@ selected provider turn appears exactly once or in an explicit diagnostic.
 - Add in-memory fingerprinted caching, pagination, resync, and bounded source
   reads.
 
-Exit: one `operon observe` process serves both modes; Live behavior remains
+Exit: one `cormidia observe` process serves both modes; Live behavior remains
 unchanged and Reports works without a second listener.
 
 ### Phase 4 — convergence and documentation
@@ -1236,8 +1236,8 @@ Against an owner-selected org state home, read-only:
 
 - generate 7d, 90d, and 1y org reports;
 - generate one app report;
-- reconcile report current-month totals manually against `operon budget`;
-- reconcile selected pass/session details against `operon telemetry --json`;
+- reconcile report current-month totals manually against `cormidia budget`;
+- reconcile selected pass/session details against `cormidia telemetry --json`;
 - confirm pruned/legacy/unmeasured records remain honest;
 - record generation time, row count, file size, screenshots, and discrepancies.
 
@@ -1371,7 +1371,7 @@ acceptance is evidence reconciliation, not permission to mutate the org.
 
 Reporting V1 is complete when:
 
-- `operon report` is discoverable, token-free, deterministic, and resolves the
+- `cormidia report` is discoverable, token-free, deterministic, and resolves the
   active org from a neutral cwd;
 - omitted `--app` produces an org report and `--app` produces an app report;
 - default/preset/custom ranges follow the pinned UTC contract;
@@ -1387,7 +1387,7 @@ Reporting V1 is complete when:
   confidentially labeled, and contains no L3 artifacts or external requests;
 - pruned, legacy, corrupt, duplicate, partial, estimated, and unmeasured data
   remain visible and never become silent zeros;
-- report generation never mutates Operon state or performs a provider/GitHub
+- report generation never mutates Cormidia state or performs a provider/GitHub
   action;
 - current-month report totals reconcile with budget semantics and sampled
   session details reconcile with telemetry;

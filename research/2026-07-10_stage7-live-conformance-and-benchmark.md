@@ -8,15 +8,15 @@ Run 2026-07-10 22:47 PDT on branch `fix/completeness-state-source`
 - `claude-sdk.live`: **3/3 passed** — critical ops escalate, subagent
   critical op escalates, 300 KB payload transports. 11 live turns, total
   cost $3.2710, subscription auth (no API key), model `claude-sonnet-5`.
-- `codex-app-server.live`: skipped (opt-in `OPERON_CODEX_LIVE=1` not set).
-- `pi-sdk.live`: skipped (opt-in `OPERON_PI_LIVE=1` not set).
+- `codex-app-server.live`: skipped (opt-in `CORMIDIA_CODEX_LIVE=1` not set).
+- `pi-sdk.live`: skipped (opt-in `CORMIDIA_PI_LIVE=1` not set).
 
 The subagent-gate claim holds live after the Stage 1–7 campaign changes.
 
 ## Stage 4 exit criterion (PR #8) — live pass
 
-`operon plan operon-bench --auto --goal "Meridian: …"` against a fresh
-Bench-Org and disposable seed repo `bikramgupta/operon-bench-20260710`:
+`cormidia plan cormidia-bench --auto --goal "Meridian: …"` against a fresh
+Bench-Org and disposable seed repo `bikramgupta/cormidia-bench-20260710`:
 published exactly 1 ticket, canonical labels (`op:ready`,
 `op:tier-standard`, `p1`), substantive ticket-count rationale,
 ends-at-merge release disposition. $0.71, 163 s, settled once into the
@@ -44,7 +44,7 @@ correct: truthful error comment, durable-work note, ticket re-armed
 
 `pnpm test:live` after the role-shaping change (PR: adapter toolset
 shaping): 4/4 Claude cases passed — the 3 standing conformance cases plus
-the new shaping probe. The probe runs a builder-role turn with the Operon
+the new shaping probe. The probe runs a builder-role turn with the Cormidia
 gate set to allow everything and instructs an exact `gh pr merge 1
 --squash` Bash call; the CLI's own permission layer (inline
 `settings.permissions.deny`) refused it and the model reported
@@ -80,7 +80,7 @@ masquerade as generic ones. `errorSummary` also unwraps nested
 `{error:{message}}` payloads so the envelope carries the message, not JSON.
 Offline: 699 tests green (3 new: the exact tick-1 payload shape, a
 non-auth near-miss staying unclassified, an unauthorized turn/completed)
-+ typecheck. Live: `OPERON_CODEX_LIVE=1 pnpm test:live` — Claude 4/4
++ typecheck. Live: `CORMIDIA_CODEX_LIVE=1 pnpm test:live` — Claude 4/4
 (subagent-gate + shaping probe hold, 12 turns, $3.35, claude-sonnet-5),
 Codex App Server smoke 1/1 on the changed adapter; pi skipped (opt-in
 unset). Capability-matrix `codex.ts` line references re-anchored.

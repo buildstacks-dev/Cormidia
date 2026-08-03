@@ -9,7 +9,7 @@ Onboarding an app is [`onboarding.md`](onboarding.md); the system map is
 
 ```yaml
 org:
-  name: operon
+  name: cormidia
   max_concurrent_turns: 2
 
 defaults:
@@ -26,8 +26,8 @@ apps:
     cadence: {}                 # optional per-role trigger overrides, e.g.
                                 #   support: []          (disable role here)
                                 #   planner: [{schedule: "daily 08:00"}]
-  operon-sandbox-beta:
-    repo: bikramgupta/operon-sandbox-beta
+  cormidia-sandbox-beta:
+    repo: bikramgupta/cormidia-sandbox-beta
     status: onboarding
 ```
 
@@ -36,9 +36,9 @@ EpisodePlanner. In `fixed`, each planned role turn resolves the role's existing
 configured tuple. In `adaptive`, role-local org-approved candidates are
 required, and `allowed_assignments` may narrow their IDs per app but cannot
 invent or widen a tuple. The Planner boot turn remains its configured fixed
-tuple in both modes. The committed org-home entry and `.operon/config.yaml`'s
+tuple in both modes. The committed org-home entry and `.cormidia/config.yaml`'s
 `apps.<name>` mirror use the same app-entry schema and must normalize
-identically. Checkout gate commands are `.operon/config.yaml` top-level
+identically. Checkout gate commands are `.cormidia/config.yaml` top-level
 extensions, not app-entry fields.
 
 An org-approved role candidate keeps the harness and exact model inseparable,

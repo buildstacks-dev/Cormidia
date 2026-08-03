@@ -1,7 +1,7 @@
-// `operon apps [path]` — validate apps.yaml and print the app registry.
+// `cormidia apps [path]` — validate apps.yaml and print the app registry.
 
 import { loadApps } from "../org/apps.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { join, resolve } from "node:path";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -17,7 +17,7 @@ export async function cmdApps(args: string[] = []): Promise<number> {
   }
   const path = pathArgument
     ? resolve(pathArgument)
-    : join((await resolveOperonHomes(common)).orgHome, "apps.yaml");
+    : join((await resolveCormidiaHomes(common)).orgHome, "apps.yaml");
   const { org, defaults, apps } = await loadApps(path);
   const report = {
     schema_version: 1,

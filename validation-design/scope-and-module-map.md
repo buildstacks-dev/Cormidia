@@ -1,4 +1,4 @@
-# Phase 0 — Scope declaration and module map (Operon)
+# Phase 0 — Scope declaration and module map (Cormidia)
 
 Status: ratified 2026-07-31 baseline plus a surgical harness revision for comparative
 execution, direction confirmed by the owner 2026-08-01. Existing module judgments stay
@@ -10,7 +10,7 @@ used only on the owner-confirmed 2026-08-01 comparative-execution direction.
 
 ## 1. Scope declaration
 
-- **Mode:** `product` — whole-system harness design for production Operon. No parent
+- **Mode:** `product` — whole-system harness design for production Cormidia. No parent
   harness; nothing to inherit. `[doc]`
 - **Posture:** clean-slate greenfield. The incumbent suite is archived under
   `archive-do-not-read/**` (PURPOSE v2.9) — frozen, never read, cited, run, or used as a
@@ -19,7 +19,7 @@ used only on the owner-confirmed 2026-08-01 comparative-execution direction.
 - **Artifact roots:** design artifacts in `./validation-design/` (this campaign);
   eventual implementation root `claude-tests/` (PURPOSE v2.9) — specified in
   `harness-backlog.md`, not built here. `[doc]`
-- **ID namespace:** `OPERON-` (`OPERON-INV-NNN`, `OPERON-B-NNN`, `OPERON-C-<boundary>-NNN`).
+- **ID namespace:** `CORMIDIA-` (`CORMIDIA-INV-NNN`, `CORMIDIA-B-NNN`, `CORMIDIA-C-<boundary>-NNN`).
   A later module-scope deep pass mints its own prefix and inherits by reference. `[PROPOSED, accepted by stakeholder]`
 - **Release-gating replacement** is a **campaign/policy obligation, not a product module**:
   release gating is suspended (PURPOSE v2.9); the archived qualification machinery is not an
@@ -61,17 +61,17 @@ campaign with this skill. All rows `[doc]` unless noted.
 | M13 | **Learning loop** | capture → episodes/capsules → distillation → cross-provider review → deterministic publisher → offline paired replay → human-started canary | Yes (own later pass; large). **In this campaign, broad-and-shallow but not dismissed as low-stakes — it is a persistent prompt-injection surface.** Product-level coverage must preserve at minimum: candidates never resolve; agents never write gate-protected surfaces; the deterministic publisher is the sole protected writer; authorization never masquerades as validation; agent self-reports never drive promotion metrics; T3 has no live canary. (Stakeholder-directed floor.) |
 | M14 | **Observe / report / narrative** | read-only presentation leaves; ledger-first reports. **Explicit confidentiality slice (stakeholder-directed):** loopback-only bind; per-process capability enforcement; no mutation routes; traversal/symlink confinement; no raw L3 in snapshots or SSE (explicit local fetch only); capture-time redaction for long-lived narratives | No — product-level coverage with the confidentiality slice |
 | M15 | **CLI surface** | subcommand dispatch; `--json` error contract (`ok:false`, stable `error.code`); dry-run token-free/write-free claims (audit row sole exception); exit codes | No — adapter-conformance coverage at product level |
-| M16 | **Comparative execution** `[stated+PROPOSED]` | Per-provider-turn candidate-set planning; frozen-input identity; isolated candidate workspaces; operation-specific evidence; blinded selection; durable winner materialization; the shared core behind EpisodePlan comparison and standalone `operon compare` (`docs/comparative-execution/design.md`) | Yes — new state machine, selection judge, workspace and continuation seams |
+| M16 | **Comparative execution** `[stated+PROPOSED]` | Per-provider-turn candidate-set planning; frozen-input identity; isolated candidate workspaces; operation-specific evidence; blinded selection; durable winner materialization; the shared core behind EpisodePlan comparison and standalone `cormidia compare` (`docs/comparative-execution/design.md`) | Yes — new state machine, selection judge, workspace and continuation seams |
 
 Mapping judgments (ratified with this map):
 
-1. **The harness itself is a system-under-design, not an Operon module.** Its self-tests,
+1. **The harness itself is a system-under-design, not a Cormidia module.** Its self-tests,
    negative controls, and unattended-runnability requirement come from the skill's rules and
    land in the backlog and policy file.
 2. **GitHub is substrate, not a module** — an external boundary in Phase 3, alongside the
    three model providers and the OS timer.
 3. **Release-gating replacement** — campaign/policy obligation (see §1), not a module row.
-4. **Standalone comparison is an adapter, not a second module.** `operon compare` enters
+4. **Standalone comparison is an adapter, not a second module.** `cormidia compare` enters
    M16 directly with an operator-declared one-step intent; EpisodePlan-backed comparison
    enters the same coordinator from M5/M4. Their parsing and authority sources differ,
    but candidate execution, evidence, selection, accounting, and materialization do not.
@@ -95,11 +95,11 @@ Mapping judgments (ratified with this map):
   deployment as a current fact; deployment shape for design purposes is: laptop-first,
   OS-timer-driven **when installed**, one runtime over N apps, later droplet migration.
   **Resolved at ratification (verified read-only 2026-07-31):** the active org selector
-  `~/.operon/config` points org_home=/Users/bikram/Build/sonnet1-org,
-  state_home=~/.operon/Buildstacks (recorded 2026-07-24); that org has exactly one
+  `~/.cormidia/config` points org_home=/Users/bikram/Build/sonnet1-org,
+  state_home=~/.cormidia/Buildstacks (recorded 2026-07-24); that org has exactly one
   registered app, sonnet8-buildstack-dev (repo buildstacks-dev/sonnet8-buildstack-dev),
-  status live; the scheduler is NOT installed (no scheduler state dir, no operon
+  status live; the scheduler is NOT installed (no scheduler state dir, no cormidia
   launchd jobs) — all turns are human-invoked; two residual partial state homes
-  (~/.operon/operon — dogfood-era residue; ~/.operon/questionnaire — partial
+  (~/.cormidia/cormidia — dogfood-era residue; ~/.cormidia/questionnaire — partial
   onboarding residue) are not active orgs.
   <!-- ratification 2026-07-31: F-PT-002 resolved with these facts. -->

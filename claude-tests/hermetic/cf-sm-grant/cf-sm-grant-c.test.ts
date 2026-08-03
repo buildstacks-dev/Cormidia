@@ -4,7 +4,7 @@
 // consumedAt stamped) THEN the append-only grant-consumed row; revokeGrantSync
 // likewise writes the grant file before its grant-revoked row. A SIGKILL
 // between the two leaves a use (or a revocation) with no audit row —
-// OPERON-INV-003's scoped-shape falsifier "a use with no per-use audit row".
+// CORMIDIA-INV-003's scoped-shape falsifier "a use with no per-use audit row".
 // The intermediates are staged by byte-rewinding the log around a REAL store
 // call (each step writes disjoint files, so the rewound tree is exactly what
 // the dying process leaves; the kill cannot be injected INSIDE the product

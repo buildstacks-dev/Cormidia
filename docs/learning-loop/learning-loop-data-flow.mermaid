@@ -1,5 +1,5 @@
 ---
-title: Operon Learning Loop - Data Flow (v0.8)
+title: Cormidia Learning Loop - Data Flow (v0.8)
 ---
 flowchart TD
     subgraph EXEC["Execution plane"]
@@ -8,11 +8,11 @@ flowchart TD
         VERIFIERS["Gates, runlogs, approvals, scorecards,<br/>humans, resolver, publisher"] -->|"metric-bearing events"| EVENTS
     end
 
-    EVENTS["Runtime learning event store<br/>~/.operon/&lt;org&gt;/learning/events"]
+    EVENTS["Runtime learning event store<br/>~/.cormidia/&lt;org&gt;/learning/events"]
 
-    EVENTS --> EPISODES["EpisodeRecord projections<br/>~/.operon/&lt;org&gt;/learning/episodes<br/>(projection over ticket state machine,<br/>runlogs, telemetry, approvals)"]
-    EPISODES --> CAPSULES["ReplayCapsules (build episodes, V1)<br/>~/.operon/&lt;org&gt;/learning/capsules"]
-    HUMANOBS["Human observations<br/>operon learn emit --episode"] --> EVENTS
+    EVENTS --> EPISODES["EpisodeRecord projections<br/>~/.cormidia/&lt;org&gt;/learning/episodes<br/>(projection over ticket state machine,<br/>runlogs, telemetry, approvals)"]
+    EPISODES --> CAPSULES["ReplayCapsules (build episodes, V1)<br/>~/.cormidia/&lt;org&gt;/learning/capsules"]
+    HUMANOBS["Human observations<br/>cormidia learn emit --episode"] --> EVENTS
 
     EVENTS -->|"deterministic precheck, then window"| CLUSTER["Cluster by error_class + cause_hypothesis (M6)"]
     LEDGER["Rejection ledger"] -->|"suppression fingerprints"| CLUSTER
@@ -28,7 +28,7 @@ flowchart TD
     CAPSULES --> RUNNER["ExperimentRunner:<br/>paired control/treatment replay"]
     EXPERIMENTS["learning/experiments/<br/>ExperimentRecords + EvalResults"] <--> RUNNER
 
-    subgraph ORG["Committed org home (operon org init)"]
+    subgraph ORG["Committed org home (cormidia org init)"]
         ORGMAN["learning/manifest.yaml"]
         ORGBUNDLE["learning/bundle/org + roles (active only)"]
         ORGQUAR["learning/quarantine/ (TTL-bound)"]
@@ -37,15 +37,15 @@ flowchart TD
     end
 
     subgraph APP["Current app repo"]
-        APPMAN[".operon/learning/manifest.yaml"]
-        APPBUNDLE[".operon/learning/bundle/apps + app roles"]
-        APPEVALS[".operon/learning/evals/apps (not built: fixtures live in the org home learning/evals)"]
+        APPMAN[".cormidia/learning/manifest.yaml"]
+        APPBUNDLE[".cormidia/learning/bundle/apps + app roles"]
+        APPEVALS[".cormidia/learning/evals/apps (not built: fixtures live in the org home learning/evals)"]
     end
 
     PUBLISHER -->|"approved OKF org/role"| ORGBUNDLE
     PUBLISHER -->|"approved OKF app/app-role"| APPBUNDLE
     PUBLISHER -->|"skill/protocol/eval/gate drafts"| PROPOSALS["Proposal PRs or implementation tickets"]
-    PUBLISHER -->|"ticket (deduped, rate-capped)"| ISSUES["Operon issue loop"]
+    PUBLISHER -->|"ticket (deduped, rate-capped)"| ISSUES["Cormidia issue loop"]
     PUBLISHER --> INTERV
 
     ORGMAN --> RESOLVER

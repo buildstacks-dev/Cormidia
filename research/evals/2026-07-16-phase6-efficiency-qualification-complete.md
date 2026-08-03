@@ -62,9 +62,9 @@ cleared canary, and a terminal `rolled_back` intervention.
 ## Archives, promotion, and retained debt
 
 - Audit archive: 671-file `sanitized-evidence/v3` at
-  `/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260716-9ccc03a2c582-28c8bd9c-evidence-v2`.
+  `/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260716-9ccc03a2c582-28c8bd9c-evidence-v2`.
 - Promotion-ready archive: 673-file `sanitized-evidence/v3` at
-  `/Users/bikram/Build/operon-eval-archives/qualified/candidate-qualification-v1-20260716-9ccc03a2c582-28c8bd9c-evidence-v2`.
+  `/Users/bikram/Build/cormidia-eval-archives/qualified/candidate-qualification-v1-20260716-9ccc03a2c582-28c8bd9c-evidence-v2`.
 - Both structurally exclude `provider-scratch/**` and raw
   `state/runs/**`. The promotion slice was reverified during import.
 - Cleanup was previewed only. Generated worlds, provider scratch, durable

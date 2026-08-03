@@ -8,7 +8,7 @@ import { resolveAppWorkdir } from "./app-workdir.js";
 
 const GIT_TIMEOUT_MS = 5_000;
 const GIT_MAX_BUFFER = 16 * 1024;
-const GREENFIELD_SEED_PATH = ".operon/planning/0001-greenfield-seed.md";
+const GREENFIELD_SEED_PATH = ".cormidia/planning/0001-greenfield-seed.md";
 
 /**
  * These are deliberately conservative product-maturity signals, not lifecycle

@@ -1,6 +1,6 @@
 // CF-INV-006 — settlement conservation, L1 invariant guardrail (HB-005a).
 //
-// OPERON-INV-006 (validation-design/invariants.md): every provider turn
+// CORMIDIA-INV-006 (validation-design/invariants.md): every provider turn
 // settles exactly once, keyed on (app, providerTurnId) — the app is part of
 // the identity because runId alone collides across apps (telemetry.ts header).
 // The guard under test is the REAL product function `recordTurnOnce`

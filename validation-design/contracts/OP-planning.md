@@ -1,5 +1,5 @@
 # Operation contract — C-OP-PLAN (episode planning operations)
-Canonical ID: **OPERON-C-OPPLAN-001 (alias: C-OP-PLAN)**
+Canonical ID: **CORMIDIA-C-OPPLAN-001 (alias: C-OP-PLAN)**
 
 Status: DRAFT (Phase 4). Added on stakeholder trace audit. Covers the EpisodePlanner
 boundary operations: `previewEpisode` / `orchestrateEpisode` / `explainEpisode`,

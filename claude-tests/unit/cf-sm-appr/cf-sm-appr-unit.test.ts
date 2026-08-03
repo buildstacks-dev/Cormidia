@@ -5,7 +5,7 @@
 //
 // Design: validation-design/case-catalog.md §2 (CF-SM-APPR-L/I/R/C),
 // contracts/B-09a-approval-continuation.md, contracts/B-09b-approval-decision-
-// entry.md, invariants.md OPERON-INV-003. Product under test: real exports of
+// entry.md, invariants.md CORMIDIA-INV-003. Product under test: real exports of
 // src/org/approvals.ts and src/runtime/gate.ts — no fs, no network, no tokens.
 
 import { describe, expect, it } from "vitest";

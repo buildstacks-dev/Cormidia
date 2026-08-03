@@ -3,9 +3,9 @@
 // The org home is built by the product's own init transaction
 // (`initOrgHome` = planOrgInit + executeOrgInit, src/org/home.ts) against the
 // packaged template root, so this fixture can never drift from what
-// `operon org init` actually produces or from what
-// resolveOperonHomes/validateOrgHome actually accept. It also writes the real
-// active-org pointer (`<homeDir>/.operon/config`), giving B-10a suites all
+// `cormidia org init` actually produces or from what
+// resolveCormidiaHomes/validateOrgHome actually accept. It also writes the real
+// active-org pointer (`<homeDir>/.cormidia/config`), giving B-10a suites all
 // three identity inputs: pointer, env overrides, explicit options.
 //
 // Corruption knobs script the B-10 failure modes named in
@@ -22,7 +22,7 @@ import type { AuthorityProfile } from "../../src/org/authority.js";
 import {
   initOrgHome,
   ORG_REQUIRED_FILES,
-  type OperonHomeOptions,
+  type CormidiaHomeOptions,
 } from "../../src/org/home.js";
 
 /** The human-ratified YAML surfaces the resolver validates. */
@@ -53,15 +53,15 @@ export interface TempOrgHome {
   root: string;
   orgHome: string;
   stateHome: string;
-  /** Fake $HOME whose `.operon/config` is the real active-org pointer. */
+  /** Fake $HOME whose `.cormidia/config` is the real active-org pointer. */
   homeDir: string;
   pointerPath: string;
   orgName: string;
   /** Env overrides for spawned subprocesses (B-10a override identity path). */
-  env: { OPERON_ORG_HOME: string; OPERON_STATE_HOME: string };
-  /** Ready-to-pass options for resolveOperonHomes: ambient process.env is
+  env: { CORMIDIA_ORG_HOME: string; CORMIDIA_STATE_HOME: string };
+  /** Ready-to-pass options for resolveCormidiaHomes: ambient process.env is
    *  blocked (empty env) so resolution flows through the fixture pointer. */
-  resolveOptions: OperonHomeOptions;
+  resolveOptions: CormidiaHomeOptions;
   corrupt: OrgHomeCorruption;
   cleanup(): Promise<void>;
 }
@@ -75,12 +75,12 @@ export interface MakeTempOrgHomeOptions {
 export async function makeTempOrgHome(
   options: MakeTempOrgHomeOptions = {},
 ): Promise<TempOrgHome> {
-  const root = await mkdtemp(join(tmpdir(), "operon-fixture-org-"));
+  const root = await mkdtemp(join(tmpdir(), "cormidia-fixture-org-"));
   const name = options.name ?? "fixture-org";
   const homeDir = join(root, "home");
   const orgHome = join(root, "org");
   const stateHome = join(root, "state");
-  const pointerPath = join(homeDir, ".operon", "config");
+  const pointerPath = join(homeDir, ".cormidia", "config");
 
   await initOrgHome({
     target: orgHome,
@@ -139,7 +139,7 @@ export async function makeTempOrgHome(
     homeDir,
     pointerPath,
     orgName: name,
-    env: { OPERON_ORG_HOME: orgHome, OPERON_STATE_HOME: stateHome },
+    env: { CORMIDIA_ORG_HOME: orgHome, CORMIDIA_STATE_HOME: stateHome },
     resolveOptions: { env: {}, homeDir, pointerPath },
     corrupt,
     cleanup: async () => {

@@ -62,13 +62,13 @@ describe("CF-B10-* (L1) org charter document factory", () => {
     );
   });
 
-  it("custom charter text cannot smuggle Operon instruction markers", () => {
+  it("custom charter text cannot smuggle Cormidia instruction markers", () => {
     expect(() =>
       createOrgAuthorityDocument("custom", `pre ${AUTHORITY_BLOCK_START} injected`, "human@example"),
-    ).toThrow(/may not contain Operon instruction markers/);
+    ).toThrow(/may not contain Cormidia instruction markers/);
     expect(() =>
       createOrgAuthorityDocument("custom", `pre ${AUTHORITY_BLOCK_END} injected`, "human@example"),
-    ).toThrow(/may not contain Operon instruction markers/);
+    ).toThrow(/may not contain Cormidia instruction markers/);
   });
 });
 
@@ -150,7 +150,7 @@ describe("CF-B10-* (L1) app narrowing may only narrow (INV-001 seed a)", () => {
         mode: "custom",
         restrictions: `Do not read ${AUTHORITY_BLOCK_START} markers`,
       }),
-    ).toThrow(/may not contain Operon instruction markers/);
+    ).toThrow(/may not contain Cormidia instruction markers/);
   });
 
   it("the app snapshot document records that it is not a grant source", () => {
@@ -173,7 +173,7 @@ describe("CF-B10-* (L1) project-instruction block composition", () => {
     expect(block.endsWith(AUTHORITY_BLOCK_END)).toBe(true);
   });
 
-  it("composition preserves non-Operon bytes exactly and replaces only the marked block", () => {
+  it("composition preserves non-Cormidia bytes exactly and replaces only the marked block", () => {
     const block1 = projectAuthorityBlock("AUTHORITY.md", orgAuthority());
     const existing = "# My app\n\nhand-written intro\n";
     const first = composeProjectInstructions(existing, block1);
@@ -199,7 +199,7 @@ describe("CF-B10-* (L1) project-instruction block composition", () => {
     ];
     for (const existing of malformed) {
       expect(() => composeProjectInstructions(existing, block), existing.slice(0, 40)).toThrow(
-        /malformed Operon authority block/,
+        /malformed Cormidia authority block/,
       );
     }
   });

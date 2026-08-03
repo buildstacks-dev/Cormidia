@@ -1,4 +1,4 @@
-# validation-policy.yaml — Operon replacement harness
+# validation-policy.yaml — Cormidia replacement harness
 # This file is the contract a future validation-harness-audit diffs conformance
 # against. Status: RATIFIED by the product owner 2026-07-31 (in session; record in
 # ratification-package.md -> "Ratification record — 2026-07-31").
@@ -23,8 +23,8 @@
 
 schema_version: 1
 scope: product
-product: operon
-campaign: operon-2026-07-31
+product: cormidia
+campaign: cormidia-2026-07-31
 design_status: ratified
 ratified_on: 2026-07-31
 ratified_by: "product owner (human), in session; record: ratification-package.md -> Ratification record — 2026-07-31"
@@ -68,11 +68,11 @@ coexistence:
   incumbent: "archived (no coexistence obligations beyond protected_paths)"
 
 invariants:                                  # registry; statements in invariants.md
-  ids: [OPERON-INV-001, OPERON-INV-002, OPERON-INV-003, OPERON-INV-004,
-        OPERON-INV-005, OPERON-INV-006, OPERON-INV-007, OPERON-INV-008,
-        OPERON-INV-009, OPERON-INV-010, OPERON-INV-011, OPERON-INV-012,
-        OPERON-INV-013, OPERON-INV-014, OPERON-INV-015]
-  non_discretionary_floors: [OPERON-INV-001, OPERON-INV-011, OPERON-INV-015]
+  ids: [CORMIDIA-INV-001, CORMIDIA-INV-002, CORMIDIA-INV-003, CORMIDIA-INV-004,
+        CORMIDIA-INV-005, CORMIDIA-INV-006, CORMIDIA-INV-007, CORMIDIA-INV-008,
+        CORMIDIA-INV-009, CORMIDIA-INV-010, CORMIDIA-INV-011, CORMIDIA-INV-012,
+        CORMIDIA-INV-013, CORMIDIA-INV-014, CORMIDIA-INV-015]
+  non_discretionary_floors: [CORMIDIA-INV-001, CORMIDIA-INV-011, CORMIDIA-INV-015]
   enforcement: "see invariants.md per item (guardrail+test for all; INV-013 reader-side guardrail)"
 
 layers:                                      # the audit's diff surface
@@ -88,7 +88,7 @@ layers:                                      # the audit's diff surface
     conformance_pairs: "same suite runs against fake and real dependency (drift guard)"
   L3_live_sandbox:
     status: "runner/profile implemented; no authorized live campaign executed in this change"
-    runner: "separate opt-in vitest live config; OPERON_LIVE=1 + absolute reviewed authorization file; checked-out HEAD and canonical tracked policy blob must match the authorized commit"
+    runner: "separate opt-in vitest live config; CORMIDIA_LIVE=1 + absolute reviewed authorization file; checked-out HEAD and canonical tracked policy blob must match the authorized commit"
     obligations:
       - id: CF-B01-L3            # GitHub smoke
         target: "sandbox repos (apps.yaml sandbox class)"
@@ -129,7 +129,7 @@ layers:                                      # the audit's diff surface
       on_ceiling_exhaustion: "completeness=incomplete; verdict per verdict_semantics (never pass)"
   L4_eval:
     status: "data-collection runner implemented for the ratified baseline; S-8 selection-judge integration is design-only; all quality thresholds unratified; reviewer/planner human reference validation pending"
-    runner: "hand-rolled per-tuple runner over golden-sets/ (plain files in git); OPERON_EVAL=1 + absolute reviewed authorization file; HEAD, canonical policy, and every golden input must be tracked and byte-identical at the authorized commit"
+    runner: "hand-rolled per-tuple runner over golden-sets/ (plain files in git); CORMIDIA_EVAL=1 + absolute reviewed authorization file; HEAD, canonical policy, and every golden input must be tracked and byte-identical at the authorized commit"
     sites: "S-1..S-9 per llm-eval-plan.md; S-8 is registered design-only with an empty truthful scaffold"
     decision_status_rule: >
       No PROPOSED/hypothesis threshold yields pass or fail. Until the owning finding
@@ -183,7 +183,7 @@ verdict_semantics:                           # owner-ratified
     - "incomplete never produces pass; not a fourth verdict"
 
 unattended_test_mode_profile:                # canonical definition (B-09b cross-ref)
-  status: "human-ratified and implemented in Operon; live CF-J18-A campaign evidence pending human initiation"
+  status: "human-ratified and implemented in Cormidia; live CF-J18-A campaign evidence pending human initiation"
   applies_to: "sandbox orgs only"
   effect: "the allowed validation path requires zero human approval decisions (designed auto-grant categories, e.g. budget-tier items, within the profile)"
   prohibitions:
@@ -251,7 +251,7 @@ open_findings:
   # New findings: next F-PT-nnn id here first, mirror to design-state, park dependent
   # cases as BLOCKED:<finding> in case-catalog.md (procedure: agents-md-contribution.md).
   - {id: F-PT-002, status: resolved-ratified, resolved: 2026-07-31, subject: "active-org/scheduler state unknown from corpus",
-     resolution: "verified read-only 2026-07-31: active org selector ~/.operon/config points org_home=/Users/bikram/Build/sonnet1-org, state_home=~/.operon/Buildstacks (recorded 2026-07-24); exactly one registered app, sonnet8-buildstack-dev (repo buildstacks-dev/sonnet8-buildstack-dev), status live; scheduler NOT installed (no scheduler state dir, no operon launchd jobs) — all turns human-invoked; two residual partial state homes (~/.operon/operon — dogfood-era invocations/state residue; ~/.operon/questionnaire — partial onboarding lifecycle residue) are not active orgs"}
+     resolution: "verified read-only 2026-07-31: active org selector ~/.cormidia/config points org_home=/Users/bikram/Build/sonnet1-org, state_home=~/.cormidia/Buildstacks (recorded 2026-07-24); exactly one registered app, sonnet8-buildstack-dev (repo buildstacks-dev/sonnet8-buildstack-dev), status live; scheduler NOT installed (no scheduler state dir, no cormidia launchd jobs) — all turns human-invoked; two residual partial state homes (~/.cormidia/cormidia — dogfood-era invocations/state residue; ~/.cormidia/questionnaire — partial onboarding lifecycle residue) are not active orgs"}
   - {id: F-PT-003, status: resolved-ratified, resolved: 2026-07-31, subject: "budget-pause crash convergence",
      resolution: "contract truth: pause holds; exactly one budget-exceeded item eventually — HB-P1 unparked"}
   - {id: F-PT-004, status: resolved-ratified, resolved: 2026-07-31, subject: "scratch-vs-protected worktree bytes",
@@ -269,9 +269,9 @@ open_findings:
   - {id: F-PT-012, status: open, subject: "app-reset execute order: ratified prose (registry removal before local clears, OP-lifecycle §6) vs deliberate code design (local clears first; registry removal as atomic commit point, app-reset.ts finalizeInterruptedAppReset)"}
   - {id: F-PT-013, status: open, subject: "direct git push to the remote default branch classifies routine: enforcement locus (gate classifier vs loop-level guard holding default-branch state) undecided (INV-009 adjacency)"}
   - {id: F-PT-014, status: open, subject: "INV-003 names 'outside-worktree actions' never-broadly-scopeable, but NEVER_SCOPEABLE_RULES has no mapping for that category (nearest classes are human-widenable today)"}
-  - {id: F-PT-015, status: open, subject: "B-14 §4 bootstrap re-run semantics: product refuses outright (assertNotExists) vs contract text 'idempotent; marked block replaced in place; .operon regenerated deterministically'"}
+  - {id: F-PT-015, status: open, subject: "B-14 §4 bootstrap re-run semantics: product refuses outright (assertNotExists) vs contract text 'idempotent; marked block replaced in place; .cormidia regenerated deterministically'"}
   - {id: F-PT-016, status: open, subject: "publish-origin identity comparison ownership: bootstrap publish pushes to an origin that is not the registered repo (no comparison exists); B-14 §3 wrong-remote vs B-15 remote-identity split unresolved"}
-  - {id: F-PT-017, status: open-blocked-contract, subject: "provider terminal status vocabulary: ratified OPERON-C-CORE-001 says 'interrupted', while Runtime TurnResult and all three adapters expose 'timed_out'; product meaning and compatibility path are undecided"}
+  - {id: F-PT-017, status: open-blocked-contract, subject: "provider terminal status vocabulary: ratified CORMIDIA-C-CORE-001 says 'interrupted', while Runtime TurnResult and all three adapters expose 'timed_out'; product meaning and compatibility path are undecided"}
   # Opened 2026-08-01 during the #202-#213 fix campaign (procedure: agents-md-contribution.md).
   - {id: F-PT-019, status: open, subject: "secrets-or-auth is operation-blind: a metadata-only query that never opens the file (git check-ignore .env, git status --ignored -- .env.example) matches the same pure-text rule as a genuine contents read (cat .env). #204 shows the false-positive cost (a blocked promotion, and an approval queue the human learns to rubber-stamp); narrowing the rule would also loosen it for real exfiltration reads. Owner must decide whether the rule becomes operation-aware and, if so, which git subcommands count as contents reads"}
   - {id: F-PT-020, status: open, subject: "undecided approval items have no documented lifetime: approvals/design.md specifies TTL and expiry for GRANTS (post-decision) but says nothing about a pending item whose raising turn has ended. #205 shows the cost — 7 of 7 items in the august-org run outlived their turns, and app verify treats any pending item as a promotion blocker, so the queue grows monotonically under the scheduler and permanently blocks promotion. Deciding it means adding a terminal non-blocking state to the ratified approval state machine (CF-SM-APPR) and changing what app verify counts; adjacent to F-PT-008. Owner decision required"}

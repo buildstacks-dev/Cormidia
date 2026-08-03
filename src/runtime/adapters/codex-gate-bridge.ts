@@ -2,7 +2,7 @@
 //
 // App Server approval callbacks do not see auto-approved commands such as
 // `cat .env`. Codex hooks do see supported simple Bash/apply_patch/MCP calls,
-// so a per-turn Unix socket carries those calls back into Operon's in-process
+// so a per-turn Unix socket carries those calls back into Cormidia's in-process
 // GateFn. The child hook fails closed. `unified_exec`, apps, and web search are
 // disabled by codexAppServerArgs because current Codex hooks do not intercept
 // those alternate paths completely.
@@ -35,7 +35,7 @@ export async function startCodexGateBridge(
   // short system socket root and remove it at turn end; provider sessions and
   // credentials still remain in campaign scratch.
   const socketRoot = process.platform === "win32" ? tmpdir() : "/tmp";
-  const directory = await mkdtemp(join(socketRoot, "operon-cg-"));
+  const directory = await mkdtemp(join(socketRoot, "cormidia-cg-"));
   const socketPath = join(directory, "gate.sock");
   const sockets = new Set<Socket>();
   const server = createServer((socket) => {
@@ -50,7 +50,7 @@ export async function startCodexGateBridge(
     socket.on("data", (chunk: Buffer) => {
       body += chunk.toString("utf8");
       if (body.length > MAX_BRIDGE_BYTES) {
-        answer({ allow: false, reason: "Operon gate input exceeded 8 MiB" });
+        answer({ allow: false, reason: "Cormidia gate input exceeded 8 MiB" });
       }
     });
     socket.on("error", () => undefined);
@@ -75,12 +75,12 @@ export async function startCodexGateBridge(
           reason ??= decision.reason;
           if (decision.escalate) escalations.push({ action, reason: decision.reason });
         }
-        answer({ allow, ...(allow ? {} : { reason: reason ?? "Operon gate denied the tool action" }) });
+        answer({ allow, ...(allow ? {} : { reason: reason ?? "Cormidia gate denied the tool action" }) });
       } catch (error) {
         answer({
           allow: false,
           reason:
-            `Operon Codex gate bridge failed closed: ` +
+            `Cormidia Codex gate bridge failed closed: ` +
             `${error instanceof Error ? error.message : String(error)}`,
         });
       }
@@ -96,7 +96,7 @@ export async function startCodexGateBridge(
   let closing: Promise<void> | undefined;
   return {
     socketPath,
-    env: { OPERON_CODEX_GATE_SOCKET: socketPath },
+    env: { CORMIDIA_CODEX_GATE_SOCKET: socketPath },
     close: async () => {
       closing ??= (async () => {
         for (const socket of sockets) socket.destroy();

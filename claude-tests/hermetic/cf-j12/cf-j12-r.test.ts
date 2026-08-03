@@ -36,7 +36,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Every gate-protected learning surface, in both roots' shapes: the org
- *  home's learning/** and an app repo's .operon/learning/**. */
+ *  home's learning/** and an app repo's .cormidia/learning/**. */
 const PROTECTED_WRITES: Array<{ label: string; path: string }> = [
   { label: "org bundle concept", path: "/tmp/org-home/learning/bundle/org/lesson.md" },
   { label: "org quarantine", path: "/tmp/org-home/learning/quarantine/urgent.md" },
@@ -47,8 +47,8 @@ const PROTECTED_WRITES: Array<{ label: string; path: string }> = [
   { label: "org manifest", path: "/tmp/org-home/learning/manifest.yaml" },
   { label: "org policy", path: "/tmp/org-home/learning/policy.yaml" },
   { label: "org rejection ledger", path: "/tmp/org-home/learning/rejections.jsonl" },
-  { label: "app-repo bundle concept", path: "/tmp/app/.operon/learning/bundle/apps/app/lesson.md" },
-  { label: "app-repo manifest", path: "/tmp/app/.operon/learning/manifest.yaml" },
+  { label: "app-repo bundle concept", path: "/tmp/app/.cormidia/learning/bundle/apps/app/lesson.md" },
+  { label: "app-repo manifest", path: "/tmp/app/.cormidia/learning/manifest.yaml" },
 ];
 
 const AGENT_WRITABLE: Array<{ label: string; path: string }> = [

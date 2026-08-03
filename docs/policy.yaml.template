@@ -1,5 +1,5 @@
-# .operon/policy.yaml — per-app quality-gate policy (docs/loop/design.md §5).
-# Lives in the app repo, emitted by `operon bootstrap`, committed like any
+# .cormidia/policy.yaml — per-app quality-gate policy (docs/loop/design.md §5).
+# Lives in the app repo, emitted by `cormidia bootstrap`, committed like any
 # other config. Loaded and validated by src/loop/policy.ts.
 #
 # Glob semantics (predecessor parity, fnmatch-style): `*` and `?` are

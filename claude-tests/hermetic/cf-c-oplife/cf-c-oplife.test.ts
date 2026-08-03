@@ -1,4 +1,4 @@
-// CF-C-OPLIFE — contract-clause sweep over OPERON-C-OPLIFE-001 §§1–6 plus the
+// CF-C-OPLIFE — contract-clause sweep over CORMIDIA-C-OPLIFE-001 §§1–6 plus the
 // error split: precondition/identity failures refuse BEFORE domain mutation;
 // mid-execution failures leave the journaled, resumable intermediate
 // (L2, E1 — T-8 slices; contracts/OP-lifecycle.md; case-catalog row
@@ -136,7 +136,7 @@ describe("CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecy
       stateHome: w.stateHome,
     });
     // Atomic temp+rename leaves no `.tmp-*` sibling behind.
-    const pointerDir = await snapshotTree(join(w.homeDir, ".operon"));
+    const pointerDir = await snapshotTree(join(w.homeDir, ".cormidia"));
     const residue = [...pointerDir.keys()].filter((rel) => rel.includes(".tmp"));
     expect(residue).toEqual([]);
   });

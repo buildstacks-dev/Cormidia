@@ -1039,7 +1039,7 @@ async function commentOutcome(
     await (options.ghFor?.(app) ?? new GhCliOps(app.repo)).commentIssue(
       issueNumber,
       [
-        "## Operon release outcome",
+        "## Cormidia release outcome",
         "",
         `- Approval: \`${record.approvalId}\``,
         `- Owner: \`${record.owner}\``,

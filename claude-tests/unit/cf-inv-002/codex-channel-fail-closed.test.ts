@@ -1,5 +1,5 @@
 // CF-INV-002 — seed (b): a provider tool type the classifier has never seen
-// MUST fail closed, not default-allow. In Operon the classifier is a
+// MUST fail closed, not default-allow. In Cormidia the classifier is a
 // critical-EFFECT detector whose default is routine (gate.ts: "false positives
 // cost a human tap, false negatives cost an incident"); the fail-closed for an
 // un-gateable *tool route* therefore lives at the adapter, which DISABLES every
@@ -61,7 +61,7 @@ describe("CF-INV-002 (seed b / T-11) — Codex un-gateable tool routes fail clos
     const matcherLine = args.find((a) => a.includes("hooks.PreToolUse"));
     expect(matcherLine).toBeDefined();
     // Bash, apply_patch, file writes, and every MCP tool route through the hook
-    // into Operon's in-process GateFn — the surface the gate actually classifies.
+    // into Cormidia's in-process GateFn — the surface the gate actually classifies.
     expect(matcherLine).toContain('"^(Bash|apply_patch|Edit|Write|mcp__.*)$"');
   });
 

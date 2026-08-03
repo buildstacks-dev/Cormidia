@@ -4,7 +4,7 @@ Date: 2026-07-07
 
 ## Objective
 
-Validate Operon end to end by creating and operating a private GitHub-backed
+Validate Cormidia end to end by creating and operating a private GitHub-backed
 local ecommerce demo: catalog, customer registration, vendor registration,
 agent-driven build/review/merge, local publication, and Support/Marketing/SRE
 role evidence.
@@ -25,7 +25,7 @@ both flows to localStorage, and renders the saved records.
 ## Build Loop Result
 
 - Issue #1 was created for marketplace registration and persistence.
-- Operon Builder produced the implementation branch and PR #2.
+- Cormidia Builder produced the implementation branch and PR #2.
 - Gates ran `setup`, `npm test`, `npm run lint`, completeness, and review
   freshness.
 - Reviewer ran after the Claude reset window and posted an HMAC self-approval
@@ -56,11 +56,11 @@ Marketing:
   self-editing without approval.
 - `marketing-release` ran from the launch-calendar event. Its durable output
   was terse, but it created memory
-  `.operon/memory/marketing/release-evidence-sourcing.okf.md`.
+  `.cormidia/memory/marketing/release-evidence-sourcing.okf.md`.
 
 SRE:
 - `sre-incident` ran from the health-alert event.
-- It wrote `.operon/incidents/20260707T053353Z-health-alert.md`.
+- It wrote `.cormidia/incidents/20260707T053353Z-health-alert.md`.
 - It ran `npm test`, `npm run lint`, and attempted a local start on `PORT=4174`;
   the alternate-port bind failed with `EPERM` in the agent environment and was
   recorded as environment evidence, not a product failure.
@@ -76,7 +76,7 @@ Support:
 - Dispatch fan-out consumed the support-feedback event before Support could run
   naturally, so a support event journal was created manually for validation.
 - `support-digest` completed and wrote
-  `.operon/incidents/20260707T054000Z-support-digest.md`.
+  `.cormidia/incidents/20260707T054000Z-support-digest.md`.
 - Support correctly refused to invent a user reply because no real feedback
   payload reached the product yet.
 
@@ -85,11 +85,11 @@ The role artifacts were committed and pushed in
 
 ## Validation Commands
 
-Operon:
+Cormidia:
 - `corepack pnpm test` -> 573 tests passed.
 - `corepack pnpm typecheck` -> passed.
 - `corepack pnpm dev apps` -> passed, 7 apps.
-- `OPERON_CODEX_LIVE=1 corepack pnpm exec vitest run --config vitest.live.config.ts test/runtime/codex-app-server.live.test.ts` -> 1 live Codex smoke passed.
+- `CORMIDIA_CODEX_LIVE=1 corepack pnpm exec vitest run --config vitest.live.config.ts test/runtime/codex-app-server.live.test.ts` -> 1 live Codex smoke passed.
 
 Demo app:
 - `npm test` -> 8 tests passed.
@@ -103,7 +103,7 @@ GitHub:
 
 ## Issues Found
 
-1. Codex App Server emitted `mcpServer/elicitation/request`; Operon did not
+1. Codex App Server emitted `mcpServer/elicitation/request`; Cormidia did not
    support it and live loop turns failed. Fixed in
    `src/runtime/adapters/codex.ts` by declining elicitation requests, with a
    unit test and a live Codex smoke.
@@ -136,7 +136,7 @@ GitHub:
    `running` runlog envelope. Retrying after the reset merged successfully, but
    stale runlog status remains an observability gap.
 
-8. The single-account GitHub flow needs `OPERON_SELF_APPROVAL_SECRET` to merge
+8. The single-account GitHub flow needs `CORMIDIA_SELF_APPROVAL_SECRET` to merge
    via the HMAC fallback when GitHub rejects self-approval. The successful merge
    used an ephemeral process-only secret.
 
@@ -149,7 +149,7 @@ GitHub:
 
 ## Assessment
 
-Operon can create, build, review, gate, merge, locally publish, and operate a
+Cormidia can create, build, review, gate, merge, locally publish, and operate a
 new private-repo product through its agents. The core build loop succeeded
 end-to-end after two runtime/routing fixes and one quota retry. Marketing, SRE,
 Planner, and Support all ran and produced durable artifacts or tickets, but

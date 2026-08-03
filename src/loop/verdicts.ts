@@ -248,7 +248,7 @@ function extractKeywordValue(text: string, keywords: string[]): string | undefin
 
 /** Like extractKeywordValue but conflict-refusing, per the ratified S-3
  *  contract clause "exactly one structured verdict marker; the parser refuses
- *  zero/two" (validation-design/llm-eval-plan.md §2 S-3; OPERON-INV-012 —
+ *  zero/two" (validation-design/llm-eval-plan.md §2 S-3; CORMIDIA-INV-012 —
  *  an ambiguous verdict must never become a review artifact). Keyword
  *  precedence is preserved: only the first keyword with any match is
  *  consulted, so a review whose body quotes build output ("Status: done")

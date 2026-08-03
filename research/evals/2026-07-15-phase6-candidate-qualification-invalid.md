@@ -29,12 +29,12 @@ portable report SHA-256 is
 `105e603c772f3dde28bf65584f3087e074f97a4257616d079cf498023b8dd66c`.
 
 Its private GitHub exercise used issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260715-ac31a40c7d61`.
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260715-ac31a40c7d61`.
 The identical second execution reused the content-bound evidence, with source
 evidence SHA-256
 `9d41c82727281b83866b9b811dd9201545a4f69022fa39cf3e439e1825298232`.
 The verified `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260715-ac31a40c7d61/adapter-harness-calibration-v1-20260715-ac31a40c7d61-b72ef578-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260715-ac31a40c7d61/adapter-harness-calibration-v1-20260715-ac31a40c7d61-b72ef578-evidence-v2`;
 its archive-manifest SHA-256 is
 `d5cc38fadf0a7fa8c9115ef362fc13b71d20db806f23a86de9013d0eafc0d3d7`.
 Cleanup was previewed only.
@@ -42,7 +42,7 @@ Cleanup was previewed only.
 ## GitHub exercise and accounting
 
 The candidate GitHub exercise used issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-candidate-qualification-v1-20260715-ac31a40c7d61`.
+`buildstacks-dev/cormidia-eval-candidate-qualification-v1-20260715-ac31a40c7d61`.
 It exercised the declared private-repository lifecycle, squash-merged the
 temporary pull request, closed the issue, deleted only the temporary branch,
 and retained the repository. The identical rerun was idempotent and reused
@@ -106,7 +106,7 @@ The byte-stable portable report has SHA-256
 
 The verified 370-file `sanitized-evidence/v3` archive is permanently retained
 at
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260715-ac31a40c7d61/candidate-qualification-v1-20260715-ac31a40c7d61-b4e18a28-evidence-v2`.
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260715-ac31a40c7d61/candidate-qualification-v1-20260715-ac31a40c7d61-b4e18a28-evidence-v2`.
 Its archive-manifest SHA-256 is
 `dbffcf11d88af5913cc84f76bc48ffa505348985f0fd38657c1e8cd8435f6521`.
 The manifest excludes `provider-scratch/**` and raw L3 `state/runs/**` and has

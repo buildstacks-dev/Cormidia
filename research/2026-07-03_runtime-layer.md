@@ -12,7 +12,7 @@ OpenAI, pi as the harness for all other models.*
 > **M10 addendum (2026-07-06):** Codex App Server is the adapter surface,
 > spawned from pinned `@openai/codex` (`codex app-server --listen stdio://`).
 > `@openai/codex-sdk` wraps `codex exec` for batch jobs and is not used for
-> Operon's interactive thread/resume/approval adapter. Pi is embedded
+> Cormidia's interactive thread/resume/approval adapter. Pi is embedded
 > in-process with `@earendil-works/pi-coding-agent` and a runtime-installed
 > `tool_call` gating extension.
 
@@ -47,7 +47,7 @@ OpenAI/Anthropic/Google-compatible endpoint via `models.json`), `pi-agent-core`
 interactive TUI, `-p/--print` one-shot, `--mode json` (events as JSON lines),
 and **`--mode rpc`** — strict LF-delimited JSONL over stdin/stdout, designed for
 process integration. M10 chose the TypeScript SDK path instead:
-`PiRuntime` calls `createAgentSession()` directly and installs the Operon gate
+`PiRuntime` calls `createAgentSession()` directly and installs the Cormidia gate
 extension as a `DefaultResourceLoader` extension factory.
 
 **Protocol enforcement (our non-negotiable #1).** Strong levers:
@@ -101,7 +101,7 @@ and turns; model selected per thread; approval policies and sandbox modes
 (`readOnly` / `workspaceWrite` / `dangerFullAccess`) configurable per
 thread/turn.
 
-**M10 TypeScript path:** pinned **`@openai/codex`** CLI package. Operon spawns
+**M10 TypeScript path:** pinned **`@openai/codex`** CLI package. Cormidia spawns
 `codex app-server --listen stdio://`, performs the generated-schema handshake
 (`initialize` → `initialized`), then uses `thread/start|resume` and
 `turn/start`. Approval requests (`item/commandExecution/requestApproval`,
@@ -109,7 +109,7 @@ thread/turn.
 through `hooks.gate`. Context goes through `developerInstructions`.
 
 **Rejected path:** `@openai/codex-sdk` is useful for non-interactive
-`codex exec` automation, but it is not the right surface for Operon's standing
+`codex exec` automation, but it is not the right surface for Cormidia's standing
 role adapter because it does not expose the App Server thread/resume/approval
 protocol directly.
 

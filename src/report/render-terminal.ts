@@ -3,11 +3,11 @@ import type { ReportSnapshotV1 } from "./types.js";
 export function renderReportTerminal(report: ReportSnapshotV1): string {
   const scope = report.scope.kind === "org" ? `org ${report.org.name}` : `app ${report.scope.app}`;
   const lines = [
-    `Operon report — ${scope}`,
+    `Cormidia report — ${scope}`,
     `${report.range.from_inclusive.slice(0, 10)} through ${new Date(new Date(report.range.to_exclusive).getTime() - 1).toISOString().slice(0, 10)} UTC · as of ${report.generated_at}`,
     "",
     `Known tokens  in ${formatInt(report.headline.known_input_tokens)} · out ${formatInt(report.headline.known_output_tokens)} · total ${formatInt(report.headline.known_total_tokens)}`,
-    `Recorded equivalent cost  $${report.headline.recorded_equivalent_cost_usd.toFixed(2)} (reported $${report.headline.provider_reported_cost_usd.toFixed(2)} · estimated $${report.headline.operon_estimated_cost_usd.toFixed(2)} · partial $${report.headline.partial_recorded_cost_usd.toFixed(2)})`,
+    `Recorded equivalent cost  $${report.headline.recorded_equivalent_cost_usd.toFixed(2)} (reported $${report.headline.provider_reported_cost_usd.toFixed(2)} · estimated $${report.headline.cormidia_estimated_cost_usd.toFixed(2)} · partial $${report.headline.partial_recorded_cost_usd.toFixed(2)})`,
     `Activity  ${report.headline.provider_turns} settled provider turn(s) · ${report.headline.sessions} session(s) · ${report.headline.completed_sessions} completed`,
   ];
   if (report.scope.kind === "app" && report.apps[0] !== undefined) {

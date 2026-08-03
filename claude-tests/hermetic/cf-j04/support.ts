@@ -73,7 +73,7 @@ export async function makeJ04World(): Promise<J04World> {
   const github = await installGithubDouble({ defaultBranch: J04_DEFAULT_BRANCH, labels: J04_LABELS });
   const gh = new GhCliOps(github.repo, github.exec);
   const issue = await gh.createIssue({ title: "Wave 3 delivery", body: J04_BODY, labels: ["op:ready"] });
-  const worktreeRoot = await mkdtemp(join(tmpdir(), "operon-cf-j04-wave3-"));
+  const worktreeRoot = await mkdtemp(join(tmpdir(), "cormidia-cf-j04-wave3-"));
   const base = baseRevisionForBranch(resolveRemoteDefaultBranch("origin", { cwd: repo.dir }));
   return {
     repo,

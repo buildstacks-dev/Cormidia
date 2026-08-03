@@ -21,9 +21,9 @@ export interface EvalCliConfigV1 {
 }
 
 export async function loadEvalConfig(env: NodeJS.ProcessEnv = process.env): Promise<EvalCliConfigV1> {
-  if (env["OPERON_EVAL"] !== "1") throw new Error("eval refused: OPERON_EVAL=1 is required; an absent campaign is incomplete, never pass");
-  const configured = env["OPERON_EVAL_CONFIG"];
-  if (configured === undefined || !isAbsolute(configured)) throw new Error("eval refused: OPERON_EVAL_CONFIG must be an absolute reviewed config path");
+  if (env["CORMIDIA_EVAL"] !== "1") throw new Error("eval refused: CORMIDIA_EVAL=1 is required; an absent campaign is incomplete, never pass");
+  const configured = env["CORMIDIA_EVAL_CONFIG"];
+  if (configured === undefined || !isAbsolute(configured)) throw new Error("eval refused: CORMIDIA_EVAL_CONFIG must be an absolute reviewed config path");
   const value: unknown = JSON.parse(await readFile(resolve(configured), "utf8"));
   validate(value);
   return value;

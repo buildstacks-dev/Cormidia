@@ -1,4 +1,4 @@
-// `operon learn` M4 verbs — the manual governed-activation surface
+// `cormidia learn` M4 verbs — the manual governed-activation surface
 // (docs/learning-loop/learning-loop-design.md § Bootstrap M4): review, publish,
 // resolve, disable, rollback, provisional. Split from learn.ts so the M1-M3
 // capture/episode window and the M4 write path stay separately readable;
@@ -10,7 +10,7 @@ import { basename } from "node:path";
 import { GhCliOps } from "../loop/github.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { ApprovalStore } from "../org/approvals.js";
-import type { OperonHomes } from "../org/home.js";
+import type { CormidiaHomes } from "../org/home.js";
 import {
   candidateArtifactPath,
   findCandidateArtifact,
@@ -75,7 +75,7 @@ export function requireFlag(flags: Flags, name: string, command: string): string
 }
 
 /** Org root plus every registered app with a resolvable local checkout. */
-export function learningRoots(homes: OperonHomes): {
+export function learningRoots(homes: CormidiaHomes): {
   orgRoot: LearningRoot;
   appRoots: Record<string, LearningRoot>;
 } {
@@ -96,7 +96,7 @@ export function learningRoots(homes: OperonHomes): {
 // review
 // ---------------------------------------------------------------------------
 
-export async function learnReview(homes: OperonHomes, args: string[]): Promise<number> {
+export async function learnReview(homes: CormidiaHomes, args: string[]): Promise<number> {
   const flags = parseFlags(args, "learn review");
   const candidateId = flags.positionals[0];
   if (candidateId === undefined) throw new Error("learn review: <candidate-id> is required");
@@ -167,7 +167,7 @@ export async function learnReview(homes: OperonHomes, args: string[]): Promise<n
       `  rejection recorded (suppress key "${entry.suppress_key}"; window per policy §13)`,
     );
   } else if (disposition === "proceed") {
-    console.log(`  next: operon learn publish ${candidateId}`);
+    console.log(`  next: cormidia learn publish ${candidateId}`);
   }
   return 0;
 }
@@ -176,7 +176,7 @@ export async function learnReview(homes: OperonHomes, args: string[]): Promise<n
 // publish
 // ---------------------------------------------------------------------------
 
-export async function learnPublish(homes: OperonHomes, args: string[]): Promise<number> {
+export async function learnPublish(homes: CormidiaHomes, args: string[]): Promise<number> {
   const flags = parseFlags(args, "learn publish");
   const candidateId = flags.positionals[0];
   if (candidateId === undefined) throw new Error("learn publish: <candidate-id> is required");
@@ -220,7 +220,7 @@ export async function learnPublish(homes: OperonHomes, args: string[]): Promise<
           `  activation claim: ${outcome.intervention.activation.claim === "validated" ? "validated" : "authorized (unproven)"}`,
         );
       }
-      console.log(`  trace it with: operon learn show ${outcome.intervention.intervention_id}`);
+      console.log(`  trace it with: cormidia learn show ${outcome.intervention.intervention_id}`);
       return 0;
     case "rejected":
       console.log(
@@ -229,13 +229,13 @@ export async function learnPublish(homes: OperonHomes, args: string[]): Promise<
       return 0;
     case "raised":
       console.log(
-        `raised content-bound approval ${outcome.approvalId} — decide with \`operon approvals\`, ` +
-          `then re-run: operon learn publish ${candidateId}`,
+        `raised content-bound approval ${outcome.approvalId} — decide with \`cormidia approvals\`, ` +
+          `then re-run: cormidia learn publish ${candidateId}`,
       );
       return 0;
     case "awaiting_approval":
       console.log(
-        `approval ${outcome.approvalId} is still pending — decide with \`operon approvals\``,
+        `approval ${outcome.approvalId} is still pending — decide with \`cormidia approvals\``,
       );
       return 0;
     case "denied":
@@ -253,7 +253,7 @@ export async function learnPublish(homes: OperonHomes, args: string[]): Promise<
 // resolve (dry run — what would this turn load?)
 // ---------------------------------------------------------------------------
 
-export async function learnResolve(homes: OperonHomes, args: string[]): Promise<number> {
+export async function learnResolve(homes: CormidiaHomes, args: string[]): Promise<number> {
   const flags = parseFlags(args, "learn resolve");
   const app = requireFlag(flags, "app", "learn resolve");
   const role = requireFlag(flags, "role", "learn resolve");
@@ -299,7 +299,7 @@ export async function learnResolve(homes: OperonHomes, args: string[]): Promise<
 // disable / rollback
 // ---------------------------------------------------------------------------
 
-export async function learnDisable(homes: OperonHomes, args: string[]): Promise<number> {
+export async function learnDisable(homes: CormidiaHomes, args: string[]): Promise<number> {
   const flags = parseFlags(args, "learn disable");
   const conceptId = flags.positionals[0];
   if (conceptId === undefined) throw new Error("learn disable: <concept-id> is required");
@@ -318,7 +318,7 @@ export async function learnDisable(homes: OperonHomes, args: string[]): Promise<
   return 1;
 }
 
-export async function learnRollback(homes: OperonHomes, args: string[]): Promise<number> {
+export async function learnRollback(homes: CormidiaHomes, args: string[]): Promise<number> {
   const flags = parseFlags(args, "learn rollback");
   const rootKind = requireFlag(flags, "root", "learn rollback");
   if (rootKind !== "org" && rootKind !== "app") {
@@ -349,7 +349,7 @@ export async function learnRollback(homes: OperonHomes, args: string[]): Promise
 // provisional — the urgent human lane (design §7, §10.1)
 // ---------------------------------------------------------------------------
 
-export async function learnProvisional(homes: OperonHomes, args: string[]): Promise<number> {
+export async function learnProvisional(homes: CormidiaHomes, args: string[]): Promise<number> {
   const flags = parseFlags(args, "learn provisional");
   const scope = requireFlag(flags, "scope", "learn provisional");
   const name = requireFlag(flags, "name", "learn provisional");
@@ -417,7 +417,7 @@ export interface ActivationReport {
 }
 
 export async function activationReport(
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   policy: LearningPolicy,
   /** Already-loaded verdicts (the report reads them once for its Reviews
    *  section); omitted, they load here. */

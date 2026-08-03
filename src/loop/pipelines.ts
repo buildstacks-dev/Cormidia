@@ -11,7 +11,7 @@
 //   check belongs to the executor (M2.8), which resolves RoleConfig and
 //   knows the runtime. Validating it here would force a loop→org import.
 // - `only_on.risk` values are plain strings: risk tiers are defined by the
-//   app's `.operon/policy.yaml` (M4.2, parallel track) — the loader must
+//   app's `.cormidia/policy.yaml` (M4.2, parallel track) — the loader must
 //   not hardcode that vocabulary.
 //
 // Parsing mirrors src/org/roles.ts: yaml.parse + explicit field checks,

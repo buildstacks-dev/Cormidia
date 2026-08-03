@@ -14,7 +14,7 @@ Two partitions (PURPOSE v0.8: one-turn-one-app):
 | Bundle                         | Home                 | Content                                                          |
 | ------------------------------ | -------------------- | ---------------------------------------------------------------- |
 | `memory/roles/<role>/`         | org home (committed) | craft: what this role has learned about doing its job, cross-app |
-| `<app>/.operon/memory/<role>/` | app repo (committed) | domain: what this role knows about this product                  |
+| `<app>/.cormidia/memory/<role>/` | app repo (committed) | domain: what this role knows about this product                  |
 
 
 Document format (OKF — markdown + YAML frontmatter):
@@ -39,13 +39,13 @@ excerpt layer.
 **End-of-turn learning notes** (`docs/learning-loop/`): the role protocol
 (context layer [4]) instructs agents to record lessons and corrections as
 **candidate notes** — `learning/candidates/<role>/` in the org home,
-`.operon/learning/candidates/<role>/` on the ticket branch — never as active
+`.cormidia/learning/candidates/<role>/` on the ticket branch — never as active
 OKF docs. Candidate trees are deliberately agent-writable routine ops; they
 carry no authority and nothing in them loads into future context until it
 passes review. The learning GOVERNANCE surfaces
 (`learning/{bundle,quarantine,evals,reviews,experiments,interventions}/**`,
 `manifest.yaml`, `policy.yaml`, `rejections.jsonl`, and their
-`.operon/learning/**` counterparts) are critical ops by the
+`.cormidia/learning/**` counterparts) are critical ops by the
 `learning-surface-tamper` gate rule — publisher/human-only. Existing
 `memory/**` trees remain read-only legacy seed context: still resolved into
 layer [5] at lowest precedence, no longer written by anyone.
@@ -71,7 +71,7 @@ by the orchestrator (never self-reported):
 
 
 
-### Weekly retro (`operon retro`)
+### Weekly retro (`cormidia retro`)
 
 A scheduled org-level turn (Opus, high effort — quality of judgment matters
 here) that consumes the week's telemetry + scorecards and emits:

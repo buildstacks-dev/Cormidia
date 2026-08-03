@@ -1,6 +1,6 @@
 // Archive-backed app reset. This is an explicit human lifecycle operation:
-// preserve the selected app's Operon-owned state, close only identifiable
-// Operon GitHub work, then remove the app registration and managed state.
+// preserve the selected app's Cormidia-owned state, close only identifiable
+// Cormidia GitHub work, then remove the app registration and managed state.
 // It never touches a human checkout, a repository's default branch, or the
 // GitHub repository itself.
 
@@ -221,7 +221,7 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
     readResetIntent(stateHome, app.name),
   ]);
 
-  const managedIssues = issues.filter((issue) => isOperonManagedIssue(issue));
+  const managedIssues = issues.filter((issue) => isCormidiaManagedIssue(issue));
   const managedIssueNumbers = new Set(managedIssues.map((issue) => issue.number));
   const managedPullRequests = pullRequests.filter(
     (pr) => pr.headRefName.startsWith("op/") || linkedIssueNumbers(pr.body).some((n) => managedIssueNumbers.has(n)),
@@ -621,7 +621,7 @@ function managedStatePaths(stateHome: string, app: string): string[] {
   ];
 }
 
-function isOperonManagedIssue(issue: GhIssue): boolean {
+function isCormidiaManagedIssue(issue: GhIssue): boolean {
   return issue.labels.some((label) => label.startsWith(OPERATIONAL_LABEL_PREFIX));
 }
 

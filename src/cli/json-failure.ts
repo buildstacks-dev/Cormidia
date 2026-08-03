@@ -33,7 +33,7 @@ export function jsonCliFailure(error: unknown, command: string): JsonCliFailureE
     error: {
       code: "command_failed",
       message: error instanceof Error ? error.message : String(error),
-      remediation: `Run \`operon ${command} --help\` and correct the invocation or configuration.`,
+      remediation: `Run \`cormidia ${command} --help\` and correct the invocation or configuration.`,
     },
   };
 }

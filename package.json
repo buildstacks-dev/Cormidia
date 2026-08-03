@@ -1,21 +1,21 @@
 {
-  "name": "operon",
+  "name": "cormidia",
   "version": "0.1.1",
   "private": true,
   "description": "Org runtime: a standing team of AI agents developing a product via a private GitHub repo, human-gated on critical ops only",
-  "homepage": "https://github.com/buildstacks-dev/operon-web",
+  "homepage": "https://github.com/cormidia/cormidia-web",
   "bugs": {
-    "url": "https://github.com/buildstacks-dev/operon-web/issues"
+    "url": "https://github.com/cormidia/cormidia-web/issues"
   },
   "type": "module",
   "bin": {
-    "operon": "./src/operon.cjs"
+    "cormidia": "./src/cormidia.cjs"
   },
   "files": [
-    "src/operon.cjs",
-    "src/operon-local.cjs",
+    "src/cormidia.cjs",
+    "src/cormidia-local.cjs",
     "dist/**/*.js",
-    "agent-skills/operon/",
+    "agent-skills/cormidia/",
     "config/launchd/",
     "docs/policy.yaml.template",
     "docs/scheduler/design.md",
@@ -27,7 +27,7 @@
     "pipelines.yaml",
     "README.md",
     "scripts/link-local.mjs",
-    "scripts/operon-local.mjs",
+    "scripts/cormidia-local.mjs",
     "scripts/smoke-onboarding.mjs"
   ],
   "scripts": {

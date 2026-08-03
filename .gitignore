@@ -5,8 +5,8 @@ archive-do-not-read/eval/provider-scratch/
 archive-do-not-read/eval/remotes/
 dist/
 scratchpad-gitignore/
-.env
-.env.local
+# Local environment files can contain credentials; this includes `.env-npm`.
+.env*
 .org/telemetry/
 *.log
 .DS_Store

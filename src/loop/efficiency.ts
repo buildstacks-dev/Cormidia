@@ -631,7 +631,12 @@ export async function checkProviderBudget(input: {
 export async function remainingExecutionAllowance(
   root: string,
   episodeId: string,
-): Promise<{ activeTimeMs: number; providerTurns: number; toolCalls: number | null }> {
+): Promise<{
+  activeTimeMs: number;
+  equivalentCostUsd: number;
+  providerTurns: number;
+  toolCalls: number | null;
+}> {
   const [budget, route, steps] = await Promise.all([
     checkProviderBudget({ root, episodeId }),
     readRouteRecord(root, episodeId),
@@ -640,6 +645,7 @@ export async function remainingExecutionAllowance(
   const usedToolCalls = steps.reduce((sum, step) => sum + (step.tool_call_count ?? 0), 0);
   return {
     activeTimeMs: Math.max(0, budget.remaining.active_time_ms),
+    equivalentCostUsd: Math.max(0, budget.remaining.equivalent_cost_usd),
     providerTurns: Math.max(0, budget.remaining.provider_turns),
     toolCalls:
       route.execution_bounds === null || route.execution_bounds === undefined

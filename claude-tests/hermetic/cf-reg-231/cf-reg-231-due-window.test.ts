@@ -172,6 +172,43 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
     });
   });
 
+  it("recovers a crash after the turn journal but before claim commit under the same attempt", async () => {
+    org = await makeOrg();
+    const clock = makeTestClock("2026-08-03T07:41:00.000Z");
+    const spawned: string[] = [];
+    await expect(dispatchTick({
+      orgRoot: org.orgHome,
+      runtimeHome: org.stateHome,
+      now: clock.nowDate,
+      eventSource: NO_EVENTS,
+      spawn: async ({ turnId }) => { spawned.push(turnId); },
+      schedulerFault: async (boundary) => {
+        if (boundary === "after_tick_journal") throw new Error("seeded crash before claim commit");
+      },
+    })).rejects.toThrow("seeded crash before claim commit");
+
+    clock.advance(3 * 60_000);
+    const restarted = await dispatchTick({
+      orgRoot: org.orgHome,
+      runtimeHome: org.stateHome,
+      now: clock.nowDate,
+      eventSource: NO_EVENTS,
+      spawn: async ({ turnId }) => { spawned.push(turnId); },
+      processIdentityStatus: () => "mismatch",
+      dueClaimOwnerStatus: () => "dead",
+    });
+
+    expect(restarted.errors).toEqual([]);
+    expect(restarted.skipped).toContain(`${APP}/${ROLE}: recovered stale pre-commit schedule journal`);
+    expect(spawned).toHaveLength(1);
+    expect((await new ScheduleDueClaimStore(org.stateHome).list())[0]).toMatchObject({
+      status: "committed",
+      attempt: 1,
+      recovery_count: 1,
+      run_id: spawned[0],
+    });
+  });
+
   it("reconciles provider completion before settlement on host restart", async () => {
     org = await makeOrg();
     const clock = makeTestClock("2026-08-03T07:41:00.000Z");

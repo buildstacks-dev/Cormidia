@@ -245,7 +245,29 @@ describe("CF-REG-209 — scheduler health truth", () => {
       }),
     ]);
 
-    const later = new Date(NOW.getTime() + 60 * 60_000);
+    const blockedAt = new Date(NOW.getTime() + 5 * 60_000);
+    const blockedInvocation = await store.beginInvocation(blockedAt);
+    const blockedDecision = await store.claimDecision({
+      invocationId: blockedInvocation.invocation_id,
+      cadenceWindow: blockedInvocation.cadence_window,
+      app: "app-a",
+      role: "sre",
+      triggerKind: "schedule",
+      trigger: "hourly",
+      now: blockedAt,
+    });
+    await store.finishDecision(
+      blockedDecision.record.decision_id,
+      "blocked",
+      "wip_limit",
+      blockedAt,
+      { detail: "healthy backpressure is not recovery evidence" },
+    );
+    expect((await store.listAlerts())
+      .find((candidate) => candidate.evidence_id === failedDecision.record.decision_id))
+      .toMatchObject({ resolved: false });
+
+    const later = new Date(NOW.getTime() + 10 * 60_000);
     const recoveredInvocation = await store.beginInvocation(later);
     const recoveredDecision = await store.claimDecision({
       invocationId: recoveredInvocation.invocation_id,

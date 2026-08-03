@@ -18,9 +18,15 @@ class DuplicateClaimViolation extends Error {
   }
 }
 
+class CommitBoundaryViolation extends Error {}
+
 function assertOneActiveAttempt(records: readonly DurableClaimRecord[]): void {
   const active = records.filter((record) => record.status === "claimed" || record.status === "committed");
   if (active.length > 1) throw new DuplicateClaimViolation(active);
+}
+
+function assertCommitted(record: DurableClaimRecord): void {
+  if (record.status !== "committed") throw new CommitBoundaryViolation();
 }
 
 describe("CF-SCHED-CLAIM — reusable durable single claim with explicit bounded retry", () => {
@@ -144,6 +150,30 @@ describe("CF-SCHED-CLAIM — reusable durable single claim with explicit bounded
     expect(recovered.disposition).toBe("recovered_claim");
     expect(recovered.record.attempt).toBe(1);
     expect(recovered.record.settlement_id).toBe(first.record.settlement_id);
+  });
+
+  it("refuses settlement before the durable commit boundary", async () => {
+    state = await makeTempStateHome({ name: "durable-claim-commit-boundary" });
+    const store = new DurableClaimStore({ root: state.stateHome, namespace: "test-claims" });
+    const claimed = await store.claim({
+      identity: "must-commit-first",
+      payload: { due_window: "2026-08-03T07:00:00.000Z" },
+      maxAttempts: 2,
+      now: AT,
+    });
+
+    await expect(store.settle({
+      settlementId: claimed.record.settlement_id,
+      attempt: claimed.record.attempt,
+      runId: "run-without-commit",
+      outcome: "forged",
+      now: AT,
+    })).rejects.toThrow("cannot settle before commit");
+    expect((await store.read(claimed.record.settlement_id))?.status).toBe("claimed");
+
+    // Seeded negative control: a forged claimed record must make the independent
+    // commit-boundary detector fire rather than silently treating it as settled.
+    expect(() => assertCommitted(claimed.record)).toThrow(CommitBoundaryViolation);
   });
 
   it("negative control: the detector fires if one identity is forged with two active attempts", () => {

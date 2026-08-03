@@ -223,6 +223,9 @@ export class DurableClaimStore<TPayload = unknown> {
         if (record.run_id === input.runId && record.outcome === input.outcome) return record;
         throw new Error(`durable claim ${record.settlement_id}: conflicting settlement`);
       }
+      if (record.status !== "committed") {
+        throw new Error(`durable claim ${record.settlement_id}: cannot settle before commit`);
+      }
       if (record.run_id !== null && record.run_id !== input.runId) {
         throw new Error(`durable claim ${record.settlement_id}: run identity mismatch`);
       }

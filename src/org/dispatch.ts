@@ -212,6 +212,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     result,
     spawn,
     killed.recovered,
+    dueClaims,
     options.processIdentityStatus ?? processIdentityStatus,
   );
   const freshLocks = await freshLockCount(runtimeHome, tickAt);
@@ -878,14 +879,36 @@ async function recoverableStaleLocks(
   result: DispatchTickResult,
   spawn: DispatchSpawn,
   skipTurnIds: Set<string>,
+  dueClaims: ScheduleDueClaimStore,
   identityStatus: (pid: number, expectedStartIdentity: string) => "match" | "mismatch" | "unknown",
 ): Promise<number> {
   let spawns = 0;
+  const precommitScheduleTurns = new Set(
+    (await dueClaims.list())
+      .filter((claim) => claim.status === "claimed")
+      .map((claim) => dueClaims.turnId(claim.settlement_id, claim.attempt)),
+  );
   for (const lock of await listLocks(runtimeHome)) {
     if (skipTurnIds.has(lock.turnId)) continue;
     if (!isStale(lock, now)) continue;
     try {
       const journal = await readJournal(runtimeHome, lock.turnId);
+      const deadOwner = lock.processStartIdentity !== undefined
+        && identityStatus(lock.pid, lock.processStartIdentity) === "mismatch";
+      if (
+        journal.phase === "assembling"
+        && precommitScheduleTurns.has(journal.turnId)
+        && deadOwner
+      ) {
+        // A scheduled turn journals before its durable claim commit. If the
+        // host dies in that exact window, the journal proves no provider was
+        // constructed yet. Release only the dead process lock: the next tick
+        // reclaims the SAME due-window claim/attempt and idempotently rewrites
+        // `assembling` before committing and spawning it.
+        await releaseLock(runtimeHome, lock.app, lock.role, lock);
+        result.skipped.push(`${lock.app}/${lock.role}: recovered stale pre-commit schedule journal`);
+        continue;
+      }
       const recovered = await recoverStaleTurn(runtimeHome, lock, journal, {
         now,
         spawn: async ({ journal: j }) => {

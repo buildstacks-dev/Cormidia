@@ -12,6 +12,7 @@ import type {
   TurnUsage,
 } from "../../../src/runtime/types.js";
 import { executePipeline } from "../../../src/loop/pipeline.js";
+import type { RouteBudget } from "../../../src/loop/efficiency.js";
 import { readEnvelope } from "../../../src/runtime/runlog/envelope.js";
 import { readTurnRecords } from "../../../src/runtime/telemetry.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
@@ -52,15 +53,30 @@ function stopped(req: TurnRequest, finalUsage: TurnUsage, reason: string): TurnR
 
 class ControlledBudgetRuntime implements Runtime {
   readonly kind = "claude" as const;
-  readonly mode: "cost" | "tools";
+  readonly mode: "cost" | "tools" | "terminal";
   executedActions = 0;
   decisions: GateDecision[] = [];
 
-  constructor(mode: "cost" | "tools") {
+  constructor(mode: "cost" | "tools" | "terminal") {
     this.mode = mode;
   }
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
+    if (this.mode === "terminal") {
+      hooks.onProgress?.({
+        session: { runtime: "claude", id: "scripted-budget-session" },
+        usage: usage(0),
+      });
+      return {
+        status: "failed",
+        errorCode: "error_max_budget_usd",
+        summary: "native provider cap stopped the turn",
+        artifacts: [{ kind: "note", ref: "budget-overrun/scripted", summary: "native cap" }],
+        session: { runtime: "claude", id: "scripted-budget-session" },
+        usage: usage(5.4),
+        escalations: [],
+      };
+    }
     hooks.onProgress?.({
       session: { runtime: "claude", id: "scripted-budget-session" },
       usage: usage(this.mode === "cost" ? 4.75 : 0.25),
@@ -105,7 +121,12 @@ describe("CF-REG-229 — hard per-turn execution budget", () => {
   const homes: TempStateHome[] = [];
   afterEach(async () => Promise.all(homes.splice(0).map((home) => home.cleanup())));
 
-  async function run(runtime: ControlledBudgetRuntime, episode: string) {
+  async function run(
+    runtime: ControlledBudgetRuntime,
+    episode: string,
+    budgetOverrides: Partial<RouteBudget> = { equivalent_cost_usd: 5 },
+    onRuntimeFactory?: () => void,
+  ) {
     const home = await makeTempStateHome({ name: episode });
     homes.push(home);
     const result = await executePipeline({
@@ -116,7 +137,10 @@ describe("CF-REG-229 — hard per-turn execution budget", () => {
       },
       selection: { tier: "quick" },
       roles: { builder: ROLE },
-      runtimeFor: () => runtime,
+      runtimeFor: () => {
+        onRuntimeFactory?.();
+        return runtime;
+      },
       briefFor: () => "Exercise the controlled budget boundary.",
       promptsDir: home.stateHome,
       context: { taste: [], memoryExcerpts: [] },
@@ -126,7 +150,7 @@ describe("CF-REG-229 — hard per-turn execution budget", () => {
       episode: {
         id: episode,
         route: "quick",
-        budgetOverrides: { equivalent_cost_usd: 5 },
+        budgetOverrides,
       },
       telemetry: { orgDir: home.stateHome },
     });
@@ -188,6 +212,53 @@ describe("CF-REG-229 — hard per-turn execution budget", () => {
     });
     expect(observed.settlements).toHaveLength(1);
     expect(observed.settlements[0]!.costUsd).toBeGreaterThan(0);
+  });
+
+  it("refuses provider construction when no active-time allowance remains", async () => {
+    const runtime = new ControlledBudgetRuntime("tools");
+    let runtimeFactoryCalls = 0;
+    const observed = await run(
+      runtime,
+      "episode-active-time-bound",
+      { equivalent_cost_usd: 5, active_time_ms: 0 },
+      () => { runtimeFactoryCalls += 1; },
+    );
+
+    expect(runtimeFactoryCalls).toBe(0);
+    expect(runtime.executedActions).toBe(0);
+    expect(observed.pass.result).toMatchObject({
+      status: "failed",
+      errorCode: "error_turn_budget_exhausted",
+    });
+    expect(observed.envelope).toMatchObject({
+      effective_bounds: { active_time_ms: 0 },
+      budget_stop: {
+        dimension: "active_time_ms",
+        cap: 0,
+        observed: 0,
+        prevented_next_action: "provider_continuation",
+      },
+    });
+    expect(observed.settlements).toEqual([]);
+  });
+
+  it("normalizes a native terminal cap into central budget-stop evidence without losing overshoot", async () => {
+    const runtime = new ControlledBudgetRuntime("terminal");
+    const observed = await run(runtime, "episode-terminal-native-cap");
+
+    expect(observed.pass.result).toMatchObject({
+      status: "failed",
+      errorCode: "error_turn_budget_exhausted",
+      usage: { costUsd: 5.4 },
+    });
+    expect(observed.envelope.budget_stop).toMatchObject({
+      dimension: "equivalent_cost_usd",
+      cap: 5,
+      observed: 5.4,
+      cost_measurement: "measured",
+    });
+    expect(observed.settlements).toHaveLength(1);
+    expect(observed.settlements[0]!.costUsd).toBe(5.4);
   });
 
   it("negative control: the detector fires for the old post-hoc 41st action", () => {

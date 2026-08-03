@@ -383,7 +383,7 @@ export class SchedulerEvidenceStore {
     await this.writeDecision(next);
     if (["failed", "missed"].includes(outcome)) {
       await this.writeAlert(reasonCode, decisionId, at, next.detail ?? `${outcome} scheduler decision`);
-    } else {
+    } else if (outcome === "executed") {
       await this.resolveDecisionAlerts(next, at);
     }
     return next;
@@ -414,7 +414,7 @@ export class SchedulerEvidenceStore {
     await this.writeDecision(next);
     if (outcome === "failed") {
       await this.writeAlert(reason, decision.decision_id, at, summary ?? `${outcome} scheduled turn`);
-    } else {
+    } else if (outcome === "executed") {
       await this.resolveDecisionAlerts(next, at);
     }
     if (decision.schedule_claim_id !== undefined && decision.schedule_claim_attempt !== undefined) {
